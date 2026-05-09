@@ -283,18 +283,92 @@ Tilt 会按 [Tiltfile](../../bin/Tiltfile) 的描述：
    Apply & Restart 之后，kind 节点容器会跟着重启；如果集群状态异常，`kind delete cluster --name suite && ./bin/start-kind.sh` 重建。
 
 9. **构建容器时 `apt-get` 拉 deb.debian.org 超时 / EOF**
-   镜像加速器只解决 image pull，解决不了容器内 apt 流量。改 [src/agents/Dockerfile](../../src/agents/Dockerfile) 让 apt 走国内镜像（**当前已有补丁**）：
+   只有 [src/agents/Dockerfile](../../src/agents/Dockerfile) 用 apt（基于 `python:3.13-slim` / Debian trixie），构建时容器里要从 `deb.debian.org` 拉包。Docker 镜像加速器只代理 image pull，**不代理容器内的 apt 流量**，所以这一步会单独卡住。后端 / summary 用 Alpine `apk`、前端用 npm，遇到类似问题时各自换源思路相同。
+
+   实测清华源（mirrors.tuna.tsinghua.edu.cn）在 trixie 上极不稳定（`500 unexpected EOF` / 连接重置 / 1.7 KB/s）；**阿里云稳得多**。备选：`mirrors.ustc.edu.cn`、`mirrors.huaweicloud.com`、`mirrors.cloud.tencent.com`。
+
+   下面给出完整的临时补丁方案（不入库，仅本地用）。
+
+   #### 方式 A：手动编辑 Dockerfile
+
+   找到 [src/agents/Dockerfile](../../src/agents/Dockerfile) 顶部：
 
    ```dockerfile
+   FROM python:3.13.13-slim AS base
+
+   # Install system dependencies required by LiveKit
+   RUN apt-get update && apt-get install -y \
+       libglib2.0-0 \
+       libgobject-2.0-0 \
+       && rm -rf /var/lib/apt/lists/*
+   ```
+
+   在 `FROM` 行下面、`RUN apt-get update` 之前，**插入** 4 行：
+
+   ```dockerfile
+   FROM python:3.13.13-slim AS base
+
+   # ---- LOCAL-DEV ONLY (China network workaround) — REVERT BEFORE COMMIT ----
    RUN sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g; s|http://security.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources && \
        printf 'Acquire::Retries "5";\nAcquire::http::Timeout "120";\nAcquire::https::Timeout "120";\n' > /etc/apt/apt.conf.d/80-retries
    ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
    ENV PIP_TRUSTED_HOST=mirrors.aliyun.com
+   # ---- END LOCAL-DEV PATCH ----
+
+   # Install system dependencies required by LiveKit
+   RUN apt-get update && apt-get install -y \
+       libglib2.0-0 \
+       libgobject-2.0-0 \
+       && rm -rf /var/lib/apt/lists/*
    ```
 
-   实测清华源（mirrors.tuna.tsinghua.edu.cn）在 trixie 仓库上极不稳定（500 EOF / 连接重置）；阿里云稳定得多。备选：`mirrors.ustc.edu.cn`、`mirrors.huaweicloud.com`、`mirrors.cloud.tencent.com`。
+   每行作用：
+   - **第 1 行 sed**：替换 `/etc/apt/sources.list.d/debian.sources` 里的 Debian 主源 + 安全更新源到阿里云 HTTPS。
+   - **第 2 行 printf**：apt 网络重试 5 次、读写超时 120 秒，对偶发抖动有韧性。
+   - **`PIP_INDEX_URL`**：pip 也走阿里云镜像，否则装 `livekit-agents` 等大依赖会再卡一次。
+   - **`PIP_TRUSTED_HOST`**：阿里云 pypi 镜像走 HTTPS，理论不需要这条；写上是为了应付偶发的 SSL 异常。
 
-   > ⚠️ 这是本地开发的临时补丁，**提交前记得 revert**。
+   #### 方式 B：一行 sed 自动注入（推荐）
+
+   每次重新克隆仓库 / 切换分支后都要重新打这个补丁，命令化更省事：
+
+   ```bash
+   # 在仓库根目录执行
+   sed -i '/^FROM python:3.13.13-slim AS base$/a\
+   \
+   # ---- LOCAL-DEV ONLY (China network workaround) — REVERT BEFORE COMMIT ----\
+   RUN sed -i '\''s|http://deb.debian.org|https://mirrors.aliyun.com|g; s|http://security.debian.org|https://mirrors.aliyun.com|g'\'' /etc/apt/sources.list.d/debian.sources \&\& \\\
+       printf '\''Acquire::Retries "5";\\nAcquire::http::Timeout "120";\\nAcquire::https::Timeout "120";\\n'\'' > /etc/apt/apt.conf.d/80-retries\
+   ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/\
+   ENV PIP_TRUSTED_HOST=mirrors.aliyun.com\
+   # ---- END LOCAL-DEV PATCH ----' src/agents/Dockerfile
+   ```
+
+   #### 应用补丁后
+
+   1. 改完后 Tilt 不会自动检测到（参见第 10 条 inotify 问题），**需要重启 Tilt**：
+
+      ```bash
+      # 在跑 Tilt 的终端 Ctrl+C
+      docker buildx prune -f          # 清掉旧 Dockerfile 对应的 BuildKit 层缓存
+      make start-tilt-keycloak
+      ```
+
+   2. Tilt UI 里看 `meet-agent-metadata` build log 顶部，确认 Dockerfile 内容里包含 `mirrors.aliyun.com`，并且 `apt-get update` 这一步秒过到 `Reading package lists... Done`，就稳了。
+
+   #### 回退（提交前必做）
+
+   ```bash
+   git restore src/agents/Dockerfile
+   ```
+
+   如果你已经把改动 stage / commit 了，分别用 `git restore --staged src/agents/Dockerfile` 取消暂存，或 `git reset HEAD~1` 撤销最近一次 commit。
+
+   #### 为什么不入库？
+
+   - 把镜像源固化到 Dockerfile 让海外贡献者 / CI 拉不到阿里云（CI 没有镜像源访问限制时很慢）。
+   - 上游 LaSuite Meet 是法国政府开源项目，镜像源的中国本地化属于环境配置，不应混入业务代码。
+   - 真要长期共存，正确做法是改成 `ARG APT_MIRROR=` 默认空、Tiltfile 里通过 `build_args` 注入——但这个改动较大，本地开发临时补丁性价比低。
 
 10. **改了 Dockerfile 但 Tilt 还在用旧版本（`/mnt/d/...` 项目特有）**
     `/mnt/d` 是 Windows 文件系统，inotify 事件不会从 Windows 侧传到 WSL2，Tilt 文件监听对这条路径下的项目不工作。改完 Dockerfile / Tiltfile 后必须**手动重启 Tilt**：
