@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# build-and-push.sh - 构建并推送 we-meet 4 个生产镜像到火山引擎 CR
+#                     (复用 jusi_meet_suite1.9 已有的 jusi-cn-guangzhou 实例)
+#
+# 在哪里跑:
+#   - 推荐: 2C2G 那台 ECS (空闲算力 + 离 CR 一个 region 拉推都快)
+#   - 也可: 本地 Windows + WSL2 (网速差时巨慢)
+#
+# 前置 (一次性):
+#   1. 火山 CR 控制台 → 实例 jusi-cn-guangzhou → 命名空间 → 新建 we-meet
+#      (与 jusi 老镜像所在的 meet 命名空间隔离)
+#   2. 在 we-meet 命名空间下新建 4 个镜像仓库:
+#        meet-backend / meet-frontend / meet-summary / meet-agents
+#      可选: 同时打开 "镜像同步" 让 latest 自动同步到其他 region (扩展时用)
+#
+# Run:
+#   # 凭据建议从 values.secrets.yaml 读取, 不要写死到这里:
+#   SECRETS=src/helm/env.d/aliyun-prod/values.secrets.yaml
+#   export VOLC_CR_USER=$(yq '.image.credentials.username' $SECRETS)
+#   export VOLC_CR_PASS=$(yq '.image.credentials.password' $SECRETS)
+#   export VOLC_CR_REGISTRY=jusi-cn-guangzhou.cr.volces.com
+#   export VOLC_CR_NAMESPACE=we-meet
+#   export IMAGE_TAG=$(git rev-parse --short HEAD)   # or 'latest'
+#   bash build-and-push.sh
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$REPO_ROOT"
+
+: "${VOLC_CR_REGISTRY:=jusi-cn-guangzhou.cr.volces.com}"
+: "${VOLC_CR_NAMESPACE:=we-meet}"
+: "${VOLC_CR_USER:?VOLC_CR_USER required (主账号 Access Key ID 或 CR 专用用户名)}"
+: "${VOLC_CR_PASS:?VOLC_CR_PASS required (主账号 SK 或 CR 专用密码)}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
+
+echo "==> Logging in to 火山 CR ($VOLC_CR_REGISTRY)"
+echo "$VOLC_CR_PASS" | docker login -u "$VOLC_CR_USER" --password-stdin "$VOLC_CR_REGISTRY"
+
+# Helper to build & push one image
+build_push() {
+  local name=$1 dockerfile=$2 context=$3 target=${4:-}
+  local img="${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/${name}:${IMAGE_TAG}"
+  local img_latest="${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/${name}:latest"
+  echo
+  echo "==> Building $img"
+  if [[ -n "$target" ]]; then
+    docker build -f "$dockerfile" --target "$target" -t "$img" -t "$img_latest" "$context"
+  else
+    docker build -f "$dockerfile" -t "$img" -t "$img_latest" "$context"
+  fi
+  docker push "$img"
+  docker push "$img_latest"
+}
+
+# 1. Backend (Django) — multi-stage Dockerfile at repo root
+build_push meet-backend ./Dockerfile . production
+
+# 2. Frontend
+build_push meet-frontend ./src/frontend/Dockerfile ./src/frontend ""
+
+# 3. Summary (FastAPI)
+build_push meet-summary ./src/summary/Dockerfile ./src/summary production
+
+# 4. Agents (LiveKit transcription/metadata)
+build_push meet-agents ./src/agents/Dockerfile ./src/agents production
+
+echo
+echo "================================================================"
+echo "All 4 images pushed:"
+echo "  ${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-backend:${IMAGE_TAG}"
+echo "  ${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-frontend:${IMAGE_TAG}"
+echo "  ${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-summary:${IMAGE_TAG}"
+echo "  ${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-agents:${IMAGE_TAG}"
+echo
+echo "If using IMAGE_TAG=<commit-sha>, update src/helm/env.d/aliyun-prod/values.meet.yaml"
+echo "image.tag fields, then helm upgrade meet."
+echo "================================================================"

@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# install-k3s.sh - Bootstrap K3s + ingress-nginx + cert-manager + helm on the
+# 4C8G Aliyun ECS (Ubuntu 24.04) for the we-meet primary node.
+#
+# Run once on the 4C8G ECS as root:
+#   curl -fsSL https://raw.githubusercontent.com/<your-fork>/we-meet/dev/deploy/aliyun/install-k3s.sh | sudo bash
+# OR scp the file over and execute locally:
+#   sudo bash install-k3s.sh
+#
+# What it does:
+#   1. Updates apt to Aliyun mirror (国内访问 deb.debian.org 慢)
+#   2. Installs Docker (用于 ad-hoc 调试; K3s 内部 containerd 直接拉火山 CR)
+#   3. Configures Docker registry mirror to Aliyun
+#   4. Installs K3s with disabled traefik (we use ingress-nginx) and the embedded
+#      registry mirroring config so containerd pulls go through Aliyun mirrors
+#   5. Installs helm 3
+#   6. Installs ingress-nginx + cert-manager via helm
+#
+# Idempotent — safe to re-run.
+
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then
+  echo "Run as root: sudo bash $0"
+  exit 1
+fi
+
+ALIYUN_DOCKER_MIRROR="${ALIYUN_DOCKER_MIRROR:-}"   # 例 https://xxxxxxxx.mirror.aliyuncs.com
+if [[ -z "$ALIYUN_DOCKER_MIRROR" ]]; then
+  echo "ALIYUN_DOCKER_MIRROR is empty."
+  echo "Get it from: https://cr.console.aliyun.com/cn-shenzhen/instances/mirrors"
+  echo "and re-run: ALIYUN_DOCKER_MIRROR=https://xxx.mirror.aliyuncs.com sudo bash $0"
+  exit 1
+fi
+
+echo "==> 1. Switching apt to Aliyun mirror"
+if [[ -f /etc/apt/sources.list.d/ubuntu.sources ]]; then
+  sed -i.bak 's|http://.*archive.ubuntu.com|https://mirrors.aliyun.com|g; s|http://.*security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources
+fi
+apt-get update -y
+apt-get install -y ca-certificates curl gnupg lsb-release jq
+
+echo "==> 2. Installing Docker (Aliyun mirror)"
+if ! command -v docker >/dev/null; then
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  chmod a+r /etc/apt/keyrings/docker.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+https://mirrors.aliyun.com/docker-ce/linux/ubuntu \
+$(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+    > /etc/apt/sources.list.d/docker.list
+  apt-get update -y
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+fi
+
+echo "==> 3. Configuring Docker registry mirror"
+mkdir -p /etc/docker
+cat >/etc/docker/daemon.json <<EOF
+{
+  "registry-mirrors": [
+    "${ALIYUN_DOCKER_MIRROR}",
+    "https://docker.m.daocloud.io",
+    "https://docker.1ms.run"
+  ],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "3"
+  }
+}
+EOF
+systemctl enable docker
+systemctl restart docker
+
+echo "==> 4. Installing K3s (no traefik; configure containerd registry mirrors)"
+mkdir -p /etc/rancher/k3s
+cat >/etc/rancher/k3s/registries.yaml <<EOF
+mirrors:
+  docker.io:
+    endpoint:
+      - "${ALIYUN_DOCKER_MIRROR}"
+      - "https://docker.m.daocloud.io"
+  registry.k8s.io:
+    endpoint:
+      - "https://k8s.m.daocloud.io"
+  quay.io:
+    endpoint:
+      - "https://quay.m.daocloud.io"
+  ghcr.io:
+    endpoint:
+      - "https://ghcr.m.daocloud.io"
+EOF
+
+if ! command -v k3s >/dev/null; then
+  # 国内 K3s 安装脚本镜像
+  curl -sfL https://rancher-mirror.rancher.cn/k3s/k3s-install.sh | \
+    INSTALL_K3S_MIRROR=cn \
+    INSTALL_K3S_EXEC="--disable=traefik --disable=servicelb --write-kubeconfig-mode=644" \
+    sh -
+fi
+
+# 让普通用户也能用 kubectl
+if id -u ubuntu &>/dev/null; then
+  install -d -o ubuntu -g ubuntu /home/ubuntu/.kube
+  cp /etc/rancher/k3s/k3s.yaml /home/ubuntu/.kube/config
+  chown ubuntu:ubuntu /home/ubuntu/.kube/config
+fi
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+echo "==> 5. Installing helm 3"
+if ! command -v helm >/dev/null; then
+  curl -fsSL https://mirrors.aliyun.com/helm/v3.16.2/helm-v3.16.2-linux-amd64.tar.gz \
+    -o /tmp/helm.tgz
+  tar -xzf /tmp/helm.tgz -C /tmp
+  install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+  rm -rf /tmp/linux-amd64 /tmp/helm.tgz
+fi
+
+echo "==> 6. Installing ingress-nginx"
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null 2>&1 || true
+helm repo update >/dev/null
+
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx --create-namespace \
+  --set controller.service.type=NodePort \
+  --set controller.service.nodePorts.http=30080 \
+  --set controller.service.nodePorts.https=30443 \
+  --set controller.hostNetwork=true \
+  --set controller.hostPort.enabled=true \
+  --set controller.hostPort.ports.http=80 \
+  --set controller.hostPort.ports.https=443 \
+  --set controller.kind=DaemonSet \
+  --set controller.dnsPolicy=ClusterFirstWithHostNet \
+  --set controller.publishService.enabled=false \
+  --set controller.admissionWebhooks.patch.image.registry=registry.cn-hangzhou.aliyuncs.com \
+  --set controller.admissionWebhooks.patch.image.image=google_containers/kube-webhook-certgen \
+  --wait --timeout 10m
+
+echo "==> 7. Installing cert-manager"
+helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || true
+helm repo update >/dev/null
+helm upgrade --install cert-manager jetstack/cert-manager \
+  --namespace cert-manager --create-namespace \
+  --set crds.enabled=true \
+  --set image.repository=quay.m.daocloud.io/jetstack/cert-manager-controller \
+  --set webhook.image.repository=quay.m.daocloud.io/jetstack/cert-manager-webhook \
+  --set cainjector.image.repository=quay.m.daocloud.io/jetstack/cert-manager-cainjector \
+  --set startupapicheck.image.repository=quay.m.daocloud.io/jetstack/cert-manager-startupapicheck \
+  --wait --timeout 10m
+
+echo "==> 8. Creating namespace 'meet'"
+kubectl create namespace meet --dry-run=client -o yaml | kubectl apply -f -
+
+echo
+echo "================================================================"
+echo "K3s + ingress-nginx + cert-manager 安装完成。"
+echo
+echo "Next steps:"
+echo "  1. 把 /etc/rancher/k3s/k3s.yaml 拷回本地（替换 server URL 为 ECS 公网 IP）"
+echo "     便于本地用 kubectl 操作。"
+echo "  2. 编辑并 apply ClusterIssuer:"
+echo "       kubectl apply -f src/helm/env.d/aliyun-prod/cluster-issuer.yaml"
+echo "     备案完成、80 端口开通后才能签发证书。"
+echo "  3. 部署 Postgres / Redis / LiveKit / Meet —— 见 docs/installation/aliyun.md"
+echo "================================================================"

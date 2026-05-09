@@ -1,0 +1,33 @@
+# Bitnami redis chart values for in-cluster Redis on the 4C8G ECS.
+# Standalone (no replica) — 单节点够用，省内存。
+#
+# 部署:
+#   helm install redis oci://registry-1.docker.io/bitnamicharts/redis \
+#     -n meet --create-namespace \
+#     -f src/helm/env.d/aliyun-prod/values.redis.yaml \
+#     --set auth.password="$REDIS_PASSWORD"
+
+global:
+  storageClass: local-path
+
+architecture: standalone
+
+auth:
+  enabled: true
+  # password 通过 --set 传入
+
+master:
+  persistence:
+    enabled: true
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 192Mi
+
+image:
+  registry: docker.io
+  repository: bitnami/redis
+  tag: 7.4.1-debian-12-r0

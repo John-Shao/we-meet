@@ -1,0 +1,38 @@
+# Bitnami postgresql chart values for in-cluster Postgres on the 4C8G ECS.
+# 使用本地存储 (K3s 自带 local-path provisioner)，单节点够用。
+#
+# 部署:
+#   helm install postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
+#     -n meet --create-namespace \
+#     -f src/helm/env.d/aliyun-prod/values.postgresql.yaml \
+#     --set auth.postgresPassword="$POSTGRES_ROOT_PASSWORD" \
+#     --set auth.password="$DB_PASSWORD"
+
+global:
+  storageClass: local-path
+
+auth:
+  username: meet
+  database: meet
+  # postgresPassword / password 通过 --set 传入，避免落到磁盘
+
+primary:
+  persistence:
+    enabled: true
+    size: 8Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  pgHbaConfiguration: |
+    local all all trust
+    host all all 0.0.0.0/0 md5
+    host all all ::/0 md5
+
+# 国内拉 bitnami 镜像很慢，用阿里云 Docker Hub 加速即可（在 K3s containerd 配置层面解决，见 install-k3s.sh）
+image:
+  registry: docker.io
+  repository: bitnami/postgresql
+  tag: 16.4.0-debian-12-r0

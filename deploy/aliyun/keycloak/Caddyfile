@@ -1,0 +1,40 @@
+# Caddy 自动 HTTPS:
+#   - 第一次请求 id.we-meet.online 时自动跑 HTTP-01 challenge
+#   - 拿到证书后续期完全自动 (默认 60 天前续)
+#   - 备案完成且 80 端口可达后才能签发
+#
+# 可选: tls 块换成手动证书路径
+#   tls /etc/caddy/cert.pem /etc/caddy/key.pem
+
+{
+    email REPLACE_OWNER_EMAIL@we-meet.online
+    # 国内 Let's Encrypt 偶尔被劫，可选切到 ZeroSSL:
+    # default_acme_ca https://acme.zerossl.com/v2/DV90
+}
+
+id.we-meet.online {
+    encode gzip
+
+    # 转发所有路径到 Keycloak (8080)
+    reverse_proxy keycloak:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto https
+    }
+
+    # Health endpoint 暴露给监控
+    handle /health/* {
+        reverse_proxy keycloak:8080
+    }
+
+    # 安全 header
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Referrer-Policy strict-origin-when-cross-origin
+        # Keycloak 需要管理后台能 iframe 自己，frame-ancestors 只限制为 self
+        Content-Security-Policy "frame-ancestors 'self'"
+    }
+}

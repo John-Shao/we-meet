@@ -7,6 +7,8 @@ La Suite Meet maintainers use only the Kubernetes deployment method in productio
 
 For a local Windows + Docker Desktop walkthrough (kind + Tilt, in Chinese), see [docker-desktop.md](/docs/installation/docker-desktop.md).
 
+For a production deployment on Aliyun ECS in mainland China (K3s + helm, in Chinese), see [aliyun.md](/docs/installation/aliyun.md).
+
 ## Docker Compose
 We understand that not everyone has a Kubernetes cluster available, please follow the instructions provided [here](/docs/installation/compose.md) to set up a docker compose instance.
 We also provide [Docker images](https://hub.docker.com/u/lasuite?page=1&search=meet) that can be deployed using Compose.

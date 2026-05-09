@@ -1,0 +1,22 @@
+# cert-manager ClusterIssuer for Let's Encrypt (HTTP-01 via ingress-nginx).
+#
+# Apply AFTER cert-manager is installed and AFTER ICP filing completes
+# (HTTP-01 challenge needs port 80 to be reachable from the internet).
+#
+# Pre-filing alternative: switch to DNS-01 with Aliyun DNS API — see
+# docs/installation/aliyun.md "ICP 备案审核中怎么先跑起来" 章节。
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: REPLACE_OWNER_EMAIL@we-meet.online
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
