@@ -25,19 +25,21 @@ if [[ ! -f "$SECRETS" ]]; then
 fi
 
 # Pull credentials out of secrets file via yq (light parser)
+# Note: -r works for both Python yq (jq wrapper, Ubuntu apt default) and Mike Farah's Go yq.
+# Without -r, Python yq returns JSON-quoted strings, breaking docker login etc.
 if ! command -v yq >/dev/null; then
-  echo "Installing yq..."
+  echo "Installing Mike Farah yq..."
   curl -fsSL https://gh-proxy.com/https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 \
     -o /usr/local/bin/yq
   chmod +x /usr/local/bin/yq
 fi
 
 POSTGRES_ROOT_PW="$(openssl rand -hex 24)"
-DB_PASSWORD="$(yq '.backend.envVars.DB_PASSWORD' "$SECRETS")"
-REDIS_PASSWORD="$(yq '.backend.envVars.REDIS_URL' "$SECRETS" | sed -E 's|redis://default:([^@]+)@.*|\1|')"
-CR_USER="$(yq '.image.credentials.username' "$SECRETS")"
-CR_PASS="$(yq '.image.credentials.password' "$SECRETS")"
-CR_REG="$(yq '.image.credentials.registry' "$SECRETS")"
+DB_PASSWORD="$(yq -r '.backend.envVars.DB_PASSWORD' "$SECRETS")"
+REDIS_PASSWORD="$(yq -r '.backend.envVars.REDIS_URL' "$SECRETS" | sed -E 's|redis://default:([^@]+)@.*|\1|')"
+CR_USER="$(yq -r '.image.credentials.username' "$SECRETS")"
+CR_PASS="$(yq -r '.image.credentials.password' "$SECRETS")"
+CR_REG="$(yq -r '.image.credentials.registry' "$SECRETS")"
 
 if [[ "$DB_PASSWORD" == "REPLACE_POSTGRES_APP_PASSWORD" || -z "$DB_PASSWORD" ]]; then
   echo "ERROR: values.secrets.yaml 还有 REPLACE_* 占位没填。"

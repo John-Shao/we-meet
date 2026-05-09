@@ -175,10 +175,11 @@ cp values.secrets.yaml.dist values.secrets.yaml
 cd we-meet
 
 # 凭据从 values.secrets.yaml 读 (不要写死在 shell history 里)
+# 注意 -r: Ubuntu apt 的 yq 是 Python jq 包装, 默认输出 JSON 带双引号, 必须 -r 才是裸字符串
 sudo apt-get install -y yq
 SECRETS=src/helm/env.d/aliyun-prod/values.secrets.yaml
-export VOLC_CR_USER=$(yq '.image.credentials.username' $SECRETS)
-export VOLC_CR_PASS=$(yq '.image.credentials.password' $SECRETS)
+export VOLC_CR_USER=$(yq -r '.image.credentials.username' $SECRETS)
+export VOLC_CR_PASS=$(yq -r '.image.credentials.password' $SECRETS)
 export IMAGE_TAG=$(git rev-parse --short HEAD)
 
 bash deploy/aliyun/build-and-push.sh

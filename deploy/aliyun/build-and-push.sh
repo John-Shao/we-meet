@@ -15,10 +15,11 @@
 #      (主账号 AK/SK 不能 docker login 火山 CR, 必须用这一组实例级凭证)
 #
 # Run:
-#   # 凭据从 values.secrets.yaml 读取, 不要写死到 shell history:
+#   # 凭据从 values.secrets.yaml 读取, 不要写死到 shell history.
+#   # 注意 yq -r: Ubuntu apt 装的 Python yq 默认输出 JSON 带引号, -r 才是裸字符串.
 #   SECRETS=src/helm/env.d/aliyun-prod/values.secrets.yaml
-#   export VOLC_CR_USER=$(yq '.image.credentials.username' $SECRETS)
-#   export VOLC_CR_PASS=$(yq '.image.credentials.password' $SECRETS)
+#   export VOLC_CR_USER=$(yq -r '.image.credentials.username' $SECRETS)
+#   export VOLC_CR_PASS=$(yq -r '.image.credentials.password' $SECRETS)
 #   export VOLC_CR_REGISTRY=jusi-cn-guangzhou.cr.volces.com
 #   export VOLC_CR_NAMESPACE=we-meet
 #   export IMAGE_TAG=$(git rev-parse --short HEAD)   # or 'latest'
