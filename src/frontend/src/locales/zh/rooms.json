@@ -1,0 +1,691 @@
+{
+  "feedback": {
+    "heading": {
+      "normal": "您已离开会议",
+      "duplicateIdentity": "您已在另一台设备上加入会议",
+      "participantRemoved": "您已被主持人移出会议"
+    },
+    "home": "返回主页",
+    "back": "重新加入会议"
+  },
+  "selectDevice": {
+    "loading": "加载中…",
+    "select": "请选择",
+    "permissionsNeeded": "需要授权",
+    "settings": {
+      "audio": "音频设置",
+      "video": "视频设置"
+    },
+    "effects": "背景与特效",
+    "videoinput": {
+      "choose": "选择摄像头",
+      "permissionsNeeded": "选择摄像头 - 需要授权",
+      "disable": "关闭摄像头",
+      "enable": "开启摄像头",
+      "turnedOff": "摄像头已关闭",
+      "turnedOn": "摄像头已开启",
+      "label": "摄像头",
+      "placeholder": "开启摄像头查看预览"
+    },
+    "audioinput": {
+      "choose": "选择麦克风",
+      "permissionsNeeded": "选择麦克风 - 需要授权",
+      "disable": "关闭麦克风",
+      "enable": "开启麦克风",
+      "turnedOff": "麦克风已关闭",
+      "turnedOn": "麦克风已开启",
+      "label": "麦克风"
+    },
+    "audiooutput": {
+      "choose": "选择扬声器",
+      "permissionsNeeded": "选择扬声器 - 需要授权"
+    }
+  },
+  "join": {
+    "effects": {
+      "description": "应用背景与特效",
+      "title": "特效",
+      "subTitle": "配置摄像头特效。"
+    },
+    "heading": "加入会议？",
+    "joinLabel": "加入",
+    "joinMeeting": "加入会议",
+    "toggleOff": "点击关闭",
+    "toggleOn": "点击开启",
+    "usernameHint": "其他参会者将看到此名称",
+    "usernameLabel": "您的姓名",
+    "errors": {
+      "usernameEmpty": "姓名不能为空"
+    },
+    "cameraDisabled": "摄像头已关闭。",
+    "cameraStarting": "摄像头启动中…",
+    "cameraNotGranted": "您是否希望其他参会者在会议中看到您？",
+    "cameraAndMicNotGranted": "您是否希望其他参会者在会议中看到并听到您？",
+    "permissionsButton": {
+      "cameraAndMicNotGranted": "允许使用摄像头与麦克风",
+      "cameraNotGranted": "允许使用摄像头"
+    },
+    "videoPreview": {
+      "enabled": "视频预览已开启",
+      "disabled": "视频预览已关闭"
+    },
+    "waiting": {
+      "title": "正在请求加入...",
+      "body": "等待主持人允许后即可加入此通话"
+    },
+    "denied": {
+      "title": "无法加入此通话",
+      "body": "您的加入请求已被拒绝。"
+    },
+    "timeoutInvite": {
+      "title": "无法加入此通话",
+      "body": "无人响应您的请求"
+    }
+  },
+  "leaveRoomPrompt": "这将使您离开会议。",
+  "shareDialog": {
+    "copy": "复制信息",
+    "copyUrl": "复制链接",
+    "copied": "信息已复制到剪贴板",
+    "heading": "您的会议已就绪",
+    "description": "将此链接分享给您想邀请的人。",
+    "permissions": "拥有此链接的人无需经您许可即可加入此会议。",
+    "closeDialog": "关闭对话框",
+    "phone": {
+      "call": "拨打：",
+      "pinCode": "代码："
+    }
+  },
+  "pagination": {
+    "count": "{{currentPage}} / {{totalPageCount}}",
+    "next": "下一页",
+    "previous": "上一页"
+  },
+  "mediaErrorDialog": {
+    "DeviceInUse": {
+      "title": {
+        "audioinput": "麦克风启用失败",
+        "videoinput": "摄像头启用失败"
+      },
+      "body": {
+        "audioinput": "您的麦克风正被另一个标签页或应用使用，导致无法在本通话中启用。如有需要，请关闭其他标签页或应用以便在此使用。",
+        "videoinput": "您的摄像头正被另一个标签页或应用使用，导致无法在本通话中启用。如有需要，请关闭其他标签页或应用以便在此使用。"
+      }
+    },
+    "close": "确定"
+  },
+  "permissionErrorDialog": {
+    "heading": {
+      "camera": "{{appTitle}} 未获得使用摄像头的权限",
+      "microphone": "{{appTitle}} 未获得使用麦克风的权限",
+      "cameraAndMicrophone": "{{appTitle}} 未获得使用麦克风和摄像头的权限",
+      "default": "{{appTitle}} 未获得部分权限"
+    },
+    "body": {
+      "openMenu": {
+        "others": "点击浏览器地址栏中的设置图标 ICON_PLACEHOLDER",
+        "safari": "点击「Safari」菜单，打开「{{appDomain}} 的设置」。"
+      },
+      "details": {
+        "camera": "允许访问摄像头",
+        "microphone": "允许访问麦克风",
+        "cameraAndMicrophone": "允许访问摄像头与麦克风",
+        "default": "请开启所需权限。"
+      }
+    }
+  },
+  "permissionsButton": {
+    "tooltip": "更多信息",
+    "ariaLabel": "权限问题。查看更多信息"
+  },
+  "error": {
+    "createRoom": {
+      "heading": "需要登录",
+      "body": "此房间尚未创建。请登录以创建房间，或等待已登录用户创建。"
+    },
+    "screenShare": {
+      "title": "无法共享屏幕",
+      "ariaLabel": "无法共享屏幕",
+      "message": "您的浏览器可能未被允许录制您电脑的屏幕。",
+      "macInstructions": "请前往",
+      "macSystemPreferences": "系统偏好设置",
+      "helpLinkText": "了解更多请参阅",
+      "helpLinkLabel": "演示问题",
+      "closeButton": "忽略",
+      "newTab": "新窗口"
+    }
+  },
+  "isIdleDisconnectModal": {
+    "title": "您还在吗？",
+    "body": "目前只有您一位参会者，本通话将在 {{duration}} 后结束。是否继续通话？",
+    "settingsPrefix": "如不再显示此提示，请前往",
+    "settingsLink": "设置 > 通用",
+    "settingsSuffix": "。",
+    "stayButton": "继续通话",
+    "leaveButton": "立即离开",
+    "countdownAnnouncement": "通话将在 {{duration}} 后结束。"
+  },
+  "controls": {
+    "region": "通话控制",
+    "microphone": "麦克风",
+    "camera": "摄像头",
+    "chat": {
+      "open": "关闭聊天",
+      "closed": "打开聊天",
+      "input": {
+        "textArea": {
+          "label": "输入消息",
+          "placeholder": "输入消息"
+        },
+        "button": {
+          "label": "发送消息"
+        }
+      }
+    },
+    "info": {
+      "open": "隐藏信息",
+      "closed": "显示信息"
+    },
+    "hand": {
+      "raise": "举手",
+      "lower": "放下手"
+    },
+    "subtitles": {
+      "closed": "显示字幕",
+      "open": "隐藏字幕"
+    },
+    "screenShare": {
+      "start": "共享屏幕",
+      "stop": "停止共享屏幕"
+    },
+    "leave": "离开",
+    "participants": {
+      "open": "隐藏参会者",
+      "closed": "查看参会者",
+      "count_one": "{{count}} 位参会者",
+      "count_other": "{{count}} 位参会者"
+    },
+    "tools": {
+      "open": "隐藏更多工具",
+      "closed": "显示更多工具"
+    },
+    "admin": {
+      "open": "隐藏管理面板",
+      "closed": "打开管理面板"
+    },
+    "moreOptions": "更多选项",
+    "reactions": {
+      "button": "发送表情",
+      "toolbar": "发送表情",
+      "announce": "{{name}}：{{emoji}}",
+      "you": "您",
+      "emojis": {
+        "thumbs-up": "竖起大拇指",
+        "thumbs-down": "竖起拇指向下",
+        "clapping-hands": "鼓掌",
+        "red-heart": "红色爱心",
+        "face-with-tears-of-joy": "笑哭",
+        "face-with-open-mouth": "惊讶",
+        "party-popper": "庆祝拉炮",
+        "folded-hands": "合十"
+      }
+    }
+  },
+  "options": {
+    "buttonLabel": "更多选项",
+    "items": {
+      "feedback": "提供反馈",
+      "settings": "设置",
+      "screenRecording": "屏幕录制",
+      "transcript": "转录",
+      "username": "更新您的姓名",
+      "effects": "背景与特效",
+      "switchCamera": "切换摄像头",
+      "fullscreen": {
+        "enter": "全屏",
+        "exit": "退出全屏"
+      },
+      "support": "联系支持"
+    }
+  },
+  "effects": {
+    "activateCamera": "您的摄像头已关闭。请选择一种方式启用。",
+    "cameraDisabled": "您的摄像头已关闭。",
+    "notAvailable": "视频特效即将在您的浏览器上推出。我们正在加紧开发！期间您可以使用 Google Chrome 获得最佳性能，或使用 Firefox。",
+    "heading": "模糊",
+    "clear": "关闭特效",
+    "blur": {
+      "title": "背景模糊",
+      "status": {
+        "none": "背景清晰。",
+        "light": "背景轻度模糊。",
+        "strong": "背景重度模糊。"
+      },
+      "light": {
+        "apply": "轻度模糊背景",
+        "clear": "关闭模糊"
+      },
+      "normal": {
+        "apply": "模糊背景",
+        "clear": "关闭模糊"
+      }
+    },
+    "virtual": {
+      "title": "虚拟背景",
+      "selectedLabel": "已应用背景：",
+      "apply": "替换您的背景：",
+      "personal": {
+        "title": "我的背景",
+        "selectFileTooltip": "选择一个图片文件作为个人背景",
+        "notLoggedInWarning": "您尚未登录，个人背景不会在多次会议间保留。",
+        "warningUploadDisabled": "目前个人背景不会在多次会议间保留。",
+        "uploadLimitReached": "您无法上传更多个人背景。",
+        "uploadInProgress": "图片上传中…",
+        "errors": {
+          "close": "关闭",
+          "file_too_large": {
+            "title": "文件过大",
+            "description": "文件过大，请选择小于 {{maxSize, number}} MB 的文件。"
+          },
+          "invalid_file_type": {
+            "title": "文件类型不支持",
+            "description": "暂不支持此文件类型，请选择 {{allowedExtension, list(type: 'disjunction')}} 文件。"
+          }
+        }
+      },
+      "presets": {
+        "title": "推荐背景",
+        "descriptions": {
+          "0": "凹槽木质家具",
+          "1": "会议室",
+          "2": "带黑色玻璃隔断的阁楼",
+          "3": "餐厅",
+          "4": "木制货架",
+          "5": "木质楼梯",
+          "6": "灰色书房",
+          "7": "咖啡台"
+        }
+      }
+    },
+    "faceLandmarks": {
+      "title": "视觉特效",
+      "glasses": {
+        "apply": "添加眼镜",
+        "clear": "移除眼镜"
+      },
+      "french": {
+        "apply": "添加法式风格",
+        "clear": "移除法式风格"
+      }
+    }
+  },
+  "sidePanel": {
+    "ariaLabel": "侧边栏 - {{title}}",
+    "backToTools": "返回会议工具",
+    "heading": {
+      "participants": "参会者",
+      "effects": "背景与特效",
+      "chat": "聊天消息",
+      "transcript": "转录",
+      "screenRecording": "录制",
+      "admin": "主持人设置",
+      "tools": "更多工具",
+      "info": "会议信息"
+    },
+    "content": {
+      "participants": "参会者",
+      "effects": "背景与特效",
+      "chat": "消息",
+      "transcript": "转录",
+      "screenRecording": "录制",
+      "admin": "主持人设置",
+      "tools": "更多工具",
+      "info": "会议信息"
+    },
+    "closeButton": "隐藏 {{content}}"
+  },
+  "chat": {
+    "disclaimer": "消息仅在发送时对参会者可见。所有消息将在通话结束时删除。",
+    "messagesLog": "聊天消息"
+  },
+  "moreTools": {
+    "body": "使用更多工具，让会议更高效。",
+    "linkAriaLabel": "打开工具相关文档 - 在新窗口中打开",
+    "moreLink": "查看文档",
+    "tools": {
+      "transcript": {
+        "title": "转录",
+        "body": "将会议转换为文字。"
+      },
+      "screenRecording": {
+        "title": "录制",
+        "body": "将会议保存为视频。"
+      }
+    }
+  },
+  "info": {
+    "roomInformation": {
+      "title": "连接信息",
+      "button": {
+        "ariaLabel": "复制您的会议信息",
+        "copy": "复制信息",
+        "copied": "信息已复制"
+      },
+      "phone": {
+        "call": "拨打：",
+        "pinCode": "代码："
+      }
+    }
+  },
+  "transcript": {
+    "heading": "使用 AI 助手转录会议",
+    "body": "最长可转录 {{max_duration}} 的会议。",
+    "bodyWithoutMaxDuration": "无时长限制地转录您的会议。",
+    "details": {
+      "receiver": "转录稿将发送给主持人和联合主持人。",
+      "destination": "新文档将创建于",
+      "destinationUnknown": "将创建一个新文档",
+      "language": "会议语言：",
+      "recording": "同时开始录制"
+    },
+    "button": {
+      "start": "开始转录会议",
+      "stop": "停止转录会议",
+      "saving": "保存中…",
+      "starting": "启动中…",
+      "anotherModeStarted": "屏幕录制正在进行中。请切换面板停止它。"
+    },
+    "linkMore": "查看文档",
+    "linkAriaLabel": "查看转录相关文档 - 在新窗口中打开",
+    "notAdminOrOwner": {
+      "heading": "访问受限",
+      "body": "出于安全考虑，仅会议创建者或管理员可启动转录（测试版）。",
+      "linkMore": "查看文档",
+      "linkAriaLabel": "查看转录访问相关文档 - 在新窗口中打开",
+      "dividerLabel": "或",
+      "login": {
+        "heading": "需要登录",
+        "body": "仅会议创建者或管理员可启动转录。请登录以验证您的权限。"
+      },
+      "request": {
+        "heading": "申请转录",
+        "body": "主持人将收到通知并可为您启用转录。",
+        "buttonLabel": "申请"
+      }
+    },
+    "premium": {
+      "heading": "高级功能",
+      "body": "您当前无法使用此功能，详情请联系支持。",
+      "linkMore": "查看文档",
+      "linkAriaLabel": "查看高级访问相关文档 - 在新窗口中打开",
+      "dividerLabel": "或",
+      "login": {
+        "heading": "您尚未登录！",
+        "body": "需登录后才能使用此功能。请登录后重试。"
+      },
+      "request": {
+        "heading": "申请转录",
+        "body": "主持人将收到通知并可为您启用转录。",
+        "buttonLabel": "申请"
+      }
+    }
+  },
+  "screenRecording": {
+    "heading": "录制此通话以便后续查看",
+    "body": "最长可录制 {{max_duration}} 的会议。",
+    "bodyWithoutMaxDuration": "无时长限制地录制您的会议。",
+    "linkMore": "查看文档",
+    "linkAriaLabel": "查看录制相关文档 - 在新窗口中打开",
+    "details": {
+      "receiver": "录制将发送给主持人和联合主持人。",
+      "destination": "本录制将临时存储在我们的服务器上",
+      "loading": "正在开始录制",
+      "linkMore": "了解更多",
+      "transcription": "转录此录制"
+    },
+    "button": {
+      "start": "开始录制会议",
+      "stop": "停止录制会议",
+      "saving": "保存中…",
+      "starting": "启动中…",
+      "anotherModeStarted": "转录正在进行中。<br/> 请切换面板停止它。"
+    },
+    "notAdminOrOwner": {
+      "heading": "访问受限",
+      "body": "出于安全考虑，仅会议创建者或管理员可启动录制（测试版）。",
+      "linkMore": "查看文档",
+      "linkAriaLabel": "查看录制访问相关文档 - 在新窗口中打开",
+      "dividerLabel": "或",
+      "login": {
+        "heading": "需要登录",
+        "body": "仅会议创建者或管理员可启动屏幕录制。请登录以验证您的权限。"
+      },
+      "request": {
+        "heading": "申请录制",
+        "body": "主持人将收到通知并可为您启用录制。",
+        "buttonLabel": "申请"
+      }
+    },
+    "premium": {
+      "heading": "高级功能",
+      "body": "您当前无法使用此功能，详情请联系支持。",
+      "linkMore": "查看文档",
+      "linkAriaLabel": "查看高级访问相关文档 - 在新窗口中打开",
+      "dividerLabel": "或",
+      "login": {
+        "heading": "您尚未登录！",
+        "body": "需登录后才能使用此功能。请登录后重试。"
+      },
+      "request": {
+        "heading": "申请录制",
+        "body": "主持人将收到通知并可为您启用录制。",
+        "buttonLabel": "申请"
+      }
+    },
+    "durationMessage": "（限制为 {{max_duration}}）"
+  },
+  "errorRecordingAlertDialog": {
+    "title": "录制失败",
+    "body": {
+      "stop": "无法停止录制，请稍后再试。",
+      "start": "无法开始录制，请稍后再试。"
+    },
+    "button": "确定"
+  },
+  "admin": {
+    "description": "这些主持人设置可让您掌控会议。仅主持人可访问以下控制项。",
+    "access": {
+      "title": "房间访问",
+      "description": "这些设置也将应用于本会议未来的实例。",
+      "type": "会议访问类型",
+      "levels": {
+        "public": {
+          "label": "开放",
+          "description": "任何人都可直接加入会议，无需申请。"
+        },
+        "trusted": {
+          "label": "对受信任用户开放",
+          "description": "已登录用户无需申请即可加入会议。"
+        },
+        "restricted": {
+          "label": "受限",
+          "description": "未受邀的人加入会议时需要申请。"
+        }
+      }
+    },
+    "moderation": {
+      "title": "会议管理",
+      "description": "这些设置限制参会者在会议期间的可执行操作。",
+      "microphone": {
+        "label": "开启麦克风",
+        "description": ""
+      },
+      "camera": {
+        "label": "开启视频",
+        "description": ""
+      },
+      "screenshare": {
+        "label": "共享屏幕",
+        "description": "关闭此选项将阻止参会者共享屏幕，进行中的屏幕共享会立即停止。"
+      }
+    }
+  },
+  "rating": {
+    "submit": "提交",
+    "question": "您觉得本次通话的质量如何？",
+    "levels": {
+      "min": "非常差",
+      "max": "非常好"
+    }
+  },
+  "openFeedback": {
+    "question": "我们如何能做得更好？",
+    "placeholder": "描述您遇到的问题或分享您的建议…",
+    "submit": "提交",
+    "skip": "跳过"
+  },
+  "confirmationMessage": {
+    "heading": "感谢您的反馈",
+    "body": "我们的产品团队会认真阅读您的反馈，并尽快与您联系。"
+  },
+  "authenticationMessage": {
+    "heading": "如何与您联系？",
+    "placeholder": "您的邮箱",
+    "submit": "发送",
+    "ignore": "忽略"
+  },
+  "participants": {
+    "subheading": "在房间中",
+    "you": "您",
+    "unknown": "未知参会者",
+    "host": "主持人",
+    "contributors": "参会者",
+    "collapsable": {
+      "open": "展开 {{name}} 列表",
+      "close": "折叠 {{name}} 列表"
+    },
+    "muteYourself": "关闭您的麦克风",
+    "muteParticipant": "关闭 {{name}} 的麦克风",
+    "muteParticipantAlert": {
+      "heading": "将 {{name}} 静音",
+      "description": "为所有参会者将 {{name}} 静音？仅 {{name}} 自己可以解除静音。",
+      "confirm": "静音",
+      "cancel": "取消"
+    },
+    "raisedHands": "举手",
+    "lowerParticipantHand": "放下 {{name}} 的手",
+    "lowerParticipantsHand": "放下所有手",
+    "muteParticipants": "全部静音",
+    "waiting": {
+      "title": "等候室",
+      "accept": {
+        "button": "接受",
+        "label": "接受 {{name}} 加入会议",
+        "all": "全部接受"
+      },
+      "deny": {
+        "button": "拒绝",
+        "label": "拒绝 {{name}} 加入会议",
+        "all": "全部拒绝"
+      }
+    },
+    "moreOptions": "更多选项"
+  },
+  "participantMenu": {
+    "remove": {
+      "label": "移出通话",
+      "ariaLabel": "将 {{name}} 移出通话"
+    },
+    "unpin": {
+      "label": "取消固定",
+      "ariaLabel": "取消固定 {{name}}"
+    },
+    "pin": {
+      "label": "固定",
+      "ariaLabel": "固定 {{name}}"
+    }
+  },
+  "pinAnnouncements": {
+    "pin": "{{name}} 的视频已被固定。",
+    "unpin": "{{name}} 的视频已不再固定。",
+    "self": {
+      "pin": "您的视频已被固定。",
+      "unpin": "您的视频已不再固定。"
+    }
+  },
+  "recordingStateToast": {
+    "transcript": {
+      "started": "转录中",
+      "starting": "转录启动中",
+      "stopping": "转录停止中"
+    },
+    "screen_recording": {
+      "started": "录制中",
+      "starting": "录制启动中",
+      "stopping": "录制停止中"
+    },
+    "any": {
+      "started": "录制中"
+    },
+    "limitReachedAlert": {
+      "title": "已超出录制时长",
+      "description": "录制时长已超过最大允许{{duration_message}}，将自动保存。",
+      "durationMessage": "（{{duration}}）",
+      "button": "确定"
+    }
+  },
+  "participantTileFocus": {
+    "containerLabel": "{{name}} 的选项",
+    "toolbarHint": "{{shortcut}}：直接打开快捷键。",
+    "pin": {
+      "enable": "固定",
+      "disable": "取消固定"
+    },
+    "effects": "应用背景与特效",
+    "muteParticipant": "将 {{name}} 静音",
+    "fullScreen": "全屏"
+  },
+  "shortcutsPanel": {
+    "title": "键盘快捷键",
+    "categories": {
+      "navigation": "导航",
+      "media": "媒体",
+      "interaction": "互动"
+    },
+    "actions": {
+      "open-shortcuts": "打开快捷键帮助",
+      "focus-toolbar": "聚焦底部工具栏",
+      "toggle-microphone": "切换麦克风",
+      "toggle-camera": "切换摄像头",
+      "push-to-talk": "按住说话（按住解除静音）",
+      "reaction": "表情反应面板",
+      "fullscreen": "切换全屏",
+      "recording": "切换录制面板",
+      "raise-hand": "举手或放手",
+      "toggle-chat": "切换聊天",
+      "toggle-participants": "切换参会者列表",
+      "open-shortcuts-settings": "打开快捷键设置"
+    },
+    "sr": {
+      "control": "Control",
+      "command": "Command",
+      "alt": "Alt",
+      "option": "Option",
+      "shift": "Shift",
+      "plus": "加",
+      "hold": "按住 {{key}}",
+      "noShortcut": "无快捷键"
+    },
+    "visual": {
+      "hold": "按住 {{key}}"
+    }
+  },
+  "fullScreenWarning": {
+    "message": "为避免画面无限循环，请勿共享整个屏幕。请共享某个标签页或其他窗口。",
+    "stop": "停止演示",
+    "ignore": "忽略"
+  },
+  "participantTile": {
+    "screenShare": "{{name}} 的屏幕"
+  }
+}

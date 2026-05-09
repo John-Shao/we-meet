@@ -1,0 +1,10 @@
+{
+  "createMeeting": {
+    "createButton": "创建",
+    "joinButton": "通过 Visio 加入",
+    "copyLinkTooltip": "复制链接",
+    "resetLabel": "重置",
+    "participantLimit": "最多 150 位参会者。",
+    "popupBlocked": "弹窗已被拦截。请允许本网站使用弹窗。"
+  }
+}

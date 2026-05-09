@@ -208,7 +208,7 @@ class Base(Configuration):
     # https://docs.djangoproject.com/en/3.1/topics/i18n/
 
     # Languages
-    LANGUAGE_CODE = values.Value("en-us")
+    LANGUAGE_CODE = values.Value("zh-cn")
 
     DRF_NESTED_MULTIPART_PARSER = {
         # output of parser is converted to querydict
@@ -220,6 +220,7 @@ class Base(Configuration):
     # fallback/default languages throughout the app.
     LANGUAGES = values.SingleNestedTupleValue(
         (
+            ("zh-cn", _("Simplified Chinese")),
             ("en-us", _("English")),
             ("fr-fr", _("French")),
             ("nl-nl", _("Dutch")),

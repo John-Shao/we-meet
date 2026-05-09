@@ -1,0 +1,61 @@
+{
+  "backToHome": "返回主页",
+  "cancel": "取消",
+  "closeDialog": "关闭对话框",
+  "error": {
+    "heading": "页面加载时发生错误"
+  },
+  "feedback": {
+    "context": "您的反馈让产品更好！",
+    "cta": "分享您的反馈 - 新标签页"
+  },
+  "forbidden": {
+    "heading": "您没有查看此页面的权限"
+  },
+  "loading": "加载中…",
+  "loggedInUserTooltip": "当前登录账号：",
+  "login": {
+    "buttonLabel": "登录",
+    "proconnectButtonLabel": "使用 ProConnect 登录",
+    "proconnectLinkLabel": "什么是 ProConnect？- 新标签页",
+    "proconnectLink": "什么是 ProConnect？"
+  },
+  "logout": "退出登录",
+  "notFound": {
+    "heading": "请检查您的会议代码",
+    "body": "请确认您在 URL 中输入的会议代码正确无误。例如："
+  },
+  "selected": "已选中",
+  "submit": "确定",
+  "footer": {
+    "links": {
+      "legifrance": "legifrance.gouv.fr",
+      "infogouv": "info.gouv.fr",
+      "servicepublic": "service-public.fr",
+      "datagouv": "data.gouv.fr",
+      "legalsTerms": "法律声明",
+      "data": "个人数据与 Cookie",
+      "accessibility": "无障碍：未达标",
+      "ariaLabel": "新窗口",
+      "codeAnnotation": "我们的代码已开源，可在此查看",
+      "code": "开源代码仓库",
+      "technicalDetails": "技术说明",
+      "termsOfService": "服务条款"
+    },
+    "mentions": "除非另有说明，本站内容采用以下协议",
+    "license": "etalab 2.0 许可证"
+  },
+  "loginHint": {
+    "title": "使用您的账号登录",
+    "body": "无需等待，立即使用您的账号登录。",
+    "button": {
+      "ariaLabel": "关闭提示",
+      "label": "确定"
+    }
+  },
+  "skipLink": "跳到主内容",
+  "clipboardContent": {
+    "url": "点击此链接加入视频会议：{{roomUrl}}",
+    "numberAndPin": "拨打 {{phoneNumber}} 并输入此代码即可通过电话加入：{{pinCode}}"
+  }
+}
