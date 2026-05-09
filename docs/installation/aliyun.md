@@ -167,6 +167,7 @@ cp values.secrets.yaml.dist values.secrets.yaml
    - `meet-frontend`
    - `meet-summary`
    - `meet-agents`
+3. **实例 → 访问凭证 → 创建用户名 + 固定密码**。**主账号 AK/SK 不能 docker login 火山 CR**, 必须用这组实例级凭证。username 格式形如 `<custom>@<account_id>`, 例如 `JUSIAI2025@2114082505`。把这组凭据填到 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 的 `image.credentials.username` / `password` 字段。
 
 **构建并推送**（在 ECS-B 上跑最快，跟 CR 同 region）：
 
@@ -183,7 +184,8 @@ export IMAGE_TAG=$(git rev-parse --short HEAD)
 bash deploy/aliyun/build-and-push.sh
 ```
 
-> 凭据复用 jusi_meet_suite1.9 主账号 AK/SK (跟 TOS 同一组). 真实值在你 fill 完
+> CR 凭据与 TOS 主账号 AK/SK 是 **两组不同的凭据** (TOS 用主账号 AK/SK 通过 S3 协议访问;
+> CR 用实例级用户名+密码). 真实值在你 fill 完
 > [values.secrets.yaml.dist](../../src/helm/env.d/aliyun-prod/values.secrets.yaml.dist)
 > → values.secrets.yaml 里. 该文件已 gitignored, 不会推到 GitHub.
 

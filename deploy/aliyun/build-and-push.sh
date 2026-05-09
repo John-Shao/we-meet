@@ -11,10 +11,11 @@
 #      (与 jusi 老镜像所在的 meet 命名空间隔离)
 #   2. 在 we-meet 命名空间下新建 4 个镜像仓库:
 #        meet-backend / meet-frontend / meet-summary / meet-agents
-#      可选: 同时打开 "镜像同步" 让 latest 自动同步到其他 region (扩展时用)
+#   3. CR 控制台 → 实例 → 访问凭证 → 创建一个用户名 + 固定密码
+#      (主账号 AK/SK 不能 docker login 火山 CR, 必须用这一组实例级凭证)
 #
 # Run:
-#   # 凭据建议从 values.secrets.yaml 读取, 不要写死到这里:
+#   # 凭据从 values.secrets.yaml 读取, 不要写死到 shell history:
 #   SECRETS=src/helm/env.d/aliyun-prod/values.secrets.yaml
 #   export VOLC_CR_USER=$(yq '.image.credentials.username' $SECRETS)
 #   export VOLC_CR_PASS=$(yq '.image.credentials.password' $SECRETS)
