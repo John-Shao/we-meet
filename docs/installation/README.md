@@ -5,6 +5,8 @@ Here are a bunch of resources to help you install the project.
 ## Kubernetes
 La Suite Meet maintainers use only the Kubernetes deployment method in production, so advanced support is available exclusively for this setup. Please follow the instructions provided [here](/docs/installation/kubernetes.md).
 
+For a local Windows + Docker Desktop walkthrough (kind + Tilt, in Chinese), see [docker-desktop.md](/docs/installation/docker-desktop.md).
+
 ## Docker Compose
 We understand that not everyone has a Kubernetes cluster available, please follow the instructions provided [here](/docs/installation/compose.md) to set up a docker compose instance.
 We also provide [Docker images](https://hub.docker.com/u/lasuite?page=1&search=meet) that can be deployed using Compose.
