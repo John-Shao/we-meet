@@ -4,7 +4,10 @@
       "Bash(helm version *)",
       "Bash(where helm.exe)",
       "Bash(powershell -Command \"Get-Command helm -ErrorAction SilentlyContinue | Select-Object Source\")",
-      "Bash(docker version *)"
+      "Bash(docker version *)",
+      "WebSearch",
+      "Bash(wsl -d Ubuntu -e bash -c \"sudo apt install -y make && make --version\")",
+      "Bash(git add *)"
     ]
   }
 }
