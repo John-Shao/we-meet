@@ -173,20 +173,29 @@ helm upgrade --install ingress-nginx "/tmp/ingress-nginx-${INGRESS_NGINX_VERSION
   --set controller.admissionWebhooks.patch.image.digest="" \
   --wait --timeout 10m
 
-echo "==> 7. Installing cert-manager"
+echo "==> 7. Installing cert-manager (via kubectl apply, not helm)"
+# cert-manager releases only the static install yaml on GitHub, not a helm
+# chart tarball. (The chart only lives at charts.jetstack.io, which is often
+# unreachable in CN.) kubectl apply is jetstack's other supported install path
+# and avoids the helm dependency.
+#
+# Container images in the yaml reference quay.io/jetstack/... — K3s containerd
+# transparently rewrites quay.io → quay.m.daocloud.io via the registries.yaml
+# we wrote in step 4, so no in-yaml image substitution is needed.
 CERT_MANAGER_VERSION=v1.16.1
-fetch_chart \
-  "https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager-${CERT_MANAGER_VERSION}.tgz" \
-  "cert-manager-${CERT_MANAGER_VERSION}.tgz"
+CERT_MANAGER_YAML=/tmp/cert-manager-${CERT_MANAGER_VERSION}.yaml
+if [[ ! -f "$CERT_MANAGER_YAML" ]]; then
+  CM_URL="https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
+  if ! curl -fsSL "$CM_URL" -o "$CERT_MANAGER_YAML"; then
+    echo "  github direct failed, trying gh-proxy..."
+    curl -fsSL "https://gh-proxy.com/$CM_URL" -o "$CERT_MANAGER_YAML"
+  fi
+fi
 
-helm upgrade --install cert-manager "/tmp/cert-manager-${CERT_MANAGER_VERSION}.tgz" \
-  --namespace cert-manager --create-namespace \
-  --set crds.enabled=true \
-  --set image.repository=quay.m.daocloud.io/jetstack/cert-manager-controller \
-  --set webhook.image.repository=quay.m.daocloud.io/jetstack/cert-manager-webhook \
-  --set cainjector.image.repository=quay.m.daocloud.io/jetstack/cert-manager-cainjector \
-  --set startupapicheck.image.repository=quay.m.daocloud.io/jetstack/cert-manager-startupapicheck \
-  --wait --timeout 10m
+kubectl apply -f "$CERT_MANAGER_YAML"
+echo "Waiting for cert-manager pods to be Ready (up to 5 min)..."
+kubectl -n cert-manager wait --for=condition=available --timeout=300s \
+  deploy/cert-manager deploy/cert-manager-cainjector deploy/cert-manager-webhook
 
 echo "==> 8. Creating namespace 'meet'"
 kubectl create namespace meet --dry-run=client -o yaml | kubectl apply -f -
