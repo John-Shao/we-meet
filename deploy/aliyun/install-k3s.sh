@@ -2,10 +2,11 @@
 # install-k3s.sh - Bootstrap K3s + ingress-nginx + cert-manager + helm on the
 # 4C8G Aliyun ECS (Ubuntu 24.04) for the we-meet primary node.
 #
-# Run once on the 4C8G ECS as root:
-#   curl -fsSL https://raw.githubusercontent.com/<your-fork>/we-meet/dev/deploy/aliyun/install-k3s.sh | sudo bash
-# OR scp the file over and execute locally:
-#   sudo bash install-k3s.sh
+# Run once on the 4C8G ECS as root. NOTE: sudo strips user env by default,
+# so the `VAR=val sudo ...` form will not propagate ALIYUN_DOCKER_MIRROR.
+# Use one of:
+#   sudo ALIYUN_DOCKER_MIRROR=https://xxx.mirror.aliyuncs.com bash install-k3s.sh
+#   ALIYUN_DOCKER_MIRROR=https://xxx.mirror.aliyuncs.com sudo -E bash install-k3s.sh
 #
 # What it does:
 #   1. Updates apt to Aliyun mirror (国内访问 deb.debian.org 慢)
@@ -27,9 +28,16 @@ fi
 
 ALIYUN_DOCKER_MIRROR="${ALIYUN_DOCKER_MIRROR:-}"   # 例 https://xxxxxxxx.mirror.aliyuncs.com
 if [[ -z "$ALIYUN_DOCKER_MIRROR" ]]; then
-  echo "ALIYUN_DOCKER_MIRROR is empty."
-  echo "Get it from: https://cr.console.aliyun.com/cn-shenzhen/instances/mirrors"
-  echo "and re-run: ALIYUN_DOCKER_MIRROR=https://xxx.mirror.aliyuncs.com sudo bash $0"
+  echo "ERROR: ALIYUN_DOCKER_MIRROR is empty."
+  echo
+  echo "Get the URL from: https://cr.console.aliyun.com/cn-shenzhen/instances/mirrors"
+  echo
+  echo "Re-run with one of these patterns (sudo strips user env by default;"
+  echo "the leading 'VAR=val sudo ...' syntax does NOT propagate):"
+  echo
+  echo "  sudo ALIYUN_DOCKER_MIRROR=https://xxx.mirror.aliyuncs.com bash $0"
+  echo "  # OR"
+  echo "  ALIYUN_DOCKER_MIRROR=https://xxx.mirror.aliyuncs.com sudo -E bash $0"
   exit 1
 fi
 

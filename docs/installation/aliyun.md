@@ -215,8 +215,8 @@ cd we-meet
 
 # 拿到阿里云 Docker 镜像加速器地址：
 #   https://cr.console.aliyun.com/cn-shenzhen/instances/mirrors
-ALIYUN_DOCKER_MIRROR=https://xxxxxxxx.mirror.aliyuncs.com \
-  sudo bash deploy/aliyun/install-k3s.sh
+sudo ALIYUN_DOCKER_MIRROR=https://xxxxxxxx.mirror.aliyuncs.com \
+  bash deploy/aliyun/install-k3s.sh
 ```
 
 脚本会装：apt 国内源 → docker → containerd registry mirror → K3s（disable traefik/servicelb，因为我们用 ingress-nginx 走 hostNetwork）→ helm 3 → ingress-nginx → cert-manager。
