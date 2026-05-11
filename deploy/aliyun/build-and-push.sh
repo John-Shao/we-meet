@@ -55,16 +55,19 @@ build_push() {
   docker push "$img_latest"
 }
 
-# 1. Backend (Django) — multi-stage Dockerfile at repo root
-build_push meet-backend ./Dockerfile . production
+# 1. Backend (Django) — multi-stage Dockerfile at repo root.
+#    Final stage is `backend-production` (not just `production`).
+build_push meet-backend ./Dockerfile . backend-production
 
-# 2. Frontend
-build_push meet-frontend ./src/frontend/Dockerfile ./src/frontend ""
+# 2. Frontend — Dockerfile lives at src/frontend/ but COPY paths are
+#    relative to repo root (./src/frontend/package.json etc.), so the
+#    build context MUST be repo root, not src/frontend.
+build_push meet-frontend ./src/frontend/Dockerfile . frontend-production
 
-# 3. Summary (FastAPI)
+# 3. Summary (FastAPI) — self-contained under src/summary
 build_push meet-summary ./src/summary/Dockerfile ./src/summary production
 
-# 4. Agents (LiveKit transcription/metadata)
+# 4. Agents (LiveKit transcription/metadata) — self-contained under src/agents
 build_push meet-agents ./src/agents/Dockerfile ./src/agents production
 
 echo
