@@ -27,11 +27,14 @@ if [[ -z "${MEET_CLIENT_SECRET:-}" ]]; then
 fi
 
 echo "==> Login as admin to Keycloak"
+# Use --data-urlencode for password and username: curl's -d does NOT
+# URL-encode, so passwords containing '+' '/' '=' '&' would be mis-decoded
+# by the form-encoded parser on the server side (`+` → space in particular).
 TOKEN=$(curl -sS --fail "$KC_URL/realms/master/protocol/openid-connect/token" \
-  -d "client_id=admin-cli" \
-  -d "username=$KC_ADMIN_USER" \
-  -d "password=$KC_ADMIN_PASSWORD" \
-  -d "grant_type=password" | jq -r .access_token)
+  --data-urlencode "client_id=admin-cli" \
+  --data-urlencode "username=$KC_ADMIN_USER" \
+  --data-urlencode "password=$KC_ADMIN_PASSWORD" \
+  --data-urlencode "grant_type=password" | jq -r .access_token)
 if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
   echo "ERROR: failed to obtain admin token"; exit 1
 fi
