@@ -27,6 +27,10 @@
 
 set -euo pipefail
 
+# 项目 Dockerfile 使用 RUN --mount=type=cache,bind 等 BuildKit-only 语法.
+# Ubuntu apt 的 docker.io 默认仍走 legacy builder, 必须显式开 BuildKit.
+export DOCKER_BUILDKIT=1
+
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
