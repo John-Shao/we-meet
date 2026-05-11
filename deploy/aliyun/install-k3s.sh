@@ -116,13 +116,21 @@ fi
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
 echo "==> 5. Installing helm 3"
+# get.helm.sh (Fastly CDN) is normally accessible in CN; if not, fall back to
+# gh-proxy.com that mirrors GitHub releases.
 if ! command -v helm >/dev/null; then
-  curl -fsSL https://mirrors.aliyun.com/helm/v3.16.2/helm-v3.16.2-linux-amd64.tar.gz \
-    -o /tmp/helm.tgz
+  HELM_VERSION=v3.16.2
+  HELM_TGZ=helm-${HELM_VERSION}-linux-amd64.tar.gz
+  if ! curl -fsSL "https://get.helm.sh/${HELM_TGZ}" -o /tmp/helm.tgz; then
+    echo "get.helm.sh failed, falling back to gh-proxy..."
+    curl -fsSL "https://gh-proxy.com/https://github.com/helm/helm/releases/download/${HELM_VERSION}/${HELM_TGZ}" \
+      -o /tmp/helm.tgz
+  fi
   tar -xzf /tmp/helm.tgz -C /tmp
   install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
   rm -rf /tmp/linux-amd64 /tmp/helm.tgz
 fi
+helm version
 
 echo "==> 6. Installing ingress-nginx"
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null 2>&1 || true
