@@ -63,7 +63,10 @@ services:
       JAVA_OPTS_KC_HEAP: "-XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -Xms256m -Xmx768m"
     command:
       - start
-      - --optimized=false
+      # No --optimized flag: Keycloak 25 auto-builds the optimized image on
+      # each start. First boot is slow (~30-60s), subsequent restarts use the
+      # cached build. To skip the auto-build, bake a custom image with
+      # `kc.sh build` and pass `--optimized` here.
     expose:
       - "8080"
     deploy:
