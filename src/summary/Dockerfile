@@ -1,5 +1,15 @@
 FROM python:3.13-alpine3.23 AS base
 
+# ---- LOCAL-DEV ONLY (China network workaround) — REVERT BEFORE UPSTREAM PR ----
+RUN sed -i 's|https://dl-cdn.alpinelinux.org|https://mirrors.aliyun.com|g' /etc/apk/repositories
+ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV PIP_TRUSTED_HOST=mirrors.aliyun.com
+ENV PIP_RETRIES=5
+ENV PIP_DEFAULT_TIMEOUT=120
+ENV UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/
+ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV UV_HTTP_TIMEOUT=120
+# ---- END LOCAL-DEV PATCH ----
 
 # Install ffmpeg for audio/video processing (format conversion, extraction, compression)
 # See summary/core/file_service.py for usage.

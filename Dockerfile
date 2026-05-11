@@ -3,6 +3,20 @@
 # ---- base image to inherit from ----
 FROM python:3.13.5-alpine3.21 AS base
 
+# ---- LOCAL-DEV ONLY (China network workaround) — REVERT BEFORE UPSTREAM PR ----
+# Switch apk to Aliyun mirror + point pip/uv at Aliyun PyPI to avoid frequent
+# `Connection reset by peer` errors when pulling from PyPI / dl-cdn.alpinelinux.org.
+RUN sed -i 's|https://dl-cdn.alpinelinux.org|https://mirrors.aliyun.com|g' /etc/apk/repositories
+ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV PIP_TRUSTED_HOST=mirrors.aliyun.com
+ENV PIP_RETRIES=5
+ENV PIP_DEFAULT_TIMEOUT=120
+# uv 0.10+ reads UV_DEFAULT_INDEX; older builds still honor UV_INDEX_URL.
+ENV UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/
+ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV UV_HTTP_TIMEOUT=120
+# ---- END LOCAL-DEV PATCH ----
+
 # Upgrade pip to its latest release to speed up dependencies installation
 RUN python -m pip install --upgrade pip
 
