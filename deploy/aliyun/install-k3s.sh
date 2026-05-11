@@ -132,11 +132,28 @@ if ! command -v helm >/dev/null; then
 fi
 helm version
 
-echo "==> 6. Installing ingress-nginx"
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null 2>&1 || true
-helm repo update >/dev/null
+# Chart tarballs are pulled directly from GitHub releases via gh-proxy.com to
+# bypass kubernetes.github.io / charts.jetstack.io connectivity issues from CN.
+# helm repo add depends on dynamic index.yaml fetches that often fail in CN; a
+# pre-downloaded tarball is the most reliable path.
+fetch_chart() {
+  # fetch_chart <url> <local-name>
+  local url=$1 dst=$2
+  if [[ -f "/tmp/$dst" ]]; then return 0; fi
+  if ! curl -fsSL "$url" -o "/tmp/$dst"; then
+    echo "  primary URL failed, trying gh-proxy..."
+    local proxied="https://gh-proxy.com/$url"
+    curl -fsSL "$proxied" -o "/tmp/$dst"
+  fi
+}
 
-helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+echo "==> 6. Installing ingress-nginx"
+INGRESS_NGINX_VERSION=4.11.3
+fetch_chart \
+  "https://github.com/kubernetes/ingress-nginx/releases/download/helm-chart-${INGRESS_NGINX_VERSION}/ingress-nginx-${INGRESS_NGINX_VERSION}.tgz" \
+  "ingress-nginx-${INGRESS_NGINX_VERSION}.tgz"
+
+helm upgrade --install ingress-nginx "/tmp/ingress-nginx-${INGRESS_NGINX_VERSION}.tgz" \
   --namespace ingress-nginx --create-namespace \
   --set controller.service.type=NodePort \
   --set controller.service.nodePorts.http=30080 \
@@ -148,14 +165,21 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.kind=DaemonSet \
   --set controller.dnsPolicy=ClusterFirstWithHostNet \
   --set controller.publishService.enabled=false \
+  --set controller.image.registry=registry.cn-hangzhou.aliyuncs.com \
+  --set controller.image.image=google_containers/nginx-ingress-controller \
+  --set controller.image.digest="" \
   --set controller.admissionWebhooks.patch.image.registry=registry.cn-hangzhou.aliyuncs.com \
   --set controller.admissionWebhooks.patch.image.image=google_containers/kube-webhook-certgen \
+  --set controller.admissionWebhooks.patch.image.digest="" \
   --wait --timeout 10m
 
 echo "==> 7. Installing cert-manager"
-helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || true
-helm repo update >/dev/null
-helm upgrade --install cert-manager jetstack/cert-manager \
+CERT_MANAGER_VERSION=v1.16.1
+fetch_chart \
+  "https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager-${CERT_MANAGER_VERSION}.tgz" \
+  "cert-manager-${CERT_MANAGER_VERSION}.tgz"
+
+helm upgrade --install cert-manager "/tmp/cert-manager-${CERT_MANAGER_VERSION}.tgz" \
   --namespace cert-manager --create-namespace \
   --set crds.enabled=true \
   --set image.repository=quay.m.daocloud.io/jetstack/cert-manager-controller \
