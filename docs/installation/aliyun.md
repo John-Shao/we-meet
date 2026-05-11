@@ -49,11 +49,13 @@
 | 0. 域名 / DNS / 备案 | 阿里云控制台 | meet/livekit/id 三条 A 记录 | **ICP 备案审核通过**（3-5 天） |
 | 1. 安全组 | 阿里云控制台 | 见 §四 | — |
 | 2. aliyun-zlm 起 Keycloak | aliyun-zlm (2C2G) | id.we-meet.online | DNS / 备案 |
-| 3. 火山 CR 推 4 个镜像 | aliyun-zlm 或本地 | 4 × `:latest` | CR 命名空间 we-meet 创建 |
+| 3. 火山 CR 推 4 个镜像 | aliyun-sjy 或本地 | 4 × `:latest` | CR 命名空间 we-meet 创建 |
 | 4. aliyun-sjy 起 K3s | aliyun-sjy (4C8G) | K3s + ingress-nginx + cert-manager | — |
 | 5. aliyun-sjy 部署 we-meet | aliyun-sjy | postgres / redis / livekit / meet | 阶段 2、3 |
 | 6. 联调 | 浏览器 + 手机 4G | 双端入会成功 | 全部 |
 | 7. 接 OSS / 火山方舟 | aliyun-sjy | 总结生成 | 阶段 5 |
+
+> **为什么 build 不放在 aliyun-zlm**：aliyun-zlm 是 Keycloak 专用机，docker build 的临时上下文（几 GB cache + buildx 进程 ~1 GB RAM）会挤占 2 GiB 内存里 Keycloak 的份额。build 是一次性/低频操作，放在 aliyun-sjy（4C8G、本就要装 docker 跑 K3s）或本地 WSL2 都更合适。跨云推 CR 的延迟跟选哪台 build 没关系——都是阿里云→火山的公网链路。
 
 ---
 
@@ -169,7 +171,7 @@ cp values.secrets.yaml.dist values.secrets.yaml
    - `meet-agents`
 3. **实例 → 访问凭证 → 创建用户名 + 固定密码**。**主账号 AK/SK 不能 docker login 火山 CR**, 必须用这组实例级凭证。username 格式形如 `<custom>@<account_id>`, 例如 `JUSIAI2025@2114082505`。把这组凭据填到 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 的 `image.credentials.username` / `password` 字段。
 
-**构建并推送**（在 aliyun-zlm 上跑最快，跟 CR 同 region）：
+**构建并推送**（在 **aliyun-sjy** 上跑——它有 4C8G 的资源，且 K3s 装好后 docker daemon 已经就位；不要在 aliyun-zlm 上跑 build）：
 
 ```bash
 cd we-meet
