@@ -12,18 +12,18 @@
 ## 一、目标拓扑
 
 ```
-┌─ ECS-A (4C8G, VPC-A) ──────────────────────────────────┐    ┌─ ECS-B (2C2G, VPC-B) ────┐
-│ K3s server (single-node)                               │    │ Keycloak                 │
-│ ├─ ingress-nginx (hostNetwork → 80/443)                │    │   docker compose         │
-│ ├─ cert-manager → Let's Encrypt                        │    │ + Postgres               │
-│ ├─ postgres / redis (in-cluster, local-path PVC)       │    │ + Caddy (auto TLS)       │
-│ ├─ livekit (hostPort 7881/tcp + 7882/udp)              │    │                          │
-│ ├─ meet-backend / frontend / celery                    │    │                          │
-│ ├─ meet-summary + 3 celery workers (火山方舟 LLM)      │    │ id.we-meet.online        │
+┌─ aliyun-sjy (4C8G, VPC-A) ─────────────────────────────┐    ┌─ aliyun-zlm (2C2G, VPC-B) ┐
+│ K3s server (single-node)                               │    │ Keycloak                  │
+│ ├─ ingress-nginx (hostNetwork → 80/443)                │    │   docker compose          │
+│ ├─ cert-manager → Let's Encrypt                        │    │ + Postgres                │
+│ ├─ postgres / redis (in-cluster, local-path PVC)       │    │ + Caddy (auto TLS)        │
+│ ├─ livekit (hostPort 7881/tcp + 7882/udp)              │    │                           │
+│ ├─ meet-backend / frontend / celery                    │    │                           │
+│ ├─ meet-summary + 3 celery workers (火山方舟 LLM)      │    │ id.we-meet.online         │
 │ └─ meet-agents (metadata only; subtitles 暂关)         │    │ + (可选) CR 构建机        │
-│                                                        │    │                          │
-│ meet.we-meet.online / livekit.we-meet.online           │    │                          │
-└────────────────────────────────────────────────────────┘    └──────────────────────────┘
+│                                                        │    │                           │
+│ meet.we-meet.online / livekit.we-meet.online           │    │                           │
+└────────────────────────────────────────────────────────┘    └───────────────────────────┘
         │                                                            │
         └──────────────── Public Internet (HTTPS) ───────────────────┘
                               (OIDC 流程跨 VPC)
@@ -38,7 +38,7 @@
 > 必须用公网 endpoint `tos-s3-cn-guangzhou.volces.com` (内网 `ivolces.com` 仅火山 ECS 可达).
 > 流量按公网双向计费. LLM 调用在火山华北-北京, 跨地域 + 跨云 (~30 ms), 但调用频率低不敏感.
 
-**为什么 ECS-B 不做 K3s worker?** 跨 VPC 即跨公网，K8s pod 网络要么开 WireGuard/Tailscale 隧道、要么把 6443 暴露公网，运维成本远高于把 Keycloak 单独跑在它上面的收益。Keycloak 流量本身就走公网 HTTPS（OIDC 协议要求），对延迟容忍度高，是天然的"独立服务点"。
+**为什么 aliyun-zlm 不做 K3s worker?** 跨 VPC 即跨公网，K8s pod 网络要么开 WireGuard/Tailscale 隧道、要么把 6443 暴露公网，运维成本远高于把 Keycloak 单独跑在它上面的收益。Keycloak 流量本身就走公网 HTTPS（OIDC 协议要求），对延迟容忍度高，是天然的"独立服务点"。
 
 ---
 
@@ -48,12 +48,12 @@
 |---|---|---|---|
 | 0. 域名 / DNS / 备案 | 阿里云控制台 | meet/livekit/id 三条 A 记录 | **ICP 备案审核通过**（3-5 天） |
 | 1. 安全组 | 阿里云控制台 | 见 §四 | — |
-| 2. ECS-B 起 Keycloak | ECS-B (2C2G) | id.we-meet.online | DNS / 备案 |
-| 3. 火山 CR 推 4 个镜像 | ECS-B 或本地 | 4 × `:latest` | CR 命名空间 we-meet 创建 |
-| 4. ECS-A 起 K3s | ECS-A (4C8G) | K3s + ingress-nginx + cert-manager | — |
-| 5. ECS-A 部署 we-meet | ECS-A | postgres / redis / livekit / meet | 阶段 2、3 |
+| 2. aliyun-zlm 起 Keycloak | aliyun-zlm (2C2G) | id.we-meet.online | DNS / 备案 |
+| 3. 火山 CR 推 4 个镜像 | aliyun-zlm 或本地 | 4 × `:latest` | CR 命名空间 we-meet 创建 |
+| 4. aliyun-sjy 起 K3s | aliyun-sjy (4C8G) | K3s + ingress-nginx + cert-manager | — |
+| 5. aliyun-sjy 部署 we-meet | aliyun-sjy | postgres / redis / livekit / meet | 阶段 2、3 |
 | 6. 联调 | 浏览器 + 手机 4G | 双端入会成功 | 全部 |
-| 7. 接 OSS / 火山方舟 | ECS-A | 总结生成 | 阶段 5 |
+| 7. 接 OSS / 火山方舟 | aliyun-sjy | 总结生成 | 阶段 5 |
 
 ---
 
@@ -65,9 +65,9 @@
 
 | 记录类型 | 主机记录 | 解析值 | TTL |
 |---|---|---|---|
-| A | `meet` | ECS-A 公网 IP | 600 |
-| A | `livekit` | ECS-A 公网 IP | 600 |
-| A | `id` | ECS-B 公网 IP | 600 |
+| A | `meet` | aliyun-sjy 公网 IP | 600 |
+| A | `livekit` | aliyun-sjy 公网 IP | 600 |
+| A | `id` | aliyun-zlm 公网 IP | 600 |
 
 ### 3.2 ICP 备案
 
@@ -75,7 +75,7 @@
 
 **备案审核中（3-5 天）能干啥**：
 - 把所有镜像 build 推到火山 CR
-- 在 ECS-A 装 K3s（无公网请求）
+- 在 aliyun-sjy 装 K3s（无公网请求）
 - 部署 postgres / redis / livekit / meet 到 K3s（先不签 TLS 证书）
 - 用 `kubectl port-forward` 内部联调（自签证书或 hosts 改 `127.0.0.1`）
 
@@ -87,7 +87,7 @@
 
 ## 四、阿里云安全组配置（**两台都要**）
 
-### ECS-A（4C8G，主节点）
+### aliyun-sjy（4C8G，主节点）
 
 | 协议 | 端口 | 来源 | 用途 |
 |---|---|---|---|
@@ -99,7 +99,7 @@
 | UDP | 50000-60000 | 0.0.0.0/0 | LiveKit ICE candidate 端口范围（备用） |
 | TCP | 6443 | 你的 IP | K3s API（仅运维 IP，**不要 0.0.0.0/0**） |
 
-### ECS-B（2C2G，Keycloak）
+### aliyun-zlm（2C2G，Keycloak）
 
 | 协议 | 端口 | 来源 | 用途 |
 |---|---|---|---|
@@ -111,10 +111,10 @@
 
 ---
 
-## 五、ECS-B：起 Keycloak
+## 五、aliyun-zlm：起 Keycloak
 
 ```bash
-# 在 ECS-B 上
+# 在 aliyun-zlm 上
 sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin git
 
 # 拉项目（或者只 scp deploy/aliyun/keycloak/ 这一个目录过来）
@@ -146,7 +146,7 @@ bash bootstrap-realm.sh
 
 ### 5.2 把 OIDC 凭据带回主仓库
 
-回到 ECS-A（或本地）的 we-meet 仓库：
+回到 aliyun-sjy（或本地）的 we-meet 仓库：
 
 ```bash
 cd src/helm/env.d/aliyun-prod
@@ -169,7 +169,7 @@ cp values.secrets.yaml.dist values.secrets.yaml
    - `meet-agents`
 3. **实例 → 访问凭证 → 创建用户名 + 固定密码**。**主账号 AK/SK 不能 docker login 火山 CR**, 必须用这组实例级凭证。username 格式形如 `<custom>@<account_id>`, 例如 `JUSIAI2025@2114082505`。把这组凭据填到 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 的 `image.credentials.username` / `password` 字段。
 
-**构建并推送**（在 ECS-B 上跑最快，跟 CR 同 region）：
+**构建并推送**（在 aliyun-zlm 上跑最快，跟 CR 同 region）：
 
 ```bash
 cd we-meet
@@ -201,12 +201,12 @@ bash deploy/aliyun/build-and-push.sh
 
 ---
 
-## 七、ECS-A：装 K3s 与依赖
+## 七、aliyun-sjy：装 K3s 与依赖
 
 ### 7.1 一键安装脚本
 
 ```bash
-# 在 ECS-A 上
+# 在 aliyun-sjy 上
 sudo apt-get update && sudo apt-get install -y git
 git clone https://github.com/<your-fork>/we-meet.git
 cd we-meet
@@ -363,8 +363,8 @@ we-meet upstream 没有 jusi 的 avatar/cover/post 三个公开桶逻辑. 如果
 # 在新 worker 节点
 curl -sfL https://rancher-mirror.rancher.cn/k3s/k3s-install.sh | \
   INSTALL_K3S_MIRROR=cn \
-  K3S_URL=https://<ECS-A-PRIVATE-IP>:6443 \
-  K3S_TOKEN=$(ssh ECS-A 'sudo cat /var/lib/rancher/k3s/server/node-token') \
+  K3S_URL=https://<aliyun-sjy-PRIVATE-IP>:6443 \
+  K3S_TOKEN=$(ssh aliyun-sjy 'sudo cat /var/lib/rancher/k3s/server/node-token') \
   sh -
 
 # 给新节点打 label
@@ -423,7 +423,7 @@ helm upgrade --install meet ./src/helm/meet -n meet \
 kubectl -n meet exec postgresql-0 -- pg_dump -U meet meet | gzip > meet-$(date +%F).sql.gz
 tosutil cp meet-$(date +%F).sql.gz tos://we-meet/backups/
 
-# Keycloak 备份 (在 ECS-B)
+# Keycloak 备份 (在 aliyun-zlm)
 docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date +%F).sql.gz
 ```
 
@@ -433,7 +433,7 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 |---|---|
 | 浏览器证书 invalid / pending | `kubectl -n meet describe certificate meet-tls` → events 通常说明问题（DNS 没生效 / 80 被拦） |
 | 登录后跳回 meet 报 `redirect_uri_mismatch` | Keycloak meet realm 的 client → Valid Redirect URIs 应包含 `https://meet.we-meet.online/*` |
-| 入会黑屏 / 无声 | 99% 是 UDP 7882 没开。再次 `nc -uv <ECS-A-IP> 7882` 验证 |
+| 入会黑屏 / 无声 | 99% 是 UDP 7882 没开。再次 `nc -uv <aliyun-sjy-IP> 7882` 验证 |
 | Pod `ImagePullBackOff` | `kubectl -n meet describe pod <name>` → 通常是 `meet-dockerconfig` secret 不在 namespace，或火山 CR 密码错；也可能是 we-meet 命名空间下的镜像还没 push |
 | backend 启动报 `OperationalError: could not translate host name "postgresql"` | `kubectl -n meet get svc` 应有 `postgresql` service；没有则 helm install postgresql 失败重新跑 |
 | LiveKit 报 `redis dial tcp: lookup redis-master` | 同上，redis chart 没装好 |
@@ -447,10 +447,10 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 
 | 路径 | 作用 |
 |---|---|
-| [deploy/aliyun/install-k3s.sh](../../deploy/aliyun/install-k3s.sh) | ECS-A 一键装 K3s + ingress-nginx + cert-manager |
-| [deploy/aliyun/install-meet.sh](../../deploy/aliyun/install-meet.sh) | ECS-A 一键装 postgres + redis + livekit + meet chart |
+| [deploy/aliyun/install-k3s.sh](../../deploy/aliyun/install-k3s.sh) | aliyun-sjy 一键装 K3s + ingress-nginx + cert-manager |
+| [deploy/aliyun/install-meet.sh](../../deploy/aliyun/install-meet.sh) | aliyun-sjy 一键装 postgres + redis + livekit + meet chart |
 | [deploy/aliyun/build-and-push.sh](../../deploy/aliyun/build-and-push.sh) | 构建 4 个镜像并推火山 CR |
-| [deploy/aliyun/keycloak/compose.yaml](../../deploy/aliyun/keycloak/compose.yaml) | ECS-B 上的 Keycloak + Postgres + Caddy |
+| [deploy/aliyun/keycloak/compose.yaml](../../deploy/aliyun/keycloak/compose.yaml) | aliyun-zlm 上的 Keycloak + Postgres + Caddy |
 | [deploy/aliyun/keycloak/bootstrap-realm.sh](../../deploy/aliyun/keycloak/bootstrap-realm.sh) | 创建 meet realm / client / 测试用户 |
 | [src/helm/env.d/aliyun-prod/values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) | meet chart 生产 values |
 | [src/helm/env.d/aliyun-prod/values.livekit.yaml](../../src/helm/env.d/aliyun-prod/values.livekit.yaml) | livekit chart 生产 values |
