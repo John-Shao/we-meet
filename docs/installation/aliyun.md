@@ -173,11 +173,19 @@ cp values.secrets.yaml.dist values.secrets.yaml
 
 **构建并推送**（在 **aliyun-sjy** 上跑——它有 4C8G 的资源，且 K3s 装好后 docker daemon 已经就位；不要在 aliyun-zlm 上跑 build）：
 
+> ⚠️ **前置：BuildKit + buildx**。项目 Dockerfile 用了 `RUN --mount=type=cache,bind` 等 BuildKit-only 语法，Ubuntu apt 的 `docker.io` 默认走 legacy builder。`build-and-push.sh` 自己会 `export DOCKER_BUILDKIT=1`，但还需要 buildx 插件：
+> ```bash
+> sudo apt-get install -y docker-buildx
+> docker buildx version    # 验证
+> ```
+> install-k3s.sh 安装 docker-ce 时附带 `docker-buildx-plugin`；如果先单独装了 `docker.io` 再 build，需要手动 apt 装 `docker-buildx`。
+
+> ⚠️ **yq -r 必须**：Ubuntu apt 的 `yq` 是 Python jq 包装，默认输出 JSON 带双引号；`-r` 才是裸字符串。Mike Farah 的 Go yq 不加 `-r` 也能输出裸字符串，但加上 `-r` 两种都兼容。
+
 ```bash
 cd we-meet
 
 # 凭据从 values.secrets.yaml 读 (不要写死在 shell history 里)
-# 注意 -r: Ubuntu apt 的 yq 是 Python jq 包装, 默认输出 JSON 带双引号, 必须 -r 才是裸字符串
 sudo apt-get install -y yq
 SECRETS=src/helm/env.d/aliyun-prod/values.secrets.yaml
 export VOLC_CR_USER=$(yq -r '.image.credentials.username' $SECRETS)
@@ -186,6 +194,8 @@ export IMAGE_TAG=$(git rev-parse --short HEAD)
 
 bash deploy/aliyun/build-and-push.sh
 ```
+
+> ⚠️ **CN 网络补丁已固化**：`Dockerfile` / `src/agents/Dockerfile` / `src/summary/Dockerfile` 已经在 dev 分支里打过 `apt → mirrors.aliyun.com` + `pip → mirrors.aliyun.com` 的补丁。但 **uv 没改** —— 因为 `src/backend/uv.lock` pin 了 pypi.org 来源，`uv sync --locked` 严格校验 source 一致，redirect uv 会触发 "lockfile needs to be updated" 拒绝继续。uv 直连 pypi.org 走 `UV_HTTP_TIMEOUT=300` 慢但能成。
 
 > CR 凭据与 TOS 主账号 AK/SK 是 **两组不同的凭据** (TOS 用主账号 AK/SK 通过 S3 协议访问;
 > CR 用实例级用户名+密码). 真实值在你 fill 完
@@ -219,15 +229,37 @@ sudo ALIYUN_DOCKER_MIRROR=https://xxxxxxxx.mirror.aliyuncs.com \
   bash deploy/aliyun/install-k3s.sh
 ```
 
-脚本会装：apt 国内源 → docker → containerd registry mirror → K3s（disable traefik/servicelb，因为我们用 ingress-nginx 走 hostNetwork）→ helm 3 → ingress-nginx → cert-manager。
+> ⚠️ **sudo 不传 env**：`VAR=val sudo ...` 这种语法 sudo 默认会清掉 user env。两个正确写法：
+> ```bash
+> sudo VAR=val bash install-k3s.sh         # 把 VAR 放 sudo 后, sudo 直接接受
+> VAR=val sudo -E bash install-k3s.sh      # 用 -E 让 sudo 保留 user env
+> ```
 
-### 7.2 配 ClusterIssuer（备案完成后再 apply）
+脚本会装：apt 国内源 → docker-ce + docker-buildx-plugin → containerd registry mirror（kjx4usoo + daocloud）→ K3s（disable traefik/servicelb，因为我们用 ingress-nginx 走 hostNetwork）→ helm 3（从 get.helm.sh 走 Fastly CDN，fallback gh-proxy）→ ingress-nginx（**预下载 chart tarball**，绕开 kubernetes.github.io 国内不稳）→ cert-manager（kubectl apply 静态 yaml，绕开 charts.jetstack.io）→ `meet` namespace。
+
+### 7.2 配 ClusterIssuer
 
 ```bash
-# 编辑 src/helm/env.d/aliyun-prod/cluster-issuer.yaml 把 REPLACE_OWNER_EMAIL 改掉
+# 编辑 cluster-issuer.yaml 把 REPLACE_OWNER_EMAIL 改成真邮箱
 sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
   kubectl apply -f src/helm/env.d/aliyun-prod/cluster-issuer.yaml
 ```
+
+> ⚠️ **ICP 备案中签证书会失败**：阿里云对未完全备案的子域名启用 "Beaver" 中间层，拦截 `.well-known/acme-challenge/*` 路径（返回 403）。LE HTTP-01 challenge 拿不到，cert-manager 报 `Invalid response: 403`。
+>
+> 应对方式（**推荐第 1 条**）：
+> 1. **等管局审核通过后**跑 [deploy/aliyun/finalize-tls.sh](../../deploy/aliyun/finalize-tls.sh) 一键触发重签（见 §7.5）。期间业务可用 `kubectl port-forward` 内部联调。
+> 2. **改 DNS-01 challenge** 绕开 HTTP 入口：需要装 [pragkent/alidns-webhook](https://github.com/pragkent/alidns-webhook) + 阿里云 RAM 子账号 + `AliyunDNSFullAccess`。不依赖备案状态，但有额外配置成本。
+> 3. **临时自签证书** 让浏览器先看到界面：
+>    ```bash
+>    openssl req -x509 -nodes -days 30 -newkey rsa:2048 \
+>      -keyout /tmp/sf.key -out /tmp/sf.crt \
+>      -subj "/CN=meet.we-meet.online" \
+>      -addext "subjectAltName=DNS:meet.we-meet.online,DNS:livekit.we-meet.online"
+>    kubectl -n meet create secret tls meet-tls --cert=/tmp/sf.crt --key=/tmp/sf.key --dry-run=client -o yaml | kubectl apply -f -
+>    kubectl -n meet create secret tls livekit-tls --cert=/tmp/sf.crt --key=/tmp/sf.key --dry-run=client -o yaml | kubectl apply -f -
+>    ```
+>    浏览器会有红色警告，"高级 → 继续访问" 就能进。备案过了切回真证书。
 
 ### 7.3 部署 we-meet（postgres / redis / livekit / meet）
 
@@ -240,10 +272,39 @@ sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
 
 脚本顺序：
 1. 创建 `meet-dockerconfig`（从 values.secrets.yaml 读火山 CR 凭据）
-2. 装 PostgreSQL（bitnami chart）
-3. 装 Redis（bitnami chart, standalone）
-4. 装 LiveKit（livekit/livekit-server）
+2. 装 PostgreSQL（bitnami chart 16.7.27 + `bitnamilegacy/postgresql:16.4.0` 镜像）
+3. 装 Redis（bitnami chart 20.13.4 + `bitnamilegacy/redis:7.4.1`）
+4. 装 LiveKit（livekit/livekit-server 1.9.0）
 5. 装 meet（项目自带 [src/helm/meet](../../src/helm/meet) chart，含 backend / frontend / summary / 3×celery / metadata-agent）
+
+> ⚠️ **Bitnami 2025-08 cutoff**：`bitnami/postgresql` 等 Docker Hub 镜像被限制（403 经 daocloud mirror）。我们已切到 `bitnamilegacy/*` 镜像（cutoff 前所有 tag 的快照仓库），并在 values 文件加 `global.security.allowInsecureImages: true` 跳过 chart 的镜像验证。
+
+> ⚠️ **postgres 用户/库可能没自动建（chart/image 版本错配）**：bitnami chart 16.7.27 默认匹配 postgres 17 镜像的 init 脚本格式，而我们用了 16.4 镜像。**已发生过 `auth.username: meet`、`auth.database: meet` 都被忽略，meet user/db 完全不存在**。症状：backend 一直 CrashLoop，日志 `FATAL: role "meet" does not exist`。
+>
+> **应急补建（30 秒）**：
+> ```bash
+> ROOT_PW=$(kubectl -n meet get secret postgresql -o jsonpath='{.data.postgres-password}' | base64 -d)
+> APP_PW=$(kubectl -n meet get secret postgresql -o jsonpath='{.data.password}' | base64 -d)
+>
+> # 必须用 3 个独立 -c. CREATE DATABASE 不能在事务里, 多语句单 -c 会整体回滚.
+> kubectl -n meet exec postgresql-0 -- bash -c "PGPASSWORD='$ROOT_PW' psql -U postgres \
+>   -c \"CREATE USER meet WITH PASSWORD '$APP_PW';\" \
+>   -c \"CREATE DATABASE meet OWNER meet;\" \
+>   -c \"GRANT ALL PRIVILEGES ON DATABASE meet TO meet;\""
+>
+> kubectl -n meet rollout restart deploy/meet-backend
+> ```
+
+> ⚠️ **migrate / createsuperuser 没自动跑**：chart 的 migrate Job 在 backend 因 DB 错连接失败后会 `BackoffLimitExceeded`，TTL 一过就清掉，helm upgrade 不会重新创建。**手动跑**：
+> ```bash
+> POD=$(kubectl -n meet get pods -l app.kubernetes.io/component=backend --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
+> kubectl -n meet exec "$POD" -c meet -- python manage.py migrate --no-input
+>
+> # 注意: createsuperuser 是项目自定义的版本, 不接受 --no-input, 直接传 --email/--password:
+> kubectl -n meet exec "$POD" -c meet -- sh -c \
+>   'python manage.py createsuperuser --email "$DJANGO_SUPERUSER_EMAIL" --password "$DJANGO_SUPERUSER_PASSWORD"'
+> ```
+> 注意 backend 镜像是 alpine 系列**没装 bash**，用 `sh -c` 不要 `bash -c`。`kubectl exec` 默认不转发 stdin，heredoc (`<<EOF`) 会被静默吞掉——除非加 `-i` 标志。
 
 ### 7.4 验证
 
@@ -260,7 +321,26 @@ kubectl -n meet get certificate
 # livekit-tls    True    livekit-tls    ...
 ```
 
-证书 Ready 卡住 → `kubectl -n meet describe certificate meet-tls` 看 events，最常见是 80 端口被运营商拦（备案没完成）或 DNS 没生效。
+证书 Ready 卡住 → `kubectl -n meet describe certificate meet-tls` 看 events，最常见是 80 端口被运营商拦（备案没完成）或 DNS 没生效。**备案中无需排查**，等审核通过跑 §7.5。
+
+### 7.5 完成 TLS 签发（备案通过后）
+
+ICP 备案管局审核通过 + Beaver 拦截撤掉后，一行触发 LE 重签：
+
+```bash
+cd ~/we-meet
+git pull origin dev    # 确保 finalize-tls.sh 是最新版
+sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+  bash deploy/aliyun/finalize-tls.sh
+```
+
+[finalize-tls.sh](../../deploy/aliyun/finalize-tls.sh) 会：
+1. **Preflight**：检查 ClusterIssuer Ready + 外网 `.well-known/acme-challenge/` 探测（如果还有 403 Beaver 会警告你要不要继续）
+2. **清掉**残留 Challenges / CertificateRequests / Secrets
+3. **helm upgrade** meet + livekit chart 重建 Certificate 资源
+4. **Poll 等** 5 分钟，看到 `READY=True` 退出并打印浏览器联调 URL
+
+成功后 `https://meet.we-meet.online` + `https://livekit.we-meet.online` 都用 LE 真证书，自动续期完全无人值守（默认 60 天前续）。
 
 ---
 
@@ -431,17 +511,46 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 
 ## 十二、常见问题排查
 
+### 12.1 部署阶段（曾经踩过的坑）
+
+| 症状 | 根因 / 修复 |
+|---|---|
+| `docker login` 火山 CR 报 `username "AKLT..." is not valid` | 火山 CR **不接受主账号 AK/SK**。CR 控制台 → 实例 → 访问凭证 → 创建用户名+固定密码（username 形如 `JUSIAI2025@2114082505`），把这组凭据填到 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 的 `image.credentials` 字段。 |
+| `docker login` env vars 看着对但还是 unauthorized | `yq` 没加 `-r`。Ubuntu apt 的 yq 是 Python jq 包装，默认输出 JSON 带双引号。`echo "len=${#VAR}"` 验证：username 应是 21 字符不是 23。修法：所有 `yq` 改 `yq -r`。 |
+| `target stage "production" could not be found` | 根 Dockerfile 的 production stage 名是 `backend-production`；frontend Dockerfile 是 `frontend-production`。已在 [build-and-push.sh](../../deploy/aliyun/build-and-push.sh) 修正。 |
+| frontend build context 找不到 `package.json` | frontend Dockerfile 的 COPY 都是 `./src/frontend/...` 写法，build context 必须是 **repo root**，不是 `./src/frontend`。 |
+| `the --mount option requires BuildKit` | 设 `DOCKER_BUILDKIT=1` 还不够，还要装 buildx：`sudo apt-get install -y docker-buildx`。`docker.io` 不自带 buildx 插件。 |
+| `pip install` / `uv sync` 中途 `ConnectionResetError(104)` | PyPI 国内访问不稳。Dockerfile 已加 `PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/`。**不要给 uv 设 mirror**——`src/backend/uv.lock` 严格校验 source URL，redirect uv 触发 "lockfile needs to be updated" 拒绝继续。uv 走 `UV_HTTP_TIMEOUT=300` 慢但能成。 |
+| `helm pull oci://registry-1.docker.io/...: dial tcp 157.240.10.41:443: i/o timeout` | Docker Hub OCI DNS 在国内被污染（解析到 Facebook IP）。helm OCI 不复用 docker daemon mirror。修法：预下载 chart tarball，`helm install /tmp/<chart>.tgz`。 |
+| `helm repo update: no repositories found` | helm `repo add ...github.io` 静默失败（GitHub Pages 国内不稳）。改成预下载 chart tarball。 |
+| ingress-nginx pod `ImagePullBackOff: registry.k8s.io...` | 国内访问 registry.k8s.io 不通。把 controller + admission webhook 镜像都换成 `registry.cn-hangzhou.aliyuncs.com/google_containers/*`。已在 install-k3s.sh 修正。 |
+| cert-manager chart 404 from GitHub releases | cert-manager 只发布静态 yaml 不发 helm chart tarball。改用 `kubectl apply -f cert-manager.yaml`。已在 install-k3s.sh 修正。 |
+| Bitnami postgres/redis 镜像 `403 Forbidden via docker.m.daocloud.io` | Bitnami 2025-08 cutoff，bitnami/* Docker Hub 限制。改用 `bitnamilegacy/*` 仓库（cutoff 前所有 tag 的快照）。values.postgresql.yaml / values.redis.yaml 已修。 |
+| Bitnami chart abort: `Unrecognized images: bitnamilegacy/...` | chart 16.7+ 加了 image verification。values 文件加 `global.security.allowInsecureImages: true` 显式确认。 |
+| Keycloak 容器 restart loop, `Unknown option: '--optimized'` | Keycloak 25 的 `--optimized` 是 boolean flag，不接受 `--optimized=false`。删掉这一行 command 即可（auto-build mode）。 |
+| `bootstrap-realm.sh` 报 `401 Unauthorized` 但浏览器登 admin 可以 | 你的 admin 密码含 `+`/`/` 等字符。curl `-d` 不 URL-encode，`+` 在 form body 里被解析成空格。改用 `--data-urlencode`。已修。 |
+| `Caddy LE challenge timeout` for id.we-meet.online | aliyun-zlm 安全组 80/443 没开。阿里云控制台加规则 `0.0.0.0/0` 入方向 TCP 80 + 443。 |
+| `kubectl exec ... <<EOF` heredoc 内容被吞 | `kubectl exec` 默认不转发 stdin。要么加 `-i` 让它转发，要么把 SQL/命令塞进 `-c "..."` 参数。 |
+| `psql -c "stmt1; stmt2; CREATE DATABASE x..."` 整体回滚 | 多语句 `-c` 在同一事务，CREATE DATABASE 不能在事务里。用多个 `-c`（每个独立事务）。 |
+| postgres `role "meet" does not exist`（chart 装完直接缺）| chart 16.7.27 默认匹配 postgres 17 init 脚本，跟我们的 bitnamilegacy/postgresql:16.4 不匹配，meet user/db 没建。**应急手动建**：见 §7.3 黄框。 |
+| `manage.py createsuperuser: error: unrecognized arguments: --no-input` | 项目自定义的 createsuperuser 命令签名不一样，用 `--email + --password`，不要 `--no-input`。 |
+
+### 12.2 运行阶段
+
 | 症状 | 检查项 |
 |---|---|
-| 浏览器证书 invalid / pending | `kubectl -n meet describe certificate meet-tls` → events 通常说明问题（DNS 没生效 / 80 被拦） |
-| 登录后跳回 meet 报 `redirect_uri_mismatch` | Keycloak meet realm 的 client → Valid Redirect URIs 应包含 `https://meet.we-meet.online/*` |
-| 入会黑屏 / 无声 | 99% 是 UDP 7882 没开。再次 `nc -uv <aliyun-sjy-IP> 7882` 验证 |
-| Pod `ImagePullBackOff` | `kubectl -n meet describe pod <name>` → 通常是 `meet-dockerconfig` secret 不在 namespace，或火山 CR 密码错；也可能是 we-meet 命名空间下的镜像还没 push |
-| backend 启动报 `OperationalError: could not translate host name "postgresql"` | `kubectl -n meet get svc` 应有 `postgresql` service；没有则 helm install postgresql 失败重新跑 |
-| LiveKit 报 `redis dial tcp: lookup redis-master` | 同上，redis chart 没装好 |
-| Tilt UI 不可用 | Tilt 是 dev 环境工具，生产不用；用 `kubectl logs` / `k9s` 替代 |
+| 浏览器证书 invalid / pending | `kubectl -n meet describe certificate meet-tls` → events。备案中是 Beaver 拦截 `.well-known`（**预期**，等 §7.5）；备案过了仍卡，查 `kubectl -n meet get challenges -A` 看 LE 返回的 detail |
+| 登录后跳回 meet 报 `redirect_uri_mismatch` | Keycloak meet realm → clients → meet → Valid Redirect URIs 应包含 `https://meet.we-meet.online/*` |
+| 入会黑屏 / 无声 | 99% 是 UDP 7882 没开。WebRTC TCP fallback 是 7881。两个都要在 aliyun-sjy 安全组放 `0.0.0.0/0` |
+| Pod `ImagePullBackOff` | `kubectl -n meet describe pod <name>` → 通常是 `meet-dockerconfig` secret 缺或火山 CR 凭据错；也可能是镜像 tag 没推到 we-meet 命名空间下 |
+| backend `OperationalError: could not translate host name "postgresql"` | `kubectl -n meet get svc \| grep postgresql` 应有 service；没有则 postgres helm release 失败，重装 |
+| backend `password authentication failed for user "meet"` | postgres user 没建（chart/image 错配）或 password mismatch。三个值校验：`kubectl -n meet get secret postgresql -o jsonpath='{.data.password}' \| base64 -d` ↔ `kubectl -n meet get deploy meet-backend -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="DB_PASSWORD")].value}'` ↔ `yq -r '.backend.envVars.DB_PASSWORD' values.secrets.yaml`，对应不上重建 user |
+| LiveKit `redis dial tcp: lookup redis-master` | redis chart 没装好，`kubectl -n meet get pods -l app.kubernetes.io/name=redis` |
 | 总结生成失败 `LLM_API_KEY required` | values.secrets.yaml 没填火山方舟 ARK API Key |
 | Pod OOMKilled | `kubectl -n meet top pods` 看占用，多半是 keycloak / 火山转写客户端；4C8G 跑全功能就这个待遇 |
+| `kubectl exec deploy/X -- ...` 报 container not found | pod 可能在 restart 之间。等几秒重试，或用 explicit pod name `kubectl exec $(kubectl get pods ... -o jsonpath=...) -c <container-name> -- ...` |
+| backend / agents exec 报 `bash: not found` | 镜像是 Alpine 系列只有 `sh`。用 `sh -c` 代替 `bash -c`。 |
+| Tilt UI 不可用 | Tilt 是 dev 环境工具，生产不用；用 `kubectl logs` / `k9s` 替代 |
 
 ---
 
@@ -451,6 +560,7 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 |---|---|
 | [deploy/aliyun/install-k3s.sh](../../deploy/aliyun/install-k3s.sh) | aliyun-sjy 一键装 K3s + ingress-nginx + cert-manager |
 | [deploy/aliyun/install-meet.sh](../../deploy/aliyun/install-meet.sh) | aliyun-sjy 一键装 postgres + redis + livekit + meet chart |
+| [deploy/aliyun/finalize-tls.sh](../../deploy/aliyun/finalize-tls.sh) | 备案通过后触发 LE 证书重签（§7.5） |
 | [deploy/aliyun/build-and-push.sh](../../deploy/aliyun/build-and-push.sh) | 构建 4 个镜像并推火山 CR |
 | [deploy/aliyun/keycloak/compose.yaml](../../deploy/aliyun/keycloak/compose.yaml) | aliyun-zlm 上的 Keycloak + Postgres + Caddy |
 | [deploy/aliyun/keycloak/bootstrap-realm.sh](../../deploy/aliyun/keycloak/bootstrap-realm.sh) | 创建 meet realm / client / 测试用户 |
