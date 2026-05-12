@@ -9,6 +9,10 @@
 
 global:
   storageClass: local-path
+  security:
+    # bitnamilegacy/* 不在 Bitnami chart 的官方 "recognized" 镜像清单里, chart 默认会
+    # abort 安装. 明确确认我们知情后开启 substitute. (Postgres chart 同样设置, 见 values.postgresql.yaml)
+    allowInsecureImages: true
 
 architecture: standalone
 

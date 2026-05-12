@@ -10,6 +10,9 @@
 
 global:
   storageClass: local-path
+  security:
+    # bitnamilegacy/* 不在 Bitnami chart 的官方 "recognized" 镜像清单里, 显式确认接受.
+    allowInsecureImages: true
 
 auth:
   username: meet
