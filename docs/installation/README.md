@@ -9,7 +9,7 @@ For a local Windows + Docker Desktop walkthrough (kind + Tilt, in Chinese), see 
 
 For a production deployment on Aliyun in mainland China (in Chinese), two paths:
 - [aliyun.md](/docs/installation/aliyun.md) — single-node K3s + bitnami in-cluster, ~200 RMB/月, < 10 concurrent meetings
-- [aliyun-multinode.md](/docs/installation/aliyun-multinode.md) — multi-node ACK + managed RDS/Tair/OSS, ~3000 RMB/月, 50-500 concurrent meetings (customer/production grade)
+- [aliyun-multinode.md](/docs/installation/aliyun-multinode.md) — self-managed K3s on 2+ ECS (master + workers), ~430-710 RMB/月, 10-100 concurrent meetings (customer-grade, horizontally scalable)
 
 ## Docker Compose
 We understand that not everyone has a Kubernetes cluster available, please follow the instructions provided [here](/docs/installation/compose.md) to set up a docker compose instance.
