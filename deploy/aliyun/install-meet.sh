@@ -53,13 +53,46 @@ kubectl -n "$NS" create secret docker-registry meet-dockerconfig \
   --docker-password="$CR_PASS" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-echo "==> Adding helm repos"
-helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
-helm repo add livekit https://helm.livekit.io >/dev/null 2>&1 || true
-helm repo update >/dev/null
+# Pre-download chart tarballs.
+#   - oci://registry-1.docker.io/bitnamicharts/* requires reaching Docker Hub
+#     OCI, which is DNS-poisoned from many CN networks (resolves to bogus IPs).
+#   - https://helm.livekit.io and charts.bitnami.com are reachable from CN
+#     CDNs in most cases.
+#   - Pre-downloading tarballs avoids dynamic repo discovery entirely.
+fetch_chart() {
+  # fetch_chart <primary-url> <local-tgz>
+  local url=$1 dst=$2
+  if [[ -f "/tmp/$dst" ]]; then return 0; fi
+  echo "  Fetching $dst ..."
+  if ! curl -fsSL "$url" -o "/tmp/$dst"; then
+    echo "  primary URL failed, trying gh-proxy..."
+    if [[ "$url" == https://github.com/* ]]; then
+      curl -fsSL "https://gh-proxy.com/$url" -o "/tmp/$dst"
+    else
+      echo "  no gh-proxy fallback for non-github URL"
+      return 1
+    fi
+  fi
+}
+
+POSTGRES_CHART_VERSION=16.7.27
+REDIS_CHART_VERSION=20.13.4
+LIVEKIT_CHART_VERSION=1.9.0
+
+fetch_chart \
+  "https://charts.bitnami.com/bitnami/postgresql-${POSTGRES_CHART_VERSION}.tgz" \
+  "postgresql-${POSTGRES_CHART_VERSION}.tgz"
+
+fetch_chart \
+  "https://charts.bitnami.com/bitnami/redis-${REDIS_CHART_VERSION}.tgz" \
+  "redis-${REDIS_CHART_VERSION}.tgz"
+
+fetch_chart \
+  "https://github.com/livekit/livekit-helm/releases/download/livekit-server-${LIVEKIT_CHART_VERSION}/livekit-server-${LIVEKIT_CHART_VERSION}.tgz" \
+  "livekit-server-${LIVEKIT_CHART_VERSION}.tgz"
 
 echo "==> Installing PostgreSQL"
-helm upgrade --install postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
+helm upgrade --install postgresql "/tmp/postgresql-${POSTGRES_CHART_VERSION}.tgz" \
   -n "$NS" \
   -f "$VALUES_DIR/values.postgresql.yaml" \
   --set auth.postgresPassword="$POSTGRES_ROOT_PW" \
@@ -67,14 +100,14 @@ helm upgrade --install postgresql oci://registry-1.docker.io/bitnamicharts/postg
   --wait --timeout 10m
 
 echo "==> Installing Redis"
-helm upgrade --install redis oci://registry-1.docker.io/bitnamicharts/redis \
+helm upgrade --install redis "/tmp/redis-${REDIS_CHART_VERSION}.tgz" \
   -n "$NS" \
   -f "$VALUES_DIR/values.redis.yaml" \
   --set auth.password="$REDIS_PASSWORD" \
   --wait --timeout 10m
 
 echo "==> Installing LiveKit"
-helm upgrade --install livekit livekit/livekit-server \
+helm upgrade --install livekit "/tmp/livekit-server-${LIVEKIT_CHART_VERSION}.tgz" \
   -n "$NS" \
   -f "$VALUES_DIR/values.livekit.yaml" \
   -f "$SECRETS" \
