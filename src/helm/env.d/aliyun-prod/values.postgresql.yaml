@@ -31,8 +31,9 @@ primary:
     host all all 0.0.0.0/0 md5
     host all all ::/0 md5
 
-# 国内拉 bitnami 镜像很慢，用阿里云 Docker Hub 加速即可（在 K3s containerd 配置层面解决，见 install-k3s.sh）
+# 2025-08 起 Bitnami 把 bitnami/* Docker Hub 镜像限制了 (403 Forbidden).
+# 切到 bitnamilegacy/* — 是 Bitnami 自留的 cutoff 前所有 tag 的快照仓库.
 image:
   registry: docker.io
-  repository: bitnami/postgresql
+  repository: bitnamilegacy/postgresql
   tag: 16.4.0-debian-12-r0

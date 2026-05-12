@@ -27,7 +27,9 @@ master:
     limits:
       memory: 192Mi
 
+# 2025-08 起 Bitnami 把 bitnami/* Docker Hub 镜像限制了 (403 Forbidden).
+# 切到 bitnamilegacy/* — 是 Bitnami 自留的 cutoff 前所有 tag 的快照仓库.
 image:
   registry: docker.io
-  repository: bitnami/redis
+  repository: bitnamilegacy/redis
   tag: 7.4.1-debian-12-r0
