@@ -87,9 +87,12 @@ fetch_chart \
   "https://charts.bitnami.com/bitnami/redis-${REDIS_CHART_VERSION}.tgz" \
   "redis-${REDIS_CHART_VERSION}.tgz"
 
-fetch_chart \
-  "https://github.com/livekit/livekit-helm/releases/download/livekit-server-${LIVEKIT_CHART_VERSION}/livekit-server-${LIVEKIT_CHART_VERSION}.tgz" \
-  "livekit-server-${LIVEKIT_CHART_VERSION}.tgz"
+# LiveKit chart lives in helm.livekit.io root (not GitHub releases).
+# Use `helm pull --repo` so helm parses index.yaml and resolves the actual URL.
+if [[ ! -f "/tmp/livekit-server-${LIVEKIT_CHART_VERSION}.tgz" ]]; then
+  helm pull --repo https://helm.livekit.io --version "$LIVEKIT_CHART_VERSION" \
+    livekit-server -d /tmp
+fi
 
 echo "==> Installing PostgreSQL"
 helm upgrade --install postgresql "/tmp/postgresql-${POSTGRES_CHART_VERSION}.tgz" \
