@@ -7,7 +7,9 @@ La Suite Meet maintainers use only the Kubernetes deployment method in productio
 
 For a local Windows + Docker Desktop walkthrough (kind + Tilt, in Chinese), see [docker-desktop.md](/docs/installation/docker-desktop.md).
 
-For a production deployment on Aliyun ECS in mainland China (K3s + helm, in Chinese), see [aliyun.md](/docs/installation/aliyun.md).
+For a production deployment on Aliyun in mainland China (in Chinese), two paths:
+- [aliyun.md](/docs/installation/aliyun.md) — single-node K3s + bitnami in-cluster, ~200 RMB/月, < 10 concurrent meetings
+- [aliyun-multinode.md](/docs/installation/aliyun-multinode.md) — multi-node ACK + managed RDS/Tair/OSS, ~3000 RMB/月, 50-500 concurrent meetings (customer/production grade)
 
 ## Docker Compose
 We understand that not everyone has a Kubernetes cluster available, please follow the instructions provided [here](/docs/installation/compose.md) to set up a docker compose instance.
