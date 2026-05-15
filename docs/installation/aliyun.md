@@ -82,9 +82,7 @@
 - 部署 postgres / redis / livekit / meet 到 K3s（先不签 TLS 证书）
 - 用 `kubectl port-forward` 内部联调（自签证书或 hosts 改 `127.0.0.1`）
 
-**备案审核中签 TLS 证书的两条路**：
-- (A) **等备案完成**走 HTTP-01（最简单）— 本指南默认路径
-- (B) **现在就要 HTTPS** → 用 cert-manager 的 [DNS-01 with Aliyun DNS API](https://cert-manager.io/docs/configuration/acme/dns01/) — 需要在阿里云访问控制 (RAM) 创建 AccessKey 给 cert-manager 写 TXT 记录权限。本指南未展开，备案在审核可以先跳过。
+**备案审核中要不要立刻验证全功能（含双端入会 + 总结）**：见 [§7.5](#75-在备案审核中跑全功能验证)。简言之三条路 —— A. DNS-01 拿真 LE 证书（推荐演示）；B. 自签证书 + 浏览器例外（推荐自测）；C. 什么都不做，等备案完成。Beaver 只拦 HTTP/HTTPS，不影响 DNS 解析 / UDP（WebRTC）/ 跨云出站（LLM / TOS），所以 A/B 都能跑全链路。
 
 ---
 
@@ -289,7 +287,7 @@ sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
 > ⚠️ **ICP 备案中签证书会失败**：阿里云对未完全备案的子域名启用 "Beaver" 中间层，拦截 `.well-known/acme-challenge/*` 路径（返回 403）。LE HTTP-01 challenge 拿不到，cert-manager 报 `Invalid response: 403`。
 >
 > 应对方式（**推荐第 1 条**）：
-> 1. **等管局审核通过后**跑 [deploy/aliyun/finalize-tls.sh](../../deploy/aliyun/finalize-tls.sh) 一键触发重签（见 §7.5）。期间业务可用 `kubectl port-forward` 内部联调。
+> 1. **等管局审核通过后**跑 [deploy/aliyun/finalize-tls.sh](../../deploy/aliyun/finalize-tls.sh) 一键触发重签（见 §7.6）。期间业务可用 §7.5 的 DNS-01 / 自签 / port-forward 三条路径之一跑全功能。
 > 2. **改 DNS-01 challenge** 绕开 HTTP 入口：需要装 [pragkent/alidns-webhook](https://github.com/pragkent/alidns-webhook) + 阿里云 RAM 子账号 + `AliyunDNSFullAccess`。不依赖备案状态，但有额外配置成本。
 > 3. **临时自签证书** 让浏览器先看到界面：
 >    ```bash
@@ -362,9 +360,133 @@ kubectl -n meet get certificate
 # livekit-tls    True    livekit-tls    ...
 ```
 
-证书 Ready 卡住 → `kubectl -n meet describe certificate meet-tls` 看 events，最常见是 80 端口被运营商拦（备案没完成）或 DNS 没生效。**备案中无需排查**，等审核通过跑 §7.5。
+证书 Ready 卡住 → `kubectl -n meet describe certificate meet-tls` 看 events，最常见是 80 端口被运营商拦（备案没完成）或 DNS 没生效。**备案中**走 §7.5 选验证路径（DNS-01 / 自签 / 等）；备案通过后跑 §7.6。
 
-### 7.5 完成 TLS 签发（备案通过后）
+### 7.5 在备案审核中跑全功能验证
+
+ICP 管局审核 7-15 工作日内、Beaver 撤掉拦截前，公网 80/443 拿不到 LE HTTP-01 证书，浏览器访问 `https://meet.we-meet.online` 也会被 Beaver 直接 403。但**只有 HTTP/HTTPS 入站被拦**：
+
+- DNS 解析正常（A 记录返回 ECS 公网 IP，备案不影响 DNS）
+- UDP 7882（WebRTC 媒体）不受影响，双端入会的画面/声音通道照走
+- 出站 HTTPS（后端调火山方舟 LLM / TOS 上传）不受影响
+- 阿里云 DNS OpenAPI（cert-manager DNS-01 challenge 需要）不受影响
+
+所以**备案中也能跑全功能（含 PC + 手机 4G 双端入会 + 总结）**，选下面任一路径：
+
+| 路径 | 真 LE 证书 | 浏览器警告 | 双端入会 | 引入额外组件 | 推荐场景 |
+|---|---|---|---|---|---|
+| A. DNS-01 | ✅ | ❌ | ✅ | alidns-webhook + RAM 子账号 | 客户演示 / 想要干净 demo |
+| B. 自签 | ❌ | ⚠️ 红警告 | ✅（浏览器例外后） | 无 | 内部团队 / 工程师自测 |
+| C. 等备案 | ❌ | ❌ | ❌（仅 port-forward 内测） | 无 | 不赶时间 / 内部跑通即可 |
+
+#### 7.5.1 路径 A（推荐）：DNS-01 challenge 拿真 LE 证书
+
+原理：LE ACME 协议两种身份验证，HTTP-01 要 LE 探 `http://<域名>/.well-known/acme-challenge/<token>`（Beaver 拦），DNS-01 要 cert-manager 在 DNS 记录加 `_acme-challenge.<域名>` TXT 让 LE 查（DNS 不被 Beaver 管）。后者备案前后都能用，永久稳定，备案过了也不需要切回 HTTP-01。
+
+**一次性准备**：
+
+1. **阿里云 RAM 子账号 + AccessKey**（控制台 → 访问控制 RAM）
+   - 用户名建议 `we-meet-cert-manager`，勾选「编程访问」
+   - 授权：`AliyunDNSFullAccess`（最小化的话改自定义策略，只允许 `we-meet.online` 的 `AddDomainRecord` / `DeleteDomainRecord` / `DescribeDomainRecords` / `UpdateDomainRecord`）
+   - 保存 AccessKey ID + Secret
+
+2. **装 alidns-webhook**（cert-manager 第三方 DNS provider）—— 上游 [pragkent/alidns-webhook](https://github.com/pragkent/alidns-webhook) 的 README 提供 helm chart 安装命令；装完 `kubectl -n cert-manager get pods` 看到 `alidns-webhook-*` Running。
+
+3. **写 RAM 凭据 secret + DNS-01 ClusterIssuer**：
+
+```bash
+kubectl -n cert-manager create secret generic alidns-credentials \
+  --from-literal=access-key-id='<RAM-AK-ID>' \
+  --from-literal=access-key-secret='<RAM-AK-Secret>'
+
+cat > /tmp/cluster-issuer-dns01.yaml <<'EOF'
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-dns01
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: <真邮箱>
+    privateKeySecretRef:
+      name: letsencrypt-prod-dns01-account-key
+    solvers:
+      - dns01:
+          webhook:
+            groupName: acme.we-meet.online
+            solverName: alidns
+            config:
+              accessKeyIDRef:
+                name: alidns-credentials
+                key: access-key-id
+              accessKeySecretRef:
+                name: alidns-credentials
+                key: access-key-secret
+EOF
+sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+  kubectl apply -f /tmp/cluster-issuer-dns01.yaml
+kubectl get clusterissuer letsencrypt-prod-dns01 -w   # 等 READY=True
+```
+
+> `groupName` 必须与 alidns-webhook 安装时配的 `--set groupName=...` 完全一致；`solverName` 取决于 webhook 实现（pragkent 项目为 `alidns`，其他 fork 可能不同），按各自 README 写。
+
+4. **让 meet / livekit ingress 用新 issuer**：把 [values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) 里 `cert-manager.io/cluster-issuer: letsencrypt-prod` 都改成 `letsencrypt-prod-dns01`（搜出来 ingress + ingressAdmin 两处；livekit values 一处），`helm upgrade meet ...` + `helm upgrade livekit ...`。
+
+5. **等 2-3 分钟**，`kubectl -n meet get certificate` 看到 `READY=True`，浏览器访问 `https://meet.we-meet.online` 是绿锁。
+
+> **LE 限速**：单 registered domain 每小时 50 个新证书。反复实验改 issuer 容易反复签发，建议在 PR/staging 阶段先把 `spec.acme.server` 改成 staging URL `https://acme-staging-v02.api.letsencrypt.org/directory`（staging 证书不被浏览器信任，但调试 DNS-01 流程足够），通了再切回 prod URL。
+
+> **备案通过后**：DNS-01 继续工作，**不需要做 §7.6**。要不要把 issuer 切回 HTTP-01 是纯个人偏好（更少依赖 alidns-webhook 但备案要是被掉等手续 HTTP-01 又卡住）—— 一般不切。
+
+#### 7.5.2 路径 B：自签证书 + 浏览器例外
+
+不想引入 alidns-webhook 时的备选。**双端入会能验**，浏览器有红警告。
+
+**部署侧**（aliyun-sjy 上一次性）：
+
+```bash
+# 1. 给三个域名签一份自签 cert (30 天，本来就是临时方案)
+openssl req -x509 -nodes -days 30 -newkey rsa:2048 \
+  -keyout /tmp/sf.key -out /tmp/sf.crt \
+  -subj "/CN=meet.we-meet.online" \
+  -addext "subjectAltName=DNS:meet.we-meet.online,DNS:livekit.we-meet.online,DNS:id.we-meet.online"
+
+# 2. 写进 meet-tls + livekit-tls (cert-manager 在等 LE 没拿到, 我们手动塞)
+for s in meet-tls livekit-tls; do
+  kubectl -n meet create secret tls "$s" \
+    --cert=/tmp/sf.crt --key=/tmp/sf.key \
+    --dry-run=client -o yaml | kubectl apply -f -
+done
+
+# 3. 暂时关掉 ingress 上的 cert-manager annotation 防止它覆盖我们手塞的 secret
+#    把 values.meet.yaml + values.livekit.yaml 里 cert-manager.io/cluster-issuer
+#    那行注掉, helm upgrade.
+```
+
+aliyun-zlm 的 Keycloak 同样：Caddyfile 里把 LE 自动 ACME 段换成 `tls internal`（让 Caddy 用自签代替 LE），或 `auto_https off` + 显式挂自签 cert 文件，`docker compose restart`。
+
+**用户使用流程**（很重要，否则 WSS 直接拒）：
+
+- **PC 浏览器**：先单独打开 `https://livekit.we-meet.online` → 红警告 → "高级 → 继续访问"。再打开 `https://id.we-meet.online`、`https://meet.we-meet.online` 各信任一次。三个域名都信任之后再进会议房间，否则 LiveKit WSS 在浏览器里直接被 mixed-content / cert-error 阻断（很多浏览器对 WSS 自签的容忍度比 HTTPS 还低）。
+- **手机 4G**：iOS Safari 比 Chrome 麻烦 —— 需要安装 .crt 到 设置 → 通用 → VPN 与设备管理 → 信任根证书。Android Chrome 走"高级 → 继续访问"即可。三个域名都要走一次。
+- 一次信任后会话内有效。重启浏览器要重做（手机系统级信任的不用）。
+
+**功能 cover**：登录 / 进会议 / WebRTC 画面声音（UDP 7882 与证书无关）/ 总结（后端外呼 LLM 用 LLM 端自带 cert，不受我们这边自签影响）全部能跑。
+
+#### 7.5.3 路径 C：什么都不做，等备案
+
+§7.4 看到 `READY=False` / `kubectl describe certificate` 里 `Invalid response: 403` 是预期，不用排查。短期想做内部联调可以在 aliyun-sjy 上 `kubectl port-forward`：
+
+```bash
+sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n meet port-forward svc/meet 8443:443
+# PC 改 hosts: 127.0.0.1 meet.we-meet.online (但 livekit / id 也要类似处理, 且证书还是不对)
+```
+
+**手机 4G 双端入会用 port-forward 验不了**（端口只在 ECS 本地）。等管局审核通过跑 §7.6。
+
+### 7.6 完成 TLS 签发（备案通过后，HTTP-01 路径用户）
+
+> ⚠️ 走 §7.5.1（DNS-01）路径的话**不需要**这一步——DNS-01 issuer 备案前后都正常工作。只有用 §7.5.2 自签或 §7.5.3 等的人需要跑这个脚本切回 LE 真证书。
 
 ICP 备案管局审核通过 + Beaver 拦截撤掉后，一行触发 LE 重签：
 
@@ -377,8 +499,8 @@ sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
 
 [finalize-tls.sh](../../deploy/aliyun/finalize-tls.sh) 会：
 1. **Preflight**：检查 ClusterIssuer Ready + 外网 `.well-known/acme-challenge/` 探测（如果还有 403 Beaver 会警告你要不要继续）
-2. **清掉**残留 Challenges / CertificateRequests / Secrets
-3. **helm upgrade** meet + livekit chart 重建 Certificate 资源
+2. **清掉**残留 Challenges / CertificateRequests / Secrets（含 §7.5.2 手塞的自签）
+3. **恢复** ingress 上的 `cert-manager.io/cluster-issuer` annotation 并 **helm upgrade** meet + livekit chart 重建 Certificate 资源
 4. **Poll 等** 5 分钟，看到 `READY=True` 退出并打印浏览器联调 URL
 
 成功后 `https://meet.we-meet.online` + `https://livekit.we-meet.online` 都用 LE 真证书，自动续期完全无人值守（默认 60 天前续）。
@@ -580,7 +702,7 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 
 | 症状 | 检查项 |
 |---|---|
-| 浏览器证书 invalid / pending | `kubectl -n meet describe certificate meet-tls` → events。备案中是 Beaver 拦截 `.well-known`（**预期**，等 §7.5）；备案过了仍卡，查 `kubectl -n meet get challenges -A` 看 LE 返回的 detail |
+| 浏览器证书 invalid / pending | `kubectl -n meet describe certificate meet-tls` → events。备案中是 Beaver 拦截 `.well-known`（**预期**，按 §7.5 选 DNS-01 / 自签 / 等三条路）；备案过了仍卡跑 §7.6 或查 `kubectl -n meet get challenges -A` 看 LE 返回的 detail |
 | 登录后跳回 meet 报 `redirect_uri_mismatch` | Keycloak meet realm → clients → meet → Valid Redirect URIs 应包含 `https://meet.we-meet.online/*` |
 | 入会黑屏 / 无声 | 99% 是 UDP 7882 没开。WebRTC TCP fallback 是 7881。两个都要在 aliyun-sjy 安全组放 `0.0.0.0/0` |
 | Pod `ImagePullBackOff` | `kubectl -n meet describe pod <name>` → 通常是 `meet-dockerconfig` secret 缺或火山 CR 凭据错；也可能是镜像 tag 没推到 we-meet 命名空间下 |
