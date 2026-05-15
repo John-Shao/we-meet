@@ -20,7 +20,7 @@
 │ ├─ livekit (hostPort 7881/tcp + 7882/udp)              │    │                           │
 │ ├─ meet-backend / frontend / celery                    │    │                           │
 │ ├─ meet-summary + 3 celery workers (火山方舟 LLM)      │    │ id.we-meet.online         │
-│ └─ meet-agents (metadata only; subtitles 暂关)         │    │ + (可选) CR 构建机        │
+│ └─ meet-agents (metadata only; subtitles 暂关)         │    │                           │
 │                                                        │    │                           │
 │ meet.we-meet.online / livekit.we-meet.online           │    │                           │
 └────────────────────────────────────────────────────────┘    └───────────────────────────┘
@@ -29,6 +29,7 @@
                               (OIDC 流程跨 VPC)
 
 外部依赖:
+  - 工程师 PC                        → 所有 docker build / push 都在 PC 上跑 (VPN 直连 pypi.org / docker.io)
   - 火山引擎 CR (cn-guangzhou)       → 自建 4 个 we-meet 镜像 (复用 jusi 实例, 新建 we-meet 命名空间)
   - 火山引擎 TOS (cn-guangzhou)      → 媒体文件 / 总结产物, 专用桶 `we-meet`
   - 火山方舟 (cn-beijing)            → OpenAI 兼容 LLM (复用 jusi 现有 ARK_API_KEY)
@@ -49,13 +50,13 @@
 | 0. 域名 / DNS / 备案 | 阿里云控制台 | meet/livekit/id 三条 A 记录 | **ICP 备案审核通过**（3-5 天） |
 | 1. 安全组 | 阿里云控制台 | 见 §四 | — |
 | 2. aliyun-zlm 起 Keycloak | aliyun-zlm (2C2G) | id.we-meet.online | DNS / 备案 |
-| 3. 火山 CR 推 4 个镜像 | aliyun-sjy 或本地 | 4 × `:latest` | CR 命名空间 we-meet 创建 |
+| 3. 火山 CR 推 4 个镜像 | **工程师 PC** | 4 × `:<sha>` + `:latest` | CR 命名空间 we-meet 创建 |
 | 4. aliyun-sjy 起 K3s | aliyun-sjy (4C8G) | K3s + ingress-nginx + cert-manager | — |
 | 5. aliyun-sjy 部署 we-meet | aliyun-sjy | postgres / redis / livekit / meet | 阶段 2、3 |
 | 6. 联调 | 浏览器 + 手机 4G | 双端入会成功 | 全部 |
 | 7. 接 OSS / 火山方舟 | aliyun-sjy | 总结生成 | 阶段 5 |
 
-> **为什么 build 不放在 aliyun-zlm**：aliyun-zlm 是 Keycloak 专用机，docker build 的临时上下文（几 GB cache + buildx 进程 ~1 GB RAM）会挤占 2 GiB 内存里 Keycloak 的份额。build 是一次性/低频操作，放在 aliyun-sjy（4C8G、本就要装 docker 跑 K3s）或本地 WSL2 都更合适。跨云推 CR 的延迟跟选哪台 build 没关系——都是阿里云→火山的公网链路。
+> **为什么 build 放在 PC、不在 ECS**：ECS 上 build 会撞一连串历史坑 —— uv.lock 严格校验 source URL（不能 redirect 到国内 mirror）、PyPI 国内限速 / ConnectionReset、`docker.io` 不自带 buildx 插件、Bitnami 镜像 cutoff 后还要切 `bitnamilegacy/*`（详见 [§12.1](#121-部署阶段曾经踩过的坑)）。PC 走 VPN 直连 pypi.org / docker.io 一次过；ECS 只需 docker pull 1.7 GB 镜像即可，不需要 build cache 几 GB。aliyun-zlm 2 GiB 内存还要给 Keycloak 用更不适合。跨云推 CR 的延迟跟选哪台 build 没关系——都是公网链路。
 
 ---
 
@@ -76,7 +77,7 @@
 阿里云大陆区 ECS + 公网 80/443 强制要求备案，否则运营商拦截。子域不需要单独备案，挂在主域 `we-meet.online` 备案号下即可。
 
 **备案审核中（3-5 天）能干啥**：
-- 把所有镜像 build 推到火山 CR
+- 在工程师 PC 上把所有镜像 build 推到火山 CR（不依赖任何 ECS / 备案状态）
 - 在 aliyun-sjy 装 K3s（无公网请求）
 - 部署 postgres / redis / livekit / meet 到 K3s（先不签 TLS 证书）
 - 用 `kubectl port-forward` 内部联调（自签证书或 hosts 改 `127.0.0.1`）
@@ -158,58 +159,98 @@ cp values.secrets.yaml.dist values.secrets.yaml
 
 ---
 
-## 六、构建并推送镜像到火山引擎 CR
+## 六、在 PC 上构建并推送镜像到火山引擎 CR
+
+**所有 docker build / push 都在工程师 PC 完成，不在生产 ECS。** ECS build 会撞 uv.lock 严格校验 source URL + PyPI 国内限速 + `docker.io` 不带 buildx 插件 + Bitnami cutoff 等历史坑（详见 [§12.1](#121-部署阶段曾经踩过的坑)）。PC 走 VPN 直连 pypi.org / docker.io 一次过，ECS 只需要 docker pull 即可。
 
 复用 jusi 已有的 CR 实例 `jusi-cn-guangzhou`，新建一个隔离的命名空间 `we-meet`，避免覆盖 jusi 老镜像。
 
-**一次性准备（在火山 CR 控制台）**：
-1. 实例 `jusi-cn-guangzhou` → 命名空间 → 新建 `we-meet`
+### 6.1 PC 一次性环境
+
+- Docker Desktop + WSL2（Windows）或原生 Docker（macOS / Linux），确保 `docker buildx version` 可用
+- VPN 全局，能访问 Docker Hub / PyPI / GitHub / pythonhosted.org
+- `git`；可选 `kind` + `helm` v3.16+ + `kubectl`（用于 §6.4 的 staging dry-run）
+
+### 6.2 火山 CR 一次性准备（控制台）
+
+1. 实例 `jusi-cn-guangzhou` → 命名空间 → 新建 `we-meet`（与 jusi 老镜像所在 `meet` 命名空间隔离）
 2. 在 `we-meet` 命名空间下新建 4 个镜像仓库（公开/私有都可）：
-   - `meet-backend`
-   - `meet-frontend`
-   - `meet-summary`
-   - `meet-agents`
-3. **实例 → 访问凭证 → 创建用户名 + 固定密码**。**主账号 AK/SK 不能 docker login 火山 CR**, 必须用这组实例级凭证。username 格式形如 `<custom>@<account_id>`, 例如 `JUSIAI2025@2114082505`。把这组凭据填到 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 的 `image.credentials.username` / `password` 字段。
+   - `meet-backend` / `meet-frontend` / `meet-summary` / `meet-agents`
+3. **实例 → 访问凭证 → 创建用户名 + 固定密码**。**主账号 AK/SK 不能 docker login 火山 CR**，必须用这组实例级凭证。username 格式形如 `<custom>@<account_id>`，例如 `JUSIAI2025@2114082505`。把这组凭据填到 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 的 `image.credentials.username` / `password` 字段。
 
-**构建并推送**（在 **aliyun-sjy** 上跑——它有 4C8G 的资源，且 K3s 装好后 docker daemon 已经就位；不要在 aliyun-zlm 上跑 build）：
-
-> ⚠️ **前置：BuildKit + buildx**。项目 Dockerfile 用了 `RUN --mount=type=cache,bind` 等 BuildKit-only 语法，Ubuntu apt 的 `docker.io` 默认走 legacy builder。`build-and-push.sh` 自己会 `export DOCKER_BUILDKIT=1`，但还需要 buildx 插件：
-> ```bash
-> sudo apt-get install -y docker-buildx
-> docker buildx version    # 验证
-> ```
-> install-k3s.sh 安装 docker-ce 时附带 `docker-buildx-plugin`；如果先单独装了 `docker.io` 再 build，需要手动 apt 装 `docker-buildx`。
-
-> ⚠️ **yq -r 必须**：Ubuntu apt 的 `yq` 是 Python jq 包装，默认输出 JSON 带双引号；`-r` 才是裸字符串。Mike Farah 的 Go yq 不加 `-r` 也能输出裸字符串，但加上 `-r` 两种都兼容。
+### 6.3 构建 + 推送
 
 ```bash
-cd we-meet
+# PC 上（项目根目录）
+git checkout main   # 客户部署用 main 分支
 
-# 凭据从 values.secrets.yaml 读 (不要写死在 shell history 里)
-sudo apt-get install -y yq
+# 登录火山 CR（复用 jusi 实例的访问凭证）
+docker login --username='<JUSIAI2025@xxxx>' jusi-cn-guangzhou.cr.volces.com
+
+export CR_REGISTRY=jusi-cn-guangzhou.cr.volces.com
+export CR_NAMESPACE=we-meet
+export IMAGE_TAG=$(git rev-parse --short HEAD)
+export DOCKER_BUILDKIT=1
+
+# 4 个镜像
+for spec in \
+  "meet-backend:./Dockerfile:.::backend-production" \
+  "meet-frontend:./src/frontend/Dockerfile:.::frontend-production" \
+  "meet-summary:./src/summary/Dockerfile:./src/summary::production" \
+  "meet-agents:./src/agents/Dockerfile:./src/agents::production"
+do
+  IFS=: read -r name df ctx _ target <<< "$spec"
+  docker buildx build --platform linux/amd64 \
+    -f "$df" --target "$target" \
+    -t "$CR_REGISTRY/$CR_NAMESPACE/$name:$IMAGE_TAG" \
+    -t "$CR_REGISTRY/$CR_NAMESPACE/$name:latest" \
+    --push "$ctx"
+done
+```
+
+或者直接用脚本一行起（从 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 读凭据，避免写进 shell history）：
+
+```bash
 SECRETS=src/helm/env.d/aliyun-prod/values.secrets.yaml
 export VOLC_CR_USER=$(yq -r '.image.credentials.username' $SECRETS)
 export VOLC_CR_PASS=$(yq -r '.image.credentials.password' $SECRETS)
 export IMAGE_TAG=$(git rev-parse --short HEAD)
-
 bash deploy/aliyun/build-and-push.sh
 ```
 
-> ⚠️ **CN 网络补丁已固化**：`Dockerfile` / `src/agents/Dockerfile` / `src/summary/Dockerfile` 已经在 dev 分支里打过 `apt → mirrors.aliyun.com` + `pip → mirrors.aliyun.com` 的补丁。但 **uv 没改** —— 因为 `src/backend/uv.lock` pin 了 pypi.org 来源，`uv sync --locked` 严格校验 source 一致，redirect uv 会触发 "lockfile needs to be updated" 拒绝继续。uv 直连 pypi.org 走 `UV_HTTP_TIMEOUT=300` 慢但能成。
+> ⚠️ **`--platform linux/amd64` 必加**：阿里云 ECS 都是 x86_64，PC 如果是 Apple Silicon Mac 默认 build 出 arm64 镜像，生产 ECS 拉到后 pod 立刻 exec format error 崩。上面 for loop 已经加，用 build-and-push.sh 的话 v1 脚本默认本机架构，arm64 PC 用户需要先 `export BUILDX_DEFAULT_PLATFORM=linux/amd64` 或改脚本。
 
-> CR 凭据与 TOS 主账号 AK/SK 是 **两组不同的凭据** (TOS 用主账号 AK/SK 通过 S3 协议访问;
-> CR 用实例级用户名+密码). 真实值在你 fill 完
-> [values.secrets.yaml.dist](../../src/helm/env.d/aliyun-prod/values.secrets.yaml.dist)
-> → values.secrets.yaml 里. 该文件已 gitignored, 不会推到 GitHub.
+> ⚠️ **PC 网络好不需要 CN mirror 补丁**：main 分支的 Dockerfile 直接走 pypi.org / deb.debian.org，VPN 直连 OK。如果 PC 没 VPN（不推荐），dev 分支固化过 `apt → mirrors.aliyun.com` + `pip → mirrors.aliyun.com` 补丁，但 **uv 不能 redirect** —— `src/backend/uv.lock` pin 了 pypi.org 来源，`uv sync --locked` 严格校验 source 一致，redirect uv 触发 "lockfile needs to be updated" 拒绝继续；uv 走 `UV_HTTP_TIMEOUT=300` 慢但能成。
 
-构建慢的常见原因（[docker-desktop.md:269-371](docker-desktop.md#L269-L371) 已经详记过）：
-- agents 镜像 apt 拉 deb.debian.org 超时 — [src/agents/Dockerfile](../../src/agents/Dockerfile) 已固化阿里云源，应该秒过
-- backend / summary 用 alpine `apk`，国内通常没问题；如卡可加 `RUN echo "https://mirrors.aliyun.com/alpine/v3.21/main" > /etc/apk/repositories`
-- frontend 用 npm — `.npmrc` 加 `registry=https://registry.npmmirror.com/`
+> ⚠️ **yq -r 必须**：Ubuntu apt 装的 Python yq 默认输出 JSON 带双引号；`-r` 才是裸字符串。Mike Farah 的 Go yq 不加 `-r` 也能输出裸字符串，但加上 `-r` 两种都兼容。
 
-构建完成把 IMAGE_TAG 填回 `src/helm/env.d/aliyun-prod/values.meet.yaml` 里 4 处 `image.tag`（或保留 `latest` + `pullPolicy: Always`）。
+> CR 凭据与 TOS 主账号 AK/SK 是 **两组不同的凭据**（TOS 用主账号 AK/SK 通过 S3 协议访问；CR 用实例级用户名+密码）。真实值在你 fill 完 [values.secrets.yaml.dist](../../src/helm/env.d/aliyun-prod/values.secrets.yaml.dist) → values.secrets.yaml 里。该文件已 gitignored，不会推到 GitHub。
 
-> **跨云镜像拉取成本**: K3s pod 在阿里云华南-深圳, 每次拉镜像走公网到火山华南-广州 (跨云). 4 个镜像总大小约 1.7 GB. 配合 `imagePullPolicy: Always` 每次重启都重拉, 单节点单次完整重启约 1.7 GB 跨云流量. 长期生产建议把 4 个 image repo 字段的 `pullPolicy` 改为 `IfNotPresent` + IMAGE_TAG 用 commit-sha 显式触发更新, 跨云流量降到只有发版时一次.
+构建完成把 IMAGE_TAG 填回 [values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) 里 4 处 `image.tag`（或保留 `latest` + `pullPolicy: Always`，前者更稳但每次发版多改一行 yaml）。
+
+> **跨云镜像拉取成本**：K3s pod 在阿里云华南-深圳，每次拉镜像走公网到火山华南-广州（跨云）。4 个镜像总大小约 1.7 GB。配合 `imagePullPolicy: Always` 每次重启都重拉，单节点单次完整重启约 1.7 GB 跨云流量。长期生产建议把 4 个 image repo 字段的 `pullPolicy` 改为 `IfNotPresent` + IMAGE_TAG 用 commit-sha 显式触发更新，跨云流量降到只有发版时一次。
+
+### 6.4 （可选）在 kind 本地 dry-run
+
+正式推 ECS 前可以在 PC kind 集群跑一次 manifest 渲染 + 静态校验，提前发现 yaml 错误：
+
+```bash
+kind create cluster --name we-meet-staging
+kubectl create namespace meet
+kubectl -n meet create secret docker-registry meet-dockerconfig \
+  --docker-server="$CR_REGISTRY" \
+  --docker-username='<JUSIAI2025@xxxx>' \
+  --docker-password='<CR-密码>'
+
+# 渲染 manifest 检查错误
+helm template meet src/helm/meet \
+  -n meet \
+  -f src/helm/env.d/aliyun-prod/values.meet.yaml \
+  -f src/helm/env.d/aliyun-prod/values.secrets.yaml \
+  | kubectl apply --dry-run=server -f -
+```
+
+dry-run 不会真起 livekit/postgres/redis，只验证 yaml 合法性 + image pull secret 可解析。完整端到端联调还是要在 aliyun-sjy 上跑（§七 之后）。
 
 ---
 
@@ -561,7 +602,7 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 | [deploy/aliyun/install-k3s.sh](../../deploy/aliyun/install-k3s.sh) | aliyun-sjy 一键装 K3s + ingress-nginx + cert-manager |
 | [deploy/aliyun/install-meet.sh](../../deploy/aliyun/install-meet.sh) | aliyun-sjy 一键装 postgres + redis + livekit + meet chart |
 | [deploy/aliyun/finalize-tls.sh](../../deploy/aliyun/finalize-tls.sh) | 备案通过后触发 LE 证书重签（§7.5） |
-| [deploy/aliyun/build-and-push.sh](../../deploy/aliyun/build-and-push.sh) | 构建 4 个镜像并推火山 CR |
+| [deploy/aliyun/build-and-push.sh](../../deploy/aliyun/build-and-push.sh) | **在 PC 上**构建 4 个镜像并推火山 CR（§六） |
 | [deploy/aliyun/keycloak/compose.yaml](../../deploy/aliyun/keycloak/compose.yaml) | aliyun-zlm 上的 Keycloak + Postgres + Caddy |
 | [deploy/aliyun/keycloak/bootstrap-realm.sh](../../deploy/aliyun/keycloak/bootstrap-realm.sh) | 创建 meet realm / client / 测试用户 |
 | [src/helm/env.d/aliyun-prod/values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) | meet chart 生产 values |

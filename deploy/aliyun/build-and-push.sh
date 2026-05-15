@@ -3,9 +3,9 @@
 #                     (复用 jusi_meet_suite1.9 已有的 jusi-cn-guangzhou 实例)
 #
 # 在哪里跑:
-#   - 推荐: aliyun-sjy (K3s 主节点, 4C8G; 装完 install-k3s.sh 就有 docker 可用)
-#   - 也可: 本地 Windows + WSL2 / 任意有 docker 的机器
-#   - 不推荐: aliyun-zlm (2C2G, 专跑 Keycloak; build cache + buildx 会挤占内存)
+#   - 推荐: 工程师 PC (Docker Desktop + WSL2 / macOS / Linux, VPN 直连 pypi.org / docker.io)
+#   - 不推荐: 生产 ECS — 撞 uv.lock 严格校验 + PyPI 国内限速 + docker.io 不带 buildx +
+#            Bitnami cutoff 等历史坑 (详见 docs/installation/aliyun.md §六 / §12.1)
 #
 # 前置 (一次性):
 #   1. 火山 CR 控制台 → 实例 jusi-cn-guangzhou → 命名空间 → 新建 we-meet
