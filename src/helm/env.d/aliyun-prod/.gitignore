@@ -1,0 +1,3 @@
+# Never commit filled-in secrets
+values.secrets.yaml
+*.local.yaml

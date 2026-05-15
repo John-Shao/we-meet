@@ -1,0 +1,381 @@
+# Production values for the meet helm chart, targeting:
+#   - 4C8G Aliyun ECS in cn-shenzhen, single-node K3s
+#   - Keycloak running on a separate 2C2G ECS (id.jusicloud.com)
+#   - Aliyun OSS as the S3-compatible media backend
+#   - 火山方舟 (Volcengine Ark) as the OpenAI-compatible LLM endpoint for summary
+#   - Recording disabled (待第二阶段加 livekit-egress + 第二台 ECS)
+#   - Subtitles/transcription disabled (current upstream agents code only supports
+#     deepgram/kyutai; 火山豆包 STT 需要后续移植自定义 plugin)
+#
+# Render with plain `helm install` (NOT helmfile — helmfile is dev-only):
+#   helm upgrade --install meet ./src/helm/meet \
+#     -n meet --create-namespace \
+#     -f src/helm/env.d/aliyun-prod/values.meet.yaml \
+#     -f src/helm/env.d/aliyun-prod/values.secrets.yaml
+#
+# values.secrets.yaml is gitignored — copy values.secrets.yaml.dist and fill in.
+
+image:
+  repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend
+  pullPolicy: Always
+  tag: "latest"
+  credentials:
+    name: meet-dockerconfig
+    registry: jusi-cn-guangzhou.cr.volces.com
+    # username / password come from values.secrets.yaml
+
+backend:
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+  envVars:
+    DJANGO_CONFIGURATION: Production
+    DJANGO_SETTINGS_MODULE: meet.settings
+    DJANGO_ALLOWED_HOSTS: meet.jusicloud.com
+    DJANGO_CSRF_TRUSTED_ORIGINS: https://meet.jusicloud.com
+    DJANGO_SILENCED_SYSTEM_CHECKS: security.W004,security.W008
+    # DJANGO_SECRET_KEY 来自 values.secrets.yaml
+
+    # Email — 备案完成前可先用 Aliyun 邮件推送，或暂时填占位等后续再开
+    DJANGO_EMAIL_HOST: smtpdm.aliyun.com
+    DJANGO_EMAIL_PORT: 465
+    DJANGO_EMAIL_USE_SSL: "True"
+    DJANGO_EMAIL_FROM: noreply@jusicloud.com
+    DJANGO_EMAIL_BRAND_NAME: We-Meet
+    DJANGO_EMAIL_DOMAIN: meet.jusicloud.com
+    DJANGO_EMAIL_APP_BASE_URL: https://meet.jusicloud.com
+    EMAIL_SUPPORT_EMAIL: support@jusicloud.com
+    EMAIL_LOGO_IMG: https://meet.jusicloud.com/assets/logo-suite-numerique.png
+
+    # OIDC → Keycloak on 2C2G ECS (cross-VPC over public HTTPS)
+    OIDC_OP_JWKS_ENDPOINT: https://id.jusicloud.com/realms/meet/protocol/openid-connect/certs
+    OIDC_OP_AUTHORIZATION_ENDPOINT: https://id.jusicloud.com/realms/meet/protocol/openid-connect/auth
+    OIDC_OP_TOKEN_ENDPOINT: https://id.jusicloud.com/realms/meet/protocol/openid-connect/token
+    OIDC_OP_USER_ENDPOINT: https://id.jusicloud.com/realms/meet/protocol/openid-connect/userinfo
+    OIDC_OP_LOGOUT_ENDPOINT: https://id.jusicloud.com/realms/meet/protocol/openid-connect/logout
+    OIDC_RP_SIGN_ALGO: RS256
+    OIDC_RP_SCOPES: "openid email"
+    OIDC_REDIRECT_ALLOWED_HOSTS: '["https://meet.jusicloud.com"]'
+    OIDC_REDIRECT_REQUIRE_HTTPS: "True"
+    OIDC_VERIFY_SSL: "True"
+    LOGIN_REDIRECT_URL: https://meet.jusicloud.com
+    LOGIN_REDIRECT_URL_FAILURE: https://meet.jusicloud.com
+    LOGOUT_REDIRECT_URL: https://meet.jusicloud.com
+    # OIDC_RP_CLIENT_ID / OIDC_RP_CLIENT_SECRET 来自 values.secrets.yaml
+
+    # Database — in-cluster postgres
+    DB_HOST: postgresql
+    DB_PORT: 5432
+    DB_NAME: meet
+    DB_USER: meet
+    # DB_PASSWORD 来自 values.secrets.yaml
+
+    # Redis — in-cluster redis (bitnami chart default service name)
+    # REDIS_URL 来自 values.secrets.yaml (含密码)
+    # CELERY_BROKER_URL 同上
+
+    # Static files served by whitenoise
+    STORAGES_STATICFILES_BACKEND: whitenoise.storage.CompressedManifestStaticFilesStorage
+
+    # LiveKit — in-cluster, exposed via livekit.jusicloud.com
+    LIVEKIT_API_URL: https://livekit.jusicloud.com/
+    LIVEKIT_API_KEY: meet
+    # LIVEKIT_API_SECRET 来自 values.secrets.yaml
+    LIVEKIT_VERIFY_SSL: "True"
+    LIVEKIT_FORCE_WSS_PROTOCOL: "True"
+    LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX: "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    ALLOW_UNREGISTERED_ROOMS: "False"
+
+    # Storage — 火山引擎 TOS, S3 兼容. 专用桶 we-meet, 华南-广州.
+    # ECS 在阿里云华南-深圳 ↔ TOS 在火山华南-广州, 同地理区域跨云 (~5-10 ms),
+    # 必须用公网 endpoint (内网 ivolces.com 仅火山 ECS 可达).
+    AWS_S3_ENDPOINT_URL: https://tos-s3-cn-guangzhou.volces.com
+    AWS_S3_REGION_NAME: cn-guangzhou
+    AWS_STORAGE_BUCKET_NAME: we-meet
+    AWS_S3_SIGNATURE_VERSION: s3v4
+    AWS_S3_ADDRESSING_STYLE: virtual
+    # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY 来自 values.secrets.yaml
+    MEDIA_BASE_URL: https://meet.jusicloud.com
+
+    # Recording — 第一阶段关闭
+    RECORDING_ENABLE: "False"
+    RECORDING_STORAGE_EVENT_ENABLE: "False"
+
+    # Summary — 启用，调本地 meet-summary service
+    SUMMARY_SERVICE_ENDPOINT: http://meet-summary:80/api/v1/tasks/
+    # SUMMARY_SERVICE_API_TOKEN 来自 values.secrets.yaml
+
+    # Subtitles — 第一阶段关闭（agents 代码仅支持 deepgram/kyutai）
+    ROOM_SUBTITLE_ENABLED: "False"
+
+    # Telephony / external app / addons — 默认全关
+    ROOM_TELEPHONY_ENABLED: "False"
+    EXTERNAL_API_ENABLED: "False"
+    ADDONS_ENABLED: "False"
+    METADATA_COLLECTOR_ENABLED: "True"
+
+    FRONTEND_USE_FRENCH_GOV_FOOTER: "False"
+    FRONTEND_USE_PROCONNECT_BUTTON: "False"
+    FRONTEND_SILENCE_LIVEKIT_DEBUG: "True"
+    FRONTEND_IS_SILENT_LOGIN_ENABLED: "True"
+
+  command:
+    - "gunicorn"
+    - "-c"
+    - "/usr/local/etc/gunicorn/meet.py"
+    - "meet.wsgi:application"
+
+  migrate:
+    command:
+      - "/bin/sh"
+      - "-c"
+      - |
+        python manage.py migrate --no-input
+    restartPolicy: Never
+
+  createsuperuser:
+    command:
+      - "/bin/sh"
+      - "-c"
+      - |
+        python manage.py createsuperuser --email $DJANGO_SUPERUSER_EMAIL --password $DJANGO_SUPERUSER_PASSWORD || true
+    restartPolicy: Never
+
+frontend:
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+  image:
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend
+    pullPolicy: Always
+    tag: "latest"
+
+  envVars:
+    VITE_APP_TITLE: "We-Meet"
+    VITE_PORT: 8080
+    VITE_HOST: 0.0.0.0
+    VITE_API_BASE_URL: https://meet.jusicloud.com/
+
+ingress:
+  enabled: true
+  className: nginx
+  host: meet.jusicloud.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+  tls:
+    enabled: true
+    secretName: meet-tls
+
+ingressAdmin:
+  enabled: true
+  className: nginx
+  host: meet.jusicloud.com
+  path: /admin
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls:
+    enabled: true
+    secretName: meet-tls
+
+# Recording-related ingresses disabled (recording disabled v1)
+ingressMedia:
+  enabled: false
+ingressMediaFiles:
+  enabled: false
+ingressWebhook:
+  enabled: false
+
+posthog:
+  ingress:
+    enabled: false
+  ingressAssets:
+    enabled: false
+
+# ---- Summary service (FastAPI) ----
+summary:
+  replicas: 1
+  image:
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    pullPolicy: Always
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+  envVars: &summaryEnvVars
+    APP_NAME: meet-summary
+    # APP_API_TOKEN 来自 values.secrets.yaml (= SUMMARY_SERVICE_API_TOKEN)
+
+    AWS_STORAGE_BUCKET_NAME: we-meet
+    AWS_S3_ENDPOINT_URL: https://tos-s3-cn-guangzhou.volces.com
+    AWS_S3_SECURE_ACCESS: "True"
+    # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY 来自 values.secrets.yaml
+
+    # 火山方舟 (Volcengine Ark) — OpenAI 兼容 (复用 jusi_meet_suite1.9 ARK_API_KEY)
+    LLM_BASE_URL: https://ark.cn-beijing.volces.com/api/v3
+    LLM_MODEL: "ep-20260316164223-46rsh"   # DOUBAO_LLM_ENDPOINT
+    # LLM_API_KEY 来自 values.secrets.yaml
+
+    # WhisperX — v1 不开录制 → summary 不会真的发起音频转写, 这里只是
+    # 占位满足 summary/core/config.py 的 pydantic 必填校验. 如果以后要
+    # 接 OpenAI 兼容音频转写, 火山方舟没有, 需另接其他云或 self-host whisper.
+    WHISPERX_BASE_URL: https://ark.cn-beijing.volces.com/api/v3
+    WHISPERX_ASR_MODEL: whisper-1
+    WHISPERX_DEFAULT_LANGUAGE: zh
+    # WHISPERX_API_KEY 来自 values.secrets.yaml (复用 LLM_API_KEY)
+
+    # AUTHORIZED_TENANTS 至少包含一个 v1 默认 tenant，否则启动失败 (config.py validate)
+    # 直接靠 legacy APP_API_TOKEN/WEBHOOK_API_TOKEN/WEBHOOK_URL 三件套即可自动迁移
+    WEBHOOK_URL: https://meet.jusicloud.com/api/v1.0/recordings/summary/webhook/
+    # WEBHOOK_API_TOKEN 来自 values.secrets.yaml
+
+    # CELERY — 使用 in-cluster redis
+    # CELERY_BROKER_URL / CELERY_RESULT_BACKEND / TASK_TRACKER_REDIS_URL 来自 values.secrets.yaml
+
+# ---- Celery workers for the summary service ----
+celeryTranscribe:
+  replicas: 1
+  image:
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    pullPolicy: Always
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+  envVars: *summaryEnvVars
+  command:
+    - "celery"
+    - "-A"
+    - "summary.core.celery_worker"
+    - "worker"
+    - "--pool=solo"
+    - "--loglevel=info"
+    - "-Q"
+    - "transcribe-queue,transcribe-queue-v2"
+
+celerySummarize:
+  replicas: 1
+  image:
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    pullPolicy: Always
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+  envVars: *summaryEnvVars
+  command:
+    - "celery"
+    - "-A"
+    - "summary.core.celery_worker"
+    - "worker"
+    - "--pool=solo"
+    - "--loglevel=info"
+    - "-Q"
+    - "summarize-queue,summarize-queue-v2"
+
+celerySummaryBackend:
+  replicas: 1
+  image:
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    pullPolicy: Always
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+  envVars: *summaryEnvVars
+  command:
+    - "celery"
+    - "-A"
+    - "summary.core.celery_worker"
+    - "worker"
+    - "--pool=solo"
+    - "--loglevel=info"
+    - "-Q"
+    - "call-webhook-queue-v2"
+
+# ---- Celery worker for the meet backend (delivery, mailing, room callbacks) ----
+celery:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+  command:
+    - "celery"
+    - "-A"
+    - "meet.celery_app"
+    - "worker"
+    - "--loglevel=info"
+
+# ---- Metadata collector agent (lightweight, no STT) ----
+agentMetadata:
+  replicas: 1
+  image:
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
+    pullPolicy: Always
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+  envVars:
+    LIVEKIT_URL: https://livekit.jusicloud.com/
+    LIVEKIT_API_KEY: meet
+    # LIVEKIT_API_SECRET 来自 values.secrets.yaml
+    ENABLE_SILERO_VAD: "false"
+    # 火山 TOS we-meet 专用桶, 华南-广州
+    AWS_S3_ENDPOINT_URL: tos-s3-cn-guangzhou.volces.com
+    AWS_S3_SECURE_ACCESS: "True"
+    AWS_STORAGE_BUCKET_NAME: we-meet
+    AWS_S3_OUTPUT_FOLDER: metadata
+  command:
+    - "python"
+    - "metadata_collector.py"
+    - "start"
+
+# ---- Subtitles / transcription agent — DISABLED v1 ----
+# 当前 upstream multi_user_transcriber.py 仅支持 deepgram / kyutai。
+# 第二阶段移植 doubao 自定义插件后再设 replicas: 1。
+agentSubtitles:
+  replicas: 0
+  image:
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
+    pullPolicy: Always
+    tag: "latest"
+  envVars:
+    LIVEKIT_URL: https://livekit.jusicloud.com/
+    LIVEKIT_API_KEY: meet
+    ENABLE_SILERO_VAD: "false"
+    STT_PROVIDER: deepgram
+  command:
+    - "python"
+    - "multi_user_transcriber.py"
+    - "start"

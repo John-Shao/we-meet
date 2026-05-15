@@ -1,0 +1,83 @@
+# LiveKit-server helm values for production on Aliyun ECS (4C8G, single node).
+#
+# Install:
+#   helm repo add livekit https://helm.livekit.io
+#   helm repo update
+#   helm upgrade --install livekit livekit/livekit-server \
+#     -n meet --create-namespace \
+#     -f src/helm/env.d/aliyun-prod/values.livekit.yaml \
+#     -f src/helm/env.d/aliyun-prod/values.secrets.yaml
+#
+# Notes on the network model:
+#   - 4C8G ECS 单节点，K3s 用 hostPort 让 livekit 直接占用宿主机的 7881/tcp + 7882/udp
+#     (相比 NodePort 简单，不需要 LoadBalancer)
+#   - WebSocket signaling 走 ingress-nginx 终止 TLS (livekit.jusicloud.com:443)
+#   - 媒体走 UDP 7882 直连 ECS 公网 IP (use_external_ip: true 让 LiveKit 在 ICE
+#     candidate 里宣告自己的公网 IP)
+#   - 阿里云安全组必须放行 7881/tcp 和 7882/udp 到 ECS 公网 IP
+
+replicaCount: 1
+terminationGracePeriodSeconds: 18000
+
+# 使用 upstream livekit 镜像即可——meet 项目自带的 docker/livekit/Dockerfile
+# 仅是为了在 dev 环境注入 mkcert rootCA，生产环境用 Let's Encrypt 不需要。
+image:
+  repository: livekit/livekit-server
+  tag: v1.7.2
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+
+livekit:
+  log_level: info
+  rtc:
+    use_external_ip: true   # 让 ICE 候选包含 ECS 公网 IP
+    port_range_start: 50000
+    port_range_end: 60000
+    udp_port: 7882          # 媒体单端口 UDP 多路复用 (推荐)
+    tcp_port: 7881          # WebRTC TCP fallback
+  redis:
+    address: redis-master:6379
+    # password 来自 values.secrets.yaml 通过 helm --set 或 secrets file 注入
+  # keys 来自 values.secrets.yaml
+  turn:
+    enabled: false          # 备案完成前先不开 TURN-over-TLS-443，免端口冲突
+  webhook:
+    urls:
+      - https://meet.jusicloud.com/api/v1.0/rooms/webhooks-livekit/
+    # api_key 来自 values.secrets.yaml
+
+# 让 livekit pod 直接绑定宿主机端口（K3s 单节点的最简方案）
+hostNetwork: false
+hostPort:
+  enabled: true
+  rtcPorts:
+    udp: 7882
+    tcp: 7881
+
+# Signaling 走 ingress-nginx + cert-manager 终止 TLS
+loadBalancer:
+  type: nginx
+  clusterIssuer: letsencrypt-prod
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  tls:
+    - hosts:
+        - livekit.jusicloud.com
+      secretName: livekit-tls
+
+autoscaling:
+  enabled: false
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

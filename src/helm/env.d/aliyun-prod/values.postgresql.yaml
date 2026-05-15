@@ -1,0 +1,42 @@
+# Bitnami postgresql chart values for in-cluster Postgres on the 4C8G ECS.
+# 使用本地存储 (K3s 自带 local-path provisioner)，单节点够用。
+#
+# 部署:
+#   helm install postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
+#     -n meet --create-namespace \
+#     -f src/helm/env.d/aliyun-prod/values.postgresql.yaml \
+#     --set auth.postgresPassword="$POSTGRES_ROOT_PASSWORD" \
+#     --set auth.password="$DB_PASSWORD"
+
+global:
+  storageClass: local-path
+  security:
+    # bitnamilegacy/* 不在 Bitnami chart 的官方 "recognized" 镜像清单里, 显式确认接受.
+    allowInsecureImages: true
+
+auth:
+  username: meet
+  database: meet
+  # postgresPassword / password 通过 --set 传入，避免落到磁盘
+
+primary:
+  persistence:
+    enabled: true
+    size: 8Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  pgHbaConfiguration: |
+    local all all trust
+    host all all 0.0.0.0/0 md5
+    host all all ::/0 md5
+
+# 2025-08 起 Bitnami 把 bitnami/* Docker Hub 镜像限制了 (403 Forbidden).
+# 切到 bitnamilegacy/* — 是 Bitnami 自留的 cutoff 前所有 tag 的快照仓库.
+image:
+  registry: docker.io
+  repository: bitnamilegacy/postgresql
+  tag: 16.4.0-debian-12-r0

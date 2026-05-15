@@ -1,0 +1,39 @@
+# Bitnami redis chart values for in-cluster Redis on the 4C8G ECS.
+# Standalone (no replica) — 单节点够用，省内存。
+#
+# 部署:
+#   helm install redis oci://registry-1.docker.io/bitnamicharts/redis \
+#     -n meet --create-namespace \
+#     -f src/helm/env.d/aliyun-prod/values.redis.yaml \
+#     --set auth.password="$REDIS_PASSWORD"
+
+global:
+  storageClass: local-path
+  security:
+    # bitnamilegacy/* 不在 Bitnami chart 的官方 "recognized" 镜像清单里, chart 默认会
+    # abort 安装. 明确确认我们知情后开启 substitute. (Postgres chart 同样设置, 见 values.postgresql.yaml)
+    allowInsecureImages: true
+
+architecture: standalone
+
+auth:
+  enabled: true
+  # password 通过 --set 传入
+
+master:
+  persistence:
+    enabled: true
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 192Mi
+
+# 2025-08 起 Bitnami 把 bitnami/* Docker Hub 镜像限制了 (403 Forbidden).
+# 切到 bitnamilegacy/* — 是 Bitnami 自留的 cutoff 前所有 tag 的快照仓库.
+image:
+  registry: docker.io
+  repository: bitnamilegacy/redis
+  tag: 7.4.1-debian-12-r0
