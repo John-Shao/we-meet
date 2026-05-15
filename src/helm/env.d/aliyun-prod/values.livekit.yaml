@@ -11,7 +11,7 @@
 # Notes on the network model:
 #   - 4C8G ECS 单节点，K3s 用 hostPort 让 livekit 直接占用宿主机的 7881/tcp + 7882/udp
 #     (相比 NodePort 简单，不需要 LoadBalancer)
-#   - WebSocket signaling 走 ingress-nginx 终止 TLS (livekit.we-meet.online:443)
+#   - WebSocket signaling 走 ingress-nginx 终止 TLS (livekit.jusicloud.com:443)
 #   - 媒体走 UDP 7882 直连 ECS 公网 IP (use_external_ip: true 让 LiveKit 在 ICE
 #     candidate 里宣告自己的公网 IP)
 #   - 阿里云安全组必须放行 7881/tcp 和 7882/udp 到 ECS 公网 IP
@@ -49,7 +49,7 @@ livekit:
     enabled: false          # 备案完成前先不开 TURN-over-TLS-443，免端口冲突
   webhook:
     urls:
-      - https://meet.we-meet.online/api/v1.0/rooms/webhooks-livekit/
+      - https://meet.jusicloud.com/api/v1.0/rooms/webhooks-livekit/
     # api_key 来自 values.secrets.yaml
 
 # 让 livekit pod 直接绑定宿主机端口（K3s 单节点的最简方案）
@@ -72,7 +72,7 @@ loadBalancer:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   tls:
     - hosts:
-        - livekit.we-meet.online
+        - livekit.jusicloud.com
       secretName: livekit-tls
 
 autoscaling:
