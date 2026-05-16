@@ -47,14 +47,43 @@
 
 | 阶段 | 在哪台机器 | 关键产物 | 阻塞依赖 |
 |---|---|---|---|
-| 0. 域名 / DNS | 阿里云控制台 | meet/livekit/id 三条 A 记录 | — |
-| 1. 安全组 | 阿里云控制台 | 见 §四 | — |
-| 2. aliyun-zlm 起 Keycloak | aliyun-zlm (2C2G) | id.jusicloud.com | DNS |
-| 3. 火山 CR 推 4 个镜像 | **工程师 PC** | 4 × `:<sha>` + `:latest` | CR 命名空间 we-meet 创建 |
-| 4. aliyun-sjy 起 K3s | aliyun-sjy (4C8G) | K3s + ingress-nginx + cert-manager | — |
-| 5. aliyun-sjy 部署 we-meet | aliyun-sjy | postgres / redis / livekit / meet | 阶段 2、3 |
-| 6. 联调 | 浏览器 + 手机 4G | 双端入会成功 | 全部 |
-| 7. 接 OSS / 火山方舟 | aliyun-sjy | 总结生成 | 阶段 5 |
+| 0. **客户化** | 工程师 PC | 把 `jusicloud.com` 等占位换成客户真实域名 / 邮箱, 生成 secrets | — |
+| 1. 域名 / DNS | 阿里云控制台 | meet/livekit/id 三条 A 记录 | 阶段 0 |
+| 2. 安全组 | 阿里云控制台 | 见 §四 | — |
+| 3. aliyun-zlm 起 Keycloak | aliyun-zlm (2C2G) | id.{客户域名} | DNS |
+| 4. 火山 CR 推 4 个镜像 | **工程师 PC** | 4 × `:<sha>` + `:latest` | CR 命名空间 we-meet 创建 |
+| 5. aliyun-sjy 起 K3s | aliyun-sjy (4C8G) | K3s + ingress-nginx + cert-manager | — |
+| 6. aliyun-sjy 部署 we-meet | aliyun-sjy | postgres / redis / livekit / meet | 阶段 3、4 |
+| 7. 联调 | 浏览器 + 手机 4G | 双端入会成功 | 全部 |
+| 8. 接 OSS / 火山方舟 | aliyun-sjy | 总结生成 | 阶段 6 |
+
+### 2.1 客户化（一行命令把模板仓库改造为客户专属仓库）
+
+主仓库默认所有占位用 `jusicloud.com`. 给新客户部署时**先**跑 [deploy/aliyun/setup-customer.sh](../../deploy/aliyun/setup-customer.sh) 一键替换:
+
+```bash
+# 在 PC 上, 仓库根目录
+git clone https://github.com/<your-org>/we-meet.git
+cd we-meet
+
+# 先 dry-run 看会改哪些文件
+bash deploy/aliyun/setup-customer.sh --dry-run acme.com ops@acme.com
+
+# 满意了真改
+bash deploy/aliyun/setup-customer.sh acme.com ops@acme.com
+# (可选第 3 个参数 ADMIN_EMAIL, 默认 admin@<DOMAIN>)
+```
+
+脚本会:
+
+1. 把 9 个文件里的 `jusicloud.com` → 客户域名（含 docs/aliyun.md）
+2. 把 Caddyfile / cluster-issuer.yaml 里的 `REPLACE_OWNER_EMAIL@...` 占位换成 `OPS_EMAIL`（用于 Let's Encrypt 通知）
+3. 从 `.dist` 模板**生成** `values.secrets.yaml` + `keycloak/.env`，自动填随机密钥（DJANGO_SECRET_KEY / POSTGRES_APP_PASSWORD / REDIS_PASSWORD / LIVEKIT_API_SECRET / SUMMARY_API_TOKEN / KC_ADMIN_PASSWORD 等）
+4. 末尾打印 **checklist**: 还需手动填什么外部凭据（火山 CR / TOS AK / ARK API key / Keycloak client secret 等），及从哪儿拿
+
+然后照常走 §3 → §8。脚本是幂等检测的（已客户化的仓库会拒绝二次跑，避免污染）。
+
+> 已 1 个客户部署后想加第 2 个：在新分支或新 fork 上重新 `git clone` + `setup-customer.sh`，互不影响。
 
 > **为什么 build 放在 PC、不在 ECS**：ECS 上 build 会撞一连串历史坑 —— uv.lock 严格校验 source URL（不能 redirect 到国内 mirror）、PyPI 国内限速 / ConnectionReset、`docker.io` 不自带 buildx 插件、Bitnami 镜像 cutoff 后还要切 `bitnamilegacy/*`（详见 [§12.1](#121-部署阶段曾经踩过的坑)）。PC 走 VPN 直连 pypi.org / docker.io 一次过；ECS 只需 docker pull 1.7 GB 镜像即可，不需要 build cache 几 GB。aliyun-zlm 2 GiB 内存还要给 Keycloak 用更不适合。跨云推 CR 的延迟跟选哪台 build 没关系——都是公网链路。
 
@@ -636,6 +665,7 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 
 | 路径 | 作用 |
 |---|---|
+| [deploy/aliyun/setup-customer.sh](../../deploy/aliyun/setup-customer.sh) | **在 PC 上**一键把模板仓库改造为客户专属仓库（§2.1） |
 | [deploy/aliyun/install-k3s.sh](../../deploy/aliyun/install-k3s.sh) | aliyun-sjy 一键装 K3s + ingress-nginx + cert-manager |
 | [deploy/aliyun/install-meet.sh](../../deploy/aliyun/install-meet.sh) | aliyun-sjy 一键装 postgres + redis + livekit + meet chart |
 | [deploy/aliyun/build.sh](../../deploy/aliyun/build.sh) | **在 PC 上 (VPN ON)** 构建 4 个镜像（§六） |
