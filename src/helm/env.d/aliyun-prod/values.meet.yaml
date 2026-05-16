@@ -1,6 +1,6 @@
 # Production values for the meet helm chart, targeting:
 #   - 4C8G Aliyun ECS in cn-shenzhen, single-node K3s
-#   - Keycloak running on a separate 2C2G ECS (id.jusicloud.com)
+#   - Keycloak running on a separate 2C2G ECS (id.example.com)
 #   - Aliyun OSS as the S3-compatible media backend
 #   - 火山方舟 (Volcengine Ark) as the OpenAI-compatible LLM endpoint for summary
 #   - Recording disabled (待第二阶段加 livekit-egress + 第二台 ECS)
@@ -37,8 +37,8 @@ backend:
   envVars:
     DJANGO_CONFIGURATION: Production
     DJANGO_SETTINGS_MODULE: meet.settings
-    DJANGO_ALLOWED_HOSTS: meet.jusicloud.com
-    DJANGO_CSRF_TRUSTED_ORIGINS: https://meet.jusicloud.com
+    DJANGO_ALLOWED_HOSTS: meet.example.com
+    DJANGO_CSRF_TRUSTED_ORIGINS: https://meet.example.com
     DJANGO_SILENCED_SYSTEM_CHECKS: security.W004,security.W008
     # DJANGO_SECRET_KEY 来自 values.secrets.yaml
 
@@ -46,27 +46,27 @@ backend:
     DJANGO_EMAIL_HOST: smtpdm.aliyun.com
     DJANGO_EMAIL_PORT: 465
     DJANGO_EMAIL_USE_SSL: "True"
-    DJANGO_EMAIL_FROM: noreply@jusicloud.com
+    DJANGO_EMAIL_FROM: noreply@example.com
     DJANGO_EMAIL_BRAND_NAME: We-Meet
-    DJANGO_EMAIL_DOMAIN: meet.jusicloud.com
-    DJANGO_EMAIL_APP_BASE_URL: https://meet.jusicloud.com
-    EMAIL_SUPPORT_EMAIL: support@jusicloud.com
-    EMAIL_LOGO_IMG: https://meet.jusicloud.com/assets/logo-suite-numerique.png
+    DJANGO_EMAIL_DOMAIN: meet.example.com
+    DJANGO_EMAIL_APP_BASE_URL: https://meet.example.com
+    EMAIL_SUPPORT_EMAIL: support@example.com
+    EMAIL_LOGO_IMG: https://meet.example.com/assets/logo-suite-numerique.png
 
     # OIDC → Keycloak on 2C2G ECS (cross-VPC over public HTTPS)
-    OIDC_OP_JWKS_ENDPOINT: https://id.jusicloud.com/realms/meet/protocol/openid-connect/certs
-    OIDC_OP_AUTHORIZATION_ENDPOINT: https://id.jusicloud.com/realms/meet/protocol/openid-connect/auth
-    OIDC_OP_TOKEN_ENDPOINT: https://id.jusicloud.com/realms/meet/protocol/openid-connect/token
-    OIDC_OP_USER_ENDPOINT: https://id.jusicloud.com/realms/meet/protocol/openid-connect/userinfo
-    OIDC_OP_LOGOUT_ENDPOINT: https://id.jusicloud.com/realms/meet/protocol/openid-connect/logout
+    OIDC_OP_JWKS_ENDPOINT: https://id.example.com/realms/meet/protocol/openid-connect/certs
+    OIDC_OP_AUTHORIZATION_ENDPOINT: https://id.example.com/realms/meet/protocol/openid-connect/auth
+    OIDC_OP_TOKEN_ENDPOINT: https://id.example.com/realms/meet/protocol/openid-connect/token
+    OIDC_OP_USER_ENDPOINT: https://id.example.com/realms/meet/protocol/openid-connect/userinfo
+    OIDC_OP_LOGOUT_ENDPOINT: https://id.example.com/realms/meet/protocol/openid-connect/logout
     OIDC_RP_SIGN_ALGO: RS256
     OIDC_RP_SCOPES: "openid email"
-    OIDC_REDIRECT_ALLOWED_HOSTS: '["https://meet.jusicloud.com"]'
+    OIDC_REDIRECT_ALLOWED_HOSTS: '["https://meet.example.com"]'
     OIDC_REDIRECT_REQUIRE_HTTPS: "True"
     OIDC_VERIFY_SSL: "True"
-    LOGIN_REDIRECT_URL: https://meet.jusicloud.com
-    LOGIN_REDIRECT_URL_FAILURE: https://meet.jusicloud.com
-    LOGOUT_REDIRECT_URL: https://meet.jusicloud.com
+    LOGIN_REDIRECT_URL: https://meet.example.com
+    LOGIN_REDIRECT_URL_FAILURE: https://meet.example.com
+    LOGOUT_REDIRECT_URL: https://meet.example.com
     # OIDC_RP_CLIENT_ID / OIDC_RP_CLIENT_SECRET 来自 values.secrets.yaml
 
     # Database — in-cluster postgres
@@ -83,8 +83,8 @@ backend:
     # Static files served by whitenoise
     STORAGES_STATICFILES_BACKEND: whitenoise.storage.CompressedManifestStaticFilesStorage
 
-    # LiveKit — in-cluster, exposed via livekit.jusicloud.com
-    LIVEKIT_API_URL: https://livekit.jusicloud.com/
+    # LiveKit — in-cluster, exposed via livekit.example.com
+    LIVEKIT_API_URL: https://livekit.example.com/
     LIVEKIT_API_KEY: meet
     # LIVEKIT_API_SECRET 来自 values.secrets.yaml
     LIVEKIT_VERIFY_SSL: "True"
@@ -101,7 +101,7 @@ backend:
     AWS_S3_SIGNATURE_VERSION: s3v4
     AWS_S3_ADDRESSING_STYLE: virtual
     # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY 来自 values.secrets.yaml
-    MEDIA_BASE_URL: https://meet.jusicloud.com
+    MEDIA_BASE_URL: https://meet.example.com
 
     # Recording — 第一阶段关闭
     RECORDING_ENABLE: "False"
@@ -166,12 +166,12 @@ frontend:
     VITE_APP_TITLE: "We-Meet"
     VITE_PORT: 8080
     VITE_HOST: 0.0.0.0
-    VITE_API_BASE_URL: https://meet.jusicloud.com/
+    VITE_API_BASE_URL: https://meet.example.com/
 
 ingress:
   enabled: true
   className: nginx
-  host: meet.jusicloud.com
+  host: meet.example.com
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
@@ -182,7 +182,7 @@ ingress:
 ingressAdmin:
   enabled: true
   className: nginx
-  host: meet.jusicloud.com
+  host: meet.example.com
   path: /admin
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -241,7 +241,7 @@ summary:
 
     # AUTHORIZED_TENANTS 至少包含一个 v1 默认 tenant，否则启动失败 (config.py validate)
     # 直接靠 legacy APP_API_TOKEN/WEBHOOK_API_TOKEN/WEBHOOK_URL 三件套即可自动迁移
-    WEBHOOK_URL: https://meet.jusicloud.com/api/v1.0/recordings/summary/webhook/
+    WEBHOOK_URL: https://meet.example.com/api/v1.0/recordings/summary/webhook/
     # WEBHOOK_API_TOKEN 来自 values.secrets.yaml
 
     # CELERY — 使用 in-cluster redis
@@ -347,7 +347,7 @@ agentMetadata:
     limits:
       memory: 384Mi
   envVars:
-    LIVEKIT_URL: https://livekit.jusicloud.com/
+    LIVEKIT_URL: https://livekit.example.com/
     LIVEKIT_API_KEY: meet
     # LIVEKIT_API_SECRET 来自 values.secrets.yaml
     ENABLE_SILERO_VAD: "false"
@@ -371,7 +371,7 @@ agentSubtitles:
     pullPolicy: Always
     tag: "latest"
   envVars:
-    LIVEKIT_URL: https://livekit.jusicloud.com/
+    LIVEKIT_URL: https://livekit.example.com/
     LIVEKIT_API_KEY: meet
     ENABLE_SILERO_VAD: "false"
     STT_PROVIDER: deepgram

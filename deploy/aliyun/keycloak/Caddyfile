@@ -1,5 +1,5 @@
 # Caddy 自动 HTTPS:
-#   - 第一次请求 id.jusicloud.com 时自动跑 HTTP-01 challenge
+#   - 第一次请求 id.example.com 时自动跑 HTTP-01 challenge
 #   - 拿到证书后续期完全自动 (默认 60 天前续)
 #   - 备案完成且 80 端口可达后才能签发
 #
@@ -7,12 +7,12 @@
 #   tls /etc/caddy/cert.pem /etc/caddy/key.pem
 
 {
-    email REPLACE_OWNER_EMAIL@jusicloud.com
+    email REPLACE_OWNER_EMAIL@example.com
     # 国内 Let's Encrypt 偶尔被劫，可选切到 ZeroSSL:
     # default_acme_ca https://acme.zerossl.com/v2/DV90
 }
 
-id.jusicloud.com {
+id.example.com {
     encode gzip
 
     # 转发所有路径到 Keycloak (8080)

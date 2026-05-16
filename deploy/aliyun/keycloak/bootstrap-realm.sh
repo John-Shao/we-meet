@@ -6,7 +6,7 @@
 #
 # Run:
 #   bash bootstrap-realm.sh
-# 然后到 https://id.jusicloud.com/admin/master/console/#/meet/clients 查看。
+# 然后到 https://id.example.com/admin/master/console/#/meet/clients 查看。
 
 set -euo pipefail
 
@@ -14,7 +14,7 @@ set -euo pipefail
 if [[ ! -f .env ]]; then echo ".env 不存在，先 cp .env.dist .env"; exit 1; fi
 set -a; source .env; set +a
 
-KC_URL="${KC_URL:-https://id.jusicloud.com}"
+KC_URL="${KC_URL:-https://id.example.com}"
 REALM="${REALM:-meet}"
 CLIENT_ID="${CLIENT_ID:-meet}"
 
@@ -66,21 +66,21 @@ curl -sS -X POST "$KC_URL/admin/realms/$REALM/clients" "${AUTH[@]}" -d '{
   "serviceAccountsEnabled": false,
   "secret": "'"$MEET_CLIENT_SECRET"'",
   "redirectUris": [
-    "https://meet.jusicloud.com/api/v1.0/callback/",
-    "https://meet.jusicloud.com/*"
+    "https://meet.example.com/api/v1.0/callback/",
+    "https://meet.example.com/*"
   ],
   "webOrigins": [
-    "https://meet.jusicloud.com"
+    "https://meet.example.com"
   ],
   "attributes": {
-    "post.logout.redirect.uris": "https://meet.jusicloud.com"
+    "post.logout.redirect.uris": "https://meet.example.com"
   }
 }' || echo "(client may already exist)"
 
-echo "==> Creating a smoke-test user 'meet@jusicloud.com' (password: meet — change later!)"
+echo "==> Creating a smoke-test user 'meet@example.com' (password: meet — change later!)"
 curl -sS -X POST "$KC_URL/admin/realms/$REALM/users" "${AUTH[@]}" -d '{
   "username": "meet",
-  "email": "meet@jusicloud.com",
+  "email": "meet@example.com",
   "firstName": "Smoke",
   "lastName": "Test",
   "enabled": true,

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# setup-customer.sh — 把 jusicloud.com 模板仓库一键改造为某客户的部署仓库.
+# setup-customer.sh — 把 example.com 模板仓库一键改造为某客户的部署仓库.
 #
 # 做两件事:
-#   1. 替换 9 个文件里的 jusicloud.com / REPLACE_OWNER_EMAIL / admin@jusicloud.com
-#      为客户提供的具体值
+#   1. 替换 9 个文件里的 example.com / REPLACE_OWNER_EMAIL@example.com /
+#      admin@example.com 为客户提供的具体值
 #   2. 从 .dist 模板生成 values.secrets.yaml + keycloak/.env, 自动填入随机
 #      生成的密钥, 留下需要客户人工填的字段并打印 checklist
 #
@@ -23,8 +23,9 @@
 # 注意:
 #   - 脚本会替换文件 (含 docs/installation/aliyun.md), 跑完 git status 看 diff,
 #     满意后 git commit -am 'customer config'. 不满意 git checkout 整体回滚.
-#   - 重复执行只在干净 (jusicloud.com 还在的) 仓库上有效; 已替换的仓库脚本会
-#     拒绝运行 (改成 git checkout main -- <files> 后再跑).
+#   - 重复执行只在干净 (example.com 还在的) 仓库上有效; 已替换的仓库脚本会
+#     拒绝运行 (改成 git checkout main -- <相关文件> 后再跑).
+#   - 拒绝用 example.com / your-domain.com / localhost 等占位值作为 DOMAIN.
 #   - secrets (DJANGO/REDIS/POSTGRES/LIVEKIT/SUMMARY 等) 用 openssl rand 生成.
 #     外部凭据 (火山 CR / TOS / ARK / SMTP / Keycloak client secret) 不自动填,
 #     脚本末尾会列 checklist.
@@ -60,6 +61,12 @@ ADMIN_EMAIL="${POSITIONAL[2]:-admin@$DOMAIN}"
 if ! [[ "$DOMAIN" =~ ^[a-z0-9.-]+\.[a-z]{2,}$ ]]; then
   echo "ERROR: DOMAIN 看着不像合法域名: $DOMAIN" >&2; exit 2
 fi
+# 拒绝占位值 (会让模板检测失效, 后续脚本认为是 "干净模板" 反复触发)
+case "$DOMAIN" in
+  example.com|example.org|example.net|your-domain.com|localhost|test.com)
+    echo "ERROR: DOMAIN=$DOMAIN 是占位/保留域名, 不能用作客户实际域名." >&2
+    exit 2 ;;
+esac
 for e in "$OPS_EMAIL" "$ADMIN_EMAIL"; do
   if ! [[ "$e" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     echo "ERROR: 邮箱看着不合法: $e" >&2; exit 2
@@ -70,8 +77,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 # -------- 检查仓库状态 --------
-if ! grep -q "jusicloud\.com" src/helm/env.d/aliyun-prod/cluster-issuer.yaml; then
-  echo "ERROR: 仓库似乎已经被定制化过 (cluster-issuer.yaml 里找不到 jusicloud.com)." >&2
+if ! grep -q "example\.com" src/helm/env.d/aliyun-prod/cluster-issuer.yaml; then
+  echo "ERROR: 仓库似乎已经被定制化过 (cluster-issuer.yaml 里找不到 example.com)." >&2
   echo "  如果想重新定制化, 先 git checkout <branch> -- <相关文件> 还原模板." >&2
   exit 3
 fi
@@ -139,25 +146,25 @@ run_sub() {
 
 echo
 echo "==> Step 1/4: 替换 OPS_EMAIL 占位 (Caddyfile + cluster-issuer.yaml)"
-run_sub "REPLACE_OWNER_EMAIL@jusicloud.com" "$OPS_EMAIL" deploy/aliyun/keycloak/Caddyfile
-run_sub "REPLACE_OWNER_EMAIL@jusicloud.com" "$OPS_EMAIL" src/helm/env.d/aliyun-prod/cluster-issuer.yaml
+run_sub "REPLACE_OWNER_EMAIL@example.com" "$OPS_EMAIL" deploy/aliyun/keycloak/Caddyfile
+run_sub "REPLACE_OWNER_EMAIL@example.com" "$OPS_EMAIL" src/helm/env.d/aliyun-prod/cluster-issuer.yaml
 
-# 替换 admin@jusicloud.com → ADMIN_EMAIL (仅 ADMIN_EMAIL 非默认时需要)
-# 默认是 admin@$DOMAIN, 由 Step 3 的 jusicloud.com → DOMAIN 顺带改成.
+# 替换 admin@example.com → ADMIN_EMAIL (仅 ADMIN_EMAIL 非默认时需要)
+# 默认是 admin@$DOMAIN, 由 Step 3 的 example.com → DOMAIN 顺带改成.
 # 若客户给的 ADMIN_EMAIL 不等于 admin@$DOMAIN, 这里直接替换.
 if [[ "$ADMIN_EMAIL" != "admin@$DOMAIN" ]]; then
   echo
-  echo "==> Step 2/4: 替换 admin@jusicloud.com → $ADMIN_EMAIL (ADMIN_EMAIL 自定义)"
-  run_sub "admin@jusicloud.com" "$ADMIN_EMAIL" src/helm/env.d/aliyun-prod/values.secrets.yaml.dist
+  echo "==> Step 2/4: 替换 admin@example.com → $ADMIN_EMAIL (ADMIN_EMAIL 自定义)"
+  run_sub "admin@example.com" "$ADMIN_EMAIL" src/helm/env.d/aliyun-prod/values.secrets.yaml.dist
 else
   echo
   echo "==> Step 2/4: ADMIN_EMAIL 默认 (admin@$DOMAIN), 跳过 (由 Step 3 顺带替换)"
 fi
 
 echo
-echo "==> Step 3/4: 替换 jusicloud.com → $DOMAIN (扫所有相关文件)"
+echo "==> Step 3/4: 替换 example.com → $DOMAIN (扫所有相关文件)"
 for f in "${FILES_TO_PATCH[@]}"; do
-  run_sub "jusicloud.com" "$DOMAIN" "$f"
+  run_sub "example.com" "$DOMAIN" "$f"
 done
 
 # -------- Step 3: 生成 secrets / .env --------

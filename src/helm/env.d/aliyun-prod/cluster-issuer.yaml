@@ -13,7 +13,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: REPLACE_OWNER_EMAIL@jusicloud.com
+    email: REPLACE_OWNER_EMAIL@example.com
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:

@@ -1,8 +1,8 @@
 # Keycloak + Postgres + Caddy (TLS termination) for the 2C2G ECS.
 #
-# 角色: 独立 OIDC 服务点 (id.jusicloud.com)
+# 角色: 独立 OIDC 服务点 (id.example.com)
 # 部署:  Aliyun ECS 2C2G, Ubuntu, Docker + Compose v2
-# 域名:  id.jusicloud.com → 这台 ECS 的公网 IP
+# 域名:  id.example.com → 这台 ECS 的公网 IP
 # TLS:   Caddy 自动从 Let's Encrypt 申请并续期 (HTTP-01 challenge, 备案完成后)
 #
 # Run:
@@ -52,7 +52,7 @@ services:
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: ${KC_DB_PASSWORD}
-      KC_HOSTNAME: id.jusicloud.com
+      KC_HOSTNAME: id.example.com
       KC_HOSTNAME_STRICT: "true"
       KC_HOSTNAME_STRICT_HTTPS: "true"
       KC_HTTP_ENABLED: "true"
