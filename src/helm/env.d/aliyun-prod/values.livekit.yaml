@@ -60,6 +60,13 @@ hostPort:
     udp: 7882
     tcp: 7881
 
+# 单节点 + hostPort 必须用 Recreate, 不能 RollingUpdate:
+# 默认 RollingUpdate 要先起新 pod 再关旧 pod, 但 hostPort 7881/7882 被旧 pod
+# 占着, 新 pod 永远 Pending, deployment 卡死. Recreate 先关旧后起新, 没冲突.
+# (代价: helm upgrade 时有 ~10s 媒体中断, 单节点单 replica 无所谓.)
+deploymentStrategy:
+  type: Recreate
+
 # Signaling 走 ingress-nginx + cert-manager 终止 TLS
 loadBalancer:
   type: nginx
