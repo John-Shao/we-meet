@@ -72,6 +72,41 @@
 | A | `livekit` | aliyun-sjy 公网 IP | 600 |
 | A | `id` | aliyun-zlm 公网 IP | 600 |
 
+### 3.1 ICP 备案审核中怎么先跑起来
+
+工信部主备案已通过，但**阿里云接入备案**还差最后一步（"阿里云审核中" / "短信核验中"）时，阿里云 edge 会基于 Host header 拦截 `*.jusicloud.com` 所有入站 HTTP/HTTPS，返回 "Non-compliance ICP Filing" 拦截页。表现：
+
+- 浏览器开 `http://meet.jusicloud.com` → 阿里云拦截页（**不是** nginx-ingress 404）
+- cert-manager 走 LE HTTP-01 → LE 服务器拿到拦截页内容 → 拒发证书 → `Certificate READY=False`
+
+**能干 / 不能干**：
+
+| 任务 | 能否 |
+|---|---|
+| 跑完整 install-meet.sh，11 个 pods 全 1/1 Running | ✅ 全 in-cluster，不经 edge |
+| 内部 service 互通（backend ↔ db ↔ redis ↔ livekit ↔ summary） | ✅ |
+| `kubectl port-forward svc/meet-backend 8000:80` PC 本地访 Django admin | ✅ |
+| Keycloak (id.jusicloud.com) | ✅ 走 aliyun-zlm + Caddy 自管 LE，跟接入备案无关 |
+| 浏览器从任何位置访问 `https://meet.jusicloud.com` | ❌ edge 拦截 |
+| cert-manager 拿 LE 证书 | ❌ |
+
+**接入备案过完之后自动恢复（不需重启 / 重装）**：
+
+1. 阿里云 edge 缓存刷新（5–30 分钟）
+2. cert-manager exponential backoff 重试 LE（最长 1 小时内）拿到证书
+3. ingress-nginx 自动 reload 新证书
+
+`kubectl -n meet describe certificate meet-tls` 末尾 events 显示 LE 重试进度。
+
+**可选加速**（备案过完想立刻拿证书别等）：
+
+```bash
+kubectl -n meet delete certificate meet-tls livekit-tls
+# Ingress 控制器立即重建 Certificate, cert-manager 立即重试 LE (不再等退避)
+```
+
+DNS-01 替代路径（备案审批要等好几天的情况下想立刻拿证书）：改 cluster-issuer.yaml 用 Aliyun DNS API DNS-01 solver。DNS-01 不需要 80 端口可达，绕开 edge 拦截。配置稍多（要 RAM 子账号 + AccessKey + cert-manager-webhook-alidns），本指南不展开；备案审批通常 1–3 工作日，等就是了。
+
 ---
 
 ## 四、阿里云安全组配置（**两台都要**）
@@ -102,10 +137,35 @@
 
 ## 五、aliyun-zlm：起 Keycloak
 
-```bash
-# 在 aliyun-zlm 上
-sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin git
+> ⚠️ **两个 prep 坑（实战中都撞过）**：
+>
+> 1. **`docker-compose-plugin` 在 Ubuntu 26.04 (resolute) apt 源里没有**（`E: Unable to locate package`）。但**阿里云 ECS 默认镜像已预装 docker + compose v2 + buildx 插件**，先 `docker --version` + `docker compose version` 确认存在再走下面。没有的话装 `docker.io` 即可。
+>
+> 2. **Docker Hub DNS 在国内被污染**（解析到 Facebook IP），`docker compose up` 拉 `postgres:16` / `caddy:2.8-alpine` 必 i/o timeout。**`docker compose up` 之前**先配镜像加速器：
+>
+>    ```bash
+>    # 镜像加速器 URL 从 https://cr.console.aliyun.com/cn-shenzhen/instances/mirrors 拿你账号专属那个
+>    ALIYUN_DOCKER_MIRROR=https://kjx4usoo.mirror.aliyuncs.com  # 改成你的
+>    sudo mkdir -p /etc/docker
+>    sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+>    {
+>      "registry-mirrors": [
+>        "${ALIYUN_DOCKER_MIRROR}",
+>        "https://docker.m.daocloud.io",
+>        "https://docker.1ms.run"
+>      ],
+>      "log-driver": "json-file",
+>      "log-opts": { "max-size": "50m", "max-file": "5" }
+>    }
+>    EOF
+>    sudo systemctl restart docker
+>    sudo docker info | grep -A 5 "Registry Mirrors"   # 验证生效
+>    ```
+>
+>    `quay.io/keycloak/keycloak` 走 quay.io 原始仓库（国内可达，不必走 mirror）。
 
+```bash
+# 在 aliyun-zlm 上 (先按上面的 prep 装好 docker + 配好 mirror)
 # 拉项目（或者只 scp deploy/aliyun/keycloak/ 这一个目录过来）
 git clone https://github.com/<your-fork>/we-meet.git
 cd we-meet/deploy/aliyun/keycloak
@@ -548,6 +608,10 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 | `psql -c "stmt1; stmt2; CREATE DATABASE x..."` 整体回滚 | 多语句 `-c` 在同一事务，CREATE DATABASE 不能在事务里。用多个 `-c`（每个独立事务）。 |
 | postgres `role "meet" does not exist`（chart 装完直接缺）| chart 16.7.27 默认匹配 postgres 17 init 脚本，跟我们的 bitnamilegacy/postgresql:16.4 不匹配，meet user/db 没建。**应急手动建**：见 §7.3 黄框。 |
 | `manage.py createsuperuser: error: unrecognized arguments: --no-input` | 项目自定义的 createsuperuser 命令签名不一样，用 `--email + --password`，不要 `--no-input`。 |
+| `helm upgrade livekit` 时新 pod 死循环 Pending，旧 pod 一直 Running | 单节点 Deployment + hostPort + 默认 RollingUpdate 不兼容：新 pod 起来前 hostPort 7881/7882 被旧 pod 占着，新 pod 永远 Pending，整个 helm upgrade 卡死直至 `--wait` 超时。修法：(a) **永久**：`values.livekit.yaml` 加 `deploymentStrategy.type: Recreate`（已在 commit `330232e2` 修），(b) **应急**：`kubectl -n meet delete pod <旧 livekit pod 名>` 让 hostPort 释放，新 pod 立刻接管。 |
+| LiveKit CrashLoop, 日志 `api_key is required to use webhooks` | `livekit.webhook.api_key` 是 `keys:` 块里的 KEY 名字（用于签 webhook payload），**不是独立 secret**。应填 `meet`（因为 keys: 只有 `meet: <api_secret>` 一条）。老 dist 模板误填 `REPLACE_LIVEKIT_WEBHOOK_KEY` 随机 hex，已在 commit `b544a413` 修。已部署的 values.secrets.yaml 需手动改 `webhook.api_key: meet` 后 `helm upgrade` livekit。 |
+| `apt-get install docker-compose-plugin` 在 Ubuntu 26.04 (resolute) 报 `Unable to locate package` | 阿里云 Ubuntu 26.04 ECS 镜像默认已预装 docker + compose v2 plugin + buildx，apt 源里反而没有 `docker-compose-plugin` 包。先 `docker --version` / `docker compose version` 确认有再说，没有再装 `docker.io`。 |
+| aliyun-zlm 上 `docker compose up` 拉 `postgres:16` / `caddy:2.8-alpine` 报 `dial tcp 104.244.43.35:443: i/o timeout` | Docker Hub DNS 在国内被污染（解析到 Facebook IP）。`/etc/docker/daemon.json` 加 `registry-mirrors: [<阿里加速器>, "docker.m.daocloud.io"]` 后 `systemctl restart docker`，详见 §五开头 prep 框。 |
 
 ### 12.2 运行阶段
 
