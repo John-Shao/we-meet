@@ -65,7 +65,7 @@ POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
-      sed -n '2,55p' "$0"; exit 0 ;;
+      sed -n '2,56p' "$0"; exit 0 ;;
     --force)   FORCE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --cr-registry)   CR_REGISTRY_ARG="$2"; shift 2 ;;
