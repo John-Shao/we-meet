@@ -361,7 +361,7 @@ dry-run 不会真起 livekit/postgres/redis，只验证 yaml 合法性 + image p
 ### 7.1 一键安装脚本
 
 ```bash
-# 在 aliyun-sjy 上
+# 在 aliyun-sjy 上 (装 git, clone 仓库取脚本)
 sudo apt-get update && sudo apt-get install -y git
 git clone https://github.com/<your-fork>/we-meet.git
 cd we-meet
@@ -371,6 +371,15 @@ cd we-meet
 sudo ALIYUN_DOCKER_MIRROR=https://xxxxxxxx.mirror.aliyuncs.com \
   bash deploy/aliyun/install-k3s.sh
 ```
+
+> ⚠️ **不要在 aliyun-sjy 上再跑 setup-customer.sh**: 每次跑都会**重新随机生成** secrets,跟 PC 已经填好的 values.secrets.yaml 对不上。正确做法 —— 在 PC 上跑 `sync-customer-config.sh` 把 8 个客户文件推过来,覆盖 clone 出来的占位模板:
+>
+> ```bash
+> # 在 PC 上 (clone 完之后, install-k3s.sh 之前)
+> bash deploy/aliyun/sync-customer-config.sh root@<sjy 公网 IP> /root/we-meet
+> # rsync -R 保持相对路径, 8 个文件 (6 tracked + 2 gitignored secrets) 自动放到对的子目录
+> # 增量传输 (重跑只传改动过的, 适合反复迭代)
+> ```
 
 > ⚠️ **sudo 不传 env**：`VAR=val sudo ...` 这种语法 sudo 默认会清掉 user env。两个正确写法：
 > ```bash
@@ -649,6 +658,9 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 | LiveKit CrashLoop, 日志 `api_key is required to use webhooks` | `livekit.webhook.api_key` 是 `keys:` 块里的 KEY 名字（用于签 webhook payload），**不是独立 secret**。应填 `meet`（因为 keys: 只有 `meet: <api_secret>` 一条）。模板 [values.secrets.yaml.dist](../../src/helm/env.d/aliyun-prod/values.secrets.yaml.dist) 已直接写 `api_key: meet`；如果是从老 dist (有 `REPLACE_LIVEKIT_WEBHOOK_KEY` 随机 hex 占位) cp 出来的 values.secrets.yaml，需手动改 `webhook.api_key: meet` 后 `helm upgrade` livekit。 |
 | `apt-get install docker-compose-plugin` 在 Ubuntu 26.04 (resolute) 报 `Unable to locate package` | 阿里云 Ubuntu 26.04 ECS 镜像默认已预装 docker + compose v2 plugin + buildx，apt 源里反而没有 `docker-compose-plugin` 包。先 `docker --version` / `docker compose version` 确认有再说，没有再装 `docker.io`。 |
 | aliyun-zlm 上 `docker compose up` 拉 `postgres:16` / `caddy:2.8-alpine` 报 `dial tcp 104.244.43.35:443: i/o timeout` | Docker Hub DNS 在国内被污染（解析到 Facebook IP）。`/etc/docker/daemon.json` 加 `registry-mirrors: [<阿里加速器>, "docker.m.daocloud.io"]` 后 `systemctl restart docker`，详见 §五开头 prep 框。 |
+| PC WSL 上 `sed -i ... values.secrets.yaml` 报 `sed: preserving permissions for '…/sedXXXXXX': Operation not permitted` | NTFS 不允许非 Windows 进程 chmod 文件，sed 写 inplace 用临时文件 + rename 时 chmod 失败但**替换实际成功**（vim/手改都行）。两个 workaround：(a) `sudo sed -i ...`（要密码但能跑），(b) 用 IDE 直接编辑。已被 `setup-customer.sh` / `check-config.sh` 加 `2> >(grep -vF "preserving permissions" >&2)` 过滤掉警告。 |
+| LE HTTP-01 challenge 报 `403 ... Invalid response ...: 403`，但在 ECS 上 `curl http://meet.<DOMAIN>/...` 返回 308 redirect | **Aliyun edge hairpin NAT 绕过 edge 检查**——ECS 内部 curl 自己的公网 IP 走内网回环，不经过 Aliyun 入站拦截；LE 从公网过来才会被 edge 拦。诊断要从 **PC 或任何外部网络** curl 才准。如果外部确实 403 + 页面有 "ICP 备案" 字样 → 接入备案没全过，见 §3.1。 |
+| 在 aliyun-sjy 上重跑 `setup-customer.sh` 让 backend 跟 Keycloak OIDC 对不上 | setup-customer.sh 每次会**重新随机生成** DJANGO_SECRET_KEY / DB_PASSWORD / LIVEKIT_API_SECRET 等。在第二台机器上重跑 → 这台的 secrets 跟 PC + 第一台不一致 → backend 连不上 DB / OIDC mismatch。**正确做法**：aliyun-sjy 只 `git clone` 拿脚本，客户文件从 PC `bash deploy/aliyun/sync-customer-config.sh root@<sjy_ip> /root/we-meet` 推过来。 |
 
 ### 12.2 运行阶段
 
@@ -675,6 +687,7 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 |---|---|
 | [deploy/aliyun/setup-customer.sh](../../deploy/aliyun/setup-customer.sh) | **在 PC 上**一键把模板仓库改造为客户专属仓库（§2.1） |
 | [deploy/aliyun/check-config.sh](../../deploy/aliyun/check-config.sh) | **部署前**自检客制化配置完整性 + 跨文件一致性 |
+| [deploy/aliyun/sync-customer-config.sh](../../deploy/aliyun/sync-customer-config.sh) | **PC → 远端 ECS** rsync 8 个客户化文件（保持仓库相对路径，增量同步） |
 | [deploy/aliyun/install-k3s.sh](../../deploy/aliyun/install-k3s.sh) | aliyun-sjy 一键装 K3s + ingress-nginx + cert-manager |
 | [deploy/aliyun/install-meet.sh](../../deploy/aliyun/install-meet.sh) | aliyun-sjy 一键装 postgres + redis + livekit + meet chart |
 | [deploy/aliyun/build.sh](../../deploy/aliyun/build.sh) | **在 PC 上 (VPN ON)** 构建 4 个镜像（§六） |
