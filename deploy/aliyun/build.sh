@@ -24,7 +24,7 @@ export DOCKER_BUILDKIT=1
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-: "${VOLC_CR_REGISTRY:=your-cr.cr.volces.com}"
+: "${VOLC_CR_REGISTRY:=your-cr.cr-domain.com}"
 : "${VOLC_CR_NAMESPACE:=we-meet}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 

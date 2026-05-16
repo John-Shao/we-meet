@@ -25,7 +25,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-: "${VOLC_CR_REGISTRY:=your-cr.cr.volces.com}"
+: "${VOLC_CR_REGISTRY:=your-cr.cr-domain.com}"
 : "${VOLC_CR_NAMESPACE:=we-meet}"
 : "${VOLC_CR_USER:?VOLC_CR_USER required (CR 实例级用户名, 形如 MYORG2025@xxx)}"
 : "${VOLC_CR_PASS:?VOLC_CR_PASS required (CR 实例级密码)}"

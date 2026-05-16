@@ -6,7 +6,7 @@
 #        example.com                       → 客户域名
 #        REPLACE_OWNER_EMAIL@example.com   → 客户 OPS_EMAIL
 #        admin@example.com                 → 客户 ADMIN_EMAIL
-#        your-cr.cr.volces.com             → 客户 CR_REGISTRY
+#        your-cr.cr-domain.com               → 客户容器镜像仓库 host (CR_REGISTRY)
 #        your-cr (bare instance refs)      → CR_REGISTRY 的 instance 部分
 #   2. 从 .dist 模板生成 values.secrets.yaml + keycloak/.env, 自动填入随机
 #      生成的密钥, 留下需要客户人工填的字段并打印 checklist
@@ -14,19 +14,32 @@
 # 用法:
 #   bash deploy/aliyun/setup-customer.sh <DOMAIN> <OPS_EMAIL> [ADMIN_EMAIL]
 #
-# 示例:
+# 示例 (火山引擎 CR, 用默认派生的 host):
 #   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com
-#   # → DOMAIN=your-domain.com, CR_REGISTRY=your-domain-cn-guangzhou.cr.volces.com (从 DOMAIN 第一段派生)
+#   # → DOMAIN=your-domain.com, CR_REGISTRY=your-domain-cn-guangzhou.cr.volces.com
+#   #   (默认按火山引擎 CR cn-guangzhou region 派生; 其他 CR 用 --cr-registry)
 #
 #   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com admin@your-org.com
 #   # → 同上 + ADMIN_EMAIL=admin@your-org.com (默认 admin@<DOMAIN>, 此例自定义)
 #
-#   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com --cr-registry myorg-cn-beijing.cr.volces.com
-#   # → DOMAIN=your-domain.com, 显式指定 CR 实例 (region 也不是默认 cn-guangzhou)
+# 示例 (非火山 CR, 显式指定):
+#   # 阿里云 ACR
+#   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com \
+#       --cr-registry your-org-registry.cn-shenzhen.cr.aliyuncs.com
+#
+#   # 腾讯云 TCR
+#   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com \
+#       --cr-registry your-org.tencentcloudcr.com
+#
+#   # 自建 Harbor
+#   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com \
+#       --cr-registry harbor.your-domain.com
 #
 # 选项:
-#   --cr-registry <HOST>  显式指定火山 CR registry host (含 region).
-#                          默认: <DOMAIN-第一段>-cn-guangzhou.cr.volces.com
+#   --cr-registry <HOST>  显式指定容器镜像仓库 host (任意 CR: 火山/阿里 ACR/腾讯
+#                          TCR/华为 SWR/AWS ECR/自建 Harbor 都行). 不传时按
+#                          默认 <DOMAIN-第一段>-cn-guangzhou.cr.volces.com (火山引擎)
+#                          派生.
 #   --force               覆盖已存在的 values.secrets.yaml / keycloak/.env
 #   --dry-run             仅打印改动概要, 不真改文件
 #   -h | --help           打印帮助
@@ -36,9 +49,10 @@
 #     满意后 git commit -am 'customer config'. 不满意 git checkout 整体回滚.
 #   - 重复执行只在干净 (example.com 还在的) 仓库上有效; 已替换的仓库脚本会
 #     拒绝运行 (改成 git checkout main -- <相关文件> 后再跑).
-#   - 拒绝用 example.com / your-domain.com / your-cr 等占位值作为参数.
+#   - 拒绝用 example.com / your-domain.com / your-cr.cr-domain.com 等占位值作为
+#     参数 (避免客户化后 grep 仍命中导致脚本误判仓库未客户化).
 #   - secrets (DJANGO/REDIS/POSTGRES/LIVEKIT/SUMMARY 等) 用 openssl rand 生成.
-#     外部凭据 (火山 CR / TOS / ARK / SMTP / Keycloak client secret) 不自动填,
+#     外部凭据 (CR / TOS / ARK / SMTP / Keycloak client secret) 不自动填,
 #     脚本末尾会列 checklist.
 
 set -euo pipefail
@@ -51,7 +65,7 @@ POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
-      sed -n '2,40p' "$0"; exit 0 ;;
+      sed -n '2,55p' "$0"; exit 0 ;;
     --force)   FORCE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --cr-registry)   CR_REGISTRY_ARG="$2"; shift 2 ;;
@@ -71,18 +85,24 @@ DOMAIN="${POSITIONAL[0]}"
 OPS_EMAIL="${POSITIONAL[1]}"
 ADMIN_EMAIL="${POSITIONAL[2]:-admin@$DOMAIN}"
 
-# CR_REGISTRY 默认从 DOMAIN 第一段派生; 客户显式 --cr-registry 时覆盖.
+# CR_REGISTRY 默认按火山引擎 CR 派生 (cn-guangzhou region, instance=<DOMAIN 第一段>).
+# 客户用其他 CR (阿里 ACR / 腾讯 TCR / 华为 SWR / AWS ECR / 自建 Harbor) 时, --cr-registry 显式覆盖.
 DOMAIN_PREFIX="${DOMAIN%%.*}"
 CR_REGISTRY="${CR_REGISTRY_ARG:-${DOMAIN_PREFIX}-cn-guangzhou.cr.volces.com}"
-# 提取 instance 部分 (用于替换 bare "your-cr" 引用): host 去掉 .cr.volces.com 后缀
-CR_INSTANCE="${CR_REGISTRY%.cr.volces.com}"
+# CR instance: CR_REGISTRY 的第一个 segment (最左侧 subdomain).
+# 火山 CR `myorg-cn-guangzhou.cr.volces.com` → `myorg-cn-guangzhou`
+# 阿里 ACR `myorg-registry.cn-shenzhen.cr.aliyuncs.com` → `myorg-registry`
+# 腾讯 TCR `myorg.tencentcloudcr.com`                 → `myorg`
+# 自建    `harbor.example.com`                        → `harbor`
+CR_INSTANCE="${CR_REGISTRY%%.*}"
 
 # 简单格式校验
 if ! [[ "$DOMAIN" =~ ^[a-z0-9.-]+\.[a-z]{2,}$ ]]; then
   echo "ERROR: DOMAIN 看着不像合法域名: $DOMAIN" >&2; exit 2
 fi
-if ! [[ "$CR_REGISTRY" =~ ^[a-z0-9.-]+\.cr\.volces\.com$ ]]; then
-  echo "ERROR: CR_REGISTRY 看着不像火山 CR host (期望 <instance>.cr.volces.com): $CR_REGISTRY" >&2; exit 2
+# CR_REGISTRY: 通用 FQDN 校验, 不锁特定云
+if ! [[ "$CR_REGISTRY" =~ ^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$ ]]; then
+  echo "ERROR: CR_REGISTRY 看着不像合法 host: $CR_REGISTRY" >&2; exit 2
 fi
 # 拒绝占位值 (会让模板检测失效)
 case "$DOMAIN" in
@@ -91,8 +111,8 @@ case "$DOMAIN" in
     exit 2 ;;
 esac
 case "$CR_REGISTRY" in
-  your-cr*|*.your-cr.cr.volces.com)
-    echo "ERROR: CR_REGISTRY=$CR_REGISTRY 是占位值, 必须 --cr-registry 指定客户实际 CR host." >&2
+  your-cr.cr-domain.com|your-cr*|*your-cr.cr-domain.com)
+    echo "ERROR: CR_REGISTRY=$CR_REGISTRY 是占位值, --cr-registry 指定客户实际 CR host." >&2
     exit 2 ;;
 esac
 for e in "$OPS_EMAIL" "$ADMIN_EMAIL"; do
@@ -129,7 +149,7 @@ cat <<EOF
   DOMAIN       = $DOMAIN          (= meet.$DOMAIN / livekit.$DOMAIN / id.$DOMAIN)
   OPS_EMAIL    = $OPS_EMAIL       (用于 Let's Encrypt 通知, Caddy email)
   ADMIN_EMAIL  = $ADMIN_EMAIL     (Django superuser)
-  CR_REGISTRY  = $CR_REGISTRY    (火山 CR host, 镜像走 $CR_REGISTRY/we-meet/*)
+  CR_REGISTRY  = $CR_REGISTRY    (容器镜像仓库 host, 镜像走 $CR_REGISTRY/we-meet/*)
   ${DRY_RUN:+(--dry-run, 不真改文件)}
 ================================================================
 EOF
@@ -201,10 +221,10 @@ for f in "${FILES_TO_PATCH[@]}"; do
 done
 
 echo
-echo "==> Step 4/5: 替换 CR registry 占位 (your-cr.cr.volces.com → $CR_REGISTRY; bare your-cr → $CR_INSTANCE)"
+echo "==> Step 4/5: 替换 CR registry 占位 (your-cr.cr-domain.com → $CR_REGISTRY; bare your-cr → $CR_INSTANCE)"
 # 顺序很重要: 先替全 host (longest match), 再替 bare instance, 避免双重替换.
 for f in "${FILES_TO_PATCH[@]}"; do
-  run_sub "your-cr.cr.volces.com" "$CR_REGISTRY" "$f"
+  run_sub "your-cr.cr-domain.com" "$CR_REGISTRY" "$f"
 done
 for f in "${FILES_TO_PATCH[@]}"; do
   run_sub "your-cr" "$CR_INSTANCE" "$f"

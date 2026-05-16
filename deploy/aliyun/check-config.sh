@@ -79,10 +79,10 @@ fi
 # ── Section 2: 占位符未替换 ──
 section "[2/5] 模板占位符已替换 (setup-customer.sh 跑过)"
 
-# 模板占位 example.com / your-cr / REPLACE_OWNER_EMAIL 不应该在任何被 deploy 的文件里
+# 模板占位 example.com / your-cr.cr-domain.com / REPLACE_OWNER_EMAIL 不应该在任何被 deploy 的文件里
 TEMPLATE_PLACEHOLDERS=(
   "example.com"
-  "your-cr.cr.volces.com"
+  "your-cr.cr-domain.com"
   "REPLACE_OWNER_EMAIL"
   "admin@example.com"
 )
