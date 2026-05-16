@@ -16,7 +16,7 @@
 #
 # 示例:
 #   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com
-#   # → DOMAIN=your-domain.com, CR_REGISTRY=acme-cn-guangzhou.cr.volces.com (从 DOMAIN 第一段派生)
+#   # → DOMAIN=your-domain.com, CR_REGISTRY=your-domain-cn-guangzhou.cr.volces.com (从 DOMAIN 第一段派生)
 #
 #   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com admin@your-org.com
 #   # → 同上 + ADMIN_EMAIL=admin@your-org.com (默认 admin@<DOMAIN>, 此例自定义)
