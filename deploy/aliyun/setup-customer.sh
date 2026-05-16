@@ -15,14 +15,14 @@
 #   bash deploy/aliyun/setup-customer.sh <DOMAIN> <OPS_EMAIL> [ADMIN_EMAIL]
 #
 # 示例:
-#   bash deploy/aliyun/setup-customer.sh acme.example ops@acme.example
-#   # → DOMAIN=acme.example, CR_REGISTRY=acme-cn-guangzhou.cr.volces.com (从 DOMAIN 第一段派生)
+#   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com
+#   # → DOMAIN=your-domain.com, CR_REGISTRY=acme-cn-guangzhou.cr.volces.com (从 DOMAIN 第一段派生)
 #
-#   bash deploy/aliyun/setup-customer.sh acme.example ops@acme.example admin@corp.io
+#   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com admin@corp.io
 #   # → 同上 + ADMIN_EMAIL=admin@corp.io (默认 admin@<DOMAIN>, 此例自定义)
 #
-#   bash deploy/aliyun/setup-customer.sh acme.example ops@acme.example --cr-registry myorg-cn-beijing.cr.volces.com
-#   # → DOMAIN=acme.example, 显式指定 CR 实例 (region 也不是默认 cn-guangzhou)
+#   bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com --cr-registry myorg-cn-beijing.cr.volces.com
+#   # → DOMAIN=your-domain.com, 显式指定 CR 实例 (region 也不是默认 cn-guangzhou)
 #
 # 选项:
 #   --cr-registry <HOST>  显式指定火山 CR registry host (含 region).
