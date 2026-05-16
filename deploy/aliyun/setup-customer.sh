@@ -290,7 +290,11 @@ cat <<EOF
      git checkout -b customer/$(echo "$DOMAIN" | cut -d. -f1)
      git commit -am "Configure for $DOMAIN ($OPS_EMAIL)"
 
-5. 按 docs/installation/aliyun.md 走部署:
+5. 跑配置自检 (验证占位都替换好 / secrets 完整 / 跨文件一致):
+     bash deploy/aliyun/check-config.sh --skip-dns
+     # DNS 配好后再跑不带 --skip-dns 的版本
+
+6. 按 docs/installation/aliyun.md 走部署:
      §3 → DNS 加 meet.$DOMAIN / livekit.$DOMAIN / id.$DOMAIN A 记录
      §4 → 安全组放行端口
      §5 → 在 aliyun-zlm 跑 docker compose up + bootstrap-realm.sh

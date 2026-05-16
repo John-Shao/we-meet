@@ -81,7 +81,15 @@ bash deploy/aliyun/setup-customer.sh acme.com ops@acme.com
 3. 从 `.dist` 模板**生成** `values.secrets.yaml` + `keycloak/.env`，自动填随机密钥（DJANGO_SECRET_KEY / POSTGRES_APP_PASSWORD / REDIS_PASSWORD / LIVEKIT_API_SECRET / SUMMARY_API_TOKEN / KC_ADMIN_PASSWORD 等）
 4. 末尾打印 **checklist**: 还需手动填什么外部凭据（火山 CR / TOS AK / ARK API key / Keycloak client secret 等），及从哪儿拿
 
-然后照常走 §3 → §8。脚本是幂等检测的（已客户化的仓库会拒绝二次跑，避免污染）。
+然后跑 [deploy/aliyun/check-config.sh](../../deploy/aliyun/check-config.sh) 做配置自检（占位是否都替换好 / 必填 secrets 是否都填了 / 跨文件密钥是否一致 / 域名是否能 DNS 解析），再照常走 §3 → §8：
+
+```bash
+bash deploy/aliyun/check-config.sh           # 完整自检
+bash deploy/aliyun/check-config.sh --strict  # warn 也算 fail (CI 用)
+bash deploy/aliyun/check-config.sh --skip-dns # 离线
+```
+
+setup-customer.sh 是幂等检测的（已客户化的仓库会拒绝二次跑，避免污染）；check-config.sh 不修改任何文件，可以随时多次跑。
 
 > 已 1 个客户部署后想加第 2 个：在新分支或新 fork 上重新 `git clone` + `setup-customer.sh`，互不影响。
 
@@ -666,6 +674,7 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 | 路径 | 作用 |
 |---|---|
 | [deploy/aliyun/setup-customer.sh](../../deploy/aliyun/setup-customer.sh) | **在 PC 上**一键把模板仓库改造为客户专属仓库（§2.1） |
+| [deploy/aliyun/check-config.sh](../../deploy/aliyun/check-config.sh) | **部署前**自检客制化配置完整性 + 跨文件一致性 |
 | [deploy/aliyun/install-k3s.sh](../../deploy/aliyun/install-k3s.sh) | aliyun-sjy 一键装 K3s + ingress-nginx + cert-manager |
 | [deploy/aliyun/install-meet.sh](../../deploy/aliyun/install-meet.sh) | aliyun-sjy 一键装 postgres + redis + livekit + meet chart |
 | [deploy/aliyun/build.sh](../../deploy/aliyun/build.sh) | **在 PC 上 (VPN ON)** 构建 4 个镜像（§六） |
