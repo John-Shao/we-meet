@@ -194,19 +194,38 @@ do
 done
 ```
 
-或者直接用脚本一行起（从 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 读凭据，避免写进 shell history）：
+或者直接用脚本分两步走 —— **build 时 VPN ON**（直连 pypi.org / docker.io / npm），**push 时 VPN OFF**（直连国内 cn-guangzhou.cr.volces.com，VPN 反而绕远 / 丢包）：
 
 ```bash
+# === 第一步: VPN ON, 构建 ===
+export IMAGE_TAG=$(git rev-parse --short HEAD)   # 或不设, 默认 latest
+bash deploy/aliyun/build.sh
+
+# === 第二步: 关 VPN, 推送 (凭据从 values.secrets.yaml 读, 不写 shell history) ===
 SECRETS=src/helm/env.d/aliyun-prod/values.secrets.yaml
 export VOLC_CR_USER=$(yq -r '.image.credentials.username' $SECRETS)
 export VOLC_CR_PASS=$(yq -r '.image.credentials.password' $SECRETS)
-export IMAGE_TAG=$(git rev-parse --short HEAD)
-bash deploy/aliyun/build-and-push.sh
+# IMAGE_TAG 沿用第一步, 不变
+bash deploy/aliyun/push.sh
 ```
 
-> ⚠️ **`--platform linux/amd64` 必加**：阿里云 ECS 都是 x86_64，PC 如果是 Apple Silicon Mac 默认 build 出 arm64 镜像，生产 ECS 拉到后 pod 立刻 exec format error 崩。上面 for loop 已经加，用 build-and-push.sh 的话 v1 脚本默认本机架构，arm64 PC 用户需要先 `export BUILDX_DEFAULT_PLATFORM=linux/amd64` 或改脚本。
+> ⚠️ **`--platform linux/amd64` 必加**：阿里云 ECS 都是 x86_64，PC 如果是 Apple Silicon Mac 默认 build 出 arm64 镜像，生产 ECS 拉到后 pod 立刻 exec format error 崩。上面 for loop 已经加，用 build.sh 的话脚本默认本机架构，arm64 PC 用户需要先 `export BUILDX_DEFAULT_PLATFORM=linux/amd64` 或改脚本。
 
 > ⚠️ **PC 网络好不需要 CN mirror 补丁**：main 分支的 Dockerfile 直接走 pypi.org / deb.debian.org，VPN 直连 OK。如果 PC 没 VPN（不推荐），dev 分支固化过 `apt → mirrors.aliyun.com` + `pip → mirrors.aliyun.com` 补丁，但 **uv 不能 redirect** —— `src/backend/uv.lock` pin 了 pypi.org 来源，`uv sync --locked` 严格校验 source 一致，redirect uv 触发 "lockfile needs to be updated" 拒绝继续；uv 走 `UV_HTTP_TIMEOUT=300` 慢但能成。
+
+> ⚠️ **meet-agents 单独的 apt 坑（VPN 路径不稳）**：[src/agents/Dockerfile](../../src/agents/Dockerfile) 只装 `libglib2.0-0` + `libgobject-2.0-0` 两个 .deb，但需要拉 `deb.debian.org/debian trixie/main amd64 Packages`（~50 MB 索引文件）。这个 URL 通过 VPN 走 CDN 时**经常单边丢包**，表现为 `apt-get update` 在 `Ign:4 ... trixie/main amd64 Packages` 反复重试 200+ 秒后 fail（注意此时 `trixie-updates` / `trixie-security` 都能拿到，只有 `trixie/main` 死循环 —— 不是整条 VPN 断了，是 CDN 单 URL 抽风）。其它 3 个镜像 (backend/frontend/summary) 不撞这坑因为它们的 base 镜像用 Alpine apk 走 `mirrors.aliyun.com` 不走 Debian apt。
+>
+> **临时修法（不入库）**：先 `cp src/agents/Dockerfile src/agents/Dockerfile.bak`，把 `RUN apt-get update ...` 改成先 sed 替换 sources：
+>
+> ```Dockerfile
+> RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources \
+>  && apt-get update && apt-get install -y \
+>     libglib2.0-0 \
+>     libgobject-2.0-0 \
+>     && rm -rf /var/lib/apt/lists/*
+> ```
+>
+> 然后 **关掉 VPN 再 build**（关键 —— `mirrors.aliyun.com` 是国内域名，VPN 全局模式会让流量出境再绕回，反而比直连慢/丢包），apt 阶段 ~30 秒过。build 成功后 `mv src/agents/Dockerfile.bak src/agents/Dockerfile` 还原，**不要把这个补丁提交到 git**。后续 `docker push` 也保持 VPN OFF（火山 CR cn-guangzhou 国内直连最快）。
 
 > ⚠️ **yq -r 必须**：Ubuntu apt 装的 Python yq 默认输出 JSON 带双引号；`-r` 才是裸字符串。Mike Farah 的 Go yq 不加 `-r` 也能输出裸字符串，但加上 `-r` 两种都兼容。
 
@@ -511,10 +530,11 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 |---|---|
 | `docker login` 火山 CR 报 `username "AKLT..." is not valid` | 火山 CR **不接受主账号 AK/SK**。CR 控制台 → 实例 → 访问凭证 → 创建用户名+固定密码（username 形如 `JUSIAI2025@2114082505`），把这组凭据填到 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 的 `image.credentials` 字段。 |
 | `docker login` env vars 看着对但还是 unauthorized | `yq` 没加 `-r`。Ubuntu apt 的 yq 是 Python jq 包装，默认输出 JSON 带双引号。`echo "len=${#VAR}"` 验证：username 应是 21 字符不是 23。修法：所有 `yq` 改 `yq -r`。 |
-| `target stage "production" could not be found` | 根 Dockerfile 的 production stage 名是 `backend-production`；frontend Dockerfile 是 `frontend-production`。已在 [build-and-push.sh](../../deploy/aliyun/build-and-push.sh) 修正。 |
+| `target stage "production" could not be found` | 根 Dockerfile 的 production stage 名是 `backend-production`；frontend Dockerfile 是 `frontend-production`。已在 [build.sh](../../deploy/aliyun/build.sh) 修正。 |
 | frontend build context 找不到 `package.json` | frontend Dockerfile 的 COPY 都是 `./src/frontend/...` 写法，build context 必须是 **repo root**，不是 `./src/frontend`。 |
 | `the --mount option requires BuildKit` | 设 `DOCKER_BUILDKIT=1` 还不够，还要装 buildx：`sudo apt-get install -y docker-buildx`。`docker.io` 不自带 buildx 插件。 |
 | `pip install` / `uv sync` 中途 `ConnectionResetError(104)` | PyPI 国内访问不稳。Dockerfile 已加 `PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/`。**不要给 uv 设 mirror**——`src/backend/uv.lock` 严格校验 source URL，redirect uv 触发 "lockfile needs to be updated" 拒绝继续。uv 走 `UV_HTTP_TIMEOUT=300` 慢但能成。 |
+| build meet-agents 卡在 `Ign:4 http://deb.debian.org/debian trixie/main amd64 Packages` 反复重试 200+ 秒 | Debian apt 的 `trixie/main` Packages 索引文件 ~50 MB，VPN 走 CDN 时单 URL 经常丢包（注意 `trixie-updates`/`trixie-security` 同时能拿到，说明 VPN 没断只是这条 URL 抽风）。修法：临时 sed 把 `deb.debian.org` 改成 `mirrors.aliyun.com` + **关 VPN** 后 build，~30 秒过。完整步骤见 §6.3 的 ⚠️ 框。 |
 | `helm pull oci://registry-1.docker.io/...: dial tcp 157.240.10.41:443: i/o timeout` | Docker Hub OCI DNS 在国内被污染（解析到 Facebook IP）。helm OCI 不复用 docker daemon mirror。修法：预下载 chart tarball，`helm install /tmp/<chart>.tgz`。 |
 | `helm repo update: no repositories found` | helm `repo add ...github.io` 静默失败（GitHub Pages 国内不稳）。改成预下载 chart tarball。 |
 | ingress-nginx pod `ImagePullBackOff: registry.k8s.io...` | 国内访问 registry.k8s.io 不通。把 controller + admission webhook 镜像都换成 `registry.cn-hangzhou.aliyuncs.com/google_containers/*`。已在 install-k3s.sh 修正。 |
@@ -554,7 +574,8 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 |---|---|
 | [deploy/aliyun/install-k3s.sh](../../deploy/aliyun/install-k3s.sh) | aliyun-sjy 一键装 K3s + ingress-nginx + cert-manager |
 | [deploy/aliyun/install-meet.sh](../../deploy/aliyun/install-meet.sh) | aliyun-sjy 一键装 postgres + redis + livekit + meet chart |
-| [deploy/aliyun/build-and-push.sh](../../deploy/aliyun/build-and-push.sh) | **在 PC 上**构建 4 个镜像并推火山 CR（§六） |
+| [deploy/aliyun/build.sh](../../deploy/aliyun/build.sh) | **在 PC 上 (VPN ON)** 构建 4 个镜像（§六） |
+| [deploy/aliyun/push.sh](../../deploy/aliyun/push.sh) | **在 PC 上 (VPN OFF)** 把 4 个镜像推到火山 CR（§六） |
 | [deploy/aliyun/keycloak/compose.yaml](../../deploy/aliyun/keycloak/compose.yaml) | aliyun-zlm 上的 Keycloak + Postgres + Caddy |
 | [deploy/aliyun/keycloak/bootstrap-realm.sh](../../deploy/aliyun/keycloak/bootstrap-realm.sh) | 创建 meet realm / client / 测试用户 |
 | [src/helm/env.d/aliyun-prod/values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) | meet chart 生产 values |
