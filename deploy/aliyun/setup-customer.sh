@@ -143,6 +143,10 @@ if [[ $FORCE -eq 0 && $DRY_RUN -eq 0 ]]; then
 fi
 
 # -------- 摘要 --------
+# 注: ${var:+text} 检测的是 "变量非空", DRY_RUN=0 是字符串非空也会触发,
+# 所以这里用条件输出而不是 ${DRY_RUN:+...}.
+DRY_RUN_BANNER=""
+[[ $DRY_RUN -eq 1 ]] && DRY_RUN_BANNER="  (--dry-run, 不真改文件)"
 cat <<EOF
 ================================================================
 即将定制化仓库:
@@ -150,7 +154,7 @@ cat <<EOF
   OPS_EMAIL    = $OPS_EMAIL       (用于 Let's Encrypt 通知, Caddy email)
   ADMIN_EMAIL  = $ADMIN_EMAIL     (Django superuser)
   CR_REGISTRY  = $CR_REGISTRY    (容器镜像仓库 host, 镜像走 $CR_REGISTRY/we-meet/*)
-  ${DRY_RUN:+(--dry-run, 不真改文件)}
+$DRY_RUN_BANNER
 ================================================================
 EOF
 
@@ -191,7 +195,9 @@ run_sub() {
     fi
     return 0
   fi
-  sed -i "s|$sed_from|$sed_to|g" "$file"
+  # 过滤掉 WSL 在 /mnt/d/* (NTFS) 上跑时的 "preserving permissions ... Operation
+  # not permitted" 警告 — sed 替换实际成功, 只是无法 chmod NTFS 上的文件.
+  sed -i "s|$sed_from|$sed_to|g" "$file" 2> >(grep -vF "preserving permissions" >&2)
 }
 
 # 重要: 顺序是 email → admin → domain → CR (后做 domain 是为了让前面的 email/admin
@@ -271,7 +277,7 @@ else
     -e "s|REPLACE_LIVEKIT_API_SECRET|$LK_API_SECRET|g" \
     -e "s|REPLACE_SUMMARY_API_TOKEN|$SUMMARY_API|g" \
     -e "s|REPLACE_SUMMARY_WEBHOOK_TOKEN|$SUMMARY_WEBHOOK|g" \
-    "$SECRETS_OUT"
+    "$SECRETS_OUT" 2> >(grep -vF "preserving permissions" >&2)
 
   # keycloak/.env
   cp deploy/aliyun/keycloak/.env.dist "$KC_ENV_OUT"
@@ -280,7 +286,7 @@ else
   sed -i \
     -e "s|REPLACE_ADMIN_PASSWORD|$KC_ADMIN_PW|g" \
     -e "s|REPLACE_DB_PASSWORD|$KC_DB_PW|g" \
-    "$KC_ENV_OUT"
+    "$KC_ENV_OUT" 2> >(grep -vF "preserving permissions" >&2)
 
   echo "  ✓ $SECRETS_OUT (gitignored)"
   echo "  ✓ $KC_ENV_OUT (gitignored)"
