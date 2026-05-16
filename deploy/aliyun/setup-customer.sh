@@ -226,8 +226,20 @@ echo "==> Step 4/5: 替换 CR registry 占位 (your-cr.cr-domain.com → $CR_REG
 for f in "${FILES_TO_PATCH[@]}"; do
   run_sub "your-cr.cr-domain.com" "$CR_REGISTRY" "$f"
 done
+# bare instance 替换: real-run 顺序上发生在 full-host 替换之后, 所以 your-cr.cr-domain.com
+# 里的 your-cr 子串已经不在了. dry-run 不模拟连续替换, 直接 grep 会把子串也算进去 ——
+# 这里手动减去 full-host 命中数, 让 dry-run 报告 真实的 bare 命中数.
 for f in "${FILES_TO_PATCH[@]}"; do
-  run_sub "your-cr" "$CR_INSTANCE" "$f"
+  if [[ $DRY_RUN -eq 1 ]]; then
+    total=$(grep -oF "your-cr" "$f" 2>/dev/null | wc -l || true)
+    inside=$(grep -oF "your-cr.cr-domain.com" "$f" 2>/dev/null | wc -l || true)
+    bare=$((total - inside))
+    if [[ "$bare" -gt 0 ]]; then
+      echo "  $f: $bare 处 (bare your-cr → $CR_INSTANCE)"
+    fi
+  else
+    run_sub "your-cr" "$CR_INSTANCE" "$f"
+  fi
 done
 
 # -------- Step 3: 生成 secrets / .env --------
