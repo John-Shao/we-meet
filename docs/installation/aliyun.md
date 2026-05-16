@@ -67,10 +67,10 @@ git clone https://github.com/<your-org>/we-meet.git
 cd we-meet
 
 # 先 dry-run 看会改哪些文件
-bash deploy/aliyun/setup-customer.sh --dry-run acme.com ops@acme.com
+bash deploy/aliyun/setup-customer.sh --dry-run acme.example ops@acme.example
 
 # 满意了真改
-bash deploy/aliyun/setup-customer.sh acme.com ops@acme.com
+bash deploy/aliyun/setup-customer.sh acme.example ops@acme.example
 # (可选第 3 个参数 ADMIN_EMAIL, 默认 admin@<DOMAIN>)
 ```
 
