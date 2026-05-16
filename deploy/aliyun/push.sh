@@ -5,8 +5,8 @@
 # 跑前请确认 VPN 已关闭, 普通 ISP 出口路由可达 *.cr.volces.com.
 #
 # 前置 (一次性):
-#   1. 火山 CR 控制台 → 实例 jusi-cn-guangzhou → 命名空间 → 新建 we-meet
-#      (与 jusi 老镜像所在的 meet 命名空间隔离)
+#   1. 火山 CR 控制台 → 实例 your-cr → 命名空间 → 新建 we-meet
+#      (项目自有命名空间, 跟客户其他项目镜像隔离)
 #   2. 在 we-meet 命名空间下新建 4 个镜像仓库:
 #        meet-backend / meet-frontend / meet-summary / meet-agents
 #   3. CR 控制台 → 实例 → 访问凭证 → 创建一个用户名 + 固定密码
@@ -25,9 +25,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-: "${VOLC_CR_REGISTRY:=jusi-cn-guangzhou.cr.volces.com}"
+: "${VOLC_CR_REGISTRY:=your-cr.cr.volces.com}"
 : "${VOLC_CR_NAMESPACE:=we-meet}"
-: "${VOLC_CR_USER:?VOLC_CR_USER required (CR 实例级用户名, 形如 JUSIAI2025@xxx)}"
+: "${VOLC_CR_USER:?VOLC_CR_USER required (CR 实例级用户名, 形如 MYORG2025@xxx)}"
 : "${VOLC_CR_PASS:?VOLC_CR_PASS required (CR 实例级密码)}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 

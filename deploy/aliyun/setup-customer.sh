@@ -2,8 +2,12 @@
 # setup-customer.sh — 把 example.com 模板仓库一键改造为某客户的部署仓库.
 #
 # 做两件事:
-#   1. 替换 9 个文件里的 example.com / REPLACE_OWNER_EMAIL@example.com /
-#      admin@example.com 为客户提供的具体值
+#   1. 替换占位符 (9 个文件):
+#        example.com                       → 客户域名
+#        REPLACE_OWNER_EMAIL@example.com   → 客户 OPS_EMAIL
+#        admin@example.com                 → 客户 ADMIN_EMAIL
+#        your-cr.cr.volces.com             → 客户 CR_REGISTRY
+#        your-cr (bare instance refs)      → CR_REGISTRY 的 instance 部分
 #   2. 从 .dist 模板生成 values.secrets.yaml + keycloak/.env, 自动填入随机
 #      生成的密钥, 留下需要客户人工填的字段并打印 checklist
 #
@@ -12,20 +16,27 @@
 #
 # 示例:
 #   bash deploy/aliyun/setup-customer.sh acme.com ops@acme.com
-#   # ADMIN_EMAIL 默认 admin@<DOMAIN>, 若想另用一个 (例如 admin@corp.io):
+#   # → DOMAIN=acme.com, CR_REGISTRY=acme-cn-guangzhou.cr.volces.com (从 DOMAIN 第一段派生)
+#
 #   bash deploy/aliyun/setup-customer.sh acme.com ops@acme.com admin@corp.io
+#   # → 同上 + ADMIN_EMAIL=admin@corp.io (默认 admin@<DOMAIN>, 此例自定义)
+#
+#   bash deploy/aliyun/setup-customer.sh acme.com ops@acme.com --cr-registry myorg-cn-beijing.cr.volces.com
+#   # → DOMAIN=acme.com, 显式指定 CR 实例 (region 也不是默认 cn-guangzhou)
 #
 # 选项:
-#   --force         覆盖已存在的 values.secrets.yaml / keycloak/.env
-#   --dry-run       仅打印改动概要, 不真改文件
-#   -h | --help     打印帮助
+#   --cr-registry <HOST>  显式指定火山 CR registry host (含 region).
+#                          默认: <DOMAIN-第一段>-cn-guangzhou.cr.volces.com
+#   --force               覆盖已存在的 values.secrets.yaml / keycloak/.env
+#   --dry-run             仅打印改动概要, 不真改文件
+#   -h | --help           打印帮助
 #
 # 注意:
 #   - 脚本会替换文件 (含 docs/installation/aliyun.md), 跑完 git status 看 diff,
 #     满意后 git commit -am 'customer config'. 不满意 git checkout 整体回滚.
 #   - 重复执行只在干净 (example.com 还在的) 仓库上有效; 已替换的仓库脚本会
 #     拒绝运行 (改成 git checkout main -- <相关文件> 后再跑).
-#   - 拒绝用 example.com / your-domain.com / localhost 等占位值作为 DOMAIN.
+#   - 拒绝用 example.com / your-domain.com / your-cr 等占位值作为参数.
 #   - secrets (DJANGO/REDIS/POSTGRES/LIVEKIT/SUMMARY 等) 用 openssl rand 生成.
 #     外部凭据 (火山 CR / TOS / ARK / SMTP / Keycloak client secret) 不自动填,
 #     脚本末尾会列 checklist.
@@ -35,13 +46,16 @@ set -euo pipefail
 # -------- 解析参数 --------
 FORCE=0
 DRY_RUN=0
+CR_REGISTRY_ARG=""
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
-      sed -n '2,30p' "$0"; exit 0 ;;
+      sed -n '2,40p' "$0"; exit 0 ;;
     --force)   FORCE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --cr-registry)   CR_REGISTRY_ARG="$2"; shift 2 ;;
+    --cr-registry=*) CR_REGISTRY_ARG="${1#--cr-registry=}"; shift ;;
     -*) echo "ERROR: unknown option $1" >&2; exit 2 ;;
     *)  POSITIONAL+=("$1"); shift ;;
   esac
@@ -49,7 +63,7 @@ done
 
 if [[ ${#POSITIONAL[@]} -lt 2 ]]; then
   echo "ERROR: 缺少参数. 用法:" >&2
-  echo "  bash $0 <DOMAIN> <OPS_EMAIL> [ADMIN_EMAIL]" >&2
+  echo "  bash $0 <DOMAIN> <OPS_EMAIL> [ADMIN_EMAIL] [--cr-registry <HOST>]" >&2
   exit 2
 fi
 
@@ -57,14 +71,28 @@ DOMAIN="${POSITIONAL[0]}"
 OPS_EMAIL="${POSITIONAL[1]}"
 ADMIN_EMAIL="${POSITIONAL[2]:-admin@$DOMAIN}"
 
+# CR_REGISTRY 默认从 DOMAIN 第一段派生; 客户显式 --cr-registry 时覆盖.
+DOMAIN_PREFIX="${DOMAIN%%.*}"
+CR_REGISTRY="${CR_REGISTRY_ARG:-${DOMAIN_PREFIX}-cn-guangzhou.cr.volces.com}"
+# 提取 instance 部分 (用于替换 bare "your-cr" 引用): host 去掉 .cr.volces.com 后缀
+CR_INSTANCE="${CR_REGISTRY%.cr.volces.com}"
+
 # 简单格式校验
 if ! [[ "$DOMAIN" =~ ^[a-z0-9.-]+\.[a-z]{2,}$ ]]; then
   echo "ERROR: DOMAIN 看着不像合法域名: $DOMAIN" >&2; exit 2
 fi
-# 拒绝占位值 (会让模板检测失效, 后续脚本认为是 "干净模板" 反复触发)
+if ! [[ "$CR_REGISTRY" =~ ^[a-z0-9.-]+\.cr\.volces\.com$ ]]; then
+  echo "ERROR: CR_REGISTRY 看着不像火山 CR host (期望 <instance>.cr.volces.com): $CR_REGISTRY" >&2; exit 2
+fi
+# 拒绝占位值 (会让模板检测失效)
 case "$DOMAIN" in
   example.com|example.org|example.net|your-domain.com|localhost|test.com)
     echo "ERROR: DOMAIN=$DOMAIN 是占位/保留域名, 不能用作客户实际域名." >&2
+    exit 2 ;;
+esac
+case "$CR_REGISTRY" in
+  your-cr*|*.your-cr.cr.volces.com)
+    echo "ERROR: CR_REGISTRY=$CR_REGISTRY 是占位值, 必须 --cr-registry 指定客户实际 CR host." >&2
     exit 2 ;;
 esac
 for e in "$OPS_EMAIL" "$ADMIN_EMAIL"; do
@@ -101,12 +129,14 @@ cat <<EOF
   DOMAIN       = $DOMAIN          (= meet.$DOMAIN / livekit.$DOMAIN / id.$DOMAIN)
   OPS_EMAIL    = $OPS_EMAIL       (用于 Let's Encrypt 通知, Caddy email)
   ADMIN_EMAIL  = $ADMIN_EMAIL     (Django superuser)
+  CR_REGISTRY  = $CR_REGISTRY    (火山 CR host, 镜像走 $CR_REGISTRY/we-meet/*)
   ${DRY_RUN:+(--dry-run, 不真改文件)}
 ================================================================
 EOF
 
 # -------- 文件列表 --------
-# 8 个 deploy/config 文件 + 1 个 docs.
+# Helm/Caddy/Compose configs + driver scripts (build/push/install-meet) + docs.
+# 注意: setup-customer.sh 自身不在列表里 (避免自改).
 FILES_TO_PATCH=(
   src/helm/env.d/aliyun-prod/values.meet.yaml
   src/helm/env.d/aliyun-prod/values.livekit.yaml
@@ -116,6 +146,9 @@ FILES_TO_PATCH=(
   deploy/aliyun/keycloak/Caddyfile
   deploy/aliyun/keycloak/compose.yaml
   deploy/aliyun/keycloak/.env.dist
+  deploy/aliyun/build.sh
+  deploy/aliyun/push.sh
+  deploy/aliyun/install-meet.sh
   docs/installation/aliyun.md
 )
 
@@ -141,11 +174,11 @@ run_sub() {
   sed -i "s|$sed_from|$sed_to|g" "$file"
 }
 
-# 重要: 顺序是 email → admin → domain (后做 domain 是为了让前面的 email/admin
-# 替换能命中 *jusicloud.com* 形式的原始占位, 否则 domain 改完它们就消失了).
+# 重要: 顺序是 email → admin → domain → CR (后做 domain 是为了让前面的 email/admin
+# 替换能命中 *example.com* 形式的原始占位, 否则 domain 改完它们就消失了).
 
 echo
-echo "==> Step 1/4: 替换 OPS_EMAIL 占位 (Caddyfile + cluster-issuer.yaml)"
+echo "==> Step 1/5: 替换 OPS_EMAIL 占位 (Caddyfile + cluster-issuer.yaml)"
 run_sub "REPLACE_OWNER_EMAIL@example.com" "$OPS_EMAIL" deploy/aliyun/keycloak/Caddyfile
 run_sub "REPLACE_OWNER_EMAIL@example.com" "$OPS_EMAIL" src/helm/env.d/aliyun-prod/cluster-issuer.yaml
 
@@ -154,17 +187,27 @@ run_sub "REPLACE_OWNER_EMAIL@example.com" "$OPS_EMAIL" src/helm/env.d/aliyun-pro
 # 若客户给的 ADMIN_EMAIL 不等于 admin@$DOMAIN, 这里直接替换.
 if [[ "$ADMIN_EMAIL" != "admin@$DOMAIN" ]]; then
   echo
-  echo "==> Step 2/4: 替换 admin@example.com → $ADMIN_EMAIL (ADMIN_EMAIL 自定义)"
+  echo "==> Step 2/5: 替换 admin@example.com → $ADMIN_EMAIL (ADMIN_EMAIL 自定义)"
   run_sub "admin@example.com" "$ADMIN_EMAIL" src/helm/env.d/aliyun-prod/values.secrets.yaml.dist
 else
   echo
-  echo "==> Step 2/4: ADMIN_EMAIL 默认 (admin@$DOMAIN), 跳过 (由 Step 3 顺带替换)"
+  echo "==> Step 2/5: ADMIN_EMAIL 默认 (admin@$DOMAIN), 跳过 (由 Step 3 顺带替换)"
 fi
 
 echo
-echo "==> Step 3/4: 替换 example.com → $DOMAIN (扫所有相关文件)"
+echo "==> Step 3/5: 替换 example.com → $DOMAIN (扫所有相关文件)"
 for f in "${FILES_TO_PATCH[@]}"; do
   run_sub "example.com" "$DOMAIN" "$f"
+done
+
+echo
+echo "==> Step 4/5: 替换 CR registry 占位 (your-cr.cr.volces.com → $CR_REGISTRY; bare your-cr → $CR_INSTANCE)"
+# 顺序很重要: 先替全 host (longest match), 再替 bare instance, 避免双重替换.
+for f in "${FILES_TO_PATCH[@]}"; do
+  run_sub "your-cr.cr.volces.com" "$CR_REGISTRY" "$f"
+done
+for f in "${FILES_TO_PATCH[@]}"; do
+  run_sub "your-cr" "$CR_INSTANCE" "$f"
 done
 
 # -------- Step 3: 生成 secrets / .env --------
@@ -172,7 +215,7 @@ gen_hex() { openssl rand -hex 32; }
 gen_pw()  { openssl rand -base64 24 | tr -d '+/=' | cut -c1-24; }
 
 echo
-echo "==> Step 4/4: 生成 values.secrets.yaml + keycloak/.env (自动填随机密钥)"
+echo "==> Step 5/5: 生成 values.secrets.yaml + keycloak/.env (自动填随机密钥)"
 
 if [[ $DRY_RUN -eq 1 ]]; then
   echo "  (--dry-run 跳过 secrets 文件生成)"

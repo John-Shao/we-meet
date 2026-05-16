@@ -16,12 +16,12 @@
 # values.secrets.yaml is gitignored — copy values.secrets.yaml.dist and fill in.
 
 image:
-  repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend
+  repository: your-cr.cr.volces.com/we-meet/meet-backend
   pullPolicy: Always
   tag: "latest"
   credentials:
     name: meet-dockerconfig
-    registry: jusi-cn-guangzhou.cr.volces.com
+    registry: your-cr.cr.volces.com
     # username / password come from values.secrets.yaml
 
 backend:
@@ -158,7 +158,7 @@ frontend:
       memory: 256Mi
 
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend
+    repository: your-cr.cr.volces.com/we-meet/meet-frontend
     pullPolicy: Always
     tag: "latest"
 
@@ -208,7 +208,7 @@ posthog:
 summary:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    repository: your-cr.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -226,9 +226,9 @@ summary:
     AWS_S3_SECURE_ACCESS: "True"
     # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY 来自 values.secrets.yaml
 
-    # 火山方舟 (Volcengine Ark) — OpenAI 兼容 (复用 jusi_meet_suite1.9 ARK_API_KEY)
+    # 火山方舟 (Volcengine Ark) — OpenAI 兼容. ARK_API_KEY 与 endpoint 在客户控制台创建.
     LLM_BASE_URL: https://ark.cn-beijing.volces.com/api/v3
-    LLM_MODEL: "ep-20260316164223-46rsh"   # DOUBAO_LLM_ENDPOINT
+    LLM_MODEL: "REPLACE_LLM_ENDPOINT_ID"   # 火山方舟接入点 ID, 形如 ep-XXXXXXXXXXXXX-XXXXX
     # LLM_API_KEY 来自 values.secrets.yaml
 
     # WhisperX — v1 不开录制 → summary 不会真的发起音频转写, 这里只是
@@ -251,7 +251,7 @@ summary:
 celeryTranscribe:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    repository: your-cr.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -274,7 +274,7 @@ celeryTranscribe:
 celerySummarize:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    repository: your-cr.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -297,7 +297,7 @@ celerySummarize:
 celerySummaryBackend:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    repository: your-cr.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -337,7 +337,7 @@ celery:
 agentMetadata:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
+    repository: your-cr.cr.volces.com/we-meet/meet-agents
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -367,7 +367,7 @@ agentMetadata:
 agentSubtitles:
   replicas: 0
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
+    repository: your-cr.cr.volces.com/we-meet/meet-agents
     pullPolicy: Always
     tag: "latest"
   envVars:

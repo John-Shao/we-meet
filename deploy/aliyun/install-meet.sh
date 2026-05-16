@@ -5,7 +5,7 @@
 #   - 已运行过 install-k3s.sh
 #   - 已 cp src/helm/env.d/aliyun-prod/values.secrets.yaml.dist values.secrets.yaml
 #     并填好所有 REPLACE_* 占位 (DB / Redis / Keycloak client secret 等)
-#   - 火山 CR jusi-cn-guangzhou 实例的 we-meet 命名空间下已 push 4 个镜像
+#   - 火山 CR your-cr 实例的 we-meet 命名空间下已 push 4 个镜像
 #     (meet-backend / meet-frontend / meet-summary / meet-agents)
 #
 # Run:
