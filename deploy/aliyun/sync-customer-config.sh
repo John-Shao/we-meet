@@ -97,6 +97,11 @@ if ! command -v ssh >/dev/null; then
   exit 1
 fi
 
+# SSH 连接复用: 3 次 ssh/rsync 共享一条底层连接, 只输 1 次密码
+CTRL_SOCK="$(mktemp -u /tmp/we-meet-sync-XXXXXX.sock)"
+SSH_OPTS=(-o "ControlMaster=auto" -o "ControlPath=$CTRL_SOCK" -o "ControlPersist=60s")
+trap 'ssh "${SSH_OPTS[@]}" -O exit "$SSH_TARGET" 2>/dev/null || true; rm -f "$CTRL_SOCK"' EXIT
+
 # dry-run 用数组传, 避免空字符串展开问题
 DRY_FLAG=()
 [[ $DRY_RUN -eq 1 ]] && DRY_FLAG=(--dry-run)
@@ -107,13 +112,13 @@ if [[ $DRY_RUN -eq 1 ]]; then
   echo "==> [--dry-run] 会在 $SSH_TARGET 跑: mkdir -p $DEST_DIR"
 else
   echo "==> 在 $SSH_TARGET 创建 $DEST_DIR"
-  ssh "$SSH_TARGET" "mkdir -p '$DEST_DIR'"
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '$DEST_DIR'"
 fi
 
 # rsync -R 保持相对路径, 远端目录结构镜像本地 (相对仓库根)
 echo
 echo "==> rsync ${DRY_FLAG[*]:-} ${#FILES[@]} 个文件 → $SSH_TARGET:$DEST_DIR/"
-rsync -avR "${DRY_FLAG[@]}" "${FILES[@]}" "$SSH_TARGET:$DEST_DIR/"
+rsync -avR -e "ssh ${SSH_OPTS[*]}" "${DRY_FLAG[@]}" "${FILES[@]}" "$SSH_TARGET:$DEST_DIR/"
 
 if [[ $DRY_RUN -eq 1 ]]; then
   cat <<EOF
@@ -128,7 +133,7 @@ fi
 # 验证远端
 echo
 echo "==> 验证远端文件"
-ssh "$SSH_TARGET" "ls -la '$DEST_DIR/src/helm/env.d/aliyun-prod/' '$DEST_DIR/deploy/aliyun/keycloak/' 2>/dev/null"
+ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "ls -la '$DEST_DIR/src/helm/env.d/aliyun-prod/' '$DEST_DIR/deploy/aliyun/keycloak/' 2>/dev/null"
 
 cat <<EOF
 
