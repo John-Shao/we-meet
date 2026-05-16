@@ -2,14 +2,23 @@
 # setup-customer.sh — 把 example.com 模板仓库一键改造为某客户的部署仓库.
 #
 # 做两件事:
-#   1. 替换占位符 (9 个文件):
+#   1. 替换占位符 — 只动 6 个客户专属配置文件:
 #        example.com                       → 客户域名
 #        REPLACE_OWNER_EMAIL@example.com   → 客户 OPS_EMAIL
-#        admin@example.com                 → 客户 ADMIN_EMAIL
-#        your-cr.cr-domain.com               → 客户容器镜像仓库 host (CR_REGISTRY)
+#        your-cr.cr-domain.com             → 客户容器镜像仓库 host (CR_REGISTRY)
 #        your-cr (bare instance refs)      → CR_REGISTRY 的 instance 部分
+#      涉及的 6 个文件:
+#        - src/helm/env.d/aliyun-prod/values.meet.yaml
+#        - src/helm/env.d/aliyun-prod/values.livekit.yaml
+#        - src/helm/env.d/aliyun-prod/cluster-issuer.yaml
+#        - deploy/aliyun/keycloak/Caddyfile
+#        - deploy/aliyun/keycloak/compose.yaml
+#        - deploy/aliyun/keycloak/bootstrap-realm.sh
+#      不动: .dist 模板 / build.sh / push.sh / install-meet.sh / docs/aliyun.md
+#      (保持占位, 让 mixed-deploy 分支干净, 下个客户拉同份模板继续用.)
 #   2. 从 .dist 模板生成 values.secrets.yaml + keycloak/.env, 自动填入随机
-#      生成的密钥, 留下需要客户人工填的字段并打印 checklist
+#      密钥, 并对 OUT 文件应用 DOMAIN / ADMIN_EMAIL / CR_REGISTRY 替换 ——
+#      .dist 本身保持占位, 模板的跨客户可复用性不被破坏.
 #
 # 用法:
 #   bash deploy/aliyun/setup-customer.sh <DOMAIN> <OPS_EMAIL> [ADMIN_EMAIL]
@@ -45,8 +54,10 @@
 #   -h | --help           打印帮助
 #
 # 注意:
-#   - 脚本会替换文件 (含 docs/installation/aliyun.md), 跑完 git status 看 diff,
-#     满意后 git commit -am 'customer config'. 不满意 git checkout 整体回滚.
+#   - 跑完 git status 只显示 6 个客户专属配置 (+ 2 个 gitignored secrets).
+#     模板 .dist / 跨客户脚本 / docs 都保持占位.
+#   - 客户化数据不入仓库 — 工作树是临时渲染源, 部署完后建议加密备份到客户
+#     服务器 (age + scp), 然后 git checkout -- . 丢弃工作树.
 #   - 重复执行只在干净 (example.com 还在的) 仓库上有效; 已替换的仓库脚本会
 #     拒绝运行 (改成 git checkout main -- <相关文件> 后再跑).
 #   - 拒绝用 example.com / your-domain.com / your-cr.cr-domain.com 等占位值作为
@@ -65,7 +76,7 @@ POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
-      sed -n '2,56p' "$0"; exit 0 ;;
+      sed -n '2,67p' "$0"; exit 0 ;;
     --force)   FORCE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --cr-registry)   CR_REGISTRY_ARG="$2"; shift 2 ;;
@@ -158,22 +169,21 @@ $DRY_RUN_BANNER
 ================================================================
 EOF
 
-# -------- 文件列表 --------
-# Helm/Caddy/Compose configs + driver scripts (build/push/install-meet) + docs.
+# -------- 文件列表: 只列 6 个客户专属配置 --------
+# 不在列表里的 (.dist 模板 / build.sh / push.sh / install-meet.sh / docs/aliyun.md)
+# 保持占位:
+#   - .dist 模板由 Step 4 在 cp 后对 OUT 文件做替换, 模板本身留作下个客户复用.
+#   - build/push/install-meet 是跨客户脚本, 默认值 (your-cr.cr-domain.com) 必须
+#     保持占位, 否则下个客户拉同份模板会带上一个客户的 CR.
+#   - docs/installation/aliyun.md 是模板文档, 不与具体客户绑定.
 # 注意: setup-customer.sh 自身不在列表里 (避免自改).
 FILES_TO_PATCH=(
   src/helm/env.d/aliyun-prod/values.meet.yaml
   src/helm/env.d/aliyun-prod/values.livekit.yaml
-  src/helm/env.d/aliyun-prod/values.secrets.yaml.dist
   src/helm/env.d/aliyun-prod/cluster-issuer.yaml
-  deploy/aliyun/keycloak/bootstrap-realm.sh
   deploy/aliyun/keycloak/Caddyfile
   deploy/aliyun/keycloak/compose.yaml
-  deploy/aliyun/keycloak/.env.dist
-  deploy/aliyun/build.sh
-  deploy/aliyun/push.sh
-  deploy/aliyun/install-meet.sh
-  docs/installation/aliyun.md
+  deploy/aliyun/keycloak/bootstrap-realm.sh
 )
 
 # run_sub <literal_from> <literal_to> <file>
@@ -200,34 +210,23 @@ run_sub() {
   sed -i "s|$sed_from|$sed_to|g" "$file" 2> >(grep -vF "preserving permissions" >&2)
 }
 
-# 重要: 顺序是 email → admin → domain → CR (后做 domain 是为了让前面的 email/admin
-# 替换能命中 *example.com* 形式的原始占位, 否则 domain 改完它们就消失了).
+# 顺序: OPS_EMAIL → DOMAIN → CR registry → 生成 secrets.
+# ADMIN_EMAIL 不在这里替换 — .dist 里的 admin@example.com 由 Step 4 在 cp 后对
+# 生成的 OUT 文件应用 (避免污染 .dist 模板).
 
 echo
-echo "==> Step 1/5: 替换 OPS_EMAIL 占位 (Caddyfile + cluster-issuer.yaml)"
+echo "==> Step 1/4: 替换 OPS_EMAIL 占位 (Caddyfile + cluster-issuer.yaml)"
 run_sub "REPLACE_OWNER_EMAIL@example.com" "$OPS_EMAIL" deploy/aliyun/keycloak/Caddyfile
 run_sub "REPLACE_OWNER_EMAIL@example.com" "$OPS_EMAIL" src/helm/env.d/aliyun-prod/cluster-issuer.yaml
 
-# 替换 admin@example.com → ADMIN_EMAIL (仅 ADMIN_EMAIL 非默认时需要)
-# 默认是 admin@$DOMAIN, 由 Step 3 的 example.com → DOMAIN 顺带改成.
-# 若客户给的 ADMIN_EMAIL 不等于 admin@$DOMAIN, 这里直接替换.
-if [[ "$ADMIN_EMAIL" != "admin@$DOMAIN" ]]; then
-  echo
-  echo "==> Step 2/5: 替换 admin@example.com → $ADMIN_EMAIL (ADMIN_EMAIL 自定义)"
-  run_sub "admin@example.com" "$ADMIN_EMAIL" src/helm/env.d/aliyun-prod/values.secrets.yaml.dist
-else
-  echo
-  echo "==> Step 2/5: ADMIN_EMAIL 默认 (admin@$DOMAIN), 跳过 (由 Step 3 顺带替换)"
-fi
-
 echo
-echo "==> Step 3/5: 替换 example.com → $DOMAIN (扫所有相关文件)"
+echo "==> Step 2/4: 替换 example.com → $DOMAIN (6 个客户专属配置)"
 for f in "${FILES_TO_PATCH[@]}"; do
   run_sub "example.com" "$DOMAIN" "$f"
 done
 
 echo
-echo "==> Step 4/5: 替换 CR registry 占位 (your-cr.cr-domain.com → $CR_REGISTRY; bare your-cr → $CR_INSTANCE)"
+echo "==> Step 3/4: 替换 CR registry 占位 (your-cr.cr-domain.com → $CR_REGISTRY; bare your-cr → $CR_INSTANCE)"
 # 顺序很重要: 先替全 host (longest match), 再替 bare instance, 避免双重替换.
 for f in "${FILES_TO_PATCH[@]}"; do
   run_sub "your-cr.cr-domain.com" "$CR_REGISTRY" "$f"
@@ -248,12 +247,14 @@ for f in "${FILES_TO_PATCH[@]}"; do
   fi
 done
 
-# -------- Step 3: 生成 secrets / .env --------
+# -------- Step 4: 生成 secrets / .env (从 .dist 模板 cp, 然后在 OUT 上替换) --------
+# .dist 模板本身保持 example.com / your-cr.cr-domain.com / admin@example.com 占位,
+# 让模板可跨客户复用; 客户值替换只对 cp 出来的 OUT 文件做.
 gen_hex() { openssl rand -hex 32; }
 gen_pw()  { openssl rand -base64 24 | tr -d '+/=' | cut -c1-24; }
 
 echo
-echo "==> Step 5/5: 生成 values.secrets.yaml + keycloak/.env (自动填随机密钥)"
+echo "==> Step 4/4: 生成 values.secrets.yaml + keycloak/.env (随机密钥 + 客户值替换)"
 
 if [[ $DRY_RUN -eq 1 ]]; then
   echo "  (--dry-run 跳过 secrets 文件生成)"
@@ -269,7 +270,15 @@ else
   SUMMARY_API=$(gen_hex)
   SUMMARY_WEBHOOK=$(gen_hex)
 
+  # 顺序很重要:
+  #   admin@example.com → ADMIN_EMAIL  (特定 pattern 先替, 自动处理默认 admin@$DOMAIN 与自定义两种情况)
+  #   example.com → DOMAIN             (兜底 .dist 里其他 example.com 引用)
+  #   your-cr.cr-domain.com → CR_REGISTRY  (image.credentials.registry 行)
+  #   REPLACE_* → 随机密钥
   sed -i \
+    -e "s|admin@example.com|$ADMIN_EMAIL|g" \
+    -e "s|example.com|$DOMAIN|g" \
+    -e "s|your-cr.cr-domain.com|$CR_REGISTRY|g" \
     -e "s|REPLACE_DJANGO_SECRET_KEY|$DJ_SECRET|g" \
     -e "s|REPLACE_ADMIN_PASSWORD|$DJ_ADMIN_PW|g" \
     -e "s|REPLACE_POSTGRES_APP_PASSWORD|$PG_PW|g" \
@@ -283,7 +292,9 @@ else
   cp deploy/aliyun/keycloak/.env.dist "$KC_ENV_OUT"
   KC_ADMIN_PW=$(gen_pw)
   KC_DB_PW=$(gen_pw)
+  # .env.dist 注释里有 id.example.com 引用, 顺手替换让 .env 注释也对得上.
   sed -i \
+    -e "s|example.com|$DOMAIN|g" \
     -e "s|REPLACE_ADMIN_PASSWORD|$KC_ADMIN_PW|g" \
     -e "s|REPLACE_DB_PASSWORD|$KC_DB_PW|g" \
     "$KC_ENV_OUT" 2> >(grep -vF "preserving permissions" >&2)
@@ -298,7 +309,7 @@ cat <<EOF
 ================================================================
 ✅ 定制化完成. 下一步:
 
-1. 复查 diff:
+1. 复查 diff (应只显示 6 个客户专属配置, 不该看到 .dist/build/push/install/docs):
      git status
      git diff
 
@@ -324,19 +335,23 @@ cat <<EOF
    可选 (v1 不发邮件可忽略):
      • REPLACE_SMTP_USER / REPLACE_SMTP_PASSWORD
 
-4. 提交客户化 commit (这条 commit 不该 push 回上游模板分支):
-     git checkout -b customer/$(echo "$DOMAIN" | cut -d. -f1)
-     git commit -am "Configure for $DOMAIN ($OPS_EMAIL)"
-
-5. 跑配置自检 (验证占位都替换好 / secrets 完整 / 跨文件一致):
+4. 跑配置自检 (验证占位都替换好 / secrets 完整 / 跨文件一致):
      bash deploy/aliyun/check-config.sh --skip-dns
      # DNS 配好后再跑不带 --skip-dns 的版本
 
-6. 按 docs/installation/aliyun.md 走部署:
+5. 按 docs/installation/aliyun.md 走部署:
      §3 → DNS 加 meet.$DOMAIN / livekit.$DOMAIN / id.$DOMAIN A 记录
      §4 → 安全组放行端口
      §5 → 在 aliyun-zlm 跑 docker compose up + bootstrap-realm.sh
      §6 → 在 PC 跑 build.sh + push.sh
      §7 → 在 aliyun-sjy 跑 install-k3s.sh + install-meet.sh
+
+6. (部署成功后) 客户化数据不入仓库 — 加密备份到客户服务器:
+     tar czf - "$SECRETS_OUT" "$KC_ENV_OUT" \\
+       src/helm/env.d/aliyun-prod/{values.meet,values.livekit,cluster-issuer}.yaml \\
+       deploy/aliyun/keycloak/{Caddyfile,compose.yaml,bootstrap-realm.sh} \\
+       | age -e -r <YOUR_AGE_PUBKEY> > we-meet-${DOMAIN_PREFIX}-config.tar.gz.age
+     scp we-meet-${DOMAIN_PREFIX}-config.tar.gz.age root@aliyun-sjy:/root/
+     # 备份验证成功后, 工作树可以 git checkout -- . 丢弃 (避免误 commit).
 ================================================================
 EOF

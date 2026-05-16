@@ -298,9 +298,9 @@ else
   fail "cluster-issuer email 格式不对: '$OPS_EMAIL_VAL'"
 fi
 
-# 5.2 CR registry 格式
+# 5.2 CR registry 格式 (通用 FQDN, 支持火山 CR / 阿里 ACR / 腾讯 TCR / 自建 Harbor 等)
 CR_REG=$(grep -E "^[[:space:]]+registry:" "$SECRETS" | head -1 | sed -E "s|.*registry:[[:space:]]+||")
-if [[ "$CR_REG" =~ ^[a-z0-9.-]+\.cr\.volces\.com$ ]] && ! [[ "$CR_REG" =~ ^your-cr ]]; then
+if [[ "$CR_REG" =~ ^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$ ]] && ! [[ "$CR_REG" =~ ^your-cr ]]; then
   ok "CR_REGISTRY 格式合法 ($CR_REG)"
 else
   fail "CR_REGISTRY 格式不对或仍是占位: '$CR_REG'"
