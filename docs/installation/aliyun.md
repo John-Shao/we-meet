@@ -681,6 +681,147 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 
 ---
 
+## 十三、官网部署（we-meet.online 静态 SPA）
+
+官网 (`we-meet.online`) 是 **独立的 React + Vite 静态站项目**, 不在 meet 主仓库里 (PC 上位于
+`D:\workspace\we-meet\we-meet.online`, 跟 meet 仓库平级). 部署上复用 aliyun-sjy 已经在跑的
+K3s + ingress-nginx + cert-manager — 不开新机器, 不开新端口, 跟 meet/livekit 共用 80/443.
+静态文件用 Caddy serve (跟 aliyun-zlm 上 Keycloak 一致, 项目栈里已有的依赖).
+
+### 13.1 拓扑
+
+```
+PC (we-meet.online 项目)
+  ├─ npm run build  →  dist/  (~345 KB, 纯静态 index.html + assets/)
+  └─ rsync dist/    →  aliyun-sjy:/opt/we-meet-online/
+                            ↓ hostPath mount (read-only)
+                       caddy:2-alpine pod  (ns: website)
+                            ↓
+                       Ingress (cert-manager letsencrypt-prod)
+                            ↓
+                       https://we-meet.online
+                       https://www.we-meet.online → 301 跳 apex
+```
+
+**为什么 hostPath 而不是 image / ConfigMap**:
+
+| 方案 | 取舍 |
+|---|---|
+| hostPath + Caddy pod (本节用的) | ✅ 每周改文案: 本地 build → rsync → 即时生效, 不重启 pod, 不依赖火山 CR |
+| build 成 image 推火山 CR + helm release | 跟 meet-frontend 一致, 但 345 KB 静态站走完 build → 跨云 push → pod 重启 = 过度工程 |
+| ConfigMap 装 dist/ | etcd 单 object ≤1 MiB, base64 膨胀 33% 后真实可用 ~750 KB. 现在 345 KB 还行, 加几个 motion / react chunk 就撞墙 |
+
+**为什么 K8s pod 而不是独立的 docker compose Caddy（"避免跟业务搅和"的另一思路）**
+
+直觉上 aliyun-sjy 宿主机上独立跑一个 compose Caddy serve 官网, 跟 K3s 业务系统隔离感更强.
+但当前约束链把这条路封死了:
+
+| 约束 | 排除的方案 |
+|---|---|
+| aliyun-sjy 上 ingress-nginx 跑 hostNetwork (为 LiveKit hostPort), 已占 80/443 | 独立 compose Caddy 没法再绑 80/443 |
+| 绑 8081 + ingress-nginx 反代过去 | 多一层 (ingress-nginx → host:8081 → Caddy), 多套工具 (K8s Service/Endpoints + compose), 反而更耦合 |
+| `we-meet.online` ICP 备案在 aliyun-sjy 主体下, aliyun-zlm 是不同主体 | apex / www DNS 没法指向 aliyun-zlm (会被阿里云 edge 拦截), 也就没法借用 aliyun-zlm 现有的 compose Caddy |
+| 加第三台 ECS 专给官网 | 成本翻倍, 单纯 345 KB 静态站不划算 |
+
+aliyun-sjy 同机器同 ingress-nginx 是当前唯一可行点. 真隔离从数据面拿到:
+
+| 隔离维度 | 怎么做到的 |
+|---|---|
+| 命名 / 权限 | 独立 namespace `website` (RBAC 可单独裁) |
+| 文件 | hostPath `/opt/we-meet-online`, 跟 K3s 状态盘 `/var/lib/rancher/k3s` 不同位置 |
+| 工作负载 | 独立 Deployment / Service / Ingress / Certificate, `helm upgrade meet` 永远不会动 website ns |
+| 内存 | resource limits 32Mi/96Mi, 官网 OOM 不传染 meet pod |
+| 网络 | NetworkPolicy 出站只允许 DNS, 入站只允许 80 → 即使 Caddy 被攻破也碰不到 postgres / redis / meet-backend (本 manifest 已加) |
+| 发版命令面 | 日常只 `bash sync.sh` (PC 上), 不 ssh ECS, 不碰 kubectl. kubectl 只在首次 apply 时用一次 |
+
+剩下共享的只有 ingress-nginx 入口 + cert-manager controller 这两个集群级组件, 这两个组件本来就是 cluster-shared infrastructure (跟 meet/livekit 也共享), 不算耦合.
+
+### 13.2 DNS
+
+在 §三 已有 3 条记录基础上, 阿里云控制台 → 云解析 → `we-meet.online` 再加 2 条:
+
+| 记录类型 | 主机记录 | 解析值 | 用途 |
+|---|---|---|---|
+| A | `@` (apex) | aliyun-sjy 公网 IP | https://we-meet.online |
+| A | `www` | aliyun-sjy 公网 IP | TLS 证书 SAN + 自动 301 跳 apex |
+
+> **www A 记录是必须的**: ingress TLS 包含 `we-meet.online` 和 `www.we-meet.online` 两个 SAN,
+> cert-manager 给两个 host 都做 LE HTTP-01 challenge, www 解析不到整张证书就 fail.
+> 不想要 www 的话改 [manifests.yaml](../../deploy/aliyun/website/manifests.yaml) 把 TLS hosts
+> 里的 www 那行删掉.
+
+apex `we-meet.online` 本身就是主域, ICP 备案就是这个域名的, 不需要再单独备案 (子域 meet/livekit/id 跟它共用同一备案号).
+
+### 13.3 一次性安装
+
+```bash
+# === PC 上 (we-meet 主仓库根目录) ===
+# 1) build 静态站 + rsync 到 ECS. 第一次跑会 npm install (~1 分钟), 之后只 rebuild.
+bash deploy/aliyun/website/sync.sh root@<aliyun-sjy 公网 IP>
+
+# === aliyun-sjy 上 ===
+# 2) apply manifest (创建 ns website + Deployment + Service + Ingress)
+ssh root@<aliyun-sjy 公网 IP>
+cd /root/we-meet
+sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+  kubectl apply -f deploy/aliyun/website/manifests.yaml
+
+# 3) 等证书 ready (1-2 分钟, 主域已备案的话)
+sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+  kubectl -n website get certificate -w
+
+# 4) 验证
+curl -I https://we-meet.online           # 200
+curl -I https://www.we-meet.online       # 301 → https://we-meet.online
+```
+
+> ⚠️ **顺序**: 必须先 `sync.sh` 后 `kubectl apply`. manifest 里 hostPath `type: Directory`
+> 强制要求 `/opt/we-meet-online` 已存在, 反过来 pod 卡在 ContainerCreating
+> (event: `MountVolume.SetUp failed: hostPath type check failed`).
+
+### 13.4 日常发版（每周改文案）
+
+```bash
+bash deploy/aliyun/website/sync.sh root@<aliyun-sjy 公网 IP>
+```
+
+就这一条. Caddy hostPath 读盘立即生效, **无需 rollout restart**.
+
+`--delete` 默认开启清掉老 hash 文件. 浏览器对老 index.html 有几秒缓存, 老 client 还会请求老
+hash chunk → 拿到 404, 几秒内浏览器拿到新 index.html 自愈. 高峰发版介意这几秒就 `--no-delete`,
+留老文件几天再人工清:
+
+```bash
+bash deploy/aliyun/website/sync.sh root@<sjy> --no-delete
+ssh root@<sjy> 'find /opt/we-meet-online/assets -mtime +7 -delete'   # 过几天再跑
+```
+
+更多用法 (`--src=` / `--skip-build` / `--dry-run`): `bash deploy/aliyun/website/sync.sh -h`,
+完整说明见 [deploy/aliyun/website/README.md](../../deploy/aliyun/website/README.md).
+
+### 13.5 排查
+
+| 症状 | 检查 |
+|---|---|
+| pod 卡 ContainerCreating | hostPath `/opt/we-meet-online` 不存在. 先跑 sync.sh 创建并填充. |
+| certificate `READY=False` | `kubectl -n website describe certificate website-tls` → events. 99% 是 `www` A 记录没加 (TLS SAN 含 www, LE 给两个 host 都做 challenge, 任一失败整张 fail). |
+| 路由 `/about` 等返回 404 | SPA fallback 失效, 确认 Caddyfile mount 上了: `kubectl -n website exec deploy/website -- cat /etc/caddy/Caddyfile` |
+| Caddy CrashLoopBackOff | 多半是改 ConfigMap 后 Caddyfile 语法笔误: `kubectl -n website logs deploy/website` 看 parse error → 改 ConfigMap → `kubectl -n website rollout restart deploy/website`. |
+| www 不自动跳 apex | `from-to-www-redirect` annotation 在 ingress-nginx < 1.x 不工作. 查版本: `kubectl -n ingress-nginx get pods -o jsonpath='{.items[0].spec.containers[0].image}'`. install-k3s.sh 装的是 1.x, 应该 OK. |
+| 浏览器拿到老内容 | index.html 已经 `no-cache, no-store`, 直接 hard refresh. 加了 CDN 的话把 we-meet.online 加到缓存清洗白名单. |
+
+### 13.6 卸载
+
+```bash
+sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+  kubectl delete -f deploy/aliyun/website/manifests.yaml
+ssh root@<sjy> "rm -rf /opt/we-meet-online"
+```
+
+阿里云控制台手动删 `@` / `www` 两条 A 记录.
+
+---
+
 ## 附：相关文件索引
 
 | 路径 | 作用 |
@@ -700,3 +841,6 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 | [src/helm/env.d/aliyun-prod/values.redis.yaml](../../src/helm/env.d/aliyun-prod/values.redis.yaml) | bitnami redis 生产 values |
 | [src/helm/env.d/aliyun-prod/values.secrets.yaml.dist](../../src/helm/env.d/aliyun-prod/values.secrets.yaml.dist) | 凭据模板（gitignored 真值文件） |
 | [src/helm/env.d/aliyun-prod/cluster-issuer.yaml](../../src/helm/env.d/aliyun-prod/cluster-issuer.yaml) | cert-manager Let's Encrypt issuer |
+| [deploy/aliyun/website/manifests.yaml](../../deploy/aliyun/website/manifests.yaml) | 官网 K8s manifest（ns website + nginx Deployment + Service + Ingress）（§十三）|
+| [deploy/aliyun/website/sync.sh](../../deploy/aliyun/website/sync.sh) | **在 PC 上** build we-meet.online 静态站 + rsync 到 aliyun-sjy（§13.4）|
+| [deploy/aliyun/website/README.md](../../deploy/aliyun/website/README.md) | 官网部署 README（与 §十三 同源，更详细的 troubleshooting）|

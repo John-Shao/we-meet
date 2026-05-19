@@ -1,0 +1,195 @@
+# we-meet.online 官网 K8s manifest
+#
+# 静态 SPA (React + Vite), Caddy serve hostPath 挂载的 dist/.
+# 复用已有的 ingress-nginx + cert-manager (跟 meet/livekit 同一套).
+#
+# 路径约定:
+#   - 本地 build 产物:  <PC>/we-meet.online/dist/
+#   - 远端 hostPath:    /opt/we-meet-online/   (sync.sh 把 dist/ 内容铺到这里)
+#
+# 顺序: 先 bash sync.sh 创建 /opt/we-meet-online/, 再 kubectl apply 本文件.
+# 反过来会卡在 ContainerCreating (hostPath type=Directory 强制要求目录已存在,
+# 错序时 event 会明确报 "no such file or directory", 比 Caddy 404 更易诊断).
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: website
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: caddy-config
+  namespace: website
+data:
+  Caddyfile: |
+    {
+      # 关掉 admin API (默认只 listen localhost:2019, 用不到就关掉)
+      admin off
+    }
+
+    :80 {
+      root * /srv
+      encode gzip
+
+      # 用 handle 块按 URL 模式分组规则.
+      # handle 内部指令顺序不被 Caddy 重排 (与顶层不同), 所以 header / try_files / file_server
+      # 按写的顺序执行. 这样 header 一定在 file_server 前面挂上去, SPA 路由 (例 /about) 也能拿到.
+
+      # /assets/* 是 Vite hash 文件, 长缓存安全; 不走 SPA fallback (避免老 hash 被改写成 index.html)
+      handle /assets/* {
+        header Cache-Control "public, max-age=31536000, immutable"
+        file_server
+      }
+
+      # 其它一切 (/ , /about , /pricing , ...) → 不缓存 + SPA fallback to index.html
+      handle {
+        header Cache-Control "no-cache, no-store, must-revalidate"
+        try_files {path} /index.html
+        file_server
+      }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: website
+  namespace: website
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate    # hostPath 单节点, RollingUpdate 没意义
+  selector:
+    matchLabels:
+      app: website
+  template:
+    metadata:
+      labels:
+        app: website
+    spec:
+      containers:
+        - name: caddy
+          image: caddy:2.8-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: site
+              mountPath: /srv
+              readOnly: true
+            - name: caddy-config
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 96Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: site
+          hostPath:
+            path: /opt/we-meet-online
+            type: Directory
+        - name: caddy-config
+          configMap:
+            name: caddy-config
+            items:
+              - key: Caddyfile
+                path: Caddyfile
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: website
+  namespace: website
+spec:
+  selector:
+    app: website
+  ports:
+    - port: 80
+      targetPort: 80
+
+---
+# NetworkPolicy: 数据面隔离 website ns 跟 meet/livekit/postgres/redis 等
+#
+# 重点是 EGRESS 限制 —— Caddy 被攻破或被串改也访问不到 meet 的 postgres / redis /
+# backend 内部服务. INGRESS 不限制源 ns (只限端口 80), 因为 ingress-nginx 跑
+# hostNetwork 模式时源是 node IP, 不在任何 pod ns 里, 用 namespaceSelector 会漏放.
+#
+# 前提: K3s 默认带 kube-router NetworkPolicy 控制器, 规则会被实际 enforce.
+# (flannel CNI 本身不 enforce, 但 K3s 额外内置了控制器.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: website-isolation
+  namespace: website
+spec:
+  podSelector: {}     # 命中 ns 内所有 pod (目前就 1 个 caddy)
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # 入站: 只允许 HTTP. 不限源 ns 因为 hostNetwork ingress-nginx 源 IP 是 node, 不属任何 pod ns.
+    - ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    # 出站: 只允许 DNS (CoreDNS in kube-system). Caddy serve 静态文件不需要任何对外调用.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: website
+  namespace: website
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # www.we-meet.online → we-meet.online 301
+    # (ingress-nginx 1.x 原生支持, TLS 证书 SAN 仍包含两个 host)
+    nginx.ingress.kubernetes.io/from-to-www-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - we-meet.online
+        - www.we-meet.online
+      secretName: website-tls
+  rules:
+    - host: we-meet.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: website
+                port:
+                  number: 80
