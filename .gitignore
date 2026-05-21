@@ -45,6 +45,10 @@ env.d/development/*
 !env.d/development/*.dist
 env.d/terraform
 
+# Plaintext production secrets (never commit)
+secrets-*.txt
+**/secrets-*.txt
+
 # npm
 node_modules
 
