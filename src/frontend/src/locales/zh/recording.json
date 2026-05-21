@@ -1,0 +1,28 @@
+{
+  "error": {
+    "title": "录制不可用",
+    "body": "该录制不可用，可能已被删除。仅会议主持人可以访问，如有需要请联系主持人。"
+  },
+  "expired": {
+    "title": "录制已过期",
+    "body": "本录制已于 {{date}} 删除。"
+  },
+  "authentication": {
+    "title": "需要登录",
+    "body": "请登录以访问此录制。"
+  },
+  "unsaved": {
+    "title": "下载不可用",
+    "body": "此录制尚未准备好下载，请稍后再试。"
+  },
+  "success": {
+    "title": "您的录制已就绪！",
+    "body": "{{created_at}} 的会议「{{room}}」录制。",
+    "expiration": "请注意，本录制将于 {{expiration_days}} 天后过期。",
+    "button": "下载",
+    "warning": {
+      "title": "链接共享已禁用",
+      "body": "暂不支持通过链接共享录制，仅主持人可以下载。"
+    }
+  }
+}

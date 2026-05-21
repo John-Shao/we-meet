@@ -1,0 +1,62 @@
+{
+  "createMeeting": "创建会议",
+  "heading": "简单又安全的视频会议",
+  "intro": "轻松沟通与协作，不影响您的数据自主权",
+  "joinInputError": "请使用会议链接或代码。例如：",
+  "joinInputExample": "URL 或 10 位字母代码",
+  "joinInputLabel": "会议链接",
+  "joinInputSubmit": "加入会议",
+  "joinMeeting": "加入会议",
+  "joinMeetingTipContent": "您可以将完整的会议链接粘贴到浏览器地址栏中加入会议。",
+  "joinMeetingTipHeading": "您知道吗？",
+  "loginToCreateMeeting": "登录以创建会议",
+  "moreLinkLabel": "了解更多关于 {{appTitle}} 的信息 - 新标签页",
+  "moreLink": "了解更多",
+  "moreAbout": "关于 {{appTitle}}",
+  "createMenu": {
+    "laterOption": "创建后续会议",
+    "instantOption": "立即开始会议"
+  },
+  "laterMeetingDialog": {
+    "heading": "您的连接信息",
+    "description": "请将以下信息分享给受邀者，他们无需登录即可加入会议。此会议为长期会议，可重复使用。",
+    "permissions": "拥有此链接的人无需经您许可即可加入此会议。",
+    "copy": "复制信息",
+    "copied": "信息已复制到剪贴板",
+    "copyUrl": "复制会议链接",
+    "phone": {
+      "call": "拨打：",
+      "pinCode": "代码："
+    }
+  },
+  "introSlider": {
+    "previous": {
+      "label": "上一张",
+      "labelWithPosition": "上一张（共 {{total}} 张，当前 {{current}}）",
+      "tooltip": "上一张"
+    },
+    "next": {
+      "label": "下一张",
+      "labelWithPosition": "下一张（共 {{total}} 张，当前 {{current}}）",
+      "tooltip": "下一张"
+    },
+    "beta": {
+      "text": "加入测试版",
+      "tooltip": "填写表单"
+    },
+    "slide1": {
+      "title": "化繁为简，立即体验！",
+      "body": "为所有公职人员、合作伙伴及更多用户打造的简单易用、便捷可访问的解决方案。"
+    },
+    "slide2": {
+      "title": "举办无限制的群组通话",
+      "body": "无论参会人数多少，都可享受高质量、流畅的通话，且会议时长不受限制。"
+    },
+    "slide3": {
+      "title": "用 AI 改变您的会议",
+      "body": "获得准确实用的会议转录，提高您的工作效率。功能正在测试中——立即体验！"
+    },
+    "carouselLabel": "介绍幻灯片",
+    "slidePosition": "第 {{current}} 张，共 {{total}} 张"
+  }
+}
