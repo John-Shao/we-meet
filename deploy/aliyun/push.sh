@@ -5,18 +5,18 @@
 # 跑前请确认 VPN 已关闭, 普通 ISP 出口路由可达 *.cr.volces.com.
 #
 # 前置 (一次性):
-#   1. 火山 CR 控制台 → 实例 your-cr → 命名空间 → 新建 we-meet
+#   1. 火山 CR 控制台 → 实例 → 命名空间 → 新建 we-meet
 #      (项目自有命名空间, 跟客户其他项目镜像隔离)
 #   2. 在 we-meet 命名空间下新建 4 个镜像仓库:
 #        meet-backend / meet-frontend / meet-summary / meet-agents
 #   3. CR 控制台 → 实例 → 访问凭证 → 创建一个用户名 + 固定密码
 #      (主账号 AK/SK 不能 docker login 火山 CR, 必须用这一组实例级凭证)
 #
-# 用法 (凭据从 values.secrets.yaml 读取, 不写进 shell history):
-#   # 注意 yq -r: Ubuntu apt 装的 Python yq 默认输出 JSON 带引号, -r 才是裸字符串.
-#   SECRETS=src/helm/env.d/aliyun-prod/values.secrets.yaml
-#   export VOLC_CR_USER=$(yq -r '.image.credentials.username' $SECRETS)
-#   export VOLC_CR_PASS=$(yq -r '.image.credentials.password' $SECRETS)
+# 凭据 & registry: VOLC_CR_REGISTRY / VOLC_CR_USER / VOLC_CR_PASS 未设时, 自动从
+#   values.secrets.yaml 读取 (.image.credentials.{registry,username,password}, 需要 yq);
+#   也可显式 export 覆盖. 也就是说: secrets 文件填好后, 直接跑本脚本即可.
+#
+# 用法:
 #   export IMAGE_TAG=$(git rev-parse --short HEAD)   # 与 build.sh 用过的 IMAGE_TAG 一致
 #   bash deploy/aliyun/push.sh                       # 推送全部 4 个模块
 #   bash deploy/aliyun/push.sh backend               # 只推送 backend (模块名与 build.sh 一致)
@@ -27,6 +27,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
+
+die() { echo "ERROR: $*" >&2; exit 1; }
 
 # ---- 模块选择 — 无参数推送全部, 传模块名则只推送指定的 ----
 MODULES="backend frontend summary agents"
@@ -44,17 +46,40 @@ SELECTED="${*:-$MODULES}"
 for m in $SELECTED; do
   case " $MODULES " in
     *" $m "*) ;;
-    *) echo "ERROR: 未知模块 '$m' (有效模块: $MODULES)" >&2; exit 1 ;;
+    *) die "未知模块 '$m' (有效模块: $MODULES)" ;;
   esac
 done
 
 want() { case " $SELECTED " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
-: "${VOLC_CR_REGISTRY:=your-cr.cr-domain.com}"
+# ---- 凭据 / registry — 未设时从 values.secrets.yaml 自动读取 (环境变量优先) ----
+SECRETS="${SECRETS:-src/helm/env.d/aliyun-prod/values.secrets.yaml}"
+
+secret_or() {
+  # secret_or <当前值> <yaml路径>: 当前值非空则回显之, 否则从 $SECRETS 读取该路径.
+  local cur=$1 path=$2 val=""
+  if [[ -n "$cur" ]]; then
+    echo "$cur"
+  elif [[ -f "$SECRETS" ]] && command -v yq >/dev/null 2>&1; then
+    val=$(yq -r "$path" "$SECRETS" 2>/dev/null) || val=""
+    [[ "$val" == "null" ]] && val=""
+    echo "$val"
+  else
+    echo ""
+  fi
+}
+
+VOLC_CR_REGISTRY="$(secret_or "${VOLC_CR_REGISTRY:-}" '.image.credentials.registry')"
+VOLC_CR_USER="$(secret_or "${VOLC_CR_USER:-}" '.image.credentials.username')"
+VOLC_CR_PASS="$(secret_or "${VOLC_CR_PASS:-}" '.image.credentials.password')"
 : "${VOLC_CR_NAMESPACE:=we-meet}"
-: "${VOLC_CR_USER:?VOLC_CR_USER required (CR 实例级用户名, 形如 MYORG2025@xxx)}"
-: "${VOLC_CR_PASS:?VOLC_CR_PASS required (CR 实例级密码)}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
+
+miss() { die "$1 未设, 且无法从 $SECRETS 读取 ($2) —— 请 export $1=..., 或填好该文件."; }
+[[ -n "$VOLC_CR_REGISTRY" && "$VOLC_CR_REGISTRY" != "your-cr.cr-domain.com" ]] \
+  || miss VOLC_CR_REGISTRY '.image.credentials.registry'
+[[ -n "$VOLC_CR_USER" ]] || miss VOLC_CR_USER '.image.credentials.username'
+[[ -n "$VOLC_CR_PASS" ]] || miss VOLC_CR_PASS '.image.credentials.password'
 
 echo "==> Logging in to 火山 CR ($VOLC_CR_REGISTRY)"
 echo "$VOLC_CR_PASS" | docker login -u "$VOLC_CR_USER" --password-stdin "$VOLC_CR_REGISTRY"

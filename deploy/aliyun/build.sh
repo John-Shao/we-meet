@@ -11,6 +11,9 @@
 #   - 不推荐: 生产 ECS — 撞 uv.lock 严格校验 + PyPI 国内限速 + docker.io 不带 buildx +
 #            Bitnami cutoff 等历史坑 (详见 docs/installation/aliyun.md §六 / §12.1)
 #
+# 镜像 registry: VOLC_CR_REGISTRY 未设时, 自动从 values.secrets.yaml 的
+#   .image.credentials.registry 读取 (需要 yq); 也可显式 export 覆盖.
+#
 # 用法:
 #   export IMAGE_TAG=$(git rev-parse --short HEAD)   # 或不设, 默认 latest
 #   bash deploy/aliyun/build.sh                      # 构建全部 4 个模块
@@ -30,9 +33,7 @@ export DOCKER_BUILDKIT=1
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-: "${VOLC_CR_REGISTRY:=your-cr.cr-domain.com}"
-: "${VOLC_CR_NAMESPACE:=we-meet}"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
+die() { echo "ERROR: $*" >&2; exit 1; }
 
 # ---- 模块选择 — 无参数构建全部, 传模块名则只构建指定的 ----
 MODULES="backend frontend summary agents"
@@ -51,11 +52,42 @@ SELECTED="${*:-$MODULES}"
 for m in $SELECTED; do
   case " $MODULES " in
     *" $m "*) ;;
-    *) echo "ERROR: 未知模块 '$m' (有效模块: $MODULES)" >&2; exit 1 ;;
+    *) die "未知模块 '$m' (有效模块: $MODULES)" ;;
   esac
 done
 
 want() { case " $SELECTED " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+# ---- registry — 未设时从 values.secrets.yaml 自动读取 (环境变量优先) ----
+SECRETS="${SECRETS:-src/helm/env.d/aliyun-prod/values.secrets.yaml}"
+
+secret_or() {
+  # secret_or <当前值> <yaml路径>: 当前值非空则回显之, 否则从 $SECRETS 读取该路径.
+  local cur=$1 path=$2 val=""
+  if [[ -n "$cur" ]]; then
+    echo "$cur"
+  elif [[ -f "$SECRETS" ]] && command -v yq >/dev/null 2>&1; then
+    val=$(yq -r "$path" "$SECRETS" 2>/dev/null) || val=""
+    [[ "$val" == "null" ]] && val=""
+    echo "$val"
+  else
+    echo ""
+  fi
+}
+
+VOLC_CR_REGISTRY="$(secret_or "${VOLC_CR_REGISTRY:-}" '.image.credentials.registry')"
+: "${VOLC_CR_REGISTRY:=your-cr.cr-domain.com}"
+: "${VOLC_CR_NAMESPACE:=we-meet}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
+
+if [[ "$VOLC_CR_REGISTRY" == "your-cr.cr-domain.com" ]]; then
+  die "$(printf '%s\n' \
+    "VOLC_CR_REGISTRY 仍是占位符 'your-cr.cr-domain.com' —— 无法确定镜像仓库." \
+    "       请 export VOLC_CR_REGISTRY=<火山 CR 域名>, 或在以下文件填好 .image.credentials.registry:" \
+    "       $SECRETS")"
+fi
+
+echo "镜像 registry: $VOLC_CR_REGISTRY/$VOLC_CR_NAMESPACE   tag: $IMAGE_TAG"
 
 build_one() {
   local short=$1 dockerfile=$2 context=$3 target=$4
