@@ -8,6 +8,19 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(fullstack) allow participants to mute others based on room configuration
+- ✨(frontend) add synchronizer for room metadata updates
+- ✨(frontend) make reaction toolbar responsive on small viewports
+- ✨(frontend) enable reactions on mobile devices
+
+### Changed 
+
+- ♻️(fullstack) simplify source serialization
+- ✨(backend) expose room configuration to all API consumers
+- 🩹(frontend) improve reaction toolbar centering with dynamic positioning
+
 ## [1.16.0] - 2026-05-13
 
 ### Added

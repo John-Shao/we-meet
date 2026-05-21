@@ -33,6 +33,7 @@ from rest_framework import (
 from rest_framework import (
     status as drf_status,
 )
+from rest_framework.settings import api_settings
 
 from core import enums, models, utils
 from core.api.filters import ListFileFilter
@@ -76,6 +77,11 @@ from core.services.participants_management import (
     ParticipantsManagementException,
 )
 from core.services.room_creation import RoomCreation
+from core.services.room_management import (
+    RoomManagement,
+    RoomManagementException,
+    RoomNotFoundException,
+)
 from core.services.subtitle import SubtitleException, SubtitleService
 from core.tasks.file import process_file_deletion
 
@@ -298,6 +304,41 @@ class RoomViewSet(
 
         if callback_id := self.request.data.get("callback_id"):
             RoomCreation().persist_callback_state(callback_id, room)
+
+    def perform_update(self, serializer):
+        """Persist the room update, then sync metadata to LiveKit."""
+
+        old_configuration = serializer.instance.configuration
+        old_access_level = serializer.instance.access_level
+
+        room = serializer.save()
+
+        if (
+            room.configuration == old_configuration
+            and room.access_level == old_access_level
+        ):
+            return
+
+        metadata = {
+            "configuration": room.configuration,
+            "access_level": room.access_level,
+        }
+
+        try:
+            RoomManagement().update_metadata(
+                room_name=str(room.id),
+                metadata=metadata,
+            )
+        except RoomNotFoundException:
+            logger.info(
+                "LiveKit room %s does not exist yet, skipping metadata sync",
+                room.id,
+            )
+        except RoomManagementException:
+            logger.warning(
+                "Failed to sync metadata to LiveKit for room %s",
+                room.id,
+            )
 
     @decorators.action(
         detail=True,
@@ -614,7 +655,11 @@ class RoomViewSet(
         methods=["post"],
         url_path="mute-participant",
         url_name="mute-participant",
-        permission_classes=[permissions.HasPrivilegesOnRoom],
+        permission_classes=[permissions.CanMuteParticipant],
+        authentication_classes=[
+            LiveKitTokenAuthentication,
+            *api_settings.DEFAULT_AUTHENTICATION_CLASSES,
+        ],
     )
     def mute_participant(self, request, pk=None):  # pylint: disable=unused-argument
         """Mute a specific track for a participant in the room."""
@@ -622,6 +667,26 @@ class RoomViewSet(
 
         serializer = serializers.MuteParticipantSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        # TEMPORARY: a LiveKit token proves access was granted, not that the caller
+        # joined. Cross-check identity against the live participant list until auth
+        # is hardened. Skipped for non-LiveKit auth backends.
+        caller_identity = getattr(request.auth, "identity", None)
+        if caller_identity is not None:
+            try:
+                ParticipantsManagement().check_if_in_meeting(
+                    room_name=str(room.pk),
+                    identity=caller_identity,
+                )
+            except (ParticipantNotFoundException, ParticipantsManagementException):
+                logger.warning(
+                    "Failed to verify caller presence for mute in room %s; denying",
+                    room.pk,
+                )
+                return drf_response.Response(
+                    {"error": "Could not verify caller presence"},
+                    status=drf_status.HTTP_403_FORBIDDEN,
+                )
 
         try:
             ParticipantsManagement().mute(
