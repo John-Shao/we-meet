@@ -13,7 +13,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: REPLACE_OWNER_EMAIL@example.com
+    email: 3520170920@qq.com
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:
