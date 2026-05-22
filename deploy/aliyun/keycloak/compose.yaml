@@ -1,8 +1,8 @@
 # Keycloak + Postgres + Caddy (TLS termination) for the 2C2G ECS.
 #
-# 角色: 独立 OIDC 服务点 (id.example.com)
+# 角色: 独立 OIDC 服务点 (id.we-meet.online)
 # 部署:  Aliyun ECS 2C2G, Ubuntu, Docker + Compose v2
-# 域名:  id.example.com → 这台 ECS 的公网 IP
+# 域名:  id.we-meet.online → 这台 ECS 的公网 IP
 # TLS:   Caddy 自动从 Let's Encrypt 申请并续期 (HTTP-01 challenge, 备案完成后)
 #
 # Run:
@@ -52,13 +52,16 @@ services:
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: ${KC_DB_PASSWORD}
-      KC_HOSTNAME: id.example.com
+      KC_HOSTNAME: id.we-meet.online
       KC_HOSTNAME_STRICT: "true"
       KC_HOSTNAME_STRICT_HTTPS: "true"
       KC_HTTP_ENABLED: "true"
       KC_HTTP_PORT: "8080"
       KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
+      # token-exchange: 移动端 OTP 登录靠 Token Exchange 换取用户令牌。
+      # Keycloak 25 中 token-exchange 仍是 preview 特性，需显式开启。
+      KC_FEATURES: "token-exchange,admin-fine-grained-authz"
       KC_LOG_LEVEL: INFO
       JAVA_OPTS_KC_HEAP: "-XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -Xms256m -Xmx768m"
     command:

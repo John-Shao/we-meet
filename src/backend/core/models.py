@@ -200,6 +200,30 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
             "Unselect this instead of deleting accounts."
         ),
     )
+    # Mobile app extension: extended profile fields editable by the user.
+    intro = models.CharField(
+        _("intro"),
+        max_length=100,
+        blank=True,
+        default="",
+        help_text=_("Short self-introduction shown on the user's profile."),
+    )
+    # Avatar / cover images live in private buckets — only the object key is
+    # stored; clients receive a short-lived presigned GET URL (see serializer).
+    avatar_key = models.CharField(
+        _("avatar object key"),
+        max_length=500,
+        blank=True,
+        default="",
+        help_text=_("Object storage key of the user's avatar image."),
+    )
+    cover_key = models.CharField(
+        _("cover object key"),
+        max_length=500,
+        blank=True,
+        default="",
+        help_text=_("Object storage key of the user's profile cover image."),
+    )
 
     objects = auth_models.UserManager()
 
@@ -403,6 +427,22 @@ class Room(Resource):
         verbose_name=_("Room PIN code"),
         help_text=_("Unique n-digit code that identifies this room in telephony mode."),
     )
+    # Mobile app extension: a short numeric code used to join the room from
+    # native apps. Independent from `slug` (which stays name-based for the web).
+    meeting_code = models.CharField(
+        max_length=6,
+        unique=True,
+        blank=True,
+        null=True,
+        verbose_name=_("Room meeting code"),
+        help_text=_("Unique 6-digit numeric code used to join the room from apps."),
+    )
+    ended_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("ended at"),
+        help_text=_("Date and time at which the room owner ended the room."),
+    )
 
     class Meta:
         db_table = "meet_room"
@@ -414,11 +454,13 @@ class Room(Resource):
         return capfirst(self.name)
 
     def save(self, *args, **kwargs):
-        """Generate a unique n-digit pin code for new rooms."""
+        """Generate a unique pin code and meeting code for new rooms."""
         if settings.ROOM_TELEPHONY_ENABLED and not self.pk and not self.pin_code:
             self.pin_code = self.generate_unique_pin_code(
                 length=settings.ROOM_TELEPHONY_PIN_LENGTH
             )
+        if not self.pk and not self.meeting_code:
+            self.meeting_code = self.generate_unique_meeting_code()
         super().save(*args, **kwargs)
 
     def clean_fields(self, exclude=None):
@@ -442,6 +484,31 @@ class Room(Resource):
     def is_public(self):
         """Check if a room is public"""
         return self.access_level == RoomAccessLevel.PUBLIC
+
+    @property
+    def is_ended(self):
+        """Check if the room has been ended by its owner."""
+        return self.ended_at is not None
+
+    @staticmethod
+    def generate_unique_meeting_code(length=6, max_retries=10):
+        """Generate a unique numeric meeting code used to join the room."""
+
+        max_value = 10**length
+
+        for _ in range(max_retries):
+            code = str(secrets.randbelow(max_value)).zfill(length)
+            if not Room.objects.filter(meeting_code=code).exists():
+                return code
+
+        # Log a warning as a temporary measure until backend observability is implemented.
+        logger.warning(
+            "Failed to generate unique meeting code of length %s after %s attempts",
+            length,
+            max_retries,
+        )
+
+        return None
 
     @staticmethod
     def generate_unique_pin_code(length):

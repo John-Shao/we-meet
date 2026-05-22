@@ -1,6 +1,6 @@
 # Production values for the meet helm chart, targeting:
 #   - 4C8G Aliyun ECS in cn-shenzhen, single-node K3s
-#   - Keycloak running on a separate 2C2G ECS (id.example.com)
+#   - Keycloak running on a separate 2C2G ECS (id.we-meet.online)
 #   - Aliyun OSS as the S3-compatible media backend
 #   - 火山方舟 (Volcengine Ark) as the OpenAI-compatible LLM endpoint for summary
 #   - Recording disabled (待第二阶段加 livekit-egress + 第二台 ECS)
@@ -16,12 +16,12 @@
 # values.secrets.yaml is gitignored — copy values.secrets.yaml.dist and fill in.
 
 image:
-  repository: your-cr.cr-domain.com/we-meet/meet-backend
+  repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend
   pullPolicy: Always
   tag: "latest"
   credentials:
     name: meet-dockerconfig
-    registry: your-cr.cr-domain.com
+    registry: jusi-cn-guangzhou.cr.volces.com
     # username / password come from values.secrets.yaml
 
 backend:
@@ -37,8 +37,8 @@ backend:
   envVars:
     DJANGO_CONFIGURATION: Production
     DJANGO_SETTINGS_MODULE: meet.settings
-    DJANGO_ALLOWED_HOSTS: meet.example.com
-    DJANGO_CSRF_TRUSTED_ORIGINS: https://meet.example.com
+    DJANGO_ALLOWED_HOSTS: meet.we-meet.online
+    DJANGO_CSRF_TRUSTED_ORIGINS: https://meet.we-meet.online
     DJANGO_SILENCED_SYSTEM_CHECKS: security.W004,security.W008
     # DJANGO_SECRET_KEY 来自 values.secrets.yaml
 
@@ -46,27 +46,27 @@ backend:
     DJANGO_EMAIL_HOST: smtpdm.aliyun.com
     DJANGO_EMAIL_PORT: 465
     DJANGO_EMAIL_USE_SSL: "True"
-    DJANGO_EMAIL_FROM: noreply@example.com
+    DJANGO_EMAIL_FROM: noreply@we-meet.online
     DJANGO_EMAIL_BRAND_NAME: We-Meet
-    DJANGO_EMAIL_DOMAIN: meet.example.com
-    DJANGO_EMAIL_APP_BASE_URL: https://meet.example.com
-    EMAIL_SUPPORT_EMAIL: support@example.com
-    EMAIL_LOGO_IMG: https://meet.example.com/assets/logo-suite-numerique.png
+    DJANGO_EMAIL_DOMAIN: meet.we-meet.online
+    DJANGO_EMAIL_APP_BASE_URL: https://meet.we-meet.online
+    EMAIL_SUPPORT_EMAIL: support@we-meet.online
+    EMAIL_LOGO_IMG: https://meet.we-meet.online/assets/logo-suite-numerique.png
 
     # OIDC → Keycloak on 2C2G ECS (cross-VPC over public HTTPS)
-    OIDC_OP_JWKS_ENDPOINT: https://id.example.com/realms/meet/protocol/openid-connect/certs
-    OIDC_OP_AUTHORIZATION_ENDPOINT: https://id.example.com/realms/meet/protocol/openid-connect/auth
-    OIDC_OP_TOKEN_ENDPOINT: https://id.example.com/realms/meet/protocol/openid-connect/token
-    OIDC_OP_USER_ENDPOINT: https://id.example.com/realms/meet/protocol/openid-connect/userinfo
-    OIDC_OP_LOGOUT_ENDPOINT: https://id.example.com/realms/meet/protocol/openid-connect/logout
+    OIDC_OP_JWKS_ENDPOINT: https://id.we-meet.online/realms/meet/protocol/openid-connect/certs
+    OIDC_OP_AUTHORIZATION_ENDPOINT: https://id.we-meet.online/realms/meet/protocol/openid-connect/auth
+    OIDC_OP_TOKEN_ENDPOINT: https://id.we-meet.online/realms/meet/protocol/openid-connect/token
+    OIDC_OP_USER_ENDPOINT: https://id.we-meet.online/realms/meet/protocol/openid-connect/userinfo
+    OIDC_OP_LOGOUT_ENDPOINT: https://id.we-meet.online/realms/meet/protocol/openid-connect/logout
     OIDC_RP_SIGN_ALGO: RS256
     OIDC_RP_SCOPES: "openid email"
-    OIDC_REDIRECT_ALLOWED_HOSTS: '["https://meet.example.com"]'
+    OIDC_REDIRECT_ALLOWED_HOSTS: '["https://meet.we-meet.online"]'
     OIDC_REDIRECT_REQUIRE_HTTPS: "True"
     OIDC_VERIFY_SSL: "True"
-    LOGIN_REDIRECT_URL: https://meet.example.com
-    LOGIN_REDIRECT_URL_FAILURE: https://meet.example.com
-    LOGOUT_REDIRECT_URL: https://meet.example.com
+    LOGIN_REDIRECT_URL: https://meet.we-meet.online
+    LOGIN_REDIRECT_URL_FAILURE: https://meet.we-meet.online
+    LOGOUT_REDIRECT_URL: https://meet.we-meet.online
     # OIDC_RP_CLIENT_ID / OIDC_RP_CLIENT_SECRET 来自 values.secrets.yaml
 
     # Database — in-cluster postgres
@@ -83,8 +83,8 @@ backend:
     # Static files served by whitenoise
     STORAGES_STATICFILES_BACKEND: whitenoise.storage.CompressedManifestStaticFilesStorage
 
-    # LiveKit — in-cluster, exposed via livekit.example.com
-    LIVEKIT_API_URL: https://livekit.example.com/
+    # LiveKit — in-cluster, exposed via livekit.we-meet.online
+    LIVEKIT_API_URL: https://livekit.we-meet.online/
     LIVEKIT_API_KEY: meet
     # LIVEKIT_API_SECRET 来自 values.secrets.yaml
     LIVEKIT_VERIFY_SSL: "True"
@@ -92,16 +92,33 @@ backend:
     LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX: "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
     ALLOW_UNREGISTERED_ROOMS: "False"
 
-    # Storage — 火山引擎 TOS, S3 兼容. 专用桶 we-meet, 华南-广州.
-    # ECS 在阿里云华南-深圳 ↔ TOS 在火山华南-广州, 同地理区域跨云 (~5-10 ms),
-    # 必须用公网 endpoint (内网 ivolces.com 仅火山 ECS 可达).
-    AWS_S3_ENDPOINT_URL: https://tos-s3-cn-guangzhou.volces.com
-    AWS_S3_REGION_NAME: cn-guangzhou
-    AWS_STORAGE_BUCKET_NAME: we-meet
+    # Storage — 阿里云 OSS (S3 兼容模式), 华南1(深圳), 与 ECS 同区域同账号.
+    # 主桶 we-meet-video (recordings/metadata); 头像/封面见下方 Mobile app 块.
+    AWS_S3_ENDPOINT_URL: https://oss-cn-shenzhen.aliyuncs.com
+    AWS_S3_REGION_NAME: cn-shenzhen
+    AWS_STORAGE_BUCKET_NAME: we-meet-video
     AWS_S3_SIGNATURE_VERSION: s3v4
     AWS_S3_ADDRESSING_STYLE: virtual
     # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY 来自 values.secrets.yaml
-    MEDIA_BASE_URL: https://meet.example.com
+    MEDIA_BASE_URL: https://meet.we-meet.online
+
+    # --- Mobile app (移动端 OTP 登录 + 个人资料) ---
+    # OTP 登录经 meet-service 机密客户端走 Keycloak Token Exchange.
+    MOBILE_AUTH_SERVICE_CLIENT_ID: meet-service
+    # MOBILE_AUTH_SERVICE_CLIENT_SECRET 来自 values.secrets.yaml
+    # 头像 / 封面专用桶 (阿里云 OSS, 与主桶同账号 / endpoint).
+    # 两个桶保持「私有」(阻止公共访问开启) —— 后端用预签名 GET URL 下发图片.
+    AWS_STORAGE_BUCKET_NAME_AVATAR: we-meet-avatar
+    AWS_STORAGE_BUCKET_NAME_COVER: we-meet-cover
+    # 火山引擎短信 — 复用 jusi (巨思人工智能) 的短信账号 / 签名 / 模板.
+    # AK / SK 属火山引擎账号密钥, 见 values.secrets.yaml.
+    VOLC_SMS_ACCOUNT: "8880e180"
+    VOLC_SMS_SIGN: "巨思人工智能"
+    VOLC_SMS_TEMPLATE_ID: "S1T_1y2p1bc526ebm"
+    # 联调用 demo 账号: 列出的手机号不发真实短信, 验证码固定为 DEMO_OTP.
+    # ⚠️ 仅联调期启用, 正式对外前务必删除 (否则等于登录后门).
+    # MOBILE_AUTH_DEMO_PHONES: "13800000000"
+    # MOBILE_AUTH_DEMO_OTP: "123456"
 
     # Recording — 第一阶段关闭
     RECORDING_ENABLE: "False"
@@ -158,7 +175,7 @@ frontend:
       memory: 256Mi
 
   image:
-    repository: your-cr.cr-domain.com/we-meet/meet-frontend
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend
     pullPolicy: Always
     tag: "latest"
 
@@ -166,12 +183,12 @@ frontend:
     VITE_APP_TITLE: "We-Meet"
     VITE_PORT: 8080
     VITE_HOST: 0.0.0.0
-    VITE_API_BASE_URL: https://meet.example.com/
+    VITE_API_BASE_URL: https://meet.we-meet.online/
 
 ingress:
   enabled: true
   className: nginx
-  host: meet.example.com
+  host: meet.we-meet.online
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
@@ -182,7 +199,7 @@ ingress:
 ingressAdmin:
   enabled: true
   className: nginx
-  host: meet.example.com
+  host: meet.we-meet.online
   path: /admin
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -208,7 +225,7 @@ posthog:
 summary:
   replicas: 1
   image:
-    repository: your-cr.cr-domain.com/we-meet/meet-summary
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -221,14 +238,14 @@ summary:
     APP_NAME: meet-summary
     # APP_API_TOKEN 来自 values.secrets.yaml (= SUMMARY_SERVICE_API_TOKEN)
 
-    AWS_STORAGE_BUCKET_NAME: we-meet
-    AWS_S3_ENDPOINT_URL: https://tos-s3-cn-guangzhou.volces.com
+    AWS_STORAGE_BUCKET_NAME: we-meet-video
+    AWS_S3_ENDPOINT_URL: https://oss-cn-shenzhen.aliyuncs.com
     AWS_S3_SECURE_ACCESS: "True"
     # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY 来自 values.secrets.yaml
 
     # 火山方舟 (Volcengine Ark) — OpenAI 兼容. ARK_API_KEY 与 endpoint 在客户控制台创建.
     LLM_BASE_URL: https://ark.cn-beijing.volces.com/api/v3
-    LLM_MODEL: "REPLACE_LLM_ENDPOINT_ID"   # 火山方舟接入点 ID, 形如 ep-XXXXXXXXXXXXX-XXXXX
+    LLM_MODEL: "ep-20260316164223-46rsh"   # 火山方舟接入点 ID, 形如 ep-XXXXXXXXXXXXX-XXXXX
     # LLM_API_KEY 来自 values.secrets.yaml
 
     # WhisperX — v1 不开录制 → summary 不会真的发起音频转写, 这里只是
@@ -241,7 +258,7 @@ summary:
 
     # AUTHORIZED_TENANTS 至少包含一个 v1 默认 tenant，否则启动失败 (config.py validate)
     # 直接靠 legacy APP_API_TOKEN/WEBHOOK_API_TOKEN/WEBHOOK_URL 三件套即可自动迁移
-    WEBHOOK_URL: https://meet.example.com/api/v1.0/recordings/summary/webhook/
+    WEBHOOK_URL: https://meet.we-meet.online/api/v1.0/recordings/summary/webhook/
     # WEBHOOK_API_TOKEN 来自 values.secrets.yaml
 
     # CELERY — 使用 in-cluster redis
@@ -251,7 +268,7 @@ summary:
 celeryTranscribe:
   replicas: 1
   image:
-    repository: your-cr.cr-domain.com/we-meet/meet-summary
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -274,7 +291,7 @@ celeryTranscribe:
 celerySummarize:
   replicas: 1
   image:
-    repository: your-cr.cr-domain.com/we-meet/meet-summary
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -297,7 +314,7 @@ celerySummarize:
 celerySummaryBackend:
   replicas: 1
   image:
-    repository: your-cr.cr-domain.com/we-meet/meet-summary
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -337,7 +354,7 @@ celery:
 agentMetadata:
   replicas: 1
   image:
-    repository: your-cr.cr-domain.com/we-meet/meet-agents
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -347,14 +364,14 @@ agentMetadata:
     limits:
       memory: 384Mi
   envVars:
-    LIVEKIT_URL: https://livekit.example.com/
+    LIVEKIT_URL: https://livekit.we-meet.online/
     LIVEKIT_API_KEY: meet
     # LIVEKIT_API_SECRET 来自 values.secrets.yaml
     ENABLE_SILERO_VAD: "false"
-    # 火山 TOS we-meet 专用桶, 华南-广州
-    AWS_S3_ENDPOINT_URL: tos-s3-cn-guangzhou.volces.com
+    # 阿里云 OSS we-meet-video 主桶, 华南1(深圳)
+    AWS_S3_ENDPOINT_URL: oss-cn-shenzhen.aliyuncs.com
     AWS_S3_SECURE_ACCESS: "True"
-    AWS_STORAGE_BUCKET_NAME: we-meet
+    AWS_STORAGE_BUCKET_NAME: we-meet-video
     AWS_S3_OUTPUT_FOLDER: metadata
   command:
     - "python"
@@ -367,11 +384,11 @@ agentMetadata:
 agentSubtitles:
   replicas: 0
   image:
-    repository: your-cr.cr-domain.com/we-meet/meet-agents
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
     pullPolicy: Always
     tag: "latest"
   envVars:
-    LIVEKIT_URL: https://livekit.example.com/
+    LIVEKIT_URL: https://livekit.we-meet.online/
     LIVEKIT_API_KEY: meet
     ENABLE_SILERO_VAD: "false"
     STT_PROVIDER: deepgram

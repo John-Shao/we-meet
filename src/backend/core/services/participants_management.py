@@ -10,6 +10,7 @@ from typing import Dict, Optional
 
 from asgiref.sync import async_to_sync
 from livekit.api import (
+    ListParticipantsRequest,
     MuteRoomTrackRequest,
     RoomParticipantIdentity,
     TwirpError,
@@ -107,6 +108,59 @@ class ParticipantsManagement:
                 room_name,
             )
             raise ParticipantsManagementException("Could not remove participant") from e
+
+        finally:
+            await lkapi.aclose()
+
+    @async_to_sync
+    async def remove_all(self, room_name: str):
+        """Remove every participant currently in a room.
+
+        Used when a room is ended. If the LiveKit room does not exist
+        (nobody ever joined) this is a no-op.
+        """
+
+        lkapi = utils.create_livekit_client()
+
+        try:
+            response = await lkapi.room.list_participants(
+                ListParticipantsRequest(room=room_name)
+            )
+
+            for participant in response.participants:
+                try:
+                    await lkapi.room.remove_participant(
+                        RoomParticipantIdentity(
+                            room=room_name, identity=participant.identity
+                        )
+                    )
+                except TwirpError as e:
+                    if e.code == "not_found":
+                        continue
+
+                    logger.exception(
+                        "Unexpected error removing participant %s for room %s",
+                        participant.identity,
+                        room_name,
+                    )
+                    raise ParticipantsManagementException(
+                        "Could not remove participant"
+                    ) from e
+
+        except TwirpError as e:
+            if e.code == "not_found":
+                logger.info(
+                    "Room %s does not exist on LiveKit, nothing to remove",
+                    room_name,
+                )
+                return
+
+            logger.exception(
+                "Unexpected error listing participants for room %s", room_name
+            )
+            raise ParticipantsManagementException(
+                "Could not list participants"
+            ) from e
 
         finally:
             await lkapi.aclose()

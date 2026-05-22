@@ -455,3 +455,149 @@ def generate_upload_policy(file):
     )
 
     return policy
+
+
+# ---------------------------------------------------------------------------
+# Mobile app — profile image uploads (avatar / cover)
+#
+# Each kind lives in its own PRIVATE bucket. Upload uses a presigned PUT
+# (client PUTs bytes straight to object storage, then confirms the object_key
+# back to the API). Reads use a short-lived presigned GET URL generated on
+# demand — no object is ever publicly readable. A dedicated boto3 client is
+# used so the global `default_storage` backend keeps its own configuration.
+# ---------------------------------------------------------------------------
+
+# Max size of an uploaded avatar / cover image (2 MiB).
+MAX_PROFILE_IMAGE_SIZE = 2 * 1024 * 1024
+
+# Lifetime of a presigned profile-image PUT URL (upload).
+PROFILE_UPLOAD_URL_TTL_SECONDS = 300
+
+# Lifetime of a presigned profile-image GET URL (handed to clients on read).
+PROFILE_IMAGE_GET_URL_TTL_SECONDS = 3600
+
+# Allowed profile image MIME types → file extension.
+ALLOWED_PROFILE_IMAGE_MIME_TYPES = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+}
+
+# Maps an upload "kind" to the User model field storing its object key.
+PROFILE_IMAGE_KIND_FIELDS = {
+    "avatar": "avatar_key",
+    "cover": "cover_key",
+}
+
+
+def get_profile_kind_bucket(kind: str) -> str:
+    """Return the storage bucket configured for a given profile image kind."""
+    if kind == "avatar":
+        return settings.AWS_STORAGE_BUCKET_NAME_AVATAR
+    if kind == "cover":
+        return settings.AWS_STORAGE_BUCKET_NAME_COVER
+    raise ValueError(f"Unknown profile image kind: {kind!r}")
+
+
+def _profile_s3_client():
+    """Build a boto3 S3 client for the profile image buckets.
+
+    Uses virtual-hosted addressing. Built independently from
+    ``default_storage`` so the global storage backend keeps its own config.
+    """
+    return boto3.client(
+        "s3",
+        aws_access_key_id=settings.AWS_S3_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_S3_SECRET_ACCESS_KEY,
+        endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+        region_name=settings.AWS_S3_REGION_NAME,
+        config=botocore.client.Config(
+            signature_version=settings.AWS_S3_SIGNATURE_VERSION,
+            s3={"addressing_style": "virtual"},
+        ),
+    )
+
+
+def build_profile_object_key(user_id, content_type: str) -> str:
+    """Build the S3 key for a profile image: ``{user_id}/{short-uuid}.{ext}``.
+
+    The bucket already partitions by kind, so the key only needs the user
+    namespace; the short uuid keeps it collision-free and unguessable.
+    """
+    extension = ALLOWED_PROFILE_IMAGE_MIME_TYPES[content_type]
+    return f"{user_id}/{uuid4().hex[:16]}.{extension}"
+
+
+def generate_profile_image_upload_url(
+    *, user, kind: str, content_type: str, size: int
+) -> dict:
+    """Issue a short-lived presigned PUT URL for a profile image upload.
+
+    The caller MUST validate ``kind``, ``content_type`` and ``size`` first —
+    the request is signed as-is.
+    """
+    bucket = get_profile_kind_bucket(kind)
+    object_key = build_profile_object_key(user.id, content_type)
+    upload_url = _profile_s3_client().generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": bucket,
+            "Key": object_key,
+            "ContentType": content_type,
+            "ContentLength": size,
+        },
+        ExpiresIn=PROFILE_UPLOAD_URL_TTL_SECONDS,
+        HttpMethod="PUT",
+    )
+    return {
+        "upload_url": upload_url,
+        "object_key": object_key,
+        "expires_in": PROFILE_UPLOAD_URL_TTL_SECONDS,
+        "headers": {"Content-Type": content_type},
+    }
+
+
+def generate_profile_image_get_url(kind: str, object_key: str) -> str:
+    """Return a short-lived presigned GET URL for a profile image.
+
+    Returns an empty string when ``object_key`` is unset. The buckets are
+    private, so this signed URL is the only way to read the image; clients
+    must treat it as expiring and re-fetch the profile to refresh it.
+    """
+    if not object_key:
+        return ""
+    bucket = get_profile_kind_bucket(kind)
+    return _profile_s3_client().generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket, "Key": object_key},
+        ExpiresIn=PROFILE_IMAGE_GET_URL_TTL_SECONDS,
+        HttpMethod="GET",
+    )
+
+
+def head_profile_object(kind: str, object_key: str):
+    """HEAD an S3 object; return ``(size, content_type)`` or ``None`` if missing."""
+    bucket = get_profile_kind_bucket(kind)
+    try:
+        head = _profile_s3_client().head_object(Bucket=bucket, Key=object_key)
+    except botocore.exceptions.ClientError as exc:
+        logger.info("HEAD profile object %s/%s failed: %s", bucket, object_key, exc)
+        return None
+    return head.get("ContentLength", 0), head.get("ContentType", "")
+
+
+def delete_profile_object(kind: str, object_key: str) -> None:
+    """Best-effort delete of a profile image object by its key.
+
+    Failure is logged and swallowed so storage GC errors never block a
+    profile update.
+    """
+    if not object_key:
+        return
+    bucket = get_profile_kind_bucket(kind)
+    try:
+        _profile_s3_client().delete_object(Bucket=bucket, Key=object_key)
+    except botocore.exceptions.ClientError as exc:
+        logger.warning(
+            "Failed to delete profile object %s/%s: %s", bucket, object_key, exc
+        )

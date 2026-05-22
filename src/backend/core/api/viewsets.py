@@ -62,6 +62,7 @@ from core.recording.worker.factories import (
 from core.recording.worker.mediator import (
     WorkerServiceMediator,
 )
+from core.services.deregistration import UserDeregistrationService
 from core.services.invitation import InvitationService
 from core.services.livekit_events import (
     LiveKitEventsService,
@@ -218,6 +219,129 @@ class UserViewSet(
             self.serializer_class(request.user, context=context).data
         )
 
+    @decorators.action(
+        detail=False,
+        methods=["post"],
+        url_name="deregister",
+        url_path="me/deregister",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def deregister(self, request):
+        """Deregister (soft-delete and anonymize) the current user account."""
+        UserDeregistrationService().deregister(request.user)
+        return drf_response.Response(status=drf_status.HTTP_204_NO_CONTENT)
+
+    @decorators.action(
+        detail=False,
+        methods=["post"],
+        url_name="profile-upload-url",
+        url_path="me/upload-url",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def request_profile_upload_url(self, request):
+        """Issue a short-lived presigned PUT URL for an avatar / cover upload.
+
+        Body: ``{"kind": "avatar"|"cover", "content_type": str, "size": int}``.
+        """
+        kind = request.data.get("kind")
+        content_type = request.data.get("content_type")
+        size = request.data.get("size")
+
+        if kind not in utils.PROFILE_IMAGE_KIND_FIELDS:
+            raise drf_exceptions.ValidationError(
+                {"kind": "Must be 'avatar' or 'cover'."}
+            )
+        if content_type not in utils.ALLOWED_PROFILE_IMAGE_MIME_TYPES:
+            raise drf_exceptions.ValidationError(
+                {"content_type": "Unsupported MIME type."}
+            )
+        try:
+            size = int(size)
+        except (TypeError, ValueError) as exc:
+            raise drf_exceptions.ValidationError(
+                {"size": "Must be an integer."}
+            ) from exc
+        if size <= 0 or size > utils.MAX_PROFILE_IMAGE_SIZE:
+            raise drf_exceptions.ValidationError(
+                {
+                    "size": f"Must be between 1 and "
+                    f"{utils.MAX_PROFILE_IMAGE_SIZE} bytes."
+                }
+            )
+
+        payload = utils.generate_profile_image_upload_url(
+            user=request.user,
+            kind=kind,
+            content_type=content_type,
+            size=size,
+        )
+        return drf_response.Response(payload)
+
+    @decorators.action(
+        detail=False,
+        methods=["patch"],
+        url_name="profile-image",
+        url_path="me/profile-image",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def confirm_profile_image(self, request):
+        """Persist a freshly-uploaded avatar / cover image URL on the user record.
+
+        Body: ``{"kind": "avatar"|"cover", "object_key": str}``. Validates the
+        object belongs to the caller's namespace and exists in storage with an
+        allowed MIME type and size.
+        """
+        kind = request.data.get("kind")
+        object_key = request.data.get("object_key")
+
+        if kind not in utils.PROFILE_IMAGE_KIND_FIELDS:
+            raise drf_exceptions.ValidationError(
+                {"kind": "Must be 'avatar' or 'cover'."}
+            )
+        if not isinstance(object_key, str) or not object_key:
+            raise drf_exceptions.ValidationError(
+                {"object_key": "This field is required."}
+            )
+
+        # Object keys are scoped to the calling user's namespace.
+        expected_prefix = f"{request.user.id}/"
+        if not object_key.startswith(expected_prefix):
+            raise drf_exceptions.ValidationError(
+                {"object_key": "object_key does not belong to the current user."}
+            )
+
+        head = utils.head_profile_object(kind, object_key)
+        if head is None:
+            raise drf_exceptions.ValidationError(
+                {"object_key": "Object not found in storage."}
+            )
+        size, content_type = head
+        if size > utils.MAX_PROFILE_IMAGE_SIZE:
+            raise drf_exceptions.ValidationError(
+                {"object_key": "Uploaded object exceeds the 2 MiB limit."}
+            )
+        if (
+            content_type
+            and content_type not in utils.ALLOWED_PROFILE_IMAGE_MIME_TYPES
+        ):
+            raise drf_exceptions.ValidationError(
+                {"object_key": "Uploaded object has an unsupported MIME type."}
+            )
+
+        field_name = utils.PROFILE_IMAGE_KIND_FIELDS[kind]
+        old_key = getattr(request.user, field_name, "")
+
+        setattr(request.user, field_name, object_key)
+        request.user.save()
+
+        if old_key and old_key != object_key:
+            utils.delete_profile_object(kind, old_key)
+
+        context = {"request": request}
+        return drf_response.Response(
+            self.serializer_class(request.user, context=context).data
+        )
+
 
 class RoomViewSet(
     mixins.CreateModelMixin,
@@ -235,14 +359,18 @@ class RoomViewSet(
     serializer_class = serializers.RoomSerializer
 
     def get_object(self):
-        """Allow getting a room by its slug."""
-        try:
-            uuid.UUID(self.kwargs["pk"])
-            filter_kwargs = {"pk": self.kwargs["pk"]}
-        except ValueError:
-            filter_kwargs = {"slug": slugify(self.kwargs["pk"])}
+        """Allow getting a room by its UUID, name-based slug, or numeric meeting code."""
+        pk = self.kwargs["pk"]
         queryset = self.filter_queryset(self.get_queryset())
-        obj = get_object_or_404(queryset, **filter_kwargs)
+        try:
+            uuid.UUID(pk)
+        except ValueError:
+            # Not a UUID: match either the name-based slug or the numeric meeting code.
+            obj = get_object_or_404(
+                queryset, Q(slug=slugify(pk)) | Q(meeting_code=pk)
+            )
+        else:
+            obj = get_object_or_404(queryset, pk=pk)
         # May raise a permission denied
         self.check_object_permissions(self.request, obj)
         return obj
@@ -468,6 +596,11 @@ class RoomViewSet(
         serializer.is_valid(raise_exception=True)
 
         room = self.get_object()
+
+        # A room ended by its owner can no longer be entered through the lobby.
+        if room.is_ended:
+            raise drf_exceptions.NotFound("This room has ended.")
+
         lobby_service = LobbyService()
 
         participant, livekit = lobby_service.request_entry(
@@ -872,6 +1005,48 @@ class RoomViewSet(
 
         return drf_response.Response(
             {"status": "success"},
+            status=drf_status.HTTP_200_OK,
+        )
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="end",
+        url_name="end",
+        permission_classes=[permissions.HasPrivilegesOnRoom],
+    )
+    def end(self, request, pk=None):  # pylint: disable=unused-argument
+        """End the room: kick all participants and record the end time.
+
+        Owner-only. Once ended, the room can no longer be joined: RoomSerializer
+        stops issuing LiveKit tokens for ended rooms.
+        """
+        room = self.get_object()
+
+        if not room.is_owner(request.user):
+            return drf_response.Response(
+                {"detail": "Only the room owner can end the room."},
+                status=drf_status.HTTP_403_FORBIDDEN,
+            )
+
+        if room.is_ended:
+            return drf_response.Response(
+                {"error": "Room is already ended."},
+                status=drf_status.HTTP_400_BAD_REQUEST,
+            )
+
+        ended_at = timezone.now()
+        models.Room.objects.filter(pk=room.pk).update(ended_at=ended_at)
+
+        try:
+            ParticipantsManagement().remove_all(room_name=str(room.pk))
+        except ParticipantsManagementException:
+            logger.warning(
+                "Failed to remove all participants while ending room %s", room.pk
+            )
+
+        return drf_response.Response(
+            {"status": "success", "ended_at": ended_at.isoformat()},
             status=drf_status.HTTP_200_OK,
         )
 

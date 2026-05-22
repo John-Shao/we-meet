@@ -28,11 +28,33 @@ class UserSerializer(serializers.ModelSerializer):
     """Serialize users."""
 
     timezone = TimeZoneSerializerField()
+    # avatar_url / cover_url are derived: the buckets are private, so we hand
+    # the client a short-lived presigned GET URL built from the stored key.
+    avatar_url = serializers.SerializerMethodField()
+    cover_url = serializers.SerializerMethodField()
 
     class Meta:
         model = models.User
-        fields = ["id", "email", "full_name", "short_name", "timezone", "language"]
+        fields = [
+            "id",
+            "email",
+            "full_name",
+            "short_name",
+            "timezone",
+            "language",
+            "intro",
+            "avatar_url",
+            "cover_url",
+        ]
         read_only_fields = ["id", "email", "full_name", "short_name"]
+
+    def get_avatar_url(self, instance):
+        """Return a short-lived presigned GET URL for the avatar, '' if unset."""
+        return utils.generate_profile_image_get_url("avatar", instance.avatar_key)
+
+    def get_cover_url(self, instance):
+        """Return a short-lived presigned GET URL for the cover, '' if unset."""
+        return utils.generate_profile_image_get_url("cover", instance.cover_key)
 
 
 class UserLightSerializer(serializers.ModelSerializer):
@@ -118,19 +140,49 @@ class NestedResourceAccessSerializer(ResourceAccessSerializer):
 class ListRoomSerializer(serializers.ModelSerializer):
     """Serialize Room model for a list API endpoint."""
 
+    closed_at = serializers.SerializerMethodField()
+
     class Meta:
         model = models.Room
-        fields = ["id", "name", "slug", "access_level"]
-        read_only_fields = ["id", "slug"]
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "meeting_code",
+            "access_level",
+            "created_at",
+            "closed_at",
+        ]
+        read_only_fields = ["id", "slug", "meeting_code", "created_at"]
+
+    def get_closed_at(self, instance):
+        """Return the room end time as an ISO string, or '' while still open."""
+        return instance.ended_at.isoformat() if instance.ended_at else ""
 
 
 class RoomSerializer(serializers.ModelSerializer):
     """Serialize Room model for the API."""
 
+    closed_at = serializers.SerializerMethodField()
+
     class Meta:
         model = models.Room
-        fields = ["id", "name", "slug", "configuration", "access_level", "pin_code"]
-        read_only_fields = ["id", "slug", "pin_code"]
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "meeting_code",
+            "configuration",
+            "access_level",
+            "pin_code",
+            "created_at",
+            "closed_at",
+        ]
+        read_only_fields = ["id", "slug", "meeting_code", "pin_code", "created_at"]
+
+    def get_closed_at(self, instance):
+        """Return the room end time as an ISO string, or '' while still open."""
+        return instance.ended_at.isoformat() if instance.ended_at else ""
 
     def validate_configuration(self, value):
         """Validate room configuration against the RoomConfiguration schema."""
@@ -175,7 +227,9 @@ class RoomSerializer(serializers.ModelSerializer):
             or instance.is_public
         )
 
-        if should_access_room:
+        # An ended room must not be joinable again: stop issuing a LiveKit token
+        # once `ended_at` is set, so no one can re-enter after the owner ends it.
+        if should_access_room and not instance.is_ended:
             room_id = f"{instance.id!s}"
             username = request.query_params.get("username", None)
             output["livekit"] = utils.generate_livekit_config(

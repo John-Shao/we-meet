@@ -176,6 +176,64 @@ class Base(Configuration):
         environ_prefix=None,
     )
 
+    # --- Mobile app extension --------------------------------------------
+    # Profile-image storage: two dedicated public-read buckets so avatar and
+    # cover objects can be served anonymously. Object keys are
+    # `<user_id>/<short-uuid>.<ext>` (the bucket itself partitions by kind).
+    AWS_STORAGE_BUCKET_NAME_AVATAR = values.Value(
+        "we-meet-avatar",
+        environ_name="AWS_STORAGE_BUCKET_NAME_AVATAR",
+        environ_prefix=None,
+    )
+    AWS_STORAGE_BUCKET_NAME_COVER = values.Value(
+        "we-meet-cover",
+        environ_name="AWS_STORAGE_BUCKET_NAME_COVER",
+        environ_prefix=None,
+    )
+
+    # SMS gateway (火山引擎 / Volcengine) — sends OTP codes for mobile login.
+    VOLC_SMS_AK = values.Value(None, environ_name="VOLC_SMS_AK", environ_prefix=None)
+    VOLC_SMS_SK = values.Value(None, environ_name="VOLC_SMS_SK", environ_prefix=None)
+    VOLC_SMS_ACCOUNT = values.Value(
+        None, environ_name="VOLC_SMS_ACCOUNT", environ_prefix=None
+    )
+    VOLC_SMS_SIGN = values.Value(
+        None, environ_name="VOLC_SMS_SIGN", environ_prefix=None
+    )
+    VOLC_SMS_TEMPLATE_ID = values.Value(
+        None, environ_name="VOLC_SMS_TEMPLATE_ID", environ_prefix=None
+    )
+
+    # Mobile OTP login — exchanges a verified phone number for Keycloak tokens
+    # via the `meet-service` confidential client (Token Exchange).
+    MOBILE_AUTH_SERVICE_CLIENT_ID = values.Value(
+        "meet-service",
+        environ_name="MOBILE_AUTH_SERVICE_CLIENT_ID",
+        environ_prefix=None,
+    )
+    MOBILE_AUTH_SERVICE_CLIENT_SECRET = values.Value(
+        None,
+        environ_name="MOBILE_AUTH_SERVICE_CLIENT_SECRET",
+        environ_prefix=None,
+    )
+    MOBILE_AUTH_OTP_EXPIRY = values.IntegerValue(
+        600, environ_name="MOBILE_AUTH_OTP_EXPIRY", environ_prefix=None
+    )
+    MOBILE_AUTH_OTP_MAX_ATTEMPTS = values.IntegerValue(
+        5, environ_name="MOBILE_AUTH_OTP_MAX_ATTEMPTS", environ_prefix=None
+    )
+    MOBILE_AUTH_OTP_LENGTH = values.IntegerValue(
+        6, environ_name="MOBILE_AUTH_OTP_LENGTH", environ_prefix=None
+    )
+    # Demo phone numbers bypass real SMS and accept MOBILE_AUTH_DEMO_OTP.
+    MOBILE_AUTH_DEMO_PHONES = values.ListValue(
+        [], environ_name="MOBILE_AUTH_DEMO_PHONES", environ_prefix=None
+    )
+    MOBILE_AUTH_DEMO_OTP = values.Value(
+        None, environ_name="MOBILE_AUTH_DEMO_OTP", environ_prefix=None
+    )
+    # --- end Mobile app extension ----------------------------------------
+
     FILE_UPLOAD_ENABLED = values.BooleanValue(
         # False to avoid a breaking change for now
         default=False,

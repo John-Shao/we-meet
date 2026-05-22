@@ -8,6 +8,7 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
+from core.api.mobile_auth import SendOtpView, VerifyOtpView
 from core.external_api import viewsets as external_viewsets
 
 # - Main endpoints
@@ -48,6 +49,13 @@ urlpatterns = [
                 path("config/", get_frontend_configuration, name="config"),
             ]
         ),
+    ),
+    # Mobile app SMS OTP authentication — native app login (unversioned).
+    path("api/mobile/auth/send-otp/", SendOtpView.as_view(), name="mobile-send-otp"),
+    path(
+        "api/mobile/auth/verify-otp/",
+        VerifyOtpView.as_view(),
+        name="mobile-verify-otp",
     ),
 ]
 
