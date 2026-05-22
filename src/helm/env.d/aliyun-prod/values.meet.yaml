@@ -117,8 +117,8 @@ backend:
     VOLC_SMS_TEMPLATE_ID: "S1T_1y2p1bc526ebm"
     # 联调用 demo 账号: 列出的手机号不发真实短信, 验证码固定为 DEMO_OTP.
     # ⚠️ 仅联调期启用, 正式对外前务必删除 (否则等于登录后门).
-    # MOBILE_AUTH_DEMO_PHONES: "13800000000"
-    # MOBILE_AUTH_DEMO_OTP: "123456"
+    MOBILE_AUTH_DEMO_PHONES: "13800000000"
+    MOBILE_AUTH_DEMO_OTP: "123456"
 
     # Recording — 第一阶段关闭
     RECORDING_ENABLE: "False"
