@@ -99,6 +99,9 @@ def _get_service_account_token() -> str | None:
                 "grant_type": "client_credentials",
                 "client_id": settings.MOBILE_AUTH_SERVICE_CLIENT_ID,
                 "client_secret": settings.MOBILE_AUTH_SERVICE_CLIENT_SECRET,
+                # Token Exchange can only pass `openid` through to the user
+                # token if this subject token already carries it.
+                "scope": "openid",
             },
             timeout=10,
             verify=settings.OIDC_VERIFY_SSL,
