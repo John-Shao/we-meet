@@ -82,6 +82,9 @@ db.sqlite3
 *.iml
 .devcontainer
 
+# Claude Code — personal local settings (not team-shared)
+.claude/settings.local.json
+
 # Egress output
 docker/livekit/out
 
