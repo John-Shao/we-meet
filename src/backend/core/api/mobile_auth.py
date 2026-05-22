@@ -177,6 +177,10 @@ def _token_exchange(user_id: str, sa_token: str) -> dict | None:
                 "subject_token": sa_token,
                 "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
                 "requested_subject": user_id,
+                # `openid` scope is required: the meet-backend validates the
+                # bearer token via the Keycloak userinfo endpoint, which
+                # rejects tokens lacking it (403 insufficient_scope → 500).
+                "scope": "openid",
             },
             timeout=10,
             verify=settings.OIDC_VERIFY_SSL,
