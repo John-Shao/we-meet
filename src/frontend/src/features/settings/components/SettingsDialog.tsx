@@ -10,10 +10,13 @@ export const SettingsDialog = (props: SettingsDialogProps) => {
   const { t, i18n } = useTranslation('settings')
   const { user, isLoggedIn, logout } = useUser()
   const { languagesList, currentLanguage } = useLanguageLabels()
+  // OTP-registered users don't have an email (Keycloak account is created
+  // from phone + firstName only), so the historical "name (email)" template
+  // would render nothing. Fall back to whichever single field exists.
   const userDisplay =
     user?.full_name && user?.email
       ? `${user.full_name} (${user.email})`
-      : user?.email
+      : user?.full_name || user?.email
   return (
     <Dialog title={t('dialog.heading')} {...props}>
       <H lvl={2}>{t('account.heading')}</H>

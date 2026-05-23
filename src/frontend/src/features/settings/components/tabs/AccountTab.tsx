@@ -22,10 +22,13 @@ export const AccountTab = ({ id, onOpenChange }: AccountTabProps) => {
   const { renameParticipant } = useRenameParticipant()
 
   const [name, setName] = useState(room?.localParticipant.name ?? '')
+  // OTP-registered users don't have an email (Keycloak account is created
+  // from phone + firstName only), so the historical "name (email)" template
+  // would render nothing. Fall back to whichever single field exists.
   const userDisplay =
     user?.full_name && user?.email
       ? `${user.full_name} (${user.email})`
-      : user?.email
+      : user?.full_name || user?.email
 
   const handleOnSubmit = async () => {
     try {
