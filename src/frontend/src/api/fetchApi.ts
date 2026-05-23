@@ -1,6 +1,56 @@
 import { ApiError } from './ApiError'
 import { apiUrl } from './apiUrl'
-import { clearTokens, getAccessToken } from '@/features/auth/utils/tokenStorage'
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+} from '@/features/auth/utils/tokenStorage'
+import { refreshTokens } from '@/features/auth/api/mobileOtp'
+
+/**
+ * Single-flight cache for the refresh-token grant in [attemptSilentRefresh].
+ * Concurrent 401s share one round-trip — otherwise the second one would race
+ * Keycloak's refresh-token rotation (only the first wins; the rest are
+ * `invalid_grant` and would force a re-login).
+ */
+let inflightRefresh: Promise<string | null> | null = null
+
+const attemptSilentRefresh = async (): Promise<string | null> => {
+  if (inflightRefresh) return inflightRefresh
+  const refresh = getRefreshToken()
+  if (!refresh) return null
+  inflightRefresh = (async () => {
+    try {
+      const data = await refreshTokens(refresh)
+      setTokens({
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token ?? refresh,
+      })
+      return data.access_token
+    } catch {
+      // Either invalid_grant (refresh expired) or network failure. Either
+      // way the caller will see the 401 propagate and the user gets
+      // bounced back to the login screen. clearTokens runs at the call
+      // site once the retry also fails.
+      return null
+    } finally {
+      inflightRefresh = null
+    }
+  })()
+  return inflightRefresh
+}
+
+const buildHeaders = (
+  bearerToken: string | null,
+  csrfToken: string | undefined,
+  override: HeadersInit | undefined
+): HeadersInit => ({
+  'Content-Type': 'application/json',
+  ...(!!csrfToken && { 'X-CSRFToken': csrfToken }),
+  ...(!!bearerToken && { Authorization: `Bearer ${bearerToken}` }),
+  ...override,
+})
 
 export const fetchApi = async <T = Record<string, unknown>>(
   url: string,
@@ -12,23 +62,33 @@ export const fetchApi = async <T = Record<string, unknown>>(
   // bearer token and a Django session cookie are present, the first
   // accepting auth class wins — which means the bearer takes precedence as
   // long as it's still valid.
-  const bearerToken = getAccessToken()
-  const response = await fetch(apiUrl(url), {
+  const initialBearer = getAccessToken()
+  const target = apiUrl(url)
+
+  let response = await fetch(target, {
     credentials: 'include',
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(!!csrfToken && { 'X-CSRFToken': csrfToken }),
-      ...(!!bearerToken && { Authorization: `Bearer ${bearerToken}` }),
-      ...options?.headers,
-    },
+    headers: buildHeaders(initialBearer, csrfToken, options?.headers),
   })
 
-  // A 401 on a bearer-authed call means the token has expired. Drop it so
-  // subsequent calls (and the next useUser fetch) treat the user as logged
-  // out — matches the App's "no silent refresh, just re-login" behaviour.
-  if (response.status === 401 && bearerToken) {
-    clearTokens()
+  // Bearer 401 → attempt one silent refresh, retry once with the new token.
+  // Anonymous (cookie-only) 401s bypass this branch; their handling is
+  // unchanged.
+  if (response.status === 401 && initialBearer) {
+    const newAccess = await attemptSilentRefresh()
+    if (newAccess) {
+      response = await fetch(target, {
+        credentials: 'include',
+        ...options,
+        headers: buildHeaders(newAccess, csrfToken, options?.headers),
+      })
+    }
+    // If the retry is also 401, or we never had a refresh token / it
+    // failed, drop the stored bearer so the next useUser pull treats the
+    // user as signed-out and routes back to the login screen.
+    if (response.status === 401) {
+      clearTokens()
+    }
   }
 
   let result: T

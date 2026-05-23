@@ -344,3 +344,82 @@ class VerifyOtpView(APIView):
             )
 
         return Response(tokens)
+
+
+class RefreshTokenView(APIView):
+    """Trade an unexpired refresh_token for a fresh access/refresh pair.
+
+    POST /api/mobile/auth/refresh/
+    Request:  {"refresh_token": "..."}
+    Response: {"access_token": "...", "refresh_token": "...",
+               "token_type": "Bearer", "expires_in": 1800}
+
+    Backend handles the client_secret so neither the web app nor the native
+    app needs to ship it. Refresh-token rotation is on by default in
+    Keycloak — the new refresh_token replaces the old one and the caller
+    MUST overwrite its stored copy.
+
+    On `invalid_grant` (refresh expired / revoked / replayed) returns 401 so
+    the caller can clear local state and bounce to the login screen.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [MobileAuthThrottle]
+
+    def post(self, request):
+        refresh_token = (request.data.get("refresh_token") or "").strip()
+        if not refresh_token:
+            return Response(
+                {"error": "refresh_token is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            resp = requests.post(
+                settings.OIDC_OP_TOKEN_ENDPOINT,
+                data={
+                    "grant_type": "refresh_token",
+                    "client_id": settings.MOBILE_AUTH_SERVICE_CLIENT_ID,
+                    "client_secret": settings.MOBILE_AUTH_SERVICE_CLIENT_SECRET,
+                    "refresh_token": refresh_token,
+                    # Keep the scope chain consistent with verify-otp so the
+                    # new access_token also passes the userinfo check.
+                    "scope": "openid",
+                },
+                timeout=10,
+                verify=settings.OIDC_VERIFY_SSL,
+            )
+        except Exception:
+            logger.exception("refresh_token grant request failed")
+            return Response(
+                {"error": "服务暂时不可用，请稍后重试"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if resp.status_code in (400, 401):
+            # `invalid_grant` is the common case — refresh expired or
+            # already-rotated. Force the client to re-login.
+            return Response(
+                {"error": "登录已过期，请重新登录"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        if not resp.ok:
+            logger.error(
+                "refresh_token grant unexpected status %s: %s",
+                resp.status_code,
+                resp.text[:200],
+            )
+            return Response(
+                {"error": "令牌刷新失败，请稍后重试"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        data = resp.json()
+        return Response(
+            {
+                "access_token": data["access_token"],
+                "refresh_token": data.get("refresh_token", refresh_token),
+                "token_type": data.get("token_type", "Bearer"),
+                "expires_in": data.get("expires_in", 1800),
+            }
+        )

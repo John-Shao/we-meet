@@ -38,6 +38,18 @@ if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
 fi
 AUTH=( -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" )
 
+echo "==> Setting realm token lifespans (access 30 min, SSO 14 days)"
+# Short-lived access token + long-lived refresh = client-side silent refresh
+# can keep users signed in for up to 14 days without ever showing the login
+# screen again, while a leaked access token is invalid within half an hour.
+# clientSession* timeouts default to follow ssoSession* when unset.
+curl -sS -X PUT "$KC_URL/admin/realms/$REALM" "${AUTH[@]}" -d '{
+  "accessTokenLifespan": 1800,
+  "ssoSessionIdleTimeout": 1209600,
+  "ssoSessionMaxLifespan": 1209600,
+  "offlineSessionIdleTimeout": 1209600
+}'
+
 echo "==> Creating confidential client '$CLIENT_ID'"
 curl -sS -X POST "$KC_URL/admin/realms/$REALM/clients" "${AUTH[@]}" -d '{
   "clientId": "'"$CLIENT_ID"'",

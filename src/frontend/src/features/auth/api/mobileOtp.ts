@@ -74,3 +74,16 @@ export const verifyOtp = async (
   })
   return data
 }
+
+/**
+ * Refresh-token grant — trades a refresh_token for a fresh access/refresh
+ * pair. The backend talks to Keycloak with the client_secret so we don't
+ * ship one on the web. On the server's 401 (invalid_grant — refresh expired
+ * / revoked / replayed) this throws an Error with status=401 so callers can
+ * distinguish "definitely re-login" from transient failures.
+ *
+ * Note: Keycloak rotates refresh tokens by default; the response carries a
+ * new refresh_token that replaces the old one in [setTokens].
+ */
+export const refreshTokens = (refresh_token: string): Promise<VerifyOtpResponse> =>
+  postJson<VerifyOtpResponse>('refresh/', { refresh_token })

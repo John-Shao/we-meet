@@ -8,7 +8,7 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
-from core.api.mobile_auth import SendOtpView, VerifyOtpView
+from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.qr_login import (
     QrCancelView,
     QrConfirmView,
@@ -63,6 +63,11 @@ urlpatterns = [
         "api/mobile/auth/verify-otp/",
         VerifyOtpView.as_view(),
         name="mobile-verify-otp",
+    ),
+    path(
+        "api/mobile/auth/refresh/",
+        RefreshTokenView.as_view(),
+        name="mobile-refresh-token",
     ),
     # QR-code login: web shows the QR, App scans + confirms, web polls.
     path("api/qr-login/initiate/", QrInitiateView.as_view(), name="qr-login-initiate"),
