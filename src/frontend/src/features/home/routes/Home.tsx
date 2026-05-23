@@ -5,7 +5,7 @@ import { styled } from '@/styled-system/jsx'
 import { navigateTo } from '@/navigation/navigateTo'
 import { Screen } from '@/layout/Screen'
 import { generateRoomId, useCreateRoom } from '@/features/rooms'
-import { useUser, UserAware } from '@/features/auth'
+import { PhoneLoginDialog, useUser, UserAware } from '@/features/auth'
 import { JoinMeetingDialog } from '../components/JoinMeetingDialog'
 import { RiAddLine, RiLink } from '@remixicon/react'
 import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
@@ -240,7 +240,15 @@ export const Home = () => {
                   </RACMenu>
                 </Menu>
               ) : (
-                <LoginButton proConnectHint={false} />
+                <>
+                  <LoginButton proConnectHint={false} />
+                  <DialogTrigger>
+                    <Button variant="secondary" data-attr="phone-login">
+                      {t('login.phoneLoginLabel', { ns: 'global' })}
+                    </Button>
+                    <PhoneLoginDialog />
+                  </DialogTrigger>
+                </>
               )}
               <DialogTrigger>
                 <Button

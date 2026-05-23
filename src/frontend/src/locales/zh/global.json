@@ -16,9 +16,26 @@
   "loggedInUserTooltip": "当前登录账号：",
   "login": {
     "buttonLabel": "登录",
+    "phoneLoginLabel": "手机号登录",
     "proconnectButtonLabel": "使用 ProConnect 登录",
     "proconnectLinkLabel": "什么是 ProConnect？- 新标签页",
     "proconnectLink": "什么是 ProConnect？"
+  },
+  "phoneLogin": {
+    "title": "手机号登录",
+    "phoneLabel": "手机号",
+    "phoneHint": "请输入 11 位中国大陆手机号",
+    "sendCode": "发送验证码",
+    "otpLabel": "短信验证码",
+    "otpSentTo": "验证码已发送至",
+    "changePhone": "换个号码",
+    "verify": "登录",
+    "resend": "重新发送",
+    "resendIn": "{{seconds}} 秒后可重发",
+    "cancel": "取消",
+    "error": {
+      "generic": "发生错误，请重试"
+    }
   },
   "logout": "退出登录",
   "notFound": {

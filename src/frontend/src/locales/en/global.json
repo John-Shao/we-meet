@@ -16,9 +16,26 @@
   "loggedInUserTooltip": "Logged in as ",
   "login": {
     "buttonLabel": "Login",
+    "phoneLoginLabel": "Sign in with phone",
     "proconnectButtonLabel": "Login with ProConnect",
     "proconnectLinkLabel": "What is ProConnect? - new tab",
     "proconnectLink": "What is ProConnect?"
+  },
+  "phoneLogin": {
+    "title": "Sign in with phone",
+    "phoneLabel": "Phone number",
+    "phoneHint": "Enter your 11-digit Chinese mobile number",
+    "sendCode": "Send code",
+    "otpLabel": "SMS code",
+    "otpSentTo": "Code sent to",
+    "changePhone": "Change number",
+    "verify": "Sign in",
+    "resend": "Resend",
+    "resendIn": "Resend in {{seconds}}s",
+    "cancel": "Cancel",
+    "error": {
+      "generic": "Something went wrong, please try again"
+    }
   },
   "logout": "Logout",
   "notFound": {

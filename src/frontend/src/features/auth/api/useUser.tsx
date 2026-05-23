@@ -12,6 +12,7 @@ import {
   terminateSupportSession,
 } from '@/features/support/hooks/useSupport'
 import { logoutUrl } from '../utils/logoutUrl'
+import { clearTokens } from '../utils/tokenStorage'
 import { useConfig } from '@/api/useConfig'
 
 /**
@@ -55,6 +56,10 @@ export const useUser = (
   const logout = () => {
     terminateAnalyticsSession()
     terminateSupportSession()
+    // Drop the bearer first — if the user signed in via the mobile OTP flow
+    // there's no Django session for /logout to clear, but the next page load
+    // would still see the cached token and re-authenticate as them.
+    clearTokens()
     window.location.href = logoutUrl()
   }
 
