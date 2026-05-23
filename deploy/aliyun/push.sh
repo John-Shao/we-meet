@@ -110,6 +110,32 @@ for m in $SELECTED; do
   echo "  ${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${m}:${IMAGE_TAG}"
 done
 echo
-echo "If using IMAGE_TAG=<commit-sha>, update src/helm/env.d/aliyun-prod/values.meet.yaml"
-echo "image.tag fields, then helm upgrade meet."
+echo "下一步 (在生产 ECS aliyun-sjy 上):"
+echo
+echo "  # 1. 拉取最新代码 + values"
+echo "  cd /opt/we-meet && git pull origin aliyun-dev"
+echo
+if [[ "$IMAGE_TAG" == "latest" ]]; then
+  echo "  # 2. latest tag 工作流: helm 不会自动 roll Deployment, 必须手动 rollout"
+  restart=""
+  for m in $SELECTED; do
+    [[ -n "$restart" ]] && restart="$restart "
+    restart="${restart}deploy/meet-${m}"
+  done
+  echo "  kubectl -n meet rollout restart ${restart}"
+  for m in $SELECTED; do
+    echo "  kubectl -n meet rollout status  deploy/meet-${m} --timeout=120s"
+  done
+else
+  echo "  # 2. <commit-sha> tag 工作流: 先把 image.tag 改到 ${IMAGE_TAG}, 再 helm upgrade"
+  echo "  # (在 src/helm/env.d/aliyun-prod/values.meet.yaml 中更新 image.tag)"
+  echo "  helm -n meet upgrade meet ./src/helm/meet -f src/helm/env.d/aliyun-prod/values.meet.yaml"
+fi
+echo
+if [[ " $SELECTED " == *" backend "* ]]; then
+  echo "  # 3. backend: 若本次包含数据库迁移, 应用之 (无迁移可跳过)"
+  echo "  kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input"
+  echo "  kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | tail -5"
+  echo
+fi
 echo "================================================================"
