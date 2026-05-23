@@ -233,6 +233,95 @@ class UserViewSet(
 
     @decorators.action(
         detail=False,
+        methods=["patch"],
+        url_name="update-nickname",
+        url_path="me/nickname",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def update_nickname(self, request):
+        """Update the user's display nickname (Keycloak firstName).
+
+        We deliberately do NOT use the Keycloak Account REST API here — it
+        runs the realm's user-profile validators, and our SMS-registered
+        users have blank ``lastName`` / ``email`` (both required by the
+        ``user`` role), so any update via Account REST returns 400. Going
+        through the Admin REST API with the service-account token bypasses
+        that validation, which is what we want for "just change my display
+        name" UX. The eager local sync keeps ``/users/me/`` consistent on
+        the same session without waiting for the next OIDC userinfo cycle.
+
+        Body: ``{"nickname": "<string>"}``.
+        """
+        # Local import to avoid the otherwise-circular reference at module
+        # load time (mobile_auth imports nothing from viewsets, but importing
+        # mobile_auth at the top of viewsets would still drag in DRF settings
+        # before the view module is fully built — keep it lazy).
+        # pylint: disable=import-outside-toplevel
+        import requests
+
+        from core.api.mobile_auth import (
+            _admin_realm_url,
+            _get_service_account_token,
+        )
+
+        nickname = (request.data.get("nickname") or "").strip()
+        if not nickname:
+            raise drf_exceptions.ValidationError(
+                {"nickname": "Cannot be empty."}
+            )
+        if len(nickname) > 100:
+            raise drf_exceptions.ValidationError(
+                {"nickname": "Too long (max 100 chars)."}
+            )
+
+        user_sub = getattr(request.user, "sub", None)
+        if not user_sub:
+            return drf_response.Response(
+                {"error": "Missing Keycloak subject on user"},
+                status=drf_status.HTTP_400_BAD_REQUEST,
+            )
+
+        sa_token = _get_service_account_token()
+        if not sa_token:
+            return drf_response.Response(
+                {"error": "服务暂时不可用，请稍后重试"},
+                status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        try:
+            resp = requests.put(
+                f"{_admin_realm_url()}/users/{user_sub}",
+                json={"firstName": nickname},
+                headers={
+                    "Authorization": f"Bearer {sa_token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=10,
+                verify=settings.OIDC_VERIFY_SSL,
+            )
+            resp.raise_for_status()
+        except requests.RequestException:
+            logger.exception(
+                "Keycloak nickname update failed for user %s", user_sub
+            )
+            return drf_response.Response(
+                {"error": "昵称更新失败，请稍后重试"},
+                status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        # Eagerly sync the Django row so the next /users/me/ on this session
+        # reflects the change immediately. The OIDC backend will refresh from
+        # userinfo on the next request anyway, but it would briefly serve
+        # stale data otherwise.
+        request.user.full_name = nickname
+        request.user.save(update_fields=["full_name"])
+
+        return drf_response.Response(
+            self.serializer_class(request.user, context={"request": request}).data
+        )
+
+    @decorators.action(
+        detail=False,
         methods=["post"],
         url_name="profile-upload-url",
         url_path="me/upload-url",
