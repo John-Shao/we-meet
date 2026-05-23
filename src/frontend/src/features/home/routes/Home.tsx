@@ -17,7 +17,6 @@ import { css } from '@/styled-system/css'
 import { menuRecipe } from '@/primitives/menuRecipe.ts'
 import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePersistentUserChoices'
 import { useConfig } from '@/api/useConfig'
-import { LoginButton } from '@/components/LoginButton'
 import { ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { LoadingScreen } from '@/components/LoadingScreen'
 
@@ -240,15 +239,17 @@ export const Home = () => {
                   </RACMenu>
                 </Menu>
               ) : (
-                <>
-                  <LoginButton proConnectHint={false} />
-                  <DialogTrigger>
-                    <Button variant="secondary" data-attr="phone-login">
-                      {t('login.phoneLoginLabel', { ns: 'global' })}
-                    </Button>
-                    <PhoneLoginDialog />
-                  </DialogTrigger>
-                </>
+                // Phone OTP is the primary (and only visible) login path on
+                // the home page. The OIDC LoginButton stays as the component
+                // used by Header / Settings / Recording flows for users who
+                // arrive via a deep link, but here a single "登录" button
+                // opens the phone-login dialog.
+                <DialogTrigger>
+                  <Button variant="primary" data-attr="phone-login">
+                    {t('login.buttonLabel', { ns: 'global' })}
+                  </Button>
+                  <PhoneLoginDialog />
+                </DialogTrigger>
               )}
               <DialogTrigger>
                 <Button

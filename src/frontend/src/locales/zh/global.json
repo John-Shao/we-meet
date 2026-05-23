@@ -16,7 +16,6 @@
   "loggedInUserTooltip": "当前登录账号：",
   "login": {
     "buttonLabel": "登录",
-    "phoneLoginLabel": "手机号登录",
     "proconnectButtonLabel": "使用 ProConnect 登录",
     "proconnectLinkLabel": "什么是 ProConnect？- 新标签页",
     "proconnectLink": "什么是 ProConnect？"

@@ -16,7 +16,6 @@
   "loggedInUserTooltip": "Logged in as ",
   "login": {
     "buttonLabel": "Login",
-    "phoneLoginLabel": "Sign in with phone",
     "proconnectButtonLabel": "Login with ProConnect",
     "proconnectLinkLabel": "What is ProConnect? - new tab",
     "proconnectLink": "What is ProConnect?"
