@@ -7,5 +7,4 @@ export {
   flexibleRoomIdPattern,
   normalizeRoomId,
 } from './utils/isRoomValid'
-export { generateRoomId } from './utils/generateRoomId'
 export { useCreateRoom } from './api/createRoom'

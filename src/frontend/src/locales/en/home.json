@@ -3,7 +3,7 @@
   "heading": "Simple and Secure Video Conferencing",
   "intro": "Communicate and work with ease, without compromising your sovereignty",
   "joinInputError": "Use a meeting link or code. Examples:",
-  "joinInputExample": "URL, 8-digit code, or 10-letter code",
+  "joinInputExample": "URL or 8-digit code",
   "joinInputLabel": "Meeting link",
   "joinInputSubmit": "Join meeting",
   "joinMeeting": "Join a meeting",
@@ -12,6 +12,8 @@
     "qrTitle": "Scan to sign in",
     "phoneTitle": "SMS code"
   },
+  "defaultRoomName": "{{user}}'s meeting",
+  "defaultRoomNameAnonymous": "New meeting",
   "joinMeetingTipHeading": "Did you know?",
   "loginToCreateMeeting": "Login to create a meeting",
   "moreLinkLabel": "Learn more about {{appTitle}} - new tab",

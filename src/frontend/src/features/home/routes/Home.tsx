@@ -4,7 +4,7 @@ import { Button, H, Menu } from '@/primitives'
 import { styled } from '@/styled-system/jsx'
 import { navigateTo } from '@/navigation/navigateTo'
 import { Screen } from '@/layout/Screen'
-import { generateRoomId, useCreateRoom } from '@/features/rooms'
+import { useCreateRoom } from '@/features/rooms'
 import {
   PhoneLoginPanel,
   QrLoginPanel,
@@ -211,7 +211,7 @@ const LoginPanels = () => {
 
 export const Home = () => {
   const { t } = useTranslation('home')
-  const { isLoggedIn } = useUser()
+  const { isLoggedIn, user } = useUser()
 
   const {
     userChoices: { username },
@@ -286,8 +286,14 @@ export const Home = () => {
                         menuRecipe({ icon: true, variant: 'light' }).item
                       }
                       onAction={async () => {
-                        const slug = generateRoomId()
-                        createRoom({ slug, username }).then((data) =>
+                        // Backend generates the 8-digit slug on save —
+                        // don't ship a random 10-letter "code" that would
+                        // co-exist with it and confuse users.
+                        const owner = (user?.full_name || username || '').trim()
+                        const name = owner
+                          ? t('defaultRoomName', { user: owner })
+                          : t('defaultRoomNameAnonymous')
+                        createRoom({ name, username }).then((data) =>
                           navigateTo('room', data.slug, {
                             state: { create: true, initialRoomData: data },
                           })
@@ -303,8 +309,11 @@ export const Home = () => {
                         menuRecipe({ icon: true, variant: 'light' }).item
                       }
                       onAction={() => {
-                        const slug = generateRoomId()
-                        createRoom({ slug, username }).then((data) =>
+                        const owner = (user?.full_name || username || '').trim()
+                        const name = owner
+                          ? t('defaultRoomName', { user: owner })
+                          : t('defaultRoomNameAnonymous')
+                        createRoom({ name, username }).then((data) =>
                           setLaterRoom(data)
                         )
                       }}

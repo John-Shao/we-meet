@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
-import { generateRoomId, useCreateRoom } from '../../rooms'
+import { useCreateRoom } from '../../rooms'
 import { useUser } from '@/features/auth'
 import { Spinner } from '@/primitives/Spinner'
 import { CallbackIdHandler } from '../utils/CallbackIdHandler'
@@ -10,7 +11,10 @@ const callbackIdHandler = new CallbackIdHandler()
 const popupWindow = new PopupWindow()
 
 export const CreatePopup = () => {
-  const { isLoggedIn } = useUser({ fetchUserOptions: { attemptSilent: false } })
+  const { t } = useTranslation('home')
+  const { isLoggedIn, user } = useUser({
+    fetchUserOptions: { attemptSilent: false },
+  })
   const { mutateAsync: createRoom } = useCreateRoom()
 
   const callbackId = useMemo(() => callbackIdHandler.getOrCreate(), [])
@@ -41,9 +45,12 @@ export const CreatePopup = () => {
   useEffect(() => {
     const createMeetingRoom = async () => {
       try {
-        const slug = generateRoomId()
+        const owner = (user?.full_name || '').trim()
+        const name = owner
+          ? t('defaultRoomName', { user: owner })
+          : t('defaultRoomNameAnonymous')
         const roomData = await createRoom({
-          slug,
+          name,
           callbackId,
         })
         // Send room data back to parent window and clean up resources

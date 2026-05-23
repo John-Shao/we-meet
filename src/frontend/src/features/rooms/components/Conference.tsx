@@ -81,7 +81,11 @@ export const Conference = ({
         username: userConfig.username,
       }).catch((error) => {
         if (error.statusCode == '404') {
-          createRoom({ slug: roomId, username: userConfig.username })
+          // Auto-create fallback: user navigated to /:roomId for a slug that
+          // doesn't exist yet (mainly the `ALLOW_UNREGISTERED_ROOMS` UX).
+          // Use the URL fragment as the room name — backend still generates
+          // its own 8-digit joinable slug regardless.
+          createRoom({ name: roomId, username: userConfig.username })
         }
       }),
     retry: false,

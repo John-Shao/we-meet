@@ -4,20 +4,21 @@ import { ApiError } from '@/api/ApiError'
 import { ApiRoom } from './ApiRoom'
 
 export interface CreateRoomParams {
-  slug: string
+  /** Human-readable room name. Backend generates the joinable slug on save. */
+  name: string
   callbackId?: string
   username?: string
 }
 
 const createRoom = ({
-  slug,
+  name,
   callbackId,
   username = '',
 }: CreateRoomParams): Promise<ApiRoom> => {
   return fetchApi(`rooms/?username=${encodeURIComponent(username)}`, {
     method: 'POST',
     body: JSON.stringify({
-      name: slug,
+      name,
       callback_id: callbackId,
     }),
   })
