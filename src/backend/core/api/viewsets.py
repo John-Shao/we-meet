@@ -359,16 +359,13 @@ class RoomViewSet(
     serializer_class = serializers.RoomSerializer
 
     def get_object(self):
-        """Allow getting a room by its UUID, name-based slug, or numeric meeting code."""
+        """Allow getting a room by its UUID or its numeric slug (meeting code)."""
         pk = self.kwargs["pk"]
         queryset = self.filter_queryset(self.get_queryset())
         try:
             uuid.UUID(pk)
         except ValueError:
-            # Not a UUID: match either the name-based slug or the numeric meeting code.
-            obj = get_object_or_404(
-                queryset, Q(slug=slugify(pk)) | Q(meeting_code=pk)
-            )
+            obj = get_object_or_404(queryset, slug=pk)
         else:
             obj = get_object_or_404(queryset, pk=pk)
         # May raise a permission denied

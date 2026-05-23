@@ -13,13 +13,13 @@
 
 ## 2. 总体认知
 
-实时音视频全部由 **LiveKit** 承担。we-meet 后端 DRF 已配 `OIDCAuthentication`，**主 API 已能接受 `Authorization: Bearer <access_token>`**，移动端调用主 API 无需新增鉴权层。移动端真正缺的三块均以**纯新增**实现：OTP 登录入口、房间结束动作 + 可输入会议码、个人资料字段与图片上传。
+实时音视频全部由 **LiveKit** 承担。we-meet 后端 DRF 已配 `OIDCAuthentication`，**主 API 已能接受 `Authorization: Bearer <access_token>`**，移动端调用主 API 无需新增鉴权层。移动端真正缺的三块以**最小改动**实现：OTP 登录入口、房间结束动作、个人资料字段与图片上传；外加把房间 `slug` 改为 8 位数字会议号。
 
 ## 3. 已确认的关键决策
 
 | # | 决策 | 说明 |
 |---|------|------|
-| 1 | **会议号** | `slug`（`slugify(name)`）完全不动；新增独立字段 `meeting_code`（6 位数字、唯一），App 走 `meeting_code` 加入会议 |
+| 1 | **会议号** | 房间 `slug` 改为服务端生成的**唯一 8 位数字**（`save()` 时生成），它本身即会议号；不再保留 `meeting_code` 字段。这同时修掉了中文房名 `slugify()` 为空串导致的 `slug` 唯一性冲突 |
 | 2 | **结束后禁止重进** | `end` 后 `RoomSerializer.to_representation` 不再下发 `livekit` token，`request_entry` 对已结束房间返回 404；房间信息（含 `closed_at`）仍可 GET |
 | 3 | **图片存储** | 头像/封面桶**私有**（阻止公共访问开启）；后端存 `object_key`，读取时下发 1 小时有效的**预签名 GET URL**。避免公共读桶的全桶枚举/盗链/合规风险 |
 | 4 | **对象存储** | 全部统一到**阿里云 OSS**（华南1 深圳）：主桶 `we-meet-video`、头像 `we-meet-avatar`、封面 `we-meet-cover` |
@@ -35,19 +35,20 @@
 
 OTP 用户首次携 token 调 API 时，`OIDCAuthentication`（`OIDC_CREATE_USER=true`）自动建 Django 用户，无需改鉴权。jusi 的 `keycloak_sms.py`（Keycloak 自带登录页走短信）本期不需要，已舍弃。
 
-### A2. 房间：meeting_code + 结束动作
+### A2. 房间：8 位数字 slug + 结束动作
 
 | 动作 | 内容 | 性质 |
 |------|------|------|
-| `Room` 加 `meeting_code` | `CharField(6)`，`unique`/`null`/`blank` | 加列 |
 | `Room` 加 `ended_at` | `DateTimeField(blank, null)` | 加列 |
-| `Room` 加 `is_ended` 属性、`generate_unique_meeting_code()` 静态方法 | 仿 `generate_unique_pin_code` 模式 | 类内新增 |
-| `Room.save()` 追加生成逻辑 | 首次保存且无 `meeting_code` 时生成（不碰 slug 行） | 现有方法内追加 |
-| `RoomViewSet.get_object` | UUID 之外用 `Q(slug=…) | Q(meeting_code=…)` 匹配 | 现有方法内扩展 |
+| `Room` 加 `is_ended` 属性、`generate_unique_slug()` 静态方法 | 仿 `generate_unique_pin_code` 模式，生成唯一 8 位数字 | 类内新增 |
+| `Room.save()` 调整 slug 生成 | 新房间无 `slug` 时生成 8 位数字（不再依赖 `slugify(name)`） | 现有方法内调整 |
+| `RoomViewSet.get_object` | 非 UUID 时按 `slug=pk` 匹配 | 现有方法内简化 |
 | `RoomViewSet` 新增 `@action end` | `POST /rooms/{id}/end/`，owner-only，置 `ended_at` + 踢出全部人 | 新增方法 |
 | `ParticipantsManagement.remove_all()` | 列出并移除房间全部参会者 | 类内新增方法 |
-| `RoomSerializer`/`ListRoomSerializer` 加 `meeting_code`/`created_at`/`closed_at` | `closed_at` 为 `SerializerMethodField` | 向后兼容字段新增 |
+| `RoomSerializer`/`ListRoomSerializer` 加 `created_at`/`closed_at` | `closed_at` 为 `SerializerMethodField` | 向后兼容字段新增 |
 | `RoomSerializer.to_representation` 门控 + `request_entry` 守卫 | 已结束房间不下发 token / 拒绝入场 | 现有方法内各加判断 |
+
+> 删除 `meeting_code` 字段：它原是为可输入会议号新增的独立字段；现 `slug` 本身即 8 位数字会议号，独立字段已无必要。迁移 `0022` 删列。
 
 ### A3. 个人资料扩展（私有桶 + 预签名 URL）
 
@@ -63,16 +64,16 @@ OTP 用户首次携 token 调 API 时，`OIDCAuthentication`（`OIDC_CREATE_USER
 
 - `meet/settings.py` 追加：`AWS_STORAGE_BUCKET_NAME_AVATAR/COVER`、`VOLC_SMS_AK/SK/ACCOUNT/SIGN/TEMPLATE_ID`、`MOBILE_AUTH_SERVICE_CLIENT_ID/SECRET`、`MOBILE_AUTH_OTP_EXPIRY/MAX_ATTEMPTS/LENGTH`、`MOBILE_AUTH_DEMO_PHONES/OTP`
 - `pyproject.toml` 新增 `volcengine`、`tenacity`；`uv.lock` 已同步
-- 迁移（均为加列）：`0020_room_meeting_code_ended_at`、`0021_user_intro_avatar_cover`
+- 迁移：`0020_room_meeting_code_ended_at`（加列）、`0021_user_intro_avatar_cover`（加列）、`0022_remove_room_meeting_code`（删 `meeting_code` 列）
 - OTP 验证码用 `django.core.cache`，依赖 `CACHES` 指向 Redis（we-meet 已是）
 
 ### A5. 主动放弃的修改
 
-为贯彻"只扩展不修改"：用 6 位数字**替换** slug、`Room.clean_fields()` 重写、`expires_at` 会议码过期、`get_object` 整体重写、`list` 排序、限速类、`generate_token` 改动 —— 全部不做。
+为贯彻"只扩展不修改"：`expires_at` 会议码过期、`list` 排序、限速类、`generate_token` 改动 —— 全部不做。`slug` 改为 8 位数字后，`Room.clean_fields()` 原本的 `slugify(name)` 赋值已无意义，连同该重写一并移除（`slug` 现由 `save()` 生成）。
 
 ## 5. Part B — App 客户端路线图
 
-- **B1（v1，本期，已实施）**：App API 基址指向 we-meet；`RoomDto` 把 `meeting_code` 映射到既有 `slug` 字段作会议号；`UploadUrlResponse` 去掉 `public_url`；头像/封面签名 URL 用稳定 Coil 缓存 key（按对象路径）处理缓存与过期。
+- **B1（v1，本期，已实施）**：App API 基址指向 we-meet；`RoomDto` 直接用 `slug`（8 位数字）作会议号；`UploadUrlResponse` 去掉 `public_url`；头像/封面签名 URL 用稳定 Coil 缓存 key（按对象路径）处理缓存与过期。
 - **B2（v1.x）**：Android App Links 深链；FCM 推送；access_token 预刷新。
 - **B3（后续）**：后端续移植 discover/UGC、AI 智能体、device-api。
 
@@ -94,7 +95,7 @@ OTP 用户首次携 token 调 API 时，`OIDCAuthentication`（`OIDC_CREATE_USER
 | send-otp / verify-otp | 响应键、400/429 对照 [移动端API接口文档.md](移动端API接口文档.md) §1 |
 | GET /users/me/ | 含 `intro`/`avatar_url`/`cover_url`；图片字段为签名 URL，未设时为 `""` |
 | upload-url → PUT → profile-image | 三步上传流（私有桶预签名 PUT），`object_key` 形如 `<user_id>/<hex>.jpg` |
-| POST /rooms/ + GET /rooms/{meeting_code}/ | 含 `meeting_code`/`created_at`/`closed_at` |
+| POST /rooms/ + GET /rooms/{slug}/ | `slug` 为 8 位数字；响应含 `created_at`/`closed_at` |
 | POST /rooms/{id}/end/ | 返回 `ended_at`；结束后 GET 房间无 `livekit` 块 |
 | POST /users/me/deregister/ | 返回 204 |
 

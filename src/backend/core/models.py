@@ -406,6 +406,8 @@ class Room(Resource):
         parent_link=True,
         primary_key=True,
     )
+    # The room's meeting code: a generated, unique 8-digit number — also the
+    # room's URL handle on the web. Generated in `save()` for new rooms.
     slug = models.SlugField(max_length=100, blank=True, null=True, unique=True)
     access_level = models.CharField(
         max_length=50,
@@ -427,16 +429,6 @@ class Room(Resource):
         verbose_name=_("Room PIN code"),
         help_text=_("Unique n-digit code that identifies this room in telephony mode."),
     )
-    # Mobile app extension: a short numeric code used to join the room from
-    # native apps. Independent from `slug` (which stays name-based for the web).
-    meeting_code = models.CharField(
-        max_length=6,
-        unique=True,
-        blank=True,
-        null=True,
-        verbose_name=_("Room meeting code"),
-        help_text=_("Unique 6-digit numeric code used to join the room from apps."),
-    )
     ended_at = models.DateTimeField(
         blank=True,
         null=True,
@@ -454,31 +446,14 @@ class Room(Resource):
         return capfirst(self.name)
 
     def save(self, *args, **kwargs):
-        """Generate a unique pin code and meeting code for new rooms."""
+        """Generate a unique pin code and slug for new rooms."""
         if settings.ROOM_TELEPHONY_ENABLED and not self.pk and not self.pin_code:
             self.pin_code = self.generate_unique_pin_code(
                 length=settings.ROOM_TELEPHONY_PIN_LENGTH
             )
-        if not self.pk and not self.meeting_code:
-            self.meeting_code = self.generate_unique_meeting_code()
+        if not self.pk and not self.slug:
+            self.slug = self.generate_unique_slug()
         super().save(*args, **kwargs)
-
-    def clean_fields(self, exclude=None):
-        """
-        Automatically generate the slug from the name and make sure it does not look like a UUID.
-
-        We don't want any overlapping between the `slug` and the `id` fields because they can
-        both be used to get a room detail view on the API.
-        """
-        self.slug = slugify(self.name)
-        try:
-            uuid.UUID(self.slug)
-        except ValueError:
-            pass
-        else:
-            raise ValidationError({"name": f'Room name "{self.name:s}" is reserved.'})
-
-        super().clean_fields(exclude=exclude)
 
     @property
     def is_public(self):
@@ -491,19 +466,19 @@ class Room(Resource):
         return self.ended_at is not None
 
     @staticmethod
-    def generate_unique_meeting_code(length=6, max_retries=10):
-        """Generate a unique numeric meeting code used to join the room."""
+    def generate_unique_slug(length=8, max_retries=10):
+        """Generate a unique numeric slug — the room's 8-digit meeting code."""
 
         max_value = 10**length
 
         for _ in range(max_retries):
-            code = str(secrets.randbelow(max_value)).zfill(length)
-            if not Room.objects.filter(meeting_code=code).exists():
-                return code
+            slug = str(secrets.randbelow(max_value)).zfill(length)
+            if not Room.objects.filter(slug=slug).exists():
+                return slug
 
         # Log a warning as a temporary measure until backend observability is implemented.
         logger.warning(
-            "Failed to generate unique meeting code of length %s after %s attempts",
+            "Failed to generate unique room slug of length %s after %s attempts",
             length,
             max_retries,
         )

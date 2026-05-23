@@ -106,8 +106,7 @@ refresh_token=<refresh_token>
 {
   "id": "a1b2c3d4-...-ef12",
   "name": "我的会议",
-  "slug": "wo-de-hui-yi",
-  "meeting_code": "048213",
+  "slug": "04821357",
   "configuration": {},
   "access_level": "public",
   "pin_code": null,
@@ -123,8 +122,7 @@ refresh_token=<refresh_token>
 |---|---|
 | id | 房间 UUID |
 | name | 房间名 |
-| slug | 由房间名派生，**不可作输入会议号用** |
-| meeting_code | **6 位数字会议号** —— 分享、加入用这个 |
+| slug | **8 位数字会议号** —— 服务端生成、唯一；分享、加入用这个 |
 | created_at | 创建时间 |
 | closed_at | 房间结束时间 ISO 串；未结束为 `""` |
 | accesses | 权限记录，仅 admin/owner 可见 |
@@ -139,13 +137,13 @@ refresh_token=<refresh_token>
 { "name": "我的会议" }
 ```
 
-成功 `201`：返回 Room 对象。`meeting_code` 由服务端生成，分享给他人加入。
+成功 `201`：返回 Room 对象。`slug`（8 位数字会议号）由服务端生成，分享给他人加入。
 
 ### 2.2 获取房间信息
 
 `GET /api/v1.0/rooms/{idOrCode}/?username=<显示名>`
 
-`{idOrCode}` 可为房间 UUID、slug 或 **6 位 meeting_code**。`username` 用于 LiveKit 内的显示名。
+`{idOrCode}` 可为房间 UUID 或 **8 位数字 slug（会议号）**。`username` 用于 LiveKit 内的显示名。
 
 成功 `200`：返回 Room 对象，用 `livekit.url` + `livekit.token` 接入 LiveKit。
 
@@ -272,8 +270,8 @@ User 对象（`GET /users/me/` 等返回）：
 
 | 项 | jusi | we-meet |
 |---|---|---|
-| 会议号 | `slug` 即 6 位数字 | `slug` 为房名派生；6 位数字在 `meeting_code` |
+| 会议号 | `slug` 即 6 位数字 | `slug` 即 **8 位数字**（服务端生成、唯一） |
 | 头像/封面桶 | 公共读，URL 永久 | **私有桶**，URL 为短期签名 URL |
 | upload-url 响应 | 含 `public_url` | **不含** `public_url` |
 
-Android 端已适配：`RoomDto` 把 `meeting_code` 映射到 `slug` 字段；`UploadUrlResponse` 删除 `public_url`；头像/封面用稳定缓存 key。
+Android 端已适配：`RoomDto` 直接用 `slug`（8 位数字）作会议号；`UploadUrlResponse` 删除 `public_url`；头像/封面用稳定缓存 key。

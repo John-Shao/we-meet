@@ -147,13 +147,11 @@ class ListRoomSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
-            "slug",
-            "meeting_code",
-            "access_level",
+            "slug",            "access_level",
             "created_at",
             "closed_at",
         ]
-        read_only_fields = ["id", "slug", "meeting_code", "created_at"]
+        read_only_fields = ["id", "slug", "created_at"]
 
     def get_closed_at(self, instance):
         """Return the room end time as an ISO string, or '' while still open."""
@@ -170,15 +168,13 @@ class RoomSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
-            "slug",
-            "meeting_code",
-            "configuration",
+            "slug",            "configuration",
             "access_level",
             "pin_code",
             "created_at",
             "closed_at",
         ]
-        read_only_fields = ["id", "slug", "meeting_code", "pin_code", "created_at"]
+        read_only_fields = ["id", "slug", "pin_code", "created_at"]
 
     def get_closed_at(self, instance):
         """Return the room end time as an ISO string, or '' while still open."""
