@@ -207,9 +207,19 @@ def _token_exchange(user_id: str, sa_token: str) -> dict | None:
 
 
 class MobileAuthThrottle(AnonRateThrottle):
-    """10 requests/min per IP for mobile auth endpoints."""
+    """30 requests/min per IP for mobile auth endpoints.
 
-    rate = "10/min"
+    `scope` is explicit so this throttle's cache bucket doesn't collide with
+    other AnonRateThrottle subclasses (qr-login/*), which would otherwise
+    share `throttle_anon_<ip>` and starve each other — the web QR panel
+    polls every 2s = 30 req/min on its own.
+
+    Rate ceiling is the SMS gateway anyway (per-phone Volcengine quota);
+    this throttle is just a coarse anti-abuse cap by IP.
+    """
+
+    scope = "mobile_auth"
+    rate = "30/min"
 
 
 class SendOtpView(APIView):

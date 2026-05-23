@@ -99,20 +99,28 @@ def _user_display(user_id: str, sa_token: str) -> dict:
 
 
 class QrInitiateThrottle(AnonRateThrottle):
-    """Cap QR generation per IP — the only anonymous-creating endpoint."""
+    """Cap QR generation per IP — the only anonymous-creating endpoint.
 
+    Explicit `scope` keeps this throttle's cache bucket separate from other
+    AnonRateThrottle subclasses (mobile_auth, qr_poll); without it they all
+    share `throttle_anon_<ip>` and starve each other.
+    """
+
+    scope = "qr_initiate"
     rate = "30/min"
 
 
 class QrPollThrottle(AnonRateThrottle):
     """Web polls every 2s; allow ~1 req/s of headroom."""
 
+    scope = "qr_poll"
     rate = "120/min"
 
 
 class QrUserThrottle(UserRateThrottle):
     """App-side scan/confirm/cancel."""
 
+    scope = "qr_user"
     rate = "60/min"
 
 
