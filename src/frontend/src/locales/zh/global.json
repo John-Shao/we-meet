@@ -20,6 +20,17 @@
     "proconnectLinkLabel": "什么是 ProConnect？- 新标签页",
     "proconnectLink": "什么是 ProConnect？"
   },
+  "qrLogin": {
+    "hint": "请用 we-meet App 扫码登录",
+    "scanned": "扫码成功",
+    "awaitingConfirm": "请在 App 上确认登录",
+    "expired": "二维码已过期",
+    "cancelled": "已取消登录",
+    "refresh": "刷新二维码",
+    "error": {
+      "initFailed": "二维码生成失败，请稍后重试"
+    }
+  },
   "phoneLogin": {
     "title": "手机号登录",
     "phoneLabel": "手机号",

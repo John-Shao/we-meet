@@ -8,6 +8,10 @@
   "joinInputSubmit": "Join meeting",
   "joinMeeting": "Join a meeting",
   "joinMeetingTipContent": "You can join a meeting by pasting its full link in the browser's address bar.",
+  "loginPanels": {
+    "qrTitle": "Scan to sign in",
+    "phoneTitle": "SMS code"
+  },
   "joinMeetingTipHeading": "Did you know?",
   "loginToCreateMeeting": "Login to create a meeting",
   "moreLinkLabel": "Learn more about {{appTitle}} - new tab",

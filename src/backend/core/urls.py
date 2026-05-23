@@ -9,6 +9,13 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
 from core.api.mobile_auth import SendOtpView, VerifyOtpView
+from core.api.qr_login import (
+    QrCancelView,
+    QrConfirmView,
+    QrInitiateView,
+    QrPollView,
+    QrScanView,
+)
 from core.external_api import viewsets as external_viewsets
 
 # - Main endpoints
@@ -57,6 +64,12 @@ urlpatterns = [
         VerifyOtpView.as_view(),
         name="mobile-verify-otp",
     ),
+    # QR-code login: web shows the QR, App scans + confirms, web polls.
+    path("api/qr-login/initiate/", QrInitiateView.as_view(), name="qr-login-initiate"),
+    path("api/qr-login/poll/", QrPollView.as_view(), name="qr-login-poll"),
+    path("api/qr-login/scan/", QrScanView.as_view(), name="qr-login-scan"),
+    path("api/qr-login/confirm/", QrConfirmView.as_view(), name="qr-login-confirm"),
+    path("api/qr-login/cancel/", QrCancelView.as_view(), name="qr-login-cancel"),
 ]
 
 if settings.EXTERNAL_API_ENABLED:

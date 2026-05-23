@@ -20,6 +20,17 @@
     "proconnectLinkLabel": "What is ProConnect? - new tab",
     "proconnectLink": "What is ProConnect?"
   },
+  "qrLogin": {
+    "hint": "Scan with the we-meet app",
+    "scanned": "Scanned",
+    "awaitingConfirm": "Confirm sign-in on the app",
+    "expired": "QR code expired",
+    "cancelled": "Sign-in cancelled",
+    "refresh": "Refresh QR code",
+    "error": {
+      "initFailed": "Could not generate QR code, please retry"
+    }
+  },
   "phoneLogin": {
     "title": "Sign in with phone",
     "phoneLabel": "Phone number",

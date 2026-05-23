@@ -1,11 +1,16 @@
 import { useTranslation } from 'react-i18next'
 import { DialogTrigger, MenuItem, Menu as RACMenu } from 'react-aria-components'
-import { Button, Menu } from '@/primitives'
+import { Button, H, Menu } from '@/primitives'
 import { styled } from '@/styled-system/jsx'
 import { navigateTo } from '@/navigation/navigateTo'
 import { Screen } from '@/layout/Screen'
 import { generateRoomId, useCreateRoom } from '@/features/rooms'
-import { PhoneLoginDialog, useUser, UserAware } from '@/features/auth'
+import {
+  PhoneLoginPanel,
+  QrLoginPanel,
+  useUser,
+  UserAware,
+} from '@/features/auth'
 import { JoinMeetingDialog } from '../components/JoinMeetingDialog'
 import { RiAddLine, RiLink } from '@remixicon/react'
 import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
@@ -145,6 +150,65 @@ const IntroText = styled('div', {
   },
 })
 
+/**
+ * Douyin-style dual-pane login: QR on the left, phone OTP on the right.
+ * Replaces the "Login / Join meeting" buttons in the logged-out home — both
+ * create and join require a signed-in user now (the App scan flow and the
+ * phone OTP flow land on the same user record on the backend).
+ */
+const LoginPanels = () => {
+  const { t } = useTranslation('home')
+  return (
+    <div
+      className={css({
+        display: 'flex',
+        gap: 1.5,
+        flexDirection: { base: 'column', xsm: 'row' },
+        alignItems: { base: 'center', xsm: 'flex-start' },
+        marginBottom: '1rem',
+      })}
+    >
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 0.5,
+        })}
+      >
+        <H lvl={2} margin={false}>
+          {t('loginPanels.qrTitle')}
+        </H>
+        <QrLoginPanel />
+      </div>
+      <div
+        className={css({
+          width: '1px',
+          alignSelf: 'stretch',
+          backgroundColor: 'greyscale.500',
+          display: { base: 'none', xsm: 'block' },
+        })}
+        aria-hidden
+      />
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.5,
+          minWidth: { xsm: '18rem' },
+          width: '100%',
+          maxWidth: '22rem',
+        })}
+      >
+        <H lvl={2} margin={false}>
+          {t('loginPanels.phoneTitle')}
+        </H>
+        <PhoneLoginPanel />
+      </div>
+    </div>
+  )
+}
+
 export const Home = () => {
   const { t } = useTranslation('home')
   const { isLoggedIn } = useUser()
@@ -190,15 +254,15 @@ export const Home = () => {
           <LeftColumn>
             <Heading>{t('heading')}</Heading>
             <IntroText>{t('intro')}</IntroText>
-            <div
-              className={css({
-                display: 'flex',
-                gap: 0.5,
-                flexDirection: { base: 'column', xsm: 'row' },
-                alignItems: { base: 'center', xsm: 'items-start' },
-              })}
-            >
-              {isLoggedIn ? (
+            {isLoggedIn ? (
+              <div
+                className={css({
+                  display: 'flex',
+                  gap: 0.5,
+                  flexDirection: { base: 'column', xsm: 'row' },
+                  alignItems: { base: 'center', xsm: 'items-start' },
+                })}
+              >
                 <Menu>
                   <Button variant="primary" data-attr="create-meeting">
                     {t('createMeeting')}
@@ -238,34 +302,20 @@ export const Home = () => {
                     </MenuItem>
                   </RACMenu>
                 </Menu>
-              ) : (
-                // Phone OTP is the primary (and only visible) login path on
-                // the home page. The OIDC LoginButton stays as the component
-                // used by Header / Settings / Recording flows for users who
-                // arrive via a deep link, but here a single "登录" button
-                // opens the phone-login dialog.
+                {/* Logged-in users get the standard join entry — anonymous
+                    join is gated below (the button doesn't render at all
+                    when isLoggedIn is false). */}
                 <DialogTrigger>
-                  <Button variant="primary" data-attr="phone-login">
-                    {t('login.buttonLabel', { ns: 'global' })}
-                  </Button>
-                  <PhoneLoginDialog />
+                  <Button variant="secondary">{t('joinMeeting')}</Button>
+                  <JoinMeetingDialog />
                 </DialogTrigger>
-              )}
-              <DialogTrigger>
-                <Button
-                  variant="secondary"
-                  style={{
-                    height:
-                      !isLoggedIn && data?.use_proconnect_button
-                        ? '56px'
-                        : undefined, // Temporary, Align with ProConnect Button fixed height
-                  }}
-                >
-                  {t('joinMeeting')}
-                </Button>
-                <JoinMeetingDialog />
-              </DialogTrigger>
-            </div>
+              </div>
+            ) : (
+              // Douyin-style dual-pane login: QR on the left, phone OTP on
+              // the right. "Join meeting" is hidden here on purpose — both
+              // create and join require a signed-in user now.
+              <LoginPanels />
+            )}
             <Separator />
             <MoreLink />
           </LeftColumn>

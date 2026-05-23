@@ -3,3 +3,5 @@ export { useSyncUserPreferencesWithBackend } from './api/useSyncUserPreferencesW
 export { authUrl } from './utils/authUrl'
 export { UserAware } from './components/UserAware'
 export { PhoneLoginDialog } from './components/PhoneLoginDialog'
+export { PhoneLoginPanel } from './components/PhoneLoginPanel'
+export { QrLoginPanel } from './components/QrLoginPanel'

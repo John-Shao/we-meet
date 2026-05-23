@@ -8,6 +8,10 @@
   "joinInputSubmit": "加入会议",
   "joinMeeting": "加入会议",
   "joinMeetingTipContent": "您可以将完整的会议链接粘贴到浏览器地址栏中加入会议。",
+  "loginPanels": {
+    "qrTitle": "扫码登录",
+    "phoneTitle": "验证码登录"
+  },
   "joinMeetingTipHeading": "您知道吗？",
   "loginToCreateMeeting": "登录以创建会议",
   "moreLinkLabel": "了解更多关于 {{appTitle}} 的信息 - 新标签页",
