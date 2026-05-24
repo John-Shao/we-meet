@@ -75,6 +75,24 @@ secret_or() {
   fi
 }
 
+# ---- 依赖检查: yq ----
+# VOLC_CR_REGISTRY 未通过环境变量设置时, 需要 yq 从 values.secrets.yaml 读取.
+if [[ -z "${VOLC_CR_REGISTRY:-}" ]] && ! command -v yq >/dev/null 2>&1; then
+  die "$(printf '%s\n' \
+    "缺少依赖: yq (YAML 命令行解析器) 未安装." \
+    "VOLC_CR_REGISTRY 未通过环境变量设置, 需要用 yq 从以下文件读取 .image.credentials.registry:" \
+    "  ${SECRETS}" \
+    "" \
+    "快速安装 yq v4 (Go 版):" \
+    "  Linux (amd64):   sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && sudo chmod +x /usr/local/bin/yq" \
+    "  Linux (arm64):   sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_arm64 && sudo chmod +x /usr/local/bin/yq" \
+    "  macOS:           brew install yq" \
+    "" \
+    "或者跳过 yq, 直接设置环境变量:" \
+    "  export VOLC_CR_REGISTRY=<火山 CR 域名>" \
+    "  bash deploy/aliyun/build.sh backend")"
+fi
+
 VOLC_CR_REGISTRY="$(secret_or "${VOLC_CR_REGISTRY:-}" '.image.credentials.registry')"
 : "${VOLC_CR_REGISTRY:=your-cr.cr-domain.com}"
 : "${VOLC_CR_NAMESPACE:=we-meet}"
