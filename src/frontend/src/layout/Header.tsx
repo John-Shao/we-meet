@@ -161,7 +161,7 @@ export const Header = () => {
                 <Menu>
                   <Button size="sm" variant="secondaryText">
                     <VisualOnlyTooltip
-                      tooltip={loggedInTooltip}
+                      tooltip={loggedInAriaLabel}
                       ariaLabel={loggedInAriaLabel}
                       tooltipPosition="bottom"
                     >
