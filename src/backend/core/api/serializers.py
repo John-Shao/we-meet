@@ -162,6 +162,7 @@ class RoomSerializer(serializers.ModelSerializer):
     """Serialize Room model for the API."""
 
     closed_at = serializers.SerializerMethodField()
+    owner = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Room
@@ -173,12 +174,23 @@ class RoomSerializer(serializers.ModelSerializer):
             "pin_code",
             "created_at",
             "closed_at",
+            "owner",
         ]
-        read_only_fields = ["id", "slug", "pin_code", "created_at"]
+        read_only_fields = ["id", "slug", "pin_code", "created_at", "owner"]
 
     def get_closed_at(self, instance):
         """Return the room end time as an ISO string, or '' while still open."""
         return instance.ended_at.isoformat() if instance.ended_at else ""
+
+    def get_owner(self, instance):
+        """Return the display name of the room owner, or None."""
+        owner_access = instance.accesses.filter(
+            role=models.RoleChoices.OWNER
+        ).select_related("user").first()
+        if owner_access is None:
+            return None
+        user = owner_access.user
+        return user.full_name or user.short_name or user.email or None
 
     def validate_configuration(self, value):
         """Validate room configuration against the RoomConfiguration schema."""
