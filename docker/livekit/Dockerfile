@@ -1,4 +1,4 @@
-FROM livekit/livekit-server:v1.9.4
+FROM livekit/livekit-server:v1.12.0
 
 # We inject the nip.io certificate manually because the livekit chart doesn't support volume mounting
 COPY rootCA.pem /etc/ssl/certs/
