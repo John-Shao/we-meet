@@ -199,6 +199,8 @@
       "stop": "Stop screen share"
     },
     "leave": "Leave",
+    "leaveRoom": "Leave meeting",
+    "endRoom": "End meeting",
     "participants": {
       "open": "Hide everyone",
       "closed": "See everyone",

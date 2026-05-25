@@ -199,6 +199,8 @@
       "stop": "Arrêter le partage"
     },
     "leave": "Quitter",
+    "leaveRoom": "Quitter la réunion",
+    "endRoom": "Terminer la réunion",
     "participants": {
       "open": "Masquer les participants",
       "closed": "Afficher les participants",

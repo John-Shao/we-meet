@@ -199,6 +199,8 @@
       "stop": "Bildschirmfreigabe beenden"
     },
     "leave": "Verlassen",
+    "leaveRoom": "Besprechung verlassen",
+    "endRoom": "Besprechung beenden",
     "participants": {
       "open": "Alle ausblenden",
       "closed": "Alle anzeigen",

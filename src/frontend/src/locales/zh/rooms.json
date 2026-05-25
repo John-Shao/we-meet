@@ -199,6 +199,8 @@
       "stop": "停止共享屏幕"
     },
     "leave": "离开",
+    "leaveRoom": "离开会议",
+    "endRoom": "关闭会议",
     "participants": {
       "open": "隐藏参会者",
       "closed": "查看参会者",

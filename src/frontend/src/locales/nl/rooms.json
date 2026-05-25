@@ -199,6 +199,8 @@
       "stop": "Stop schermdelen"
     },
     "leave": "Vertrekken",
+    "leaveRoom": "Vergadering verlaten",
+    "endRoom": "Vergadering beëindigen",
     "participants": {
       "open": "Verberg iedereen",
       "closed": "Toon iedereen",
