@@ -27,4 +27,6 @@ export type ApiRoom = {
   access_level: ApiAccessLevel
   livekit?: ApiLiveKit
   configuration?: RoomConfiguration
+  // ISO timestamp set when the owner ended the room; empty string while still open.
+  closed_at?: string
 }

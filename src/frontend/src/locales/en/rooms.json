@@ -80,6 +80,10 @@
     "timeoutInvite": {
       "title": "You cannot join this call",
       "body": "No one responded to your request"
+    },
+    "ended": {
+      "title": "Meeting ended",
+      "body": "This meeting has been ended by the host and can no longer be joined."
     }
   },
   "leaveRoomPrompt": "This will make you leave the meeting.",

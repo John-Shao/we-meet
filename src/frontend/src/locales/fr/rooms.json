@@ -80,6 +80,10 @@
     "timeoutInvite": {
       "title": "Vous ne pouvez pas participer à cet appel",
       "body": "Personne n'a répondu à votre demande de participation à l'appel"
+    },
+    "ended": {
+      "title": "Réunion terminée",
+      "body": "Cette réunion a été terminée par l'hôte et ne peut plus être rejointe."
     }
   },
   "leaveRoomPrompt": "Revenir à l'accueil vous fera quitter la réunion.",

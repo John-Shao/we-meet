@@ -80,6 +80,10 @@
     "timeoutInvite": {
       "title": "无法加入此通话",
       "body": "无人响应您的请求"
+    },
+    "ended": {
+      "title": "会议已结束",
+      "body": "此会议已被主持人关闭，无法再加入。"
     }
   },
   "leaveRoomPrompt": "这将使您离开会议。",

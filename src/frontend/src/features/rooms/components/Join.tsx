@@ -321,7 +321,7 @@ export const Join = ({
     enterRoom()
   }
 
-  const { status, startWaiting } = useLobby({
+  const { status, startWaiting, markEnded } = useLobby({
     roomId,
     username,
     onAccepted: handleAccepted,
@@ -331,6 +331,14 @@ export const Join = ({
 
   const handleSubmit = async () => {
     const { data } = await refetchRoom()
+
+    // An owner-ended room still serializes 200 OK but drops `livekit`. Show
+    // the "ended" message instead of falling through to the lobby/waiting
+    // branch (which would spin on "waiting for host" indefinitely).
+    if (data?.closed_at) {
+      markEnded()
+      return
+    }
 
     if (!data?.livekit) {
       // Display a message to inform the user that by logging in, they won't have to wait for room entry approval.
@@ -384,6 +392,18 @@ export const Join = ({
 
   const renderWaitingState = () => {
     switch (status) {
+      case ApiLobbyStatus.ENDED:
+        return (
+          <VStack alignItems="center" textAlign="center">
+            <H lvl={1} margin={false} centered>
+              {t('ended.title')}
+            </H>
+            <Text as="p" variant="note">
+              {t('ended.body')}
+            </Text>
+          </VStack>
+        )
+
       case ApiLobbyStatus.TIMEOUT:
         return (
           <VStack alignItems="center" textAlign="center">

@@ -80,6 +80,10 @@
     "timeoutInvite": {
       "title": "U kunt niet deelnemen aan dit gesprek",
       "body": "Niemand heeft gereageerd op uw verzoek om deel te nemen aan het gesprek"
+    },
+    "ended": {
+      "title": "Vergadering beëindigd",
+      "body": "Deze vergadering is door de host beëindigd en kan niet meer worden bijgewoond."
     }
   },
   "leaveRoomPrompt": "Dat zal u de vergadering doen verlaten.",

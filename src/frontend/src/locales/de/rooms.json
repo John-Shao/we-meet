@@ -80,6 +80,10 @@
     "timeoutInvite": {
       "title": "Du kannst diesem Meeting nicht beitreten",
       "body": "Niemand hat auf deine Anfrage reagiert"
+    },
+    "ended": {
+      "title": "Besprechung beendet",
+      "body": "Diese Besprechung wurde vom Host beendet und kann nicht mehr beigetreten werden."
     }
   },
   "leaveRoomPrompt": "Hiermit verlässt du das Meeting.",
