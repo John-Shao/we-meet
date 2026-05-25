@@ -23,7 +23,7 @@ terminationGracePeriodSeconds: 18000
 # 仅是为了在 dev 环境注入 mkcert rootCA，生产环境用 Let's Encrypt 不需要。
 image:
   repository: livekit/livekit-server
-  tag: v1.7.2
+  tag: v1.12.0
   pullPolicy: IfNotPresent
 
 resources:
