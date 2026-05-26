@@ -1386,3 +1386,58 @@ class UserAIPreference(BaseModel):
     class Meta:
         verbose_name = _("user AI preference")
         verbose_name_plural = _("user AI preferences")
+
+
+# ---------------------------------------------------------------------------
+# Transcripts (字幕落表)
+#
+# One row per FINAL_TRANSCRIPT event from the multi_user_transcriber agent.
+# Used as the data source for RAG queries ("ask AI about this meeting") and
+# for downstream summary / action-item extraction. Interim transcripts are
+# never persisted — they are visual-only.
+# ---------------------------------------------------------------------------
+
+
+class Transcript(BaseModel):
+    """A single finalised speech utterance captured from a room."""
+
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name="transcripts",
+        verbose_name=_("room"),
+    )
+    speaker_identity = models.CharField(
+        _("speaker identity"),
+        max_length=128,
+        db_index=True,
+        help_text=_("LiveKit participant.identity at the time of speaking."),
+    )
+    speaker_name = models.CharField(
+        _("speaker name"),
+        max_length=128,
+        blank=True,
+        default="",
+        help_text=_("LiveKit participant.name (display name) at the time of speaking."),
+    )
+    text = models.TextField(_("text"))
+    language = models.CharField(
+        _("language"),
+        max_length=16,
+        blank=True,
+        default="",
+        help_text=_("ISO 639-1 language code reported by the STT engine."),
+    )
+    started_at = models.DateTimeField(_("speech started at"), db_index=True)
+    ended_at = models.DateTimeField(_("speech ended at"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("transcript")
+        verbose_name_plural = _("transcripts")
+        ordering = ("room", "started_at")
+        indexes = [
+            models.Index(fields=["room", "started_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.speaker_identity}: {self.text[:60]}"

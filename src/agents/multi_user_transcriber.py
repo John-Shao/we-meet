@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from lasuite.plugins import kyutai
@@ -25,6 +26,8 @@ from livekit.agents import (
 )
 from livekit.plugins import deepgram, silero
 
+from transcript_writer import TranscriptWriter
+
 load_dotenv()
 
 logger = logging.getLogger("transcriber")
@@ -46,6 +49,16 @@ def create_stt_provider():
         )
     elif STT_PROVIDER == "kyutai":
         _stt_instance = kyutai.STT(base_url=os.getenv("KYUTAI_STT_BASE_URL"))
+    elif STT_PROVIDER == "doubao":
+        # Doubao Seed-ASR — bigmodel streaming WebSocket protocol.
+        # Requires DOUBAO_ASR_APP_ID and DOUBAO_ASR_ACCESS_TOKEN.
+        from plugins.doubao_pipeline.stt import DoubaoSTT
+
+        _stt_instance = DoubaoSTT(
+            app_id=os.getenv("DOUBAO_ASR_APP_ID", ""),
+            access_token=os.getenv("DOUBAO_ASR_ACCESS_TOKEN", ""),
+            model_name=os.getenv("DOUBAO_ASR_MODEL", "bigmodel"),
+        )
     else:
         raise ValueError(f"Unknown STT_PROVIDER: {STT_PROVIDER}")
 
@@ -69,9 +82,10 @@ class Transcriber(Agent):
 class MultiUserTranscriber:
     """Manage transcription sessions for multiple room participants."""
 
-    def __init__(self, ctx: JobContext):
+    def __init__(self, ctx: JobContext, writer: TranscriptWriter):
         """Init multi user transcription agent."""
         self.ctx = ctx
+        self._writer = writer
         self._sessions: dict[str, AgentSession] = {}
         self._tasks: set[asyncio.Task] = set()
 
@@ -134,6 +148,36 @@ class MultiUserTranscriber:
             ),
         )
         await room_io.start()
+
+        # Persist FINAL transcripts to the backend. Best-effort: failures
+        # log but never crash the transcription session.
+        room_id = self.ctx.room.name
+        speaker_identity = participant.identity
+        speaker_name = participant.name or ""
+        writer = self._writer
+
+        def _on_user_input_transcribed(event):
+            if not getattr(event, "is_final", False):
+                return
+            text = getattr(event, "transcript", "") or ""
+            if not text.strip():
+                return
+            language = getattr(event, "language", "") or ""
+            task = asyncio.create_task(
+                writer.write(
+                    room_id=room_id,
+                    speaker_identity=speaker_identity,
+                    speaker_name=speaker_name,
+                    text=text,
+                    language=language,
+                    started_at=datetime.now(timezone.utc),
+                )
+            )
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
+
+        session.on("user_input_transcribed", _on_user_input_transcribed)
+
         await session.start(
             agent=Transcriber(
                 participant_identity=participant.identity,
@@ -149,7 +193,14 @@ class MultiUserTranscriber:
 
 async def entrypoint(ctx: JobContext):
     """Initialize and run the multi-user transcriber."""
-    transcriber = MultiUserTranscriber(ctx)
+    writer = TranscriptWriter.from_env()
+    if not writer.is_configured:
+        logger.warning(
+            "TranscriptWriter not configured "
+            "(AGENT_BACKEND_API_URL / AGENT_INTERNAL_API_TOKEN); "
+            "transcripts will NOT be persisted to the backend."
+        )
+    transcriber = MultiUserTranscriber(ctx, writer)
     transcriber.start()
 
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)

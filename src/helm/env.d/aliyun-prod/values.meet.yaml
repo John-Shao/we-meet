@@ -128,8 +128,8 @@ backend:
     SUMMARY_SERVICE_ENDPOINT: http://meet-summary:80/api/v1/tasks/
     # SUMMARY_SERVICE_API_TOKEN 来自 values.secrets.yaml
 
-    # Subtitles — 第一阶段关闭（agents 代码仅支持 deepgram/kyutai）
-    ROOM_SUBTITLE_ENABLED: "False"
+    # Subtitles — Sprint 2.0 启用：multi_user_transcriber 已切换 Doubao Seed-ASR
+    ROOM_SUBTITLE_ENABLED: "True"
 
     # Telephony / external app / addons — 默认全关
     ROOM_TELEPHONY_ENABLED: "False"
@@ -384,11 +384,11 @@ agentMetadata:
     - "metadata_collector.py"
     - "start"
 
-# ---- Subtitles / transcription agent — DISABLED v1 ----
-# 当前 upstream multi_user_transcriber.py 仅支持 deepgram / kyutai。
-# 第二阶段移植 doubao 自定义插件后再设 replicas: 1。
+# ---- Subtitles / transcription agent (Doubao Seed-ASR) ----
+# Sprint 2.0：STT_PROVIDER 切换到 doubao，副本启用，FINAL transcripts 通过
+# AGENT_BACKEND_API_URL + AGENT_INTERNAL_API_TOKEN 回写后端 Transcript 表。
 agentSubtitles:
-  replicas: 0
+  replicas: 1
   image:
     repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
     pullPolicy: Always
@@ -396,8 +396,14 @@ agentSubtitles:
   envVars:
     LIVEKIT_URL: https://livekit.we-meet.online/
     LIVEKIT_API_KEY: meet
-    ENABLE_SILERO_VAD: "false"
-    STT_PROVIDER: deepgram
+    # LIVEKIT_API_SECRET 来自 values.secrets.yaml
+    ENABLE_SILERO_VAD: "true"
+    STT_PROVIDER: doubao
+    DOUBAO_ASR_MODEL: bigmodel
+    # DOUBAO_ASR_APP_ID / DOUBAO_ASR_ACCESS_TOKEN 来自 values.secrets.yaml
+    # K8s 内部 service DNS — 后端 service 名 + 8000 端口
+    AGENT_BACKEND_API_URL: http://meet-backend:8000
+    # AGENT_INTERNAL_API_TOKEN 来自 values.secrets.yaml
   command:
     - "python"
     - "multi_user_transcriber.py"

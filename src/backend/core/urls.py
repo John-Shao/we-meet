@@ -8,6 +8,7 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
+from core.api.agent_internal import IngestTranscriptView
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.qr_login import (
     QrCancelView,
@@ -75,6 +76,13 @@ urlpatterns = [
     path("api/qr-login/scan/", QrScanView.as_view(), name="qr-login-scan"),
     path("api/qr-login/confirm/", QrConfirmView.as_view(), name="qr-login-confirm"),
     path("api/qr-login/cancel/", QrCancelView.as_view(), name="qr-login-cancel"),
+    # Internal API for agent workers (multi_user_transcriber, etc.).
+    # Authenticates via X-Agent-Token shared secret; NOT a public surface.
+    path(
+        "api/agent/transcripts/",
+        IngestTranscriptView.as_view(),
+        name="agent-ingest-transcript",
+    ),
 ]
 
 if settings.EXTERNAL_API_ENABLED:

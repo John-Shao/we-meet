@@ -453,3 +453,25 @@ class UserAIPreferenceAdmin(admin.ModelAdmin):
     search_fields = ("user__email", "user__full_name")
     autocomplete_fields = ("user", "profile", "voice", "prompt")
     readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(models.Transcript)
+class TranscriptAdmin(admin.ModelAdmin):
+    list_display = (
+        "room",
+        "speaker_identity",
+        "speaker_name",
+        "_text_preview",
+        "language",
+        "started_at",
+    )
+    list_filter = ("language",)
+    search_fields = ("text", "speaker_identity", "speaker_name", "room__name")
+    autocomplete_fields = ("room",)
+    readonly_fields = ("created_at", "updated_at")
+    date_hierarchy = "started_at"
+
+    def _text_preview(self, obj):
+        return (obj.text[:60] + "…") if len(obj.text) > 60 else obj.text
+
+    _text_preview.short_description = _("text")
