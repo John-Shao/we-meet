@@ -137,6 +137,12 @@ backend:
     ADDONS_ENABLED: "False"
     METADATA_COLLECTOR_ENABLED: "True"
 
+    # AI assistant (Qwen-Omni / Doubao S2S / Doubao Pipeline)
+    # Agent worker registered under AI_AGENT_NAME; provider routing happens
+    # via LiveKit job metadata. See agentAIAssistant block below.
+    AI_AGENT_NAME: "ai-agent"
+    AI_AGENT_ENABLED: "True"
+
     FRONTEND_USE_FRENCH_GOV_FOOTER: "False"
     FRONTEND_USE_PROCONNECT_BUTTON: "False"
     FRONTEND_SILENCE_LIVEKIT_DEBUG: "True"
@@ -396,3 +402,44 @@ agentSubtitles:
     - "python"
     - "multi_user_transcriber.py"
     - "start"
+
+# ---- AI assistant agent (Qwen-Omni / Doubao S2S / Doubao Pipeline) ----
+# Single worker, three architecturally distinct profiles dispatched via the
+# LiveKit job metadata's profile_code + architecture fields. Provider
+# credentials live in values.secrets.yaml.
+agentAIAssistant:
+  enabled: true
+  replicas: 1
+  image:
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
+    pullPolicy: Always
+    tag: "latest"
+  command:
+    - "python"
+    - "ai_assistant.py"
+    - "start"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 768Mi
+  envVars:
+    LIVEKIT_URL: https://livekit.we-meet.online/
+    LIVEKIT_API_KEY: meet
+    # LIVEKIT_API_SECRET 来自 values.secrets.yaml
+    AI_AGENT_NAME: "ai-agent"
+    FRAME_CAPTURE_INTERVAL: "1.0"
+    # Doubao pipeline's STT detects end-of-utterance on its own; Silero VAD
+    # would over-segment INGRESS streams. Matches jusi_meet doubao-ai-agent.
+    ENABLE_SILERO_VAD: "true"
+    # ---- Doubao Pipeline endpoints (non-secret IDs) ----
+    DOUBAO_VLM_ENDPOINT: "ep-20260316163504-s4sb8"
+    DOUBAO_LLM_ENDPOINT: "ep-20260316164223-46rsh"
+    # 以下所有 *_API_KEY / *_ACCESS_KEY / *_ACCESS_TOKEN / *_APP_ID
+    # 来自 values.secrets.yaml:
+    #   Qwen:           DASHSCOPE_API_KEY
+    #   Doubao S2S:     DOUBAO_S2S_APP_ID, DOUBAO_S2S_ACCESS_KEY
+    #   Doubao Pipeline: ARK_API_KEY, DOUBAO_ASR_APP_ID,
+    #                    DOUBAO_ASR_ACCESS_TOKEN, DOUBAO_TTS_APP_ID,
+    #                    DOUBAO_TTS_ACCESS_TOKEN
