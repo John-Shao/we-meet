@@ -1436,10 +1436,10 @@ class Transcript(BaseModel):
         verbose_name_plural = _("transcripts")
         ordering = ("room", "started_at")
         indexes = [
-            models.Index(
-                fields=["room", "started_at"],
-                name="core_transc_room_id_started_idx",
-            ),
+            # No explicit name → Django auto-generates one that respects the
+            # 30-char index-name limit. Don't add a fixed name back unless
+            # you also keep it short (≤30 chars).
+            models.Index(fields=["room", "started_at"]),
         ]
 
     def __str__(self) -> str:
