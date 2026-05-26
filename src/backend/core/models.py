@@ -1436,7 +1436,10 @@ class Transcript(BaseModel):
         verbose_name_plural = _("transcripts")
         ordering = ("room", "started_at")
         indexes = [
-            models.Index(fields=["room", "started_at"]),
+            models.Index(
+                fields=["room", "started_at"],
+                name="core_transc_room_id_started_idx",
+            ),
         ]
 
     def __str__(self) -> str:
