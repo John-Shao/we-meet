@@ -37,7 +37,9 @@ backend:
   envVars:
     DJANGO_CONFIGURATION: Production
     DJANGO_SETTINGS_MODULE: meet.settings
-    DJANGO_ALLOWED_HOSTS: meet.we-meet.online
+    # meet-backend 是 K8s service DNS — agent worker 在集群内通过它写
+    # transcripts，必须在 ALLOWED_HOSTS 中允许，否则 Django 返回 400。
+    DJANGO_ALLOWED_HOSTS: meet.we-meet.online,meet-backend
     DJANGO_CSRF_TRUSTED_ORIGINS: https://meet.we-meet.online
     DJANGO_SILENCED_SYSTEM_CHECKS: security.W004,security.W008
     # DJANGO_SECRET_KEY 来自 values.secrets.yaml
