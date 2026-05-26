@@ -14,7 +14,7 @@ import uuid
 import numpy as np
 import websockets
 
-from plugins.doubao_s2s_omni import protocol
+from plugins.doubao_s2s_realtime import protocol
 
 logger = logging.getLogger("doubao-s2s-client")
 

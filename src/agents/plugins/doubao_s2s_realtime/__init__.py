@@ -1,6 +1,6 @@
 """Volcengine Doubao S2S Realtime client plugin."""
 
-from plugins.doubao_s2s_omni.s2s_client import (
+from plugins.doubao_s2s_realtime.s2s_client import (
     DEFAULT_BOT_NAME,
     DEFAULT_MODEL,
     DEFAULT_SPEAKING_STYLE,

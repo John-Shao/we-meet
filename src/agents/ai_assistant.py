@@ -210,7 +210,7 @@ def _build_qwen_bridge(omni: dict, voice: str | None, prompt_content: str | None
 
 def _build_doubao_bridge(omni: dict, voice: str | None, prompt_content: str | None):
     """Build a DoubaoS2SClient adapter from the resolved omni model info."""
-    from plugins.doubao_s2s_omni import (
+    from plugins.doubao_s2s_realtime import (
         DEFAULT_BOT_NAME,
         DEFAULT_MODEL,
         DEFAULT_SPEAKING_STYLE,
