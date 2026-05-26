@@ -710,11 +710,11 @@ class Base(Configuration):
     AGENT_INTERNAL_API_TOKEN = SecretFileValue(
         None, environ_name="AGENT_INTERNAL_API_TOKEN", environ_prefix=None
     )
-    # Base URL the agent workers use to reach this backend. In-cluster this is
-    # the K8s service DNS (e.g. http://meet-backend:8000); locally typically
-    # http://host.docker.internal:8000.
+    # Base URL the agent workers use to reach this backend. In-cluster this
+    # is the K8s service DNS — meet-backend's service port is 80, so no
+    # explicit port is needed. Local dev typically http://host.docker.internal:8000.
     AGENT_BACKEND_API_URL = values.Value(
-        "http://meet-backend:8000",
+        "http://meet-backend",
         environ_name="AGENT_BACKEND_API_URL",
         environ_prefix=None,
     )

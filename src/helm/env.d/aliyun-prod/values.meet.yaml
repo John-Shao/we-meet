@@ -401,8 +401,8 @@ agentSubtitles:
     STT_PROVIDER: doubao
     DOUBAO_ASR_MODEL: bigmodel
     # DOUBAO_ASR_APP_ID / DOUBAO_ASR_ACCESS_TOKEN 来自 values.secrets.yaml
-    # K8s 内部 service DNS — 后端 service 名 + 8000 端口
-    AGENT_BACKEND_API_URL: http://meet-backend:8000
+    # K8s 内部 service DNS — meet-backend service 监听 80 端口
+    AGENT_BACKEND_API_URL: http://meet-backend
     # AGENT_INTERNAL_API_TOKEN 来自 values.secrets.yaml
   command:
     - "python"
