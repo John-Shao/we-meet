@@ -1,0 +1,20 @@
+{
+  "toggle": {
+    "active": "AI assistant is in the meeting (click to inspect/stop)",
+    "inactive": "Invite the AI assistant"
+  },
+  "panel": {
+    "title": "AI Assistant",
+    "statusActive": "The AI assistant is currently in the meeting.",
+    "statusInactive": "The AI assistant is not in the meeting yet. Configure it and press Start to invite it.",
+    "provider": "Provider",
+    "voice": "Voice",
+    "prompt": "Prompt template",
+    "promptDefault": "Default (general assistant)",
+    "start": "Start",
+    "starting": "Starting...",
+    "stop": "Stop",
+    "stopping": "Stopping...",
+    "hint": "The assistant joins as a virtual participant. It hears you, sees your camera or shared screen, and replies with synthesized speech."
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "toggle": {
+    "active": "L'assistant IA est dans la réunion (cliquer pour gérer)",
+    "inactive": "Inviter l'assistant IA"
+  },
+  "panel": {
+    "title": "Assistant IA",
+    "statusActive": "L'assistant IA est actuellement dans la réunion.",
+    "statusInactive": "L'assistant IA n'est pas encore dans la réunion. Configurez-le puis cliquez sur Démarrer.",
+    "provider": "Fournisseur",
+    "voice": "Voix",
+    "prompt": "Modèle de prompt",
+    "promptDefault": "Par défaut (assistant général)",
+    "start": "Démarrer",
+    "starting": "Démarrage...",
+    "stop": "Arrêter",
+    "stopping": "Arrêt...",
+    "hint": "L'assistant rejoint la réunion en tant que participant virtuel. Il vous entend, voit votre caméra ou votre écran partagé et répond avec une voix synthétisée."
+  }
+}

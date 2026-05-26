@@ -342,3 +342,114 @@ class ApplicationAdmin(admin.ModelAdmin):
         return _("No scopes")
 
     get_scopes_display.short_description = _("Scopes")
+
+
+# ---------------------------------------------------------------------------
+# AI assistant catalog
+# ---------------------------------------------------------------------------
+
+
+class AIVoiceInline(admin.TabularInline):
+    """Inline voices on the AIModel page (TTS / Omni models only)."""
+
+    model = models.AIVoice
+    extra = 0
+    fields = ("value", "label", "sort_order", "is_active")
+
+
+@admin.register(models.AIVendor)
+class AIVendorAdmin(admin.ModelAdmin):
+    list_display = ("code", "display_name", "sort_order", "is_active")
+    list_editable = ("sort_order", "is_active")
+    search_fields = ("code", "display_name")
+
+
+@admin.register(models.AIModel)
+class AIModelAdmin(admin.ModelAdmin):
+    list_display = (
+        "code",
+        "vendor",
+        "capability",
+        "display_name",
+        "api_key_env",
+        "sort_order",
+        "is_active",
+    )
+    list_filter = ("vendor", "capability", "is_active")
+    list_editable = ("sort_order", "is_active")
+    search_fields = ("code", "display_name")
+    autocomplete_fields = ("vendor",)
+    inlines = (AIVoiceInline,)
+
+
+@admin.register(models.AIPromptCategory)
+class AIPromptCategoryAdmin(admin.ModelAdmin):
+    list_display = ("code", "label", "sort_order", "is_active")
+    list_editable = ("sort_order", "is_active")
+    search_fields = ("code", "label")
+
+
+@admin.register(models.AIPrompt)
+class AIPromptAdmin(admin.ModelAdmin):
+    list_display = ("label", "category", "sort_order", "is_active")
+    list_filter = ("category", "is_active")
+    list_editable = ("sort_order", "is_active")
+    search_fields = ("label", "content")
+    autocomplete_fields = ("category",)
+
+
+@admin.register(models.AIVoice)
+class AIVoiceAdmin(admin.ModelAdmin):
+    list_display = ("value", "label", "model", "sort_order", "is_active")
+    list_filter = ("model__vendor", "model__capability", "is_active")
+    list_editable = ("sort_order", "is_active")
+    search_fields = ("value", "label", "model__code")
+    autocomplete_fields = ("model",)
+
+
+@admin.register(models.AIAgentProfile)
+class AIAgentProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        "code",
+        "display_name",
+        "architecture",
+        "_models_summary",
+        "sort_order",
+        "is_active",
+    )
+    list_filter = ("architecture", "is_active")
+    list_editable = ("sort_order", "is_active")
+    search_fields = ("code", "display_name")
+    autocomplete_fields = (
+        "stt_model",
+        "tts_model",
+        "vlm_model",
+        "llm_model",
+        "omni_model",
+        "default_voice",
+        "default_prompt",
+    )
+    fieldsets = (
+        (None, {"fields": ("code", "display_name", "architecture", "sort_order", "is_active")}),
+        (_("Models"), {"fields": ("stt_model", "vlm_model", "llm_model", "tts_model", "omni_model")}),
+        (_("Defaults"), {"fields": ("default_voice", "default_prompt")}),
+    )
+
+    def _models_summary(self, obj):
+        parts = []
+        for cap in ("stt", "vlm", "llm", "tts", "omni"):
+            model = getattr(obj, f"{cap}_model", None)
+            if model:
+                parts.append(f"{cap}: {model.code}")
+        return " · ".join(parts) or "-"
+
+    _models_summary.short_description = _("models")
+
+
+@admin.register(models.UserAIPreference)
+class UserAIPreferenceAdmin(admin.ModelAdmin):
+    list_display = ("user", "profile", "voice", "prompt", "updated_at")
+    list_filter = ("profile",)
+    search_fields = ("user__email", "user__full_name")
+    autocomplete_fields = ("user", "profile", "voice", "prompt")
+    readonly_fields = ("created_at", "updated_at")

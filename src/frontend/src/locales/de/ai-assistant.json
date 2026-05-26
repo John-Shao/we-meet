@@ -1,0 +1,20 @@
+{
+  "toggle": {
+    "active": "KI-Assistent ist im Meeting (zum Verwalten klicken)",
+    "inactive": "KI-Assistenten einladen"
+  },
+  "panel": {
+    "title": "KI-Assistent",
+    "statusActive": "Der KI-Assistent ist derzeit im Meeting.",
+    "statusInactive": "Der KI-Assistent ist noch nicht im Meeting. Konfigurieren und auf „Starten“ klicken.",
+    "provider": "Anbieter",
+    "voice": "Stimme",
+    "prompt": "Prompt-Vorlage",
+    "promptDefault": "Standard (allgemeiner Assistent)",
+    "start": "Starten",
+    "starting": "Wird gestartet...",
+    "stop": "Stoppen",
+    "stopping": "Wird gestoppt...",
+    "hint": "Der Assistent tritt als virtueller Teilnehmer bei, hört Sie, sieht Ihre Kamera oder Bildschirmfreigabe und antwortet per synthetisierter Stimme."
+  }
+}

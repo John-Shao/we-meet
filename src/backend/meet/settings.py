@@ -703,6 +703,46 @@ class Base(Configuration):
     LIVEKIT_VERIFY_SSL = values.BooleanValue(
         True, environ_name="LIVEKIT_VERIFY_SSL", environ_prefix=None
     )
+
+    # AI assistant agent (Qwen-Omni / Doubao S2S). The same agent_name is used
+    # for both providers; the worker routes by provider via job metadata.
+    AI_AGENT_NAME = values.Value(
+        "ai-agent", environ_name="AI_AGENT_NAME", environ_prefix=None
+    )
+    AI_AGENT_ENABLED = values.BooleanValue(
+        False, environ_name="AI_AGENT_ENABLED", environ_prefix=None
+    )
+    DASHSCOPE_API_KEY = SecretFileValue(
+        None, environ_name="DASHSCOPE_API_KEY", environ_prefix=None
+    )
+    DOUBAO_S2S_APP_ID = SecretFileValue(
+        None, environ_name="DOUBAO_S2S_APP_ID", environ_prefix=None
+    )
+    DOUBAO_S2S_ACCESS_KEY = SecretFileValue(
+        None, environ_name="DOUBAO_S2S_ACCESS_KEY", environ_prefix=None
+    )
+    # Doubao component pipeline (STT + VLM/LLM dual-race + TTS)
+    DOUBAO_ASR_APP_ID = SecretFileValue(
+        None, environ_name="DOUBAO_ASR_APP_ID", environ_prefix=None
+    )
+    DOUBAO_ASR_ACCESS_TOKEN = SecretFileValue(
+        None, environ_name="DOUBAO_ASR_ACCESS_TOKEN", environ_prefix=None
+    )
+    DOUBAO_TTS_APP_ID = SecretFileValue(
+        None, environ_name="DOUBAO_TTS_APP_ID", environ_prefix=None
+    )
+    DOUBAO_TTS_ACCESS_TOKEN = SecretFileValue(
+        None, environ_name="DOUBAO_TTS_ACCESS_TOKEN", environ_prefix=None
+    )
+    ARK_API_KEY = SecretFileValue(
+        None, environ_name="ARK_API_KEY", environ_prefix=None
+    )
+    DOUBAO_VLM_ENDPOINT = values.Value(
+        None, environ_name="DOUBAO_VLM_ENDPOINT", environ_prefix=None
+    )
+    DOUBAO_LLM_ENDPOINT = values.Value(
+        None, environ_name="DOUBAO_LLM_ENDPOINT", environ_prefix=None
+    )
     # Regex to filter webhook events by room name. Only matching events are processed.
     LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX = values.Value(
         None, environ_name="LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX", environ_prefix=None

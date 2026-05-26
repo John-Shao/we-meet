@@ -1058,3 +1058,331 @@ class File(BaseModel):
 
         self.hard_deleted_at = timezone.now()
         self.save(update_fields=["hard_deleted_at"])
+
+
+# ---------------------------------------------------------------------------
+# AI assistant catalog
+#
+# Layered model registry (vendor → model → profile) so ops can plug new
+# AI providers / models / voices / prompts in via Django admin without code
+# changes. Conventions intentionally mirror livekit-agents' string-ID style
+# (``vendor/model:variant``), so any future official LiveKit plugin for the
+# same vendor can drop in without renaming.
+#
+# - AIVendor             厂商（火山引擎 / 阿里云 / OpenAI ...）
+# - AIModel              具体模型 (vendor + capability + code)
+#                        capability ∈ {stt, llm, tts, vlm, omni}
+# - AIPromptCategory     提示词分类
+# - AIVoice              TTS / Omni 模型的可选音色
+# - AIPrompt             提示词模板
+# - AIAgentProfile       装配方案 = wire-level provider
+#                        架构 ∈ {pipeline, omni}
+# - UserAIPreference     用户级最近使用配置（覆盖 profile 默认）
+# ---------------------------------------------------------------------------
+
+
+class AIVendor(BaseModel):
+    """AI model vendor (Volcengine, Aliyun, OpenAI, ...)."""
+
+    code = models.CharField(_("code"), max_length=64, unique=True)
+    display_name = models.CharField(_("display name"), max_length=128)
+    sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        verbose_name = _("AI vendor")
+        verbose_name_plural = _("AI vendors")
+        ordering = ("sort_order", "code")
+
+    def __str__(self) -> str:
+        return self.display_name or self.code
+
+
+class AIModel(BaseModel):
+    """A concrete AI model offered by a vendor for a given capability.
+
+    ``capability`` mirrors the livekit-agents base-class taxonomy
+    (``livekit.agents.stt.STT`` / ``llm.LLM`` / ``tts.TTS`` /
+    ``llm.RealtimeModel``) plus our own ``vlm`` extension. We call the
+    end-to-end multimodal class ``omni`` rather than ``realtime`` since
+    that is the term the actual products use (Qwen-Omni-Realtime,
+    Doubao-S2S-Omni).
+    """
+
+    class Capability(models.TextChoices):
+        STT = "stt", _("Speech-to-text")
+        LLM = "llm", _("Language model")
+        TTS = "tts", _("Text-to-speech")
+        VLM = "vlm", _("Vision-language model")
+        OMNI = "omni", _("End-to-end omni-modal")
+
+    vendor = models.ForeignKey(
+        AIVendor,
+        on_delete=models.PROTECT,
+        related_name="models",
+        verbose_name=_("vendor"),
+    )
+    capability = models.CharField(
+        _("capability"),
+        max_length=16,
+        choices=Capability.choices,
+    )
+    code = models.CharField(
+        _("model code"),
+        max_length=128,
+        help_text=_(
+            "Model identifier in livekit-style ``vendor/model[:variant]`` "
+            "form (e.g. ``volcengine/seed-asr``)."
+        ),
+    )
+    display_name = models.CharField(_("display name"), max_length=128)
+    endpoint = models.CharField(
+        _("endpoint"),
+        max_length=512,
+        blank=True,
+        default="",
+        help_text=_(
+            "WebSocket / HTTP endpoint URL. Optional — many SDK-based "
+            "plugins infer this from the vendor."
+        ),
+    )
+    api_key_env = models.CharField(
+        _("API key env var"),
+        max_length=128,
+        blank=True,
+        default="",
+        help_text=_(
+            "Name of the environment variable holding the API key for "
+            "this model. The DB only stores the name; the secret stays "
+            "in the agent process env."
+        ),
+    )
+    extra_config = models.JSONField(
+        _("extra config"),
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Model-specific parameters (sample_rate, model_version, "
+            "speaking_style, ...)."
+        ),
+    )
+    sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        verbose_name = _("AI model")
+        verbose_name_plural = _("AI models")
+        ordering = ("vendor", "capability", "sort_order", "code")
+        unique_together = ("vendor", "capability", "code")
+
+    def __str__(self) -> str:
+        return f"{self.code} ({self.capability})"
+
+
+class AIPromptCategory(BaseModel):
+    """Category for grouping AI prompt templates."""
+
+    code = models.CharField(_("code"), max_length=32, unique=True)
+    label = models.CharField(_("label"), max_length=64)
+    sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        verbose_name = _("AI prompt category")
+        verbose_name_plural = _("AI prompt categories")
+        ordering = ("sort_order", "code")
+
+    def __str__(self) -> str:
+        return self.label or self.code
+
+
+class AIPrompt(BaseModel):
+    """Prompt template offered to the AI assistant."""
+
+    category = models.ForeignKey(
+        AIPromptCategory,
+        on_delete=models.PROTECT,
+        related_name="prompts",
+        verbose_name=_("category"),
+    )
+    label = models.CharField(_("label"), max_length=128)
+    content = models.TextField(_("content"))
+    sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        verbose_name = _("AI prompt")
+        verbose_name_plural = _("AI prompts")
+        ordering = ("category", "sort_order", "label")
+        unique_together = ("category", "label")
+
+    def __str__(self) -> str:
+        return f"{self.category.label} · {self.label}"
+
+
+class AIVoice(BaseModel):
+    """Voice (TTS speaker) attached to a TTS or Omni model."""
+
+    model = models.ForeignKey(
+        AIModel,
+        on_delete=models.CASCADE,
+        related_name="voices",
+        verbose_name=_("model"),
+        limit_choices_to={
+            "capability__in": (
+                AIModel.Capability.TTS,
+                AIModel.Capability.OMNI,
+            )
+        },
+    )
+    value = models.CharField(
+        _("voice id"),
+        max_length=128,
+        help_text=_("The voice identifier sent to the provider API."),
+    )
+    label = models.CharField(
+        _("display label"),
+        max_length=128,
+        help_text=_("Human-readable name shown in the UI."),
+    )
+    sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        verbose_name = _("AI voice")
+        verbose_name_plural = _("AI voices")
+        ordering = ("model", "sort_order", "label")
+        unique_together = ("model", "value")
+
+    def __str__(self) -> str:
+        return f"{self.model.code} · {self.label}"
+
+
+class AIAgentProfile(BaseModel):
+    """Assembly preset = wire-level provider for the AI assistant.
+
+    ``code`` is the identifier passed in the LiveKit job metadata and
+    selected from the frontend (e.g. ``qwen``, ``doubao_s2s``,
+    ``doubao_pipeline``). One profile groups the STT / VLM / LLM / TTS
+    components (pipeline architecture) or a single Omni model (omni
+    architecture) used by the agent worker.
+    """
+
+    class Architecture(models.TextChoices):
+        PIPELINE = "pipeline", _("STT/LLM/TTS pipeline")
+        OMNI = "omni", _("End-to-end omni-modal")
+
+    code = models.CharField(_("code"), max_length=64, unique=True)
+    display_name = models.CharField(_("display name"), max_length=128)
+    architecture = models.CharField(
+        _("architecture"),
+        max_length=16,
+        choices=Architecture.choices,
+    )
+    stt_model = models.ForeignKey(
+        AIModel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="profile_as_stt",
+        limit_choices_to={"capability": AIModel.Capability.STT},
+        verbose_name=_("STT model"),
+    )
+    tts_model = models.ForeignKey(
+        AIModel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="profile_as_tts",
+        limit_choices_to={"capability": AIModel.Capability.TTS},
+        verbose_name=_("TTS model"),
+    )
+    vlm_model = models.ForeignKey(
+        AIModel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="profile_as_vlm",
+        limit_choices_to={"capability": AIModel.Capability.VLM},
+        verbose_name=_("VLM model"),
+    )
+    llm_model = models.ForeignKey(
+        AIModel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="profile_as_llm",
+        limit_choices_to={"capability": AIModel.Capability.LLM},
+        verbose_name=_("LLM model"),
+    )
+    omni_model = models.ForeignKey(
+        AIModel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="profile_as_omni",
+        limit_choices_to={"capability": AIModel.Capability.OMNI},
+        verbose_name=_("omni model"),
+    )
+    default_voice = models.ForeignKey(
+        AIVoice,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("default voice"),
+    )
+    default_prompt = models.ForeignKey(
+        AIPrompt,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("default prompt"),
+    )
+    sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        verbose_name = _("AI agent profile")
+        verbose_name_plural = _("AI agent profiles")
+        ordering = ("sort_order", "code")
+
+    def __str__(self) -> str:
+        return self.display_name or self.code
+
+
+class UserAIPreference(BaseModel):
+    """A user's last-used AI assistant configuration."""
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="ai_preference",
+        verbose_name=_("user"),
+    )
+    profile = models.ForeignKey(
+        AIAgentProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    voice = models.ForeignKey(
+        AIVoice,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    prompt = models.ForeignKey(
+        AIPrompt,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        verbose_name = _("user AI preference")
+        verbose_name_plural = _("user AI preferences")

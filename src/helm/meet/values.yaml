@@ -1253,6 +1253,98 @@ agentSubtitles:
   pdb:
     enabled: false
 
+## @section agentAIAssistant
+
+agentAIAssistant:
+
+  ## @param agentAIAssistant.enabled Toggle the AI assistant agent deployment on/off
+  enabled: false
+
+  ## @param agentAIAssistant.image.repository Repository to use to pull meet's agentAIAssistant container image
+  ## @param agentAIAssistant.image.tag meet's agentAIAssistant container tag
+  ## @param agentAIAssistant.image.pullPolicy agentAIAssistant container image pull policy
+  image:
+    repository: lasuite/meet-agents
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  ## @param agentAIAssistant.dpAnnotations Annotations to add to the agentAIAssistant Deployment
+  dpAnnotations: {}
+
+  ## @param agentAIAssistant.command Override the agentAIAssistant container command
+  command:
+    - python
+    - ai_assistant.py
+    - start
+
+  ## @param agentAIAssistant.args Override the agentAIAssistant container args
+  args: []
+
+  ## @param agentAIAssistant.replicas Amount of agentAIAssistant replicas
+  replicas: 1
+
+  ## @param agentAIAssistant.shareProcessNamespace Enable share process namespace between containers
+  shareProcessNamespace: false
+
+  ## @param agentAIAssistant.sidecars Add sidecars containers to agentAIAssistant deployment
+  sidecars: []
+
+  ## @param agentAIAssistant.securityContext Configure agentAIAssistant Container security context
+  securityContext: null
+
+  ## @param agentAIAssistant.podSecurityContext Configure agentAIAssistant Pod security context
+  podSecurityContext: null
+
+  ## @param agentAIAssistant.envVars Configure agentAIAssistant container environment variables
+  ## @extra agentAIAssistant.envVars.AI_AGENT_NAME LiveKit agent_name registered by the worker (must match backend AI_AGENT_NAME)
+  ## @extra agentAIAssistant.envVars.DASHSCOPE_API_KEY DashScope API key for Qwen-Omni-Realtime
+  ## @extra agentAIAssistant.envVars.DOUBAO_S2S_APP_ID Volcengine app id for Doubao S2S
+  ## @extra agentAIAssistant.envVars.DOUBAO_S2S_ACCESS_KEY Volcengine access key for Doubao S2S
+  ## @extra agentAIAssistant.envVars.DOUBAO_ASR_APP_ID Volcengine ASR app id for Doubao component pipeline
+  ## @extra agentAIAssistant.envVars.DOUBAO_ASR_ACCESS_TOKEN Volcengine ASR access token for Doubao component pipeline
+  ## @extra agentAIAssistant.envVars.DOUBAO_TTS_APP_ID Volcengine TTS app id for Doubao component pipeline
+  ## @extra agentAIAssistant.envVars.DOUBAO_TTS_ACCESS_TOKEN Volcengine TTS access token for Doubao component pipeline
+  ## @extra agentAIAssistant.envVars.ARK_API_KEY Volcengine Ark API key for Doubao VLM/LLM dual-race
+  ## @extra agentAIAssistant.envVars.DOUBAO_VLM_ENDPOINT Volcengine Ark VLM endpoint id (e.g. ep-xxx) for Doubao component pipeline
+  ## @extra agentAIAssistant.envVars.DOUBAO_LLM_ENDPOINT Volcengine Ark LLM endpoint id (e.g. ep-xxx) for Doubao component pipeline
+  ## @extra agentAIAssistant.envVars.FRAME_CAPTURE_INTERVAL Video frame capture interval in seconds (default: 1.0)
+  ## @skip agentAIAssistant.envVars
+  envVars:
+    <<: *commonEnvVars
+    # AI_AGENT_NAME: "ai-agent"
+    # DASHSCOPE_API_KEY: ""        # Set via secret
+    # DOUBAO_S2S_APP_ID: ""        # Set via secret
+    # DOUBAO_S2S_ACCESS_KEY: ""    # Set via secret
+    # FRAME_CAPTURE_INTERVAL: "1.0"
+
+  ## @param agentAIAssistant.podAnnotations Annotations to add to the agentAIAssistant Pod
+  podAnnotations: {}
+
+  ## @param agentAIAssistant.resources Resource requirements for the agentAIAssistant container
+  resources: {}
+
+  ## @param agentAIAssistant.nodeSelector Node selector for the agentAIAssistant Pod
+  nodeSelector: {}
+
+  ## @param agentAIAssistant.tolerations Tolerations for the agentAIAssistant Pod
+  tolerations: []
+
+  ## @param agentAIAssistant.affinity Affinity for the agentAIAssistant Pod
+  affinity: {}
+
+  ## @param agentAIAssistant.persistence Additional volumes to create and mount on the agentAIAssistant. Used for debugging purposes
+  persistence: {}
+
+  ## @param agentAIAssistant.extraVolumeMounts Additional volumes to mount on the agentAIAssistant.
+  extraVolumeMounts: []
+
+  ## @param agentAIAssistant.extraVolumes Additional volumes to mount on the agentAIAssistant.
+  extraVolumes: []
+
+  ## @param agentAIAssistant.pdb.enabled Enable pdb on agentAIAssistant
+  pdb:
+    enabled: false
+
 ## @section Extra Manifests
 
 ## @param extraManifests Extra Kubernetes manifests to deploy

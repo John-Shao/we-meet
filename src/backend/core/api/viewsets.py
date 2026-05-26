@@ -83,6 +83,13 @@ from core.services.room_management import (
     RoomManagementException,
     RoomNotFoundException,
 )
+from core.services.ai_agent import AIAgentException, AIAgentService
+from core.services.ai_agent_providers import (
+    build_agent_metadata,
+    get_ai_agent_config,
+    resolve_profile_context,
+    save_user_preference,
+)
 from core.services.subtitle import SubtitleException, SubtitleService
 from core.tasks.file import process_file_deletion
 
@@ -862,6 +869,120 @@ class RoomViewSet(
         except SubtitleException:
             return drf_response.Response(
                 {"error": f"Subtitles failed to start for room {room.slug}"},
+                status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return drf_response.Response(
+            {"status": "success"}, status=drf_status.HTTP_200_OK
+        )
+
+    @decorators.action(
+        detail=False,
+        methods=["get"],
+        url_path="ai-agent-config",
+        permission_classes=[],
+    )
+    def ai_agent_config(self, request):
+        """Return the AI assistant catalog (profiles / voices / prompts).
+
+        Public endpoint — the response contains no secrets, only choices
+        the frontend needs to render the configuration panel. Default
+        authentication still runs, so an authenticated user's stored
+        ``UserAIPreference`` is included; anonymous callers see
+        ``user_preference: null``.
+        """
+        return drf_response.Response(get_ai_agent_config(user=request.user))
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="start-ai-agent",
+        permission_classes=[permissions.HasLiveKitRoomAccess],
+        authentication_classes=[LiveKitTokenAuthentication],
+    )
+    def start_ai_agent(self, request, pk=None):  # pylint: disable=unused-argument
+        """Dispatch the AI assistant agent into the room.
+
+        Body: ``{"profile_code": "qwen", "voice_id": "<uuid>", "prompt_id": "<uuid>"}``.
+        Voice and prompt fall back to the user's preference, then to the
+        profile defaults. The full model catalog (endpoint / api_key_env /
+        extra_config) is serialised into the agent metadata server-side so
+        the worker never needs DB access.
+        """
+        room = self.get_object()
+
+        serializer = serializers.StartAIAgentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        profile_code = serializer.validated_data["profile_code"]
+        voice_id = serializer.validated_data.get("voice_id")
+        prompt_id = serializer.validated_data.get("prompt_id")
+
+        # LiveKit token identity authoritatively identifies the requester;
+        # request.user comes from the Django session and is what we use
+        # for persisting their preference.
+        requester_identity = getattr(request.auth, "identity", "") or ""
+
+        profile, voice, prompt = resolve_profile_context(
+            profile_code=profile_code,
+            voice_id=str(voice_id) if voice_id else None,
+            prompt_id=str(prompt_id) if prompt_id else None,
+            user=request.user,
+        )
+        if profile is None:
+            return drf_response.Response(
+                {"error": f"AI agent profile '{profile_code}' is not available."},
+                status=drf_status.HTTP_400_BAD_REQUEST,
+            )
+
+        save_user_preference(
+            user=request.user,
+            profile_code=profile_code,
+            voice_id=str(voice.id) if voice else None,
+            prompt_id=str(prompt.id) if prompt else None,
+        )
+
+        metadata = build_agent_metadata(
+            profile=profile,
+            voice=voice,
+            prompt=prompt,
+            requester_identity=requester_identity,
+        )
+
+        try:
+            AIAgentService().start_ai_agent(room=room, metadata=metadata)
+        except AIAgentException as exc:
+            return drf_response.Response(
+                {"error": str(exc)},
+                status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return drf_response.Response(
+            {
+                "status": "success",
+                "profile_code": profile_code,
+                "voice_id": str(voice.id) if voice else None,
+                "prompt_id": str(prompt.id) if prompt else None,
+            },
+            status=drf_status.HTTP_200_OK,
+        )
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="stop-ai-agent",
+        permission_classes=[permissions.HasLiveKitRoomAccess],
+        authentication_classes=[LiveKitTokenAuthentication],
+    )
+    def stop_ai_agent(self, request, pk=None):  # pylint: disable=unused-argument
+        """Remove the AI assistant agent from the room."""
+        room = self.get_object()
+
+        try:
+            AIAgentService().stop_ai_agent(room=room)
+        except AIAgentException as exc:
+            return drf_response.Response(
+                {"error": str(exc)},
                 status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

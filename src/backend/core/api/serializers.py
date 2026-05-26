@@ -374,6 +374,32 @@ class MuteParticipantSerializer(BaseParticipantsManagementSerializer):
     )
 
 
+class StartAIAgentSerializer(BaseValidationOnlySerializer):
+    """Validate AI assistant start requests.
+
+    The frontend selects an AI agent profile (an admin-managed assembly of
+    STT/VLM/LLM/TTS or Omni model) and optionally overrides the default
+    voice / prompt by id. Models, endpoints and credentials are resolved
+    server-side from the catalog.
+    """
+
+    profile_code = serializers.CharField(
+        max_length=64,
+        required=True,
+        help_text="AIAgentProfile.code, e.g. 'qwen', 'doubao_s2s', 'doubao_pipeline'.",
+    )
+    voice_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="AIVoice id; falls back to user preference, then profile default.",
+    )
+    prompt_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="AIPrompt id; falls back to user preference, then profile default.",
+    )
+
+
 TrackSource = Literal["camera", "microphone", "screen_share", "screen_share_audio"]
 
 
