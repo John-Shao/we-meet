@@ -881,6 +881,42 @@ class RoomViewSet(
     # ------------------------------------------------------------------
 
     @decorators.action(
+        detail=False,
+        methods=["get"],
+        url_path="recent-meetings",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def recent_meetings(self, request):
+        """List recent meetings (Rooms with a Summary) the user joined.
+
+        Most-recent-first, capped at 20. Powers the "My recent meetings"
+        section on the home page and links each entry to /meetings/<id>.
+        """
+        rooms = (
+            self.get_queryset()
+            .filter(users=request.user, summary__isnull=False)
+            .distinct()
+            .order_by("-summary__updated_at")[:20]
+        )
+        # Tiny shape — the home page only needs id / display label / when
+        # the summary was last refreshed. Anything heavier loads on the
+        # detail page itself.
+        data = [
+            {
+                "id": str(room.id),
+                "name": room.name,
+                "slug": room.slug,
+                "summary_updated_at": (
+                    room.summary.updated_at.isoformat() if room.summary else None
+                ),
+                "summary_status": room.summary.status if room.summary else None,
+            }
+            for room in rooms
+        ]
+        return drf_response.Response(data)
+
+
+    @decorators.action(
         detail=True,
         methods=["get"],
         url_path="summary",
@@ -897,6 +933,28 @@ class RoomViewSet(
         if summary is None:
             raise drf_exceptions.NotFound("No summary for this meeting yet.")
         return drf_response.Response(serializers.SummarySerializer(summary).data)
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="summary/regenerate",
+    )
+    def regenerate_summary(self, request, pk=None):  # pylint: disable=unused-argument
+        """Schedule a fresh summary generation for this meeting.
+
+        Useful when the meeting ran longer than the auto-trigger window or
+        the LLM produced a bad first pass. Returns immediately (202) — the
+        actual generation is async via Celery (or synchronous fallback).
+        """
+        room = self.get_object()
+        # Imported inline to avoid pulling celery in modules that don't
+        # need it during management commands.
+        from core.tasks.summary import generate_meeting_summary
+
+        generate_meeting_summary.apply_async(args=[str(room.id)])
+        return drf_response.Response(
+            {"status": "scheduled"}, status=drf_status.HTTP_202_ACCEPTED
+        )
 
     @decorators.action(
         detail=True,

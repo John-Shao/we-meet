@@ -151,6 +151,12 @@ backend:
     AI_AGENT_NAME: "ai-agent"
     AI_AGENT_ENABLED: "True"
 
+    # Sprint 2.2 follow-up #8: route generate_meeting_summary through
+    # the meet-celery-backend worker (off-thread) rather than running it
+    # synchronously in the gunicorn worker that handles the LiveKit
+    # room_finished webhook.
+    CELERY_ENABLED: "True"
+
     FRONTEND_USE_FRENCH_GOV_FOOTER: "False"
     FRONTEND_USE_PROCONNECT_BUTTON: "False"
     FRONTEND_SILENCE_LIVEKIT_DEBUG: "True"
