@@ -24,17 +24,22 @@ export interface SpeakerTranslation {
   receivedAt: number
 }
 
+// Keep only this many recent translations per speaker; older entries
+// are pruned to bound memory in long meetings.
+const MAX_HISTORY_PER_SPEAKER = 50
+
 /**
  * Subscribe to the agent's translation DataChannel and keep, per speaker,
- * the latest ``(original text, translations)`` pair. The transcriber emits
- * one packet per FINAL transcript with the same shape; subscribers render
- * either the original or a translation by looking up
- * ``translationsBySpeaker[participant.identity]``.
+ * an ordered history of recent ``(original text, translations)`` packets.
+ *
+ * Each FINAL transcript emits one packet; ``Subtitles.tsx`` joins them by
+ * speaker + a time window so multi-sentence transcription rows show their
+ * full translated counterpart rather than only the latest sentence.
  */
 export const useTranslations = () => {
   const room = useRoomContext()
-  const [translationsBySpeaker, setTranslationsBySpeaker] = useState<
-    Record<string, SpeakerTranslation>
+  const [historyBySpeaker, setHistoryBySpeaker] = useState<
+    Record<string, SpeakerTranslation[]>
   >({})
 
   useEffect(() => {
@@ -52,15 +57,17 @@ export const useTranslations = () => {
           new TextDecoder().decode(payload)
         ) as TranslationPayload
         if (!parsed.speaker_identity || !parsed.text) return
-        setTranslationsBySpeaker((prev) => ({
-          ...prev,
-          [parsed.speaker_identity]: {
-            text: parsed.text,
-            language: parsed.language || '',
-            translations: parsed.translations || {},
-            receivedAt: Date.now(),
-          },
-        }))
+        const entry: SpeakerTranslation = {
+          text: parsed.text,
+          language: parsed.language || '',
+          translations: parsed.translations || {},
+          receivedAt: Date.now(),
+        }
+        setHistoryBySpeaker((prev) => {
+          const prior = prev[parsed.speaker_identity] || []
+          const next = [...prior, entry].slice(-MAX_HISTORY_PER_SPEAKER)
+          return { ...prev, [parsed.speaker_identity]: next }
+        })
       } catch (e) {
         console.warn('Failed to parse translation payload:', e)
       }
@@ -72,7 +79,7 @@ export const useTranslations = () => {
     }
   }, [room])
 
-  return translationsBySpeaker
+  return historyBySpeaker
 }
 
 /**

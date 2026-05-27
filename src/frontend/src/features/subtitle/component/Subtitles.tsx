@@ -102,13 +102,13 @@ const useTranscriptionState = () => {
 
 interface TranscriptionProps {
   row: TranscriptionRow
-  speakerTranslation?: SpeakerTranslation
+  speakerHistory?: SpeakerTranslation[]
   uiLanguage: string
 }
 
 const Transcription = ({
   row,
-  speakerTranslation,
+  speakerHistory,
   uiLanguage,
 }: TranscriptionProps) => {
   const { captionTextSize, captionFontColor, captionBackgroundColor } =
@@ -129,29 +129,36 @@ const Transcription = ({
 
   const displayText = getDisplayText(row)
 
-  // Sprint 2.1: pick the best translation for the user's UI language if
-  // the speaker's language differs. The agent broadcasts one translation
-  // packet per FINAL transcript; we display it under the original line.
-  // Match by the speaker's identity + recent timestamp (looser than text
-  // equality so interim concatenation doesn't break the join).
+  // Sprint 2.1: pick translations whose timestamp falls inside this row's
+  // time window (one transcription row aggregates multiple FINAL packets
+  // from the same speaker, so we join all matching translations in order).
+  // ``firstReceivedTime`` from LiveKit and ``receivedAt`` from our hook
+  // are both browser-epoch ms.
   const translatedLine = useMemo(() => {
-    if (!speakerTranslation) return null
-    if (isSameLanguage(speakerTranslation.language, uiLanguage)) return null
-    const text = pickTranslation(speakerTranslation.translations, uiLanguage)
-    if (!text) return null
-    // Sanity: only show translation if it pertains to roughly the same
-    // utterance currently displayed (compare the agent's "text" snapshot
-    // to the row's joined display text).
-    if (
-      displayText.length > 0 &&
-      speakerTranslation.text &&
-      !displayText.includes(speakerTranslation.text) &&
-      !speakerTranslation.text.includes(displayText)
-    ) {
-      return null
-    }
-    return text
-  }, [speakerTranslation, uiLanguage, displayText])
+    if (!speakerHistory || speakerHistory.length === 0) return null
+
+    const earliestSegmentTime = row.segments.reduce(
+      (acc, s) => Math.min(acc, s.firstReceivedTime),
+      Infinity
+    )
+    if (!Number.isFinite(earliestSegmentTime)) return null
+    // 1.5s leeway: translation packets arrive ~1s after STT FINAL.
+    const lowerBound = earliestSegmentTime - 1500
+
+    const matching = speakerHistory.filter((t) => t.receivedAt >= lowerBound)
+    if (matching.length === 0) return null
+
+    // Assume the row's language matches the latest packet — STT does not
+    // mix languages mid-row in practice.
+    const rowLang = matching[matching.length - 1].language
+    if (isSameLanguage(rowLang, uiLanguage)) return null
+
+    const lines = matching
+      .map((t) => pickTranslation(t.translations, uiLanguage))
+      .filter(Boolean) as string[]
+    if (lines.length === 0) return null
+    return lines.join(' ')
+  }, [speakerHistory, uiLanguage, row.segments])
 
   if (!displayText) return null
 
@@ -242,7 +249,7 @@ export const Subtitles = () => {
   const { transcriptionSegments, updateTranscriptionSegments } =
     useTranscriptionState()
 
-  const translationsBySpeaker = useTranslations()
+  const translationHistoryBySpeaker = useTranslations()
 
   useEffect(() => {
     if (!room) return
@@ -310,8 +317,8 @@ export const Subtitles = () => {
             <Transcription
               key={row.id}
               row={row}
-              speakerTranslation={
-                translationsBySpeaker[row.participant.identity]
+              speakerHistory={
+                translationHistoryBySpeaker[row.participant.identity]
               }
               uiLanguage={i18n.language}
             />
