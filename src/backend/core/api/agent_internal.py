@@ -14,11 +14,11 @@ Endpoints:
 import logging
 
 from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
 from django.shortcuts import get_object_or_404
 
-from rest_framework import exceptions, serializers, status
+from rest_framework import exceptions, permissions, serializers, status
 from rest_framework.authentication import BaseAuthentication
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -32,40 +32,36 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class _AgentPrincipal:
-    """Marker object set as ``request.user`` after agent-token auth succeeds.
-
-    DRF's ``IsAuthenticated`` permission checks ``user.is_authenticated``, so
-    expose ``True`` on this sentinel. The principal carries no permissions
-    beyond the agent-internal endpoints — it must never reach a public
-    viewset.
-    """
-
-    is_authenticated = True
-    is_anonymous = False
-
-    def __str__(self) -> str:
-        return "agent-worker"
-
-
 class AgentTokenAuthentication(BaseAuthentication):
     """Authenticate agent worker requests via a shared bearer-style header.
 
     The expected header is ``X-Agent-Token: <token>``. The token is compared
     against ``settings.AGENT_INTERNAL_API_TOKEN``; if the setting is unset or
     empty the endpoint is unreachable (fail-closed).
+
+    The request's ``user`` is set to ``AnonymousUser`` (a real Django user
+    type) so any user-touching middleware doesn't explode on attribute
+    access. The actual gate is :class:`HasAgentToken` reading
+    ``request.auth``.
     """
 
     def authenticate(self, request):
         token = request.META.get("HTTP_X_AGENT_TOKEN", "")
         if not token:
-            return None  # no header → fall through; DRF returns 401/403
+            return None  # no header → fall through; HasAgentToken returns 403
 
         expected = getattr(settings, "AGENT_INTERNAL_API_TOKEN", "") or ""
         if not expected or token != expected:
             raise exceptions.AuthenticationFailed("Invalid agent token")
 
-        return (_AgentPrincipal(), token)
+        return (AnonymousUser(), token)
+
+
+class HasAgentToken(permissions.BasePermission):
+    """Allow only requests that carried a valid ``X-Agent-Token``."""
+
+    def has_permission(self, request, view):
+        return request.auth is not None
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +89,7 @@ class IngestTranscriptView(APIView):
     """Persist one FINAL_TRANSCRIPT event from the transcriber agent."""
 
     authentication_classes = [AgentTokenAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasAgentToken]
 
     def post(self, request):
         serializer = _TranscriptIngestSerializer(data=request.data)
