@@ -1,6 +1,7 @@
 """Multi user transcription agent."""
 
 import asyncio
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -35,6 +36,15 @@ logger = logging.getLogger("transcriber")
 TRANSCRIBER_AGENT_NAME = os.getenv("TRANSCRIBER_AGENT_NAME", "multi-user-transcriber")
 STT_PROVIDER = os.getenv("STT_PROVIDER", "deepgram")
 ENABLE_SILERO_VAD = os.getenv("ENABLE_SILERO_VAD", "true").lower() == "true"
+
+# Sprint 2.1: comma-separated ISO codes to translate each FINAL transcript
+# into, beyond its original language. Empty/unset disables translation.
+TRANSLATION_TARGET_LANGS = [
+    lang.strip()
+    for lang in os.getenv("TRANSLATION_TARGET_LANGS", "").split(",")
+    if lang.strip()
+]
+TRANSLATION_DATACHANNEL_TOPIC = "lk.transcription.translation"
 
 
 def create_stt_provider():
@@ -82,12 +92,53 @@ class Transcriber(Agent):
 class MultiUserTranscriber:
     """Manage transcription sessions for multiple room participants."""
 
-    def __init__(self, ctx: JobContext, writer: TranscriptWriter):
+    def __init__(
+        self,
+        ctx: JobContext,
+        writer: TranscriptWriter,
+        translator=None,
+        target_langs: list[str] | None = None,
+    ):
         """Init multi user transcription agent."""
         self.ctx = ctx
         self._writer = writer
+        self._translator = translator
+        self._target_langs = target_langs or []
         self._sessions: dict[str, AgentSession] = {}
         self._tasks: set[asyncio.Task] = set()
+
+    async def _publish_translation(
+        self,
+        *,
+        speaker_identity: str,
+        text: str,
+        language: str,
+        translations: dict,
+        started_at: datetime,
+    ) -> None:
+        """Broadcast {original + translations} to the room via DataChannel.
+
+        Front-end subscribers (Subtitles.tsx) filter by topic and pick the
+        translation matching the local user's UI language.
+        """
+        payload = json.dumps(
+            {
+                "speaker_identity": speaker_identity,
+                "text": text,
+                "language": language,
+                "translations": translations,
+                "started_at": started_at.isoformat(),
+            },
+            ensure_ascii=False,
+        ).encode("utf-8")
+        try:
+            await self.ctx.room.local_participant.publish_data(
+                payload,
+                reliable=True,
+                topic=TRANSLATION_DATACHANNEL_TOPIC,
+            )
+        except Exception:
+            logger.exception("Failed to publish translation DataChannel")
 
     def start(self):
         """Start listening for participant connection events."""
@@ -149,12 +200,42 @@ class MultiUserTranscriber:
         )
         await room_io.start()
 
-        # Persist FINAL transcripts to the backend. Best-effort: failures
-        # log but never crash the transcription session.
+        # On each FINAL transcript: (1) translate concurrently to every
+        # configured target language, (2) broadcast original+translations
+        # to the room via DataChannel for live caption display, and (3)
+        # persist the row to the backend. All failures log but never
+        # crash the transcription session.
         room_id = self.ctx.room.name
         speaker_identity = participant.identity
         speaker_name = participant.name or ""
         writer = self._writer
+        translator = self._translator
+        target_langs = self._target_langs
+
+        async def _process_final(text: str, language: str, started_at: datetime):
+            translations: dict[str, str] = {}
+            if translator and target_langs:
+                translations = await translator.translate_many(
+                    text,
+                    source_lang=language,
+                    target_langs=target_langs,
+                )
+            await self._publish_translation(
+                speaker_identity=speaker_identity,
+                text=text,
+                language=language,
+                translations=translations,
+                started_at=started_at,
+            )
+            await writer.write(
+                room_id=room_id,
+                speaker_identity=speaker_identity,
+                speaker_name=speaker_name,
+                text=text,
+                language=language,
+                started_at=started_at,
+                translations=translations,
+            )
 
         def _on_user_input_transcribed(event):
             if not getattr(event, "is_final", False):
@@ -164,14 +245,7 @@ class MultiUserTranscriber:
                 return
             language = getattr(event, "language", "") or ""
             task = asyncio.create_task(
-                writer.write(
-                    room_id=room_id,
-                    speaker_identity=speaker_identity,
-                    speaker_name=speaker_name,
-                    text=text,
-                    language=language,
-                    started_at=datetime.now(timezone.utc),
-                )
+                _process_final(text, language, datetime.now(timezone.utc))
             )
             self._tasks.add(task)
             task.add_done_callback(self._tasks.discard)
@@ -200,7 +274,29 @@ async def entrypoint(ctx: JobContext):
             "(AGENT_BACKEND_API_URL / AGENT_INTERNAL_API_TOKEN); "
             "transcripts will NOT be persisted to the backend."
         )
-    transcriber = MultiUserTranscriber(ctx, writer)
+
+    # Sprint 2.1: Doubao Pro LLM translator. Disabled gracefully if ARK
+    # credentials are missing — the transcriber still runs and persists
+    # untranslated transcripts.
+    translator = None
+    if TRANSLATION_TARGET_LANGS:
+        from plugins.doubao_translate import DoubaoTranslator
+
+        translator = DoubaoTranslator.from_env()
+        if translator is None:
+            logger.warning(
+                "TRANSLATION_TARGET_LANGS=%s but ARK_API_KEY / "
+                "DOUBAO_LLM_ENDPOINT not set — translations disabled.",
+                TRANSLATION_TARGET_LANGS,
+            )
+        else:
+            logger.info(
+                "Translation enabled, target_langs=%s", TRANSLATION_TARGET_LANGS
+            )
+
+    transcriber = MultiUserTranscriber(
+        ctx, writer, translator=translator, target_langs=TRANSLATION_TARGET_LANGS
+    )
     transcriber.start()
 
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)

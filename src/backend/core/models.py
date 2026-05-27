@@ -1430,6 +1430,18 @@ class Transcript(BaseModel):
     )
     started_at = models.DateTimeField(_("speech started at"), db_index=True)
     ended_at = models.DateTimeField(_("speech ended at"), null=True, blank=True)
+    translations = models.JSONField(
+        _("translations"),
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Best-effort translations into other languages, keyed by ISO "
+            "code (e.g. ``{'en-us': '...', 'zh-cn': '...'}``). Written by "
+            "the transcriber agent immediately after the FINAL transcript "
+            "is captured; absence of a key means translation was not "
+            "requested or failed."
+        ),
+    )
 
     class Meta:
         verbose_name = _("transcript")

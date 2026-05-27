@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSubtitles } from '../hooks/useSubtitles'
+import {
+  isSameLanguage,
+  pickTranslation,
+  useTranslations,
+  type SpeakerTranslation,
+} from '../hooks/useTranslations'
 import { css, cva } from '@/styled-system/css'
 import { styled } from '@/styled-system/jsx'
 import { Avatar } from '@/components/Avatar'
@@ -93,7 +100,17 @@ const useTranscriptionState = () => {
   }
 }
 
-const Transcription = ({ row }: { row: TranscriptionRow }) => {
+interface TranscriptionProps {
+  row: TranscriptionRow
+  speakerTranslation?: SpeakerTranslation
+  uiLanguage: string
+}
+
+const Transcription = ({
+  row,
+  speakerTranslation,
+  uiLanguage,
+}: TranscriptionProps) => {
   const { captionTextSize, captionFontColor, captionBackgroundColor } =
     useSnapshot(accessibilityStore)
   const participantColor = getParticipantColor(row.participant)
@@ -111,6 +128,30 @@ const Transcription = ({ row }: { row: TranscriptionRow }) => {
   }
 
   const displayText = getDisplayText(row)
+
+  // Sprint 2.1: pick the best translation for the user's UI language if
+  // the speaker's language differs. The agent broadcasts one translation
+  // packet per FINAL transcript; we display it under the original line.
+  // Match by the speaker's identity + recent timestamp (looser than text
+  // equality so interim concatenation doesn't break the join).
+  const translatedLine = useMemo(() => {
+    if (!speakerTranslation) return null
+    if (isSameLanguage(speakerTranslation.language, uiLanguage)) return null
+    const text = pickTranslation(speakerTranslation.translations, uiLanguage)
+    if (!text) return null
+    // Sanity: only show translation if it pertains to roughly the same
+    // utterance currently displayed (compare the agent's "text" snapshot
+    // to the row's joined display text).
+    if (
+      displayText.length > 0 &&
+      speakerTranslation.text &&
+      !displayText.includes(speakerTranslation.text) &&
+      !speakerTranslation.text.includes(displayText)
+    ) {
+      return null
+    }
+    return text
+  }, [speakerTranslation, uiLanguage, displayText])
 
   if (!displayText) return null
 
@@ -151,6 +192,21 @@ const Transcription = ({ row }: { row: TranscriptionRow }) => {
           >
             {displayText}
           </p>
+          {translatedLine && (
+            <p
+              className={css({
+                fontWeight: '400',
+                borderRadius: '4px',
+                padding: '0.125rem 0.25rem',
+                marginTop: '0.125rem',
+                opacity: 0.78,
+                fontStyle: 'italic',
+              })}
+              style={{ fontSize, lineHeight, backgroundColor }}
+            >
+              {translatedLine}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -181,9 +237,12 @@ const SubtitlesWrapper = styled(
 export const Subtitles = () => {
   const { areSubtitlesOpen } = useSubtitles()
   const room = useRoomContext()
+  const { i18n } = useTranslation()
 
   const { transcriptionSegments, updateTranscriptionSegments } =
     useTranscriptionState()
+
+  const translationsBySpeaker = useTranslations()
 
   useEffect(() => {
     if (!room) return
@@ -248,7 +307,14 @@ export const Subtitles = () => {
           .slice()
           .reverse()
           .map((row) => (
-            <Transcription key={row.id} row={row} />
+            <Transcription
+              key={row.id}
+              row={row}
+              speakerTranslation={
+                translationsBySpeaker[row.participant.identity]
+              }
+              uiLanguage={i18n.language}
+            />
           ))}
       </div>
     </SubtitlesWrapper>

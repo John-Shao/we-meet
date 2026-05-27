@@ -55,6 +55,7 @@ class TranscriptWriter:
         language: str,
         started_at: datetime,
         ended_at: Optional[datetime] = None,
+        translations: Optional[dict] = None,
     ) -> None:
         """POST one transcript row. Errors are logged, never raised."""
         if not self.is_configured:
@@ -73,6 +74,8 @@ class TranscriptWriter:
         }
         if ended_at is not None:
             payload["ended_at"] = ended_at.isoformat()
+        if translations:
+            payload["translations"] = translations
 
         try:
             await asyncio.to_thread(self._post_sync, payload)

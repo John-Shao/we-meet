@@ -83,6 +83,12 @@ class _TranscriptIngestSerializer(serializers.Serializer):
     )
     started_at = serializers.DateTimeField()
     ended_at = serializers.DateTimeField(required=False, allow_null=True)
+    translations = serializers.DictField(
+        child=serializers.CharField(allow_blank=True),
+        required=False,
+        default=dict,
+        help_text="Best-effort translations keyed by ISO code (e.g. en-us).",
+    )
 
 
 class IngestTranscriptView(APIView):
@@ -106,5 +112,6 @@ class IngestTranscriptView(APIView):
             language=data.get("language") or "",
             started_at=data["started_at"],
             ended_at=data.get("ended_at"),
+            translations=data.get("translations") or {},
         )
         return Response({"status": "ok"}, status=status.HTTP_201_CREATED)
