@@ -164,6 +164,9 @@
           "cyan": "Cyan",
           "magenta": "Magenta"
         }
+      },
+      "showTranslation": {
+        "label": "Übersetzung anzeigen"
       }
     }
   },

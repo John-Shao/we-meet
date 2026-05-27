@@ -95,6 +95,15 @@ export const CaptionsSettings = () => {
           }}
           wrapperProps={{ noMargin: true, fullWidth: true }}
         />
+        <Field
+          type="switch"
+          label={t('showTranslation.label')}
+          isSelected={snap.showTranslation}
+          onChange={(value) => {
+            accessibilityStore.showTranslation = value
+          }}
+          wrapperProps={{ noMargin: true, fullWidth: true }}
+        />
       </div>
     </li>
   )

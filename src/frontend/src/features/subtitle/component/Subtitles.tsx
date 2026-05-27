@@ -104,12 +104,14 @@ interface TranscriptionProps {
   row: TranscriptionRow
   speakerHistory?: SpeakerTranslation[]
   uiLanguage: string
+  forceShowTranslation: boolean
 }
 
 const Transcription = ({
   row,
   speakerHistory,
   uiLanguage,
+  forceShowTranslation,
 }: TranscriptionProps) => {
   const { captionTextSize, captionFontColor, captionBackgroundColor } =
     useSnapshot(accessibilityStore)
@@ -149,9 +151,12 @@ const Transcription = ({
     if (matching.length === 0) return null
 
     // Assume the row's language matches the latest packet — STT does not
-    // mix languages mid-row in practice.
+    // mix languages mid-row in practice. When the user has explicitly
+    // turned on "show translation" we skip the same-language short-circuit
+    // so they always see a bilingual line.
     const rowLang = matching[matching.length - 1].language
-    if (isSameLanguage(rowLang, uiLanguage)) return null
+    if (!forceShowTranslation && isSameLanguage(rowLang, uiLanguage))
+      return null
 
     const lines = matching
       .map((t) => pickTranslation(t.translations, uiLanguage))
@@ -250,6 +255,7 @@ export const Subtitles = () => {
     useTranscriptionState()
 
   const translationHistoryBySpeaker = useTranslations()
+  const { showTranslation } = useSnapshot(accessibilityStore)
 
   useEffect(() => {
     if (!room) return
@@ -321,6 +327,7 @@ export const Subtitles = () => {
                 translationHistoryBySpeaker[row.participant.identity]
               }
               uiLanguage={i18n.language}
+              forceShowTranslation={showTranslation}
             />
           ))}
       </div>

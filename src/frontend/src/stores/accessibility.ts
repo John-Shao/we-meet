@@ -75,6 +75,10 @@ type AccessibilityState = {
   captionTextSize: CaptionTextSize
   captionFontColor: CaptionColor
   captionBackgroundColor: CaptionColor
+  // When true, the subtitle component shows the translation line under
+  // each caption regardless of whether the speaker's language matches
+  // the user's UI language. Default off ("show only when needed").
+  showTranslation: boolean
   uiFont: UiFont
 }
 
@@ -83,6 +87,7 @@ const DEFAULT_STATE: AccessibilityState = {
   captionTextSize: 'medium',
   captionFontColor: 'default',
   captionBackgroundColor: 'default',
+  showTranslation: false,
   uiFont: 'default',
 }
 
@@ -119,6 +124,10 @@ function getAccessibilityState(): AccessibilityState {
         captionTextSize,
         captionFontColor,
         captionBackgroundColor,
+        showTranslation:
+          typeof parsed.showTranslation === 'boolean'
+            ? parsed.showTranslation
+            : DEFAULT_STATE.showTranslation,
         uiFont,
       }
     }

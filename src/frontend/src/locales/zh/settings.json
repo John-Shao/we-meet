@@ -164,6 +164,9 @@
           "cyan": "青色",
           "magenta": "品红"
         }
+      },
+      "showTranslation": {
+        "label": "显示翻译"
       }
     }
   },

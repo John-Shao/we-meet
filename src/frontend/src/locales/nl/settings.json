@@ -164,6 +164,9 @@
           "cyan": "Cyaan",
           "magenta": "Magenta"
         }
+      },
+      "showTranslation": {
+        "label": "Vertaling tonen"
       }
     }
   },
