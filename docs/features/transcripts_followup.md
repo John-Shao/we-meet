@@ -1,8 +1,21 @@
-# Sprint 2.0 字幕落表 — Follow-up 清单
+# Sprint 2.0 / 2.1 字幕落表 — Follow-up 清单
 
-Sprint 2.0（Doubao Seed-ASR + 字幕落 Transcript 表）已上线，端到端打通。
-本文档汇总上线过程中识别出来的 4 个小尾巴，按优先级排列；任何一项独立
-可做，不互相阻塞。
+Sprint 2.0（Doubao Seed-ASR + 字幕落表）与 Sprint 2.1（Doubao Pro 同传）
+上线后识别的小尾巴清单；按 commit 一起清理。
+
+## 状态总览
+
+| # | 项目 | 状态 | Commit |
+|---|---|---|---|
+| 1 | AgentSession shutdown race | ✅ Fixed | `d4b189cd` |
+| 2 | TranscriptWriter 缺成功日志 | ✅ Fixed | `d4b189cd` |
+| 3 | `speaker_name` 全为空 | ✅ Fixed | `a717ca63` |
+| 4 | ASR 并发上限 | ⬜ Open | — |
+| 5 | LLM 翻译过度纠正 | ✅ Fixed | `d4b189cd` |
+| 6 | Doubao STT 永远标 `zh` | ⚠️ Mitigated (6-A in `d4b189cd`); 6-B 长期再做 | — |
+| 7 | CC 加"显示翻译"开关 | ✅ Fixed | `d3167a90` |
+
+仅 #4 与 #6-B 留待后续 sprint。
 
 ## 1. `AgentSession isn't running` 关闭时 race
 
