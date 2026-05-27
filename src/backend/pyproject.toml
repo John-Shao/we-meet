@@ -67,6 +67,10 @@ dependencies = [
     # volcengine.sms.SmsService, so it is pinned explicitly here.
     "volcengine>=1.0.177",
     "tenacity>=8.0.0",
+    # Sprint 2.2.a — OpenAI SDK used as the OpenAI-compatible client for
+    # Volcengine Ark (chat completions + embeddings). Only the wire format
+    # is OpenAI-compatible; actual model / billing is Ark / Doubao.
+    "openai==2.28.0",
 ]
 
 [project.urls]

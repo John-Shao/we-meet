@@ -1456,3 +1456,120 @@ class Transcript(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.speaker_identity}: {self.text[:60]}"
+
+
+# ---------------------------------------------------------------------------
+# Meeting summary + action items (Sprint 2.2.a)
+#
+# One Summary per Room run (latest replaces previous). ActionItem rows hang
+# off both the Summary (1-N) and optionally a source Transcript for "why".
+# Vectors (TranscriptEmbedding / SummaryEmbedding) are deferred to the
+# pgvector enablement step; see ai_strategy.md §3.
+# ---------------------------------------------------------------------------
+
+
+class Summary(BaseModel):
+    """A LLM-generated narrative summary of one meeting (one row per Room)."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", _("Pending")
+        SUCCESS = "success", _("Success")
+        FAILED = "failed", _("Failed")
+
+    room = models.OneToOneField(
+        Room,
+        on_delete=models.CASCADE,
+        related_name="summary",
+        verbose_name=_("room"),
+    )
+    content = models.TextField(_("content"), blank=True, default="")
+    model_used = models.CharField(
+        _("model used"),
+        max_length=128,
+        blank=True,
+        default="",
+        help_text=_("LLM endpoint / model identifier that produced this summary."),
+    )
+    transcripts_count = models.PositiveIntegerField(
+        _("transcripts count"),
+        default=0,
+        help_text=_(
+            "How many Transcript rows fed into this summary. Useful for "
+            "detecting when the summary went stale and needs a regen."
+        ),
+    )
+    status = models.CharField(
+        _("status"),
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    error_message = models.TextField(_("error message"), blank=True, default="")
+
+    class Meta:
+        verbose_name = _("meeting summary")
+        verbose_name_plural = _("meeting summaries")
+        ordering = ("-updated_at",)
+
+    def __str__(self) -> str:
+        return f"Summary({self.room_id}, {self.status})"
+
+
+class ActionItem(BaseModel):
+    """A single follow-up extracted by the LLM from the meeting transcript."""
+
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name="action_items",
+        verbose_name=_("room"),
+    )
+    summary = models.ForeignKey(
+        Summary,
+        on_delete=models.CASCADE,
+        related_name="action_items",
+        null=True,
+        blank=True,
+        verbose_name=_("summary"),
+    )
+    source_transcript = models.ForeignKey(
+        "Transcript",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="action_items",
+        verbose_name=_("source transcript"),
+        help_text=_(
+            "Transcript row the LLM cited as the source for this action item, "
+            "if any. Optional — many items synthesise across multiple lines."
+        ),
+    )
+    content = models.TextField(_("content"))
+    owner_text = models.CharField(
+        _("owner"),
+        max_length=128,
+        blank=True,
+        default="",
+        help_text=_(
+            "Free-text owner as extracted by the LLM (e.g. 'John', '王总', "
+            "'frontend team'). Not FK to User — matching is fuzzy at best."
+        ),
+    )
+    due_text = models.CharField(
+        _("due"),
+        max_length=128,
+        blank=True,
+        default="",
+        help_text=_("Free-text deadline (e.g. '下周五', 'before EOQ')."),
+    )
+    sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
+    is_completed = models.BooleanField(_("completed"), default=False)
+
+    class Meta:
+        verbose_name = _("action item")
+        verbose_name_plural = _("action items")
+        ordering = ("room", "sort_order", "created_at")
+
+    def __str__(self) -> str:
+        owner = f"[{self.owner_text}] " if self.owner_text else ""
+        return f"{owner}{self.content[:80]}"

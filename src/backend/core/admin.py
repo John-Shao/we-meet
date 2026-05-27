@@ -455,6 +455,53 @@ class UserAIPreferenceAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
 
 
+class ActionItemInline(admin.TabularInline):
+    """Inline editor for the action items attached to a Summary."""
+
+    model = models.ActionItem
+    extra = 0
+    fields = ("sort_order", "content", "owner_text", "due_text", "is_completed")
+    autocomplete_fields = ()
+    fk_name = "summary"
+
+
+@admin.register(models.Summary)
+class SummaryAdmin(admin.ModelAdmin):
+    list_display = (
+        "room",
+        "status",
+        "model_used",
+        "transcripts_count",
+        "updated_at",
+    )
+    list_filter = ("status",)
+    search_fields = ("room__name", "content")
+    autocomplete_fields = ("room",)
+    readonly_fields = ("created_at", "updated_at")
+    inlines = (ActionItemInline,)
+
+
+@admin.register(models.ActionItem)
+class ActionItemAdmin(admin.ModelAdmin):
+    list_display = (
+        "room",
+        "owner_text",
+        "_content_preview",
+        "due_text",
+        "is_completed",
+        "sort_order",
+    )
+    list_filter = ("is_completed",)
+    list_editable = ("is_completed", "sort_order")
+    search_fields = ("content", "owner_text", "room__name")
+    autocomplete_fields = ("room", "summary", "source_transcript")
+
+    def _content_preview(self, obj):
+        return (obj.content[:60] + "…") if len(obj.content) > 60 else obj.content
+
+    _content_preview.short_description = _("content")
+
+
 @admin.register(models.Transcript)
 class TranscriptAdmin(admin.ModelAdmin):
     list_display = (
