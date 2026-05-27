@@ -14,9 +14,12 @@ Sprint 2.0（Doubao Seed-ASR + 字幕落表）与 Sprint 2.1（Doubao Pro 同传
 | 5 | LLM 翻译过度纠正 | ✅ Fixed | `d4b189cd` |
 | 6 | Doubao STT 永远标 `zh` | ⚠️ Mitigated (6-A in `d4b189cd`); 6-B 长期再做 | — |
 | 7 | CC 加"显示翻译"开关 | ✅ Fixed | `d3167a90` |
-| 8 | Summary 任务在 webhook 线程阻塞（Celery fallback） | ⬜ Open | — |
+| 8 | Summary 任务在 webhook 线程阻塞（Celery fallback） | ✅ Fixed | `fa344f25` |
+| 9 | "我的会议历史"列表入口 | ✅ Fixed | `fa344f25` + `cedddd49` |
+| 10 | Summary 用 react-markdown 渲染 | ✅ Fixed | `cedddd49` |
+| 11 | Summary regenerate 按钮 / endpoint | ✅ Fixed | `fa344f25` + `cedddd49` |
 
-仅 #4、#6-B、#8 留待后续 sprint。
+仅 #4、#6-B 留待后续 sprint。
 
 ## 1. `AgentSession isn't running` 关闭时 race
 
