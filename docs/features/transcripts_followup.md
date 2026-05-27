@@ -14,8 +14,9 @@ Sprint 2.0（Doubao Seed-ASR + 字幕落表）与 Sprint 2.1（Doubao Pro 同传
 | 5 | LLM 翻译过度纠正 | ✅ Fixed | `d4b189cd` |
 | 6 | Doubao STT 永远标 `zh` | ⚠️ Mitigated (6-A in `d4b189cd`); 6-B 长期再做 | — |
 | 7 | CC 加"显示翻译"开关 | ✅ Fixed | `d3167a90` |
+| 8 | Summary 任务在 webhook 线程阻塞（Celery fallback） | ⬜ Open | — |
 
-仅 #4 与 #6-B 留待后续 sprint。
+仅 #4、#6-B、#8 留待后续 sprint。
 
 ## 1. `AgentSession isn't running` 关闭时 race
 
@@ -224,10 +225,56 @@ i18n 文案）。
 
 ---
 
+---
+
+## 8. Summary 任务在 webhook 线程内阻塞（Celery 同步 fallback）
+
+**优先级**：P2（功能 work，但高并发场景下成问题）
+
+**现象**：Sprint 2.2.b 接好 `room_finished` 自动触发后，实测：
+
+- ✅ Summary DB 行正常生成（`status=success`）
+- ⚠️ `meet-celery-backend` worker 的 `[tasks]` 列表**完全为空**
+- ⚠️ 后端 pod 在响应 LiveKit `room_finished` webhook 时，gunicorn 工作
+  线程**同步阻塞 5–10 秒**等 LLM 调用返回，然后才 ack
+
+**根因**：`CELERY_ENABLED=False` (`backend.envVars` 没显式设 True)。
+[core/tasks/_task.py](../../src/backend/core/tasks/_task.py) 的 `@task`
+装饰器在该模式下走 fallback：`.apply_async()` **直接同步调函数**，countdown
+参数被忽略。
+
+附加信号：celery worker 启动后 `[tasks]` 空 — 即便切 `CELERY_ENABLED=True`，
+也得修 [meet/celery_app.py](../../src/backend/meet/celery_app.py) 的
+`autodiscover_tasks` 让它真的扫到 `core.tasks.summary` 和
+`core.tasks.file`。
+
+**影响**：
+
+- 单次会议结束：webhook ack 延迟 5–10s，可接受
+- 多会议同时结束：gunicorn worker 被吃光 → 影响其它请求
+- 长会议（transcript 接近 60K 上限）：LLM 响应慢，阻塞更久
+
+**修法**：
+
+- **A. 修正 Celery 异步路径**（~30 LoC）：
+  1. `backend.envVars.CELERY_ENABLED=True`
+  2. `meet/celery_app.py` 加 `app.autodiscover_tasks(['core'])` 或显式
+     `include=['core.tasks.summary', 'core.tasks.file']`
+  3. 验证 worker 启动日志 `[tasks]` 列出 `core.tasks.summary.generate_meeting_summary`
+- **B. 维持 fallback** + 后台守护进程定期扫"未生成 summary 的 room"（更复杂，不推荐）
+
+**推荐 A**，在 Sprint 2.3 前做掉。Sprint 2.2.c 不依赖这个，可以并行。
+
+**工作量**：~30 LoC + 一次部署验证。
+
+---
+
 ## 处理建议（更新）
 
 - **本 Sprint 顺手做的**：1 + 2 + **5**（共 ~18 LoC，下次改 transcriber / translate 时一并）
-- **Sprint 2.3（房间侧栏 AI）前必须做**：3（RAG 要 speaker name）
+- **Sprint 2.3（房间侧栏 AI）前必须做**：
+  - 3（RAG 要 speaker name）
+  - **8**（避免 webhook 线程阻塞影响 RAG 实时查询）
 - **Sprint 2 全部完成后做**：
   - 4-A（监控）；4-B/C 看真实并发情况再说
   - **6**（LLM prompt 兜底；或上轻量 langdetect）
