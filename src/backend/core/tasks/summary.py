@@ -46,4 +46,19 @@ def generate_meeting_summary(room_id):
         summary.status,
         summary.transcripts_count,
     )
+
+    # Chain into Sprint 2.4 RAG embedding when the summary actually
+    # produced useful content. Failure here is non-fatal — the room
+    # already has a Summary, the AI sidebar / cross-meeting AI just
+    # won't include it in retrieval until the next regen.
+    if summary.status == "success" and summary.transcripts_count > 0:
+        try:
+            from core.tasks.embeddings import embed_meeting_transcripts
+
+            embed_meeting_transcripts.apply_async(args=[str(room_id)])
+        except Exception:
+            logger.exception(
+                "Failed to schedule embedding for room %s", room_id
+            )
+
     return str(summary.id)

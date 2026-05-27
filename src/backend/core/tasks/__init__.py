@@ -11,3 +11,4 @@ silently drops jobs.
 # noqa: F401 — these imports register tasks as a side effect.
 from core.tasks import file as _file  # noqa: F401
 from core.tasks import summary as _summary  # noqa: F401
+from core.tasks import embeddings as _embeddings  # noqa: F401
