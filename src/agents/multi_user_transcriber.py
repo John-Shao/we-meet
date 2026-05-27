@@ -207,7 +207,11 @@ class MultiUserTranscriber:
         # crash the transcription session.
         room_id = self.ctx.room.name
         speaker_identity = participant.identity
-        speaker_name = participant.name or ""
+        # Display name is mirrored into participant attributes by the
+        # backend (core.utils.generate_token) because livekit-rtc doesn't
+        # always surface the JWT ``name`` claim on RemoteParticipant.name.
+        attrs = getattr(participant, "attributes", None) or {}
+        speaker_name = attrs.get("name") or participant.name or ""
         writer = self._writer
         translator = self._translator
         target_langs = self._target_langs

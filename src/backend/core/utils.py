@@ -112,6 +112,8 @@ def generate_token(
     if color is None:
         color = generate_color(identity)
 
+    display_name = username or default_username
+
     token = (
         AccessToken(
             api_key=settings.LIVEKIT_CONFIGURATION["api_key"],
@@ -119,9 +121,17 @@ def generate_token(
         )
         .with_grants(video_grants)
         .with_identity(identity)
-        .with_name(username or default_username)
+        .with_name(display_name)
+        # Mirror the display name into participant attributes too:
+        # livekit-rtc on the agent side exposes attributes more reliably
+        # than the JWT-claim-only ``name`` field on RemoteParticipant.
+        # The transcriber agent reads this to populate Transcript.speaker_name.
         .with_attributes(
-            {"color": color, "room_admin": "true" if is_admin_or_owner else "false"}
+            {
+                "color": color,
+                "room_admin": "true" if is_admin_or_owner else "false",
+                "name": display_name,
+            }
         )
     )
 
