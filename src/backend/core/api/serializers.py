@@ -457,6 +457,23 @@ class StartAIAgentSerializer(BaseValidationOnlySerializer):
     )
 
 
+class AskAISerializer(BaseValidationOnlySerializer):
+    """Validate a single room-AI ``ask-ai`` question.
+
+    The endpoint is single-turn, so we only need the question text. The
+    500-char cap is deliberately generous (a couple of sentences with
+    context) without leaving room for prompt-injection padding.
+    """
+
+    question = serializers.CharField(
+        required=True,
+        max_length=500,
+        allow_blank=False,
+        trim_whitespace=True,
+        help_text="The user's question about the current meeting.",
+    )
+
+
 TrackSource = Literal["camera", "microphone", "screen_share", "screen_share_audio"]
 
 

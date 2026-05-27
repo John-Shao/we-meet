@@ -73,3 +73,23 @@ class CreationCallbackAnonRateThrottle(MonitoredAnonRateThrottle):
     """Throttle Anonymous user requesting room generation callback"""
 
     scope = "creation_callback"
+
+
+class RoomAIRateThrottle(MonitoredUserRateThrottle):
+    """Per-participant throttle for the room sidebar AI ``ask-ai`` endpoint.
+
+    The endpoint runs behind LiveKit token auth, so ``request.user`` may
+    be ``AnonymousUser`` for lobby joiners. Keying on the token identity
+    (``request.auth.identity``) catches both authenticated members and
+    one-off guests with the same rate limit. Without a valid token there
+    is nothing useful to throttle on — return ``None`` and let the
+    authentication layer reject the request itself.
+    """
+
+    scope = "room_ai"
+
+    def get_cache_key(self, request, view):
+        ident = getattr(getattr(request, "auth", None), "identity", None)
+        if not ident:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": ident}

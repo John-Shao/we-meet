@@ -403,6 +403,14 @@ class Base(Configuration):
                 environ_name="CREATION_CALLBACK_THROTTLE_RATES",
                 environ_prefix=None,
             ),
+            # Sprint 2.3 — room sidebar AI. Each LLM call is a few seconds
+            # of latency and real money; 10/minute per LiveKit identity is
+            # comfortable for normal use, hard cap for runaway clients.
+            "room_ai": values.Value(
+                default="10/minute",
+                environ_name="ROOM_AI_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
         },
     }
     MONITORED_THROTTLE_FAILURE_CALLBACK = (

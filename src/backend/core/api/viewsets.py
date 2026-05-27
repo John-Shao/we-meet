@@ -84,6 +84,8 @@ from core.services.room_management import (
     RoomNotFoundException,
 )
 from core.services.ai_agent import AIAgentException, AIAgentService
+from core.services.room_ai import RoomAIService
+from core.services.llm_client import LLMUnavailable
 from core.services.ai_agent_providers import (
     build_agent_metadata,
     get_ai_agent_config,
@@ -1095,6 +1097,48 @@ class RoomViewSet(
         return drf_response.Response(
             {"status": "success"}, status=drf_status.HTTP_200_OK
         )
+
+    # ------------------------------------------------------------------
+    # Sprint 2.3 — Room sidebar AI (single-turn QA over live transcripts)
+    # ------------------------------------------------------------------
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="ask-ai",
+        permission_classes=[permissions.HasLiveKitRoomAccess],
+        authentication_classes=[LiveKitTokenAuthentication],
+        throttle_classes=[throttling.RoomAIRateThrottle],
+    )
+    def ask_ai(self, request, pk=None):  # pylint: disable=unused-argument
+        """Answer one question about the current meeting using its transcripts.
+
+        Body: ``{"question": "..."}``. The auth chain proves the caller's
+        LiveKit token was minted for this very room (``HasLiveKitRoomAccess``),
+        so only live participants reach this code path. Single-turn — no
+        history persisted; the frontend manages conversation state.
+        """
+        room = self.get_object()
+
+        serializer = serializers.AskAISerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        question = serializer.validated_data["question"]
+
+        try:
+            result = RoomAIService().ask(room=room, question=question)
+        except LLMUnavailable as exc:
+            return drf_response.Response(
+                {"error": str(exc)},
+                status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.exception("room ai failed for room %s", room.id)
+            return drf_response.Response(
+                {"error": f"Room AI failed: {exc}"},
+                status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return drf_response.Response(result, status=drf_status.HTTP_200_OK)
 
     @decorators.action(
         detail=True,
