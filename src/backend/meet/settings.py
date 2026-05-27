@@ -1299,6 +1299,10 @@ class Production(Base):
     SECURE_REDIRECT_EXEMPT = [
         "^__lbheartbeat__",
         "^__heartbeat__",
+        # Internal agent-worker endpoints are reached over the in-cluster
+        # K8s service DNS (plain HTTP); a 302→HTTPS would dead-end since
+        # the service only exposes port 80.
+        "^api/agent/",
     ]
 
     # Modern browsers require to have the `secure` attribute on cookies with `Samesite=none`
