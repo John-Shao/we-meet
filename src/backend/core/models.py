@@ -1573,3 +1573,107 @@ class ActionItem(BaseModel):
     def __str__(self) -> str:
         owner = f"[{self.owner_text}] " if self.owner_text else ""
         return f"{owner}{self.content[:80]}"
+
+
+class TranscriptChunk(BaseModel):
+    """A retrieval unit for cross-meeting RAG (Sprint 2.4).
+
+    One row groups several consecutive ``Transcript`` utterances by the
+    same speaker (or a sliding window thereof) plus the dense vector
+    embedding of that text. Lookup at query time is: filter by user's
+    accessible rooms, then numpy cosine top-K on the embedding column —
+    no pgvector dependency. See docs/features/personal_ai_rag.md for
+    the rationale (path D).
+
+    Lifecycle:
+        * Written by the ``embed_meeting_transcripts`` Celery task,
+          chained after a successful ``generate_meeting_summary``.
+        * Re-run idempotent: the task deletes existing chunks for the
+          room before inserting fresh ones, so Summary regenerations
+          stay in sync.
+    """
+
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name="chunks",
+        verbose_name=_("room"),
+    )
+    summary = models.ForeignKey(
+        Summary,
+        on_delete=models.CASCADE,
+        related_name="chunks",
+        null=True,
+        blank=True,
+        verbose_name=_("summary"),
+        help_text=_(
+            "Summary generation this chunk-set belongs to. Null only "
+            "for chunks produced by direct backfill before Summary v2."
+        ),
+    )
+    chunk_index = models.PositiveIntegerField(
+        _("chunk index"),
+        help_text=_("0-based ordinal within the room, stable across re-embeds."),
+    )
+    speaker_identity = models.CharField(
+        _("speaker identity"),
+        max_length=128,
+        blank=True,
+        default="",
+    )
+    speaker_name = models.CharField(
+        _("speaker name"),
+        max_length=128,
+        blank=True,
+        default="",
+    )
+    text = models.TextField(_("text"))
+    started_at = models.DateTimeField(_("speech started at"))
+    ended_at = models.DateTimeField(_("speech ended at"), null=True, blank=True)
+    source_transcript_ids = ArrayField(
+        models.UUIDField(),
+        default=list,
+        blank=True,
+        verbose_name=_("source transcript ids"),
+        help_text=_(
+            "UUIDs of the Transcript rows aggregated into this chunk. "
+            "Audit trail for citation rendering; not enforced FKs so a "
+            "deleted Transcript doesn't kill its chunk."
+        ),
+    )
+    embedding = models.JSONField(
+        _("embedding"),
+        default=list,
+        help_text=_(
+            "Dense vector as a list of floats. Length depends on the "
+            "embedding model (Doubao text-embedding-large = 1024). "
+            "Stored as JSON to avoid the pgvector dependency; the "
+            "service layer pulls these into numpy at query time."
+        ),
+    )
+    embedding_model = models.CharField(
+        _("embedding model"),
+        max_length=64,
+        blank=True,
+        default="",
+        help_text=_(
+            "Doubao embedding endpoint id (ep-...) used at write time. "
+            "Lets us spot mixed-model chunks during a model migration."
+        ),
+    )
+
+    class Meta:
+        verbose_name = _("transcript chunk")
+        verbose_name_plural = _("transcript chunks")
+        ordering = ("room", "chunk_index")
+        indexes = [
+            # Hot path: load all chunks for a set of user-accessible
+            # rooms. (room_id, chunk_index) covers both filter & sort.
+            models.Index(fields=["room", "chunk_index"]),
+            models.Index(fields=["summary"]),
+        ]
+
+    def __str__(self) -> str:
+        speaker = self.speaker_name or self.speaker_identity[:12] or "?"
+        preview = self.text[:60]
+        return f"#{self.chunk_index} {speaker}: {preview}"
