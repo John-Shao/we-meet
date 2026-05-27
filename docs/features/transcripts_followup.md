@@ -113,10 +113,111 @@ DEBUG 级别即可，避免高频 INFO 刷屏；联调时改 INFO。
 
 ---
 
-## 处理建议
+---
 
-- **本 Sprint 顺手做的**：1 + 2（共 ~15 LoC，下次改 transcriber 时一并）
+## 5. LLM 翻译"过度纠正"
+
+**优先级**：P2（直接影响 Sprint 2.1 上线后的体验）
+
+**现象**：上线后实测发现 LLM 会把疑似拼写错误"修正"成解释。例如：
+
+```
+原文:  "Hello word."
+译文:  "There is a mistake in the original text. It should probably be 'Hello, world.'"
+```
+
+字幕场景下这种"善意修正"是 anti-feature —— 用户想要的是逐字翻译。
+
+**根因**：[src/agents/plugins/doubao_translate.py](../../src/agents/plugins/doubao_translate.py)
+中的翻译 prompt 仅说 "Translate ... Reply with ONLY the translated text"，没禁
+止"纠错 / 解释 / 评论"。
+
+**修法**：prompt 追加一句明确的禁令：
+
+```python
+prompt = (
+    f"Translate the following text from {_lang_label(src or 'auto-detected')} "
+    f"to {_lang_label(tgt)}. Reply with ONLY the translated text — no "
+    f"explanations, no quotes, no language prefix. "
+    f"Do NOT correct, comment on, or explain the input — translate it "
+    f"verbatim even if it contains typos or grammatical issues.\n\n{text}"
+)
+```
+
+**工作量**：~3 LoC + 1-2 句 PR 描述的真实例子。
+
+---
+
+## 6. Doubao STT 永远把 language 标记为 `zh`
+
+**优先级**：P2（导致一半翻译额度被浪费）
+
+**现象**：实测 `Transcript.language` 字段在所有行里都是 `"zh"`，包括
+`"Hello, world."` 这种纯英文。
+
+**根因**：[src/agents/plugins/doubao_pipeline/stt.py](../../src/agents/plugins/doubao_pipeline/stt.py)
+中两处 ``language="zh"`` 是硬编码（L331、L415 附近），跟 STT 引擎实际识别
+出的语言无关。
+
+**直接副作用**：
+
+- 翻译时英文输入被认为是中文 → 翻译成 `en-us` 等于自身（浪费一次 LLM 调用）
+- 前端 `isSameLanguage` 判定误判（影响双语展示策略）
+
+**修法选项**（按代价由低到高）：
+
+- **A. LLM 自检**：在 `doubao_translate.py` 的 prompt 里加一句
+  `"If the source text is already entirely in {target_lang}, reply with the original text unchanged."`
+  — 最少改动，浪费的还是同样多的 token，但至少不会出错。
+- **B. 翻译前做轻量语言检测**：用 `langdetect` 或简单"字符集判断"（含 CJK
+  → zh、纯 ASCII 字母 → en）覆盖 STT 标签。**推荐**：~20 LoC，调用量
+  减半。
+- **C. 修 STT plugin**：从 Doubao ASR 响应里读真实 language。需查 Doubao
+  API 是否支持，未必有；改动最大。
+
+**推荐路径**：先 A，下次扩同传时一并做 B。
+
+**工作量**：A ~3 LoC；B ~25 LoC。
+
+---
+
+## 7. 同传译文显示策略
+
+**优先级**：P2（产品决策，不是 bug）
+
+**现象**：Sprint 2.1 上线后，单语会议（参会者全是中文 UI、说中文）字幕**完
+全看不到译文**，让人怀疑"是不是没生效"。要切到英文 UI 才能看到 demo 效
+果。
+
+**根因**：[src/frontend/src/features/subtitle/component/Subtitles.tsx](../../src/frontend/src/features/subtitle/component/Subtitles.tsx)
+里的 `isSameLanguage(rowLang, uiLanguage)` 短路逻辑 —— 这是 Sprint 2.1
+当时的产品判断（按需展示，不打扰）。
+
+**三种产品定位**：
+
+| 策略 | 触发 | 体验 |
+|---|---|---|
+| **A. 按需**（当前） | UI 跟原文不同语 | 不打扰；单语 demo 看不到 |
+| **B. 双语对照默认开** | 所有 caption 都显示原文+译文 | 直观；屏幕占一半 |
+| **C. CC 设置 toggle** ★ | 用户在 CaptionsSettings 加"显示翻译"，自己开关 | 灵活、可控、demo 友好 |
+
+**推荐方案**：C。在 [CaptionsSettings.tsx](../../src/frontend/src/features/subtitle/component/CaptionsSettings.tsx)
+加一项 "Show translation"，存到 [stores/accessibility.ts](../../src/frontend/src/stores/accessibility.ts)。
+开关开了之后 `Subtitles.tsx` 跳过 `isSameLanguage` 检查；关了则维持当前
+按需行为。
+
+**工作量**：~50 LoC（UI toggle + valtio store + 持久化到 localStorage +
+i18n 文案）。
+
+---
+
+## 处理建议（更新）
+
+- **本 Sprint 顺手做的**：1 + 2 + **5**（共 ~18 LoC，下次改 transcriber / translate 时一并）
 - **Sprint 2.3（房间侧栏 AI）前必须做**：3（RAG 要 speaker name）
-- **Sprint 2 全部完成后做**：4-A（监控）；4-B/C 看真实并发情况再说
+- **Sprint 2 全部完成后做**：
+  - 4-A（监控）；4-B/C 看真实并发情况再说
+  - **6**（LLM prompt 兜底；或上轻量 langdetect）
+  - **7**（CC 设置加翻译 toggle，提升 demo 与可控性）
 
 不再单独排 Sprint —— 这些都是嵌入到下个 Sprint 自然推进的小修。
