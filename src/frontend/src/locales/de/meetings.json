@@ -1,0 +1,31 @@
+{
+  "pageTitle": "Besprechungsdetail",
+  "loading": "Wird geladen…",
+  "tabs": {
+    "label": "Besprechungsdetail",
+    "summary": "Zusammenfassung",
+    "actionItems": "Maßnahmen",
+    "transcript": "Transkript"
+  },
+  "summary": {
+    "empty": "Noch keine Zusammenfassung (Besprechung läuft oder noch nicht generiert).",
+    "failed": "Zusammenfassung konnte nicht generiert werden"
+  },
+  "actionItems": {
+    "empty": "Keine Maßnahmen",
+    "owner": "Verantwortlich",
+    "due": "Fällig"
+  },
+  "transcript": {
+    "empty": "Kein Transkript"
+  },
+  "auth": {
+    "title": "Anmeldung erforderlich",
+    "body": "Bitte melden Sie sich an, um Besprechungsdetails anzuzeigen."
+  },
+  "error": {
+    "title": "Laden fehlgeschlagen",
+    "body": "Die Besprechungsdetails konnten nicht geladen werden. Bitte später erneut versuchen.",
+    "loadFailed": "Laden fehlgeschlagen"
+  }
+}

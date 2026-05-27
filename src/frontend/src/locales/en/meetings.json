@@ -1,0 +1,31 @@
+{
+  "pageTitle": "Meeting detail",
+  "loading": "Loading…",
+  "tabs": {
+    "label": "Meeting detail",
+    "summary": "Summary",
+    "actionItems": "Action items",
+    "transcript": "Transcript"
+  },
+  "summary": {
+    "empty": "No summary yet (meeting not finished or summary not generated).",
+    "failed": "Summary generation failed"
+  },
+  "actionItems": {
+    "empty": "No action items",
+    "owner": "Owner",
+    "due": "Due"
+  },
+  "transcript": {
+    "empty": "No transcript"
+  },
+  "auth": {
+    "title": "Sign-in required",
+    "body": "Please sign in to view meeting details."
+  },
+  "error": {
+    "title": "Unable to load",
+    "body": "Failed to load the meeting detail. Please try again later.",
+    "loadFailed": "Failed to load"
+  }
+}

@@ -277,6 +277,63 @@ class RecordingSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class TranscriptSerializer(serializers.ModelSerializer):
+    """Read-only serializer for the meeting detail page."""
+
+    class Meta:
+        model = models.Transcript
+        fields = [
+            "id",
+            "speaker_identity",
+            "speaker_name",
+            "text",
+            "language",
+            "translations",
+            "started_at",
+            "ended_at",
+        ]
+        read_only_fields = fields
+
+
+class ActionItemSerializer(serializers.ModelSerializer):
+    """Read-only serializer for the meeting detail page."""
+
+    class Meta:
+        model = models.ActionItem
+        fields = [
+            "id",
+            "content",
+            "owner_text",
+            "due_text",
+            "sort_order",
+            "is_completed",
+            "source_transcript_id",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
+class SummarySerializer(serializers.ModelSerializer):
+    """Read-only serializer for the meeting detail page."""
+
+    action_items = ActionItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = models.Summary
+        fields = [
+            "id",
+            "content",
+            "model_used",
+            "transcripts_count",
+            "status",
+            "error_message",
+            "created_at",
+            "updated_at",
+            "action_items",
+        ]
+        read_only_fields = fields
+
+
 class BaseValidationOnlySerializer(serializers.Serializer):
     """Base serializer for validation-only operations."""
 

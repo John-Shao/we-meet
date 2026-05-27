@@ -1,0 +1,31 @@
+{
+  "pageTitle": "Vergaderdetail",
+  "loading": "Bezig met laden…",
+  "tabs": {
+    "label": "Vergaderdetail",
+    "summary": "Samenvatting",
+    "actionItems": "Actiepunten",
+    "transcript": "Transcriptie"
+  },
+  "summary": {
+    "empty": "Nog geen samenvatting (vergadering nog niet beëindigd of samenvatting niet gegenereerd).",
+    "failed": "Samenvatting genereren mislukt"
+  },
+  "actionItems": {
+    "empty": "Geen actiepunten",
+    "owner": "Verantwoordelijke",
+    "due": "Deadline"
+  },
+  "transcript": {
+    "empty": "Geen transcriptie"
+  },
+  "auth": {
+    "title": "Inloggen vereist",
+    "body": "Log in om vergaderdetails te bekijken."
+  },
+  "error": {
+    "title": "Kan niet laden",
+    "body": "Het laden van het vergaderdetail is mislukt. Probeer het later opnieuw.",
+    "loadFailed": "Laden mislukt"
+  }
+}

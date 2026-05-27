@@ -876,6 +876,54 @@ class RoomViewSet(
             {"status": "success"}, status=drf_status.HTTP_200_OK
         )
 
+    # ------------------------------------------------------------------
+    # Sprint 2.2.c — Meeting detail (summary / action items / transcripts)
+    # ------------------------------------------------------------------
+
+    @decorators.action(
+        detail=True,
+        methods=["get"],
+        url_path="summary",
+    )
+    def get_summary(self, request, pk=None):  # pylint: disable=unused-argument
+        """Return the LLM-generated summary for this meeting, if any.
+
+        404 means the meeting has no summary yet (room never ended, or
+        summary generation never ran). Access control: any user who can
+        retrieve the Room can retrieve its summary.
+        """
+        room = self.get_object()
+        summary = getattr(room, "summary", None)
+        if summary is None:
+            raise drf_exceptions.NotFound("No summary for this meeting yet.")
+        return drf_response.Response(serializers.SummarySerializer(summary).data)
+
+    @decorators.action(
+        detail=True,
+        methods=["get"],
+        url_path="action-items",
+    )
+    def get_action_items(self, request, pk=None):  # pylint: disable=unused-argument
+        """List action items for this meeting."""
+        room = self.get_object()
+        items = room.action_items.all().order_by("sort_order", "created_at")
+        return drf_response.Response(
+            serializers.ActionItemSerializer(items, many=True).data
+        )
+
+    @decorators.action(
+        detail=True,
+        methods=["get"],
+        url_path="transcripts",
+    )
+    def get_transcripts(self, request, pk=None):  # pylint: disable=unused-argument
+        """List all FINAL transcripts for this meeting in time order."""
+        room = self.get_object()
+        rows = room.transcripts.all().order_by("started_at")
+        return drf_response.Response(
+            serializers.TranscriptSerializer(rows, many=True).data
+        )
+
     @decorators.action(
         detail=False,
         methods=["get"],

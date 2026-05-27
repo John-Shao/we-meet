@@ -1,0 +1,31 @@
+{
+  "pageTitle": "Détail de la réunion",
+  "loading": "Chargement…",
+  "tabs": {
+    "label": "Détail de la réunion",
+    "summary": "Compte-rendu",
+    "actionItems": "Actions à mener",
+    "transcript": "Transcription"
+  },
+  "summary": {
+    "empty": "Pas encore de compte-rendu (réunion en cours ou compte-rendu non généré).",
+    "failed": "Échec de la génération du compte-rendu"
+  },
+  "actionItems": {
+    "empty": "Aucune action à mener",
+    "owner": "Responsable",
+    "due": "Échéance"
+  },
+  "transcript": {
+    "empty": "Aucune transcription"
+  },
+  "auth": {
+    "title": "Connexion requise",
+    "body": "Veuillez vous connecter pour voir les détails de la réunion."
+  },
+  "error": {
+    "title": "Chargement impossible",
+    "body": "Le chargement des détails de la réunion a échoué. Veuillez réessayer plus tard.",
+    "loadFailed": "Échec du chargement"
+  }
+}
