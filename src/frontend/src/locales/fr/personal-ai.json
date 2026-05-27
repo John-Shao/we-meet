@@ -1,0 +1,14 @@
+{
+  "fab": {
+    "label": "IA de mes réunions"
+  },
+  "title": "IA de mes réunions",
+  "close": "Fermer",
+  "hint": "Posez une question à l'IA. Elle répond à partir de toutes vos réunions disposant d'un compte-rendu. Exemples :\n- Qu'avons-nous décidé sur la présence la semaine dernière ?\n- De quoi avons-nous parlé avec Alice récemment ?\n- Quelles étaient les demandes principales du client ?\n\nRemarque : seules les réunions avec un compte-rendu généré sont indexées ; une nouvelle réunion apparaît environ 30 s après sa fin.",
+  "placeholder": "Posez une question à l'IA. Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne",
+  "inputAriaLabel": "Champ de saisie de la question",
+  "send": "Envoyer",
+  "sending": "Envoi…",
+  "thinking": "Recherche dans vos réunions…",
+  "error": "Échec de la requête : {{message}}"
+}

@@ -1,0 +1,14 @@
+{
+  "fab": {
+    "label": "Mijn vergader-AI"
+  },
+  "title": "Mijn vergader-AI",
+  "close": "Sluiten",
+  "hint": "Stel een vraag aan de AI. Hij antwoordt op basis van al uw vergaderingen met een gegenereerde samenvatting. Voorbeelden:\n- Wat hebben we vorige week over aanwezigheid besloten?\n- Waar hebben Alice en ik recent over gesproken?\n- Wat waren de belangrijkste wensen van de klant?\n\nLet op: alleen vergaderingen met een samenvatting worden geïndexeerd; een nieuwe vergadering verschijnt ongeveer 30 s na afloop.",
+  "placeholder": "Vraag aan de AI. Enter om te verzenden, Shift+Enter voor nieuwe regel",
+  "inputAriaLabel": "Invoerveld voor de vraag",
+  "send": "Verzenden",
+  "sending": "Wordt verzonden…",
+  "thinking": "Doorzoekt uw vergaderingen…",
+  "error": "Aanvraag mislukt: {{message}}"
+}

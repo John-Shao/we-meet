@@ -1,0 +1,14 @@
+{
+  "fab": {
+    "label": "My meetings AI"
+  },
+  "title": "My meetings AI",
+  "close": "Close",
+  "hint": "Ask the AI about your meetings. It answers from every meeting you've joined that has a summary. Examples:\n- What did we decide about attendance last week?\n- What have Alice and I discussed recently?\n- What were the customer's main requests?\n\nNote: only meetings with a generated summary are indexed; new meetings appear within ~30 seconds after the meeting ends.",
+  "placeholder": "Ask the AI. Enter to send, Shift+Enter for newline",
+  "inputAriaLabel": "Question input",
+  "send": "Send",
+  "sending": "Sending…",
+  "thinking": "Searching across your meetings…",
+  "error": "Request failed: {{message}}"
+}

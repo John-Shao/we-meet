@@ -17,6 +17,7 @@ import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialo
 import { IntroSlider } from '@/features/home/components/IntroSlider'
 import { MoreLink } from '@/features/home/components/MoreLink'
 import { RecentMeetingsList } from '@/features/meetings'
+import { PersonalAIFab } from '@/features/personal-ai'
 import { ReactNode, useEffect, useState } from 'react'
 
 import { css } from '@/styled-system/css'
@@ -351,6 +352,7 @@ export const Home = () => {
           room={laterRoom}
           onOpenChange={() => setLaterRoom(null)}
         />
+        {isLoggedIn && <PersonalAIFab />}
       </Screen>
     </UserAware>
   )

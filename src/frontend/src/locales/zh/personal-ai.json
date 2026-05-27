@@ -1,0 +1,14 @@
+{
+  "fab": {
+    "label": "我的会议 AI"
+  },
+  "title": "我的会议 AI",
+  "close": "关闭",
+  "hint": "向 AI 提问可基于你参与过的所有会议作答，例如：\n- 上周关于考勤的会议结论是什么？\n- 我和张三最近讨论过哪些议题？\n- 客户 X 的主要诉求是？\n\n注：仅基于已生成纪要的会议；新会议在结束 30s 内自动入库。",
+  "placeholder": "向 AI 提问，Enter 发送 / Shift+Enter 换行",
+  "inputAriaLabel": "提问输入框",
+  "send": "发送",
+  "sending": "发送中…",
+  "thinking": "正在跨会议检索…",
+  "error": "请求失败：{{message}}"
+}

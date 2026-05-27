@@ -1,0 +1,14 @@
+{
+  "fab": {
+    "label": "Meine Meeting-KI"
+  },
+  "title": "Meine Meeting-KI",
+  "close": "Schließen",
+  "hint": "Fragen Sie die KI zu Ihren Meetings. Sie antwortet anhand aller Meetings, an denen Sie teilgenommen haben und für die eine Zusammenfassung erzeugt wurde. Beispiele:\n- Was haben wir letzte Woche zur Anwesenheit entschieden?\n- Worüber haben Alice und ich kürzlich gesprochen?\n- Was waren die Hauptanliegen des Kunden?\n\nHinweis: Nur Meetings mit erzeugter Zusammenfassung werden indiziert; ein neues Meeting erscheint ~30 s nach Meeting-Ende.",
+  "placeholder": "Frage an die KI. Eingabe = senden, Umschalt+Eingabe = neue Zeile",
+  "inputAriaLabel": "Eingabefeld für die Frage",
+  "send": "Senden",
+  "sending": "Wird gesendet…",
+  "thinking": "Durchsuche Ihre Meetings…",
+  "error": "Anfrage fehlgeschlagen: {{message}}"
+}
