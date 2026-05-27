@@ -337,7 +337,8 @@
       "screenRecording": "Aufzeichnen",
       "admin": "Admin-Einstellungen",
       "tools": "Weitere Tools",
-      "info": "Meeting-Informationen"
+      "info": "Meeting-Informationen",
+      "roomAI": "Meeting-KI"
     },
     "content": {
       "participants": "Teilnehmende",
@@ -347,7 +348,8 @@
       "screenRecording": "aufzeichnen",
       "admin": "Admin-Einstellungen",
       "tools": "Weitere Tools",
-      "info": "Meeting-Informationen"
+      "info": "Meeting-Informationen",
+      "roomAI": "Meeting-KI"
     },
     "closeButton": "{{content}} ausblenden"
   },

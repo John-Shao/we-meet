@@ -1,0 +1,13 @@
+{
+  "toggle": {
+    "open": "Vergader-AI sluiten",
+    "closed": "Vergader-AI openen (antwoorden op basis van het lopende transcript)"
+  },
+  "hint": "Stel een vraag aan de AI. Hij antwoordt op basis van het lopende transcript van deze vergadering. Voorbeelden:\n- Wat zei Alice zojuist?\n- Vat de laatste 5 minuten samen\n- Zijn we het eens over de planning?\n\nLet op: alleen al afgeronde transcriptregels tellen mee; de allerlaatste zin kan 1–2 s achterlopen.",
+  "placeholder": "Vraag aan de vergader-AI. Enter om te verzenden, Shift+Enter voor nieuwe regel",
+  "inputAriaLabel": "Invoerveld voor de vraag",
+  "send": "Verzenden",
+  "sending": "Wordt verzonden…",
+  "thinking": "Aan het nadenken…",
+  "error": "Aanvraag mislukt: {{message}}"
+}

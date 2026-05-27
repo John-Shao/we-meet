@@ -1,0 +1,13 @@
+{
+  "toggle": {
+    "open": "Fermer l'IA de la réunion",
+    "closed": "Ouvrir l'IA de la réunion (basée sur la transcription en cours)"
+  },
+  "hint": "Posez une question à l'IA, qui répond à partir de la transcription de cette réunion. Exemples :\n- Qu'a dit Alice à l'instant ?\n- Résume les 5 dernières minutes\n- Avons-nous trouvé un accord sur le planning ?\n\nRemarque : seuls les sous-titres déjà finalisés sont pris en compte, la toute dernière phrase peut avoir 1 à 2 s de retard.",
+  "placeholder": "Question à l'IA de la réunion. Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne",
+  "inputAriaLabel": "Champ de saisie de la question",
+  "send": "Envoyer",
+  "sending": "Envoi…",
+  "thinking": "Réflexion…",
+  "error": "Échec de la requête : {{message}}"
+}

@@ -1,0 +1,13 @@
+{
+  "toggle": {
+    "open": "关闭会议 AI",
+    "closed": "打开会议 AI（基于本场字幕）"
+  },
+  "hint": "向 AI 提问可基于本场会议的字幕作答，例如：\n- 刚才张三说了什么？\n- 最近 5 分钟的要点\n- 我们对 XX 议题达成共识了吗？\n\n注：仅基于已落表的字幕，最新一句可能有 1–2 秒延迟。",
+  "placeholder": "向会议 AI 提问，Enter 发送 / Shift+Enter 换行",
+  "inputAriaLabel": "提问输入框",
+  "send": "发送",
+  "sending": "发送中…",
+  "thinking": "正在思考…",
+  "error": "请求失败：{{message}}"
+}

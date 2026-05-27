@@ -336,7 +336,8 @@
       "screenRecording": "Opnemen",
       "admin": "Beheerdersbediening",
       "tools": "Meer tools",
-      "info": "Vergaderinformatie"
+      "info": "Vergaderinformatie",
+      "roomAI": "Vergader-AI"
     },
     "content": {
       "participants": "deelnemers",
@@ -346,7 +347,8 @@
       "transcript": "transcriberen",
       "admin": "beheerdersbediening",
       "tools": "meer tools",
-      "info": "vergaderinformatie"
+      "info": "vergaderinformatie",
+      "roomAI": "vergader-AI"
     },
     "closeButton": "Verberg {{content}}"
   },

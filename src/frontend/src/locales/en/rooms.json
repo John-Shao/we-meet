@@ -336,7 +336,8 @@
       "screenRecording": "Record",
       "admin": "Host settings",
       "tools": "More tools",
-      "info": "Meeting information"
+      "info": "Meeting information",
+      "roomAI": "Meeting AI"
     },
     "content": {
       "participants": "participants",
@@ -346,7 +347,8 @@
       "screenRecording": "record",
       "admin": "host settings",
       "tools": "more tools",
-      "info": "meeting information"
+      "info": "meeting information",
+      "roomAI": "meeting AI"
     },
     "closeButton": "Hide {{content}}"
   },

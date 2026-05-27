@@ -1,0 +1,13 @@
+{
+  "toggle": {
+    "open": "Meeting-KI schließen",
+    "closed": "Meeting-KI öffnen (Antworten aus dem laufenden Transkript)"
+  },
+  "hint": "Fragen Sie die KI zu dieser Besprechung. Sie antwortet auf Basis des laufenden Transkripts. Beispiele:\n- Was hat Alice gerade gesagt?\n- Fasse die letzten 5 Minuten zusammen\n- Haben wir uns auf den Zeitplan geeinigt?\n\nHinweis: Nur finalisierte Transkriptzeilen werden berücksichtigt; der allerletzte Satz kann 1–2 s nachhinken.",
+  "placeholder": "Frage an die Meeting-KI. Eingabe = senden, Umschalt+Eingabe = neue Zeile",
+  "inputAriaLabel": "Eingabefeld für die Frage",
+  "send": "Senden",
+  "sending": "Wird gesendet…",
+  "thinking": "Denkt nach…",
+  "error": "Anfrage fehlgeschlagen: {{message}}"
+}

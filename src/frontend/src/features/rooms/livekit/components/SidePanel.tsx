@@ -13,6 +13,7 @@ import { Effects } from './effects/Effects'
 import { Admin } from './Admin'
 import { Tools } from './Tools'
 import { Info } from './Info'
+import { RoomAIPanel } from '@/features/room-ai/components/RoomAIPanel'
 import { HStack } from '@/styled-system/jsx'
 import { useReactionsToolbar } from '@/features/reactions/hooks/useReactionsToolbar'
 
@@ -154,6 +155,7 @@ export const SidePanel = () => {
     isToolsOpen,
     isAdminOpen,
     isInfoOpen,
+    isRoomAIOpen,
     isSubPanelOpen,
     activeSubPanelId,
   } = useSidePanel()
@@ -196,6 +198,9 @@ export const SidePanel = () => {
       </Panel>
       <Panel isOpen={isInfoOpen}>
         <Info />
+      </Panel>
+      <Panel isOpen={isRoomAIOpen} keepAlive={true}>
+        <RoomAIPanel />
       </Panel>
     </StyledSidePanel>
   )

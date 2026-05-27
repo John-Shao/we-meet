@@ -336,7 +336,8 @@
       "screenRecording": "录制",
       "admin": "主持人设置",
       "tools": "更多工具",
-      "info": "会议信息"
+      "info": "会议信息",
+      "roomAI": "会议 AI"
     },
     "content": {
       "participants": "参会者",
@@ -346,7 +347,8 @@
       "screenRecording": "录制",
       "admin": "主持人设置",
       "tools": "更多工具",
-      "info": "会议信息"
+      "info": "会议信息",
+      "roomAI": "会议 AI"
     },
     "closeButton": "隐藏 {{content}}"
   },
