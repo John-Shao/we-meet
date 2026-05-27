@@ -261,7 +261,16 @@ class MultiUserTranscriber:
 
     async def _close_session(self, sess: AgentSession) -> None:
         """Close and cleanup transcription session."""
-        await sess.drain()
+        try:
+            await sess.drain()
+        except RuntimeError as e:
+            # livekit-agents 1.4.5 races: on participant disconnect the
+            # framework auto-drains the session and a second drain() raises
+            # "AgentSession isn't running". Treated as benign; everything
+            # else still bubbles up.
+            if "isn't running" not in str(e):
+                raise
+            logger.debug("session already drained by the framework")
         await sess.aclose()
 
 

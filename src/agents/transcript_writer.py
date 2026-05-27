@@ -105,5 +105,12 @@ class TranscriptWriter:
                         resp.status,
                         resp.read(500),
                     )
+                else:
+                    logger.info(
+                        "ingested transcript speaker=%s lang=%s text=%r",
+                        payload.get("speaker_identity", ""),
+                        payload.get("language", ""),
+                        payload.get("text", "")[:80],
+                    )
         except urllib.error.HTTPError as e:
             logger.warning("Transcript ingest HTTP %s: %s", e.code, e.read(500))

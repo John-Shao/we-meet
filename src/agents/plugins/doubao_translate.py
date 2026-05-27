@@ -97,11 +97,21 @@ class DoubaoTranslator:
         if src and _matches(src, tgt):
             return text  # no-op when source == target
 
+        # Strong "translate verbatim" prompt: prevents the LLM from
+        # "helpfully" correcting typos / commenting on issues / explaining
+        # the input. Caption use case demands fidelity, not interpretation.
+        # Also covers the "language tag is wrong" case (Doubao STT always
+        # labels output as zh, even for English content) by short-circuiting
+        # to the original text when source and target are equivalent.
         prompt = (
             f"Translate the following text from "
             f"{_lang_label(src or 'auto-detected')} to {_lang_label(tgt)}. "
             "Reply with ONLY the translated text — no explanations, no "
-            f"quotes, no language prefix.\n\n{text}"
+            "quotes, no language prefix. Do NOT correct, comment on, or "
+            "explain the input; translate it verbatim even if it contains "
+            "typos, fragments, or grammatical issues. If the input is "
+            f"already entirely in {_lang_label(tgt)}, reply with the "
+            f"original text unchanged.\n\n{text}"
         )
         try:
             resp = await self._client.chat.completions.create(
