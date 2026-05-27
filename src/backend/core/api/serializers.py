@@ -474,6 +474,22 @@ class AskAISerializer(BaseValidationOnlySerializer):
     )
 
 
+class AskPersonalAISerializer(BaseValidationOnlySerializer):
+    """Validate a single cross-meeting (personal) AI question.
+
+    Same shape as :class:`AskAISerializer` — kept as its own class so
+    OpenAPI docs / spectacular pick up the distinct endpoint semantics.
+    """
+
+    question = serializers.CharField(
+        required=True,
+        max_length=500,
+        allow_blank=False,
+        trim_whitespace=True,
+        help_text="The user's question about their accessible meetings.",
+    )
+
+
 TrackSource = Literal["camera", "microphone", "screen_share", "screen_share_audio"]
 
 

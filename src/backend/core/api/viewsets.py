@@ -85,6 +85,8 @@ from core.services.room_management import (
 )
 from core.services.ai_agent import AIAgentException, AIAgentService
 from core.services.room_ai import RoomAIService
+from core.services.personal_ai import PersonalAIService
+from core.services.embeddings import EmbeddingUnavailable
 from core.services.llm_client import LLMUnavailable
 from core.services.ai_agent_providers import (
     build_agent_metadata,
@@ -239,6 +241,45 @@ class UserViewSet(
         """Deregister (soft-delete and anonymize) the current user account."""
         UserDeregistrationService().deregister(request.user)
         return drf_response.Response(status=drf_status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # Sprint 2.4 — Cross-meeting AI ("personal AI") RAG
+    # ------------------------------------------------------------------
+
+    @decorators.action(
+        detail=False,
+        methods=["post"],
+        url_name="ask-personal-ai",
+        url_path="me/ai/ask",
+        permission_classes=[permissions.IsAuthenticated],
+        throttle_classes=[throttling.PersonalAIRateThrottle],
+    )
+    def ask_personal_ai(self, request):
+        """Answer one question against the user's accessible meetings.
+
+        Body: ``{"question": "..."}``. The service strictly filters to
+        rooms the current Django user is a member of and has a successful
+        Summary for — no cross-user leakage. Single-turn; no history.
+        """
+        serializer = serializers.AskPersonalAISerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        question = serializer.validated_data["question"]
+
+        try:
+            result = PersonalAIService().ask(user=request.user, question=question)
+        except (EmbeddingUnavailable, LLMUnavailable) as exc:
+            return drf_response.Response(
+                {"error": str(exc)},
+                status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.exception("personal ai failed for user %s", request.user.pk)
+            return drf_response.Response(
+                {"error": f"Personal AI failed: {exc}"},
+                status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return drf_response.Response(result, status=drf_status.HTTP_200_OK)
 
     @decorators.action(
         detail=False,

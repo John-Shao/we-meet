@@ -411,6 +411,13 @@ class Base(Configuration):
                 environ_name="ROOM_AI_THROTTLE_RATES",
                 environ_prefix=None,
             ),
+            # Sprint 2.4 — cross-meeting (personal) AI. Same characteristics
+            # as room_ai but keyed by Django user.id instead of LiveKit ident.
+            "personal_ai": values.Value(
+                default="10/minute",
+                environ_name="PERSONAL_AI_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
         },
     }
     MONITORED_THROTTLE_FAILURE_CALLBACK = (
@@ -765,6 +772,12 @@ class Base(Configuration):
     )
     DOUBAO_LLM_ENDPOINT = values.Value(
         None, environ_name="DOUBAO_LLM_ENDPOINT", environ_prefix=None
+    )
+    # Sprint 2.4 — Doubao text embedding endpoint (Ark /v1/embeddings).
+    # Optional: when unset, the embedding pipeline silently skips, the
+    # personal AI endpoint returns the misconfig error.
+    DOUBAO_EMBEDDING_ENDPOINT = values.Value(
+        None, environ_name="DOUBAO_EMBEDDING_ENDPOINT", environ_prefix=None
     )
     # Regex to filter webhook events by room name. Only matching events are processed.
     LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX = values.Value(

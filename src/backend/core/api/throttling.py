@@ -93,3 +93,22 @@ class RoomAIRateThrottle(MonitoredUserRateThrottle):
         if not ident:
             return None
         return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
+class PersonalAIRateThrottle(MonitoredUserRateThrottle):
+    """Per-user throttle for the cross-meeting (personal) AI endpoint.
+
+    Always requires an authenticated Django user — anonymous requests
+    can't reach this view in the first place. Keying by user.id rather
+    than IP avoids penalising teams behind shared NAT.
+    """
+
+    scope = "personal_ai"
+
+    def get_cache_key(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return None
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": str(request.user.pk),
+        }
