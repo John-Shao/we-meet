@@ -9,7 +9,9 @@
   },
   "summary": {
     "empty": "No summary yet (meeting not finished or summary not generated).",
-    "failed": "Summary generation failed"
+    "failed": "Summary generation failed",
+    "regenerate": "Regenerate",
+    "regenerating": "Regenerating…"
   },
   "actionItems": {
     "empty": "No action items",
@@ -27,5 +29,9 @@
     "title": "Unable to load",
     "body": "Failed to load the meeting detail. Please try again later.",
     "loadFailed": "Failed to load"
+  },
+  "home": {
+    "recentTitle": "Recent meetings",
+    "untitled": "(Untitled meeting)"
   }
 }

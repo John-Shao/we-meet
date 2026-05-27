@@ -16,6 +16,7 @@ import { RiAddLine, RiLink } from '@remixicon/react'
 import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
 import { IntroSlider } from '@/features/home/components/IntroSlider'
 import { MoreLink } from '@/features/home/components/MoreLink'
+import { RecentMeetingsList } from '@/features/meetings'
 import { ReactNode, useEffect, useState } from 'react'
 
 import { css } from '@/styled-system/css'
@@ -338,6 +339,7 @@ export const Home = () => {
               // create and join require a signed-in user now.
               <LoginPanels />
             )}
+            <RecentMeetingsList enabled={!!isLoggedIn} />
             <Separator />
             <MoreLink />
           </LeftColumn>

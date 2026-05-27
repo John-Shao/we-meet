@@ -32,6 +32,14 @@ export interface ApiSummary {
   action_items: ApiActionItem[]
 }
 
+export interface ApiRecentMeeting {
+  id: string
+  name: string
+  slug: string | null
+  summary_updated_at: string | null
+  summary_status: SummaryStatus | null
+}
+
 export interface ApiTranscript {
   id: string
   speaker_identity: string

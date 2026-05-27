@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 
 import { useTranslation } from 'react-i18next'
 import { useTitle } from 'hoofd'
+import ReactMarkdown from 'react-markdown'
 import { useParams } from 'wouter'
 
 import { Center, VStack } from '@/styled-system/jsx'
@@ -9,7 +10,7 @@ import { css } from '@/styled-system/css'
 import { ErrorScreen } from '@/components/ErrorScreen'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { Screen } from '@/layout/Screen'
-import { H, Text } from '@/primitives'
+import { Button, H, Text } from '@/primitives'
 import { Tabs, Tab, TabList, TabPanel } from '@/primitives/Tabs'
 import { UserAware, useUser } from '@/features/auth'
 
@@ -17,7 +18,35 @@ import {
   useMeetingActionItems,
   useMeetingSummary,
   useMeetingTranscripts,
+  useRegenerateSummary,
 } from '../api/fetchMeeting'
+
+const markdownBodyStyle = css({
+  fontSize: '0.95rem',
+  lineHeight: '1.7',
+  '& > :first-child': { marginTop: 0 },
+  '& h1, & h2, & h3, & h4': {
+    fontWeight: 600,
+    marginTop: '1.25rem',
+    marginBottom: '0.5rem',
+    lineHeight: '1.3',
+  },
+  '& h2': { fontSize: '1.35rem' },
+  '& h3': { fontSize: '1.15rem' },
+  '& h4': { fontSize: '1rem' },
+  '& p': { margin: '0.5rem 0' },
+  '& ul, & ol': { margin: '0.25rem 0 0.5rem 1.5rem' },
+  '& ul': { listStyleType: 'disc' },
+  '& ol': { listStyleType: 'decimal' },
+  '& code': {
+    backgroundColor: 'gray.100',
+    padding: '0.05rem 0.25rem',
+    borderRadius: '3px',
+    fontFamily: 'monospace',
+    fontSize: '0.92em',
+  },
+  '& a': { color: 'primary.700', textDecoration: 'underline' },
+})
 
 const APP_TITLE = import.meta.env.VITE_APP_TITLE ?? ''
 
@@ -28,35 +57,61 @@ const APP_TITLE = import.meta.env.VITE_APP_TITLE ?? ''
 const SummaryTab = ({ roomId }: { roomId: string }) => {
   const { t } = useTranslation('meetings')
   const { data, isLoading, isError, error } = useMeetingSummary(roomId)
+  const regen = useRegenerateSummary(roomId)
+
+  const RegenButton = () => (
+    <Button
+      variant="tertiary"
+      size="sm"
+      isDisabled={regen.isPending}
+      onPress={() => regen.mutate()}
+    >
+      {regen.isPending ? t('summary.regenerating') : t('summary.regenerate')}
+    </Button>
+  )
 
   if (isLoading) return <Text>{t('loading')}</Text>
-  // 404 = no summary yet — friendly empty state, not an error.
+  // 404 = no summary yet — friendly empty state with regen button.
   if (error?.statusCode === 404)
-    return <Text>{t('summary.empty')}</Text>
-  if (isError || !data)
-    return <Text>{t('error.loadFailed')}</Text>
-
-  if (data.status === 'failed')
     return (
-      <Text>
-        {t('summary.failed')}
-        {data.error_message ? `: ${data.error_message}` : ''}
-      </Text>
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.75rem',
+          alignItems: 'flex-start',
+        })}
+      >
+        <Text>{t('summary.empty')}</Text>
+        <RegenButton />
+      </div>
     )
+  if (isError || !data) return <Text>{t('error.loadFailed')}</Text>
 
   return (
-    <pre
+    <div
       className={css({
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        fontFamily: 'inherit',
-        fontSize: '0.95rem',
-        lineHeight: '1.6',
-        margin: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.75rem',
       })}
     >
-      {data.content || t('summary.empty')}
-    </pre>
+      <div className={css({ alignSelf: 'flex-end' })}>
+        <RegenButton />
+      </div>
+      {data.status === 'failed' ? (
+        <Text>
+          {t('summary.failed')}
+          {data.error_message ? `: ${data.error_message}` : ''}
+        </Text>
+      ) : !data.content ? (
+        <Text>{t('summary.empty')}</Text>
+      ) : (
+        <div className={markdownBodyStyle}>
+          <ReactMarkdown>{data.content}</ReactMarkdown>
+        </div>
+      )}
+    </div>
   )
 }
 

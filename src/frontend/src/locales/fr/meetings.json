@@ -9,7 +9,9 @@
   },
   "summary": {
     "empty": "Pas encore de compte-rendu (réunion en cours ou compte-rendu non généré).",
-    "failed": "Échec de la génération du compte-rendu"
+    "failed": "Échec de la génération du compte-rendu",
+    "regenerate": "Régénérer",
+    "regenerating": "Régénération…"
   },
   "actionItems": {
     "empty": "Aucune action à mener",
@@ -27,5 +29,9 @@
     "title": "Chargement impossible",
     "body": "Le chargement des détails de la réunion a échoué. Veuillez réessayer plus tard.",
     "loadFailed": "Échec du chargement"
+  },
+  "home": {
+    "recentTitle": "Réunions récentes",
+    "untitled": "(Réunion sans titre)"
   }
 }

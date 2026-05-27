@@ -1,10 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 
 import {
   ApiActionItem,
+  ApiRecentMeeting,
   ApiSummary,
   ApiTranscript,
 } from './ApiMeeting'
@@ -40,3 +41,34 @@ export const useMeetingTranscripts = (roomId: string | undefined) =>
     queryFn: () => fetchTranscripts(roomId!),
     enabled: !!roomId,
   })
+
+const fetchRecentMeetings = () =>
+  fetchApi<ApiRecentMeeting[]>(`rooms/recent-meetings/`)
+
+export const useRecentMeetings = (enabled: boolean = true) =>
+  useQuery<ApiRecentMeeting[], ApiError>({
+    queryKey: ['recent-meetings'],
+    queryFn: fetchRecentMeetings,
+    enabled,
+    staleTime: 30_000,
+  })
+
+const regenerateSummary = (roomId: string) =>
+  fetchApi<{ status: string }>(`rooms/${roomId}/summary/regenerate/`, {
+    method: 'POST',
+  })
+
+export const useRegenerateSummary = (roomId: string | undefined) => {
+  const qc = useQueryClient()
+  return useMutation<{ status: string }, ApiError>({
+    mutationFn: () => regenerateSummary(roomId!),
+    onSuccess: () => {
+      // The backend just scheduled the task; depending on CELERY_ENABLED
+      // the new rows show up within milliseconds (sync fallback) or a
+      // few seconds. Invalidate so a manual / quick refetch picks up the
+      // refreshed summary + items.
+      qc.invalidateQueries({ queryKey: ['meeting-summary', roomId] })
+      qc.invalidateQueries({ queryKey: ['meeting-action-items', roomId] })
+    },
+  })
+}

@@ -9,7 +9,9 @@
   },
   "summary": {
     "empty": "Nog geen samenvatting (vergadering nog niet beëindigd of samenvatting niet gegenereerd).",
-    "failed": "Samenvatting genereren mislukt"
+    "failed": "Samenvatting genereren mislukt",
+    "regenerate": "Opnieuw genereren",
+    "regenerating": "Bezig met genereren…"
   },
   "actionItems": {
     "empty": "Geen actiepunten",
@@ -27,5 +29,9 @@
     "title": "Kan niet laden",
     "body": "Het laden van het vergaderdetail is mislukt. Probeer het later opnieuw.",
     "loadFailed": "Laden mislukt"
+  },
+  "home": {
+    "recentTitle": "Recente vergaderingen",
+    "untitled": "(Vergadering zonder titel)"
   }
 }

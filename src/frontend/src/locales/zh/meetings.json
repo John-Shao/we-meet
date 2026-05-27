@@ -9,7 +9,9 @@
   },
   "summary": {
     "empty": "暂无纪要（会议尚未结束或纪要尚未生成）",
-    "failed": "纪要生成失败"
+    "failed": "纪要生成失败",
+    "regenerate": "重新生成",
+    "regenerating": "生成中…"
   },
   "actionItems": {
     "empty": "暂无行动项",
@@ -27,5 +29,9 @@
     "title": "无法加载",
     "body": "加载会议详情失败，请稍后再试",
     "loadFailed": "加载失败"
+  },
+  "home": {
+    "recentTitle": "最近的会议",
+    "untitled": "（未命名会议）"
   }
 }
