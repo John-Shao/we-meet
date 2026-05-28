@@ -145,11 +145,20 @@ class Migration(migrations.Migration):
                 "verbose_name": "transcript chunk",
                 "verbose_name_plural": "transcript chunks",
                 "ordering": ("room", "chunk_index"),
-                # Index names left unset → Django auto-generates short ones
-                # respecting the 30-char limit (lesson learned in 0028).
+                # Django requires explicit ``name`` for indexes passed via
+                # CreateModel.options (runtime ``Meta.indexes`` auto-names,
+                # but the migration ModelState code path does not). Keep
+                # names short (<30 char Postgres identifier limit) and
+                # prefixed with ``tchunk_`` for visual grep.
                 "indexes": [
-                    models.Index(fields=["room", "chunk_index"]),
-                    models.Index(fields=["summary"]),
+                    models.Index(
+                        fields=["room", "chunk_index"],
+                        name="tchunk_room_chunk_idx",
+                    ),
+                    models.Index(
+                        fields=["summary"],
+                        name="tchunk_summary_idx",
+                    ),
                 ],
             },
         ),
