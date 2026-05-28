@@ -111,9 +111,9 @@ export const usePersonalAI = () => {
         if (e instanceof DOMException && e.name === 'AbortError') return
         const message =
           e instanceof ApiError
-            ? `${e.status}: ${
-                typeof e.data === 'object' && e.data && 'error' in e.data
-                  ? (e.data as { error: string }).error
+            ? `${e.statusCode}: ${
+                typeof e.body === 'object' && e.body && 'error' in e.body
+                  ? (e.body as { error: string }).error
                   : 'request failed'
               }`
             : e instanceof Error
