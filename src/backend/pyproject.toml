@@ -71,6 +71,10 @@ dependencies = [
     # Volcengine Ark (chat completions + embeddings). Only the wire format
     # is OpenAI-compatible; actual model / billing is Ark / Doubao.
     "openai==2.28.0",
+    # Sprint 2.4 — Personal AI RAG. numpy is used for in-memory cosine top-K
+    # over TranscriptChunk embeddings (path D — no pgvector). Not a Django
+    # transitive dep, has to be declared explicitly.
+    "numpy==2.2.0",
 ]
 
 [project.urls]
