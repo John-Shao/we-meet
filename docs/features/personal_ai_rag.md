@@ -34,9 +34,9 @@
 | 抉择 | 选择 | 备注 |
 |---|---|---|
 | 向量存储 | **JSONField (`list[float]`)** | 主库现状不动；零 infra 改动 |
-| 检索算法 | **Python numpy cosine top-K** | 拉用户 room 范围的全部 chunk 入内存算，10K × 1024-d ~30 ms |
+| 检索算法 | **Python numpy cosine top-K** | 拉用户 room 范围的全部 chunk 入内存算，10K × 2048-d ~60 ms |
 | 切片粒度 | **相邻同说话人合并 → 800 char 滑窗（overlap=80）** | 平衡召回率与 token 成本 |
-| Embedding 模型 | **Doubao text embedding**（Ark `/v1/embeddings`，模型 endpoint 可配） | 复用 `ARK_API_KEY` + 现有 `openai` SDK 通道；1024 维 |
+| Embedding 模型 | **Doubao-embedding-vision**（Ark `/api/v3/embeddings/multimodal`，纯文本输入） | 复用 `ARK_API_KEY` + 自研 urllib client；**2048 维**。原计划用 `doubao-embedding-large`，但即将下线 |
 | 索引时机 | **Summary 成功后** 由 Celery 链式触发 `embed_meeting_transcripts(room_id)` | 复用既有 `generate_meeting_summary` 任务流 |
 | 检索 | **top-K=12 chunks**，跨多个会议 | 给 LLM 留 ~10K bytes 上下文 |
 | 数据库索引 | 仅普通 BTree 索引（room_id, summary_id） | 不需要 HNSW |
@@ -60,7 +60,7 @@ Frontend: 主页右下角浮动按钮 → PersonalAIDrawer
    POST /api/v1.0/users/me/ai/ask/   { question }
         ↓
 Backend: PersonalAIService.ask(user, question)
-   ├─ embed(question) → q_vec (numpy.ndarray, shape=(1024,))
+   ├─ embed(question) → q_vec (numpy.ndarray, shape=(2048,))
    ├─ user_room_ids = Room.objects.filter(users=user, summary__status=SUCCESS).ids
    ├─ chunks = TranscriptChunk.objects.filter(room_id__in=user_room_ids)
    │            .only("id","room_id","speaker_name","text","started_at","embedding")
@@ -86,7 +86,7 @@ class TranscriptChunk(BaseModel):
     started_at = DateTimeField()                     # 第一句起点
     ended_at = DateTimeField()                       # 最后一句终点
     source_transcript_ids = ArrayField(UUIDField())  # 审计 / 回溯原句
-    embedding = JSONField()                          # list[float]，1024 维
+    embedding = JSONField()                          # list[float]，2048 维（Doubao-embedding-vision）
     embedding_model = CharField(64)                  # 平滑模型迁移
 
     class Meta:
@@ -97,7 +97,7 @@ class TranscriptChunk(BaseModel):
         ]
 ```
 
-**为什么用 JSONField 而不是 pgvector**：见 §3 路径选择记录。10K chunk × 1024 维约 40 MB，单查询 numpy cosine ~30 ms，对内测期完全够用。
+**为什么用 JSONField 而不是 pgvector**：见 §3 路径选择记录。10K chunk × 2048 维约 80 MB，单查询 numpy cosine ~60 ms，对内测期完全够用。
 
 Migration 一件套：
 
@@ -228,9 +228,9 @@ kubectl -n meet exec deploy/meet-backend -- \
   python manage.py backfill_embeddings --room 60eb041c-...
 ```
 
-按内测期 100 场会议 × 50 chunk × 1024 维：
-- Embedding API 调用：5K 个，分批 32 个/批 → 156 批，约 5-10 min
-- 存储：5K × 1024 × 4 byte (JSON 文本) ≈ 60 MB（JSON 文本表示比裸 binary 略胖）
+按内测期 100 场会议 × 50 chunk × 2048 维：
+- Embedding API 调用：5K 个；Doubao multimodal 不支持 batch，逐项串行约 5K × 0.5s ≈ 40 min
+- 存储：5K × 2048 × 4 byte (JSON 文本) ≈ 120 MB（JSON 文本表示比裸 binary 略胖）
 - 无 HNSW 构建（路径 D 不用）
 
 ## 11. 风险与缓解
@@ -250,7 +250,7 @@ kubectl -n meet exec deploy/meet-backend -- \
 2. 新增 migration：
    ```python
    migrations.AddField(model_name="transcriptchunk", name="embedding_vec",
-                       field=VectorField(dimensions=1024, null=True))
+                       field=VectorField(dimensions=2048, null=True))
    migrations.RunSQL("UPDATE core_transcriptchunk SET embedding_vec = embedding::text::vector;")
    migrations.AddIndex(model_name="transcriptchunk",
                        index=HnswIndex(fields=["embedding_vec"], ...))
