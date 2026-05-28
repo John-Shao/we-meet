@@ -100,6 +100,29 @@ def test_stream_happy_path():
     assert events == fake_events
 
 
+def test_stream_accepts_event_stream_accept_header():
+    """Regression (Sprint 2.5): the real frontend sends
+    ``Accept: text/event-stream``. With only ``JSONRenderer`` configured,
+    DRF content negotiation returned 406 before the view ran. Assert the
+    endpoint negotiates the SSE renderer and returns 200, not 406."""
+    user = UserFactory()
+    client = APIClient()
+    client.force_login(user)
+    with mock.patch(
+        "core.services.personal_ai.PersonalAIService.ask_stream",
+        return_value=iter([{"type": "done"}]),
+    ):
+        response = client.post(
+            "/api/v1.0/users/me/ai/ask-stream/",
+            {"question": "结论是什么？"},
+            HTTP_ACCEPT="text/event-stream",
+            format="json",
+        )
+
+    assert response.status_code == 200
+    assert response["content-type"].startswith("text/event-stream")
+
+
 def test_stream_passes_history_to_service():
     user = UserFactory()
     client = APIClient()

@@ -149,6 +149,32 @@ def test_stream_happy_path_emits_meta_delta_done(
     assert events == fake_events
 
 
+def test_stream_accepts_event_stream_accept_header(
+    livekit_token_for, mock_room_id
+):
+    """Regression (Sprint 2.5): the real frontend sends
+    ``Accept: text/event-stream``. With only ``JSONRenderer`` configured,
+    DRF content negotiation returned 406 *before* the view ran. The
+    endpoint must declare an ``text/event-stream`` renderer so negotiation
+    succeeds — assert 200, not 406."""
+    RoomFactory(id=mock_room_id)
+    client = APIClient()
+    with mock.patch(
+        "core.services.room_ai.RoomAIService.ask_stream",
+        return_value=iter([{"type": "done"}]),
+    ):
+        response = client.post(
+            f"/api/v1.0/rooms/{mock_room_id}/ask-ai-stream/",
+            {"question": "hi"},
+            HTTP_AUTHORIZATION=f"Bearer {livekit_token_for()}",
+            HTTP_ACCEPT="text/event-stream",
+            format="json",
+        )
+
+    assert response.status_code == 200
+    assert response["content-type"].startswith("text/event-stream")
+
+
 def test_stream_emits_error_frame_when_service_raises(
     livekit_token_for, mock_room_id
 ):

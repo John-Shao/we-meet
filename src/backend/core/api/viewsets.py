@@ -29,6 +29,9 @@ from rest_framework import (
     exceptions as drf_exceptions,
 )
 from rest_framework import (
+    renderers as drf_renderers,
+)
+from rest_framework import (
     response as drf_response,
 )
 from rest_framework import (
@@ -105,6 +108,35 @@ from .feature_flag import FeatureFlag
 # pylint: disable=too-many-ancestors
 
 logger = getLogger(__name__)
+
+
+class ServerSentEventRenderer(drf_renderers.BaseRenderer):
+    """Content-negotiation shim for the SSE endpoints (Sprint 2.5).
+
+    The frontend POSTs with ``Accept: text/event-stream``. DRF's default
+    renderer set only declares ``application/json``, so content negotiation
+    raised ``NotAcceptable`` (406) *before* the view body ran — meaning the
+    ``StreamingHttpResponse`` never got a chance to stream. Declaring a
+    renderer whose ``media_type`` matches lets negotiation succeed.
+
+    The happy path returns a plain ``StreamingHttpResponse`` (Django, not
+    DRF), so ``render`` is bypassed there. It only runs for DRF error
+    responses (400 validation, 401/403 auth, 429 throttle); we JSON-encode
+    those so the client's ``resp.json()`` fallback can read them.
+    """
+
+    media_type = "text/event-stream"
+    format = "event-stream"
+    charset = "utf-8"
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        if data is None:
+            return b""
+        if isinstance(data, bytes):
+            return data
+        if isinstance(data, str):
+            return data.encode(self.charset)
+        return json.dumps(data, ensure_ascii=False).encode(self.charset)
 
 
 def _sse_response(event_iter, *, error_label: str) -> StreamingHttpResponse:
@@ -319,6 +351,7 @@ class UserViewSet(
         url_path="me/ai/ask-stream",
         permission_classes=[permissions.IsAuthenticated],
         throttle_classes=[throttling.PersonalAIRateThrottle],
+        renderer_classes=[ServerSentEventRenderer],
     )
     def ask_personal_ai_stream(self, request):
         """Streaming variant of :py:meth:`ask_personal_ai` (Sprint 2.5).
@@ -1245,6 +1278,7 @@ class RoomViewSet(
         permission_classes=[permissions.HasLiveKitRoomAccess],
         authentication_classes=[LiveKitTokenAuthentication],
         throttle_classes=[throttling.RoomAIRateThrottle],
+        renderer_classes=[ServerSentEventRenderer],
     )
     def ask_ai_stream(self, request, pk=None):  # pylint: disable=unused-argument
         """Streaming variant of :py:meth:`ask_ai` (Sprint 2.5).
