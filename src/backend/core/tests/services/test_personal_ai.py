@@ -183,14 +183,18 @@ def test_chunks_with_empty_embedding_skipped():
         texts=["有效片段"],
         embedding=[1.0, 0.0, 0.0, 0.0],
     )
-    TranscriptChunk.objects.create(
+    bad = TranscriptChunk.objects.create(
         room=room, summary=room.summary, chunk_index=99,
         speaker_identity="x", speaker_name="X",
         text="坏数据",
         started_at=timezone.now(),
-        embedding=[],
+        embedding=[1.0, 0.0, 0.0, 0.0],
         embedding_model="ep",
     )
+    # Force an empty embedding past model validation — BaseModel.save()
+    # runs full_clean() which rejects a blank embedding, so simulate a
+    # half-failed write via .update() (bypasses save/full_clean).
+    TranscriptChunk.objects.filter(pk=bad.pk).update(embedding=[])
 
     service, _embed, llm = _make_service(q_vec=[1.0, 0.0, 0.0, 0.0])
     result = service.ask(user=user, question="?")
