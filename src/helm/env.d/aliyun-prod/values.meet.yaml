@@ -220,6 +220,16 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    # Sprint 2.5 — disable response buffering so the SSE streams from
+    # /rooms/.../ask-ai-stream/ and /users/me/ai/ask-stream/ reach the
+    # browser chunk-by-chunk instead of being collected into one blob.
+    # X-Accel-Buffering: no on the response handles the Django side;
+    # this is the matching ingress-level guard for the typewriter UX.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # Long enough for a Doubao Pro stream (often 5-15s end-to-end) plus
+    # generous margin so users don't get cut off mid-answer on slow links.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
   tls:
     enabled: true
     secretName: meet-tls
