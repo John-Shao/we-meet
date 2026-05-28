@@ -136,11 +136,13 @@ backend:
     DOUBAO_LLM_ENDPOINT: "ep-20260316164223-46rsh"
     # ARK_API_KEY 来自 values.secrets.yaml
 
-    # Sprint 2.4 — Cross-meeting AI (personal AI / RAG). Embedding endpoint
-    # is a separate Ark deployment (text-embedding family); reuses the same
-    # ARK_API_KEY. Leave blank to disable embedding pipeline + personal AI.
+    # Sprint 2.4 — Cross-meeting AI (personal AI / RAG). Doubao multimodal
+    # embedding endpoint; reuses ARK_API_KEY. Doubao-embedding-large/text
+    # are slated for upstream deprecation; we use the vision variant which
+    # speaks the native /api/v3/embeddings/multimodal API (not OpenAI-compat
+    # — see core/services/embeddings.py).
     # 留空时 embed_meeting_transcripts 静默 skip，/users/me/ai/ask 返回 503。
-    DOUBAO_EMBEDDING_ENDPOINT: ""
+    DOUBAO_EMBEDDING_ENDPOINT: "ep-20260528084632-l548s"
 
     # Subtitles — Sprint 2.0 启用：multi_user_transcriber 已切换 Doubao Seed-ASR
     ROOM_SUBTITLE_ENABLED: "True"
