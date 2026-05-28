@@ -490,6 +490,49 @@ class AskPersonalAISerializer(BaseValidationOnlySerializer):
     )
 
 
+class _ChatHistoryItemSerializer(serializers.Serializer):
+    """One element of the ``history`` array on streaming endpoints.
+
+    ``role`` is restricted to ``user`` / ``assistant`` so the frontend
+    can't smuggle in a ``system`` entry that would override the backend's
+    own prompt; ``sanitise_history`` enforces the same rule defensively
+    inside the service layer.
+    """
+
+    role = serializers.ChoiceField(choices=("user", "assistant"))
+    content = serializers.CharField(
+        max_length=2000, allow_blank=False, trim_whitespace=True
+    )
+
+
+class AskAIStreamSerializer(BaseValidationOnlySerializer):
+    """Validate a streaming room-AI question (Sprint 2.5)."""
+
+    question = serializers.CharField(
+        required=True,
+        max_length=500,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
+    history = _ChatHistoryItemSerializer(
+        many=True,
+        required=False,
+        help_text="Up to 3 previous turns (6 messages) for follow-up context.",
+    )
+
+
+class AskPersonalAIStreamSerializer(BaseValidationOnlySerializer):
+    """Validate a streaming cross-meeting AI question (Sprint 2.5)."""
+
+    question = serializers.CharField(
+        required=True,
+        max_length=500,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
+    history = _ChatHistoryItemSerializer(many=True, required=False)
+
+
 TrackSource = Literal["camera", "microphone", "screen_share", "screen_share_audio"]
 
 

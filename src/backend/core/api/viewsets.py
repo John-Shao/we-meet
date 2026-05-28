@@ -1,6 +1,7 @@
 """API endpoints"""
 # pylint: disable=too-many-lines
 
+import json
 import uuid
 from logging import getLogger
 from urllib.parse import unquote, urlparse
@@ -10,7 +11,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
 from django.db.models import Q
-from django.http import Http404
+from django.http import Http404, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.text import slugify
@@ -104,6 +105,36 @@ from .feature_flag import FeatureFlag
 # pylint: disable=too-many-ancestors
 
 logger = getLogger(__name__)
+
+
+def _sse_response(event_iter, *, error_label: str) -> StreamingHttpResponse:
+    """Wrap a service generator into an SSE ``StreamingHttpResponse``.
+
+    Sprint 2.5 — used by both ``RoomViewSet.ask_ai_stream`` and
+    ``UserViewSet.ask_personal_ai_stream``. The wrapper:
+
+    * Serialises each yielded dict as ``data: <json>\\n\\n`` (the SSE wire
+      format).
+    * Catches any exception raised by the service mid-stream and emits a
+      final ``error`` event so the client can render a friendly toast
+      rather than dying on a half-truncated stream.
+    * Sets ``X-Accel-Buffering: no`` so an nginx ingress in the path
+      doesn't buffer up the chunks — critical for the "typewriter" UX.
+    """
+
+    def gen():
+        try:
+            for event in event_iter:
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.exception("%s stream failed", error_label)
+            payload = {"type": "error", "message": f"{error_label} failed: {exc}"}
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    resp = StreamingHttpResponse(gen(), content_type="text/event-stream")
+    resp["Cache-Control"] = "no-cache"
+    resp["X-Accel-Buffering"] = "no"
+    return resp
 
 
 class NestedGenericViewSet(viewsets.GenericViewSet):
@@ -280,6 +311,32 @@ class UserViewSet(
             )
 
         return drf_response.Response(result, status=drf_status.HTTP_200_OK)
+
+    @decorators.action(
+        detail=False,
+        methods=["post"],
+        url_name="ask-personal-ai-stream",
+        url_path="me/ai/ask-stream",
+        permission_classes=[permissions.IsAuthenticated],
+        throttle_classes=[throttling.PersonalAIRateThrottle],
+    )
+    def ask_personal_ai_stream(self, request):
+        """Streaming variant of :py:meth:`ask_personal_ai` (Sprint 2.5).
+
+        Body: ``{"question": "...", "history": [{role, content}, ...]}``.
+        Response: ``text/event-stream`` — see ``docs/features/streaming_chat.md``.
+        Same privacy contract: every chunk that reaches the LLM context is
+        filtered through ``PersonalAIService._user_room_ids``.
+        """
+        serializer = serializers.AskPersonalAIStreamSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        question = serializer.validated_data["question"]
+        history = serializer.validated_data.get("history") or []
+
+        event_iter = PersonalAIService().ask_stream(
+            user=request.user, question=question, history=history
+        )
+        return _sse_response(event_iter, error_label="Personal AI")
 
     @decorators.action(
         detail=False,
@@ -1180,6 +1237,40 @@ class RoomViewSet(
             )
 
         return drf_response.Response(result, status=drf_status.HTTP_200_OK)
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="ask-ai-stream",
+        permission_classes=[permissions.HasLiveKitRoomAccess],
+        authentication_classes=[LiveKitTokenAuthentication],
+        throttle_classes=[throttling.RoomAIRateThrottle],
+    )
+    def ask_ai_stream(self, request, pk=None):  # pylint: disable=unused-argument
+        """Streaming variant of :py:meth:`ask_ai` (Sprint 2.5).
+
+        Body: ``{"question": "...", "history": [{role, content}, ...]}``.
+        Response is ``text/event-stream``; see ``docs/features/streaming_chat.md``
+        for the event sequence. Same auth / throttle as the non-streaming
+        path so a single SSE connection still counts as one rate-limit hit.
+        """
+        room = self.get_object()
+
+        serializer = serializers.AskAIStreamSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        question = serializer.validated_data["question"]
+        history = serializer.validated_data.get("history") or []
+
+        # ``ask_stream`` is a generator — its body (LLM init, RAG retrieval)
+        # only runs once the SSE wrapper starts iterating, so any
+        # ``LLMUnavailable`` lands inside ``_sse_response`` as an ``error``
+        # event rather than a synchronous 503. UX-wise that's fine: the
+        # frontend treats either path as "show toast, leave assistant
+        # bubble in interrupted state".
+        event_iter = RoomAIService().ask_stream(
+            room=room, question=question, history=history
+        )
+        return _sse_response(event_iter, error_label="Room AI")
 
     @decorators.action(
         detail=True,
