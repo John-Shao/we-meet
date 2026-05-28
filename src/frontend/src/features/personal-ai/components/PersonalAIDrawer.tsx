@@ -134,6 +134,13 @@ const textareaStyle = css({
   _focus: { borderColor: 'primary.500' },
 })
 
+const cursorStyle = css({
+  display: 'inline-block',
+  width: '0.5em',
+  marginLeft: '2px',
+  animation: 'blink 1s steps(2) infinite',
+})
+
 const MessageBubble = ({
   message,
   onPickRoom,
@@ -152,8 +159,9 @@ const MessageBubble = ({
   return (
     <div className={`${bubbleBase} ${assistantBubble}`}>
       <div className={markdownStyle}>
-        <ReactMarkdown>{message.content}</ReactMarkdown>
+        <ReactMarkdown>{message.content || ''}</ReactMarkdown>
       </div>
+      {message.isStreaming && <span className={cursorStyle}>▌</span>}
       {!!message.roomsReferenced?.length && (
         <div className={chipsRowStyle}>
           {message.roomsReferenced.map((r) => (
@@ -223,14 +231,11 @@ export const PersonalAIDrawer = ({ onClose }: { onClose?: () => void }) => {
         {messages.length === 0 && !isAsking ? (
           <Text className={hintStyle}>{t('hint')}</Text>
         ) : (
+          // Streaming bubbles render their own blinking cursor while
+          // empty / mid-stream; no separate "thinking…" placeholder.
           messages.map((m) => (
             <MessageBubble key={m.id} message={m} onPickRoom={pickRoom} />
           ))
-        )}
-        {isAsking && (
-          <div className={`${bubbleBase} ${assistantBubble}`}>
-            <span>{t('thinking')}</span>
-          </div>
         )}
       </div>
 

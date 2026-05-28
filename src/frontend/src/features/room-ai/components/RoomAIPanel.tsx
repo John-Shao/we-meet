@@ -102,17 +102,30 @@ const textareaStyle = css({
   },
 })
 
+const cursorStyle = css({
+  display: 'inline-block',
+  width: '0.5em',
+  marginLeft: '2px',
+  animation: 'blink 1s steps(2) infinite',
+})
+
 const MessageBubble = ({ message }: { message: RoomAIMessage }) => {
   const isUser = message.role === 'user'
-  return (
-    <div className={`${bubbleBase} ${isUser ? userBubble : assistantBubble}`}>
-      {isUser ? (
+  if (isUser) {
+    return (
+      <div className={`${bubbleBase} ${userBubble}`}>
         <span>{message.content}</span>
-      ) : (
-        <div className={markdownStyle}>
-          <ReactMarkdown>{message.content}</ReactMarkdown>
-        </div>
-      )}
+      </div>
+    )
+  }
+  // Assistant: render markdown (handles partial / unfinished structures
+  // gracefully) and append a blinking cursor while the stream is open.
+  return (
+    <div className={`${bubbleBase} ${assistantBubble}`}>
+      <div className={markdownStyle}>
+        <ReactMarkdown>{message.content || ''}</ReactMarkdown>
+      </div>
+      {message.isStreaming && <span className={cursorStyle}>▌</span>}
     </div>
   )
 }
@@ -149,12 +162,9 @@ export const RoomAIPanel = () => {
         {messages.length === 0 && !isAsking ? (
           <Text className={hintStyle}>{t('hint')}</Text>
         ) : (
+          // Streaming bubbles show their own cursor while empty; no
+          // need for a separate "thinking…" placeholder.
           messages.map((m) => <MessageBubble key={m.id} message={m} />)
-        )}
-        {isAsking && (
-          <div className={`${bubbleBase} ${assistantBubble}`}>
-            <span>{t('thinking')}</span>
-          </div>
         )}
       </div>
 
