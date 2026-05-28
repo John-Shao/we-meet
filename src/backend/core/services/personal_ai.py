@@ -17,14 +17,20 @@ pgvector yet and what the migration would look like.
 from __future__ import annotations
 
 import logging
-from typing import Iterable, Iterator, Optional
+from typing import Iterator, Optional
 
-import numpy as np
-
+from django.conf import settings
 from django.contrib.auth import get_user_model
 
 from core.models import Room, Summary, TranscriptChunk
+from core.services.embedding_cache import cached_embed
 from core.services.embeddings import EmbeddingClient, EmbeddingUnavailable
+from core.services.hybrid_retrieval import (
+    DEFAULT_CANDIDATE_N,
+    bm25_rank,
+    reciprocal_rank_fusion,
+    vector_rank,
+)
 from core.services.llm_client import LLMClient, LLMUnavailable, sanitise_history
 
 logger = logging.getLogger(__name__)
@@ -193,9 +199,8 @@ class PersonalAIService:
                 answer="这些会议里没有相关记录（暂时还没有完成索引的会议）。",
             )
 
-        q_vec = np.asarray(embed_client.embed(question), dtype=np.float32)
-        scored = self._rank(q_vec, chunks)
-        top = scored[: self.TOP_K]
+        q_vec = cached_embed(embed_client, question)
+        top = self._retrieve(q_vec, question, chunks)
         if not top:
             return self._empty_prep(
                 llm_client, question, answer="这些会议里没有相关记录。"
@@ -269,35 +274,25 @@ class PersonalAIService:
             .values_list("id", flat=True)
         )
 
-    @staticmethod
-    def _rank(
-        q_vec: np.ndarray, chunks: Iterable[TranscriptChunk]
+    def _retrieve(
+        self, q_vec, question: str, chunks
     ) -> list[tuple[TranscriptChunk, float]]:
-        """Cosine similarity between ``q_vec`` and every chunk's embedding.
+        """Pick the top-K chunks for ``question``.
 
-        Skips chunks whose stored embedding is empty / wrong shape — the
-        rest still get ranked instead of failing the whole query.
+        Hybrid by default (Sprint 2.6): dense ``vector_rank`` + lexical
+        ``bm25_rank`` fused with RRF, so exact-term queries (names, dates,
+        jargon) the embeddings blur still surface. Set
+        ``RAG_HYBRID_ENABLED=False`` to fall back to the Sprint 2.4/2.5
+        pure-vector behaviour.
         """
-        keep: list[TranscriptChunk] = []
-        matrix_rows: list[np.ndarray] = []
-        target_dim = q_vec.shape[0]
-        for c in chunks:
-            vec = c.embedding
-            if not vec or len(vec) != target_dim:
-                continue
-            keep.append(c)
-            matrix_rows.append(np.asarray(vec, dtype=np.float32))
-        if not keep:
-            return []
-
-        m = np.vstack(matrix_rows)
-        # Normalise both sides so the dot product is cosine similarity.
-        q_norm = q_vec / (np.linalg.norm(q_vec) + 1e-12)
-        m_norms = np.linalg.norm(m, axis=1, keepdims=True)
-        m_normed = m / (m_norms + 1e-12)
-        scores = m_normed @ q_norm
-        order = np.argsort(-scores)
-        return [(keep[i], float(scores[i])) for i in order]
+        candidate_n = getattr(settings, "RAG_CANDIDATE_N", DEFAULT_CANDIDATE_N)
+        vec_ranked = vector_rank(q_vec, chunks, top_n=candidate_n)
+        if not getattr(settings, "RAG_HYBRID_ENABLED", True):
+            return vec_ranked[: self.TOP_K]
+        bm25_ranked = bm25_rank(question, chunks, top_n=candidate_n)
+        return reciprocal_rank_fusion(
+            vec_ranked, bm25_ranked, top_k=self.TOP_K
+        )
 
     @staticmethod
     def _format_context(

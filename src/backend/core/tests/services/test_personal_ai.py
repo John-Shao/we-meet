@@ -205,3 +205,43 @@ def test_question_must_not_be_blank():
     service, _, _ = _make_service(q_vec=[1.0, 0.0, 0.0, 0.0])
     with pytest.raises(ValueError):
         service.ask(user=user, question="   ")
+
+
+# ---------------------------------------------------------------------
+# Hybrid retrieval toggle (Sprint 2.6)
+# ---------------------------------------------------------------------
+
+
+def test_hybrid_enabled_invokes_bm25_leg(settings):
+    """Default path fuses the BM25 leg with the vector leg."""
+    settings.RAG_HYBRID_ENABLED = True
+    user = UserFactory()
+    _seed_room_with_chunks(
+        user=user, name="m", texts=["相关内容"], embedding=[1.0, 0.0, 0.0, 0.0]
+    )
+    service, _embed, llm = _make_service(q_vec=[1.0, 0.0, 0.0, 0.0])
+
+    with mock.patch(
+        "core.services.personal_ai.bm25_rank", return_value=[]
+    ) as bm25:
+        result = service.ask(user=user, question="相关内容")
+
+    bm25.assert_called_once()
+    # Vector leg alone still surfaces the chunk when BM25 returns nothing.
+    assert result["chunks_used"] == 1
+
+
+def test_hybrid_disabled_skips_bm25_leg(settings):
+    """Kill-switch: RAG_HYBRID_ENABLED=False reverts to pure vector."""
+    settings.RAG_HYBRID_ENABLED = False
+    user = UserFactory()
+    _seed_room_with_chunks(
+        user=user, name="m", texts=["相关内容"], embedding=[1.0, 0.0, 0.0, 0.0]
+    )
+    service, _embed, llm = _make_service(q_vec=[1.0, 0.0, 0.0, 0.0])
+
+    with mock.patch("core.services.personal_ai.bm25_rank") as bm25:
+        result = service.ask(user=user, question="相关内容")
+
+    bm25.assert_not_called()
+    assert result["chunks_used"] == 1

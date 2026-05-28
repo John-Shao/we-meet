@@ -779,6 +779,20 @@ class Base(Configuration):
     DOUBAO_EMBEDDING_ENDPOINT = values.Value(
         None, environ_name="DOUBAO_EMBEDDING_ENDPOINT", environ_prefix=None
     )
+    # Sprint 2.6 — hybrid retrieval + query-embedding cache tuning.
+    # RAG_HYBRID_ENABLED=False reverts to Sprint 2.4/2.5 pure-vector ranking
+    # (kill-switch if BM25 fusion ever misbehaves in prod).
+    RAG_HYBRID_ENABLED = values.BooleanValue(
+        True, environ_name="RAG_HYBRID_ENABLED", environ_prefix=None
+    )
+    RAG_CANDIDATE_N = values.IntegerValue(
+        50, environ_name="RAG_CANDIDATE_N", environ_prefix=None
+    )
+    RAG_QUERY_EMBED_CACHE_TTL = values.IntegerValue(
+        60 * 60 * 24 * 7,
+        environ_name="RAG_QUERY_EMBED_CACHE_TTL",
+        environ_prefix=None,
+    )
     # Regex to filter webhook events by room name. Only matching events are processed.
     LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX = values.Value(
         None, environ_name="LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX", environ_prefix=None

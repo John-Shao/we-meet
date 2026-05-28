@@ -75,6 +75,11 @@ dependencies = [
     # over TranscriptChunk embeddings (path D — no pgvector). Not a Django
     # transitive dep, has to be declared explicitly.
     "numpy==2.2.0",
+    # Sprint 2.6 — hybrid retrieval (vector + BM25). jieba does Chinese word
+    # segmentation; rank-bm25 scores the lexical leg. Both pure-Python, no
+    # heavy deps. Fused with the vector leg via RRF in hybrid_retrieval.py.
+    "jieba==0.42.1",
+    "rank-bm25==0.2.2",
 ]
 
 [project.urls]
