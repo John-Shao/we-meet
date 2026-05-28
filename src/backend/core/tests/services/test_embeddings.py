@@ -1,48 +1,73 @@
 """Unit tests for ``EmbeddingClient`` (Sprint 2.4).
 
-We don't talk to Ark in CI — these tests patch the ``openai.OpenAI``
-client to verify batching, ordering preservation, and config validation.
+Ark multimodal-embeddings isn't OpenAI-compatible, so we mock at the
+``urllib.request.urlopen`` level instead of patching an SDK.
 """
 # pylint: disable=W0621
 
-from types import SimpleNamespace
+import json
+from io import BytesIO
 from unittest import mock
+import urllib.error
 
 import pytest
 
-from core.services.embeddings import (
-    EmbeddingClient,
-    EmbeddingUnavailable,
-)
+from core.services.embeddings import EmbeddingClient, EmbeddingUnavailable
+
+
+def _ark_response(embedding: list[float], *, text_tokens: int = 10):
+    """Build a fake Ark multimodal-embedding success payload (bytes)."""
+    body = {
+        "created": 1779929915,
+        "data": {
+            "embedding": embedding,
+            "object": "embedding",
+        },
+        "id": "fake-id",
+        "model": "ep-test",
+        "object": "list",
+        "usage": {
+            "prompt_tokens": text_tokens,
+            "prompt_tokens_details": {
+                "image_tokens": 0,
+                "text_tokens": text_tokens,
+            },
+            "total_tokens": text_tokens,
+        },
+    }
+    return json.dumps(body).encode("utf-8")
+
+
+class _FakeResp:
+    """Context-manager mock matching what ``urlopen()`` returns."""
+
+    def __init__(self, body: bytes, status: int = 200):
+        self._body = body
+        self.status = status
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
 
 
 @pytest.fixture
-def fake_openai(monkeypatch):
-    """Patch ``openai.OpenAI`` to a MagicMock whose ``embeddings.create``
-    returns a deterministic shape mirroring Ark's response.
-    """
-    instance = mock.MagicMock()
+def mock_urlopen(monkeypatch):
+    """Patch ``urllib.request.urlopen`` inside the module under test."""
+    m = mock.MagicMock()
+    monkeypatch.setattr(
+        "core.services.embeddings.urllib.request.urlopen", m
+    )
+    return m
 
-    def _fake_create(*, model, input):  # pylint: disable=redefined-builtin
-        # Ark returns ``data: [{index, embedding}, ...]``. Use the input
-        # position as the vector value so tests can assert ordering.
-        return SimpleNamespace(
-            data=[
-                SimpleNamespace(index=i, embedding=[float(i)] * 4)
-                for i in range(len(input))
-            ]
-        )
 
-    instance.embeddings.create.side_effect = _fake_create
-
-    class FakeOpenAI:
-        def __init__(self, **_kwargs):
-            pass
-
-        embeddings = instance.embeddings
-
-    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
-    return instance
+# ---------------------------------------------------------------------
+# Config / errors
+# ---------------------------------------------------------------------
 
 
 def test_from_settings_raises_when_misconfigured(settings):
@@ -52,51 +77,102 @@ def test_from_settings_raises_when_misconfigured(settings):
         EmbeddingClient.from_settings()
 
 
-def test_batch_embed_preserves_input_order(fake_openai):
+def test_endpoint_path_is_multimodal():
+    """Sanity: the constructed URL must hit ``/embeddings/multimodal``,
+    not the OpenAI-compatible ``/embeddings`` path."""
+    client = EmbeddingClient(api_key="k", model="ep-test")
+    # _endpoint is internal but the test would silently regress if we
+    # didn't pin the path.
+    assert client._endpoint.endswith("/api/v3/embeddings/multimodal")  # noqa: SLF001
+
+
+# ---------------------------------------------------------------------
+# Happy paths
+# ---------------------------------------------------------------------
+
+
+def test_embed_returns_vector(mock_urlopen):
+    mock_urlopen.return_value = _FakeResp(_ark_response([0.1, 0.2, 0.3, 0.4]))
+    client = EmbeddingClient(api_key="k", model="ep-test")
+    vec = client.embed("hello")
+    assert vec == [0.1, 0.2, 0.3, 0.4]
+    mock_urlopen.assert_called_once()
+
+
+def test_batch_embed_preserves_order(mock_urlopen):
+    """Each text → one HTTP call; results returned in the input order."""
+    responses = [
+        _FakeResp(_ark_response([float(i)] * 4)) for i in range(3)
+    ]
+    mock_urlopen.side_effect = responses
     client = EmbeddingClient(api_key="k", model="ep-test")
     vecs = client.batch_embed(["a", "b", "c"])
     assert vecs == [[0.0] * 4, [1.0] * 4, [2.0] * 4]
+    assert mock_urlopen.call_count == 3
 
 
-def test_batch_embed_chunks_at_32(fake_openai):
-    """Ark caps embedding batches at 32 inputs; the client must split
-    transparently so callers don't have to think about it."""
+def test_batch_embed_request_shape(mock_urlopen):
+    """Request body must wrap each text into ``{type:'text', text:...}``."""
+    mock_urlopen.return_value = _FakeResp(_ark_response([0.0] * 2))
     client = EmbeddingClient(api_key="k", model="ep-test")
-    texts = [f"t-{i}" for i in range(50)]
-    vecs = client.batch_embed(texts)
+    client.embed("你好")
 
-    assert len(vecs) == 50
-    # Two upstream calls: 32 + 18.
-    assert fake_openai.embeddings.create.call_count == 2
-    sizes = sorted(
-        len(call.kwargs["input"])
-        for call in fake_openai.embeddings.create.call_args_list
-    )
-    assert sizes == [18, 32]
+    # urlopen was called with a Request object — sniff its data.
+    req = mock_urlopen.call_args.args[0]
+    sent = json.loads(req.data.decode("utf-8"))
+    assert sent["model"] == "ep-test"
+    assert sent["input"] == [{"type": "text", "text": "你好"}]
+    assert req.get_method() == "POST"
+    assert req.headers.get("Authorization") == "Bearer k"
 
 
-def test_batch_embed_empty_input_skips_api_call(fake_openai):
+def test_batch_embed_empty_input_skips_call(mock_urlopen):
     client = EmbeddingClient(api_key="k", model="ep-test")
     assert client.batch_embed([]) == []
-    fake_openai.embeddings.create.assert_not_called()
+    mock_urlopen.assert_not_called()
 
 
-def test_batch_embed_rejects_empty_string(fake_openai):
+def test_batch_embed_rejects_empty_string(mock_urlopen):
     client = EmbeddingClient(api_key="k", model="ep-test")
     with pytest.raises(ValueError):
         client.batch_embed(["ok", ""])
-    # Should fail before any API call.
-    fake_openai.embeddings.create.assert_not_called()
+    mock_urlopen.assert_not_called()
 
 
-def test_embed_query_returns_none_for_blank(fake_openai):
+def test_embed_query_returns_none_for_blank(mock_urlopen):
     client = EmbeddingClient(api_key="k", model="ep-test")
     assert client.embed_query("   ") is None
     assert client.embed_query("") is None
-    fake_openai.embeddings.create.assert_not_called()
+    mock_urlopen.assert_not_called()
 
 
-def test_embed_query_returns_vector_for_real_question(fake_openai):
+def test_embed_query_returns_vector_for_real_question(mock_urlopen):
+    mock_urlopen.return_value = _FakeResp(_ark_response([0.5, 0.6]))
     client = EmbeddingClient(api_key="k", model="ep-test")
-    vec = client.embed_query("结论是什么？")
-    assert vec == [0.0] * 4
+    assert client.embed_query("结论是什么？") == [0.5, 0.6]
+
+
+# ---------------------------------------------------------------------
+# Error paths
+# ---------------------------------------------------------------------
+
+
+def test_http_error_surfaces_message(mock_urlopen):
+    mock_urlopen.side_effect = urllib.error.HTTPError(
+        url="x", code=429, msg="too many requests",
+        hdrs=None, fp=BytesIO(b'{"error": "throttled"}')
+    )
+    client = EmbeddingClient(api_key="k", model="ep-test")
+    with pytest.raises(RuntimeError, match="HTTP 429"):
+        client.embed("hi")
+
+
+def test_malformed_response_rejected(mock_urlopen):
+    """If the API returns 200 with a shape we don't recognise (e.g. an
+    upstream regression), we fail loudly rather than persisting garbage."""
+    mock_urlopen.return_value = _FakeResp(
+        json.dumps({"data": [], "object": "list"}).encode("utf-8")
+    )
+    client = EmbeddingClient(api_key="k", model="ep-test")
+    with pytest.raises(RuntimeError, match="Unexpected"):
+        client.embed("hi")

@@ -1,19 +1,29 @@
-"""Text embedding via Volcengine Ark (OpenAI-compatible /v1/embeddings).
+"""Text embedding via Volcengine Ark multimodal embeddings API.
 
-Sprint 2.4 — companion to ``llm_client.py``: same auth / base URL /
-``openai`` SDK, just hits ``embeddings.create`` instead of
-``chat.completions.create``. Doubao text-embedding endpoints expose an
-``ep-...`` ID via ``DOUBAO_EMBEDDING_ENDPOINT``; we don't hard-code the
-model name so the Ark console can re-point to a newer embedding model
-without a backend redeploy.
+Sprint 2.4 — originally targeted ``doubao-embedding-large`` via the
+OpenAI-compatible ``/v1/embeddings`` route, but that and the standard
+``doubao-embedding`` are being deprecated upstream. We now point at
+``doubao-embedding-vision`` which speaks Ark's native
+``/api/v3/embeddings/multimodal`` shape:
 
-This module is intentionally synchronous: callers are Celery tasks and
-management commands, neither benefits from an async client.
+* Request: ``{model, input: [{type: "text", text: "..."}]}``
+* Response: ``{data: {embedding: [...]}, usage: {...}}`` (single result)
+* No batching — each call returns exactly one embedding.
+
+Because the multimodal API isn't OpenAI-compatible, we bypass the
+``openai`` SDK and hit Ark with ``urllib`` directly (zero new deps, no
+async needs — callers are Celery tasks / management commands). The
+public interface is preserved: callers still see
+``batch_embed(list[str]) -> list[list[float]]`` and the existing
+``embed_meeting_transcripts`` task / ``PersonalAIService`` are untouched.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import urllib.error
+import urllib.request
 from typing import Iterable, Optional
 
 from django.conf import settings
@@ -29,16 +39,13 @@ class EmbeddingUnavailable(RuntimeError):
 
 
 class EmbeddingClient:
-    """Thin wrapper around ``openai.OpenAI.embeddings`` against Ark.
+    """Doubao multimodal embedding client (Ark native API).
 
-    Mirrors ``LLMClient`` so callers can swap them mentally. Use
-    :py:meth:`batch_embed` for any list of strings; the Ark embedding
-    endpoint accepts up to 32 inputs per call, so we chunk by 32 here
-    so callers don't have to think about it.
+    Despite the "multimodal" name we feed it text-only inputs in
+    Sprint 2.4. The vision-capable model is the only Ark embedding
+    family that isn't slated for deprecation; we'll layer in image
+    embedding (Sprint 2.6+) by extending the per-item ``input`` payload.
     """
-
-    # Doubao text embedding endpoints accept up to 32 inputs per call.
-    _BATCH_SIZE = 32
 
     def __init__(
         self,
@@ -48,10 +55,10 @@ class EmbeddingClient:
         base_url: str = _DEFAULT_BASE_URL,
         timeout: float = 60.0,
     ) -> None:
-        from openai import OpenAI
-
-        self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        self._api_key = api_key
         self._model = model
+        self._endpoint = f"{base_url.rstrip('/')}/embeddings/multimodal"
+        self._timeout = timeout
 
     @classmethod
     def from_settings(cls) -> "EmbeddingClient":
@@ -71,19 +78,24 @@ class EmbeddingClient:
     def model(self) -> str:
         return self._model
 
+    # ------------------------------------------------------------------
+    # Public API (unchanged contract since Sprint 2.4 Step 1)
+    # ------------------------------------------------------------------
+
     def embed(self, text: str) -> list[float]:
-        """Single-string convenience wrapper around :py:meth:`batch_embed`."""
         if not text:
             raise ValueError("text must not be empty")
-        return self.batch_embed([text])[0]
+        return self._embed_one(text)
 
     def batch_embed(self, texts: Iterable[str]) -> list[list[float]]:
-        """Embed ``texts``; preserves order and returns one vector per input.
+        """Embed each text in order. Caller's input order is preserved.
 
-        Chunks the input list into Ark-friendly batches transparently.
-        Empty strings are rejected before the request to avoid 400s from
-        Ark; callers should filter beforehand if they need to keep
-        positions stable.
+        Ark multimodal embeddings is one-input-per-call, so this is a
+        plain sequential loop — no SDK-side batching to lean on. For
+        backfill of ~5K chunks @ ~500 ms each that's ~40 min sequential;
+        acceptable for the current scale and easier to reason about than
+        a thread pool. If throughput becomes a bottleneck, this is the
+        single spot to add ``concurrent.futures``.
         """
         items = list(texts)
         if not items:
@@ -92,27 +104,58 @@ class EmbeddingClient:
             raise ValueError("batch_embed received an empty string")
 
         results: list[list[float]] = []
-        for start in range(0, len(items), self._BATCH_SIZE):
-            batch = items[start : start + self._BATCH_SIZE]
-            resp = self._client.embeddings.create(model=self._model, input=batch)
-            # Ark returns data in input order — verify by index to catch
-            # SDK upgrades that change ordering semantics.
-            ordered = sorted(resp.data, key=lambda d: d.index)
-            results.extend(d.embedding for d in ordered)
-
-        if len(results) != len(items):
-            raise RuntimeError(
-                f"Ark returned {len(results)} vectors for {len(items)} inputs"
-            )
+        for t in items:
+            results.append(self._embed_one(t))
         return results
 
     def embed_query(self, question: str) -> Optional[list[float]]:
-        """Convenience for the retrieval side: tolerate empty input
-        (caller validated; returns None to short-circuit search)."""
         question = (question or "").strip()
         if not question:
             return None
-        return self.embed(question)
+        return self._embed_one(question)
+
+    # ------------------------------------------------------------------
+    # Internals
+    # ------------------------------------------------------------------
+
+    def _embed_one(self, text: str) -> list[float]:
+        payload = json.dumps(
+            {
+                "model": self._model,
+                "input": [{"type": "text", "text": text}],
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            self._endpoint,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            data=payload,
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                body = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", errors="replace")[:500]
+            raise RuntimeError(
+                f"Ark embedding HTTP {e.code}: {detail}"
+            ) from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"Ark embedding network error: {e.reason}") from e
+
+        # Multimodal response shape: data is a *dict*, not a list, and
+        # carries one embedding per call. See module docstring.
+        data = body.get("data")
+        if not isinstance(data, dict):
+            raise RuntimeError(
+                f"Unexpected Ark embedding response shape: keys={list(body)}"
+            )
+        embedding = data.get("embedding")
+        if not isinstance(embedding, list) or not embedding:
+            raise RuntimeError("Ark embedding response missing 'embedding' list")
+        return embedding
 
 
 __all__ = ("EmbeddingClient", "EmbeddingUnavailable")
