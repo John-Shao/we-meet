@@ -1,5 +1,7 @@
 import { ApiError } from './ApiError'
 import { apiUrl } from './apiUrl'
+import { attemptSilentRefresh } from './fetchApi'
+import { clearTokens, getAccessToken } from '@/features/auth/utils/tokenStorage'
 
 /**
  * SSE event frame envelope.
@@ -51,6 +53,11 @@ interface SseStreamOptions {
  * SSE frames are `data: <json>\n\n` so the protocol is barely an
  * inconvenience.
  *
+ * Auth mirrors `fetchApi`: the OIDC/OTP bearer from `getAccessToken()` is
+ * attached automatically and a 401 triggers one silent refresh + retry.
+ * A caller-supplied `Authorization` header (Room AI's LiveKit token) takes
+ * precedence and disables the bearer auto-attach/refresh.
+ *
  * Throws `ApiError` synchronously when the response status isn't 2xx
  * (e.g. 400 on bad input, 401/403 on auth, 429 on throttle). Mid-stream
  * faults arrive as in-band `error` events instead.
@@ -60,18 +67,37 @@ export async function* sseStream(
   { body, headers, signal }: SseStreamOptions
 ): AsyncIterable<SSEEvent> {
   const csrf = getCsrfToken()
-  const resp = await fetch(apiUrl(path), {
-    method: 'POST',
-    credentials: 'include',
-    signal,
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      ...(csrf ? { 'X-CSRFToken': csrf } : {}),
-      ...(headers || {}),
-    },
-    body: JSON.stringify(body),
-  })
+  const target = apiUrl(path)
+  // The caller (Room AI) may pass its own `Authorization` header; that wins
+  // over the session bearer and opts out of the bearer refresh dance.
+  const callerHasAuth = Object.keys(headers || {}).some(
+    (k) => k.toLowerCase() === 'authorization'
+  )
+  const initialBearer = callerHasAuth ? null : getAccessToken()
+
+  const doFetch = (bearer: string | null) =>
+    fetch(target, {
+      method: 'POST',
+      credentials: 'include',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+        ...(headers || {}),
+      },
+      body: JSON.stringify(body),
+    })
+
+  let resp = await doFetch(initialBearer)
+
+  // Bearer 401 → one silent refresh + retry, same contract as `fetchApi`.
+  if (resp.status === 401 && initialBearer) {
+    const newAccess = await attemptSilentRefresh()
+    if (newAccess) resp = await doFetch(newAccess)
+    if (resp.status === 401) clearTokens()
+  }
 
   if (!resp.ok) {
     // Try to surface a useful detail — the SSE 400/403/429 paths return

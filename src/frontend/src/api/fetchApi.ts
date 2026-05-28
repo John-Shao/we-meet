@@ -16,7 +16,7 @@ import { refreshTokens } from '@/features/auth/api/mobileOtp'
  */
 let inflightRefresh: Promise<string | null> | null = null
 
-const attemptSilentRefresh = async (): Promise<string | null> => {
+export const attemptSilentRefresh = async (): Promise<string | null> => {
   if (inflightRefresh) return inflightRefresh
   const refresh = getRefreshToken()
   if (!refresh) return null
