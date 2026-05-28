@@ -25,12 +25,12 @@ See ``docs/features/room_ai_sidebar.md`` for the broader rationale.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Iterator, Optional
 
 from django.conf import settings
 
 from core.models import Room, Transcript
-from core.services.llm_client import LLMClient, LLMUnavailable
+from core.services.llm_client import LLMClient, LLMUnavailable, sanitise_history
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,86 @@ class RoomAIService:
 
     def ask(self, *, room: Room, question: str) -> dict:
         """Run one round of QA. Caller has already validated ``question``."""
+        prep = self._prepare(room=room, question=question)
+        if prep["empty_response"] is not None:
+            return prep["empty_response"]
+
+        answer = prep["client"].chat(
+            system=prep["system"],
+            user=question,
+            temperature=0.3,
+            max_tokens=800,
+        )
+        return {
+            "answer": answer,
+            "transcripts_used": prep["transcripts_count"],
+            "model_used": prep["client"].model,
+        }
+
+    def ask_stream(
+        self,
+        *,
+        room: Room,
+        question: str,
+        history: Optional[list[dict]] = None,
+    ) -> Iterator[dict]:
+        """Stream the same QA as :py:meth:`ask` (Sprint 2.5).
+
+        Yields:
+            * ``{"type": "meta", "transcripts_used": N, "model_used": "..."}``
+              first, so the UI can render citations immediately.
+            * ``{"type": "delta", "text": "<chunk>"}`` for each LLM token.
+            * ``{"type": "done"}`` when the stream ends cleanly.
+
+        Errors propagate out — the caller (view) catches and emits the
+        ``error`` event onto the SSE stream itself.
+        """
+        prep = self._prepare(room=room, question=question)
+        client = prep["client"]
+        if prep["empty_response"] is not None:
+            # Empty-state replies aren't worth a real LLM call. Synthesise
+            # the same answer text as the non-streaming path so the UI
+            # treats both consistently.
+            payload = prep["empty_response"]
+            yield {
+                "type": "meta",
+                "transcripts_used": payload["transcripts_used"],
+                "model_used": payload["model_used"],
+            }
+            yield {"type": "delta", "text": payload["answer"]}
+            yield {"type": "done"}
+            return
+
+        yield {
+            "type": "meta",
+            "transcripts_used": prep["transcripts_count"],
+            "model_used": client.model,
+        }
+
+        messages = [
+            {"role": "system", "content": prep["system"]},
+            *sanitise_history(history),
+            {"role": "user", "content": question},
+        ]
+        for delta in client.chat_stream(
+            messages=messages, temperature=0.3, max_tokens=800
+        ):
+            yield {"type": "delta", "text": delta}
+        yield {"type": "done"}
+
+    # ------------------------------------------------------------------
+    # Shared prep — used by both ask() and ask_stream()
+    # ------------------------------------------------------------------
+
+    def _prepare(self, *, room: Room, question: str) -> dict:
+        """Build the system prompt + decide if we should short-circuit.
+
+        Returns a dict with:
+            * ``client``           — initialised LLMClient
+            * ``transcripts_count`` — int
+            * ``system``           — formatted system prompt (or "")
+            * ``empty_response``   — full canned response dict, or None
+        """
         try:
             client = self._client()
         except LLMUnavailable as exc:
@@ -86,24 +166,23 @@ class RoomAIService:
         transcripts = self._collect_recent(room)
         if not transcripts:
             return {
-                "answer": "字幕里没有相关记录（目前还没采集到任何发言）。",
-                "transcripts_used": 0,
-                "model_used": client.model,
+                "client": client,
+                "transcripts_count": 0,
+                "system": "",
+                "empty_response": {
+                    "answer": "字幕里没有相关记录（目前还没采集到任何发言）。",
+                    "transcripts_used": 0,
+                    "model_used": client.model,
+                },
             }
 
         context = self._format(transcripts)
         system = _SYSTEM_PROMPT_TEMPLATE.format(transcripts=context)
-
-        answer = client.chat(
-            system=system,
-            user=question,
-            temperature=0.3,
-            max_tokens=800,
-        )
         return {
-            "answer": answer,
-            "transcripts_used": len(transcripts),
-            "model_used": client.model,
+            "client": client,
+            "transcripts_count": len(transcripts),
+            "system": system,
+            "empty_response": None,
         }
 
     # ------------------------------------------------------------------

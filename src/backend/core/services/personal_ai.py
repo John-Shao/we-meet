@@ -17,7 +17,7 @@ pgvector yet and what the migration would look like.
 from __future__ import annotations
 
 import logging
-from typing import Iterable, Optional
+from typing import Iterable, Iterator, Optional
 
 import numpy as np
 
@@ -25,7 +25,7 @@ from django.contrib.auth import get_user_model
 
 from core.models import Room, Summary, TranscriptChunk
 from core.services.embeddings import EmbeddingClient, EmbeddingUnavailable
-from core.services.llm_client import LLMClient, LLMUnavailable
+from core.services.llm_client import LLMClient, LLMUnavailable, sanitise_history
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -71,26 +71,105 @@ class PersonalAIService:
 
     def ask(self, *, user, question: str) -> dict:
         """Answer ``question`` using only ``user``'s accessible meetings."""
+        prep = self._prepare(user=user, question=question)
+        if prep["empty_response"] is not None:
+            return prep["empty_response"]
+
+        answer = prep["llm"].chat(
+            system=prep["system"],
+            user=prep["question"],
+            temperature=0.3,
+            max_tokens=1200,
+        )
+        return {
+            "answer": answer,
+            "chunks_used": prep["chunks_used"],
+            "rooms_referenced": prep["rooms_referenced"],
+            "model_used": prep["llm"].model,
+        }
+
+    def ask_stream(
+        self,
+        *,
+        user,
+        question: str,
+        history: Optional[list[dict]] = None,
+    ) -> Iterator[dict]:
+        """Stream the same RAG QA as :py:meth:`ask` (Sprint 2.5).
+
+        Event sequence:
+            * ``{"type": "meta", "rooms_referenced": [...], "chunks_used": N,
+                  "model_used": "..."}`` — sent before the LLM call so the UI
+              can render citation chips while waiting for the first token.
+            * ``{"type": "delta", "text": "<chunk>"}`` per token.
+            * ``{"type": "done"}`` on clean completion.
+
+        Errors bubble up; the view wraps the iterator and emits the
+        ``error`` event onto the SSE stream itself.
+        """
+        prep = self._prepare(user=user, question=question)
+        llm = prep["llm"]
+
+        if prep["empty_response"] is not None:
+            payload = prep["empty_response"]
+            yield {
+                "type": "meta",
+                "rooms_referenced": payload["rooms_referenced"],
+                "chunks_used": payload["chunks_used"],
+                "model_used": payload["model_used"],
+            }
+            yield {"type": "delta", "text": payload["answer"]}
+            yield {"type": "done"}
+            return
+
+        yield {
+            "type": "meta",
+            "rooms_referenced": prep["rooms_referenced"],
+            "chunks_used": prep["chunks_used"],
+            "model_used": llm.model,
+        }
+
+        messages = [
+            {"role": "system", "content": prep["system"]},
+            *sanitise_history(history),
+            {"role": "user", "content": prep["question"]},
+        ]
+        for delta in llm.chat_stream(
+            messages=messages, temperature=0.3, max_tokens=1200
+        ):
+            yield {"type": "delta", "text": delta}
+        yield {"type": "done"}
+
+    # ------------------------------------------------------------------
+    # Shared prep — used by both ask() and ask_stream()
+    # ------------------------------------------------------------------
+
+    def _prepare(self, *, user, question: str) -> dict:
+        """Run RAG retrieval + build the system prompt.
+
+        Returns a dict with:
+            * ``llm``               — initialised LLMClient
+            * ``question``          — stripped user input
+            * ``system``            — formatted system prompt (or "")
+            * ``chunks_used``       — int
+            * ``rooms_referenced``  — list[dict] (id/name/slug, JSON-ready)
+            * ``empty_response``    — canned response dict, or None
+        """
         if not question or not question.strip():
             raise ValueError("question must not be empty")
 
         embed_client = self._embed_client()
         llm_client = self._llm_client()
+        question = question.strip()
 
-        # 1. Enumerate the rooms the user is allowed to search across.
         room_ids = self._user_room_ids(user)
         if not room_ids:
-            return {
-                "answer": "这些会议里没有相关记录（你目前还没参加过任何已生成纪要的会议）。",
-                "chunks_used": 0,
-                "rooms_referenced": [],
-                "model_used": llm_client.model,
-            }
+            return self._empty_prep(
+                llm_client,
+                question,
+                answer="这些会议里没有相关记录（你目前还没参加过任何已生成纪要的会议）。",
+            )
 
-        # 2. Pull the candidate chunks. We hydrate in memory because path D
-        #    doesn't use pgvector; for the internal-deployment scale we're
-        #    targeting (≤ 10 K chunks/user) numpy easily fits the latency
-        #    budget. The .only() narrows the row footprint a bit.
         chunks = list(
             TranscriptChunk.objects.filter(room_id__in=room_ids)
             .exclude(embedding=[])
@@ -108,51 +187,52 @@ class PersonalAIService:
             )
         )
         if not chunks:
-            return {
-                "answer": "这些会议里没有相关记录（暂时还没有完成索引的会议）。",
-                "chunks_used": 0,
-                "rooms_referenced": [],
-                "model_used": llm_client.model,
-            }
+            return self._empty_prep(
+                llm_client,
+                question,
+                answer="这些会议里没有相关记录（暂时还没有完成索引的会议）。",
+            )
 
-        # 3. Embed the question + score every chunk.
-        q_vec = np.asarray(embed_client.embed(question.strip()), dtype=np.float32)
+        q_vec = np.asarray(embed_client.embed(question), dtype=np.float32)
         scored = self._rank(q_vec, chunks)
         top = scored[: self.TOP_K]
         if not top:
-            return {
-                "answer": "这些会议里没有相关记录。",
-                "chunks_used": 0,
-                "rooms_referenced": [],
-                "model_used": llm_client.model,
-            }
+            return self._empty_prep(
+                llm_client, question, answer="这些会议里没有相关记录。"
+            )
 
-        # 4. Hydrate Room display info for citations + format context.
         rooms_map = {
             r.id: r
             for r in Room.objects.filter(id__in={c.room_id for c, _ in top})
         }
         context = self._format_context(top, rooms_map)
-
-        answer = llm_client.chat(
-            system=_SYSTEM_PROMPT_TEMPLATE.format(context=context),
-            user=question.strip(),
-            temperature=0.3,
-            max_tokens=1200,
-        )
-
+        rooms_referenced = [
+            {"id": str(r.id), "name": r.name or "", "slug": r.slug or ""}
+            for r in rooms_map.values()
+        ]
         return {
-            "answer": answer,
+            "llm": llm_client,
+            "question": question,
+            "system": _SYSTEM_PROMPT_TEMPLATE.format(context=context),
             "chunks_used": len(top),
-            "rooms_referenced": [
-                {
-                    "id": str(r.id),
-                    "name": r.name or "",
-                    "slug": r.slug or "",
-                }
-                for r in rooms_map.values()
-            ],
-            "model_used": llm_client.model,
+            "rooms_referenced": rooms_referenced,
+            "empty_response": None,
+        }
+
+    @staticmethod
+    def _empty_prep(llm_client: LLMClient, question: str, *, answer: str) -> dict:
+        return {
+            "llm": llm_client,
+            "question": question,
+            "system": "",
+            "chunks_used": 0,
+            "rooms_referenced": [],
+            "empty_response": {
+                "answer": answer,
+                "chunks_used": 0,
+                "rooms_referenced": [],
+                "model_used": llm_client.model,
+            },
         }
 
     # ------------------------------------------------------------------

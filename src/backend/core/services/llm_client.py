@@ -8,14 +8,15 @@ Doubao billing. Settings:
 * ``DOUBAO_LLM_ENDPOINT``  — Ark endpoint id (``ep-...``) used as ``model``
 * ``ARK_BASE_URL``         — overridable (default Ark CN-Beijing)
 
-This module is intentionally synchronous: callers are Celery tasks and
-management commands, neither benefits from an async client.
+This module is intentionally synchronous: callers are Celery tasks,
+management commands, and Django views (incl. SSE streaming) — none of
+which benefit from an async client.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Iterator, Optional
 
 from django.conf import settings
 
@@ -23,6 +24,44 @@ logger = logging.getLogger(__name__)
 
 
 _DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
+
+
+# Multi-turn history shaping is a shared concern: both RoomAIService and
+# PersonalAIService accept a ``history`` list from the frontend and need to
+# defend against malformed / oversized inputs before splicing it into the
+# OpenAI ``messages`` array.
+_MAX_HISTORY_MESSAGES = 6  # 3 user/assistant pairs
+_MAX_HISTORY_CHAR_PER_MSG = 2000
+
+
+def sanitise_history(history: Optional[list[dict]]) -> list[dict]:
+    """Clamp + filter a frontend-provided ``history`` array.
+
+    Drops anything that isn't a ``{role: 'user' | 'assistant', content: str}``
+    pair, truncates each ``content`` to ``_MAX_HISTORY_CHAR_PER_MSG``, and
+    keeps only the most recent ``_MAX_HISTORY_MESSAGES`` items. Returns a
+    new list — never mutates the input.
+    """
+    if not history:
+        return []
+    allowed_roles = {"user", "assistant"}
+    cleaned: list[dict] = []
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role")
+        content = item.get("content")
+        if role not in allowed_roles or not isinstance(content, str):
+            continue
+        content = content.strip()
+        if not content:
+            continue
+        if len(content) > _MAX_HISTORY_CHAR_PER_MSG:
+            content = content[:_MAX_HISTORY_CHAR_PER_MSG]
+        cleaned.append({"role": role, "content": content})
+    # Keep the trailing window — most recent messages carry the relevant
+    # context for the follow-up question.
+    return cleaned[-_MAX_HISTORY_MESSAGES:]
 
 
 class LLMUnavailable(RuntimeError):
@@ -111,3 +150,41 @@ class LLMClient:
             temperature=temperature,
             response_format={"type": "json_object"},
         )
+
+    def chat_stream(
+        self,
+        *,
+        messages: list[dict],
+        temperature: float = 0.3,
+        max_tokens: Optional[int] = None,
+    ) -> Iterator[str]:
+        """Stream a chat completion as text deltas (Sprint 2.5).
+
+        Caller passes the full message array directly — this avoids the
+        ``system``/``user`` split that ``chat()`` enforces, because the
+        streaming callers (RoomAI / PersonalAI) need to inject multi-turn
+        history between the system prompt and the latest user message.
+
+        Yields one string per upstream chunk; empty deltas (which Ark
+        occasionally emits at the start/end of a stream) are filtered so
+        callers can write ``"".join(stream)`` without worrying about
+        leading whitespace artifacts.
+        """
+        kwargs: dict = {
+            "model": self._model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True,
+        }
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
+
+        resp = self._client.chat.completions.create(**kwargs)
+        for event in resp:
+            choices = getattr(event, "choices", None) or []
+            if not choices:
+                continue
+            delta = getattr(choices[0], "delta", None)
+            text = getattr(delta, "content", None) if delta is not None else None
+            if text:
+                yield text
