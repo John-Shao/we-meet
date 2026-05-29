@@ -7,11 +7,8 @@ import { ToggleButtonProps } from '@/primitives/ToggleButton'
 import { useSidePanel } from '@/features/rooms/livekit/hooks/useSidePanel'
 
 /**
- * Open the room-AI sidebar.
- *
- * Sibling of ``AIAssistantToggle`` (which dispatches a *participant* AI
- * into the LiveKit room with audio/video). This toggle stays text-only:
- * it just slides the existing SidePanel slot into ``RoomAIPanel``.
+ * Open the room-AI sidebar. Text-only: it just slides the existing
+ * SidePanel slot into ``RoomAIPanel`` (no LiveKit participant dispatch).
  */
 export const RoomAIToggle = ({
   onPress,

@@ -1,5 +1,4 @@
 import { css } from '@/styled-system/css'
-import { AIAssistantToggle } from '@/features/ai-assistant/components/AIAssistantToggle'
 import { RoomAIToggle } from '@/features/room-ai/components/RoomAIToggle'
 import { ChatToggle } from '../../components/controls/ChatToggle'
 import { ParticipantsToggle } from '../../components/controls/Participants/ParticipantsToggle'
@@ -26,7 +25,6 @@ const NavigationControls = ({
     <ParticipantsToggle onPress={onPress} tooltipType={tooltipType} />
     <ToolsToggle onPress={onPress} tooltipType={tooltipType} />
     <RoomAIToggle onPress={onPress} tooltipType={tooltipType} />
-    <AIAssistantToggle onPress={onPress} tooltipType={tooltipType} />
     <AdminToggle onPress={onPress} tooltipType={tooltipType} />
   </>
 )
