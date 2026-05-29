@@ -3,9 +3,25 @@
   "loading": "Wird geladen…",
   "tabs": {
     "label": "Besprechungsdetail",
+    "info": "Infos",
     "summary": "Zusammenfassung",
     "actionItems": "Maßnahmen",
     "transcript": "Transkript"
+  },
+  "info": {
+    "name": "Name",
+    "time": "Zeit",
+    "code": "Besprechungscode",
+    "owner": "Organisator",
+    "participants": "Teilnehmer",
+    "participantsHidden": "Nur der Organisator sieht die Teilnehmerliste",
+    "ongoing": "laufend",
+    "empty": "—",
+    "role": {
+      "owner": "Organisator",
+      "administrator": "Administrator",
+      "member": "Mitglied"
+    }
   },
   "summary": {
     "empty": "Noch keine Zusammenfassung (Besprechung läuft oder noch nicht generiert).",

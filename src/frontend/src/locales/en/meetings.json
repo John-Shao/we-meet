@@ -3,9 +3,25 @@
   "loading": "Loading…",
   "tabs": {
     "label": "Meeting detail",
+    "info": "Meeting info",
     "summary": "Summary",
     "actionItems": "Action items",
     "transcript": "Transcript"
+  },
+  "info": {
+    "name": "Name",
+    "time": "Time",
+    "code": "Meeting code",
+    "owner": "Organizer",
+    "participants": "Participants",
+    "participantsHidden": "Only the organizer can see the participant list",
+    "ongoing": "ongoing",
+    "empty": "—",
+    "role": {
+      "owner": "Organizer",
+      "administrator": "Administrator",
+      "member": "Member"
+    }
   },
   "summary": {
     "empty": "No summary yet (meeting not finished or summary not generated).",

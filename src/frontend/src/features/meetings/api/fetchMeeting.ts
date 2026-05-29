@@ -6,9 +6,20 @@ import { fetchApi } from '@/api/fetchApi'
 import {
   ApiActionItem,
   ApiRecentMeeting,
+  ApiRoomDetail,
   ApiSummary,
   ApiTranscript,
 } from './ApiMeeting'
+
+const fetchRoom = (roomId: string) =>
+  fetchApi<ApiRoomDetail>(`rooms/${roomId}/`)
+
+export const useMeetingRoom = (roomId: string | undefined) =>
+  useQuery<ApiRoomDetail, ApiError>({
+    queryKey: ['meeting-room', roomId],
+    queryFn: () => fetchRoom(roomId!),
+    enabled: !!roomId,
+  })
 
 const fetchSummary = (roomId: string) =>
   fetchApi<ApiSummary>(`rooms/${roomId}/summary/`)

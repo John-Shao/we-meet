@@ -50,3 +50,30 @@ export interface ApiTranscript {
   started_at: string
   ended_at: string | null
 }
+
+export interface ApiRoomAccessUser {
+  id: string
+  full_name: string | null
+  short_name: string | null
+  email?: string | null
+}
+
+export interface ApiRoomAccess {
+  id: string
+  role: string
+  user: ApiRoomAccessUser
+}
+
+/**
+ * Room detail (GET /api/v1.0/rooms/{id}/). ``accesses`` is only returned by
+ * the backend to administrators / the owner, so it is optional here.
+ */
+export interface ApiRoomDetail {
+  id: string
+  name: string
+  slug: string | null
+  created_at: string
+  closed_at: string
+  owner: string | null
+  accesses?: ApiRoomAccess[]
+}

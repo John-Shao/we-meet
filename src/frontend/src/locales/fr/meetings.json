@@ -3,9 +3,25 @@
   "loading": "Chargement…",
   "tabs": {
     "label": "Détail de la réunion",
+    "info": "Informations",
     "summary": "Compte-rendu",
     "actionItems": "Actions à mener",
     "transcript": "Transcription"
+  },
+  "info": {
+    "name": "Nom",
+    "time": "Date et heure",
+    "code": "Code de réunion",
+    "owner": "Organisateur",
+    "participants": "Participants",
+    "participantsHidden": "Seul l'organisateur peut voir la liste des participants",
+    "ongoing": "en cours",
+    "empty": "—",
+    "role": {
+      "owner": "Organisateur",
+      "administrator": "Administrateur",
+      "member": "Membre"
+    }
   },
   "summary": {
     "empty": "Pas encore de compte-rendu (réunion en cours ou compte-rendu non généré).",

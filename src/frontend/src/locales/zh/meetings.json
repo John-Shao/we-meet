@@ -3,9 +3,25 @@
   "loading": "加载中…",
   "tabs": {
     "label": "会议详情",
+    "info": "会议信息",
     "summary": "纪要",
     "actionItems": "行动项",
     "transcript": "字幕记录"
+  },
+  "info": {
+    "name": "会议名称",
+    "time": "会议时间",
+    "code": "会议号",
+    "owner": "发起人",
+    "participants": "参会人",
+    "participantsHidden": "仅发起人可见参会人列表",
+    "ongoing": "进行中",
+    "empty": "—",
+    "role": {
+      "owner": "发起人",
+      "administrator": "管理员",
+      "member": "成员"
+    }
   },
   "summary": {
     "empty": "暂无纪要（会议尚未结束或纪要尚未生成）",

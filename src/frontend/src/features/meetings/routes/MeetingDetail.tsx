@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { ReactNode, useMemo } from 'react'
 
 import { useTranslation } from 'react-i18next'
 import { useTitle } from 'hoofd'
@@ -16,6 +16,7 @@ import { UserAware, useUser } from '@/features/auth'
 
 import {
   useMeetingActionItems,
+  useMeetingRoom,
   useMeetingSummary,
   useMeetingTranscripts,
   useRegenerateSummary,
@@ -243,6 +244,98 @@ const TranscriptTab = ({ roomId }: { roomId: string }) => {
   )
 }
 
+const InfoRow = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div
+    className={css({
+      display: 'flex',
+      gap: '1rem',
+      padding: '0.6rem 0',
+      borderBottom: '1px solid',
+      borderColor: 'gray.200',
+      alignItems: 'baseline',
+    })}
+  >
+    <div
+      className={css({
+        width: '5.5rem',
+        flexShrink: 0,
+        color: 'gray.600',
+        fontSize: '0.9rem',
+      })}
+    >
+      {label}
+    </div>
+    <div className={css({ flex: 1, fontSize: '0.95rem', wordBreak: 'break-word' })}>
+      {children}
+    </div>
+  </div>
+)
+
+const MeetingInfoTab = ({ roomId }: { roomId: string }) => {
+  const { t } = useTranslation('meetings')
+  const { data, isLoading, isError } = useMeetingRoom(roomId)
+  // Attendees: `accesses` only holds room *members* (owner + explicitly
+  // added) — guests who join via link never get an access row, so a 2-person
+  // call shows 1. The reliable "who was actually here" signal is the set of
+  // distinct transcript speakers; fall back to members when no transcript.
+  const { data: transcripts } = useMeetingTranscripts(roomId)
+  const speakerNames = useMemo(() => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const row of transcripts ?? []) {
+      const name = row.speaker_name || row.speaker_identity.slice(0, 12)
+      if (name && !seen.has(name)) {
+        seen.add(name)
+        out.push(name)
+      }
+    }
+    return out
+  }, [transcripts])
+
+  if (isLoading) return <Text>{t('loading')}</Text>
+  if (isError || !data) return <Text>{t('error.loadFailed')}</Text>
+
+  const start = new Date(data.created_at).toLocaleString()
+  const end = data.closed_at ? new Date(data.closed_at).toLocaleString() : null
+  const timeText = end ? `${start} – ${end}` : `${start}（${t('info.ongoing')}）`
+
+  const memberNames = (data.accesses ?? []).map(
+    (a) => a.user.full_name || a.user.short_name || a.user.email || '—'
+  )
+  const participantNames = speakerNames.length > 0 ? speakerNames : memberNames
+
+  return (
+    <div className={css({ display: 'flex', flexDirection: 'column' })}>
+      <InfoRow label={t('info.name')}>
+        {data.name || t('home.untitled')}
+      </InfoRow>
+      <InfoRow label={t('info.time')}>{timeText}</InfoRow>
+      <InfoRow label={t('info.code')}>{data.slug || t('info.empty')}</InfoRow>
+      <InfoRow label={t('info.owner')}>{data.owner || t('info.empty')}</InfoRow>
+      <InfoRow label={t('info.participants')}>
+        {participantNames.length === 0 ? (
+          t('info.empty')
+        ) : (
+          <ul
+            className={css({
+              listStyle: 'none',
+              padding: 0,
+              margin: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.25rem',
+            })}
+          >
+            {participantNames.map((name, i) => (
+              <li key={i}>{name}</li>
+            ))}
+          </ul>
+        )}
+      </InfoRow>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Route component
 // ---------------------------------------------------------------------------
@@ -278,14 +371,18 @@ export const MeetingDetail = () => {
             <H lvl={1}>{t('pageTitle')}</H>
 
             <Tabs
-              defaultSelectedKey="summary"
+              defaultSelectedKey="info"
               className={css({ width: '100%' })}
             >
               <TabList aria-label={t('tabs.label')}>
+                <Tab id="info">{t('tabs.info')}</Tab>
                 <Tab id="summary">{t('tabs.summary')}</Tab>
                 <Tab id="action-items">{t('tabs.actionItems')}</Tab>
                 <Tab id="transcript">{t('tabs.transcript')}</Tab>
               </TabList>
+              <TabPanel id="info" padding="md">
+                <MeetingInfoTab roomId={roomId} />
+              </TabPanel>
               <TabPanel id="summary" padding="md">
                 <SummaryTab roomId={roomId} />
               </TabPanel>

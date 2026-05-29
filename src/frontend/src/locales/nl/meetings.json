@@ -3,9 +3,25 @@
   "loading": "Bezig met laden…",
   "tabs": {
     "label": "Vergaderdetail",
+    "info": "Info",
     "summary": "Samenvatting",
     "actionItems": "Actiepunten",
     "transcript": "Transcriptie"
+  },
+  "info": {
+    "name": "Naam",
+    "time": "Tijd",
+    "code": "Vergadercode",
+    "owner": "Organisator",
+    "participants": "Deelnemers",
+    "participantsHidden": "Alleen de organisator ziet de deelnemerslijst",
+    "ongoing": "bezig",
+    "empty": "—",
+    "role": {
+      "owner": "Organisator",
+      "administrator": "Beheerder",
+      "member": "Lid"
+    }
   },
   "summary": {
     "empty": "Nog geen samenvatting (vergadering nog niet beëindigd of samenvatting niet gegenereerd).",
