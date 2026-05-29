@@ -109,4 +109,25 @@ top = reciprocal_rank_fusion(vec_ranked, bm25_ranked, top_k=self.TOP_K)
 
 ---
 
-**Sprint 2.6.x / 2.7 路标**：cross-encoder 或 Ark rerank（精度）→ 跨会议主题聚类（embedding KMeans）。
+## 9. Sprint 2.6.x 重排序（re-ranking）— 已推迟（2026-05-28）
+
+原计划在混合检索之上加一层 cross-encoder 重排：RRF 取 top-N（~30）候选后，用重排模型对 (query, chunk) 联合打分，重排出更精准的 top-K 再喂 LLM。出方案时定的是 **PoC 先行验证火山 Ark 是否有可用 rerank 接口**，结果卡在第一步，故推迟。
+
+**调研结论（2026-05 实测）：**
+
+- 火山 **Ark 大模型平台**（用 `ARK_API_KEY` Bearer，base `ark.cn-beijing.volces.com/api/v3`，本项目 chat / embedding 走这条）**没有可自助创建的 rerank 推理接入点** —— 控制台「创建在线推理接入点 → 选择模型」里搜 `rerank` 返回「暂无数据」。所以"Ark Bearer + `ep-xxx` 重排"这条最省事的路线走不通。
+- 火山的 rerank 实际在**另一条产品线 VikingDB / 知识库**（`/docs/84313`，`/api/.../rerank`），用 **AK/SK 签名鉴权**（非 Bearer），需开通 VikingDB 服务、可能单独计费。
+- 第三方（Cohere / Jina）rerank 会把会议字幕发往境外，ToB + 国内部署在隐私 / 合规上不合适。
+- 而 Sprint 2.6 的混合检索（vector + BM25 RRF）+ query-embedding 缓存已上线、已是主要质量提升；重排只是 top-K 精度的增量打磨，不值得现在为它新增 infra / 外部依赖。
+
+**重启时的候选路线（择一，均需先 PoC 门控，不要直接进实现）：**
+
+| 方案 | 说明 | 代价 |
+|---|---|---|
+| ① VikingDB rerank | 火山另一产品线，AK/SK 签名（项目已装 `volcengine` SDK 可签名） | 开通 VikingDB + 配 AK/SK + 写签名客户端；先验证能否**独立调用**（不依赖向量库 collection）+ 单独计费 |
+| ② 本地 cross-encoder 微服务 | 新建独立 rerank 部署（如 bge-reranker-v2-m3 + FastAPI），数据不出集群、隐私最佳 | 新增 1 个 k8s 部署 + ~1GB 模型 + torch，工作量与资源占用最大 |
+| ③ 继续推迟 | 先观察 2.6 线上检索效果，等有干净接口 / 明确需求再做 | 无 |
+
+接入点（无论哪条）：在 `PersonalAIService._retrieve` 的 RRF 之后插一层 `rerank(query, candidates[:N]) → top-K`，配 `RAG_RERANK_ENABLED` kill-switch + 失败降级回 RRF 顺序。
+
+**Sprint 2.7 路标**：跨会议主题聚类 / 自动归类（embedding KMeans）。
