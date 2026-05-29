@@ -130,4 +130,24 @@ top = reciprocal_rank_fusion(vec_ranked, bm25_ranked, top_k=self.TOP_K)
 
 接入点（无论哪条）：在 `PersonalAIService._retrieve` 的 RRF 之后插一层 `rerank(query, candidates[:N]) → top-K`，配 `RAG_RERANK_ENABLED` kill-switch + 失败降级回 RRF 顺序。
 
-**Sprint 2.7 路标**：跨会议主题聚类 / 自动归类（embedding KMeans）。
+## 10. Sprint 2.7 主题聚类 / 自动归类 — 已推迟（2026-05-28）
+
+原路标是"跨会议主题聚类（embedding KMeans）"，但它只在本文档 / `personal_ai_rag.md` 的路标里出现过，**从未进入主策略 `ai_strategy.md`**（其 Sprint 拆解只到 2.4 → Sprint 3）。评估后推迟，原因：
+
+- "embedding KMeans"是技术手段不是产品功能：KMeans 要预选簇数 K、簇还要 LLM 命名，"会议分成 N 类"对用户的实际价值存疑。
+- `ai_strategy.md` §1.4 / §10 反复强调「低侵入高价值 / 复用克制 / 能用普通手段就别过度工程」，不该因一行路标就上聚类。
+- AI 线核心价值（2.4 RAG 问答 + 2.5 流式多轮 + 2.6 混合检索 / 缓存）已交付。
+
+**重启时先定用户可见形态（择一，方案 / PoC 先行，不要直接套 KMeans）：**
+
+| 形态 | 说明 | 代价 |
+|---|---|---|
+| ① 相关会议推荐 | meeting 向量 = chunk 向量均值池化 → 余弦最近邻 → 详情页「相关会议」 | 最轻；复用现有 `TranscriptChunk.embedding`，无 KMeans / 选 K / 打标签（推荐切入） |
+| ② 自动主题标签 + 按主题浏览 | LLM 给每场会打主题标签（或聚类后命名），首页 / 历史按主题筛选 | 新 UI + 标签流水线 + 会议增长后重算 / 增量分配 |
+| ③ 继续推迟 | 等明确用户诉求再做 | 无 |
+
+数据底座：当前只有逐 chunk 的 `TranscriptChunk.embedding`，**没有会议级向量**；任何会议级特性靠把一场会的 chunk 向量均值池化得到。
+
+---
+
+**we-meet AI 线现状**：上线到 Sprint 2.6（RAG 问答 + 流式多轮 + 混合检索 / 缓存）；2.6.x 重排（§9）与 2.7 主题聚类（§10）均已推迟，待真实用户诉求再启。

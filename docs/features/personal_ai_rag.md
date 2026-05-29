@@ -288,6 +288,8 @@ kubectl -n meet exec deploy/meet-backend -- \
 ---
 
 **后续 Sprint**：
-- **2.5**：流式输出（SSE）+ 多轮对话上下文 + Redis 缓存
-- **2.6**：Re-ranking 模型（Doubao-ranker 或本地交叉编码）+ 混合检索（vector + BM25）
-- **2.7**：跨会议自动归类 / 主题聚类（embedding KMeans）
+- **2.5**（✅ 已上线）：流式输出（SSE）+ 多轮对话上下文，见 [streaming_chat.md](streaming_chat.md)
+- **2.6**（✅ 已上线）：query-embedding 缓存 + 混合检索（vector + BM25 RRF），见 [hybrid_retrieval.md](hybrid_retrieval.md)
+- **2.6.x**（推迟）：Re-ranking — 见 [hybrid_retrieval.md](hybrid_retrieval.md) §9（Ark 无自助 rerank 接入点）
+- **2.7**（推迟）：跨会议主题聚类 / 自动归类 — 见 [hybrid_retrieval.md](hybrid_retrieval.md) §10
+> AI 线现状：上线到 2.6；2.6.x 与 2.7 均推迟，待真实用户诉求再启。
