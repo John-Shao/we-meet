@@ -48,6 +48,8 @@
   },
   "home": {
     "recentTitle": "Réunions récentes",
-    "untitled": "(Réunion sans titre)"
+    "untitled": "(Réunion sans titre)",
+    "showAll": "Tout afficher ({{count}})",
+    "collapse": "Réduire"
   }
 }

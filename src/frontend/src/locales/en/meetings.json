@@ -48,6 +48,8 @@
   },
   "home": {
     "recentTitle": "Recent meetings",
-    "untitled": "(Untitled meeting)"
+    "untitled": "(Untitled meeting)",
+    "showAll": "Show all ({{count}})",
+    "collapse": "Collapse"
   }
 }

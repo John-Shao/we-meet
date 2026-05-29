@@ -7,6 +7,8 @@
  * brand-new users don't see an empty section.
  */
 
+import { useState } from 'react'
+
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
@@ -14,6 +16,9 @@ import { H, Text } from '@/primitives'
 import { navigateTo } from '@/navigation/navigateTo'
 
 import { useRecentMeetings } from '../api/fetchMeeting'
+
+// Show a short list by default; the backend already caps the feed at 20.
+const COLLAPSED_COUNT = 5
 
 const formatRelativeTime = (iso: string, locale: string) => {
   try {
@@ -30,10 +35,14 @@ const formatRelativeTime = (iso: string, locale: string) => {
 export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
   const { t, i18n } = useTranslation('meetings')
   const { data, isLoading } = useRecentMeetings(enabled)
+  const [expanded, setExpanded] = useState(false)
 
   if (!enabled) return null
   if (isLoading) return null
   if (!data || data.length === 0) return null
+
+  const canToggle = data.length > COLLAPSED_COUNT
+  const visible = expanded ? data : data.slice(0, COLLAPSED_COUNT)
 
   return (
     <div
@@ -59,7 +68,7 @@ export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
           gap: '0.5rem',
         })}
       >
-        {data.map((m) => (
+        {visible.map((m) => (
           <li key={m.id}>
             <button
               type="button"
@@ -95,6 +104,27 @@ export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
           </li>
         ))}
       </ul>
+      {canToggle && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className={css({
+            alignSelf: 'center',
+            marginTop: '0.25rem',
+            padding: '0.25rem 0.5rem',
+            background: 'none',
+            border: 'none',
+            color: 'primary.700',
+            fontSize: '0.85rem',
+            cursor: 'pointer',
+            _hover: { textDecoration: 'underline' },
+          })}
+        >
+          {expanded
+            ? t('home.collapse')
+            : t('home.showAll', { count: data.length })}
+        </button>
+      )}
     </div>
   )
 }

@@ -48,6 +48,8 @@
   },
   "home": {
     "recentTitle": "最近的会议",
-    "untitled": "（未命名会议）"
+    "untitled": "（未命名会议）",
+    "showAll": "查看全部（{{count}}）",
+    "collapse": "收起"
   }
 }

@@ -48,6 +48,8 @@
   },
   "home": {
     "recentTitle": "Recente vergaderingen",
-    "untitled": "(Vergadering zonder titel)"
+    "untitled": "(Vergadering zonder titel)",
+    "showAll": "Alles tonen ({{count}})",
+    "collapse": "Inklappen"
   }
 }

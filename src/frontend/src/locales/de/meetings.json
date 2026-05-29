@@ -48,6 +48,8 @@
   },
   "home": {
     "recentTitle": "Letzte Besprechungen",
-    "untitled": "(Besprechung ohne Titel)"
+    "untitled": "(Besprechung ohne Titel)",
+    "showAll": "Alle anzeigen ({{count}})",
+    "collapse": "Einklappen"
   }
 }
