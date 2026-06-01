@@ -6,14 +6,12 @@ import {
   NotificationType,
 } from '@/features/notifications'
 import { fetchApi } from '@/api/fetchApi'
-import { useIsAdminOrOwner } from '../livekit/hooks/useIsAdminOrOwner'
 
 import { useCallback } from 'react'
 
 export const useMuteParticipant = () => {
   const apiRoomData = useRoomData()
   const { notifyParticipants } = useNotifyParticipants()
-  const isAdminOrOwner = useIsAdminOrOwner()
 
   const muteParticipant = useCallback(
     async (participant: Participant) => {
@@ -29,15 +27,24 @@ export const useMuteParticipant = () => {
         return
       }
 
-      // Guard against undefined token for non-admin users
-      if (!isAdminOrOwner && !apiRoomData.livekit.token) {
-        console.error('Cannot mute participant: missing auth token')
+      // Always send the LiveKit token. Backend's mute-participant declares
+      // `authentication_classes=[LiveKitTokenAuth, *defaults]`, and the
+      // admin path of CanMuteParticipant relies on the request user having
+      // an OWNER ResourceAccess row — that path is fragile in SSO-fronted
+      // deployments where the Django session cookie isn't reliably
+      // populated (the frontend keeps the user logged in via a Keycloak
+      // Bearer in localStorage, not a Django session). The room-scoped
+      // LiveKit token, which every participant already has, satisfies the
+      // non-admin CanMuteParticipant branch (everyone_can_mute defaults to
+      // true) and works uniformly for owners and non-owners alike.
+      if (!apiRoomData.livekit.token) {
+        console.error('Cannot mute participant: missing LiveKit token')
         return
       }
 
-      const headers = !isAdminOrOwner
-        ? { Authorization: `Bearer ${apiRoomData.livekit.token}` }
-        : undefined
+      const headers = {
+        Authorization: `Bearer ${apiRoomData.livekit.token}`,
+      }
 
       let response
       try {
@@ -72,7 +79,7 @@ export const useMuteParticipant = () => {
 
       return response
     },
-    [apiRoomData, isAdminOrOwner, notifyParticipants]
+    [apiRoomData, notifyParticipants]
   )
 
   return { muteParticipant }
