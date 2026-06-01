@@ -435,6 +435,17 @@ class Room(Resource):
         verbose_name=_("ended at"),
         help_text=_("Date and time at which the room owner ended the room."),
     )
+    scheduled_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("scheduled for"),
+        help_text=_(
+            "Date and time at which the room is scheduled to start. "
+            "Informational only — the room is reachable as soon as it's "
+            "created, but UIs (lobby, history) surface this value as the "
+            "intended start so participants know when to show up."
+        ),
+    )
 
     class Meta:
         db_table = "meet_room"

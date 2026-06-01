@@ -150,6 +150,7 @@ class ListRoomSerializer(serializers.ModelSerializer):
             "slug",            "access_level",
             "created_at",
             "closed_at",
+            "scheduled_at",
         ]
         read_only_fields = ["id", "slug", "created_at"]
 
@@ -175,6 +176,7 @@ class RoomSerializer(serializers.ModelSerializer):
             "created_at",
             "closed_at",
             "owner",
+            "scheduled_at",
         ]
         read_only_fields = ["id", "slug", "pin_code", "created_at", "owner"]
 
