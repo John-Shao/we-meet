@@ -798,7 +798,7 @@ class Base(Configuration):
         None, environ_name="LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX", environ_prefix=None
     )
     RESOURCE_DEFAULT_ACCESS_LEVEL = values.Value(
-        "public", environ_name="RESOURCE_DEFAULT_ACCESS_LEVEL", environ_prefix=None
+        "trusted", environ_name="RESOURCE_DEFAULT_ACCESS_LEVEL", environ_prefix=None
     )
     ALLOW_UNREGISTERED_ROOMS = values.BooleanValue(
         True, environ_name="ALLOW_UNREGISTERED_ROOMS", environ_prefix=None
