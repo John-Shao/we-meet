@@ -245,19 +245,6 @@ export const Home = () => {
     checkSiteAndRedirect()
   }, [isLoggedIn, data])
 
-  // After a successful login (phone OTP or QR), if the user originally
-  // followed a /<slug> link they were bounced here with ?next=<slug>.
-  // Replace location so the back button skips the login page and the
-  // user lands on the room preview they were aiming for.
-  useEffect(() => {
-    if (isLoggedIn !== true) return
-    const params = new URLSearchParams(window.location.search)
-    const next = params.get('next')
-    if (next && /^[A-Za-z0-9-]+$/.test(next)) {
-      navigateTo('room', next, { replace: true })
-    }
-  }, [isLoggedIn])
-
   if (data?.external_home_url && isLoggedIn == false && !redirectFailed) {
     return <LoadingScreen header={false} footer={false} delay={0} />
   }
