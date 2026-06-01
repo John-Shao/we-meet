@@ -29,4 +29,8 @@ export type ApiRoom = {
   configuration?: RoomConfiguration
   // ISO timestamp set when the owner ended the room; empty string while still open.
   closed_at?: string
+  // ISO 8601 timestamp for the host's intended start time, or null when
+  // the room wasn't scheduled. Informational only — the room is reachable
+  // at any time; UIs surface this as "scheduled for X".
+  scheduled_at?: string | null
 }

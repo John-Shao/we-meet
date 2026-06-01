@@ -39,18 +39,33 @@ export const useCopyRoomToClipboard = (room: ApiRoom | undefined) => {
     return telephony.enabled && room?.pin_code
   }, [telephony.enabled, room?.pin_code])
 
+  const scheduledLine = useMemo(() => {
+    if (!room?.scheduled_at) return ''
+    try {
+      const localised = new Date(room.scheduled_at).toLocaleString()
+      return t('scheduledAt', { scheduledAt: localised })
+    } catch {
+      return ''
+    }
+  }, [room?.scheduled_at, t])
+
   const content = useMemo(() => {
     if (!roomUrl || !room) return ''
-    if (!hasTelephonyInfo) return roomUrl
-
-    return [
-      t('url', { roomUrl }),
-      t('numberAndPin', {
-        phoneNumber: telephony?.internationalPhoneNumber,
-        pinCode: formatPinCode(room.pin_code),
-      }),
-    ].join('\n')
-  }, [roomUrl, hasTelephonyInfo, telephony, room, t])
+    const parts = [t('url', { roomUrl })]
+    if (hasTelephonyInfo) {
+      parts.push(
+        t('numberAndPin', {
+          phoneNumber: telephony?.internationalPhoneNumber,
+          pinCode: formatPinCode(room.pin_code),
+        })
+      )
+    }
+    if (scheduledLine) parts.push(scheduledLine)
+    // If we only have the URL (no telephony, no schedule), keep the old
+    // behavior of pasting just the URL — clipboardContent.url's bare
+    // wrapping is identical to roomUrl on every locale we ship.
+    return parts.length === 1 && !scheduledLine ? roomUrl : parts.join('\n')
+  }, [roomUrl, hasTelephonyInfo, telephony, room, t, scheduledLine])
 
   const copyRoomToClipboard = async () => {
     try {

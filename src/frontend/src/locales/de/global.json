@@ -56,6 +56,7 @@
   "skipLink": "Zum Hauptinhalt springen",
   "clipboardContent": {
     "url": "Um an der Videokonferenz teilzunehmen, folge diesem Link: {{roomUrl}}",
-    "numberAndPin": "Um per Telefon teilzunehmen, wähle {{phoneNumber}} und gib diesen Code ein: {{pinCode}}"
+    "numberAndPin": "Um per Telefon teilzunehmen, wähle {{phoneNumber}} und gib diesen Code ein: {{pinCode}}",
+    "scheduledAt": "Geplant für: {{scheduledAt}}"
   }
 }

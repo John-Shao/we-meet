@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { DialogTrigger, MenuItem, Menu as RACMenu } from 'react-aria-components'
-import { Button, H, Menu } from '@/primitives'
+import { DialogTrigger } from 'react-aria-components'
+import { Button, H } from '@/primitives'
 import { styled } from '@/styled-system/jsx'
 import { navigateTo } from '@/navigation/navigateTo'
 import { Screen } from '@/layout/Screen'
@@ -12,7 +12,7 @@ import {
   UserAware,
 } from '@/features/auth'
 import { JoinMeetingDialog } from '../components/JoinMeetingDialog'
-import { RiAddLine, RiLink } from '@remixicon/react'
+import { ScheduleMeetingDialog } from '@/features/home/components/ScheduleMeetingDialog'
 import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
 import { IntroSlider } from '@/features/home/components/IntroSlider'
 import { MoreLink } from '@/features/home/components/MoreLink'
@@ -21,7 +21,6 @@ import { PersonalAIFab } from '@/features/personal-ai'
 import { ReactNode, useEffect, useState } from 'react'
 
 import { css } from '@/styled-system/css'
-import { menuRecipe } from '@/primitives/menuRecipe.ts'
 import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePersistentUserChoices'
 import { useConfig } from '@/api/useConfig'
 import { ApiRoom } from '@/features/rooms/api/ApiRoom'
@@ -265,60 +264,41 @@ export const Home = () => {
                   alignItems: { base: 'center', xsm: 'items-start' },
                 })}
               >
-                <Menu>
-                  <Button variant="primary" data-attr="create-meeting">
-                    {t('createMeeting')}
-                  </Button>
-                  <RACMenu>
-                    <MenuItem
-                      className={
-                        menuRecipe({ icon: true, variant: 'light' }).item
-                      }
-                      onAction={async () => {
-                        // Backend generates the 8-digit slug on save —
-                        // don't ship a random 10-letter "code" that would
-                        // co-exist with it and confuse users.
-                        const owner = (user?.full_name || username || '').trim()
-                        const name = owner
-                          ? t('defaultRoomName', { user: owner })
-                          : t('defaultRoomNameAnonymous')
-                        createRoom({ name, username }).then((data) =>
-                          navigateTo('room', data.slug, {
-                            state: { create: true, initialRoomData: data },
-                          })
-                        )
-                      }}
-                      data-attr="create-option-instant"
-                    >
-                      <RiAddLine size={18} />
-                      {t('createMenu.instantOption')}
-                    </MenuItem>
-                    <MenuItem
-                      className={
-                        menuRecipe({ icon: true, variant: 'light' }).item
-                      }
-                      onAction={() => {
-                        const owner = (user?.full_name || username || '').trim()
-                        const name = owner
-                          ? t('defaultRoomName', { user: owner })
-                          : t('defaultRoomNameAnonymous')
-                        createRoom({ name, username }).then((data) =>
-                          setLaterRoom(data)
-                        )
-                      }}
-                      data-attr="create-option-later"
-                    >
-                      <RiLink size={18} />
-                      {t('createMenu.laterOption')}
-                    </MenuItem>
-                  </RACMenu>
-                </Menu>
+                <Button
+                  variant="primary"
+                  data-attr="create-meeting"
+                  onPress={async () => {
+                    // Backend generates the 8-digit slug on save — don't
+                    // ship a random 10-letter "code" that would co-exist
+                    // with it and confuse users.
+                    const owner = (user?.full_name || username || '').trim()
+                    const name = owner
+                      ? t('defaultRoomName', { user: owner })
+                      : t('defaultRoomNameAnonymous')
+                    createRoom({ name, username }).then((data) =>
+                      navigateTo('room', data.slug, {
+                        state: { create: true, initialRoomData: data },
+                      })
+                    )
+                  }}
+                >
+                  {t('createMeeting')}
+                </Button>
                 {/* Logged-in users get the standard join entry — anonymous
                     join is gated below (the button doesn't render at all
                     when isLoggedIn is false). */}
                 <DialogTrigger>
                   <Button variant="secondary">{t('joinMeeting')}</Button>
                   <JoinMeetingDialog />
+                </DialogTrigger>
+                <DialogTrigger>
+                  <Button variant="secondary" data-attr="schedule-meeting">
+                    {t('scheduleMeeting')}
+                  </Button>
+                  <ScheduleMeetingDialog
+                    username={username}
+                    onCreated={setLaterRoom}
+                  />
                 </DialogTrigger>
               </div>
             ) : (

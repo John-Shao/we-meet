@@ -83,6 +83,7 @@
   "skipLink": "跳到主内容",
   "clipboardContent": {
     "url": "点击此链接加入视频会议：{{roomUrl}}",
-    "numberAndPin": "拨打 {{phoneNumber}} 并输入此代码即可通过电话加入：{{pinCode}}"
+    "numberAndPin": "拨打 {{phoneNumber}} 并输入此代码即可通过电话加入：{{pinCode}}",
+    "scheduledAt": "预约时间：{{scheduledAt}}"
   }
 }

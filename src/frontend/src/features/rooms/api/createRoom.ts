@@ -8,18 +8,27 @@ export interface CreateRoomParams {
   name: string
   callbackId?: string
   username?: string
+  /**
+   * Optional ISO 8601 timestamp for a scheduled meeting (Home → 预约会议).
+   * Persisted on Room.scheduled_at; surfaces in the invite dialog so the
+   * host shares "scheduled for X" alongside the link. Omit for instant
+   * or unscheduled "persistent" rooms.
+   */
+  scheduledAt?: string
 }
 
 const createRoom = ({
   name,
   callbackId,
   username = '',
+  scheduledAt,
 }: CreateRoomParams): Promise<ApiRoom> => {
   return fetchApi(`rooms/?username=${encodeURIComponent(username)}`, {
     method: 'POST',
     body: JSON.stringify({
       name,
       callback_id: callbackId,
+      ...(scheduledAt && { scheduled_at: scheduledAt }),
     }),
   })
 }

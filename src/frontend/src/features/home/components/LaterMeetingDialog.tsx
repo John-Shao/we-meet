@@ -33,9 +33,26 @@ export const LaterMeetingDialog = ({
     copyRoomUrlToClipboard,
   } = useCopyRoomToClipboard(room || undefined)
 
+  // Localized wall-clock display of the scheduled start, or null when
+  // the room wasn't scheduled (which falls back to the legacy
+  // "persistent meeting" semantics — no start-time row).
+  const scheduledDisplay = useMemo(() => {
+    if (!room?.scheduled_at) return null
+    try {
+      return new Date(room.scheduled_at).toLocaleString()
+    } catch {
+      return null
+    }
+  }, [room?.scheduled_at])
+
   return (
     <Dialog isOpen={!!room} {...dialogProps} title={t('heading')}>
       <P>{t('description')}</P>
+      {scheduledDisplay && (
+        <P>
+          <Bold>{t('scheduledAt')}</Bold> {scheduledDisplay}
+        </P>
+      )}
       {!!roomUrl && (
         <>
           {isTelephonyReadyForUse ? (

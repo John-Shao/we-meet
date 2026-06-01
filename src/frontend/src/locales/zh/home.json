@@ -7,6 +7,14 @@
   "joinInputLabel": "会议链接",
   "joinInputSubmit": "加入会议",
   "joinMeeting": "加入会议",
+  "scheduleMeeting": "预约会议",
+  "scheduleMeetingDialog": {
+    "title": "预约会议",
+    "nameLabel": "会议名称",
+    "timeLabel": "预约时间（可选）",
+    "timeHint": "留空则创建可随时加入的持久会议",
+    "submit": "创建"
+  },
   "joinMeetingTipContent": "您可以将完整的会议链接粘贴到浏览器地址栏中加入会议。",
   "loginPanels": {
     "qrTitle": "扫码登录",
@@ -30,6 +38,7 @@
     "copy": "复制信息",
     "copied": "信息已复制到剪贴板",
     "copyUrl": "复制会议链接",
+    "scheduledAt": "预约时间：",
     "phone": {
       "call": "拨打：",
       "pinCode": "代码："
