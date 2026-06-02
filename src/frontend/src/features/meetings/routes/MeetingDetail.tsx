@@ -100,12 +100,9 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
       <div className={css({ alignSelf: 'flex-end' })}>
         <RegenButton />
       </div>
-      {data.status === 'failed' ? (
-        <Text>
-          {t('summary.failed')}
-          {data.error_message ? `: ${data.error_message}` : ''}
-        </Text>
-      ) : !data.content ? (
+      {/* failed / empty / 404 all read the same to a meeting participant:
+          "no summary to show". The regenerate button stays available. */}
+      {data.status === 'failed' || !data.content ? (
         <Text>{t('summary.empty')}</Text>
       ) : (
         <div className={markdownBodyStyle}>
