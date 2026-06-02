@@ -75,8 +75,10 @@ interface PagedRooms {
 
 /**
  * Upcoming scheduled meetings — rooms the user is a member of whose
- * `scheduled_at` lies in the future and that aren't already closed.
- * Sorted ascending by scheduled time so the soonest one is on top.
+ * `scheduled_at` is today or later and that aren't already closed.
+ * Today's already-passed slots stay (e.g. a 9am that's now 10am) and
+ * roll off at midnight; earlier days drop. Sorted ascending so the
+ * soonest one is on top.
  *
  * Source endpoint is the same paginated `/rooms/` the App uses; only
  * the first page is consumed (50 rooms is far more than any user will
@@ -84,10 +86,12 @@ interface PagedRooms {
  */
 const fetchScheduledMeetings = async (): Promise<ApiRoom[]> => {
   const page = await fetchApi<PagedRooms>(`rooms/?page_size=50`)
-  const now = Date.now()
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const todayMs = startOfToday.getTime()
   return page.results
     .filter((r) => !!r.scheduled_at && !r.closed_at)
-    .filter((r) => new Date(r.scheduled_at as string).getTime() > now)
+    .filter((r) => new Date(r.scheduled_at as string).getTime() >= todayMs)
     .sort(
       (a, b) =>
         new Date(a.scheduled_at as string).getTime() -
