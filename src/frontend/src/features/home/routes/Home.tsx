@@ -12,7 +12,7 @@ import { ScheduleMeetingDialog } from '@/features/home/components/ScheduleMeetin
 import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
 import { IntroSlider } from '@/features/home/components/IntroSlider'
 import { MoreLink } from '@/features/home/components/MoreLink'
-import { RecentMeetingsList } from '@/features/meetings'
+import { RecentMeetingsList, ScheduledMeetingsList } from '@/features/meetings'
 import { PersonalAIFab } from '@/features/personal-ai'
 import { ReactNode, useEffect, useState } from 'react'
 
@@ -263,6 +263,7 @@ export const Home = () => {
                 </DialogTrigger>
               </div>
             )}
+            <ScheduledMeetingsList enabled={!!isLoggedIn} />
             <RecentMeetingsList enabled={!!isLoggedIn} />
             <Separator />
             <MoreLink />

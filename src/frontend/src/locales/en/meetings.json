@@ -48,6 +48,8 @@
   },
   "home": {
     "recentTitle": "Recent meetings",
+    "scheduledTitle": "Scheduled meetings",
+    "scheduledTimePrefix": "Scheduled for {{time}}",
     "untitled": "(Untitled meeting)",
     "showAll": "Show all ({{count}})",
     "collapse": "Collapse"

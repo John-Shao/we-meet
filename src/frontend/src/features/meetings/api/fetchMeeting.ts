@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 
+import { ApiRoom } from '@/features/rooms/api/ApiRoom'
+
 import {
   ApiActionItem,
   ApiRecentMeeting,
@@ -60,6 +62,43 @@ export const useRecentMeetings = (enabled: boolean = true) =>
   useQuery<ApiRecentMeeting[], ApiError>({
     queryKey: ['recent-meetings'],
     queryFn: fetchRecentMeetings,
+    enabled,
+    staleTime: 30_000,
+  })
+
+interface PagedRooms {
+  count: number
+  next: string | null
+  previous: string | null
+  results: ApiRoom[]
+}
+
+/**
+ * Upcoming scheduled meetings — rooms the user is a member of whose
+ * `scheduled_at` lies in the future and that aren't already closed.
+ * Sorted ascending by scheduled time so the soonest one is on top.
+ *
+ * Source endpoint is the same paginated `/rooms/` the App uses; only
+ * the first page is consumed (50 rooms is far more than any user will
+ * have pending at once).
+ */
+const fetchScheduledMeetings = async (): Promise<ApiRoom[]> => {
+  const page = await fetchApi<PagedRooms>(`rooms/?page_size=50`)
+  const now = Date.now()
+  return page.results
+    .filter((r) => !!r.scheduled_at && !r.closed_at)
+    .filter((r) => new Date(r.scheduled_at as string).getTime() > now)
+    .sort(
+      (a, b) =>
+        new Date(a.scheduled_at as string).getTime() -
+        new Date(b.scheduled_at as string).getTime()
+    )
+}
+
+export const useScheduledMeetings = (enabled: boolean = true) =>
+  useQuery<ApiRoom[], ApiError>({
+    queryKey: ['scheduled-meetings'],
+    queryFn: fetchScheduledMeetings,
     enabled,
     staleTime: 30_000,
   })
