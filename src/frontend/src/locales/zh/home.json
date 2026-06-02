@@ -9,7 +9,8 @@
   "joinMeeting": "加入会议",
   "login": "登录",
   "loginDialog": {
-    "title": "登录"
+    "title": "登录",
+    "subtitle": "登录后享受完整的会议体验"
   },
   "scheduleMeeting": "预约会议",
   "scheduleMeetingDialog": {

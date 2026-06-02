@@ -9,7 +9,8 @@
   "joinMeeting": "Deelnemen aan een vergadering",
   "login": "Inloggen",
   "loginDialog": {
-    "title": "Inloggen"
+    "title": "Inloggen",
+    "subtitle": "Log in voor de volledige vergaderervaring"
   },
   "joinMeetingTipContent": "U kunt deelnemen aan een vergadering door de volledige link in de adresbalk van de browser te plakken.",
   "joinMeetingTipHeading": "Wist u dat?",

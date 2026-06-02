@@ -9,7 +9,8 @@
   "joinMeeting": "Join a meeting",
   "login": "Login",
   "loginDialog": {
-    "title": "Sign in"
+    "title": "Sign in",
+    "subtitle": "Sign in to unlock the full meeting experience"
   },
   "scheduleMeeting": "Schedule a meeting",
   "scheduleMeetingDialog": {

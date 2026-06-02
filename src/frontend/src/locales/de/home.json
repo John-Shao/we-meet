@@ -9,7 +9,8 @@
   "joinMeeting": "Meeting beitreten",
   "login": "Anmelden",
   "loginDialog": {
-    "title": "Anmelden"
+    "title": "Anmelden",
+    "subtitle": "Melde dich an, um das volle Meeting-Erlebnis zu nutzen"
   },
   "joinMeetingTipContent": "Du kannst einem Meeting beitreten, indem du den vollständigen Link in die Adressleiste deines Browsers einfügst.",
   "joinMeetingTipHeading": "Wusstest du schon?",

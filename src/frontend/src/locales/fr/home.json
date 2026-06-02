@@ -9,7 +9,8 @@
   "joinMeeting": "Rejoindre une réunion",
   "login": "Se connecter",
   "loginDialog": {
-    "title": "Se connecter"
+    "title": "Se connecter",
+    "subtitle": "Connectez-vous pour profiter pleinement de la réunion"
   },
   "joinMeetingTipContent": "Vous pouvez rejoindre une réunion en copiant directement son lien complet dans la barre d'adresse du navigateur.",
   "joinMeetingTipHeading": "Astuce",
