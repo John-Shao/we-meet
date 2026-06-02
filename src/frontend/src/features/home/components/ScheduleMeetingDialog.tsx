@@ -24,20 +24,17 @@ const StyledLabel = styled(Label, {
 })
 
 /**
- * Schedule-meeting dialog: meeting name + optional local datetime.
+ * Schedule-meeting dialog: meeting name + required local datetime.
  *
- * The datetime picker is a native `<input type="datetime-local">` (no
- * tz suffix). On submit we convert it to an ISO 8601 string with the
- * user's local offset via `new Date(local).toISOString()` so the
- * backend gets an unambiguous UTC instant. Omitting the time submits
- * `scheduledAt=undefined`, which the API serializer treats as a
- * persistent room without a planned start (legacy "create later"
- * semantics — invite dialog still shows but without a "scheduled for"
- * line).
+ * The datetime picker is a native `<input type="datetime-local">` with
+ * `required` — the browser blocks submit until the user picks a value.
+ * On submit we convert it to an ISO 8601 string with the user's local
+ * offset via `new Date(local).toISOString()` so the backend gets an
+ * unambiguous UTC instant. Persisted as `Room.scheduled_at`.
  *
  * On successful create we hand the resulting room back to the caller
  * (Home) which pops the standard LaterMeetingDialog showing the room's
- * connection details (now including scheduled_at if set).
+ * connection details (including the scheduled time).
  */
 export const ScheduleMeetingDialog = ({
   onCreated,
@@ -59,11 +56,11 @@ export const ScheduleMeetingDialog = ({
       : tHome('defaultRoomNameAnonymous')
     const meetingName = String(data.meetingName || '').trim() || defaultName
     const localValue = String(data.scheduledAt || '').trim()
-    // datetime-local format: "YYYY-MM-DDTHH:mm". Empty string => undefined,
-    // which createRoom drops from the body.
-    const scheduledAt = localValue
-      ? new Date(localValue).toISOString()
-      : undefined
+    // datetime-local format: "YYYY-MM-DDTHH:mm". The input is `required`
+    // so an empty value would have been blocked by the browser before
+    // submit; bail anyway as a defensive guard.
+    if (!localValue) return
+    const scheduledAt = new Date(localValue).toISOString()
     const room = await createRoom({
       name: meetingName,
       username,
@@ -96,6 +93,7 @@ export const ScheduleMeetingDialog = ({
             id="scheduledAt"
             name="scheduledAt"
             type="datetime-local"
+            required
             className={css({ width: '100%' })}
           />
           <p

@@ -16,8 +16,8 @@
   "scheduleMeetingDialog": {
     "title": "预约会议",
     "nameLabel": "会议名称",
-    "timeLabel": "预约时间（可选）",
-    "timeHint": "留空则创建可随时加入的持久会议",
+    "timeLabel": "预约时间",
+    "timeHint": "请选择会议开始的日期和时间",
     "submit": "创建"
   },
   "joinMeetingTipContent": "您可以将完整的会议链接粘贴到浏览器地址栏中加入会议。",

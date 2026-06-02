@@ -16,8 +16,8 @@
   "scheduleMeetingDialog": {
     "title": "Schedule a meeting",
     "nameLabel": "Meeting name",
-    "timeLabel": "Scheduled time (optional)",
-    "timeHint": "Leave empty to create a persistent meeting joinable anytime.",
+    "timeLabel": "Scheduled time",
+    "timeHint": "Pick the date and time the meeting will start.",
     "submit": "Create"
   },
   "joinMeetingTipContent": "You can join a meeting by pasting its full link in the browser's address bar.",
