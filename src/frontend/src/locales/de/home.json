@@ -7,6 +7,10 @@
   "joinInputLabel": "Meeting-Link",
   "joinInputSubmit": "Meeting beitreten",
   "joinMeeting": "Meeting beitreten",
+  "login": "Anmelden",
+  "loginDialog": {
+    "title": "Anmelden"
+  },
   "joinMeetingTipContent": "Du kannst einem Meeting beitreten, indem du den vollständigen Link in die Adressleiste deines Browsers einfügst.",
   "joinMeetingTipHeading": "Wusstest du schon?",
   "loginToCreateMeeting": "Melde dich an, um ein Meeting zu erstellen",

@@ -7,6 +7,10 @@
   "joinInputLabel": "Vergadering met link",
   "joinInputSubmit": "Deelnemen aan de vergadering",
   "joinMeeting": "Deelnemen aan een vergadering",
+  "login": "Inloggen",
+  "loginDialog": {
+    "title": "Inloggen"
+  },
   "joinMeetingTipContent": "U kunt deelnemen aan een vergadering door de volledige link in de adresbalk van de browser te plakken.",
   "joinMeetingTipHeading": "Wist u dat?",
   "loginToCreateMeeting": "Log in om een vergadering te maken",

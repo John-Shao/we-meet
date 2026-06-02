@@ -7,6 +7,10 @@
   "joinInputLabel": "Meeting link",
   "joinInputSubmit": "Join meeting",
   "joinMeeting": "Join a meeting",
+  "login": "Login",
+  "loginDialog": {
+    "title": "Sign in"
+  },
   "scheduleMeeting": "Schedule a meeting",
   "scheduleMeetingDialog": {
     "title": "Schedule a meeting",

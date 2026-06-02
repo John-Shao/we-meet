@@ -7,6 +7,10 @@
   "joinInputLabel": "Lien complet ou code de la réunion",
   "joinInputSubmit": "Rejoindre la réunion",
   "joinMeeting": "Rejoindre une réunion",
+  "login": "Se connecter",
+  "loginDialog": {
+    "title": "Se connecter"
+  },
   "joinMeetingTipContent": "Vous pouvez rejoindre une réunion en copiant directement son lien complet dans la barre d'adresse du navigateur.",
   "joinMeetingTipHeading": "Astuce",
   "loginToCreateMeeting": "Connectez-vous pour créer une réunion",

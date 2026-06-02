@@ -7,6 +7,10 @@
   "joinInputLabel": "会议链接",
   "joinInputSubmit": "加入会议",
   "joinMeeting": "加入会议",
+  "login": "登录",
+  "loginDialog": {
+    "title": "登录"
+  },
   "scheduleMeeting": "预约会议",
   "scheduleMeetingDialog": {
     "title": "预约会议",
