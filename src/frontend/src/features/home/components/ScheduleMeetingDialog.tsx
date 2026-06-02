@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Field, Form, Dialog } from '@/primitives'
 import { useUser } from '@/features/auth'
@@ -49,6 +50,18 @@ export const ScheduleMeetingDialog = ({
   const { mutateAsync: createRoom } = useCreateRoom()
   const closeDialog = useCloseDialog()
 
+  // datetime-local needs a "YYYY-MM-DDTHH:mm" value in the user's local
+  // timezone. Compute once on render so the min stays close to "now"
+  // without re-renders fighting the user's edits.
+  const minLocalDatetime = useMemo(() => {
+    const d = new Date()
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+      `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    )
+  }, [])
+
   const handleSubmit = async (data: Record<string, FormDataEntryValue>) => {
     const ownerName = (user?.full_name || username || '').trim()
     const defaultName = ownerName
@@ -60,6 +73,10 @@ export const ScheduleMeetingDialog = ({
     // so an empty value would have been blocked by the browser before
     // submit; bail anyway as a defensive guard.
     if (!localValue) return
+    // Server-side defense against past timestamps — the input's `min`
+    // attribute already blocks them in most browsers but some accept
+    // edits below min silently.
+    if (new Date(localValue).getTime() < Date.now()) return
     const scheduledAt = new Date(localValue).toISOString()
     const room = await createRoom({
       name: meetingName,
@@ -94,6 +111,7 @@ export const ScheduleMeetingDialog = ({
             name="scheduledAt"
             type="datetime-local"
             required
+            min={minLocalDatetime}
             className={css({ width: '100%' })}
           />
           <p
