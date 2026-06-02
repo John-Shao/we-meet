@@ -28,8 +28,17 @@ export const LoginDialog = () => {
   const closeDialog = useCloseDialog()
   const handleSuccess = () => closeDialog?.()
 
+  // type='flex' bypasses the primitive's hard-coded 30rem Box width, which
+  // would clip the 200px QR plus the OTP form. The dialog body sets its
+  // own width below.
   return (
-    <Dialog>
+    <Dialog type="flex">
+      <div
+        className={css({
+          width: { base: '100%', xsm: '38rem' },
+          maxWidth: '100%',
+        })}
+      >
       <div
         className={css({
           textAlign: 'center',
@@ -114,6 +123,7 @@ export const LoginDialog = () => {
           </h2>
           <PhoneLoginPanel onSuccess={handleSuccess} />
         </div>
+      </div>
       </div>
     </Dialog>
   )
