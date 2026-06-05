@@ -91,7 +91,6 @@ def get_ai_agent_config(user=None):
                 "omni_model__vendor",
                 "tts_model__vendor",
                 "default_voice",
-                "default_prompt",
             )
             .order_by("sort_order", "code")
         )
@@ -115,9 +114,6 @@ def get_ai_agent_config(user=None):
                 "voices": [_voice_payload(v) for v in voices],
                 "default_voice_id": (
                     str(profile.default_voice_id) if profile.default_voice_id else None
-                ),
-                "default_prompt_id": (
-                    str(profile.default_prompt_id) if profile.default_prompt_id else None
                 ),
             })
 
@@ -187,9 +183,9 @@ def resolve_profile_context(
 ):
     """Resolve the (profile, voice, prompt) triple following the priority:
 
-    1. Explicit ``voice_id`` / ``prompt_id`` from the request.
-    2. The user's stored :class:`UserAIPreference` (when authenticated).
-    3. The profile's ``default_voice`` / ``default_prompt``.
+    Voice:  explicit ``voice_id`` → user preference → profile's ``default_voice``.
+    Prompt: explicit ``prompt_id`` → user preference → ``None`` (model & prompt
+            are decoupled — the profile no longer carries a default prompt).
 
     Returns ``(profile, voice, prompt)``. Profile is required; voice and
     prompt may be ``None`` if no fallback is available.
@@ -205,7 +201,6 @@ def resolve_profile_context(
             "llm_model__vendor",
             "omni_model__vendor",
             "default_voice",
-            "default_prompt",
         )
         .first()
     )
@@ -229,8 +224,10 @@ def resolve_profile_context(
         prompt = AIPrompt.objects.filter(id=prompt_id, is_active=True).first()
     if prompt is None and pref and pref.prompt and pref.prompt.is_active:
         prompt = pref.prompt
-    if prompt is None:
-        prompt = profile.default_prompt
+    # No profile-level prompt fallback by design: model and prompt are
+    # decoupled. When neither the request nor the user preference picks a
+    # prompt, the agent worker receives empty prompt strings and falls back
+    # to its built-in behaviour.
 
     return profile, voice, prompt
 

@@ -1343,14 +1343,6 @@ class AIAgentProfile(BaseModel):
         related_name="+",
         verbose_name=_("default voice"),
     )
-    default_prompt = models.ForeignKey(
-        AIPrompt,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="+",
-        verbose_name=_("default prompt"),
-    )
     sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
     is_active = models.BooleanField(_("active"), default=True)
 

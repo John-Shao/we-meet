@@ -427,12 +427,11 @@ class AIAgentProfileAdmin(admin.ModelAdmin):
         "llm_model",
         "omni_model",
         "default_voice",
-        "default_prompt",
     )
     fieldsets = (
         (None, {"fields": ("code", "display_name", "architecture", "sort_order", "is_active")}),
         (_("Models"), {"fields": ("stt_model", "vlm_model", "llm_model", "tts_model", "omni_model")}),
-        (_("Defaults"), {"fields": ("default_voice", "default_prompt")}),
+        (_("Defaults"), {"fields": ("default_voice",)}),
     )
 
     def _models_summary(self, obj):

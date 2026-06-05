@@ -162,16 +162,14 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
       "voices": [
         { "id": "uuid", "value": "ethan", "label": "男声 · 沉稳" }
       ],
-      "default_voice_id": "uuid",
-      "default_prompt_id": "uuid"
+      "default_voice_id": "uuid"
     },
     {
       "code": "doubao_s2s",
       "display_name": "豆包 S2S",
       "architecture": "omni",
       "voices": [ ... ],
-      "default_voice_id": "uuid",
-      "default_prompt_id": "uuid"
+      "default_voice_id": "uuid"
     }
   ],
   "prompts": [
@@ -199,9 +197,11 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
 | `profiles[].code` | 后端唯一标识；`start-ai-agent` 的 `profile_code` 必须传它 |
 | `profiles[].architecture` | `omni` / `pipeline`。App 端筛选实时通话 profile 时按此过滤 |
 | `profiles[].voices[].id` | 传给 `start-ai-agent.voice_id`（UUID） |
-| `profiles[].default_voice_id` | 未显式选音色时的兜底 |
+| `profiles[].default_voice_id` | 未显式选音色时的兜底（音色仍与 profile 绑定） |
 | `prompts[].id` | 传给 `start-ai-agent.prompt_id` |
 | `user_preference` | 用户上次 `start-ai-agent` 时保存的偏好（profile/voice/prompt） |
+
+> **prompt 与 profile 解耦**：profile 不再携带 `default_prompt_id`，prompt 目录是独立维度。未显式传 `prompt_id` 时，后端只会按用户偏好兜底；都没有则不带 prompt（agent 走内置行为）。这样换模型不影响已选的 prompt，反之亦然。
 
 **Profile 选择策略（App 端 [`AiAgentConfigResponse.videoProfile/voiceProfile`](../../we-meet-android/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/model/AiCallDtos.kt)）：**
 
@@ -234,7 +234,7 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
 |------|------|------|------|
 | `profile_code` | string | 是 | 取自 `4.2.profiles[].code` |
 | `voice_id` | UUID | 否 | 取自 `4.2.profiles[].voices[].id`；未传则按用户偏好 → profile 默认音色兜底 |
-| `prompt_id` | UUID | 否 | 取自 `4.2.prompts[].id`；未传则按用户偏好 → profile 默认 prompt 兜底 |
+| `prompt_id` | UUID | 否 | 取自 `4.2.prompts[].id`；未传则按用户偏好兜底，再无则不带（profile **不**自带默认 prompt） |
 
 **200 OK**：
 
