@@ -52,6 +52,9 @@
     "scheduledTimePrefix": "预约时间：{{time}}",
     "untitled": "（未命名会议）",
     "showAll": "查看全部（{{count}}）",
-    "collapse": "收起"
+    "collapse": "收起",
+    "rowMore": "更多",
+    "delete": "删除",
+    "deleteConfirm": "确定要删除「{{name}}」吗？若您是该会议的发起人，将同时删除所有人的此条记录。"
   }
 }

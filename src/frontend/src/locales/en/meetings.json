@@ -52,6 +52,9 @@
     "scheduledTimePrefix": "Scheduled for {{time}}",
     "untitled": "(Untitled meeting)",
     "showAll": "Show all ({{count}})",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "rowMore": "More",
+    "delete": "Delete",
+    "deleteConfirm": "Delete \"{{name}}\"? If you own the meeting it will also be removed for everyone else."
   }
 }
