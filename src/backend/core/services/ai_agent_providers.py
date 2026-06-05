@@ -106,7 +106,10 @@ def get_ai_agent_config(user=None):
             profiles_payload.append({
                 "code": profile.code,
                 "display_name": profile.display_name,
-                "architecture": profile.architecture,
+                # ``architecture`` is intentionally NOT exposed: it's an
+                # internal pipeline shape consumed by the agent worker via
+                # ``build_agent_metadata``. Clients pick profiles by
+                # ``agent_type`` (audio/video) only.
                 "agent_type": profile.agent_type,
                 "voices": [_voice_payload(v) for v in voices],
                 "default_voice_id": (

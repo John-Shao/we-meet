@@ -158,7 +158,6 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
     {
       "code": "qwen-omni-realtime",
       "display_name": "Qwen Omni 实时",
-      "architecture": "omni",
       "agent_type": "video",
       "voices": [
         { "id": "uuid", "value": "ethan", "label": "男声 · 沉稳" }
@@ -168,7 +167,6 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
     {
       "code": "doubao_s2s",
       "display_name": "豆包 S2S",
-      "architecture": "omni",
       "agent_type": "audio",
       "voices": [ ... ],
       "default_voice_id": "uuid"
@@ -192,19 +190,20 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
 | 字段 | 说明 |
 |------|------|
 | `profiles[].code` | 后端唯一标识；`start-ai-agent` 的 `profile_code` 必须传它 |
-| `profiles[].architecture` | `omni` / `pipeline`。线级 pipeline 形状，agent worker 据此选 plugin |
 | `profiles[].agent_type` | **`audio` / `video`** — 用户层面的用途分类，App 据此挑选「打电话」/「视频通话」对应的 profile，无需匹配 `code` 字符串 |
 | `profiles[].voices[].id` | 传给 `start-ai-agent.voice_id`（UUID） |
 | `profiles[].default_voice_id` | 未显式选音色时的兜底（音色仍与 profile 绑定） |
 | `prompts[].id` | 传给 `start-ai-agent.prompt_id` |
 | `user_preference` | 用户上次 `start-ai-agent` 时保存的偏好（profile/voice/prompt） |
 
+> 后端模型还有一个 `architecture` 字段（`omni` / `pipeline`），是 agent worker 内部用的 pipeline 形状，**不下发给客户端**。客户端只看 `agent_type`。
+
 > **prompt 与 profile 解耦**：profile 不再携带 `default_prompt_id`，prompt 目录是独立维度。未显式传 `prompt_id` 时，后端只会按用户偏好兜底；都没有则不带 prompt（agent 走内置行为）。这样换模型不影响已选的 prompt，反之亦然。
 
 **Profile 选择策略（App 端 [`AiAgentConfigResponse.videoProfile/voiceProfile`](../../we-meet-android/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/model/AiCallDtos.kt)）：**
 
-- 视频模式：首选 `agent_type == "video"` 的 profile；后端旧版无 `agent_type` 时兜底为 `code` 含 `qwen` → 任意 `architecture == "omni"`
-- 语音模式：首选 `agent_type == "audio"` 的 profile；后端旧版兜底为 `code` 含 `doubao` + `s2s` → omni 中不含 `qwen` → 任意 omni
+- 视频模式：首选 `agent_type == "video"` 的 profile；后端旧版无 `agent_type` 时兜底为 `code` 含 `qwen`
+- 语音模式：首选 `agent_type == "audio"` 的 profile；后端旧版兜底为 `code` 含 `doubao` + `s2s`
 
 > 后端会兜底返回 `{profiles: [], prompts: [], user_preference: null}` 而不抛 500，便于前端做空状态展示。
 
