@@ -102,6 +102,9 @@ AGENT_PROFILES = [
         "sort_order": 30,
     },
 ]
+# NOTE: ``agent_type`` is set by migration 0036 (the field doesn't exist in
+# the historical schema at 0025). For new profiles added later, set it
+# directly in admin or in a future migration.
 
 
 # Voices to seed, keyed by the TTS / Omni model code they belong to.

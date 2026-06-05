@@ -107,6 +107,7 @@ def get_ai_agent_config(user=None):
                 "code": profile.code,
                 "display_name": profile.display_name,
                 "architecture": profile.architecture,
+                "agent_type": profile.agent_type,
                 "voices": [_voice_payload(v) for v in voices],
                 "default_voice_id": (
                     str(profile.default_voice_id) if profile.default_voice_id else None

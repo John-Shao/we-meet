@@ -405,11 +405,12 @@ class AIAgentProfileAdmin(admin.ModelAdmin):
         "code",
         "display_name",
         "architecture",
+        "agent_type",
         "_models_summary",
         "sort_order",
         "is_active",
     )
-    list_filter = ("architecture", "is_active")
+    list_filter = ("architecture", "agent_type", "is_active")
     list_editable = ("sort_order", "is_active")
     search_fields = ("code", "display_name")
     autocomplete_fields = (
@@ -421,7 +422,7 @@ class AIAgentProfileAdmin(admin.ModelAdmin):
         "default_voice",
     )
     fieldsets = (
-        (None, {"fields": ("code", "display_name", "architecture", "sort_order", "is_active")}),
+        (None, {"fields": ("code", "display_name", "architecture", "agent_type", "sort_order", "is_active")}),
         (_("Models"), {"fields": ("stt_model", "vlm_model", "llm_model", "tts_model", "omni_model")}),
         (_("Defaults"), {"fields": ("default_voice",)}),
     )

@@ -1263,12 +1263,25 @@ class AIAgentProfile(BaseModel):
         PIPELINE = "pipeline", _("STT/LLM/TTS pipeline")
         OMNI = "omni", _("End-to-end omni-modal")
 
+    class AgentType(models.TextChoices):
+        AUDIO = "audio", _("Audio-only interactive agent")
+        VIDEO = "video", _("Video-capable interactive agent")
+
     code = models.CharField(_("code"), max_length=64, unique=True)
     display_name = models.CharField(_("display name"), max_length=128)
     architecture = models.CharField(
         _("architecture"),
         max_length=16,
         choices=Architecture.choices,
+    )
+    # User-facing classification used by the client to route a call to the
+    # right profile (voice-call vs video-call). Independent of ``architecture``
+    # which is the wire-level pipeline shape consumed by the agent worker.
+    agent_type = models.CharField(
+        _("agent type"),
+        max_length=8,
+        choices=AgentType.choices,
+        default=AgentType.AUDIO,
     )
     stt_model = models.ForeignKey(
         AIModel,
