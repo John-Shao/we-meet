@@ -63,7 +63,6 @@ def test_ai_agent_config_is_public():
     data = response.json()
     assert "profiles" in data
     assert "prompts" in data
-    assert "categories" in data
     profile_codes = {p["code"] for p in data["profiles"]}
     assert {"qwen", "doubao_s2s", "doubao_pipeline"}.issubset(profile_codes)
 

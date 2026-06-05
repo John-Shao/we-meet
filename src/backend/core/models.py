@@ -1083,7 +1083,6 @@ class File(BaseModel):
 # - AIVendor             厂商（火山引擎 / 阿里云 / OpenAI ...）
 # - AIModel              具体模型 (vendor + capability + code)
 #                        capability ∈ {stt, llm, tts, vlm, omni}
-# - AIPromptCategory     提示词分类
 # - AIVoice              TTS / Omni 模型的可选音色
 # - AIPrompt             提示词模板
 # - AIAgentProfile       装配方案 = wire-level provider
@@ -1190,33 +1189,15 @@ class AIModel(BaseModel):
         return f"{self.code} ({self.capability})"
 
 
-class AIPromptCategory(BaseModel):
-    """Category for grouping AI prompt templates."""
-
-    code = models.CharField(_("code"), max_length=32, unique=True)
-    label = models.CharField(_("label"), max_length=64)
-    sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
-    is_active = models.BooleanField(_("active"), default=True)
-
-    class Meta:
-        verbose_name = _("AI prompt category")
-        verbose_name_plural = _("AI prompt categories")
-        ordering = ("sort_order", "code")
-
-    def __str__(self) -> str:
-        return self.label or self.code
-
-
 class AIPrompt(BaseModel):
-    """Prompt template offered to the AI assistant."""
+    """Prompt template offered to the AI assistant.
 
-    category = models.ForeignKey(
-        AIPromptCategory,
-        on_delete=models.PROTECT,
-        related_name="prompts",
-        verbose_name=_("category"),
-    )
-    label = models.CharField(_("label"), max_length=128)
+    Flat catalog — categories were removed to keep the catalog one
+    dimension deep. Labels are unique so the admin can identify a prompt
+    without a category prefix.
+    """
+
+    label = models.CharField(_("label"), max_length=128, unique=True)
     content = models.TextField(_("content"))
     sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
     is_active = models.BooleanField(_("active"), default=True)
@@ -1224,11 +1205,10 @@ class AIPrompt(BaseModel):
     class Meta:
         verbose_name = _("AI prompt")
         verbose_name_plural = _("AI prompts")
-        ordering = ("category", "sort_order", "label")
-        unique_together = ("category", "label")
+        ordering = ("sort_order", "label")
 
     def __str__(self) -> str:
-        return f"{self.category.label} · {self.label}"
+        return self.label
 
 
 class AIVoice(BaseModel):

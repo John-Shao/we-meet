@@ -382,20 +382,12 @@ class AIModelAdmin(admin.ModelAdmin):
     inlines = (AIVoiceInline,)
 
 
-@admin.register(models.AIPromptCategory)
-class AIPromptCategoryAdmin(admin.ModelAdmin):
-    list_display = ("code", "label", "sort_order", "is_active")
-    list_editable = ("sort_order", "is_active")
-    search_fields = ("code", "label")
-
-
 @admin.register(models.AIPrompt)
 class AIPromptAdmin(admin.ModelAdmin):
-    list_display = ("label", "category", "sort_order", "is_active")
-    list_filter = ("category", "is_active")
+    list_display = ("label", "sort_order", "is_active")
+    list_filter = ("is_active",)
     list_editable = ("sort_order", "is_active")
     search_fields = ("label", "content")
-    autocomplete_fields = ("category",)
 
 
 @admin.register(models.AIVoice)

@@ -32,7 +32,7 @@ App                                                  Backend                    
  │  ② GET /api/v1.0/rooms/ai-agent-config/             │
  │  (OIDC bearer 可选)                                  │
  │ ───────────────────────────────────────────────▶  ──┤
- │  200 {profiles, prompts, categories, user_preference}│
+ │  200 {profiles, prompts, user_preference}            │
  │ ◀─────────────────────────────────────────────── ──┤
  │                                                     │
  │  ③ LiveKit connect(url, token)                                                       ───▶
@@ -176,13 +176,8 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
     {
       "id": "uuid",
       "label": "通用助手",
-      "content": "你是一个友好的中文助手……",
-      "category_code": "general",
-      "category_label": "通用"
+      "content": "你是一个友好的中文助手……"
     }
-  ],
-  "categories": [
-    { "code": "general", "label": "通用" }
   ],
   "user_preference": {
     "profile_code": "qwen-omni-realtime",
@@ -208,7 +203,7 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
 - 视频模式：首选 `code` 含 `qwen` 的 profile；兜底任意 `architecture == "omni"` 的 profile
 - 语音模式：首选同时含 `doubao` + `s2s` 的 profile；兜底 omni 中**不含** `qwen` 的；再兜底任意 omni
 
-> 后端会兜底返回 `{profiles: [], prompts: [], categories: [], user_preference: null}` 而不抛 500，便于前端做空状态展示。
+> 后端会兜底返回 `{profiles: [], prompts: [], user_preference: null}` 而不抛 500，便于前端做空状态展示。
 
 ---
 

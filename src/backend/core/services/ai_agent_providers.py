@@ -1,7 +1,7 @@
 """AI assistant catalog service — DB-driven profile / model resolution.
 
 Ops manage the entire catalog in Django admin (AIVendor, AIModel,
-AIPromptCategory, AIPrompt, AIVoice, AIAgentProfile). This module exposes:
+AIPrompt, AIVoice, AIAgentProfile). This module exposes:
 
 * :func:`get_ai_agent_config` — payload for the ``/rooms/ai-agent-config/``
   endpoint (active profiles, voices grouped by profile, prompts, user
@@ -52,8 +52,6 @@ def _prompt_payload(prompt):
         "id": str(prompt.id),
         "label": prompt.label,
         "content": prompt.content,
-        "category_code": prompt.category.code,
-        "category_label": prompt.category.label,
     }
 
 
@@ -67,8 +65,7 @@ def get_ai_agent_config(user=None):
 
     The shape is:
 
-    ``{"profiles": [...], "prompts": [...], "categories": [...],
-       "user_preference": {...} | None}``
+    ``{"profiles": [...], "prompts": [...], "user_preference": {...} | None}``
 
     Each profile carries its full voice list and resolved default-voice id.
     Falls back to an empty payload on DB errors so the frontend can still
@@ -77,7 +74,6 @@ def get_ai_agent_config(user=None):
     try:
         from core.models import (
             AIAgentProfile,
-            AIPromptCategory,
             AIVoice,
         )
     except Exception:
@@ -117,19 +113,11 @@ def get_ai_agent_config(user=None):
                 ),
             })
 
-        categories = [
-            {"code": c.code, "label": c.label}
-            for c in AIPromptCategory.objects.filter(is_active=True).order_by(
-                "sort_order", "code"
-            )
-        ]
-
         prompts = _all_prompts()
 
         return {
             "profiles": profiles_payload,
             "prompts": prompts,
-            "categories": categories,
             "user_preference": _user_preference_payload(user),
         }
     except Exception:
@@ -142,9 +130,9 @@ def _all_prompts():
 
     return [
         _prompt_payload(p)
-        for p in AIPrompt.objects.filter(is_active=True)
-        .select_related("category")
-        .order_by("category__sort_order", "sort_order", "label")
+        for p in AIPrompt.objects.filter(is_active=True).order_by(
+            "sort_order", "label"
+        )
     ]
 
 
@@ -152,7 +140,6 @@ def _empty_config():
     return {
         "profiles": [],
         "prompts": [],
-        "categories": [],
         "user_preference": None,
     }
 
