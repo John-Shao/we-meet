@@ -147,7 +147,7 @@ App 推进过程中，we-meet 仓库（`aliyun-dev` 分支）配合做了以下�
 ## 10. 相关文档
 
 - [移动端App客户端支持方案.md](移动端App客户端支持方案.md) — Sprint 0 设计：OTP 登录、8 位数字 slug、个人资料的初期方案
-- [移动端API接口文档.md](移动端API接口文档.md) — 移动端调用的 backend endpoint 清单
+- [移动端API接口文档.md](../apis/移动端API接口文档.md) — 移动端调用的 backend endpoint 清单
 - [移动端上线检查清单.md](移动端上线检查清单.md) — 发布前 checklist
 - [移动端扩展功能部署步骤.md](移动端扩展功能部署步骤.md) — 在已运行的阿里云部署上滚动升级移动端改动
 - [PostHog私有化部署与埋点对接方案.md](PostHog私有化部署与埋点对接方案.md) — 资源到位后启用 PostHog 的步骤

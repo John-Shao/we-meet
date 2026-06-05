@@ -92,7 +92,7 @@ OTP 用户首次携 token 调 API 时，`OIDCAuthentication`（`OIDC_CREATE_USER
 
 | 接口 | 验证点 |
 |------|--------|
-| send-otp / verify-otp | 响应键、400/429 对照 [移动端API接口文档.md](移动端API接口文档.md) §1 |
+| send-otp / verify-otp | 响应键、400/429 对照 [移动端API接口文档.md](../apis/移动端API接口文档.md) §1 |
 | GET /users/me/ | 含 `intro`/`avatar_url`/`cover_url`；图片字段为签名 URL，未设时为 `""` |
 | upload-url → PUT → profile-image | 三步上传流（私有桶预签名 PUT），`object_key` 形如 `<user_id>/<hex>.jpg` |
 | POST /rooms/ + GET /rooms/{slug}/ | `slug` 为 8 位数字；响应含 `created_at`/`closed_at` |

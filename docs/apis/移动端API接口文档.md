@@ -1,7 +1,7 @@
 # 移动端 API 接口文档
 
 > App 客户端（we-meet-android）与 we-meet 后端之间的接口契约。
-> 后端实现见 [移动端App客户端支持方案.md](移动端App客户端支持方案.md)。
+> 后端实现见 [移动端App客户端支持方案.md](../extensions/移动端App客户端支持方案.md)。
 > 字段或行为变更时，请同步更新本文档与 Android 端 DTO。
 
 ## 通用约定
