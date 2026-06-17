@@ -1,0 +1,31 @@
+{
+  "messages": "Nachrichten",
+  "nav": {
+    "ariaLabel": "Nachrichten öffnen"
+  },
+  "auth": {
+    "required": "Bitte melden Sie sich an, um Nachrichten anzuzeigen."
+  },
+  "list": {
+    "title": "Unterhaltungen",
+    "loading": "Unterhaltungen werden geladen…",
+    "empty": "Noch keine Unterhaltungen"
+  },
+  "chat": {
+    "loading": "Verlauf wird geladen…",
+    "empty": "Noch keine Nachrichten — senden Sie die erste",
+    "pickPrompt": "Wählen Sie links eine Unterhaltung aus"
+  },
+  "input": {
+    "placeholder": "Nachricht eingeben…",
+    "send": "Senden",
+    "sending": "Wird gesendet…"
+  },
+  "connection": {
+    "disconnected": "Getrennt",
+    "connecting": "Verbinde…",
+    "connected": "Verbunden",
+    "reconnecting": "Neuverbindung…",
+    "auth_failed": "Authentifizierung fehlgeschlagen — bitte aktualisieren"
+  }
+}

@@ -84,7 +84,7 @@ const LoginHint = () => {
 }
 
 export const Header = () => {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['global', 'im'])
   const isHome = useMatchesRoute('home')
   const isLegalTerms = useMatchesRoute('legalTerms')
   const isAccessibility = useMatchesRoute('accessibility')
@@ -157,6 +157,22 @@ export const Header = () => {
                     <LoginHint />
                   </>
                 )}
+              {!!user && (
+                <Link
+                  to="/im"
+                  aria-label={t('nav.ariaLabel', { ns: 'im' })}
+                  className={css({
+                    paddingX: '0.75rem',
+                    paddingY: '0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: '500',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {t('messages', { ns: 'im' })}
+                </Link>
+              )}
               {!!user && (
                 <Menu>
                   <Button size="sm" variant="secondaryText">

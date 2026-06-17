@@ -1,0 +1,31 @@
+{
+  "messages": "消息",
+  "nav": {
+    "ariaLabel": "打开消息中心"
+  },
+  "auth": {
+    "required": "请先登录后再查看消息。"
+  },
+  "list": {
+    "title": "会话",
+    "loading": "正在加载会话…",
+    "empty": "还没有会话"
+  },
+  "chat": {
+    "loading": "正在加载历史消息…",
+    "empty": "暂无消息,发出第一条吧",
+    "pickPrompt": "从左侧选择一个会话开始聊天"
+  },
+  "input": {
+    "placeholder": "输入消息…",
+    "send": "发送",
+    "sending": "发送中…"
+  },
+  "connection": {
+    "disconnected": "未连接",
+    "connecting": "正在连接…",
+    "connected": "已连接",
+    "reconnecting": "正在重连…",
+    "auth_failed": "鉴权失败,请刷新页面重试"
+  }
+}

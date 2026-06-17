@@ -1,0 +1,31 @@
+{
+  "messages": "Berichten",
+  "nav": {
+    "ariaLabel": "Berichten openen"
+  },
+  "auth": {
+    "required": "Log in om berichten te bekijken."
+  },
+  "list": {
+    "title": "Gesprekken",
+    "loading": "Gesprekken laden…",
+    "empty": "Nog geen gesprekken"
+  },
+  "chat": {
+    "loading": "Geschiedenis laden…",
+    "empty": "Nog geen berichten — verzend het eerste",
+    "pickPrompt": "Kies links een gesprek om te beginnen"
+  },
+  "input": {
+    "placeholder": "Typ een bericht…",
+    "send": "Verzenden",
+    "sending": "Verzenden…"
+  },
+  "connection": {
+    "disconnected": "Verbinding verbroken",
+    "connecting": "Verbinden…",
+    "connected": "Verbonden",
+    "reconnecting": "Opnieuw verbinden…",
+    "auth_failed": "Authenticatie mislukt — vernieuw de pagina"
+  }
+}

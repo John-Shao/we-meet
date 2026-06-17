@@ -1,0 +1,31 @@
+{
+  "messages": "Messages",
+  "nav": {
+    "ariaLabel": "Open the messages center"
+  },
+  "auth": {
+    "required": "Please sign in to view messages."
+  },
+  "list": {
+    "title": "Conversations",
+    "loading": "Loading conversations…",
+    "empty": "No conversations yet"
+  },
+  "chat": {
+    "loading": "Loading history…",
+    "empty": "No messages yet — send the first one",
+    "pickPrompt": "Pick a conversation on the left to start chatting"
+  },
+  "input": {
+    "placeholder": "Type a message…",
+    "send": "Send",
+    "sending": "Sending…"
+  },
+  "connection": {
+    "disconnected": "Disconnected",
+    "connecting": "Connecting…",
+    "connected": "Connected",
+    "reconnecting": "Reconnecting…",
+    "auth_failed": "Authentication failed — please refresh and retry"
+  }
+}

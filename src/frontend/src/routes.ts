@@ -11,6 +11,7 @@ import { CreatePopup } from '@/features/sdk/routes/CreatePopup'
 import { CreateMeetingButton } from '@/features/sdk/routes/CreateMeetingButton'
 import { RecordingDownloadRoute } from '@/features/recording'
 import { MeetingDetailRoute } from '@/features/meetings'
+import { ImRoute } from '@/features/im'
 
 const roomIdRegex = new RegExp(`^[/](?<roomId>${flexibleRoomIdPattern})$`)
 
@@ -24,7 +25,8 @@ export const routes: Record<
   | 'sdkCreatePopup'
   | 'sdkCreateButton'
   | 'recordingDownload'
-  | 'meetingDetail',
+  | 'meetingDetail'
+  | 'im',
   {
     name: RouteName
     path: RegExp | string
@@ -85,6 +87,11 @@ export const routes: Record<
     path: /^\/meetings\/(?<roomId>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/,
     to: (roomId: string) => `/meetings/${roomId.trim()}`,
     Component: MeetingDetailRoute,
+  },
+  im: {
+    name: 'im',
+    path: '/im',
+    Component: ImRoute,
   },
 }
 

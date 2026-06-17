@@ -1,0 +1,31 @@
+{
+  "messages": "Messages",
+  "nav": {
+    "ariaLabel": "Ouvrir les messages"
+  },
+  "auth": {
+    "required": "Veuillez vous connecter pour voir les messages."
+  },
+  "list": {
+    "title": "Conversations",
+    "loading": "Chargement des conversations…",
+    "empty": "Aucune conversation pour le moment"
+  },
+  "chat": {
+    "loading": "Chargement de l'historique…",
+    "empty": "Aucun message — envoyez le premier",
+    "pickPrompt": "Choisissez une conversation à gauche pour commencer"
+  },
+  "input": {
+    "placeholder": "Écrivez un message…",
+    "send": "Envoyer",
+    "sending": "Envoi en cours…"
+  },
+  "connection": {
+    "disconnected": "Déconnecté",
+    "connecting": "Connexion en cours…",
+    "connected": "Connecté",
+    "reconnecting": "Reconnexion en cours…",
+    "auth_failed": "Échec d'authentification — veuillez actualiser la page"
+  }
+}
