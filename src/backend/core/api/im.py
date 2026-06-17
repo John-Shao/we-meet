@@ -1,0 +1,109 @@
+"""IM bridge: exposes ``POST /api/v1.0/im/token`` to authenticated we-meet users.
+
+Forwards the request to jusi-light-im's admin API over HMAC and returns the
+client-bound IM token + the WebSocket URL the SDK should connect to.
+
+Why a separate module: keeps OIDC + HMAC plumbing out of viewsets.py and matches
+the established pattern for narrowly-scoped feature endpoints (see ai_agent_*).
+"""
+
+from __future__ import annotations
+
+import logging
+
+from django.conf import settings
+
+from rest_framework import (
+    permissions,
+    status,
+    viewsets,
+)
+from rest_framework.decorators import action
+from rest_framework.exceptions import APIException
+from rest_framework.response import Response
+
+from core.services.jusi_im import (
+    JusiImAdminClient,
+    JusiImBadResponseError,
+    JusiImUnreachableError,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class JusiImUnreachableHTTPError(APIException):
+    """502 — jusi-light-im is unreachable or returned 5xx."""
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    default_detail = "jusi-light-im is unreachable"
+    default_code = "jusi_im_unreachable"
+
+
+class JusiImInvalidResponseHTTPError(APIException):
+    """503 — jusi-light-im responded with an unexpected 4xx or malformed body."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    default_detail = "jusi-light-im returned an unexpected response"
+    default_code = "jusi_im_bad_response"
+
+
+class ImViewSet(viewsets.ViewSet):
+    """IM endpoints for the authenticated we-meet user.
+
+    P3 surface:
+
+        POST /api/v1.0/im/token      → sign + return an IM JWT + ws_url for the SDK
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=False, methods=["post"], url_path="token")
+    def token(self, request):
+        """Issue a fresh IM token for the authenticated user.
+
+        Body is empty. Caller must already hold a valid OIDC bearer token.
+        """
+        cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
+        if not cfg:
+            logger.error("JUSI_IM_CONFIGURATION not configured")
+            raise JusiImUnreachableHTTPError(detail="JUSI_IM not configured")
+
+        external_id = self._external_id(request.user)
+        ttl_seconds = int(cfg.get("default_ttl_seconds") or 86400)
+
+        client = JusiImAdminClient(
+            api_url=str(cfg["api_url"]),
+            admin_hmac_secret=str(cfg["admin_hmac_secret"]),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
+        )
+
+        try:
+            result = client.issue_token(
+                external_id=external_id, ttl_seconds=ttl_seconds
+            )
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+
+        return Response(
+            {
+                "uid": result.uid,
+                "token": result.token,
+                "ws_url": cfg["ws_url"],
+                "expires_at": result.expires_at,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @staticmethod
+    def _external_id(user) -> str:
+        """Stable, opaque identifier for the authenticated user.
+
+        we-meet's User.sub holds the Keycloak OIDC subject — already globally unique.
+        """
+        sub = getattr(user, "sub", None)
+        if sub:
+            return str(sub)
+        # Fallback for users without sub (legacy / test fixtures).
+        return str(user.pk)

@@ -697,6 +697,25 @@ class Base(Configuration):
         ),
         "url": values.Value(environ_name="LIVEKIT_API_URL", environ_prefix=None),
     }
+
+    # jusi-light-im (IM bridge — see core/services/jusi_im.py + core/api/im.py)
+    JUSI_IM_CONFIGURATION = {
+        "api_url": values.Value(
+            environ_name="JUSI_IM_API_URL", environ_prefix=None, default=""
+        ),
+        "ws_url": values.Value(
+            environ_name="JUSI_IM_WS_URL", environ_prefix=None, default=""
+        ),
+        "admin_hmac_secret": SecretFileValue(
+            environ_name="JUSI_IM_ADMIN_HMAC_SECRET", environ_prefix=None
+        ),
+        "default_ttl_seconds": values.IntegerValue(
+            86400, environ_name="JUSI_IM_TOKEN_TTL", environ_prefix=None
+        ),
+        "request_timeout_seconds": values.FloatValue(
+            5.0, environ_name="JUSI_IM_TIMEOUT_S", environ_prefix=None
+        ),
+    }
     LIVEKIT_FORCE_WSS_PROTOCOL = values.BooleanValue(
         False, environ_name="LIVEKIT_FORCE_WSS_PROTOCOL", environ_prefix=None
     )
@@ -1272,6 +1291,15 @@ class Test(Base):
         "api_key": "devkey-padded-for-minimum-len!-livekit",
         "api_secret": "secret-key-padded-for-minimum-len!-livekit",
         "url": "http://127.0.0.1.nip.io:7880",
+    }
+
+    # jusi-light-im — secrets are padded to satisfy the >=32 char check in JusiImAdminClient.
+    JUSI_IM_CONFIGURATION = {
+        "api_url": "http://127.0.0.1.nip.io:8080",
+        "ws_url": "ws://127.0.0.1.nip.io:8080/v1/ws",
+        "admin_hmac_secret": "test-jusi-im-hmac-secret-padded-to-32!",
+        "default_ttl_seconds": 3600,
+        "request_timeout_seconds": 1.0,
     }
 
     APPLICATION_ENABLED = True
