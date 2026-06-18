@@ -56,7 +56,16 @@ export const useConversations = (client: Client) => {
 
   return useQuery({
     queryKey: KEY,
-    queryFn: () => client.listConversations(),
+    queryFn: async () => {
+      try {
+        const list = await client.listConversations()
+        console.debug('[useConversations] listConversations resolved:', list.length)
+        return list
+      } catch (e) {
+        console.error('[useConversations] listConversations failed:', e)
+        throw e
+      }
+    },
     staleTime: 30_000,
   })
 }
