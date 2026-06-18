@@ -9,7 +9,13 @@
   "list": {
     "title": "Conversations",
     "loading": "Loading conversations…",
-    "empty": "No conversations yet"
+    "empty": "No conversations yet",
+    "newDirect": {
+      "button": "New conversation",
+      "prompt": "Your IM ID:\n{{selfUid}}\n\nEnter peer's IM ID:",
+      "notReady": "Connection not ready yet — please retry shortly",
+      "error": "Failed to create conversation: {{message}}"
+    }
   },
   "chat": {
     "loading": "Loading history…",

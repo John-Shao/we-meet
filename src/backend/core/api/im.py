@@ -10,6 +10,7 @@ the established pattern for narrowly-scoped feature endpoints (see ai_agent_*).
 from __future__ import annotations
 
 import logging
+import uuid
 
 from django.conf import settings
 
@@ -19,7 +20,7 @@ from rest_framework import (
     viewsets,
 )
 from rest_framework.decorators import action
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.response import Response
 
 from core.services.jusi_im import (
@@ -53,6 +54,10 @@ class ImViewSet(viewsets.ViewSet):
     P3 surface:
 
         POST /api/v1.0/im/token      → sign + return an IM JWT + ws_url for the SDK
+
+    Post-P5 联调入口:
+
+        POST /api/v1.0/im/conversations/direct  → create-or-get 1-on-1 conv with peer_uid
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -92,6 +97,67 @@ class ImViewSet(viewsets.ViewSet):
                 "token": result.token,
                 "ws_url": cfg["ws_url"],
                 "expires_at": result.expires_at,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["post"], url_path="conversations/direct")
+    def conversations_direct(self, request):
+        """Create-or-get a 1-on-1 conversation with `peer_uid`.
+
+        Body: `{"peer_uid": "<jusi-light-im uid (uuid)>"}`. The caller's own uid is
+        derived from the OIDC subject via a same-process resolve (jusi-light-im
+        lazily registers the user on first touch).
+
+        cid is computed as `uuid5(NAMESPACE_OID, "direct:<lo>:<hi>")` over the
+        sorted (self_uid, peer_uid) pair so A→B and B→A converge on the same row.
+        """
+        peer_uid = (request.data or {}).get("peer_uid")
+        if not isinstance(peer_uid, str) or not peer_uid.strip():
+            raise ValidationError({"peer_uid": "required (jusi-light-im uid string)"})
+        peer_uid = peer_uid.strip()
+
+        cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
+        if not cfg:
+            logger.error("JUSI_IM_CONFIGURATION not configured")
+            raise JusiImUnreachableHTTPError(detail="JUSI_IM not configured")
+
+        client = JusiImAdminClient(
+            api_url=str(cfg["api_url"]),
+            admin_hmac_secret=str(cfg["admin_hmac_secret"]),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
+        )
+
+        # Resolve self_uid via issue_token (lazy-registers on first touch; the
+        # short-lived token we get back is discarded — we only need uid).
+        external_id = self._external_id(request.user)
+        try:
+            self_resolve = client.issue_token(external_id=external_id, ttl_seconds=60)
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+        self_uid = self_resolve.uid
+
+        if self_uid == peer_uid:
+            raise ValidationError({"peer_uid": "cannot equal self_uid"})
+
+        lo, hi = sorted([self_uid, peer_uid])
+        cid = str(uuid.uuid5(uuid.NAMESPACE_OID, f"direct:{lo}:{hi}"))
+
+        try:
+            result = client.create_direct(cid=cid, owner_uid=self_uid, peer_uid=peer_uid)
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+
+        return Response(
+            {
+                "cid": result.cid,
+                "type": result.type,
+                "members": result.members,
+                "self_uid": self_uid,
             },
             status=status.HTTP_200_OK,
         )

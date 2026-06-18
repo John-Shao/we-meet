@@ -9,7 +9,13 @@
   "list": {
     "title": "Unterhaltungen",
     "loading": "Unterhaltungen werden geladen…",
-    "empty": "Noch keine Unterhaltungen"
+    "empty": "Noch keine Unterhaltungen",
+    "newDirect": {
+      "button": "Neue Unterhaltung",
+      "prompt": "Ihre IM-ID:\n{{selfUid}}\n\nIM-ID des Empfängers eingeben:",
+      "notReady": "Verbindung noch nicht bereit — bitte erneut versuchen",
+      "error": "Erstellen fehlgeschlagen: {{message}}"
+    }
   },
   "chat": {
     "loading": "Verlauf wird geladen…",

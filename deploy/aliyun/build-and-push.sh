@@ -162,6 +162,11 @@ build_one() {
     # filter out our SDK files if used as context root.
     extra=(--build-context "jusi-sdk=${jusi_root}/sdk/web")
     echo "  using --build-context jusi-sdk=${jusi_root}/sdk/web"
+
+    # vite 把 VITE_* env 在 build 时内联进 bundle (不是 K8s 运行时 env).
+    # 默认指向 aliyun-prod 的 IM ECS; 自定义部署 export VITE_JUSI_IM_BASE_URL=...
+    extra+=(--build-arg "VITE_JUSI_IM_BASE_URL=${VITE_JUSI_IM_BASE_URL:-https://im.we-meet.online}")
+    echo "  using --build-arg VITE_JUSI_IM_BASE_URL=${VITE_JUSI_IM_BASE_URL:-https://im.we-meet.online}"
   fi
 
   echo

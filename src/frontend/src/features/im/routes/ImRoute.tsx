@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 
+import { createDirectConversation } from '../api/createDirectConversation'
 import { fetchImToken } from '../api/fetchImToken'
 import { ChatPane } from './ChatPane'
 import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
@@ -46,9 +47,36 @@ const ImAuthenticated = () => {
     staleTime: 60_000,
   })
   const [selectedCID, setSelectedCID] = useState<string | null>(null)
+  const qc = useQueryClient()
 
   const currentUserUID = tokenData?.uid ?? ''
   const sendDisabled = state !== 'connected'
+
+  // MVP 联调入口: prompt 输对方 IM uid -> backend 走 jusi admin create-or-get direct.
+  // 升级方向: 替换成内嵌的 user picker (按 phone / name 反查 uid), 见 todo (S4+).
+  const handleNewDirect = async () => {
+    if (!currentUserUID) {
+      window.alert(t('list.newDirect.notReady'))
+      return
+    }
+    const peerUid = window.prompt(
+      t('list.newDirect.prompt', { selfUid: currentUserUID }),
+    )
+    if (peerUid === null) return
+    const trimmed = peerUid.trim()
+    if (!trimmed) return
+    try {
+      const result = await createDirectConversation(trimmed)
+      await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+      setSelectedCID(result.cid)
+    } catch (e) {
+      window.alert(
+        t('list.newDirect.error', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      )
+    }
+  }
 
   return (
     <div
@@ -75,18 +103,50 @@ const ImAuthenticated = () => {
             backgroundColor: 'greyscale.50',
           })}
         >
-          <h2
+          <div
             className={css({
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               paddingX: '1rem',
               paddingY: '0.75rem',
-              margin: 0,
-              fontSize: '1rem',
-              fontWeight: 'bold',
-              color: 'greyscale.900',
             })}
           >
-            {t('list.title')}
-          </h2>
+            <h2
+              className={css({
+                margin: 0,
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                color: 'greyscale.900',
+              })}
+            >
+              {t('list.title')}
+            </h2>
+            <button
+              type="button"
+              onClick={handleNewDirect}
+              title={t('list.newDirect.button')}
+              aria-label={t('list.newDirect.button')}
+              data-testid="im-new-direct"
+              className={css({
+                border: '1px solid token(colors.greyscale.300)',
+                borderRadius: '999px',
+                backgroundColor: 'white',
+                width: '1.75rem',
+                height: '1.75rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.125rem',
+                lineHeight: 1,
+                cursor: 'pointer',
+                color: 'greyscale.700',
+                _hover: { backgroundColor: 'greyscale.100' },
+              })}
+            >
+              +
+            </button>
+          </div>
           <ConversationList
             conversations={conversations}
             selectedCID={selectedCID}

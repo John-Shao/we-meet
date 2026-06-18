@@ -183,6 +183,46 @@ class JusiImAdminClient:
                 f"create_group: unexpected response shape: {data}"
             ) from exc
 
+    def create_direct(
+        self,
+        cid: str,
+        owner_uid: str,
+        peer_uid: str,
+    ) -> JusiImConversationResponse:
+        """Create (or get) a direct (1-on-1) conversation idempotently.
+
+        Caller MUST compute a deterministic cid from the sorted (owner_uid, peer_uid)
+        pair so A→B and B→A converge on the same row. jusi-light-im admin endpoint
+        relies on cid uniqueness for the idempotent path.
+        """
+        if not cid:
+            raise ValueError("cid is required")
+        if not owner_uid:
+            raise ValueError("owner_uid is required")
+        if not peer_uid:
+            raise ValueError("peer_uid is required")
+        if owner_uid == peer_uid:
+            raise ValueError("owner_uid and peer_uid must differ")
+        payload: dict[str, Any] = {
+            "cid": cid,
+            "type": "direct",
+            "owner_uid": owner_uid,
+            "members": [peer_uid],
+        }
+        data = self._signed_request("POST", "/admin/conversations", payload)
+        try:
+            return JusiImConversationResponse(
+                cid=data["cid"],
+                type=data["type"],
+                owner_uid=data.get("owner_uid", ""),
+                members=list(data.get("members") or []),
+                created_at=int(data.get("created_at") or 0),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise JusiImBadResponseError(
+                f"create_direct: unexpected response shape: {data}"
+            ) from exc
+
     def add_members(self, cid: str, uids: list[str]) -> JusiImAddMembersResponse:
         """Append uids to cid's member set. Idempotent — duplicates are silently
         no-ops (server returns `added=0` for a uid that was already present)."""

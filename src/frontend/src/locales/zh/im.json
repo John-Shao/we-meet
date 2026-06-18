@@ -9,7 +9,13 @@
   "list": {
     "title": "会话",
     "loading": "正在加载会话…",
-    "empty": "还没有会话"
+    "empty": "还没有会话",
+    "newDirect": {
+      "button": "新建会话",
+      "prompt": "你的 IM ID:\n{{selfUid}}\n\n请输入对方的 IM ID:",
+      "notReady": "连接还未就绪,请稍后再试",
+      "error": "创建会话失败:{{message}}"
+    }
   },
   "chat": {
     "loading": "正在加载历史消息…",

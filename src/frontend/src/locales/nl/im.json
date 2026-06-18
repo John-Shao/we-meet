@@ -9,7 +9,13 @@
   "list": {
     "title": "Gesprekken",
     "loading": "Gesprekken laden…",
-    "empty": "Nog geen gesprekken"
+    "empty": "Nog geen gesprekken",
+    "newDirect": {
+      "button": "Nieuw gesprek",
+      "prompt": "Jouw IM-ID:\n{{selfUid}}\n\nGeef de IM-ID van je gesprekspartner:",
+      "notReady": "Verbinding nog niet klaar — probeer het later opnieuw",
+      "error": "Aanmaken mislukt: {{message}}"
+    }
   },
   "chat": {
     "loading": "Geschiedenis laden…",

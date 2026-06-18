@@ -9,7 +9,13 @@
   "list": {
     "title": "Conversations",
     "loading": "Chargement des conversations…",
-    "empty": "Aucune conversation pour le moment"
+    "empty": "Aucune conversation pour le moment",
+    "newDirect": {
+      "button": "Nouvelle conversation",
+      "prompt": "Votre ID IM :\n{{selfUid}}\n\nEntrez l'ID IM du correspondant :",
+      "notReady": "Connexion pas encore prête — veuillez réessayer",
+      "error": "Échec de la création : {{message}}"
+    }
   },
   "chat": {
     "loading": "Chargement de l'historique…",
