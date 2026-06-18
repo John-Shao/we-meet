@@ -33,6 +33,37 @@ class JusiImTokenResponse:
     expires_at: int  # unix seconds
 
 
+@dataclass(frozen=True)
+class JusiImConversationResponse:
+    """Result of POST /admin/conversations (P5)."""
+
+    cid: str
+    type: str  # "group" | "direct"
+    owner_uid: str
+    members: list[str]
+    created_at: int  # unix ms
+
+
+@dataclass(frozen=True)
+class JusiImAddMembersResponse:
+    """Result of POST /admin/conversations/{cid}/members (P5)."""
+
+    cid: str
+    added: int
+    members: list[str]
+
+
+@dataclass(frozen=True)
+class JusiImMessageResponse:
+    """Result of POST /admin/messages (P5, system-injected message)."""
+
+    mid: int
+    cid: str
+    sender_uid: str
+    seq: int
+    ts: int  # unix ms
+
+
 class JusiImServiceError(Exception):
     """Base for failures talking to jusi-light-im."""
 
@@ -110,7 +141,136 @@ class JusiImAdminClient:
         except (KeyError, TypeError, ValueError) as exc:
             raise JusiImBadResponseError(f"unexpected response shape: {data}") from exc
 
+    # ---- P5: meeting bridge admin endpoints ----
+
+    def create_group(
+        self,
+        cid: str,
+        owner_uid: str,
+        members: list[str] | None = None,
+        meta: dict[str, Any] | None = None,
+    ) -> JusiImConversationResponse:
+        """Create (or get) a group conversation idempotently.
+
+        `cid` MUST be supplied — jusi admin enforces deterministic cid for the
+        idempotent path. we-meet computes `uuid5(NAMESPACE_OID, "room:<room_id>")`
+        upstream and passes it here.
+        """
+        if not cid:
+            raise ValueError("cid is required")
+        if not owner_uid:
+            raise ValueError("owner_uid is required")
+        payload: dict[str, Any] = {
+            "cid": cid,
+            "type": "group",
+            "owner_uid": owner_uid,
+        }
+        if members:
+            payload["members"] = list(members)
+        if meta is not None:
+            payload["meta"] = meta
+        data = self._signed_request("POST", "/admin/conversations", payload)
+        try:
+            return JusiImConversationResponse(
+                cid=data["cid"],
+                type=data["type"],
+                owner_uid=data.get("owner_uid", ""),
+                members=list(data.get("members") or []),
+                created_at=int(data.get("created_at") or 0),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise JusiImBadResponseError(
+                f"create_group: unexpected response shape: {data}"
+            ) from exc
+
+    def add_members(self, cid: str, uids: list[str]) -> JusiImAddMembersResponse:
+        """Append uids to cid's member set. Idempotent — duplicates are silently
+        no-ops (server returns `added=0` for a uid that was already present)."""
+        if not cid:
+            raise ValueError("cid is required")
+        path = f"/admin/conversations/{cid}/members"
+        payload = {"add": list(uids or [])}
+        data = self._signed_request("POST", path, payload)
+        try:
+            return JusiImAddMembersResponse(
+                cid=data["cid"],
+                added=int(data.get("added") or 0),
+                members=list(data.get("members") or []),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise JusiImBadResponseError(
+                f"add_members: unexpected response shape: {data}"
+            ) from exc
+
+    def post_message(
+        self,
+        cid: str,
+        body: str,
+        sender_uid: str | None = None,
+        content_type: str = "text",
+    ) -> JusiImMessageResponse:
+        """Inject a server-side message into cid. Bypasses WS and client identity.
+
+        Pass `sender_uid=None` to use the server's SYSTEM uid
+        (00000000-0000-0000-0000-000000000000). Use a real uid for bot-style messages.
+        """
+        if not cid:
+            raise ValueError("cid is required")
+        if not body:
+            raise ValueError("body is required")
+        payload: dict[str, Any] = {"cid": cid, "body": body, "content_type": content_type}
+        if sender_uid:
+            payload["sender_uid"] = sender_uid
+        data = self._signed_request("POST", "/admin/messages", payload)
+        try:
+            return JusiImMessageResponse(
+                mid=int(data["mid"]),
+                cid=data["cid"],
+                sender_uid=data["sender_uid"],
+                seq=int(data["seq"]),
+                ts=int(data.get("ts") or 0),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise JusiImBadResponseError(
+                f"post_message: unexpected response shape: {data}"
+            ) from exc
+
     # ---- helpers ----
+
+    def _signed_request(self, method: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Sign + POST + parse JSON. Shared by every admin call.
+
+        Surfaces:
+          - JusiImUnreachableError on connect/timeout/5xx
+          - JusiImBadResponseError on 4xx / non-JSON / shape mismatch
+        """
+        body = self._json_body(payload)
+        headers = self._signed_headers(method, path, body)
+        url = self._api_url + path
+        try:
+            response = requests.post(
+                url,
+                data=body,
+                headers=headers,
+                timeout=self._timeout,
+            )
+        except requests.RequestException as exc:
+            logger.exception("jusi-im admin unreachable: %s", url)
+            raise JusiImUnreachableError(str(exc)) from exc
+
+        if response.status_code >= 500:
+            raise JusiImUnreachableError(
+                f"jusi-im returned {response.status_code} from {path}"
+            )
+        if response.status_code >= 400:
+            raise JusiImBadResponseError(
+                f"jusi-im returned {response.status_code} from {path}: "
+                f"{response.text[:200]}"
+            )
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise JusiImBadResponseError("response was not JSON") from exc
 
     def _signed_headers(self, method: str, path: str, body: bytes) -> dict[str, str]:
         ts = str(int(time.time()))
