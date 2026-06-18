@@ -1,7 +1,13 @@
 FROM python:3.13.13-slim AS base
 
+# APT mirror override — default vanilla deb.debian.org (Fastly CDN), set
+# to mirrors.aliyun.com / mirrors.tuna.tsinghua.edu.cn etc. for CN builds.
+# build-and-push.sh 默认对 agents 注入 mirrors.aliyun.com (CN 友好).
+ARG APT_MIRROR=deb.debian.org
+
 # Install system dependencies required by LiveKit
-RUN apt-get update && apt-get install -y \
+RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y \
     libglib2.0-0 \
     libgobject-2.0-0 \
     && rm -rf /var/lib/apt/lists/*

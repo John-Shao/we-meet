@@ -291,22 +291,18 @@ do
 done
 ```
 
-或者直接用脚本分两步走 —— **build 时 VPN ON**（直连 pypi.org / docker.io / npm），**push 时 VPN OFF**（直连国内 cn-guangzhou.cr.volces.com，VPN 反而绕远 / 丢包）：
+或者用一条龙脚本（凭据 / IMAGE_TAG 自动从 values.secrets.yaml 读，build + push 一跑到底；VPN 一直开着即可，前提是 VPN 客户端把 `*.cr.volces.com` 加进了 bypass / 不走代理列表）：
 
 ```bash
-# === 第一步: VPN ON, 构建 ===
 export IMAGE_TAG=$(git rev-parse --short HEAD)   # 或不设, 默认 latest
-bash deploy/aliyun/build.sh
-
-# === 第二步: 关 VPN, 推送 (凭据从 values.secrets.yaml 读, 不写 shell history) ===
-SECRETS=src/helm/env.d/aliyun-prod/values.secrets.yaml
-export VOLC_CR_USER=$(yq -r '.image.credentials.username' $SECRETS)
-export VOLC_CR_PASS=$(yq -r '.image.credentials.password' $SECRETS)
-# IMAGE_TAG 沿用第一步, 不变
-bash deploy/aliyun/push.sh
+bash deploy/aliyun/build-and-push.sh                 # 全部 4 个模块
+# 或子集:
+bash deploy/aliyun/build-and-push.sh backend         # 只 backend
+bash deploy/aliyun/build-and-push.sh --build-only    # 只 build (CI / 离线打包)
+bash deploy/aliyun/build-and-push.sh --push-only     # 只 push (镜像已 build 过)
 ```
 
-> ⚠️ **`--platform linux/amd64` 必加**：阿里云 ECS 都是 x86_64，PC 如果是 Apple Silicon Mac 默认 build 出 arm64 镜像，生产 ECS 拉到后 pod 立刻 exec format error 崩。上面 for loop 已经加，用 build.sh 的话脚本默认本机架构，arm64 PC 用户需要先 `export BUILDX_DEFAULT_PLATFORM=linux/amd64` 或改脚本。
+> ⚠️ **`--platform linux/amd64` 必加**：阿里云 ECS 都是 x86_64，PC 如果是 Apple Silicon Mac 默认 build 出 arm64 镜像，生产 ECS 拉到后 pod 立刻 exec format error 崩。上面 for loop 已经加，用 build-and-push.sh 的话脚本默认本机架构，arm64 PC 用户需要先 `export BUILDX_DEFAULT_PLATFORM=linux/amd64` 或改脚本。
 
 > ⚠️ **PC 网络好不需要 CN mirror 补丁**：main 分支的 Dockerfile 直接走 pypi.org / deb.debian.org，VPN 直连 OK。如果 PC 没 VPN（不推荐），dev 分支固化过 `apt → mirrors.aliyun.com` + `pip → mirrors.aliyun.com` 补丁，但 **uv 不能 redirect** —— `src/backend/uv.lock` pin 了 pypi.org 来源，`uv sync --locked` 严格校验 source 一致，redirect uv 触发 "lockfile needs to be updated" 拒绝继续；uv 走 `UV_HTTP_TIMEOUT=300` 慢但能成。
 
@@ -636,7 +632,7 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 |---|---|
 | `docker login` 火山 CR 报 `username "AKLT..." is not valid` | 火山 CR **不接受主账号 AK/SK**。CR 控制台 → 实例 → 访问凭证 → 创建用户名+固定密码（username 形如 `MYORG2025@2114082505`），把这组凭据填到 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 的 `image.credentials` 字段。 |
 | `docker login` env vars 看着对但还是 unauthorized | `yq` 没加 `-r`。Ubuntu apt 的 yq 是 Python jq 包装，默认输出 JSON 带双引号。`echo "len=${#VAR}"` 验证：username 应是 21 字符不是 23。修法：所有 `yq` 改 `yq -r`。 |
-| `target stage "production" could not be found` | 根 Dockerfile 的 production stage 名是 `backend-production`；frontend Dockerfile 是 `frontend-production`。已在 [build.sh](../../deploy/aliyun/build.sh) 修正。 |
+| `target stage "production" could not be found` | 根 Dockerfile 的 production stage 名是 `backend-production`；frontend Dockerfile 是 `frontend-production`。已在 [build-and-push.sh](../../deploy/aliyun/build-and-push.sh) 修正。 |
 | frontend build context 找不到 `package.json` | frontend Dockerfile 的 COPY 都是 `./src/frontend/...` 写法，build context 必须是 **repo root**，不是 `./src/frontend`。 |
 | `the --mount option requires BuildKit` | 设 `DOCKER_BUILDKIT=1` 还不够，还要装 buildx：`sudo apt-get install -y docker-buildx`。`docker.io` 不自带 buildx 插件。 |
 | `pip install` / `uv sync` 中途 `ConnectionResetError(104)` | PyPI 国内访问不稳。Dockerfile 已加 `PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/`。**不要给 uv 设 mirror**——`src/backend/uv.lock` 严格校验 source URL，redirect uv 触发 "lockfile needs to be updated" 拒绝继续。uv 走 `UV_HTTP_TIMEOUT=300` 慢但能成。 |
@@ -831,8 +827,7 @@ ssh root@<sjy> "rm -rf /opt/we-meet-online"
 | [deploy/aliyun/sync-customer-config.sh](../../deploy/aliyun/sync-customer-config.sh) | **PC → 远端 ECS** rsync 8 个客户化文件（保持仓库相对路径，增量同步） |
 | [deploy/aliyun/install-k3s.sh](../../deploy/aliyun/install-k3s.sh) | aliyun-sjy 一键装 K3s + ingress-nginx + cert-manager |
 | [deploy/aliyun/install-meet.sh](../../deploy/aliyun/install-meet.sh) | aliyun-sjy 一键装 postgres + redis + livekit + meet chart |
-| [deploy/aliyun/build.sh](../../deploy/aliyun/build.sh) | **在 PC 上 (VPN ON)** 构建 4 个镜像（§六） |
-| [deploy/aliyun/push.sh](../../deploy/aliyun/push.sh) | **在 PC 上 (VPN OFF)** 把 4 个镜像推到火山 CR（§六） |
+| [deploy/aliyun/build-and-push.sh](../../deploy/aliyun/build-and-push.sh) | **在 PC 上** 构建 4 个镜像 + 推到火山 CR（§六；VPN 一直开着，前提 `*.cr.volces.com` 已在 VPN bypass 列表里） |
 | [deploy/aliyun/keycloak/compose.yaml](../../deploy/aliyun/keycloak/compose.yaml) | aliyun-zlm 上的 Keycloak + Postgres + Caddy |
 | [deploy/aliyun/keycloak/bootstrap-realm.sh](../../deploy/aliyun/keycloak/bootstrap-realm.sh) | 创建 meet realm / client / 测试用户 |
 | [src/helm/env.d/aliyun-prod/values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) | meet chart 生产 values |
