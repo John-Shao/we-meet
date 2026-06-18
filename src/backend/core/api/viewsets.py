@@ -1573,6 +1573,91 @@ class RoomViewSet(
             status=drf_status.HTTP_200_OK,
         )
 
+    # ---- P5: meeting ↔ jusi-light-im group bridge ----
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="im/ensure-group",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def im_ensure_group(self, request, pk=None):  # pylint: disable=unused-argument
+        """Lazily provision a jusi-light-im group conversation for this room.
+
+        First call creates the group on jusi-light-im (with all current room
+        members), persists the (room → cid) mapping, and returns `cid`.
+        Subsequent calls return the existing cid; this is naturally idempotent
+        thanks to the deterministic `cid = uuid5(NAMESPACE_OID, room.id)`.
+
+        Caller must be a member of the room (any role). Returns 403 otherwise.
+        Returns 502 if jusi-light-im is unreachable, 503 if it returned a malformed
+        response.
+        """
+        from core.api.im import JusiImInvalidResponseHTTPError, JusiImUnreachableHTTPError
+        from core.services.jusi_im import (
+            JusiImAdminClient,
+            JusiImBadResponseError,
+            JusiImUnreachableError,
+        )
+
+        room = self.get_object()
+        if not room.has_any_role(request.user):
+            return drf_response.Response(
+                {"detail": "Not a member of this room."},
+                status=drf_status.HTTP_403_FORBIDDEN,
+            )
+
+        existing = models.MeetingConversation.objects.filter(room=room).first()
+        if existing:
+            return drf_response.Response(
+                {"cid": existing.cid, "created": False},
+                status=drf_status.HTTP_200_OK,
+            )
+
+        cid = models.MeetingConversation.cid_for_room(room.id)
+        owner_user = room.accesses.filter(role=models.RoleChoices.OWNER).first()
+        owner_uid = (
+            str(owner_user.user.sub or owner_user.user.id)
+            if owner_user
+            else str(request.user.sub or request.user.id)
+        )
+        # Initial member list: every user with any role on this room.
+        member_uids = [
+            str(u.sub or u.id) for u in models.User.objects.filter(resources=room)
+        ]
+        # Always include the calling user (defensive — the membership join above
+        # should already cover them, but a freshly-created room may not have
+        # propagated through join cache yet).
+        caller_uid = str(request.user.sub or request.user.id)
+        if caller_uid not in member_uids:
+            member_uids.append(caller_uid)
+
+        cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
+        if not cfg:
+            raise JusiImUnreachableHTTPError(detail="JUSI_IM not configured")
+        client = JusiImAdminClient(
+            api_url=str(cfg["api_url"]),
+            admin_hmac_secret=str(cfg["admin_hmac_secret"]),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
+        )
+        try:
+            client.create_group(
+                cid=cid,
+                owner_uid=owner_uid,
+                members=member_uids,
+                meta={"meeting_id": str(room.id), "source": "we-meet"},
+            )
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+
+        models.MeetingConversation.objects.create(room=room, cid=cid)
+        return drf_response.Response(
+            {"cid": cid, "created": True},
+            status=drf_status.HTTP_200_OK,
+        )
+
 
 class ResourceAccessViewSet(
     mixins.CreateModelMixin,

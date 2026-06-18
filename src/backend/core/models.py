@@ -1673,3 +1673,57 @@ class TranscriptChunk(BaseModel):
         speaker = self.speaker_name or self.speaker_identity[:12] or "?"
         preview = self.text[:60]
         return f"#{self.chunk_index} {speaker}: {preview}"
+
+
+# ---- P5: meeting ↔ jusi-light-im group bridge ----
+
+
+class MeetingConversation(BaseModel):
+    """1:1 mapping between a Room and its jusi-light-im group conversation.
+
+    `cid` is deterministic from `room_id` (UUIDv5) — this is what makes our
+    ensure-group endpoint naturally idempotent: concurrent calls converge to the
+    same `cid` without any explicit locking.
+
+    Room ON DELETE SET NULL: removing a Room does NOT delete the IM conversation
+    — the chat history persists so "after-meeting discussion" stays available
+    (this is jusi-light-im's whole value-add on top of LiveKit).
+    """
+
+    room = models.OneToOneField(
+        Room,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="im_conversation",
+        help_text=_("the meeting room this conversation was created for"),
+    )
+    cid = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text=_("jusi-light-im conversation id (UUIDv5 from room id)"),
+    )
+    summary_pushed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "set when the meeting summary has been posted as a system message to the "
+            "conversation — read by the summary push hook to avoid duplicate sends"
+        ),
+    )
+
+    class Meta:
+        db_table = "meet_meeting_conversation"
+        verbose_name = _("Meeting conversation")
+        verbose_name_plural = _("Meeting conversations")
+
+    @staticmethod
+    def cid_for_room(room_id) -> str:
+        """Deterministic cid for a room. Stable across processes / restarts."""
+        return str(
+            uuid.uuid5(uuid.NAMESPACE_OID, f"jusi-light-im:room:{room_id}")
+        )
+
+    def __str__(self) -> str:
+        room_repr = str(self.room_id) if self.room_id else "<orphan>"
+        return f"MeetingConversation room={room_repr} cid={self.cid}"
