@@ -16,9 +16,11 @@ import json
 import logging
 from typing import Optional
 
+from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
-from core.models import ActionItem, Room, Summary, Transcript
+from core.models import ActionItem, MeetingConversation, Room, Summary, Transcript
 from core.services.llm_client import LLMClient, LLMUnavailable
 
 logger = logging.getLogger(__name__)
@@ -119,13 +121,21 @@ class MeetingSummaryService:
             logger.exception("LLM action-items call failed for room %s", room.id)
             items = []  # Soft failure: keep the summary, lose the items.
 
-        return self._persist(
+        summary = self._persist(
             room=room,
             summary_text=summary_text,
             items=items,
             transcripts=transcripts,
             model_used=client.model,
         )
+        # P5: if this room has a jusi-light-im group conversation, push the summary
+        # there as a system message. Best-effort, fenced from raising — failure here
+        # MUST NOT roll back the summary itself.
+        try:
+            self._push_summary_to_im(room, summary)
+        except Exception:  # noqa: BLE001
+            logger.exception("P5 summary IM push failed for room %s", room.id)
+        return summary
 
     # ------------------------------------------------------------------
     # Helpers
@@ -178,6 +188,62 @@ class MeetingSummaryService:
                 }
             )
         return cleaned
+
+    def _push_summary_to_im(self, room: Room, summary: Summary) -> None:
+        """Post a `📋 会议纪要已生成: <url>` system message into the room's IM group.
+
+        No-ops when:
+          - the summary did NOT succeed (status != SUCCESS)
+          - the room never had an IM conversation provisioned (no MeetingConversation row)
+          - the summary was already pushed once (idempotent — summary_pushed_at != None)
+          - JUSI_IM_CONFIGURATION is not configured
+
+        Transport failures DO NOT raise: by design, the summary is the canonical
+        artefact; the IM push is a courtesy nudge.
+        """
+        from core.services.jusi_im import (  # local import to avoid module-load coupling
+            JusiImAdminClient,
+            JusiImBadResponseError,
+            JusiImUnreachableError,
+        )
+
+        if summary.status != Summary.Status.SUCCESS:
+            return
+
+        mc = MeetingConversation.objects.filter(room=room).first()
+        if mc is None or mc.summary_pushed_at is not None:
+            return
+
+        cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
+        if not cfg or not cfg.get("api_url") or not cfg.get("admin_hmac_secret"):
+            logger.info("P5 summary push skipped: JUSI_IM_CONFIGURATION incomplete")
+            return
+
+        base = getattr(settings, "EMAIL_APP_BASE_URL", None) or ""
+        if base and not base.endswith("/"):
+            base += "/"
+        link = f"{base}meetings/{room.id}" if base else str(room.id)
+        body = f"📋 会议纪要已生成: {link}"
+
+        client = JusiImAdminClient(
+            api_url=str(cfg["api_url"]),
+            admin_hmac_secret=str(cfg["admin_hmac_secret"]),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
+        )
+        try:
+            client.post_message(cid=mc.cid, body=body)
+        except (JusiImUnreachableError, JusiImBadResponseError) as exc:
+            # P5 doesn't retry (see open-question #8). Log and move on; the next
+            # successful summarisation for this room will retry naturally because
+            # summary_pushed_at is still NULL.
+            logger.warning(
+                "P5 summary push to jusi-light-im failed for room %s: %s", room.id, exc
+            )
+            return
+
+        mc.summary_pushed_at = timezone.now()
+        mc.save(update_fields=["summary_pushed_at", "updated_at"])
+        logger.info("P5 summary pushed to IM cid=%s for room %s", mc.cid, room.id)
 
     @transaction.atomic
     def _persist(
