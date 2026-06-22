@@ -1727,3 +1727,210 @@ class MeetingConversation(BaseModel):
     def __str__(self) -> str:
         room_repr = str(self.room_id) if self.room_id else "<orphan>"
         return f"MeetingConversation room={room_repr} cid={self.cid}"
+
+
+# ---------------------------------------------------------------------------
+# Organization / Department / Membership  (P1 — 企业组织架构地基)
+#
+# Additive enterprise org layer the to-B roadmap depends on. Nothing here
+# touches BaseAccess / ResourceAccess: a Department exposes a stable, opaque
+# ``team_key`` (``dept:<uuid>``) that is written verbatim into
+# ``BaseAccess.team`` (max_length=100). Existing team-based access filtering
+# (BaseAccessManager.filter_user) lights up automatically once
+# ``User.get_teams()`` returns these keys — see the data migration that
+# backfills a default organization + one membership per existing user.
+# ---------------------------------------------------------------------------
+
+
+class OrgRoleChoices(models.TextChoices):
+    """Role of a user *within an organization* (distinct from per-resource RoleChoices).
+
+    Values intentionally overlap RoleChoices where they coincide (member /
+    administrator / owner) so admin tooling can reuse the same vocabulary; the
+    extra ``dept_admin`` scopes administration to a department subtree.
+    """
+
+    MEMBER = "member", _("Member")
+    DEPT_ADMIN = "dept_admin", _("Department administrator")
+    ADMIN = "administrator", _("Organization administrator")
+    OWNER = "owner", _("Organization owner")
+
+
+class MembershipStatusChoices(models.TextChoices):
+    """Lifecycle of a user's membership in an organization."""
+
+    ACTIVE = "active", _("Active")
+    INVITED = "invited", _("Invited")
+    SUSPENDED = "suspended", _("Suspended")
+    LEFT = "left", _("Left")
+
+
+class Organization(BaseModel):
+    """An enterprise tenant.
+
+    MVP runs a single bootstrapped organization, but the FK is present on every
+    org-scoped row from day one so onboarding a second tenant never requires a
+    painful backfill. Directory / admin querysets filter by the caller's
+    organization even while only one exists.
+    """
+
+    name = models.CharField(_("name"), max_length=255)
+    slug = models.SlugField(_("slug"), max_length=100, unique=True)
+    primary_domain = models.CharField(
+        _("primary email domain"),
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=_(
+            "Primary email domain (e.g. 'example.com'). Used to auto-place "
+            "invited members whose email matches."
+        ),
+    )
+    is_active = models.BooleanField(_("active"), default=True)
+    settings = models.JSONField(_("settings"), blank=True, default=dict)
+
+    class Meta:
+        db_table = "meet_organization"
+        ordering = ("name",)
+        verbose_name = _("Organization")
+        verbose_name_plural = _("Organizations")
+
+    def __str__(self):
+        return self.name
+
+
+class Department(BaseModel):
+    """A node in an organization's department tree.
+
+    Adjacency list (``parent``) plus a materialized ``path`` of ancestor ids so
+    a subtree is a single ``path__startswith`` lookup with no MPTT dependency.
+    ``team_key`` / ``path`` / ``depth`` are maintained in ``save()``; reparenting
+    a department (which must rewrite descendant paths) is handled by the admin
+    console, not here.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="departments"
+    )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="children",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(_("name"), max_length=255)
+    # Slash-joined ancestor ids INCLUDING self (e.g. "<root>/<child>/"). A node's
+    # whole subtree (self included) is `filter(path__startswith=node.path)`.
+    path = models.CharField(
+        _("path"), max_length=1024, blank=True, default="", db_index=True
+    )
+    depth = models.PositiveIntegerField(_("depth"), default=0)
+    head = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="headed_departments",
+        null=True,
+        blank=True,
+        help_text=_("Department head — the default approver for org workflows."),
+    )
+    sort_order = models.PositiveIntegerField(_("sort order"), default=0)
+    # Opaque, immutable key written verbatim into BaseAccess.team (<=100 chars).
+    # Derived from the row id so it is unique, rename-safe and collision-free.
+    team_key = models.CharField(
+        _("team key"), max_length=100, unique=True, editable=False
+    )
+    is_active = models.BooleanField(_("active"), default=True)
+    deleted_at = models.DateTimeField(_("deleted at"), null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_department"
+        ordering = ("path", "sort_order", "name")
+        verbose_name = _("Department")
+        verbose_name_plural = _("Departments")
+
+    def __str__(self):
+        return self.name
+
+    def _refresh_tree_fields(self):
+        """Derive team_key / path / depth from this row's id and its parent.
+
+        Only updates this node — descendant path rewrites on reparent are the
+        admin console's job.
+        """
+        if not self.team_key:
+            self.team_key = f"dept:{self.id.hex}"
+        if self.parent_id:
+            self.path = f"{self.parent.path}{self.id.hex}/"
+            self.depth = self.parent.depth + 1
+        else:
+            self.path = f"{self.id.hex}/"
+            self.depth = 0
+
+    def save(self, *args, **kwargs):
+        # Must run BEFORE super().save(): BaseModel.save() calls full_clean(),
+        # and team_key is required (non-blank).
+        self._refresh_tree_fields()
+        super().save(*args, **kwargs)
+
+
+class Membership(BaseModel):
+    """Links a user to an organization, and optionally to a department."""
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="memberships"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="memberships"
+    )
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        related_name="memberships",
+        null=True,
+        blank=True,
+        help_text=_("Null means an organization-level membership (no department)."),
+    )
+    title = models.CharField(_("title"), max_length=255, blank=True, default="")
+    is_primary = models.BooleanField(
+        _("primary"),
+        default=False,
+        help_text=_("The user's primary department within the organization."),
+    )
+    org_role = models.CharField(
+        max_length=20, choices=OrgRoleChoices.choices, default=OrgRoleChoices.MEMBER
+    )
+    employee_no = models.CharField(max_length=64, blank=True, default="")
+    status = models.CharField(
+        max_length=20,
+        choices=MembershipStatusChoices.choices,
+        default=MembershipStatusChoices.ACTIVE,
+    )
+    joined_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_membership"
+        ordering = ("-created_at",)
+        verbose_name = _("Membership")
+        verbose_name_plural = _("Memberships")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "department"],
+                name="membership_unique_user_department",
+                violation_error_message=_(
+                    "This user already belongs to this department."
+                ),
+            ),
+            models.UniqueConstraint(
+                fields=["user", "organization"],
+                condition=models.Q(is_primary=True),
+                name="membership_one_primary_per_user_org",
+                violation_error_message=_(
+                    "A user can have only one primary department per organization."
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        dept = self.department.name if self.department_id else "<org-level>"
+        return f"{self.user} @ {dept} ({self.get_org_role_display()})"
