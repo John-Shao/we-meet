@@ -1,0 +1,9 @@
+{
+  "picker": {
+    "title": "选择联系人",
+    "searchPlaceholder": "搜索姓名或邮箱…",
+    "empty": "未找到联系人",
+    "loading": "正在加载…",
+    "cancel": "取消"
+  }
+}

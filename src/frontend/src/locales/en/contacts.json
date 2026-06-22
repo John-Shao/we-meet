@@ -1,0 +1,9 @@
+{
+  "picker": {
+    "title": "Pick a contact",
+    "searchPlaceholder": "Search by name or email…",
+    "empty": "No contacts found",
+    "loading": "Loading…",
+    "cancel": "Cancel"
+  }
+}

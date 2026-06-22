@@ -1,0 +1,9 @@
+{
+  "picker": {
+    "title": "Kies een contact",
+    "searchPlaceholder": "Zoeken op naam of e-mail…",
+    "empty": "Geen contacten gevonden",
+    "loading": "Laden…",
+    "cancel": "Annuleren"
+  }
+}

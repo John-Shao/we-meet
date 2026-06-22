@@ -17,3 +17,16 @@ export const createDirectConversation = (
     method: 'POST',
     body: JSON.stringify({ peer_uid: peerUid }),
   })
+
+/**
+ * Contact-picker variant: pass a we-meet user id and let the backend resolve the
+ * peer's IM uid server-side (org-scoped). Preferred over {@link createDirectConversation}
+ * for UI flows — the client never has to know the raw IM uid.
+ */
+export const createDirectConversationByUserId = (
+  peerUserId: string,
+): Promise<ImDirectConversationResponse> =>
+  fetchApi<ImDirectConversationResponse>('/im/conversations/direct/', {
+    method: 'POST',
+    body: JSON.stringify({ peer_user_id: peerUserId }),
+  })

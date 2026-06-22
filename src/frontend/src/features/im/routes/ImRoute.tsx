@@ -5,7 +5,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 
-import { createDirectConversation } from '../api/createDirectConversation'
+import { ContactPicker } from '@/features/contacts'
+import type { DirectoryMember } from '@/features/contacts'
+
+import { createDirectConversationByUserId } from '../api/createDirectConversation'
 import { fetchImToken } from '../api/fetchImToken'
 import { ChatPane } from './ChatPane'
 import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
@@ -47,26 +50,18 @@ const ImAuthenticated = () => {
     staleTime: 60_000,
   })
   const [selectedCID, setSelectedCID] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const qc = useQueryClient()
 
   const currentUserUID = tokenData?.uid ?? ''
   const sendDisabled = state !== 'connected'
 
-  // MVP 联调入口: prompt 输对方 IM uid -> backend 走 jusi admin create-or-get direct.
-  // 升级方向: 替换成内嵌的 user picker (按 phone / name 反查 uid), 见 todo (S4+).
-  const handleNewDirect = async () => {
-    if (!currentUserUID) {
-      window.alert(t('list.newDirect.notReady'))
-      return
-    }
-    const peerUid = window.prompt(
-      t('list.newDirect.prompt', { selfUid: currentUserUID }),
-    )
-    if (peerUid === null) return
-    const trimmed = peerUid.trim()
-    if (!trimmed) return
+  // 通讯录选人 -> backend 用 peer_user_id 服务端解析对方 IM uid -> jusi admin
+  // create-or-get direct。客户端不再需要手输/知道原始 IM uid。
+  const handleSelectMember = async (member: DirectoryMember) => {
+    setPickerOpen(false)
     try {
-      const result = await createDirectConversation(trimmed)
+      const result = await createDirectConversationByUserId(member.id)
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
       setSelectedCID(result.cid)
     } catch (e) {
@@ -124,7 +119,7 @@ const ImAuthenticated = () => {
             </h2>
             <button
               type="button"
-              onClick={handleNewDirect}
+              onClick={() => setPickerOpen(true)}
               title={t('list.newDirect.button')}
               aria-label={t('list.newDirect.button')}
               data-testid="im-new-direct"
@@ -183,6 +178,12 @@ const ImAuthenticated = () => {
           )}
         </main>
       </div>
+      {pickerOpen && (
+        <ContactPicker
+          onSelect={handleSelectMember}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
   )
 }
