@@ -132,11 +132,10 @@ build_one() {
   local img="${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${short}:${IMAGE_TAG}"
   local img_latest="${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${short}:latest"
 
-  # ---- frontend special-case: inject jusi-light-im SDK as a named context ----
-  # src/frontend/package-lock.json has a `file:../../../../jusi-light-im/sdk/web`
-  # link, which lives OUTSIDE the we-meet repo. Docker build context is scoped
-  # to a single root, so we use BuildKit `--build-context` to expose the
-  # sibling jusi-light-im repo's sdk/web tree as `jusi-sdk`.
+  # ---- frontend special-case: pass VITE_JUSI_IM_BASE_URL build-arg ----
+  # jusi-light-im SDK 现在从 npm registry 装 (@jusi/light-im-sdk@0.1.0-alpha.x),
+  # 不再需要 BuildKit --build-context 暴露 sibling repo. 这里只注入 vite 的
+  # build-time env (见下方 frontend 分支).
   local extra=()
 
   # ---- agents special-case: swap debian apt mirror for CN builds ----
