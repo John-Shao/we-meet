@@ -36,6 +36,11 @@ WORKDIR /home/frontend
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
+# jusi-light-im SDK 基址 — vite 把这个 env 内联到 bundle 里 (build-time, 不是
+# runtime). 不传 → src/features/im/sdk/singleton.ts 抛 "integration disabled".
+ARG VITE_JUSI_IM_BASE_URL
+ENV VITE_JUSI_IM_BASE_URL=${VITE_JUSI_IM_BASE_URL}
+
 RUN npm run build
 
 # ---- Front-end image ----

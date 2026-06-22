@@ -148,24 +148,9 @@ build_one() {
   fi
 
   if [[ "$short" == "frontend" ]]; then
-    local jusi_root="${JUSI_LIGHT_IM_PATH:-}"
-    if [[ -z "$jusi_root" ]]; then
-      # Try common layouts: sibling of we-meet/we-meet, or sibling of we-meet.
-      for cand in "$REPO_ROOT/../jusi-light-im" "$REPO_ROOT/../../jusi-light-im"; do
-        if [[ -d "$cand/sdk/web" ]]; then jusi_root="$(cd "$cand" && pwd)"; break; fi
-      done
-    fi
-    [[ -d "${jusi_root}/sdk/web" ]] \
-      || die "找不到 jusi-light-im 仓 (用于 file:@jusi/light-im-sdk link). 期望 sdk/web/ 子目录. 设 JUSI_LIGHT_IM_PATH=/path/to/jusi-light-im."
-    # Scope the context to sdk/web/, not the jusi-light-im repo root: that repo's
-    # own .dockerignore excludes `sdk/` (for its Go binary builds) and would
-    # filter out our SDK files if used as context root.
-    extra=(--build-context "jusi-sdk=${jusi_root}/sdk/web")
-    echo "  using --build-context jusi-sdk=${jusi_root}/sdk/web"
-
     # vite 把 VITE_* env 在 build 时内联进 bundle (不是 K8s 运行时 env).
     # 默认指向 aliyun-prod 的 IM ECS; 自定义部署 export VITE_JUSI_IM_BASE_URL=...
-    extra+=(--build-arg "VITE_JUSI_IM_BASE_URL=${VITE_JUSI_IM_BASE_URL:-https://im.we-meet.online}")
+    extra=(--build-arg "VITE_JUSI_IM_BASE_URL=${VITE_JUSI_IM_BASE_URL:-https://im.we-meet.online}")
     echo "  using --build-arg VITE_JUSI_IM_BASE_URL=${VITE_JUSI_IM_BASE_URL:-https://im.we-meet.online}"
   fi
 
