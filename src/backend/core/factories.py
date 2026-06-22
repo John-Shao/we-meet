@@ -31,6 +31,43 @@ class UserFactory(factory.django.DjangoModelFactory):
     password = make_password("password")
 
 
+class OrganizationFactory(factory.django.DjangoModelFactory):
+    """Create fake organizations for testing."""
+
+    class Meta:
+        model = models.Organization
+
+    name = factory.Faker("company")
+    slug = factory.Sequence(lambda n: f"org-{n!s}")
+
+
+class DepartmentFactory(factory.django.DjangoModelFactory):
+    """Create fake departments for testing."""
+
+    class Meta:
+        model = models.Department
+
+    organization = factory.SubFactory(OrganizationFactory)
+    name = factory.Sequence(lambda n: f"Department {n!s}")
+
+
+class MembershipFactory(factory.django.DjangoModelFactory):
+    """Create fake memberships for testing.
+
+    ``department`` shares the membership's organization so the row is always
+    internally consistent.
+    """
+
+    class Meta:
+        model = models.Membership
+
+    organization = factory.SubFactory(OrganizationFactory)
+    user = factory.SubFactory(UserFactory)
+    department = factory.SubFactory(
+        DepartmentFactory, organization=factory.SelfAttribute("..organization")
+    )
+
+
 class ResourceFactory(factory.django.DjangoModelFactory):
     """Create fake resources for testing."""
 

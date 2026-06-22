@@ -9,6 +9,7 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
 from core.api.agent_internal import IngestTranscriptView
+from core.api.directory import DepartmentViewSet, DirectoryMemberViewSet
 from core.api.im import ImViewSet
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.qr_login import (
@@ -35,6 +36,12 @@ router.register(
     basename="addons_sessions",
 )
 router.register("im", ImViewSet, basename="im")
+router.register(
+    "directory/departments", DepartmentViewSet, basename="directory_departments"
+)
+router.register(
+    "directory/members", DirectoryMemberViewSet, basename="directory_members"
+)
 
 # - External API
 external_router = SimpleRouter()

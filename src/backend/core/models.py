@@ -246,11 +246,29 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         mail.send_mail(subject, message, from_email, [self.email], **kwargs)
 
     def get_teams(self):
+        """Team keys granting this user team-based resource access.
+
+        Returns the ``team_key`` of each *direct*, active department membership.
+        Subtree expansion is intentionally NOT applied (a manager of a parent
+        department does not implicitly gain access to child-department
+        resources) — that stays an explicit, opt-in grant per roadmap P1.
+
+        Memoized on the instance: ``BaseAccessManager.filter_user`` and the
+        viewset querysets call this once per request on ``request.user``, so the
+        cache turns N access-row checks into a single query without needing a
+        cross-request cache.
         """
-        Get list of teams in which the user is, as a list of strings.
-        Must be cached if retrieved remotely.
-        """
-        return []
+        if not hasattr(self, "_teams_cache"):
+            self._teams_cache = list(
+                Membership.objects.filter(
+                    user=self,
+                    status=MembershipStatusChoices.ACTIVE,
+                    department__isnull=False,
+                    department__is_active=True,
+                    department__deleted_at__isnull=True,
+                ).values_list("department__team_key", flat=True)
+            )
+        return self._teams_cache
 
 
 def get_resource_roles(resource: models.Model, user: User) -> List[str]:
@@ -1852,6 +1870,12 @@ class Department(BaseModel):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        # _refresh_tree_fields() must run BEFORE super().save(): BaseModel.save()
+        # calls full_clean(), and team_key is required (non-blank).
+        self._refresh_tree_fields()
+        super().save(*args, **kwargs)
+
     def _refresh_tree_fields(self):
         """Derive team_key / path / depth from this row's id and its parent.
 
@@ -1866,12 +1890,6 @@ class Department(BaseModel):
         else:
             self.path = f"{self.id.hex}/"
             self.depth = 0
-
-    def save(self, *args, **kwargs):
-        # Must run BEFORE super().save(): BaseModel.save() calls full_clean(),
-        # and team_key is required (non-blank).
-        self._refresh_tree_fields()
-        super().save(*args, **kwargs)
 
 
 class Membership(BaseModel):

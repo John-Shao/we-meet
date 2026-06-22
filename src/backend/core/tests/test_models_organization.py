@@ -119,3 +119,89 @@ def test_models_membership_non_primary_in_multiple_departments_allowed():
         organization=org, user=user, department=d2, is_primary=False
     )
     assert second.pk is not None
+
+
+# ---- User.get_teams() (wired to memberships in P1-c) ----
+
+
+def test_models_user_get_teams_empty_for_org_level_membership():
+    """An organization-level membership (no department) grants no team keys."""
+    org = models.Organization.objects.create(name="Acme", slug="acme")
+    user = factories.UserFactory()
+    models.Membership.objects.create(
+        organization=org, user=user, department=None, is_primary=True
+    )
+    assert user.get_teams() == []
+
+
+def test_models_user_get_teams_returns_direct_department_keys():
+    """get_teams returns the team_key of the user's direct department membership."""
+    org = models.Organization.objects.create(name="Acme", slug="acme")
+    eng = models.Department.objects.create(organization=org, name="Engineering")
+    user = factories.UserFactory()
+    models.Membership.objects.create(organization=org, user=user, department=eng)
+
+    user = models.User.objects.get(pk=user.pk)  # fresh — avoid stale memoization
+    assert user.get_teams() == [eng.team_key]
+
+
+def test_models_user_get_teams_excludes_inactive_membership_and_department():
+    """Suspended memberships and inactive/deleted departments contribute no keys."""
+    org = models.Organization.objects.create(name="Acme", slug="acme")
+    active = models.Department.objects.create(organization=org, name="Engineering")
+    inactive = models.Department.objects.create(
+        organization=org, name="Legacy", is_active=False
+    )
+    suspended = models.Department.objects.create(organization=org, name="Sales")
+    user = factories.UserFactory()
+    models.Membership.objects.create(organization=org, user=user, department=active)
+    models.Membership.objects.create(organization=org, user=user, department=inactive)
+    models.Membership.objects.create(
+        organization=org,
+        user=user,
+        department=suspended,
+        status=models.MembershipStatusChoices.SUSPENDED,
+    )
+
+    user = models.User.objects.get(pk=user.pk)
+    assert user.get_teams() == [active.team_key]
+
+
+def test_models_user_get_teams_memoized(django_assert_num_queries):
+    """get_teams hits the DB once per instance, then serves from the cache."""
+    org = models.Organization.objects.create(name="Acme", slug="acme")
+    dept = models.Department.objects.create(organization=org, name="Engineering")
+    user = factories.UserFactory()
+    models.Membership.objects.create(organization=org, user=user, department=dept)
+
+    user = models.User.objects.get(pk=user.pk)
+    with django_assert_num_queries(1):
+        assert user.get_teams() == [dept.team_key]
+        assert user.get_teams() == [dept.team_key]
+
+
+def test_models_department_team_access_makes_recording_visible():
+    """The payoff: a recording shared with a department's team_key is visible to
+    its members via BaseAccessManager.filter_user — with zero viewset changes."""
+    org = models.Organization.objects.create(name="Acme", slug="acme")
+    eng = models.Department.objects.create(organization=org, name="Engineering")
+    member = factories.UserFactory()
+    outsider = factories.UserFactory()
+    models.Membership.objects.create(organization=org, user=member, department=eng)
+    models.Membership.objects.create(organization=org, user=outsider, department=None)
+
+    recording = factories.RecordingFactory()
+    factories.TeamRecordingAccessFactory(
+        recording=recording, team=eng.team_key, role=models.RoleChoices.MEMBER
+    )
+
+    member = models.User.objects.get(pk=member.pk)
+    outsider = models.User.objects.get(pk=outsider.pk)
+    visible_to_member = {
+        a.recording_id for a in models.RecordingAccess.objects.filter_user(member)
+    }
+    visible_to_outsider = {
+        a.recording_id for a in models.RecordingAccess.objects.filter_user(outsider)
+    }
+    assert recording.id in visible_to_member
+    assert recording.id not in visible_to_outsider
