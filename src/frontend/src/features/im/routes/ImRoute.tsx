@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -51,20 +51,6 @@ const ImAuthenticated = () => {
 
   const currentUserUID = tokenData?.uid ?? ''
   const sendDisabled = state !== 'connected'
-
-  // 已观察到 useConversations 的 useQuery 在某些 mount 时序下 queryFn 没 fire
-  // (Network 看不到 GET /v1/conversations). 兜底: WS 连接 connected 后强制
-  // 主动跑一次 fetchQuery, 触发首次拉取 (React Query 自带 dedupe, 重复无副作用).
-  useEffect(() => {
-    if (state === 'connected') {
-      qc.fetchQuery({
-        queryKey: ['im', 'conversations'],
-        queryFn: () => client.listConversations(),
-      }).catch((e) => {
-        console.error('[ImAuthenticated] fallback fetchQuery failed:', e)
-      })
-    }
-  }, [state, client, qc])
 
   // MVP 联调入口: prompt 输对方 IM uid -> backend 走 jusi admin create-or-get direct.
   // 升级方向: 替换成内嵌的 user picker (按 phone / name 反查 uid), 见 todo (S4+).
