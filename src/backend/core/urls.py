@@ -8,6 +8,7 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
+from core.api.admin_org import DepartmentAdminViewSet, MembershipAdminViewSet
 from core.api.agent_internal import IngestTranscriptView
 from core.api.directory import DepartmentViewSet, DirectoryMemberViewSet
 from core.api.im import ImViewSet
@@ -41,6 +42,12 @@ router.register(
 )
 router.register(
     "directory/members", DirectoryMemberViewSet, basename="directory_members"
+)
+router.register(
+    "admin/departments", DepartmentAdminViewSet, basename="admin_departments"
+)
+router.register(
+    "admin/memberships", MembershipAdminViewSet, basename="admin_memberships"
 )
 
 # - External API
