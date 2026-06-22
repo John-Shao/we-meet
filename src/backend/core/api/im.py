@@ -23,6 +23,8 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.response import Response
 
+from core import models
+from core.api.directory import get_caller_organization
 from core.services.jusi_im import (
     JusiImAdminClient,
     JusiImBadResponseError,
@@ -103,19 +105,24 @@ class ImViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=["post"], url_path="conversations/direct")
     def conversations_direct(self, request):
-        """Create-or-get a 1-on-1 conversation with `peer_uid`.
+        """Create-or-get a 1-on-1 conversation with a peer.
 
-        Body: `{"peer_uid": "<jusi-light-im uid (uuid)>"}`. The caller's own uid is
-        derived from the OIDC subject via a same-process resolve (jusi-light-im
-        lazily registers the user on first touch).
+        Body accepts EITHER:
+          - `{"peer_user_id": "<we-meet user uuid>"}` — the contact-picker path:
+            the peer's IM uid is resolved server-side (org-scoped), so the client
+            never handles raw IM uids; or
+          - `{"peer_uid": "<jusi-light-im uid (uuid)>"}` — the raw path (kept for
+            backward compatibility / debugging).
+
+        The caller's own uid is derived from the OIDC subject via a same-process
+        resolve (jusi-light-im lazily registers the user on first touch).
 
         cid is computed as `uuid5(NAMESPACE_OID, "direct:<lo>:<hi>")` over the
         sorted (self_uid, peer_uid) pair so A→B and B→A converge on the same row.
         """
-        peer_uid = (request.data or {}).get("peer_uid")
-        if not isinstance(peer_uid, str) or not peer_uid.strip():
-            raise ValidationError({"peer_uid": "required (jusi-light-im uid string)"})
-        peer_uid = peer_uid.strip()
+        data = request.data or {}
+        peer_uid = data.get("peer_uid")
+        peer_user_id = data.get("peer_user_id")
 
         cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
         if not cfg:
@@ -127,6 +134,17 @@ class ImViewSet(viewsets.ViewSet):
             admin_hmac_secret=str(cfg["admin_hmac_secret"]),
             timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
         )
+
+        # Resolve the peer's IM uid. Contact-picker path resolves it from a
+        # we-meet user id; raw path takes the uid verbatim.
+        if peer_user_id:
+            peer_uid = self._resolve_peer_uid(request.user, peer_user_id, client)
+        elif isinstance(peer_uid, str) and peer_uid.strip():
+            peer_uid = peer_uid.strip()
+        else:
+            raise ValidationError(
+                {"peer_user_id": "peer_user_id or peer_uid is required"}
+            )
 
         # Resolve self_uid via issue_token (lazy-registers on first touch; the
         # short-lived token we get back is discarded — we only need uid).
@@ -161,6 +179,49 @@ class ImViewSet(viewsets.ViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @staticmethod
+    def _resolve_peer_uid(caller, peer_user_id, client) -> str:
+        """Resolve a we-meet user id (from the directory/picker) to their IM uid.
+
+        Restricted to users sharing the caller's organization so a direct
+        conversation can't be forced with an arbitrary cross-org user. Resolving
+        lazily registers the peer in jusi-light-im — acceptable here since the
+        caller explicitly chose to message them.
+        """
+        try:
+            uuid.UUID(str(peer_user_id))
+        except (ValueError, AttributeError, TypeError) as exc:
+            raise ValidationError({"peer_user_id": "invalid id"}) from exc
+
+        organization = get_caller_organization(caller)
+        if organization is None:
+            raise ValidationError({"peer_user_id": "caller has no organization"})
+
+        peer = (
+            models.User.objects.filter(
+                id=peer_user_id,
+                is_device=False,
+                memberships__organization=organization,
+                memberships__status=models.MembershipStatusChoices.ACTIVE,
+            )
+            .distinct()
+            .first()
+        )
+        if peer is None:
+            raise ValidationError(
+                {"peer_user_id": "not found in your organization"}
+            )
+
+        try:
+            resolved = client.issue_token(
+                external_id=ImViewSet._external_id(peer), ttl_seconds=60
+            )
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+        return resolved.uid
 
     @staticmethod
     def _external_id(user) -> str:
