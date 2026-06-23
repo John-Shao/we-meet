@@ -98,17 +98,20 @@ def test_admin_departments_update_name():
     assert dept.team_key == original_key
 
 
-def test_admin_departments_soft_delete_blocks_members_without_reassign():
-    """Deleting a department with members requires ?reassign."""
+def test_admin_departments_soft_delete_drops_members_to_no_department():
+    """Deleting a department drops its members to organization-level (no dept)."""
     org = factories.OrganizationFactory()
     dept = models.Department.objects.create(organization=org, name="Eng")
-    _member(org, factories.UserFactory(), department=dept)
+    membership = _member(org, factories.UserFactory(), department=dept)
     client, _ = _admin_client(org)
 
-    blocked = client.delete(f"/api/v1.0/admin/departments/{dept.id}/")
-    assert blocked.status_code == 400
+    response = client.delete(f"/api/v1.0/admin/departments/{dept.id}/")
+    assert response.status_code == 204, response.content
     dept.refresh_from_db()
-    assert dept.deleted_at is None
+    membership.refresh_from_db()
+    assert dept.deleted_at is not None
+    assert dept.is_active is False
+    assert membership.department_id is None  # fell back to "no department"
 
 
 def test_admin_departments_soft_delete_with_reassign_moves_members():

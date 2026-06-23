@@ -25,6 +25,9 @@
     "assignDept": "Abteilung ändern",
     "noDept": "(keine Abteilung)",
     "assignError": "Abteilung konnte nicht geändert werden: {{message}}",
+    "deleteDept": "Abteilung löschen",
+    "deleteDeptConfirm": "Abteilung „{{name}}“ löschen? Ihre Mitglieder werden „keine Abteilung“.",
+    "deleteDeptError": "Abteilung konnte nicht gelöscht werden: {{message}}",
     "selfTag": "(Sie)"
   }
 }

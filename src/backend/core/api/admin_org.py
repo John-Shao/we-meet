@@ -158,30 +158,33 @@ class DepartmentAdminViewSet(
         )
 
     def perform_destroy(self, instance):
-        """Soft-delete. Refuse if the department still has children or members
-        unless ``?reassign=<dept_id>`` moves its members to another department."""
+        """Soft-delete a department.
+
+        Its members fall back to organization-level (``department=None`` →
+        "no department") by default; pass ``?reassign=<dept_id>`` to move them to
+        another department instead. Refuse if the department still has
+        sub-departments (delete or move those first).
+        """
         if instance.children.filter(deleted_at__isnull=True).exists():
             raise serializers.ValidationError(
                 {"detail": "department has sub-departments; delete or move them first"}
             )
         members = models.Membership.objects.filter(department=instance)
         reassign_id = self.request.query_params.get("reassign")
+        target = None
+        if reassign_id:
+            target = models.Department.objects.filter(
+                id=reassign_id,
+                organization=instance.organization,
+                deleted_at__isnull=True,
+            ).first()
+            if target is None or target.id == instance.id:
+                raise serializers.ValidationError(
+                    {"reassign": "invalid target department"}
+                )
         with transaction.atomic():
-            if members.exists():
-                if not reassign_id:
-                    raise serializers.ValidationError(
-                        {"detail": "department has members; pass ?reassign=<dept_id>"}
-                    )
-                target = models.Department.objects.filter(
-                    id=reassign_id,
-                    organization=instance.organization,
-                    deleted_at__isnull=True,
-                ).first()
-                if target is None or target.id == instance.id:
-                    raise serializers.ValidationError(
-                        {"reassign": "invalid target department"}
-                    )
-                members.update(department=target)
+            # target is None → members drop to organization-level (no department).
+            members.update(department=target)
             instance.is_active = False
             instance.deleted_at = timezone.now()
             instance.save()

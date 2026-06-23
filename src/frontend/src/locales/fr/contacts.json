@@ -25,6 +25,9 @@
     "assignDept": "Changer de service",
     "noDept": "(aucun service)",
     "assignError": "Échec du changement de service : {{message}}",
+    "deleteDept": "Supprimer le service",
+    "deleteDeptConfirm": "Supprimer le service « {{name}} » ? Ses membres passeront en « aucun service ».",
+    "deleteDeptError": "Échec de la suppression du service : {{message}}",
     "selfTag": "(vous)"
   }
 }

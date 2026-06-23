@@ -25,6 +25,9 @@
     "assignDept": "Change department",
     "noDept": "(no department)",
     "assignError": "Failed to change department: {{message}}",
+    "deleteDept": "Delete department",
+    "deleteDeptConfirm": "Delete department '{{name}}'? Its members will become 'no department'.",
+    "deleteDeptError": "Failed to delete department: {{message}}",
     "selfTag": "(you)"
   }
 }

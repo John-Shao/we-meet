@@ -25,6 +25,9 @@
     "assignDept": "Afdeling wijzigen",
     "noDept": "(geen afdeling)",
     "assignError": "Afdeling wijzigen mislukt: {{message}}",
+    "deleteDept": "Afdeling verwijderen",
+    "deleteDeptConfirm": "Afdeling '{{name}}' verwijderen? De leden worden 'geen afdeling'.",
+    "deleteDeptError": "Verwijderen van afdeling mislukt: {{message}}",
     "selfTag": "(jij)"
   }
 }

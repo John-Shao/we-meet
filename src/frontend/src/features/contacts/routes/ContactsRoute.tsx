@@ -7,11 +7,15 @@ import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
 
-import { createDepartment, updateMembershipDepartment } from '../api/adminOrg'
+import {
+  createDepartment,
+  deleteDepartment,
+  updateMembershipDepartment,
+} from '../api/adminOrg'
 import { fetchDepartmentMembers } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
 import { fetchDirectoryMembers } from '../api/fetchDirectoryMembers'
-import type { DirectoryMember } from '../api/ApiDirectory'
+import type { DirectoryDepartment, DirectoryMember } from '../api/ApiDirectory'
 
 /**
  * `/contacts` — org directory: browse the department tree (left) and the members
@@ -108,6 +112,21 @@ const ContactsAuthenticated = () => {
     }
   }
 
+  const handleDeleteDept = async (dept: DirectoryDepartment) => {
+    if (!window.confirm(t('page.deleteDeptConfirm', { name: dept.name }))) return
+    try {
+      await deleteDepartment(dept.id)
+      if (selectedDeptId === dept.id) setSelectedDeptId(null)
+      await qc.invalidateQueries({ queryKey: ['directory'] })
+    } catch (e) {
+      window.alert(
+        t('page.deleteDeptError', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      )
+    }
+  }
+
   return (
     <div
       className={css({
@@ -167,7 +186,7 @@ const ContactsAuthenticated = () => {
           )}
         </div>
         <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
-          <li>
+          <li className={css({ display: 'flex' })}>
             <button
               type="button"
               onClick={() => setSelectedDeptId(null)}
@@ -177,7 +196,10 @@ const ContactsAuthenticated = () => {
             </button>
           </li>
           {departments.map((dept) => (
-            <li key={dept.id}>
+            <li
+              key={dept.id}
+              className={css({ display: 'flex', alignItems: 'stretch' })}
+            >
               <button
                 type="button"
                 onClick={() => setSelectedDeptId(dept.id)}
@@ -187,6 +209,29 @@ const ContactsAuthenticated = () => {
               >
                 {dept.name}
               </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteDept(dept)}
+                  title={t('page.deleteDept')}
+                  aria-label={t('page.deleteDept')}
+                  data-testid={`contacts-del-dept-${dept.id}`}
+                  className={css({
+                    flexShrink: 0,
+                    border: 'none',
+                    borderBottom: '1px solid token(colors.greyscale.100)',
+                    backgroundColor: 'transparent',
+                    paddingX: '0.625rem',
+                    fontSize: '1rem',
+                    lineHeight: 1,
+                    cursor: 'pointer',
+                    color: 'greyscale.400',
+                    _hover: { color: '#dc2626', backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -347,7 +392,8 @@ const ContactsAuthenticated = () => {
 const deptButton = (active: boolean) =>
   css({
     display: 'block',
-    width: '100%',
+    flex: 1,
+    minWidth: 0,
     paddingX: '0.75rem',
     paddingY: '0.5rem',
     border: 'none',
@@ -357,5 +403,8 @@ const deptButton = (active: boolean) =>
     cursor: 'pointer',
     color: 'greyscale.800',
     backgroundColor: active ? 'primary.100' : 'transparent',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
     _hover: { backgroundColor: 'greyscale.100' },
   })

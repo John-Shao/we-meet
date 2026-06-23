@@ -35,3 +35,11 @@ export const updateMembershipDepartment = (
     method: 'PATCH',
     body: JSON.stringify({ department: departmentId }),
   })
+
+/**
+ * Soft-delete a department. Its members fall back to organization-level
+ * ("no department"). DELETE /admin/departments/{id}/ — org admins only.
+ * Fails (400) if the department still has sub-departments.
+ */
+export const deleteDepartment = (departmentId: string): Promise<unknown> =>
+  fetchApi(`/admin/departments/${departmentId}/`, { method: 'DELETE' })
