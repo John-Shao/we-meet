@@ -177,3 +177,23 @@ def test_api_directory_empty_for_user_without_membership():
 
     assert response.status_code == 200
     assert response.json()["results"] == []
+
+
+def test_api_directory_excludes_oidc_less_accounts():
+    """Django-admin accounts (no OIDC sub) must not pollute the people directory."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(full_name="Caller Self", email="caller@acme.com")
+    _membership(org, me)
+    # createsuperuser-style account: admin_email only, no OIDC sub / name / email.
+    admin_only = factories.UserFactory(
+        sub=None, full_name=None, short_name=None, email=None, is_staff=True
+    )
+    _membership(org, admin_only)
+
+    client = APIClient()
+    client.force_login(me)
+    response = client.get("/api/v1.0/directory/members/")
+
+    ids = {m["id"] for m in response.json()["results"]}
+    assert str(me.id) in ids
+    assert str(admin_only.id) not in ids

@@ -129,7 +129,9 @@ class DepartmentViewSet(
             models.Membership.objects.filter(
                 status=models.MembershipStatusChoices.ACTIVE,
                 user__is_device=False,
+                user__sub__isnull=False,  # skip OIDC-less Django-admin accounts
             )
+            .exclude(user__sub="")
             .select_related("user", "department")
             .order_by("user__full_name")
         )
@@ -174,7 +176,9 @@ class DirectoryMemberViewSet(
                 status=models.MembershipStatusChoices.ACTIVE,
                 is_primary=True,
                 user__is_device=False,
+                user__sub__isnull=False,  # skip OIDC-less Django-admin accounts
             )
+            .exclude(user__sub="")
             .select_related("user", "department")
             .order_by("user__full_name")
         )
