@@ -22,6 +22,9 @@
     "empty": "Aucun membre",
     "message": "Message",
     "messageError": "Échec du démarrage de la conversation : {{message}}",
+    "assignDept": "Changer de service",
+    "noDept": "(aucun service)",
+    "assignError": "Échec du changement de service : {{message}}",
     "selfTag": "(vous)"
   }
 }

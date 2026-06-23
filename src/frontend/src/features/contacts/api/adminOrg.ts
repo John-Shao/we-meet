@@ -22,3 +22,16 @@ export const createDepartment = (
     method: 'POST',
     body: JSON.stringify(payload),
   })
+
+/**
+ * Move a member between departments (null = organization-level, no department).
+ * PATCH /admin/memberships/{id}/ — org admins only (backend enforces).
+ */
+export const updateMembershipDepartment = (
+  membershipId: string,
+  departmentId: string | null,
+): Promise<unknown> =>
+  fetchApi(`/admin/memberships/${membershipId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify({ department: departmentId }),
+  })

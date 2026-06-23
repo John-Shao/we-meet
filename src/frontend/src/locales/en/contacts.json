@@ -22,6 +22,9 @@
     "empty": "No members",
     "message": "Message",
     "messageError": "Failed to start conversation: {{message}}",
+    "assignDept": "Change department",
+    "noDept": "(no department)",
+    "assignError": "Failed to change department: {{message}}",
     "selfTag": "(you)"
   }
 }

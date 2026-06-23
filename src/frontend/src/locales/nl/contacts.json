@@ -22,6 +22,9 @@
     "empty": "Geen leden",
     "message": "Bericht",
     "messageError": "Gesprek starten mislukt: {{message}}",
+    "assignDept": "Afdeling wijzigen",
+    "noDept": "(geen afdeling)",
+    "assignError": "Afdeling wijzigen mislukt: {{message}}",
     "selfTag": "(jij)"
   }
 }

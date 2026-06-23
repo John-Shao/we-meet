@@ -22,6 +22,9 @@
     "empty": "Keine Mitglieder",
     "message": "Nachricht",
     "messageError": "Unterhaltung konnte nicht gestartet werden: {{message}}",
+    "assignDept": "Abteilung ändern",
+    "noDept": "(keine Abteilung)",
+    "assignError": "Abteilung konnte nicht geändert werden: {{message}}",
     "selfTag": "(Sie)"
   }
 }

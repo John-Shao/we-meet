@@ -175,3 +175,30 @@ def test_admin_memberships_rejects_foreign_department():
         format="json",
     )
     assert response.status_code == 400
+
+
+def test_admin_memberships_change_department():
+    """The '调部门' flow: PATCH a membership's department (and back to org-level)."""
+    org = factories.OrganizationFactory()
+    d1 = models.Department.objects.create(organization=org, name="Engineering")
+    d2 = models.Department.objects.create(organization=org, name="Sales")
+    membership = _member(org, factories.UserFactory(), department=d1)
+    client, _ = _admin_client(org)
+
+    moved = client.patch(
+        f"/api/v1.0/admin/memberships/{membership.id}/",
+        {"department": str(d2.id)},
+        format="json",
+    )
+    assert moved.status_code == 200, moved.content
+    membership.refresh_from_db()
+    assert membership.department_id == d2.id
+
+    to_org_level = client.patch(
+        f"/api/v1.0/admin/memberships/{membership.id}/",
+        {"department": None},
+        format="json",
+    )
+    assert to_org_level.status_code == 200, to_org_level.content
+    membership.refresh_from_db()
+    assert membership.department_id is None

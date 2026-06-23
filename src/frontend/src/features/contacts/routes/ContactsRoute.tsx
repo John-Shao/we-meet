@@ -7,7 +7,7 @@ import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
 
-import { createDepartment } from '../api/adminOrg'
+import { createDepartment, updateMembershipDepartment } from '../api/adminOrg'
 import { fetchDepartmentMembers } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
 import { fetchDirectoryMembers } from '../api/fetchDirectoryMembers'
@@ -86,6 +86,22 @@ const ContactsAuthenticated = () => {
     } catch (e) {
       window.alert(
         t('page.newDeptError', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      )
+    }
+  }
+
+  const handleAssignDept = async (
+    member: DirectoryMember,
+    departmentId: string | null,
+  ) => {
+    try {
+      await updateMembershipDepartment(member.membership_id, departmentId)
+      await qc.invalidateQueries({ queryKey: ['directory'] })
+    } catch (e) {
+      window.alert(
+        t('page.assignError', {
           message: e instanceof Error ? e.message : String(e),
         }),
       )
@@ -261,26 +277,63 @@ const ContactsAuthenticated = () => {
                         .join(' · ')}
                     </span>
                   </span>
-                  {!member.is_self && (
-                    <button
-                      type="button"
-                      onClick={() => handleMessage(member)}
-                      data-testid={`contacts-message-${member.id}`}
-                      className={css({
-                        border: '1px solid token(colors.primary.300)',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'white',
-                        paddingX: '0.75rem',
-                        paddingY: '0.375rem',
-                        fontSize: '0.8125rem',
-                        cursor: 'pointer',
-                        color: 'primary.600',
-                        _hover: { backgroundColor: 'primary.50' },
-                      })}
-                    >
-                      {t('page.message')}
-                    </button>
-                  )}
+                  <span
+                    className={css({
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      flexShrink: 0,
+                    })}
+                  >
+                    {isAdmin && (
+                      <select
+                        value={member.department?.id ?? ''}
+                        onChange={(e) =>
+                          handleAssignDept(member, e.target.value || null)
+                        }
+                        aria-label={t('page.assignDept')}
+                        title={t('page.assignDept')}
+                        data-testid={`contacts-assign-${member.id}`}
+                        className={css({
+                          border: '1px solid token(colors.greyscale.300)',
+                          borderRadius: '0.5rem',
+                          paddingX: '0.5rem',
+                          paddingY: '0.375rem',
+                          fontSize: '0.8125rem',
+                          backgroundColor: 'white',
+                          cursor: 'pointer',
+                          maxWidth: '160px',
+                        })}
+                      >
+                        <option value="">{t('page.noDept')}</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {!member.is_self && (
+                      <button
+                        type="button"
+                        onClick={() => handleMessage(member)}
+                        data-testid={`contacts-message-${member.id}`}
+                        className={css({
+                          border: '1px solid token(colors.primary.300)',
+                          borderRadius: '0.5rem',
+                          backgroundColor: 'white',
+                          paddingX: '0.75rem',
+                          paddingY: '0.375rem',
+                          fontSize: '0.8125rem',
+                          cursor: 'pointer',
+                          color: 'primary.600',
+                          _hover: { backgroundColor: 'primary.50' },
+                        })}
+                      >
+                        {t('page.message')}
+                      </button>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>

@@ -68,6 +68,9 @@ class DirectoryMemberSerializer(serializers.Serializer):
     """
 
     id = serializers.UUIDField(source="user.id", read_only=True)
+    # The membership row id — admins PATCH /admin/memberships/{membership_id}/ to
+    # move this person between departments.
+    membership_id = serializers.UUIDField(source="id", read_only=True)
     sub = serializers.CharField(source="user.sub", read_only=True)
     full_name = serializers.CharField(source="user.full_name", read_only=True)
     short_name = serializers.CharField(source="user.short_name", read_only=True)

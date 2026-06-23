@@ -22,6 +22,9 @@
     "empty": "暂无成员",
     "message": "发消息",
     "messageError": "发起会话失败：{{message}}",
+    "assignDept": "调整部门",
+    "noDept": "（无部门）",
+    "assignError": "调整部门失败：{{message}}",
     "selfTag": "(我)"
   }
 }

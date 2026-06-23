@@ -15,6 +15,8 @@ export interface DirectoryDepartmentRef {
 export interface DirectoryMember {
   /** we-meet user id — pass as `peer_user_id` to start a direct IM conversation. */
   id: string
+  /** Membership row id — admins PATCH /admin/memberships/{membership_id}/ to move depts. */
+  membership_id: string
   sub: string | null
   full_name: string | null
   short_name: string | null
