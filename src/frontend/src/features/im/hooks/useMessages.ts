@@ -41,7 +41,8 @@ export const useMessages = (client: Client, cid: string | null) => {
   }, [client, cid, qc])
 
   return useQuery({
-    queryKey: cid ? keyOf(cid) : ['im', 'messages', 'none'],
+    // Inline `cid` (not keyOf) so the query plugin sees it; matches keyOf(cid).
+    queryKey: ['im', 'messages', cid ?? 'none'],
     queryFn: async () => {
       if (!cid) return [] as Message[]
       const { messages } = await client.loadHistory(cid)

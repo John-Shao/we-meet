@@ -163,7 +163,7 @@ const Transcription = ({
       .filter(Boolean) as string[]
     if (lines.length === 0) return null
     return lines.join(' ')
-  }, [speakerHistory, uiLanguage, row.segments])
+  }, [speakerHistory, uiLanguage, row.segments, forceShowTranslation])
 
   if (!displayText) return null
 
