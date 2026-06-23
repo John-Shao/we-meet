@@ -1,26 +1,22 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
 
 import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
 
-import {
-  createDepartment,
-  deleteDepartment,
-  updateMembershipDepartment,
-} from '../api/adminOrg'
 import { fetchDepartmentMembers } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
 import { fetchDirectoryMembers } from '../api/fetchDirectoryMembers'
-import type { DirectoryDepartment, DirectoryMember } from '../api/ApiDirectory'
+import type { DirectoryMember } from '../api/ApiDirectory'
 
 /**
  * `/contacts` — org directory: browse the department tree (left) and the members
  * of the selected department or a name/email search (right). "Message" starts a
- * direct IM conversation. Org admins additionally get a "+ department" action.
+ * direct IM conversation. Organization administration (creating / deleting
+ * departments, moving members) lives in the management console, not here.
  */
 export const ContactsRoute = () => {
   const { t } = useTranslation('contacts')
@@ -36,11 +32,8 @@ export const ContactsRoute = () => {
   return <ContactsAuthenticated />
 }
 
-const ADMIN_ROLES = ['administrator', 'owner']
-
 const ContactsAuthenticated = () => {
   const { t } = useTranslation('contacts')
-  const qc = useQueryClient()
   const [, navigate] = useLocation()
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -50,14 +43,6 @@ const ContactsAuthenticated = () => {
     queryFn: () => fetchDepartments(),
     staleTime: 60_000,
   })
-
-  const { data: selfMember } = useQuery({
-    queryKey: ['directory', 'self'],
-    queryFn: () =>
-      fetchDirectoryMembers().then((ms) => ms.find((m) => m.is_self) ?? null),
-    staleTime: 60_000,
-  })
-  const isAdmin = !!selfMember && ADMIN_ROLES.includes(selfMember.org_role)
 
   const { data: members = [], isFetching } = useQuery({
     queryKey: ['directory', 'members', { dept: selectedDeptId, q: search }],
@@ -81,52 +66,6 @@ const ContactsAuthenticated = () => {
     }
   }
 
-  const handleCreateDept = async () => {
-    const name = window.prompt(t('page.newDeptPrompt'))
-    if (!name?.trim()) return
-    try {
-      await createDepartment({ name: name.trim(), parent: selectedDeptId })
-      await qc.invalidateQueries({ queryKey: ['directory', 'departments'] })
-    } catch (e) {
-      window.alert(
-        t('page.newDeptError', {
-          message: e instanceof Error ? e.message : String(e),
-        }),
-      )
-    }
-  }
-
-  const handleAssignDept = async (
-    member: DirectoryMember,
-    departmentId: string | null,
-  ) => {
-    try {
-      await updateMembershipDepartment(member.membership_id, departmentId)
-      await qc.invalidateQueries({ queryKey: ['directory'] })
-    } catch (e) {
-      window.alert(
-        t('page.assignError', {
-          message: e instanceof Error ? e.message : String(e),
-        }),
-      )
-    }
-  }
-
-  const handleDeleteDept = async (dept: DirectoryDepartment) => {
-    if (!window.confirm(t('page.deleteDeptConfirm', { name: dept.name }))) return
-    try {
-      await deleteDepartment(dept.id)
-      if (selectedDeptId === dept.id) setSelectedDeptId(null)
-      await qc.invalidateQueries({ queryKey: ['directory'] })
-    } catch (e) {
-      window.alert(
-        t('page.deleteDeptError', {
-          message: e instanceof Error ? e.message : String(e),
-        }),
-      )
-    }
-  }
-
   return (
     <div
       className={css({
@@ -144,15 +83,7 @@ const ContactsAuthenticated = () => {
           backgroundColor: 'greyscale.50',
         })}
       >
-        <div
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingX: '1rem',
-            paddingY: '0.75rem',
-          })}
-        >
+        <div className={css({ paddingX: '1rem', paddingY: '0.75rem' })}>
           <h2
             className={css({
               margin: 0,
@@ -163,27 +94,6 @@ const ContactsAuthenticated = () => {
           >
             {t('page.departments')}
           </h2>
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={handleCreateDept}
-              title={t('page.newDept')}
-              aria-label={t('page.newDept')}
-              data-testid="contacts-new-dept"
-              className={css({
-                border: '1px solid token(colors.greyscale.300)',
-                borderRadius: '999px',
-                backgroundColor: 'white',
-                width: '1.75rem',
-                height: '1.75rem',
-                cursor: 'pointer',
-                color: 'greyscale.700',
-                _hover: { backgroundColor: 'greyscale.100' },
-              })}
-            >
-              +
-            </button>
-          )}
         </div>
         <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
           <li className={css({ display: 'flex' })}>
@@ -196,10 +106,7 @@ const ContactsAuthenticated = () => {
             </button>
           </li>
           {departments.map((dept) => (
-            <li
-              key={dept.id}
-              className={css({ display: 'flex', alignItems: 'stretch' })}
-            >
+            <li key={dept.id} className={css({ display: 'flex' })}>
               <button
                 type="button"
                 onClick={() => setSelectedDeptId(dept.id)}
@@ -209,29 +116,6 @@ const ContactsAuthenticated = () => {
               >
                 {dept.name}
               </button>
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => handleDeleteDept(dept)}
-                  title={t('page.deleteDept')}
-                  aria-label={t('page.deleteDept')}
-                  data-testid={`contacts-del-dept-${dept.id}`}
-                  className={css({
-                    flexShrink: 0,
-                    border: 'none',
-                    borderBottom: '1px solid token(colors.greyscale.100)',
-                    backgroundColor: 'transparent',
-                    paddingX: '0.625rem',
-                    fontSize: '1rem',
-                    lineHeight: 1,
-                    cursor: 'pointer',
-                    color: 'greyscale.400',
-                    _hover: { color: '#dc2626', backgroundColor: 'greyscale.100' },
-                  })}
-                >
-                  ×
-                </button>
-              )}
             </li>
           ))}
         </ul>
@@ -322,63 +206,27 @@ const ContactsAuthenticated = () => {
                         .join(' · ')}
                     </span>
                   </span>
-                  <span
-                    className={css({
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      flexShrink: 0,
-                    })}
-                  >
-                    {isAdmin && (
-                      <select
-                        value={member.department?.id ?? ''}
-                        onChange={(e) =>
-                          handleAssignDept(member, e.target.value || null)
-                        }
-                        aria-label={t('page.assignDept')}
-                        title={t('page.assignDept')}
-                        data-testid={`contacts-assign-${member.id}`}
-                        className={css({
-                          border: '1px solid token(colors.greyscale.300)',
-                          borderRadius: '0.5rem',
-                          paddingX: '0.5rem',
-                          paddingY: '0.375rem',
-                          fontSize: '0.8125rem',
-                          backgroundColor: 'white',
-                          cursor: 'pointer',
-                          maxWidth: '160px',
-                        })}
-                      >
-                        <option value="">{t('page.noDept')}</option>
-                        {departments.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    {!member.is_self && (
-                      <button
-                        type="button"
-                        onClick={() => handleMessage(member)}
-                        data-testid={`contacts-message-${member.id}`}
-                        className={css({
-                          border: '1px solid token(colors.primary.300)',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'white',
-                          paddingX: '0.75rem',
-                          paddingY: '0.375rem',
-                          fontSize: '0.8125rem',
-                          cursor: 'pointer',
-                          color: 'primary.600',
-                          _hover: { backgroundColor: 'primary.50' },
-                        })}
-                      >
-                        {t('page.message')}
-                      </button>
-                    )}
-                  </span>
+                  {!member.is_self && (
+                    <button
+                      type="button"
+                      onClick={() => handleMessage(member)}
+                      data-testid={`contacts-message-${member.id}`}
+                      className={css({
+                        flexShrink: 0,
+                        border: '1px solid token(colors.primary.300)',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'white',
+                        paddingX: '0.75rem',
+                        paddingY: '0.375rem',
+                        fontSize: '0.8125rem',
+                        cursor: 'pointer',
+                        color: 'primary.600',
+                        _hover: { backgroundColor: 'primary.50' },
+                      })}
+                    >
+                      {t('page.message')}
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
