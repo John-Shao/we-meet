@@ -10,7 +10,7 @@ from lasuite.oidc_login.backends import (
     OIDCAuthenticationBackend as LaSuiteOIDCAuthenticationBackend,
 )
 
-from core.models import User
+from core.models import Membership, MembershipStatusChoices, Organization, User
 from core.services.marketing import (
     ContactCreationError,
     ContactData,
@@ -58,6 +58,32 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         email = claims["email"]
         if is_new_user and email and settings.SIGNUP_NEW_USER_TO_MARKETING_EMAIL:
             self.signup_to_marketing_email(email)
+        self.ensure_default_org_membership(user)
+
+    @staticmethod
+    def ensure_default_org_membership(user):
+        """Make sure every authenticated user belongs to the default organization.
+
+        The P1-b data migration bootstrapped memberships for users that existed
+        at migration time; this covers everyone who signs in afterwards. Called
+        on every login (not just new users) so it also self-heals accounts that
+        ended up without a membership. Idempotent and safe.
+        """
+        if user.is_device or not user.sub:
+            return
+        slug = getattr(settings, "ORGANIZATION_BOOTSTRAP_SLUG", "default")
+        organization = Organization.objects.filter(slug=slug, is_active=True).first()
+        if organization is None:
+            return
+        if Membership.objects.filter(user=user, organization=organization).exists():
+            return
+        Membership.objects.create(
+            organization=organization,
+            user=user,
+            department=None,
+            is_primary=True,
+            status=MembershipStatusChoices.ACTIVE,
+        )
 
     @staticmethod
     def signup_to_marketing_email(email):

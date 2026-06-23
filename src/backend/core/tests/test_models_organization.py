@@ -8,6 +8,7 @@ from django.db.utils import IntegrityError
 import pytest
 
 from core import factories, models
+from core.authentication.backends import OIDCAuthenticationBackend
 
 pytestmark = pytest.mark.django_db
 
@@ -205,3 +206,30 @@ def test_models_department_team_access_makes_recording_visible():
     }
     assert recording.id in visible_to_member
     assert recording.id not in visible_to_outsider
+
+
+# ---- auto-join default org on login (OIDCAuthenticationBackend hook) ----
+
+
+def test_ensure_default_org_membership_adds_user_and_is_idempotent():
+    """A user with no membership gets a primary org-level one; re-running is a no-op."""
+    # The default org is created by the 0042 data migration (applied to the test DB).
+    org = models.Organization.objects.get(slug="default")
+    user = factories.UserFactory()
+
+    OIDCAuthenticationBackend.ensure_default_org_membership(user)
+    memberships = models.Membership.objects.filter(user=user, organization=org)
+    assert memberships.count() == 1
+    assert memberships.first().is_primary is True
+
+    OIDCAuthenticationBackend.ensure_default_org_membership(user)  # idempotent
+    assert models.Membership.objects.filter(user=user, organization=org).count() == 1
+
+
+def test_ensure_default_org_membership_skips_oidc_less_accounts():
+    """Accounts without an OIDC sub (Django admins) are not auto-joined."""
+    # Default org already exists from the 0042 data migration.
+    user = factories.UserFactory(sub=None)
+
+    OIDCAuthenticationBackend.ensure_default_org_membership(user)
+    assert models.Membership.objects.filter(user=user).count() == 0
