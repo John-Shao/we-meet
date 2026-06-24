@@ -129,11 +129,36 @@ we-meet 把登录改成了**手机 OTP / 扫码**（`core/api/mobile_auth.py`）
 - 发码走火山引擎短信 → dev 无 `VOLC_SMS_*` 凭证 → 报错 503；
 - 校验码还需 Keycloak **token-exchange**（`meet-service` 客户端）→ dev 也没配。
 
-**dev 登录正路 = 内置 demo 账号**（`SendOtpView` 第 245-253 行：手机号在 `MOBILE_AUTH_DEMO_PHONES` 且设了 `MOBILE_AUTH_DEMO_OTP` 时跳过短信、用固定码）。需补：
-1. **后端环境**：`MOBILE_AUTH_DEMO_OTP=123456`、`MOBILE_AUTH_DEMO_PHONES=["13800000000"]`、`MOBILE_AUTH_SERVICE_CLIENT_SECRET=<meet-service 密钥>`。
-2. **dev Keycloak**（`keycloak.127.0.0.1.nip.io` 的 `meet` realm）：建 `meet-service` 机密客户端（service account + token-exchange 权限 + realm-management 角色 view/query/manage-users + impersonation），密钥对上第 1 步；确认容器开了 `KC_FEATURES=token-exchange`。参考 `deploy/aliyun/keycloak/bootstrap-mobile.sh` 对 dev Keycloak 跑一遍。
+**dev 登录正路 = 内置 demo 账号**（`SendOtpView` 第 245-253 行：手机号在 `MOBILE_AUTH_DEMO_PHONES` 且设了 `MOBILE_AUTH_DEMO_OTP` 时跳过短信、用固定码）。本次实践已配通，两步：
 
-> 配好后：登录页输 demo 手机号 + 固定码 `123456` 即可进，无需短信。（截至本文，此 dev 部署尚未配置该 demo 登录。）
+> dev keycloak 启动参数含 `--features=preview`，**token-exchange 已自带开启**，无需再改容器。
+
+**① dev Keycloak 建 `meet-service` 客户端**（用 pod 内 `kcadm.sh` 走 localhost:8080，避开 nip.io 的 schannel TLS）：
+```bash
+kubectl exec -n meet keycloak-0 -- bash -c '
+KC=/opt/keycloak/bin/kcadm.sh; SECRET=dev-meet-service-secret-0123456789
+$KC config credentials --server http://localhost:8080 --realm master --user admin --password admin
+$KC create clients -r meet -s clientId=meet-service -s enabled=true -s publicClient=false \
+  -s standardFlowEnabled=false -s directAccessGrantsEnabled=false -s serviceAccountsEnabled=true -s "secret=$SECRET" || true
+CID=$($KC get clients -r meet -q clientId=meet-service | grep -o "[0-9a-f-]\{36\}" | head -1)
+$KC update clients/$CID -r meet -s serviceAccountsEnabled=true -s "secret=$SECRET"
+$KC add-roles -r meet --uusername service-account-meet-service --cclientid realm-management \
+  --rolename view-users --rolename query-users --rolename manage-users --rolename impersonation
+'
+```
+
+**② 后端配 demo OTP + service secret**（dev keycloak admin = `admin/admin`）：
+```bash
+kubectl set env deployment/meet-backend -n meet \
+  MOBILE_AUTH_SERVICE_CLIENT_SECRET=dev-meet-service-secret-0123456789 \
+  MOBILE_AUTH_DEMO_OTP=123456 \
+  MOBILE_AUTH_DEMO_PHONES=13800000000,13800000006
+kubectl rollout status deployment/meet-backend -n meet
+```
+
+**登录**：`https://meet.127.0.0.1.nip.io` → 验证码登录 → 手机号 `13800000000`（或 `13800000006`）→ 发送验证码 → 输 `123456` → 进。
+
+> ⚠️ **持久化**：meet-service 客户端存在 keycloak DB（持久）；后端 `kubectl set env` 在 deployment spec 上（扛 pod/DD 重启），但 **tilt 重新 apply meet-backend 时会被还原** → 那就重跑第 ② 步，或把这三个变量写进 `env.d/development/kube-secret`（tilt 的 `secret-dev` 源）以永久生效。生产用真实火山引擎 SMS + `bootstrap-mobile.sh`，demo 账号仅限本地 dev。
 
 ---
 
