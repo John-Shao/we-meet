@@ -147,18 +147,18 @@ $KC add-roles -r meet --uusername service-account-meet-service --cclientid realm
 '
 ```
 
-**② 后端配 demo OTP + service secret**（dev keycloak admin = `admin/admin`）：
-```bash
-kubectl set env deployment/meet-backend -n meet \
-  MOBILE_AUTH_SERVICE_CLIENT_SECRET=dev-meet-service-secret-0123456789 \
-  MOBILE_AUTH_DEMO_OTP=123456 \
-  MOBILE_AUTH_DEMO_PHONES=13800000000,13800000006
-kubectl rollout status deployment/meet-backend -n meet
+**② 后端配 demo OTP + service secret —— 已永久固化进 `secret-dev`**（无需再 `kubectl set env`）。三个变量写在 **`env.d/development/kube-secret`**（本地、gitignored；`.dist` 模板已带同样的 key），并在 `src/helm/env.d/dev-keycloak/values.meet.yaml.gotmpl` 的 `backend.envVars` 里用 `secretKeyRef` 注入（与 WHISPERX/LLM 同套路）：
+```ini
+# env.d/development/kube-secret
+MOBILE_AUTH_SERVICE_CLIENT_SECRET=dev-meet-service-secret-0123456789
+MOBILE_AUTH_DEMO_OTP=123456
+MOBILE_AUTH_DEMO_PHONES=13800000000,13800000001,13800000002,13800000003,13800000004,13800000005,13800000006,13800000007,13800000008,13800000009
 ```
+改完让 tilt 重新同步 `secret-dev` + meet-backend 即可（或手动 `kubectl rollout restart deployment/meet-backend -n meet`）。
 
-**登录**：`https://meet.127.0.0.1.nip.io` → 验证码登录 → 手机号 `13800000000`（或 `13800000006`）→ 发送验证码 → 输 `123456` → 进。
+**登录**：`https://meet.127.0.0.1.nip.io` → 验证码登录 → 任一 demo 手机号 `13800000000` ~ `13800000009` → 发送验证码 → 输 `123456` → 进。每个号首登自动建一个 `WeMeet-后四位` 用户。
 
-> ⚠️ **持久化**：meet-service 客户端存在 keycloak DB（持久）；后端 `kubectl set env` 在 deployment spec 上（扛 pod/DD 重启），但 **tilt 重新 apply meet-backend 时会被还原** → 那就重跑第 ② 步，或把这三个变量写进 `env.d/development/kube-secret`（tilt 的 `secret-dev` 源）以永久生效。生产用真实火山引擎 SMS + `bootstrap-mobile.sh`，demo 账号仅限本地 dev。
+> ✅ **持久化**：现在全链路都进了持久层 —— meet-service 客户端在 keycloak DB；三个登录变量在 `secret-dev`（由 `kube-secret` 提供，tilt 模板化注入），**tilt 重新 apply 不再还原**。临时改可仍用 `kubectl set env`（扛 pod/DD 重启，但会被 tilt re-apply 覆盖）。生产用真实火山引擎 SMS + `bootstrap-mobile.sh`，demo 账号仅限本地 dev。
 
 ---
 

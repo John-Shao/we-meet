@@ -130,6 +130,19 @@ backend:
     ADDONS_CSRF_SECRET: 'ThisIsAnExampleKeyForDevPurposeOnly'
     ADDONS_TOKEN_SECRET_KEY: 'ThisIsAnExampleKeyForDevPurposeOnly'
     FRONTEND_IS_SILENT_LOGIN_ENABLED: False
+    # dev 登录（手机 OTP demo 账号）—— 值在 env.d/development/kube-secret（仅本地 dev）
+    MOBILE_AUTH_SERVICE_CLIENT_SECRET:
+      secretKeyRef:
+        name: secret-dev
+        key: MOBILE_AUTH_SERVICE_CLIENT_SECRET
+    MOBILE_AUTH_DEMO_OTP:
+      secretKeyRef:
+        name: secret-dev
+        key: MOBILE_AUTH_DEMO_OTP
+    MOBILE_AUTH_DEMO_PHONES:
+      secretKeyRef:
+        name: secret-dev
+        key: MOBILE_AUTH_DEMO_PHONES
 
   migrate:
     command:
