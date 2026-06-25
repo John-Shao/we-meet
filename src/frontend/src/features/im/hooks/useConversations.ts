@@ -20,7 +20,7 @@ const KEY = ['im', 'conversations'] as const
  *   before we ever fetched it) — re-fetch the whole list so it shows up live
  *   with its name + members, instead of only appearing after a manual reload.
  */
-export const useConversations = (client: Client) => {
+export const useConversations = (client: Client, selfUid: string) => {
   const qc = useQueryClient()
 
   useEffect(() => {
@@ -44,6 +44,9 @@ export const useConversations = (client: Client) => {
       )
     })
     const offRead = client.onRead((r: ReadOutPayload) => {
+      // 已读回执会广播给会话全体成员;只有「我自己」的已读才动我的未读数。
+      // 否则发送者读自己刚发的消息(markRead),会把其他成员的 badge 误清成 0。
+      if (r.uid !== selfUid) return
       qc.setQueryData<ConversationSummary[]>(KEY, (prev) => {
         if (!prev) return prev
         return prev.map((c) =>
@@ -60,7 +63,7 @@ export const useConversations = (client: Client) => {
       offMsg()
       offRead()
     }
-  }, [client, qc])
+  }, [client, qc, selfUid])
 
   return useQuery({
     queryKey: KEY,

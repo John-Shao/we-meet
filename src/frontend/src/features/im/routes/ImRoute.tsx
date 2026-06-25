@@ -48,12 +48,16 @@ export const ImRoute = () => {
 const ImAuthenticated = () => {
   const { t } = useTranslation('im')
   const { client, state } = useImConnection()
-  const { data: conversations = [], isLoading: convLoading } = useConversations(client)
   const { data: tokenData } = useQuery({
     queryKey: ['im', 'self-token'],
     queryFn: () => fetchImToken(),
     staleTime: 60_000,
   })
+  const currentUserUID = tokenData?.uid ?? ''
+  const { data: conversations = [], isLoading: convLoading } = useConversations(
+    client,
+    currentUserUID,
+  )
   // 从通讯录跳来时 URL 带 ?cid=<会话>,直接预选并打开该会话。
   const [searchParams] = useSearchParams()
   const initialCID = searchParams.get('cid')
@@ -70,7 +74,6 @@ const ImAuthenticated = () => {
     }
   }, [initialCID, qc])
 
-  const currentUserUID = tokenData?.uid ?? ''
   const sendDisabled = state !== 'connected'
 
   // 私聊对方名:从每个 direct 会话的 members 取「非自己」那个 uid,批量解析成显示名。
