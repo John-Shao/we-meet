@@ -19,6 +19,9 @@ const KEY = ['im', 'conversations'] as const
  *   pulled into a new group / direct conversation (its first message arrived
  *   before we ever fetched it) — re-fetch the whole list so it shows up live
  *   with its name + members, instead of only appearing after a manual reload.
+ * - Subscribes to onConversation (P8): the server pushes a lifecycle event the
+ *   moment we're added to a conversation, so a brand-new group/direct appears
+ *   live even before any message is sent. We just re-fetch the list.
  */
 export const useConversations = (client: Client, selfUid: string) => {
   const qc = useQueryClient()
@@ -59,9 +62,15 @@ export const useConversations = (client: Client, selfUid: string) => {
         )
       })
     })
+    // P8: 被拉进新会话(建群/拉人/新私聊)时服务端主动推 conv 事件;
+    // 哪怕一条消息都没发,也立即重拉列表让新会话冒泡。
+    const offConv = client.onConversation(() => {
+      void qc.invalidateQueries({ queryKey: KEY })
+    })
     return () => {
       offMsg()
       offRead()
+      offConv()
     }
   }, [client, qc, selfUid])
 
