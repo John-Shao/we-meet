@@ -10,10 +10,12 @@ import { ContactPicker } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
 
 import { createDirectConversationByUserId } from '../api/createDirectConversation'
+import { createGroupConversation } from '../api/createGroupConversation'
 import { fetchImToken } from '../api/fetchImToken'
 import { ChatPane } from './ChatPane'
 import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
 import { ConversationList } from '../components/ConversationList'
+import { GroupPicker } from '../components/GroupPicker'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
 
@@ -55,6 +57,7 @@ const ImAuthenticated = () => {
   const initialCID = searchParams.get('cid')
   const [selectedCID, setSelectedCID] = useState<string | null>(initialCID)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [groupPickerOpen, setGroupPickerOpen] = useState(false)
   const qc = useQueryClient()
 
   // 带 cid 进来时刷新会话列表,让新建/已存在的会话出现在左栏(ChatPane 本身已按 cid 渲染)。
@@ -79,6 +82,22 @@ const ImAuthenticated = () => {
     } catch (e) {
       window.alert(
         t('list.newDirect.error', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      )
+    }
+  }
+
+  // 多选建群 -> backend 批量解析成员 IM uid + 生成群 cid + admin create_group。
+  const handleCreateGroup = async (memberUserIds: string[], name: string) => {
+    setGroupPickerOpen(false)
+    try {
+      const result = await createGroupConversation(memberUserIds, name)
+      await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+      setSelectedCID(result.cid)
+    } catch (e) {
+      window.alert(
+        t('group.error', {
           message: e instanceof Error ? e.message : String(e),
         }),
       )
@@ -129,30 +148,56 @@ const ImAuthenticated = () => {
             >
               {t('list.title')}
             </h2>
-            <button
-              type="button"
-              onClick={() => setPickerOpen(true)}
-              title={t('list.newDirect.button')}
-              aria-label={t('list.newDirect.button')}
-              data-testid="im-new-direct"
-              className={css({
-                border: '1px solid token(colors.greyscale.300)',
-                borderRadius: '999px',
-                backgroundColor: 'white',
-                width: '1.75rem',
-                height: '1.75rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1.125rem',
-                lineHeight: 1,
-                cursor: 'pointer',
-                color: 'greyscale.700',
-                _hover: { backgroundColor: 'greyscale.100' },
-              })}
-            >
-              +
-            </button>
+            <div className={css({ display: 'flex', gap: '0.375rem' })}>
+              <button
+                type="button"
+                onClick={() => setGroupPickerOpen(true)}
+                title={t('group.button')}
+                aria-label={t('group.button')}
+                data-testid="im-new-group"
+                className={css({
+                  border: '1px solid token(colors.greyscale.300)',
+                  borderRadius: '999px',
+                  backgroundColor: 'white',
+                  width: '1.75rem',
+                  height: '1.75rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.9rem',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  color: 'greyscale.700',
+                  _hover: { backgroundColor: 'greyscale.100' },
+                })}
+              >
+                👥
+              </button>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                title={t('list.newDirect.button')}
+                aria-label={t('list.newDirect.button')}
+                data-testid="im-new-direct"
+                className={css({
+                  border: '1px solid token(colors.greyscale.300)',
+                  borderRadius: '999px',
+                  backgroundColor: 'white',
+                  width: '1.75rem',
+                  height: '1.75rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.125rem',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  color: 'greyscale.700',
+                  _hover: { backgroundColor: 'greyscale.100' },
+                })}
+              >
+                +
+              </button>
+            </div>
           </div>
           <ConversationList
             conversations={conversations}
@@ -194,6 +239,12 @@ const ImAuthenticated = () => {
         <ContactPicker
           onSelect={handleSelectMember}
           onClose={() => setPickerOpen(false)}
+        />
+      )}
+      {groupPickerOpen && (
+        <GroupPicker
+          onCreate={handleCreateGroup}
+          onClose={() => setGroupPickerOpen(false)}
         />
       )}
     </div>

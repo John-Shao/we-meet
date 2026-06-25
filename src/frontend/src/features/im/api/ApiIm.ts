@@ -19,3 +19,14 @@ export interface ImDirectConversationResponse {
   members: string[]
   self_uid: string
 }
+
+/**
+ * Result of POST /api/v1.0/im/conversations/group — create a group conv.
+ */
+export interface ImGroupConversationResponse {
+  cid: string
+  type: 'group'
+  owner_uid: string
+  members: string[]
+  self_uid: string
+}

@@ -180,6 +180,92 @@ class ImViewSet(viewsets.ViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=False, methods=["post"], url_path="conversations/group")
+    def conversations_group(self, request):
+        """Create a group conversation with the chosen members.
+
+        Body:
+          - `member_user_ids`: list[<we-meet user uuid>] — resolved server-side to
+            IM uids (org-scoped, same trust model as the direct contact-picker path).
+            The caller is added as owner automatically and must not be listed.
+          - `name` (optional): display name, stored in the group's meta.
+
+        Unlike direct, a group cid is a fresh random uuid — groups are never
+        deduplicated, so each call creates a distinct conversation.
+        """
+        data = request.data or {}
+        raw_ids = data.get("member_user_ids")
+        name = (data.get("name") or "").strip()
+
+        if not isinstance(raw_ids, list) or not raw_ids:
+            raise ValidationError(
+                {"member_user_ids": "at least one member is required"}
+            )
+        # De-dupe preserving order so the resolve loop stays cheap and stable.
+        seen_ids = set()
+        member_user_ids = []
+        for mid in raw_ids:
+            if mid not in seen_ids:
+                seen_ids.add(mid)
+                member_user_ids.append(mid)
+
+        cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
+        if not cfg:
+            logger.error("JUSI_IM_CONFIGURATION not configured")
+            raise JusiImUnreachableHTTPError(detail="JUSI_IM not configured")
+
+        client = JusiImAdminClient(
+            api_url=str(cfg["api_url"]),
+            admin_hmac_secret=str(cfg["admin_hmac_secret"]),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
+        )
+
+        # Resolve self_uid (lazy-registers on first touch; token discarded).
+        external_id = self._external_id(request.user)
+        try:
+            self_resolve = client.issue_token(external_id=external_id, ttl_seconds=60)
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+        self_uid = self_resolve.uid
+
+        # Resolve each member (org-scoped); drop the owner / duplicates.
+        member_uids: list[str] = []
+        for mid in member_user_ids:
+            resolved = self._resolve_peer_uid(request.user, mid, client)
+            if resolved != self_uid and resolved not in member_uids:
+                member_uids.append(resolved)
+        if not member_uids:
+            raise ValidationError(
+                {"member_user_ids": "no valid members to add"}
+            )
+
+        cid = str(uuid.uuid4())
+        meta = {"name": name} if name else None
+        try:
+            result = client.create_group(
+                cid=cid,
+                owner_uid=self_uid,
+                members=member_uids,
+                meta=meta,
+            )
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+
+        return Response(
+            {
+                "cid": result.cid,
+                "type": result.type,
+                "owner_uid": result.owner_uid,
+                "members": result.members,
+                "self_uid": self_uid,
+            },
+            status=status.HTTP_200_OK,
+        )
+
     @staticmethod
     def _resolve_peer_uid(caller, peer_user_id, client) -> str:
         """Resolve a we-meet user id (from the directory/picker) to their IM uid.

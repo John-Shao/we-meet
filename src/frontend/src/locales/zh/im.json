@@ -17,6 +17,18 @@
       "error": "创建会话失败:{{message}}"
     }
   },
+  "group": {
+    "button": "新建群聊",
+    "title": "新建群聊",
+    "namePlaceholder": "群名称(可选)",
+    "searchPlaceholder": "搜索成员…",
+    "selected": "已选 {{count}} 人",
+    "create": "创建",
+    "cancel": "取消",
+    "loading": "正在加载…",
+    "empty": "没有可选成员",
+    "error": "创建群聊失败:{{message}}"
+  },
   "chat": {
     "loading": "正在加载历史消息…",
     "empty": "暂无消息,发出第一条吧",

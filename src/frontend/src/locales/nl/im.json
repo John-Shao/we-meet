@@ -17,6 +17,18 @@
       "error": "Aanmaken mislukt: {{message}}"
     }
   },
+  "group": {
+    "button": "Nieuwe groep",
+    "title": "Nieuwe groep",
+    "namePlaceholder": "Groepsnaam (optioneel)",
+    "searchPlaceholder": "Leden zoeken…",
+    "selected": "{{count}} geselecteerd",
+    "create": "Aanmaken",
+    "cancel": "Annuleren",
+    "loading": "Laden…",
+    "empty": "Geen leden om toe te voegen",
+    "error": "Groep aanmaken mislukt: {{message}}"
+  },
   "chat": {
     "loading": "Geschiedenis laden…",
     "empty": "Nog geen berichten — verzend het eerste",

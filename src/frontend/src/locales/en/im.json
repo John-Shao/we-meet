@@ -17,6 +17,18 @@
       "error": "Failed to create conversation: {{message}}"
     }
   },
+  "group": {
+    "button": "New group",
+    "title": "New group",
+    "namePlaceholder": "Group name (optional)",
+    "searchPlaceholder": "Search members…",
+    "selected": "{{count}} selected",
+    "create": "Create",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "empty": "No members to add",
+    "error": "Failed to create group: {{message}}"
+  },
   "chat": {
     "loading": "Loading history…",
     "empty": "No messages yet — send the first one",
