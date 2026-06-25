@@ -13,18 +13,26 @@ const KEY = ['im', 'conversations'] as const
  * Conversation-list hook.
  *
  * - React Query single fetch on mount via SDK.listConversations().
- * - Subscribes to onMessage / onRead from the same Client; every event
- *   bumps the unread_count / last_seq of the matching cid in-place so
- *   we don't need to re-fetch the whole list.
+ * - Subscribes to onMessage / onRead from the same Client; an event for a
+ *   conversation already in the list bumps its unread_count / last_seq
+ *   in-place (no re-fetch). An event for an UNKNOWN cid means we were just
+ *   pulled into a new group / direct conversation (its first message arrived
+ *   before we ever fetched it) — re-fetch the whole list so it shows up live
+ *   with its name + members, instead of only appearing after a manual reload.
  */
 export const useConversations = (client: Client) => {
   const qc = useQueryClient()
 
   useEffect(() => {
     const offMsg = client.onMessage((m: MsgOutPayload) => {
-      qc.setQueryData<ConversationSummary[]>(KEY, (prev) => {
-        if (!prev) return prev
-        return prev.map((c) =>
+      const prev = qc.getQueryData<ConversationSummary[]>(KEY)
+      // 未知会话(刚被拉进的新群/新私聊)的首条消息 → 整列表重拉,带出名称+成员。
+      if (!prev || !prev.some((c) => c.cid === m.cid)) {
+        void qc.invalidateQueries({ queryKey: KEY })
+        return
+      }
+      qc.setQueryData<ConversationSummary[]>(KEY, (cur) =>
+        cur?.map((c) =>
           c.cid === m.cid
             ? {
                 ...c,
@@ -32,8 +40,8 @@ export const useConversations = (client: Client) => {
                 unread_count: c.unread_count + 1,
               }
             : c,
-        )
-      })
+        ),
+      )
     })
     const offRead = client.onRead((r: ReadOutPayload) => {
       qc.setQueryData<ConversationSummary[]>(KEY, (prev) => {
