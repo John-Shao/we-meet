@@ -169,6 +169,18 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
     short_name = models.CharField(
         _("short name"), max_length=100, null=True, blank=True
     )
+    im_uid = models.CharField(
+        _("IM uid"),
+        help_text=_(
+            "Cached jusi-light-im internal uid, backfilled on first IM token issue. "
+            "Lets the IM bridge resolve conversation members (uids) → display names."
+        ),
+        max_length=36,
+        unique=True,
+        blank=True,
+        null=True,
+        editable=False,
+    )
     language = models.CharField(
         max_length=10,
         choices=settings.LANGUAGES,

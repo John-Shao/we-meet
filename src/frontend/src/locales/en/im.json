@@ -17,6 +17,16 @@
       "error": "Failed to create conversation: {{message}}"
     }
   },
+  "convName": {
+    "groupFallback": "Group",
+    "directFallback": "Direct"
+  },
+  "actions": {
+    "delete": "Delete conversation",
+    "leaveConfirm": "Leave this group? If you are the owner, ownership auto-transfers to another member; the group dissolves if you are the last one.",
+    "deleteConfirm": "Delete this conversation? It is only removed from your list — the peer and history are untouched.",
+    "error": "Action failed: {{message}}"
+  },
   "group": {
     "button": "New group",
     "title": "New group",

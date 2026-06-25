@@ -93,6 +93,8 @@ class ImViewSet(viewsets.ViewSet):
         except JusiImBadResponseError as exc:
             raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
 
+        self._cache_im_uid(request.user, result.uid)
+
         return Response(
             {
                 "uid": result.uid,
@@ -102,6 +104,56 @@ class ImViewSet(viewsets.ViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=False, methods=["post"], url_path="users/resolve")
+    def resolve_users(self, request):
+        """Resolve IM uids → display names for conversation-list rendering.
+
+        Body: ``{"im_uids": ["<uid>", ...]}``. Returns ``{uid: {id, full_name,
+        short_name}}`` for the subset that maps to a we-meet user **in the caller's
+        organization** (no cross-org name leakage). uids that don't resolve are
+        simply absent from the response.
+
+        Powers the contact-less display path: the IM conversation summary carries
+        member uids; the client posts them here to label direct peers / group
+        members without ever handling raw identities client-side.
+        """
+        data = request.data or {}
+        raw = data.get("im_uids")
+        if not isinstance(raw, list):
+            raise ValidationError({"im_uids": "list of im_uids required"})
+        # De-dup + cap to keep the IN-query bounded.
+        seen: set = set()
+        uids = []
+        for u in raw:
+            if isinstance(u, str) and u and u not in seen:
+                seen.add(u)
+                uids.append(u)
+            if len(uids) >= 200:
+                break
+
+        out: dict = {}
+        if not uids:
+            return Response(out, status=status.HTTP_200_OK)
+
+        organization = get_caller_organization(request.user)
+        qs = models.User.objects.filter(im_uid__in=uids, is_device=False)
+        if organization is not None:
+            qs = qs.filter(
+                memberships__organization=organization,
+                memberships__status=models.MembershipStatusChoices.ACTIVE,
+            ).distinct()
+        else:
+            # No org → only resolve self, never other users.
+            qs = qs.filter(pk=request.user.pk)
+
+        for u in qs:
+            out[u.im_uid] = {
+                "id": str(u.id),
+                "full_name": u.full_name or u.short_name or u.email or "",
+                "short_name": u.short_name or "",
+            }
+        return Response(out, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["post"], url_path="conversations/direct")
     def conversations_direct(self, request):
@@ -307,6 +359,7 @@ class ImViewSet(viewsets.ViewSet):
             raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
         except JusiImBadResponseError as exc:
             raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+        ImViewSet._cache_im_uid(peer, resolved.uid)
         return resolved.uid
 
     @staticmethod
@@ -320,3 +373,18 @@ class ImViewSet(viewsets.ViewSet):
             return str(sub)
         # Fallback for users without sub (legacy / test fixtures).
         return str(user.pk)
+
+    @staticmethod
+    def _cache_im_uid(user, uid: str) -> None:
+        """Backfill User.im_uid so the bridge can later resolve uid → display name.
+
+        Best-effort: a cache-write failure must never break token issue / conv
+        creation, so we swallow + log. Only writes when the value actually changed.
+        """
+        if not uid or getattr(user, "im_uid", None) == uid:
+            return
+        try:
+            user.im_uid = uid
+            user.save(update_fields=["im_uid"])
+        except Exception:  # noqa: BLE001 — cache write is non-critical
+            logger.warning("im: failed to cache im_uid for user %s", user.pk, exc_info=True)

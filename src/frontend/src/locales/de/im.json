@@ -17,6 +17,16 @@
       "error": "Erstellen fehlgeschlagen: {{message}}"
     }
   },
+  "convName": {
+    "groupFallback": "Gruppe",
+    "directFallback": "Direkt"
+  },
+  "actions": {
+    "delete": "Unterhaltung löschen",
+    "leaveConfirm": "Gruppe verlassen? Wenn Sie Eigentümer sind, wird die Eigentümerschaft automatisch an ein anderes Mitglied übertragen; ist niemand mehr übrig, wird die Gruppe aufgelöst.",
+    "deleteConfirm": "Diese Unterhaltung löschen? Sie wird nur aus Ihrer Liste entfernt — Gegenüber und Verlauf bleiben unberührt.",
+    "error": "Aktion fehlgeschlagen: {{message}}"
+  },
   "group": {
     "button": "Neue Gruppe",
     "title": "Neue Gruppe",

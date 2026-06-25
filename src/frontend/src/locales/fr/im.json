@@ -17,6 +17,16 @@
       "error": "Échec de la création : {{message}}"
     }
   },
+  "convName": {
+    "groupFallback": "Groupe",
+    "directFallback": "Discussion"
+  },
+  "actions": {
+    "delete": "Supprimer la conversation",
+    "leaveConfirm": "Quitter ce groupe ? Si vous êtes le propriétaire, la propriété est transférée automatiquement à un autre membre ; le groupe est dissous si vous êtes le dernier.",
+    "deleteConfirm": "Supprimer cette conversation ? Elle n'est retirée que de votre liste — le correspondant et l'historique ne sont pas touchés.",
+    "error": "Échec de l'action : {{message}}"
+  },
   "group": {
     "button": "Nouveau groupe",
     "title": "Nouveau groupe",

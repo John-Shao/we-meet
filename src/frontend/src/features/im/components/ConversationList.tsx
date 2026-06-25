@@ -8,6 +8,10 @@ interface Props {
   selectedCID: string | null
   onSelect: (cid: string) => void
   loading?: boolean
+  /** Resolve a conversation's display label (group name / direct peer name). */
+  nameOf: (c: ConversationSummary) => string
+  /** Delete (direct) / leave (group) the conversation. */
+  onDelete: (c: ConversationSummary) => void
 }
 
 export const ConversationList = ({
@@ -15,6 +19,8 @@ export const ConversationList = ({
   selectedCID,
   onSelect,
   loading,
+  nameOf,
+  onDelete,
 }: Props) => {
   const { t } = useTranslation('im')
 
@@ -36,24 +42,32 @@ export const ConversationList = ({
   return (
     <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
       {conversations.map((c) => (
-        <li key={c.cid}>
+        <li
+          key={c.cid}
+          className={css({
+            display: 'flex',
+            alignItems: 'stretch',
+            borderBottom: '1px solid token(colors.greyscale.100)',
+            backgroundColor: selectedCID === c.cid ? 'primary.100' : 'transparent',
+            _hover: { backgroundColor: 'greyscale.100' },
+          })}
+        >
           <button
             type="button"
             onClick={() => onSelect(c.cid)}
             className={css({
+              flex: 1,
+              minWidth: 0,
               display: 'flex',
-              width: '100%',
               alignItems: 'center',
               justifyContent: 'space-between',
+              gap: '0.5rem',
               paddingX: '1rem',
               paddingY: '0.75rem',
               border: 'none',
-              borderBottom: '1px solid token(colors.greyscale.100)',
+              backgroundColor: 'transparent',
               cursor: 'pointer',
               textAlign: 'left',
-              backgroundColor:
-                selectedCID === c.cid ? 'primary.100' : 'transparent',
-              _hover: { backgroundColor: 'greyscale.100' },
             })}
             data-testid={`conv-item-${c.cid}`}
           >
@@ -66,12 +80,12 @@ export const ConversationList = ({
                 whiteSpace: 'nowrap',
               })}
             >
-              {c.cid}
+              {nameOf(c)}
             </span>
             {c.unread_count > 0 && (
               <span
                 className={css({
-                  marginLeft: '0.5rem',
+                  flexShrink: 0,
                   paddingX: '0.5rem',
                   paddingY: '0.125rem',
                   borderRadius: '999px',
@@ -83,6 +97,27 @@ export const ConversationList = ({
                 {c.unread_count}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            data-role="del"
+            onClick={() => onDelete(c)}
+            title={t('actions.delete')}
+            aria-label={t('actions.delete')}
+            data-testid={`conv-del-${c.cid}`}
+            className={css({
+              flexShrink: 0,
+              width: '2rem',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: 'greyscale.500',
+              fontSize: '1rem',
+              lineHeight: 1,
+              cursor: 'pointer',
+              _hover: { color: '#dc2626' },
+            })}
+          >
+            ✕
           </button>
         </li>
       ))}

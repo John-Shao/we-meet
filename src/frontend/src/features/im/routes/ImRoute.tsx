@@ -8,9 +8,11 @@ import { useUser } from '@/features/auth'
 
 import { ContactPicker } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
+import type { ConversationSummary } from '@jusi/light-im-sdk'
 
 import { createDirectConversationByUserId } from '../api/createDirectConversation'
 import { createGroupConversation } from '../api/createGroupConversation'
+import { resolveImUsers } from '../api/resolveImUsers'
 import { fetchImToken } from '../api/fetchImToken'
 import { ChatPane } from './ChatPane'
 import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
@@ -70,6 +72,47 @@ const ImAuthenticated = () => {
 
   const currentUserUID = tokenData?.uid ?? ''
   const sendDisabled = state !== 'connected'
+
+  // 私聊对方名:从每个 direct 会话的 members 取「非自己」那个 uid,批量解析成显示名。
+  const peerUids = Array.from(
+    new Set(
+      conversations
+        .filter((c) => c.type === 'direct')
+        .map((c) => c.members.find((u) => u !== currentUserUID))
+        .filter((u): u is string => !!u),
+    ),
+  )
+  const { data: peerNames = {} } = useQuery({
+    queryKey: ['im', 'peer-names', peerUids],
+    queryFn: () => resolveImUsers(peerUids),
+    enabled: peerUids.length > 0 && !!currentUserUID,
+    staleTime: 60_000,
+  })
+
+  // group → meta.name(无名兜底);direct → 对端显示名(兜底「私聊」)。
+  const nameOf = (c: ConversationSummary): string => {
+    if (c.type === 'group') {
+      return c.name && c.name.trim() ? c.name : t('convName.groupFallback')
+    }
+    const peer = c.members.find((u) => u !== currentUserUID)
+    return (peer && peerNames[peer]?.full_name) || t('convName.directFallback')
+  }
+
+  // 删除会话(direct 软隐藏)/ 退群(group;群主则服务端自动转让或解散)。
+  const handleDelete = async (c: ConversationSummary) => {
+    const confirmMsg =
+      c.type === 'group' ? t('actions.leaveConfirm') : t('actions.deleteConfirm')
+    if (!window.confirm(confirmMsg)) return
+    try {
+      await client.leaveConversation(c.cid)
+      if (selectedCID === c.cid) setSelectedCID(null)
+      await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+    } catch (e) {
+      window.alert(
+        t('actions.error', { message: e instanceof Error ? e.message : String(e) }),
+      )
+    }
+  }
 
   // 通讯录选人 -> backend 用 peer_user_id 服务端解析对方 IM uid -> jusi admin
   // create-or-get direct。客户端不再需要手输/知道原始 IM uid。
@@ -204,6 +247,8 @@ const ImAuthenticated = () => {
             selectedCID={selectedCID}
             onSelect={setSelectedCID}
             loading={convLoading}
+            nameOf={nameOf}
+            onDelete={handleDelete}
           />
         </aside>
         <main

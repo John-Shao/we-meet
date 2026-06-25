@@ -17,6 +17,16 @@
       "error": "Aanmaken mislukt: {{message}}"
     }
   },
+  "convName": {
+    "groupFallback": "Groep",
+    "directFallback": "Direct"
+  },
+  "actions": {
+    "delete": "Gesprek verwijderen",
+    "leaveConfirm": "Deze groep verlaten? Als je eigenaar bent, wordt het eigenaarschap automatisch overgedragen aan een ander lid; de groep wordt opgeheven als je de laatste bent.",
+    "deleteConfirm": "Dit gesprek verwijderen? Het wordt alleen uit jouw lijst verwijderd — de ander en de geschiedenis blijven ongemoeid.",
+    "error": "Actie mislukt: {{message}}"
+  },
   "group": {
     "button": "Nieuwe groep",
     "title": "Nieuwe groep",
