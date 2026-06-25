@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'wouter'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
@@ -49,9 +50,20 @@ const ImAuthenticated = () => {
     queryFn: () => fetchImToken(),
     staleTime: 60_000,
   })
-  const [selectedCID, setSelectedCID] = useState<string | null>(null)
+  // 从通讯录跳来时 URL 带 ?cid=<会话>,直接预选并打开该会话。
+  const [searchParams] = useSearchParams()
+  const initialCID = searchParams.get('cid')
+  const [selectedCID, setSelectedCID] = useState<string | null>(initialCID)
   const [pickerOpen, setPickerOpen] = useState(false)
   const qc = useQueryClient()
+
+  // 带 cid 进来时刷新会话列表,让新建/已存在的会话出现在左栏(ChatPane 本身已按 cid 渲染)。
+  useEffect(() => {
+    if (initialCID) {
+      setSelectedCID(initialCID)
+      void qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+    }
+  }, [initialCID, qc])
 
   const currentUserUID = tokenData?.uid ?? ''
   const sendDisabled = state !== 'connected'

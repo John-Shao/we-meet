@@ -55,8 +55,9 @@ const ContactsAuthenticated = () => {
 
   const handleMessage = async (member: DirectoryMember) => {
     try {
-      await createDirectConversationByUserId(member.id)
-      navigate('/im')
+      const result = await createDirectConversationByUserId(member.id)
+      // 带上 cid,ImRoute 据此直接打开与该联系人的会话(否则落到 /im 还要再选一次)
+      navigate(`/im?cid=${encodeURIComponent(result.cid)}`)
     } catch (e) {
       window.alert(
         t('page.messageError', {
