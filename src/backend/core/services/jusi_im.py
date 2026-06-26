@@ -46,11 +46,12 @@ class JusiImConversationResponse:
 
 @dataclass(frozen=True)
 class JusiImAddMembersResponse:
-    """Result of POST /admin/conversations/{cid}/members (P5)."""
+    """Result of POST /admin/conversations/{cid}/members (P5; P9 adds removed)."""
 
     cid: str
     added: int
     members: list[str]
+    removed: int = 0
 
 
 @dataclass(frozen=True)
@@ -231,15 +232,74 @@ class JusiImAdminClient:
         path = f"/admin/conversations/{cid}/members"
         payload = {"add": list(uids or [])}
         data = self._signed_request("POST", path, payload)
+        return self._parse_members_response("add_members", data)
+
+    def remove_members(self, cid: str, uids: list[str]) -> JusiImAddMembersResponse:
+        """Remove uids from cid (P9 踢人). jusi rejects removing the owner (4xx →
+        JusiImBadResponseError). Idempotent for non-members (removed=0)."""
+        if not cid:
+            raise ValueError("cid is required")
+        path = f"/admin/conversations/{cid}/members"
+        payload = {"remove": list(uids or [])}
+        data = self._signed_request("POST", path, payload)
+        return self._parse_members_response("remove_members", data)
+
+    def update_meta(self, cid: str, meta: dict[str, Any]) -> None:
+        """Replace cid's meta JSON wholesale (P9 群改名 lives in meta.name)."""
+        if not cid:
+            raise ValueError("cid is required")
+        path = f"/admin/conversations/{cid}"
+        self._signed_request("PATCH", path, {"meta": meta})
+
+    def get_members(self, cid: str, user_token: str) -> list[dict[str, Any]]:
+        """GET the roster as a member via jusi REST (Bearer, NOT admin HMAC).
+
+        Returns ``[{uid, role, joined_at}]``. Used by the bridge to enforce
+        owner-only actions (kick / rename): we issue the caller a short-lived
+        token, then read their role here. A non-member gets 403 → BadResponse.
+        """
+        if not cid:
+            raise ValueError("cid is required")
+        url = f"{self._api_url}/v1/conversations/{cid}/members"
+        try:
+            response = requests.get(
+                url,
+                headers={"Authorization": f"Bearer {user_token}"},
+                timeout=self._timeout,
+            )
+        except requests.RequestException as exc:
+            logger.exception("jusi-im REST unreachable: %s", url)
+            raise JusiImUnreachableError(str(exc)) from exc
+        if response.status_code >= 500:
+            raise JusiImUnreachableError(
+                f"jusi-im returned {response.status_code} from {url}"
+            )
+        if response.status_code >= 400:
+            raise JusiImBadResponseError(
+                f"jusi-im returned {response.status_code} from members: "
+                f"{response.text[:200]}"
+            )
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise JusiImBadResponseError("members response was not JSON") from exc
+        if not isinstance(data, list):
+            raise JusiImBadResponseError(f"members: unexpected shape: {data}")
+        return data
+
+    def _parse_members_response(
+        self, op: str, data: dict[str, Any]
+    ) -> JusiImAddMembersResponse:
         try:
             return JusiImAddMembersResponse(
                 cid=data["cid"],
                 added=int(data.get("added") or 0),
+                removed=int(data.get("removed") or 0),
                 members=list(data.get("members") or []),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise JusiImBadResponseError(
-                f"add_members: unexpected response shape: {data}"
+                f"{op}: unexpected response shape: {data}"
             ) from exc
 
     def post_message(
@@ -288,7 +348,8 @@ class JusiImAdminClient:
         headers = self._signed_headers(method, path, body)
         url = self._api_url + path
         try:
-            response = requests.post(
+            response = requests.request(
+                method,
                 url,
                 data=body,
                 headers=headers,

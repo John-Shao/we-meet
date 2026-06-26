@@ -20,8 +20,14 @@ from rest_framework import (
     viewsets,
 )
 from rest_framework.decorators import action
-from rest_framework.exceptions import APIException, ValidationError
+from rest_framework.exceptions import (
+    APIException,
+    PermissionDenied,
+    ValidationError,
+)
 from rest_framework.response import Response
+
+from core.services.jusi_im import JusiImServiceError
 
 from core import models
 from core.api.directory import get_caller_organization
@@ -316,6 +322,229 @@ class ImViewSet(viewsets.ViewSet):
                 "self_uid": self_uid,
             },
             status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["post"], url_path="conversations/add-members")
+    def conversations_add_members(self, request):
+        """Add members to an existing group (P9 拉人). Any current member may add.
+
+        Body: ``{cid, member_user_ids: [<we-meet uuid>, ...]}``. Members are
+        resolved org-scoped to IM uids; a system message announces the join.
+        """
+        data = request.data or {}
+        cid = (data.get("cid") or "").strip()
+        raw_ids = data.get("member_user_ids")
+        if not cid:
+            raise ValidationError({"cid": "cid is required"})
+        if not isinstance(raw_ids, list) or not raw_ids:
+            raise ValidationError({"member_user_ids": "at least one member is required"})
+
+        client = self._make_client()
+        me = self._issue(client, self._external_id(request.user))
+        self._require_role(client, cid, me, owner_only=False)
+
+        users = self._org_users_by_ids(request.user, raw_ids)
+        member_uids: list[str] = []
+        names: list[str] = []
+        for mid in dict.fromkeys(str(x) for x in raw_ids):
+            user = users.get(mid)
+            if user is None:
+                continue
+            uid = self._resolve_uid(client, user)
+            if uid != me.uid and uid not in member_uids:
+                member_uids.append(uid)
+                names.append(self._display_name(user))
+        if not member_uids:
+            raise ValidationError({"member_user_ids": "no valid members to add"})
+
+        try:
+            result = client.add_members(cid, member_uids)
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+
+        if result.added > 0:
+            self._post_system_message(
+                client,
+                cid,
+                f"{self._display_name(request.user)} 邀请 {'、'.join(names)} 加入群聊",
+            )
+        return Response(
+            {"cid": result.cid, "added": result.added, "members": result.members},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["post"], url_path="conversations/remove-member")
+    def conversations_remove_member(self, request):
+        """Remove a member from a group (P9 踢人). Owner-only.
+
+        Body: ``{cid, member_user_id}``. Use the leave/delete flow to remove
+        yourself — kicking the owner is rejected by jusi.
+        """
+        data = request.data or {}
+        cid = (data.get("cid") or "").strip()
+        member_user_id = data.get("member_user_id")
+        if not cid:
+            raise ValidationError({"cid": "cid is required"})
+        if not member_user_id:
+            raise ValidationError({"member_user_id": "member_user_id is required"})
+
+        client = self._make_client()
+        me = self._issue(client, self._external_id(request.user))
+        self._require_role(client, cid, me, owner_only=True)
+
+        users = self._org_users_by_ids(request.user, [member_user_id])
+        target = users.get(str(member_user_id))
+        if target is None:
+            raise ValidationError({"member_user_id": "not found in your organization"})
+        target_uid = self._resolve_uid(client, target)
+        if target_uid == me.uid:
+            raise ValidationError({"member_user_id": "use leave to remove yourself"})
+
+        try:
+            result = client.remove_members(cid, [target_uid])
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            # jusi rejects removing the owner with 4xx.
+            raise ValidationError({"member_user_id": str(exc)}) from exc
+
+        if result.removed > 0:
+            self._post_system_message(
+                client,
+                cid,
+                f"{self._display_name(request.user)} 将 {self._display_name(target)} 移出群聊",
+            )
+        return Response(
+            {"cid": result.cid, "removed": result.removed, "members": result.members},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["post"], url_path="conversations/rename")
+    def conversations_rename(self, request):
+        """Rename a group (P9 改群名). Owner-only.
+
+        Body: ``{cid, name}``. Replaces meta.name; announces via system message.
+        """
+        data = request.data or {}
+        cid = (data.get("cid") or "").strip()
+        name = (data.get("name") or "").strip()
+        if not cid:
+            raise ValidationError({"cid": "cid is required"})
+        if not name:
+            raise ValidationError({"name": "name is required"})
+        if len(name) > 60:
+            raise ValidationError({"name": "name too long (max 60)"})
+
+        client = self._make_client()
+        me = self._issue(client, self._external_id(request.user))
+        self._require_role(client, cid, me, owner_only=True)
+
+        try:
+            client.update_meta(cid, {"name": name})
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+
+        self._post_system_message(
+            client,
+            cid,
+            f'{self._display_name(request.user)} 将群名改为 "{name}"',
+        )
+        return Response({"cid": cid, "name": name}, status=status.HTTP_200_OK)
+
+    # ---- shared helpers (P9) ----
+
+    def _make_client(self) -> JusiImAdminClient:
+        """Build a JusiImAdminClient from settings or raise 502 if unconfigured."""
+        cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
+        if not cfg:
+            logger.error("JUSI_IM_CONFIGURATION not configured")
+            raise JusiImUnreachableHTTPError(detail="JUSI_IM not configured")
+        return JusiImAdminClient(
+            api_url=str(cfg["api_url"]),
+            admin_hmac_secret=str(cfg["admin_hmac_secret"]),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
+        )
+
+    @staticmethod
+    def _issue(client, external_id):
+        """issue_token wrapped to map service errors to HTTP errors."""
+        try:
+            return client.issue_token(external_id=external_id, ttl_seconds=60)
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+
+    @staticmethod
+    def _resolve_uid(client, user) -> str:
+        """Resolve a User → IM uid (lazy-register) + backfill the cache."""
+        resolved = ImViewSet._issue(client, ImViewSet._external_id(user))
+        ImViewSet._cache_im_uid(user, resolved.uid)
+        return resolved.uid
+
+    @staticmethod
+    def _org_users_by_ids(caller, ids) -> dict:
+        """{id_str: User} for ids that are active members of the caller's org."""
+        organization = get_caller_organization(caller)
+        if organization is None:
+            raise ValidationError({"member_user_ids": "caller has no organization"})
+        valid = []
+        for raw in ids:
+            try:
+                valid.append(uuid.UUID(str(raw)))
+            except (ValueError, AttributeError, TypeError):
+                continue
+        users = (
+            models.User.objects.filter(
+                id__in=valid,
+                is_device=False,
+                memberships__organization=organization,
+                memberships__status=models.MembershipStatusChoices.ACTIVE,
+            )
+            .distinct()
+        )
+        return {str(u.id): u for u in users}
+
+    def _require_role(self, client, cid, me, *, owner_only: bool) -> list:
+        """Fetch the roster as the caller; enforce membership / ownership.
+
+        jusi only returns the roster to members, so a successful fetch already
+        proves membership; owner_only additionally requires role==owner.
+        """
+        try:
+            roster = client.get_members(cid, me.token)
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            # 403/404 from jusi → caller isn't a member (or cid gone).
+            raise PermissionDenied("not a member of this conversation") from exc
+        if owner_only:
+            is_owner = any(
+                m.get("uid") == me.uid and m.get("role") == "owner" for m in roster
+            )
+            if not is_owner:
+                raise PermissionDenied("only the group owner may do this")
+        return roster
+
+    @staticmethod
+    def _post_system_message(client, cid, body) -> None:
+        """Best-effort system message (content_type=system); never fails the op."""
+        try:
+            client.post_message(cid=cid, body=body, content_type="system")
+        except JusiImServiceError:
+            logger.warning("im: system message post failed for %s", cid, exc_info=True)
+
+    @staticmethod
+    def _display_name(user) -> str:
+        return (
+            getattr(user, "full_name", None)
+            or getattr(user, "short_name", None)
+            or getattr(user, "email", None)
+            or "成员"
         )
 
     @staticmethod
