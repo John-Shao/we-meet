@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { fetchDirectoryMembers } from '@/features/contacts'
 
@@ -28,8 +28,7 @@ export const GroupPicker = ({ onCreate, onClose }: Props) => {
   const [selected, setSelected] = useState<Map<string, string>>(new Map())
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const selfLabel =
-    user?.full_name || user?.short_name || user?.email || t('group.you')
+  const selfLabel = user?.full_name || user?.email || t('group.you')
 
   useEffect(() => {
     searchRef.current?.focus()
@@ -188,7 +187,7 @@ export const GroupPicker = ({ onCreate, onClose }: Props) => {
             onChange={(e) => setName(e.target.value)}
             placeholder={t('group.namePlaceholder')}
             data-testid="group-picker-name"
-            className={css({ flex: 1, minWidth: 0 }, inputCls)}
+            className={cx(inputCls, css({ flex: 1, minWidth: 0 }))}
           />
           <button
             type="button"
