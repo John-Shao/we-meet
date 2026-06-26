@@ -61,6 +61,7 @@
     "transfer": "转让群主",
     "transferConfirm": "确定将群主转让给「{{name}}」?转让后你将成为普通成员。",
     "dissolve": "解散群聊",
+    "removedNotice": "您已被移除群聊",
     "empty": "没有可添加的成员",
     "error": "操作失败:{{message}}"
   },

@@ -61,6 +61,7 @@
     "transfer": "Eigentümerschaft übertragen",
     "transferConfirm": "Eigentümerschaft an „{{name}}“ übertragen? Sie werden zum regulären Mitglied.",
     "dissolve": "Gruppe auflösen",
+    "removedNotice": "Sie wurden aus dieser Gruppe entfernt",
     "empty": "Niemand zum Hinzufügen",
     "error": "Aktion fehlgeschlagen: {{message}}"
   },

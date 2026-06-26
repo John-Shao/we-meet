@@ -130,8 +130,11 @@ export const GroupInfoPanel = ({
     setBusy(true)
     try {
       await client.leaveConversation(cid)
-      await refresh()
+      // Close + clear selection immediately. Do NOT await a roster refetch — once
+      // we've left, GET members 403s and React Query retries it for ~5s before
+      // settling, which would freeze the dialog. Just drop it from the list.
       onLeft()
+      void qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
     } catch (e) {
       onError(e)
       setBusy(false)

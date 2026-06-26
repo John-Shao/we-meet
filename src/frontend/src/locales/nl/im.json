@@ -61,6 +61,7 @@
     "transfer": "Eigenaarschap overdragen",
     "transferConfirm": "Eigenaarschap overdragen aan “{{name}}”? Je wordt een gewoon lid.",
     "dissolve": "Groep opheffen",
+    "removedNotice": "Je bent uit deze groep verwijderd",
     "empty": "Niemand om toe te voegen",
     "error": "Actie mislukt: {{message}}"
   },

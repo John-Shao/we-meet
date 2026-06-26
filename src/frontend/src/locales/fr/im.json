@@ -61,6 +61,7 @@
     "transfer": "Transférer la propriété",
     "transferConfirm": "Transférer la propriété à « {{name}} » ? Vous deviendrez un membre ordinaire.",
     "dissolve": "Dissoudre le groupe",
+    "removedNotice": "Vous avez été retiré de ce groupe",
     "empty": "Personne à ajouter",
     "error": "Échec de l'action : {{message}}"
   },

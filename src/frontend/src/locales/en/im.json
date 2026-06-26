@@ -61,6 +61,7 @@
     "transfer": "Transfer ownership",
     "transferConfirm": "Transfer ownership to “{{name}}”? You'll become a regular member.",
     "dissolve": "Dissolve group",
+    "removedNotice": "You've been removed from this group",
     "empty": "No one left to add",
     "error": "Action failed: {{message}}"
   },

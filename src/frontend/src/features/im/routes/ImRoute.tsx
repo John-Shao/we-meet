@@ -78,6 +78,18 @@ const ImAuthenticated = () => {
     }
   }, [initialCID, qc])
 
+  // 被群主踢出时,服务端定向推一条 system 帧(P9)。掉群:从列表移除、若正打开则关闭并提示。
+  useEffect(() => {
+    const off = client.onSystem((s) => {
+      if (s?.event !== 'removed_from_conversation') return
+      const removedCid = typeof s.cid === 'string' ? s.cid : ''
+      void qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+      if (removedCid && removedCid === selectedCID) setSelectedCID(null)
+      window.alert(t('manage.removedNotice'))
+    })
+    return off
+  }, [client, qc, selectedCID, t])
+
   const sendDisabled = state !== 'connected'
 
   // 私聊对方名:从每个 direct 会话的 members 取「非自己」那个 uid,批量解析成显示名。
