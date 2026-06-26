@@ -101,6 +101,8 @@ const ImAuthenticated = () => {
     return (peer && peerNames[peer]?.full_name) || t('convName.directFallback')
   }
 
+  const selectedConv = conversations.find((c) => c.cid === selectedCID) ?? null
+
   // 删除会话(direct 软隐藏)/ 退群(group;群主则服务端自动转让或解散)。
   const handleDelete = async (c: ConversationSummary) => {
     const confirmMsg =
@@ -262,10 +264,11 @@ const ImAuthenticated = () => {
             overflow: 'hidden',
           })}
         >
-          {selectedCID ? (
+          {selectedConv ? (
             <ChatPane
               client={client}
-              cid={selectedCID}
+              conversation={selectedConv}
+              title={nameOf(selectedConv)}
               currentUserUID={currentUserUID}
               sendDisabled={sendDisabled}
             />
@@ -278,7 +281,7 @@ const ImAuthenticated = () => {
                 marginTop: '2rem',
               })}
             >
-              {t('chat.pickPrompt')}
+              {selectedCID ? t('chat.loading') : t('chat.pickPrompt')}
             </div>
           )}
         </main>

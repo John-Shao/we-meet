@@ -37,7 +37,32 @@
     "cancel": "Cancel",
     "loading": "Loading…",
     "empty": "No members to add",
-    "error": "Failed to create group: {{message}}"
+    "error": "Failed to create group: {{message}}",
+    "you": "You"
+  },
+  "header": {
+    "memberCount": "{{count}} members"
+  },
+  "manage": {
+    "addMembers": "Add members",
+    "addTitle": "Add group members",
+    "info": "Group info",
+    "members": "Members",
+    "owner": "Owner",
+    "rename": "Rename group",
+    "renameTitle": "Rename group",
+    "renamePlaceholder": "Enter a new name",
+    "save": "Save",
+    "cancel": "Cancel",
+    "remove": "Remove from group",
+    "removeConfirm": "Remove “{{name}}” from the group?",
+    "leave": "Leave group",
+    "leaveConfirm": "Leave this group? If you're the owner, ownership transfers automatically to another member; the group dissolves if you're the last one.",
+    "transfer": "Transfer ownership",
+    "transferConfirm": "Transfer ownership to “{{name}}”? You'll become a regular member.",
+    "dissolve": "Dissolve group",
+    "empty": "No one left to add",
+    "error": "Action failed: {{message}}"
   },
   "chat": {
     "loading": "Loading history…",

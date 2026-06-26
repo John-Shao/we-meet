@@ -37,7 +37,32 @@
     "cancel": "Abbrechen",
     "loading": "Wird geladen…",
     "empty": "Keine Mitglieder zum Hinzufügen",
-    "error": "Gruppe konnte nicht erstellt werden: {{message}}"
+    "error": "Gruppe konnte nicht erstellt werden: {{message}}",
+    "you": "Ich"
+  },
+  "header": {
+    "memberCount": "{{count}} Mitglieder"
+  },
+  "manage": {
+    "addMembers": "Mitglieder hinzufügen",
+    "addTitle": "Gruppenmitglieder hinzufügen",
+    "info": "Gruppeninfo",
+    "members": "Mitglieder",
+    "owner": "Eigentümer",
+    "rename": "Gruppe umbenennen",
+    "renameTitle": "Gruppe umbenennen",
+    "renamePlaceholder": "Neuen Namen eingeben",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "remove": "Aus Gruppe entfernen",
+    "removeConfirm": "„{{name}}“ aus der Gruppe entfernen?",
+    "leave": "Gruppe verlassen",
+    "leaveConfirm": "Gruppe verlassen? Wenn Sie Eigentümer sind, wird die Eigentümerschaft automatisch an ein anderes Mitglied übertragen; ist niemand mehr übrig, wird die Gruppe aufgelöst.",
+    "transfer": "Eigentümerschaft übertragen",
+    "transferConfirm": "Eigentümerschaft an „{{name}}“ übertragen? Sie werden zum regulären Mitglied.",
+    "dissolve": "Gruppe auflösen",
+    "empty": "Niemand zum Hinzufügen",
+    "error": "Aktion fehlgeschlagen: {{message}}"
   },
   "chat": {
     "loading": "Verlauf wird geladen…",

@@ -37,7 +37,32 @@
     "cancel": "Annuleren",
     "loading": "Laden…",
     "empty": "Geen leden om toe te voegen",
-    "error": "Groep aanmaken mislukt: {{message}}"
+    "error": "Groep aanmaken mislukt: {{message}}",
+    "you": "Ik"
+  },
+  "header": {
+    "memberCount": "{{count}} leden"
+  },
+  "manage": {
+    "addMembers": "Leden toevoegen",
+    "addTitle": "Groepsleden toevoegen",
+    "info": "Groepsinfo",
+    "members": "Leden",
+    "owner": "Eigenaar",
+    "rename": "Groep hernoemen",
+    "renameTitle": "Groep hernoemen",
+    "renamePlaceholder": "Voer een nieuwe naam in",
+    "save": "Opslaan",
+    "cancel": "Annuleren",
+    "remove": "Uit groep verwijderen",
+    "removeConfirm": "“{{name}}” uit de groep verwijderen?",
+    "leave": "Groep verlaten",
+    "leaveConfirm": "Deze groep verlaten? Als je eigenaar bent, wordt het eigenaarschap automatisch overgedragen aan een ander lid; de groep wordt opgeheven als je de laatste bent.",
+    "transfer": "Eigenaarschap overdragen",
+    "transferConfirm": "Eigenaarschap overdragen aan “{{name}}”? Je wordt een gewoon lid.",
+    "dissolve": "Groep opheffen",
+    "empty": "Niemand om toe te voegen",
+    "error": "Actie mislukt: {{message}}"
   },
   "chat": {
     "loading": "Geschiedenis laden…",

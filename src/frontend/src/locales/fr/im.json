@@ -37,7 +37,32 @@
     "cancel": "Annuler",
     "loading": "Chargement…",
     "empty": "Aucun membre à ajouter",
-    "error": "Échec de la création du groupe : {{message}}"
+    "error": "Échec de la création du groupe : {{message}}",
+    "you": "Moi"
+  },
+  "header": {
+    "memberCount": "{{count}} membres"
+  },
+  "manage": {
+    "addMembers": "Ajouter des membres",
+    "addTitle": "Ajouter des membres au groupe",
+    "info": "Infos du groupe",
+    "members": "Membres",
+    "owner": "Propriétaire",
+    "rename": "Renommer le groupe",
+    "renameTitle": "Renommer le groupe",
+    "renamePlaceholder": "Saisir un nouveau nom",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "remove": "Retirer du groupe",
+    "removeConfirm": "Retirer « {{name}} » du groupe ?",
+    "leave": "Quitter le groupe",
+    "leaveConfirm": "Quitter ce groupe ? Si vous êtes le propriétaire, la propriété est transférée automatiquement à un autre membre ; le groupe est dissous si vous êtes le dernier.",
+    "transfer": "Transférer la propriété",
+    "transferConfirm": "Transférer la propriété à « {{name}} » ? Vous deviendrez un membre ordinaire.",
+    "dissolve": "Dissoudre le groupe",
+    "empty": "Personne à ajouter",
+    "error": "Échec de l'action : {{message}}"
   },
   "chat": {
     "loading": "Chargement de l'historique…",
