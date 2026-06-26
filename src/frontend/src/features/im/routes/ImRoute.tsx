@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'wouter'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -23,7 +23,6 @@ import { GroupSettingsPanel } from '../components/GroupSettingsPanel'
 import { GroupPicker } from '../components/GroupPicker'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
-import { usePinnedConversations } from '../hooks/usePinnedConversations'
 
 /**
  * `/im` route — split view: conversation list (left) + chat pane (right).
@@ -59,19 +58,11 @@ const ImAuthenticated = () => {
     staleTime: 60_000,
   })
   const currentUserUID = tokenData?.uid ?? ''
+  // Server returns conversations pinned-first (P10); the list renders as-is and
+  // reads pinned/muted off each summary.
   const { data: conversations = [], isLoading: convLoading } = useConversations(
     client,
     currentUserUID
-  )
-  const { pinned, toggle: togglePin } = usePinnedConversations(currentUserUID)
-  // Pinned conversations float to the top; Array.sort is stable so the rest
-  // keep their server order.
-  const orderedConversations = useMemo(
-    () =>
-      [...conversations].sort(
-        (a, b) => Number(pinned.has(b.cid)) - Number(pinned.has(a.cid))
-      ),
-    [conversations, pinned]
   )
   // 从通讯录跳来时 URL 带 ?cid=<会话>,直接预选并打开该会话。
   const [searchParams] = useSearchParams()
@@ -320,14 +311,13 @@ const ImAuthenticated = () => {
             </div>
           </div>
           <ConversationList
-            conversations={orderedConversations}
+            conversations={conversations}
             selectedCID={selectedCID}
             onSelect={setSelectedCID}
             loading={convLoading}
             nameOf={nameOf}
             onDelete={handleDelete}
             mentionedCids={mentionedCids}
-            pinnedCids={pinned}
           />
         </aside>
         <main
@@ -379,8 +369,6 @@ const ImAuthenticated = () => {
                     client={client}
                     conversation={selectedConv}
                     currentUserUID={currentUserUID}
-                    pinned={pinned.has(selectedConv.cid)}
-                    onTogglePin={() => togglePin(selectedConv.cid)}
                     onLeft={() => {
                       setRightPanel(null)
                       setSelectedCID(null)

@@ -54,12 +54,30 @@ export const ChatPane = ({
     enabled: isGroup && memberUids.length > 0,
     staleTime: 60_000,
   })
+  // P10 群昵称:the roster carries each member's per-group nickname, which
+  // overrides their org-directory name within THIS conversation.
+  const { data: roster = [] } = useQuery({
+    queryKey: ['im', 'members', cid],
+    queryFn: () => client.listMembers(cid),
+    enabled: isGroup,
+    staleTime: 30_000,
+    retry: false,
+  })
+  const nickOf = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const r of roster) if (r.nickname) m[r.uid] = r.nickname
+    return m
+  }, [roster])
+  // For a sender's display: nickname → directory name → uid.
   const nameOf = useMemo(
-    () => (uid: string) => names[uid]?.full_name || uid,
-    [names]
+    () => (uid: string) => nickOf[uid] || names[uid]?.full_name || uid,
+    [nickOf, names]
   )
+  // For @-matching: a real resolved display only (no bare-uid fallback).
+  const displayOf = (uid: string): string | undefined =>
+    nickOf[uid] || names[uid]?.full_name
   const everyone = t('mention.everyone')
-  const selfName = names[currentUserUID]?.full_name || ''
+  const selfName = displayOf(currentUserUID) || ''
   // Names highlightable in message bodies: 所有人 + every member (incl. self).
   const highlightNames = useMemo(
     () =>
@@ -67,11 +85,11 @@ export const ChatPane = ({
         ? [
             everyone,
             ...memberUids
-              .map((u) => names[u]?.full_name)
+              .map((u) => nickOf[u] || names[u]?.full_name)
               .filter((n): n is string => !!n),
           ]
         : [],
-    [isGroup, everyone, memberUids, names]
+    [isGroup, everyone, memberUids, names, nickOf]
   )
   // @-mention dropdown suggestions: 所有人 + other members (not yourself).
   const mentionables = useMemo(
@@ -81,11 +99,11 @@ export const ChatPane = ({
             everyone,
             ...memberUids
               .filter((u) => u !== currentUserUID)
-              .map((u) => names[u]?.full_name)
+              .map((u) => nickOf[u] || names[u]?.full_name)
               .filter((n): n is string => !!n),
           ]
         : [],
-    [isGroup, everyone, memberUids, names, currentUserUID]
+    [isGroup, everyone, memberUids, names, nickOf, currentUserUID]
   )
 
   // Auto-scroll on new message.

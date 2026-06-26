@@ -16,8 +16,6 @@ interface Props {
   onDelete: (c: ConversationSummary) => void
   /** cids with an unread @-mention of the current user → show a red "@" marker. */
   mentionedCids?: Set<string>
-  /** Pinned cids → show a pin marker (already sorted to the top upstream). */
-  pinnedCids?: Set<string>
 }
 
 export const ConversationList = ({
@@ -28,7 +26,6 @@ export const ConversationList = ({
   nameOf,
   onDelete,
   mentionedCids,
-  pinnedCids,
 }: Props) => {
   const { t } = useTranslation('im')
 
@@ -91,7 +88,7 @@ export const ConversationList = ({
                 color: 'greyscale.900',
               })}
             >
-              {pinnedCids?.has(c.cid) && (
+              {c.pinned && (
                 <span
                   aria-label={t('manage.pin')}
                   title={t('manage.pin')}
@@ -128,21 +125,34 @@ export const ConversationList = ({
                 {nameOf(c)}
               </span>
             </span>
-            {c.unread_count > 0 && (
-              <span
-                className={css({
-                  flexShrink: 0,
-                  paddingX: '0.5rem',
-                  paddingY: '0.125rem',
-                  borderRadius: '999px',
-                  fontSize: '0.75rem',
-                  backgroundColor: 'primary.500',
-                  color: 'white',
-                })}
-              >
-                {c.unread_count}
-              </span>
-            )}
+            {c.unread_count > 0 &&
+              (c.muted ? (
+                // 免打扰:只显一个小灰点,不显数字(对齐飞书)。
+                <span
+                  aria-label={String(c.unread_count)}
+                  className={css({
+                    flexShrink: 0,
+                    width: '0.5rem',
+                    height: '0.5rem',
+                    borderRadius: '999px',
+                    backgroundColor: 'greyscale.400',
+                  })}
+                />
+              ) : (
+                <span
+                  className={css({
+                    flexShrink: 0,
+                    paddingX: '0.5rem',
+                    paddingY: '0.125rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    backgroundColor: 'primary.500',
+                    color: 'white',
+                  })}
+                >
+                  {c.unread_count}
+                </span>
+              ))}
           </button>
           <button
             type="button"
