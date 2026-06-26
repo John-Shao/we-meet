@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
@@ -6,12 +6,60 @@ import { css } from '@/styled-system/css'
 interface Props {
   onSend: (text: string) => Promise<void> | void
   disabled?: boolean
+  /** Names suggested after typing "@" (group chats). Empty/undefined disables @-mention. */
+  mentionables?: string[]
 }
 
-export const MessageInput = ({ onSend, disabled }: Props) => {
+/** Find the active "@query" segment immediately before the caret, if any. */
+const activeMention = (
+  text: string,
+  caret: number,
+): { at: number; query: string } | null => {
+  let i = caret - 1
+  while (i >= 0 && text[i] !== '@' && !/\s/.test(text[i])) i--
+  if (i >= 0 && text[i] === '@' && (i === 0 || /\s/.test(text[i - 1]))) {
+    return { at: i, query: text.slice(i + 1, caret) }
+  }
+  return null
+}
+
+export const MessageInput = ({ onSend, disabled, mentionables = [] }: Props) => {
   const { t } = useTranslation('im')
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [mention, setMention] = useState<{ at: number; query: string } | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const recomputeMention = (value: string, caret: number) => {
+    if (mentionables.length === 0) {
+      setMention(null)
+      return
+    }
+    setMention(activeMention(value, caret))
+  }
+
+  const suggestions =
+    mention === null
+      ? []
+      : mentionables
+          .filter((n) => n.toLowerCase().includes(mention.query.toLowerCase()))
+          .slice(0, 8)
+
+  const pick = (name: string) => {
+    if (!mention) return
+    const caret = inputRef.current?.selectionStart ?? text.length
+    const before = text.slice(0, mention.at)
+    const after = text.slice(caret)
+    const inserted = `@${name} `
+    const next = before + inserted + after
+    setText(next)
+    setMention(null)
+    const pos = (before + inserted).length
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+      inputRef.current?.setSelectionRange(pos, pos)
+    })
+  }
 
   const submit = useCallback(async () => {
     const trimmed = text.trim()
@@ -20,6 +68,7 @@ export const MessageInput = ({ onSend, disabled }: Props) => {
     try {
       await onSend(trimmed)
       setText('')
+      setMention(null)
     } catch {
       // sendText already surfaces transport errors; keep the draft so the user can retry.
     } finally {
@@ -34,16 +83,82 @@ export const MessageInput = ({ onSend, disabled }: Props) => {
         void submit()
       }}
       className={css({
+        position: 'relative',
         display: 'flex',
         gap: '0.5rem',
         padding: '0.75rem',
         borderTop: '1px solid token(colors.greyscale.200)',
       })}
     >
+      {suggestions.length > 0 && (
+        <ul
+          className={css({
+            position: 'absolute',
+            bottom: '100%',
+            left: '0.75rem',
+            marginBottom: '0.25rem',
+            minWidth: '12rem',
+            maxHeight: '12rem',
+            overflowY: 'auto',
+            listStyle: 'none',
+            margin: 0,
+            padding: '0.25rem',
+            backgroundColor: 'white',
+            border: '1px solid token(colors.greyscale.200)',
+            borderRadius: '0.5rem',
+            boxShadow: '0 6px 24px rgba(0,0,0,0.15)',
+            zIndex: 10,
+          })}
+        >
+          {suggestions.map((name) => (
+            <li key={name}>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  // mousedown (not click) so the input doesn't blur first.
+                  e.preventDefault()
+                  pick(name)
+                }}
+                data-testid={`mention-opt-${name}`}
+                className={css({
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  paddingX: '0.5rem',
+                  paddingY: '0.375rem',
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  color: 'greyscale.900',
+                  _hover: { backgroundColor: 'greyscale.100' },
+                })}
+              >
+                {name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <input
+        ref={inputRef}
         type="text"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value)
+          recomputeMention(e.target.value, e.target.selectionStart ?? e.target.value.length)
+        }}
+        onKeyUp={(e) => {
+          if (e.key === 'Escape') {
+            setMention(null)
+            return
+          }
+          const el = e.currentTarget
+          recomputeMention(el.value, el.selectionStart ?? el.value.length)
+        }}
+        onClick={(e) => recomputeMention(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
+        onBlur={() => setMention(null)}
         placeholder={t('input.placeholder')}
         disabled={disabled || sending}
         className={css({

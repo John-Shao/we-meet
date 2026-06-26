@@ -50,6 +50,17 @@ export const ChatPane = ({
     () => (uid: string) => names[uid]?.full_name || uid,
     [names],
   )
+  // @-mention suggestions: other members' display names (group only).
+  const mentionables = useMemo(
+    () =>
+      isGroup
+        ? memberUids
+            .filter((u) => u !== currentUserUID)
+            .map((u) => names[u]?.full_name)
+            .filter((n): n is string => !!n)
+        : [],
+    [isGroup, memberUids, names, currentUserUID],
+  )
 
   // Auto-scroll on new message.
   useEffect(() => {
@@ -167,7 +178,7 @@ export const ChatPane = ({
           ))
         )}
       </div>
-      <MessageInput onSend={onSend} disabled={sendDisabled} />
+      <MessageInput onSend={onSend} disabled={sendDisabled} mentionables={mentionables} />
     </div>
   )
 }
