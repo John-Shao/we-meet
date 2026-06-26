@@ -61,6 +61,9 @@ export const GroupInfoPanel = ({
     queryKey: ['im', 'members', cid],
     queryFn: () => client.listMembers(cid),
     staleTime: 30_000,
+    // Never retry: a 403 (you left / were removed) won't succeed on retry, and
+    // the default 3× backoff would freeze the UI ~5s after leaving the group.
+    retry: false,
   })
   const rosterUids = roster.map((m) => m.uid)
   const { data: names = {} } = useQuery({
@@ -130,9 +133,9 @@ export const GroupInfoPanel = ({
     setBusy(true)
     try {
       await client.leaveConversation(cid)
-      // Close + clear selection immediately. Do NOT await a roster refetch — once
-      // we've left, GET members 403s and React Query retries it for ~5s before
-      // settling, which would freeze the dialog. Just drop it from the list.
+      // Drop the now-inaccessible roster query so nothing refetches it (→403),
+      // close + clear selection immediately, then refresh only the list.
+      qc.removeQueries({ queryKey: ['im', 'members', cid] })
       onLeft()
       void qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
     } catch (e) {
