@@ -244,7 +244,9 @@ export const GroupInfoPanel = ({
             roster.map((m) => {
               const label = nameOf(m.uid)
               const isSelf = m.uid === currentUserUID
-              const isRowOwner = m.role === 'owner'
+              // Drive the badge off owner_uid (authoritative) rather than the
+              // roster role, which can lag a transfer until the row re-syncs.
+              const isRowOwner = m.uid === conversation.owner_uid
               const canActOnRow = isOwner && !isSelf && !isRowOwner
               return (
                 <li key={m.uid} className={css({ display: 'flex', alignItems: 'center', gap: '0.625rem', paddingX: '1rem', paddingY: '0.375rem', _hover: { backgroundColor: 'greyscale.50' } })}>
