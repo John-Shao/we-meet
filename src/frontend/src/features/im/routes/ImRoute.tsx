@@ -311,6 +311,7 @@ const ImAuthenticated = () => {
         <main
           className={css({
             flex: 1,
+            minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -324,7 +325,9 @@ const ImAuthenticated = () => {
               currentUserUID={currentUserUID}
               sendDisabled={sendDisabled}
               onOpenInfo={
-                selectedConv.type === 'group' ? () => setInfoOpen(true) : undefined
+                selectedConv.type === 'group'
+                  ? () => setInfoOpen((v) => !v)
+                  : undefined
               }
               onAddMembers={
                 selectedConv.type === 'group' ? () => setAddOpen(true) : undefined
@@ -343,6 +346,19 @@ const ImAuthenticated = () => {
             </div>
           )}
         </main>
+        {infoOpen && selectedConv && selectedConv.type === 'group' && (
+          <GroupInfoPanel
+            client={client}
+            conversation={selectedConv}
+            currentUserUID={currentUserUID}
+            onAddMembers={() => setAddOpen(true)}
+            onLeft={() => {
+              setInfoOpen(false)
+              setSelectedCID(null)
+            }}
+            onClose={() => setInfoOpen(false)}
+          />
+        )}
       </div>
       {pickerOpen && (
         <ContactPicker
@@ -354,22 +370,6 @@ const ImAuthenticated = () => {
         <GroupPicker
           onCreate={handleCreateGroup}
           onClose={() => setGroupPickerOpen(false)}
-        />
-      )}
-      {infoOpen && selectedConv && selectedConv.type === 'group' && (
-        <GroupInfoPanel
-          client={client}
-          conversation={selectedConv}
-          currentUserUID={currentUserUID}
-          onAddMembers={() => {
-            setInfoOpen(false)
-            setAddOpen(true)
-          }}
-          onLeft={() => {
-            setInfoOpen(false)
-            setSelectedCID(null)
-          }}
-          onClose={() => setInfoOpen(false)}
         />
       )}
       {addOpen && selectedConv && selectedConv.type === 'group' && (

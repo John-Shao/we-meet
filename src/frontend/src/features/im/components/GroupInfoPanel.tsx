@@ -148,40 +148,22 @@ export const GroupInfoPanel = ({
   }
 
   return (
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
+    // A fixed third column (peer of the conversation list), not a floating
+    // overlay — matches Feishu's persistent group-info panel.
+    <aside
+      aria-label={t('manage.info')}
       className={css({
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
         display: 'flex',
-        alignItems: 'stretch',
-        justifyContent: 'flex-end',
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        animation: 'fade 180ms ease-out',
+        flexDirection: 'column',
+        flexShrink: 0,
+        width: '300px',
+        height: '100%',
+        backgroundColor: 'white',
+        borderLeft: '1px solid token(colors.greyscale.200)',
+        overflow: 'hidden',
+        animation: 'fade 150ms ease-out',
       })}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('manage.info')}
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          width: 'min(400px, 92vw)',
-          backgroundColor: 'white',
-          overflow: 'hidden',
-          boxShadow: '-8px 0 40px rgba(0, 0, 0, 0.18)',
-          // Slide in from the right edge (reuses the global `slide` keyframe,
-          // which animates from `--origin` to the resting position).
-          '--origin': 'translateX(100%)',
-          animation: 'slide 220ms ease-out',
-        })}
-      >
         <div
           className={css({
             display: 'flex',
@@ -302,7 +284,6 @@ export const GroupInfoPanel = ({
             {t('manage.leave')}
           </button>
         </div>
-      </div>
-    </div>
+    </aside>
   )
 }
