@@ -50,6 +50,10 @@ export const useMessages = (client: Client, cid: string | null) => {
       return messages.slice().reverse()
     },
     enabled: !!cid,
-    staleTime: 30_000,
+    // staleTime 0 so switching back into a conversation always refetches the
+    // latest page. Messages that arrived while this conversation was NOT open
+    // are only appended live for the OPEN cid (see the onMessage effect above),
+    // so a stale cache would otherwise hide them until a manual refresh.
+    staleTime: 0,
   })
 }

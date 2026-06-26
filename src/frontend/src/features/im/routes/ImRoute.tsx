@@ -8,7 +8,7 @@ import { useUser } from '@/features/auth'
 
 import { ContactPicker } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
-import type { ConversationSummary } from '@jusi/light-im-sdk'
+import type { ConversationSummary, ConvMember } from '@jusi/light-im-sdk'
 
 import { createDirectConversationByUserId } from '../api/createDirectConversation'
 import { createGroupConversation } from '../api/createGroupConversation'
@@ -112,7 +112,13 @@ const ImAuthenticated = () => {
       const flags = muteFlagsRef.current.get(m.cid)
       if (flags?.muted) return // 消息免打扰:完全不亮
       const body = m.body || ''
-      const mentionsSelf = !!selfName && body.includes(`@${selfName}`)
+      // Others @ me by my group nickname (if set) — read it from the cached
+      // roster; match either nickname or directory name (P10).
+      const roster = qc.getQueryData<ConvMember[]>(['im', 'members', m.cid])
+      const myNick = roster?.find((r) => r.uid === currentUserUID)?.nickname
+      const mentionsSelf =
+        (!!myNick && body.includes(`@${myNick}`)) ||
+        (!!selfName && body.includes(`@${selfName}`))
       const mentionsAll = body.includes(`@${everyone}`)
       const notify = mentionsSelf || (mentionsAll && !flags?.muteAtAll)
       if (notify) {
@@ -125,7 +131,7 @@ const ImAuthenticated = () => {
       }
     })
     return off
-  }, [client, currentUserUID, selectedCID, selfName, everyone])
+  }, [client, currentUserUID, selectedCID, selfName, everyone, qc])
 
   // Opening a conversation clears its @ marker.
   useEffect(() => {
