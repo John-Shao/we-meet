@@ -51,6 +51,8 @@
     "addMembers": "Add members",
     "addTitle": "Add group members",
     "info": "Group info",
+    "settings": "Group settings",
+    "membersTitle": "Members",
     "members": "Members",
     "owner": "Owner",
     "rename": "Rename group",

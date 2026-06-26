@@ -18,8 +18,10 @@ interface Props {
   title: string
   currentUserUID: string
   sendDisabled: boolean
-  /** Open the group info / member panel (group only). */
+  /** Toggle the 群成员 (member roster) panel — the ⋯ button (group only). */
   onOpenInfo?: () => void
+  /** Toggle the 群设置 panel — clicking the group name (group only). */
+  onOpenSettings?: () => void
   /** Open the add-members picker (group only). */
   onAddMembers?: () => void
   /** Group info / member side panel; rendered to the right of the message
@@ -34,6 +36,7 @@ export const ChatPane = ({
   currentUserUID,
   sendDisabled,
   onOpenInfo,
+  onOpenSettings,
   onAddMembers,
   infoPanel,
 }: Props) => {
@@ -130,17 +133,43 @@ export const ChatPane = ({
         })}
       >
         <div className={css({ flex: 1, minWidth: 0 })}>
-          <div
-            className={css({
-              fontWeight: 'bold',
-              color: 'greyscale.900',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            })}
-          >
-            {title}
-          </div>
+          {isGroup && onOpenSettings ? (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              title={t('manage.settings')}
+              data-testid="chat-group-title"
+              className={css({
+                display: 'block',
+                maxWidth: '100%',
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontWeight: 'bold',
+                color: 'greyscale.900',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                _hover: { color: 'primary.500' },
+              })}
+            >
+              {title}
+            </button>
+          ) : (
+            <div
+              className={css({
+                fontWeight: 'bold',
+                color: 'greyscale.900',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              })}
+            >
+              {title}
+            </div>
+          )}
           {isGroup && (
             <div
               className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
@@ -165,8 +194,8 @@ export const ChatPane = ({
           <button
             type="button"
             onClick={onOpenInfo}
-            title={t('manage.info')}
-            aria-label={t('manage.info')}
+            title={t('manage.membersTitle')}
+            aria-label={t('manage.membersTitle')}
             data-testid="chat-group-info"
             className={headerBtn}
           >

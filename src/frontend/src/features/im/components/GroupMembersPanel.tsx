@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 
-import { announceLeave } from '../api/announceLeave'
 import { removeMember } from '../api/removeMember'
-import { renameGroup } from '../api/renameGroup'
 import { resolveImUsers } from '../api/resolveImUsers'
+import { Avatar } from './Avatar'
 
 interface Props {
   client: Client
@@ -16,42 +15,26 @@ interface Props {
   currentUserUID: string
   /** Open the add-members picker. */
   onAddMembers: () => void
-  /** Called after the caller leaves the group (clears the open conversation). */
-  onLeft: () => void
   onClose: () => void
 }
 
-const AVATAR_COLORS = [
-  '#2563eb',
-  '#7c3aed',
-  '#db2777',
-  '#ea580c',
-  '#16a34a',
-  '#0891b2',
-]
-const tintFor = (s: string): string => {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return AVATAR_COLORS[h % AVATAR_COLORS.length]
-}
-const initial = (s: string): string => (s.trim()[0] || '?').toUpperCase()
-
-export const GroupInfoPanel = ({
+/**
+ * 群成员 — the group roster (member list, owner badge, transfer/kick/add).
+ * Rename + leave live in {@link GroupSettingsPanel}; this panel is read +
+ * member-management only. Rendered as a fixed column below the chat header.
+ */
+export const GroupMembersPanel = ({
   client,
   conversation,
   currentUserUID,
   onAddMembers,
-  onLeft,
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
   const qc = useQueryClient()
   const cid = conversation.cid
   const isOwner = conversation.owner_uid === currentUserUID
-  const [editingName, setEditingName] = useState(false)
-  const [nameDraft, setNameDraft] = useState(conversation.name || '')
   const [busy, setBusy] = useState(false)
-  const nameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -60,10 +43,6 @@ export const GroupInfoPanel = ({
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
-
-  useEffect(() => {
-    if (editingName) nameRef.current?.focus()
-  }, [editingName])
 
   const { data: roster = [], isLoading } = useQuery({
     queryKey: ['im', 'members', cid],
@@ -91,24 +70,6 @@ export const GroupInfoPanel = ({
     window.alert(
       t('manage.error', { message: e instanceof Error ? e.message : String(e) })
     )
-
-  const saveName = async () => {
-    const next = nameDraft.trim()
-    if (!next || next === conversation.name) {
-      setEditingName(false)
-      return
-    }
-    setBusy(true)
-    try {
-      await renameGroup(cid, next)
-      await refresh()
-      setEditingName(false)
-    } catch (e) {
-      onError(e)
-    } finally {
-      setBusy(false)
-    }
-  }
 
   const kick = async (uid: string) => {
     const userId = names[uid]?.id
@@ -140,29 +101,9 @@ export const GroupInfoPanel = ({
     }
   }
 
-  const leave = async () => {
-    if (!window.confirm(t('manage.leaveConfirm'))) return
-    setBusy(true)
-    try {
-      // Announce "X 退出群聊" while still a member (best-effort), then leave.
-      await announceLeave(cid).catch(() => {})
-      await client.leaveConversation(cid)
-      // Drop the now-inaccessible roster query so nothing refetches it (→403),
-      // close + clear selection immediately, then refresh only the list.
-      qc.removeQueries({ queryKey: ['im', 'members', cid] })
-      onLeft()
-      void qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
-    } catch (e) {
-      onError(e)
-      setBusy(false)
-    }
-  }
-
   return (
-    // A fixed third column (peer of the conversation list), not a floating
-    // overlay — matches Feishu's persistent group-info panel.
     <aside
-      aria-label={t('manage.info')}
+      aria-label={t('manage.membersTitle')}
       className={css({
         display: 'flex',
         flexDirection: 'column',
@@ -193,7 +134,7 @@ export const GroupInfoPanel = ({
             color: 'greyscale.900',
           })}
         >
-          {t('manage.info')}
+          {t('manage.membersTitle')}
         </h2>
         <button
           type="button"
@@ -212,92 +153,6 @@ export const GroupInfoPanel = ({
         </button>
       </div>
 
-      {/* Group name (owner can rename inline) */}
-      <div
-        className={css({
-          padding: '0.75rem 1rem',
-          borderBottom: '1px solid token(colors.greyscale.100)',
-        })}
-      >
-        {editingName ? (
-          <div className={css({ display: 'flex', gap: '0.5rem' })}>
-            <input
-              ref={nameRef}
-              type="text"
-              value={nameDraft}
-              maxLength={60}
-              onChange={(e) => setNameDraft(e.target.value)}
-              placeholder={t('manage.renamePlaceholder')}
-              data-testid="group-rename-input"
-              className={css({
-                flex: 1,
-                minWidth: 0,
-                paddingX: '0.625rem',
-                paddingY: '0.375rem',
-                border: '1px solid token(colors.greyscale.300)',
-                borderRadius: '0.5rem',
-                fontSize: '0.875rem',
-                outline: 'none',
-                _focus: { borderColor: 'primary.500' },
-              })}
-            />
-            <button
-              type="button"
-              disabled={busy}
-              onClick={saveName}
-              data-testid="group-rename-save"
-              className={css({
-                paddingX: '0.75rem',
-                border: 'none',
-                borderRadius: '0.5rem',
-                backgroundColor: 'primary.500',
-                color: 'white',
-                fontSize: '0.8125rem',
-                cursor: 'pointer',
-              })}
-            >
-              {t('manage.save')}
-            </button>
-          </div>
-        ) : (
-          <div
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            })}
-          >
-            <span
-              className={css({ fontWeight: 'medium', color: 'greyscale.900' })}
-            >
-              {conversation.name || t('convName.groupFallback')}
-            </span>
-            {isOwner && (
-              <button
-                type="button"
-                onClick={() => {
-                  setNameDraft(conversation.name || '')
-                  setEditingName(true)
-                }}
-                title={t('manage.rename')}
-                aria-label={t('manage.rename')}
-                data-testid="group-rename"
-                className={css({
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  color: 'greyscale.500',
-                  fontSize: '0.875rem',
-                  _hover: { color: 'primary.500' },
-                })}
-              >
-                ✎
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* Members header + add */}
       <div
         className={css({
@@ -305,13 +160,12 @@ export const GroupInfoPanel = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           paddingX: '1rem',
-          paddingTop: '0.625rem',
+          paddingTop: '0.75rem',
         })}
       >
         <span
           className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}
         >
-          {t('manage.members')} ·{' '}
           {t('header.memberCount', { count: roster.length })}
         </span>
         <button
@@ -371,24 +225,7 @@ export const GroupInfoPanel = ({
                   _hover: { backgroundColor: 'greyscale.50' },
                 })}
               >
-                <span
-                  aria-hidden="true"
-                  className={css({
-                    flexShrink: 0,
-                    width: '2rem',
-                    height: '2rem',
-                    borderRadius: '999px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    fontSize: '0.8125rem',
-                    fontWeight: 'bold',
-                  })}
-                  style={{ backgroundColor: tintFor(label) }}
-                >
-                  {initial(label)}
-                </span>
+                <Avatar name={label} size="2rem" />
                 <span
                   className={css({
                     flex: 1,
@@ -461,35 +298,6 @@ export const GroupInfoPanel = ({
           })
         )}
       </ul>
-
-      {/* Footer: leave */}
-      <div
-        className={css({
-          padding: '0.75rem 1rem',
-          borderTop: '1px solid token(colors.greyscale.200)',
-        })}
-      >
-        <button
-          type="button"
-          disabled={busy}
-          onClick={leave}
-          data-testid="group-leave"
-          className={css({
-            width: '100%',
-            paddingY: '0.5rem',
-            border: '1px solid token(colors.greyscale.300)',
-            borderRadius: '0.5rem',
-            backgroundColor: 'white',
-            color: '#dc2626',
-            fontSize: '0.875rem',
-            fontWeight: 'medium',
-            cursor: 'pointer',
-            _hover: { backgroundColor: 'greyscale.50' },
-          })}
-        >
-          {t('manage.leave')}
-        </button>
-      </div>
     </aside>
   )
 }

@@ -18,7 +18,8 @@ import { ChatPane } from './ChatPane'
 import { AddMemberDialog } from '../components/AddMemberDialog'
 import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
 import { ConversationList } from '../components/ConversationList'
-import { GroupInfoPanel } from '../components/GroupInfoPanel'
+import { GroupMembersPanel } from '../components/GroupMembersPanel'
+import { GroupSettingsPanel } from '../components/GroupSettingsPanel'
 import { GroupPicker } from '../components/GroupPicker'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
@@ -67,7 +68,11 @@ const ImAuthenticated = () => {
   const [selectedCID, setSelectedCID] = useState<string | null>(initialCID)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [groupPickerOpen, setGroupPickerOpen] = useState(false)
-  const [infoOpen, setInfoOpen] = useState(false)
+  // Right-side panel below the chat header: 群成员 / 群设置 / 收起。Mutually
+  // exclusive — opening one collapses the other.
+  const [rightPanel, setRightPanel] = useState<'members' | 'settings' | null>(
+    null
+  )
   const [addOpen, setAddOpen] = useState(false)
   // cids with an unread message that @-mentioned me (red "@" marker in the list).
   const [mentionedCids, setMentionedCids] = useState<Set<string>>(new Set())
@@ -331,7 +336,16 @@ const ImAuthenticated = () => {
               sendDisabled={sendDisabled}
               onOpenInfo={
                 selectedConv.type === 'group'
-                  ? () => setInfoOpen((v) => !v)
+                  ? () =>
+                      setRightPanel((p) => (p === 'members' ? null : 'members'))
+                  : undefined
+              }
+              onOpenSettings={
+                selectedConv.type === 'group'
+                  ? () =>
+                      setRightPanel((p) =>
+                        p === 'settings' ? null : 'settings'
+                      )
                   : undefined
               }
               onAddMembers={
@@ -340,17 +354,25 @@ const ImAuthenticated = () => {
                   : undefined
               }
               infoPanel={
-                infoOpen && selectedConv.type === 'group' ? (
-                  <GroupInfoPanel
+                selectedConv.type !== 'group' ? null : rightPanel ===
+                  'members' ? (
+                  <GroupMembersPanel
                     client={client}
                     conversation={selectedConv}
                     currentUserUID={currentUserUID}
                     onAddMembers={() => setAddOpen(true)}
+                    onClose={() => setRightPanel(null)}
+                  />
+                ) : rightPanel === 'settings' ? (
+                  <GroupSettingsPanel
+                    client={client}
+                    conversation={selectedConv}
+                    currentUserUID={currentUserUID}
                     onLeft={() => {
-                      setInfoOpen(false)
+                      setRightPanel(null)
                       setSelectedCID(null)
                     }}
-                    onClose={() => setInfoOpen(false)}
+                    onClose={() => setRightPanel(null)}
                   />
                 ) : null
               }

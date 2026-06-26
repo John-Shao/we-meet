@@ -51,6 +51,8 @@
     "addMembers": "添加成员",
     "addTitle": "添加群成员",
     "info": "群信息",
+    "settings": "群设置",
+    "membersTitle": "群成员",
     "members": "群成员",
     "owner": "群主",
     "rename": "修改群名",
