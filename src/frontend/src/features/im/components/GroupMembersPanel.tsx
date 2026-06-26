@@ -44,6 +44,19 @@ export const GroupMembersPanel = ({
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  // The roster is its own REST query; a conv lifecycle event for this group
+  // (someone joined / left / was removed) only refreshes the conversation list,
+  // not this query — so without invalidating here the open panel stays stale
+  // until reopened. Refetch the roster whenever this conversation changes.
+  useEffect(() => {
+    const off = client.onConversation((ev) => {
+      if (ev.cid === cid) {
+        void qc.invalidateQueries({ queryKey: ['im', 'members', cid] })
+      }
+    })
+    return off
+  }, [client, cid, qc])
+
   const { data: roster = [], isLoading } = useQuery({
     queryKey: ['im', 'members', cid],
     queryFn: () => client.listMembers(cid),
