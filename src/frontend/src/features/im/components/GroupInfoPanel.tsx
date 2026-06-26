@@ -158,10 +158,10 @@ export const GroupInfoPanel = ({
         inset: 0,
         zIndex: 1000,
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: 'stretch',
+        justifyContent: 'flex-end',
         backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        padding: '1rem',
+        animation: 'fade 180ms ease-out',
       })}
     >
       <div
@@ -171,13 +171,15 @@ export const GroupInfoPanel = ({
         className={css({
           display: 'flex',
           flexDirection: 'column',
-          width: '100%',
-          maxWidth: '440px',
-          maxHeight: '78vh',
+          height: '100%',
+          width: 'min(400px, 92vw)',
           backgroundColor: 'white',
-          borderRadius: '0.75rem',
           overflow: 'hidden',
-          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)',
+          boxShadow: '-8px 0 40px rgba(0, 0, 0, 0.18)',
+          // Slide in from the right edge (reuses the global `slide` keyframe,
+          // which animates from `--origin` to the resting position).
+          '--origin': 'translateX(100%)',
+          animation: 'slide 220ms ease-out',
         })}
       >
         <div

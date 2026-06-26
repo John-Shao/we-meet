@@ -3,6 +3,8 @@ import type { ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 
+import { Avatar } from './Avatar'
+
 interface Props {
   conversations: ConversationSummary[]
   selectedCID: string | null
@@ -63,10 +65,9 @@ export const ConversationList = ({
               minWidth: 0,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.5rem',
-              paddingX: '1rem',
-              paddingY: '0.75rem',
+              gap: '0.625rem',
+              paddingX: '0.875rem',
+              paddingY: '0.625rem',
               border: 'none',
               backgroundColor: 'transparent',
               cursor: 'pointer',
@@ -74,8 +75,10 @@ export const ConversationList = ({
             })}
             data-testid={`conv-item-${c.cid}`}
           >
+            <Avatar name={nameOf(c)} size="2.25rem" />
             <span
               className={css({
+                flex: 1,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.25rem',
