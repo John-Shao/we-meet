@@ -30,3 +30,23 @@ export interface ImGroupConversationResponse {
   members: string[]
   self_uid: string
 }
+
+/** Result of POST /api/v1.0/im/conversations/add-members (P9 拉人). */
+export interface ImAddMembersResponse {
+  cid: string
+  added: number
+  members: string[]
+}
+
+/** Result of POST /api/v1.0/im/conversations/remove-member (P9 踢人). */
+export interface ImRemoveMemberResponse {
+  cid: string
+  removed: number
+  members: string[]
+}
+
+/** Result of POST /api/v1.0/im/conversations/rename (P9 改群名). */
+export interface ImRenameResponse {
+  cid: string
+  name: string
+}

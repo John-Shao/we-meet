@@ -15,8 +15,10 @@ import { createGroupConversation } from '../api/createGroupConversation'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { fetchImToken } from '../api/fetchImToken'
 import { ChatPane } from './ChatPane'
+import { AddMemberDialog } from '../components/AddMemberDialog'
 import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
 import { ConversationList } from '../components/ConversationList'
+import { GroupInfoPanel } from '../components/GroupInfoPanel'
 import { GroupPicker } from '../components/GroupPicker'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
@@ -64,6 +66,8 @@ const ImAuthenticated = () => {
   const [selectedCID, setSelectedCID] = useState<string | null>(initialCID)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [groupPickerOpen, setGroupPickerOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const qc = useQueryClient()
 
   // 带 cid 进来时刷新会话列表,让新建/已存在的会话出现在左栏(ChatPane 本身已按 cid 渲染)。
@@ -271,6 +275,12 @@ const ImAuthenticated = () => {
               title={nameOf(selectedConv)}
               currentUserUID={currentUserUID}
               sendDisabled={sendDisabled}
+              onOpenInfo={
+                selectedConv.type === 'group' ? () => setInfoOpen(true) : undefined
+              }
+              onAddMembers={
+                selectedConv.type === 'group' ? () => setAddOpen(true) : undefined
+              }
             />
           ) : (
             <div
@@ -296,6 +306,29 @@ const ImAuthenticated = () => {
         <GroupPicker
           onCreate={handleCreateGroup}
           onClose={() => setGroupPickerOpen(false)}
+        />
+      )}
+      {infoOpen && selectedConv && selectedConv.type === 'group' && (
+        <GroupInfoPanel
+          client={client}
+          conversation={selectedConv}
+          currentUserUID={currentUserUID}
+          onAddMembers={() => {
+            setInfoOpen(false)
+            setAddOpen(true)
+          }}
+          onLeft={() => {
+            setInfoOpen(false)
+            setSelectedCID(null)
+          }}
+          onClose={() => setInfoOpen(false)}
+        />
+      )}
+      {addOpen && selectedConv && selectedConv.type === 'group' && (
+        <AddMemberDialog
+          client={client}
+          cid={selectedConv.cid}
+          onClose={() => setAddOpen(false)}
         />
       )}
     </div>
