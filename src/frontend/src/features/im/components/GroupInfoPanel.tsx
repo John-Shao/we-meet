@@ -5,6 +5,7 @@ import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 
+import { announceLeave } from '../api/announceLeave'
 import { removeMember } from '../api/removeMember'
 import { renameGroup } from '../api/renameGroup'
 import { resolveImUsers } from '../api/resolveImUsers'
@@ -132,6 +133,8 @@ export const GroupInfoPanel = ({
     if (!window.confirm(t('manage.leaveConfirm'))) return
     setBusy(true)
     try {
+      // Announce "X 退出群聊" while still a member (best-effort), then leave.
+      await announceLeave(cid).catch(() => {})
       await client.leaveConversation(cid)
       // Drop the now-inaccessible roster query so nothing refetches it (→403),
       // close + clear selection immediately, then refresh only the list.

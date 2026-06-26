@@ -49,6 +49,7 @@ export const ImRoute = () => {
 
 const ImAuthenticated = () => {
   const { t } = useTranslation('im')
+  const { user } = useUser()
   const { client, state } = useImConnection()
   const { data: tokenData } = useQuery({
     queryKey: ['im', 'self-token'],
@@ -68,6 +69,8 @@ const ImAuthenticated = () => {
   const [groupPickerOpen, setGroupPickerOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  // cids with an unread message that @-mentioned me (red "@" marker in the list).
+  const [mentionedCids, setMentionedCids] = useState<Set<string>>(new Set())
   const qc = useQueryClient()
 
   // 带 cid 进来时刷新会话列表,让新建/已存在的会话出现在左栏(ChatPane 本身已按 cid 渲染)。
@@ -77,6 +80,38 @@ const ImAuthenticated = () => {
       void qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
     }
   }, [initialCID, qc])
+
+  // 被 @ 提醒:收到他人消息且 @我自己 或 @所有人、且不在当前会话 → 列表标红「@」。
+  const selfName = user?.full_name || ''
+  const everyone = t('mention.everyone')
+  useEffect(() => {
+    const off = client.onMessage((m) => {
+      if (m.sender_uid === currentUserUID || m.cid === selectedCID) return
+      const body = m.body || ''
+      const mentionsMe =
+        (!!selfName && body.includes(`@${selfName}`)) || body.includes(`@${everyone}`)
+      if (mentionsMe) {
+        setMentionedCids((prev) => {
+          if (prev.has(m.cid)) return prev
+          const next = new Set(prev)
+          next.add(m.cid)
+          return next
+        })
+      }
+    })
+    return off
+  }, [client, currentUserUID, selectedCID, selfName, everyone])
+
+  // Opening a conversation clears its @ marker.
+  useEffect(() => {
+    if (!selectedCID) return
+    setMentionedCids((prev) => {
+      if (!prev.has(selectedCID)) return prev
+      const next = new Set(prev)
+      next.delete(selectedCID)
+      return next
+    })
+  }, [selectedCID])
 
   // 被群主踢出时,服务端定向推一条 system 帧(P9)。掉群:从列表移除、若正打开则关闭并提示。
   useEffect(() => {
@@ -270,6 +305,7 @@ const ImAuthenticated = () => {
             loading={convLoading}
             nameOf={nameOf}
             onDelete={handleDelete}
+            mentionedCids={mentionedCids}
           />
         </aside>
         <main

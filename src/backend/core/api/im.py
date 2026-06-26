@@ -455,6 +455,30 @@ class ImViewSet(viewsets.ViewSet):
         )
         return Response({"cid": cid, "name": name}, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["post"], url_path="conversations/announce-leave")
+    def conversations_announce_leave(self, request):
+        """Post a "X 退出群聊" system message (P9.1).
+
+        The actual leave still goes through the SDK → REST DELETE path (which
+        handles owner auto-transfer / dissolve); this endpoint only injects the
+        announcement, called by the client *just before* it leaves while the
+        caller is still a member. Best-effort — failure must not block leaving.
+        """
+        data = request.data or {}
+        cid = (data.get("cid") or "").strip()
+        if not cid:
+            raise ValidationError({"cid": "cid is required"})
+
+        client = self._make_client()
+        me = self._issue(client, self._external_id(request.user))
+        # Confirm membership (also guards against announcing on a conv you're not in).
+        self._require_role(client, cid, me, owner_only=False)
+
+        self._post_system_message(
+            client, cid, f"{self._display_name(request.user)} 退出群聊"
+        )
+        return Response({"cid": cid}, status=status.HTTP_200_OK)
+
     # ---- shared helpers (P9) ----
 
     def _make_client(self) -> JusiImAdminClient:

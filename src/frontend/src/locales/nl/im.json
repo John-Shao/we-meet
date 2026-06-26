@@ -43,6 +43,10 @@
   "header": {
     "memberCount": "{{count}} leden"
   },
+  "mention": {
+    "everyone": "Iedereen",
+    "notice": "Heeft je genoemd"
+  },
   "manage": {
     "addMembers": "Leden toevoegen",
     "addTitle": "Groepsleden toevoegen",

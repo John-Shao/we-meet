@@ -50,16 +50,29 @@ export const ChatPane = ({
     () => (uid: string) => names[uid]?.full_name || uid,
     [names],
   )
-  // @-mention suggestions: other members' display names (group only).
+  const everyone = t('mention.everyone')
+  const selfName = names[currentUserUID]?.full_name || ''
+  // Names highlightable in message bodies: 所有人 + every member (incl. self).
+  const highlightNames = useMemo(
+    () =>
+      isGroup
+        ? [everyone, ...memberUids.map((u) => names[u]?.full_name).filter((n): n is string => !!n)]
+        : [],
+    [isGroup, everyone, memberUids, names],
+  )
+  // @-mention dropdown suggestions: 所有人 + other members (not yourself).
   const mentionables = useMemo(
     () =>
       isGroup
-        ? memberUids
-            .filter((u) => u !== currentUserUID)
-            .map((u) => names[u]?.full_name)
-            .filter((n): n is string => !!n)
+        ? [
+            everyone,
+            ...memberUids
+              .filter((u) => u !== currentUserUID)
+              .map((u) => names[u]?.full_name)
+              .filter((n): n is string => !!n),
+          ]
         : [],
-    [isGroup, memberUids, names, currentUserUID],
+    [isGroup, everyone, memberUids, names, currentUserUID],
   )
 
   // Auto-scroll on new message.
@@ -174,6 +187,8 @@ export const ChatPane = ({
               isOwn={m.sender_uid === currentUserUID}
               senderName={nameOf(m.sender_uid)}
               showSender={isGroup}
+              mentionNames={highlightNames}
+              selfMentionNames={[selfName, everyone].filter(Boolean)}
             />
           ))
         )}

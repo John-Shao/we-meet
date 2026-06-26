@@ -12,6 +12,8 @@ interface Props {
   nameOf: (c: ConversationSummary) => string
   /** Delete (direct) / leave (group) the conversation. */
   onDelete: (c: ConversationSummary) => void
+  /** cids with an unread @-mention of the current user → show a red "@" marker. */
+  mentionedCids?: Set<string>
 }
 
 export const ConversationList = ({
@@ -21,6 +23,7 @@ export const ConversationList = ({
   loading,
   nameOf,
   onDelete,
+  mentionedCids,
 }: Props) => {
   const { t } = useTranslation('im')
 
@@ -73,14 +76,29 @@ export const ConversationList = ({
           >
             <span
               className={css({
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                minWidth: 0,
                 fontWeight: c.unread_count > 0 ? 'bold' : 'normal',
                 color: 'greyscale.900',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
               })}
             >
-              {nameOf(c)}
+              {mentionedCids?.has(c.cid) && (
+                <span
+                  aria-label={t('mention.notice')}
+                  title={t('mention.notice')}
+                  className={css({ flexShrink: 0, fontWeight: 'bold', fontSize: '0.8125rem' })}
+                  style={{ color: '#dc2626' }}
+                >
+                  @
+                </span>
+              )}
+              <span
+                className={css({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}
+              >
+                {nameOf(c)}
+              </span>
             </span>
             {c.unread_count > 0 && (
               <span

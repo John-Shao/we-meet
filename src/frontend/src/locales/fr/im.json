@@ -43,6 +43,10 @@
   "header": {
     "memberCount": "{{count}} membres"
   },
+  "mention": {
+    "everyone": "Tout le monde",
+    "notice": "Vous a mentionné"
+  },
   "manage": {
     "addMembers": "Ajouter des membres",
     "addTitle": "Ajouter des membres au groupe",

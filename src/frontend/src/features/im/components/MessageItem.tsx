@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
@@ -9,6 +10,60 @@ interface Props {
   senderName?: string
   /** Show the sender name + avatar (group, non-own). Direct chats pass false. */
   showSender?: boolean
+  /** Names highlightable as @mentions in the body (members + 所有人). */
+  mentionNames?: string[]
+  /** Subset of mentionNames that mean "you" (self name + 所有人) → stronger style. */
+  selfMentionNames?: string[]
+}
+
+// Render a message body with @mention tokens highlighted. Matches "@<name>" for
+// any known name (longest-first to avoid partial matches); self-mentions (your
+// name / 所有人) get an amber pill, others a bold tint.
+const renderBody = (
+  body: string,
+  names: string[],
+  selfNames: string[],
+  isOwn: boolean,
+): ReactNode => {
+  if (names.length === 0 || !body.includes('@')) return body
+  const sorted = [...names].sort((a, b) => b.length - a.length)
+  const out: ReactNode[] = []
+  let buf = ''
+  let i = 0
+  const flush = () => {
+    if (buf) {
+      out.push(buf)
+      buf = ''
+    }
+  }
+  while (i < body.length) {
+    if (body[i] === '@') {
+      const rest = body.slice(i + 1)
+      const hit = sorted.find((n) => n && rest.startsWith(n))
+      if (hit) {
+        flush()
+        const isSelf = selfNames.includes(hit)
+        out.push(
+          <span
+            key={i}
+            style={
+              isSelf
+                ? { backgroundColor: '#fde68a', color: '#92400e', borderRadius: '3px', padding: '0 2px', fontWeight: 700 }
+                : { fontWeight: 700, color: isOwn ? '#dbeafe' : '#2563eb' }
+            }
+          >
+            @{hit}
+          </span>,
+        )
+        i += 1 + hit.length
+        continue
+      }
+    }
+    buf += body[i]
+    i += 1
+  }
+  flush()
+  return out
 }
 
 // Deterministic avatar tint from a string, so the same person keeps one colour.
@@ -20,7 +75,14 @@ const tintFor = (s: string): string => {
 }
 const initial = (s: string): string => (s.trim()[0] || '?').toUpperCase()
 
-export const MessageItem = ({ message, isOwn, senderName, showSender }: Props) => {
+export const MessageItem = ({
+  message,
+  isOwn,
+  senderName,
+  showSender,
+  mentionNames = [],
+  selfMentionNames = [],
+}: Props) => {
   // System messages (member joined/left, rename) render centered + muted, no bubble.
   if (message.content_type === 'system') {
     return (
@@ -108,7 +170,7 @@ export const MessageItem = ({ message, isOwn, senderName, showSender }: Props) =
             {name}
           </div>
         )}
-        <div>{message.body}</div>
+        <div>{renderBody(message.body, mentionNames, selfMentionNames, isOwn)}</div>
         <div
           className={css({
             marginTop: '0.25rem',

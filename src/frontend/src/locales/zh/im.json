@@ -43,6 +43,10 @@
   "header": {
     "memberCount": "{{count}} 人"
   },
+  "mention": {
+    "everyone": "所有人",
+    "notice": "有人@我"
+  },
   "manage": {
     "addMembers": "添加成员",
     "addTitle": "添加群成员",
