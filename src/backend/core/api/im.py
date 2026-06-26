@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from typing import Any
 
 from django.conf import settings
 
@@ -421,39 +422,56 @@ class ImViewSet(viewsets.ViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=False, methods=["post"], url_path="conversations/rename")
-    def conversations_rename(self, request):
-        """Rename a group (P9 改群名). Owner-only.
+    @action(detail=False, methods=["post"], url_path="conversations/update")
+    def conversations_update(self, request):
+        """Update a group's meta — name (改群名) + description (群描述). Owner-only.
 
-        Body: ``{cid, name}``. Replaces meta.name; announces via system message.
+        Body: ``{cid, name, description, kind}``. jusi stores ``meta`` wholesale,
+        so the client always sends the *complete* desired meta (the unchanged
+        sibling value is preserved by the caller); ``kind`` ∈ {"rename",
+        "description"} only selects which system message is announced.
         """
         data = request.data or {}
         cid = (data.get("cid") or "").strip()
         name = (data.get("name") or "").strip()
+        description = (data.get("description") or "").strip()
+        kind = (data.get("kind") or "rename").strip()
         if not cid:
             raise ValidationError({"cid": "cid is required"})
-        if not name:
+        if kind == "rename" and not name:
             raise ValidationError({"name": "name is required"})
         if len(name) > 60:
             raise ValidationError({"name": "name too long (max 60)"})
+        if len(description) > 200:
+            raise ValidationError({"description": "description too long (max 200)"})
 
         client = self._make_client()
         me = self._issue(client, self._external_id(request.user))
         self._require_role(client, cid, me, owner_only=True)
 
+        # Build the complete meta (omit empty keys so meta stays tidy).
+        meta: dict[str, Any] = {}
+        if name:
+            meta["name"] = name
+        if description:
+            meta["description"] = description
         try:
-            client.update_meta(cid, {"name": name})
+            client.update_meta(cid, meta)
         except JusiImUnreachableError as exc:
             raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
         except JusiImBadResponseError as exc:
             raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
 
-        self._post_system_message(
-            client,
-            cid,
-            f'{self._display_name(request.user)} 将群名改为 "{name}"',
+        actor = self._display_name(request.user)
+        if kind == "description":
+            self._post_system_message(client, cid, f"{actor} 修改了群描述")
+        else:
+            self._post_system_message(client, cid, f'{actor} 将群名改为 "{name}"')
+
+        return Response(
+            {"cid": cid, "name": name, "description": description},
+            status=status.HTTP_200_OK,
         )
-        return Response({"cid": cid, "name": name}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["post"], url_path="conversations/announce-leave")
     def conversations_announce_leave(self, request):

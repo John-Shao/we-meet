@@ -16,6 +16,8 @@ interface Props {
   onDelete: (c: ConversationSummary) => void
   /** cids with an unread @-mention of the current user → show a red "@" marker. */
   mentionedCids?: Set<string>
+  /** Pinned cids → show a pin marker (already sorted to the top upstream). */
+  pinnedCids?: Set<string>
 }
 
 export const ConversationList = ({
@@ -26,6 +28,7 @@ export const ConversationList = ({
   nameOf,
   onDelete,
   mentionedCids,
+  pinnedCids,
 }: Props) => {
   const { t } = useTranslation('im')
 
@@ -88,6 +91,19 @@ export const ConversationList = ({
                 color: 'greyscale.900',
               })}
             >
+              {pinnedCids?.has(c.cid) && (
+                <span
+                  aria-label={t('manage.pin')}
+                  title={t('manage.pin')}
+                  className={css({
+                    flexShrink: 0,
+                    fontSize: '0.6875rem',
+                    opacity: 0.6,
+                  })}
+                >
+                  📌
+                </span>
+              )}
               {mentionedCids?.has(c.cid) && (
                 <span
                   aria-label={t('mention.notice')}

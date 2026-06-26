@@ -45,8 +45,9 @@ export interface ImRemoveMemberResponse {
   members: string[]
 }
 
-/** Result of POST /api/v1.0/im/conversations/rename (P9 改群名). */
-export interface ImRenameResponse {
+/** Result of POST /api/v1.0/im/conversations/update (群名 + 群描述). */
+export interface ImUpdateMetaResponse {
   cid: string
   name: string
+  description: string
 }
