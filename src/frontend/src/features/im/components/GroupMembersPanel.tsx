@@ -69,7 +69,9 @@ export const GroupMembersPanel = ({
     enabled: rosterUids.length > 0,
     staleTime: 60_000,
   })
-  const nameOf = (uid: string) => names[uid]?.full_name || uid
+  // P10: a member's group nickname overrides their org-directory name.
+  const nameOf = (uid: string) =>
+    roster.find((m) => m.uid === uid)?.nickname || names[uid]?.full_name || uid
 
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: ['im', 'members', cid] })

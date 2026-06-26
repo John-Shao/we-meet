@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'wouter'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -80,6 +80,19 @@ const ImAuthenticated = () => {
   const [mentionedCids, setMentionedCids] = useState<Set<string>>(new Set())
   const qc = useQueryClient()
 
+  // Per-conversation mute flags, kept in a ref so the once-registered onMessage
+  // listener reads the latest without re-subscribing on every list refetch (P10).
+  const muteFlagsRef = useRef<
+    Map<string, { muted: boolean; muteAtAll: boolean }>
+  >(new Map())
+  useEffect(() => {
+    const m = new Map<string, { muted: boolean; muteAtAll: boolean }>()
+    for (const c of conversations) {
+      m.set(c.cid, { muted: !!c.muted, muteAtAll: !!c.mute_at_all })
+    }
+    muteFlagsRef.current = m
+  }, [conversations])
+
   // 带 cid 进来时刷新会话列表,让新建/已存在的会话出现在左栏(ChatPane 本身已按 cid 渲染)。
   useEffect(() => {
     if (initialCID) {
@@ -89,16 +102,20 @@ const ImAuthenticated = () => {
   }, [initialCID, qc])
 
   // 被 @ 提醒:收到他人消息且 @我自己 或 @所有人、且不在当前会话 → 列表标红「@」。
+  // 免打扰(muted)整会话不亮;@所有人不提示(mute_at_all)只屏蔽纯 @所有人,
+  // 单独 @我仍亮(P10)。
   const selfName = user?.full_name || ''
   const everyone = t('mention.everyone')
   useEffect(() => {
     const off = client.onMessage((m) => {
       if (m.sender_uid === currentUserUID || m.cid === selectedCID) return
+      const flags = muteFlagsRef.current.get(m.cid)
+      if (flags?.muted) return // 消息免打扰:完全不亮
       const body = m.body || ''
-      const mentionsMe =
-        (!!selfName && body.includes(`@${selfName}`)) ||
-        body.includes(`@${everyone}`)
-      if (mentionsMe) {
+      const mentionsSelf = !!selfName && body.includes(`@${selfName}`)
+      const mentionsAll = body.includes(`@${everyone}`)
+      const notify = mentionsSelf || (mentionsAll && !flags?.muteAtAll)
+      if (notify) {
         setMentionedCids((prev) => {
           if (prev.has(m.cid)) return prev
           const next = new Set(prev)
