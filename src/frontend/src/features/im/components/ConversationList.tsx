@@ -53,7 +53,8 @@ export const ConversationList = ({
             display: 'flex',
             alignItems: 'stretch',
             borderBottom: '1px solid token(colors.greyscale.100)',
-            backgroundColor: selectedCID === c.cid ? 'primary.100' : 'transparent',
+            backgroundColor:
+              selectedCID === c.cid ? 'primary.100' : 'transparent',
             _hover: { backgroundColor: 'greyscale.100' },
           })}
         >
@@ -91,14 +92,22 @@ export const ConversationList = ({
                 <span
                   aria-label={t('mention.notice')}
                   title={t('mention.notice')}
-                  className={css({ flexShrink: 0, fontWeight: 'bold', fontSize: '0.8125rem' })}
+                  className={css({
+                    flexShrink: 0,
+                    fontWeight: 'bold',
+                    fontSize: '0.8125rem',
+                  })}
                   style={{ color: '#dc2626' }}
                 >
                   @
                 </span>
               )}
               <span
-                className={css({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}
+                className={css({
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                })}
               >
                 {nameOf(c)}
               </span>

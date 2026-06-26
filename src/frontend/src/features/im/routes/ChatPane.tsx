@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
@@ -21,6 +22,9 @@ interface Props {
   onOpenInfo?: () => void
   /** Open the add-members picker (group only). */
   onAddMembers?: () => void
+  /** Group info / member side panel; rendered to the right of the message
+   * stream, below the header (Feishu-style). Null when collapsed. */
+  infoPanel?: ReactNode
 }
 
 export const ChatPane = ({
@@ -31,6 +35,7 @@ export const ChatPane = ({
   sendDisabled,
   onOpenInfo,
   onAddMembers,
+  infoPanel,
 }: Props) => {
   const { t } = useTranslation('im')
   const cid = conversation.cid
@@ -48,7 +53,7 @@ export const ChatPane = ({
   })
   const nameOf = useMemo(
     () => (uid: string) => names[uid]?.full_name || uid,
-    [names],
+    [names]
   )
   const everyone = t('mention.everyone')
   const selfName = names[currentUserUID]?.full_name || ''
@@ -56,9 +61,14 @@ export const ChatPane = ({
   const highlightNames = useMemo(
     () =>
       isGroup
-        ? [everyone, ...memberUids.map((u) => names[u]?.full_name).filter((n): n is string => !!n)]
+        ? [
+            everyone,
+            ...memberUids
+              .map((u) => names[u]?.full_name)
+              .filter((n): n is string => !!n),
+          ]
         : [],
-    [isGroup, everyone, memberUids, names],
+    [isGroup, everyone, memberUids, names]
   )
   // @-mention dropdown suggestions: 所有人 + other members (not yourself).
   const mentionables = useMemo(
@@ -72,7 +82,7 @@ export const ChatPane = ({
               .filter((n): n is string => !!n),
           ]
         : [],
-    [isGroup, everyone, memberUids, names, currentUserUID],
+    [isGroup, everyone, memberUids, names, currentUserUID]
   )
 
   // Auto-scroll on new message.
@@ -132,7 +142,9 @@ export const ChatPane = ({
             {title}
           </div>
           {isGroup && (
-            <div className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}>
+            <div
+              className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
+            >
               {t('header.memberCount', { count: memberUids.length })}
             </div>
           )}
@@ -163,37 +175,63 @@ export const ChatPane = ({
         )}
       </div>
 
+      {/* Body: message stream (+ input) on the left, info panel on the right.
+          Both sit below the full-width header, matching Feishu. */}
       <div
-        ref={scrollRef}
         className={css({
+          display: 'flex',
           flex: 1,
-          overflowY: 'auto',
-          paddingY: '0.5rem',
+          minHeight: 0,
+          overflow: 'hidden',
         })}
       >
-        {isLoading ? (
-          <div className={css({ padding: '1rem', color: 'greyscale.500' })}>
-            {t('chat.loading')}
+        <div
+          className={css({
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+          })}
+        >
+          <div
+            ref={scrollRef}
+            className={css({
+              flex: 1,
+              overflowY: 'auto',
+              paddingY: '0.5rem',
+            })}
+          >
+            {isLoading ? (
+              <div className={css({ padding: '1rem', color: 'greyscale.500' })}>
+                {t('chat.loading')}
+              </div>
+            ) : messages.length === 0 ? (
+              <div className={css({ padding: '1rem', color: 'greyscale.500' })}>
+                {t('chat.empty')}
+              </div>
+            ) : (
+              messages.map((m) => (
+                <MessageItem
+                  key={m.mid}
+                  message={m}
+                  isOwn={m.sender_uid === currentUserUID}
+                  senderName={nameOf(m.sender_uid)}
+                  showSender={isGroup}
+                  mentionNames={highlightNames}
+                  selfMentionNames={[selfName, everyone].filter(Boolean)}
+                />
+              ))
+            )}
           </div>
-        ) : messages.length === 0 ? (
-          <div className={css({ padding: '1rem', color: 'greyscale.500' })}>
-            {t('chat.empty')}
-          </div>
-        ) : (
-          messages.map((m) => (
-            <MessageItem
-              key={m.mid}
-              message={m}
-              isOwn={m.sender_uid === currentUserUID}
-              senderName={nameOf(m.sender_uid)}
-              showSender={isGroup}
-              mentionNames={highlightNames}
-              selfMentionNames={[selfName, everyone].filter(Boolean)}
-            />
-          ))
-        )}
+          <MessageInput
+            onSend={onSend}
+            disabled={sendDisabled}
+            mentionables={mentionables}
+          />
+        </div>
+        {infoPanel}
       </div>
-      <MessageInput onSend={onSend} disabled={sendDisabled} mentionables={mentionables} />
     </div>
   )
 }

@@ -59,7 +59,7 @@ const ImAuthenticated = () => {
   const currentUserUID = tokenData?.uid ?? ''
   const { data: conversations = [], isLoading: convLoading } = useConversations(
     client,
-    currentUserUID,
+    currentUserUID
   )
   // 从通讯录跳来时 URL 带 ?cid=<会话>,直接预选并打开该会话。
   const [searchParams] = useSearchParams()
@@ -89,7 +89,8 @@ const ImAuthenticated = () => {
       if (m.sender_uid === currentUserUID || m.cid === selectedCID) return
       const body = m.body || ''
       const mentionsMe =
-        (!!selfName && body.includes(`@${selfName}`)) || body.includes(`@${everyone}`)
+        (!!selfName && body.includes(`@${selfName}`)) ||
+        body.includes(`@${everyone}`)
       if (mentionsMe) {
         setMentionedCids((prev) => {
           if (prev.has(m.cid)) return prev
@@ -133,8 +134,8 @@ const ImAuthenticated = () => {
       conversations
         .filter((c) => c.type === 'direct')
         .map((c) => c.members.find((u) => u !== currentUserUID))
-        .filter((u): u is string => !!u),
-    ),
+        .filter((u): u is string => !!u)
+    )
   )
   const { data: peerNames = {} } = useQuery({
     queryKey: ['im', 'peer-names', peerUids],
@@ -157,7 +158,9 @@ const ImAuthenticated = () => {
   // 删除会话(direct 软隐藏)/ 退群(group;群主则服务端自动转让或解散)。
   const handleDelete = async (c: ConversationSummary) => {
     const confirmMsg =
-      c.type === 'group' ? t('actions.leaveConfirm') : t('actions.deleteConfirm')
+      c.type === 'group'
+        ? t('actions.leaveConfirm')
+        : t('actions.deleteConfirm')
     if (!window.confirm(confirmMsg)) return
     try {
       await client.leaveConversation(c.cid)
@@ -165,7 +168,9 @@ const ImAuthenticated = () => {
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
     } catch (e) {
       window.alert(
-        t('actions.error', { message: e instanceof Error ? e.message : String(e) }),
+        t('actions.error', {
+          message: e instanceof Error ? e.message : String(e),
+        })
       )
     }
   }
@@ -182,7 +187,7 @@ const ImAuthenticated = () => {
       window.alert(
         t('list.newDirect.error', {
           message: e instanceof Error ? e.message : String(e),
-        }),
+        })
       )
     }
   }
@@ -198,7 +203,7 @@ const ImAuthenticated = () => {
       window.alert(
         t('group.error', {
           message: e instanceof Error ? e.message : String(e),
-        }),
+        })
       )
     }
   }
@@ -330,7 +335,24 @@ const ImAuthenticated = () => {
                   : undefined
               }
               onAddMembers={
-                selectedConv.type === 'group' ? () => setAddOpen(true) : undefined
+                selectedConv.type === 'group'
+                  ? () => setAddOpen(true)
+                  : undefined
+              }
+              infoPanel={
+                infoOpen && selectedConv.type === 'group' ? (
+                  <GroupInfoPanel
+                    client={client}
+                    conversation={selectedConv}
+                    currentUserUID={currentUserUID}
+                    onAddMembers={() => setAddOpen(true)}
+                    onLeft={() => {
+                      setInfoOpen(false)
+                      setSelectedCID(null)
+                    }}
+                    onClose={() => setInfoOpen(false)}
+                  />
+                ) : null
               }
             />
           ) : (
@@ -346,19 +368,6 @@ const ImAuthenticated = () => {
             </div>
           )}
         </main>
-        {infoOpen && selectedConv && selectedConv.type === 'group' && (
-          <GroupInfoPanel
-            client={client}
-            conversation={selectedConv}
-            currentUserUID={currentUserUID}
-            onAddMembers={() => setAddOpen(true)}
-            onLeft={() => {
-              setInfoOpen(false)
-              setSelectedCID(null)
-            }}
-            onClose={() => setInfoOpen(false)}
-          />
-        )}
       </div>
       {pickerOpen && (
         <ContactPicker
