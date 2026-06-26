@@ -13,21 +13,18 @@ interface Props {
   client: Client
   conversation: ConversationSummary
   currentUserUID: string
-  /** Open the add-members picker. */
-  onAddMembers: () => void
   onClose: () => void
 }
 
 /**
- * 群成员 — the group roster (member list, owner badge, transfer/kick/add).
- * Rename + leave live in {@link GroupSettingsPanel}; this panel is read +
- * member-management only. Rendered as a fixed column below the chat header.
+ * 群成员 — the group roster (member list, owner badge, transfer/kick). Member
+ * count + add-members live in the chat header; rename + leave live in
+ * {@link GroupSettingsPanel}. Rendered as a fixed column below the chat header.
  */
 export const GroupMembersPanel = ({
   client,
   conversation,
   currentUserUID,
-  onAddMembers,
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
@@ -163,42 +160,6 @@ export const GroupMembersPanel = ({
           })}
         >
           ×
-        </button>
-      </div>
-
-      {/* Members header + add */}
-      <div
-        className={css({
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingX: '1rem',
-          paddingTop: '0.75rem',
-        })}
-      >
-        <span
-          className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}
-        >
-          {t('header.memberCount', { count: roster.length })}
-        </span>
-        <button
-          type="button"
-          onClick={onAddMembers}
-          data-testid="group-info-add"
-          className={css({
-            border: '1px solid token(colors.greyscale.300)',
-            borderRadius: '999px',
-            backgroundColor: 'white',
-            width: '1.5rem',
-            height: '1.5rem',
-            cursor: 'pointer',
-            color: 'greyscale.700',
-            fontSize: '0.875rem',
-            lineHeight: 1,
-            _hover: { backgroundColor: 'greyscale.100' },
-          })}
-        >
-          ＋
         </button>
       </div>
 

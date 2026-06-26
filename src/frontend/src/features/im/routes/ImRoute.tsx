@@ -360,7 +360,6 @@ const ImAuthenticated = () => {
                     client={client}
                     conversation={selectedConv}
                     currentUserUID={currentUserUID}
-                    onAddMembers={() => setAddOpen(true)}
                     onClose={() => setRightPanel(null)}
                   />
                 ) : rightPanel === 'settings' ? (
