@@ -457,6 +457,38 @@ kubectl -n meet get certificate
 
 证书 Ready 卡住 → `kubectl -n meet describe certificate meet-tls` 看 events，最常见是 DNS 还没生效（解析不到 ECS 公网 IP）或者 aliyun-sjy 安全组 80 端口没对 `0.0.0.0/0` 开放（LE 服务器拿不到 HTTP-01 challenge response）。
 
+### 7.5 （可选）启用会前提醒 CronJob（P2 日历）
+
+P2 日历的**会前提醒**靠一个 k8s CronJob 周期性扫描即将开始的日程，把「🔔 …即将开始」推进对应会议的 IM 群（首次推送时惰性建群）。**默认关**（chart `backend.reminders.enabled: false`）——没用到日历的部署不会平白多起一个 CronJob。需要时打开（命令与 install-meet.sh 的 meet release 一致，多一个 `--set`）：
+
+```bash
+helm upgrade --install meet ./src/helm/meet -n meet \
+  -f src/helm/env.d/common.yaml.gotmpl \
+  -f src/helm/env.d/aliyun-prod/values.meet.yaml \
+  -f src/helm/env.d/aliyun-prod/values.secrets.yaml \
+  --set backend.reminders.enabled=true \
+  --wait --timeout 15m
+```
+
+> ⚠️ **前提：ECS 上的 helm chart 必须是当前版本**（含 `src/helm/meet/templates/backend_cronjob_reminders.yaml`）。本项目镜像在 PC 构建后推 registry `:latest`，ECS 只 `kubectl rollout restart` 拉镜像、**不一定 `git pull`**，所以 `/opt/we-meet` 的 chart 可能落后好几个版本。此时 `--set ...enabled=true` 会**落空**：`helm upgrade` 报成功，但 `kubectl -n meet get cronjob` 为空（没有模板消费这个值，也不报错）。先确认 / 更新 chart：
+>
+> ```bash
+> ls src/helm/meet/templates/ | grep -i remind || echo "chart 落后，需更新"
+> # 落后则只更新通用 chart 目录（不碰 env.d 下客户专属的 values.meet.yaml）：
+> git fetch origin main          # 客户部署分支见 §6.3
+> git checkout origin/main -- src/helm/meet
+> ```
+
+验证 + 立即手动触发一次（不等下一个 5 分钟整点）：
+
+```bash
+kubectl -n meet get cronjob          # 应有 meet-backend-reminders   */5 * * * *
+kubectl -n meet create job --from=cronjob/meet-backend-reminders reminders-manual-1
+kubectl -n meet logs job/reminders-manual-1     # "reminders pushed: N"（无到期日程则 0，正常）
+```
+
+调度默认每 5 分钟（`backend.reminders.schedule`，可 `--set` 覆盖）；命令默认 `python manage.py send_due_reminders`，幂等（`CalendarEvent.reminder_pushed_at` 守卫），重复跑安全。**关闭**：去掉 `--set`（或设 `=false`）再 `helm upgrade`，CronJob 随 release 移除。
+
 ---
 
 ## 八、联调
