@@ -42,6 +42,11 @@ export interface ApiConfig {
   subtitle: {
     enabled: boolean
   }
+  docs?: {
+    // Public La Suite Docs site URL; present only when the Docs bridge is
+    // configured server-side. Absent/null ⇒ hide the "文档" nav entry.
+    url?: string | null
+  }
   telephony: {
     enabled: boolean
     phone_number?: string

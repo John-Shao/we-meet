@@ -11,6 +11,7 @@ import { Menu } from '@/primitives/Menu'
 import { MenuList } from '@/primitives/MenuList'
 import { LoginButton } from '@/components/LoginButton'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
+import { useConfig } from '@/api/useConfig'
 
 import { useLoginHint } from '@/hooks/useLoginHint'
 
@@ -84,7 +85,9 @@ const LoginHint = () => {
 }
 
 export const Header = () => {
-  const { t } = useTranslation(['global', 'im', 'contacts', 'calendar'])
+  const { t } = useTranslation(['global', 'im', 'contacts', 'calendar', 'docs'])
+  const { data: config } = useConfig()
+  const docsUrl = config?.docs?.url
   const isHome = useMatchesRoute('home')
   const isLegalTerms = useMatchesRoute('legalTerms')
   const isAccessibility = useMatchesRoute('accessibility')
@@ -188,6 +191,24 @@ export const Header = () => {
                 >
                   {t('nav.title', { ns: 'calendar' })}
                 </Link>
+              )}
+              {!!user && docsUrl && (
+                <a
+                  href={docsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={t('nav.ariaLabel', { ns: 'docs' })}
+                  className={css({
+                    paddingX: '0.75rem',
+                    paddingY: '0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: '500',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {t('nav.title', { ns: 'docs' })}
+                </a>
               )}
               {!!user && (
                 <Link

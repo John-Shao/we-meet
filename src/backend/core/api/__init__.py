@@ -66,6 +66,13 @@ def get_frontend_configuration(request):
             "default_country": settings.ROOM_TELEPHONY_DEFAULT_COUNTRY,
         },
         "subtitle": {"enabled": settings.ROOM_SUBTITLE_ENABLED},
+        "docs": {
+            # Public La Suite Docs site URL — present only when the Docs bridge is
+            # configured (DOCS_CONFIGURATION.api_url). Drives the optional "文档" nav
+            # entry; null ⇒ frontend hides it (no dead link before Docs is deployed).
+            "url": (getattr(settings, "DOCS_CONFIGURATION", None) or {}).get("api_url")
+            or None,
+        },
         "livekit": {
             "url": settings.LIVEKIT_CONFIGURATION["url"],
             "force_wss_protocol": settings.LIVEKIT_FORCE_WSS_PROTOCOL,
