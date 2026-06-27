@@ -20,10 +20,16 @@ from ..models import MeetingConversation, ResourceAccess, RoleChoices
 from ..services.jusi_im import (
     JusiImBadResponseError,
     JusiImConversationResponse,
+    JusiImTokenResponse,
     JusiImUnreachableError,
 )
 
 pytestmark = pytest.mark.django_db
+
+
+def _imuid(external_id: str) -> str:
+    """The jusi uid our mocked issue_token mints for a given external_id (sub)."""
+    return f"imuid-{external_id}"
 
 
 @pytest.fixture
@@ -36,6 +42,11 @@ def mock_admin_client():
     with mock.patch("core.services.jusi_im.JusiImAdminClient") as ctor:
         instance = mock.Mock()
         ctor.return_value = instance
+        # The bridge now resolves each member sub → jusi uid via issue_token before
+        # creating the group; mint a deterministic uid per external_id.
+        instance.issue_token.side_effect = lambda external_id, ttl_seconds: (
+            JusiImTokenResponse(uid=_imuid(external_id), token="t", expires_at=0)
+        )
         # A sensible default — tests override per-case via instance.<...>.<return_value/side_effect>.
         instance.create_group.return_value = JusiImConversationResponse(
             cid="placeholder",
@@ -76,16 +87,20 @@ def test_ensure_group_creates_meeting_conversation_first_call(mock_admin_client)
     mc = MeetingConversation.objects.get(cid=expected_cid)
     assert mc.room_id == room.id
 
-    # Verify admin client was called with the right shape.
+    # Verify admin client was called with the right shape — resolved jusi uids,
+    # NOT raw subs (jusi members/owner_uid FK to users(uid)).
     mock_admin_client.create_group.assert_called_once()
     kwargs = mock_admin_client.create_group.call_args.kwargs
     assert kwargs["cid"] == expected_cid
-    assert kwargs["owner_uid"] == str(owner.sub or owner.id)
+    assert kwargs["owner_uid"] == _imuid(str(owner.sub or owner.id))
     assert set(kwargs["members"]) >= {
-        str(owner.sub or owner.id),
-        str(other.sub or other.id),
+        _imuid(str(owner.sub or owner.id)),
+        _imuid(str(other.sub or other.id)),
     }
     assert kwargs["meta"]["meeting_id"] == str(room.id)
+    # And the resolved uid was cached on the User for later uid → name lookups.
+    owner.refresh_from_db()
+    assert owner.im_uid == _imuid(str(owner.sub or owner.id))
 
 
 def test_ensure_group_idempotent_second_call_returns_same_cid(mock_admin_client):

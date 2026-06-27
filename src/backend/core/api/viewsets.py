@@ -1594,6 +1594,7 @@ class RoomViewSet(
         response.
         """
         from core.api.im import JusiImInvalidResponseHTTPError, JusiImUnreachableHTTPError
+        from core.services.im_provisioning import resolve_uid, resolve_uids
         from core.services.jusi_im import (
             JusiImAdminClient,
             JusiImBadResponseError,
@@ -1615,22 +1616,19 @@ class RoomViewSet(
             )
 
         cid = models.MeetingConversation.cid_for_room(room.id)
-        owner_user = room.accesses.filter(role=models.RoleChoices.OWNER).first()
-        owner_uid = (
-            str(owner_user.user.sub or owner_user.user.id)
-            if owner_user
-            else str(request.user.sub or request.user.id)
+        owner_user = (
+            room.accesses.filter(role=models.RoleChoices.OWNER)
+            .select_related("user")
+            .first()
         )
-        # Initial member list: every user with any role on this room.
-        member_uids = [
-            str(u.sub or u.id) for u in models.User.objects.filter(resources=room)
-        ]
-        # Always include the calling user (defensive — the membership join above
-        # should already cover them, but a freshly-created room may not have
-        # propagated through join cache yet).
-        caller_uid = str(request.user.sub or request.user.id)
-        if caller_uid not in member_uids:
-            member_uids.append(caller_uid)
+        owner_obj = owner_user.user if owner_user else request.user
+        # Every user with any role on this room; always include the calling user
+        # (defensive — a freshly-created room may not have propagated through the
+        # join cache yet).
+        room_users = list(models.User.objects.filter(resources=room))
+        for extra in (owner_obj, request.user):
+            if extra and extra.pk not in {u.pk for u in room_users}:
+                room_users.append(extra)
 
         cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
         if not cfg:
@@ -1641,6 +1639,17 @@ class RoomViewSet(
             timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
         )
         try:
+            # Resolve we-meet users → jusi internal uids (the admin API + its FKs
+            # speak jusi uid, NOT sub). Lazily mints any user not yet known to jusi.
+            uid_map = resolve_uids(client, room_users)
+            owner_uid = uid_map.get(owner_obj.pk) or resolve_uid(client, owner_obj)
+            if not owner_uid:
+                raise JusiImInvalidResponseHTTPError(
+                    detail="could not resolve owner IM uid"
+                )
+            member_uids = list(dict.fromkeys(uid_map.values()))
+            if owner_uid not in member_uids:
+                member_uids.append(owner_uid)
             client.create_group(
                 cid=cid,
                 owner_uid=owner_uid,

@@ -110,7 +110,13 @@ def _ensure_conversation(room, client):
     """Return the room's IM group cid, lazily creating the group if needed.
 
     Mirrors RoomViewSet.im_ensure_group. Returns None on jusi error / no owner.
+
+    Members are passed as jusi-light-im *internal* uids (resolved + minted via
+    ``im_provisioning``), NOT we-meet ``sub`` — the jusi members/owner_uid columns
+    FK to ``users(uid)``, so a raw sub would fail the FK (500) and, even without the
+    FK, the SDK clients (which speak jusi uid) would never see the group.
     """
+    from core.services.im_provisioning import resolve_uid, resolve_uids
     from core.services.jusi_im import (
         JusiImBadResponseError,
         JusiImUnreachableError,
@@ -123,15 +129,22 @@ def _ensure_conversation(room, client):
     owner = (
         room.accesses.filter(role=RoleChoices.OWNER).select_related("user").first()
     )
-    owner_uid = str(owner.user.sub or owner.user.id) if owner else ""
-    if not owner_uid:
+    if not owner or not owner.user:
         return None
-    member_uids = [str(u.sub or u.id) for u in User.objects.filter(resources=room)]
-    if owner_uid not in member_uids:
-        member_uids.append(owner_uid)
+
+    room_users = list(User.objects.filter(resources=room))
+    if owner.user.pk not in {u.pk for u in room_users}:
+        room_users.append(owner.user)
 
     cid = MeetingConversation.cid_for_room(room.id)
     try:
+        uid_map = resolve_uids(client, room_users)
+        owner_uid = uid_map.get(owner.user.pk) or resolve_uid(client, owner.user)
+        if not owner_uid:
+            return None
+        member_uids = list(dict.fromkeys(uid_map.values()))
+        if owner_uid not in member_uids:
+            member_uids.append(owner_uid)
         client.create_group(
             cid=cid,
             owner_uid=owner_uid,
