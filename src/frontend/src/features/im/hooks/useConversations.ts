@@ -41,9 +41,15 @@ export const useConversations = (client: Client, selfUid: string) => {
                 ...c,
                 last_seq: Math.max(c.last_seq, m.seq),
                 unread_count: c.unread_count + 1,
+                // P11: keep the list preview + time live (else stale until a
+                // full refetch). Covers normal / system / own messages alike.
+                last_message: m.body,
+                last_message_ts: m.created_at,
+                last_sender_uid: m.sender_uid,
+                last_content_type: m.content_type,
               }
-            : c,
-        ),
+            : c
+        )
       )
     })
     const offRead = client.onRead((r: ReadOutPayload) => {
@@ -58,7 +64,7 @@ export const useConversations = (client: Client, selfUid: string) => {
                 ...c,
                 unread_count: Math.max(0, c.last_seq - r.seq),
               }
-            : c,
+            : c
         )
       })
     })
