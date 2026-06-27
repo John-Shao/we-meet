@@ -1,0 +1,12 @@
+{
+  "railLabel": "Navigation principale",
+  "logout": "Se déconnecter",
+  "nav": {
+    "messages": "Messages",
+    "meeting": "Réunions",
+    "calendar": "Agenda",
+    "approval": "Validations",
+    "contacts": "Contacts",
+    "docs": "Docs"
+  }
+}

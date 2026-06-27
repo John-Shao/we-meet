@@ -6,6 +6,8 @@ import { useSnapshot } from 'valtio'
 import { Footer } from '@/layout/Footer'
 import { ScreenReaderAnnouncer } from '@/primitives'
 import { SkipLink, MAIN_CONTENT_ID } from './SkipLink'
+import { useUser } from '@/features/auth'
+import { AppRail } from './AppRail'
 
 export type Layout = 'fullpage' | 'centered'
 
@@ -19,6 +21,42 @@ export const Layout = ({ children }: { children: ReactNode }) => {
   const layoutSnap = useSnapshot(layoutStore)
   const showHeader = layoutSnap.showHeader
   const showFooter = layoutSnap.showFooter
+  const { isLoggedIn } = useUser()
+
+  // P6: logged-in workspace routes get the Feishu-style left rail (column 1).
+  // The in-call room (showHeader=false) and anonymous pages keep the original
+  // top-Header / full-screen layout untouched.
+  if (showHeader && isLoggedIn) {
+    return (
+      <>
+        <SkipLink />
+        <div
+          className={css({
+            display: 'flex',
+            height: '100%',
+            backgroundColor: 'greyscale.50',
+            color: 'default.text',
+          })}
+        >
+          <AppRail />
+          <main
+            id={MAIN_CONTENT_ID}
+            className={css({
+              flexGrow: 1,
+              minWidth: 0,
+              overflow: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: 'white',
+            })}
+          >
+            <ScreenReaderAnnouncer />
+            {children}
+          </main>
+        </div>
+      </>
+    )
+  }
 
   return (
     <>

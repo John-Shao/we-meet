@@ -1,0 +1,12 @@
+{
+  "railLabel": "Hoofdnavigatie",
+  "logout": "Afmelden",
+  "nav": {
+    "messages": "Berichten",
+    "meeting": "Vergaderingen",
+    "calendar": "Agenda",
+    "approval": "Goedkeuringen",
+    "contacts": "Contacten",
+    "docs": "Documenten"
+  }
+}
