@@ -28,7 +28,7 @@ we-meet 的协同面目前只有 **IM + 会议**，缺飞书最日常的协作�
 ## 二、关键决策
 
 - **D1 集成而非自建。**（已拍板）
-- **D2 部署拓扑：Docs 作为独立 helm release（或独立 compose），不并进 meet chart。** 理由：Docs 有独立版本管理、独立后端+协同 ws+独立 PG/S3，与 meet 隔离便于升级/扩容/故障恢复；`helm upgrade meet` 永不触碰 docs。
+- **D2 部署拓扑：Docs 部署到一台新的专属 ECS（记为 `aliyun-docs`），跑单节点 K3s + Docs 官方 helm chart——即 jusi-light-im 的路子（独立机器 + 自己的 k3s + helm），不并入 aliyun-sjy 集群**（2026-06-27 定，详见 §五）。理由：① 把 Docs 整套负载（Django 后端 + 协同 ws + PG）从吃紧的 4C8G meet 主节点彻底挪开；② helm/k8s 是 Docs **官方支持的生产路径**（compose 官方明说自己生产不用、仅社区支持），走 helm 更稳；③ 与已有的 jusi-light-im（独立 ECS + 单节点 k3s + helm）运维范式一致。
 - **D3 SSO 走 Keycloak realm 会话，不共享 app cookie。** meet 与 docs 各自是独立 OIDC client、各自 session；用户在 meet 登录后访问 docs，docs 走自己的 OIDC 流，命中 Keycloak 已有 SSO 会话 → 静默登录。新增 confidential client `docs`。
 - **D4 UX：meet 内「文档」入口以新标签 / 顶层导航深链到 docs.\<domain> 为主**（纸面 spike 修正，见 §三 结论）。理由：Docs 默认 `frame-ancestors NONE` + cookie `SameSite=Lax`，iframe 嵌入要同时放松这两项**且仍赌第三方 cookie**（Chrome/Safari 正淘汰），脆弱；而 La Suite 生态本就是「同 SSO 下多个独立顶层应用 + 启动器」组合，不靠互相 iframe。**iframe 嵌入降为可选、不推荐**，只在确有「不跳出会议页」强需求时再单独评估（届时需 Docs 侧放松 CSP + SameSite=None）。
 - **D5 we-meet 侧薄链接模型 `MeetingDoc`（镜像 `MeetingConversation`）：** `room` OneToOne(SET_NULL，doc 比 room 长寿) + `doc_id` + `doc_url` + `pushed_at`。**正文/CRDT 不进 we-meet 库，Docs 持有。**
@@ -101,12 +101,39 @@ we-meet 的协同面目前只有 **IM + 会议**，缺飞书最日常的协作�
 
 ---
 
-## 五、部署拓扑（D2 展开）
+## 五、部署拓扑（D2：专属 ECS + 单节点 K3s + Docs 官方 helm，即 jusi-light-im 路子）
 
-- **独立 helm release `docs`**（新建 `src/helm/docs/`，镜像 `src/helm/meet/` 模板结构）或独立 compose，含：Docs Django 后端 + 协同 ws（y-provider / Node）+ **独立 PG** + **独立 S3 桶**（火山 TOS 另建桶或复用 `we-meet` 桶子目录）。
-- Keycloak realm `meet` 加 confidential client `docs`（照 `bootstrap-realm.sh:59` 的 meet client：`redirectUris=[https://docs.<domain>/api/...callback/, https://docs.<domain>/*]`、`webOrigins=[https://docs.<domain>]`、`post.logout.redirect.uris`）。
-- DNS 加 `docs` A 记录 → aliyun-sjy；ingress-nginx 加 docs host；cert-manager 签证（照官网/meet 既有路径）。
-- **运维负担**：多两个服务（Docs 后端 + 协同 ws）+ 一个 PG。**4C8G 已经紧**（§十二 提过 OOM），需评估资源 / 是否加第二台 ECS（P4 也提过加机器）。
+**决定（2026-06-27）**：Docs 放到一台**新的专属 ECS**（记为 `aliyun-docs`），其上跑**单节点 K3s + Docs 官方 helm chart**——和 jusi-light-im 一样的「独立机器 + 自己的 k3s + helm」模式，**不并入 aliyun-sjy 集群**。
+
+为什么 helm 而非 compose：
+- Docs **官方生产路径就是 k8s/helm**；compose 他们明说「自己生产不用、社区支持」。走 helm = 用它支持的路，版本/升级有谱。
+- 与 jusi-light-im 现有范式一致（独立 ECS、单节点 k3s、helm；镜像 pull/import 后 helm install）。
+- 把 Docs 整套负载从 4C8G meet 主节点彻底挪开。
+
+**aliyun-docs 上（单节点 k3s + helm）：**
+
+| 组件 | 说明 |
+|---|---|
+| Docs helm release | 官方 chart（suitenumerique/docs 的 helm），含 backend(`lasuite/impress-backend`)、frontend(`lasuite/impress-frontend`)、协同 ws y-provider(`lasuite/impress-y-provider`) |
+| PostgreSQL | Docs 专属（in-cluster + local-path PVC）；与 meet 的 pg 完全分离 |
+| Redis | Docs 专属 |
+| ingress + TLS | k3s 自带 traefik（或 ingress-nginx）+ cert-manager，给 `docs.<domain>` 签 LE 证书；y-provider 的 ws 路由一并配 |
+
+**不需要 minio**：Docs 的 `AWS_S3_*` 指向**火山 TOS**（新建桶 `we-meet-docs`），AK/SK 复用现有 TOS 凭据——零新增存储设施。国内 pull `lasuite/impress-*` 慢的话，可像 meet 镜像那样先镜像到火山 CR `we-meet` 命名空间。
+
+**关键 values / env（与 we-meet & Keycloak 对接的几项）：**
+- **OIDC 指同一个 Keycloak**（aliyun-zlm，realm `meet`）：provider=`https://id.<domain>/realms/meet`、`OIDC_RP_CLIENT_ID=docs`、`OIDC_RP_CLIENT_SECRET=<新 client secret>`、`OIDC_REDIRECT_ALLOWED_HOSTS=[https://docs.<domain>]`。→ 与 meet 同 realm = 新标签 SSO 免登。
+- **`SERVER_TO_SERVER_API_TOKENS=<共享 token>`** —— 与 we-meet 后端的 `DOCS_SERVER_TO_SERVER_TOKEN` **同一个值**，即 `DocsClient.create_for_owner` 用的 token。
+- **S3**：`AWS_S3_ENDPOINT_URL=https://tos-s3-cn-guangzhou.volces.com` + bucket `we-meet-docs` + 现有 TOS AK/SK。
+- **y-provider**：`Y_PROVIDER_API_KEY` + `COLLABORATION_SERVER_SECRET`（随机生成）。
+
+**Keycloak（aliyun-zlm）加 `docs` client**：照 `bootstrap-realm.sh:59` 的 meet client，`redirectUris=[https://docs.<domain>/*]`、`webOrigins=[https://docs.<domain>]`、confidential。
+
+**DNS / TLS**：`docs.<domain>` A 记录 → **aliyun-docs 公网 IP**（不是 aliyun-sjy）；TLS 由 aliyun-docs 上 k3s 的 ingress + cert-manager 自管 LE。
+
+**we-meet 侧（已就绪，零代码改）**：meet 后端配 `DOCS_API_URL=https://docs.<domain>` + `DOCS_SERVER_TO_SERVER_TOKEN=<共享 token>` → 妙记→Doc 自动生效（跨机 HTTPS 调用）。
+
+**机器规格**：backend + y-provider + pg + redis + k3s 本身，**建议 4C8G**（k3s 加三四个服务，2C4G 偏紧）；跟 jusi-light-im 的 4C4G 量级接近、略宽。
 
 ---
 
@@ -124,10 +151,9 @@ we-meet 的协同面目前只有 **IM + 会议**，缺飞书最日常的协作�
 - `src/layout/Header.tsx:87` — `useTranslation` 加 `'docs'` + Link 块（照 calendar :177 / contacts :162）
 - `src/locales/{zh,en,fr,de,nl}/docs.json`
 
-**部署**：
+**部署**（Docs 跑在自己的 `aliyun-docs` 机上，本仓库只动两处）：
 - `deploy/aliyun/keycloak/bootstrap-realm.sh` — 加 `docs` client（照 meet client :59）
-- `src/helm/docs/`（新独立 chart）或 `deploy/` 下 Docs compose
-- `docs/installation/aliyun.md` — 加 Docs 部署章节 + DNS/ingress 行
+- 新增 `docs/installation/docs-server.md`：aliyun-docs 单节点 k3s + Docs 官方 helm + DNS/TLS + §五 的 env 清单。Docs 的 chart/镜像在 suitenumerique/docs，不进本仓库
 
 ---
 
@@ -135,7 +161,7 @@ we-meet 的协同面目前只有 **IM + 会议**，缺飞书最日常的协作�
 
 1. **iframe 内 SSO 被第三方 cookie 拦**（S1 主风险）→ fallback 新标签。
 2. **Docs 无服务端建文档 API**（S2 风险）→ 妙记自动落 Doc 降级为手动/按钮触发。
-3. **运维负担 +2 服务 +1 PG**，4C8G 吃紧，可能要加机器。
+3. **运维负担**：Docs 独立到 `aliyun-docs` 专属 ECS（单节点 k3s + helm）后，meet 的 4C8G **不再受影响**；新成本 = +1 台 ECS + 在其上维护一套 k3s/helm（与 jusi-light-im 同量级的运维面）。
 4. **Docs 与 we-meet 解耦后的版本/升级兼容面**（独立 release 是双刃）。
 
 ---
