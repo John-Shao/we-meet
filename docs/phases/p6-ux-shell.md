@@ -26,9 +26,9 @@ we-meet 现在是 **LaSuite Meet fork**,外壳是 Meet 自带的**顶部 Header*
 
 ## 三、关键决策
 
-- **D1 外壳 = 持久左栏工作台(会外)+ 全屏(会中)。** 在 `layoutStore` 增一个壳模式(如 `shell: 'workspace' | 'fullscreen'`),`Layout` 据此渲染:workspace = 左栏 + 内容;fullscreen = 裸内容(房间)。沿用现有 `Screen` 的 toggle 习惯,房间页设 fullscreen。**顶部 Header 的导航职责移交左栏**(Header 可瘦身为模块内顶部条/或去掉)。
+- **D1 外壳 = 飞书式三栏(会外)+ 全屏(会中)。** 据用户飞书截图,飞书是经典**三栏**:① 全局**主导航栏**(窄,图标+文字,顶部工作区头像 + ⊕ + 搜索 Ctrl+K)② 模块**二级面板**(会话列表 / 迷你月历+日历列表 / 联系人分类 / 会议动作磁贴+历史)③ **主内容区**。**P6 建 ①(全局主导航栏)+ 三栏框架**;②③ 交给各模块:IM、通讯录已是"列表+详情"天然贴框架,日历/会议首页的丰富二级面板(周/月网格、动作磁贴)属**模块级增强、可增量补**。在 `layoutStore` 增壳模式(`shell: 'workspace' | 'fullscreen'`),`Layout` 据此渲染:workspace = 主导航栏 + 模块内容;fullscreen = 裸内容(房间)。沿用现有 `Screen` toggle 习惯,房间设 fullscreen。**顶部 Header 导航职责移交主导航栏**。
 - **D2 左栏 IA(见 §四)。** 竖排图标+文字一级模块;顶部 logo/工作区,底部 用户头像/设置。各项映射现有路由,Docs 作外链(gated on `config.docs.url`),知识库为 P4 占位(Docs 上线后填)。
-- **D3 视觉对齐 = 中心化重映射 panda token。** primary 法政紫 → **飞书蓝**(锚点 `#3370FF` 系),neutrals/radii/spacing 微调贴飞书。改 `panda.config.ts` 一处、全局生效。**注意 blast radius:连会中 UI 也跟着变蓝**——这是期望的统一,但需回看会中观感。
+- **D3 视觉对齐 = 中心化重映射 panda token + 据截图的具体规格。** 从飞书截图提炼:主操作按钮**飞书蓝**(锚点 `#3370FF`,如「创建日程」「添加企业成员」);**应用底色极浅蓝灰**(面板浮其上),**白色圆角面板 + 极淡边框**;主导航栏选中项 = 浅高亮底 + 蓝色图标/文字;字体中性、留白足。落地:`panda.config.ts` primary 法政紫→飞书蓝系 + 加 app 背景/面板的 semantic token,radii 用现有 6/8。改一处、全局生效。**注意 blast radius:连会中 UI 也跟着变蓝**——期望的统一,但需回看会中观感。
 - **D4 与 Meet fork 共存。** 会中房间 UI 结构不动(沿用 fork 的全屏会议体验),只继承新 token 颜色。左栏只包会外路由。降低与上游 merge 冲突面(已是重度 fork,可接受)。
 - **D5 响应式 / 桌面。** ≥md 显示左栏;窄屏折叠成底部 tab 或抽屉。Electron 包同一份 React → 自动得到左栏。
 - **D6 无 Figma → 对齐飞书公开设计语言**(蓝 primary、中性灰、左栏、卡片/间距规范)做**忠实近似**;若你能给关键页 Figma/截图,我再逐步精修到像素。**视觉这块先求"神似 + 一致",再迭代细节。**
