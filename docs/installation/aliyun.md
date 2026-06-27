@@ -850,6 +850,67 @@ ssh root@<sjy> "rm -rf /opt/we-meet-online"
 
 ---
 
+## 十四、迁移 / 扩容：把 meet 迁到更大的新机器（4C16G）
+
+> 场景：meet 在 4C8G 上内存吃紧（§12.2 OOMKilled，「4C8G 跑全功能就这个待遇」），换一台 **4C16G** 做主节点（瓶颈是内存不是 CPU，翻倍内存正好补在刀刃）；腾出的旧 4C8G 转去**独立部署 Docs**（见 [docs-server.md](docs-server.md)）。**Keycloak（aliyun-zlm 2C2G）不动。**
+>
+> **关键：域名不变、只换公网 IP**，所以 Keycloak 的 meet client redirect URI（按域名写的）**无需改**。
+
+**总原则：先把 meet 迁到新机并验证通过，再拆旧机**——旧机是迁移的回滚保险，没验证完别动。
+
+### 14.1 新机准备
+4C16G/100G，Ubuntu，与原机同地域。安全组同 §四 aliyun-sjy：`22`(你的IP) / `80` / `443` / `7881-tcp` / `7882-udp` / `50000-60000-udp` / `6443`(你的IP)。
+
+### 14.2 装栈（空库）
+```bash
+# 新机：拿脚本
+sudo apt-get update && sudo apt-get install -y git
+git clone https://github.com/<your-fork>/we-meet.git
+# 在 PC 上把 8 个客户化文件（含 gitignored secrets）推过来：
+#   bash deploy/aliyun/sync-customer-config.sh root@<新机IP> /root/we-meet
+cd we-meet
+sudo ALIYUN_DOCKER_MIRROR=https://xxxx.mirror.aliyuncs.com bash deploy/aliyun/install-k3s.sh
+sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+  kubectl apply -f src/helm/env.d/aliyun-prod/cluster-issuer.yaml
+sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml bash deploy/aliyun/install-meet.sh
+```
+此时 `kubectl -n meet get pods` 应全 Running；证书 pending **正常**（DNS 还指旧机，LE 拿不到 challenge）。
+
+### 14.3 维护窗口：迁数据 + 切 DNS（挑低峰，停机约 10–30 min）
+媒体在 TOS（外部共享桶，两机指同一个）**不用迁**，只迁 PostgreSQL：
+```bash
+# ① 旧机停写
+kubectl -n meet scale deploy/meet-backend --replicas=0
+# ② 旧机导出 → 拷到新机
+kubectl -n meet exec postgresql-0 -- pg_dump -U meet meet | gzip > /tmp/meet.sql.gz
+scp /tmp/meet.sql.gz root@<新机IP>:/tmp/
+# ③ 新机：重建空库后灌入（dump 含 schema，后续 migrate 自动 no-op）
+ROOT_PW=$(kubectl -n meet get secret postgresql -o jsonpath='{.data.postgres-password}' | base64 -d)
+kubectl -n meet exec postgresql-0 -- env PGPASSWORD="$ROOT_PW" psql -U postgres \
+  -c "DROP DATABASE meet;" -c "CREATE DATABASE meet OWNER meet;"
+gunzip -c /tmp/meet.sql.gz | kubectl -n meet exec -i postgresql-0 -- \
+  env PGPASSWORD="$ROOT_PW" psql -U postgres -d meet
+kubectl -n meet rollout restart deploy/meet-backend
+# ④ 切 DNS：阿里云控制台把 meet、livekit 两条 A 记录 → 新机 IP（TTL 600）
+```
+
+### 14.4 等证书 + 验证
+```bash
+kubectl -n meet get certificate    # meet-tls / livekit-tls 变 True（DNS 指新机 + 80 通后 LE 签）
+```
+浏览器登录 → 双端入会（**手机 4G 必测 UDP**）→ 出纪要。✅ 全绿后**旧机 meet 先别拆**，观察 1–2 天。
+
+### 14.5 退役旧机 meet（确认新机稳定后）
+```bash
+helm -n meet uninstall meet        # 旧机
+```
+旧机整机转用途 → 照 [docs-server.md](docs-server.md) 改造成 Docs 机。
+
+### 回滚
+迁移期间任何异常：把 meet、livekit 的 A 记录**切回旧机 IP**（旧机 meet 仍在跑）即可，零数据损失（迁移期旧库只读、未被改动）。
+
+---
+
 ## 附：相关文件索引
 
 | 路径 | 作用 |
@@ -871,3 +932,5 @@ ssh root@<sjy> "rm -rf /opt/we-meet-online"
 | [deploy/aliyun/website/manifests.yaml](../../deploy/aliyun/website/manifests.yaml) | 官网 K8s manifest（ns website + nginx Deployment + Service + Ingress）（§十三）|
 | [deploy/aliyun/website/sync.sh](../../deploy/aliyun/website/sync.sh) | **在 PC 上** build we-meet.online 静态站 + rsync 到 aliyun-sjy（§13.4）|
 | [deploy/aliyun/website/README.md](../../deploy/aliyun/website/README.md) | 官网部署 README（与 §十三 同源，更详细的 troubleshooting）|
+| [docs/installation/docs-server.md](docs-server.md) | **Docs 独立机**部署 runbook（单节点 k3s + Docs 官方 helm + Keycloak docs client + TOS + 妙记落 Doc 接通）|
+| [docs/phases/p3-collab-docs.md](../phases/p3-collab-docs.md) | P3 协作文档设计 + 纸面 spike 结论 |
