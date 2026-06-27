@@ -762,3 +762,81 @@ class MembershipAdmin(admin.ModelAdmin):
                 deleted_at__isnull=True
             )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+# --- P5 审批 / 工作流 ---
+
+
+@admin.register(models.ApprovalTemplate)
+class ApprovalTemplateAdmin(admin.ModelAdmin):
+    """Author approval templates (MVP authoring surface — no visual designer yet).
+
+    ``flow`` is an ordered JSON list of approver-resolution rules, e.g.::
+
+        [{"type": "direct_manager"},
+         {"type": "department_head", "department_id": "<uuid>"},
+         {"type": "org_role", "role": "owner"},
+         {"type": "user", "user_id": "<uuid>"}]
+
+    ``form_schema`` is free-form JSON describing the request form's fields.
+    """
+
+    list_display = ("name", "organization", "is_active", "created_at")
+    list_filter = ("organization", "is_active")
+    search_fields = ("name", "=id")
+    autocomplete_fields = ("organization",)
+    readonly_fields = ("id", "created_at", "updated_at")
+
+    def get_changeform_initial_data(self, request):
+        # Single-org MVP: prefill the only organization to cut friction.
+        orgs = list(models.Organization.objects.all()[:2])
+        return {"organization": orgs[0].pk} if len(orgs) == 1 else {}
+
+
+class ApprovalTaskInline(admin.TabularInline):
+    """The resolved approver chain of an instance — read-only (driven by the engine)."""
+
+    model = models.ApprovalTask
+    extra = 0
+    can_delete = False
+    fields = ("node_index", "approver", "action", "comment", "acted_at")
+    readonly_fields = fields
+    ordering = ("node_index",)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(models.ApprovalInstance)
+class ApprovalInstanceAdmin(admin.ModelAdmin):
+    """View approval requests + their chain. Instances are created/advanced via the
+    API + state machine, so this surface is read-only (no hand-editing status)."""
+
+    list_display = (
+        "id",
+        "template",
+        "applicant",
+        "status",
+        "current_node",
+        "created_at",
+    )
+    list_filter = ("organization", "status", "template")
+    search_fields = ("=id", "applicant__email", "applicant__full_name")
+    autocomplete_fields = ("organization", "template", "applicant")
+    readonly_fields = (
+        "id",
+        "organization",
+        "template",
+        "applicant",
+        "form_data",
+        "status",
+        "current_node",
+        "created_at",
+        "updated_at",
+    )
+    list_select_related = ("template", "applicant")
+    inlines = (ApprovalTaskInline,)
+
+    def has_add_permission(self, request):
+        # Instances originate from POST /api/v1.0/approvals/, never the admin.
+        return False
