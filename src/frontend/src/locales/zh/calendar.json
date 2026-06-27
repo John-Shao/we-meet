@@ -1,0 +1,42 @@
+{
+  "nav": {
+    "title": "日历",
+    "ariaLabel": "打开日历"
+  },
+  "page": {
+    "authRequired": "请先登录以查看日历。",
+    "title": "日历",
+    "create": "新建日程",
+    "loading": "加载中…",
+    "empty": "暂无日程"
+  },
+  "form": {
+    "title": "新建日程",
+    "titlePlaceholder": "日程标题",
+    "start": "开始",
+    "end": "结束",
+    "allDay": "全天",
+    "reminder": "提醒",
+    "reminderNone": "不提醒",
+    "reminderMinutes": "{{count}} 分钟前",
+    "attendees": "参与者",
+    "selected": "已选 {{count}} 人",
+    "searchPlaceholder": "搜索成员…",
+    "loading": "加载中…",
+    "create": "创建",
+    "cancel": "取消",
+    "error": "操作失败:{{message}}",
+    "endAfterStart": "结束时间必须晚于开始时间。"
+  },
+  "card": {
+    "organizer": "组织者",
+    "attendees": "{{count}} 人",
+    "join": "进入会议"
+  },
+  "rsvp": {
+    "label": "我的回复",
+    "accepted": "接受",
+    "tentative": "待定",
+    "declined": "拒绝"
+  }
+}

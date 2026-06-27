@@ -1,0 +1,42 @@
+{
+  "nav": {
+    "title": "Calendar",
+    "ariaLabel": "Open calendar"
+  },
+  "page": {
+    "authRequired": "Please sign in to view the calendar.",
+    "title": "Calendar",
+    "create": "New event",
+    "loading": "Loading…",
+    "empty": "No events yet"
+  },
+  "form": {
+    "title": "New event",
+    "titlePlaceholder": "Event title",
+    "start": "Start",
+    "end": "End",
+    "allDay": "All day",
+    "reminder": "Reminder",
+    "reminderNone": "No reminder",
+    "reminderMinutes": "{{count}} min before",
+    "attendees": "Attendees",
+    "selected": "{{count}} selected",
+    "searchPlaceholder": "Search members…",
+    "loading": "Loading…",
+    "create": "Create",
+    "cancel": "Cancel",
+    "error": "Failed: {{message}}",
+    "endAfterStart": "End must be after start."
+  },
+  "card": {
+    "organizer": "Organizer",
+    "attendees": "{{count}} people",
+    "join": "Join"
+  },
+  "rsvp": {
+    "label": "My response",
+    "accepted": "Accept",
+    "tentative": "Maybe",
+    "declined": "Decline"
+  }
+}

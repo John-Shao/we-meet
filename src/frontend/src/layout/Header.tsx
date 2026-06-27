@@ -84,7 +84,7 @@ const LoginHint = () => {
 }
 
 export const Header = () => {
-  const { t } = useTranslation(['global', 'im', 'contacts'])
+  const { t } = useTranslation(['global', 'im', 'contacts', 'calendar'])
   const isHome = useMatchesRoute('home')
   const isLegalTerms = useMatchesRoute('legalTerms')
   const isAccessibility = useMatchesRoute('accessibility')
@@ -171,6 +171,22 @@ export const Header = () => {
                   })}
                 >
                   {t('nav.title', { ns: 'contacts' })}
+                </Link>
+              )}
+              {!!user && (
+                <Link
+                  to="/calendar"
+                  aria-label={t('nav.ariaLabel', { ns: 'calendar' })}
+                  className={css({
+                    paddingX: '0.75rem',
+                    paddingY: '0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: '500',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {t('nav.title', { ns: 'calendar' })}
                 </Link>
               )}
               {!!user && (

@@ -1,0 +1,42 @@
+{
+  "nav": {
+    "title": "Agenda",
+    "ariaLabel": "Agenda openen"
+  },
+  "page": {
+    "authRequired": "Log in om de agenda te bekijken.",
+    "title": "Agenda",
+    "create": "Nieuw item",
+    "loading": "Laden…",
+    "empty": "Nog geen items"
+  },
+  "form": {
+    "title": "Nieuw item",
+    "titlePlaceholder": "Titel",
+    "start": "Begin",
+    "end": "Einde",
+    "allDay": "Hele dag",
+    "reminder": "Herinnering",
+    "reminderNone": "Geen herinnering",
+    "reminderMinutes": "{{count}} min van tevoren",
+    "attendees": "Deelnemers",
+    "selected": "{{count}} geselecteerd",
+    "searchPlaceholder": "Leden zoeken…",
+    "loading": "Laden…",
+    "create": "Aanmaken",
+    "cancel": "Annuleren",
+    "error": "Mislukt: {{message}}",
+    "endAfterStart": "Einde moet na het begin liggen."
+  },
+  "card": {
+    "organizer": "Organisator",
+    "attendees": "{{count}} personen",
+    "join": "Deelnemen"
+  },
+  "rsvp": {
+    "label": "Mijn reactie",
+    "accepted": "Accepteren",
+    "tentative": "Misschien",
+    "declined": "Weigeren"
+  }
+}

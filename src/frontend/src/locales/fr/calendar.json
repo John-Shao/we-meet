@@ -1,0 +1,42 @@
+{
+  "nav": {
+    "title": "Agenda",
+    "ariaLabel": "Ouvrir l'agenda"
+  },
+  "page": {
+    "authRequired": "Connectez-vous pour voir l'agenda.",
+    "title": "Agenda",
+    "create": "Nouvel événement",
+    "loading": "Chargement…",
+    "empty": "Aucun événement"
+  },
+  "form": {
+    "title": "Nouvel événement",
+    "titlePlaceholder": "Titre de l'événement",
+    "start": "Début",
+    "end": "Fin",
+    "allDay": "Toute la journée",
+    "reminder": "Rappel",
+    "reminderNone": "Aucun rappel",
+    "reminderMinutes": "{{count}} min avant",
+    "attendees": "Participants",
+    "selected": "{{count}} sélectionné(s)",
+    "searchPlaceholder": "Rechercher des membres…",
+    "loading": "Chargement…",
+    "create": "Créer",
+    "cancel": "Annuler",
+    "error": "Échec : {{message}}",
+    "endAfterStart": "La fin doit être après le début."
+  },
+  "card": {
+    "organizer": "Organisateur",
+    "attendees": "{{count}} personnes",
+    "join": "Rejoindre"
+  },
+  "rsvp": {
+    "label": "Ma réponse",
+    "accepted": "Accepter",
+    "tentative": "Peut-être",
+    "declined": "Refuser"
+  }
+}
