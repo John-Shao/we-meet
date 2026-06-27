@@ -279,6 +279,17 @@ backend:
         python manage.py createsuperuser --email $DJANGO_SUPERUSER_EMAIL --password $DJANGO_SUPERUSER_PASSWORD
     restartPolicy: Never
 
+  ## @param backend.reminders.enabled Deploy the calendar reminder CronJob (P2-c)
+  ## @param backend.reminders.schedule Cron schedule for the reminder scan
+  ## @param backend.reminders.command Override the reminder command
+  reminders:
+    enabled: false
+    schedule: "*/5 * * * *"
+    command:
+      - "python"
+      - "manage.py"
+      - "send_due_reminders"
+
   ## @param backend.probes.liveness.path [nullable] Configure path for backend HTTP liveness probe
   ## @param backend.probes.liveness.targetPort [nullable] Configure port for backend HTTP liveness probe
   ## @param backend.probes.liveness.initialDelaySeconds [nullable] Configure initial delay for backend liveness probe
