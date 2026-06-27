@@ -18,7 +18,7 @@
     "@fontsource-variable/material-symbols-outlined": "5.2.34",
     "@fontsource/material-icons-outlined": "5.2.6",
     "@fontsource/opendyslexic": "5.2.5",
-    "@jusi/light-im-sdk": "0.1.0-alpha.5",
+    "@jusi/light-im-sdk": "0.1.0-alpha.6",
     "@livekit/components-react": "2.9.19",
     "@livekit/components-styles": "1.2.0",
     "@livekit/track-processors": "0.7.0",

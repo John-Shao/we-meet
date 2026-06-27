@@ -174,6 +174,27 @@ const ImAuthenticated = () => {
     staleTime: 60_000,
   })
 
+  // 列表预览(P11)发送人名:群聊非系统消息的 last_sender_uid → 目录显示名。
+  const lastSenderUids = Array.from(
+    new Set(
+      conversations
+        .filter(
+          (c) =>
+            c.type === 'group' &&
+            c.last_content_type !== 'system' &&
+            !!c.last_sender_uid &&
+            c.last_sender_uid !== currentUserUID
+        )
+        .map((c) => c.last_sender_uid as string)
+    )
+  )
+  const { data: senderNames = {} } = useQuery({
+    queryKey: ['im', 'sender-names', lastSenderUids],
+    queryFn: () => resolveImUsers(lastSenderUids),
+    enabled: lastSenderUids.length > 0,
+    staleTime: 60_000,
+  })
+
   // group → meta.name(无名兜底);direct → 对端显示名(兜底「私聊」)。
   const nameOf = (c: ConversationSummary): string => {
     if (c.type === 'group') {
@@ -181,6 +202,24 @@ const ImAuthenticated = () => {
     }
     const peer = c.members.find((u) => u !== currentUserUID)
     return (peer && peerNames[peer]?.full_name) || t('convName.directFallback')
+  }
+
+  // 列表预览文案(P11):群聊「发送人: 正文」(系统消息无前缀);direct 仅正文。
+  const previewOf = (
+    c: ConversationSummary
+  ): { text: string; ts: number } | null => {
+    if (!c.last_message_ts) return null
+    const body = c.last_message ?? ''
+    const ts = c.last_message_ts
+    if (c.type !== 'group' || c.last_content_type === 'system') {
+      return { text: body, ts }
+    }
+    const su = c.last_sender_uid
+    const sender =
+      su === currentUserUID
+        ? t('group.you')
+        : (su && senderNames[su]?.full_name) || ''
+    return { text: sender ? `${sender}: ${body}` : body, ts }
   }
 
   const selectedConv = conversations.find((c) => c.cid === selectedCID) ?? null
@@ -341,6 +380,7 @@ const ImAuthenticated = () => {
             nameOf={nameOf}
             onDelete={handleDelete}
             mentionedCids={mentionedCids}
+            previewOf={previewOf}
           />
         </aside>
         <main

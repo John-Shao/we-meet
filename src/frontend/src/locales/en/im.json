@@ -92,6 +92,9 @@
     "send": "Send",
     "sending": "Sending…"
   },
+  "time": {
+    "yesterday": "Yesterday"
+  },
   "connection": {
     "disconnected": "Disconnected",
     "connecting": "Connecting…",

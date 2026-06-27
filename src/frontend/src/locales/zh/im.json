@@ -92,6 +92,9 @@
     "send": "发送",
     "sending": "发送中…"
   },
+  "time": {
+    "yesterday": "昨天"
+  },
   "connection": {
     "disconnected": "未连接",
     "connecting": "正在连接…",

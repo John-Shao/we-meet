@@ -92,6 +92,9 @@
     "send": "Envoyer",
     "sending": "Envoi en cours…"
   },
+  "time": {
+    "yesterday": "Hier"
+  },
   "connection": {
     "disconnected": "Déconnecté",
     "connecting": "Connexion en cours…",
