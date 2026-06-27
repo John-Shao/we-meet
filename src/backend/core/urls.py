@@ -10,6 +10,7 @@ from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
 from core.api.admin_org import DepartmentAdminViewSet, MembershipAdminViewSet
 from core.api.agent_internal import IngestTranscriptView
+from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.calendar import CalendarEventViewSet
 from core.api.directory import DepartmentViewSet, DirectoryMemberViewSet
 from core.api.im import ImViewSet
@@ -53,6 +54,10 @@ router.register(
 router.register(
     "admin/memberships", MembershipAdminViewSet, basename="admin_memberships"
 )
+router.register(
+    "approval-templates", ApprovalTemplateViewSet, basename="approval_templates"
+)
+router.register("approvals", ApprovalInstanceViewSet, basename="approvals")
 
 # - External API
 external_router = SimpleRouter()
