@@ -716,6 +716,21 @@ class Base(Configuration):
             5.0, environ_name="JUSI_IM_TIMEOUT_S", environ_prefix=None
         ),
     }
+
+    # La Suite Docs (collaborative docs bridge — see core/services/docs_client.py).
+    # api_url is the Docs host (serves both /api/... and the /docs/<id>/ deep link).
+    # Empty token/url ⇒ the summary→doc hook silently no-ops (Docs not wired up yet).
+    DOCS_CONFIGURATION = {
+        "api_url": values.Value(
+            environ_name="DOCS_API_URL", environ_prefix=None, default=""
+        ),
+        "server_to_server_token": values.Value(
+            environ_name="DOCS_SERVER_TO_SERVER_TOKEN", environ_prefix=None, default=""
+        ),
+        "request_timeout_seconds": values.FloatValue(
+            5.0, environ_name="DOCS_TIMEOUT_S", environ_prefix=None
+        ),
+    }
     LIVEKIT_FORCE_WSS_PROTOCOL = values.BooleanValue(
         False, environ_name="LIVEKIT_FORCE_WSS_PROTOCOL", environ_prefix=None
     )
@@ -1299,6 +1314,12 @@ class Test(Base):
         "ws_url": "ws://127.0.0.1.nip.io:8080/v1/ws",
         "admin_hmac_secret": "test-jusi-im-hmac-secret-padded-to-32!",
         "default_ttl_seconds": 3600,
+        "request_timeout_seconds": 1.0,
+    }
+
+    DOCS_CONFIGURATION = {
+        "api_url": "http://127.0.0.1.nip.io:8083",
+        "server_to_server_token": "test-docs-server-to-server-token",
         "request_timeout_seconds": 1.0,
     }
 

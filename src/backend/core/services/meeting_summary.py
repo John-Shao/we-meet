@@ -20,7 +20,15 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from core.models import ActionItem, MeetingConversation, Room, Summary, Transcript
+from core.models import (
+    ActionItem,
+    MeetingConversation,
+    MeetingDoc,
+    RoleChoices,
+    Room,
+    Summary,
+    Transcript,
+)
 from core.services.llm_client import LLMClient, LLMUnavailable
 
 logger = logging.getLogger(__name__)
@@ -135,6 +143,12 @@ class MeetingSummaryService:
             self._push_summary_to_im(room, summary)
         except Exception:  # noqa: BLE001
             logger.exception("P5 summary IM push failed for room %s", room.id)
+        # P3: also land the summary as a La Suite Docs document (妙记). Same best-effort
+        # fence — a doc / IM-link failure MUST NOT roll back the summary.
+        try:
+            self._push_summary_to_doc(room, summary)
+        except Exception:  # noqa: BLE001
+            logger.exception("P3 summary doc push failed for room %s", room.id)
         return summary
 
     # ------------------------------------------------------------------
@@ -244,6 +258,92 @@ class MeetingSummaryService:
         mc.summary_pushed_at = timezone.now()
         mc.save(update_fields=["summary_pushed_at", "updated_at"])
         logger.info("P5 summary pushed to IM cid=%s for room %s", mc.cid, room.id)
+
+    def _push_summary_to_doc(self, room: Room, summary: Summary) -> None:
+        """Create a La Suite Docs document from the summary (P3 妙记落 Doc).
+
+        No-ops when:
+          - the summary did NOT succeed
+          - a MeetingDoc already exists for this room (idempotent — row existence)
+          - DOCS_CONFIGURATION is incomplete (Docs not wired up yet)
+          - the room has no OWNER to attribute the document to
+
+        Best-effort & fenced: a transport failure leaves NO MeetingDoc row, so the
+        next successful summarisation retries. After the doc is created we also drop
+        a link into the room's IM group (courtesy nudge, never fatal).
+        """
+        from core.services.docs_client import (  # local import to avoid load coupling
+            DocsBadResponseError,
+            DocsClient,
+            DocsUnreachableError,
+        )
+
+        if summary.status != Summary.Status.SUCCESS:
+            return
+        if MeetingDoc.objects.filter(room=room).exists():
+            return
+
+        cfg = getattr(settings, "DOCS_CONFIGURATION", None)
+        if not cfg or not cfg.get("api_url") or not cfg.get("server_to_server_token"):
+            logger.info("P3 summary doc push skipped: DOCS_CONFIGURATION incomplete")
+            return
+
+        owner = (
+            room.accesses.filter(role=RoleChoices.OWNER).select_related("user").first()
+        )
+        if owner is None or owner.user is None:
+            logger.info("P3 summary doc push skipped: room %s has no owner", room.id)
+            return
+        owner_user = owner.user
+
+        title = f"「{room.name}」会议纪要" if getattr(room, "name", "") else "会议纪要"
+        client = DocsClient(
+            api_url=str(cfg["api_url"]),
+            server_to_server_token=str(cfg["server_to_server_token"]),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
+        )
+        try:
+            created = client.create_for_owner(
+                sub=str(owner_user.sub or ""),
+                email=str(owner_user.email or ""),
+                title=title,
+                content=summary.content or "",
+                subject=title,
+            )
+        except (DocsUnreachableError, DocsBadResponseError) as exc:
+            logger.warning("P3 summary doc create failed for room %s: %s", room.id, exc)
+            return
+
+        base = str(cfg["api_url"]).rstrip("/")
+        doc_url = f"{base}/docs/{created.id}/"
+        MeetingDoc.objects.create(room=room, doc_id=created.id, doc_url=doc_url)
+        logger.info("P3 summary doc created doc=%s for room %s", created.id, room.id)
+
+        self._push_doc_link_to_im(room, doc_url)
+
+    def _push_doc_link_to_im(self, room: Room, doc_url: str) -> None:
+        """Courtesy: drop the new doc's link into the room's IM group. Never fatal."""
+        from core.services.jusi_im import (
+            JusiImAdminClient,
+            JusiImBadResponseError,
+            JusiImUnreachableError,
+        )
+
+        mc = MeetingConversation.objects.filter(room=room).first()
+        if mc is None:
+            return
+        cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
+        if not cfg or not cfg.get("api_url") or not cfg.get("admin_hmac_secret"):
+            return
+        client = JusiImAdminClient(
+            api_url=str(cfg["api_url"]),
+            admin_hmac_secret=str(cfg["admin_hmac_secret"]),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
+        )
+        try:
+            client.post_message(cid=mc.cid, body=f"📄 会议纪要文档已生成: {doc_url}")
+        except (JusiImUnreachableError, JusiImBadResponseError) as exc:
+            logger.warning("P3 doc link IM push failed for room %s: %s", room.id, exc)
 
     @transaction.atomic
     def _persist(

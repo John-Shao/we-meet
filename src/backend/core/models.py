@@ -1759,6 +1759,47 @@ class MeetingConversation(BaseModel):
         return f"MeetingConversation room={room_repr} cid={self.cid}"
 
 
+# ---- P3: meeting ↔ La Suite Docs document bridge ----
+
+
+class MeetingDoc(BaseModel):
+    """1:1 mapping between a Room and its La Suite Docs document (P3 妙记落 Doc).
+
+    Created when a meeting Summary is pushed to Docs via the server-to-server
+    ``create-for-owner`` endpoint. Mirrors MeetingConversation: Room ON DELETE
+    SET NULL so the document outlives the room (the doc is the lasting artefact).
+    The row's existence is the idempotency guard for the summary→doc push — once a
+    MeetingDoc exists for a room, the push hook no-ops.
+    """
+
+    room = models.OneToOneField(
+        Room,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_doc",
+        help_text=_("the meeting room this document was created for"),
+    )
+    doc_id = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text=_("La Suite Docs document id"),
+    )
+    doc_url = models.URLField(
+        max_length=512,
+        help_text=_("deep link to the document on the Docs site"),
+    )
+
+    class Meta:
+        db_table = "meet_meeting_doc"
+        verbose_name = _("Meeting document")
+        verbose_name_plural = _("Meeting documents")
+
+    def __str__(self) -> str:
+        room_repr = str(self.room_id) if self.room_id else "<orphan>"
+        return f"MeetingDoc room={room_repr} doc={self.doc_id}"
+
+
 # ---------------------------------------------------------------------------
 # Organization / Department / Membership  (P1 — 企业组织架构地基)
 #
