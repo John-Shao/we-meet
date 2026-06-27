@@ -34,7 +34,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           className={css({
             display: 'flex',
             height: '100%',
-            backgroundColor: 'greyscale.50',
+            backgroundColor: 'primary.50',
             color: 'default.text',
           })}
         >

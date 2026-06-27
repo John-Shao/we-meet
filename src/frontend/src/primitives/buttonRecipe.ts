@@ -53,14 +53,15 @@ export const buttonRecipe = cva({
     },
     variant: {
       primary: {
-        backgroundColor: 'primary.800',
+        // P6-b: 飞书亮蓝按钮(原 DSFR 用 primary.800 深蓝做底)。
+        backgroundColor: 'primary.500',
         color: 'white',
         fontWeight: 'medium !important',
         '&[data-hovered]': {
-          backgroundColor: 'primary.action',
+          backgroundColor: 'primary.600',
         },
         '&[data-pressed]': {
-          backgroundColor: 'primary.action',
+          backgroundColor: 'primary.600',
         },
         '&[data-disabled]': {
           backgroundColor: 'greyscale.100',
