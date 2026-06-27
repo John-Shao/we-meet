@@ -2167,3 +2167,135 @@ class EventAttendee(BaseModel):
     def __str__(self):
         who = self.user or self.email or "<?>"
         return f"{who} → {self.event_id} ({self.get_rsvp_display()})"
+
+
+# --- P5 审批 / 工作流 ---
+
+
+class ApprovalNodeType(models.TextChoices):
+    """How a flow node resolves its approver (see services/approval.py)."""
+
+    DIRECT_MANAGER = "direct_manager", _("Direct manager")
+    DEPARTMENT_HEAD = "department_head", _("Department head")
+    ORG_ROLE = "org_role", _("Organization role")
+    USER = "user", _("Specific user")
+
+
+class ApprovalStatusChoices(models.TextChoices):
+    """Lifecycle of an approval instance."""
+
+    PENDING = "pending", _("Pending")
+    APPROVED = "approved", _("Approved")
+    REJECTED = "rejected", _("Rejected")
+    CANCELLED = "cancelled", _("Cancelled")
+    NEEDS_ASSIGNMENT = "needs_assignment", _("Needs assignment")
+
+
+class ApprovalActionChoices(models.TextChoices):
+    """A single approver's action on their task."""
+
+    PENDING = "pending", _("Pending")
+    APPROVED = "approved", _("Approved")
+    REJECTED = "rejected", _("Rejected")
+
+
+class ApprovalTemplate(BaseModel):
+    """A reusable approval definition: a form + an ordered approver chain (P5).
+
+    ``form_schema`` describes the form fields (MVP: authored via Django admin /
+    JSON, no visual designer). ``flow`` is an ordered list of node rules, each
+    ``{"type": <ApprovalNodeType>, ...}`` — MVP is a serial single chain.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="approval_templates"
+    )
+    name = models.CharField(_("name"), max_length=255)
+    description = models.TextField(_("description"), blank=True, default="")
+    form_schema = models.JSONField(_("form schema"), blank=True, default=dict)
+    flow = models.JSONField(
+        _("flow"),
+        blank=True,
+        default=list,
+        help_text=_("Ordered approver-resolution rules; MVP is a serial chain."),
+    )
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        db_table = "meet_approval_template"
+        ordering = ("name",)
+        verbose_name = _("Approval template")
+        verbose_name_plural = _("Approval templates")
+
+    def __str__(self):
+        return self.name
+
+
+class ApprovalInstance(BaseModel):
+    """A running (or finished) approval request off a template (P5)."""
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="approval_instances"
+    )
+    template = models.ForeignKey(
+        ApprovalTemplate, on_delete=models.PROTECT, related_name="instances"
+    )
+    applicant = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="approval_requests"
+    )
+    form_data = models.JSONField(_("form data"), blank=True, default=dict)
+    status = models.CharField(
+        max_length=20,
+        choices=ApprovalStatusChoices.choices,
+        default=ApprovalStatusChoices.PENDING,
+    )
+    # Index of the flow node currently awaiting action (serial chain pointer).
+    current_node = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "meet_approval_instance"
+        ordering = ("-created_at",)
+        verbose_name = _("Approval instance")
+        verbose_name_plural = _("Approval instances")
+
+    def __str__(self):
+        return f"{self.template_id} by {self.applicant_id} ({self.status})"
+
+
+class ApprovalTask(BaseModel):
+    """One node's task: the resolved approver and their action (P5)."""
+
+    instance = models.ForeignKey(
+        ApprovalInstance, on_delete=models.CASCADE, related_name="tasks"
+    )
+    node_index = models.PositiveIntegerField()
+    approver = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="approval_tasks",
+        null=True,
+        blank=True,
+        help_text=_("Resolved approver; null when the node could not be resolved."),
+    )
+    action = models.CharField(
+        max_length=20,
+        choices=ApprovalActionChoices.choices,
+        default=ApprovalActionChoices.PENDING,
+    )
+    comment = models.TextField(_("comment"), blank=True, default="")
+    acted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_approval_task"
+        ordering = ("instance", "node_index")
+        verbose_name = _("Approval task")
+        verbose_name_plural = _("Approval tasks")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["instance", "node_index"],
+                name="approval_task_unique_instance_node",
+            ),
+        ]
+
+    def __str__(self):
+        return f"task#{self.node_index} of {self.instance_id} ({self.action})"
