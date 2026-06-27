@@ -1964,3 +1964,165 @@ class Membership(BaseModel):
     def __str__(self):
         dept = self.department.name if self.department_id else "<org-level>"
         return f"{self.user} @ {dept} ({self.get_org_role_display()})"
+
+
+# --- P2 日历 / 日程 ---
+
+
+class EventStatusChoices(models.TextChoices):
+    """Lifecycle of a calendar event."""
+
+    CONFIRMED = "confirmed", _("Confirmed")
+    CANCELLED = "cancelled", _("Cancelled")
+
+
+class EventVisibilityChoices(models.TextChoices):
+    """Who may see an event's details (MVP: org-scoped + organizer/attendee)."""
+
+    DEFAULT = "default", _("Default")
+    PRIVATE = "private", _("Private")
+
+
+class EventRSVPChoices(models.TextChoices):
+    """An attendee's response to an invitation."""
+
+    NEEDS_ACTION = "needs_action", _("Needs action")
+    ACCEPTED = "accepted", _("Accepted")
+    DECLINED = "declined", _("Declined")
+    TENTATIVE = "tentative", _("Tentative")
+
+
+class EventAttendeeRoleChoices(models.TextChoices):
+    """An attendee's role on an event."""
+
+    ORGANIZER = "organizer", _("Organizer")
+    REQUIRED = "required", _("Required")
+    OPTIONAL = "optional", _("Optional")
+
+
+class CalendarEvent(BaseModel):
+    """A scheduled event (P2 日历/日程).
+
+    Distinct from Room: an event owns the schedule + attendees + RSVP +
+    reminders, and *optionally* links a Room (the "join meeting" target, created
+    alongside the event). ``room`` is SET_NULL so the room + its IM group outlive
+    the event. MVP is single-occurrence; ``recurrence`` / ``recurrence_parent``
+    are present but not yet expanded.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="calendar_events"
+    )
+    organizer = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="organized_events"
+    )
+    title = models.CharField(_("title"), max_length=255)
+    description = models.TextField(_("description"), blank=True, default="")
+    start_at = models.DateTimeField(_("start at"))
+    end_at = models.DateTimeField(_("end at"))
+    timezone = TimeZoneField(
+        _("timezone"),
+        choices_display="WITH_GMT_OFFSET",
+        use_pytz=False,
+        default=settings.TIME_ZONE,
+        help_text=_("The event's authoring timezone (for cross-tz display)."),
+    )
+    all_day = models.BooleanField(_("all day"), default=False)
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.SET_NULL,
+        related_name="calendar_events",
+        null=True,
+        blank=True,
+        help_text=_("The video room to join (created with the event); SET_NULL "
+                    "so the room + IM group outlive the event."),
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=EventStatusChoices.choices,
+        default=EventStatusChoices.CONFIRMED,
+    )
+    visibility = models.CharField(
+        max_length=20,
+        choices=EventVisibilityChoices.choices,
+        default=EventVisibilityChoices.DEFAULT,
+    )
+    # Minutes-before-start at which to remind (e.g. [10]). MVP acts on the first.
+    reminders = models.JSONField(_("reminders"), blank=True, default=list)
+    reminder_pushed_at = models.DateTimeField(
+        _("reminder pushed at"),
+        null=True,
+        blank=True,
+        help_text=_("Idempotency guard: set once the IM reminder has been sent."),
+    )
+    recurrence = models.CharField(
+        _("recurrence"),
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=_("RRULE string; empty means a single occurrence (MVP)."),
+    )
+    recurrence_parent = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="occurrences",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "meet_calendar_event"
+        ordering = ("start_at",)
+        verbose_name = _("Calendar event")
+        verbose_name_plural = _("Calendar events")
+        indexes = [
+            # Reminder scan: events starting soon that haven't been pushed yet.
+            models.Index(fields=["start_at"], name="calevent_start_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.title} @ {self.start_at:%Y-%m-%d %H:%M}"
+
+
+class EventAttendee(BaseModel):
+    """An invitee on a CalendarEvent, with their RSVP (P2)."""
+
+    event = models.ForeignKey(
+        CalendarEvent, on_delete=models.CASCADE, related_name="attendees"
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="event_attendances",
+        null=True,
+        blank=True,
+        help_text=_("Internal attendee; null for an external email-only invite."),
+    )
+    email = models.CharField(_("email"), max_length=255, blank=True, default="")
+    rsvp = models.CharField(
+        max_length=20,
+        choices=EventRSVPChoices.choices,
+        default=EventRSVPChoices.NEEDS_ACTION,
+    )
+    role = models.CharField(
+        max_length=20,
+        choices=EventAttendeeRoleChoices.choices,
+        default=EventAttendeeRoleChoices.REQUIRED,
+    )
+
+    class Meta:
+        db_table = "meet_event_attendee"
+        ordering = ("created_at",)
+        verbose_name = _("Event attendee")
+        verbose_name_plural = _("Event attendees")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event", "user"],
+                name="event_attendee_unique_event_user",
+                violation_error_message=_("This user is already an attendee."),
+            ),
+        ]
+
+    def __str__(self):
+        who = self.user or self.email or "<?>"
+        return f"{who} → {self.event_id} ({self.get_rsvp_display()})"
