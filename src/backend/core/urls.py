@@ -10,6 +10,7 @@ from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
 from core.api.admin_org import DepartmentAdminViewSet, MembershipAdminViewSet
 from core.api.agent_internal import IngestTranscriptView
+from core.api.calendar import CalendarEventViewSet
 from core.api.directory import DepartmentViewSet, DirectoryMemberViewSet
 from core.api.im import ImViewSet
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
@@ -37,6 +38,9 @@ router.register(
     basename="addons_sessions",
 )
 router.register("im", ImViewSet, basename="im")
+router.register(
+    "calendar-events", CalendarEventViewSet, basename="calendar_events"
+)
 router.register(
     "directory/departments", DepartmentViewSet, basename="directory_departments"
 )
