@@ -26,7 +26,9 @@
     "create": "Créer",
     "cancel": "Annuler",
     "error": "Échec : {{message}}",
-    "endAfterStart": "La fin doit être après le début."
+    "endAfterStart": "La fin doit être après le début.",
+    "noResults": "Aucun membre trouvé",
+    "removeAttendee": "Retirer {{name}}"
   },
   "card": {
     "organizer": "Organisateur",

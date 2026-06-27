@@ -1,11 +1,6 @@
 /** DTOs for the calendar / scheduling API (P2). Mirrors core/api/calendar.py. */
 
-export type Paginated<T> = {
-  count: number
-  next: string | null
-  previous: string | null
-  results: T[]
-}
+export type { Paginated } from '@/api/Paginated'
 
 export type RSVPStatus = 'needs_action' | 'accepted' | 'declined' | 'tentative'
 

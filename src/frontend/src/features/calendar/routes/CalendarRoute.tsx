@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
 
 import { css } from '@/styled-system/css'
+import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useUser } from '@/features/auth'
 
 import { fetchCalendarEvents, rsvpCalendarEvent } from '../api/fetchCalendar'
@@ -48,15 +49,34 @@ const CalendarAuthenticated = () => {
       hour: '2-digit',
       minute: '2-digit',
     })
+  /** Start–end label; keeps the end date when the event spans multiple days. */
+  const fmtRange = (startISO: string, endISO: string) => {
+    const startDate = new Date(startISO)
+    const endDate = new Date(endISO)
+    const sameDay = startDate.toDateString() === endDate.toDateString()
+    return `${fmt(startISO)} – ${sameDay ? fmtTime(endISO) : fmt(endISO)}`
+  }
+  /** All-day date, rendered in the event's own timezone to avoid a day shift. */
+  const fmtAllDay = (iso: string, tz: string) => {
+    try {
+      return new Date(iso).toLocaleDateString(i18n.language, {
+        dateStyle: 'medium',
+        timeZone: tz || undefined,
+      })
+    } catch {
+      // Defensive: an unexpected/invalid IANA name would make Intl throw.
+      return new Date(iso).toLocaleDateString(i18n.language, {
+        dateStyle: 'medium',
+      })
+    }
+  }
 
   const setRsvp = async (event: CalendarEvent, status: RSVPStatus) => {
     try {
       await rsvpCalendarEvent(event.id, status)
       await qc.invalidateQueries({ queryKey: EVENTS_KEY })
     } catch (e) {
-      window.alert(
-        t('form.error', { message: e instanceof Error ? e.message : String(e) })
-      )
+      window.alert(t('form.error', { message: apiErrorMessage(e) }))
     }
   }
 
@@ -159,11 +179,8 @@ const CalendarAuthenticated = () => {
                     })}
                   >
                     {event.all_day
-                      ? new Date(event.start_at).toLocaleDateString(
-                          i18n.language,
-                          { dateStyle: 'medium' }
-                        )
-                      : `${fmt(event.start_at)} – ${fmtTime(event.end_at)}`}
+                      ? fmtAllDay(event.start_at, event.timezone)
+                      : fmtRange(event.start_at, event.end_at)}
                   </div>
                   <div
                     className={css({
@@ -173,7 +190,11 @@ const CalendarAuthenticated = () => {
                     })}
                   >
                     {t('card.organizer')}: {event.organizer?.full_name || '—'} ·{' '}
-                    {t('card.attendees', { count: event.attendees.length })}
+                    {t('card.attendees', {
+                      count: event.attendees.filter(
+                        (a) => a.role !== 'organizer'
+                      ).length,
+                    })}
                   </div>
                 </div>
                 {event.room_slug && (

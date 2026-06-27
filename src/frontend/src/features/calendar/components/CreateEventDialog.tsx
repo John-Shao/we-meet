@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
+import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { fetchDirectoryMembers } from '@/features/contacts'
 
 import { createCalendarEvent } from '../api/fetchCalendar'
@@ -17,11 +18,31 @@ const pad = (n: number) => String(n).padStart(2, '0')
 /** Date → "YYYY-MM-DDTHH:MM" for <input type="datetime-local"> (local time). */
 const toLocalInput = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+/** "YYYY-MM-DDTHH:MM" → its date portion "YYYY-MM-DD" (for <input type="date">). */
+const dateOnly = (v: string) => v.slice(0, 10)
 
 const defaultStart = () => {
   const d = new Date()
   d.setHours(d.getHours() + 1, 0, 0, 0)
   return d
+}
+
+/** Keep Tab focus inside the dialog — a basic focus trap for the modal. */
+const trapFocus = (e: KeyboardEvent, container: HTMLElement | null) => {
+  if (!container) return
+  const focusable = container.querySelectorAll<HTMLElement>(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
 }
 
 export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
@@ -35,23 +56,45 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
   const [allDay, setAllDay] = useState(false)
   const [reminder, setReminder] = useState('10') // minutes-before, '' = none
   const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selected, setSelected] = useState<Map<string, string>>(new Map())
   const [busy, setBusy] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  // Hold the latest onClose so the keydown effect can run once (deps []) without
+  // re-subscribing every time the parent passes a fresh inline callback.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null
     titleRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onCloseRef.current()
+        return
+      }
+      if (e.key === 'Tab') trapFocus(e, dialogRef.current)
     }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      previouslyFocused?.focus?.()
+    }
+  }, [])
+
+  // Debounce the search so we don't fire a request per keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(query), 250)
+    return () => clearTimeout(id)
+  }, [query])
 
   const { data: members = [], isFetching } = useQuery({
-    queryKey: ['directory', 'members', query],
-    queryFn: () => fetchDirectoryMembers(query),
+    queryKey: ['directory', 'members', debouncedQuery],
+    queryFn: () => fetchDirectoryMembers(debouncedQuery),
     staleTime: 30_000,
+    // Keep the previous list visible while the next query loads (no flicker).
+    placeholderData: keepPreviousData,
   })
   const selectable = members.filter((m) => !m.is_self)
 
@@ -67,9 +110,20 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
 
   const submit = async () => {
     if (!canCreate) return
-    const startISO = new Date(start).toISOString()
-    const endISO = new Date(end).toISOString()
-    if (new Date(endISO) <= new Date(startISO)) {
+    let startDate: Date
+    let endDate: Date
+    if (allDay) {
+      // All-day: pin to local midnight and make the end the exclusive
+      // next-midnight of the chosen end day, so a single-day all-day event
+      // still spans a full 24h instead of the arbitrary picker time-of-day.
+      startDate = new Date(`${dateOnly(start)}T00:00`)
+      endDate = new Date(`${dateOnly(end)}T00:00`)
+      endDate.setDate(endDate.getDate() + 1)
+    } else {
+      startDate = new Date(start)
+      endDate = new Date(end)
+    }
+    if (endDate <= startDate) {
       window.alert(t('form.endAfterStart'))
       return
     }
@@ -77,17 +131,15 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
     try {
       const event = await createCalendarEvent({
         title: title.trim(),
-        start_at: startISO,
-        end_at: endISO,
+        start_at: startDate.toISOString(),
+        end_at: endDate.toISOString(),
         all_day: allDay,
         reminders: reminder ? [Number(reminder)] : [],
         attendee_ids: [...selected.keys()],
       })
       onCreated(event)
     } catch (e) {
-      window.alert(
-        t('form.error', { message: e instanceof Error ? e.message : String(e) })
-      )
+      window.alert(t('form.error', { message: apiErrorMessage(e) }))
       setBusy(false)
     }
   }
@@ -110,6 +162,7 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
       })}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={t('form.title')}
@@ -176,9 +229,12 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
             <label className={fieldCls}>
               <span className={labelCls}>{t('form.start')}</span>
               <input
-                type="datetime-local"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
+                type={allDay ? 'date' : 'datetime-local'}
+                value={allDay ? dateOnly(start) : start}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setStart(allDay ? (v ? `${v}T00:00` : '') : v)
+                }}
                 data-testid="event-start"
                 className={inputCls}
               />
@@ -186,9 +242,12 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
             <label className={fieldCls}>
               <span className={labelCls}>{t('form.end')}</span>
               <input
-                type="datetime-local"
-                value={end}
-                onChange={(e) => setEnd(e.target.value)}
+                type={allDay ? 'date' : 'datetime-local'}
+                value={allDay ? dateOnly(end) : end}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setEnd(allDay ? (v ? `${v}T00:00` : '') : v)
+                }}
                 data-testid="event-end"
                 className={inputCls}
               />
@@ -289,7 +348,7 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
                     <button
                       type="button"
                       onClick={() => toggle(id, label)}
-                      aria-label="remove"
+                      aria-label={t('form.removeAttendee', { name: label })}
                       className={css({
                         border: 'none',
                         background: 'transparent',
@@ -330,6 +389,16 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
                   })}
                 >
                   {t('form.loading')}
+                </p>
+              ) : selectable.length === 0 ? (
+                <p
+                  className={css({
+                    padding: '0.75rem',
+                    color: 'greyscale.500',
+                    fontSize: '0.875rem',
+                  })}
+                >
+                  {t('form.noResults')}
                 </p>
               ) : (
                 selectable.map((m) => {

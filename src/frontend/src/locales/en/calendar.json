@@ -26,7 +26,9 @@
     "create": "Create",
     "cancel": "Cancel",
     "error": "Failed: {{message}}",
-    "endAfterStart": "End must be after start."
+    "endAfterStart": "End must be after start.",
+    "noResults": "No members found",
+    "removeAttendee": "Remove {{name}}"
   },
   "card": {
     "organizer": "Organizer",

@@ -26,7 +26,9 @@
     "create": "Erstellen",
     "cancel": "Abbrechen",
     "error": "Fehlgeschlagen: {{message}}",
-    "endAfterStart": "Ende muss nach dem Beginn liegen."
+    "endAfterStart": "Ende muss nach dem Beginn liegen.",
+    "noResults": "Keine Mitglieder gefunden",
+    "removeAttendee": "{{name}} entfernen"
   },
   "card": {
     "organizer": "Organisator",
