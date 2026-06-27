@@ -85,7 +85,14 @@ const LoginHint = () => {
 }
 
 export const Header = () => {
-  const { t } = useTranslation(['global', 'im', 'contacts', 'calendar', 'docs'])
+  const { t } = useTranslation([
+    'global',
+    'im',
+    'contacts',
+    'calendar',
+    'docs',
+    'approval',
+  ])
   const { data: config } = useConfig()
   const docsUrl = config?.docs?.url
   const isHome = useMatchesRoute('home')
@@ -190,6 +197,22 @@ export const Header = () => {
                   })}
                 >
                   {t('nav.title', { ns: 'calendar' })}
+                </Link>
+              )}
+              {!!user && (
+                <Link
+                  to="/approval"
+                  aria-label={t('nav.ariaLabel', { ns: 'approval' })}
+                  className={css({
+                    paddingX: '0.75rem',
+                    paddingY: '0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: '500',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {t('nav.title', { ns: 'approval' })}
                 </Link>
               )}
               {!!user && docsUrl && (
