@@ -876,6 +876,154 @@ sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml bash deploy/aliyun/install-meet
 ```
 此时 `kubectl -n meet get pods` 应全 Running；证书 pending **正常**（DNS 还指旧机，LE 拿不到 challenge）。
 
+> ⚠️ **sync-customer-config.sh 只传 8 个配置文件，不传 deploy 脚本**。如果新机 git clone 下来缺少 `deploy/aliyun/install-k3s.sh`、`install-meet.sh` 等脚本（比如 clone 了不同分支），需要从 PC 额外推送：
+> ```bash
+> # 在 PC 上
+> scp -r deploy/aliyun root@<新机IP>:/root/we-meet/deploy/
+> ```
+>
+> 同理，确保 git clone 的分支包含完整的 `src/helm/meet/`、`values.postgresql.yaml`、`values.redis.yaml`。如果缺失，在新机上：
+> ```bash
+> git fetch origin && git checkout <你的分支> && git pull origin <你的分支>
+> ls src/helm/meet/Chart.yaml src/helm/env.d/aliyun-prod/values.postgresql.yaml src/helm/env.d/aliyun-prod/values.redis.yaml
+> ```
+
+### 14.2.1 装栈失败常见排查（京东云等非阿里云环境）
+
+以下是在京东云 4C16G 实战部署中踩过的坑，也适用于其他非阿里云环境。
+
+**yq 二进制损坏（Segfault）**
+
+`install-meet.sh` 从 gh-proxy 下载 yq 可能下到不完整的二进制（`file /usr/local/bin/yq` 显示 `too large section header offset`，`yq --version` 直接 `Segmentation fault`）。`command -v yq` 只检查文件存在不管是否可执行，导致脚本静默失败。
+
+```bash
+# 诊断
+file /usr/local/bin/yq
+/usr/local/bin/yq --version    # 正常输出 v4.44.3；Segfault 则损坏
+
+# 修复
+rm /usr/local/bin/yq
+curl -fsSL https://gh-proxy.com/https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 \
+  -o /usr/local/bin/yq
+chmod +x /usr/local/bin/yq
+yq --version   # 验证
+```
+
+**非阿里云镜像源适配**
+
+`install-k3s.sh` 硬编码了阿里云 apt 源、Docker 加速器和 `registry.cn-hangzhou.aliyuncs.com` ingress-nginx 镜像。在京东云（或任何非阿里云）上需要改：
+
+| 组件 | 阿里云原值 | 京东云/通用替换 |
+|------|-----------|----------------|
+| apt 源 | `mirrors.aliyun.com` | 跳过替换（京东云默认源 `mirrors.jdcloudcs.com` 速度够） |
+| Docker 镜像加速 | `ALIYUN_DOCKER_MIRROR=https://xxx.mirror.aliyuncs.com` | DaoCloud 公共镜像 `https://docker.m.daocloud.io` + `https://docker.1ms.run` |
+| K3s containerd mirror | `ALIYUN_DOCKER_MIRROR` | DaoCloud |
+| ingress-nginx 镜像 | `registry.cn-hangzhou.aliyuncs.com/google_containers/*` | 用 docker.io 原址 + containerd mirror 透明加速 |
+
+> **推荐做法**：非阿里云环境不跑 `install-k3s.sh` 原脚本，改为按 §7.1 步骤手动执行——apt → docker → K3s registries → K3s → helm → ingress-nginx（用 docker.io 镜像）→ cert-manager（kubectl apply）。详见当时部署过程中 §二 的适配指南。
+
+如果是阿里云新机器（同地域），照 §14.2 原命令跑就行。
+
+**PostgreSQL meet 用户 / 数据库没自动建**
+
+Bitnami chart 16.7.27 默认匹配 postgres 17 init 脚本，跟我们的 `bitnamilegacy/postgresql:16.4` 错配，`auth.username: meet` / `auth.database: meet` 被忽略。即使 Helm 安装成功、Pod Running，meet 用户和数据库也不存在。
+
+症状：backend 一直 CrashLoopBackOff，日志 `FATAL: password authentication failed for user "meet"`；进 Pod 查 `\du` 只有 postgres 一个角色。
+
+```bash
+# 确认
+kubectl -n meet exec postgresql-0 -- psql -U postgres -c "\du"
+# 只有 postgres → 需手动建
+
+# 修复（一次 exec 里完成，避免 Pod 在命令间重启导致状态丢失）
+APP_PW=$(kubectl -n meet get secret postgresql -o jsonpath='{.data.password}' | base64 -d)
+kubectl -n meet exec postgresql-0 -- bash -c "
+psql -U postgres <<'SQL'
+CREATE USER meet WITH PASSWORD '$APP_PW';
+CREATE DATABASE meet OWNER meet;
+GRANT ALL PRIVILEGES ON DATABASE meet TO meet;
+SQL
+"
+
+# 验证
+kubectl -n meet exec postgresql-0 -- env PGPASSWORD="$APP_PW" psql -U meet -h localhost -d meet -c "SELECT 1"
+# 输出 1 → 成功
+
+kubectl -n meet rollout restart deploy/meet-backend
+```
+
+> ⚠️ **如果之前 uninstall 过 PostgreSQL 但没删 PVC**，PVC 里残留了旧密码（旧 Bitnami secret 跟新 Helm release 对不上）。此时即使手动建了 meet 用户，postgres 管理员密码也不对（`FATAL: password authentication failed for user "postgres"`）。
+>
+> 修法：利用 `pgHbaConfiguration` 配置的 `local all all trust`（Unix socket 免密码）：
+>
+> ```bash
+> # 走 Unix socket（去 -h localhost）免密码进 postgres
+> kubectl -n meet exec postgresql-0 -- psql -U postgres -c "ALTER USER meet WITH PASSWORD '...';"
+> ```
+>
+> 彻底清理重建：
+> ```bash
+> helm -n meet uninstall postgresql
+> kubectl -n meet delete pvc data-postgresql-0
+> # 重新 helm install（或重跑 install-meet.sh 的 PostgreSQL 部分）
+> ```
+
+**DB_PASSWORD 提取不要用 grep | awk**
+
+`values.secrets.yaml` 里 `DB_PASSWORD` 出现两次（backend + celery），`grep DB_PASSWORD | awk '{print $2}'` 会拿到两个值拼在一起（如 `0Zo...YQu 0Zo...YQu`），传给 `--set auth.password` 导致 PostgreSQL 密码错误。
+
+正确做法：用 `yq` 提取单值：
+
+```bash
+DB_PASSWORD=$(yq -r '.backend.envVars.DB_PASSWORD' src/helm/env.d/aliyun-prod/values.secrets.yaml)
+echo "DB_PASSWORD=[$DB_PASSWORD]"   # 应只有一段 hex，不带空格
+```
+
+### 14.2.2 LE 证书 403 排查（迁移阶段 DNS 未切或 ICP 备案拦截）
+
+证书一直 `READY: False` 时，两大常见原因：
+
+**原因 1：云平台 ICP 备案拦截 HTTP 流量（403 + Server: JDTP / Aliyun edge）**
+
+迁移到**不同云厂商**时（如阿里云 → 京东云），域名已在原厂商备案但新厂商的接入备案未完成。新厂商 edge 层会基于 Host header 直接拦截所有 HTTP 请求返回 403，Let's Encrypt HTTP-01 challenge 失败（LE 服务器拿到拦截页而非 challenge token）。
+
+```bash
+# 诊断：从 PC（外部网络）curl，不是从 ECS 内部
+curl -v http://meet.<DOMAIN>/.well-known/acme-challenge/test
+# 如果返回 403 + HTML 含 "ICP 备案" / "网页禁止访问" / Server: JDTP → 被平台拦截
+```
+
+> **关键**：ECS 内部 `curl http://localhost/...` 走内网回环不经过 cloud edge，可能返回 200 OK 误导你。必须从外部网络（PC/手机 4G）检测。
+
+修复：在新厂商提交**接入备案**（不是全新备案，用已有的主体备案号，审核 1-3 个工作日）。接入备案通过后 edge 放行，cert-manager 自动重试拿证书。
+
+**原因 2：Ingress TLS 配置导致 HTTP → HTTPS 308 重定向**
+
+即使 edge 没拦截，`meet` Ingress 配了 TLS 时 nginx 默认把 HTTP 请求 308 跳到 HTTPS。但 LE HTTP-01 challenge 必须走 HTTP 80 端口拿到 challenge token。这会形成死锁：LE 要签证书 → 需要 HTTP → Ingress 跳 HTTPS → HTTPS 没证书 → 失败。
+
+```bash
+# 诊断：本机 curl 模拟 LE 请求
+curl -v -H "Host: meet.<DOMAIN>" http://127.0.0.1/.well-known/acme-challenge/test
+# 返回 308 + Location: https://... → 被重定向，LE 拿不到 token
+```
+
+修复：证书签发期间临时关闭 ssl-redirect，签发完恢复：
+
+```bash
+kubectl -n meet annotate ingress meet nginx.ingress.kubernetes.io/ssl-redirect="false" --overwrite
+kubectl -n meet annotate ingress meet-admin nginx.ingress.kubernetes.io/ssl-redirect="false" --overwrite
+
+# 清理旧证书触发重试
+kubectl -n meet delete certificaterequest --all
+kubectl -n meet delete certificate --all
+
+# 证书 Ready 后恢复（将 annotation 值改为 "true" 或直接删掉 annotation 用默认值）
+kubectl -n meet annotate ingress meet nginx.ingress.kubernetes.io/ssl-redirect="true" --overwrite
+kubectl -n meet annotate ingress meet-admin nginx.ingress.kubernetes.io/ssl-redirect="true" --overwrite
+```
+
+> 这两个原因可能叠加：先确认是否被云平台拦截（外部 curl），排除后再检查 ssl-redirect。
+
 ### 14.3 维护窗口：迁数据 + 切 DNS（挑低峰，停机约 10–30 min）
 媒体在 TOS（外部共享桶，两机指同一个）**不用迁**，只迁 PostgreSQL：
 ```bash
@@ -909,6 +1057,18 @@ helm -n meet uninstall meet        # 旧机
 ### 回滚
 迁移期间任何异常：把 meet、livekit 的 A 记录**切回旧机 IP**（旧机 meet 仍在跑）即可，零数据损失（迁移期旧库只读、未被改动）。
 
+### 14.6 全新部署（无旧数据可迁）
+
+如果新机器是全新部署（没有旧 PostgreSQL 数据要迁移），跳过 §14.3，但需额外跑 Django migrate 和 createsuperuser（因为 chart 的 migrate Job 在 DB 错连失败后不会自动重建）：
+
+```bash
+kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --noinput
+
+# 创建超级用户（注意：镜像是 Alpine，用 sh 不用 bash）
+kubectl -n meet exec deploy/meet-backend -- sh -c \
+  'python manage.py createsuperuser --email "$DJANGO_SUPERUSER_EMAIL" --password "$DJANGO_SUPERUSER_PASSWORD"'
+```
+
 ---
 
 ## 附：相关文件索引
@@ -933,4 +1093,5 @@ helm -n meet uninstall meet        # 旧机
 | [deploy/aliyun/website/sync.sh](../../deploy/aliyun/website/sync.sh) | **在 PC 上** build we-meet.online 静态站 + rsync 到 aliyun-sjy（§13.4）|
 | [deploy/aliyun/website/README.md](../../deploy/aliyun/website/README.md) | 官网部署 README（与 §十三 同源，更详细的 troubleshooting）|
 | [docs/installation/docs-server.md](docs-server.md) | **Docs 独立机**部署 runbook（单节点 k3s + Docs 官方 helm + Keycloak docs client + TOS + 妙记落 Doc 接通）|
+| [docs/phases/p3-collab-docs.md](../phases/p3-collab-docs.md) | P3 协作文档设计 + 纸面 spike 结论 |
 | [docs/phases/p3-collab-docs.md](../phases/p3-collab-docs.md) | P3 协作文档设计 + 纸面 spike 结论 |
