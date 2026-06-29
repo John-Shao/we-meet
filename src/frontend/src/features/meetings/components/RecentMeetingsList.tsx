@@ -16,7 +16,7 @@ import { useState } from 'react'
 
 import { useTranslation } from 'react-i18next'
 import { Button as RACButton, Menu as RACMenu, MenuItem } from 'react-aria-components'
-import { RiMoreFill } from '@remixicon/react'
+import { RiMoreFill, RiVidiconLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { H, Text } from '@/primitives'
@@ -72,11 +72,10 @@ export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
     <div
       className={css({
         width: '100%',
-        maxWidth: '30rem',
-        marginTop: '2rem',
+        marginTop: '1.5rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.5rem',
+        gap: '0.75rem',
       })}
     >
       <H lvl={3} margin={false}>
@@ -87,24 +86,30 @@ export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
           listStyle: 'none',
           padding: 0,
           margin: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.5rem',
+          width: '100%',
+          border: '1px solid',
+          borderColor: 'greyscale.200',
+          borderRadius: '10px',
+          backgroundColor: 'white',
+          overflow: 'hidden',
         })}
       >
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
           return (
-            <li key={m.id}>
+            <li
+              key={m.id}
+              className={css({
+                '&:not(:last-child)': {
+                  borderBottom: '1px solid token(colors.greyscale.100)',
+                },
+              })}
+            >
               <div
                 className={css({
                   display: 'flex',
-                  alignItems: 'stretch',
-                  border: '1px solid',
-                  borderColor: 'gray.300',
-                  borderRadius: '6px',
-                  backgroundColor: 'white',
-                  _hover: { backgroundColor: 'gray.100' },
+                  alignItems: 'center',
+                  _hover: { backgroundColor: 'greyscale.50' },
                 })}
               >
                 <button
@@ -112,31 +117,62 @@ export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
                   onClick={() => navigateTo('meetingDetail', m.id)}
                   className={css({
                     flex: 1,
+                    minWidth: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
                     textAlign: 'left',
                     border: 'none',
                     background: 'transparent',
-                    padding: '0.75rem 1rem',
+                    padding: '0.875rem 1rem',
                     cursor: 'pointer',
                   })}
                 >
-                  <div className={css({ fontWeight: 500 })}>{label}</div>
-                  {m.summary_updated_at && (
-                    <Text
+                  <span
+                    className={css({
+                      flexShrink: 0,
+                      width: '40px',
+                      height: '40px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '8px',
+                      backgroundColor: 'primary.50',
+                      color: 'primary.500',
+                    })}
+                  >
+                    <RiVidiconLine size={20} />
+                  </span>
+                  <span className={css({ minWidth: 0, flex: 1 })}>
+                    <span
                       className={css({
-                        fontSize: '0.8rem',
-                        color: 'gray.600',
-                        marginTop: '0.125rem',
+                        display: 'block',
+                        fontWeight: 500,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
                       })}
                     >
-                      {formatRelativeTime(m.summary_updated_at, i18n.language)}
-                    </Text>
-                  )}
+                      {label}
+                    </span>
+                    {m.summary_updated_at && (
+                      <Text
+                        className={css({
+                          fontSize: '0.8rem',
+                          color: 'greyscale.600',
+                          marginTop: '0.125rem',
+                        })}
+                      >
+                        {formatRelativeTime(m.summary_updated_at, i18n.language)}
+                      </Text>
+                    )}
+                  </span>
                 </button>
                 <div
                   className={css({
                     display: 'flex',
                     alignItems: 'center',
-                    paddingRight: '0.5rem',
+                    paddingRight: '0.75rem',
                   })}
                 >
                   <Menu>
@@ -147,9 +183,9 @@ export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
                         border: 'none',
                         padding: '0.25rem',
                         cursor: 'pointer',
-                        color: 'gray.600',
+                        color: 'greyscale.600',
                         borderRadius: '4px',
-                        _hover: { backgroundColor: 'gray.200' },
+                        _hover: { backgroundColor: 'greyscale.200' },
                       })}
                     >
                       <RiMoreFill size={18} />

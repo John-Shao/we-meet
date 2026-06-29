@@ -42,12 +42,26 @@ interface RbcEvent {
 interface Props {
   events: CalendarEvent[]
   onSelectEvent: (event: CalendarEvent) => void
+  /** Controlled current date (e.g. driven by the mini calendar). Optional —
+   * falls back to internal state when omitted so the grid stays standalone. */
+  date?: Date
+  onNavigate?: (date: Date) => void
 }
 
-export const CalendarGrid = ({ events, onSelectEvent }: Props) => {
+export const CalendarGrid = ({
+  events,
+  onSelectEvent,
+  date: dateProp,
+  onNavigate,
+}: Props) => {
   const { t, i18n } = useTranslation('calendar')
   const [view, setView] = useState<View>('week')
-  const [date, setDate] = useState<Date>(() => new Date())
+  const [dateState, setDateState] = useState<Date>(() => new Date())
+  const date = dateProp ?? dateState
+  const setDate = (d: Date) => {
+    setDateState(d)
+    onNavigate?.(d)
+  }
 
   const rbcEvents = useMemo<RbcEvent[]>(
     () =>

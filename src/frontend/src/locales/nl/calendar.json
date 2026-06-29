@@ -54,5 +54,8 @@
     "event": "Gebeurtenis",
     "noEvents": "Geen gebeurtenissen in dit bereik",
     "showMore": "+{{count}} meer"
+  },
+  "sidebar": {
+    "upcoming": "Aankomend"
   }
 }

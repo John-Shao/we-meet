@@ -54,5 +54,8 @@
     "event": "Ereignis",
     "noEvents": "Keine Ereignisse in diesem Zeitraum",
     "showMore": "+{{count}} weitere"
+  },
+  "sidebar": {
+    "upcoming": "Bevorstehend"
   }
 }

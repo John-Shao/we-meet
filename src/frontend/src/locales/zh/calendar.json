@@ -54,5 +54,8 @@
     "event": "事件",
     "noEvents": "本区间暂无日程",
     "showMore": "还有 {{count}} 项"
+  },
+  "sidebar": {
+    "upcoming": "即将开始"
   }
 }

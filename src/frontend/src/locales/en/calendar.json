@@ -54,5 +54,8 @@
     "event": "Event",
     "noEvents": "No events in this range",
     "showMore": "+{{count}} more"
+  },
+  "sidebar": {
+    "upcoming": "Upcoming"
   }
 }
