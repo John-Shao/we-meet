@@ -29,5 +29,12 @@
     "deleteDeptConfirm": "确定删除部门「{{name}}」？该部门下的成员将变为「无部门」。",
     "deleteDeptError": "删除部门失败：{{message}}",
     "selfTag": "(我)"
+  },
+  "detail": {
+    "email": "邮箱",
+    "department": "部门",
+    "title": "职位",
+    "close": "关闭",
+    "none": "—"
   }
 }

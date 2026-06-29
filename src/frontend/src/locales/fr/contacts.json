@@ -29,5 +29,12 @@
     "deleteDeptConfirm": "Supprimer le service « {{name}} » ? Ses membres passeront en « aucun service ».",
     "deleteDeptError": "Échec de la suppression du service : {{message}}",
     "selfTag": "(vous)"
+  },
+  "detail": {
+    "email": "E-mail",
+    "department": "Service",
+    "title": "Poste",
+    "close": "Fermer",
+    "none": "—"
   }
 }
