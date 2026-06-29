@@ -1,4 +1,4 @@
-import { Link } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import { css } from '@/styled-system/css'
 import { HStack, Stack } from '@/styled-system/jsx'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +12,7 @@ import { MenuList } from '@/primitives/MenuList'
 import { LoginButton } from '@/components/LoginButton'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { useConfig } from '@/api/useConfig'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { useLoginHint } from '@/hooks/useLoginHint'
 
@@ -101,6 +102,8 @@ export const Header = () => {
   const isTermsOfService = useMatchesRoute('termsOfService')
   const isRoom = useMatchesRoute('room')
   const { user, isLoggedIn, logout } = useUser()
+  const { confirm: askConfirm } = useConfirm()
+  const [, navigate] = useLocation()
   const userLabel = user?.full_name || user?.email
   const loggedInTooltip = t('loggedInUserTooltip')
   const loggedInAriaLabel = userLabel
@@ -134,11 +137,17 @@ export const Header = () => {
                   },
                 })}
                 onClick={(event) => {
-                  if (
-                    isRoom &&
-                    !window.confirm(t('leaveRoomPrompt', { ns: 'rooms' }))
-                  ) {
+                  // In a room, leaving needs confirmation. The styled confirm is
+                  // async, so always block the Link's sync nav, then navigate
+                  // home ourselves only if the user confirms.
+                  if (isRoom) {
                     event.preventDefault()
+                    void askConfirm({
+                      message: t('leaveRoomPrompt', { ns: 'rooms' }),
+                      danger: true,
+                    }).then((ok) => {
+                      if (ok) navigate('/')
+                    })
                   }
                 }}
                 to="/"

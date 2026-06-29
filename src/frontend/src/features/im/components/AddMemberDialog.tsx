@@ -5,6 +5,7 @@ import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { fetchDirectoryMembers } from '@/features/contacts'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { addMembers } from '../api/addMembers'
 import { resolveImUsers } from '../api/resolveImUsers'
@@ -25,6 +26,7 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
+  const { alert: showAlert } = useConfirm()
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -75,7 +77,7 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
       onClose()
     } catch (e) {
-      window.alert(t('manage.error', { message: e instanceof Error ? e.message : String(e) }))
+      void showAlert({ message: t('manage.error', { message: e instanceof Error ? e.message : String(e) }) })
       setBusy(false)
     }
   }

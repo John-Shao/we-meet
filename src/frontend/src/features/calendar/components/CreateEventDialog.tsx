@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal } from '@/components/Modal'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { useDirectoryMemberSearch } from '@/features/contacts'
 
 import { createCalendarEvent } from '../api/fetchCalendar'
@@ -41,6 +42,7 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
   const [busy, setBusy] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
   const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
+  const { alert: showAlert } = useConfirm()
 
   const toggle = (id: string, label: string) =>
     setSelected((prev) => {
@@ -68,7 +70,7 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
       endDate = new Date(end)
     }
     if (endDate <= startDate) {
-      window.alert(t('form.endAfterStart'))
+      void showAlert({ message: t('form.endAfterStart') })
       return
     }
     setBusy(true)
@@ -83,7 +85,7 @@ export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
       })
       onCreated(event)
     } catch (e) {
-      window.alert(t('form.error', { message: apiErrorMessage(e) }))
+      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
       setBusy(false)
     }
   }
