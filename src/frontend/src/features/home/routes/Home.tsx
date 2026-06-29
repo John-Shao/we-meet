@@ -21,6 +21,7 @@ import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePers
 import { useConfig } from '@/api/useConfig'
 import { ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { LoadingScreen } from '@/components/LoadingScreen'
+import { ResizablePanel } from '@/components/ResizablePanel'
 
 const Columns = ({ children }: { children?: ReactNode }) => {
   return (
@@ -202,10 +203,16 @@ export const Home = () => {
       <Screen>
         {isLoggedIn ? (
           <div className={css({ display: 'flex', height: '100%' })}>
+            <ResizablePanel
+              storageKey="we-meet:meeting-sidebar-width"
+              defaultWidth={260}
+              min={220}
+              max={460}
+            >
             <aside
               className={css({
-                flexShrink: 0,
-                width: '260px',
+                width: '100%',
+                height: '100%',
                 borderRight: '1px solid token(colors.greyscale.200)',
                 backgroundColor: 'white',
                 padding: '1.25rem 1rem',
@@ -253,6 +260,7 @@ export const Home = () => {
                 </DialogTrigger>
               </div>
             </aside>
+            </ResizablePanel>
             <main
               className={css({
                 flex: 1,

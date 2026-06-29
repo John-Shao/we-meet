@@ -11,6 +11,7 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { fetchCalendarEvents, rsvpCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { CreateEventDialog } from '../components/CreateEventDialog'
+import { ResizablePanel } from '@/components/ResizablePanel'
 import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
 import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EventDetailDialog } from '../components/EventDetailDialog'
@@ -67,13 +68,20 @@ const CalendarAuthenticated = () => {
 
   return (
     <div className={css({ display: 'flex', height: '100%' })}>
-      {/* 二级导航栏:迷你日历 + 即将开始,与「视频会议」侧栏对齐。 */}
-      <CalendarSidebar
-        date={date}
-        onDateChange={setDate}
-        events={events}
-        onSelectEvent={setDetailEvent}
-      />
+      {/* 二级导航栏:迷你日历 + 即将开始,与「视频会议」侧栏对齐。可拖拽改宽。 */}
+      <ResizablePanel
+        storageKey="we-meet:calendar-sidebar-width"
+        defaultWidth={260}
+        min={220}
+        max={460}
+      >
+        <CalendarSidebar
+          date={date}
+          onDateChange={setDate}
+          events={events}
+          onSelectEvent={setDetailEvent}
+        />
+      </ResizablePanel>
 
       <div
         className={css({

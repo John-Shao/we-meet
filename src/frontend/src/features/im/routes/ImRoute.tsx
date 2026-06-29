@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { ResizablePanel } from '@/components/ResizablePanel'
 
 import { ContactPicker } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
@@ -319,9 +320,16 @@ const ImAuthenticated = () => {
           overflow: 'hidden',
         })}
       >
+        <ResizablePanel
+          storageKey="we-meet:im-list-width"
+          defaultWidth={280}
+          min={240}
+          max={460}
+        >
         <aside
           className={css({
-            width: '280px',
+            width: '100%',
+            height: '100%',
             borderRight: '1px solid token(colors.greyscale.200)',
             overflowY: 'auto',
             backgroundColor: 'greyscale.50',
@@ -411,6 +419,7 @@ const ImAuthenticated = () => {
             previewOf={previewOf}
           />
         </aside>
+        </ResizablePanel>
         <main
           className={css({
             flex: 1,

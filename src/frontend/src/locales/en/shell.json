@@ -1,5 +1,6 @@
 {
   "railLabel": "Main navigation",
+  "resizeHandle": "Drag to resize",
   "logout": "Sign out",
   "confirm": "Confirm",
   "cancel": "Cancel",
