@@ -9,6 +9,7 @@ import { SkipLink, MAIN_CONTENT_ID } from './SkipLink'
 import { useUser } from '@/features/auth'
 import { AppRail } from './AppRail'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { ImUnreadProvider } from '@/features/im/components/ImUnreadProvider'
 
 export type Layout = 'fullpage' | 'centered'
 
@@ -45,7 +46,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
   // top-Header / full-screen layout untouched.
   if (showHeader && isLoggedIn) {
     return (
-      <>
+      <ImUnreadProvider>
         <SkipLink />
         <div
           className={css({
@@ -87,7 +88,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             {children}
           </main>
         </div>
-      </>
+      </ImUnreadProvider>
     )
   }
 

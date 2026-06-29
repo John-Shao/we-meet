@@ -12,10 +12,14 @@ import {
   type RemixiconComponentType,
 } from '@remixicon/react'
 
+import { useQuery } from '@tanstack/react-query'
+
 import { css, cx } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { useConfig } from '@/api/useConfig'
 import { SettingsButton } from '@/features/settings'
+import { useImUnread } from '@/features/im/components/ImUnreadProvider'
+import { fetchApprovals } from '@/features/approval/api/fetchApproval'
 import { GlobalSearch } from './GlobalSearch'
 
 /**
@@ -75,6 +79,17 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const [location] = useLocation()
   const docsUrl = config?.docs?.url
   const initial = (user?.full_name || user?.email || '?').slice(0, 1).toUpperCase()
+
+  // Rail unread badges: messages from the global IM presence, approvals from the
+  // shared pending query (same cache the approval module uses).
+  const { messages: unreadMessages } = useImUnread()
+  const { data: pendingApprovals = [] } = useQuery({
+    queryKey: ['approval', 'pending'],
+    queryFn: () => fetchApprovals('pending'),
+    staleTime: 30_000,
+  })
+  const badgeFor = (to: string): number =>
+    to === '/im' ? unreadMessages : to === '/approval' ? pendingApprovals.length : 0
 
   return (
     <nav
@@ -147,22 +162,66 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
       </div>
 
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '0.125rem' })}>
-        {NAV.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            data-testid={`rail-${item.to}`}
-            title={collapsed ? t(item.labelKey) : undefined}
-            className={cx(
-              itemBase,
-              location === item.to ? itemActive : undefined,
-              collapsed ? itemCollapsed : undefined
-            )}
-          >
-            <item.Icon size={18} />
-            {!collapsed && <span>{t(item.labelKey)}</span>}
-          </Link>
-        ))}
+        {NAV.map((item) => {
+          const badge = badgeFor(item.to)
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              data-testid={`rail-${item.to}`}
+              title={collapsed ? t(item.labelKey) : undefined}
+              className={cx(
+                itemBase,
+                location === item.to ? itemActive : undefined,
+                collapsed ? itemCollapsed : undefined
+              )}
+            >
+              <span
+                className={css({ position: 'relative', display: 'flex', flexShrink: 0 })}
+              >
+                <item.Icon size={18} />
+                {/* Collapsed: a small red dot on the icon (label hidden). */}
+                {collapsed && badge > 0 && (
+                  <span
+                    className={css({
+                      position: 'absolute',
+                      top: '-2px',
+                      right: '-3px',
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '999px',
+                      backgroundColor: 'danger.500',
+                      border: '1.5px solid #DEE4F5',
+                    })}
+                  />
+                )}
+              </span>
+              {!collapsed && (
+                <>
+                  <span className={css({ flex: 1 })}>{t(item.labelKey)}</span>
+                  {badge > 0 && (
+                    <span
+                      className={css({
+                        minWidth: '18px',
+                        height: '18px',
+                        paddingX: '0.25rem',
+                        borderRadius: '999px',
+                        backgroundColor: 'danger.500',
+                        color: 'white',
+                        fontSize: '0.6875rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      })}
+                    >
+                      {badge > 99 ? '99+' : badge}
+                    </span>
+                  )}
+                </>
+              )}
+            </Link>
+          )
+        })}
         {docsUrl && (
           <a
             href={docsUrl}
