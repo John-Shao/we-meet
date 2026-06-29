@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { css } from '@/styled-system/css'
 import { Header } from './Header'
 import { layoutStore } from '@/stores/layout'
@@ -24,6 +24,22 @@ export const Layout = ({ children }: { children: ReactNode }) => {
   const showFooter = layoutSnap.showFooter
   const { isLoggedIn } = useUser()
 
+  // P6-e: collapsible primary rail (new-Feishu). Collapsed → fixed icon strip
+  // (resize disabled); expanded → user-resizable. Persisted across sessions.
+  const [railCollapsed, setRailCollapsed] = useState(
+    () => localStorage.getItem('we-meet:rail-collapsed') === '1'
+  )
+  const toggleRail = () =>
+    setRailCollapsed((v) => {
+      const next = !v
+      try {
+        localStorage.setItem('we-meet:rail-collapsed', next ? '1' : '0')
+      } catch {
+        /* private mode — applies for this session only */
+      }
+      return next
+    })
+
   // P6: logged-in workspace routes get the Feishu-style left rail (column 1).
   // The in-call room (showHeader=false) and anonymous pages keep the original
   // top-Header / full-screen layout untouched.
@@ -39,14 +55,23 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             color: 'default.text',
           })}
         >
-          <ResizablePanel
-            storageKey="we-meet:app-rail-width"
-            defaultWidth={210}
-            min={180}
-            max={320}
-          >
-            <AppRail />
-          </ResizablePanel>
+          {railCollapsed ? (
+            <div
+              className={css({ flexShrink: 0, height: '100%' })}
+              style={{ width: 64 }}
+            >
+              <AppRail collapsed onToggleCollapse={toggleRail} />
+            </div>
+          ) : (
+            <ResizablePanel
+              storageKey="we-meet:app-rail-width"
+              defaultWidth={210}
+              min={180}
+              max={320}
+            >
+              <AppRail onToggleCollapse={toggleRail} />
+            </ResizablePanel>
+          )}
           <main
             id={MAIN_CONTENT_ID}
             className={css({

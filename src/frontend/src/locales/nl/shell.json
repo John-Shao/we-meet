@@ -1,6 +1,15 @@
 {
   "railLabel": "Hoofdnavigatie",
   "resizeHandle": "Sleep om formaat te wijzigen",
+  "collapse": "Navigatie inklappen",
+  "expand": "Navigatie uitklappen",
+  "search": {
+    "trigger": "Zoeken",
+    "placeholder": "Zoek personen, vergaderingen…",
+    "contacts": "Contacten",
+    "meetings": "Vergaderingen",
+    "empty": "Geen resultaten"
+  },
   "logout": "Afmelden",
   "confirm": "Bevestigen",
   "cancel": "Annuleren",

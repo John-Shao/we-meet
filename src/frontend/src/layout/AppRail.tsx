@@ -8,6 +8,8 @@ import {
   RiContactsBookLine,
   RiFileTextLine,
   RiLogoutBoxRLine,
+  RiArrowLeftSLine,
+  RiArrowRightSLine,
   type RemixiconComponentType,
 } from '@remixicon/react'
 
@@ -15,6 +17,7 @@ import { css, cx } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { useConfig } from '@/api/useConfig'
 import { SettingsButton } from '@/features/settings'
+import { GlobalSearch } from './GlobalSearch'
 
 /**
  * P6 global primary navigation rail (Feishu-style workspace shell, column 1).
@@ -59,8 +62,14 @@ const itemActive = css({
   color: 'primary.600',
   fontWeight: '500',
 })
+const itemCollapsed = css({ justifyContent: 'center', paddingX: '0.5rem' })
 
-export const AppRail = () => {
+interface Props {
+  collapsed?: boolean
+  onToggleCollapse?: () => void
+}
+
+export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const { t } = useTranslation('shell')
   const { user, logout } = useUser()
   const { data: config } = useConfig()
@@ -88,12 +97,18 @@ export const AppRail = () => {
         alt={import.meta.env.VITE_APP_TITLE ?? ''}
         className={css({
           height: '32px',
+          width: collapsed ? '32px' : 'auto',
           objectFit: 'contain',
           objectPosition: 'left',
           marginBottom: '0.75rem',
-          paddingX: '0.25rem',
+          marginX: collapsed ? 'auto' : 0,
+          paddingX: collapsed ? 0 : '0.25rem',
         })}
       />
+
+      <div className={css({ marginBottom: '0.625rem' })}>
+        <GlobalSearch collapsed={collapsed} />
+      </div>
 
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '0.125rem' })}>
         {NAV.map((item) => (
@@ -101,10 +116,15 @@ export const AppRail = () => {
             key={item.to}
             to={item.to}
             data-testid={`rail-${item.to}`}
-            className={cx(itemBase, location === item.to ? itemActive : undefined)}
+            title={collapsed ? t(item.labelKey) : undefined}
+            className={cx(
+              itemBase,
+              location === item.to ? itemActive : undefined,
+              collapsed ? itemCollapsed : undefined
+            )}
           >
             <item.Icon size={18} />
-            <span>{t(item.labelKey)}</span>
+            {!collapsed && <span>{t(item.labelKey)}</span>}
           </Link>
         ))}
         {docsUrl && (
@@ -112,10 +132,11 @@ export const AppRail = () => {
             href={docsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={itemBase}
+            title={collapsed ? t('nav.docs') : undefined}
+            className={cx(itemBase, collapsed ? itemCollapsed : undefined)}
           >
             <RiFileTextLine size={18} />
-            <span>{t('nav.docs')}</span>
+            {!collapsed && <span>{t('nav.docs')}</span>}
           </a>
         )}
       </div>
@@ -138,9 +159,11 @@ export const AppRail = () => {
             paddingX: '0.5rem',
             paddingY: '0.375rem',
             minWidth: 0,
+            justifyContent: collapsed ? 'center' : 'flex-start',
           })}
         >
           <span
+            title={collapsed ? user?.full_name || user?.email || '' : undefined}
             className={css({
               width: '28px',
               height: '28px',
@@ -156,24 +179,50 @@ export const AppRail = () => {
           >
             {initial}
           </span>
-          <span
-            className={css({
-              flexGrow: 1,
-              minWidth: 0,
-              fontSize: '0.8125rem',
-              color: 'greyscale.700',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            })}
-          >
-            {user?.full_name || user?.email}
-          </span>
-          <SettingsButton />
+          {!collapsed && (
+            <>
+              <span
+                className={css({
+                  flexGrow: 1,
+                  minWidth: 0,
+                  fontSize: '0.8125rem',
+                  color: 'greyscale.700',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                })}
+              >
+                {user?.full_name || user?.email}
+              </span>
+              <SettingsButton />
+            </>
+          )}
         </div>
-        <button type="button" onClick={() => logout()} className={itemBase}>
+        <button
+          type="button"
+          onClick={() => logout()}
+          title={collapsed ? t('logout') : undefined}
+          className={cx(itemBase, collapsed ? itemCollapsed : undefined)}
+        >
           <RiLogoutBoxRLine size={18} />
-          <span>{t('logout')}</span>
+          {!collapsed && <span>{t('logout')}</span>}
+        </button>
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={collapsed ? t('expand') : t('collapse')}
+          title={collapsed ? t('expand') : t('collapse')}
+          data-testid="rail-collapse-toggle"
+          className={cx(itemBase, collapsed ? itemCollapsed : undefined)}
+        >
+          {collapsed ? (
+            <RiArrowRightSLine size={18} />
+          ) : (
+            <>
+              <RiArrowLeftSLine size={18} />
+              <span>{t('collapse')}</span>
+            </>
+          )}
         </button>
       </div>
     </nav>

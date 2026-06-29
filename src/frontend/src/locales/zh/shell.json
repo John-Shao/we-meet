@@ -1,6 +1,15 @@
 {
   "railLabel": "主导航",
   "resizeHandle": "拖拽调整宽度",
+  "collapse": "收起导航栏",
+  "expand": "展开导航栏",
+  "search": {
+    "trigger": "搜索",
+    "placeholder": "搜索联系人、会议…",
+    "contacts": "联系人",
+    "meetings": "会议",
+    "empty": "无匹配结果"
+  },
   "logout": "退出登录",
   "confirm": "确定",
   "cancel": "取消",

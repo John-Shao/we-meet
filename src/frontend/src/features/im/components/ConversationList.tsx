@@ -83,7 +83,11 @@ export const ConversationList = ({
               borderBottom: '1px solid token(colors.greyscale.100)',
               backgroundColor:
                 selectedCID === c.cid ? 'primary.100' : 'transparent',
-              _hover: { backgroundColor: 'greyscale.100' },
+              _hover: {
+                backgroundColor: 'greyscale.100',
+                '& [data-role=del]': { opacity: 1 },
+              },
+              '&:focus-within [data-role=del]': { opacity: 1 },
             })}
           >
             <button
@@ -253,6 +257,8 @@ export const ConversationList = ({
                 fontSize: '1rem',
                 lineHeight: 1,
                 cursor: 'pointer',
+                opacity: 0,
+                transition: 'opacity 0.15s, color 0.15s',
                 _hover: { color: '#dc2626' },
               })}
             >

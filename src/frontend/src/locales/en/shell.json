@@ -1,6 +1,15 @@
 {
   "railLabel": "Main navigation",
   "resizeHandle": "Drag to resize",
+  "collapse": "Collapse navigation",
+  "expand": "Expand navigation",
+  "search": {
+    "trigger": "Search",
+    "placeholder": "Search people, meetings…",
+    "contacts": "Contacts",
+    "meetings": "Meetings",
+    "empty": "No matches"
+  },
   "logout": "Sign out",
   "confirm": "Confirm",
   "cancel": "Cancel",
