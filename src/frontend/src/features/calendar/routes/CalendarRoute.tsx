@@ -11,7 +11,7 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { fetchCalendarEvents, rsvpCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { CreateEventDialog } from '../components/CreateEventDialog'
-import { CalendarGrid } from '../components/CalendarGrid'
+import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
 import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EventDetailDialog } from '../components/EventDetailDialog'
 
@@ -37,8 +37,18 @@ const CalendarAuthenticated = () => {
   const [, navigate] = useLocation()
   const { alert: showAlert } = useConfirm()
   const [creating, setCreating] = useState(false)
+  const [draft, setDraft] = useState<SlotDraft | null>(null)
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
   const [date, setDate] = useState<Date>(() => new Date())
+
+  const openCreate = (slot: SlotDraft | null) => {
+    setDraft(slot)
+    setCreating(true)
+  }
+  const closeCreate = () => {
+    setCreating(false)
+    setDraft(null)
+  }
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: EVENTS_KEY,
@@ -95,7 +105,7 @@ const CalendarAuthenticated = () => {
           </h1>
           <button
             type="button"
-            onClick={() => setCreating(true)}
+            onClick={() => openCreate(null)}
             data-testid="calendar-create"
             className={css({
               paddingX: '1rem',
@@ -125,6 +135,7 @@ const CalendarAuthenticated = () => {
               onSelectEvent={setDetailEvent}
               date={date}
               onNavigate={setDate}
+              onSelectSlot={openCreate}
             />
           )}
         </div>
@@ -143,9 +154,12 @@ const CalendarAuthenticated = () => {
 
       {creating && (
         <CreateEventDialog
-          onClose={() => setCreating(false)}
+          initialStart={draft?.start}
+          initialEnd={draft?.end}
+          initialAllDay={draft?.allDay}
+          onClose={closeCreate}
           onCreated={() => {
-            setCreating(false)
+            closeCreate()
             void qc.invalidateQueries({ queryKey: EVENTS_KEY })
           }}
         />

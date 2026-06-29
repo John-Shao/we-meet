@@ -39,6 +39,12 @@ interface RbcEvent {
   resource: CalendarEvent
 }
 
+export interface SlotDraft {
+  start: Date
+  end: Date
+  allDay: boolean
+}
+
 interface Props {
   events: CalendarEvent[]
   onSelectEvent: (event: CalendarEvent) => void
@@ -46,6 +52,8 @@ interface Props {
    * falls back to internal state when omitted so the grid stays standalone. */
   date?: Date
   onNavigate?: (date: Date) => void
+  /** Click/drag an empty slot → 飞书式快捷创建,带预填时间。 */
+  onSelectSlot?: (draft: SlotDraft) => void
 }
 
 export const CalendarGrid = ({
@@ -53,6 +61,7 @@ export const CalendarGrid = ({
   onSelectEvent,
   date: dateProp,
   onNavigate,
+  onSelectSlot,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
   const [view, setView] = useState<View>('week')
@@ -107,8 +116,22 @@ export const CalendarGrid = ({
       onNavigate={setDate}
       views={['month', 'week', 'day', 'agenda']}
       popup
+      selectable
       messages={messages}
       onSelectEvent={(ev) => onSelectEvent(ev.resource)}
+      onSelectSlot={(slot) => {
+        // Month: a day click → all-day draft pinned to that day. Time views:
+        // use the dragged/clicked range; a bare click gives a 30-min slot,
+        // fall back to +1h when the range is empty.
+        const start = slot.start
+        if (view === 'month') {
+          onSelectSlot?.({ start, end: start, allDay: true })
+          return
+        }
+        const end =
+          slot.end > start ? slot.end : new Date(start.getTime() + 3600_000)
+        onSelectSlot?.({ start, end, allDay: false })
+      }}
       style={{ height: '100%' }}
     />
   )

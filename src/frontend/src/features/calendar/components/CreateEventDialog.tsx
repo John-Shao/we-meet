@@ -13,6 +13,11 @@ import type { CalendarEvent } from '../api/ApiCalendar'
 interface Props {
   onCreated: (event: CalendarEvent) => void
   onClose: () => void
+  /** Prefill when opened from a grid slot click (飞书式快捷创建). Falls back
+   * to "next full hour, 1h long" when omitted (top-bar 新建日程). */
+  initialStart?: Date
+  initialEnd?: Date
+  initialAllDay?: boolean
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -28,15 +33,21 @@ const defaultStart = () => {
   return d
 }
 
-export const CreateEventDialog = ({ onCreated, onClose }: Props) => {
+export const CreateEventDialog = ({
+  onCreated,
+  onClose,
+  initialStart,
+  initialEnd,
+  initialAllDay,
+}: Props) => {
   const { t } = useTranslation('calendar')
-  const start0 = defaultStart()
-  const end0 = new Date(start0.getTime() + 60 * 60 * 1000)
+  const start0 = initialStart ?? defaultStart()
+  const end0 = initialEnd ?? new Date(start0.getTime() + 60 * 60 * 1000)
 
   const [title, setTitle] = useState('')
   const [start, setStart] = useState(toLocalInput(start0))
   const [end, setEnd] = useState(toLocalInput(end0))
-  const [allDay, setAllDay] = useState(false)
+  const [allDay, setAllDay] = useState(initialAllDay ?? false)
   const [reminder, setReminder] = useState('10') // minutes-before, '' = none
   const [selected, setSelected] = useState<Map<string, string>>(new Map())
   const [busy, setBusy] = useState(false)
