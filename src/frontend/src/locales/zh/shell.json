@@ -1,6 +1,9 @@
 {
   "railLabel": "主导航",
   "logout": "退出登录",
+  "confirm": "确定",
+  "cancel": "取消",
+  "ok": "知道了",
   "nav": {
     "messages": "消息",
     "meeting": "视频会议",

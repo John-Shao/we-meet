@@ -1,6 +1,9 @@
 {
   "railLabel": "Navigation principale",
   "logout": "Se déconnecter",
+  "confirm": "Confirmer",
+  "cancel": "Annuler",
+  "ok": "OK",
   "nav": {
     "messages": "Messages",
     "meeting": "Réunions",

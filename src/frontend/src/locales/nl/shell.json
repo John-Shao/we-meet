@@ -1,6 +1,9 @@
 {
   "railLabel": "Hoofdnavigatie",
   "logout": "Afmelden",
+  "confirm": "Bevestigen",
+  "cancel": "Annuleren",
+  "ok": "OK",
   "nav": {
     "messages": "Berichten",
     "meeting": "Vergaderingen",

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { removeMember } from '../api/removeMember'
 import { resolveImUsers } from '../api/resolveImUsers'
@@ -28,6 +29,7 @@ export const GroupMembersPanel = ({
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
+  const { confirm: askConfirm, alert: showAlert } = useConfirm()
   const qc = useQueryClient()
   const cid = conversation.cid
   const isOwner = conversation.owner_uid === currentUserUID
@@ -79,14 +81,22 @@ export const GroupMembersPanel = ({
   }
 
   const onError = (e: unknown) =>
-    window.alert(
-      t('manage.error', { message: e instanceof Error ? e.message : String(e) })
-    )
+    void showAlert({
+      message: t('manage.error', {
+        message: e instanceof Error ? e.message : String(e),
+      }),
+    })
 
   const kick = async (uid: string) => {
     const userId = names[uid]?.id
     if (!userId) return
-    if (!window.confirm(t('manage.removeConfirm', { name: nameOf(uid) })))
+    if (
+      !(await askConfirm({
+        message: t('manage.removeConfirm', { name: nameOf(uid) }),
+        confirmLabel: t('manage.remove'),
+        danger: true,
+      }))
+    )
       return
     setBusy(true)
     try {
@@ -100,7 +110,12 @@ export const GroupMembersPanel = ({
   }
 
   const transfer = async (uid: string) => {
-    if (!window.confirm(t('manage.transferConfirm', { name: nameOf(uid) })))
+    if (
+      !(await askConfirm({
+        message: t('manage.transferConfirm', { name: nameOf(uid) }),
+        confirmLabel: t('manage.transfer'),
+      }))
+    )
       return
     setBusy(true)
     try {

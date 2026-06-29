@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { announceLeave } from '../api/announceLeave'
 import { updateGroupMeta } from '../api/updateGroupMeta'
@@ -42,6 +43,7 @@ export const GroupSettingsPanel = ({
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
+  const { confirm: askConfirm, alert: showAlert } = useConfirm()
   const qc = useQueryClient()
   const cid = conversation.cid
   const isOwner = conversation.owner_uid === currentUserUID
@@ -92,9 +94,11 @@ export const GroupSettingsPanel = ({
   }, [editingNick])
 
   const onError = (e: unknown) =>
-    window.alert(
-      t('manage.error', { message: e instanceof Error ? e.message : String(e) })
-    )
+    void showAlert({
+      message: t('manage.error', {
+        message: e instanceof Error ? e.message : String(e),
+      }),
+    })
 
   const saveName = async () => {
     const next = nameDraft.trim()
@@ -175,7 +179,14 @@ export const GroupSettingsPanel = ({
   }
 
   const clearHistory = async () => {
-    if (!window.confirm(t('manage.clearConfirm'))) return
+    if (
+      !(await askConfirm({
+        message: t('manage.clearConfirm'),
+        confirmLabel: t('manage.clear'),
+        danger: true,
+      }))
+    )
+      return
     setBusy(true)
     try {
       await client.clearHistory(cid)
@@ -189,7 +200,14 @@ export const GroupSettingsPanel = ({
   }
 
   const leave = async () => {
-    if (!window.confirm(t('manage.leaveConfirm'))) return
+    if (
+      !(await askConfirm({
+        message: t('manage.leaveConfirm'),
+        confirmLabel: t('manage.leave'),
+        danger: true,
+      }))
+    )
+      return
     setBusy(true)
     try {
       await announceLeave(cid).catch(() => {})
