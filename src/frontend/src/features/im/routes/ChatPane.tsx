@@ -151,7 +151,7 @@ export const ChatPane = ({
         })}
       >
         <div className={css({ flex: 1, minWidth: 0 })}>
-          {isGroup && onOpenSettings ? (
+          {onOpenSettings ? (
             <button
               type="button"
               onClick={onOpenSettings}
@@ -215,6 +215,18 @@ export const ChatPane = ({
             title={t('manage.membersTitle')}
             aria-label={t('manage.membersTitle')}
             data-testid="chat-group-info"
+            className={headerBtn}
+          >
+            ⋯
+          </button>
+        )}
+        {!isGroup && onOpenSettings && (
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            title={t('manage.settings')}
+            aria-label={t('manage.settings')}
+            data-testid="chat-direct-settings"
             className={headerBtn}
           >
             ⋯

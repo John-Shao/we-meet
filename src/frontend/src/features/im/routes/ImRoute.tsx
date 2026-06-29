@@ -21,6 +21,7 @@ import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
 import { ConversationList } from '../components/ConversationList'
 import { GroupMembersPanel } from '../components/GroupMembersPanel'
 import { GroupSettingsPanel } from '../components/GroupSettingsPanel'
+import { DirectSettingsPanel } from '../components/DirectSettingsPanel'
 import { GroupPicker } from '../components/GroupPicker'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
@@ -60,6 +61,9 @@ const ImAuthenticated = () => {
   })
   const currentUserUID = tokenData?.uid ?? ''
   const { confirm: askConfirm, alert: showAlert } = useConfirm()
+  const [groupSeed, setGroupSeed] = useState<
+    Array<{ id: string; label: string }>
+  >([])
   // Server returns conversations pinned-first (P10); the list renders as-is and
   // reads pinned/muted off each summary.
   const { data: conversations = [], isLoading: convLoading } = useConversations(
@@ -279,6 +283,25 @@ const ImAuthenticated = () => {
     }
   }
 
+  // 从一对一会话「创建群组」:带上对方作为预选成员(对标飞书)。
+  const handleCreateGroupFromDirect = async () => {
+    if (!selectedConv) return
+    const peerUid = selectedConv.members.find((u) => u !== currentUserUID)
+    let seed: Array<{ id: string; label: string }> = []
+    if (peerUid) {
+      try {
+        const resolved = await resolveImUsers([peerUid])
+        const info = resolved[peerUid]
+        if (info?.id) seed = [{ id: info.id, label: info.full_name || info.id }]
+      } catch {
+        // best-effort: open the picker without a preselected peer
+      }
+    }
+    setGroupSeed(seed)
+    setRightPanel(null)
+    setGroupPickerOpen(true)
+  }
+
   return (
     <div
       className={css({
@@ -326,7 +349,10 @@ const ImAuthenticated = () => {
             <div className={css({ display: 'flex', gap: '0.375rem' })}>
               <button
                 type="button"
-                onClick={() => setGroupPickerOpen(true)}
+                onClick={() => {
+                  setGroupSeed([])
+                  setGroupPickerOpen(true)
+                }}
                 title={t('group.button')}
                 aria-label={t('group.button')}
                 data-testid="im-new-group"
@@ -407,13 +433,8 @@ const ImAuthenticated = () => {
                       setRightPanel((p) => (p === 'members' ? null : 'members'))
                   : undefined
               }
-              onOpenSettings={
-                selectedConv.type === 'group'
-                  ? () =>
-                      setRightPanel((p) =>
-                        p === 'settings' ? null : 'settings'
-                      )
-                  : undefined
+              onOpenSettings={() =>
+                setRightPanel((p) => (p === 'settings' ? null : 'settings'))
               }
               onAddMembers={
                 selectedConv.type === 'group'
@@ -421,8 +442,8 @@ const ImAuthenticated = () => {
                   : undefined
               }
               infoPanel={
-                selectedConv.type !== 'group' ? null : rightPanel ===
-                  'members' ? (
+                rightPanel === 'members' &&
+                selectedConv.type === 'group' ? (
                   <GroupMembersPanel
                     client={client}
                     conversation={selectedConv}
@@ -430,16 +451,26 @@ const ImAuthenticated = () => {
                     onClose={() => setRightPanel(null)}
                   />
                 ) : rightPanel === 'settings' ? (
-                  <GroupSettingsPanel
-                    client={client}
-                    conversation={selectedConv}
-                    currentUserUID={currentUserUID}
-                    onLeft={() => {
-                      setRightPanel(null)
-                      setSelectedCID(null)
-                    }}
-                    onClose={() => setRightPanel(null)}
-                  />
+                  selectedConv.type === 'group' ? (
+                    <GroupSettingsPanel
+                      client={client}
+                      conversation={selectedConv}
+                      currentUserUID={currentUserUID}
+                      onLeft={() => {
+                        setRightPanel(null)
+                        setSelectedCID(null)
+                      }}
+                      onClose={() => setRightPanel(null)}
+                    />
+                  ) : (
+                    <DirectSettingsPanel
+                      client={client}
+                      conversation={selectedConv}
+                      peerName={nameOf(selectedConv)}
+                      onCreateGroup={() => void handleCreateGroupFromDirect()}
+                      onClose={() => setRightPanel(null)}
+                    />
+                  )
                 ) : null
               }
             />
@@ -467,6 +498,7 @@ const ImAuthenticated = () => {
         <GroupPicker
           onCreate={handleCreateGroup}
           onClose={() => setGroupPickerOpen(false)}
+          initialMembers={groupSeed}
         />
       )}
       {addOpen && selectedConv && selectedConv.type === 'group' && (

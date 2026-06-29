@@ -77,7 +77,8 @@ export const AppRail = () => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: 'white',
+        // 飞书式一级导航栏底色(比白色内容区略带蓝灰,拉开层次)。
+        backgroundColor: '#DEE4F5',
         borderRight: '1px solid token(colors.greyscale.200)',
         paddingY: '0.75rem',
         paddingX: '0.5rem',

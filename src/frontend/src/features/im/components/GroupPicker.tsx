@@ -16,16 +16,21 @@ import { fetchDirectoryMembers } from '@/features/contacts'
 interface Props {
   onCreate: (memberUserIds: string[], name: string) => void
   onClose: () => void
+  /** Pre-selected members (we-meet user id → label), e.g. the peer when
+   * creating a group from a 1-on-1 conversation. */
+  initialMembers?: Array<{ id: string; label: string }>
 }
 
-export const GroupPicker = ({ onCreate, onClose }: Props) => {
+export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
   const { t } = useTranslation('im')
   const { user } = useUser()
   const [query, setQuery] = useState('')
   const [name, setName] = useState('')
   // id → display label, captured at toggle time so chips stay labelled even
   // after the search query (and thus the visible member list) changes.
-  const [selected, setSelected] = useState<Map<string, string>>(new Map())
+  const [selected, setSelected] = useState<Map<string, string>>(
+    () => new Map((initialMembers ?? []).map((m) => [m.id, m.label]))
+  )
   const searchRef = useRef<HTMLInputElement>(null)
 
   const selfLabel = user?.full_name || user?.email || t('group.you')
