@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useUser } from '@/features/auth'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { actApproval, cancelApproval, fetchApprovals } from '../api/fetchApproval'
 import type {
@@ -40,6 +41,7 @@ export const ApprovalRoute = () => {
 const ApprovalAuthenticated = () => {
   const { t, i18n } = useTranslation('approval')
   const qc = useQueryClient()
+  const { confirm: askConfirm, alert: showAlert } = useConfirm()
   const [creating, setCreating] = useState(false)
 
   const { data: pending = [], isLoading: loadingPending } = useQuery({
@@ -74,16 +76,17 @@ const ApprovalAuthenticated = () => {
       await actApproval(id, action, comment)
       await refresh()
     } catch (e) {
-      window.alert(t('form.error', { message: apiErrorMessage(e) }))
+      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
     }
   }
   const onCancel = async (id: string) => {
-    if (!window.confirm(t('act.confirmCancel'))) return
+    if (!(await askConfirm({ message: t('act.confirmCancel'), danger: true })))
+      return
     try {
       await cancelApproval(id)
       await refresh()
     } catch (e) {
-      window.alert(t('form.error', { message: apiErrorMessage(e) }))
+      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
     }
   }
 

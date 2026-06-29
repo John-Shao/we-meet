@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { ContactPicker } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
@@ -58,6 +59,7 @@ const ImAuthenticated = () => {
     staleTime: 60_000,
   })
   const currentUserUID = tokenData?.uid ?? ''
+  const { confirm: askConfirm, alert: showAlert } = useConfirm()
   // Server returns conversations pinned-first (P10); the list renders as-is and
   // reads pinned/muted off each summary.
   const { data: conversations = [], isLoading: convLoading } = useConversations(
@@ -151,10 +153,10 @@ const ImAuthenticated = () => {
       const removedCid = typeof s.cid === 'string' ? s.cid : ''
       void qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
       if (removedCid && removedCid === selectedCID) setSelectedCID(null)
-      window.alert(t('manage.removedNotice'))
+      void showAlert({ message: t('manage.removedNotice') })
     })
     return off
-  }, [client, qc, selectedCID, t])
+  }, [client, qc, selectedCID, t, showAlert])
 
   const sendDisabled = state !== 'connected'
 
@@ -230,17 +232,17 @@ const ImAuthenticated = () => {
       c.type === 'group'
         ? t('actions.leaveConfirm')
         : t('actions.deleteConfirm')
-    if (!window.confirm(confirmMsg)) return
+    if (!(await askConfirm({ message: confirmMsg, danger: true }))) return
     try {
       await client.leaveConversation(c.cid)
       if (selectedCID === c.cid) setSelectedCID(null)
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
     } catch (e) {
-      window.alert(
-        t('actions.error', {
+      void showAlert({
+        message: t('actions.error', {
           message: e instanceof Error ? e.message : String(e),
-        })
-      )
+        }),
+      })
     }
   }
 
@@ -253,11 +255,11 @@ const ImAuthenticated = () => {
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
       setSelectedCID(result.cid)
     } catch (e) {
-      window.alert(
-        t('list.newDirect.error', {
+      void showAlert({
+        message: t('list.newDirect.error', {
           message: e instanceof Error ? e.message : String(e),
-        })
-      )
+        }),
+      })
     }
   }
 
@@ -269,11 +271,11 @@ const ImAuthenticated = () => {
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
       setSelectedCID(result.cid)
     } catch (e) {
-      window.alert(
-        t('group.error', {
+      void showAlert({
+        message: t('group.error', {
           message: e instanceof Error ? e.message : String(e),
-        })
-      )
+        }),
+      })
     }
   }
 

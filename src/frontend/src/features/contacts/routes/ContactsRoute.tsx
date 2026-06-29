@@ -6,6 +6,7 @@ import { useLocation } from 'wouter'
 import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { fetchDepartmentMembers } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
@@ -35,6 +36,7 @@ export const ContactsRoute = () => {
 const ContactsAuthenticated = () => {
   const { t } = useTranslation('contacts')
   const [, navigate] = useLocation()
+  const { alert: showAlert } = useConfirm()
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
@@ -59,11 +61,11 @@ const ContactsAuthenticated = () => {
       // 带上 cid,ImRoute 据此直接打开与该联系人的会话(否则落到 /im 还要再选一次)
       navigate(`/im?cid=${encodeURIComponent(result.cid)}`)
     } catch (e) {
-      window.alert(
-        t('page.messageError', {
+      void showAlert({
+        message: t('page.messageError', {
           message: e instanceof Error ? e.message : String(e),
         }),
-      )
+      })
     }
   }
 

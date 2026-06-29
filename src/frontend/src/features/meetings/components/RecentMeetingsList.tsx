@@ -23,6 +23,7 @@ import { H, Text } from '@/primitives'
 import { Menu } from '@/primitives/Menu'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useDeleteRoom } from '@/features/rooms/api/deleteRoom'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { useRecentMeetings } from '../api/fetchMeeting'
 
@@ -46,6 +47,7 @@ export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
   const { data, isLoading } = useRecentMeetings(enabled)
   const [expanded, setExpanded] = useState(false)
   const { mutate: deleteRoom } = useDeleteRoom()
+  const { confirm: askConfirm } = useConfirm()
 
   if (!enabled) return null
   if (isLoading) return null
@@ -54,8 +56,13 @@ export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
   const canToggle = data.length > COLLAPSED_COUNT
   const visible = expanded ? data : data.slice(0, COLLAPSED_COUNT)
 
-  const handleDelete = (id: string, label: string) => {
-    if (typeof window !== 'undefined' && !window.confirm(t('home.deleteConfirm', { name: label }))) {
+  const handleDelete = async (id: string, label: string) => {
+    if (
+      !(await askConfirm({
+        message: t('home.deleteConfirm', { name: label }),
+        danger: true,
+      }))
+    ) {
       return
     }
     deleteRoom(id)

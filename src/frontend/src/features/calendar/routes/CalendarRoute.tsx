@@ -6,6 +6,7 @@ import { useLocation } from 'wouter'
 import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useUser } from '@/features/auth'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { fetchCalendarEvents, rsvpCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
@@ -31,6 +32,7 @@ const CalendarAuthenticated = () => {
   const { t, i18n } = useTranslation('calendar')
   const qc = useQueryClient()
   const [, navigate] = useLocation()
+  const { alert: showAlert } = useConfirm()
   const [creating, setCreating] = useState(false)
 
   const { data: events = [], isLoading } = useQuery({
@@ -76,7 +78,7 @@ const CalendarAuthenticated = () => {
       await rsvpCalendarEvent(event.id, status)
       await qc.invalidateQueries({ queryKey: EVENTS_KEY })
     } catch (e) {
-      window.alert(t('form.error', { message: apiErrorMessage(e) }))
+      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
     }
   }
 
