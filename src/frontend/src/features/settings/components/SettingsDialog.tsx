@@ -1,8 +1,28 @@
 import { Trans, useTranslation } from 'react-i18next'
+import { RiLogoutBoxRLine } from '@remixicon/react'
 import { useLanguageLabels } from '@/i18n/useLanguageLabels'
-import { A, Badge, Dialog, type DialogProps, Field, H, P } from '@/primitives'
+import { Badge, Dialog, type DialogProps, Field, H, P } from '@/primitives'
+import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { LoginButton } from '@/components/LoginButton'
+
+// 与(已移除的)一级导航栏退出按钮同款:图标 + 文字 + hover 高亮。
+const logoutButton = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
+  width: 'fit-content',
+  marginTop: '0.5rem',
+  paddingX: '0.75rem',
+  paddingY: '0.5rem',
+  borderRadius: '8px',
+  fontSize: '0.875rem',
+  color: 'greyscale.700',
+  cursor: 'pointer',
+  border: 'none',
+  backgroundColor: 'transparent',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
 
 export type SettingsDialogProps = Pick<DialogProps, 'isOpen' | 'onOpenChange'>
 
@@ -29,9 +49,10 @@ export const SettingsDialog = (props: SettingsDialogProps) => {
               components={[<Badge />]}
             />
           </P>
-          <P>
-            <A onPress={logout}>{t('logout', { ns: 'global' })}</A>
-          </P>
+          <button type="button" onClick={logout} className={logoutButton}>
+            <RiLogoutBoxRLine size={18} />
+            <span>{t('logout', { ns: 'global' })}</span>
+          </button>
         </>
       ) : (
         <>

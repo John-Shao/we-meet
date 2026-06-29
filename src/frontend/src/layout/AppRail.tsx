@@ -7,7 +7,6 @@ import {
   RiCheckboxCircleLine,
   RiContactsBookLine,
   RiFileTextLine,
-  RiLogoutBoxRLine,
   RiArrowLeftSLine,
   RiArrowRightSLine,
   type RemixiconComponentType,
@@ -71,7 +70,7 @@ interface Props {
 
 export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const { t } = useTranslation('shell')
-  const { user, logout } = useUser()
+  const { user } = useUser()
   const { data: config } = useConfig()
   const [location] = useLocation()
   const docsUrl = config?.docs?.url
@@ -188,15 +187,6 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
           borderTop: '1px solid token(colors.greyscale.100)',
         })}
       >
-        <button
-          type="button"
-          onClick={() => logout()}
-          title={collapsed ? t('logout') : undefined}
-          className={cx(itemBase, collapsed ? itemCollapsed : undefined)}
-        >
-          <RiLogoutBoxRLine size={18} />
-          {!collapsed && <span>{t('logout')}</span>}
-        </button>
         <button
           type="button"
           onClick={onToggleCollapse}
