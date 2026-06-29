@@ -14,6 +14,7 @@ import {
 import { css, cx } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { useConfig } from '@/api/useConfig'
+import { SettingsButton } from '@/features/settings'
 
 /**
  * P6 global primary navigation rail (Feishu-style workspace shell, column 1).
@@ -157,6 +158,8 @@ export const AppRail = () => {
           </span>
           <span
             className={css({
+              flexGrow: 1,
+              minWidth: 0,
               fontSize: '0.8125rem',
               color: 'greyscale.700',
               overflow: 'hidden',
@@ -166,6 +169,7 @@ export const AppRail = () => {
           >
             {user?.full_name || user?.email}
           </span>
+          <SettingsButton />
         </div>
         <button type="button" onClick={() => logout()} className={itemBase}>
           <RiLogoutBoxRLine size={18} />
