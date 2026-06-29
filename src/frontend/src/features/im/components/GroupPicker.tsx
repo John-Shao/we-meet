@@ -310,7 +310,7 @@ const Chip = ({ label, onRemove }: { label: string; onRemove?: () => void }) => 
         type="button"
         onClick={onRemove}
         aria-label="remove"
-        className={css({ flexShrink: 0, border: 'none', background: 'transparent', color: 'greyscale.500', cursor: 'pointer', fontSize: '0.875rem', _hover: { color: '#dc2626' } })}
+        className={css({ flexShrink: 0, border: 'none', background: 'transparent', color: 'greyscale.500', cursor: 'pointer', fontSize: '0.875rem', _hover: { color: 'error.500' } })}
       >
         ×
       </button>

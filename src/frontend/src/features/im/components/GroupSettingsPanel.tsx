@@ -559,7 +559,7 @@ export const GroupSettingsPanel = ({
             border: '1px solid token(colors.greyscale.300)',
             borderRadius: '0.5rem',
             backgroundColor: 'white',
-            color: '#dc2626',
+            color: 'error.500',
             fontSize: '0.875rem',
             fontWeight: 'medium',
             cursor: 'pointer',

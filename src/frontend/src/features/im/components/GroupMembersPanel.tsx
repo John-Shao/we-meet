@@ -221,8 +221,10 @@ export const GroupMembersPanel = ({
                       fontSize: '0.6875rem',
                       borderRadius: '0.25rem',
                       paddingX: '0.25rem',
+                      color: 'primary.600',
+                      backgroundColor: 'primary.50',
+                      border: '1px solid token(colors.primary.200)',
                     })}
-                    style={{ color: '#2563eb', border: '1px solid #bfdbfe' }}
                   >
                     {t('manage.owner')}
                   </span>
@@ -262,7 +264,7 @@ export const GroupMembersPanel = ({
                         cursor: 'pointer',
                         color: 'greyscale.500',
                         fontSize: '0.875rem',
-                        _hover: { color: '#dc2626' },
+                        _hover: { color: 'error.500' },
                       })}
                     >
                       ×
