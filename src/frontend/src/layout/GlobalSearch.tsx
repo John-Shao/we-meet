@@ -169,8 +169,8 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
       onClose={onClose}
       ariaLabel={t('search.trigger')}
       initialFocusRef={inputRef}
-      maxWidth="560px"
-      maxHeight="70vh"
+      maxWidth="680px"
+      maxHeight="72vh"
     >
       <div
         className={css({
@@ -199,7 +199,13 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
         />
       </div>
 
-      <div className={css({ overflowY: 'auto', padding: '0.5rem' })}>
+      <div
+        className={css({
+          overflowY: 'auto',
+          padding: '0.5rem',
+          minHeight: '380px',
+        })}
+      >
         {!ql && (
           <p className={hintCls}>{t('search.placeholder')}</p>
         )}

@@ -92,19 +92,56 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
         paddingX: '0.5rem',
       })}
     >
-      <img
-        src="/assets/logo.svg"
-        alt={import.meta.env.VITE_APP_TITLE ?? ''}
+      {/* 顶部用户信息(替代原 logo):头像 + 名字 + 设置。 */}
+      <div
         className={css({
-          height: '32px',
-          width: collapsed ? '32px' : 'auto',
-          objectFit: 'contain',
-          objectPosition: 'left',
-          marginBottom: '0.75rem',
-          marginX: collapsed ? 'auto' : 0,
-          paddingX: collapsed ? 0 : '0.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          paddingX: '0.5rem',
+          paddingY: '0.375rem',
+          marginBottom: '0.625rem',
+          minWidth: 0,
+          justifyContent: collapsed ? 'center' : 'flex-start',
         })}
-      />
+      >
+        <span
+          title={collapsed ? user?.full_name || user?.email || '' : undefined}
+          className={css({
+            width: '32px',
+            height: '32px',
+            borderRadius: 'full',
+            backgroundColor: 'primary.500',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.8125rem',
+            flexShrink: 0,
+          })}
+        >
+          {initial}
+        </span>
+        {!collapsed && (
+          <>
+            <span
+              className={css({
+                flexGrow: 1,
+                minWidth: 0,
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                color: 'greyscale.900',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              })}
+            >
+              {user?.full_name || user?.email}
+            </span>
+            <SettingsButton />
+          </>
+        )}
+      </div>
 
       <div className={css({ marginBottom: '0.625rem' })}>
         <GlobalSearch collapsed={collapsed} />
@@ -151,53 +188,6 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
           borderTop: '1px solid token(colors.greyscale.100)',
         })}
       >
-        <div
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            paddingX: '0.5rem',
-            paddingY: '0.375rem',
-            minWidth: 0,
-            justifyContent: collapsed ? 'center' : 'flex-start',
-          })}
-        >
-          <span
-            title={collapsed ? user?.full_name || user?.email || '' : undefined}
-            className={css({
-              width: '28px',
-              height: '28px',
-              borderRadius: 'full',
-              backgroundColor: 'primary.500',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.75rem',
-              flexShrink: 0,
-            })}
-          >
-            {initial}
-          </span>
-          {!collapsed && (
-            <>
-              <span
-                className={css({
-                  flexGrow: 1,
-                  minWidth: 0,
-                  fontSize: '0.8125rem',
-                  color: 'greyscale.700',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                })}
-              >
-                {user?.full_name || user?.email}
-              </span>
-              <SettingsButton />
-            </>
-          )}
-        </div>
         <button
           type="button"
           onClick={() => logout()}
