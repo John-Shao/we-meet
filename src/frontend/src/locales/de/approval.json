@@ -7,6 +7,7 @@
     "loading": "Laden…"
   },
   "section": { "pending": "Zu genehmigen", "mine": "Meine Anträge", "empty": "Nichts vorhanden" },
+  "tab": { "create": "Neuer Antrag", "pending": "Zu erledigen", "mine": "Gesendet" },
   "status": {
     "pending": "Ausstehend",
     "approved": "Genehmigt",

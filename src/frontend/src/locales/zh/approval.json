@@ -7,6 +7,7 @@
     "loading": "加载中…"
   },
   "section": { "pending": "待我审批", "mine": "我发起的", "empty": "暂无" },
+  "tab": { "create": "发起申请", "pending": "待办", "mine": "我发起" },
   "status": {
     "pending": "待审批",
     "approved": "已通过",

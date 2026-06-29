@@ -7,6 +7,7 @@
     "loading": "Chargement…"
   },
   "section": { "pending": "À valider", "mine": "Mes demandes", "empty": "Rien ici" },
+  "tab": { "create": "Nouvelle demande", "pending": "À faire", "mine": "Envoyées" },
   "status": {
     "pending": "En attente",
     "approved": "Approuvée",

@@ -12,6 +12,8 @@ import type { ApprovalFormField } from '../api/ApiApproval'
 interface Props {
   onClose: () => void
   onSubmitted: () => void
+  /** Preselect a template (opened from a 发起申请 grid card). */
+  initialTemplateId?: string
 }
 
 const labelCss = css({
@@ -30,10 +32,14 @@ const fieldCss = css({
   fontSize: '0.875rem',
 })
 
-export const SubmitApprovalDialog = ({ onClose, onSubmitted }: Props) => {
+export const SubmitApprovalDialog = ({
+  onClose,
+  onSubmitted,
+  initialTemplateId,
+}: Props) => {
   const { t } = useTranslation('approval')
   const firstFieldRef = useRef<HTMLSelectElement>(null)
-  const [templateId, setTemplateId] = useState('')
+  const [templateId, setTemplateId] = useState(initialTemplateId ?? '')
   const [formData, setFormData] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
