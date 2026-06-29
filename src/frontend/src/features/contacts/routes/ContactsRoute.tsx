@@ -7,6 +7,7 @@ import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { ResizablePanel } from '@/components/ResizablePanel'
 
 import { fetchDepartmentMembers } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
@@ -78,9 +79,16 @@ const ContactsAuthenticated = () => {
         overflow: 'hidden',
       })}
     >
+      <ResizablePanel
+        storageKey="we-meet:contacts-dept-width"
+        defaultWidth={260}
+        min={220}
+        max={460}
+      >
       <aside
         className={css({
-          width: '260px',
+          width: '100%',
+          height: '100%',
           borderRight: '1px solid token(colors.greyscale.200)',
           overflowY: 'auto',
           backgroundColor: 'greyscale.50',
@@ -123,6 +131,7 @@ const ContactsAuthenticated = () => {
           ))}
         </ul>
       </aside>
+      </ResizablePanel>
 
       <main
         className={css({

@@ -8,6 +8,7 @@ import { ScreenReaderAnnouncer } from '@/primitives'
 import { SkipLink, MAIN_CONTENT_ID } from './SkipLink'
 import { useUser } from '@/features/auth'
 import { AppRail } from './AppRail'
+import { ResizablePanel } from '@/components/ResizablePanel'
 
 export type Layout = 'fullpage' | 'centered'
 
@@ -38,7 +39,14 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             color: 'default.text',
           })}
         >
-          <AppRail />
+          <ResizablePanel
+            storageKey="we-meet:app-rail-width"
+            defaultWidth={210}
+            min={180}
+            max={320}
+          >
+            <AppRail />
+          </ResizablePanel>
           <main
             id={MAIN_CONTENT_ID}
             className={css({

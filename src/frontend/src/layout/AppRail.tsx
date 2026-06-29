@@ -72,8 +72,7 @@ export const AppRail = () => {
     <nav
       aria-label={t('railLabel')}
       className={css({
-        flexShrink: 0,
-        width: '210px',
+        width: '100%',
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
