@@ -49,10 +49,6 @@ export const SettingsDialog = (props: SettingsDialogProps) => {
               components={[<Badge />]}
             />
           </P>
-          <button type="button" onClick={logout} className={logoutButton}>
-            <RiLogoutBoxRLine size={18} />
-            <span>{t('logout', { ns: 'global' })}</span>
-          </button>
         </>
       ) : (
         <>
@@ -70,6 +66,12 @@ export const SettingsDialog = (props: SettingsDialogProps) => {
           i18n.changeLanguage(lang as string)
         }}
       />
+      {isLoggedIn && (
+        <button type="button" onClick={logout} className={logoutButton}>
+          <RiLogoutBoxRLine size={18} />
+          <span>{t('logout', { ns: 'global' })}</span>
+        </button>
+      )}
     </Dialog>
   )
 }
