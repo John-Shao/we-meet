@@ -13,6 +13,13 @@
   outline: 2px solid #2860d9;
 }
 
+/* Time-grid (周/日) event blocks are narrow — show the title only and drop
+   the time-range label; the full time still shows in the native hover tooltip.
+   Month/agenda views don't render .rbc-event-label, so they're unaffected. */
+.rbc-time-view .rbc-event-label {
+  display: none;
+}
+
 /* Today highlight + current-time indicator */
 .rbc-today {
   background-color: #ebf1ff;
