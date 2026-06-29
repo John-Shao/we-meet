@@ -40,5 +40,19 @@
     "accepted": "Accepter",
     "tentative": "Peut-être",
     "declined": "Refuser"
+  },
+  "grid": {
+    "today": "Aujourd'hui",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "month": "Mois",
+    "week": "Semaine",
+    "day": "Jour",
+    "agenda": "Agenda",
+    "date": "Date",
+    "time": "Heure",
+    "event": "Événement",
+    "noEvents": "Aucun événement sur cette période",
+    "showMore": "+{{count}} autres"
   }
 }

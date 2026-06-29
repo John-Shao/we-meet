@@ -40,5 +40,19 @@
     "accepted": "Accepteren",
     "tentative": "Misschien",
     "declined": "Weigeren"
+  },
+  "grid": {
+    "today": "Vandaag",
+    "previous": "Vorige",
+    "next": "Volgende",
+    "month": "Maand",
+    "week": "Week",
+    "day": "Dag",
+    "agenda": "Agenda",
+    "date": "Datum",
+    "time": "Tijd",
+    "event": "Gebeurtenis",
+    "noEvents": "Geen gebeurtenissen in dit bereik",
+    "showMore": "+{{count}} meer"
   }
 }

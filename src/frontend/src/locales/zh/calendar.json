@@ -40,5 +40,19 @@
     "accepted": "接受",
     "tentative": "待定",
     "declined": "拒绝"
+  },
+  "grid": {
+    "today": "今天",
+    "previous": "上一个",
+    "next": "下一个",
+    "month": "月",
+    "week": "周",
+    "day": "日",
+    "agenda": "日程",
+    "date": "日期",
+    "time": "时间",
+    "event": "事件",
+    "noEvents": "本区间暂无日程",
+    "showMore": "还有 {{count}} 项"
   }
 }
