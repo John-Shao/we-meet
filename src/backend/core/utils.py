@@ -585,6 +585,84 @@ def generate_profile_image_get_url(kind: str, object_key: str) -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# Chat images (IM 图片消息) — same presigned pattern as profile images, but a
+# dedicated bucket and its own (looser) MIME / size limits. The object key is
+# carried in the IM message body (content_type='image'); the message text lives
+# in jusi-light-im, so no we-meet table is needed.
+# ---------------------------------------------------------------------------
+
+# Max size of an uploaded chat image (10 MiB).
+MAX_CHAT_IMAGE_SIZE = 10 * 1024 * 1024
+
+# Allowed chat image MIME types → file extension (adds gif over profile images).
+ALLOWED_CHAT_IMAGE_MIME_TYPES = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+}
+
+# Every chat-image key starts with this prefix; resolve only signs these.
+CHAT_IMAGE_KEY_PREFIX = "chat/"
+
+
+def build_chat_image_object_key(user_id, content_type: str) -> str:
+    """Build the S3 key for a chat image: ``chat/{user_id}/{short-uuid}.{ext}``.
+
+    The ``chat/`` prefix lets the resolve endpoint refuse to sign arbitrary
+    keys; the short uuid keeps it collision-free and unguessable.
+    """
+    extension = ALLOWED_CHAT_IMAGE_MIME_TYPES[content_type]
+    return f"{CHAT_IMAGE_KEY_PREFIX}{user_id}/{uuid4().hex[:16]}.{extension}"
+
+
+def generate_chat_image_upload_url(*, user, content_type: str, size: int) -> dict:
+    """Issue a short-lived presigned PUT URL for a chat image upload.
+
+    The caller MUST validate ``content_type`` and ``size`` first — the request
+    is signed as-is.
+    """
+    object_key = build_chat_image_object_key(user.id, content_type)
+    upload_url = _profile_s3_client().generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE,
+            "Key": object_key,
+            "ContentType": content_type,
+            "ContentLength": size,
+        },
+        ExpiresIn=PROFILE_UPLOAD_URL_TTL_SECONDS,
+        HttpMethod="PUT",
+    )
+    return {
+        "upload_url": upload_url,
+        "object_key": object_key,
+        "expires_in": PROFILE_UPLOAD_URL_TTL_SECONDS,
+        "headers": {"Content-Type": content_type},
+    }
+
+
+def generate_chat_image_get_url(object_key: str) -> str:
+    """Return a short-lived presigned GET URL for a chat image.
+
+    Returns an empty string when ``object_key`` is unset or not a chat-image
+    key (``chat/`` prefix) — the bucket is private, so this signed URL is the
+    only way to read the image; clients treat it as expiring and re-resolve.
+    """
+    if not object_key or not object_key.startswith(CHAT_IMAGE_KEY_PREFIX):
+        return ""
+    return _profile_s3_client().generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE,
+            "Key": object_key,
+        },
+        ExpiresIn=PROFILE_IMAGE_GET_URL_TTL_SECONDS,
+        HttpMethod="GET",
+    )
+
+
 def head_profile_object(kind: str, object_key: str):
     """HEAD an S3 object; return ``(size, content_type)`` or ``None`` if missing."""
     bucket = get_profile_kind_bucket(kind)

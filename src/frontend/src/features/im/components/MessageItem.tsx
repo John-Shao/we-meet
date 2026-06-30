@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
@@ -10,6 +11,8 @@ interface Props {
   senderName?: string
   /** Uploaded avatar URL of the sender (presigned); '' / undefined → tinted initial. */
   senderAvatarUrl?: string
+  /** Presigned URL for an image message (content_type='image'); undefined while resolving. */
+  imageUrl?: string
   /** Show the sender name + avatar (group, non-own). Direct chats pass false. */
   showSender?: boolean
   /** Names highlightable as @mentions in the body (members + 所有人). */
@@ -82,10 +85,13 @@ export const MessageItem = ({
   isOwn,
   senderName,
   senderAvatarUrl,
+  imageUrl,
   showSender,
   mentionNames = [],
   selfMentionNames = [],
 }: Props) => {
+  const { t } = useTranslation('im')
+  const isImage = message.content_type === 'image'
   // System messages (member joined/left, rename) render centered + muted, no bubble.
   if (message.content_type === 'system') {
     return (
@@ -169,10 +175,14 @@ export const MessageItem = ({
       <div
         className={css({
           maxWidth: '70%',
-          paddingX: '0.75rem',
-          paddingY: '0.5rem',
+          paddingX: isImage ? '0' : '0.75rem',
+          paddingY: isImage ? '0' : '0.5rem',
           borderRadius: '0.75rem',
-          backgroundColor: isOwn ? 'primary.500' : 'greyscale.100',
+          backgroundColor: isImage
+            ? 'transparent'
+            : isOwn
+              ? 'primary.500'
+              : 'greyscale.100',
           color: isOwn ? 'white' : 'greyscale.900',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
@@ -189,13 +199,48 @@ export const MessageItem = ({
             {name}
           </div>
         )}
-        <div>{renderBody(message.body, mentionNames, selfMentionNames, isOwn)}</div>
+        {isImage ? (
+          imageUrl ? (
+            <a
+              href={imageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={css({ display: 'block' })}
+            >
+              <img
+                src={imageUrl}
+                alt={t('image.alt')}
+                className={css({
+                  display: 'block',
+                  maxWidth: '15rem',
+                  maxHeight: '20rem',
+                  borderRadius: '0.75rem',
+                  objectFit: 'contain',
+                  cursor: 'pointer',
+                })}
+              />
+            </a>
+          ) : (
+            // Resolving / expired presign — neutral placeholder box.
+            <div
+              className={css({
+                width: '10rem',
+                height: '7.5rem',
+                borderRadius: '0.75rem',
+                backgroundColor: 'greyscale.100',
+              })}
+            />
+          )
+        ) : (
+          <div>{renderBody(message.body, mentionNames, selfMentionNames, isOwn)}</div>
+        )}
         <div
           className={css({
             marginTop: '0.25rem',
             fontSize: '0.6875rem',
             opacity: 0.7,
             textAlign: 'right',
+            color: isImage ? 'greyscale.500' : undefined,
           })}
         >
           {new Date(message.ts).toLocaleTimeString()}

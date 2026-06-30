@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { RiImageLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 
@@ -8,6 +9,8 @@ interface Props {
   disabled?: boolean
   /** Names suggested after typing "@" (group chats). Empty/undefined disables @-mention. */
   mentionables?: string[]
+  /** Send a picked image file (P7). Omitted → no image button. */
+  onSendImage?: (file: File) => Promise<void> | void
 }
 
 /** Find the active "@query" segment immediately before the caret, if any. */
@@ -23,12 +26,31 @@ const activeMention = (
   return null
 }
 
-export const MessageInput = ({ onSend, disabled, mentionables = [] }: Props) => {
+export const MessageInput = ({
+  onSend,
+  disabled,
+  mentionables = [],
+  onSendImage,
+}: Props) => {
   const { t } = useTranslation('im')
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [mention, setMention] = useState<{ at: number; query: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-picking the same file
+    if (!file || !onSendImage || uploading) return
+    setUploading(true)
+    try {
+      await onSendImage(file)
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const recomputeMention = (value: string, caret: number) => {
     if (mentionables.length === 0) {
@@ -140,6 +162,42 @@ export const MessageInput = ({ onSend, disabled, mentionables = [] }: Props) => 
             </li>
           ))}
         </ul>
+      )}
+      {onSendImage && (
+        <>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={onPickFile}
+            className={css({ display: 'none' })}
+            data-testid="im-image-input"
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={disabled || uploading}
+            aria-label={t('input.image')}
+            title={t('input.image')}
+            data-testid="im-image-btn"
+            className={css({
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '2.375rem',
+              border: '1px solid token(colors.greyscale.300)',
+              borderRadius: '0.5rem',
+              backgroundColor: 'white',
+              color: 'greyscale.600',
+              cursor: 'pointer',
+              _hover: { backgroundColor: 'greyscale.100' },
+              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+            })}
+          >
+            <RiImageLine size={18} />
+          </button>
+        </>
       )}
       <input
         ref={inputRef}

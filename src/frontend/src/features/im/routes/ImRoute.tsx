@@ -242,7 +242,11 @@ const ImAuthenticated = () => {
     c: ConversationSummary
   ): { text: string; ts: number } | null => {
     if (!c.last_message_ts) return null
-    const body = c.last_message ?? ''
+    // 非文本消息用占位文案(图片 → [图片]),正文是 object_key 不该直接显示。
+    const body =
+      c.last_content_type === 'image'
+        ? t('preview.image')
+        : c.last_message ?? ''
     const ts = c.last_message_ts
     if (c.type !== 'group' || c.last_content_type === 'system') {
       return { text: body, ts }

@@ -90,7 +90,17 @@
   "input": {
     "placeholder": "输入消息…",
     "send": "发送",
-    "sending": "发送中…"
+    "sending": "发送中…",
+    "image": "发送图片"
+  },
+  "preview": {
+    "image": "[图片]"
+  },
+  "image": {
+    "alt": "图片",
+    "invalidType": "仅支持 JPG / PNG / WebP / GIF 图片",
+    "tooLarge": "图片过大,请控制在 10 MB 以内",
+    "uploadError": "图片发送失败,请重试"
   },
   "time": {
     "yesterday": "昨天"

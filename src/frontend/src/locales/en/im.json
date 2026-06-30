@@ -90,7 +90,17 @@
   "input": {
     "placeholder": "Type a message…",
     "send": "Send",
-    "sending": "Sending…"
+    "sending": "Sending…",
+    "image": "Send image"
+  },
+  "preview": {
+    "image": "[Image]"
+  },
+  "image": {
+    "alt": "Image",
+    "invalidType": "Only JPG / PNG / WebP / GIF images are supported",
+    "tooLarge": "Image too large — keep it under 10 MB",
+    "uploadError": "Failed to send image, please try again"
   },
   "time": {
     "yesterday": "Yesterday"

@@ -90,7 +90,17 @@
   "input": {
     "placeholder": "Nachricht eingeben…",
     "send": "Senden",
-    "sending": "Wird gesendet…"
+    "sending": "Wird gesendet…",
+    "image": "Bild senden"
+  },
+  "preview": {
+    "image": "[Bild]"
+  },
+  "image": {
+    "alt": "Bild",
+    "invalidType": "Nur JPG / PNG / WebP / GIF-Bilder werden unterstützt",
+    "tooLarge": "Bild zu groß — höchstens 10 MB",
+    "uploadError": "Bild konnte nicht gesendet werden, bitte erneut versuchen"
   },
   "time": {
     "yesterday": "Gestern"

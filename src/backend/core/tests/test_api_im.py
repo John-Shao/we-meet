@@ -180,3 +180,84 @@ def test_im_conversations_direct_requires_a_peer(mock_admin_client):
     )
 
     assert response.status_code == 400, response.content
+
+
+# --- P7 chat image messages -------------------------------------------------
+
+UPLOAD_URL = "/api/v1.0/im/images/upload-url/"
+RESOLVE_URL = "/api/v1.0/im/images/resolve/"
+
+
+def test_chat_image_upload_url_anonymous():
+    """Anonymous → 401 (DRF auth gate)."""
+    client = APIClient()
+    r = client.post(
+        UPLOAD_URL, {"content_type": "image/jpeg", "size": 1000}, format="json"
+    )
+    assert r.status_code == 401
+
+
+def test_chat_image_upload_url_rejects_bad_type():
+    """Disallowed MIME (e.g. heic) → 400 before any signing."""
+    client = APIClient()
+    client.force_login(UserFactory())
+    r = client.post(
+        UPLOAD_URL, {"content_type": "image/heic", "size": 1000}, format="json"
+    )
+    assert r.status_code == 400, r.content
+
+
+def test_chat_image_upload_url_rejects_oversize():
+    """Size over the 10 MiB cap → 400."""
+    client = APIClient()
+    client.force_login(UserFactory())
+    r = client.post(
+        UPLOAD_URL,
+        {"content_type": "image/jpeg", "size": 11 * 1024 * 1024},
+        format="json",
+    )
+    assert r.status_code == 400, r.content
+
+
+def test_chat_image_upload_url_happy_path():
+    """Valid type+size → 200 passing the presigned payload through."""
+    user = UserFactory()
+    client = APIClient()
+    client.force_login(user)
+    payload = {
+        "upload_url": "https://oss/put",
+        "object_key": "chat/x/abc.jpg",
+        "expires_in": 300,
+        "headers": {"Content-Type": "image/jpeg"},
+    }
+    with mock.patch(
+        "core.utils.generate_chat_image_upload_url", return_value=payload
+    ) as gen:
+        r = client.post(
+            UPLOAD_URL, {"content_type": "image/jpeg", "size": 1000}, format="json"
+        )
+    assert r.status_code == 200, r.content
+    assert r.json() == payload
+    assert gen.call_args.kwargs["content_type"] == "image/jpeg"
+    assert gen.call_args.kwargs["size"] == 1000
+
+
+def test_resolve_images_only_signs_chat_prefix():
+    """Keys outside the chat/ prefix are skipped (endpoint won't sign arbitrary keys)."""
+    user = UserFactory()
+    client = APIClient()
+    client.force_login(user)
+
+    def fake_get_url(key):
+        return f"https://oss/get/{key}" if key.startswith("chat/") else ""
+
+    with mock.patch("core.utils.generate_chat_image_get_url", side_effect=fake_get_url):
+        r = client.post(
+            RESOLVE_URL,
+            {"object_keys": ["chat/u/a.jpg", "evil/secret.jpg"]},
+            format="json",
+        )
+    assert r.status_code == 200, r.content
+    body = r.json()
+    assert "chat/u/a.jpg" in body
+    assert "evil/secret.jpg" not in body

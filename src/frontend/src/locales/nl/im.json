@@ -90,7 +90,17 @@
   "input": {
     "placeholder": "Typ een bericht…",
     "send": "Verzenden",
-    "sending": "Verzenden…"
+    "sending": "Verzenden…",
+    "image": "Afbeelding sturen"
+  },
+  "preview": {
+    "image": "[Afbeelding]"
+  },
+  "image": {
+    "alt": "Afbeelding",
+    "invalidType": "Alleen JPG / PNG / WebP / GIF-afbeeldingen worden ondersteund",
+    "tooLarge": "Afbeelding te groot — houd het onder 10 MB",
+    "uploadError": "Afbeelding verzenden mislukt, probeer het opnieuw"
   },
   "time": {
     "yesterday": "Gisteren"

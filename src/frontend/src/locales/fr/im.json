@@ -90,7 +90,17 @@
   "input": {
     "placeholder": "Écrivez un message…",
     "send": "Envoyer",
-    "sending": "Envoi en cours…"
+    "sending": "Envoi en cours…",
+    "image": "Envoyer une image"
+  },
+  "preview": {
+    "image": "[Image]"
+  },
+  "image": {
+    "alt": "Image",
+    "invalidType": "Seules les images JPG / PNG / WebP / GIF sont prises en charge",
+    "tooLarge": "Image trop volumineuse — limitez-la à 10 Mo",
+    "uploadError": "Échec de l'envoi de l'image, veuillez réessayer"
   },
   "time": {
     "yesterday": "Hier"

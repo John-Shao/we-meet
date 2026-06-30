@@ -167,6 +167,63 @@ class ImViewSet(viewsets.ViewSet):
             }
         return Response(out, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["post"], url_path="images/upload-url")
+    def chat_image_upload_url(self, request):
+        """Issue a presigned PUT URL for an IM image message (P7).
+
+        Body: ``{"content_type": "image/jpeg", "size": <bytes>}``. Returns
+        ``{upload_url, object_key, expires_in, headers}``; the client PUTs the
+        bytes to ``upload_url`` then sends an IM message with
+        ``content_type='image'`` and ``body=object_key``. The image itself lives
+        in the private chat-image bucket — read back via :meth:`resolve_images`.
+        """
+        data = request.data or {}
+        content_type = data.get("content_type")
+        size = data.get("size")
+        if content_type not in utils.ALLOWED_CHAT_IMAGE_MIME_TYPES:
+            raise ValidationError(
+                {"content_type": "must be one of jpeg/png/webp/gif"}
+            )
+        if not isinstance(size, int) or size <= 0:
+            raise ValidationError({"size": "positive integer byte size required"})
+        if size > utils.MAX_CHAT_IMAGE_SIZE:
+            raise ValidationError(
+                {"size": f"max {utils.MAX_CHAT_IMAGE_SIZE} bytes"}
+            )
+        payload = utils.generate_chat_image_upload_url(
+            user=request.user, content_type=content_type, size=size
+        )
+        return Response(payload, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["post"], url_path="images/resolve")
+    def resolve_images(self, request):
+        """Resolve chat-image object keys → short-lived presigned GET URLs (P7).
+
+        Body: ``{"object_keys": ["chat/<uid>/<uuid>.jpg", ...]}``. Returns
+        ``{key: url}`` for keys under the ``chat/`` prefix (others are skipped —
+        the endpoint refuses to sign arbitrary bucket keys). URLs expire (1h), so
+        the client re-resolves on a short staleTime, like the avatar GET URLs.
+        """
+        data = request.data or {}
+        raw = data.get("object_keys")
+        if not isinstance(raw, list):
+            raise ValidationError({"object_keys": "list of object_keys required"})
+        seen: set = set()
+        keys = []
+        for k in raw:
+            if isinstance(k, str) and k and k not in seen:
+                seen.add(k)
+                keys.append(k)
+            if len(keys) >= 200:
+                break
+
+        out = {}
+        for key in keys:
+            url = utils.generate_chat_image_get_url(key)
+            if url:
+                out[key] = url
+        return Response(out, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=["post"], url_path="conversations/direct")
     def conversations_direct(self, request):
         """Create-or-get a 1-on-1 conversation with a peer.

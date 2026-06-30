@@ -2,11 +2,14 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
+import type { Client, ConversationSummary, Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { resolveImUsers } from '../api/resolveImUsers'
+import { resolveChatImages } from '../api/resolveChatImages'
+import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { MessageInput } from '../components/MessageInput'
 import { MessageItem } from '../components/MessageItem'
 import { useMessages } from '../hooks/useMessages'
@@ -41,6 +44,7 @@ export const ChatPane = ({
   infoPanel,
 }: Props) => {
   const { t } = useTranslation('im')
+  const { alert: showAlert } = useConfirm()
   const cid = conversation.cid
   const isGroup = conversation.type === 'group'
   const { data: messages = [], isLoading } = useMessages(client, cid)
@@ -105,6 +109,41 @@ export const ChatPane = ({
         : [],
     [isGroup, everyone, memberUids, names, nickOf, currentUserUID]
   )
+
+  // 图片消息(P7):收集图片 key 批量换 presigned GET URL。发送方先在本地 blobURL
+  // 缓存里即时预览,resolve 回来的真实 URL 优先。
+  const localImageUrls = useRef<Map<string, string>>(new Map())
+  const imageKeys = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          messages.filter((m) => m.content_type === 'image').map((m) => m.body)
+        )
+      ),
+    [messages]
+  )
+  const { data: resolvedImages = {} } = useQuery({
+    queryKey: ['im', 'image-urls', cid, imageKeys],
+    queryFn: () => resolveChatImages(imageKeys),
+    enabled: imageKeys.length > 0,
+    staleTime: 50 * 60 * 1000, // < 服务端 1h presigned GET TTL
+  })
+  const imageUrlOf = (m: Message): string | undefined =>
+    m.content_type === 'image'
+      ? resolvedImages[m.body] || localImageUrls.current.get(m.body)
+      : undefined
+
+  // 发图片:上传 → 本地即时预览 → 发 content_type='image' 消息(body=object_key)。
+  const onSendImage = async (file: File) => {
+    try {
+      const key = await uploadChatImage(file)
+      localImageUrls.current.set(key, URL.createObjectURL(file))
+      await client.sendText(cid, key, { contentType: 'image' })
+    } catch (e) {
+      const code = e instanceof ChatImageError ? e.code : 'uploadError'
+      void showAlert({ message: t(`image.${code}`) })
+    }
+  }
 
   // Auto-scroll on new message.
   useEffect(() => {
@@ -277,6 +316,7 @@ export const ChatPane = ({
                   isOwn={m.sender_uid === currentUserUID}
                   senderName={nameOf(m.sender_uid)}
                   senderAvatarUrl={names[m.sender_uid]?.avatar_url}
+                  imageUrl={imageUrlOf(m)}
                   showSender={isGroup}
                   mentionNames={highlightNames}
                   selfMentionNames={[selfName, everyone].filter(Boolean)}
@@ -286,6 +326,7 @@ export const ChatPane = ({
           </div>
           <MessageInput
             onSend={onSend}
+            onSendImage={onSendImage}
             disabled={sendDisabled}
             mentionables={mentionables}
           />
