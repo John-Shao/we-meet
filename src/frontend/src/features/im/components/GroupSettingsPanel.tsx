@@ -9,7 +9,8 @@ import { useConfirm } from '@/components/ConfirmProvider'
 
 import { announceLeave } from '../api/announceLeave'
 import { updateGroupMeta } from '../api/updateGroupMeta'
-import { Avatar } from './Avatar'
+import { resolveImUsers } from '../api/resolveImUsers'
+import { GroupAvatar } from './GroupAvatar'
 
 interface Props {
   client: Client
@@ -74,6 +75,19 @@ export const GroupSettingsPanel = ({
   })
   const myNickname =
     roster.find((m) => m.uid === currentUserUID)?.nickname ?? ''
+
+  // 群头像九宫格:解析前 9 名成员的头像/名字拼贴(同会话列表的群头像)。
+  const tileUids = conversation.members.slice(0, 9)
+  const { data: memberInfo = {} } = useQuery({
+    queryKey: ['im', 'group-member-info', tileUids],
+    queryFn: () => resolveImUsers(tileUids),
+    enabled: tileUids.length > 0,
+    staleTime: 60_000,
+  })
+  const avatarTiles = tileUids.map((uid) => ({
+    name: memberInfo[uid]?.full_name || '',
+    src: memberInfo[uid]?.avatar_url || undefined,
+  }))
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -315,7 +329,7 @@ export const GroupSettingsPanel = ({
             borderBottom: '1px solid token(colors.greyscale.100)',
           })}
         >
-          <Avatar name={displayName} size="2.75rem" />
+          <GroupAvatar members={avatarTiles} size="2.75rem" />
           {editingName ? (
             <div className={css({ display: 'flex', flex: 1, gap: '0.5rem' })}>
               <input

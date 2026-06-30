@@ -197,6 +197,21 @@ const ImAuthenticated = () => {
     staleTime: 60_000,
   })
 
+  // 群头像九宫格:解析每个群「前 9 名成员」的头像/名字,拼成微信/飞书式群头像。
+  const groupMemberUids = Array.from(
+    new Set(
+      conversations
+        .filter((c) => c.type === 'group')
+        .flatMap((c) => c.members.slice(0, 9))
+    )
+  )
+  const { data: groupMemberInfo = {} } = useQuery({
+    queryKey: ['im', 'group-member-info', groupMemberUids],
+    queryFn: () => resolveImUsers(groupMemberUids),
+    enabled: groupMemberUids.length > 0,
+    staleTime: 60_000,
+  })
+
   // group → meta.name(无名兜底);direct → 对端显示名(兜底「私聊」)。
   const nameOf = (c: ConversationSummary): string => {
     if (c.type === 'group') {
@@ -211,6 +226,15 @@ const ImAuthenticated = () => {
     if (c.type === 'group') return undefined
     const peer = c.members.find((u) => u !== currentUserUID)
     return (peer && peerNames[peer]?.avatar_url) || undefined
+  }
+
+  // 群头像成员瓦片:前 9 名成员的 {名字, 头像},喂给 GroupAvatar 拼九宫格。
+  const membersOf = (c: ConversationSummary) => {
+    if (c.type !== 'group') return undefined
+    return c.members.slice(0, 9).map((uid) => ({
+      name: groupMemberInfo[uid]?.full_name || '',
+      src: groupMemberInfo[uid]?.avatar_url || undefined,
+    }))
   }
 
   // 列表预览文案(P11):群聊「发送人: 正文」(系统消息无前缀);direct 仅正文。
@@ -417,6 +441,7 @@ const ImAuthenticated = () => {
             loading={convLoading}
             nameOf={nameOf}
             avatarOf={avatarOf}
+            membersOf={membersOf}
             onDelete={handleDelete}
             mentionedCids={mentionedCids}
             previewOf={previewOf}

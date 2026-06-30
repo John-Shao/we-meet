@@ -4,6 +4,7 @@ import type { ConversationSummary } from '@jusi/light-im-sdk'
 import { css } from '@/styled-system/css'
 
 import { Avatar } from './Avatar'
+import { GroupAvatar, type GroupAvatarMember } from './GroupAvatar'
 
 interface Props {
   conversations: ConversationSummary[]
@@ -14,6 +15,8 @@ interface Props {
   nameOf: (c: ConversationSummary) => string
   /** Resolve a conversation's avatar URL (direct peer); undefined → tinted initial. */
   avatarOf?: (c: ConversationSummary) => string | undefined
+  /** Resolve a group's member tiles for the mosaic avatar; undefined → fall back. */
+  membersOf?: (c: ConversationSummary) => GroupAvatarMember[] | undefined
   /** Delete (direct) / leave (group) the conversation. */
   onDelete: (c: ConversationSummary) => void
   /** cids with an unread @-mention of the current user → show a red "@" marker. */
@@ -51,6 +54,7 @@ export const ConversationList = ({
   loading,
   nameOf,
   avatarOf,
+  membersOf,
   onDelete,
   mentionedCids,
   previewOf,
@@ -77,6 +81,8 @@ export const ConversationList = ({
       {conversations.map((c) => {
         const preview = previewOf?.(c) ?? null
         const hasSecondLine = !!preview?.text || c.unread_count > 0
+        const groupTiles =
+          c.type === 'group' ? membersOf?.(c) : undefined
         return (
           <li
             key={c.cid}
@@ -111,7 +117,11 @@ export const ConversationList = ({
               })}
               data-testid={`conv-item-${c.cid}`}
             >
-              <Avatar name={nameOf(c)} src={avatarOf?.(c)} size="2.5rem" />
+              {groupTiles && groupTiles.length > 0 ? (
+                <GroupAvatar members={groupTiles} size="2.5rem" />
+              ) : (
+                <Avatar name={nameOf(c)} src={avatarOf?.(c)} size="2.5rem" />
+              )}
               <span
                 className={css({
                   flex: 1,
