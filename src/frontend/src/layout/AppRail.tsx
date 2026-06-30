@@ -38,7 +38,7 @@ import { GlobalSearch } from './GlobalSearch'
  * for logged-in workspace routes; the in-call room stays full-screen (no rail).
  */
 
-const RAIL_BG = '#F8F9FB'
+const RAIL_BG = '#DEE4F5'
 
 interface NavItem {
   to: string
