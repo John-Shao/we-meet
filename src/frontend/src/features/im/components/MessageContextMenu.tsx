@@ -15,6 +15,9 @@ interface Props {
   x: number
   y: number
   items: ContextMenuItem[]
+  /** Optional quick-reaction emoji bar shown above the items. */
+  reactionEmojis?: string[]
+  onReact?: (emoji: string) => void
   onClose: () => void
 }
 
@@ -23,7 +26,14 @@ interface Props {
  * clamps inside the viewport, and closes on outside click / scroll / Esc.
  * Stateless about WHAT the items do — the caller builds them per message.
  */
-export const MessageContextMenu = ({ x, y, items, onClose }: Props) => {
+export const MessageContextMenu = ({
+  x,
+  y,
+  items,
+  reactionEmojis,
+  onReact,
+  onClose,
+}: Props) => {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ x, y })
 
@@ -77,6 +87,44 @@ export const MessageContextMenu = ({ x, y, items, onClose }: Props) => {
       })}
       style={{ left: pos.x, top: pos.y }}
     >
+      {reactionEmojis && reactionEmojis.length > 0 && (
+        <div
+          className={css({
+            display: 'flex',
+            gap: '0.125rem',
+            paddingX: '0.25rem',
+            paddingY: '0.125rem',
+            marginBottom: items.length > 0 ? '0.25rem' : 0,
+            borderBottom:
+              items.length > 0 ? '1px solid token(colors.greyscale.100)' : 'none',
+          })}
+        >
+          {reactionEmojis.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => {
+                onReact?.(emoji)
+                onClose()
+              }}
+              data-testid={`ctx-react-${emoji}`}
+              className={css({
+                border: 'none',
+                background: 'transparent',
+                borderRadius: '0.375rem',
+                fontSize: '1.125rem',
+                lineHeight: 1,
+                paddingX: '0.25rem',
+                paddingY: '0.1875rem',
+                cursor: 'pointer',
+                _hover: { backgroundColor: 'greyscale.100' },
+              })}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
       {items.map((it) => (
         <button
           key={it.key}

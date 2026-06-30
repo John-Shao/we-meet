@@ -195,6 +195,36 @@ class ImViewSet(viewsets.ViewSet):
         )
         return Response(payload, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["post"], url_path="files/upload-url")
+    def chat_file_upload_url(self, request):
+        """Issue a presigned PUT URL for an IM file attachment (P7-b).
+
+        Body: ``{"content_type": "...", "size": <bytes>, "filename": "..."}``.
+        Any content type is allowed (up to 50 MiB). The client PUTs the bytes
+        then sends an IM message with ``content_type='file'`` and a JSON body
+        ``{key, name, size}``; the object is read back via :meth:`resolve_images`
+        (the resolve endpoint is content-agnostic over the ``chat/`` prefix).
+        """
+        data = request.data or {}
+        content_type = data.get("content_type") or "application/octet-stream"
+        size = data.get("size")
+        filename = data.get("filename") or ""
+        if not isinstance(content_type, str) or not content_type:
+            raise ValidationError({"content_type": "string required"})
+        if not isinstance(size, int) or size <= 0:
+            raise ValidationError({"size": "positive integer byte size required"})
+        if size > utils.MAX_CHAT_FILE_SIZE:
+            raise ValidationError({"size": f"max {utils.MAX_CHAT_FILE_SIZE} bytes"})
+        if not isinstance(filename, str):
+            raise ValidationError({"filename": "string required"})
+        payload = utils.generate_chat_file_upload_url(
+            user=request.user,
+            content_type=content_type,
+            size=size,
+            filename=filename,
+        )
+        return Response(payload, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=["post"], url_path="images/resolve")
     def resolve_images(self, request):
         """Resolve chat-image object keys → short-lived presigned GET URLs (P7).

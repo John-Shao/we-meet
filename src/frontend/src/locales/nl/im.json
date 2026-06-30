@@ -28,7 +28,16 @@
     "error": "Actie mislukt: {{message}}",
     "recall": "Intrekken",
     "recallConfirm": "Dit bericht intrekken?",
-    "copy": "Kopiëren"
+    "copy": "Kopiëren",
+    "reply": "Beantwoorden"
+  },
+  "quote": {
+    "replyTo": "Antwoord aan {{name}}",
+    "cancel": "Antwoord annuleren"
+  },
+  "file": {
+    "tooLarge": "Bestand te groot — houd het onder 50 MB",
+    "uploadError": "Bestand verzenden mislukt, probeer het opnieuw"
   },
   "recalled": {
     "self": "Je hebt een bericht ingetrokken",
@@ -99,10 +108,13 @@
     "placeholder": "Typ een bericht…",
     "send": "Verzenden",
     "sending": "Verzenden…",
-    "image": "Afbeelding sturen"
+    "image": "Afbeelding sturen",
+    "file": "Bestand sturen"
   },
   "preview": {
     "image": "[Afbeelding]",
+    "file": "[Bestand]",
+    "reaction": "[Reactie]",
     "recalled": "heeft een bericht ingetrokken"
   },
   "image": {

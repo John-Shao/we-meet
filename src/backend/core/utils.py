@@ -644,11 +644,12 @@ def generate_chat_image_upload_url(*, user, content_type: str, size: int) -> dic
 
 
 def generate_chat_image_get_url(object_key: str) -> str:
-    """Return a short-lived presigned GET URL for a chat image.
+    """Return a short-lived presigned GET URL for a chat object (image or file).
 
-    Returns an empty string when ``object_key`` is unset or not a chat-image
-    key (``chat/`` prefix) — the bucket is private, so this signed URL is the
-    only way to read the image; clients treat it as expiring and re-resolve.
+    Returns an empty string when ``object_key`` is unset or not a chat key
+    (``chat/`` prefix) — the bucket is private, so this signed URL is the only
+    way to read the object; clients treat it as expiring and re-resolve. Shared
+    by image and file messages (both stored under the same chat bucket/prefix).
     """
     if not object_key or not object_key.startswith(CHAT_IMAGE_KEY_PREFIX):
         return ""
@@ -661,6 +662,64 @@ def generate_chat_image_get_url(object_key: str) -> str:
         ExpiresIn=PROFILE_IMAGE_GET_URL_TTL_SECONDS,
         HttpMethod="GET",
     )
+
+
+# Max size of an uploaded chat FILE attachment (50 MiB).
+MAX_CHAT_FILE_SIZE = 50 * 1024 * 1024
+
+
+def _safe_ext(filename: str) -> str:
+    """Lower-cased, alnum-only file extension (≤10 chars) from a filename, or ''.
+
+    Only cosmetic — the real filename is carried in the message body; this just
+    keeps the storage key tidy.
+    """
+    if not filename or "." not in filename:
+        return ""
+    ext = filename.rsplit(".", 1)[-1].lower()
+    ext = "".join(c for c in ext if c.isalnum())[:10]
+    return ext
+
+
+def build_chat_file_object_key(user_id, filename: str) -> str:
+    """Build the S3 key for a chat file: ``chat/{user_id}/{short-uuid}[.ext]``.
+
+    Shares the ``chat/`` prefix (and bucket) with images so the same resolve
+    endpoint signs both; the original filename lives in the message body.
+    """
+    ext = _safe_ext(filename)
+    name = uuid4().hex[:16]
+    suffix = f".{ext}" if ext else ""
+    return f"{CHAT_IMAGE_KEY_PREFIX}{user_id}/{name}{suffix}"
+
+
+def generate_chat_file_upload_url(
+    *, user, content_type: str, size: int, filename: str
+) -> dict:
+    """Issue a short-lived presigned PUT URL for a chat file attachment.
+
+    Any content type is allowed (it is echoed back as the object's Content-Type);
+    the caller MUST validate ``size`` first. Stored in the same private chat
+    bucket as images, read back via the shared resolve endpoint.
+    """
+    object_key = build_chat_file_object_key(user.id, filename)
+    upload_url = _profile_s3_client().generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE,
+            "Key": object_key,
+            "ContentType": content_type,
+            "ContentLength": size,
+        },
+        ExpiresIn=PROFILE_UPLOAD_URL_TTL_SECONDS,
+        HttpMethod="PUT",
+    )
+    return {
+        "upload_url": upload_url,
+        "object_key": object_key,
+        "expires_in": PROFILE_UPLOAD_URL_TTL_SECONDS,
+        "headers": {"Content-Type": content_type},
+    }
 
 
 def head_profile_object(kind: str, object_key: str):

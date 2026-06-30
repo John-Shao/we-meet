@@ -10,8 +10,9 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
-import { MessageInput } from '../components/MessageInput'
-import { MessageItem } from '../components/MessageItem'
+import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
+import { MessageInput, type ReplyPreview } from '../components/MessageInput'
+import { MessageItem, type ReactionChip } from '../components/MessageItem'
 import {
   MessageContextMenu,
   type ContextMenuItem,
@@ -20,6 +21,32 @@ import { useMessages } from '../hooks/useMessages'
 
 // Recall is allowed only on your own messages within this window (WeChat: 2 min).
 const RECALL_WINDOW_MS = 2 * 60 * 1000
+
+// Quick-reaction emojis offered in the message context menu.
+const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+
+// Control message types that never render as a chat bubble (filtered from the
+// stream; they drive recall / reaction aggregation instead).
+const CONTROL_TYPES = new Set(['recall', 'reaction'])
+
+interface ReactionState {
+  // emoji → set of reactor uids (after replaying add/remove in seq order).
+  [emoji: string]: Set<string>
+}
+
+/** A short, single-line preview of a message for quoting / list preview. */
+const snippetOf = (m: Message, t: (k: string) => string): string => {
+  if (m.content_type === 'image') return t('preview.image')
+  if (m.content_type === 'file') return t('preview.file')
+  if (m.content_type === 'quote') {
+    try {
+      return (JSON.parse(m.body)?.text as string) || ''
+    } catch {
+      return ''
+    }
+  }
+  return m.body.slice(0, 60)
+}
 
 interface Props {
   client: Client
@@ -120,25 +147,38 @@ export const ChatPane = ({
   // 图片消息(P7):收集图片 key 批量换 presigned GET URL。发送方先在本地 blobURL
   // 缓存里即时预览,resolve 回来的真实 URL 优先。
   const localImageUrls = useRef<Map<string, string>>(new Map())
-  const imageKeys = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          messages.filter((m) => m.content_type === 'image').map((m) => m.body)
-        )
-      ),
-    [messages]
-  )
-  const { data: resolvedImages = {} } = useQuery({
-    queryKey: ['im', 'image-urls', cid, imageKeys],
-    queryFn: () => resolveChatImages(imageKeys),
-    enabled: imageKeys.length > 0,
+  // All chat object keys in view: image bodies (= key) + file bodies (JSON.key).
+  const fileKeyOf = (m: Message): string | undefined => {
+    if (m.content_type !== 'file') return undefined
+    try {
+      return JSON.parse(m.body)?.key as string
+    } catch {
+      return undefined
+    }
+  }
+  const objectKeys = useMemo(() => {
+    const s = new Set<string>()
+    for (const m of messages) {
+      if (m.content_type === 'image' && m.body) s.add(m.body)
+      const fk = m.content_type === 'file' ? fileKeyOf(m) : undefined
+      if (fk) s.add(fk)
+    }
+    return Array.from(s)
+  }, [messages])
+  const { data: resolvedUrls = {} } = useQuery({
+    queryKey: ['im', 'object-urls', cid, objectKeys],
+    queryFn: () => resolveChatImages(objectKeys),
+    enabled: objectKeys.length > 0,
     staleTime: 50 * 60 * 1000, // < 服务端 1h presigned GET TTL
   })
   const imageUrlOf = (m: Message): string | undefined =>
     m.content_type === 'image'
-      ? resolvedImages[m.body] || localImageUrls.current.get(m.body)
+      ? resolvedUrls[m.body] || localImageUrls.current.get(m.body)
       : undefined
+  const fileUrlOf = (m: Message): string | undefined => {
+    const fk = fileKeyOf(m)
+    return fk ? resolvedUrls[fk] : undefined
+  }
 
   // 发图片:上传 → 本地即时预览 → 发 content_type='image' 消息(body=object_key)。
   const onSendImage = async (file: File) => {
@@ -149,6 +189,17 @@ export const ChatPane = ({
     } catch (e) {
       const code = e instanceof ChatImageError ? e.code : 'uploadError'
       void showAlert({ message: t(`image.${code}`) })
+    }
+  }
+
+  // 发文件:上传任意文件 → 发 content_type='file'、body=JSON{key,name,size}。
+  const onSendFile = async (file: File) => {
+    try {
+      const meta = await uploadChatFile(file)
+      await client.sendText(cid, JSON.stringify(meta), { contentType: 'file' })
+    } catch (e) {
+      const code = e instanceof ChatFileError ? e.code : 'uploadError'
+      void showAlert({ message: t(`file.${code}`) })
     }
   }
 
@@ -184,33 +235,102 @@ export const ChatPane = ({
     }
   }
 
-  // 右键上下文菜单(飞书式):复制(文本)/ 撤回(自己 2 分钟内)。
-  const [menu, setMenu] = useState<{
-    x: number
-    y: number
-    items: ContextMenuItem[]
-  } | null>(null)
+  // 表情回复(P7-b):控制消息 content_type='reaction'、body={target_mid,emoji,op}。
+  // 按 seq 顺序回放 add/remove 聚合成每条消息的表情集合;控制消息本身不入消息流。
+  const reactionsByMid = useMemo(() => {
+    const map = new Map<number, ReactionState>()
+    for (const m of messages) {
+      if (m.content_type !== 'reaction') continue
+      try {
+        const { target_mid, emoji, op } = JSON.parse(m.body)
+        if (typeof target_mid !== 'number' || typeof emoji !== 'string') continue
+        let st = map.get(target_mid)
+        if (!st) {
+          st = {}
+          map.set(target_mid, st)
+        }
+        if (!st[emoji]) st[emoji] = new Set()
+        if (op === 'remove') st[emoji].delete(m.sender_uid)
+        else st[emoji].add(m.sender_uid)
+      } catch {
+        // ignore malformed reaction
+      }
+    }
+    return map
+  }, [messages])
+
+  const reactionsFor = (mid: number): ReactionChip[] => {
+    const st = reactionsByMid.get(mid)
+    if (!st) return []
+    return Object.entries(st)
+      .filter(([, set]) => set.size > 0)
+      .map(([emoji, set]) => ({
+        emoji,
+        count: set.size,
+        mine: set.has(currentUserUID),
+      }))
+  }
+
+  const onReact = async (m: Message, emoji: string) => {
+    const mine = !!reactionsByMid.get(m.mid)?.[emoji]?.has(currentUserUID)
+    try {
+      await client.sendText(
+        cid,
+        JSON.stringify({ target_mid: m.mid, emoji, op: mine ? 'remove' : 'add' }),
+        { contentType: 'reaction' }
+      )
+    } catch (e) {
+      void showAlert({
+        message: t('actions.error', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
+    }
+  }
+
+  // 引用回复(P7-b):选中一条消息 → 输入区上方显示引用条 → 发送时包成
+  // content_type='quote'、body={reply_to:{sender,snippet}, text}。
+  const [replyTo, setReplyTo] = useState<ReplyPreview | null>(null)
+  const senderDisplay = (m: Message): string =>
+    m.sender_uid === currentUserUID
+      ? t('group.you')
+      : isGroup
+        ? nameOf(m.sender_uid)
+        : title
+  const onReply = (m: Message) => {
+    setReplyTo({ sender: senderDisplay(m), snippet: snippetOf(m, t) })
+  }
+
+  // 右键上下文菜单(飞书式):快捷表情 + 复制 / 回复 / 撤回(自己 2 分钟内)。
+  const [menu, setMenu] = useState<{ x: number; y: number; message: Message } | null>(
+    null
+  )
 
   const buildMenuItems = (m: Message): ContextMenuItem[] => {
     const items: ContextMenuItem[] = []
-    const isText =
+    // 复制:文本 / 引用(取回复正文);图片、文件不提供复制。
+    if (
       m.content_type !== 'image' &&
-      m.content_type !== 'system' &&
-      m.content_type !== 'recall'
-    if (isText && m.body && navigator.clipboard) {
+      m.content_type !== 'file' &&
+      m.body &&
+      navigator.clipboard
+    ) {
+      const copyText = m.content_type === 'quote' ? snippetOf(m, t) : m.body
       items.push({
         key: 'copy',
         label: t('actions.copy'),
-        onSelect: () => void navigator.clipboard.writeText(m.body),
+        onSelect: () => void navigator.clipboard.writeText(copyText),
       })
     }
-    const canRecall =
+    items.push({
+      key: 'reply',
+      label: t('actions.reply'),
+      onSelect: () => onReply(m),
+    })
+    if (
       m.sender_uid === currentUserUID &&
-      m.content_type !== 'system' &&
-      m.content_type !== 'recall' &&
-      !recalledMids.has(m.mid) &&
       Date.now() - m.ts < RECALL_WINDOW_MS
-    if (canRecall) {
+    ) {
       items.push({
         key: 'recall',
         label: t('actions.recall'),
@@ -222,10 +342,16 @@ export const ChatPane = ({
   }
 
   const openMenu = (e: React.MouseEvent, m: Message) => {
-    const items = buildMenuItems(m)
-    if (items.length === 0) return // nothing custom → let the native menu show
+    // Control / system / already-recalled rows have no menu → native menu shows.
+    if (
+      m.content_type === 'system' ||
+      CONTROL_TYPES.has(m.content_type) ||
+      recalledMids.has(m.mid)
+    ) {
+      return
+    }
     e.preventDefault()
-    setMenu({ x: e.clientX, y: e.clientY, items })
+    setMenu({ x: e.clientX, y: e.clientY, message: m })
   }
 
   // Auto-scroll on new message.
@@ -248,7 +374,16 @@ export const ChatPane = ({
   }, [client, cid, messages])
 
   const onSend = async (text: string) => {
-    await client.sendText(cid, text)
+    if (replyTo) {
+      await client.sendText(
+        cid,
+        JSON.stringify({ reply_to: replyTo, text }),
+        { contentType: 'quote' }
+      )
+      setReplyTo(null)
+    } else {
+      await client.sendText(cid, text)
+    }
   }
 
   return (
@@ -393,7 +528,7 @@ export const ChatPane = ({
               </div>
             ) : (
               messages
-                .filter((m) => m.content_type !== 'recall')
+                .filter((m) => !CONTROL_TYPES.has(m.content_type))
                 .map((m) => (
                   <MessageItem
                     key={m.mid}
@@ -402,6 +537,9 @@ export const ChatPane = ({
                     senderName={nameOf(m.sender_uid)}
                     senderAvatarUrl={names[m.sender_uid]?.avatar_url}
                     imageUrl={imageUrlOf(m)}
+                    fileUrl={fileUrlOf(m)}
+                    reactions={reactionsFor(m.mid)}
+                    onReact={(emoji) => void onReact(m, emoji)}
                     recalled={recalledMids.has(m.mid)}
                     onContextMenu={(e) => openMenu(e, m)}
                     showSender={isGroup}
@@ -414,6 +552,9 @@ export const ChatPane = ({
           <MessageInput
             onSend={onSend}
             onSendImage={onSendImage}
+            onSendFile={onSendFile}
+            reply={replyTo}
+            onCancelReply={() => setReplyTo(null)}
             disabled={sendDisabled}
             mentionables={mentionables}
           />
@@ -424,7 +565,9 @@ export const ChatPane = ({
         <MessageContextMenu
           x={menu.x}
           y={menu.y}
-          items={menu.items}
+          items={buildMenuItems(menu.message)}
+          reactionEmojis={REACTION_EMOJIS}
+          onReact={(emoji) => void onReact(menu.message, emoji)}
           onClose={() => setMenu(null)}
         />
       )}

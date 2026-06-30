@@ -53,11 +53,13 @@ we-meet 自研 IM 目前只能发纯文本。对标飞书/微信,「发图片」
 3. **新桶 CORS 漏配**:浏览器 PUT 直传需桶配 CORS(`<img>` 显示走 presigned GET 不需)。上线前先配,否则发图「Failed to fetch」(同头像曾踩)。
 4. **HEIC 等浏览器不能解码的格式**:仅放行 jpeg/png/webp/gif,其余前置拒。
 
-## 六、后续子阶段(备选,本文未实现)
+## 六、后续子阶段(实现状态)
 
-- **P7-b 引用回复**:`content_type='quote'` + body 编码 JSON(被引用 {mid,sender,body} + 回复正文),纯前端,零后端。
-- **P7-c 消息撤回**(已实现):墓碑协议消息 `content_type='recall'`、body=`{target_mid}`;前端聚合撤回集合 → 原消息渲染成「已撤回」占位、墓碑本身过滤不显示;自己 2 分钟内的消息 hover 出「撤回」按钮(确认弹窗)。不动后端,**无服务端强制校验**(任意客户端理论上能构造撤回他人消息的帧;内部工具可接受)。
-- **P7-d 表情回复**:需改 jusi-light-im 服务端(reaction 存储 + 新帧),独立仓库,工程量最大。
+- **P7-b 引用回复**(已实现):右键菜单「回复」→ 输入区上方引用条 → 发送包成 `content_type='quote'`、body=`{reply_to:{sender,snippet}, text}`;MessageItem 渲染引用块 + 回复正文。纯前端,零后端。
+- **P7-b 文件消息**(已实现):输入区回形针按钮选任意文件 → 复用图片直传链路(后端 `files/upload-url`,任意 mime、≤50 MiB、同 chat 桶/resolve)→ 发 `content_type='file'`、body=`{key,name,size}`;MessageItem 渲染文件卡片(图标+名+大小,点击下载)。
+- **P7-c 消息撤回 + 右键上下文菜单**(已实现):墓碑协议消息 `content_type='recall'`;右键菜单内「撤回」(自己 2 分钟内)。不动后端,**无服务端强制校验**(任意客户端理论上能构造撤回他人消息的帧;内部工具可接受)。
+- **P7-d 表情回复**(已实现,**客户端方案**):控制消息 `content_type='reaction'`、body=`{target_mid,emoji,op:add/remove}`;前端按 seq 回放聚合成每条消息的表情集合,气泡下渲染表情 chip,右键菜单顶部快捷表情栏。**无需改 jusi-light-im**。
+  - ⚠️ **取舍**:每个表情/撤回/引用都是一条真实消息 → 表情控制消息也会 bump 会话 `last_message_ts`/未读(列表预览已映射成「[表情]」,但排序/未读仍受影响)。要根治需 jusi-light-im 服务端把 reaction 作为消息的附属属性而非独立消息(后续若上服务端再优化)。
 
 ## 七、立即下一步(本文档拍板后)
 1. **P7-a-1** 后端桶/utils/端点。

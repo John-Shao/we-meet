@@ -28,7 +28,16 @@
     "error": "操作失败:{{message}}",
     "recall": "撤回",
     "recallConfirm": "确定撤回这条消息?",
-    "copy": "复制"
+    "copy": "复制",
+    "reply": "回复"
+  },
+  "quote": {
+    "replyTo": "回复 {{name}}",
+    "cancel": "取消回复"
+  },
+  "file": {
+    "tooLarge": "文件过大,请控制在 50 MB 以内",
+    "uploadError": "文件发送失败,请重试"
   },
   "recalled": {
     "self": "你撤回了一条消息",
@@ -99,10 +108,13 @@
     "placeholder": "输入消息…",
     "send": "发送",
     "sending": "发送中…",
-    "image": "发送图片"
+    "image": "发送图片",
+    "file": "发送文件"
   },
   "preview": {
     "image": "[图片]",
+    "file": "[文件]",
+    "reaction": "[表情]",
     "recalled": "撤回了一条消息"
   },
   "image": {

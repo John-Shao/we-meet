@@ -28,7 +28,16 @@
     "error": "Action failed: {{message}}",
     "recall": "Recall",
     "recallConfirm": "Recall this message?",
-    "copy": "Copy"
+    "copy": "Copy",
+    "reply": "Reply"
+  },
+  "quote": {
+    "replyTo": "Replying to {{name}}",
+    "cancel": "Cancel reply"
+  },
+  "file": {
+    "tooLarge": "File too large — keep it under 50 MB",
+    "uploadError": "Failed to send file, please try again"
   },
   "recalled": {
     "self": "You recalled a message",
@@ -99,10 +108,13 @@
     "placeholder": "Type a message…",
     "send": "Send",
     "sending": "Sending…",
-    "image": "Send image"
+    "image": "Send image",
+    "file": "Send file"
   },
   "preview": {
     "image": "[Image]",
+    "file": "[File]",
+    "reaction": "[Reaction]",
     "recalled": "recalled a message"
   },
   "image": {

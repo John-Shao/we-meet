@@ -28,7 +28,16 @@
     "error": "Aktion fehlgeschlagen: {{message}}",
     "recall": "Zurückziehen",
     "recallConfirm": "Diese Nachricht zurückziehen?",
-    "copy": "Kopieren"
+    "copy": "Kopieren",
+    "reply": "Antworten"
+  },
+  "quote": {
+    "replyTo": "Antwort an {{name}}",
+    "cancel": "Antwort abbrechen"
+  },
+  "file": {
+    "tooLarge": "Datei zu groß — höchstens 50 MB",
+    "uploadError": "Datei konnte nicht gesendet werden, bitte erneut versuchen"
   },
   "recalled": {
     "self": "Sie haben eine Nachricht zurückgezogen",
@@ -99,10 +108,13 @@
     "placeholder": "Nachricht eingeben…",
     "send": "Senden",
     "sending": "Wird gesendet…",
-    "image": "Bild senden"
+    "image": "Bild senden",
+    "file": "Datei senden"
   },
   "preview": {
     "image": "[Bild]",
+    "file": "[Datei]",
+    "reaction": "[Reaktion]",
     "recalled": "hat eine Nachricht zurückgezogen"
   },
   "image": {

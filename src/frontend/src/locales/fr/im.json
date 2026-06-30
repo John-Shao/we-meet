@@ -28,7 +28,16 @@
     "error": "Échec de l'action : {{message}}",
     "recall": "Annuler",
     "recallConfirm": "Annuler ce message ?",
-    "copy": "Copier"
+    "copy": "Copier",
+    "reply": "Répondre"
+  },
+  "quote": {
+    "replyTo": "En réponse à {{name}}",
+    "cancel": "Annuler la réponse"
+  },
+  "file": {
+    "tooLarge": "Fichier trop volumineux — limitez-le à 50 Mo",
+    "uploadError": "Échec de l'envoi du fichier, veuillez réessayer"
   },
   "recalled": {
     "self": "Vous avez retiré un message",
@@ -99,10 +108,13 @@
     "placeholder": "Écrivez un message…",
     "send": "Envoyer",
     "sending": "Envoi en cours…",
-    "image": "Envoyer une image"
+    "image": "Envoyer une image",
+    "file": "Envoyer un fichier"
   },
   "preview": {
     "image": "[Image]",
+    "file": "[Fichier]",
+    "reaction": "[Réaction]",
     "recalled": "a retiré un message"
   },
   "image": {

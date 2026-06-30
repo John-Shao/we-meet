@@ -242,14 +242,29 @@ const ImAuthenticated = () => {
     c: ConversationSummary
   ): { text: string; ts: number } | null => {
     if (!c.last_message_ts) return null
-    // 非文本消息用占位文案:图片 → [图片];撤回墓碑 → 「撤回了一条消息」
-    // (正文是 object_key / JSON,不该直接显示)。
+    // 非文本消息用占位/解析文案(正文是 object_key / JSON,不该直接显示):
+    // 图片 → [图片]、文件 → [文件]、表情 → [表情]、撤回 → 撤回了一条消息、
+    // 引用 → 回复正文。
+    const parseQuoteText = (raw?: string): string => {
+      try {
+        return (JSON.parse(raw ?? '')?.text as string) || ''
+      } catch {
+        return ''
+      }
+    }
+    const ct = c.last_content_type
     const body =
-      c.last_content_type === 'image'
+      ct === 'image'
         ? t('preview.image')
-        : c.last_content_type === 'recall'
-          ? t('preview.recalled')
-          : c.last_message ?? ''
+        : ct === 'file'
+          ? t('preview.file')
+          : ct === 'reaction'
+            ? t('preview.reaction')
+            : ct === 'recall'
+              ? t('preview.recalled')
+              : ct === 'quote'
+                ? parseQuoteText(c.last_message)
+                : c.last_message ?? ''
     const ts = c.last_message_ts
     if (c.type !== 'group' || c.last_content_type === 'system') {
       return { text: body, ts }

@@ -261,3 +261,41 @@ def test_resolve_images_only_signs_chat_prefix():
     body = r.json()
     assert "chat/u/a.jpg" in body
     assert "evil/secret.jpg" not in body
+
+
+FILE_UPLOAD_URL = "/api/v1.0/im/files/upload-url/"
+
+
+def test_chat_file_upload_url_rejects_oversize():
+    """File over the 50 MiB cap → 400."""
+    client = APIClient()
+    client.force_login(UserFactory())
+    r = client.post(
+        FILE_UPLOAD_URL,
+        {"content_type": "application/pdf", "size": 60 * 1024 * 1024, "filename": "a.pdf"},
+        format="json",
+    )
+    assert r.status_code == 400, r.content
+
+
+def test_chat_file_upload_url_happy_path():
+    """Any content type + valid size → 200 passing the presigned payload through."""
+    client = APIClient()
+    client.force_login(UserFactory())
+    payload = {
+        "upload_url": "https://oss/put",
+        "object_key": "chat/x/abc.pdf",
+        "expires_in": 300,
+        "headers": {"Content-Type": "application/pdf"},
+    }
+    with mock.patch(
+        "core.utils.generate_chat_file_upload_url", return_value=payload
+    ) as gen:
+        r = client.post(
+            FILE_UPLOAD_URL,
+            {"content_type": "application/pdf", "size": 2048, "filename": "report.pdf"},
+            format="json",
+        )
+    assert r.status_code == 200, r.content
+    assert r.json() == payload
+    assert gen.call_args.kwargs["filename"] == "report.pdf"

@@ -1,8 +1,14 @@
 import { useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiImageLine } from '@remixicon/react'
+import { RiImageLine, RiAttachment2, RiCloseLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
+
+/** Quoted-message preview shown above the input while composing a reply. */
+export interface ReplyPreview {
+  sender: string
+  snippet: string
+}
 
 interface Props {
   onSend: (text: string) => Promise<void> | void
@@ -11,6 +17,11 @@ interface Props {
   mentionables?: string[]
   /** Send a picked image file (P7). Omitted → no image button. */
   onSendImage?: (file: File) => Promise<void> | void
+  /** Send a picked arbitrary file (P7-b). Omitted → no file button. */
+  onSendFile?: (file: File) => Promise<void> | void
+  /** Active reply context (P7-b); shows a quote bar above the input. */
+  reply?: ReplyPreview | null
+  onCancelReply?: () => void
 }
 
 /** Find the active "@query" segment immediately before the caret, if any. */
@@ -31,6 +42,9 @@ export const MessageInput = ({
   disabled,
   mentionables = [],
   onSendImage,
+  onSendFile,
+  reply,
+  onCancelReply,
 }: Props) => {
   const { t } = useTranslation('im')
   const [text, setText] = useState('')
@@ -39,14 +53,27 @@ export const MessageInput = ({
   const [mention, setMention] = useState<{ at: number; query: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const attachRef = useRef<HTMLInputElement>(null)
 
-  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = '' // allow re-picking the same file
     if (!file || !onSendImage || uploading) return
     setUploading(true)
     try {
       await onSendImage(file)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const onPickAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !onSendFile || uploading) return
+    setUploading(true)
+    try {
+      await onSendFile(file)
     } finally {
       setUploading(false)
     }
@@ -105,13 +132,61 @@ export const MessageInput = ({
         void submit()
       }}
       className={css({
-        position: 'relative',
         display: 'flex',
+        flexDirection: 'column',
         gap: '0.5rem',
         padding: '0.75rem',
         borderTop: '1px solid token(colors.greyscale.200)',
       })}
     >
+      {reply && (
+        <div
+          className={css({
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            paddingX: '0.625rem',
+            paddingY: '0.375rem',
+            backgroundColor: 'greyscale.100',
+            borderRadius: '0.5rem',
+            fontSize: '0.8125rem',
+            color: 'greyscale.600',
+          })}
+          data-testid="im-reply-bar"
+        >
+          <span
+            className={css({
+              flex: 1,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            })}
+          >
+            <span className={css({ fontWeight: '600' })}>
+              {t('quote.replyTo', { name: reply.sender })}
+            </span>{' '}
+            {reply.snippet}
+          </span>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            aria-label={t('quote.cancel')}
+            className={css({
+              flexShrink: 0,
+              display: 'flex',
+              border: 'none',
+              background: 'transparent',
+              color: 'greyscale.500',
+              cursor: 'pointer',
+              _hover: { color: 'greyscale.800' },
+            })}
+          >
+            <RiCloseLine size={16} />
+          </button>
+        </div>
+      )}
+      <div className={css({ position: 'relative', display: 'flex', gap: '0.5rem' })}>
       {suggestions.length > 0 && (
         <ul
           className={css({
@@ -169,7 +244,7 @@ export const MessageInput = ({
             ref={fileRef}
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
-            onChange={onPickFile}
+            onChange={onPickImage}
             className={css({ display: 'none' })}
             data-testid="im-image-input"
           />
@@ -196,6 +271,41 @@ export const MessageInput = ({
             })}
           >
             <RiImageLine size={18} />
+          </button>
+        </>
+      )}
+      {onSendFile && (
+        <>
+          <input
+            ref={attachRef}
+            type="file"
+            onChange={onPickAttachment}
+            className={css({ display: 'none' })}
+            data-testid="im-file-input"
+          />
+          <button
+            type="button"
+            onClick={() => attachRef.current?.click()}
+            disabled={disabled || uploading}
+            aria-label={t('input.file')}
+            title={t('input.file')}
+            data-testid="im-file-btn"
+            className={css({
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '2.375rem',
+              border: '1px solid token(colors.greyscale.300)',
+              borderRadius: '0.5rem',
+              backgroundColor: 'white',
+              color: 'greyscale.600',
+              cursor: 'pointer',
+              _hover: { backgroundColor: 'greyscale.100' },
+              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+            })}
+          >
+            <RiAttachment2 size={18} />
           </button>
         </>
       )}
@@ -248,6 +358,7 @@ export const MessageInput = ({
       >
         {sending ? t('input.sending') : t('input.send')}
       </button>
+      </div>
     </form>
   )
 }
