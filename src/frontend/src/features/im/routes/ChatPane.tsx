@@ -259,16 +259,24 @@ export const ChatPane = ({
     return map
   }, [messages])
 
+  // 反应人显示名(飞书式 chip 显示名字):自己→「我」,群→目录名,私聊→对端标题。
+  const uidDisplay = (uid: string): string =>
+    uid === currentUserUID
+      ? t('group.you')
+      : isGroup
+        ? nameOf(uid)
+        : title
   const reactionsFor = (mid: number): ReactionChip[] => {
     const st = reactionsByMid.get(mid)
     if (!st) return []
     return Object.entries(st)
       .filter(([, set]) => set.size > 0)
-      .map(([emoji, set]) => ({
-        emoji,
-        count: set.size,
-        mine: set.has(currentUserUID),
-      }))
+      .map(([emoji, set]) => {
+        const names = [...set].map(uidDisplay)
+        // 少量反应直接列名字(飞书风格),人多了改显计数避免 chip 过长。
+        const label = names.length <= 5 ? names.join('、') : String(set.size)
+        return { emoji, count: set.size, mine: set.has(currentUserUID), label }
+      })
   }
 
   const onReact = async (m: Message, emoji: string) => {

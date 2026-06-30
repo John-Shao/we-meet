@@ -11,6 +11,8 @@ export interface ReactionChip {
   count: number
   /** The current user is among the reactors → highlight + toggle-off on click. */
   mine: boolean
+  /** Reactor display label (飞书式:emoji + 名字),few names joined, else count. */
+  label: string
 }
 
 interface Props {
@@ -445,21 +447,30 @@ export const MessageItem = ({
                 className={css({
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.1875rem',
-                  paddingX: '0.375rem',
-                  paddingY: '0.0625rem',
+                  gap: '0.25rem',
+                  maxWidth: '14rem',
+                  paddingX: '0.5rem',
+                  paddingY: '0.125rem',
                   borderRadius: '999px',
                   fontSize: '0.75rem',
                   cursor: 'pointer',
                   border: '1px solid',
                   borderColor: r.mine ? 'primary.300' : 'greyscale.200',
                   backgroundColor: r.mine ? 'primary.50' : 'greyscale.50',
-                  color: 'greyscale.800',
-                  _hover: { backgroundColor: 'greyscale.100' },
+                  color: r.mine ? 'primary.700' : 'greyscale.600',
+                  _hover: { backgroundColor: r.mine ? 'primary.100' : 'greyscale.100' },
                 })}
               >
                 <span>{r.emoji}</span>
-                <span>{r.count}</span>
+                <span
+                  className={css({
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  })}
+                >
+                  {r.label}
+                </span>
               </button>
             ))}
           </div>

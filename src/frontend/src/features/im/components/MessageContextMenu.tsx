@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { RiAddLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
+import { EmojiPicker } from './EmojiPicker'
 
 export interface ContextMenuItem {
   key: string
@@ -36,6 +38,7 @@ export const MessageContextMenu = ({
 }: Props) => {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ x, y })
+  const [showPicker, setShowPicker] = useState(false)
 
   // Clamp inside the viewport once measured.
   useLayoutEffect(() => {
@@ -47,20 +50,28 @@ export const MessageContextMenu = ({
     if (x + r.width > window.innerWidth - 8) nx = window.innerWidth - r.width - 8
     if (y + r.height > window.innerHeight - 8) ny = window.innerHeight - r.height - 8
     setPos({ x: Math.max(8, nx), y: Math.max(8, ny) })
-  }, [x, y])
+    // Re-clamp when switching into the (taller/wider) emoji picker.
+  }, [x, y, showPicker])
 
   // Any outside interaction dismisses the menu.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
+    // Ignore scrolls that originate INSIDE the menu (e.g. the emoji grid).
+    const onScroll = (e: Event) => {
+      if (ref.current && e.target instanceof Node && ref.current.contains(e.target)) {
+        return
+      }
+      onClose()
+    }
     window.addEventListener('mousedown', onClose)
-    window.addEventListener('scroll', onClose, true)
+    window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onClose)
     window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('mousedown', onClose)
-      window.removeEventListener('scroll', onClose, true)
+      window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onClose)
       window.removeEventListener('keydown', onKey)
     }
@@ -87,45 +98,79 @@ export const MessageContextMenu = ({
       })}
       style={{ left: pos.x, top: pos.y }}
     >
-      {reactionEmojis && reactionEmojis.length > 0 && (
-        <div
-          className={css({
-            display: 'flex',
-            gap: '0.125rem',
-            paddingX: '0.25rem',
-            paddingY: '0.125rem',
-            marginBottom: items.length > 0 ? '0.25rem' : 0,
-            borderBottom:
-              items.length > 0 ? '1px solid token(colors.greyscale.100)' : 'none',
-          })}
-        >
-          {reactionEmojis.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => {
-                onReact?.(emoji)
-                onClose()
-              }}
-              data-testid={`ctx-react-${emoji}`}
+      {showPicker ? (
+        <EmojiPicker
+          onPick={(emoji) => {
+            onReact?.(emoji)
+            onClose()
+          }}
+        />
+      ) : (
+        <>
+          {reactionEmojis && reactionEmojis.length > 0 && (
+            <div
               className={css({
-                border: 'none',
-                background: 'transparent',
-                borderRadius: '0.375rem',
-                fontSize: '1.125rem',
-                lineHeight: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.125rem',
                 paddingX: '0.25rem',
-                paddingY: '0.1875rem',
-                cursor: 'pointer',
-                _hover: { backgroundColor: 'greyscale.100' },
+                paddingY: '0.125rem',
+                marginBottom: items.length > 0 ? '0.25rem' : 0,
+                borderBottom:
+                  items.length > 0
+                    ? '1px solid token(colors.greyscale.100)'
+                    : 'none',
               })}
             >
-              {emoji}
-            </button>
-          ))}
-        </div>
-      )}
-      {items.map((it) => (
+              {reactionEmojis.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    onReact?.(emoji)
+                    onClose()
+                  }}
+                  data-testid={`ctx-react-${emoji}`}
+                  className={css({
+                    border: 'none',
+                    background: 'transparent',
+                    borderRadius: '0.375rem',
+                    fontSize: '1.125rem',
+                    lineHeight: 1,
+                    paddingX: '0.25rem',
+                    paddingY: '0.1875rem',
+                    cursor: 'pointer',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {emoji}
+                </button>
+              ))}
+              {/* 「+」打开完整 emoji 面板 */}
+              <button
+                type="button"
+                onClick={() => setShowPicker(true)}
+                aria-label="more emojis"
+                data-testid="ctx-react-more"
+                className={css({
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: '0.375rem',
+                  color: 'greyscale.500',
+                  paddingX: '0.25rem',
+                  paddingY: '0.1875rem',
+                  cursor: 'pointer',
+                  _hover: { backgroundColor: 'greyscale.100' },
+                })}
+              >
+                <RiAddLine size={18} />
+              </button>
+            </div>
+          )}
+          {items.map((it) => (
         <button
           key={it.key}
           type="button"
@@ -152,7 +197,9 @@ export const MessageContextMenu = ({
         >
           {it.label}
         </button>
-      ))}
+          ))}
+        </>
+      )}
     </div>
   )
 }
