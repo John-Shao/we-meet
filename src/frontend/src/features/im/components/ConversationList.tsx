@@ -12,6 +12,8 @@ interface Props {
   loading?: boolean
   /** Resolve a conversation's display label (group name / direct peer name). */
   nameOf: (c: ConversationSummary) => string
+  /** Resolve a conversation's avatar URL (direct peer); undefined → tinted initial. */
+  avatarOf?: (c: ConversationSummary) => string | undefined
   /** Delete (direct) / leave (group) the conversation. */
   onDelete: (c: ConversationSummary) => void
   /** cids with an unread @-mention of the current user → show a red "@" marker. */
@@ -48,6 +50,7 @@ export const ConversationList = ({
   onSelect,
   loading,
   nameOf,
+  avatarOf,
   onDelete,
   mentionedCids,
   previewOf,
@@ -108,7 +111,7 @@ export const ConversationList = ({
               })}
               data-testid={`conv-item-${c.cid}`}
             >
-              <Avatar name={nameOf(c)} size="2.5rem" />
+              <Avatar name={nameOf(c)} src={avatarOf?.(c)} size="2.5rem" />
               <span
                 className={css({
                   flex: 1,

@@ -206,6 +206,13 @@ const ImAuthenticated = () => {
     return (peer && peerNames[peer]?.full_name) || t('convName.directFallback')
   }
 
+  // direct 会话头像:对端上传的头像(presigned);群聊无单一头像 → 留空走色块。
+  const avatarOf = (c: ConversationSummary): string | undefined => {
+    if (c.type === 'group') return undefined
+    const peer = c.members.find((u) => u !== currentUserUID)
+    return (peer && peerNames[peer]?.avatar_url) || undefined
+  }
+
   // 列表预览文案(P11):群聊「发送人: 正文」(系统消息无前缀);direct 仅正文。
   const previewOf = (
     c: ConversationSummary
@@ -409,6 +416,7 @@ const ImAuthenticated = () => {
             onSelect={setSelectedCID}
             loading={convLoading}
             nameOf={nameOf}
+            avatarOf={avatarOf}
             onDelete={handleDelete}
             mentionedCids={mentionedCids}
             previewOf={previewOf}
@@ -471,6 +479,7 @@ const ImAuthenticated = () => {
                       client={client}
                       conversation={selectedConv}
                       peerName={nameOf(selectedConv)}
+                      peerAvatarUrl={avatarOf(selectedConv)}
                       onCreateGroup={() => void handleCreateGroupFromDirect()}
                       onClose={() => setRightPanel(null)}
                     />

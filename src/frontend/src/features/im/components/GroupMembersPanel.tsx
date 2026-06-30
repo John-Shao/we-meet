@@ -216,7 +216,11 @@ export const GroupMembersPanel = ({
                   _hover: { backgroundColor: 'greyscale.50' },
                 })}
               >
-                <Avatar name={label} size="2rem" />
+                <Avatar
+                  name={label}
+                  src={names[m.uid]?.avatar_url}
+                  size="2rem"
+                />
                 <span
                   className={css({
                     flex: 1,

@@ -26,29 +26,51 @@ interface Props {
   name: string
   /** Diameter as any CSS length (default 2rem). The initial scales with it. */
   size?: string
+  /**
+   * Optional uploaded avatar URL (presigned). When present and non-empty the
+   * image is shown; otherwise we fall back to the tinted single-initial avatar.
+   */
+  src?: string
 }
 
-/** Round, tinted, single-initial avatar shared across the IM feature. */
-export const Avatar = ({ name, size = '2rem' }: Props) => (
-  <span
-    aria-hidden="true"
-    className={css({
-      flexShrink: 0,
-      borderRadius: '999px',
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: 'white',
-      fontWeight: 'bold',
-      lineHeight: 1,
-    })}
-    style={{
-      width: size,
-      height: size,
-      backgroundColor: tintFor(name),
-      fontSize: `calc(${size} * 0.42)`,
-    }}
-  >
-    {initial(name)}
-  </span>
-)
+/** Round avatar shared across the IM feature: uploaded image, else tinted initial. */
+export const Avatar = ({ name, size = '2rem', src }: Props) => {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        aria-hidden="true"
+        className={css({
+          flexShrink: 0,
+          borderRadius: '999px',
+          objectFit: 'cover',
+        })}
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className={css({
+        flexShrink: 0,
+        borderRadius: '999px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        fontWeight: 'bold',
+        lineHeight: 1,
+      })}
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: tintFor(name),
+        fontSize: `calc(${size} * 0.42)`,
+      }}
+    >
+      {initial(name)}
+    </span>
+  )
+}

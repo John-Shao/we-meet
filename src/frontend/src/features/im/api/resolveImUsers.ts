@@ -4,6 +4,8 @@ export interface ImUserInfo {
   id: string
   full_name: string
   short_name: string
+  /** Presigned avatar GET URL; '' when the user has no uploaded avatar. */
+  avatar_url?: string
 }
 
 /**

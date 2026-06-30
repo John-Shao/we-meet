@@ -276,6 +276,7 @@ export const ChatPane = ({
                   message={m}
                   isOwn={m.sender_uid === currentUserUID}
                   senderName={nameOf(m.sender_uid)}
+                  senderAvatarUrl={names[m.sender_uid]?.avatar_url}
                   showSender={isGroup}
                   mentionNames={highlightNames}
                   selfMentionNames={[selfName, everyone].filter(Boolean)}

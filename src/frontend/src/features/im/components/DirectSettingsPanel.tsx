@@ -14,6 +14,8 @@ interface Props {
   conversation: ConversationSummary
   /** Peer display name, resolved upstream. */
   peerName: string
+  /** Peer uploaded avatar URL (presigned); undefined → tinted initial. */
+  peerAvatarUrl?: string
   /** Open group creation seeded with this peer (对标飞书「创建群组」). */
   onCreateGroup: () => void
   onClose: () => void
@@ -28,6 +30,7 @@ export const DirectSettingsPanel = ({
   client,
   conversation,
   peerName,
+  peerAvatarUrl,
   onCreateGroup,
   onClose,
 }: Props) => {
@@ -172,7 +175,7 @@ export const DirectSettingsPanel = ({
             borderBottom: '1px solid token(colors.greyscale.100)',
           })}
         >
-          <Avatar name={peerName} size="2.75rem" />
+          <Avatar name={peerName} src={peerAvatarUrl} size="2.75rem" />
           <span
             className={css({
               minWidth: 0,

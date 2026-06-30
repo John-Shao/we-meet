@@ -8,6 +8,8 @@ interface Props {
   isOwn: boolean
   /** Resolved display name of the sender (group chats); falls back to uid. */
   senderName?: string
+  /** Uploaded avatar URL of the sender (presigned); '' / undefined → tinted initial. */
+  senderAvatarUrl?: string
   /** Show the sender name + avatar (group, non-own). Direct chats pass false. */
   showSender?: boolean
   /** Names highlightable as @mentions in the body (members + 所有人). */
@@ -79,6 +81,7 @@ export const MessageItem = ({
   message,
   isOwn,
   senderName,
+  senderAvatarUrl,
   showSender,
   mentionNames = [],
   selfMentionNames = [],
@@ -127,25 +130,41 @@ export const MessageItem = ({
       data-testid="im-msg"
     >
       {!isOwn && showSender && (
-        <span
-          aria-hidden="true"
-          className={css({
-            flexShrink: 0,
-            width: '2rem',
-            height: '2rem',
-            borderRadius: '999px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: '0.8125rem',
-            fontWeight: 'bold',
-            marginTop: '1.125rem',
-          })}
-          style={{ backgroundColor: tintFor(name) }}
-        >
-          {initial(name)}
-        </span>
+        senderAvatarUrl ? (
+          <img
+            src={senderAvatarUrl}
+            alt=""
+            aria-hidden="true"
+            className={css({
+              flexShrink: 0,
+              width: '2rem',
+              height: '2rem',
+              borderRadius: '999px',
+              objectFit: 'cover',
+              marginTop: '1.125rem',
+            })}
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className={css({
+              flexShrink: 0,
+              width: '2rem',
+              height: '2rem',
+              borderRadius: '999px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '0.8125rem',
+              fontWeight: 'bold',
+              marginTop: '1.125rem',
+            })}
+            style={{ backgroundColor: tintFor(name) }}
+          >
+            {initial(name)}
+          </span>
+        )
       )}
       <div
         className={css({

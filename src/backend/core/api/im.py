@@ -30,7 +30,7 @@ from rest_framework.response import Response
 
 from core.services.jusi_im import JusiImServiceError
 
-from core import models
+from core import models, utils
 from core.api.directory import get_caller_organization
 from core.services.jusi_im import (
     JusiImAdminClient,
@@ -159,6 +159,11 @@ class ImViewSet(viewsets.ViewSet):
                 "id": str(u.id),
                 "full_name": u.full_name or u.short_name or u.email or "",
                 "short_name": u.short_name or "",
+                # Presigned GET (org-scoped, like the directory); '' when unset
+                # so the client falls back to the tinted initial avatar.
+                "avatar_url": utils.generate_profile_image_get_url(
+                    "avatar", u.avatar_key
+                ),
             }
         return Response(out, status=status.HTTP_200_OK)
 
