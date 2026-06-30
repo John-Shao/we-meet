@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { css, cx } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
-import { fetchDirectoryMembers } from '@/features/contacts'
+import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 
 /**
  * Modal directory picker for creating a GROUP conversation (对标飞书):
@@ -143,7 +143,13 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
             </div>
             <div className={css({ overflowY: 'auto', flex: 1 })}>
               {/* self — locked, always selected */}
-              <Row label={selfLabel} sub={t('group.you')} checked disabled />
+              <Row
+                label={selfLabel}
+                sub={t('group.you')}
+                avatarSrc={user?.avatar_url}
+                checked
+                disabled
+              />
               {isFetching && selectable.length === 0 ? (
                 <p className={css({ padding: '1rem', color: 'greyscale.500' })}>{t('group.loading')}</p>
               ) : (
@@ -153,6 +159,7 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
                     testid={`group-picker-item-${m.id}`}
                     label={m.full_name || m.short_name || m.email || m.id}
                     sub={[m.title, m.department?.name].filter(Boolean).join(' · ')}
+                    avatarSrc={m.avatar_url}
                     checked={selected.has(m.id)}
                     onToggle={() =>
                       toggle(m.id, m.full_name || m.short_name || m.email || m.id)
@@ -234,6 +241,7 @@ const inputCls = css({
 const Row = ({
   label,
   sub,
+  avatarSrc,
   checked,
   disabled,
   onToggle,
@@ -241,6 +249,7 @@ const Row = ({
 }: {
   label: string
   sub?: string
+  avatarSrc?: string | null
   checked?: boolean
   disabled?: boolean
   onToggle?: () => void
@@ -285,6 +294,7 @@ const Row = ({
     >
       {checked ? '✓' : ''}
     </span>
+    <MemberAvatar name={label} src={avatarSrc} size="2rem" />
     <span className={css({ display: 'flex', flexDirection: 'column', gap: '0.125rem', minWidth: 0 })}>
       <span className={css({ fontWeight: 'medium', color: 'greyscale.900', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>
         {label}

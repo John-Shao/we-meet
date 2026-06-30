@@ -6,6 +6,7 @@ import { Modal } from '@/components/Modal'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
 import type { DirectoryMember } from '../api/ApiDirectory'
+import { MemberAvatar } from './MemberAvatar'
 
 interface Props {
   /** Called with the chosen member. The caller closes the picker. */
@@ -110,8 +111,8 @@ export const ContactPicker = ({ onSelect, onClose }: Props) => {
                   data-testid={`contact-picker-item-${member.id}`}
                   className={css({
                     display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.125rem',
+                    alignItems: 'center',
+                    gap: '0.625rem',
                     width: '100%',
                     paddingX: '1rem',
                     paddingY: '0.625rem',
@@ -123,23 +124,45 @@ export const ContactPicker = ({ onSelect, onClose }: Props) => {
                     _hover: { backgroundColor: 'greyscale.100' },
                   })}
                 >
+                  <MemberAvatar
+                    name={
+                      member.full_name || member.short_name || member.email || ''
+                    }
+                    src={member.avatar_url}
+                    size="2.25rem"
+                  />
                   <span
                     className={css({
-                      fontWeight: 'medium',
-                      color: 'greyscale.900',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.125rem',
+                      minWidth: 0,
                     })}
                   >
-                    {member.full_name || member.short_name || member.email}
-                  </span>
-                  <span
-                    className={css({
-                      fontSize: '0.75rem',
-                      color: 'greyscale.500',
-                    })}
-                  >
-                    {[member.title, member.department?.name]
-                      .filter(Boolean)
-                      .join(' · ')}
+                    <span
+                      className={css({
+                        fontWeight: 'medium',
+                        color: 'greyscale.900',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      })}
+                    >
+                      {member.full_name || member.short_name || member.email}
+                    </span>
+                    <span
+                      className={css({
+                        fontSize: '0.75rem',
+                        color: 'greyscale.500',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      })}
+                    >
+                      {[member.title, member.department?.name]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
                   </span>
                 </button>
               </li>
