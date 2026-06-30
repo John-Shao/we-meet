@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
-import { fetchDirectoryMembers } from '@/features/contacts'
+import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { addMembers } from '../api/addMembers'
@@ -161,6 +161,11 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
                       >
                         {checked ? '✓' : ''}
                       </span>
+                      <MemberAvatar
+                        name={m.full_name || m.short_name || m.email || m.id}
+                        src={m.avatar_url}
+                        size="2rem"
+                      />
                       <span className={css({ display: 'flex', flexDirection: 'column', minWidth: 0 })}>
                         <span className={css({ fontWeight: 'medium', color: 'greyscale.900', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>
                           {m.full_name || m.short_name || m.email || m.id}

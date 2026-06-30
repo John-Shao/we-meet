@@ -220,6 +220,7 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
                   onClick={() => openMember(m.id)}
                   testId={`global-search-member-${m.id}`}
                   avatarText={label.slice(0, 1).toUpperCase()}
+                  avatarSrc={m.avatar_url}
                   title={label}
                   subtitle={[m.title, m.department?.name]
                     .filter(Boolean)
@@ -282,12 +283,15 @@ const Group = ({
 const ResultRow = ({
   onClick,
   avatarText,
+  avatarSrc,
   title,
   subtitle,
   testId,
 }: {
   onClick: () => void
   avatarText: string
+  /** Uploaded avatar URL (members); when present an image replaces avatarText. */
+  avatarSrc?: string | null
   title: string
   subtitle?: string
   testId?: string
@@ -311,22 +315,37 @@ const ResultRow = ({
       _hover: { backgroundColor: 'primary.50' },
     })}
   >
-    <span
-      className={css({
-        flexShrink: 0,
-        width: '32px',
-        height: '32px',
-        borderRadius: 'full',
-        backgroundColor: 'primary.100',
-        color: 'primary.700',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '0.8125rem',
-      })}
-    >
-      {avatarText}
-    </span>
+    {avatarSrc ? (
+      <img
+        src={avatarSrc}
+        alt=""
+        aria-hidden="true"
+        className={css({
+          flexShrink: 0,
+          width: '32px',
+          height: '32px',
+          borderRadius: 'full',
+          objectFit: 'cover',
+        })}
+      />
+    ) : (
+      <span
+        className={css({
+          flexShrink: 0,
+          width: '32px',
+          height: '32px',
+          borderRadius: 'full',
+          backgroundColor: 'primary.100',
+          color: 'primary.700',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '0.8125rem',
+        })}
+      >
+        {avatarText}
+      </span>
+    )}
     <span className={css({ minWidth: 0, flex: 1 })}>
       <span
         className={css({

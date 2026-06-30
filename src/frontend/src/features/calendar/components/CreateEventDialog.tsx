@@ -5,7 +5,7 @@ import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
-import { useDirectoryMemberSearch } from '@/features/contacts'
+import { useDirectoryMemberSearch, MemberAvatar } from '@/features/contacts'
 
 import { createCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent } from '../api/ApiCalendar'
@@ -375,6 +375,7 @@ export const CreateEventDialog = ({
                     >
                       {checked ? '✓' : ''}
                     </span>
+                    <MemberAvatar name={label} src={m.avatar_url} size="1.75rem" />
                     <span
                       className={css({
                         minWidth: 0,
