@@ -196,8 +196,7 @@ Migration 一件套：
 
 ```bash
 # PC 端
-bash deploy/aliyun/build.sh backend frontend
-bash deploy/aliyun/push.sh backend frontend
+bash deploy/aliyun/build-and-push.sh backend frontend
 
 # Aliyun 端
 cd ~/we-meet && git pull

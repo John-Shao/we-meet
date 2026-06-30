@@ -1,0 +1,35 @@
+{
+  "nav": { "title": "Approvals", "ariaLabel": "Open approvals" },
+  "page": {
+    "authRequired": "Please sign in to view approvals.",
+    "title": "Approvals",
+    "create": "New request",
+    "loading": "Loading…"
+  },
+  "section": { "pending": "Awaiting my approval", "mine": "My requests", "empty": "Nothing here" },
+  "tab": { "create": "New request", "pending": "To do", "mine": "Submitted" },
+  "status": {
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled",
+    "needs_assignment": "Needs assignment"
+  },
+  "card": { "applicant": "Requested by", "node": "Step {{index}}", "unassigned": "Unassigned" },
+  "act": {
+    "approve": "Approve",
+    "reject": "Reject",
+    "cancel": "Withdraw",
+    "commentPlaceholder": "Comment (optional)",
+    "confirmCancel": "Withdraw this request?"
+  },
+  "form": {
+    "title": "New request",
+    "template": "Type",
+    "templatePlaceholder": "Select…",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "error": "Failed: {{message}}",
+    "noTemplates": "No approval templates available — ask an admin to configure one."
+  }
+}

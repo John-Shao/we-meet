@@ -11,6 +11,10 @@ import { CreatePopup } from '@/features/sdk/routes/CreatePopup'
 import { CreateMeetingButton } from '@/features/sdk/routes/CreateMeetingButton'
 import { RecordingDownloadRoute } from '@/features/recording'
 import { MeetingDetailRoute } from '@/features/meetings'
+import { ImRoute } from '@/features/im'
+import { ContactsRoute } from '@/features/contacts'
+import { CalendarRoute } from '@/features/calendar'
+import { ApprovalRoute } from '@/features/approval'
 
 const roomIdRegex = new RegExp(`^[/](?<roomId>${flexibleRoomIdPattern})$`)
 
@@ -24,7 +28,11 @@ export const routes: Record<
   | 'sdkCreatePopup'
   | 'sdkCreateButton'
   | 'recordingDownload'
-  | 'meetingDetail',
+  | 'meetingDetail'
+  | 'im'
+  | 'contacts'
+  | 'calendar'
+  | 'approval',
   {
     name: RouteName
     path: RegExp | string
@@ -35,7 +43,8 @@ export const routes: Record<
 > = {
   home: {
     name: 'home',
-    path: '/',
+    // 视频会议主页迁到 /meeting;根路径 "/" 在 App.tsx 重定向到此。
+    path: '/meeting',
     Component: HomeRoute,
   },
   room: {
@@ -85,6 +94,26 @@ export const routes: Record<
     path: /^\/meetings\/(?<roomId>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/,
     to: (roomId: string) => `/meetings/${roomId.trim()}`,
     Component: MeetingDetailRoute,
+  },
+  im: {
+    name: 'im',
+    path: '/im',
+    Component: ImRoute,
+  },
+  contacts: {
+    name: 'contacts',
+    path: '/contacts',
+    Component: ContactsRoute,
+  },
+  calendar: {
+    name: 'calendar',
+    path: '/calendar',
+    Component: CalendarRoute,
+  },
+  approval: {
+    name: 'approval',
+    path: '/approval',
+    Component: ApprovalRoute,
   },
 }
 

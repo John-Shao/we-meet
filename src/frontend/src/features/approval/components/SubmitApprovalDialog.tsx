@@ -1,0 +1,220 @@
+import { useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
+
+import { css } from '@/styled-system/css'
+import { apiErrorMessage } from '@/api/apiErrorMessage'
+import { Modal } from '@/components/Modal'
+
+import { fetchApprovalTemplates, submitApproval } from '../api/fetchApproval'
+import type { ApprovalFormField } from '../api/ApiApproval'
+
+interface Props {
+  onClose: () => void
+  onSubmitted: () => void
+  /** Preselect a template (opened from a 发起申请 grid card). */
+  initialTemplateId?: string
+}
+
+const labelCss = css({
+  display: 'block',
+  fontSize: '0.8125rem',
+  fontWeight: 'medium',
+  color: 'greyscale.700',
+  marginBottom: '0.25rem',
+})
+
+const fieldCss = css({
+  width: '100%',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '0.5rem',
+  padding: '0.5rem 0.625rem',
+  fontSize: '0.875rem',
+})
+
+export const SubmitApprovalDialog = ({
+  onClose,
+  onSubmitted,
+  initialTemplateId,
+}: Props) => {
+  const { t } = useTranslation('approval')
+  const firstFieldRef = useRef<HTMLSelectElement>(null)
+  const [templateId, setTemplateId] = useState(initialTemplateId ?? '')
+  const [formData, setFormData] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  const { data: templates = [], isLoading } = useQuery({
+    queryKey: ['approval', 'templates'],
+    queryFn: fetchApprovalTemplates,
+    staleTime: 60_000,
+  })
+
+  const selected = useMemo(
+    () => templates.find((tpl) => tpl.id === templateId),
+    [templates, templateId]
+  )
+  const fields: ApprovalFormField[] = selected?.form_schema?.fields ?? []
+
+  const setField = (key: string, value: string) =>
+    setFormData((prev) => ({ ...prev, [key]: value }))
+
+  const missingRequired = fields.some(
+    (f) => f.required && !(formData[f.key] ?? '').trim()
+  )
+
+  const submit = async () => {
+    if (!templateId || missingRequired || submitting) return
+    setSubmitting(true)
+    setError('')
+    try {
+      await submitApproval({ template: templateId, form_data: formData })
+      onSubmitted()
+    } catch (e) {
+      setError(apiErrorMessage(e))
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} ariaLabel={t('form.title')} initialFocusRef={firstFieldRef}>
+      <div className={css({ padding: '1.25rem', overflowY: 'auto' })}>
+        <h2
+          className={css({
+            margin: '0 0 1rem',
+            fontSize: '1.0625rem',
+            fontWeight: 'bold',
+            color: 'greyscale.900',
+          })}
+        >
+          {t('form.title')}
+        </h2>
+
+        <div className={css({ marginBottom: '0.875rem' })}>
+          <label htmlFor="approval-template" className={labelCss}>
+            {t('form.template')}
+          </label>
+          <select
+            id="approval-template"
+            ref={firstFieldRef}
+            value={templateId}
+            onChange={(e) => {
+              setTemplateId(e.target.value)
+              setFormData({})
+            }}
+            className={fieldCss}
+          >
+            <option value="">{t('form.templatePlaceholder')}</option>
+            {templates.map((tpl) => (
+              <option key={tpl.id} value={tpl.id}>
+                {tpl.name}
+              </option>
+            ))}
+          </select>
+          {!isLoading && templates.length === 0 && (
+            <p
+              className={css({
+                fontSize: '0.75rem',
+                color: 'greyscale.500',
+                marginTop: '0.375rem',
+              })}
+            >
+              {t('form.noTemplates')}
+            </p>
+          )}
+        </div>
+
+        {fields.map((field) => (
+          <div key={field.key} className={css({ marginBottom: '0.875rem' })}>
+            <label htmlFor={`f-${field.key}`} className={labelCss}>
+              {field.label}
+              {field.required && (
+                <span className={css({ color: 'danger.500' })}> *</span>
+              )}
+            </label>
+            {field.type === 'textarea' ? (
+              <textarea
+                id={`f-${field.key}`}
+                rows={3}
+                value={formData[field.key] ?? ''}
+                onChange={(e) => setField(field.key, e.target.value)}
+                className={fieldCss}
+              />
+            ) : (
+              <input
+                id={`f-${field.key}`}
+                type={
+                  field.type === 'number'
+                    ? 'number'
+                    : field.type === 'date'
+                      ? 'date'
+                      : 'text'
+                }
+                value={formData[field.key] ?? ''}
+                onChange={(e) => setField(field.key, e.target.value)}
+                className={fieldCss}
+              />
+            )}
+          </div>
+        ))}
+
+        {error && (
+          <p
+            className={css({
+              fontSize: '0.8125rem',
+              color: 'danger.600',
+              marginBottom: '0.75rem',
+            })}
+          >
+            {t('form.error', { message: error })}
+          </p>
+        )}
+
+        <div
+          className={css({
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '0.5rem',
+            marginTop: '0.5rem',
+          })}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            className={css({
+              paddingX: '1rem',
+              paddingY: '0.5rem',
+              borderRadius: '0.5rem',
+              border: '1px solid token(colors.greyscale.300)',
+              backgroundColor: 'white',
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+            })}
+          >
+            {t('form.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!templateId || missingRequired || submitting}
+            data-testid="approval-submit"
+            className={css({
+              paddingX: '1rem',
+              paddingY: '0.5rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              backgroundColor: 'primary.500',
+              color: 'white',
+              fontSize: '0.875rem',
+              fontWeight: 'medium',
+              cursor: 'pointer',
+              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+            })}
+          >
+            {t('form.submit')}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}

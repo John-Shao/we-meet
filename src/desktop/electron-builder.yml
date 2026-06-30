@@ -1,0 +1,21 @@
+appId: online.we-meet.desktop
+productName: We-Meet
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - package.json
+win:
+  target: nsis
+  artifactName: ${productName}-${version}-setup.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target: dmg
+  category: public.app-category.business
+  artifactName: ${productName}-${version}.${ext}
+# 签名/公证（后续）：
+#   win  — EV 证书；mac — Apple Developer + notarize（CSC_LINK / APPLE_ID 等环境变量）
+#   自动更新（后续）：electron-updater + 自建/对象存储 feed（publish 字段）

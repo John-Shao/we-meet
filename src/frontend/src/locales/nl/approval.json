@@ -1,0 +1,35 @@
+{
+  "nav": { "title": "Goedkeuringen", "ariaLabel": "Goedkeuringen openen" },
+  "page": {
+    "authRequired": "Log in om goedkeuringen te bekijken.",
+    "title": "Goedkeuringen",
+    "create": "Nieuw verzoek",
+    "loading": "Laden…"
+  },
+  "section": { "pending": "Te beoordelen", "mine": "Mijn verzoeken", "empty": "Niets hier" },
+  "tab": { "create": "Nieuw verzoek", "pending": "Te doen", "mine": "Verstuurd" },
+  "status": {
+    "pending": "In behandeling",
+    "approved": "Goedgekeurd",
+    "rejected": "Afgewezen",
+    "cancelled": "Ingetrokken",
+    "needs_assignment": "Toewijzing nodig"
+  },
+  "card": { "applicant": "Aangevraagd door", "node": "Stap {{index}}", "unassigned": "Niet toegewezen" },
+  "act": {
+    "approve": "Goedkeuren",
+    "reject": "Afwijzen",
+    "cancel": "Intrekken",
+    "commentPlaceholder": "Opmerking (optioneel)",
+    "confirmCancel": "Dit verzoek intrekken?"
+  },
+  "form": {
+    "title": "Nieuw verzoek",
+    "template": "Type",
+    "templatePlaceholder": "Selecteren…",
+    "submit": "Versturen",
+    "cancel": "Annuleren",
+    "error": "Mislukt: {{message}}",
+    "noTemplates": "Geen goedkeuringssjablonen beschikbaar — vraag een beheerder om er een te configureren."
+  }
+}

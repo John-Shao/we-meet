@@ -1,0 +1,35 @@
+{
+  "nav": { "title": "Genehmigungen", "ariaLabel": "Genehmigungen öffnen" },
+  "page": {
+    "authRequired": "Bitte anmelden, um Genehmigungen zu sehen.",
+    "title": "Genehmigungen",
+    "create": "Neuer Antrag",
+    "loading": "Laden…"
+  },
+  "section": { "pending": "Zu genehmigen", "mine": "Meine Anträge", "empty": "Nichts vorhanden" },
+  "tab": { "create": "Neuer Antrag", "pending": "Zu erledigen", "mine": "Gesendet" },
+  "status": {
+    "pending": "Ausstehend",
+    "approved": "Genehmigt",
+    "rejected": "Abgelehnt",
+    "cancelled": "Zurückgezogen",
+    "needs_assignment": "Zuweisung nötig"
+  },
+  "card": { "applicant": "Antragsteller", "node": "Schritt {{index}}", "unassigned": "Nicht zugewiesen" },
+  "act": {
+    "approve": "Genehmigen",
+    "reject": "Ablehnen",
+    "cancel": "Zurückziehen",
+    "commentPlaceholder": "Kommentar (optional)",
+    "confirmCancel": "Diesen Antrag zurückziehen?"
+  },
+  "form": {
+    "title": "Neuer Antrag",
+    "template": "Typ",
+    "templatePlaceholder": "Auswählen…",
+    "submit": "Absenden",
+    "cancel": "Abbrechen",
+    "error": "Fehlgeschlagen: {{message}}",
+    "noTemplates": "Keine Genehmigungsvorlagen verfügbar — bitte einen Administrator um Konfiguration."
+  }
+}

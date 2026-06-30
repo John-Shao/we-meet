@@ -1,0 +1,40 @@
+{
+  "nav": {
+    "title": "Contacten",
+    "ariaLabel": "Open de contactenlijst"
+  },
+  "picker": {
+    "title": "Kies een contact",
+    "searchPlaceholder": "Zoeken op naam of e-mail…",
+    "empty": "Geen contacten gevonden",
+    "loading": "Laden…",
+    "cancel": "Annuleren"
+  },
+  "page": {
+    "authRequired": "Log in om de contactenlijst te bekijken.",
+    "departments": "Afdelingen",
+    "allMembers": "Alle leden",
+    "newDept": "Nieuwe afdeling",
+    "newDeptPrompt": "Naam van de nieuwe afdeling (aangemaakt onder de geselecteerde):",
+    "newDeptError": "Aanmaken van afdeling mislukt: {{message}}",
+    "searchPlaceholder": "Zoeken op naam of e-mail…",
+    "loading": "Laden…",
+    "empty": "Geen leden",
+    "message": "Bericht",
+    "messageError": "Gesprek starten mislukt: {{message}}",
+    "assignDept": "Afdeling wijzigen",
+    "noDept": "(geen afdeling)",
+    "assignError": "Afdeling wijzigen mislukt: {{message}}",
+    "deleteDept": "Afdeling verwijderen",
+    "deleteDeptConfirm": "Afdeling '{{name}}' verwijderen? De leden worden 'geen afdeling'.",
+    "deleteDeptError": "Verwijderen van afdeling mislukt: {{message}}",
+    "selfTag": "(jij)"
+  },
+  "detail": {
+    "email": "E-mail",
+    "department": "Afdeling",
+    "title": "Functie",
+    "close": "Sluiten",
+    "none": "—"
+  }
+}

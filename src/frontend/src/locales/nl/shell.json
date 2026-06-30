@@ -1,0 +1,26 @@
+{
+  "railLabel": "Hoofdnavigatie",
+  "resizeHandle": "Sleep om formaat te wijzigen",
+  "collapse": "Navigatie inklappen",
+  "expand": "Navigatie uitklappen",
+  "more": "Meer",
+  "search": {
+    "trigger": "Zoeken",
+    "placeholder": "Zoek personen, vergaderingen…",
+    "contacts": "Contacten",
+    "meetings": "Vergaderingen",
+    "empty": "Geen resultaten"
+  },
+  "logout": "Afmelden",
+  "confirm": "Bevestigen",
+  "cancel": "Annuleren",
+  "ok": "OK",
+  "nav": {
+    "messages": "Berichten",
+    "meeting": "Vergaderingen",
+    "calendar": "Agenda",
+    "approval": "Goedkeuringen",
+    "contacts": "Contacten",
+    "docs": "Documenten"
+  }
+}

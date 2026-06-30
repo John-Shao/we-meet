@@ -1,0 +1,40 @@
+{
+  "nav": {
+    "title": "Contacts",
+    "ariaLabel": "Ouvrir l'annuaire des contacts"
+  },
+  "picker": {
+    "title": "Choisir un contact",
+    "searchPlaceholder": "Rechercher par nom ou e-mail…",
+    "empty": "Aucun contact trouvé",
+    "loading": "Chargement…",
+    "cancel": "Annuler"
+  },
+  "page": {
+    "authRequired": "Veuillez vous connecter pour consulter l'annuaire.",
+    "departments": "Services",
+    "allMembers": "Tous les membres",
+    "newDept": "Nouveau service",
+    "newDeptPrompt": "Nom du nouveau service (créé sous celui sélectionné) :",
+    "newDeptError": "Échec de la création du service : {{message}}",
+    "searchPlaceholder": "Rechercher par nom ou e-mail…",
+    "loading": "Chargement…",
+    "empty": "Aucun membre",
+    "message": "Message",
+    "messageError": "Échec du démarrage de la conversation : {{message}}",
+    "assignDept": "Changer de service",
+    "noDept": "(aucun service)",
+    "assignError": "Échec du changement de service : {{message}}",
+    "deleteDept": "Supprimer le service",
+    "deleteDeptConfirm": "Supprimer le service « {{name}} » ? Ses membres passeront en « aucun service ».",
+    "deleteDeptError": "Échec de la suppression du service : {{message}}",
+    "selfTag": "(vous)"
+  },
+  "detail": {
+    "email": "E-mail",
+    "department": "Service",
+    "title": "Poste",
+    "close": "Fermer",
+    "none": "—"
+  }
+}

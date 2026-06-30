@@ -1,0 +1,35 @@
+{
+  "nav": { "title": "审批", "ariaLabel": "打开审批" },
+  "page": {
+    "authRequired": "请先登录以查看审批。",
+    "title": "审批",
+    "create": "发起审批",
+    "loading": "加载中…"
+  },
+  "section": { "pending": "待我审批", "mine": "我发起的", "empty": "暂无" },
+  "tab": { "create": "发起申请", "pending": "待办", "mine": "我发起" },
+  "status": {
+    "pending": "待审批",
+    "approved": "已通过",
+    "rejected": "已拒绝",
+    "cancelled": "已撤销",
+    "needs_assignment": "待指派"
+  },
+  "card": { "applicant": "发起人", "node": "第 {{index}} 级", "unassigned": "待指派" },
+  "act": {
+    "approve": "通过",
+    "reject": "拒绝",
+    "cancel": "撤销",
+    "commentPlaceholder": "审批意见(可选)",
+    "confirmCancel": "确定撤销这条审批吗?"
+  },
+  "form": {
+    "title": "发起审批",
+    "template": "审批类型",
+    "templatePlaceholder": "请选择…",
+    "submit": "提交",
+    "cancel": "取消",
+    "error": "操作失败:{{message}}",
+    "noTemplates": "暂无可用的审批模板,请联系管理员在后台配置。"
+  }
+}

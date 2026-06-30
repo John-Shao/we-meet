@@ -1,0 +1,61 @@
+{
+  "nav": {
+    "title": "Kalender",
+    "ariaLabel": "Kalender öffnen"
+  },
+  "page": {
+    "authRequired": "Bitte anmelden, um den Kalender zu sehen.",
+    "title": "Kalender",
+    "create": "Neuer Termin",
+    "loading": "Laden…",
+    "empty": "Noch keine Termine"
+  },
+  "form": {
+    "title": "Neuer Termin",
+    "titlePlaceholder": "Termintitel",
+    "start": "Beginn",
+    "end": "Ende",
+    "allDay": "Ganztägig",
+    "reminder": "Erinnerung",
+    "reminderNone": "Keine Erinnerung",
+    "reminderMinutes": "{{count}} Min vorher",
+    "attendees": "Teilnehmer",
+    "selected": "{{count}} ausgewählt",
+    "searchPlaceholder": "Mitglieder suchen…",
+    "loading": "Laden…",
+    "create": "Erstellen",
+    "cancel": "Abbrechen",
+    "error": "Fehlgeschlagen: {{message}}",
+    "endAfterStart": "Ende muss nach dem Beginn liegen.",
+    "noResults": "Keine Mitglieder gefunden",
+    "removeAttendee": "{{name}} entfernen"
+  },
+  "card": {
+    "organizer": "Organisator",
+    "attendees": "{{count}} Personen",
+    "join": "Beitreten"
+  },
+  "rsvp": {
+    "label": "Meine Antwort",
+    "accepted": "Zusagen",
+    "tentative": "Vielleicht",
+    "declined": "Absagen"
+  },
+  "grid": {
+    "today": "Heute",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "month": "Monat",
+    "week": "Woche",
+    "day": "Tag",
+    "agenda": "Agenda",
+    "date": "Datum",
+    "time": "Zeit",
+    "event": "Ereignis",
+    "noEvents": "Keine Ereignisse in diesem Zeitraum",
+    "showMore": "+{{count}} weitere"
+  },
+  "sidebar": {
+    "upcoming": "Bevorstehend"
+  }
+}

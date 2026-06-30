@@ -1,0 +1,21 @@
+{
+  "name": "we-meet-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "we-meet 桌面端 (Electron) — 复用 src/frontend 的 React 应用",
+  "main": "dist/main.js",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build:main": "tsc",
+    "build:renderer": "cd ../frontend && npm run build",
+    "copy:renderer": "node scripts/copy-renderer.mjs",
+    "dev": "npm run build:main && electron .",
+    "package": "npm run build:main && npm run build:renderer && npm run copy:renderer && electron-builder"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.7.0"
+  }
+}

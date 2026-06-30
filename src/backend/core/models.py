@@ -169,6 +169,18 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
     short_name = models.CharField(
         _("short name"), max_length=100, null=True, blank=True
     )
+    im_uid = models.CharField(
+        _("IM uid"),
+        help_text=_(
+            "Cached jusi-light-im internal uid, backfilled on first IM token issue. "
+            "Lets the IM bridge resolve conversation members (uids) → display names."
+        ),
+        max_length=36,
+        unique=True,
+        blank=True,
+        null=True,
+        editable=False,
+    )
     language = models.CharField(
         max_length=10,
         choices=settings.LANGUAGES,
@@ -246,11 +258,29 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         mail.send_mail(subject, message, from_email, [self.email], **kwargs)
 
     def get_teams(self):
+        """Team keys granting this user team-based resource access.
+
+        Returns the ``team_key`` of each *direct*, active department membership.
+        Subtree expansion is intentionally NOT applied (a manager of a parent
+        department does not implicitly gain access to child-department
+        resources) — that stays an explicit, opt-in grant per roadmap P1.
+
+        Memoized on the instance: ``BaseAccessManager.filter_user`` and the
+        viewset querysets call this once per request on ``request.user``, so the
+        cache turns N access-row checks into a single query without needing a
+        cross-request cache.
         """
-        Get list of teams in which the user is, as a list of strings.
-        Must be cached if retrieved remotely.
-        """
-        return []
+        if not hasattr(self, "_teams_cache"):
+            self._teams_cache = list(
+                Membership.objects.filter(
+                    user=self,
+                    status=MembershipStatusChoices.ACTIVE,
+                    department__isnull=False,
+                    department__is_active=True,
+                    department__deleted_at__isnull=True,
+                ).values_list("department__team_key", flat=True)
+            )
+        return self._teams_cache
 
 
 def get_resource_roles(resource: models.Model, user: User) -> List[str]:
@@ -1673,3 +1703,599 @@ class TranscriptChunk(BaseModel):
         speaker = self.speaker_name or self.speaker_identity[:12] or "?"
         preview = self.text[:60]
         return f"#{self.chunk_index} {speaker}: {preview}"
+
+
+# ---- P5: meeting ↔ jusi-light-im group bridge ----
+
+
+class MeetingConversation(BaseModel):
+    """1:1 mapping between a Room and its jusi-light-im group conversation.
+
+    `cid` is deterministic from `room_id` (UUIDv5) — this is what makes our
+    ensure-group endpoint naturally idempotent: concurrent calls converge to the
+    same `cid` without any explicit locking.
+
+    Room ON DELETE SET NULL: removing a Room does NOT delete the IM conversation
+    — the chat history persists so "after-meeting discussion" stays available
+    (this is jusi-light-im's whole value-add on top of LiveKit).
+    """
+
+    room = models.OneToOneField(
+        Room,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="im_conversation",
+        help_text=_("the meeting room this conversation was created for"),
+    )
+    cid = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text=_("jusi-light-im conversation id (UUIDv5 from room id)"),
+    )
+    summary_pushed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "set when the meeting summary has been posted as a system message to the "
+            "conversation — read by the summary push hook to avoid duplicate sends"
+        ),
+    )
+
+    class Meta:
+        db_table = "meet_meeting_conversation"
+        verbose_name = _("Meeting conversation")
+        verbose_name_plural = _("Meeting conversations")
+
+    @staticmethod
+    def cid_for_room(room_id) -> str:
+        """Deterministic cid for a room. Stable across processes / restarts."""
+        return str(
+            uuid.uuid5(uuid.NAMESPACE_OID, f"jusi-light-im:room:{room_id}")
+        )
+
+    def __str__(self) -> str:
+        room_repr = str(self.room_id) if self.room_id else "<orphan>"
+        return f"MeetingConversation room={room_repr} cid={self.cid}"
+
+
+# ---- P3: meeting ↔ La Suite Docs document bridge ----
+
+
+class MeetingDoc(BaseModel):
+    """1:1 mapping between a Room and its La Suite Docs document (P3 妙记落 Doc).
+
+    Created when a meeting Summary is pushed to Docs via the server-to-server
+    ``create-for-owner`` endpoint. Mirrors MeetingConversation: Room ON DELETE
+    SET NULL so the document outlives the room (the doc is the lasting artefact).
+    The row's existence is the idempotency guard for the summary→doc push — once a
+    MeetingDoc exists for a room, the push hook no-ops.
+    """
+
+    room = models.OneToOneField(
+        Room,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_doc",
+        help_text=_("the meeting room this document was created for"),
+    )
+    doc_id = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text=_("La Suite Docs document id"),
+    )
+    doc_url = models.URLField(
+        max_length=512,
+        help_text=_("deep link to the document on the Docs site"),
+    )
+
+    class Meta:
+        db_table = "meet_meeting_doc"
+        verbose_name = _("Meeting document")
+        verbose_name_plural = _("Meeting documents")
+
+    def __str__(self) -> str:
+        room_repr = str(self.room_id) if self.room_id else "<orphan>"
+        return f"MeetingDoc room={room_repr} doc={self.doc_id}"
+
+
+# ---------------------------------------------------------------------------
+# Organization / Department / Membership  (P1 — 企业组织架构地基)
+#
+# Additive enterprise org layer the to-B roadmap depends on. Nothing here
+# touches BaseAccess / ResourceAccess: a Department exposes a stable, opaque
+# ``team_key`` (``dept:<uuid>``) that is written verbatim into
+# ``BaseAccess.team`` (max_length=100). Existing team-based access filtering
+# (BaseAccessManager.filter_user) lights up automatically once
+# ``User.get_teams()`` returns these keys — see the data migration that
+# backfills a default organization + one membership per existing user.
+# ---------------------------------------------------------------------------
+
+
+class OrgRoleChoices(models.TextChoices):
+    """Role of a user *within an organization* (distinct from per-resource RoleChoices).
+
+    Values intentionally overlap RoleChoices where they coincide (member /
+    administrator / owner) so admin tooling can reuse the same vocabulary; the
+    extra ``dept_admin`` scopes administration to a department subtree.
+    """
+
+    MEMBER = "member", _("Member")
+    DEPT_ADMIN = "dept_admin", _("Department administrator")
+    ADMIN = "administrator", _("Organization administrator")
+    OWNER = "owner", _("Organization owner")
+
+
+class MembershipStatusChoices(models.TextChoices):
+    """Lifecycle of a user's membership in an organization."""
+
+    ACTIVE = "active", _("Active")
+    INVITED = "invited", _("Invited")
+    SUSPENDED = "suspended", _("Suspended")
+    LEFT = "left", _("Left")
+
+
+class Organization(BaseModel):
+    """An enterprise tenant.
+
+    MVP runs a single bootstrapped organization, but the FK is present on every
+    org-scoped row from day one so onboarding a second tenant never requires a
+    painful backfill. Directory / admin querysets filter by the caller's
+    organization even while only one exists.
+    """
+
+    name = models.CharField(_("name"), max_length=255)
+    slug = models.SlugField(_("slug"), max_length=100, unique=True)
+    primary_domain = models.CharField(
+        _("primary email domain"),
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=_(
+            "Primary email domain (e.g. 'example.com'). Used to auto-place "
+            "invited members whose email matches."
+        ),
+    )
+    is_active = models.BooleanField(_("active"), default=True)
+    settings = models.JSONField(_("settings"), blank=True, default=dict)
+
+    class Meta:
+        db_table = "meet_organization"
+        ordering = ("name",)
+        verbose_name = _("Organization")
+        verbose_name_plural = _("Organizations")
+
+    def __str__(self):
+        return self.name
+
+
+class Department(BaseModel):
+    """A node in an organization's department tree.
+
+    Adjacency list (``parent``) plus a materialized ``path`` of ancestor ids so
+    a subtree is a single ``path__startswith`` lookup with no MPTT dependency.
+    ``team_key`` / ``path`` / ``depth`` are maintained in ``save()``; reparenting
+    a department (which must rewrite descendant paths) is handled by the admin
+    console, not here.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="departments"
+    )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="children",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(_("name"), max_length=255)
+    # Slash-joined ancestor ids INCLUDING self (e.g. "<root>/<child>/"). A node's
+    # whole subtree (self included) is `filter(path__startswith=node.path)`.
+    path = models.CharField(
+        _("path"), max_length=1024, blank=True, default="", db_index=True
+    )
+    depth = models.PositiveIntegerField(_("depth"), default=0)
+    head = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="headed_departments",
+        null=True,
+        blank=True,
+        help_text=_("Department head — the default approver for org workflows."),
+    )
+    sort_order = models.PositiveIntegerField(_("sort order"), default=0)
+    # Opaque, immutable key written verbatim into BaseAccess.team (<=100 chars).
+    # Derived from the row id so it is unique, rename-safe and collision-free.
+    team_key = models.CharField(
+        _("team key"), max_length=100, unique=True, editable=False
+    )
+    is_active = models.BooleanField(_("active"), default=True)
+    deleted_at = models.DateTimeField(_("deleted at"), null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_department"
+        ordering = ("path", "sort_order", "name")
+        verbose_name = _("Department")
+        verbose_name_plural = _("Departments")
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        # _refresh_tree_fields() must run BEFORE super().save(): BaseModel.save()
+        # calls full_clean(), and team_key is required (non-blank).
+        self._refresh_tree_fields()
+        super().save(*args, **kwargs)
+
+    def _refresh_tree_fields(self):
+        """Derive team_key / path / depth from this row's id and its parent.
+
+        Only updates this node — descendant path rewrites on reparent are the
+        admin console's job.
+        """
+        if not self.team_key:
+            self.team_key = f"dept:{self.id.hex}"
+        if self.parent_id:
+            self.path = f"{self.parent.path}{self.id.hex}/"
+            self.depth = self.parent.depth + 1
+        else:
+            self.path = f"{self.id.hex}/"
+            self.depth = 0
+
+
+class Membership(BaseModel):
+    """Links a user to an organization, and optionally to a department."""
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="memberships"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="memberships"
+    )
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        related_name="memberships",
+        null=True,
+        blank=True,
+        help_text=_("Null means an organization-level membership (no department)."),
+    )
+    title = models.CharField(_("title"), max_length=255, blank=True, default="")
+    is_primary = models.BooleanField(
+        _("primary"),
+        default=False,
+        help_text=_("The user's primary department within the organization."),
+    )
+    org_role = models.CharField(
+        max_length=20, choices=OrgRoleChoices.choices, default=OrgRoleChoices.MEMBER
+    )
+    employee_no = models.CharField(max_length=64, blank=True, default="")
+    status = models.CharField(
+        max_length=20,
+        choices=MembershipStatusChoices.choices,
+        default=MembershipStatusChoices.ACTIVE,
+    )
+    joined_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_membership"
+        ordering = ("-created_at",)
+        verbose_name = _("Membership")
+        verbose_name_plural = _("Memberships")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "department"],
+                name="membership_unique_user_department",
+                violation_error_message=_(
+                    "This user already belongs to this department."
+                ),
+            ),
+            models.UniqueConstraint(
+                fields=["user", "organization"],
+                condition=models.Q(is_primary=True),
+                name="membership_one_primary_per_user_org",
+                violation_error_message=_(
+                    "A user can have only one primary department per organization."
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        dept = self.department.name if self.department_id else "<org-level>"
+        return f"{self.user} @ {dept} ({self.get_org_role_display()})"
+
+
+# --- P2 日历 / 日程 ---
+
+
+class EventStatusChoices(models.TextChoices):
+    """Lifecycle of a calendar event."""
+
+    CONFIRMED = "confirmed", _("Confirmed")
+    CANCELLED = "cancelled", _("Cancelled")
+
+
+class EventVisibilityChoices(models.TextChoices):
+    """Who may see an event's details (MVP: org-scoped + organizer/attendee)."""
+
+    DEFAULT = "default", _("Default")
+    PRIVATE = "private", _("Private")
+
+
+class EventRSVPChoices(models.TextChoices):
+    """An attendee's response to an invitation."""
+
+    NEEDS_ACTION = "needs_action", _("Needs action")
+    ACCEPTED = "accepted", _("Accepted")
+    DECLINED = "declined", _("Declined")
+    TENTATIVE = "tentative", _("Tentative")
+
+
+class EventAttendeeRoleChoices(models.TextChoices):
+    """An attendee's role on an event."""
+
+    ORGANIZER = "organizer", _("Organizer")
+    REQUIRED = "required", _("Required")
+    OPTIONAL = "optional", _("Optional")
+
+
+class CalendarEvent(BaseModel):
+    """A scheduled event (P2 日历/日程).
+
+    Distinct from Room: an event owns the schedule + attendees + RSVP +
+    reminders, and *optionally* links a Room (the "join meeting" target, created
+    alongside the event). ``room`` is SET_NULL so the room + its IM group outlive
+    the event. MVP is single-occurrence; ``recurrence`` / ``recurrence_parent``
+    are present but not yet expanded.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="calendar_events"
+    )
+    organizer = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="organized_events"
+    )
+    title = models.CharField(_("title"), max_length=255)
+    description = models.TextField(_("description"), blank=True, default="")
+    start_at = models.DateTimeField(_("start at"))
+    end_at = models.DateTimeField(_("end at"))
+    timezone = TimeZoneField(
+        _("timezone"),
+        choices_display="WITH_GMT_OFFSET",
+        use_pytz=False,
+        default=settings.TIME_ZONE,
+        help_text=_("The event's authoring timezone (for cross-tz display)."),
+    )
+    all_day = models.BooleanField(_("all day"), default=False)
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.SET_NULL,
+        related_name="calendar_events",
+        null=True,
+        blank=True,
+        help_text=_("The video room to join (created with the event); SET_NULL "
+                    "so the room + IM group outlive the event."),
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=EventStatusChoices.choices,
+        default=EventStatusChoices.CONFIRMED,
+    )
+    visibility = models.CharField(
+        max_length=20,
+        choices=EventVisibilityChoices.choices,
+        default=EventVisibilityChoices.DEFAULT,
+    )
+    # Minutes-before-start at which to remind (e.g. [10]). MVP acts on the first.
+    reminders = models.JSONField(_("reminders"), blank=True, default=list)
+    reminder_pushed_at = models.DateTimeField(
+        _("reminder pushed at"),
+        null=True,
+        blank=True,
+        help_text=_("Idempotency guard: set once the IM reminder has been sent."),
+    )
+    recurrence = models.CharField(
+        _("recurrence"),
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=_("RRULE string; empty means a single occurrence (MVP)."),
+    )
+    recurrence_parent = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="occurrences",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "meet_calendar_event"
+        ordering = ("start_at",)
+        verbose_name = _("Calendar event")
+        verbose_name_plural = _("Calendar events")
+        indexes = [
+            # Reminder scan: events starting soon that haven't been pushed yet.
+            models.Index(fields=["start_at"], name="calevent_start_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.title} @ {self.start_at:%Y-%m-%d %H:%M}"
+
+
+class EventAttendee(BaseModel):
+    """An invitee on a CalendarEvent, with their RSVP (P2)."""
+
+    event = models.ForeignKey(
+        CalendarEvent, on_delete=models.CASCADE, related_name="attendees"
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="event_attendances",
+        null=True,
+        blank=True,
+        help_text=_("Internal attendee; null for an external email-only invite."),
+    )
+    email = models.CharField(_("email"), max_length=255, blank=True, default="")
+    rsvp = models.CharField(
+        max_length=20,
+        choices=EventRSVPChoices.choices,
+        default=EventRSVPChoices.NEEDS_ACTION,
+    )
+    role = models.CharField(
+        max_length=20,
+        choices=EventAttendeeRoleChoices.choices,
+        default=EventAttendeeRoleChoices.REQUIRED,
+    )
+
+    class Meta:
+        db_table = "meet_event_attendee"
+        ordering = ("created_at",)
+        verbose_name = _("Event attendee")
+        verbose_name_plural = _("Event attendees")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event", "user"],
+                name="event_attendee_unique_event_user",
+                violation_error_message=_("This user is already an attendee."),
+            ),
+        ]
+
+    def __str__(self):
+        who = self.user or self.email or "<?>"
+        return f"{who} → {self.event_id} ({self.get_rsvp_display()})"
+
+
+# --- P5 审批 / 工作流 ---
+
+
+class ApprovalNodeType(models.TextChoices):
+    """How a flow node resolves its approver (see services/approval.py)."""
+
+    DIRECT_MANAGER = "direct_manager", _("Direct manager")
+    DEPARTMENT_HEAD = "department_head", _("Department head")
+    ORG_ROLE = "org_role", _("Organization role")
+    USER = "user", _("Specific user")
+
+
+class ApprovalStatusChoices(models.TextChoices):
+    """Lifecycle of an approval instance."""
+
+    PENDING = "pending", _("Pending")
+    APPROVED = "approved", _("Approved")
+    REJECTED = "rejected", _("Rejected")
+    CANCELLED = "cancelled", _("Cancelled")
+    NEEDS_ASSIGNMENT = "needs_assignment", _("Needs assignment")
+
+
+class ApprovalActionChoices(models.TextChoices):
+    """A single approver's action on their task."""
+
+    PENDING = "pending", _("Pending")
+    APPROVED = "approved", _("Approved")
+    REJECTED = "rejected", _("Rejected")
+
+
+class ApprovalTemplate(BaseModel):
+    """A reusable approval definition: a form + an ordered approver chain (P5).
+
+    ``form_schema`` describes the form fields (MVP: authored via Django admin /
+    JSON, no visual designer). ``flow`` is an ordered list of node rules, each
+    ``{"type": <ApprovalNodeType>, ...}`` — MVP is a serial single chain.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="approval_templates"
+    )
+    name = models.CharField(_("name"), max_length=255)
+    description = models.TextField(_("description"), blank=True, default="")
+    form_schema = models.JSONField(_("form schema"), blank=True, default=dict)
+    flow = models.JSONField(
+        _("flow"),
+        blank=True,
+        default=list,
+        help_text=_("Ordered approver-resolution rules; MVP is a serial chain."),
+    )
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        db_table = "meet_approval_template"
+        ordering = ("name",)
+        verbose_name = _("Approval template")
+        verbose_name_plural = _("Approval templates")
+
+    def __str__(self):
+        return self.name
+
+
+class ApprovalInstance(BaseModel):
+    """A running (or finished) approval request off a template (P5)."""
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="approval_instances"
+    )
+    template = models.ForeignKey(
+        ApprovalTemplate, on_delete=models.PROTECT, related_name="instances"
+    )
+    applicant = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="approval_requests"
+    )
+    form_data = models.JSONField(_("form data"), blank=True, default=dict)
+    status = models.CharField(
+        max_length=20,
+        choices=ApprovalStatusChoices.choices,
+        default=ApprovalStatusChoices.PENDING,
+    )
+    # Index of the flow node currently awaiting action (serial chain pointer).
+    current_node = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "meet_approval_instance"
+        ordering = ("-created_at",)
+        verbose_name = _("Approval instance")
+        verbose_name_plural = _("Approval instances")
+
+    def __str__(self):
+        return f"{self.template_id} by {self.applicant_id} ({self.status})"
+
+
+class ApprovalTask(BaseModel):
+    """One node's task: the resolved approver and their action (P5)."""
+
+    instance = models.ForeignKey(
+        ApprovalInstance, on_delete=models.CASCADE, related_name="tasks"
+    )
+    node_index = models.PositiveIntegerField()
+    approver = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="approval_tasks",
+        null=True,
+        blank=True,
+        help_text=_("Resolved approver; null when the node could not be resolved."),
+    )
+    action = models.CharField(
+        max_length=20,
+        choices=ApprovalActionChoices.choices,
+        default=ApprovalActionChoices.PENDING,
+    )
+    comment = models.TextField(_("comment"), blank=True, default="")
+    acted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_approval_task"
+        ordering = ("instance", "node_index")
+        verbose_name = _("Approval task")
+        verbose_name_plural = _("Approval tasks")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["instance", "node_index"],
+                name="approval_task_unique_instance_node",
+            ),
+        ]
+
+    def __str__(self):
+        return f"task#{self.node_index} of {self.instance_id} ({self.action})"

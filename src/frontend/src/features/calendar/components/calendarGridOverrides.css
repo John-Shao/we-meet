@@ -1,0 +1,57 @@
+/* Feishu-blue restyle over react-big-calendar's default theme (P6-e #3). */
+
+.rbc-event,
+.rbc-day-slot .rbc-background-event {
+  background-color: #3370ff;
+  border: none;
+}
+.rbc-event.rbc-selected,
+.rbc-day-slot .rbc-selected.rbc-background-event {
+  background-color: #2860d9;
+}
+.rbc-event:focus {
+  outline: 2px solid #2860d9;
+}
+
+/* Time-grid (周/日) event blocks are narrow — show the title only and drop
+   the time-range label; the full time still shows in the native hover tooltip.
+   Month/agenda views don't render .rbc-event-label, so they're unaffected. */
+.rbc-time-view .rbc-event-label {
+  display: none;
+}
+
+/* Today highlight + current-time indicator */
+.rbc-today {
+  background-color: #ebf1ff;
+}
+.rbc-current-time-indicator {
+  background-color: #3370ff;
+}
+
+/* Toolbar: active view button + hover in Feishu blue */
+.rbc-toolbar button.rbc-active,
+.rbc-toolbar button.rbc-active:hover,
+.rbc-toolbar button.rbc-active:focus {
+  background-color: #3370ff;
+  border-color: #3370ff;
+  color: #fff;
+}
+.rbc-toolbar button:hover {
+  border-color: #3370ff;
+  color: #2860d9;
+}
+.rbc-toolbar button:focus {
+  border-color: #3370ff;
+}
+.rbc-toolbar .rbc-toolbar-label {
+  font-weight: 600;
+}
+
+/* Soften the default borders to match the app's lighter chrome */
+.rbc-header,
+.rbc-month-view,
+.rbc-time-view,
+.rbc-time-header-content,
+.rbc-timeslot-group {
+  border-color: #ececf1;
+}

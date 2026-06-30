@@ -1,0 +1,136 @@
+{
+  "messages": "Berichten",
+  "nav": {
+    "ariaLabel": "Berichten openen"
+  },
+  "auth": {
+    "required": "Log in om berichten te bekijken."
+  },
+  "list": {
+    "title": "Gesprekken",
+    "loading": "Gesprekken laden…",
+    "empty": "Nog geen gesprekken",
+    "newDirect": {
+      "button": "Nieuw gesprek",
+      "prompt": "Jouw IM-ID:\n{{selfUid}}\n\nGeef de IM-ID van je gesprekspartner:",
+      "notReady": "Verbinding nog niet klaar — probeer het later opnieuw",
+      "error": "Aanmaken mislukt: {{message}}"
+    }
+  },
+  "convName": {
+    "groupFallback": "Groep",
+    "directFallback": "Direct"
+  },
+  "actions": {
+    "delete": "Gesprek verwijderen",
+    "leaveConfirm": "Deze groep verlaten? Als je eigenaar bent, wordt het eigenaarschap automatisch overgedragen aan een ander lid; de groep wordt opgeheven als je de laatste bent.",
+    "deleteConfirm": "Dit gesprek verwijderen? Het wordt alleen uit jouw lijst verwijderd — de ander en de geschiedenis blijven ongemoeid.",
+    "error": "Actie mislukt: {{message}}",
+    "recall": "Intrekken",
+    "recallConfirm": "Dit bericht intrekken?",
+    "copy": "Kopiëren",
+    "reply": "Beantwoorden"
+  },
+  "quote": {
+    "replyTo": "Antwoord aan {{name}}",
+    "cancel": "Antwoord annuleren"
+  },
+  "file": {
+    "tooLarge": "Bestand te groot — houd het onder 50 MB",
+    "uploadError": "Bestand verzenden mislukt, probeer het opnieuw"
+  },
+  "recalled": {
+    "self": "Je hebt een bericht ingetrokken",
+    "other": "De ander heeft een bericht ingetrokken",
+    "otherNamed": "{{name}} heeft een bericht ingetrokken"
+  },
+  "group": {
+    "button": "Nieuwe groep",
+    "title": "Nieuwe groep",
+    "namePlaceholder": "Groepsnaam (optioneel)",
+    "searchPlaceholder": "Leden zoeken…",
+    "selected": "{{count}} geselecteerd",
+    "create": "Aanmaken",
+    "cancel": "Annuleren",
+    "loading": "Laden…",
+    "empty": "Geen leden om toe te voegen",
+    "error": "Groep aanmaken mislukt: {{message}}",
+    "you": "Ik"
+  },
+  "header": {
+    "memberCount": "{{count}} leden"
+  },
+  "mention": {
+    "everyone": "Iedereen",
+    "notice": "Heeft je genoemd"
+  },
+  "manage": {
+    "addMembers": "Leden toevoegen",
+    "addTitle": "Groepsleden toevoegen",
+    "info": "Groepsinfo",
+    "settings": "Instellingen",
+    "membersTitle": "Leden",
+    "members": "Leden",
+    "description": "Groepsbeschrijving",
+    "descriptionPlaceholder": "Voeg een beschrijving toe (optioneel)",
+    "descriptionEmpty": "Nog geen beschrijving",
+    "pin": "Bovenaan vastzetten",
+    "mute": "Niet storen",
+    "muteAtAll": "Niet melden bij @iedereen",
+    "nickname": "Mijn groepsbijnaam",
+    "nicknameEmpty": "Niet ingesteld",
+    "nicknamePlaceholder": "Voer je groepsbijnaam in",
+    "clear": "Chatgeschiedenis wissen",
+    "clearConfirm": "De chatgeschiedenis van deze groep wissen? Alleen voor jou verborgen — andere leden worden niet beïnvloed.",
+    "owner": "Eigenaar",
+    "rename": "Groep hernoemen",
+    "renameTitle": "Groep hernoemen",
+    "renamePlaceholder": "Voer een nieuwe naam in",
+    "save": "Opslaan",
+    "cancel": "Annuleren",
+    "remove": "Uit groep verwijderen",
+    "removeConfirm": "“{{name}}” uit de groep verwijderen?",
+    "leave": "Groep verlaten",
+    "leaveConfirm": "Deze groep verlaten? Als je eigenaar bent, wordt het eigenaarschap automatisch overgedragen aan een ander lid; de groep wordt opgeheven als je de laatste bent.",
+    "transfer": "Eigenaarschap overdragen",
+    "transferConfirm": "Eigenaarschap overdragen aan “{{name}}”? Je wordt een gewoon lid.",
+    "dissolve": "Groep opheffen",
+    "removedNotice": "Je bent uit deze groep verwijderd",
+    "empty": "Niemand om toe te voegen",
+    "error": "Actie mislukt: {{message}}"
+  },
+  "chat": {
+    "loading": "Geschiedenis laden…",
+    "empty": "Nog geen berichten — verzend het eerste",
+    "pickPrompt": "Kies links een gesprek om te beginnen"
+  },
+  "input": {
+    "placeholder": "Typ een bericht…",
+    "send": "Verzenden",
+    "sending": "Verzenden…",
+    "image": "Afbeelding sturen",
+    "file": "Bestand sturen"
+  },
+  "preview": {
+    "image": "[Afbeelding]",
+    "file": "[Bestand]",
+    "reaction": "[Reactie]",
+    "recalled": "heeft een bericht ingetrokken"
+  },
+  "image": {
+    "alt": "Afbeelding",
+    "invalidType": "Alleen JPG / PNG / WebP / GIF-afbeeldingen worden ondersteund",
+    "tooLarge": "Afbeelding te groot — houd het onder 10 MB",
+    "uploadError": "Afbeelding verzenden mislukt, probeer het opnieuw"
+  },
+  "time": {
+    "yesterday": "Gisteren"
+  },
+  "connection": {
+    "disconnected": "Verbinding verbroken",
+    "connecting": "Verbinden…",
+    "connected": "Verbonden",
+    "reconnecting": "Opnieuw verbinden…",
+    "auth_failed": "Authenticatie mislukt — vernieuw de pagina"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "nav": {
+    "title": "通讯录",
+    "ariaLabel": "打开通讯录"
+  },
+  "picker": {
+    "title": "选择联系人",
+    "searchPlaceholder": "搜索姓名或邮箱…",
+    "empty": "未找到联系人",
+    "loading": "正在加载…",
+    "cancel": "取消"
+  },
+  "page": {
+    "authRequired": "请先登录后再查看通讯录。",
+    "departments": "部门",
+    "allMembers": "全部成员",
+    "newDept": "新建部门",
+    "newDeptPrompt": "输入新部门名称（将创建在当前所选部门下）：",
+    "newDeptError": "创建部门失败：{{message}}",
+    "searchPlaceholder": "搜索姓名或邮箱…",
+    "loading": "正在加载…",
+    "empty": "暂无成员",
+    "message": "发消息",
+    "messageError": "发起会话失败：{{message}}",
+    "assignDept": "调整部门",
+    "noDept": "（无部门）",
+    "assignError": "调整部门失败：{{message}}",
+    "deleteDept": "删除部门",
+    "deleteDeptConfirm": "确定删除部门「{{name}}」？该部门下的成员将变为「无部门」。",
+    "deleteDeptError": "删除部门失败：{{message}}",
+    "selfTag": "(我)"
+  },
+  "detail": {
+    "email": "邮箱",
+    "department": "部门",
+    "title": "职位",
+    "close": "关闭",
+    "none": "—"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "railLabel": "Hauptnavigation",
+  "resizeHandle": "Zum Anpassen ziehen",
+  "collapse": "Navigation einklappen",
+  "expand": "Navigation ausklappen",
+  "more": "Mehr",
+  "search": {
+    "trigger": "Suchen",
+    "placeholder": "Personen, Meetings suchen…",
+    "contacts": "Kontakte",
+    "meetings": "Meetings",
+    "empty": "Keine Treffer"
+  },
+  "logout": "Abmelden",
+  "confirm": "Bestätigen",
+  "cancel": "Abbrechen",
+  "ok": "OK",
+  "nav": {
+    "messages": "Nachrichten",
+    "meeting": "Meetings",
+    "calendar": "Kalender",
+    "approval": "Genehmigungen",
+    "contacts": "Kontakte",
+    "docs": "Dokumente"
+  }
+}

@@ -1,4 +1,4 @@
-import { Link } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import { css } from '@/styled-system/css'
 import { HStack, Stack } from '@/styled-system/jsx'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,8 @@ import { Menu } from '@/primitives/Menu'
 import { MenuList } from '@/primitives/MenuList'
 import { LoginButton } from '@/components/LoginButton'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
+import { useConfig } from '@/api/useConfig'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { useLoginHint } from '@/hooks/useLoginHint'
 
@@ -84,13 +86,24 @@ const LoginHint = () => {
 }
 
 export const Header = () => {
-  const { t } = useTranslation()
+  const { t } = useTranslation([
+    'global',
+    'im',
+    'contacts',
+    'calendar',
+    'docs',
+    'approval',
+  ])
+  const { data: config } = useConfig()
+  const docsUrl = config?.docs?.url
   const isHome = useMatchesRoute('home')
   const isLegalTerms = useMatchesRoute('legalTerms')
   const isAccessibility = useMatchesRoute('accessibility')
   const isTermsOfService = useMatchesRoute('termsOfService')
   const isRoom = useMatchesRoute('room')
   const { user, isLoggedIn, logout } = useUser()
+  const { confirm: askConfirm } = useConfirm()
+  const [, navigate] = useLocation()
   const userLabel = user?.full_name || user?.email
   const loggedInTooltip = t('loggedInUserTooltip')
   const loggedInAriaLabel = userLabel
@@ -124,11 +137,17 @@ export const Header = () => {
                   },
                 })}
                 onClick={(event) => {
-                  if (
-                    isRoom &&
-                    !window.confirm(t('leaveRoomPrompt', { ns: 'rooms' }))
-                  ) {
+                  // In a room, leaving needs confirmation. The styled confirm is
+                  // async, so always block the Link's sync nav, then navigate
+                  // home ourselves only if the user confirms.
+                  if (isRoom) {
                     event.preventDefault()
+                    void askConfirm({
+                      message: t('leaveRoomPrompt', { ns: 'rooms' }),
+                      danger: true,
+                    }).then((ok) => {
+                      if (ok) navigate('/')
+                    })
                   }
                 }}
                 to="/"
@@ -157,6 +176,88 @@ export const Header = () => {
                     <LoginHint />
                   </>
                 )}
+              {!!user && (
+                <Link
+                  to="/contacts"
+                  aria-label={t('nav.ariaLabel', { ns: 'contacts' })}
+                  className={css({
+                    paddingX: '0.75rem',
+                    paddingY: '0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: '500',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {t('nav.title', { ns: 'contacts' })}
+                </Link>
+              )}
+              {!!user && (
+                <Link
+                  to="/calendar"
+                  aria-label={t('nav.ariaLabel', { ns: 'calendar' })}
+                  className={css({
+                    paddingX: '0.75rem',
+                    paddingY: '0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: '500',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {t('nav.title', { ns: 'calendar' })}
+                </Link>
+              )}
+              {!!user && (
+                <Link
+                  to="/approval"
+                  aria-label={t('nav.ariaLabel', { ns: 'approval' })}
+                  className={css({
+                    paddingX: '0.75rem',
+                    paddingY: '0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: '500',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {t('nav.title', { ns: 'approval' })}
+                </Link>
+              )}
+              {!!user && docsUrl && (
+                <a
+                  href={docsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={t('nav.ariaLabel', { ns: 'docs' })}
+                  className={css({
+                    paddingX: '0.75rem',
+                    paddingY: '0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: '500',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {t('nav.title', { ns: 'docs' })}
+                </a>
+              )}
+              {!!user && (
+                <Link
+                  to="/im"
+                  aria-label={t('nav.ariaLabel', { ns: 'im' })}
+                  className={css({
+                    paddingX: '0.75rem',
+                    paddingY: '0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: '500',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {t('messages', { ns: 'im' })}
+                </Link>
+              )}
               {!!user && (
                 <Menu>
                   <Button size="sm" variant="secondaryText">

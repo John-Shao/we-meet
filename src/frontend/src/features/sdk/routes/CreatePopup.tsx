@@ -65,6 +65,9 @@ export const CreatePopup = () => {
     if (isLoggedIn && callbackId) {
       createMeetingRoom()
     }
+    // Run once when login + callbackId become available; user.full_name / t are
+    // read at call time and must NOT re-trigger this (would create duplicate rooms).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn, callbackId, createRoom])
 
   return (

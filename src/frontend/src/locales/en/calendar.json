@@ -1,0 +1,61 @@
+{
+  "nav": {
+    "title": "Calendar",
+    "ariaLabel": "Open calendar"
+  },
+  "page": {
+    "authRequired": "Please sign in to view the calendar.",
+    "title": "Calendar",
+    "create": "New event",
+    "loading": "Loading…",
+    "empty": "No events yet"
+  },
+  "form": {
+    "title": "New event",
+    "titlePlaceholder": "Event title",
+    "start": "Start",
+    "end": "End",
+    "allDay": "All day",
+    "reminder": "Reminder",
+    "reminderNone": "No reminder",
+    "reminderMinutes": "{{count}} min before",
+    "attendees": "Attendees",
+    "selected": "{{count}} selected",
+    "searchPlaceholder": "Search members…",
+    "loading": "Loading…",
+    "create": "Create",
+    "cancel": "Cancel",
+    "error": "Failed: {{message}}",
+    "endAfterStart": "End must be after start.",
+    "noResults": "No members found",
+    "removeAttendee": "Remove {{name}}"
+  },
+  "card": {
+    "organizer": "Organizer",
+    "attendees": "{{count}} people",
+    "join": "Join"
+  },
+  "rsvp": {
+    "label": "My response",
+    "accepted": "Accept",
+    "tentative": "Maybe",
+    "declined": "Decline"
+  },
+  "grid": {
+    "today": "Today",
+    "previous": "Back",
+    "next": "Next",
+    "month": "Month",
+    "week": "Week",
+    "day": "Day",
+    "agenda": "Agenda",
+    "date": "Date",
+    "time": "Time",
+    "event": "Event",
+    "noEvents": "No events in this range",
+    "showMore": "+{{count}} more"
+  },
+  "sidebar": {
+    "upcoming": "Upcoming"
+  }
+}

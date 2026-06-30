@@ -190,6 +190,22 @@ class Base(Configuration):
         environ_name="AWS_STORAGE_BUCKET_NAME_COVER",
         environ_prefix=None,
     )
+    # IM chat images (P7): a dedicated private bucket. Keys are
+    # `chat/<user_id>/<short-uuid>.<ext>`; the key is carried in the IM message
+    # body (content_type='image') and read via short-lived presigned GET URLs.
+    AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE = values.Value(
+        "we-chat-image",
+        environ_name="AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE",
+        environ_prefix=None,
+    )
+    # IM chat file attachments (P7-b): a separate private bucket. Keys are
+    # `file/<user_id>/<short-uuid>[.ext]` (the `file/` prefix routes resolve to
+    # this bucket); carried in the message body (content_type='file').
+    AWS_STORAGE_BUCKET_NAME_CHAT_FILE = values.Value(
+        "we-chat-doc",
+        environ_name="AWS_STORAGE_BUCKET_NAME_CHAT_FILE",
+        environ_prefix=None,
+    )
 
     # SMS gateway (火山引擎 / Volcengine) — sends OTP codes for mobile login.
     VOLC_SMS_AK = values.Value(None, environ_name="VOLC_SMS_AK", environ_prefix=None)
@@ -696,6 +712,40 @@ class Base(Configuration):
             environ_name="LIVEKIT_API_SECRET", environ_prefix=None
         ),
         "url": values.Value(environ_name="LIVEKIT_API_URL", environ_prefix=None),
+    }
+
+    # jusi-light-im (IM bridge — see core/services/jusi_im.py + core/api/im.py)
+    JUSI_IM_CONFIGURATION = {
+        "api_url": values.Value(
+            environ_name="JUSI_IM_API_URL", environ_prefix=None, default=""
+        ),
+        "ws_url": values.Value(
+            environ_name="JUSI_IM_WS_URL", environ_prefix=None, default=""
+        ),
+        "admin_hmac_secret": SecretFileValue(
+            environ_name="JUSI_IM_ADMIN_HMAC_SECRET", environ_prefix=None
+        ),
+        "default_ttl_seconds": values.IntegerValue(
+            86400, environ_name="JUSI_IM_TOKEN_TTL", environ_prefix=None
+        ),
+        "request_timeout_seconds": values.FloatValue(
+            5.0, environ_name="JUSI_IM_TIMEOUT_S", environ_prefix=None
+        ),
+    }
+
+    # La Suite Docs (collaborative docs bridge — see core/services/docs_client.py).
+    # api_url is the Docs host (serves both /api/... and the /docs/<id>/ deep link).
+    # Empty token/url ⇒ the summary→doc hook silently no-ops (Docs not wired up yet).
+    DOCS_CONFIGURATION = {
+        "api_url": values.Value(
+            environ_name="DOCS_API_URL", environ_prefix=None, default=""
+        ),
+        "server_to_server_token": values.Value(
+            environ_name="DOCS_SERVER_TO_SERVER_TOKEN", environ_prefix=None, default=""
+        ),
+        "request_timeout_seconds": values.FloatValue(
+            5.0, environ_name="DOCS_TIMEOUT_S", environ_prefix=None
+        ),
     }
     LIVEKIT_FORCE_WSS_PROTOCOL = values.BooleanValue(
         False, environ_name="LIVEKIT_FORCE_WSS_PROTOCOL", environ_prefix=None
@@ -1272,6 +1322,21 @@ class Test(Base):
         "api_key": "devkey-padded-for-minimum-len!-livekit",
         "api_secret": "secret-key-padded-for-minimum-len!-livekit",
         "url": "http://127.0.0.1.nip.io:7880",
+    }
+
+    # jusi-light-im — secrets are padded to satisfy the >=32 char check in JusiImAdminClient.
+    JUSI_IM_CONFIGURATION = {
+        "api_url": "http://127.0.0.1.nip.io:8080",
+        "ws_url": "ws://127.0.0.1.nip.io:8080/v1/ws",
+        "admin_hmac_secret": "test-jusi-im-hmac-secret-padded-to-32!",
+        "default_ttl_seconds": 3600,
+        "request_timeout_seconds": 1.0,
+    }
+
+    DOCS_CONFIGURATION = {
+        "api_url": "http://127.0.0.1.nip.io:8083",
+        "server_to_server_token": "test-docs-server-to-server-token",
+        "request_timeout_seconds": 1.0,
     }
 
     APPLICATION_ENABLED = True

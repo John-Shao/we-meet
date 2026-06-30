@@ -1,0 +1,40 @@
+{
+  "nav": {
+    "title": "Contacts",
+    "ariaLabel": "Open the contacts directory"
+  },
+  "picker": {
+    "title": "Pick a contact",
+    "searchPlaceholder": "Search by name or email…",
+    "empty": "No contacts found",
+    "loading": "Loading…",
+    "cancel": "Cancel"
+  },
+  "page": {
+    "authRequired": "Please sign in to view the directory.",
+    "departments": "Departments",
+    "allMembers": "All members",
+    "newDept": "New department",
+    "newDeptPrompt": "Name of the new department (created under the selected one):",
+    "newDeptError": "Failed to create department: {{message}}",
+    "searchPlaceholder": "Search by name or email…",
+    "loading": "Loading…",
+    "empty": "No members",
+    "message": "Message",
+    "messageError": "Failed to start conversation: {{message}}",
+    "assignDept": "Change department",
+    "noDept": "(no department)",
+    "assignError": "Failed to change department: {{message}}",
+    "deleteDept": "Delete department",
+    "deleteDeptConfirm": "Delete department '{{name}}'? Its members will become 'no department'.",
+    "deleteDeptError": "Failed to delete department: {{message}}",
+    "selfTag": "(you)"
+  },
+  "detail": {
+    "email": "Email",
+    "department": "Department",
+    "title": "Title",
+    "close": "Close",
+    "none": "—"
+  }
+}

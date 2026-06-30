@@ -114,6 +114,7 @@ export const PhoneLoginPanel = ({
       <>
         <Field
           type="text"
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- focus the active step's field for fast keyboard entry
           autoFocus
           isRequired
           name="phone"
@@ -180,6 +181,7 @@ export const PhoneLoginPanel = ({
       </P>
       <Field
         type="text"
+        // eslint-disable-next-line jsx-a11y/no-autofocus -- focus the active step's field for fast keyboard entry
         autoFocus
         isRequired
         name="otp"

@@ -21,6 +21,7 @@ import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePers
 import { useConfig } from '@/api/useConfig'
 import { ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { LoadingScreen } from '@/components/LoadingScreen'
+import { ResizablePanel } from '@/components/ResizablePanel'
 
 const Columns = ({ children }: { children?: ReactNode }) => {
   return (
@@ -148,7 +149,7 @@ const IntroText = styled('div', {
 })
 
 export const Home = () => {
-  const { t } = useTranslation('home')
+  const { t } = useTranslation(['home', 'shell'])
   const { isLoggedIn, user } = useUser()
 
   const {
@@ -160,6 +161,18 @@ export const Home = () => {
   const [redirectFailed, setRedirectFailed] = useState(false)
 
   const { data } = useConfig()
+
+  // 发起会议:后端在保存时生成 8 位 slug,前端不再自造 code。
+  const handleCreate = async () => {
+    const owner = (user?.full_name || username || '').trim()
+    const name = owner
+      ? t('defaultRoomName', { user: owner })
+      : t('defaultRoomNameAnonymous')
+    const room = await createRoom({ name, username })
+    navigateTo('room', room.slug, {
+      state: { create: true, initialRoomData: room },
+    })
+  }
 
   useEffect(() => {
     const checkSiteAndRedirect = async () => {
@@ -188,9 +201,82 @@ export const Home = () => {
   return (
     <UserAware>
       <Screen>
-        <Columns>
-          <LeftColumn>
-            <Heading>{t('heading')}</Heading>
+        {isLoggedIn ? (
+          <div className={css({ display: 'flex', height: '100%' })}>
+            <ResizablePanel
+              storageKey="we-meet:meeting-sidebar-width"
+              defaultWidth={260}
+              min={220}
+              max={460}
+            >
+            <aside
+              className={css({
+                width: '100%',
+                height: '100%',
+                borderRight: '1px solid token(colors.greyscale.200)',
+                backgroundColor: 'white',
+                padding: '1.25rem 1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+              })}
+            >
+              <h1
+                className={css({
+                  fontSize: '1.125rem',
+                  fontWeight: 'bold',
+                  color: 'greyscale.900',
+                })}
+              >
+                {t('nav.meeting', { ns: 'shell' })}
+              </h1>
+              <div
+                className={css({
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.625rem',
+                  alignItems: 'stretch',
+                })}
+              >
+                <Button
+                  variant="primary"
+                  data-attr="create-meeting"
+                  onPress={handleCreate}
+                >
+                  {t('createMeeting')}
+                </Button>
+                <DialogTrigger>
+                  <Button variant="secondary">{t('joinMeeting')}</Button>
+                  <JoinMeetingDialog />
+                </DialogTrigger>
+                <DialogTrigger>
+                  <Button variant="secondary" data-attr="schedule-meeting">
+                    {t('scheduleMeeting')}
+                  </Button>
+                  <ScheduleMeetingDialog
+                    username={username}
+                    onCreated={setLaterRoom}
+                  />
+                </DialogTrigger>
+              </div>
+            </aside>
+            </ResizablePanel>
+            <main
+              className={css({
+                flex: 1,
+                minWidth: 0,
+                overflowY: 'auto',
+                padding: '1.5rem',
+              })}
+            >
+              <ScheduledMeetingsList enabled />
+              <RecentMeetingsList enabled />
+            </main>
+          </div>
+        ) : (
+          <Columns>
+            <LeftColumn>
+              <Heading>{t('heading')}</Heading>
             <IntroText>{t('intro')}</IntroText>
             {isLoggedIn ? (
               <div
@@ -270,8 +356,9 @@ export const Home = () => {
           </LeftColumn>
           <RightColumn>
             <IntroSlider />
-          </RightColumn>
-        </Columns>
+            </RightColumn>
+          </Columns>
+        )}
         <LaterMeetingDialog
           room={laterRoom}
           onOpenChange={() => setLaterRoom(null)}

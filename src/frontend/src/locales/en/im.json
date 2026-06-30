@@ -1,0 +1,136 @@
+{
+  "messages": "Messages",
+  "nav": {
+    "ariaLabel": "Open the messages center"
+  },
+  "auth": {
+    "required": "Please sign in to view messages."
+  },
+  "list": {
+    "title": "Conversations",
+    "loading": "Loading conversations…",
+    "empty": "No conversations yet",
+    "newDirect": {
+      "button": "New conversation",
+      "prompt": "Your IM ID:\n{{selfUid}}\n\nEnter peer's IM ID:",
+      "notReady": "Connection not ready yet — please retry shortly",
+      "error": "Failed to create conversation: {{message}}"
+    }
+  },
+  "convName": {
+    "groupFallback": "Group",
+    "directFallback": "Direct"
+  },
+  "actions": {
+    "delete": "Delete conversation",
+    "leaveConfirm": "Leave this group? If you are the owner, ownership auto-transfers to another member; the group dissolves if you are the last one.",
+    "deleteConfirm": "Delete this conversation? It is only removed from your list — the peer and history are untouched.",
+    "error": "Action failed: {{message}}",
+    "recall": "Recall",
+    "recallConfirm": "Recall this message?",
+    "copy": "Copy",
+    "reply": "Reply"
+  },
+  "quote": {
+    "replyTo": "Replying to {{name}}",
+    "cancel": "Cancel reply"
+  },
+  "file": {
+    "tooLarge": "File too large — keep it under 50 MB",
+    "uploadError": "Failed to send file, please try again"
+  },
+  "recalled": {
+    "self": "You recalled a message",
+    "other": "The other party recalled a message",
+    "otherNamed": "{{name}} recalled a message"
+  },
+  "group": {
+    "button": "New group",
+    "title": "New group",
+    "namePlaceholder": "Group name (optional)",
+    "searchPlaceholder": "Search members…",
+    "selected": "{{count}} selected",
+    "create": "Create",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "empty": "No members to add",
+    "error": "Failed to create group: {{message}}",
+    "you": "You"
+  },
+  "header": {
+    "memberCount": "{{count}} members"
+  },
+  "mention": {
+    "everyone": "Everyone",
+    "notice": "Mentioned you"
+  },
+  "manage": {
+    "addMembers": "Add members",
+    "addTitle": "Add group members",
+    "info": "Group info",
+    "settings": "Settings",
+    "membersTitle": "Members",
+    "members": "Members",
+    "description": "Group description",
+    "descriptionPlaceholder": "Add a group description (optional)",
+    "descriptionEmpty": "No description yet",
+    "pin": "Pin to top",
+    "mute": "Mute notifications",
+    "muteAtAll": "Don't notify for @everyone",
+    "nickname": "My group nickname",
+    "nicknameEmpty": "Not set",
+    "nicknamePlaceholder": "Enter your group nickname",
+    "clear": "Clear chat history",
+    "clearConfirm": "Clear this group's chat history? It's hidden for you only — other members are unaffected.",
+    "owner": "Owner",
+    "rename": "Rename group",
+    "renameTitle": "Rename group",
+    "renamePlaceholder": "Enter a new name",
+    "save": "Save",
+    "cancel": "Cancel",
+    "remove": "Remove from group",
+    "removeConfirm": "Remove “{{name}}” from the group?",
+    "leave": "Leave group",
+    "leaveConfirm": "Leave this group? If you're the owner, ownership transfers automatically to another member; the group dissolves if you're the last one.",
+    "transfer": "Transfer ownership",
+    "transferConfirm": "Transfer ownership to “{{name}}”? You'll become a regular member.",
+    "dissolve": "Dissolve group",
+    "removedNotice": "You've been removed from this group",
+    "empty": "No one left to add",
+    "error": "Action failed: {{message}}"
+  },
+  "chat": {
+    "loading": "Loading history…",
+    "empty": "No messages yet — send the first one",
+    "pickPrompt": "Pick a conversation on the left to start chatting"
+  },
+  "input": {
+    "placeholder": "Type a message…",
+    "send": "Send",
+    "sending": "Sending…",
+    "image": "Send image",
+    "file": "Send file"
+  },
+  "preview": {
+    "image": "[Image]",
+    "file": "[File]",
+    "reaction": "[Reaction]",
+    "recalled": "recalled a message"
+  },
+  "image": {
+    "alt": "Image",
+    "invalidType": "Only JPG / PNG / WebP / GIF images are supported",
+    "tooLarge": "Image too large — keep it under 10 MB",
+    "uploadError": "Failed to send image, please try again"
+  },
+  "time": {
+    "yesterday": "Yesterday"
+  },
+  "connection": {
+    "disconnected": "Disconnected",
+    "connecting": "Connecting…",
+    "connected": "Connected",
+    "reconnecting": "Reconnecting…",
+    "auth_failed": "Authentication failed — please refresh and retry"
+  }
+}

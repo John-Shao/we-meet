@@ -14,7 +14,7 @@
 #        - deploy/aliyun/keycloak/Caddyfile
 #        - deploy/aliyun/keycloak/compose.yaml
 #        - deploy/aliyun/keycloak/bootstrap-realm.sh
-#      不动: .dist 模板 / build.sh / push.sh / install-meet.sh / docs/aliyun.md
+#      不动: .dist 模板 / build-and-push.sh / install-meet.sh / docs/aliyun.md
 #      (保持占位, 让 mixed-deploy 分支干净, 下个客户拉同份模板继续用.)
 #   2. 从 .dist 模板生成 values.secrets.yaml + keycloak/.env, 自动填入随机
 #      密钥, 并对 OUT 文件应用 DOMAIN / ADMIN_EMAIL / CR_REGISTRY 替换 ——
@@ -170,11 +170,11 @@ $DRY_RUN_BANNER
 EOF
 
 # -------- 文件列表: 只列 6 个客户专属配置 --------
-# 不在列表里的 (.dist 模板 / build.sh / push.sh / install-meet.sh / docs/aliyun.md)
+# 不在列表里的 (.dist 模板 / build-and-push.sh / install-meet.sh / docs/aliyun.md)
 # 保持占位:
 #   - .dist 模板由 Step 4 在 cp 后对 OUT 文件做替换, 模板本身留作下个客户复用.
-#   - build/push/install-meet 是跨客户脚本, 默认值 (your-cr.cr-domain.com) 必须
-#     保持占位, 否则下个客户拉同份模板会带上一个客户的 CR.
+#   - build-and-push / install-meet 是跨客户脚本, 默认值 (your-cr.cr-domain.com)
+#     必须保持占位, 否则下个客户拉同份模板会带上一个客户的 CR.
 #   - docs/installation/aliyun.md 是模板文档, 不与具体客户绑定.
 # 注意: setup-customer.sh 自身不在列表里 (避免自改).
 FILES_TO_PATCH=(
@@ -343,7 +343,7 @@ cat <<EOF
      §3 → DNS 加 meet.$DOMAIN / livekit.$DOMAIN / id.$DOMAIN A 记录
      §4 → 安全组放行端口
      §5 → 在 aliyun-zlm 跑 docker compose up + bootstrap-realm.sh
-     §6 → 在 PC 跑 build.sh + push.sh
+     §6 → 在 PC 跑 build-and-push.sh
      §7 → 在 aliyun-sjy 跑 install-k3s.sh + install-meet.sh
 
 6. (部署成功后) 客户化数据不入仓库 — 加密备份到客户服务器:

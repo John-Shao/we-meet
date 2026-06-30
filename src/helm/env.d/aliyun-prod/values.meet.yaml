@@ -169,6 +169,22 @@ backend:
     # room_finished webhook.
     CELERY_ENABLED: "True"
 
+    # ─── jusi-light-im (IM bridge — P5/P6) ───────────────────────────────
+    # Independent 4C4G ECS at im.we-meet.online running K3s + jusi-light-im +
+    # systemd PG/Redis + Caddy. See John-Shao/jusi-light-im for deploy runbook.
+    #
+    # backend.envVars are merged into celery-backend's env (see
+    # celery_backend_deployment.yaml `mergeOverwrite`), so the
+    # generate_meeting_summary worker also reads JUSI_IM_* and can push the
+    # `📋 会议纪要已生成` system message after summarising.
+    JUSI_IM_API_URL: https://im.we-meet.online
+    JUSI_IM_WS_URL: wss://im.we-meet.online/v1/ws
+    JUSI_IM_TOKEN_TTL: "86400"
+    JUSI_IM_TIMEOUT_S: "5"
+    # JUSI_IM_ADMIN_HMAC_SECRET 来自 values.secrets.yaml (must match the
+    # ADMIN_HMAC_SECRET seeded on the jusi-light-im ECS — see
+    # docs/runbooks/p6-deploy.md §3 in the jusi-light-im repo).
+
     FRONTEND_USE_FRENCH_GOV_FOOTER: "False"
     FRONTEND_USE_PROCONNECT_BUTTON: "False"
     FRONTEND_SILENCE_LIVEKIT_DEBUG: "True"

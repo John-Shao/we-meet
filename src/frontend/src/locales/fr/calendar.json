@@ -1,0 +1,61 @@
+{
+  "nav": {
+    "title": "Agenda",
+    "ariaLabel": "Ouvrir l'agenda"
+  },
+  "page": {
+    "authRequired": "Connectez-vous pour voir l'agenda.",
+    "title": "Agenda",
+    "create": "Nouvel événement",
+    "loading": "Chargement…",
+    "empty": "Aucun événement"
+  },
+  "form": {
+    "title": "Nouvel événement",
+    "titlePlaceholder": "Titre de l'événement",
+    "start": "Début",
+    "end": "Fin",
+    "allDay": "Toute la journée",
+    "reminder": "Rappel",
+    "reminderNone": "Aucun rappel",
+    "reminderMinutes": "{{count}} min avant",
+    "attendees": "Participants",
+    "selected": "{{count}} sélectionné(s)",
+    "searchPlaceholder": "Rechercher des membres…",
+    "loading": "Chargement…",
+    "create": "Créer",
+    "cancel": "Annuler",
+    "error": "Échec : {{message}}",
+    "endAfterStart": "La fin doit être après le début.",
+    "noResults": "Aucun membre trouvé",
+    "removeAttendee": "Retirer {{name}}"
+  },
+  "card": {
+    "organizer": "Organisateur",
+    "attendees": "{{count}} personnes",
+    "join": "Rejoindre"
+  },
+  "rsvp": {
+    "label": "Ma réponse",
+    "accepted": "Accepter",
+    "tentative": "Peut-être",
+    "declined": "Refuser"
+  },
+  "grid": {
+    "today": "Aujourd'hui",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "month": "Mois",
+    "week": "Semaine",
+    "day": "Jour",
+    "agenda": "Agenda",
+    "date": "Date",
+    "time": "Heure",
+    "event": "Événement",
+    "noEvents": "Aucun événement sur cette période",
+    "showMore": "+{{count}} autres"
+  },
+  "sidebar": {
+    "upcoming": "À venir"
+  }
+}

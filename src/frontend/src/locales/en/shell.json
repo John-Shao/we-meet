@@ -1,0 +1,26 @@
+{
+  "railLabel": "Main navigation",
+  "resizeHandle": "Drag to resize",
+  "collapse": "Collapse navigation",
+  "expand": "Expand navigation",
+  "more": "More",
+  "search": {
+    "trigger": "Search",
+    "placeholder": "Search people, meetings…",
+    "contacts": "Contacts",
+    "meetings": "Meetings",
+    "empty": "No matches"
+  },
+  "logout": "Sign out",
+  "confirm": "Confirm",
+  "cancel": "Cancel",
+  "ok": "OK",
+  "nav": {
+    "messages": "Messages",
+    "meeting": "Meetings",
+    "calendar": "Calendar",
+    "approval": "Approvals",
+    "contacts": "Contacts",
+    "docs": "Docs"
+  }
+}

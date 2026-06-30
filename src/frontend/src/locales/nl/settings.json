@@ -5,7 +5,17 @@
     "youAreNotLoggedIn": "U bent niet ingelogd.",
     "nameLabel": "Uw naam",
     "authentication": "Authenticatie",
-    "nameError": "Uw naam mag niet leeg zijn"
+    "nameError": "Uw naam mag niet leeg zijn",
+    "avatar": {
+      "title": "Avatar instellen",
+      "change": "Avatar wijzigen",
+      "choose": "Afbeelding kiezen",
+      "zoom": "Zoom",
+      "save": "Opslaan",
+      "cancel": "Annuleren",
+      "uploading": "Uploaden…",
+      "error": "Avatar uploaden mislukt: {{message}}"
+    }
   },
   "preferences": {
     "title": "Voorkeuren",

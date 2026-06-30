@@ -1,0 +1,186 @@
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  isToday,
+  startOfMonth,
+  startOfWeek,
+} from 'date-fns'
+import { zhCN, enUS, fr, de, nl } from 'date-fns/locale'
+import type { Locale } from 'date-fns'
+
+import { css, cx } from '@/styled-system/css'
+import type { CalendarEvent } from '../api/ApiCalendar'
+
+/**
+ * Feishu-style mini month picker for the calendar secondary panel (二级导航栏).
+ * Selecting a day drives the main react-big-calendar grid (`value`/`onChange`);
+ * days that have events get a small dot. Month-paging is local to this widget
+ * and resets to the selected date's month when `value` jumps.
+ */
+
+const localeFor = (lng: string): Locale => {
+  if (lng.startsWith('zh')) return zhCN
+  const base = lng.slice(0, 2)
+  return { fr, de, nl }[base] ?? enUS
+}
+
+interface Props {
+  value: Date
+  onChange: (date: Date) => void
+  events: CalendarEvent[]
+}
+
+export const MiniCalendar = ({ value, onChange, events }: Props) => {
+  const { i18n } = useTranslation('calendar')
+  const locale = localeFor(i18n.language)
+  const [viewMonth, setViewMonth] = useState<Date>(() => startOfMonth(value))
+
+  // Days that have at least one event — keyed by yyyy-MM-dd for O(1) lookup.
+  const eventDays = useMemo(() => {
+    const set = new Set<string>()
+    for (const e of events) set.add(format(new Date(e.start_at), 'yyyy-MM-dd'))
+    return set
+  }, [events])
+
+  const weeks = useMemo(() => {
+    const start = startOfWeek(startOfMonth(viewMonth), { locale })
+    const end = endOfWeek(endOfMonth(viewMonth), { locale })
+    const days = eachDayOfInterval({ start, end })
+    const grid: Date[][] = []
+    for (let i = 0; i < days.length; i += 7) grid.push(days.slice(i, i + 7))
+    return grid
+  }, [viewMonth, locale])
+
+  const weekdayLabels = weeks[0]?.map((d) => format(d, 'EEEEEE', { locale })) ?? []
+
+  return (
+    <div className={css({ userSelect: 'none' })}>
+      <div
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '0.5rem',
+        })}
+      >
+        <span className={css({ fontSize: '0.9rem', fontWeight: 600, color: 'greyscale.900' })}>
+          {format(viewMonth, 'yyyy.MM', { locale })}
+        </span>
+        <span className={css({ display: 'flex', gap: '0.25rem' })}>
+          <button
+            type="button"
+            aria-label="prev month"
+            onClick={() => setViewMonth((m) => addMonths(m, -1))}
+            className={navBtn}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            aria-label="next month"
+            onClick={() => setViewMonth((m) => addMonths(m, 1))}
+            className={navBtn}
+          >
+            ›
+          </button>
+        </span>
+      </div>
+
+      <div className={grid}>
+        {weekdayLabels.map((w, i) => (
+          <span
+            key={i}
+            className={css({
+              textAlign: 'center',
+              fontSize: '0.7rem',
+              color: 'greyscale.500',
+              paddingY: '0.25rem',
+            })}
+          >
+            {w}
+          </span>
+        ))}
+        {weeks.flat().map((day) => {
+          const selected = isSameDay(day, value)
+          const outside = !isSameMonth(day, viewMonth)
+          const today = isToday(day)
+          const hasEvent = eventDays.has(format(day, 'yyyy-MM-dd'))
+          return (
+            <button
+              key={day.toISOString()}
+              type="button"
+              onClick={() => onChange(day)}
+              className={cx(
+                cell,
+                css({
+                  fontWeight: today ? 700 : 400,
+                  ...(selected
+                    ? { backgroundColor: 'primary.500', color: 'white' }
+                    : {
+                        color: outside ? 'greyscale.400' : 'greyscale.800',
+                        _hover: { backgroundColor: 'primary.50' },
+                      }),
+                })
+              )}
+            >
+              {format(day, 'd')}
+              {hasEvent && (
+                <span
+                  className={css({
+                    position: 'absolute',
+                    bottom: '3px',
+                    width: '4px',
+                    height: '4px',
+                    borderRadius: '50%',
+                    backgroundColor: selected ? 'white' : 'primary.500',
+                  })}
+                />
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+const navBtn = css({
+  width: '24px',
+  height: '24px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  borderRadius: '6px',
+  background: 'transparent',
+  color: 'greyscale.700',
+  fontSize: '1rem',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+
+const grid = css({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(7, 1fr)',
+  gap: '2px',
+})
+
+const cell = css({
+  position: 'relative',
+  height: '30px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  borderRadius: '6px',
+  background: 'transparent',
+  fontSize: '0.8rem',
+  cursor: 'pointer',
+})

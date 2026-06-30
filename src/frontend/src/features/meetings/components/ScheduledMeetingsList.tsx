@@ -16,13 +16,14 @@ import { useState } from 'react'
 
 import { useTranslation } from 'react-i18next'
 import { Button as RACButton, Menu as RACMenu, MenuItem } from 'react-aria-components'
-import { RiMoreFill } from '@remixicon/react'
+import { RiMoreFill, RiCalendarLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { H, Text } from '@/primitives'
 import { Menu } from '@/primitives/Menu'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useDeleteRoom } from '@/features/rooms/api/deleteRoom'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 import { useScheduledMeetings } from '../api/fetchMeeting'
 
@@ -44,6 +45,7 @@ export const ScheduledMeetingsList = ({ enabled }: { enabled: boolean }) => {
   const { data, isLoading } = useScheduledMeetings(enabled)
   const [expanded, setExpanded] = useState(false)
   const { mutate: deleteRoom } = useDeleteRoom()
+  const { confirm: askConfirm } = useConfirm()
 
   if (!enabled) return null
   if (isLoading) return null
@@ -52,8 +54,13 @@ export const ScheduledMeetingsList = ({ enabled }: { enabled: boolean }) => {
   const canToggle = data.length > COLLAPSED_COUNT
   const visible = expanded ? data : data.slice(0, COLLAPSED_COUNT)
 
-  const handleDelete = (idOrSlug: string, label: string) => {
-    if (typeof window !== 'undefined' && !window.confirm(t('home.deleteConfirm', { name: label }))) {
+  const handleDelete = async (idOrSlug: string, label: string) => {
+    if (
+      !(await askConfirm({
+        message: t('home.deleteConfirm', { name: label }),
+        danger: true,
+      }))
+    ) {
       return
     }
     deleteRoom(idOrSlug)
@@ -63,11 +70,10 @@ export const ScheduledMeetingsList = ({ enabled }: { enabled: boolean }) => {
     <div
       className={css({
         width: '100%',
-        maxWidth: '30rem',
-        marginTop: '2rem',
+        marginTop: '1.5rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.5rem',
+        gap: '0.75rem',
       })}
     >
       <H lvl={3} margin={false}>
@@ -78,9 +84,12 @@ export const ScheduledMeetingsList = ({ enabled }: { enabled: boolean }) => {
           listStyle: 'none',
           padding: 0,
           margin: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.5rem',
+          width: '100%',
+          border: '1px solid',
+          borderColor: 'primary.200',
+          borderRadius: '10px',
+          backgroundColor: 'primary.50',
+          overflow: 'hidden',
         })}
       >
         {visible.map((m) => {
@@ -90,15 +99,18 @@ export const ScheduledMeetingsList = ({ enabled }: { enabled: boolean }) => {
           // the user is more used to the meeting code.
           const idOrSlug = m.slug || m.id
           return (
-            <li key={m.id}>
+            <li
+              key={m.id}
+              className={css({
+                '&:not(:last-child)': {
+                  borderBottom: '1px solid token(colors.primary.100)',
+                },
+              })}
+            >
               <div
                 className={css({
                   display: 'flex',
-                  alignItems: 'stretch',
-                  border: '1px solid',
-                  borderColor: 'primary.300',
-                  borderRadius: '6px',
-                  backgroundColor: 'primary.50',
+                  alignItems: 'center',
                   _hover: { backgroundColor: 'primary.100' },
                 })}
               >
@@ -107,33 +119,64 @@ export const ScheduledMeetingsList = ({ enabled }: { enabled: boolean }) => {
                   onClick={() => navigateTo('room', m.slug)}
                   className={css({
                     flex: 1,
+                    minWidth: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
                     textAlign: 'left',
                     border: 'none',
                     background: 'transparent',
-                    padding: '0.75rem 1rem',
+                    padding: '0.875rem 1rem',
                     cursor: 'pointer',
                   })}
                 >
-                  <div className={css({ fontWeight: 500 })}>{label}</div>
-                  {m.scheduled_at && (
-                    <Text
+                  <span
+                    className={css({
+                      flexShrink: 0,
+                      width: '40px',
+                      height: '40px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '8px',
+                      backgroundColor: 'primary.500',
+                      color: 'white',
+                    })}
+                  >
+                    <RiCalendarLine size={20} />
+                  </span>
+                  <span className={css({ minWidth: 0, flex: 1 })}>
+                    <span
                       className={css({
-                        fontSize: '0.8rem',
-                        color: 'primary.700',
-                        marginTop: '0.125rem',
+                        display: 'block',
+                        fontWeight: 500,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
                       })}
                     >
-                      {t('home.scheduledTimePrefix', {
-                        time: formatScheduledAt(m.scheduled_at, i18n.language),
-                      })}
-                    </Text>
-                  )}
+                      {label}
+                    </span>
+                    {m.scheduled_at && (
+                      <Text
+                        className={css({
+                          fontSize: '0.8rem',
+                          color: 'primary.700',
+                          marginTop: '0.125rem',
+                        })}
+                      >
+                        {t('home.scheduledTimePrefix', {
+                          time: formatScheduledAt(m.scheduled_at, i18n.language),
+                        })}
+                      </Text>
+                    )}
+                  </span>
                 </button>
                 <div
                   className={css({
                     display: 'flex',
                     alignItems: 'center',
-                    paddingRight: '0.5rem',
+                    paddingRight: '0.75rem',
                   })}
                 >
                   <Menu>

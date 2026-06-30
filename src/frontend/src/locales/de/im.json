@@ -1,0 +1,136 @@
+{
+  "messages": "Nachrichten",
+  "nav": {
+    "ariaLabel": "Nachrichten öffnen"
+  },
+  "auth": {
+    "required": "Bitte melden Sie sich an, um Nachrichten anzuzeigen."
+  },
+  "list": {
+    "title": "Unterhaltungen",
+    "loading": "Unterhaltungen werden geladen…",
+    "empty": "Noch keine Unterhaltungen",
+    "newDirect": {
+      "button": "Neue Unterhaltung",
+      "prompt": "Ihre IM-ID:\n{{selfUid}}\n\nIM-ID des Empfängers eingeben:",
+      "notReady": "Verbindung noch nicht bereit — bitte erneut versuchen",
+      "error": "Erstellen fehlgeschlagen: {{message}}"
+    }
+  },
+  "convName": {
+    "groupFallback": "Gruppe",
+    "directFallback": "Direkt"
+  },
+  "actions": {
+    "delete": "Unterhaltung löschen",
+    "leaveConfirm": "Gruppe verlassen? Wenn Sie Eigentümer sind, wird die Eigentümerschaft automatisch an ein anderes Mitglied übertragen; ist niemand mehr übrig, wird die Gruppe aufgelöst.",
+    "deleteConfirm": "Diese Unterhaltung löschen? Sie wird nur aus Ihrer Liste entfernt — Gegenüber und Verlauf bleiben unberührt.",
+    "error": "Aktion fehlgeschlagen: {{message}}",
+    "recall": "Zurückziehen",
+    "recallConfirm": "Diese Nachricht zurückziehen?",
+    "copy": "Kopieren",
+    "reply": "Antworten"
+  },
+  "quote": {
+    "replyTo": "Antwort an {{name}}",
+    "cancel": "Antwort abbrechen"
+  },
+  "file": {
+    "tooLarge": "Datei zu groß — höchstens 50 MB",
+    "uploadError": "Datei konnte nicht gesendet werden, bitte erneut versuchen"
+  },
+  "recalled": {
+    "self": "Sie haben eine Nachricht zurückgezogen",
+    "other": "Die Gegenseite hat eine Nachricht zurückgezogen",
+    "otherNamed": "{{name}} hat eine Nachricht zurückgezogen"
+  },
+  "group": {
+    "button": "Neue Gruppe",
+    "title": "Neue Gruppe",
+    "namePlaceholder": "Gruppenname (optional)",
+    "searchPlaceholder": "Mitglieder suchen…",
+    "selected": "{{count}} ausgewählt",
+    "create": "Erstellen",
+    "cancel": "Abbrechen",
+    "loading": "Wird geladen…",
+    "empty": "Keine Mitglieder zum Hinzufügen",
+    "error": "Gruppe konnte nicht erstellt werden: {{message}}",
+    "you": "Ich"
+  },
+  "header": {
+    "memberCount": "{{count}} Mitglieder"
+  },
+  "mention": {
+    "everyone": "Alle",
+    "notice": "Hat dich erwähnt"
+  },
+  "manage": {
+    "addMembers": "Mitglieder hinzufügen",
+    "addTitle": "Gruppenmitglieder hinzufügen",
+    "info": "Gruppeninfo",
+    "settings": "Einstellungen",
+    "membersTitle": "Mitglieder",
+    "members": "Mitglieder",
+    "description": "Gruppenbeschreibung",
+    "descriptionPlaceholder": "Beschreibung hinzufügen (optional)",
+    "descriptionEmpty": "Noch keine Beschreibung",
+    "pin": "Oben anheften",
+    "mute": "Benachrichtigungen stumm",
+    "muteAtAll": "Bei @alle nicht benachrichtigen",
+    "nickname": "Mein Gruppen-Spitzname",
+    "nicknameEmpty": "Nicht festgelegt",
+    "nicknamePlaceholder": "Gruppen-Spitzname eingeben",
+    "clear": "Chatverlauf löschen",
+    "clearConfirm": "Den Chatverlauf dieser Gruppe löschen? Nur für dich ausgeblendet — andere Mitglieder sind nicht betroffen.",
+    "owner": "Eigentümer",
+    "rename": "Gruppe umbenennen",
+    "renameTitle": "Gruppe umbenennen",
+    "renamePlaceholder": "Neuen Namen eingeben",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "remove": "Aus Gruppe entfernen",
+    "removeConfirm": "„{{name}}“ aus der Gruppe entfernen?",
+    "leave": "Gruppe verlassen",
+    "leaveConfirm": "Gruppe verlassen? Wenn Sie Eigentümer sind, wird die Eigentümerschaft automatisch an ein anderes Mitglied übertragen; ist niemand mehr übrig, wird die Gruppe aufgelöst.",
+    "transfer": "Eigentümerschaft übertragen",
+    "transferConfirm": "Eigentümerschaft an „{{name}}“ übertragen? Sie werden zum regulären Mitglied.",
+    "dissolve": "Gruppe auflösen",
+    "removedNotice": "Sie wurden aus dieser Gruppe entfernt",
+    "empty": "Niemand zum Hinzufügen",
+    "error": "Aktion fehlgeschlagen: {{message}}"
+  },
+  "chat": {
+    "loading": "Verlauf wird geladen…",
+    "empty": "Noch keine Nachrichten — senden Sie die erste",
+    "pickPrompt": "Wählen Sie links eine Unterhaltung aus"
+  },
+  "input": {
+    "placeholder": "Nachricht eingeben…",
+    "send": "Senden",
+    "sending": "Wird gesendet…",
+    "image": "Bild senden",
+    "file": "Datei senden"
+  },
+  "preview": {
+    "image": "[Bild]",
+    "file": "[Datei]",
+    "reaction": "[Reaktion]",
+    "recalled": "hat eine Nachricht zurückgezogen"
+  },
+  "image": {
+    "alt": "Bild",
+    "invalidType": "Nur JPG / PNG / WebP / GIF-Bilder werden unterstützt",
+    "tooLarge": "Bild zu groß — höchstens 10 MB",
+    "uploadError": "Bild konnte nicht gesendet werden, bitte erneut versuchen"
+  },
+  "time": {
+    "yesterday": "Gestern"
+  },
+  "connection": {
+    "disconnected": "Getrennt",
+    "connecting": "Verbinde…",
+    "connected": "Verbunden",
+    "reconnecting": "Neuverbindung…",
+    "auth_failed": "Authentifizierung fehlgeschlagen — bitte aktualisieren"
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "messages": "Messages",
+  "nav": {
+    "ariaLabel": "Ouvrir les messages"
+  },
+  "auth": {
+    "required": "Veuillez vous connecter pour voir les messages."
+  },
+  "list": {
+    "title": "Conversations",
+    "loading": "Chargement des conversations…",
+    "empty": "Aucune conversation pour le moment",
+    "newDirect": {
+      "button": "Nouvelle conversation",
+      "prompt": "Votre ID IM :\n{{selfUid}}\n\nEntrez l'ID IM du correspondant :",
+      "notReady": "Connexion pas encore prête — veuillez réessayer",
+      "error": "Échec de la création : {{message}}"
+    }
+  },
+  "convName": {
+    "groupFallback": "Groupe",
+    "directFallback": "Discussion"
+  },
+  "actions": {
+    "delete": "Supprimer la conversation",
+    "leaveConfirm": "Quitter ce groupe ? Si vous êtes le propriétaire, la propriété est transférée automatiquement à un autre membre ; le groupe est dissous si vous êtes le dernier.",
+    "deleteConfirm": "Supprimer cette conversation ? Elle n'est retirée que de votre liste — le correspondant et l'historique ne sont pas touchés.",
+    "error": "Échec de l'action : {{message}}",
+    "recall": "Annuler",
+    "recallConfirm": "Annuler ce message ?",
+    "copy": "Copier",
+    "reply": "Répondre"
+  },
+  "quote": {
+    "replyTo": "En réponse à {{name}}",
+    "cancel": "Annuler la réponse"
+  },
+  "file": {
+    "tooLarge": "Fichier trop volumineux — limitez-le à 50 Mo",
+    "uploadError": "Échec de l'envoi du fichier, veuillez réessayer"
+  },
+  "recalled": {
+    "self": "Vous avez retiré un message",
+    "other": "Votre correspondant a retiré un message",
+    "otherNamed": "{{name}} a retiré un message"
+  },
+  "group": {
+    "button": "Nouveau groupe",
+    "title": "Nouveau groupe",
+    "namePlaceholder": "Nom du groupe (facultatif)",
+    "searchPlaceholder": "Rechercher des membres…",
+    "selected": "{{count}} sélectionné(s)",
+    "create": "Créer",
+    "cancel": "Annuler",
+    "loading": "Chargement…",
+    "empty": "Aucun membre à ajouter",
+    "error": "Échec de la création du groupe : {{message}}",
+    "you": "Moi"
+  },
+  "header": {
+    "memberCount": "{{count}} membres"
+  },
+  "mention": {
+    "everyone": "Tout le monde",
+    "notice": "Vous a mentionné"
+  },
+  "manage": {
+    "addMembers": "Ajouter des membres",
+    "addTitle": "Ajouter des membres au groupe",
+    "info": "Infos du groupe",
+    "settings": "Paramètres",
+    "membersTitle": "Membres",
+    "members": "Membres",
+    "description": "Description du groupe",
+    "descriptionPlaceholder": "Ajouter une description (facultatif)",
+    "descriptionEmpty": "Aucune description",
+    "pin": "Épingler en haut",
+    "mute": "Ne pas déranger",
+    "muteAtAll": "Ne pas notifier pour @tous",
+    "nickname": "Mon surnom dans le groupe",
+    "nicknameEmpty": "Non défini",
+    "nicknamePlaceholder": "Saisissez votre surnom",
+    "clear": "Effacer l'historique",
+    "clearConfirm": "Effacer l'historique de ce groupe ? Masqué pour vous uniquement — les autres membres ne sont pas affectés.",
+    "owner": "Propriétaire",
+    "rename": "Renommer le groupe",
+    "renameTitle": "Renommer le groupe",
+    "renamePlaceholder": "Saisir un nouveau nom",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "remove": "Retirer du groupe",
+    "removeConfirm": "Retirer « {{name}} » du groupe ?",
+    "leave": "Quitter le groupe",
+    "leaveConfirm": "Quitter ce groupe ? Si vous êtes le propriétaire, la propriété est transférée automatiquement à un autre membre ; le groupe est dissous si vous êtes le dernier.",
+    "transfer": "Transférer la propriété",
+    "transferConfirm": "Transférer la propriété à « {{name}} » ? Vous deviendrez un membre ordinaire.",
+    "dissolve": "Dissoudre le groupe",
+    "removedNotice": "Vous avez été retiré de ce groupe",
+    "empty": "Personne à ajouter",
+    "error": "Échec de l'action : {{message}}"
+  },
+  "chat": {
+    "loading": "Chargement de l'historique…",
+    "empty": "Aucun message — envoyez le premier",
+    "pickPrompt": "Choisissez une conversation à gauche pour commencer"
+  },
+  "input": {
+    "placeholder": "Écrivez un message…",
+    "send": "Envoyer",
+    "sending": "Envoi en cours…",
+    "image": "Envoyer une image",
+    "file": "Envoyer un fichier"
+  },
+  "preview": {
+    "image": "[Image]",
+    "file": "[Fichier]",
+    "reaction": "[Réaction]",
+    "recalled": "a retiré un message"
+  },
+  "image": {
+    "alt": "Image",
+    "invalidType": "Seules les images JPG / PNG / WebP / GIF sont prises en charge",
+    "tooLarge": "Image trop volumineuse — limitez-la à 10 Mo",
+    "uploadError": "Échec de l'envoi de l'image, veuillez réessayer"
+  },
+  "time": {
+    "yesterday": "Hier"
+  },
+  "connection": {
+    "disconnected": "Déconnecté",
+    "connecting": "Connexion en cours…",
+    "connected": "Connecté",
+    "reconnecting": "Reconnexion en cours…",
+    "auth_failed": "Échec d'authentification — veuillez actualiser la page"
+  }
+}

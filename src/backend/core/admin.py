@@ -3,6 +3,9 @@
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth import admin as auth_admin
+from django.db import transaction
+from django.db.models import Count
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from core.recording.event import notification
@@ -422,8 +425,31 @@ class AIAgentProfileAdmin(admin.ModelAdmin):
         "default_voice",
     )
     fieldsets = (
-        (None, {"fields": ("code", "display_name", "architecture", "agent_type", "sort_order", "is_active")}),
-        (_("Models"), {"fields": ("stt_model", "vlm_model", "llm_model", "tts_model", "omni_model")}),
+        (
+            None,
+            {
+                "fields": (
+                    "code",
+                    "display_name",
+                    "architecture",
+                    "agent_type",
+                    "sort_order",
+                    "is_active",
+                )
+            },
+        ),
+        (
+            _("Models"),
+            {
+                "fields": (
+                    "stt_model",
+                    "vlm_model",
+                    "llm_model",
+                    "tts_model",
+                    "omni_model",
+                )
+            },
+        ),
         (_("Defaults"), {"fields": ("default_voice",)}),
     )
 
@@ -514,3 +540,303 @@ class TranscriptAdmin(admin.ModelAdmin):
         return (obj.text[:60] + "…") if len(obj.text) > 60 else obj.text
 
     _text_preview.short_description = _("text")
+
+
+# ---------------------------------------------------------------------------
+# Organization directory (P1) — org / department / membership
+#
+# Interim management surface: until the dedicated admin console ("M 端") ships,
+# org / department / membership are managed here in the Django admin (Django
+# staff only). Behaviour mirrors the org-admin API (core/api/admin_org.py):
+#   - departments are SOFT-deleted (members fall back to "no department"),
+#     never hard-deleted (hard delete would CASCADE the whole subtree);
+#   - a department's parent is fixed after creation (reparenting would need a
+#     descendant path rewrite — out of scope, build the tree top-down instead).
+# ---------------------------------------------------------------------------
+
+
+@admin.register(models.Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    """Enterprise tenant. The MVP runs a single bootstrapped 'default' org."""
+
+    list_display = (
+        "name",
+        "slug",
+        "primary_domain",
+        "is_active",
+        "_departments",
+        "_members",
+    )
+    list_filter = ("is_active",)
+    search_fields = ("name", "slug", "primary_domain")
+    readonly_fields = ("id", "created_at", "updated_at")
+    prepopulated_fields = {"slug": ("name",)}
+
+    def get_prepopulated_fields(self, request, obj=None):
+        # The slug seeds the auth backend's default-org lookup — freeze it once
+        # the org exists so an edit can never orphan existing memberships.
+        return {} if obj else self.prepopulated_fields
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj:
+            return self.readonly_fields + ("slug",)
+        return self.readonly_fields
+
+    def has_delete_permission(self, request, obj=None):
+        # Single-tenant MVP: you don't delete the organization from this UI
+        # (it would CASCADE every department and membership).
+        return False
+
+    @admin.display(description=_("departments"))
+    def _departments(self, obj):
+        return obj.departments.filter(deleted_at__isnull=True).count()
+
+    @admin.display(description=_("members"))
+    def _members(self, obj):
+        return obj.memberships.count()
+
+
+class DepartmentDeletedFilter(admin.SimpleListFilter):
+    """Filter departments by soft-delete state (changelist shows all by default)."""
+
+    title = _("deleted")
+    parameter_name = "deleted"
+
+    def lookups(self, request, model_admin):
+        return (("0", _("Active (not deleted)")), ("1", _("Deleted")))
+
+    def queryset(self, request, queryset):
+        if self.value() == "0":
+            return queryset.filter(deleted_at__isnull=True)
+        if self.value() == "1":
+            return queryset.filter(deleted_at__isnull=False)
+        return queryset
+
+
+@admin.register(models.Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    """Department tree node.
+
+    Create nodes under their parent to build the tree; ``team_key`` / ``path`` /
+    ``depth`` are derived automatically on save. Use the *Soft-delete* action to
+    remove a department — its members fall back to "no department". Hard delete
+    is disabled on purpose (it would CASCADE the whole subtree).
+    """
+
+    list_display = (
+        "name",
+        "organization",
+        "parent",
+        "depth",
+        "head",
+        "sort_order",
+        "_member_count",
+        "is_active",
+        "team_key",
+    )
+    list_filter = ("organization", "is_active", DepartmentDeletedFilter)
+    search_fields = ("name", "=team_key", "=id")
+    autocomplete_fields = ("organization", "parent", "head")
+    readonly_fields = (
+        "id",
+        "team_key",
+        "path",
+        "depth",
+        "deleted_at",
+        "created_at",
+        "updated_at",
+    )
+    ordering = ("organization", "path")
+    actions = ("soft_delete_departments", "restore_departments")
+
+    def get_readonly_fields(self, request, obj=None):
+        # parent is set at creation only — changing it would require a subtree
+        # path rewrite (out of scope, matching the admin API).
+        if obj:
+            return self.readonly_fields + ("parent",)
+        return self.readonly_fields
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("organization", "parent", "head")
+            .annotate(n_members=Count("memberships"))
+        )
+
+    def has_delete_permission(self, request, obj=None):
+        # Enforce soft-delete via the action below — never a hard CASCADE delete.
+        return False
+
+    @admin.display(description=_("members"), ordering="n_members")
+    def _member_count(self, obj):
+        return obj.n_members
+
+    @admin.action(
+        description=_("Soft-delete selected departments (members → no department)")
+    )
+    def soft_delete_departments(self, request, queryset):
+        done = 0
+        for dept in queryset.filter(deleted_at__isnull=True):
+            if dept.children.filter(deleted_at__isnull=True).exists():
+                self.message_user(
+                    request,
+                    _("Skipped '%(name)s': it still has sub-departments.")
+                    % {"name": dept.name},
+                    level=messages.WARNING,
+                )
+                continue
+            with transaction.atomic():
+                # members fall back to organization-level (no department)
+                dept.memberships.update(department=None)
+                dept.is_active = False
+                dept.deleted_at = timezone.now()
+                dept.save()
+            done += 1
+        if done:
+            self.message_user(
+                request,
+                _(
+                    "%(count)s department(s) soft-deleted; their members now have no department."
+                )
+                % {"count": done},
+                level=messages.SUCCESS,
+            )
+
+    @admin.action(description=_("Restore selected departments"))
+    def restore_departments(self, request, queryset):
+        restored = 0
+        for dept in queryset.filter(deleted_at__isnull=False):
+            dept.is_active = True
+            dept.deleted_at = None
+            dept.save()
+            restored += 1
+        self.message_user(
+            request,
+            _("%(count)s department(s) restored.") % {"count": restored},
+            level=messages.SUCCESS if restored else messages.WARNING,
+        )
+
+
+@admin.register(models.Membership)
+class MembershipAdmin(admin.ModelAdmin):
+    """Links a user to an organization and (optionally) a department.
+
+    Change a member's department / role / status inline from the list, or open a
+    row for the full form. Removing a membership re-grants a default one on the
+    user's next OIDC login (see authentication backend).
+    """
+
+    list_display = (
+        "user",
+        "organization",
+        "department",
+        "title",
+        "org_role",
+        "status",
+        "is_primary",
+        "joined_at",
+    )
+    list_filter = ("organization", "status", "org_role", "is_primary", "department")
+    search_fields = (
+        "user__email",
+        "user__full_name",
+        "user__sub",
+        "employee_no",
+        "title",
+    )
+    autocomplete_fields = ("user", "organization", "department")
+    list_editable = ("department", "org_role", "status")
+    list_select_related = ("user", "organization", "department")
+    readonly_fields = ("id", "created_at", "updated_at")
+
+    def get_changeform_initial_data(self, request):
+        # Single-org MVP: prefill the only organization to cut friction.
+        orgs = list(models.Organization.objects.all()[:2])
+        return {"organization": orgs[0].pk} if len(orgs) == 1 else {}
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # Don't offer soft-deleted departments when (re)assigning a member.
+        if db_field.name == "department":
+            kwargs["queryset"] = models.Department.objects.filter(
+                deleted_at__isnull=True
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+# --- P5 审批 / 工作流 ---
+
+
+@admin.register(models.ApprovalTemplate)
+class ApprovalTemplateAdmin(admin.ModelAdmin):
+    """Author approval templates (MVP authoring surface — no visual designer yet).
+
+    ``flow`` is an ordered JSON list of approver-resolution rules, e.g.::
+
+        [{"type": "direct_manager"},
+         {"type": "department_head", "department_id": "<uuid>"},
+         {"type": "org_role", "role": "owner"},
+         {"type": "user", "user_id": "<uuid>"}]
+
+    ``form_schema`` is free-form JSON describing the request form's fields.
+    """
+
+    list_display = ("name", "organization", "is_active", "created_at")
+    list_filter = ("organization", "is_active")
+    search_fields = ("name", "=id")
+    autocomplete_fields = ("organization",)
+    readonly_fields = ("id", "created_at", "updated_at")
+
+    def get_changeform_initial_data(self, request):
+        # Single-org MVP: prefill the only organization to cut friction.
+        orgs = list(models.Organization.objects.all()[:2])
+        return {"organization": orgs[0].pk} if len(orgs) == 1 else {}
+
+
+class ApprovalTaskInline(admin.TabularInline):
+    """The resolved approver chain of an instance — read-only (driven by the engine)."""
+
+    model = models.ApprovalTask
+    extra = 0
+    can_delete = False
+    fields = ("node_index", "approver", "action", "comment", "acted_at")
+    readonly_fields = fields
+    ordering = ("node_index",)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(models.ApprovalInstance)
+class ApprovalInstanceAdmin(admin.ModelAdmin):
+    """View approval requests + their chain. Instances are created/advanced via the
+    API + state machine, so this surface is read-only (no hand-editing status)."""
+
+    list_display = (
+        "id",
+        "template",
+        "applicant",
+        "status",
+        "current_node",
+        "created_at",
+    )
+    list_filter = ("organization", "status", "template")
+    search_fields = ("=id", "applicant__email", "applicant__full_name")
+    autocomplete_fields = ("organization", "template", "applicant")
+    readonly_fields = (
+        "id",
+        "organization",
+        "template",
+        "applicant",
+        "form_data",
+        "status",
+        "current_node",
+        "created_at",
+        "updated_at",
+    )
+    list_select_related = ("template", "applicant")
+    inlines = (ApprovalTaskInline,)
+
+    def has_add_permission(self, request):
+        # Instances originate from POST /api/v1.0/approvals/, never the admin.
+        return False

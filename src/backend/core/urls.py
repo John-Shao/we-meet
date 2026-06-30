@@ -8,7 +8,12 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
+from core.api.admin_org import DepartmentAdminViewSet, MembershipAdminViewSet
 from core.api.agent_internal import IngestTranscriptView
+from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
+from core.api.calendar import CalendarEventViewSet
+from core.api.directory import DepartmentViewSet, DirectoryMemberViewSet
+from core.api.im import ImViewSet
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.qr_login import (
     QrCancelView,
@@ -33,6 +38,26 @@ router.register(
     addons_viewsets.SessionViewSet,
     basename="addons_sessions",
 )
+router.register("im", ImViewSet, basename="im")
+router.register(
+    "calendar-events", CalendarEventViewSet, basename="calendar_events"
+)
+router.register(
+    "directory/departments", DepartmentViewSet, basename="directory_departments"
+)
+router.register(
+    "directory/members", DirectoryMemberViewSet, basename="directory_members"
+)
+router.register(
+    "admin/departments", DepartmentAdminViewSet, basename="admin_departments"
+)
+router.register(
+    "admin/memberships", MembershipAdminViewSet, basename="admin_memberships"
+)
+router.register(
+    "approval-templates", ApprovalTemplateViewSet, basename="approval_templates"
+)
+router.register("approvals", ApprovalInstanceViewSet, basename="approvals")
 
 # - External API
 external_router = SimpleRouter()

@@ -1,0 +1,35 @@
+{
+  "nav": { "title": "Validations", "ariaLabel": "Ouvrir les validations" },
+  "page": {
+    "authRequired": "Connectez-vous pour voir les validations.",
+    "title": "Validations",
+    "create": "Nouvelle demande",
+    "loading": "Chargement…"
+  },
+  "section": { "pending": "À valider", "mine": "Mes demandes", "empty": "Rien ici" },
+  "tab": { "create": "Nouvelle demande", "pending": "À faire", "mine": "Envoyées" },
+  "status": {
+    "pending": "En attente",
+    "approved": "Approuvée",
+    "rejected": "Refusée",
+    "cancelled": "Annulée",
+    "needs_assignment": "À assigner"
+  },
+  "card": { "applicant": "Demandeur", "node": "Étape {{index}}", "unassigned": "Non assigné" },
+  "act": {
+    "approve": "Approuver",
+    "reject": "Refuser",
+    "cancel": "Annuler",
+    "commentPlaceholder": "Commentaire (facultatif)",
+    "confirmCancel": "Annuler cette demande ?"
+  },
+  "form": {
+    "title": "Nouvelle demande",
+    "template": "Type",
+    "templatePlaceholder": "Sélectionner…",
+    "submit": "Envoyer",
+    "cancel": "Annuler",
+    "error": "Échec : {{message}}",
+    "noTemplates": "Aucun modèle de validation disponible — demandez à un administrateur d'en configurer un."
+  }
+}

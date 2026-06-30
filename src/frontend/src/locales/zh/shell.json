@@ -1,0 +1,26 @@
+{
+  "railLabel": "主导航",
+  "resizeHandle": "拖拽调整宽度",
+  "collapse": "收起导航栏",
+  "expand": "展开导航栏",
+  "more": "更多",
+  "search": {
+    "trigger": "搜索",
+    "placeholder": "搜索联系人、会议…",
+    "contacts": "联系人",
+    "meetings": "会议",
+    "empty": "无匹配结果"
+  },
+  "logout": "退出登录",
+  "confirm": "确定",
+  "cancel": "取消",
+  "ok": "知道了",
+  "nav": {
+    "messages": "消息",
+    "meeting": "视频会议",
+    "calendar": "日历",
+    "approval": "审批",
+    "contacts": "通讯录",
+    "docs": "云文档"
+  }
+}

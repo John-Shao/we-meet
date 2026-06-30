@@ -1,0 +1,26 @@
+{
+  "railLabel": "Navigation principale",
+  "resizeHandle": "Glisser pour redimensionner",
+  "collapse": "Réduire la navigation",
+  "expand": "Développer la navigation",
+  "more": "Plus",
+  "search": {
+    "trigger": "Rechercher",
+    "placeholder": "Rechercher des personnes, réunions…",
+    "contacts": "Contacts",
+    "meetings": "Réunions",
+    "empty": "Aucun résultat"
+  },
+  "logout": "Se déconnecter",
+  "confirm": "Confirmer",
+  "cancel": "Annuler",
+  "ok": "OK",
+  "nav": {
+    "messages": "Messages",
+    "meeting": "Réunions",
+    "calendar": "Agenda",
+    "approval": "Validations",
+    "contacts": "Contacts",
+    "docs": "Docs"
+  }
+}
