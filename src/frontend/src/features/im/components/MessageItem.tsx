@@ -5,6 +5,8 @@ import type { Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 
+import { Avatar } from './Avatar'
+
 /** One aggregated reaction chip under a message. */
 export interface ReactionChip {
   emoji: string
@@ -116,15 +118,6 @@ const renderBody = (
   return out
 }
 
-// Deterministic avatar tint from a string, so the same person keeps one colour.
-const AVATAR_COLORS = ['#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a', '#0891b2']
-const tintFor = (s: string): string => {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return AVATAR_COLORS[h % AVATAR_COLORS.length]
-}
-const initial = (s: string): string => (s.trim()[0] || '?').toUpperCase()
-
 export const MessageItem = ({
   message,
   isOwn,
@@ -225,40 +218,9 @@ export const MessageItem = ({
       })}
       data-testid="im-msg"
     >
+      {/* 接收消息(群聊):左侧发送人头像 */}
       {!isOwn && showSender && (
-        senderAvatarUrl ? (
-          <img
-            src={senderAvatarUrl}
-            alt=""
-            aria-hidden="true"
-            className={css({
-              flexShrink: 0,
-              width: '2rem',
-              height: '2rem',
-              borderRadius: '7px',
-              objectFit: 'cover',
-            })}
-          />
-        ) : (
-          <span
-            aria-hidden="true"
-            className={css({
-              flexShrink: 0,
-              width: '2rem',
-              height: '2rem',
-              borderRadius: '7px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '0.8125rem',
-              fontWeight: 'bold',
-            })}
-            style={{ backgroundColor: tintFor(name) }}
-          >
-            {initial(name)}
-          </span>
-        )
+        <Avatar name={name} src={senderAvatarUrl} size="2rem" />
       )}
       <div
         className={css({
@@ -465,6 +427,8 @@ export const MessageItem = ({
           </div>
         )}
       </div>
+      {/* 自己发的消息(一对一 + 群聊):右侧自己头像,不显示名字 */}
+      {isOwn && <Avatar name={name} src={senderAvatarUrl} size="2rem" />}
     </div>
   )
 }

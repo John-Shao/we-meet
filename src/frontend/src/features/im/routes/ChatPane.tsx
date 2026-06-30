@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { Client, ConversationSummary, Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { resolveImUsers } from '../api/resolveImUsers'
@@ -128,6 +129,7 @@ export const ChatPane = ({
   infoPanel,
 }: Props) => {
   const { t, i18n } = useTranslation('im')
+  const { user } = useUser()
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const cid = conversation.cid
   const isGroup = conversation.type === 'group'
@@ -603,6 +605,7 @@ export const ChatPane = ({
                 const prev = visibleMessages[idx - 1]
                 const showDivider =
                   idx === 0 || m.ts - prev.ts >= TIME_DIVIDER_GAP_MS
+                const isOwnMsg = m.sender_uid === currentUserUID
                 return (
                   <Fragment key={m.mid}>
                     {showDivider && (
@@ -616,9 +619,17 @@ export const ChatPane = ({
                     )}
                     <MessageItem
                       message={m}
-                      isOwn={m.sender_uid === currentUserUID}
-                      senderName={nameOf(m.sender_uid)}
-                      senderAvatarUrl={names[m.sender_uid]?.avatar_url}
+                      isOwn={isOwnMsg}
+                      senderName={
+                        isOwnMsg
+                          ? user?.full_name || selfName || currentUserUID
+                          : nameOf(m.sender_uid)
+                      }
+                      senderAvatarUrl={
+                        isOwnMsg
+                          ? user?.avatar_url || undefined
+                          : names[m.sender_uid]?.avatar_url
+                      }
                       imageUrl={imageUrlOf(m)}
                       fileUrl={fileUrlOf(m)}
                       reactions={reactionsFor(m.mid)}
