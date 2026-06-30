@@ -37,7 +37,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/im', labelKey: 'nav.messages', Icon: RiMessage3Line },
-  { to: '/', labelKey: 'nav.meeting', Icon: RiVidiconLine },
+  { to: '/meeting', labelKey: 'nav.meeting', Icon: RiVidiconLine },
   { to: '/calendar', labelKey: 'nav.calendar', Icon: RiCalendarLine },
   { to: '/approval', labelKey: 'nav.approval', Icon: RiCheckboxCircleLine },
   { to: '/contacts', labelKey: 'nav.contacts', Icon: RiContactsBookLine },

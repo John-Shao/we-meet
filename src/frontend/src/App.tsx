@@ -5,7 +5,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useTitle } from 'hoofd'
-import { Switch, Route } from 'wouter'
+import { Switch, Route, Redirect } from 'wouter'
 import { I18nProvider } from 'react-aria-components'
 import { Layout } from './layout/Layout'
 import { NotFoundScreen } from './components/NotFoundScreen'
@@ -32,6 +32,10 @@ function App() {
           <ConfirmProvider>
             <Layout>
               <Switch>
+                {/* 根路径重定向到视频会议主页(已迁到 /meeting)。 */}
+                <Route path="/">
+                  <Redirect to="/meeting" />
+                </Route>
                 {Object.entries(routes).map(([, route], i) => (
                   <Route key={i} path={route.path} component={route.Component} />
                 ))}
