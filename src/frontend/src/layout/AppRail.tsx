@@ -149,7 +149,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
       className={css({
         width: '32px',
         height: '32px',
-        borderRadius: 'full',
+        borderRadius: '7px',
         objectFit: 'cover',
         flexShrink: 0,
       })}
@@ -159,7 +159,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
       className={css({
         width: '32px',
         height: '32px',
-        borderRadius: 'full',
+        borderRadius: '7px',
         backgroundColor: 'primary.500',
         color: 'white',
         display: 'flex',
@@ -342,7 +342,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
                   border: 'none',
                   background: 'transparent',
                   padding: '0.25rem',
-                  borderRadius: 'full',
+                  borderRadius: '10px',
                   cursor: 'pointer',
                   _hover: { backgroundColor: 'greyscale.100' },
                 })}

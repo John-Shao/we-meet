@@ -80,7 +80,7 @@ export const MemberDetailPanel = ({ member, onMessage, onClose }: Props) => {
             className={css({
               width: '72px',
               height: '72px',
-              borderRadius: 'full',
+              borderRadius: '14px',
               objectFit: 'cover',
             })}
           />
@@ -89,7 +89,7 @@ export const MemberDetailPanel = ({ member, onMessage, onClose }: Props) => {
             className={css({
               width: '72px',
               height: '72px',
-              borderRadius: 'full',
+              borderRadius: '14px',
               backgroundColor: 'primary.500',
               color: 'white',
               display: 'flex',

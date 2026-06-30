@@ -28,23 +28,21 @@ interface Props {
 }
 
 /**
- * Round avatar for directory members: uploaded image when present, else a
- * tinted single-initial fallback. Shared by the contact / group pickers so
- * member rows render avatars uniformly.
+ * Rounded-square avatar (WeChat style) for directory members: uploaded image
+ * when present, else a tinted single-initial fallback. Corner radius scales
+ * with the diameter. Shared by the contact / group pickers so member rows
+ * render avatars uniformly.
  */
 export const MemberAvatar = ({ name, src, size = '2rem' }: Props) => {
+  const radius = `calc(${size} * 0.2)`
   if (src) {
     return (
       <img
         src={src}
         alt=""
         aria-hidden="true"
-        className={css({
-          flexShrink: 0,
-          borderRadius: '999px',
-          objectFit: 'cover',
-        })}
-        style={{ width: size, height: size }}
+        className={css({ flexShrink: 0, objectFit: 'cover' })}
+        style={{ width: size, height: size, borderRadius: radius }}
       />
     )
   }
@@ -53,7 +51,6 @@ export const MemberAvatar = ({ name, src, size = '2rem' }: Props) => {
       aria-hidden="true"
       className={css({
         flexShrink: 0,
-        borderRadius: '999px',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -64,6 +61,7 @@ export const MemberAvatar = ({ name, src, size = '2rem' }: Props) => {
       style={{
         width: size,
         height: size,
+        borderRadius: radius,
         backgroundColor: tintFor(name),
         fontSize: `calc(${size} * 0.42)`,
       }}

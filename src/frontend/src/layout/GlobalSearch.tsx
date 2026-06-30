@@ -324,7 +324,7 @@ const ResultRow = ({
           flexShrink: 0,
           width: '32px',
           height: '32px',
-          borderRadius: 'full',
+          borderRadius: '7px',
           objectFit: 'cover',
         })}
       />
@@ -334,7 +334,7 @@ const ResultRow = ({
           flexShrink: 0,
           width: '32px',
           height: '32px',
-          borderRadius: 'full',
+          borderRadius: '7px',
           backgroundColor: 'primary.100',
           color: 'primary.700',
           display: 'flex',

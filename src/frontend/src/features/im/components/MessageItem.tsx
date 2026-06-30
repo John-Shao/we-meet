@@ -139,7 +139,7 @@ export const MessageItem = ({
               flexShrink: 0,
               width: '2rem',
               height: '2rem',
-              borderRadius: '999px',
+              borderRadius: '7px',
               objectFit: 'cover',
               marginTop: '1.125rem',
             })}
@@ -151,7 +151,7 @@ export const MessageItem = ({
               flexShrink: 0,
               width: '2rem',
               height: '2rem',
-              borderRadius: '999px',
+              borderRadius: '7px',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',

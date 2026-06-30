@@ -221,7 +221,7 @@ const ContactsAuthenticated = () => {
                             flexShrink: 0,
                             width: '36px',
                             height: '36px',
-                            borderRadius: 'full',
+                            borderRadius: '8px',
                             objectFit: 'cover',
                           })}
                         />
@@ -231,7 +231,7 @@ const ContactsAuthenticated = () => {
                             flexShrink: 0,
                             width: '36px',
                             height: '36px',
-                            borderRadius: 'full',
+                            borderRadius: '8px',
                             backgroundColor: 'primary.500',
                             color: 'white',
                             display: 'flex',

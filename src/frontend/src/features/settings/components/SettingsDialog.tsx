@@ -47,7 +47,7 @@ export const SettingsDialog = (props: SettingsDialogProps) => {
                 position: 'relative',
                 width: '64px',
                 height: '64px',
-                borderRadius: '50%',
+                borderRadius: '14px',
                 border: 'none',
                 padding: 0,
                 cursor: 'pointer',

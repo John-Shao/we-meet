@@ -33,20 +33,20 @@ interface Props {
   src?: string
 }
 
-/** Round avatar shared across the IM feature: uploaded image, else tinted initial. */
+/**
+ * Rounded-square avatar (WeChat style) shared across the IM feature: uploaded
+ * image, else tinted initial. Corner radius scales with the diameter.
+ */
 export const Avatar = ({ name, size = '2rem', src }: Props) => {
+  const radius = `calc(${size} * 0.2)`
   if (src) {
     return (
       <img
         src={src}
         alt=""
         aria-hidden="true"
-        className={css({
-          flexShrink: 0,
-          borderRadius: '999px',
-          objectFit: 'cover',
-        })}
-        style={{ width: size, height: size }}
+        className={css({ flexShrink: 0, objectFit: 'cover' })}
+        style={{ width: size, height: size, borderRadius: radius }}
       />
     )
   }
@@ -55,7 +55,6 @@ export const Avatar = ({ name, size = '2rem', src }: Props) => {
       aria-hidden="true"
       className={css({
         flexShrink: 0,
-        borderRadius: '999px',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -66,6 +65,7 @@ export const Avatar = ({ name, size = '2rem', src }: Props) => {
       style={{
         width: size,
         height: size,
+        borderRadius: radius,
         backgroundColor: tintFor(name),
         fontSize: `calc(${size} * 0.42)`,
       }}

@@ -78,11 +78,10 @@ export const GroupAvatar = ({ members, size = '2.5rem' }: Props) => {
         position: 'relative',
         flexShrink: 0,
         display: 'inline-block',
-        borderRadius: '999px',
         overflow: 'hidden',
         backgroundColor: 'greyscale.200',
       })}
-      style={{ width: size, height: size }}
+      style={{ width: size, height: size, borderRadius: `calc(${size} * 0.2)` }}
     >
       {placed.map((p, i) => (
         <span
