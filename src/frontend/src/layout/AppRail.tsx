@@ -87,6 +87,10 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
     queryKey: ['approval', 'pending'],
     queryFn: () => fetchApprovals('pending'),
     staleTime: 30_000,
+    // Always-on rail badge: degrade silently if the endpoint errors (e.g. 500)
+    // instead of retry-storming + refetching on every window focus.
+    retry: false,
+    refetchOnWindowFocus: false,
   })
   const badgeFor = (to: string): number =>
     to === '/im' ? unreadMessages : to === '/approval' ? pendingApprovals.length : 0
