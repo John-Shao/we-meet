@@ -27,7 +27,8 @@
     "deleteConfirm": "Dit gesprek verwijderen? Het wordt alleen uit jouw lijst verwijderd — de ander en de geschiedenis blijven ongemoeid.",
     "error": "Actie mislukt: {{message}}",
     "recall": "Intrekken",
-    "recallConfirm": "Dit bericht intrekken?"
+    "recallConfirm": "Dit bericht intrekken?",
+    "copy": "Kopiëren"
   },
   "recalled": {
     "self": "Je hebt een bericht ingetrokken",

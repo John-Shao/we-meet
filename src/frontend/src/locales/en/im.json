@@ -27,7 +27,8 @@
     "deleteConfirm": "Delete this conversation? It is only removed from your list — the peer and history are untouched.",
     "error": "Action failed: {{message}}",
     "recall": "Recall",
-    "recallConfirm": "Recall this message?"
+    "recallConfirm": "Recall this message?",
+    "copy": "Copy"
   },
   "recalled": {
     "self": "You recalled a message",

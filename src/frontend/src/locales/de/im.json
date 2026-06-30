@@ -27,7 +27,8 @@
     "deleteConfirm": "Diese Unterhaltung löschen? Sie wird nur aus Ihrer Liste entfernt — Gegenüber und Verlauf bleiben unberührt.",
     "error": "Aktion fehlgeschlagen: {{message}}",
     "recall": "Zurückziehen",
-    "recallConfirm": "Diese Nachricht zurückziehen?"
+    "recallConfirm": "Diese Nachricht zurückziehen?",
+    "copy": "Kopieren"
   },
   "recalled": {
     "self": "Sie haben eine Nachricht zurückgezogen",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -12,7 +12,14 @@ import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { MessageInput } from '../components/MessageInput'
 import { MessageItem } from '../components/MessageItem'
+import {
+  MessageContextMenu,
+  type ContextMenuItem,
+} from '../components/MessageContextMenu'
 import { useMessages } from '../hooks/useMessages'
+
+// Recall is allowed only on your own messages within this window (WeChat: 2 min).
+const RECALL_WINDOW_MS = 2 * 60 * 1000
 
 interface Props {
   client: Client
@@ -175,6 +182,50 @@ export const ChatPane = ({
         }),
       })
     }
+  }
+
+  // 右键上下文菜单(飞书式):复制(文本)/ 撤回(自己 2 分钟内)。
+  const [menu, setMenu] = useState<{
+    x: number
+    y: number
+    items: ContextMenuItem[]
+  } | null>(null)
+
+  const buildMenuItems = (m: Message): ContextMenuItem[] => {
+    const items: ContextMenuItem[] = []
+    const isText =
+      m.content_type !== 'image' &&
+      m.content_type !== 'system' &&
+      m.content_type !== 'recall'
+    if (isText && m.body && navigator.clipboard) {
+      items.push({
+        key: 'copy',
+        label: t('actions.copy'),
+        onSelect: () => void navigator.clipboard.writeText(m.body),
+      })
+    }
+    const canRecall =
+      m.sender_uid === currentUserUID &&
+      m.content_type !== 'system' &&
+      m.content_type !== 'recall' &&
+      !recalledMids.has(m.mid) &&
+      Date.now() - m.ts < RECALL_WINDOW_MS
+    if (canRecall) {
+      items.push({
+        key: 'recall',
+        label: t('actions.recall'),
+        danger: true,
+        onSelect: () => void onRecall(m),
+      })
+    }
+    return items
+  }
+
+  const openMenu = (e: React.MouseEvent, m: Message) => {
+    const items = buildMenuItems(m)
+    if (items.length === 0) return // nothing custom → let the native menu show
+    e.preventDefault()
+    setMenu({ x: e.clientX, y: e.clientY, items })
   }
 
   // Auto-scroll on new message.
@@ -352,7 +403,7 @@ export const ChatPane = ({
                     senderAvatarUrl={names[m.sender_uid]?.avatar_url}
                     imageUrl={imageUrlOf(m)}
                     recalled={recalledMids.has(m.mid)}
-                    onRecall={onRecall}
+                    onContextMenu={(e) => openMenu(e, m)}
                     showSender={isGroup}
                     mentionNames={highlightNames}
                     selfMentionNames={[selfName, everyone].filter(Boolean)}
@@ -369,6 +420,14 @@ export const ChatPane = ({
         </div>
         {infoPanel}
       </div>
+      {menu && (
+        <MessageContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={menu.items}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   )
 }

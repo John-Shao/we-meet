@@ -27,7 +27,8 @@
     "deleteConfirm": "确定删除该会话?仅从你的列表移除,不影响对方和聊天记录。",
     "error": "操作失败:{{message}}",
     "recall": "撤回",
-    "recallConfirm": "确定撤回这条消息?"
+    "recallConfirm": "确定撤回这条消息?",
+    "copy": "复制"
   },
   "recalled": {
     "self": "你撤回了一条消息",

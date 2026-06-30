@@ -27,7 +27,8 @@
     "deleteConfirm": "Supprimer cette conversation ? Elle n'est retirée que de votre liste — le correspondant et l'historique ne sont pas touchés.",
     "error": "Échec de l'action : {{message}}",
     "recall": "Annuler",
-    "recallConfirm": "Annuler ce message ?"
+    "recallConfirm": "Annuler ce message ?",
+    "copy": "Copier"
   },
   "recalled": {
     "self": "Vous avez retiré un message",

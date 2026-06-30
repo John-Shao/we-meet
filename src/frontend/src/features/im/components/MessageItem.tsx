@@ -15,8 +15,8 @@ interface Props {
   imageUrl?: string
   /** This message has been recalled (a tombstone targets it) → render placeholder. */
   recalled?: boolean
-  /** Recall this message (own + recent). Omitted → no recall affordance. */
-  onRecall?: (message: Message) => void
+  /** Right-click on the message row (opens the caller's context menu). */
+  onContextMenu?: (e: React.MouseEvent) => void
   /** Show the sender name + avatar (group, non-own). Direct chats pass false. */
   showSender?: boolean
   /** Names highlightable as @mentions in the body (members + 所有人). */
@@ -84,9 +84,6 @@ const tintFor = (s: string): string => {
 }
 const initial = (s: string): string => (s.trim()[0] || '?').toUpperCase()
 
-// Recall is allowed only on your own messages within this window (WeChat: 2 min).
-const RECALL_WINDOW_MS = 2 * 60 * 1000
-
 export const MessageItem = ({
   message,
   isOwn,
@@ -94,7 +91,7 @@ export const MessageItem = ({
   senderAvatarUrl,
   imageUrl,
   recalled,
-  onRecall,
+  onContextMenu,
   showSender,
   mentionNames = [],
   selfMentionNames = [],
@@ -169,14 +166,9 @@ export const MessageItem = ({
     )
   }
 
-  const canRecall =
-    !!onRecall &&
-    isOwn &&
-    message.content_type !== 'system' &&
-    Date.now() - message.ts < RECALL_WINDOW_MS
-
   return (
     <div
+      onContextMenu={onContextMenu}
       className={css({
         display: 'flex',
         alignItems: 'center',
@@ -184,37 +176,9 @@ export const MessageItem = ({
         justifyContent: isOwn ? 'flex-end' : 'flex-start',
         paddingX: '1rem',
         paddingY: '0.25rem',
-        _hover: { '& [data-role=recall]': { opacity: 1 } },
       })}
       data-testid="im-msg"
     >
-      {canRecall && (
-        <button
-          type="button"
-          data-role="recall"
-          onClick={() => onRecall?.(message)}
-          title={t('actions.recall')}
-          aria-label={t('actions.recall')}
-          data-testid="im-msg-recall"
-          className={css({
-            flexShrink: 0,
-            order: -1, // sit left of the (right-aligned) own bubble
-            border: '1px solid token(colors.greyscale.300)',
-            borderRadius: '0.375rem',
-            backgroundColor: 'white',
-            color: 'greyscale.600',
-            fontSize: '0.75rem',
-            paddingX: '0.5rem',
-            paddingY: '0.1875rem',
-            cursor: 'pointer',
-            opacity: 0,
-            transition: 'opacity 0.15s',
-            _hover: { backgroundColor: 'greyscale.100' },
-          })}
-        >
-          {t('actions.recall')}
-        </button>
-      )}
       {!isOwn && showSender && (
         senderAvatarUrl ? (
           <img
