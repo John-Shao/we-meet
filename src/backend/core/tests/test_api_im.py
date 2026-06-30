@@ -242,24 +242,31 @@ def test_chat_image_upload_url_happy_path():
     assert gen.call_args.kwargs["size"] == 1000
 
 
-def test_resolve_images_only_signs_chat_prefix():
-    """Keys outside the chat/ prefix are skipped (endpoint won't sign arbitrary keys)."""
+def test_resolve_images_only_signs_known_prefixes():
+    """chat/ (image) + file/ (attachment) keys sign; other prefixes are skipped."""
     user = UserFactory()
     client = APIClient()
     client.force_login(user)
 
     def fake_get_url(key):
-        return f"https://oss/get/{key}" if key.startswith("chat/") else ""
+        return (
+            f"https://oss/get/{key}"
+            if key.startswith("chat/") or key.startswith("file/")
+            else ""
+        )
 
-    with mock.patch("core.utils.generate_chat_image_get_url", side_effect=fake_get_url):
+    with mock.patch(
+        "core.utils.generate_chat_object_get_url", side_effect=fake_get_url
+    ):
         r = client.post(
             RESOLVE_URL,
-            {"object_keys": ["chat/u/a.jpg", "evil/secret.jpg"]},
+            {"object_keys": ["chat/u/a.jpg", "file/u/b.pdf", "evil/secret.jpg"]},
             format="json",
         )
     assert r.status_code == 200, r.content
     body = r.json()
     assert "chat/u/a.jpg" in body
+    assert "file/u/b.pdf" in body
     assert "evil/secret.jpg" not in body
 
 

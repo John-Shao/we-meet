@@ -198,6 +198,14 @@ class Base(Configuration):
         environ_name="AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE",
         environ_prefix=None,
     )
+    # IM chat file attachments (P7-b): a separate private bucket. Keys are
+    # `file/<user_id>/<short-uuid>[.ext]` (the `file/` prefix routes resolve to
+    # this bucket); carried in the message body (content_type='file').
+    AWS_STORAGE_BUCKET_NAME_CHAT_FILE = values.Value(
+        "we-chat-file",
+        environ_name="AWS_STORAGE_BUCKET_NAME_CHAT_FILE",
+        environ_prefix=None,
+    )
 
     # SMS gateway (火山引擎 / Volcengine) — sends OTP codes for mobile login.
     VOLC_SMS_AK = values.Value(None, environ_name="VOLC_SMS_AK", environ_prefix=None)

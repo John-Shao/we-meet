@@ -227,12 +227,13 @@ class ImViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=["post"], url_path="images/resolve")
     def resolve_images(self, request):
-        """Resolve chat-image object keys → short-lived presigned GET URLs (P7).
+        """Resolve chat object keys → short-lived presigned GET URLs (P7).
 
-        Body: ``{"object_keys": ["chat/<uid>/<uuid>.jpg", ...]}``. Returns
-        ``{key: url}`` for keys under the ``chat/`` prefix (others are skipped —
-        the endpoint refuses to sign arbitrary bucket keys). URLs expire (1h), so
-        the client re-resolves on a short staleTime, like the avatar GET URLs.
+        Body: ``{"object_keys": ["chat/<uid>/<uuid>.jpg", "file/<uid>/...", ...]}``.
+        Returns ``{key: url}`` for keys under the ``chat/`` (image) or ``file/``
+        (attachment) prefixes, each routed to its bucket; other keys are skipped
+        (the endpoint refuses to sign arbitrary bucket keys). URLs expire (1h),
+        so the client re-resolves on a short staleTime, like avatar GET URLs.
         """
         data = request.data or {}
         raw = data.get("object_keys")
@@ -249,7 +250,7 @@ class ImViewSet(viewsets.ViewSet):
 
         out = {}
         for key in keys:
-            url = utils.generate_chat_image_get_url(key)
+            url = utils.generate_chat_object_get_url(key)
             if url:
                 out[key] = url
         return Response(out, status=status.HTTP_200_OK)

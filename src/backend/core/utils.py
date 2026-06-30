@@ -643,22 +643,36 @@ def generate_chat_image_upload_url(*, user, content_type: str, size: int) -> dic
     }
 
 
-def generate_chat_image_get_url(object_key: str) -> str:
+# Chat file attachments live in their own bucket under this key prefix; the
+# prefix is how the resolve endpoint routes a key to the right bucket.
+CHAT_FILE_KEY_PREFIX = "file/"
+
+
+def _chat_bucket_for_key(object_key: str) -> str | None:
+    """Pick the storage bucket for a chat object key by its prefix, or None."""
+    if object_key.startswith(CHAT_IMAGE_KEY_PREFIX):
+        return settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE
+    if object_key.startswith(CHAT_FILE_KEY_PREFIX):
+        return settings.AWS_STORAGE_BUCKET_NAME_CHAT_FILE
+    return None
+
+
+def generate_chat_object_get_url(object_key: str) -> str:
     """Return a short-lived presigned GET URL for a chat object (image or file).
 
-    Returns an empty string when ``object_key`` is unset or not a chat key
-    (``chat/`` prefix) — the bucket is private, so this signed URL is the only
-    way to read the object; clients treat it as expiring and re-resolve. Shared
-    by image and file messages (both stored under the same chat bucket/prefix).
+    Routes by key prefix: ``chat/`` → image bucket, ``file/`` → file bucket.
+    Returns '' for an unset key or any other prefix — the endpoint refuses to
+    sign arbitrary keys, and the private buckets make the signed URL the only
+    way to read the object; clients treat it as expiring and re-resolve.
     """
-    if not object_key or not object_key.startswith(CHAT_IMAGE_KEY_PREFIX):
+    if not object_key:
+        return ""
+    bucket = _chat_bucket_for_key(object_key)
+    if bucket is None:
         return ""
     return _profile_s3_client().generate_presigned_url(
         "get_object",
-        Params={
-            "Bucket": settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE,
-            "Key": object_key,
-        },
+        Params={"Bucket": bucket, "Key": object_key},
         ExpiresIn=PROFILE_IMAGE_GET_URL_TTL_SECONDS,
         HttpMethod="GET",
     )
@@ -682,15 +696,15 @@ def _safe_ext(filename: str) -> str:
 
 
 def build_chat_file_object_key(user_id, filename: str) -> str:
-    """Build the S3 key for a chat file: ``chat/{user_id}/{short-uuid}[.ext]``.
+    """Build the S3 key for a chat file: ``file/{user_id}/{short-uuid}[.ext]``.
 
-    Shares the ``chat/`` prefix (and bucket) with images so the same resolve
-    endpoint signs both; the original filename lives in the message body.
+    The ``file/`` prefix routes resolve to the dedicated file bucket; the
+    original filename lives in the message body.
     """
     ext = _safe_ext(filename)
     name = uuid4().hex[:16]
     suffix = f".{ext}" if ext else ""
-    return f"{CHAT_IMAGE_KEY_PREFIX}{user_id}/{name}{suffix}"
+    return f"{CHAT_FILE_KEY_PREFIX}{user_id}/{name}{suffix}"
 
 
 def generate_chat_file_upload_url(
@@ -699,14 +713,14 @@ def generate_chat_file_upload_url(
     """Issue a short-lived presigned PUT URL for a chat file attachment.
 
     Any content type is allowed (it is echoed back as the object's Content-Type);
-    the caller MUST validate ``size`` first. Stored in the same private chat
-    bucket as images, read back via the shared resolve endpoint.
+    the caller MUST validate ``size`` first. Stored in the dedicated private
+    chat-file bucket, read back via the shared resolve endpoint.
     """
     object_key = build_chat_file_object_key(user.id, filename)
     upload_url = _profile_s3_client().generate_presigned_url(
         "put_object",
         Params={
-            "Bucket": settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE,
+            "Bucket": settings.AWS_STORAGE_BUCKET_NAME_CHAT_FILE,
             "Key": object_key,
             "ContentType": content_type,
             "ContentLength": size,
