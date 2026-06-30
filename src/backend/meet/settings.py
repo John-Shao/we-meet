@@ -202,7 +202,7 @@ class Base(Configuration):
     # `file/<user_id>/<short-uuid>[.ext]` (the `file/` prefix routes resolve to
     # this bucket); carried in the message body (content_type='file').
     AWS_STORAGE_BUCKET_NAME_CHAT_FILE = values.Value(
-        "we-chat-file",
+        "we-meet-file",
         environ_name="AWS_STORAGE_BUCKET_NAME_CHAT_FILE",
         environ_prefix=None,
     )
