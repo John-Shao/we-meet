@@ -194,7 +194,7 @@ class Base(Configuration):
     # `chat/<user_id>/<short-uuid>.<ext>`; the key is carried in the IM message
     # body (content_type='image') and read via short-lived presigned GET URLs.
     AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE = values.Value(
-        "we-meet-chat-image",
+        "we-chat-image",
         environ_name="AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE",
         environ_prefix=None,
     )

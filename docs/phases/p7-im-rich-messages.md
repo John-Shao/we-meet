@@ -30,7 +30,7 @@ we-meet 自研 IM 目前只能发纯文本。对标飞书/微信,「发图片」
 
 - **D1 图片走 `content_type='image'`,`body=OSS object_key`(不是 URL)。** key 永久持久在消息里,presigned GET URL 1h 过期,**渲染时按 key 批量重签**(镜像 `core/api/im.py users/resolve` + 前端 `resolveImUsers`)。绝不把会过期的 URL 塞进消息正文。
 - **D2 复用头像 presigned 模式,不用 File 模型。** File 模型要建 DB 行 + upload-ended 二段确认;图片消息正文由 jusi-light-im 持有,we-meet 只需"签发上传 URL + 渲染时签发读取 URL",**无需建表**。复用 `_profile_s3_client()`(按桶传参)。
-- **D3 新建专用桶 `we-meet-chat-image`(private)。** 与头像桶同档隔离、CORS 规则同一套(用户已熟),不混入通用媒体桶,边界清晰。
+- **D3 新建专用桶 `we-chat-image`(private)。** 与头像桶同档隔离、CORS 规则同一套(用户已熟),不混入通用媒体桶,边界清晰。
 - **D4 端点挂 `ImViewSet`,与 `users/resolve` 同风格**:`POST /im/images/upload-url/`(签发 PUT)+ `POST /im/images/resolve/`(批量签发 GET)。`IsAuthenticated`。
 - **D5 鉴权粒度取舍**:`images/resolve` 只对 `chat/` 前缀 key 签发 GET,**不校验调用者是否在该消息所在会话**。靠 key 含 uuid 不可猜 + 需登录兜底,与头像同档,MVP 可接受。收紧需 we-meet 记录 key↔会话映射(暂不做)。
 - **D6 大图体验**:上传前非 gif 大图用 canvas 等比缩到最长边 ~1600px、压 jpeg/webp(复用 `AvatarUploadDialog` canvas 思路)控制体积;gif 原样传(保动图),仅限大小 ~10 MiB。
@@ -42,7 +42,7 @@ we-meet 自研 IM 目前只能发纯文本。对标飞书/微信,「发图片」
 - **P7-a-2 前端 api**:`api/uploadChatImage.ts`(镜像 uploadAvatar 三步 + canvas 压缩 + 校验)、`api/resolveChatImages.ts`(镜像 resolveImUsers)。
 - **P7-a-3 前端 UI**:`MessageInput` 加发图按钮(隐藏 `<input type=file accept=image/*>`,上传中禁用+转圈,新 prop `onSendImage(file)`);`ChatPane` 实现 `onSendImage`(upload → `sendText(cid,key,{contentType:'image'})`+ 即时 blobURL 缓存)并收集图片消息 key 批量 resolve(`['im','image-urls',cid,keys]`,`staleTime 50min`)传 `imageUrl` 给 `MessageItem`;`MessageItem` 加 `content_type==='image'` 分支(`<img>` maxW~240/maxH~320 contain 圆角,点击新标签看大图)。
 - **P7-a-4 预览 + i18n**:`ImRoute.previewOf` 对 `image` 用 `t('preview.image')`;5 语言 `src/locales/{zh,en,fr,de,nl}/im.json` 加 `preview.image`、`input.image`、`image.invalidType`、`image.tooLarge`、`image.uploadError`、`image.alt`。
-- **P7-a-5 ops**:OSS 建 `we-meet-chat-image` 桶(private)+ CORS(`AllowedOrigin https://meet.we-meet.online`、Methods PUT/GET/HEAD、Headers *、ExposeHeader ETag,与头像桶同);helm values 注入 `AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE`。
+- **P7-a-5 ops**:OSS 建 `we-chat-image` 桶(private)+ CORS(`AllowedOrigin https://meet.we-meet.online`、Methods PUT/GET/HEAD、Headers *、ExposeHeader ETag,与头像桶同);helm values 注入 `AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE`。
 
 每期 `tsc -b`/eslint/`vite build` 把关;后端 `bin/pytest` 跑新端点。
 
