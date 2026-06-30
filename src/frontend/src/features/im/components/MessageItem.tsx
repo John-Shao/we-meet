@@ -217,7 +217,7 @@ export const MessageItem = ({
       onContextMenu={onContextMenu}
       className={css({
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         gap: '0.5rem',
         justifyContent: isOwn ? 'flex-end' : 'flex-start',
         paddingX: '1rem',
@@ -237,7 +237,6 @@ export const MessageItem = ({
               height: '2rem',
               borderRadius: '7px',
               objectFit: 'cover',
-              marginTop: '1.125rem',
             })}
           />
         ) : (
@@ -254,7 +253,6 @@ export const MessageItem = ({
               color: 'white',
               fontSize: '0.8125rem',
               fontWeight: 'bold',
-              marginTop: '1.125rem',
             })}
             style={{ backgroundColor: tintFor(name) }}
           >
@@ -270,6 +268,18 @@ export const MessageItem = ({
           alignItems: isOwn ? 'flex-end' : 'flex-start',
         })}
       >
+        {!isOwn && showSender && (
+          <div
+            className={css({
+              fontSize: '0.75rem',
+              color: 'greyscale.600',
+              marginBottom: '0.25rem',
+              paddingX: '0.25rem',
+            })}
+          >
+            {name}
+          </div>
+        )}
         <div
           title={new Date(message.ts).toLocaleString()}
           className={css({
@@ -287,17 +297,6 @@ export const MessageItem = ({
             maxWidth: '100%',
           })}
         >
-          {!isOwn && showSender && (
-            <div
-              className={css({
-                fontSize: '0.75rem',
-                color: 'greyscale.600',
-                marginBottom: '0.125rem',
-              })}
-            >
-              {name}
-            </div>
-          )}
           {isImage ? (
             imageUrl ? (
               <a
