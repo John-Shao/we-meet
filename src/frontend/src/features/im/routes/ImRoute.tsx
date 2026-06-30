@@ -12,7 +12,7 @@ import { Screen } from '@/layout/Screen'
 
 import { ContactPicker } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
-import type { ConversationSummary, ConvMember } from '@jusi/light-im-sdk'
+import type { ConversationSummary, ConvMember, Message } from '@jusi/light-im-sdk'
 
 import { createDirectConversationByUserId } from '../api/createDirectConversation'
 import { createGroupConversation } from '../api/createGroupConversation'
@@ -26,6 +26,7 @@ import { GroupMembersPanel } from '../components/GroupMembersPanel'
 import { GroupSettingsPanel } from '../components/GroupSettingsPanel'
 import { DirectSettingsPanel } from '../components/DirectSettingsPanel'
 import { GroupPicker } from '../components/GroupPicker'
+import { ForwardDialog, type ForwardConv } from '../components/ForwardDialog'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
 
@@ -78,6 +79,8 @@ const ImAuthenticated = () => {
     null
   )
   const [addOpen, setAddOpen] = useState(false)
+  // 转发(P7-e):右键选中的待转发消息;非空时弹出目标会话选择器。
+  const [forwarding, setForwarding] = useState<Message | null>(null)
   // cids with an unread message that @-mentioned me (red "@" marker in the list).
   const [mentionedCids, setMentionedCids] = useState<Set<string>>(new Set())
   const qc = useQueryClient()
@@ -351,6 +354,70 @@ const ImAuthenticated = () => {
     setGroupPickerOpen(true)
   }
 
+  // 转发预览文案:图片→[图片]、文件→文件名(兜底[文件])、引用→可见正文、其余取正文。
+  const forwardSnippet = (m: Message): string => {
+    if (m.content_type === 'image') return t('preview.image')
+    if (m.content_type === 'file') {
+      try {
+        return (JSON.parse(m.body)?.name as string) || t('preview.file')
+      } catch {
+        return t('preview.file')
+      }
+    }
+    if (m.content_type === 'quote') {
+      try {
+        return (JSON.parse(m.body)?.text as string) || ''
+      } catch {
+        return ''
+      }
+    }
+    return m.body
+  }
+
+  // 转发到目标会话:图片/文件直接复用原 body(OSS key 可跨会话 resolve);引用
+  // 只转可见正文为纯文本;其余原样发。发完跳到目标会话并提示。
+  const handleForward = async (targetCid: string) => {
+    const m = forwarding
+    if (!m) return
+    setForwarding(null)
+    try {
+      if (m.content_type === 'image' || m.content_type === 'file') {
+        await client.sendText(targetCid, m.body, { contentType: m.content_type })
+      } else if (m.content_type === 'quote') {
+        let text = m.body
+        try {
+          text = (JSON.parse(m.body)?.text as string) || m.body
+        } catch {
+          // keep raw body
+        }
+        await client.sendText(targetCid, text)
+      } else {
+        await client.sendText(targetCid, m.body)
+      }
+      await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+      const target = conversations.find((c) => c.cid === targetCid)
+      setSelectedCID(targetCid)
+      void showAlert({
+        message: t('forward.done', { name: target ? nameOf(target) : '' }),
+      })
+    } catch (e) {
+      void showAlert({
+        message: t('actions.error', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
+    }
+  }
+
+  // 会话 → 转发选择器条目(复用 nameOf / avatarOf / membersOf)。
+  const forwardConvs: ForwardConv[] = conversations.map((c) => ({
+    cid: c.cid,
+    name: nameOf(c),
+    avatarUrl: avatarOf(c),
+    members: membersOf(c),
+    isGroup: c.type === 'group',
+  }))
+
   return (
     <div
       className={css({
@@ -500,6 +567,7 @@ const ImAuthenticated = () => {
                   ? () => setAddOpen(true)
                   : undefined
               }
+              onForward={(m) => setForwarding(m)}
               infoPanel={
                 rightPanel === 'members' &&
                 selectedConv.type === 'group' ? (
@@ -566,6 +634,14 @@ const ImAuthenticated = () => {
           client={client}
           cid={selectedConv.cid}
           onClose={() => setAddOpen(false)}
+        />
+      )}
+      {forwarding && (
+        <ForwardDialog
+          conversations={forwardConvs}
+          previewText={forwardSnippet(forwarding)}
+          onConfirm={(cid) => void handleForward(cid)}
+          onClose={() => setForwarding(null)}
         />
       )}
     </div>

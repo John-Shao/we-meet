@@ -29,7 +29,15 @@
     "recall": "Intrekken",
     "recallConfirm": "Dit bericht intrekken?",
     "copy": "Kopiëren",
-    "reply": "Beantwoorden"
+    "reply": "Beantwoorden",
+    "forward": "Doorsturen"
+  },
+  "forward": {
+    "title": "Doorsturen naar",
+    "searchPlaceholder": "Gesprekken zoeken…",
+    "send": "Versturen",
+    "empty": "Geen gesprekken",
+    "done": "Doorgestuurd naar '{{name}}'"
   },
   "quote": {
     "replyTo": "Antwoord aan {{name}}",

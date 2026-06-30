@@ -61,6 +61,8 @@ interface Props {
   onOpenSettings?: () => void
   /** Open the add-members picker (group only). */
   onAddMembers?: () => void
+  /** Forward a message to another conversation (picker lives in ImRoute). */
+  onForward?: (m: Message) => void
   /** Group info / member side panel; rendered to the right of the message
    * stream, below the header (Feishu-style). Null when collapsed. */
   infoPanel?: ReactNode
@@ -75,6 +77,7 @@ export const ChatPane = ({
   onOpenInfo,
   onOpenSettings,
   onAddMembers,
+  onForward,
   infoPanel,
 }: Props) => {
   const { t } = useTranslation('im')
@@ -335,6 +338,15 @@ export const ChatPane = ({
       label: t('actions.reply'),
       onSelect: () => onReply(m),
     })
+    // 转发(P7-e):text/image/file/quote 都可转发;system/control/已撤回不会
+    // 走到这里(openMenu 已拦截)。
+    if (onForward) {
+      items.push({
+        key: 'forward',
+        label: t('actions.forward'),
+        onSelect: () => onForward(m),
+      })
+    }
     if (
       m.sender_uid === currentUserUID &&
       Date.now() - m.ts < RECALL_WINDOW_MS

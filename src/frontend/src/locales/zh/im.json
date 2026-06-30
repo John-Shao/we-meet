@@ -29,7 +29,15 @@
     "recall": "撤回",
     "recallConfirm": "确定撤回这条消息?",
     "copy": "复制",
-    "reply": "回复"
+    "reply": "回复",
+    "forward": "转发"
+  },
+  "forward": {
+    "title": "转发到",
+    "searchPlaceholder": "搜索会话…",
+    "send": "发送",
+    "empty": "没有可转发的会话",
+    "done": "已转发到「{{name}}」"
   },
   "quote": {
     "replyTo": "回复 {{name}}",

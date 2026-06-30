@@ -29,7 +29,15 @@
     "recall": "Zurückziehen",
     "recallConfirm": "Diese Nachricht zurückziehen?",
     "copy": "Kopieren",
-    "reply": "Antworten"
+    "reply": "Antworten",
+    "forward": "Weiterleiten"
+  },
+  "forward": {
+    "title": "Weiterleiten an",
+    "searchPlaceholder": "Unterhaltungen suchen…",
+    "send": "Senden",
+    "empty": "Keine Unterhaltungen",
+    "done": "Weitergeleitet an „{{name}}“"
   },
   "quote": {
     "replyTo": "Antwort an {{name}}",

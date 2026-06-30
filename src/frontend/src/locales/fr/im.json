@@ -29,7 +29,15 @@
     "recall": "Annuler",
     "recallConfirm": "Annuler ce message ?",
     "copy": "Copier",
-    "reply": "Répondre"
+    "reply": "Répondre",
+    "forward": "Transférer"
+  },
+  "forward": {
+    "title": "Transférer vers",
+    "searchPlaceholder": "Rechercher des conversations…",
+    "send": "Envoyer",
+    "empty": "Aucune conversation",
+    "done": "Transféré vers « {{name}} »"
   },
   "quote": {
     "replyTo": "En réponse à {{name}}",
