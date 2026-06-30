@@ -112,6 +112,10 @@ backend:
     # 两个桶保持「私有」(阻止公共访问开启) —— 后端用预签名 GET URL 下发图片.
     AWS_STORAGE_BUCKET_NAME_AVATAR: we-meet-avatar
     AWS_STORAGE_BUCKET_NAME_COVER: we-meet-cover
+    # IM 聊天图片 / 文件专用桶 (P7, 私有, 预签名 GET 下发). settings.py 默认值
+    # 已是这两个桶名, 此处显式声明以防默认漂移并便于运维核对.
+    AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE: we-chat-image
+    AWS_STORAGE_BUCKET_NAME_CHAT_FILE: we-chat-doc
     # 火山引擎短信 — 复用 jusi (巨思人工智能) 的短信账号 / 签名 / 模板.
     # AK / SK 属火山引擎账号密钥, 见 values.secrets.yaml.
     VOLC_SMS_ACCOUNT: "8880e180"
