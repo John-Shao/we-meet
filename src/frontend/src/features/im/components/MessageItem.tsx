@@ -271,6 +271,7 @@ export const MessageItem = ({
         })}
       >
         <div
+          title={new Date(message.ts).toLocaleString()}
           className={css({
             paddingX: isImage ? '0' : '0.75rem',
             paddingY: isImage ? '0' : '0.5rem',
@@ -417,17 +418,6 @@ export const MessageItem = ({
               {renderBody(message.body, mentionNames, selfMentionNames, isOwn)}
             </div>
           )}
-          <div
-            className={css({
-              marginTop: '0.25rem',
-              fontSize: '0.6875rem',
-              opacity: 0.7,
-              textAlign: 'right',
-              color: isImage ? 'greyscale.500' : undefined,
-            })}
-          >
-            {new Date(message.ts).toLocaleTimeString()}
-          </div>
         </div>
         {reactions.length > 0 && (
           <div

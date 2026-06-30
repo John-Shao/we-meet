@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -28,6 +28,53 @@ const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 // Control message types that never render as a chat bubble (filtered from the
 // stream; they drive recall / reaction aggregation instead).
 const CONTROL_TYPES = new Set(['recall', 'reaction'])
+
+// 时间分隔条(飞书/微信式):相邻消息间隔超过该阈值时,在消息流中插一条居中时间。
+const TIME_DIVIDER_GAP_MS = 5 * 60 * 1000
+
+// 分隔条文案:今天→HH:MM、昨天→「昨天 HH:MM」、跨天→「M月D日 HH:MM」(本地化),
+// 跨年再带年份。镜像 ConversationList 的 fmtTime 思路,但始终带具体时分。
+const fmtDivider = (ts: number, locale: string, yesterday: string): string => {
+  const d = new Date(ts)
+  const now = new Date()
+  const startOfDay = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const dayDiff = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000)
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(
+    d.getMinutes()
+  ).padStart(2, '0')}`
+  if (dayDiff <= 0) return time
+  if (dayDiff === 1) return `${yesterday} ${time}`
+  const sameYear = d.getFullYear() === now.getFullYear()
+  const datePart = d.toLocaleDateString(
+    locale,
+    sameYear
+      ? { month: 'short', day: 'numeric' }
+      : { year: 'numeric', month: 'short', day: 'numeric' }
+  )
+  return `${datePart} ${time}`
+}
+
+const TimeDivider = ({ label }: { label: string }) => (
+  <div
+    className={css({
+      display: 'flex',
+      justifyContent: 'center',
+      paddingY: '0.5rem',
+    })}
+    data-testid="im-time-divider"
+  >
+    <span
+      className={css({
+        fontSize: '0.6875rem',
+        color: 'greyscale.500',
+        paddingX: '0.5rem',
+      })}
+    >
+      {label}
+    </span>
+  </div>
+)
 
 interface ReactionState {
   // emoji → set of reactor uids (after replaying add/remove in seq order).
@@ -80,11 +127,16 @@ export const ChatPane = ({
   onForward,
   infoPanel,
 }: Props) => {
-  const { t } = useTranslation('im')
+  const { t, i18n } = useTranslation('im')
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const cid = conversation.cid
   const isGroup = conversation.type === 'group'
   const { data: messages = [], isLoading } = useMessages(client, cid)
+  // 渲染流:剔除控制消息(撤回墓碑 / 表情回复),它们不占气泡也不算时间间隔基准。
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => !CONTROL_TYPES.has(m.content_type)),
+    [messages]
+  )
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   // Resolve member uids → display names so group messages show names, not uids.
@@ -547,26 +599,39 @@ export const ChatPane = ({
                 {t('chat.empty')}
               </div>
             ) : (
-              messages
-                .filter((m) => !CONTROL_TYPES.has(m.content_type))
-                .map((m) => (
-                  <MessageItem
-                    key={m.mid}
-                    message={m}
-                    isOwn={m.sender_uid === currentUserUID}
-                    senderName={nameOf(m.sender_uid)}
-                    senderAvatarUrl={names[m.sender_uid]?.avatar_url}
-                    imageUrl={imageUrlOf(m)}
-                    fileUrl={fileUrlOf(m)}
-                    reactions={reactionsFor(m.mid)}
-                    onReact={(emoji) => void onReact(m, emoji)}
-                    recalled={recalledMids.has(m.mid)}
-                    onContextMenu={(e) => openMenu(e, m)}
-                    showSender={isGroup}
-                    mentionNames={highlightNames}
-                    selfMentionNames={[selfName, everyone].filter(Boolean)}
-                  />
-                ))
+              visibleMessages.map((m, idx) => {
+                const prev = visibleMessages[idx - 1]
+                const showDivider =
+                  idx === 0 || m.ts - prev.ts >= TIME_DIVIDER_GAP_MS
+                return (
+                  <Fragment key={m.mid}>
+                    {showDivider && (
+                      <TimeDivider
+                        label={fmtDivider(
+                          m.ts,
+                          i18n.language,
+                          t('time.yesterday')
+                        )}
+                      />
+                    )}
+                    <MessageItem
+                      message={m}
+                      isOwn={m.sender_uid === currentUserUID}
+                      senderName={nameOf(m.sender_uid)}
+                      senderAvatarUrl={names[m.sender_uid]?.avatar_url}
+                      imageUrl={imageUrlOf(m)}
+                      fileUrl={fileUrlOf(m)}
+                      reactions={reactionsFor(m.mid)}
+                      onReact={(emoji) => void onReact(m, emoji)}
+                      recalled={recalledMids.has(m.mid)}
+                      onContextMenu={(e) => openMenu(e, m)}
+                      showSender={isGroup}
+                      mentionNames={highlightNames}
+                      selfMentionNames={[selfName, everyone].filter(Boolean)}
+                    />
+                  </Fragment>
+                )
+              })
             )}
           </div>
           <MessageInput
