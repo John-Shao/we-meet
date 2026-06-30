@@ -1,5 +1,11 @@
+import { useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { useTranslation } from 'react-i18next'
+import {
+  Button as RACButton,
+  Menu as RACMenu,
+  MenuItem,
+} from 'react-aria-components'
 import {
   RiMessage3Line,
   RiVidiconLine,
@@ -9,25 +15,30 @@ import {
   RiFileTextLine,
   RiArrowLeftSLine,
   RiArrowRightSLine,
+  RiMoreLine,
+  RiSettings3Line,
+  RiLogoutBoxRLine,
   type RemixiconComponentType,
 } from '@remixicon/react'
-
 import { useQuery } from '@tanstack/react-query'
 
 import { css, cx } from '@/styled-system/css'
+import { Menu } from '@/primitives/Menu'
 import { useUser } from '@/features/auth'
 import { useConfig } from '@/api/useConfig'
-import { SettingsButton } from '@/features/settings'
+import { SettingsDialog } from '@/features/settings/components/SettingsDialog'
 import { useImUnread } from '@/features/im/components/ImUnreadProvider'
 import { fetchApprovals } from '@/features/approval/api/fetchApproval'
 import { GlobalSearch } from './GlobalSearch'
 
 /**
- * P6 global primary navigation rail (Feishu-style workspace shell, column 1).
- * Rendered by Layout for logged-in workspace routes; the in-call room stays
- * full-screen (no rail). Module secondary panels + main content are the route's
- * own job — see docs/phases/p6-ux-shell.md.
+ * P6 global primary navigation rail — DeepSeek-style light shell (column 1).
+ * Top: logo + search + collapse. Middle: module nav (grey selection). Bottom:
+ * user avatar + name + a "⋯ more" menu (系统设置 / 退出登录). Rendered by Layout
+ * for logged-in workspace routes; the in-call room stays full-screen (no rail).
  */
+
+const RAIL_BG = '#F8F9FB'
 
 interface NavItem {
   to: string
@@ -49,7 +60,7 @@ const itemBase = css({
   gap: '0.625rem',
   paddingX: '0.75rem',
   paddingY: '0.5rem',
-  borderRadius: '8px',
+  borderRadius: '10px',
   fontSize: '0.875rem',
   color: 'greyscale.700',
   cursor: 'pointer',
@@ -61,11 +72,45 @@ const itemBase = css({
   _hover: { backgroundColor: 'greyscale.100' },
 })
 const itemActive = css({
-  backgroundColor: 'primary.100',
-  color: 'primary.600',
-  fontWeight: '500',
+  backgroundColor: 'greyscale.200',
+  color: 'greyscale.900',
+  fontWeight: '600',
 })
 const itemCollapsed = css({ justifyContent: 'center', paddingX: '0.5rem' })
+
+const iconButton = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '36px',
+  height: '36px',
+  border: 'none',
+  borderRadius: '8px',
+  backgroundColor: 'transparent',
+  color: 'greyscale.700',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+
+// The Menu primitive's Popover already provides the surface chrome; this just
+// sizes the list and removes the focus outline.
+const menuList = css({
+  minWidth: '160px',
+  outline: 'none',
+})
+const menuItemCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  paddingX: '0.625rem',
+  paddingY: '0.5rem',
+  borderRadius: '8px',
+  fontSize: '0.875rem',
+  color: 'greyscale.800',
+  cursor: 'pointer',
+  outline: 'none',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
 
 interface Props {
   collapsed?: boolean
@@ -74,11 +119,13 @@ interface Props {
 
 export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const { t } = useTranslation('shell')
-  const { user } = useUser()
+  const { user, logout } = useUser()
   const { data: config } = useConfig()
   const [location] = useLocation()
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const docsUrl = config?.docs?.url
   const initial = (user?.full_name || user?.email || '?').slice(0, 1).toUpperCase()
+  const displayName = user?.full_name || user?.email || ''
 
   // Rail unread badges: messages from the global IM presence, approvals from the
   // shared pending query (same cache the approval module uses).
@@ -95,6 +142,50 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const badgeFor = (to: string): number =>
     to === '/im' ? unreadMessages : to === '/approval' ? pendingApprovals.length : 0
 
+  const avatarNode = user?.avatar_url ? (
+    <img
+      src={user.avatar_url}
+      alt=""
+      className={css({
+        width: '32px',
+        height: '32px',
+        borderRadius: 'full',
+        objectFit: 'cover',
+        flexShrink: 0,
+      })}
+    />
+  ) : (
+    <span
+      className={css({
+        width: '32px',
+        height: '32px',
+        borderRadius: 'full',
+        backgroundColor: 'primary.500',
+        color: 'white',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '0.8125rem',
+        flexShrink: 0,
+      })}
+    >
+      {initial}
+    </span>
+  )
+
+  const moreMenuItems = (
+    <RACMenu className={menuList}>
+      <MenuItem onAction={() => setSettingsOpen(true)} className={menuItemCls}>
+        <RiSettings3Line size={16} />
+        {t('settingsButtonLabel', { ns: 'settings' })}
+      </MenuItem>
+      <MenuItem onAction={() => logout()} className={menuItemCls}>
+        <RiLogoutBoxRLine size={16} />
+        {t('logout')}
+      </MenuItem>
+    </RACMenu>
+  )
+
   return (
     <nav
       aria-label={t('railLabel')}
@@ -103,83 +194,62 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        // 飞书式一级导航栏底色(比白色内容区略带蓝灰,拉开层次)。
-        backgroundColor: '#DEE4F5',
+        backgroundColor: RAIL_BG,
         borderRight: '1px solid token(colors.greyscale.200)',
         paddingY: '0.75rem',
         paddingX: '0.5rem',
       })}
     >
-      {/* 顶部用户信息(替代原 logo):头像 + 名字 + 设置。 */}
+      {/* 顶部:logo + 搜索 + 收起导航栏。 */}
       <div
         className={css({
           display: 'flex',
           alignItems: 'center',
-          gap: '0.5rem',
-          paddingX: '0.5rem',
-          paddingY: '0.375rem',
-          marginBottom: '0.625rem',
-          minWidth: 0,
-          justifyContent: collapsed ? 'center' : 'flex-start',
+          gap: '0.25rem',
+          marginBottom: '0.75rem',
+          paddingX: '0.25rem',
+          justifyContent: collapsed ? 'center' : 'space-between',
+          flexDirection: collapsed ? 'column' : 'row',
         })}
       >
-        {user?.avatar_url ? (
+        {!collapsed && (
           <img
-            src={user.avatar_url}
+            src="/assets/logo.svg"
             alt=""
-            title={collapsed ? user?.full_name || user?.email || '' : undefined}
             className={css({
-              width: '32px',
-              height: '32px',
-              borderRadius: 'full',
-              objectFit: 'cover',
-              flexShrink: 0,
+              height: '28px',
+              objectFit: 'contain',
+              objectPosition: 'left',
             })}
           />
-        ) : (
-          <span
-            title={collapsed ? user?.full_name || user?.email || '' : undefined}
-            className={css({
-              width: '32px',
-              height: '32px',
-              borderRadius: 'full',
-              backgroundColor: 'primary.500',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.8125rem',
-              flexShrink: 0,
-            })}
+        )}
+        <div
+          className={css({
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.125rem',
+            flexDirection: collapsed ? 'column' : 'row',
+          })}
+        >
+          <GlobalSearch collapsed />
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? t('expand') : t('collapse')}
+            title={collapsed ? t('expand') : t('collapse')}
+            data-testid="rail-collapse-toggle"
+            className={iconButton}
           >
-            {initial}
-          </span>
-        )}
-        {!collapsed && (
-          <>
-            <span
-              className={css({
-                flexGrow: 1,
-                minWidth: 0,
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                color: 'greyscale.900',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              })}
-            >
-              {user?.full_name || user?.email}
-            </span>
-            <SettingsButton />
-          </>
-        )}
+            {collapsed ? (
+              <RiArrowRightSLine size={18} />
+            ) : (
+              <RiArrowLeftSLine size={18} />
+            )}
+          </button>
+        </div>
       </div>
 
-      <div className={css({ marginBottom: '0.625rem' })}>
-        <GlobalSearch collapsed={collapsed} />
-      </div>
-
+      {/* 模块导航。 */}
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '0.125rem' })}>
         {NAV.map((item) => {
           const badge = badgeFor(item.to)
@@ -199,7 +269,6 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
                 className={css({ position: 'relative', display: 'flex', flexShrink: 0 })}
               >
                 <item.Icon size={18} />
-                {/* Collapsed: a small red dot on the icon (label hidden). */}
                 {collapsed && badge > 0 && (
                   <span
                     className={css({
@@ -210,7 +279,8 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
                       height: '8px',
                       borderRadius: '999px',
                       backgroundColor: 'danger.500',
-                      border: '1.5px solid #DEE4F5',
+                      border: '1.5px solid',
+                      borderColor: RAIL_BG,
                     })}
                   />
                 )}
@@ -255,34 +325,71 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
         )}
       </div>
 
+      {/* 底部:头像 + 名字 + 更多菜单(系统设置 / 退出登录)。 */}
       <div
         className={css({
           marginTop: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.25rem',
           paddingTop: '0.5rem',
           borderTop: '1px solid token(colors.greyscale.100)',
         })}
       >
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          aria-label={collapsed ? t('expand') : t('collapse')}
-          title={collapsed ? t('expand') : t('collapse')}
-          data-testid="rail-collapse-toggle"
-          className={cx(itemBase, collapsed ? itemCollapsed : undefined)}
-        >
-          {collapsed ? (
-            <RiArrowRightSLine size={18} />
-          ) : (
-            <>
-              <RiArrowLeftSLine size={18} />
-              <span>{t('collapse')}</span>
-            </>
-          )}
-        </button>
+        {collapsed ? (
+          <div className={css({ display: 'flex', justifyContent: 'center' })}>
+            <Menu placement="right">
+              <RACButton
+                aria-label={`${displayName} · ${t('more')}`}
+                className={css({
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '0.25rem',
+                  borderRadius: 'full',
+                  cursor: 'pointer',
+                  _hover: { backgroundColor: 'greyscale.100' },
+                })}
+              >
+                {avatarNode}
+              </RACButton>
+              {moreMenuItems}
+            </Menu>
+          </div>
+        ) : (
+          <div
+            className={css({
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              paddingX: '0.25rem',
+              paddingY: '0.25rem',
+              borderRadius: '10px',
+              _hover: { backgroundColor: 'greyscale.100' },
+            })}
+          >
+            {avatarNode}
+            <span
+              className={css({
+                flex: 1,
+                minWidth: 0,
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                color: 'greyscale.900',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              })}
+            >
+              {displayName}
+            </span>
+            <Menu placement="top">
+              <RACButton aria-label={t('more')} className={iconButton}>
+                <RiMoreLine size={18} />
+              </RACButton>
+              {moreMenuItems}
+            </Menu>
+          </div>
+        )}
       </div>
+
+      <SettingsDialog isOpen={settingsOpen} onOpenChange={setSettingsOpen} />
     </nav>
   )
 }

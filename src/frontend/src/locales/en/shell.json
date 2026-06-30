@@ -3,6 +3,7 @@
   "resizeHandle": "Drag to resize",
   "collapse": "Collapse navigation",
   "expand": "Expand navigation",
+  "more": "More",
   "search": {
     "trigger": "Search",
     "placeholder": "Search people, meetings…",
