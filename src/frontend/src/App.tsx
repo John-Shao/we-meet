@@ -16,6 +16,18 @@ import { queryClient } from '@/api/queryClient'
 import { AppInitialization } from '@/components/AppInitialization'
 import { useIsSdkContext } from '@/features/sdk/hooks/useIsSdkContext'
 import { useApplyA11yFonts } from '@/hooks/useApplyA11yFonts'
+import { useUser } from '@/features/auth'
+
+/**
+ * Root "/" lands logged-in users on 消息 (/im) and anonymous visitors on the
+ * 视频会议 home (/meeting), which still carries the login prompt / external-home
+ * redirect. Renders nothing until auth resolves to avoid a wrong-way flash.
+ */
+const RootRedirect = () => {
+  const { isLoggedIn } = useUser()
+  if (isLoggedIn === undefined) return null
+  return <Redirect to={isLoggedIn ? '/im' : '/meeting'} replace />
+}
 
 function App() {
   const { i18n } = useTranslation()
@@ -32,9 +44,9 @@ function App() {
           <ConfirmProvider>
             <Layout>
               <Switch>
-                {/* 根路径重定向到视频会议主页(已迁到 /meeting)。 */}
+                {/* 根路径:登录用户进消息,匿名进视频会议主页(含登录引导)。 */}
                 <Route path="/">
-                  <Redirect to="/meeting" />
+                  <RootRedirect />
                 </Route>
                 {Object.entries(routes).map(([, route], i) => (
                   <Route key={i} path={route.path} component={route.Component} />
