@@ -7,4 +7,6 @@ export type ApiUser = {
   last_name: string
   language: BackendLanguage
   timezone: string
+  /** Short-lived presigned GET URL for the avatar; '' when unset. */
+  avatar_url?: string
 }

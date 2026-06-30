@@ -5,7 +5,17 @@
     "youAreNotLoggedIn": "Du bist nicht angemeldet.",
     "nameLabel": "Dein Name",
     "authentication": "Authentifizierung",
-    "nameError": "Dein Name darf nicht leer sein"
+    "nameError": "Dein Name darf nicht leer sein",
+    "avatar": {
+      "title": "Avatar festlegen",
+      "change": "Avatar ändern",
+      "choose": "Bild wählen",
+      "zoom": "Zoom",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "uploading": "Wird hochgeladen…",
+      "error": "Avatar-Upload fehlgeschlagen: {{message}}"
+    }
   },
   "preferences": {
     "title": "Einstellungen",

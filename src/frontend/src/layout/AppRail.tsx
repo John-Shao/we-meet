@@ -119,23 +119,38 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
           justifyContent: collapsed ? 'center' : 'flex-start',
         })}
       >
-        <span
-          title={collapsed ? user?.full_name || user?.email || '' : undefined}
-          className={css({
-            width: '32px',
-            height: '32px',
-            borderRadius: 'full',
-            backgroundColor: 'primary.500',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '0.8125rem',
-            flexShrink: 0,
-          })}
-        >
-          {initial}
-        </span>
+        {user?.avatar_url ? (
+          <img
+            src={user.avatar_url}
+            alt=""
+            title={collapsed ? user?.full_name || user?.email || '' : undefined}
+            className={css({
+              width: '32px',
+              height: '32px',
+              borderRadius: 'full',
+              objectFit: 'cover',
+              flexShrink: 0,
+            })}
+          />
+        ) : (
+          <span
+            title={collapsed ? user?.full_name || user?.email || '' : undefined}
+            className={css({
+              width: '32px',
+              height: '32px',
+              borderRadius: 'full',
+              backgroundColor: 'primary.500',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.8125rem',
+              flexShrink: 0,
+            })}
+          >
+            {initial}
+          </span>
+        )}
         {!collapsed && (
           <>
             <span

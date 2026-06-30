@@ -5,7 +5,17 @@
     "youAreNotLoggedIn": "You are not logged in.",
     "nameLabel": "Your Name",
     "authentication": "Authentication",
-    "nameError": "Your name cannot be empty"
+    "nameError": "Your name cannot be empty",
+    "avatar": {
+      "title": "Set avatar",
+      "change": "Change avatar",
+      "choose": "Choose image",
+      "zoom": "Zoom",
+      "save": "Save",
+      "cancel": "Cancel",
+      "uploading": "Uploading…",
+      "error": "Avatar upload failed: {{message}}"
+    }
   },
   "preferences": {
     "title": "Preferences",

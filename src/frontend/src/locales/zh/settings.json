@@ -5,7 +5,17 @@
     "youAreNotLoggedIn": "您尚未登录。",
     "nameLabel": "您的姓名",
     "authentication": "身份认证",
-    "nameError": "姓名不能为空"
+    "nameError": "姓名不能为空",
+    "avatar": {
+      "title": "设置头像",
+      "change": "更换头像",
+      "choose": "选择图片",
+      "zoom": "缩放",
+      "save": "保存",
+      "cancel": "取消",
+      "uploading": "上传中…",
+      "error": "头像上传失败:{{message}}"
+    }
   },
   "preferences": {
     "title": "偏好设置",

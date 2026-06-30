@@ -5,7 +5,17 @@
     "youAreNotLoggedIn": "Vous n'êtes pas connecté.",
     "nameLabel": "Votre Nom",
     "authentication": "Authentification",
-    "nameError": "Votre Nom ne peut pas être vide"
+    "nameError": "Votre Nom ne peut pas être vide",
+    "avatar": {
+      "title": "Définir l'avatar",
+      "change": "Changer d'avatar",
+      "choose": "Choisir une image",
+      "zoom": "Zoom",
+      "save": "Enregistrer",
+      "cancel": "Annuler",
+      "uploading": "Envoi…",
+      "error": "Échec de l'envoi de l'avatar : {{message}}"
+    }
   },
   "preferences": {
     "title": "Préférences",
