@@ -7,6 +7,7 @@ import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { Screen } from '@/layout/Screen'
 
 import { fetchCalendarEvents, rsvpCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
@@ -29,7 +30,11 @@ export const CalendarRoute = () => {
       </div>
     )
   }
-  return <CalendarAuthenticated />
+  return (
+    <Screen>
+      <CalendarAuthenticated />
+    </Screen>
+  )
 }
 
 const CalendarAuthenticated = () => {

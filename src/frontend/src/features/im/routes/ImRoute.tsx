@@ -7,6 +7,7 @@ import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { Screen } from '@/layout/Screen'
 
 import { ContactPicker } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
@@ -48,7 +49,11 @@ export const ImRoute = () => {
     )
   }
 
-  return <ImAuthenticated />
+  return (
+    <Screen>
+      <ImAuthenticated />
+    </Screen>
+  )
 }
 
 const ImAuthenticated = () => {

@@ -13,6 +13,7 @@ import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { Screen } from '@/layout/Screen'
 
 import {
   actApproval,
@@ -62,7 +63,11 @@ export const ApprovalRoute = () => {
       </div>
     )
   }
-  return <ApprovalAuthenticated />
+  return (
+    <Screen>
+      <ApprovalAuthenticated />
+    </Screen>
+  )
 }
 
 const ApprovalAuthenticated = () => {

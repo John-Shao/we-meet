@@ -8,6 +8,7 @@ import { useUser } from '@/features/auth'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { Screen } from '@/layout/Screen'
 
 import { MemberDetailPanel } from '../components/MemberDetailPanel'
 import { fetchDepartmentMembers } from '../api/fetchDepartmentMembers'
@@ -32,7 +33,11 @@ export const ContactsRoute = () => {
       </div>
     )
   }
-  return <ContactsAuthenticated />
+  return (
+    <Screen>
+      <ContactsAuthenticated />
+    </Screen>
+  )
 }
 
 const ContactsAuthenticated = () => {
