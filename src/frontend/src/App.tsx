@@ -17,16 +17,20 @@ import { AppInitialization } from '@/components/AppInitialization'
 import { useIsSdkContext } from '@/features/sdk/hooks/useIsSdkContext'
 import { useApplyA11yFonts } from '@/hooks/useApplyA11yFonts'
 import { useUser } from '@/features/auth'
+import { HomeRoute } from '@/features/home'
 
 /**
- * Root "/" lands logged-in users on 消息 (/im) and anonymous visitors on the
- * 视频会议 home (/meeting), which still carries the login prompt / external-home
- * redirect. Renders nothing until auth resolves to avoid a wrong-way flash.
+ * Root "/" is the login landing: logged-in users go straight to 消息 (/im),
+ * anonymous visitors stay here and see the login page (Home's anonymous state,
+ * which carries the login entry + external-home redirect). Renders nothing
+ * until auth resolves to avoid a wrong-way flash. The 视频会议 home lives at
+ * /meeting (logged-in workspace).
  */
-const RootRedirect = () => {
+const RootGate = () => {
   const { isLoggedIn } = useUser()
   if (isLoggedIn === undefined) return null
-  return <Redirect to={isLoggedIn ? '/im' : '/meeting'} replace />
+  if (isLoggedIn) return <Redirect to="/im" replace />
+  return <HomeRoute />
 }
 
 function App() {
@@ -44,9 +48,9 @@ function App() {
           <ConfirmProvider>
             <Layout>
               <Switch>
-                {/* 根路径:登录用户进消息,匿名进视频会议主页(含登录引导)。 */}
+                {/* 根路径=登录落地:登录用户进消息,匿名显示登录页面。 */}
                 <Route path="/">
-                  <RootRedirect />
+                  <RootGate />
                 </Route>
                 {Object.entries(routes).map(([, route], i) => (
                   <Route key={i} path={route.path} component={route.Component} />
