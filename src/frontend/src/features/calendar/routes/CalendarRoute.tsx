@@ -5,8 +5,8 @@ import { useLocation } from 'wouter'
 
 import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
-import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
 import { fetchCalendarEvents, rsvpCalendarEvent } from '../api/fetchCalendar'
@@ -19,23 +19,13 @@ import { EventDetailDialog } from '../components/EventDetailDialog'
 
 const EVENTS_KEY = ['calendar', 'events'] as const
 
-export const CalendarRoute = () => {
-  const { t } = useTranslation('calendar')
-  const { user, isLoggedIn } = useUser()
-
-  if (!isLoggedIn || !user) {
-    return (
-      <div className={css({ padding: '2rem', color: 'greyscale.700' })}>
-        {t('page.authRequired')}
-      </div>
-    )
-  }
-  return (
+export const CalendarRoute = () => (
+  <RequireAuth>
     <Screen>
       <CalendarAuthenticated />
     </Screen>
-  )
-}
+  </RequireAuth>
+)
 
 const CalendarAuthenticated = () => {
   const { t } = useTranslation('calendar')

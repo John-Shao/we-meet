@@ -7,6 +7,7 @@ import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
 import { ContactPicker } from '@/features/contacts'
@@ -37,24 +38,13 @@ import { useImConnection } from '../hooks/useImConnection'
  *   - Logged in: mount the SDK Client (singleton), render status + list + (optionally) chat.
  *   - Selecting a conversation lazily loads its history via React Query.
  */
-export const ImRoute = () => {
-  const { t } = useTranslation('im')
-  const { user, isLoggedIn } = useUser()
-
-  if (!isLoggedIn || !user) {
-    return (
-      <div className={css({ padding: '2rem', color: 'greyscale.700' })}>
-        {t('auth.required')}
-      </div>
-    )
-  }
-
-  return (
+export const ImRoute = () => (
+  <RequireAuth>
     <Screen>
       <ImAuthenticated />
     </Screen>
-  )
-}
+  </RequireAuth>
+)
 
 const ImAuthenticated = () => {
   const { t } = useTranslation('im')

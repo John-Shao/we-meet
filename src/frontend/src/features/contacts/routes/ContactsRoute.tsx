@@ -4,10 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
 
 import { css } from '@/styled-system/css'
-import { useUser } from '@/features/auth'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
 import { MemberDetailPanel } from '../components/MemberDetailPanel'
@@ -22,23 +22,13 @@ import type { DirectoryMember } from '../api/ApiDirectory'
  * direct IM conversation. Organization administration (creating / deleting
  * departments, moving members) lives in the management console, not here.
  */
-export const ContactsRoute = () => {
-  const { t } = useTranslation('contacts')
-  const { user, isLoggedIn } = useUser()
-
-  if (!isLoggedIn || !user) {
-    return (
-      <div className={css({ padding: '2rem', color: 'greyscale.700' })}>
-        {t('page.authRequired')}
-      </div>
-    )
-  }
-  return (
+export const ContactsRoute = () => (
+  <RequireAuth>
     <Screen>
       <ContactsAuthenticated />
     </Screen>
-  )
-}
+  </RequireAuth>
+)
 
 const ContactsAuthenticated = () => {
   const { t } = useTranslation('contacts')

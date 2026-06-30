@@ -10,9 +10,9 @@ import {
 
 import { css, cx } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
-import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
 import {
@@ -53,22 +53,13 @@ const STATUS_STYLE: Record<ApprovalStatus, { color: string; bg: string }> = {
   needs_assignment: { color: 'danger.600', bg: 'danger.100' },
 }
 
-export const ApprovalRoute = () => {
-  const { t } = useTranslation('approval')
-  const { user, isLoggedIn } = useUser()
-  if (!isLoggedIn || !user) {
-    return (
-      <div className={css({ padding: '2rem', color: 'greyscale.700' })}>
-        {t('page.authRequired')}
-      </div>
-    )
-  }
-  return (
+export const ApprovalRoute = () => (
+  <RequireAuth>
     <Screen>
       <ApprovalAuthenticated />
     </Screen>
-  )
-}
+  </RequireAuth>
+)
 
 const ApprovalAuthenticated = () => {
   const { t, i18n } = useTranslation('approval')
