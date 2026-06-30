@@ -44,7 +44,7 @@ export const ChatPane = ({
   infoPanel,
 }: Props) => {
   const { t } = useTranslation('im')
-  const { alert: showAlert } = useConfirm()
+  const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const cid = conversation.cid
   const isGroup = conversation.type === 'group'
   const { data: messages = [], isLoading } = useMessages(client, cid)
@@ -142,6 +142,38 @@ export const ChatPane = ({
     } catch (e) {
       const code = e instanceof ChatImageError ? e.code : 'uploadError'
       void showAlert({ message: t(`image.${code}`) })
+    }
+  }
+
+  // 撤回(P7-c):墓碑协议消息 content_type='recall'、body={target_mid}。所有端
+  // (含历史加载)据此把原消息渲染成「已撤回」;墓碑本身在列表里过滤掉,不显示。
+  const recalledMids = useMemo(() => {
+    const s = new Set<number>()
+    for (const m of messages) {
+      if (m.content_type === 'recall') {
+        try {
+          const parsed = JSON.parse(m.body)
+          if (typeof parsed?.target_mid === 'number') s.add(parsed.target_mid)
+        } catch {
+          // ignore malformed tombstone
+        }
+      }
+    }
+    return s
+  }, [messages])
+
+  const onRecall = async (m: Message) => {
+    if (!(await askConfirm({ message: t('actions.recallConfirm') }))) return
+    try {
+      await client.sendText(cid, JSON.stringify({ target_mid: m.mid }), {
+        contentType: 'recall',
+      })
+    } catch (e) {
+      void showAlert({
+        message: t('actions.error', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
     }
   }
 
@@ -309,19 +341,23 @@ export const ChatPane = ({
                 {t('chat.empty')}
               </div>
             ) : (
-              messages.map((m) => (
-                <MessageItem
-                  key={m.mid}
-                  message={m}
-                  isOwn={m.sender_uid === currentUserUID}
-                  senderName={nameOf(m.sender_uid)}
-                  senderAvatarUrl={names[m.sender_uid]?.avatar_url}
-                  imageUrl={imageUrlOf(m)}
-                  showSender={isGroup}
-                  mentionNames={highlightNames}
-                  selfMentionNames={[selfName, everyone].filter(Boolean)}
-                />
-              ))
+              messages
+                .filter((m) => m.content_type !== 'recall')
+                .map((m) => (
+                  <MessageItem
+                    key={m.mid}
+                    message={m}
+                    isOwn={m.sender_uid === currentUserUID}
+                    senderName={nameOf(m.sender_uid)}
+                    senderAvatarUrl={names[m.sender_uid]?.avatar_url}
+                    imageUrl={imageUrlOf(m)}
+                    recalled={recalledMids.has(m.mid)}
+                    onRecall={onRecall}
+                    showSender={isGroup}
+                    mentionNames={highlightNames}
+                    selfMentionNames={[selfName, everyone].filter(Boolean)}
+                  />
+                ))
             )}
           </div>
           <MessageInput

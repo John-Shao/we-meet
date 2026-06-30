@@ -25,7 +25,14 @@
     "delete": "Gesprek verwijderen",
     "leaveConfirm": "Deze groep verlaten? Als je eigenaar bent, wordt het eigenaarschap automatisch overgedragen aan een ander lid; de groep wordt opgeheven als je de laatste bent.",
     "deleteConfirm": "Dit gesprek verwijderen? Het wordt alleen uit jouw lijst verwijderd — de ander en de geschiedenis blijven ongemoeid.",
-    "error": "Actie mislukt: {{message}}"
+    "error": "Actie mislukt: {{message}}",
+    "recall": "Intrekken",
+    "recallConfirm": "Dit bericht intrekken?"
+  },
+  "recalled": {
+    "self": "Je hebt een bericht ingetrokken",
+    "other": "De ander heeft een bericht ingetrokken",
+    "otherNamed": "{{name}} heeft een bericht ingetrokken"
   },
   "group": {
     "button": "Nieuwe groep",
@@ -94,7 +101,8 @@
     "image": "Afbeelding sturen"
   },
   "preview": {
-    "image": "[Afbeelding]"
+    "image": "[Afbeelding]",
+    "recalled": "heeft een bericht ingetrokken"
   },
   "image": {
     "alt": "Afbeelding",

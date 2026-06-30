@@ -13,6 +13,10 @@ interface Props {
   senderAvatarUrl?: string
   /** Presigned URL for an image message (content_type='image'); undefined while resolving. */
   imageUrl?: string
+  /** This message has been recalled (a tombstone targets it) → render placeholder. */
+  recalled?: boolean
+  /** Recall this message (own + recent). Omitted → no recall affordance. */
+  onRecall?: (message: Message) => void
   /** Show the sender name + avatar (group, non-own). Direct chats pass false. */
   showSender?: boolean
   /** Names highlightable as @mentions in the body (members + 所有人). */
@@ -80,12 +84,17 @@ const tintFor = (s: string): string => {
 }
 const initial = (s: string): string => (s.trim()[0] || '?').toUpperCase()
 
+// Recall is allowed only on your own messages within this window (WeChat: 2 min).
+const RECALL_WINDOW_MS = 2 * 60 * 1000
+
 export const MessageItem = ({
   message,
   isOwn,
   senderName,
   senderAvatarUrl,
   imageUrl,
+  recalled,
+  onRecall,
   showSender,
   mentionNames = [],
   selfMentionNames = [],
@@ -124,17 +133,88 @@ export const MessageItem = ({
 
   const name = senderName || message.sender_uid
 
+  // Recalled message → centered muted placeholder (the tombstone itself is
+  // filtered out upstream; this is the ORIGINAL message rendered as recalled).
+  if (recalled) {
+    const text = isOwn
+      ? t('recalled.self')
+      : showSender
+        ? t('recalled.otherNamed', { name })
+        : t('recalled.other')
+    return (
+      <div
+        className={css({
+          display: 'flex',
+          justifyContent: 'center',
+          paddingX: '1rem',
+          paddingY: '0.375rem',
+        })}
+        data-testid="im-msg-recalled"
+      >
+        <span
+          className={css({
+            fontSize: '0.75rem',
+            color: 'greyscale.500',
+            backgroundColor: 'greyscale.100',
+            borderRadius: '0.5rem',
+            paddingX: '0.625rem',
+            paddingY: '0.25rem',
+            maxWidth: '80%',
+            textAlign: 'center',
+          })}
+        >
+          {text}
+        </span>
+      </div>
+    )
+  }
+
+  const canRecall =
+    !!onRecall &&
+    isOwn &&
+    message.content_type !== 'system' &&
+    Date.now() - message.ts < RECALL_WINDOW_MS
+
   return (
     <div
       className={css({
         display: 'flex',
+        alignItems: 'center',
         gap: '0.5rem',
         justifyContent: isOwn ? 'flex-end' : 'flex-start',
         paddingX: '1rem',
         paddingY: '0.25rem',
+        _hover: { '& [data-role=recall]': { opacity: 1 } },
       })}
       data-testid="im-msg"
     >
+      {canRecall && (
+        <button
+          type="button"
+          data-role="recall"
+          onClick={() => onRecall?.(message)}
+          title={t('actions.recall')}
+          aria-label={t('actions.recall')}
+          data-testid="im-msg-recall"
+          className={css({
+            flexShrink: 0,
+            order: -1, // sit left of the (right-aligned) own bubble
+            border: '1px solid token(colors.greyscale.300)',
+            borderRadius: '0.375rem',
+            backgroundColor: 'white',
+            color: 'greyscale.600',
+            fontSize: '0.75rem',
+            paddingX: '0.5rem',
+            paddingY: '0.1875rem',
+            cursor: 'pointer',
+            opacity: 0,
+            transition: 'opacity 0.15s',
+            _hover: { backgroundColor: 'greyscale.100' },
+          })}
+        >
+          {t('actions.recall')}
+        </button>
+      )}
       {!isOwn && showSender && (
         senderAvatarUrl ? (
           <img

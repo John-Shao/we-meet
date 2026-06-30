@@ -25,7 +25,14 @@
     "delete": "Unterhaltung löschen",
     "leaveConfirm": "Gruppe verlassen? Wenn Sie Eigentümer sind, wird die Eigentümerschaft automatisch an ein anderes Mitglied übertragen; ist niemand mehr übrig, wird die Gruppe aufgelöst.",
     "deleteConfirm": "Diese Unterhaltung löschen? Sie wird nur aus Ihrer Liste entfernt — Gegenüber und Verlauf bleiben unberührt.",
-    "error": "Aktion fehlgeschlagen: {{message}}"
+    "error": "Aktion fehlgeschlagen: {{message}}",
+    "recall": "Zurückziehen",
+    "recallConfirm": "Diese Nachricht zurückziehen?"
+  },
+  "recalled": {
+    "self": "Sie haben eine Nachricht zurückgezogen",
+    "other": "Die Gegenseite hat eine Nachricht zurückgezogen",
+    "otherNamed": "{{name}} hat eine Nachricht zurückgezogen"
   },
   "group": {
     "button": "Neue Gruppe",
@@ -94,7 +101,8 @@
     "image": "Bild senden"
   },
   "preview": {
-    "image": "[Bild]"
+    "image": "[Bild]",
+    "recalled": "hat eine Nachricht zurückgezogen"
   },
   "image": {
     "alt": "Bild",

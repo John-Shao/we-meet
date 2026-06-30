@@ -25,7 +25,14 @@
     "delete": "Supprimer la conversation",
     "leaveConfirm": "Quitter ce groupe ? Si vous êtes le propriétaire, la propriété est transférée automatiquement à un autre membre ; le groupe est dissous si vous êtes le dernier.",
     "deleteConfirm": "Supprimer cette conversation ? Elle n'est retirée que de votre liste — le correspondant et l'historique ne sont pas touchés.",
-    "error": "Échec de l'action : {{message}}"
+    "error": "Échec de l'action : {{message}}",
+    "recall": "Annuler",
+    "recallConfirm": "Annuler ce message ?"
+  },
+  "recalled": {
+    "self": "Vous avez retiré un message",
+    "other": "Votre correspondant a retiré un message",
+    "otherNamed": "{{name}} a retiré un message"
   },
   "group": {
     "button": "Nouveau groupe",
@@ -94,7 +101,8 @@
     "image": "Envoyer une image"
   },
   "preview": {
-    "image": "[Image]"
+    "image": "[Image]",
+    "recalled": "a retiré un message"
   },
   "image": {
     "alt": "Image",

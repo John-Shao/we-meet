@@ -25,7 +25,14 @@
     "delete": "Delete conversation",
     "leaveConfirm": "Leave this group? If you are the owner, ownership auto-transfers to another member; the group dissolves if you are the last one.",
     "deleteConfirm": "Delete this conversation? It is only removed from your list — the peer and history are untouched.",
-    "error": "Action failed: {{message}}"
+    "error": "Action failed: {{message}}",
+    "recall": "Recall",
+    "recallConfirm": "Recall this message?"
+  },
+  "recalled": {
+    "self": "You recalled a message",
+    "other": "The other party recalled a message",
+    "otherNamed": "{{name}} recalled a message"
   },
   "group": {
     "button": "New group",
@@ -94,7 +101,8 @@
     "image": "Send image"
   },
   "preview": {
-    "image": "[Image]"
+    "image": "[Image]",
+    "recalled": "recalled a message"
   },
   "image": {
     "alt": "Image",
