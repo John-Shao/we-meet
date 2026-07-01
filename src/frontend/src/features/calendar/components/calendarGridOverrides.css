@@ -111,3 +111,14 @@
   background-color: transparent;
   color: var(--colors-primary-600);
 }
+
+/* 时间轴分割:整点线清晰(greyscale.300),半点线更淡(greyscale.100),
+   降低网格密集感、主次分明。react-big-calendar 默认半点线是近白 #f7f7f7,
+   深色下反而最亮,这里显式压暗。 */
+.rbc-timeslot-group {
+  border-bottom-color: var(--colors-greyscale-300);
+}
+.rbc-day-slot .rbc-time-slot,
+.rbc-time-gutter .rbc-time-slot {
+  border-top-color: var(--colors-greyscale-100);
+}

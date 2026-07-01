@@ -90,8 +90,10 @@ export const ConversationList = ({
               display: 'flex',
               alignItems: 'stretch',
               borderBottom: '1px solid token(colors.greyscale.100)',
+              // 选中用会翻转的 greyscale.200(比 hover 的 .100 深一档、可区分),
+              // 避免原 primary.100 浅蓝底在深色下与翻转后的浅色名字撞色看不清。
               backgroundColor:
-                selectedCID === c.cid ? 'primary.100' : 'transparent',
+                selectedCID === c.cid ? 'greyscale.200' : 'transparent',
               _hover: {
                 backgroundColor: 'greyscale.100',
                 '& [data-role=del]': { opacity: 1 },
