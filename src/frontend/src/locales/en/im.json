@@ -138,7 +138,13 @@
     "alt": "Image",
     "invalidType": "Only JPG / PNG / WebP / GIF images are supported",
     "tooLarge": "Image too large — keep it under 10 MB",
-    "uploadError": "Failed to send image, please try again"
+    "uploadError": "Failed to send image, please try again",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "download": "Download",
+    "close": "Close",
+    "prev": "Previous",
+    "next": "Next"
   },
   "time": {
     "yesterday": "Yesterday"

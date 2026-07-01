@@ -138,7 +138,13 @@
     "alt": "Bild",
     "invalidType": "Nur JPG / PNG / WebP / GIF-Bilder werden unterstützt",
     "tooLarge": "Bild zu groß — höchstens 10 MB",
-    "uploadError": "Bild konnte nicht gesendet werden, bitte erneut versuchen"
+    "uploadError": "Bild konnte nicht gesendet werden, bitte erneut versuchen",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "download": "Herunterladen",
+    "close": "Schließen",
+    "prev": "Zurück",
+    "next": "Weiter"
   },
   "time": {
     "yesterday": "Gestern"

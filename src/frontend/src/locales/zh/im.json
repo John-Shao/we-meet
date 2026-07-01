@@ -138,7 +138,13 @@
     "alt": "图片",
     "invalidType": "仅支持 JPG / PNG / WebP / GIF 图片",
     "tooLarge": "图片过大,请控制在 10 MB 以内",
-    "uploadError": "图片发送失败,请重试"
+    "uploadError": "图片发送失败,请重试",
+    "zoomIn": "放大",
+    "zoomOut": "还原",
+    "download": "下载",
+    "close": "关闭",
+    "prev": "上一张",
+    "next": "下一张"
   },
   "time": {
     "yesterday": "昨天"

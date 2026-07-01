@@ -40,6 +40,8 @@ interface Props {
   recalled?: boolean
   /** Right-click on the message row (opens the caller's context menu). */
   onContextMenu?: (e: React.MouseEvent) => void
+  /** Click an image message → open the conversation lightbox at this image. */
+  onImageClick?: () => void
   /** Show the sender name + avatar (group, non-own). Direct chats pass false. */
   showSender?: boolean
   /** Names highlightable as @mentions in the body (members + 所有人). */
@@ -215,6 +217,7 @@ export const MessageItem = ({
   onReact,
   recalled,
   onContextMenu,
+  onImageClick,
   showSender,
   mentionNames = [],
   selfMentionNames = [],
@@ -348,11 +351,16 @@ export const MessageItem = ({
         >
           {isImage ? (
             imageUrl ? (
-              <a
-                href={imageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={css({ display: 'block' })}
+              <button
+                type="button"
+                onClick={onImageClick}
+                className={css({
+                  display: 'block',
+                  padding: 0,
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'zoom-in',
+                })}
               >
                 <img
                   src={imageUrl}
@@ -363,10 +371,9 @@ export const MessageItem = ({
                     maxHeight: '20rem',
                     borderRadius: '0.75rem',
                     objectFit: 'contain',
-                    cursor: 'pointer',
                   })}
                 />
-              </a>
+              </button>
             ) : (
               // Resolving / expired presign — neutral placeholder box.
               <div

@@ -14,6 +14,7 @@ import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { MessageItem, type ReactionChip } from '../components/MessageItem'
+import { ImageLightbox } from '../components/ImageLightbox'
 import {
   MessageContextMenu,
   type ContextMenuItem,
@@ -252,6 +253,22 @@ export const ChatPane = ({
     m.content_type === 'image'
       ? resolvedUrls[m.body] || localImageUrls.current.get(m.body)
       : undefined
+
+  // 大图预览(P7-j):会话内所有已解析图片,按显示顺序;点击某张在 lightbox 打开。
+  const imageList = useMemo(() => {
+    const arr: Array<{ mid: number; url: string }> = []
+    for (const m of visibleMessages) {
+      if (m.content_type !== 'image') continue
+      const u = resolvedUrls[m.body] || localImageUrls.current.get(m.body)
+      if (u) arr.push({ mid: m.mid, url: u })
+    }
+    return arr
+  }, [visibleMessages, resolvedUrls])
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const openImage = (m: Message) => {
+    const idx = imageList.findIndex((x) => x.mid === m.mid)
+    if (idx >= 0) setLightboxIndex(idx)
+  }
   const fileUrlOf = (m: Message): string | undefined => {
     const fk = fileKeyOf(m)
     return fk ? resolvedUrls[fk] : undefined
@@ -680,6 +697,7 @@ export const ChatPane = ({
                       onReact={(emoji) => void onReact(m, emoji)}
                       recalled={recalledMids.has(m.mid)}
                       onContextMenu={(e) => openMenu(e, m)}
+                      onImageClick={() => openImage(m)}
                       showSender={isGroup}
                       mentionNames={highlightNames}
                       selfMentionNames={[selfName, everyone].filter(Boolean)}
@@ -712,6 +730,12 @@ export const ChatPane = ({
           onClose={() => setMenu(null)}
         />
       )}
+      <ImageLightbox
+        images={imageList.map((x) => x.url)}
+        index={lightboxIndex}
+        onIndexChange={setLightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+      />
     </div>
   )
 }

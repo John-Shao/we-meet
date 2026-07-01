@@ -138,7 +138,13 @@
     "alt": "Afbeelding",
     "invalidType": "Alleen JPG / PNG / WebP / GIF-afbeeldingen worden ondersteund",
     "tooLarge": "Afbeelding te groot — houd het onder 10 MB",
-    "uploadError": "Afbeelding verzenden mislukt, probeer het opnieuw"
+    "uploadError": "Afbeelding verzenden mislukt, probeer het opnieuw",
+    "zoomIn": "Inzoomen",
+    "zoomOut": "Uitzoomen",
+    "download": "Downloaden",
+    "close": "Sluiten",
+    "prev": "Vorige",
+    "next": "Volgende"
   },
   "time": {
     "yesterday": "Gisteren"

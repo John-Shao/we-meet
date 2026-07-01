@@ -138,7 +138,13 @@
     "alt": "Image",
     "invalidType": "Seules les images JPG / PNG / WebP / GIF sont prises en charge",
     "tooLarge": "Image trop volumineuse — limitez-la à 10 Mo",
-    "uploadError": "Échec de l'envoi de l'image, veuillez réessayer"
+    "uploadError": "Échec de l'envoi de l'image, veuillez réessayer",
+    "zoomIn": "Agrandir",
+    "zoomOut": "Réduire",
+    "download": "Télécharger",
+    "close": "Fermer",
+    "prev": "Précédent",
+    "next": "Suivant"
   },
   "time": {
     "yesterday": "Hier"

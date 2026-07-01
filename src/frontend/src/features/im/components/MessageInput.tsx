@@ -67,12 +67,15 @@ export const MessageInput = ({
   const attachRef = useRef<HTMLInputElement>(null)
 
   const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+    const files = Array.from(e.target.files ?? [])
     e.target.value = '' // allow re-picking the same file
-    if (!file || !onSendImage || uploading) return
+    if (files.length === 0 || !onSendImage || uploading) return
     setUploading(true)
     try {
-      await onSendImage(file)
+      // 多图:按选择顺序逐张发送(每张一条 image 消息)。
+      for (const file of files) {
+        await onSendImage(file)
+      }
     } finally {
       setUploading(false)
     }
@@ -444,6 +447,7 @@ export const MessageInput = ({
             ref={fileRef}
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
+            multiple
             onChange={onPickImage}
             className={css({ display: 'none' })}
             data-testid="im-image-input"
