@@ -81,7 +81,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
               overflow: 'auto',
               display: 'flex',
               flexDirection: 'column',
-              backgroundColor: 'white',
+              backgroundColor: 'greyscale.000',
             })}
           >
             <ScreenReaderAnnouncer />
@@ -99,7 +99,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         className={css({
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: 'white',
+          backgroundColor: 'greyscale.000',
           color: 'default.text',
           flex: '1',
         })}

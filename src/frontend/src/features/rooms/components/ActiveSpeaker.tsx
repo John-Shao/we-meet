@@ -29,7 +29,7 @@ const StyledContainer = styled('div', {
 
 const StyledChild = styled('div', {
   base: {
-    backgroundColor: 'white',
+    backgroundColor: 'greyscale.000',
     width: '4px',
     height: '4px',
     borderRadius: '4px',

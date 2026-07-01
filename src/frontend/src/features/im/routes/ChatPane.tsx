@@ -677,7 +677,7 @@ const headerBtn = css({
   height: '2rem',
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '999px',
-  backgroundColor: 'white',
+  backgroundColor: 'greyscale.000',
   color: 'greyscale.700',
   fontSize: '1rem',
   lineHeight: 1,

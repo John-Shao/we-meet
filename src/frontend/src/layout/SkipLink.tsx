@@ -30,7 +30,7 @@ const StyledSkipLink = styled('a', {
       clip: 'auto',
       whiteSpace: 'normal',
       zIndex: 9999,
-      backgroundColor: 'white',
+      backgroundColor: 'greyscale.000',
       color: 'primary.800',
       fontWeight: 500,
       fontSize: '0.875rem',

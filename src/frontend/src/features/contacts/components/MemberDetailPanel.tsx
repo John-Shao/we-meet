@@ -29,7 +29,7 @@ export const MemberDetailPanel = ({ member, onMessage, onClose }: Props) => {
         width: '300px',
         height: '100%',
         borderLeft: '1px solid token(colors.greyscale.200)',
-        backgroundColor: 'white',
+        backgroundColor: 'greyscale.000',
         display: 'flex',
         flexDirection: 'column',
         overflowY: 'auto',

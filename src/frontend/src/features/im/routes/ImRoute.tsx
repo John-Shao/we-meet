@@ -482,7 +482,7 @@ const ImAuthenticated = () => {
                 className={css({
                   border: '1px solid token(colors.greyscale.300)',
                   borderRadius: '999px',
-                  backgroundColor: 'white',
+                  backgroundColor: 'greyscale.000',
                   width: '1.75rem',
                   height: '1.75rem',
                   display: 'inline-flex',
@@ -506,7 +506,7 @@ const ImAuthenticated = () => {
                 className={css({
                   border: '1px solid token(colors.greyscale.300)',
                   borderRadius: '999px',
-                  backgroundColor: 'white',
+                  backgroundColor: 'greyscale.000',
                   width: '1.75rem',
                   height: '1.75rem',
                   display: 'inline-flex',

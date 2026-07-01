@@ -12,7 +12,7 @@ import { usePersonalAI, PersonalAIMessage } from '../hooks/usePersonalAI'
 const drawerStyle = css({
   width: { base: 'min(92vw, 28rem)', md: '32rem' },
   height: { base: 'min(80vh, 36rem)', md: '36rem' },
-  backgroundColor: 'white',
+  backgroundColor: 'greyscale.000',
   borderRadius: '12px',
   boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
   display: 'flex',

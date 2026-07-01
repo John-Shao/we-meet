@@ -118,6 +118,31 @@
   "dialog": {
     "heading": "设置"
   },
+  "systemSettings": {
+    "heading": "系统设置",
+    "nav": {
+      "general": "通用设置",
+      "account": "账号管理",
+      "agreement": "服务协议"
+    },
+    "theme": {
+      "heading": "主题",
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    },
+    "account": {
+      "avatar": "头像",
+      "username": "用户名",
+      "email": "邮箱",
+      "notSet": "未设置"
+    },
+    "agreement": {
+      "userAgreement": "用户协议",
+      "privacy": "隐私政策",
+      "view": "查看"
+    }
+  },
   "language": {
     "heading": "语言",
     "label": "语言"

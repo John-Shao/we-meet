@@ -90,7 +90,7 @@ export const MessageContextMenu = ({
         position: 'fixed',
         zIndex: 1000,
         minWidth: '140px',
-        backgroundColor: 'white',
+        backgroundColor: 'greyscale.000',
         border: '1px solid token(colors.greyscale.200)',
         borderRadius: '0.5rem',
         boxShadow: '0 6px 24px rgba(0,0,0,0.15)',

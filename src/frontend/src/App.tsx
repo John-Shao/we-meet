@@ -16,6 +16,7 @@ import { queryClient } from '@/api/queryClient'
 import { AppInitialization } from '@/components/AppInitialization'
 import { useIsSdkContext } from '@/features/sdk/hooks/useIsSdkContext'
 import { useApplyA11yFonts } from '@/hooks/useApplyA11yFonts'
+import { useApplyTheme } from '@/hooks/useApplyTheme'
 import { useUser } from '@/features/auth'
 import { HomeRoute } from '@/features/home'
 
@@ -39,6 +40,7 @@ function App() {
 
   const isSDKContext = useIsSdkContext()
   useApplyA11yFonts()
+  useApplyTheme()
 
   return (
     <QueryClientProvider client={queryClient}>

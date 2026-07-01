@@ -36,6 +36,21 @@ const config: Config = {
   jsxFramework: 'react',
   outdir: 'src/styled-system',
   globalFontface: {},
+  // 深色模式:主题挂在 <html data-theme="light|dark"> 上(见 useApplyTheme)。
+  // 语义 token 的 _dark 值据此切换,greyscale 采用「镜像反转」——浅色值一字不改,
+  // 深色值 = 其对称档位的浅色值,故对比度不变、明暗互换。
+  conditions: {
+    extend: {
+      dark: '[data-theme=dark] &',
+      light: '[data-theme=light] &',
+    },
+  },
+  globalCss: {
+    'html, body': {
+      backgroundColor: 'greyscale.000',
+      color: 'greyscale.1000',
+    },
+  },
   theme: {
     ...pandaPreset.theme,
     // media queries are defined in em so that zooming with text-only mode triggers breakpoints
@@ -159,23 +174,7 @@ const config: Config = {
           950: { value: '#091633' },
           action: { value: '#1456F0' },
         },
-        greyscale: {
-          '000': { value: '#FFFFFF' },
-          50: { value: '#F6F6F6' },
-          100: { value: '#EEEEEE' },
-          200: { value: '#E5E5E5' },
-          250: { value: '#DDDDDD' },
-          300: { value: '#CECECE' },
-          400: { value: '#929292' },
-          500: { value: '#7C7C7C' },
-          600: { value: '#666666' },
-          700: { value: '#3A3A3A' },
-          750: { value: '#353535' },
-          800: { value: '#2A2A2A' },
-          900: { value: '#242424' },
-          950: { value: '#1E1E1E' },
-          1000: { value: '#161616' },
-        },
+        // greyscale 移到 semanticTokens(见下)以支持深色镜像反转。
         error: {
           100: { value: '#261212' },
           200: { value: '#6C302E' },
@@ -292,15 +291,35 @@ const config: Config = {
     }),
     semanticTokens: defineSemanticTokens({
       colors: {
+        // greyscale 镜像反转:base = 原浅色值(一字不改,浅色零回归风险);
+        // _dark = 对称档位的浅色值(000↔1000, 50↔950, …, 500 居中不变)。
+        // 文字用 900/1000、背景用 000/50/100,反转后自动明暗互换。
+        greyscale: {
+          '000': { value: { base: '#FFFFFF', _dark: '#161616' } },
+          50: { value: { base: '#F6F6F6', _dark: '#1E1E1E' } },
+          100: { value: { base: '#EEEEEE', _dark: '#242424' } },
+          200: { value: { base: '#E5E5E5', _dark: '#2A2A2A' } },
+          250: { value: { base: '#DDDDDD', _dark: '#353535' } },
+          300: { value: { base: '#CECECE', _dark: '#3A3A3A' } },
+          400: { value: { base: '#929292', _dark: '#666666' } },
+          500: { value: { base: '#7C7C7C', _dark: '#7C7C7C' } },
+          600: { value: { base: '#666666', _dark: '#929292' } },
+          700: { value: { base: '#3A3A3A', _dark: '#CECECE' } },
+          750: { value: { base: '#353535', _dark: '#DDDDDD' } },
+          800: { value: { base: '#2A2A2A', _dark: '#E5E5E5' } },
+          900: { value: { base: '#242424', _dark: '#EEEEEE' } },
+          950: { value: { base: '#1E1E1E', _dark: '#F6F6F6' } },
+          1000: { value: { base: '#161616', _dark: '#FFFFFF' } },
+        },
         default: {
           text: { value: '{colors.greyscale.1000}' },
-          bg: { value: 'white' },
+          bg: { value: '{colors.greyscale.000}' },
           subtle: { value: '{colors.gray.100}' },
           'subtle-text': { value: '{colors.gray.600}' },
         },
         box: {
           text: { value: '{colors.default.text}' },
-          bg: { value: '{colors.white}' },
+          bg: { value: '{colors.greyscale.000}' },
           border: { value: '{colors.gray.300}' },
         },
         control: {

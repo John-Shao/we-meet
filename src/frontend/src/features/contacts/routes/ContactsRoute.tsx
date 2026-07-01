@@ -293,7 +293,7 @@ const ContactsAuthenticated = () => {
                           marginRight: '1rem',
                           border: '1px solid token(colors.primary.300)',
                           borderRadius: '0.5rem',
-                          backgroundColor: 'white',
+                          backgroundColor: 'greyscale.000',
                           paddingX: '0.75rem',
                           paddingY: '0.375rem',
                           fontSize: '0.8125rem',

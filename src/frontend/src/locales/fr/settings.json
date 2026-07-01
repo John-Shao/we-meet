@@ -118,6 +118,31 @@
   "dialog": {
     "heading": "Paramètres"
   },
+  "systemSettings": {
+    "heading": "Paramètres",
+    "nav": {
+      "general": "Général",
+      "account": "Compte",
+      "agreement": "Conditions"
+    },
+    "theme": {
+      "heading": "Thème",
+      "light": "Clair",
+      "dark": "Sombre",
+      "system": "Système"
+    },
+    "account": {
+      "avatar": "Avatar",
+      "username": "Nom d'utilisateur",
+      "email": "E-mail",
+      "notSet": "Non défini"
+    },
+    "agreement": {
+      "userAgreement": "Conditions d'utilisation",
+      "privacy": "Politique de confidentialité",
+      "view": "Voir"
+    }
+  },
   "language": {
     "heading": "Langue",
     "label": "Langue de l'application"

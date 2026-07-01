@@ -118,6 +118,31 @@
   "dialog": {
     "heading": "Instellingen"
   },
+  "systemSettings": {
+    "heading": "Instellingen",
+    "nav": {
+      "general": "Algemeen",
+      "account": "Account",
+      "agreement": "Voorwaarden"
+    },
+    "theme": {
+      "heading": "Thema",
+      "light": "Licht",
+      "dark": "Donker",
+      "system": "Systeem"
+    },
+    "account": {
+      "avatar": "Avatar",
+      "username": "Gebruikersnaam",
+      "email": "E-mail",
+      "notSet": "Niet ingesteld"
+    },
+    "agreement": {
+      "userAgreement": "Gebruikersovereenkomst",
+      "privacy": "Privacybeleid",
+      "view": "Bekijken"
+    }
+  },
   "language": {
     "heading": "Taal",
     "label": "Taal"

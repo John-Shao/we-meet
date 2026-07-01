@@ -472,7 +472,7 @@ const ghostBtn = css({
   paddingY: '0.5rem',
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '0.5rem',
-  backgroundColor: 'white',
+  backgroundColor: 'greyscale.000',
   color: 'greyscale.700',
   fontSize: '0.875rem',
   cursor: 'pointer',

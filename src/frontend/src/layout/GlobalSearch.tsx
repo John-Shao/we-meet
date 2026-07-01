@@ -78,7 +78,7 @@ export const GlobalSearch = ({ collapsed }: TriggerProps) => {
             paddingY: '0.5rem',
             border: '1px solid token(colors.greyscale.200)',
             borderRadius: '8px',
-            backgroundColor: 'white',
+            backgroundColor: 'greyscale.000',
             color: 'greyscale.500',
             fontSize: '0.8125rem',
             cursor: 'pointer',

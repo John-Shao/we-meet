@@ -129,7 +129,7 @@ export const EventDetailDialog = ({ event, onRsvp, onJoin, onClose }: Props) => 
                     border: '1px solid token(colors.greyscale.300)',
                     fontSize: '0.75rem',
                     cursor: 'pointer',
-                    backgroundColor: 'white',
+                    backgroundColor: 'greyscale.000',
                     color: 'greyscale.700',
                   }),
                   rsvp === status

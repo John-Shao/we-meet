@@ -186,7 +186,7 @@ export const SubmitApprovalDialog = ({
               paddingY: '0.5rem',
               borderRadius: '0.5rem',
               border: '1px solid token(colors.greyscale.300)',
-              backgroundColor: 'white',
+              backgroundColor: 'greyscale.000',
               fontSize: '0.875rem',
               cursor: 'pointer',
             })}

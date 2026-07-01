@@ -90,7 +90,7 @@ export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
           border: '1px solid',
           borderColor: 'greyscale.200',
           borderRadius: '10px',
-          backgroundColor: 'white',
+          backgroundColor: 'greyscale.000',
           overflow: 'hidden',
         })}
       >

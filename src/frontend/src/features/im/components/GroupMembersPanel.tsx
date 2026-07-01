@@ -137,7 +137,7 @@ export const GroupMembersPanel = ({
         flexShrink: 0,
         width: '300px',
         height: '100%',
-        backgroundColor: 'white',
+        backgroundColor: 'greyscale.000',
         borderLeft: '1px solid token(colors.greyscale.200)',
         overflow: 'hidden',
         animation: 'fade 150ms ease-out',

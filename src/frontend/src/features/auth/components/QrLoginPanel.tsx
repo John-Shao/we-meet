@@ -132,7 +132,7 @@ export const QrLoginPanel = ({ onSuccess }: QrLoginPanelProps = {}) => {
         size="sm"
         className={css({
           padding: '0.75rem',
-          backgroundColor: 'white',
+          backgroundColor: 'greyscale.000',
           width: 'fit-content',
           position: 'relative',
         })}

@@ -226,7 +226,7 @@ const modal = css({
   width: '100%',
   maxWidth: '440px',
   maxHeight: '72vh',
-  backgroundColor: 'white',
+  backgroundColor: 'greyscale.000',
   borderRadius: '0.75rem',
   overflow: 'hidden',
   boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)',

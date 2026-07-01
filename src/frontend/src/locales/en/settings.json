@@ -118,6 +118,31 @@
   "dialog": {
     "heading": "Settings"
   },
+  "systemSettings": {
+    "heading": "System Settings",
+    "nav": {
+      "general": "General",
+      "account": "Account",
+      "agreement": "Terms"
+    },
+    "theme": {
+      "heading": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "account": {
+      "avatar": "Avatar",
+      "username": "Username",
+      "email": "Email",
+      "notSet": "Not set"
+    },
+    "agreement": {
+      "userAgreement": "User Agreement",
+      "privacy": "Privacy Policy",
+      "view": "View"
+    }
+  },
   "language": {
     "heading": "Language",
     "label": "Language"

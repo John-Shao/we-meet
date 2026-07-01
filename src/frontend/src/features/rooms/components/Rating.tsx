@@ -35,7 +35,7 @@ const Bar = styled('div', {
 
 const ratingButtonRecipe = cva({
   base: {
-    backgroundColor: 'white',
+    backgroundColor: 'greyscale.000',
     color: 'initial',
     border: 'none',
     borderRadius: 0,
