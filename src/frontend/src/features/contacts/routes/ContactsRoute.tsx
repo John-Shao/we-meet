@@ -191,7 +191,8 @@ const ContactsAuthenticated = () => {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       borderBottom: '1px solid token(colors.greyscale.100)',
-                      backgroundColor: selected ? 'primary.50' : 'transparent',
+                      // 选中用会翻转的 greyscale.100(避免浅蓝底配翻转后的浅字看不见)。
+                      backgroundColor: selected ? 'greyscale.100' : 'transparent',
                       _hover: { backgroundColor: 'greyscale.50' },
                     })}
                   >
@@ -336,7 +337,10 @@ const deptButton = (active: boolean) =>
     textAlign: 'left',
     fontSize: '0.875rem',
     cursor: 'pointer',
-    color: 'greyscale.800',
+    // 选中:蓝底 primary.100(浅/深都为浅蓝)配深蓝字 primary.700(浅/深都深),
+    // 两种主题都可读;非选中用会翻转的 greyscale.800。
+    color: active ? 'primary.700' : 'greyscale.800',
+    fontWeight: active ? '600' : undefined,
     backgroundColor: active ? 'primary.100' : 'transparent',
     overflow: 'hidden',
     textOverflow: 'ellipsis',

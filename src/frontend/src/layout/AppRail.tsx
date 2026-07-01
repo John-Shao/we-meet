@@ -38,8 +38,6 @@ import { GlobalSearch } from './GlobalSearch'
  * for logged-in workspace routes; the in-call room stays full-screen (no rail).
  */
 
-const RAIL_BG = '#DEE4F5'
-
 interface NavItem {
   to: string
   labelKey: string
@@ -194,7 +192,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: RAIL_BG,
+        backgroundColor: 'railBg',
         borderRight: '1px solid token(colors.greyscale.200)',
         paddingY: '0.75rem',
         paddingX: '0.5rem',
@@ -280,7 +278,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
                       borderRadius: '999px',
                       backgroundColor: 'danger.500',
                       border: '1.5px solid',
-                      borderColor: RAIL_BG,
+                      borderColor: 'railBg',
                     })}
                   />
                 )}

@@ -317,6 +317,8 @@ const config: Config = {
           subtle: { value: '{colors.gray.100}' },
           'subtle-text': { value: '{colors.gray.600}' },
         },
+        // 一级导航栏底色:浅色=飞书蓝 #DEE4F5,深色=暗navy(随主题翻转)。
+        railBg: { value: { base: '#DEE4F5', _dark: '#1C2130' } },
         box: {
           text: { value: '{colors.default.text}' },
           bg: { value: '{colors.greyscale.000}' },
