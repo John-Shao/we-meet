@@ -314,23 +314,25 @@ const config: Config = {
         default: {
           text: { value: '{colors.greyscale.1000}' },
           bg: { value: '{colors.greyscale.000}' },
-          subtle: { value: '{colors.gray.100}' },
-          'subtle-text': { value: '{colors.gray.600}' },
+          // gray.* → greyscale.*(会翻转):让走 default/control/box 语义 token 的
+          // primitives(Input/Select/Box/Menu/Tabs/Popover…)在深色下自动适配。
+          subtle: { value: '{colors.greyscale.100}' },
+          'subtle-text': { value: '{colors.greyscale.600}' },
         },
         // 一级导航栏底色:浅色=飞书蓝 #DEE4F5,深色=暗navy(随主题翻转)。
         railBg: { value: { base: '#DEE4F5', _dark: '#1C2130' } },
         box: {
           text: { value: '{colors.default.text}' },
           bg: { value: '{colors.greyscale.000}' },
-          border: { value: '{colors.gray.300}' },
+          border: { value: '{colors.greyscale.300}' },
         },
         control: {
-          DEFAULT: { value: '{colors.gray.100}' },
-          hover: { value: '{colors.gray.200}' },
-          active: { value: '{colors.gray.300}' },
+          DEFAULT: { value: '{colors.greyscale.100}' },
+          hover: { value: '{colors.greyscale.200}' },
+          active: { value: '{colors.greyscale.300}' },
           text: { value: '{colors.default.text}' },
-          border: { value: '{colors.gray.500}' },
-          subtle: { value: '{colors.gray.400}' },
+          border: { value: '{colors.greyscale.500}' },
+          subtle: { value: '{colors.greyscale.400}' },
         },
         primary: {
           DEFAULT: { value: '{colors.primary.500}' },

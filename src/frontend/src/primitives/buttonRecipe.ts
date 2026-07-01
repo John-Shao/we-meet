@@ -311,7 +311,7 @@ export const buttonRecipe = cva({
       text: {
         color: 'primary',
         '&[data-hovered]': {
-          background: 'gray.100 !important',
+          background: 'greyscale.100 !important',
           color: 'primary !important',
         },
       },
@@ -340,7 +340,7 @@ export const buttonRecipe = cva({
           borderColor: 'currentcolor',
         },
         '&[data-disabled]': {
-          color: 'gray.300',
+          color: 'greyscale.300',
         },
       },
     },

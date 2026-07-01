@@ -11,7 +11,7 @@ export const StyledSwitch = styled(RACSwitch, {
     display: 'flex',
     alignItems: 'center',
     gap: '0.571rem',
-    color: 'black',
+    color: 'greyscale.1000',
     forcedColorAdjust: 'none',
     '& .indicator': {
       position: 'relative',

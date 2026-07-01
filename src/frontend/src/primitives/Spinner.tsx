@@ -79,7 +79,7 @@ export const Spinner = ({
             aria-hidden="true"
             className={css({
               display: 'none',
-              color: 'black',
+              color: 'greyscale.1000',
               '@media (prefers-reduced-motion: reduce)': {
                 display: 'inline-flex',
               },
