@@ -12,6 +12,7 @@ import { resolveImUsers } from '../api/resolveImUsers'
 import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
+import { uploadChatVoice, ChatVoiceError } from '../api/uploadChatVoice'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { MessageItem, type ReactionChip } from '../components/MessageItem'
 import { ImageLightbox } from '../components/ImageLightbox'
@@ -305,16 +306,14 @@ export const ChatPane = ({
   // 发 content_type='voice'、body=JSON{key, duration}。
   const onSendVoice = async (blob: Blob, durationMs: number) => {
     try {
-      const meta = await uploadChatFile(
-        new File([blob], 'voice.webm', { type: blob.type || 'audio/webm' })
-      )
+      const key = await uploadChatVoice(blob)
       await client.sendText(
         cid,
-        JSON.stringify({ key: meta.key, duration: durationMs }),
+        JSON.stringify({ key, duration: durationMs }),
         { contentType: 'voice' }
       )
     } catch (e) {
-      const code = e instanceof ChatFileError ? e.code : 'uploadError'
+      const code = e instanceof ChatVoiceError ? e.code : 'uploadError'
       void showAlert({ message: t(`file.${code}`) })
     }
   }

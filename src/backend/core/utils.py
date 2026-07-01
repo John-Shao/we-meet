@@ -648,19 +648,26 @@ def generate_chat_image_upload_url(*, user, content_type: str, size: int) -> dic
 CHAT_FILE_KEY_PREFIX = "file/"
 
 
+# Chat voice messages live in their own bucket under this key prefix.
+CHAT_AUDIO_KEY_PREFIX = "audio/"
+
+
 def _chat_bucket_for_key(object_key: str) -> str | None:
     """Pick the storage bucket for a chat object key by its prefix, or None."""
     if object_key.startswith(CHAT_IMAGE_KEY_PREFIX):
         return settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE
     if object_key.startswith(CHAT_FILE_KEY_PREFIX):
         return settings.AWS_STORAGE_BUCKET_NAME_CHAT_FILE
+    if object_key.startswith(CHAT_AUDIO_KEY_PREFIX):
+        return settings.AWS_STORAGE_BUCKET_NAME_CHAT_AUDIO
     return None
 
 
 def generate_chat_object_get_url(object_key: str) -> str:
     """Return a short-lived presigned GET URL for a chat object (image or file).
 
-    Routes by key prefix: ``chat/`` → image bucket, ``file/`` → file bucket.
+    Routes by key prefix: ``chat/`` → image bucket, ``file/`` → file bucket,
+    ``audio/`` → voice bucket.
     Returns '' for an unset key or any other prefix — the endpoint refuses to
     sign arbitrary keys, and the private buckets make the signed URL the only
     way to read the object; clients treat it as expiring and re-resolve.
@@ -721,6 +728,50 @@ def generate_chat_file_upload_url(
         "put_object",
         Params={
             "Bucket": settings.AWS_STORAGE_BUCKET_NAME_CHAT_FILE,
+            "Key": object_key,
+            "ContentType": content_type,
+            "ContentLength": size,
+        },
+        ExpiresIn=PROFILE_UPLOAD_URL_TTL_SECONDS,
+        HttpMethod="PUT",
+    )
+    return {
+        "upload_url": upload_url,
+        "object_key": object_key,
+        "expires_in": PROFILE_UPLOAD_URL_TTL_SECONDS,
+        "headers": {"Content-Type": content_type},
+    }
+
+
+# Max size of an uploaded chat VOICE clip (20 MiB — 60s of audio is far less).
+MAX_CHAT_AUDIO_SIZE = 20 * 1024 * 1024
+
+
+def build_chat_audio_object_key(user_id, filename: str) -> str:
+    """Build the S3 key for a chat voice clip: ``audio/{user_id}/{short-uuid}[.ext]``.
+
+    The ``audio/`` prefix routes resolve to the dedicated voice bucket.
+    """
+    ext = _safe_ext(filename)
+    name = uuid4().hex[:16]
+    suffix = f".{ext}" if ext else ""
+    return f"{CHAT_AUDIO_KEY_PREFIX}{user_id}/{name}{suffix}"
+
+
+def generate_chat_audio_upload_url(
+    *, user, content_type: str, size: int, filename: str
+) -> dict:
+    """Issue a short-lived presigned PUT URL for a chat voice clip.
+
+    Any (audio) content type is allowed — echoed back as the object's
+    Content-Type; the caller MUST validate ``size`` first. Stored in the
+    dedicated private voice bucket, read back via the shared resolve endpoint.
+    """
+    object_key = build_chat_audio_object_key(user.id, filename)
+    upload_url = _profile_s3_client().generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": settings.AWS_STORAGE_BUCKET_NAME_CHAT_AUDIO,
             "Key": object_key,
             "ContentType": content_type,
             "ContentLength": size,

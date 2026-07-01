@@ -306,3 +306,41 @@ def test_chat_file_upload_url_happy_path():
     assert r.status_code == 200, r.content
     assert r.json() == payload
     assert gen.call_args.kwargs["filename"] == "report.pdf"
+
+
+AUDIO_UPLOAD_URL = "/api/v1.0/im/audio/upload-url/"
+
+
+def test_chat_audio_upload_url_rejects_oversize():
+    """Voice clip over the 20 MiB cap → 400."""
+    client = APIClient()
+    client.force_login(UserFactory())
+    r = client.post(
+        AUDIO_UPLOAD_URL,
+        {"content_type": "audio/webm", "size": 30 * 1024 * 1024, "filename": "voice.webm"},
+        format="json",
+    )
+    assert r.status_code == 400, r.content
+
+
+def test_chat_audio_upload_url_happy_path():
+    """Audio content type + valid size → 200 passing the presigned payload through."""
+    client = APIClient()
+    client.force_login(UserFactory())
+    payload = {
+        "upload_url": "https://oss/put",
+        "object_key": "audio/x/abc.webm",
+        "expires_in": 300,
+        "headers": {"Content-Type": "audio/webm"},
+    }
+    with mock.patch(
+        "core.utils.generate_chat_audio_upload_url", return_value=payload
+    ) as gen:
+        r = client.post(
+            AUDIO_UPLOAD_URL,
+            {"content_type": "audio/webm", "size": 4096, "filename": "voice.webm"},
+            format="json",
+        )
+    assert r.status_code == 200, r.content
+    assert r.json() == payload
+    assert gen.call_args.kwargs["filename"] == "voice.webm"

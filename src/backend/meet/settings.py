@@ -206,6 +206,14 @@ class Base(Configuration):
         environ_name="AWS_STORAGE_BUCKET_NAME_CHAT_FILE",
         environ_prefix=None,
     )
+    # IM voice messages (P7-i): a dedicated private bucket. Keys are
+    # `audio/<user_id>/<short-uuid>.webm` (the `audio/` prefix routes resolve to
+    # this bucket); carried in the message body (content_type='voice').
+    AWS_STORAGE_BUCKET_NAME_CHAT_AUDIO = values.Value(
+        "we-chat-audio",
+        environ_name="AWS_STORAGE_BUCKET_NAME_CHAT_AUDIO",
+        environ_prefix=None,
+    )
 
     # SMS gateway (火山引擎 / Volcengine) — sends OTP codes for mobile login.
     VOLC_SMS_AK = values.Value(None, environ_name="VOLC_SMS_AK", environ_prefix=None)

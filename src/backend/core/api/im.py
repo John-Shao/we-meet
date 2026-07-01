@@ -225,13 +225,44 @@ class ImViewSet(viewsets.ViewSet):
         )
         return Response(payload, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["post"], url_path="audio/upload-url")
+    def chat_audio_upload_url(self, request):
+        """Issue a presigned PUT URL for an IM voice clip (P7-i).
+
+        Body: ``{"content_type": "audio/webm", "size": <bytes>, "filename": "..."}``.
+        Any audio content type is allowed (up to 20 MiB). The client PUTs the bytes
+        then sends an IM message with ``content_type='voice'`` and a JSON body
+        ``{key, duration}``; the object (``audio/`` prefix) is read back via
+        :meth:`resolve_images`. Stored in its own private voice bucket.
+        """
+        data = request.data or {}
+        content_type = data.get("content_type") or "audio/webm"
+        size = data.get("size")
+        filename = data.get("filename") or ""
+        if not isinstance(content_type, str) or not content_type:
+            raise ValidationError({"content_type": "string required"})
+        if not isinstance(size, int) or size <= 0:
+            raise ValidationError({"size": "positive integer byte size required"})
+        if size > utils.MAX_CHAT_AUDIO_SIZE:
+            raise ValidationError({"size": f"max {utils.MAX_CHAT_AUDIO_SIZE} bytes"})
+        if not isinstance(filename, str):
+            raise ValidationError({"filename": "string required"})
+        payload = utils.generate_chat_audio_upload_url(
+            user=request.user,
+            content_type=content_type,
+            size=size,
+            filename=filename,
+        )
+        return Response(payload, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=["post"], url_path="images/resolve")
     def resolve_images(self, request):
         """Resolve chat object keys → short-lived presigned GET URLs (P7).
 
         Body: ``{"object_keys": ["chat/<uid>/<uuid>.jpg", "file/<uid>/...", ...]}``.
-        Returns ``{key: url}`` for keys under the ``chat/`` (image) or ``file/``
-        (attachment) prefixes, each routed to its bucket; other keys are skipped
+        Returns ``{key: url}`` for keys under the ``chat/`` (image), ``file/``
+        (attachment) or ``audio/`` (voice) prefixes, each routed to its bucket;
+        other keys are skipped
         (the endpoint refuses to sign arbitrary bucket keys). URLs expire (1h),
         so the client re-resolves on a short staleTime, like avatar GET URLs.
         """
