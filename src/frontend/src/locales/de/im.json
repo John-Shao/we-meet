@@ -117,13 +117,22 @@
     "send": "Senden",
     "sending": "Wird gesendet…",
     "image": "Bild senden",
-    "file": "Datei senden"
+    "file": "Datei senden",
+    "voice": "Sprache"
   },
   "preview": {
     "image": "[Bild]",
     "file": "[Datei]",
+    "voice": "[Sprachnachricht]",
     "reaction": "[Reaktion]",
     "recalled": "hat eine Nachricht zurückgezogen"
+  },
+  "voice": {
+    "recording": "Aufnahme…",
+    "send": "Senden",
+    "cancel": "Abbrechen",
+    "micDenied": "Kein Zugriff auf das Mikrofon, bitte Berechtigungen prüfen",
+    "unsupported": "Aufnahme wird von diesem Browser nicht unterstützt"
   },
   "image": {
     "alt": "Bild",

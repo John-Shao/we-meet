@@ -261,7 +261,9 @@ const ImAuthenticated = () => {
         ? t('preview.image')
         : ct === 'file'
           ? t('preview.file')
-          : ct === 'reaction'
+          : ct === 'voice'
+            ? t('preview.voice')
+            : ct === 'reaction'
             ? t('preview.reaction')
             : ct === 'recall'
               ? t('preview.recalled')

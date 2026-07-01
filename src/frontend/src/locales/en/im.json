@@ -117,13 +117,22 @@
     "send": "Send",
     "sending": "Sending…",
     "image": "Send image",
-    "file": "Send file"
+    "file": "Send file",
+    "voice": "Voice"
   },
   "preview": {
     "image": "[Image]",
     "file": "[File]",
+    "voice": "[Voice]",
     "reaction": "[Reaction]",
     "recalled": "recalled a message"
+  },
+  "voice": {
+    "recording": "Recording…",
+    "send": "Send",
+    "cancel": "Cancel",
+    "micDenied": "Cannot access microphone, please check browser permissions",
+    "unsupported": "Recording is not supported in this browser"
   },
   "image": {
     "alt": "Image",

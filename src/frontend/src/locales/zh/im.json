@@ -117,13 +117,22 @@
     "send": "发送",
     "sending": "发送中…",
     "image": "发送图片",
-    "file": "发送文件"
+    "file": "发送文件",
+    "voice": "语音"
   },
   "preview": {
     "image": "[图片]",
     "file": "[文件]",
+    "voice": "[语音]",
     "reaction": "[表情]",
     "recalled": "撤回了一条消息"
+  },
+  "voice": {
+    "recording": "正在录音…",
+    "send": "发送",
+    "cancel": "取消",
+    "micDenied": "无法访问麦克风,请检查浏览器权限",
+    "unsupported": "当前浏览器不支持录音"
   },
   "image": {
     "alt": "图片",

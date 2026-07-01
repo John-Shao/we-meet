@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiFile2Line } from '@remixicon/react'
+import { RiFile2Line, RiPlayMiniFill, RiPauseMiniFill } from '@remixicon/react'
 import type { Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
@@ -28,6 +28,10 @@ interface Props {
   imageUrl?: string
   /** Presigned URL for a file message (content_type='file'); undefined while resolving. */
   fileUrl?: string
+  /** Presigned URL for a voice message (content_type='voice'); undefined while resolving. */
+  voiceUrl?: string
+  /** Voice clip duration in ms (from the message body). */
+  voiceDurationMs?: number
   /** Aggregated reactions for this message (P7-b); empty → none rendered. */
   reactions?: ReactionChip[]
   /** Toggle a reaction emoji on this message. */
@@ -42,6 +46,86 @@ interface Props {
   mentionNames?: string[]
   /** Subset of mentionNames that mean "you" (self name + 所有人) → stronger style. */
   selfMentionNames?: string[]
+}
+
+/** Voice message bubble: play/pause + duration; width scales with length. */
+const VoiceBubble = ({
+  url,
+  durationMs,
+  isOwn,
+}: {
+  url?: string
+  durationMs?: number
+  isOwn: boolean
+}) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [playing, setPlaying] = useState(false)
+  const seconds = Math.max(1, Math.round((durationMs || 0) / 1000))
+  // 气泡宽度随时长增长(微信风格):1s≈5rem,60s 封顶 ~15rem。
+  const width = `${Math.min(15, 5 + Math.min(seconds, 60) * (10 / 60))}rem`
+  const toggle = () => {
+    const el = audioRef.current
+    if (!el || !url) return
+    if (playing) el.pause()
+    else void el.play()
+  }
+  return (
+    <span
+      className={css({
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        minWidth: '5rem',
+        maxWidth: '100%',
+      })}
+      style={{ width }}
+    >
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label="play"
+        disabled={!url}
+        className={css({
+          flexShrink: 0,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '1.75rem',
+          height: '1.75rem',
+          borderRadius: '999px',
+          border: 'none',
+          cursor: url ? 'pointer' : 'default',
+          color: 'inherit',
+          backgroundColor: isOwn ? 'rgba(255,255,255,0.22)' : 'greyscale.200',
+        })}
+      >
+        {playing ? <RiPauseMiniFill size={18} /> : <RiPlayMiniFill size={18} />}
+      </button>
+      <span
+        aria-hidden="true"
+        className={css({
+          flex: 1,
+          height: '3px',
+          borderRadius: '999px',
+          backgroundColor: isOwn ? 'rgba(255,255,255,0.5)' : 'greyscale.300',
+        })}
+      />
+      <span className={css({ fontSize: '0.75rem', opacity: 0.8 })}>
+        {seconds}&quot;
+      </span>
+      {url && (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <audio
+          ref={audioRef}
+          src={url}
+          preload="none"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => setPlaying(false)}
+        />
+      )}
+    </span>
+  )
 }
 
 /** Human-readable byte size for file cards. */
@@ -125,6 +209,8 @@ export const MessageItem = ({
   senderAvatarUrl,
   imageUrl,
   fileUrl,
+  voiceUrl,
+  voiceDurationMs,
   reactions = [],
   onReact,
   recalled,
@@ -136,6 +222,7 @@ export const MessageItem = ({
   const { t } = useTranslation('im')
   const isImage = message.content_type === 'image'
   const isFile = message.content_type === 'file'
+  const isVoice = message.content_type === 'voice'
   const isQuote = message.content_type === 'quote'
   // System messages (member joined/left, rename) render centered + muted, no bubble.
   if (message.content_type === 'system') {
@@ -343,6 +430,12 @@ export const MessageItem = ({
                 inner
               )
             })()
+          ) : isVoice ? (
+            <VoiceBubble
+              url={voiceUrl}
+              durationMs={voiceDurationMs}
+              isOwn={isOwn}
+            />
           ) : isQuote ? (
             (() => {
               const q = parseJsonBody<QuoteBody>(message.body)

@@ -1,6 +1,12 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiImageLine, RiAttachment2, RiCloseLine } from '@remixicon/react'
+import {
+  RiImageLine,
+  RiAttachment2,
+  RiCloseLine,
+  RiMicLine,
+  RiSendPlane2Fill,
+} from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 
@@ -19,6 +25,8 @@ interface Props {
   onSendImage?: (file: File) => Promise<void> | void
   /** Send a picked arbitrary file (P7-b). Omitted → no file button. */
   onSendFile?: (file: File) => Promise<void> | void
+  /** Send a recorded voice clip (P7-i). Omitted → no mic button. */
+  onSendVoice?: (blob: Blob, durationMs: number) => Promise<void> | void
   /** Active reply context (P7-b); shows a quote bar above the input. */
   reply?: ReplyPreview | null
   onCancelReply?: () => void
@@ -43,6 +51,7 @@ export const MessageInput = ({
   mentionables = [],
   onSendImage,
   onSendFile,
+  onSendVoice,
   reply,
   onCancelReply,
 }: Props) => {
@@ -50,6 +59,8 @@ export const MessageInput = ({
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [recSeconds, setRecSeconds] = useState(0)
   const [mention, setMention] = useState<{ at: number; query: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -78,6 +89,114 @@ export const MessageInput = ({
       setUploading(false)
     }
   }
+
+  // ── 语音录制(P7-i)────────────────────────────────────────────────
+  const MAX_VOICE_SEC = 60
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const streamRef = useRef<MediaStream | null>(null)
+  const timerRef = useRef<number | null>(null)
+  const startRef = useRef<number>(0)
+  const cancelledRef = useRef(false)
+
+  const clearTimer = () => {
+    if (timerRef.current !== null) {
+      window.clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }
+  const stopStream = () => {
+    streamRef.current?.getTracks().forEach((tr) => tr.stop())
+    streamRef.current = null
+  }
+  const pickAudioMime = (): string => {
+    const cands = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+      'audio/ogg',
+    ]
+    if (typeof MediaRecorder === 'undefined') return ''
+    return cands.find((c) => MediaRecorder.isTypeSupported(c)) || ''
+  }
+
+  const stopRecorder = () => {
+    const rec = recorderRef.current
+    if (rec && rec.state !== 'inactive') rec.stop()
+  }
+  const finishRecording = () => {
+    cancelledRef.current = false
+    stopRecorder()
+  }
+  const cancelRecording = () => {
+    cancelledRef.current = true
+    stopRecorder()
+  }
+
+  const startRecording = async () => {
+    if (recording || disabled || uploading || !onSendVoice) return
+    if (!navigator.mediaDevices?.getUserMedia) {
+      void window.alert?.(t('voice.unsupported'))
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const mime = pickAudioMime()
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
+      recorderRef.current = rec
+      chunksRef.current = []
+      cancelledRef.current = false
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+      rec.onstop = async () => {
+        clearTimer()
+        const durationMs = Date.now() - startRef.current
+        const wasCancelled = cancelledRef.current
+        const blob = new Blob(chunksRef.current, {
+          type: rec.mimeType || 'audio/webm',
+        })
+        chunksRef.current = []
+        stopStream()
+        setRecording(false)
+        // 太短(<0.8s)或取消或空 → 丢弃不发。
+        if (wasCancelled || durationMs < 800 || blob.size === 0) return
+        setUploading(true)
+        try {
+          await onSendVoice(blob, durationMs)
+        } finally {
+          setUploading(false)
+        }
+      }
+      startRef.current = Date.now()
+      setRecSeconds(0)
+      rec.start()
+      setRecording(true)
+      timerRef.current = window.setInterval(() => {
+        const s = Math.floor((Date.now() - startRef.current) / 1000)
+        setRecSeconds(s)
+        if (s >= MAX_VOICE_SEC) finishRecording()
+      }, 250)
+    } catch {
+      stopStream()
+      setRecording(false)
+      void window.alert?.(t('voice.micDenied'))
+    }
+  }
+
+  // 卸载时清理:停止计时器 + 释放麦克风。
+  useEffect(() => {
+    return () => {
+      clearTimer()
+      stopStream()
+      const rec = recorderRef.current
+      if (rec && rec.state !== 'inactive') {
+        cancelledRef.current = true
+        rec.stop()
+      }
+    }
+  }, [])
 
   const recomputeMention = (value: string, caret: number) => {
     if (mentionables.length === 0) {
@@ -238,6 +357,87 @@ export const MessageInput = ({
           ))}
         </ul>
       )}
+      {recording && (
+        <div
+          className={css({
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            paddingX: '0.75rem',
+            paddingY: '0.5rem',
+            border: '1px solid token(colors.danger.500)',
+            borderRadius: '0.5rem',
+            backgroundColor: 'greyscale.000',
+          })}
+          data-testid="im-voice-recording"
+        >
+          <button
+            type="button"
+            onClick={cancelRecording}
+            aria-label={t('voice.cancel')}
+            title={t('voice.cancel')}
+            className={css({
+              flexShrink: 0,
+              display: 'flex',
+              border: 'none',
+              background: 'transparent',
+              color: 'greyscale.500',
+              cursor: 'pointer',
+              _hover: { color: 'greyscale.800' },
+            })}
+          >
+            <RiCloseLine size={18} />
+          </button>
+          <span
+            aria-hidden="true"
+            className={css({
+              flexShrink: 0,
+              width: '0.5rem',
+              height: '0.5rem',
+              borderRadius: '999px',
+              backgroundColor: 'danger.500',
+              animation: 'pulse_background 1.2s ease-in-out infinite',
+            })}
+          />
+          <span className={css({ color: 'danger.500', fontSize: '0.875rem' })}>
+            {t('voice.recording')}
+          </span>
+          <span
+            className={css({
+              marginLeft: 'auto',
+              color: 'greyscale.600',
+              fontSize: '0.8125rem',
+              fontVariantNumeric: 'tabular-nums',
+            })}
+          >
+            {`0:${String(recSeconds).padStart(2, '0')}`} / {`0:${MAX_VOICE_SEC}`}
+          </span>
+          <button
+            type="button"
+            onClick={finishRecording}
+            aria-label={t('voice.send')}
+            title={t('voice.send')}
+            className={css({
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '2rem',
+              height: '2rem',
+              border: 'none',
+              borderRadius: '0.5rem',
+              backgroundColor: 'primary.500',
+              color: 'white',
+              cursor: 'pointer',
+            })}
+          >
+            <RiSendPlane2Fill size={16} />
+          </button>
+        </div>
+      )}
+      {!recording && (
+        <>
       {onSendImage && (
         <>
           <input
@@ -309,6 +509,32 @@ export const MessageInput = ({
           </button>
         </>
       )}
+      {onSendVoice && (
+        <button
+          type="button"
+          onClick={() => void startRecording()}
+          disabled={disabled || uploading}
+          aria-label={t('input.voice')}
+          title={t('input.voice')}
+          data-testid="im-voice-btn"
+          className={css({
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '2.375rem',
+            border: '1px solid token(colors.greyscale.300)',
+            borderRadius: '0.5rem',
+            backgroundColor: 'greyscale.000',
+            color: 'greyscale.600',
+            cursor: 'pointer',
+            _hover: { backgroundColor: 'greyscale.100' },
+            _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+          })}
+        >
+          <RiMicLine size={18} />
+        </button>
+      )}
       <input
         ref={inputRef}
         type="text"
@@ -358,6 +584,8 @@ export const MessageInput = ({
       >
         {sending ? t('input.sending') : t('input.send')}
       </button>
+        </>
+      )}
       </div>
     </form>
   )

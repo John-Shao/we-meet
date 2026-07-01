@@ -117,13 +117,22 @@
     "send": "Verzenden",
     "sending": "Verzenden…",
     "image": "Afbeelding sturen",
-    "file": "Bestand sturen"
+    "file": "Bestand sturen",
+    "voice": "Spraak"
   },
   "preview": {
     "image": "[Afbeelding]",
     "file": "[Bestand]",
+    "voice": "[Spraakbericht]",
     "reaction": "[Reactie]",
     "recalled": "heeft een bericht ingetrokken"
+  },
+  "voice": {
+    "recording": "Opnemen…",
+    "send": "Versturen",
+    "cancel": "Annuleren",
+    "micDenied": "Geen toegang tot microfoon, controleer de rechten",
+    "unsupported": "Opnemen wordt niet ondersteund in deze browser"
   },
   "image": {
     "alt": "Afbeelding",

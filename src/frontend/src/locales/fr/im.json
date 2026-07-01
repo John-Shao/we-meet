@@ -117,13 +117,22 @@
     "send": "Envoyer",
     "sending": "Envoi en cours…",
     "image": "Envoyer une image",
-    "file": "Envoyer un fichier"
+    "file": "Envoyer un fichier",
+    "voice": "Vocal"
   },
   "preview": {
     "image": "[Image]",
     "file": "[Fichier]",
+    "voice": "[Vocal]",
     "reaction": "[Réaction]",
     "recalled": "a retiré un message"
+  },
+  "voice": {
+    "recording": "Enregistrement…",
+    "send": "Envoyer",
+    "cancel": "Annuler",
+    "micDenied": "Impossible d'accéder au microphone, vérifiez les autorisations",
+    "unsupported": "L'enregistrement n'est pas pris en charge par ce navigateur"
   },
   "image": {
     "alt": "Image",

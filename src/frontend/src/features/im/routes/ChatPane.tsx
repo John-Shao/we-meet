@@ -86,6 +86,7 @@ interface ReactionState {
 const snippetOf = (m: Message, t: (k: string) => string): string => {
   if (m.content_type === 'image') return t('preview.image')
   if (m.content_type === 'file') return t('preview.file')
+  if (m.content_type === 'voice') return t('preview.voice')
   if (m.content_type === 'quote') {
     try {
       return (JSON.parse(m.body)?.text as string) || ''
@@ -213,12 +214,31 @@ export const ChatPane = ({
       return undefined
     }
   }
+  // 语音消息(P7-i):body=JSON{key, duration};key 走 file/ 前缀,resolve 复用。
+  const voiceKeyOf = (m: Message): string | undefined => {
+    if (m.content_type !== 'voice') return undefined
+    try {
+      return JSON.parse(m.body)?.key as string
+    } catch {
+      return undefined
+    }
+  }
+  const voiceDurationOf = (m: Message): number | undefined => {
+    if (m.content_type !== 'voice') return undefined
+    try {
+      return JSON.parse(m.body)?.duration as number
+    } catch {
+      return undefined
+    }
+  }
   const objectKeys = useMemo(() => {
     const s = new Set<string>()
     for (const m of messages) {
       if (m.content_type === 'image' && m.body) s.add(m.body)
       const fk = m.content_type === 'file' ? fileKeyOf(m) : undefined
       if (fk) s.add(fk)
+      const vk = m.content_type === 'voice' ? voiceKeyOf(m) : undefined
+      if (vk) s.add(vk)
     }
     return Array.from(s)
   }, [messages])
@@ -235,6 +255,10 @@ export const ChatPane = ({
   const fileUrlOf = (m: Message): string | undefined => {
     const fk = fileKeyOf(m)
     return fk ? resolvedUrls[fk] : undefined
+  }
+  const voiceUrlOf = (m: Message): string | undefined => {
+    const vk = voiceKeyOf(m)
+    return vk ? resolvedUrls[vk] : undefined
   }
 
   // 发图片:上传 → 本地即时预览 → 发 content_type='image' 消息(body=object_key)。
@@ -254,6 +278,24 @@ export const ChatPane = ({
     try {
       const meta = await uploadChatFile(file)
       await client.sendText(cid, JSON.stringify(meta), { contentType: 'file' })
+    } catch (e) {
+      const code = e instanceof ChatFileError ? e.code : 'uploadError'
+      void showAlert({ message: t(`file.${code}`) })
+    }
+  }
+
+  // 发语音(P7-i):录音 blob 复用文件直传(audio 也是文件,file/ 前缀 resolve 通用),
+  // 发 content_type='voice'、body=JSON{key, duration}。
+  const onSendVoice = async (blob: Blob, durationMs: number) => {
+    try {
+      const meta = await uploadChatFile(
+        new File([blob], 'voice.webm', { type: blob.type || 'audio/webm' })
+      )
+      await client.sendText(
+        cid,
+        JSON.stringify({ key: meta.key, duration: durationMs }),
+        { contentType: 'voice' }
+      )
     } catch (e) {
       const code = e instanceof ChatFileError ? e.code : 'uploadError'
       void showAlert({ message: t(`file.${code}`) })
@@ -632,6 +674,8 @@ export const ChatPane = ({
                       }
                       imageUrl={imageUrlOf(m)}
                       fileUrl={fileUrlOf(m)}
+                      voiceUrl={voiceUrlOf(m)}
+                      voiceDurationMs={voiceDurationOf(m)}
                       reactions={reactionsFor(m.mid)}
                       onReact={(emoji) => void onReact(m, emoji)}
                       recalled={recalledMids.has(m.mid)}
@@ -649,6 +693,7 @@ export const ChatPane = ({
             onSend={onSend}
             onSendImage={onSendImage}
             onSendFile={onSendFile}
+            onSendVoice={onSendVoice}
             reply={replyTo}
             onCancelReply={() => setReplyTo(null)}
             disabled={sendDisabled}
