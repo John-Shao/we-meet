@@ -56,6 +56,7 @@
     "showAll": "Show all ({{count}})",
     "collapse": "Collapse",
     "rowMore": "More",
+    "enterMeeting": "Enter",
     "delete": "Delete",
     "deleteConfirm": "Delete \"{{name}}\"? If you own the meeting it will also be removed for everyone else."
   }

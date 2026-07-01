@@ -16,7 +16,7 @@ import { useState } from 'react'
 
 import { useTranslation } from 'react-i18next'
 import { Button as RACButton, Menu as RACMenu, MenuItem } from 'react-aria-components'
-import { RiMoreFill, RiCalendarLine } from '@remixicon/react'
+import { RiMoreFill, RiCalendarLine, RiVidiconLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { H, Text } from '@/primitives'
@@ -126,9 +126,9 @@ export const ScheduledMeetingsList = ({
           margin: 0,
           width: '100%',
           border: '1px solid',
-          borderColor: 'primary.200',
+          borderColor: 'scheduledCard.border',
           borderRadius: '10px',
-          backgroundColor: 'primary.50',
+          backgroundColor: 'scheduledCard.bg',
           overflow: 'hidden',
         })}
       >
@@ -143,7 +143,7 @@ export const ScheduledMeetingsList = ({
               key={m.id}
               className={css({
                 '&:not(:last-child)': {
-                  borderBottom: '1px solid token(colors.primary.100)',
+                  borderBottom: '1px solid token(colors.scheduledCard.border)',
                 },
               })}
             >
@@ -151,7 +151,7 @@ export const ScheduledMeetingsList = ({
                 className={css({
                   display: 'flex',
                   alignItems: 'center',
-                  _hover: { backgroundColor: 'primary.100' },
+                  _hover: { backgroundColor: 'scheduledCard.hover' },
                 })}
               >
                 <button
@@ -201,7 +201,7 @@ export const ScheduledMeetingsList = ({
                       <Text
                         className={css({
                           fontSize: '0.8rem',
-                          color: 'primary.700',
+                          color: 'scheduledCard.text',
                           marginTop: '0.125rem',
                         })}
                       >
@@ -216,9 +216,32 @@ export const ScheduledMeetingsList = ({
                   className={css({
                     display: 'flex',
                     alignItems: 'center',
+                    gap: '0.25rem',
                     paddingRight: '0.75rem',
                   })}
                 >
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('room', m.slug)}
+                    className={css({
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      border: '1px solid token(colors.scheduledCard.border)',
+                      borderRadius: '6px',
+                      background: 'transparent',
+                      color: 'scheduledCard.text',
+                      paddingX: '0.625rem',
+                      paddingY: '0.3125rem',
+                      fontSize: '0.8125rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      _hover: { backgroundColor: 'scheduledCard.hover' },
+                    })}
+                  >
+                    <RiVidiconLine size={15} />
+                    {t('home.enterMeeting')}
+                  </button>
                   <Menu>
                     <RACButton
                       aria-label={t('home.rowMore')}
@@ -227,9 +250,9 @@ export const ScheduledMeetingsList = ({
                         border: 'none',
                         padding: '0.25rem',
                         cursor: 'pointer',
-                        color: 'primary.700',
+                        color: 'scheduledCard.text',
                         borderRadius: '4px',
-                        _hover: { backgroundColor: 'primary.200' },
+                        _hover: { backgroundColor: 'scheduledCard.hover' },
                       })}
                     >
                       <RiMoreFill size={18} />
@@ -265,7 +288,7 @@ export const ScheduledMeetingsList = ({
             padding: '0.25rem 0.5rem',
             background: 'none',
             border: 'none',
-            color: 'primary.700',
+            color: 'scheduledCard.text',
             fontSize: '0.85rem',
             cursor: 'pointer',
             _hover: { textDecoration: 'underline' },

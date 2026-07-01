@@ -211,9 +211,34 @@ export const RecentMeetingsList = ({
                   className={css({
                     display: 'flex',
                     alignItems: 'center',
+                    gap: '0.25rem',
                     paddingRight: '0.75rem',
                   })}
                 >
+                  {m.slug && (
+                    <button
+                      type="button"
+                      onClick={() => navigateTo('room', m.slug as string)}
+                      className={css({
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        border: '1px solid token(colors.greyscale.300)',
+                        borderRadius: '6px',
+                        background: 'transparent',
+                        color: 'primary.600',
+                        paddingX: '0.625rem',
+                        paddingY: '0.3125rem',
+                        fontSize: '0.8125rem',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        _hover: { backgroundColor: 'greyscale.100' },
+                      })}
+                    >
+                      <RiVidiconLine size={15} />
+                      {t('home.enterMeeting')}
+                    </button>
+                  )}
                   <Menu>
                     <RACButton
                       aria-label={t('home.rowMore')}

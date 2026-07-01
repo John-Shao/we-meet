@@ -56,6 +56,7 @@
     "showAll": "查看全部（{{count}}）",
     "collapse": "收起",
     "rowMore": "更多",
+    "enterMeeting": "进入会议",
     "delete": "删除",
     "deleteConfirm": "确定要删除「{{name}}」吗？若您是该会议的发起人，将同时删除所有人的此条记录。"
   }
