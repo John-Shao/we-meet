@@ -146,6 +146,18 @@
     "prev": "Précédent",
     "next": "Suivant"
   },
+  "read": {
+    "read": "Lu",
+    "unread": "Distribué",
+    "groupNone": "Non lu",
+    "groupAll": "Lu par tous",
+    "groupCount": "Lu par {{count}}",
+    "listTitle": "Destinataires",
+    "tabRead": "Lu {{count}}",
+    "tabUnread": "Non lu {{count}}",
+    "emptyRead": "Personne ne l'a encore lu",
+    "emptyUnread": "Tout le monde l'a lu"
+  },
   "time": {
     "yesterday": "Hier"
   },

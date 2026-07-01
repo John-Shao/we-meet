@@ -146,6 +146,18 @@
     "prev": "Previous",
     "next": "Next"
   },
+  "read": {
+    "read": "Read",
+    "unread": "Delivered",
+    "groupNone": "Unread",
+    "groupAll": "Read by all",
+    "groupCount": "Read by {{count}}",
+    "listTitle": "Recipients",
+    "tabRead": "Read {{count}}",
+    "tabUnread": "Unread {{count}}",
+    "emptyRead": "No one has read it yet",
+    "emptyUnread": "Everyone has read it"
+  },
   "time": {
     "yesterday": "Yesterday"
   },

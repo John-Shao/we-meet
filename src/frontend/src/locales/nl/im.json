@@ -146,6 +146,18 @@
     "prev": "Vorige",
     "next": "Volgende"
   },
+  "read": {
+    "read": "Gelezen",
+    "unread": "Afgeleverd",
+    "groupNone": "Ongelezen",
+    "groupAll": "Door iedereen gelezen",
+    "groupCount": "Gelezen door {{count}}",
+    "listTitle": "Ontvangers",
+    "tabRead": "Gelezen {{count}}",
+    "tabUnread": "Ongelezen {{count}}",
+    "emptyRead": "Nog niemand heeft het gelezen",
+    "emptyUnread": "Iedereen heeft het gelezen"
+  },
   "time": {
     "yesterday": "Gisteren"
   },

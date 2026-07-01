@@ -146,6 +146,18 @@
     "prev": "上一张",
     "next": "下一张"
   },
+  "read": {
+    "read": "已读",
+    "unread": "未读",
+    "groupNone": "未读",
+    "groupAll": "全部已读",
+    "groupCount": "{{count}} 人已读",
+    "listTitle": "消息接收人",
+    "tabRead": "已读 {{count}}",
+    "tabUnread": "未读 {{count}}",
+    "emptyRead": "还没有人读过",
+    "emptyUnread": "所有人都已读"
+  },
   "time": {
     "yesterday": "昨天"
   },

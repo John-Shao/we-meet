@@ -17,10 +17,15 @@ import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { MessageItem, type ReactionChip } from '../components/MessageItem'
 import { ImageLightbox } from '../components/ImageLightbox'
 import {
+  ReadReceiptList,
+  type ReadReceiptMember,
+} from '../components/ReadReceiptList'
+import {
   MessageContextMenu,
   type ContextMenuItem,
 } from '../components/MessageContextMenu'
 import { useMessages } from '../hooks/useMessages'
+import { useReadMarkers } from '../hooks/useReadMarkers'
 
 // Recall is allowed only on your own messages within this window (WeChat: 2 min).
 const RECALL_WINDOW_MS = 2 * 60 * 1000
@@ -143,6 +148,9 @@ export const ChatPane = ({
     [messages]
   )
   const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  // 已读回执(P13):每个成员的 last_read_seq;首次拉快照 + onRead 保活。
+  const reads = useReadMarkers(client, cid)
 
   // Resolve member uids → display names so group messages show names, not uids.
   const memberUids = conversation.members
@@ -505,6 +513,63 @@ export const ChatPane = ({
     }
   }, [client, cid, messages])
 
+  // 已读回执(P13):回执只挂在「自己发的、未被撤回的最新一条」消息上(飞书/微信式),
+  // 避免每条气泡都堆一行。读标记单调,故最新一条的状态足以代表全部。
+  const peerUid = isGroup
+    ? undefined
+    : memberUids.find((u) => u !== currentUserUID)
+  const lastOwnMid = useMemo(() => {
+    for (let i = visibleMessages.length - 1; i >= 0; i--) {
+      const m = visibleMessages[i]
+      if (m.sender_uid === currentUserUID && !recalledMids.has(m.mid)) {
+        return m.mid
+      }
+    }
+    return null
+  }, [visibleMessages, currentUserUID, recalledMids])
+
+  // 群聊名单弹窗:记录被点开回执的目标消息 seq(据此把成员分已读 / 未读)。
+  const [readListSeq, setReadListSeq] = useState<number | null>(null)
+
+  const receiptFor = (
+    m: Message
+  ): { label: string; clickable?: boolean; onClick?: () => void } | undefined => {
+    if (m.mid !== lastOwnMid || m.seq <= 0) return undefined
+    if (!isGroup) {
+      if (!peerUid) return undefined
+      const read = (reads[peerUid] ?? 0) >= m.seq
+      return { label: read ? t('read.read') : t('read.unread') }
+    }
+    const others = memberUids.filter((u) => u !== currentUserUID)
+    if (others.length === 0) return undefined
+    const readCount = others.filter((u) => (reads[u] ?? 0) >= m.seq).length
+    const label =
+      readCount === 0
+        ? t('read.groupNone')
+        : readCount >= others.length
+          ? t('read.groupAll')
+          : t('read.groupCount', { count: readCount })
+    return { label, clickable: true, onClick: () => setReadListSeq(m.seq) }
+  }
+
+  // 名单成员按目标 seq 分已读 / 未读(排除自己)。
+  const readListMembers = useMemo(() => {
+    if (readListSeq == null) return null
+    const read: ReadReceiptMember[] = []
+    const unread: ReadReceiptMember[] = []
+    for (const u of memberUids) {
+      if (u === currentUserUID) continue
+      const entry: ReadReceiptMember = {
+        uid: u,
+        name: nameOf(u),
+        avatarUrl: names[u]?.avatar_url,
+      }
+      if ((reads[u] ?? 0) >= readListSeq) read.push(entry)
+      else unread.push(entry)
+    }
+    return { read, unread }
+  }, [readListSeq, memberUids, currentUserUID, reads, nameOf, names])
+
   const onSend = async (text: string) => {
     if (replyTo) {
       await client.sendText(
@@ -700,6 +765,7 @@ export const ChatPane = ({
                       showSender={isGroup}
                       mentionNames={highlightNames}
                       selfMentionNames={[selfName, everyone].filter(Boolean)}
+                      readReceipt={isOwnMsg ? receiptFor(m) : undefined}
                     />
                   </Fragment>
                 )
@@ -735,6 +801,13 @@ export const ChatPane = ({
         onIndexChange={setLightboxIndex}
         onClose={() => setLightboxIndex(null)}
       />
+      {readListMembers && (
+        <ReadReceiptList
+          read={readListMembers.read}
+          unread={readListMembers.unread}
+          onClose={() => setReadListSeq(null)}
+        />
+      )}
     </div>
   )
 }

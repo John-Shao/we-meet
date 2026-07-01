@@ -48,6 +48,15 @@ interface Props {
   mentionNames?: string[]
   /** Subset of mentionNames that mean "you" (self name + 所有人) → stronger style. */
   selfMentionNames?: string[]
+  /**
+   * 已读回执(P13):仅对自己发的、当前会话最新一条消息传入。direct→已读/未读;
+   * group→N 人已读(clickable=true 时可点开名单)。undefined→不显示。
+   */
+  readReceipt?: {
+    label: string
+    clickable?: boolean
+    onClick?: () => void
+  }
 }
 
 /** Voice message bubble: play/pause + duration; width scales with length. */
@@ -221,6 +230,7 @@ export const MessageItem = ({
   showSender,
   mentionNames = [],
   selfMentionNames = [],
+  readReceipt,
 }: Props) => {
   const { t } = useTranslation('im')
   const isImage = message.content_type === 'image'
@@ -526,6 +536,39 @@ export const MessageItem = ({
             ))}
           </div>
         )}
+        {/* 已读回执(P13):自己发的最新一条消息下方,右对齐小字。 */}
+        {readReceipt &&
+          (readReceipt.clickable ? (
+            <button
+              type="button"
+              onClick={readReceipt.onClick}
+              data-testid="im-read-receipt"
+              className={css({
+                marginTop: '0.25rem',
+                paddingX: '0.25rem',
+                border: 'none',
+                background: 'transparent',
+                fontSize: '0.6875rem',
+                color: 'greyscale.500',
+                cursor: 'pointer',
+                _hover: { color: 'primary.500' },
+              })}
+            >
+              {readReceipt.label}
+            </button>
+          ) : (
+            <span
+              data-testid="im-read-receipt"
+              className={css({
+                marginTop: '0.25rem',
+                paddingX: '0.25rem',
+                fontSize: '0.6875rem',
+                color: 'greyscale.500',
+              })}
+            >
+              {readReceipt.label}
+            </span>
+          ))}
       </div>
       {/* 自己发的消息(一对一 + 群聊):右侧自己头像,不显示名字 */}
       {isOwn && <Avatar name={name} src={senderAvatarUrl} size="2rem" />}
