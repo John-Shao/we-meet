@@ -49,7 +49,9 @@
     "searchPlaceholder": "Search conversations…",
     "send": "Send",
     "empty": "No conversations to forward to",
-    "done": "Forwarded to \"{{name}}\""
+    "done": "Forwarded to \"{{name}}\"",
+    "doneMany": "Forwarded to {{count}} conversations",
+    "sendCount": "Send ({{count}})"
   },
   "quote": {
     "replyTo": "Replying to {{name}}",

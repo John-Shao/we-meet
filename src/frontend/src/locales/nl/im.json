@@ -49,7 +49,9 @@
     "searchPlaceholder": "Gesprekken zoeken…",
     "send": "Versturen",
     "empty": "Geen gesprekken",
-    "done": "Doorgestuurd naar '{{name}}'"
+    "done": "Doorgestuurd naar '{{name}}'",
+    "doneMany": "Doorgestuurd naar {{count}} gesprekken",
+    "sendCount": "Versturen ({{count}})"
   },
   "quote": {
     "replyTo": "Antwoord aan {{name}}",

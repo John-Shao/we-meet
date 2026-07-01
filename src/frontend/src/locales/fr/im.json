@@ -49,7 +49,9 @@
     "searchPlaceholder": "Rechercher des conversations…",
     "send": "Envoyer",
     "empty": "Aucune conversation",
-    "done": "Transféré vers « {{name}} »"
+    "done": "Transféré vers « {{name}} »",
+    "doneMany": "Transféré vers {{count}} conversations",
+    "sendCount": "Envoyer ({{count}})"
   },
   "quote": {
     "replyTo": "En réponse à {{name}}",

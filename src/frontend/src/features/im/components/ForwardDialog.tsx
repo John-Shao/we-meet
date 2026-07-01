@@ -22,7 +22,8 @@ interface Props {
   conversations: ForwardConv[]
   /** One-line preview of the message being forwarded (shown at the top). */
   previewText: string
-  onConfirm: (cid: string) => void
+  /** Confirm forwarding to one or more target conversations (飞书式多选)。 */
+  onConfirm: (cids: string[]) => void
   onClose: () => void
 }
 
@@ -38,8 +39,15 @@ export const ForwardDialog = ({
 }: Props) => {
   const { t } = useTranslation('im')
   const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const searchRef = useRef<HTMLInputElement>(null)
+  const toggle = (cid: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(cid)) next.delete(cid)
+      else next.add(cid)
+      return next
+    })
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -89,27 +97,25 @@ export const ForwardDialog = ({
           </p>
         ) : (
           filtered.map((c) => {
-            const active = selected === c.cid
+            const active = selected.has(c.cid)
             return (
               <button
                 key={c.cid}
                 type="button"
-                onClick={() => setSelected(c.cid)}
+                onClick={() => toggle(c.cid)}
                 aria-pressed={active}
                 data-testid={`forward-item-${c.cid}`}
                 className={rowCls(active)}
               >
+                <span className={checkboxCls(active)} aria-hidden="true">
+                  {active ? '✓' : ''}
+                </span>
                 {c.isGroup ? (
                   <GroupAvatar members={c.members ?? []} size="2rem" />
                 ) : (
                   <MemberAvatar name={c.name} src={c.avatarUrl} size="2rem" />
                 )}
                 <span className={nameCls}>{c.name}</span>
-                {active ? (
-                  <span className={css({ flexShrink: 0, color: 'primary.500' })}>
-                    ✓
-                  </span>
-                ) : null}
               </button>
             )
           })
@@ -119,12 +125,14 @@ export const ForwardDialog = ({
       <div className={footerCls}>
         <button
           type="button"
-          disabled={!selected}
-          onClick={() => selected && onConfirm(selected)}
+          disabled={selected.size === 0}
+          onClick={() => selected.size > 0 && onConfirm([...selected])}
           data-testid="forward-send"
-          className={sendCls(!!selected)}
+          className={sendCls(selected.size > 0)}
         >
-          {t('forward.send')}
+          {selected.size > 0
+            ? t('forward.sendCount', { count: selected.size })
+            : t('forward.send')}
         </button>
       </div>
     </Modal>
@@ -194,6 +202,23 @@ const rowCls = (active: boolean) =>
     textAlign: 'left',
     cursor: 'pointer',
     _hover: { backgroundColor: 'greyscale.100' },
+  })
+
+const checkboxCls = (active: boolean) =>
+  css({
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '1.25rem',
+    height: '1.25rem',
+    borderRadius: '999px',
+    border: '1.5px solid',
+    borderColor: active ? 'primary.500' : 'greyscale.400',
+    backgroundColor: active ? 'primary.500' : 'transparent',
+    color: 'white',
+    fontSize: '0.75rem',
+    lineHeight: 1,
   })
 
 const nameCls = css({

@@ -409,23 +409,27 @@ const ImAuthenticated = () => {
     }
   }
 
-  // 发完统一收尾:刷新会话列表、跳到目标、提示。
-  const afterForward = async (targetCid: string) => {
+  // 发完统一收尾:刷新会话列表、跳到(首个)目标、提示。单目标显示名字,多目标显示数量。
+  const afterForward = async (targetCids: string[]) => {
     await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
-    const target = conversations.find((c) => c.cid === targetCid)
-    setSelectedCID(targetCid)
+    const first = targetCids[0]
+    if (first) setSelectedCID(first)
+    const target = conversations.find((c) => c.cid === first)
     void showAlert({
-      message: t('forward.done', { name: target ? nameOf(target) : '' }),
+      message:
+        targetCids.length === 1
+          ? t('forward.done', { name: target ? nameOf(target) : '' })
+          : t('forward.doneMany', { count: targetCids.length }),
     })
   }
 
-  const handleForward = async (targetCid: string) => {
+  const handleForward = async (targetCids: string[]) => {
     const m = forwarding
-    if (!m) return
+    if (!m || targetCids.length === 0) return
     setForwarding(null)
     try {
-      await forwardOne(targetCid, m)
-      await afterForward(targetCid)
+      for (const cid of targetCids) await forwardOne(cid, m)
+      await afterForward(targetCids)
     } catch (e) {
       void showAlert({
         message: t('actions.error', {
@@ -435,20 +439,22 @@ const ImAuthenticated = () => {
     }
   }
 
-  // 多选转发:逐条 → 按序重发每条;合并 → 打包成一条 content_type='merged'。
-  const handleForwardMany = async (targetCid: string) => {
+  // 多选转发到多个目标:逐条 → 每个目标按序重发每条;合并 → 每个目标发一条 merged。
+  const handleForwardMany = async (targetCids: string[]) => {
     const payload = forwardingMany
-    if (!payload) return
+    if (!payload || targetCids.length === 0) return
     setForwardingMany(null)
     try {
-      if (payload.mode === 'each') {
-        for (const m of payload.messages) await forwardOne(targetCid, m)
-      } else {
-        await client.sendText(targetCid, JSON.stringify(payload.merged), {
-          contentType: 'merged',
-        })
+      for (const cid of targetCids) {
+        if (payload.mode === 'each') {
+          for (const m of payload.messages) await forwardOne(cid, m)
+        } else {
+          await client.sendText(cid, JSON.stringify(payload.merged), {
+            contentType: 'merged',
+          })
+        }
       }
-      await afterForward(targetCid)
+      await afterForward(targetCids)
     } catch (e) {
       void showAlert({
         message: t('actions.error', {
@@ -690,7 +696,7 @@ const ImAuthenticated = () => {
         <ForwardDialog
           conversations={forwardConvs}
           previewText={forwardSnippet(forwarding)}
-          onConfirm={(cid) => void handleForward(cid)}
+          onConfirm={(cids) => void handleForward(cids)}
           onClose={() => setForwarding(null)}
         />
       )}
@@ -702,7 +708,7 @@ const ImAuthenticated = () => {
               ? forwardingMany.merged.title
               : t('select.count', { count: forwardingMany.messages.length })
           }
-          onConfirm={(cid) => void handleForwardMany(cid)}
+          onConfirm={(cids) => void handleForwardMany(cids)}
           onClose={() => setForwardingMany(null)}
         />
       )}

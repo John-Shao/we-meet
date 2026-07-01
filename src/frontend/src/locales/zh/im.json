@@ -49,7 +49,9 @@
     "searchPlaceholder": "搜索会话…",
     "send": "发送",
     "empty": "没有可转发的会话",
-    "done": "已转发到「{{name}}」"
+    "done": "已转发到「{{name}}」",
+    "doneMany": "已转发到 {{count}} 个会话",
+    "sendCount": "发送 ({{count}})"
   },
   "quote": {
     "replyTo": "回复 {{name}}",
