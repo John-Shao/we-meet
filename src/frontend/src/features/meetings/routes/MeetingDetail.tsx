@@ -40,7 +40,7 @@ const markdownBodyStyle = css({
   '& ul': { listStyleType: 'disc' },
   '& ol': { listStyleType: 'decimal' },
   '& code': {
-    backgroundColor: 'gray.100',
+    backgroundColor: 'greyscale.100',
     padding: '0.05rem 0.25rem',
     borderRadius: '3px',
     fontFamily: 'monospace',
@@ -137,10 +137,10 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
           key={item.id}
           className={css({
             border: '1px solid',
-            borderColor: 'gray.300',
+            borderColor: 'greyscale.300',
             borderRadius: '6px',
             padding: '0.75rem 1rem',
-            backgroundColor: item.is_completed ? 'gray.100' : 'white',
+            backgroundColor: item.is_completed ? 'greyscale.100' : 'greyscale.000',
             opacity: item.is_completed ? 0.7 : 1,
           })}
         >
@@ -150,7 +150,7 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
           <div
             className={css({
               fontSize: '0.85rem',
-              color: 'gray.700',
+              color: 'greyscale.700',
               display: 'flex',
               gap: '1rem',
               flexWrap: 'wrap',
@@ -208,7 +208,7 @@ const TranscriptTab = ({ roomId }: { roomId: string }) => {
             key={row.id}
             className={css({
               borderLeft: '3px solid',
-              borderColor: 'gray.300',
+              borderColor: 'greyscale.300',
               paddingLeft: '0.75rem',
               paddingY: '0.25rem',
             })}
@@ -216,7 +216,7 @@ const TranscriptTab = ({ roomId }: { roomId: string }) => {
             <div
               className={css({
                 fontSize: '0.75rem',
-                color: 'gray.600',
+                color: 'greyscale.600',
               })}
             >
               {ts} · {speaker}
@@ -226,7 +226,7 @@ const TranscriptTab = ({ roomId }: { roomId: string }) => {
               <div
                 className={css({
                   fontStyle: 'italic',
-                  color: 'gray.700',
+                  color: 'greyscale.700',
                   fontSize: '0.9rem',
                   marginTop: '0.125rem',
                 })}
@@ -248,7 +248,7 @@ const InfoRow = ({ label, children }: { label: string; children: ReactNode }) =>
       gap: '1rem',
       padding: '0.6rem 0',
       borderBottom: '1px solid',
-      borderColor: 'gray.200',
+      borderColor: 'greyscale.200',
       alignItems: 'baseline',
     })}
   >
@@ -256,7 +256,7 @@ const InfoRow = ({ label, children }: { label: string; children: ReactNode }) =>
       className={css({
         width: '5.5rem',
         flexShrink: 0,
-        color: 'gray.600',
+        color: 'greyscale.600',
         fontSize: '0.9rem',
       })}
     >

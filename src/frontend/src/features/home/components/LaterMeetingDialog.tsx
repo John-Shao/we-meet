@@ -59,7 +59,7 @@ export const LaterMeetingDialog = ({
             <div
               className={css({
                 width: '100%',
-                backgroundColor: 'gray.50',
+                backgroundColor: 'greyscale.50',
                 borderRadius: '0.75rem',
                 display: 'flex',
                 flexDirection: 'column',

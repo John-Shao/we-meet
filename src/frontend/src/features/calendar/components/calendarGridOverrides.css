@@ -47,11 +47,67 @@
   font-weight: 600;
 }
 
-/* Soften the default borders to match the app's lighter chrome */
+/* ── Theme-aware structural colors ──────────────────────────────────────
+   react-big-calendar ships a light theme (white bg, dark text, light borders).
+   Re-express its structural colors with panda greyscale CSS vars so they flip
+   automatically in dark mode ([data-theme=dark] remaps the vars). Light mode
+   stays visually the same (greyscale.000=#FFF, 900≈原文字色). Accent rules
+   above (event/today/toolbar-active in 飞书蓝) are intentionally unchanged. */
+.rbc-calendar {
+  color: var(--colors-greyscale-900);
+}
+.rbc-month-view,
+.rbc-time-view,
+.rbc-time-header,
+.rbc-time-content,
+.rbc-agenda-view,
+.rbc-agenda-view table.rbc-agenda-table {
+  background-color: var(--colors-greyscale-000);
+}
 .rbc-header,
 .rbc-month-view,
 .rbc-time-view,
+.rbc-time-header.rbc-overflowing,
 .rbc-time-header-content,
-.rbc-timeslot-group {
-  border-color: #ececf1;
+.rbc-time-content,
+.rbc-timeslot-group,
+.rbc-day-bg + .rbc-day-bg,
+.rbc-month-row + .rbc-month-row,
+.rbc-header + .rbc-header,
+.rbc-time-content > * + * > *,
+.rbc-time-header-content > .rbc-row.rbc-row-resource,
+.rbc-agenda-view table.rbc-agenda-table,
+.rbc-agenda-view table.rbc-agenda-table tbody > tr > td + td,
+.rbc-agenda-view table.rbc-agenda-table tbody > tr + tr {
+  border-color: var(--colors-greyscale-200);
+}
+.rbc-header,
+.rbc-label,
+.rbc-time-gutter,
+.rbc-button-link,
+.rbc-date-cell,
+.rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  color: var(--colors-greyscale-800);
+}
+.rbc-off-range-bg {
+  background-color: var(--colors-greyscale-50);
+}
+.rbc-off-range {
+  color: var(--colors-greyscale-400);
+}
+/* Today: 半透明蓝,浅/深底上都成立(替换原实心 #ebf1ff)。 */
+.rbc-today {
+  background-color: rgba(51, 112, 255, 0.12);
+}
+.rbc-toolbar button {
+  color: var(--colors-greyscale-800);
+  background-color: var(--colors-greyscale-000);
+  border-color: var(--colors-greyscale-300);
+}
+.rbc-toolbar button:disabled {
+  color: var(--colors-greyscale-400);
+}
+.rbc-show-more {
+  background-color: transparent;
+  color: var(--colors-primary-600);
 }

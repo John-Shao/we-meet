@@ -117,7 +117,7 @@ export const ScheduleMeetingDialog = ({
           <p
             className={css({
               fontSize: '0.75rem',
-              color: 'gray.600',
+              color: 'greyscale.600',
               marginTop: '0.25rem',
             })}
           >
