@@ -34,6 +34,7 @@ import { ApiLobbyStatus, ApiRequestEntry } from '../api/requestEntry'
 import { Spinner } from '@/primitives/Spinner'
 import { ApiAccessLevel } from '../api/ApiRoom'
 import { useLoginHint } from '@/hooks/useLoginHint'
+import { useUser } from '@/features/auth'
 import { openPermissionsDialog } from '@/stores/permissions'
 import { useResolveInitiallyDefaultDeviceId } from '../livekit/hooks/useResolveInitiallyDefaultDeviceId'
 import { isSafari } from '@/utils/livekit'
@@ -102,6 +103,7 @@ export const Join = ({
   roomId: string
 }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'join' })
+  const { user } = useUser()
 
   const {
     userChoices: {
@@ -120,6 +122,13 @@ export const Join = ({
     saveVideoInputDeviceId,
     saveUsername,
   } = usePersistentUserChoices()
+
+  // 登录用户进入预览页时,若尚未存过昵称,自动带入账号姓名(full_name)。
+  useEffect(() => {
+    if (!username && user?.full_name) {
+      saveUsername(user.full_name)
+    }
+  }, [username, user, saveUsername])
 
   const initialUserChoices = useRef<LocalUserChoices | null>(null)
 
@@ -463,7 +472,7 @@ export const Join = ({
                 onChange={saveUsername}
                 label={t('usernameLabel')}
                 id="input-name"
-                defaultValue={username}
+                value={username}
                 validate={(value) => !value && t('errors.usernameEmpty')}
                 wrapperProps={{
                   noMargin: true,
