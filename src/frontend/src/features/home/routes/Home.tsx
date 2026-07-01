@@ -1,5 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import { DialogTrigger } from 'react-aria-components'
+import {
+  RiFlashlightLine,
+  RiCalendarLine,
+  RiAddCircleLine,
+} from '@remixicon/react'
 import { Button } from '@/primitives'
 import { styled } from '@/styled-system/jsx'
 import { navigateTo } from '@/navigation/navigateTo'
@@ -243,20 +248,25 @@ export const Home = () => {
                   data-attr="create-meeting"
                   onPress={handleCreate}
                 >
-                  {t('createMeeting')}
+                  <RiFlashlightLine size={18} />
+                  {t('quickMeeting')}
                 </Button>
                 <DialogTrigger>
-                  <Button variant="secondary">{t('joinMeeting')}</Button>
-                  <JoinMeetingDialog />
-                </DialogTrigger>
-                <DialogTrigger>
                   <Button variant="secondary" data-attr="schedule-meeting">
+                    <RiCalendarLine size={18} />
                     {t('scheduleMeeting')}
                   </Button>
                   <ScheduleMeetingDialog
                     username={username}
                     onCreated={setLaterRoom}
                   />
+                </DialogTrigger>
+                <DialogTrigger>
+                  <Button variant="secondary">
+                    <RiAddCircleLine size={18} />
+                    {t('joinMeeting')}
+                  </Button>
+                  <JoinMeetingDialog />
                 </DialogTrigger>
               </div>
             </aside>
@@ -269,8 +279,8 @@ export const Home = () => {
                 padding: '1.5rem',
               })}
             >
-              <ScheduledMeetingsList enabled />
-              <RecentMeetingsList enabled />
+              <ScheduledMeetingsList enabled showEmpty />
+              <RecentMeetingsList enabled showEmpty />
             </main>
           </div>
         ) : (

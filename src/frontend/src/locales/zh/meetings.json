@@ -47,8 +47,10 @@
     "loadFailed": "加载失败"
   },
   "home": {
-    "recentTitle": "最近的会议",
+    "recentTitle": "历史会议",
+    "recentEmpty": "暂无历史会议",
     "scheduledTitle": "预约会议",
+    "scheduledEmpty": "暂无待开始的会议",
     "scheduledTimePrefix": "预约时间：{{time}}",
     "untitled": "（未命名会议）",
     "showAll": "查看全部（{{count}}）",

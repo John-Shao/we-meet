@@ -47,7 +47,9 @@
     "loadFailed": "Laden mislukt"
   },
   "home": {
-    "recentTitle": "Recente vergaderingen",
+    "recentTitle": "Eerdere vergaderingen",
+    "recentEmpty": "Geen eerdere vergaderingen",
+    "scheduledEmpty": "Geen aankomende vergaderingen",
     "untitled": "(Vergadering zonder titel)",
     "showAll": "Alles tonen ({{count}})",
     "collapse": "Inklappen"

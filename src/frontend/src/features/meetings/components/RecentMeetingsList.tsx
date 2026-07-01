@@ -42,7 +42,14 @@ const formatRelativeTime = (iso: string, locale: string) => {
   }
 }
 
-export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
+export const RecentMeetingsList = ({
+  enabled,
+  showEmpty = false,
+}: {
+  enabled: boolean
+  /** 会议主区常驻:无历史时渲染「暂无历史会议」空态(企微式);落地页不传。 */
+  showEmpty?: boolean
+}) => {
   const { t, i18n } = useTranslation('meetings')
   const { data, isLoading } = useRecentMeetings(enabled)
   const [expanded, setExpanded] = useState(false)
@@ -51,7 +58,39 @@ export const RecentMeetingsList = ({ enabled }: { enabled: boolean }) => {
 
   if (!enabled) return null
   if (isLoading) return null
-  if (!data || data.length === 0) return null
+  if (!data || data.length === 0) {
+    if (!showEmpty) return null
+    return (
+      <div
+        className={css({
+          width: '100%',
+          marginTop: '1.5rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.75rem',
+        })}
+      >
+        <H lvl={3} margin={false}>
+          {t('home.recentTitle')}
+        </H>
+        <div
+          className={css({
+            width: '100%',
+            border: '1px solid',
+            borderColor: 'greyscale.200',
+            borderRadius: '10px',
+            backgroundColor: 'greyscale.000',
+            padding: '2.5rem 1rem',
+            textAlign: 'center',
+            color: 'greyscale.500',
+            fontSize: '0.875rem',
+          })}
+        >
+          {t('home.recentEmpty')}
+        </div>
+      </div>
+    )
+  }
 
   const canToggle = data.length > COLLAPSED_COUNT
   const visible = expanded ? data : data.slice(0, COLLAPSED_COUNT)

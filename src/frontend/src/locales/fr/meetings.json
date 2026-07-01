@@ -47,7 +47,9 @@
     "loadFailed": "Échec du chargement"
   },
   "home": {
-    "recentTitle": "Réunions récentes",
+    "recentTitle": "Réunions passées",
+    "recentEmpty": "Aucune réunion passée",
+    "scheduledEmpty": "Aucune réunion à venir",
     "untitled": "(Réunion sans titre)",
     "showAll": "Tout afficher ({{count}})",
     "collapse": "Réduire"

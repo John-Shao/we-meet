@@ -40,7 +40,15 @@ const formatScheduledAt = (iso: string, locale: string) => {
   }
 }
 
-export const ScheduledMeetingsList = ({ enabled }: { enabled: boolean }) => {
+export const ScheduledMeetingsList = ({
+  enabled,
+  showEmpty = false,
+}: {
+  enabled: boolean
+  /** 在会议主区常驻显示:无预约时渲染「暂无待开始的会议」空态卡(企微式);
+   * 匿名落地页不传,保持页面紧凑(空时不渲染)。 */
+  showEmpty?: boolean
+}) => {
   const { t, i18n } = useTranslation('meetings')
   const { data, isLoading } = useScheduledMeetings(enabled)
   const [expanded, setExpanded] = useState(false)
@@ -49,7 +57,39 @@ export const ScheduledMeetingsList = ({ enabled }: { enabled: boolean }) => {
 
   if (!enabled) return null
   if (isLoading) return null
-  if (!data || data.length === 0) return null
+  if (!data || data.length === 0) {
+    if (!showEmpty) return null
+    return (
+      <div
+        className={css({
+          width: '100%',
+          marginTop: '1.5rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.75rem',
+        })}
+      >
+        <H lvl={3} margin={false}>
+          {t('home.scheduledTitle')}
+        </H>
+        <div
+          className={css({
+            width: '100%',
+            border: '1px solid',
+            borderColor: 'greyscale.200',
+            borderRadius: '10px',
+            backgroundColor: 'greyscale.000',
+            padding: '2.5rem 1rem',
+            textAlign: 'center',
+            color: 'greyscale.500',
+            fontSize: '0.875rem',
+          })}
+        >
+          {t('home.scheduledEmpty')}
+        </div>
+      </div>
+    )
+  }
 
   const canToggle = data.length > COLLAPSED_COUNT
   const visible = expanded ? data : data.slice(0, COLLAPSED_COUNT)

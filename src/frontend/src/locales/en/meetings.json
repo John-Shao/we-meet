@@ -47,8 +47,10 @@
     "loadFailed": "Failed to load"
   },
   "home": {
-    "recentTitle": "Recent meetings",
+    "recentTitle": "Past meetings",
+    "recentEmpty": "No past meetings",
     "scheduledTitle": "Scheduled meetings",
+    "scheduledEmpty": "No upcoming meetings",
     "scheduledTimePrefix": "Scheduled for {{time}}",
     "untitled": "(Untitled meeting)",
     "showAll": "Show all ({{count}})",
