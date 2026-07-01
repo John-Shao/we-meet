@@ -30,7 +30,19 @@
     "recallConfirm": "Annuler ce message ?",
     "copy": "Copier",
     "reply": "Répondre",
-    "forward": "Transférer"
+    "forward": "Transférer",
+    "multiSelect": "Sélectionner"
+  },
+  "select": {
+    "count": "{{count}} sélectionné(s)",
+    "forwardEach": "Transférer un à un",
+    "forwardMerged": "Transférer groupé"
+  },
+  "merged": {
+    "card": "Historique de discussion",
+    "view": "Voir {{count}} messages",
+    "groupTitle": "Historique du groupe",
+    "chatWith": "Historique avec {{name}}"
   },
   "forward": {
     "title": "Transférer vers",
@@ -125,6 +137,7 @@
     "file": "[Fichier]",
     "voice": "[Vocal]",
     "reaction": "[Réaction]",
+    "merged": "[Historique de discussion]",
     "recalled": "a retiré un message"
   },
   "voice": {

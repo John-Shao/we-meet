@@ -17,6 +17,10 @@ import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { MessageItem, type ReactionChip } from '../components/MessageItem'
 import { ImageLightbox } from '../components/ImageLightbox'
 import {
+  MergedRecordDialog,
+  type MergedBody,
+} from '../components/MergedRecordDialog'
+import {
   ReadReceiptList,
   type ReadReceiptMember,
 } from '../components/ReadReceiptList'
@@ -94,6 +98,7 @@ const snippetOf = (m: Message, t: (k: string) => string): string => {
   if (m.content_type === 'image') return t('preview.image')
   if (m.content_type === 'file') return t('preview.file')
   if (m.content_type === 'voice') return t('preview.voice')
+  if (m.content_type === 'merged') return t('preview.merged')
   if (m.content_type === 'quote') {
     try {
       return (JSON.parse(m.body)?.text as string) || ''
@@ -119,6 +124,12 @@ interface Props {
   onAddMembers?: () => void
   /** Forward a message to another conversation (picker lives in ImRoute). */
   onForward?: (m: Message) => void
+  /** 多选转发(合并/逐条):选好后派发给 ImRoute 走目标选择器。 */
+  onForwardMany?: (
+    payload:
+      | { mode: 'each'; messages: Message[] }
+      | { mode: 'merged'; merged: MergedBody }
+  ) => void
   /** Group info / member side panel; rendered to the right of the message
    * stream, below the header (Feishu-style). Null when collapsed. */
   infoPanel?: ReactNode
@@ -134,6 +145,7 @@ export const ChatPane = ({
   onOpenSettings,
   onAddMembers,
   onForward,
+  onForwardMany,
   infoPanel,
 }: Props) => {
   const { t, i18n } = useTranslation('im')
@@ -432,6 +444,83 @@ export const ChatPane = ({
     setReplyTo({ sender: senderDisplay(m), snippet: snippetOf(m, t) })
   }
 
+  // 多选合并转发(P7-f):右键「多选」进入选择模式 → 勾选多条 → 底部条选
+  // 逐条转发 / 合并转发。合并把每条烘焙成 {发送人, 文本快照, 时间} 一次性打包。
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedMids, setSelectedMids] = useState<Set<number>>(new Set())
+  const enterSelect = (m: Message) => {
+    setSelectMode(true)
+    setSelectedMids(new Set([m.mid]))
+    setMenu(null)
+  }
+  const exitSelect = () => {
+    setSelectMode(false)
+    setSelectedMids(new Set())
+  }
+  const toggleSelect = (mid: number) =>
+    setSelectedMids((prev) => {
+      const next = new Set(prev)
+      if (next.has(mid)) next.delete(mid)
+      else next.add(mid)
+      return next
+    })
+  const selectedMessages = useMemo(
+    () => visibleMessages.filter((m) => selectedMids.has(m.mid)),
+    [visibleMessages, selectedMids]
+  )
+  // 合并记录里每条的纯文本表示:图片/文件/语音/记录 → 占位,文本/引用 → 全文。
+  const mergedTextOf = (m: Message): string => {
+    if (m.content_type === 'image') return t('preview.image')
+    if (m.content_type === 'file') {
+      try {
+        return (JSON.parse(m.body)?.name as string) || t('preview.file')
+      } catch {
+        return t('preview.file')
+      }
+    }
+    if (m.content_type === 'voice') return t('preview.voice')
+    if (m.content_type === 'merged') return t('preview.merged')
+    if (m.content_type === 'quote') {
+      try {
+        return (JSON.parse(m.body)?.text as string) || ''
+      } catch {
+        return ''
+      }
+    }
+    return m.body
+  }
+  const doForwardEach = () => {
+    if (selectedMessages.length === 0) return
+    onForwardMany?.({ mode: 'each', messages: selectedMessages })
+    exitSelect()
+  }
+  const doForwardMerged = () => {
+    if (selectedMessages.length === 0) return
+    const items = selectedMessages.map((m) => ({
+      sender: senderDisplay(m),
+      text: mergedTextOf(m),
+      ts: m.ts,
+    }))
+    const mergedTitle = isGroup
+      ? t('merged.groupTitle')
+      : t('merged.chatWith', { name: title })
+    onForwardMany?.({
+      mode: 'merged',
+      merged: { title: mergedTitle, count: items.length, items },
+    })
+    exitSelect()
+  }
+  // 合并记录查看器:点开一条「聊天记录」卡片。
+  const [mergedView, setMergedView] = useState<MergedBody | null>(null)
+  const openMerged = (m: Message) => {
+    try {
+      const rec = JSON.parse(m.body) as MergedBody
+      if (rec?.items) setMergedView(rec)
+    } catch {
+      // ignore malformed merged body
+    }
+  }
+
   // 右键上下文菜单(飞书式):快捷表情 + 复制 / 回复 / 撤回(自己 2 分钟内)。
   const [menu, setMenu] = useState<{ x: number; y: number; message: Message } | null>(
     null
@@ -443,6 +532,8 @@ export const ChatPane = ({
     if (
       m.content_type !== 'image' &&
       m.content_type !== 'file' &&
+      m.content_type !== 'voice' &&
+      m.content_type !== 'merged' &&
       m.body &&
       navigator.clipboard
     ) {
@@ -465,6 +556,14 @@ export const ChatPane = ({
         key: 'forward',
         label: t('actions.forward'),
         onSelect: () => onForward(m),
+      })
+    }
+    // 多选(合并/逐条转发入口):进入选择模式并预选当前这条。
+    if (onForwardMany) {
+      items.push({
+        key: 'multiSelect',
+        label: t('actions.multiSelect'),
+        onSelect: () => enterSelect(m),
       })
     }
     if (
@@ -762,6 +861,10 @@ export const ChatPane = ({
                       recalled={recalledMids.has(m.mid)}
                       onContextMenu={(e) => openMenu(e, m)}
                       onImageClick={() => openImage(m)}
+                      onMergedClick={() => openMerged(m)}
+                      selectMode={selectMode}
+                      selected={selectedMids.has(m.mid)}
+                      onToggleSelect={() => toggleSelect(m.mid)}
                       showSender={isGroup}
                       mentionNames={highlightNames}
                       selfMentionNames={[selfName, everyone].filter(Boolean)}
@@ -772,16 +875,50 @@ export const ChatPane = ({
               })
             )}
           </div>
-          <MessageInput
-            onSend={onSend}
-            onSendImage={onSendImage}
-            onSendFile={onSendFile}
-            onSendVoice={onSendVoice}
-            reply={replyTo}
-            onCancelReply={() => setReplyTo(null)}
-            disabled={sendDisabled}
-            mentionables={mentionables}
-          />
+          {selectMode ? (
+            <div className={selectBarCls}>
+              <button
+                type="button"
+                onClick={exitSelect}
+                data-testid="select-cancel"
+                className={selectBtnCls(false)}
+              >
+                {t('group.cancel')}
+              </button>
+              <span className={css({ flex: 1, fontSize: '0.875rem', color: 'greyscale.600' })}>
+                {t('select.count', { count: selectedMids.size })}
+              </span>
+              <button
+                type="button"
+                disabled={selectedMids.size === 0}
+                onClick={doForwardEach}
+                data-testid="select-forward-each"
+                className={selectBtnCls(selectedMids.size > 0)}
+              >
+                {t('select.forwardEach')}
+              </button>
+              <button
+                type="button"
+                disabled={selectedMids.size === 0}
+                onClick={doForwardMerged}
+                data-testid="select-forward-merged"
+                className={selectBtnCls(selectedMids.size > 0, true)}
+              >
+                {t('select.forwardMerged')}
+              </button>
+            </div>
+          ) : (
+            <MessageInput
+              onSend={onSend}
+              onSendImage={onSendImage}
+              onSendFile={onSendFile}
+              onSendVoice={onSendVoice}
+              reply={replyTo}
+              onCancelReply={() => setReplyTo(null)}
+              disabled={sendDisabled}
+              mentionables={mentionables}
+            />
+          )}
         </div>
         {infoPanel}
       </div>
@@ -808,9 +945,44 @@ export const ChatPane = ({
           onClose={() => setReadListSeq(null)}
         />
       )}
+      {mergedView && (
+        <MergedRecordDialog
+          record={mergedView}
+          onClose={() => setMergedView(null)}
+        />
+      )}
     </div>
   )
 }
+
+// 多选底部操作条:取消 · 已选 N · 逐条转发 · 合并转发(飞书式)。
+const selectBarCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.75rem',
+  paddingX: '1rem',
+  paddingY: '0.75rem',
+  borderTop: '1px solid token(colors.greyscale.200)',
+})
+
+const selectBtnCls = (enabled: boolean, primary = false) =>
+  css({
+    flexShrink: 0,
+    paddingX: '1rem',
+    paddingY: '0.5rem',
+    borderRadius: '0.5rem',
+    border: primary ? 'none' : '1px solid token(colors.greyscale.300)',
+    backgroundColor: primary
+      ? enabled
+        ? 'primary.500'
+        : 'greyscale.300'
+      : 'transparent',
+    color: primary ? 'white' : 'greyscale.700',
+    fontSize: '0.875rem',
+    fontWeight: 'medium',
+    cursor: enabled ? 'pointer' : 'not-allowed',
+    _hover: primary ? {} : { backgroundColor: 'greyscale.100' },
+  })
 
 const headerBtn = css({
   flexShrink: 0,

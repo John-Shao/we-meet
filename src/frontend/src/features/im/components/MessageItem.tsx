@@ -1,11 +1,12 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiFile2Line, RiPlayMiniFill, RiPauseMiniFill } from '@remixicon/react'
+import { RiFile2Line, RiPlayMiniFill, RiPauseMiniFill, RiChat3Line } from '@remixicon/react'
 import type { Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 
 import { Avatar } from './Avatar'
+import type { MergedBody } from './MergedRecordDialog'
 
 /** One aggregated reaction chip under a message. */
 export interface ReactionChip {
@@ -42,6 +43,14 @@ interface Props {
   onContextMenu?: (e: React.MouseEvent) => void
   /** Click an image message → open the conversation lightbox at this image. */
   onImageClick?: () => void
+  /** Open a merged chat-record (content_type='merged') → viewer dialog. */
+  onMergedClick?: () => void
+  /** 多选模式(合并/逐条转发):渲染左侧勾选框,整行点击切换选中。 */
+  selectMode?: boolean
+  /** This message is currently selected in multi-select mode. */
+  selected?: boolean
+  /** Toggle this message's selection (multi-select mode). */
+  onToggleSelect?: () => void
   /** Show the sender name + avatar (group, non-own). Direct chats pass false. */
   showSender?: boolean
   /** Names highlightable as @mentions in the body (members + 所有人). */
@@ -227,6 +236,10 @@ export const MessageItem = ({
   recalled,
   onContextMenu,
   onImageClick,
+  onMergedClick,
+  selectMode,
+  selected,
+  onToggleSelect,
   showSender,
   mentionNames = [],
   selfMentionNames = [],
@@ -237,6 +250,7 @@ export const MessageItem = ({
   const isFile = message.content_type === 'file'
   const isVoice = message.content_type === 'voice'
   const isQuote = message.content_type === 'quote'
+  const isMerged = message.content_type === 'merged'
   // System messages (member joined/left, rename) render centered + muted, no bubble.
   if (message.content_type === 'system') {
     return (
@@ -305,7 +319,7 @@ export const MessageItem = ({
     )
   }
 
-  return (
+  const row = (
     <div
       onContextMenu={onContextMenu}
       className={css({
@@ -453,6 +467,74 @@ export const MessageItem = ({
               durationMs={voiceDurationMs}
               isOwn={isOwn}
             />
+          ) : isMerged ? (
+            (() => {
+              const rec = parseJsonBody<MergedBody>(message.body)
+              const lines = rec?.items?.slice(0, 3) ?? []
+              return (
+                <button
+                  type="button"
+                  onClick={onMergedClick}
+                  data-testid="im-merged-card"
+                  className={css({
+                    display: 'block',
+                    width: '15rem',
+                    maxWidth: '100%',
+                    padding: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    color: 'inherit',
+                  })}
+                >
+                  <span
+                    className={css({
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.375rem',
+                      fontSize: '0.8125rem',
+                      fontWeight: 'medium',
+                      opacity: 0.9,
+                      marginBottom: '0.25rem',
+                    })}
+                  >
+                    <RiChat3Line size={16} style={{ flexShrink: 0 }} />
+                    {rec?.title || t('merged.card')}
+                  </span>
+                  {lines.map((it, i) => (
+                    <span
+                      key={i}
+                      className={css({
+                        display: 'block',
+                        fontSize: '0.75rem',
+                        opacity: 0.7,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      })}
+                    >
+                      {it.sender}: {it.text}
+                    </span>
+                  ))}
+                  <span
+                    className={css({
+                      display: 'block',
+                      marginTop: '0.375rem',
+                      paddingTop: '0.25rem',
+                      borderTop: '1px solid',
+                      borderColor: isOwn
+                        ? 'rgba(255,255,255,0.3)'
+                        : 'greyscale.200',
+                      fontSize: '0.6875rem',
+                      opacity: 0.7,
+                    })}
+                  >
+                    {t('merged.view', { count: rec?.count ?? lines.length })}
+                  </span>
+                </button>
+              )
+            })()
           ) : isQuote ? (
             (() => {
               const q = parseJsonBody<QuoteBody>(message.body)
@@ -574,4 +656,58 @@ export const MessageItem = ({
       {isOwn && <Avatar name={name} src={senderAvatarUrl} size="2rem" />}
     </div>
   )
+
+  // 多选模式(合并/逐条转发):最左侧勾选框,整行点击切换选中;内容禁用指针,
+  // 避免误触图片/表情等交互(飞书式左对齐勾选列)。
+  if (selectMode) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggleSelect}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onToggleSelect?.()
+          }
+        }}
+        data-testid="im-msg-selectable"
+        aria-pressed={!!selected}
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          paddingLeft: '1rem',
+          cursor: 'pointer',
+          _hover: { backgroundColor: 'greyscale.50' },
+        })}
+      >
+        <span
+          aria-hidden="true"
+          className={css({
+            flexShrink: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '1.25rem',
+            height: '1.25rem',
+            borderRadius: '999px',
+            border: '1.5px solid',
+            borderColor: selected ? 'primary.500' : 'greyscale.400',
+            backgroundColor: selected ? 'primary.500' : 'transparent',
+            color: 'white',
+            fontSize: '0.75rem',
+            lineHeight: 1,
+          })}
+        >
+          {selected ? '✓' : ''}
+        </span>
+        <div className={css({ flex: 1, minWidth: 0, pointerEvents: 'none' })}>
+          {row}
+        </div>
+      </div>
+    )
+  }
+
+  return row
 }

@@ -27,6 +27,7 @@ import { GroupSettingsPanel } from '../components/GroupSettingsPanel'
 import { DirectSettingsPanel } from '../components/DirectSettingsPanel'
 import { GroupPicker } from '../components/GroupPicker'
 import { ForwardDialog, type ForwardConv } from '../components/ForwardDialog'
+import type { MergedBody } from '../components/MergedRecordDialog'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
 
@@ -81,6 +82,12 @@ const ImAuthenticated = () => {
   const [addOpen, setAddOpen] = useState(false)
   // 转发(P7-e):右键选中的待转发消息;非空时弹出目标会话选择器。
   const [forwarding, setForwarding] = useState<Message | null>(null)
+  // 多选转发(P7-f):逐条或合并;非空时同样弹目标选择器。
+  const [forwardingMany, setForwardingMany] = useState<
+    | { mode: 'each'; messages: Message[] }
+    | { mode: 'merged'; merged: MergedBody }
+    | null
+  >(null)
   // cids with an unread message that @-mentioned me (red "@" marker in the list).
   const [mentionedCids, setMentionedCids] = useState<Set<string>>(new Set())
   const qc = useQueryClient()
@@ -263,13 +270,15 @@ const ImAuthenticated = () => {
           ? t('preview.file')
           : ct === 'voice'
             ? t('preview.voice')
-            : ct === 'reaction'
-            ? t('preview.reaction')
-            : ct === 'recall'
-              ? t('preview.recalled')
-              : ct === 'quote'
-                ? parseQuoteText(c.last_message)
-                : c.last_message ?? ''
+            : ct === 'merged'
+              ? t('preview.merged')
+              : ct === 'reaction'
+                ? t('preview.reaction')
+                : ct === 'recall'
+                  ? t('preview.recalled')
+                  : ct === 'quote'
+                    ? parseQuoteText(c.last_message)
+                    : c.last_message ?? ''
     const ts = c.last_message_ts
     if (c.type !== 'group' || c.last_content_type === 'system') {
       return { text: body, ts }
@@ -356,7 +365,8 @@ const ImAuthenticated = () => {
     setGroupPickerOpen(true)
   }
 
-  // 转发预览文案:图片→[图片]、文件→文件名(兜底[文件])、引用→可见正文、其余取正文。
+  // 转发预览文案:图片→[图片]、文件→文件名(兜底[文件])、引用→可见正文、
+  // 合并记录→[聊天记录]、其余取正文。
   const forwardSnippet = (m: Message): string => {
     if (m.content_type === 'image') return t('preview.image')
     if (m.content_type === 'file') {
@@ -366,6 +376,7 @@ const ImAuthenticated = () => {
         return t('preview.file')
       }
     }
+    if (m.content_type === 'merged') return t('preview.merged')
     if (m.content_type === 'quote') {
       try {
         return (JSON.parse(m.body)?.text as string) || ''
@@ -376,32 +387,68 @@ const ImAuthenticated = () => {
     return m.body
   }
 
-  // 转发到目标会话:图片/文件直接复用原 body(OSS key 可跨会话 resolve);引用
-  // 只转可见正文为纯文本;其余原样发。发完跳到目标会话并提示。
+  // 把单条消息转发到目标会话:图片/文件/合并记录直接复用原 body(OSS key 可跨会话
+  // resolve;合并 body 已自包含);引用只转可见正文为纯文本;其余原样发。
+  const forwardOne = async (targetCid: string, m: Message) => {
+    if (
+      m.content_type === 'image' ||
+      m.content_type === 'file' ||
+      m.content_type === 'merged'
+    ) {
+      await client.sendText(targetCid, m.body, { contentType: m.content_type })
+    } else if (m.content_type === 'quote') {
+      let text = m.body
+      try {
+        text = (JSON.parse(m.body)?.text as string) || m.body
+      } catch {
+        // keep raw body
+      }
+      await client.sendText(targetCid, text)
+    } else {
+      await client.sendText(targetCid, m.body)
+    }
+  }
+
+  // 发完统一收尾:刷新会话列表、跳到目标、提示。
+  const afterForward = async (targetCid: string) => {
+    await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+    const target = conversations.find((c) => c.cid === targetCid)
+    setSelectedCID(targetCid)
+    void showAlert({
+      message: t('forward.done', { name: target ? nameOf(target) : '' }),
+    })
+  }
+
   const handleForward = async (targetCid: string) => {
     const m = forwarding
     if (!m) return
     setForwarding(null)
     try {
-      if (m.content_type === 'image' || m.content_type === 'file') {
-        await client.sendText(targetCid, m.body, { contentType: m.content_type })
-      } else if (m.content_type === 'quote') {
-        let text = m.body
-        try {
-          text = (JSON.parse(m.body)?.text as string) || m.body
-        } catch {
-          // keep raw body
-        }
-        await client.sendText(targetCid, text)
-      } else {
-        await client.sendText(targetCid, m.body)
-      }
-      await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
-      const target = conversations.find((c) => c.cid === targetCid)
-      setSelectedCID(targetCid)
+      await forwardOne(targetCid, m)
+      await afterForward(targetCid)
+    } catch (e) {
       void showAlert({
-        message: t('forward.done', { name: target ? nameOf(target) : '' }),
+        message: t('actions.error', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
       })
+    }
+  }
+
+  // 多选转发:逐条 → 按序重发每条;合并 → 打包成一条 content_type='merged'。
+  const handleForwardMany = async (targetCid: string) => {
+    const payload = forwardingMany
+    if (!payload) return
+    setForwardingMany(null)
+    try {
+      if (payload.mode === 'each') {
+        for (const m of payload.messages) await forwardOne(targetCid, m)
+      } else {
+        await client.sendText(targetCid, JSON.stringify(payload.merged), {
+          contentType: 'merged',
+        })
+      }
+      await afterForward(targetCid)
     } catch (e) {
       void showAlert({
         message: t('actions.error', {
@@ -570,6 +617,7 @@ const ImAuthenticated = () => {
                   : undefined
               }
               onForward={(m) => setForwarding(m)}
+              onForwardMany={(p) => setForwardingMany(p)}
               infoPanel={
                 rightPanel === 'members' &&
                 selectedConv.type === 'group' ? (
@@ -644,6 +692,18 @@ const ImAuthenticated = () => {
           previewText={forwardSnippet(forwarding)}
           onConfirm={(cid) => void handleForward(cid)}
           onClose={() => setForwarding(null)}
+        />
+      )}
+      {forwardingMany && (
+        <ForwardDialog
+          conversations={forwardConvs}
+          previewText={
+            forwardingMany.mode === 'merged'
+              ? forwardingMany.merged.title
+              : t('select.count', { count: forwardingMany.messages.length })
+          }
+          onConfirm={(cid) => void handleForwardMany(cid)}
+          onClose={() => setForwardingMany(null)}
         />
       )}
     </div>

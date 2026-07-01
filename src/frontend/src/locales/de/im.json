@@ -30,7 +30,19 @@
     "recallConfirm": "Diese Nachricht zurückziehen?",
     "copy": "Kopieren",
     "reply": "Antworten",
-    "forward": "Weiterleiten"
+    "forward": "Weiterleiten",
+    "multiSelect": "Auswählen"
+  },
+  "select": {
+    "count": "{{count}} ausgewählt",
+    "forwardEach": "Einzeln weiterleiten",
+    "forwardMerged": "Zusammengefasst weiterleiten"
+  },
+  "merged": {
+    "card": "Chatverlauf",
+    "view": "{{count}} Nachrichten ansehen",
+    "groupTitle": "Gruppen-Chatverlauf",
+    "chatWith": "Chatverlauf mit {{name}}"
   },
   "forward": {
     "title": "Weiterleiten an",
@@ -125,6 +137,7 @@
     "file": "[Datei]",
     "voice": "[Sprachnachricht]",
     "reaction": "[Reaktion]",
+    "merged": "[Chatverlauf]",
     "recalled": "hat eine Nachricht zurückgezogen"
   },
   "voice": {

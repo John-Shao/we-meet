@@ -30,7 +30,19 @@
     "recallConfirm": "确定撤回这条消息?",
     "copy": "复制",
     "reply": "回复",
-    "forward": "转发"
+    "forward": "转发",
+    "multiSelect": "多选"
+  },
+  "select": {
+    "count": "已选 {{count}} 项",
+    "forwardEach": "逐条转发",
+    "forwardMerged": "合并转发"
+  },
+  "merged": {
+    "card": "聊天记录",
+    "view": "查看 {{count}} 条聊天记录",
+    "groupTitle": "群聊的聊天记录",
+    "chatWith": "与 {{name}} 的聊天记录"
   },
   "forward": {
     "title": "转发到",
@@ -125,6 +137,7 @@
     "file": "[文件]",
     "voice": "[语音]",
     "reaction": "[表情]",
+    "merged": "[聊天记录]",
     "recalled": "撤回了一条消息"
   },
   "voice": {

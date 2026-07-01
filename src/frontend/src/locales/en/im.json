@@ -30,7 +30,19 @@
     "recallConfirm": "Recall this message?",
     "copy": "Copy",
     "reply": "Reply",
-    "forward": "Forward"
+    "forward": "Forward",
+    "multiSelect": "Select"
+  },
+  "select": {
+    "count": "{{count}} selected",
+    "forwardEach": "Forward individually",
+    "forwardMerged": "Forward as one"
+  },
+  "merged": {
+    "card": "Chat record",
+    "view": "View {{count}} messages",
+    "groupTitle": "Group chat record",
+    "chatWith": "Chat record with {{name}}"
   },
   "forward": {
     "title": "Forward to",
@@ -125,6 +137,7 @@
     "file": "[File]",
     "voice": "[Voice]",
     "reaction": "[Reaction]",
+    "merged": "[Chat record]",
     "recalled": "recalled a message"
   },
   "voice": {

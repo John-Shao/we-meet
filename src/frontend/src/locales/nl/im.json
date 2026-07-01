@@ -30,7 +30,19 @@
     "recallConfirm": "Dit bericht intrekken?",
     "copy": "Kopiëren",
     "reply": "Beantwoorden",
-    "forward": "Doorsturen"
+    "forward": "Doorsturen",
+    "multiSelect": "Selecteren"
+  },
+  "select": {
+    "count": "{{count}} geselecteerd",
+    "forwardEach": "Afzonderlijk doorsturen",
+    "forwardMerged": "Samengevoegd doorsturen"
+  },
+  "merged": {
+    "card": "Chatgeschiedenis",
+    "view": "{{count}} berichten bekijken",
+    "groupTitle": "Groepschatgeschiedenis",
+    "chatWith": "Chatgeschiedenis met {{name}}"
   },
   "forward": {
     "title": "Doorsturen naar",
@@ -125,6 +137,7 @@
     "file": "[Bestand]",
     "voice": "[Spraakbericht]",
     "reaction": "[Reactie]",
+    "merged": "[Chatgeschiedenis]",
     "recalled": "heeft een bericht ingetrokken"
   },
   "voice": {

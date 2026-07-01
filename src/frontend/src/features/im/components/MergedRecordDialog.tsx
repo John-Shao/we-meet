@@ -1,0 +1,136 @@
+import { useTranslation } from 'react-i18next'
+
+import { css } from '@/styled-system/css'
+import { Modal } from '@/components/Modal'
+
+/** One line of a merged chat-record (合并转发的聊天记录). */
+export interface MergedItem {
+  /** Baked-in sender display name (resolved at forward time; “我” for self). */
+  sender: string
+  /** Plain-text representation of the message (media → [图片]/[文件]/[语音]). */
+  text: string
+  /** unix ms */
+  ts: number
+}
+
+/**
+ * content_type='merged' 的 body(JSON)。转发时把发送人显示名 + 文本快照烘焙进去,
+ * 因为目标会话不一定认识原会话的成员,正文也不落 we-meet 库。
+ */
+export interface MergedBody {
+  title: string
+  count: number
+  items: MergedItem[]
+}
+
+/** Compact timestamp for a merged line: today→HH:MM, else M/D HH:MM. */
+const fmtTs = (ts: number, locale: string): string => {
+  const d = new Date(ts)
+  const now = new Date()
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(
+    d.getMinutes()
+  ).padStart(2, '0')}`
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  if (sameDay) return hm
+  const datePart = d.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
+  return `${datePart} ${hm}`
+}
+
+interface Props {
+  record: MergedBody
+  onClose: () => void
+}
+
+/**
+ * 合并转发查看器(P7-f):点开一条「聊天记录」卡片,只读展示烘焙进去的多条消息。
+ */
+export const MergedRecordDialog = ({ record, onClose }: Props) => {
+  const { t, i18n } = useTranslation('im')
+  return (
+    <Modal onClose={onClose} ariaLabel={record.title} maxWidth="460px">
+      <div className={headerCls}>
+        <h2 className={titleCls}>{record.title}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t('group.cancel')}
+          className={closeCls}
+        >
+          ×
+        </button>
+      </div>
+      <div className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem', padding: '0.5rem 0' })}>
+        {record.items.map((it, idx) => (
+          <div key={idx} className={rowCls} data-testid="merged-line">
+            <div className={metaCls}>
+              <span className={senderCls}>{it.sender}</span>
+              <span className={tsCls}>{fmtTs(it.ts, i18n.language)}</span>
+            </div>
+            <div className={textCls}>{it.text}</div>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  )
+}
+
+const headerCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingX: '1rem',
+  paddingY: '0.75rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+})
+
+const titleCls = css({
+  margin: 0,
+  fontSize: '1rem',
+  fontWeight: 'bold',
+  color: 'greyscale.900',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+const closeCls = css({
+  border: 'none',
+  background: 'transparent',
+  fontSize: '1.25rem',
+  lineHeight: 1,
+  cursor: 'pointer',
+  color: 'greyscale.600',
+})
+
+const rowCls = css({
+  paddingX: '1rem',
+  paddingY: '0.5rem',
+})
+
+const metaCls = css({
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: '0.5rem',
+  marginBottom: '0.125rem',
+})
+
+const senderCls = css({
+  fontSize: '0.8125rem',
+  fontWeight: 'medium',
+  color: 'greyscale.600',
+})
+
+const tsCls = css({
+  fontSize: '0.6875rem',
+  color: 'greyscale.400',
+})
+
+const textCls = css({
+  fontSize: '0.875rem',
+  color: 'greyscale.900',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+})
