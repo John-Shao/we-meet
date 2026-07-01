@@ -881,7 +881,7 @@ export const ChatPane = ({
                 type="button"
                 onClick={exitSelect}
                 data-testid="select-cancel"
-                className={selectBtnCls(false)}
+                className={selectBtnCls(true)}
               >
                 {t('group.cancel')}
               </button>

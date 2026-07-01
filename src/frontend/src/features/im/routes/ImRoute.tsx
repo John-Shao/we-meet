@@ -409,18 +409,11 @@ const ImAuthenticated = () => {
     }
   }
 
-  // 发完统一收尾:刷新会话列表、跳到(首个)目标、提示。单目标显示名字,多目标显示数量。
+  // 发完统一收尾:刷新会话列表、跳到(首个)目标。不弹提示——跳转本身即反馈。
   const afterForward = async (targetCids: string[]) => {
     await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
     const first = targetCids[0]
     if (first) setSelectedCID(first)
-    const target = conversations.find((c) => c.cid === first)
-    void showAlert({
-      message:
-        targetCids.length === 1
-          ? t('forward.done', { name: target ? nameOf(target) : '' })
-          : t('forward.doneMany', { count: targetCids.length }),
-    })
   }
 
   const handleForward = async (targetCids: string[]) => {
