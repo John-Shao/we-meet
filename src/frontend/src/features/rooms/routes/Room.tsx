@@ -27,8 +27,9 @@ export const Room = () => {
   const { roomId } = useParams()
   const [location, setLocation] = useLocation()
   const initialRoomData = history.state?.initialRoomData
+  // `create` 仅用于让 Conference 进房后自动弹邀请框;不再据此跳过预览。
+  // 快速会议 / 创建会议 也先过「加入会议」预览页(挑麦克风/摄像头)再进房。
   const mode = isLoggedIn && history.state?.create ? 'create' : 'join'
-  const skipJoinScreen = isLoggedIn && mode === 'create'
 
   useKeyboardShortcuts()
 
@@ -55,7 +56,7 @@ export const Room = () => {
     return <ErrorScreen />
   }
 
-  if (!hasSubmittedEntry && !skipJoinScreen) {
+  if (!hasSubmittedEntry) {
     return (
       <BaseRoom>
         <Join enterRoom={() => setHasSubmittedEntry(true)} roomId={roomId} />
