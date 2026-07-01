@@ -10,6 +10,7 @@ import { ResizablePanel } from '@/components/ResizablePanel'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
+import { DepartmentTree } from '../components/DepartmentTree'
 import { MemberDetailPanel } from '../components/MemberDetailPanel'
 import { fetchDepartmentMembers } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
@@ -105,36 +106,26 @@ const ContactsAuthenticated = () => {
             {t('page.departments')}
           </h2>
         </div>
-        <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
-          <li className={css({ display: 'flex' })}>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDeptId(null)
-                setSelectedMember(null)
-              }}
-              className={deptButton(selectedDeptId === null)}
-            >
-              {t('page.allMembers')}
-            </button>
-          </li>
-          {departments.map((dept) => (
-            <li key={dept.id} className={css({ display: 'flex' })}>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDeptId(dept.id)
-                  setSelectedMember(null)
-                }}
-                style={{ paddingLeft: `${0.75 + dept.depth * 0.75}rem` }}
-                className={deptButton(selectedDeptId === dept.id)}
-                data-testid={`contacts-dept-${dept.id}`}
-              >
-                {dept.name}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedDeptId(null)
+              setSelectedMember(null)
+            }}
+            className={deptButton(selectedDeptId === null)}
+          >
+            {t('page.allMembers')}
+          </button>
+          <DepartmentTree
+            departments={departments}
+            selectedId={selectedDeptId}
+            onSelect={(id) => {
+              setSelectedDeptId(id)
+              setSelectedMember(null)
+            }}
+          />
+        </div>
       </aside>
       </ResizablePanel>
 
