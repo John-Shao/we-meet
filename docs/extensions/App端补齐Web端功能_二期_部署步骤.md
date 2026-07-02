@@ -51,7 +51,7 @@
 - [ ] 先推 SDK（App 构建机 composite build 依赖它）：
 
   ```bash
-  cd D:/workspace/jusi-light-im && git push origin main
+  cd D:/workspace/we-meet/jusi-light-im && git push origin main
   ```
 
 - [ ] 再推 App：
@@ -91,8 +91,9 @@
 
 ## 4. Android APK 构建
 
-- [ ] **构建机前置**：JDK 17；`jusi-light-im` 仓库 checkout 在 App 仓库上两级的同级路径
-  （`we-meet-android/../../jusi-light-im`）且在 `main`（composite build 从源码编译 SDK）。
+- [ ] **构建机前置**：JDK 17；`jusi-light-im` 仓库 checkout 在 App 仓库的同级路径
+  （`we-meet-android/../jusi-light-im`，即 `D:\workspace\we-meet\jusi-light-im`）且在 `main`
+  （composite build 从源码编译 SDK）。
 - [ ] **提版本号**（`app/build.gradle.kts`）：`versionCode 1 → 2`、`versionName "0.1.0" → "0.2.0"`。
 - [ ] **确认生产配置**：`gradle.properties` 默认已是生产三件套
   （`meet` / `id` / `im.we-meet.online`）；确认构建机 `local.properties` 无本地覆盖残留
@@ -161,7 +162,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | 风险 | 应对 |
 |------|------|
 | release 包无签名配置 | 内测先用 debug 签名；正式发布前补 keystore（第 4 节） |
-| 构建机缺 `../../jusi-light-im` 同级仓库 | composite build 会直接报错，按第 4 节前置摆放 |
+| 构建机缺 `../jusi-light-im` 同级仓库 | composite build 会直接报错，按第 4 节前置摆放 |
 | Web 日历「编辑」不同步参会人 | 设计如此（后端 update 不同步 attendees），需要时后端补 |
 | 多提醒只发最大 lead | 后端单哨兵限制，待后端支持后放开 |
 | App 无离线推送 | FCM 国内不可用已延期；离线消息靠重连重同步，属已知边界 |
