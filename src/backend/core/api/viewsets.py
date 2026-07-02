@@ -96,7 +96,6 @@ from core.services.ai_agent_providers import (
     build_agent_metadata,
     get_ai_agent_config,
     resolve_profile_context,
-    save_user_preference,
 )
 from core.services.subtitle import SubtitleException, SubtitleService
 from core.tasks.file import process_file_deletion
@@ -1125,12 +1124,9 @@ class RoomViewSet(
         """Return the AI assistant catalog (profiles / voices / prompts).
 
         Public endpoint — the response contains no secrets, only choices
-        the frontend needs to render the configuration panel. Default
-        authentication still runs, so an authenticated user's stored
-        ``UserAIPreference`` is included; anonymous callers see
-        ``user_preference: null``.
+        the frontend needs to render the configuration panel.
         """
-        return drf_response.Response(get_ai_agent_config(user=request.user))
+        return drf_response.Response(get_ai_agent_config())
 
     @decorators.action(
         detail=True,
@@ -1158,28 +1154,19 @@ class RoomViewSet(
         prompt_id = serializer.validated_data.get("prompt_id")
 
         # LiveKit token identity authoritatively identifies the requester;
-        # request.user comes from the Django session and is what we use
-        # for persisting their preference.
+        # it is stamped into the agent metadata for auditing / addressing.
         requester_identity = getattr(request.auth, "identity", "") or ""
 
         profile, voice, prompt = resolve_profile_context(
             profile_code=profile_code,
             voice_id=str(voice_id) if voice_id else None,
             prompt_id=str(prompt_id) if prompt_id else None,
-            user=request.user,
         )
         if profile is None:
             return drf_response.Response(
                 {"error": f"AI agent profile '{profile_code}' is not available."},
                 status=drf_status.HTTP_400_BAD_REQUEST,
             )
-
-        save_user_preference(
-            user=request.user,
-            profile_code=profile_code,
-            voice_id=str(voice.id) if voice else None,
-            prompt_id=str(prompt.id) if prompt else None,
-        )
 
         metadata = build_agent_metadata(
             profile=profile,

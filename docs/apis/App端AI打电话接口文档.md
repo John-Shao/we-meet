@@ -32,7 +32,7 @@ App                                                  Backend                    
  │  ② GET /api/v1.0/rooms/ai-agent-config/             │
  │  (OIDC bearer 可选)                                  │
  │ ───────────────────────────────────────────────▶  ──┤
- │  200 {profiles, prompts, user_preference}            │
+ │  200 {profiles, prompts}                             │
  │ ◀─────────────────────────────────────────────── ──┤
  │                                                     │
  │  ③ LiveKit connect(url, token)                                                       ───▶
@@ -148,7 +148,7 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
 
 `GET /api/v1.0/rooms/ai-agent-config/`
 
-**鉴权**：可选（`permission_classes=[]`）。带 OIDC bearer 时会返回该用户的 `user_preference`，匿名请求 `user_preference: null`。
+**鉴权**：可选（`permission_classes=[]`）。响应只含目录数据（profiles / prompts），不含任何用户态信息，匿名与登录返回一致。
 
 **200 OK**：
 
@@ -178,12 +178,7 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
       "label": "通用助手",
       "content": "你是一个友好的中文助手……"
     }
-  ],
-  "user_preference": {
-    "profile_code": "qwen-omni-realtime",
-    "voice_id": "uuid",
-    "prompt_id": "uuid"
-  }
+  ]
 }
 ```
 
@@ -194,18 +189,19 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
 | `profiles[].voices[].id` | 传给 `start-ai-agent.voice_id`（UUID） |
 | `profiles[].default_voice_id` | 未显式选音色时的兜底（音色仍与 profile 绑定） |
 | `prompts[].id` | 传给 `start-ai-agent.prompt_id` |
-| `user_preference` | 用户上次 `start-ai-agent` 时保存的偏好（profile/voice/prompt） |
+
+> **不保存用户偏好**：接口不再下发/落库任何「上次使用」配置（原 `user_preference` 已彻底移除）。客户端如需「记住上次选择」自行本地持久化即可，无跨端同步。
 
 > 后端模型还有一个 `architecture` 字段（`omni` / `pipeline`），是 agent worker 内部用的 pipeline 形状，**不下发给客户端**。客户端只看 `agent_type`。
 
-> **prompt 与 profile 解耦**：profile 不再携带 `default_prompt_id`，prompt 目录是独立维度。未显式传 `prompt_id` 时，后端只会按用户偏好兜底；都没有则不带 prompt（agent 走内置行为）。这样换模型不影响已选的 prompt，反之亦然。
+> **prompt 与 profile 解耦**：profile 不再携带 `default_prompt_id`，prompt 目录是独立维度。未显式传 `prompt_id` 时，后端不带 prompt（agent 走内置行为）。这样换模型不影响已选的 prompt，反之亦然。
 
 **Profile 选择策略（App 端 [`AiAgentConfigResponse.videoProfile/voiceProfile`](../../we-meet-android/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/model/AiCallDtos.kt)）：**
 
 - 视频模式：首选 `agent_type == "video"` 的 profile；后端旧版无 `agent_type` 时兜底为 `code` 含 `qwen`
 - 语音模式：首选 `agent_type == "audio"` 的 profile；后端旧版兜底为 `code` 含 `doubao` + `s2s`
 
-> 后端会兜底返回 `{profiles: [], prompts: [], user_preference: null}` 而不抛 500，便于前端做空状态展示。
+> 后端会兜底返回 `{profiles: [], prompts: []}` 而不抛 500，便于前端做空状态展示。
 
 ---
 
@@ -230,8 +226,8 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `profile_code` | string | 是 | 取自 `4.2.profiles[].code` |
-| `voice_id` | UUID | 否 | 取自 `4.2.profiles[].voices[].id`；未传则按用户偏好 → profile 默认音色兜底 |
-| `prompt_id` | UUID | 否 | 取自 `4.2.prompts[].id`；未传则按用户偏好兜底，再无则不带（profile **不**自带默认 prompt） |
+| `voice_id` | UUID | 否 | 取自 `4.2.profiles[].voices[].id`；未传则按 profile 默认音色兜底 |
+| `prompt_id` | UUID | 否 | 取自 `4.2.prompts[].id`；未传则不带（profile **不**自带默认 prompt） |
 
 **200 OK**：
 
@@ -248,7 +244,6 @@ App 端默认的 `AuthInterceptor` 会给每个请求注入 OIDC Bearer。**`sta
 
 **副作用**：
 - 服务端调用 LiveKit Agent Dispatch，触发 agent worker 加入房间，`identity` 形如 `ai-agent-<rand>`（App 端用 `identity.startsWith("ai-agent")` 识别）
-- 服务端把当前选择写入 `UserAIPreference`（用户认证态下生效），下次拉 `ai-agent-config` 时返回
 
 **错误**：
 - `400 Bad Request` — `{"error": "AI agent profile '<code>' is not available."}`，profile 不存在或已禁用

@@ -1117,7 +1117,6 @@ class File(BaseModel):
 # - AIPrompt             提示词模板
 # - AIAgentProfile       装配方案 = wire-level provider
 #                        架构 ∈ {pipeline, omni}
-# - UserAIPreference     用户级最近使用配置（覆盖 profile 默认）
 # ---------------------------------------------------------------------------
 
 
@@ -1376,42 +1375,6 @@ class AIAgentProfile(BaseModel):
 
     def __str__(self) -> str:
         return self.display_name or self.code
-
-
-class UserAIPreference(BaseModel):
-    """A user's last-used AI assistant configuration."""
-
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        related_name="ai_preference",
-        verbose_name=_("user"),
-    )
-    profile = models.ForeignKey(
-        AIAgentProfile,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="+",
-    )
-    voice = models.ForeignKey(
-        AIVoice,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="+",
-    )
-    prompt = models.ForeignKey(
-        AIPrompt,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="+",
-    )
-
-    class Meta:
-        verbose_name = _("user AI preference")
-        verbose_name_plural = _("user AI preferences")
 
 
 # ---------------------------------------------------------------------------

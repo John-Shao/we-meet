@@ -464,15 +464,6 @@ class AIAgentProfileAdmin(admin.ModelAdmin):
     _models_summary.short_description = _("models")
 
 
-@admin.register(models.UserAIPreference)
-class UserAIPreferenceAdmin(admin.ModelAdmin):
-    list_display = ("user", "profile", "voice", "prompt", "updated_at")
-    list_filter = ("profile",)
-    search_fields = ("user__email", "user__full_name")
-    autocomplete_fields = ("user", "profile", "voice", "prompt")
-    readonly_fields = ("created_at", "updated_at")
-
-
 class ActionItemInline(admin.TabularInline):
     """Inline editor for the action items attached to a Summary."""
 

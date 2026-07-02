@@ -47,7 +47,7 @@ we-meet 是 ToB 产品，企业内部使用，数据归属企业。这意味着�
 ## 3. 数据底座
 
 ### 3.1 已有（无需改动）
-- `AIVendor` / `AIModel` / `AIAgentProfile` / `AIVoice` / `AIPrompt` / `UserAIPreference`
+- `AIVendor` / `AIModel` / `AIAgentProfile` / `AIVoice` / `AIPrompt`
 - LiveKit Room + agent worker 框架（`agents/ai_assistant.py` + plugins）
 
 ### 3.2 新增（Sprint 2 一并建好）
