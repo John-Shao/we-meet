@@ -25,6 +25,8 @@
     "searchPlaceholder": "Search members…",
     "loading": "Loading…",
     "create": "Create",
+    "editTitle": "Edit event",
+    "save": "Save",
     "cancel": "Cancel",
     "error": "Failed: {{message}}",
     "endAfterStart": "End must be after start.",
@@ -34,7 +36,13 @@
   "card": {
     "organizer": "Organizer",
     "attendees": "{{count}} people",
-    "join": "Join"
+    "join": "Join",
+    "reminder": "Reminder"
+  },
+  "detail": {
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this event? Attendees will no longer see it."
   },
   "rsvp": {
     "label": "My response",

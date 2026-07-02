@@ -7,7 +7,7 @@ import { Modal } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useDirectoryMemberSearch, MemberAvatar } from '@/features/contacts'
 
-import { createCalendarEvent } from '../api/fetchCalendar'
+import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent } from '../api/ApiCalendar'
 
 interface Props {
@@ -18,6 +18,9 @@ interface Props {
   initialStart?: Date
   initialEnd?: Date
   initialAllDay?: boolean
+  /** When set, the dialog edits this event (PATCH) instead of creating one.
+   * Scalar fields only — attendees aren't editable (backend doesn't re-sync). */
+  editEvent?: CalendarEvent
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -39,17 +42,25 @@ export const CreateEventDialog = ({
   initialStart,
   initialEnd,
   initialAllDay,
+  editEvent,
 }: Props) => {
   const { t } = useTranslation('calendar')
-  const start0 = initialStart ?? defaultStart()
-  const end0 = initialEnd ?? new Date(start0.getTime() + 60 * 60 * 1000)
+  const isEdit = !!editEvent
+  const start0 = editEvent
+    ? new Date(editEvent.start_at)
+    : (initialStart ?? defaultStart())
+  const end0 = editEvent
+    ? new Date(editEvent.end_at)
+    : (initialEnd ?? new Date(start0.getTime() + 60 * 60 * 1000))
 
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
+  const [title, setTitle] = useState(editEvent?.title ?? '')
+  const [description, setDescription] = useState(editEvent?.description ?? '')
   const [start, setStart] = useState(toLocalInput(start0))
   const [end, setEnd] = useState(toLocalInput(end0))
-  const [allDay, setAllDay] = useState(initialAllDay ?? false)
-  const [reminder, setReminder] = useState('10') // minutes-before, '' = none
+  const [allDay, setAllDay] = useState(editEvent?.all_day ?? initialAllDay ?? false)
+  const [reminder, setReminder] = useState(
+    editEvent ? String(editEvent.reminders?.[0] ?? '') : '10'
+  ) // minutes-before, '' = none
   const [selected, setSelected] = useState<Map<string, string>>(new Map())
   const [busy, setBusy] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
@@ -87,15 +98,17 @@ export const CreateEventDialog = ({
     }
     setBusy(true)
     try {
-      const event = await createCalendarEvent({
+      const base = {
         title: title.trim(),
         description: description.trim(),
         start_at: startDate.toISOString(),
         end_at: endDate.toISOString(),
         all_day: allDay,
         reminders: reminder ? [Number(reminder)] : [],
-        attendee_ids: [...selected.keys()],
-      })
+      }
+      const event = editEvent
+        ? await updateCalendarEvent(editEvent.id, base)
+        : await createCalendarEvent({ ...base, attendee_ids: [...selected.keys()] })
       onCreated(event)
     } catch (e) {
       void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
@@ -120,7 +133,7 @@ export const CreateEventDialog = ({
             color: 'greyscale.900',
           })}
         >
-          {t('form.title')}
+          {isEdit ? t('form.editTitle') : t('form.title')}
         </h2>
         <button
           type="button"
@@ -257,7 +270,8 @@ export const CreateEventDialog = ({
           </label>
         </div>
 
-        {/* Attendees */}
+        {/* Attendees — create-only; editing attendees isn't wired server-side. */}
+        {!isEdit && (
         <div>
           <div
             className={css({
@@ -406,6 +420,7 @@ export const CreateEventDialog = ({
             )}
           </div>
         </div>
+        )}
       </div>
 
       <div
@@ -438,7 +453,7 @@ export const CreateEventDialog = ({
             cursor: canCreate ? 'pointer' : 'not-allowed',
           })}
         >
-          {t('form.create')}
+          {isEdit ? t('form.save') : t('form.create')}
         </button>
       </div>
     </Modal>

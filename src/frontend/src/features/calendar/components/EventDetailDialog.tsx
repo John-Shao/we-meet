@@ -11,6 +11,10 @@ interface Props {
   onRsvp: (status: RSVPStatus) => void
   onJoin: () => void
   onClose: () => void
+  /** Organizer-only: enables the 编辑 / 删除 actions. */
+  canManage?: boolean
+  onEdit?: () => void
+  onDelete?: () => void
 }
 
 /**
@@ -18,7 +22,15 @@ interface Props {
  * RSVP (接受/待定/拒绝) + 进入会议 actions the agenda used to show inline, so the
  * grid keeps full functionality.
  */
-export const EventDetailDialog = ({ event, onRsvp, onJoin, onClose }: Props) => {
+export const EventDetailDialog = ({
+  event,
+  onRsvp,
+  onJoin,
+  onClose,
+  canManage,
+  onEdit,
+  onDelete,
+}: Props) => {
   const { t, i18n } = useTranslation('calendar')
   const [rsvp, setRsvp] = useState<RSVPStatus | null>(event.my_rsvp ?? null)
 
@@ -94,6 +106,20 @@ export const EventDetailDialog = ({ event, onRsvp, onJoin, onClose }: Props) => 
             {event.description}
           </p>
         )}
+        {event.reminders && event.reminders.length > 0 && (
+          <p
+            className={css({
+              margin: '0.5rem 0 0',
+              fontSize: '0.75rem',
+              color: 'greyscale.500',
+            })}
+          >
+            🔔 {t('card.reminder')}:{' '}
+            {event.reminders
+              .map((m) => t('form.reminderMinutes', { count: m }))
+              .join('、')}
+          </p>
+        )}
 
         {/* RSVP */}
         <div
@@ -147,20 +173,45 @@ export const EventDetailDialog = ({ event, onRsvp, onJoin, onClose }: Props) => 
           )}
         </div>
 
-        {/* Join */}
-        {event.room_slug && (
-          <div
-            className={css({
-              display: 'flex',
-              justifyContent: 'flex-end',
-              marginTop: '1.25rem',
-            })}
-          >
+        {/* Actions: 编辑/删除(organizer)靠左,进入会议靠右 */}
+        <div
+          className={css({
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginTop: '1.25rem',
+          })}
+        >
+          {canManage && (
+            <>
+              <button
+                type="button"
+                onClick={onEdit}
+                data-testid="detail-edit"
+                className={detailBtn}
+              >
+                {t('detail.edit')}
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                data-testid="detail-delete"
+                className={cx(
+                  detailBtn,
+                  css({ color: '#dc2626', borderColor: '#fecaca' })
+                )}
+              >
+                {t('detail.delete')}
+              </button>
+            </>
+          )}
+          {event.room_slug && (
             <button
               type="button"
               onClick={onJoin}
               data-testid="detail-join"
               className={css({
+                marginLeft: 'auto',
                 paddingX: '1rem',
                 paddingY: '0.5rem',
                 border: 'none',
@@ -174,9 +225,21 @@ export const EventDetailDialog = ({ event, onRsvp, onJoin, onClose }: Props) => 
             >
               {t('card.join')}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </Modal>
   )
 }
+
+const detailBtn = css({
+  paddingX: '0.75rem',
+  paddingY: '0.5rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '0.5rem',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.700',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100' },
+})

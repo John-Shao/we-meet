@@ -25,6 +25,8 @@
     "searchPlaceholder": "Leden zoeken…",
     "loading": "Laden…",
     "create": "Aanmaken",
+    "editTitle": "Afspraak bewerken",
+    "save": "Opslaan",
     "cancel": "Annuleren",
     "error": "Mislukt: {{message}}",
     "endAfterStart": "Einde moet na het begin liggen.",
@@ -34,7 +36,13 @@
   "card": {
     "organizer": "Organisator",
     "attendees": "{{count}} personen",
-    "join": "Deelnemen"
+    "join": "Deelnemen",
+    "reminder": "Herinnering"
+  },
+  "detail": {
+    "edit": "Bewerken",
+    "delete": "Verwijderen",
+    "deleteConfirm": "Deze afspraak verwijderen? Deelnemers zien hem dan niet meer."
   },
   "rsvp": {
     "label": "Mijn reactie",

@@ -6,10 +6,15 @@ import { useLocation } from 'wouter'
 import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { useUser } from '@/features/auth'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
-import { fetchCalendarEvents, rsvpCalendarEvent } from '../api/fetchCalendar'
+import {
+  fetchCalendarEvents,
+  rsvpCalendarEvent,
+  deleteCalendarEvent,
+} from '../api/fetchCalendar'
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { CreateEventDialog } from '../components/CreateEventDialog'
 import { ResizablePanel } from '@/components/ResizablePanel'
@@ -31,10 +36,12 @@ const CalendarAuthenticated = () => {
   const { t } = useTranslation('calendar')
   const qc = useQueryClient()
   const [, navigate] = useLocation()
-  const { alert: showAlert } = useConfirm()
+  const { alert: showAlert, confirm: askConfirm } = useConfirm()
+  const { user } = useUser()
   const [creating, setCreating] = useState(false)
   const [draft, setDraft] = useState<SlotDraft | null>(null)
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
+  const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null)
   const [date, setDate] = useState<Date>(() => new Date())
 
   const openCreate = (slot: SlotDraft | null) => {
@@ -55,6 +62,17 @@ const CalendarAuthenticated = () => {
   const setRsvp = async (event: CalendarEvent, status: RSVPStatus) => {
     try {
       await rsvpCalendarEvent(event.id, status)
+      await qc.invalidateQueries({ queryKey: EVENTS_KEY })
+    } catch (e) {
+      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
+    }
+  }
+
+  const removeEvent = async (event: CalendarEvent) => {
+    if (!(await askConfirm({ message: t('detail.deleteConfirm') }))) return
+    try {
+      await deleteCalendarEvent(event.id)
+      setDetailEvent(null)
       await qc.invalidateQueries({ queryKey: EVENTS_KEY })
     } catch (e) {
       void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
@@ -147,6 +165,12 @@ const CalendarAuthenticated = () => {
       {detailEvent && (
         <EventDetailDialog
           event={detailEvent}
+          canManage={!!user && detailEvent.organizer?.id === user.id}
+          onEdit={() => {
+            setEditEvent(detailEvent)
+            setDetailEvent(null)
+          }}
+          onDelete={() => void removeEvent(detailEvent)}
           onRsvp={(status) => setRsvp(detailEvent, status)}
           onJoin={() => {
             if (detailEvent.room_slug) navigate(`/${detailEvent.room_slug}`)
@@ -163,6 +187,17 @@ const CalendarAuthenticated = () => {
           onClose={closeCreate}
           onCreated={() => {
             closeCreate()
+            void qc.invalidateQueries({ queryKey: EVENTS_KEY })
+          }}
+        />
+      )}
+
+      {editEvent && (
+        <CreateEventDialog
+          editEvent={editEvent}
+          onClose={() => setEditEvent(null)}
+          onCreated={() => {
+            setEditEvent(null)
             void qc.invalidateQueries({ queryKey: EVENTS_KEY })
           }}
         />

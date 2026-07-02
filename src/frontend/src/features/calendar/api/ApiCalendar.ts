@@ -44,3 +44,17 @@ export interface CreateEventPayload {
   description?: string
   timezone?: string
 }
+
+/**
+ * PATCH payload for editing an event. Scalar fields only — the backend update
+ * path does not (yet) re-sync attendees / Room, so the edit dialog omits the
+ * attendee picker and never sends attendee_ids.
+ */
+export interface UpdateEventPayload {
+  title?: string
+  description?: string
+  start_at?: string
+  end_at?: string
+  all_day?: boolean
+  reminders?: number[]
+}

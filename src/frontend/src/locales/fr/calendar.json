@@ -25,6 +25,8 @@
     "searchPlaceholder": "Rechercher des membres…",
     "loading": "Chargement…",
     "create": "Créer",
+    "editTitle": "Modifier l'événement",
+    "save": "Enregistrer",
     "cancel": "Annuler",
     "error": "Échec : {{message}}",
     "endAfterStart": "La fin doit être après le début.",
@@ -34,7 +36,13 @@
   "card": {
     "organizer": "Organisateur",
     "attendees": "{{count}} personnes",
-    "join": "Rejoindre"
+    "join": "Rejoindre",
+    "reminder": "Rappel"
+  },
+  "detail": {
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer cet événement ? Les participants ne le verront plus."
   },
   "rsvp": {
     "label": "Ma réponse",

@@ -25,6 +25,8 @@
     "searchPlaceholder": "搜索成员…",
     "loading": "加载中…",
     "create": "创建",
+    "editTitle": "编辑日程",
+    "save": "保存",
     "cancel": "取消",
     "error": "操作失败:{{message}}",
     "endAfterStart": "结束时间必须晚于开始时间。",
@@ -34,7 +36,13 @@
   "card": {
     "organizer": "组织者",
     "attendees": "{{count}} 人",
-    "join": "进入会议"
+    "join": "进入会议",
+    "reminder": "提醒"
+  },
+  "detail": {
+    "edit": "编辑",
+    "delete": "删除",
+    "deleteConfirm": "确定删除该日程?删除后参与者将不再看到它。"
   },
   "rsvp": {
     "label": "我的回复",

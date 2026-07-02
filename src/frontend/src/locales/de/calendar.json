@@ -25,6 +25,8 @@
     "searchPlaceholder": "Mitglieder suchen…",
     "loading": "Laden…",
     "create": "Erstellen",
+    "editTitle": "Termin bearbeiten",
+    "save": "Speichern",
     "cancel": "Abbrechen",
     "error": "Fehlgeschlagen: {{message}}",
     "endAfterStart": "Ende muss nach dem Beginn liegen.",
@@ -34,7 +36,13 @@
   "card": {
     "organizer": "Organisator",
     "attendees": "{{count}} Personen",
-    "join": "Beitreten"
+    "join": "Beitreten",
+    "reminder": "Erinnerung"
+  },
+  "detail": {
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "deleteConfirm": "Diesen Termin löschen? Teilnehmer sehen ihn dann nicht mehr."
   },
   "rsvp": {
     "label": "Meine Antwort",
