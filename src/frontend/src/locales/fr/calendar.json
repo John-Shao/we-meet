@@ -13,6 +13,7 @@
   "form": {
     "title": "Nouvel événement",
     "titlePlaceholder": "Titre de l'événement",
+    "descriptionPlaceholder": "Description (facultatif)",
     "start": "Début",
     "end": "Fin",
     "allDay": "Toute la journée",

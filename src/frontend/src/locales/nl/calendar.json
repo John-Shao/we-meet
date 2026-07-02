@@ -13,6 +13,7 @@
   "form": {
     "title": "Nieuw item",
     "titlePlaceholder": "Titel",
+    "descriptionPlaceholder": "Beschrijving (optioneel)",
     "start": "Begin",
     "end": "Einde",
     "allDay": "Hele dag",

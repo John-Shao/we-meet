@@ -121,6 +121,34 @@ def test_unresolvable_node_marks_needs_assignment(mock_im):
     assert _current_task(inst).approver_id is None
 
 
+def test_retry_assignment_recovers_after_head_set(mock_im):
+    org = OrganizationFactory()
+    applicant, manager = UserFactory(), UserFactory()
+    dept = Department.objects.create(organization=org, name="待补主管部")  # no head yet
+    _membership(org, applicant, department=dept)
+
+    inst = approval.submit(_template(org, [{"type": "direct_manager"}]), applicant)
+    assert inst.status == ApprovalStatusChoices.NEEDS_ASSIGNMENT
+
+    # Retry while still unresolvable → stays stuck, returns False.
+    assert approval.retry_assignment(inst) is False
+    inst.refresh_from_db()
+    assert inst.status == ApprovalStatusChoices.NEEDS_ASSIGNMENT
+
+    # Fix the org structure, retry → recovers to PENDING with the head assigned.
+    dept.head = manager
+    dept.save(update_fields=["head"])
+    assert approval.retry_assignment(inst) is True
+    inst.refresh_from_db()
+    assert inst.status == ApprovalStatusChoices.PENDING
+    assert _current_task(inst).approver_id == manager.id
+
+    # A recovered instance advances through the state machine normally.
+    approval.act(inst, manager, ApprovalActionChoices.APPROVED)
+    inst.refresh_from_db()
+    assert inst.status == ApprovalStatusChoices.APPROVED
+
+
 # ---- state machine ----
 
 

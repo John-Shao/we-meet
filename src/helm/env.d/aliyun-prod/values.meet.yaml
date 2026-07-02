@@ -213,6 +213,11 @@ backend:
         python manage.py createsuperuser --email $DJANGO_SUPERUSER_EMAIL --password $DJANGO_SUPERUSER_PASSWORD || true
     restartPolicy: Never
 
+  # P2-c 日程提醒:每 5 分钟扫到期事件推 IM「即将开始」(幂等)。
+  # chart 默认 enabled:false;生产开启,schedule/command 继承 chart values。
+  reminders:
+    enabled: true
+
 frontend:
   replicas: 1
 

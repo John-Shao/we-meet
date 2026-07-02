@@ -45,6 +45,7 @@ export const CreateEventDialog = ({
   const end0 = initialEnd ?? new Date(start0.getTime() + 60 * 60 * 1000)
 
   const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
   const [start, setStart] = useState(toLocalInput(start0))
   const [end, setEnd] = useState(toLocalInput(end0))
   const [allDay, setAllDay] = useState(initialAllDay ?? false)
@@ -88,6 +89,7 @@ export const CreateEventDialog = ({
     try {
       const event = await createCalendarEvent({
         title: title.trim(),
+        description: description.trim(),
         start_at: startDate.toISOString(),
         end_at: endDate.toISOString(),
         all_day: allDay,
@@ -148,6 +150,16 @@ export const CreateEventDialog = ({
           placeholder={t('form.titlePlaceholder')}
           data-testid="event-title"
           className={inputCls}
+        />
+
+        <textarea
+          value={description}
+          maxLength={2000}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={t('form.descriptionPlaceholder')}
+          rows={3}
+          data-testid="event-description"
+          className={textareaCls}
         />
 
         <div
@@ -457,6 +469,19 @@ const inputCls = css({
   borderRadius: '0.5rem',
   fontSize: '0.875rem',
   outline: 'none',
+  _focus: { borderColor: 'primary.500' },
+})
+const textareaCls = css({
+  width: '100%',
+  paddingX: '0.75rem',
+  paddingY: '0.5rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '0.5rem',
+  fontSize: '0.875rem',
+  fontFamily: 'inherit',
+  outline: 'none',
+  resize: 'vertical',
+  minHeight: '3.5rem',
   _focus: { borderColor: 'primary.500' },
 })
 const fieldCls = css({

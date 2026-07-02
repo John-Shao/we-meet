@@ -827,7 +827,27 @@ class ApprovalInstanceAdmin(admin.ModelAdmin):
     )
     list_select_related = ("template", "applicant")
     inlines = (ApprovalTaskInline,)
+    actions = ("retry_assignment",)
 
     def has_add_permission(self, request):
         # Instances originate from POST /api/v1.0/approvals/, never the admin.
         return False
+
+    @admin.action(description="重试审批人解析(needs_assignment 恢复)")
+    def retry_assignment(self, request, queryset):
+        """Recovery for stuck NEEDS_ASSIGNMENT instances: re-resolve the current
+        node's approver (after the org head / role was fixed) and, on success, put
+        the instance back into PENDING. Non-stuck rows are skipped."""
+        from core.services import approval as approval_service
+
+        recovered = 0
+        skipped = 0
+        for instance in queryset:
+            if approval_service.retry_assignment(instance):
+                recovered += 1
+            else:
+                skipped += 1
+        self.message_user(
+            request,
+            f"已恢复 {recovered} 条(转为待审批);{skipped} 条仍无法解析或状态不符,已跳过。",
+        )

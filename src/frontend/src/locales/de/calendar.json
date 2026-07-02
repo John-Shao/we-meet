@@ -13,6 +13,7 @@
   "form": {
     "title": "Neuer Termin",
     "titlePlaceholder": "Termintitel",
+    "descriptionPlaceholder": "Beschreibung (optional)",
     "start": "Beginn",
     "end": "Ende",
     "allDay": "Ganztägig",

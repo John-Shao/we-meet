@@ -13,6 +13,7 @@
   "form": {
     "title": "新建日程",
     "titlePlaceholder": "日程标题",
+    "descriptionPlaceholder": "日程描述(选填)",
     "start": "开始",
     "end": "结束",
     "allDay": "全天",

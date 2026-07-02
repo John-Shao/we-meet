@@ -119,6 +119,38 @@ def cancel(instance, actor) -> ApprovalInstance:
     return instance
 
 
+def retry_assignment(instance) -> bool:
+    """Re-resolve the current node's approver for a NEEDS_ASSIGNMENT instance.
+
+    The recovery path out of NEEDS_ASSIGNMENT (which otherwise deadlocks): after
+    the org structure / template is fixed — e.g. a department head is finally set,
+    or a user is given the required org_role — an admin retries. On success the
+    existing null-approver task is assigned, the instance flips back to PENDING and
+    the approver is notified; returns True. Still unresolvable → stays put, returns
+    False. No-op (False) if the instance isn't in NEEDS_ASSIGNMENT.
+    """
+    if instance.status != ApprovalStatusChoices.NEEDS_ASSIGNMENT:
+        return False
+    flow = instance.template.flow or []
+    idx = instance.current_node
+    node = flow[idx] if 0 <= idx < len(flow) else None
+    approver = resolve_approver(instance, node) if node is not None else None
+    if approver is None:
+        return False
+    # _open_node left a task with a null approver at this node; reuse it (the
+    # (instance, node_index) unique constraint forbids a second one).
+    task, _ = ApprovalTask.objects.get_or_create(instance=instance, node_index=idx)
+    task.approver = approver
+    task.action = ApprovalActionChoices.PENDING
+    task.comment = ""
+    task.acted_at = None
+    task.save()
+    instance.status = ApprovalStatusChoices.PENDING
+    instance.save(update_fields=["status", "updated_at"])
+    _notify_user(approver, f"🗳️ 待你审批：{instance.template.name}")
+    return True
+
+
 def _open_node(instance, idx) -> None:
     """Resolve node ``idx``'s approver, create its task, notify them.
 

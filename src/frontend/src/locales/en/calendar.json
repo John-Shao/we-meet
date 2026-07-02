@@ -13,6 +13,7 @@
   "form": {
     "title": "New event",
     "titlePlaceholder": "Event title",
+    "descriptionPlaceholder": "Description (optional)",
     "start": "Start",
     "end": "End",
     "allDay": "All day",
