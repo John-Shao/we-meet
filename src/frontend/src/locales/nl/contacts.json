@@ -28,7 +28,8 @@
     "deleteDept": "Afdeling verwijderen",
     "deleteDeptConfirm": "Afdeling '{{name}}' verwijderen? De leden worden 'geen afdeling'.",
     "deleteDeptError": "Verwijderen van afdeling mislukt: {{message}}",
-    "selfTag": "(jij)"
+    "selfTag": "(jij)",
+    "includeSubtree": "Inclusief subafdelingen"
   },
   "detail": {
     "email": "E-mail",

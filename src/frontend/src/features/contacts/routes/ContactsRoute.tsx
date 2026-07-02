@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
@@ -37,9 +37,17 @@ const ContactsAuthenticated = () => {
   const { alert: showAlert } = useConfirm()
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [includeSubtree, setIncludeSubtree] = useState(false)
   const [selectedMember, setSelectedMember] = useState<DirectoryMember | null>(
     null
   )
+
+  // 选部门 / 全部成员时清空搜索,避免上一处的关键词残留造成空结果的困惑。
+  const selectDept = (id: string | null) => {
+    setSelectedDeptId(id)
+    setSelectedMember(null)
+    setSearch('')
+  }
 
   const { data: departments = [] } = useQuery({
     queryKey: ['directory', 'departments'],
@@ -47,14 +55,32 @@ const ContactsAuthenticated = () => {
     staleTime: 60_000,
   })
 
+  // 部门视图:搜索在客户端过滤(serverQuery='',不随输入重拉);全部成员视图:
+  // 服务端按关键词搜索(覆盖全部成员,非仅首页)。serverQuery 同时进 key 与 queryFn。
+  const serverQuery = selectedDeptId ? '' : search
   const { data: members = [], isFetching } = useQuery({
-    queryKey: ['directory', 'members', { dept: selectedDeptId, q: search }],
+    queryKey: [
+      'directory',
+      'members',
+      { dept: selectedDeptId, subtree: includeSubtree, q: serverQuery },
+    ],
     queryFn: () =>
       selectedDeptId
-        ? fetchDepartmentMembers(selectedDeptId)
-        : fetchDirectoryMembers(search),
+        ? fetchDepartmentMembers(selectedDeptId, includeSubtree)
+        : fetchDirectoryMembers(serverQuery),
     staleTime: 30_000,
   })
+
+  // 部门视图内的搜索在客户端过滤已拉取成员(姓名/简称/邮箱);全部成员视图走服务端。
+  const displayedMembers = useMemo(() => {
+    if (!selectedDeptId) return members
+    const q = search.trim().toLowerCase()
+    if (!q) return members
+    return members.filter((m) =>
+      [m.full_name, m.short_name, m.email]
+        .some((v) => (v ?? '').toLowerCase().includes(q))
+    )
+  }, [members, selectedDeptId, search])
 
   const handleMessage = async (member: DirectoryMember) => {
     try {
@@ -109,10 +135,7 @@ const ContactsAuthenticated = () => {
         <div>
           <button
             type="button"
-            onClick={() => {
-              setSelectedDeptId(null)
-              setSelectedMember(null)
-            }}
+            onClick={() => selectDept(null)}
             className={deptButton(selectedDeptId === null)}
           >
             {t('page.allMembers')}
@@ -120,10 +143,7 @@ const ContactsAuthenticated = () => {
           <DepartmentTree
             departments={departments}
             selectedId={selectedDeptId}
-            onSelect={(id) => {
-              setSelectedDeptId(id)
-              setSelectedMember(null)
-            }}
+            onSelect={selectDept}
           />
         </div>
       </aside>
@@ -137,40 +157,67 @@ const ContactsAuthenticated = () => {
           overflow: 'hidden',
         })}
       >
-        {!selectedDeptId && (
-          <div className={css({ padding: '0.75rem 1rem' })}>
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('page.searchPlaceholder')}
-              data-testid="contacts-search"
+        <div
+          className={css({
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            padding: '0.75rem 1rem',
+          })}
+        >
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('page.searchPlaceholder')}
+            data-testid="contacts-search"
+            className={css({
+              flex: 1,
+              maxWidth: '360px',
+              paddingX: '0.75rem',
+              paddingY: '0.5rem',
+              border: '1px solid token(colors.greyscale.300)',
+              borderRadius: '0.5rem',
+              fontSize: '0.875rem',
+              outline: 'none',
+              _focus: { borderColor: 'primary.500' },
+            })}
+          />
+          {selectedDeptId && (
+            <label
               className={css({
-                width: '100%',
-                maxWidth: '360px',
-                paddingX: '0.75rem',
-                paddingY: '0.5rem',
-                border: '1px solid token(colors.greyscale.300)',
-                borderRadius: '0.5rem',
-                fontSize: '0.875rem',
-                outline: 'none',
-                _focus: { borderColor: 'primary.500' },
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.375rem',
+                fontSize: '0.8125rem',
+                color: 'greyscale.700',
+                cursor: 'pointer',
+                userSelect: 'none',
               })}
-            />
-          </div>
-        )}
+            >
+              <input
+                type="checkbox"
+                checked={includeSubtree}
+                onChange={(e) => setIncludeSubtree(e.target.checked)}
+                data-testid="contacts-include-subtree"
+              />
+              {t('page.includeSubtree')}
+            </label>
+          )}
+        </div>
         <div className={css({ overflowY: 'auto', flex: 1 })}>
           {isFetching && members.length === 0 ? (
             <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
               {t('page.loading')}
             </p>
-          ) : members.length === 0 ? (
+          ) : displayedMembers.length === 0 ? (
             <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
               {t('page.empty')}
             </p>
           ) : (
             <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
-              {members.map((member) => {
+              {displayedMembers.map((member) => {
                 const label =
                   member.full_name || member.short_name || member.email || ''
                 const selected = selectedMember?.id === member.id
