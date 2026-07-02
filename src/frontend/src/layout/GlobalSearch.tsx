@@ -114,21 +114,29 @@ interface MeetingResult {
   target: string // id (recent) or slug (scheduled)
 }
 
+// 分类标签(飞书式):缩小搜索范围。目前可搜联系人 + 会议;消息等待 jusi 服务端
+// 搜索端点补齐后再加,不放空标签避免死路。
+type SearchCategory = 'all' | 'contacts' | 'meetings'
+const CATEGORIES: SearchCategory[] = ['all', 'contacts', 'meetings']
+
 const SearchPalette = ({ onClose }: { onClose: () => void }) => {
   const { t } = useTranslation('shell')
   const [, navigate] = useLocation()
   const { alert: showAlert } = useConfirm()
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const [category, setCategory] = useState<SearchCategory>('all')
   const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
   const { data: recent = [] } = useRecentMeetings(true)
   const { data: scheduled = [] } = useScheduledMeetings(true)
 
   const ql = query.trim().toLowerCase()
-  const members = ql ? selectable : []
+  const showContacts = category === 'all' || category === 'contacts'
+  const showMeetings = category === 'all' || category === 'meetings'
+  const members = ql && showContacts ? selectable : []
 
   const meetings = useMemo<MeetingResult[]>(() => {
-    if (!ql) return []
+    if (!ql || !showMeetings) return []
     const all: MeetingResult[] = [
       ...recent.map((m) => ({
         kind: 'recent' as const,
@@ -144,7 +152,7 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
       })),
     ]
     return all.filter((m) => m.name.toLowerCase().includes(ql)).slice(0, 8)
-  }, [ql, recent, scheduled])
+  }, [ql, recent, scheduled, showMeetings])
 
   const empty = !!ql && !isFetching && members.length === 0 && meetings.length === 0
 
@@ -196,6 +204,45 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
             backgroundColor: 'transparent',
           })}
         />
+      </div>
+
+      {/* 分类标签(飞书式):点标签缩小搜索范围。 */}
+      <div
+        className={css({
+          display: 'flex',
+          gap: '0.375rem',
+          padding: '0.5rem 1rem',
+          borderBottom: '1px solid token(colors.greyscale.100)',
+        })}
+        role="tablist"
+      >
+        {CATEGORIES.map((cat) => {
+          const active = category === cat
+          return (
+            <button
+              key={cat}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setCategory(cat)}
+              data-testid={`global-search-tab-${cat}`}
+              className={css({
+                paddingX: '0.75rem',
+                paddingY: '0.3125rem',
+                border: 'none',
+                borderRadius: '999px',
+                fontSize: '0.8125rem',
+                cursor: 'pointer',
+                backgroundColor: active ? 'primary.100' : 'transparent',
+                color: active ? 'primary.700' : 'greyscale.600',
+                fontWeight: active ? '600' : undefined,
+                _hover: { backgroundColor: active ? 'primary.100' : 'greyscale.100' },
+              })}
+            >
+              {t(`search.${cat}`)}
+            </button>
+          )
+        })}
       </div>
 
       <div

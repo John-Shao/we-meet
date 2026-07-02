@@ -7,6 +7,7 @@
   "search": {
     "trigger": "搜索",
     "placeholder": "搜索联系人、会议…",
+    "all": "全部",
     "contacts": "联系人",
     "meetings": "会议",
     "empty": "无匹配结果"

@@ -7,6 +7,7 @@
   "search": {
     "trigger": "Zoeken",
     "placeholder": "Zoek personen, vergaderingen…",
+    "all": "Alles",
     "contacts": "Contacten",
     "meetings": "Vergaderingen",
     "empty": "Geen resultaten"
