@@ -13,12 +13,23 @@ export const fetchApprovalTemplates = (): Promise<ApprovalTemplate[]> =>
     (p) => p.results
   )
 
-/** GET /api/v1.0/approvals?role= — "pending" (awaiting me) or "mine" (I filed). */
+/** GET /api/v1.0/approvals?role= — "pending" (awaiting me) or "mine" (I filed).
+ *  First page only — used by the rail badge. The module list paginates via
+ *  {@link fetchApprovalsPage}. */
 export const fetchApprovals = (
   role: 'pending' | 'mine'
 ): Promise<ApprovalInstance[]> =>
   fetchApi<Paginated<ApprovalInstance>>(`/approvals/?role=${role}`).then(
     (p) => p.results
+  )
+
+/** One page of the approval list (page-number pagination) for infinite scroll. */
+export const fetchApprovalsPage = (
+  role: 'pending' | 'mine',
+  page: number
+): Promise<Paginated<ApprovalInstance>> =>
+  fetchApi<Paginated<ApprovalInstance>>(
+    `/approvals/?role=${role}&page=${page}`
   )
 
 /** POST /api/v1.0/approvals — file a new request off a template. */

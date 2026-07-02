@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import {
   RiAddCircleLine,
   RiInboxLine,
@@ -18,7 +22,7 @@ import { Screen } from '@/layout/Screen'
 import {
   actApproval,
   cancelApproval,
-  fetchApprovals,
+  fetchApprovalsPage,
   fetchApprovalTemplates,
 } from '../api/fetchApproval'
 import type {
@@ -28,8 +32,11 @@ import type {
 } from '../api/ApiApproval'
 import { SubmitApprovalDialog } from '../components/SubmitApprovalDialog'
 
-const PENDING_KEY = ['approval', 'pending'] as const
-const MINE_KEY = ['approval', 'mine'] as const
+// Sibling keys to the rail-badge query (['approval','pending']) so the infinite
+// list's page-shaped cache never collides with the badge's array-shaped cache.
+const PENDING_LIST_KEY = ['approval', 'pending-list'] as const
+const MINE_LIST_KEY = ['approval', 'mine-list'] as const
+const PENDING_BADGE_KEY = ['approval', 'pending'] as const
 
 type ApprovalView = 'create' | 'pending' | 'mine'
 
@@ -78,16 +85,27 @@ const ApprovalAuthenticated = () => {
     setPresetTemplate(undefined)
   }
 
-  const { data: pending = [], isLoading: loadingPending } = useQuery({
-    queryKey: PENDING_KEY,
-    queryFn: () => fetchApprovals('pending'),
+  const pendingQ = useInfiniteQuery({
+    queryKey: PENDING_LIST_KEY,
+    queryFn: ({ pageParam }) => fetchApprovalsPage('pending', pageParam),
+    initialPageParam: 1,
+    getNextPageParam: (last, pages) => (last.next ? pages.length + 1 : undefined),
     staleTime: 15_000,
   })
-  const { data: mine = [], isLoading: loadingMine } = useQuery({
-    queryKey: MINE_KEY,
-    queryFn: () => fetchApprovals('mine'),
+  const mineQ = useInfiniteQuery({
+    queryKey: MINE_LIST_KEY,
+    queryFn: ({ pageParam }) => fetchApprovalsPage('mine', pageParam),
+    initialPageParam: 1,
+    getNextPageParam: (last, pages) => (last.next ? pages.length + 1 : undefined),
     staleTime: 15_000,
   })
+  const pending = pendingQ.data?.pages.flatMap((p) => p.results) ?? []
+  const mine = mineQ.data?.pages.flatMap((p) => p.results) ?? []
+  // 徽标用服务端总数(count),而非已加载页的条数。
+  const pendingCount = pendingQ.data?.pages[0]?.count ?? pending.length
+  const loadingPending = pendingQ.isLoading
+  const loadingMine = mineQ.isLoading
+
   const { data: templates = [], isLoading: loadingTemplates } = useQuery({
     queryKey: ['approval', 'templates'],
     queryFn: fetchApprovalTemplates,
@@ -96,8 +114,9 @@ const ApprovalAuthenticated = () => {
 
   const refresh = () =>
     Promise.all([
-      qc.invalidateQueries({ queryKey: PENDING_KEY }),
-      qc.invalidateQueries({ queryKey: MINE_KEY }),
+      qc.invalidateQueries({ queryKey: PENDING_LIST_KEY }),
+      qc.invalidateQueries({ queryKey: MINE_LIST_KEY }),
+      qc.invalidateQueries({ queryKey: PENDING_BADGE_KEY }),
     ])
 
   const fmt = (iso: string) =>
@@ -131,6 +150,7 @@ const ApprovalAuthenticated = () => {
 
   const list = view === 'pending' ? pending : mine
   const loadingList = view === 'pending' ? loadingPending : loadingMine
+  const activeQ = view === 'pending' ? pendingQ : mineQ
 
   return (
     <div className={css({ display: 'flex', height: '100%' })}>
@@ -176,7 +196,7 @@ const ApprovalAuthenticated = () => {
             icon={<RiInboxLine size={18} />}
             label={t('tab.pending')}
             active={view === 'pending'}
-            badge={pending.length}
+            badge={pendingCount}
             onClick={() => setView('pending')}
           />
           <NavItem
@@ -241,16 +261,44 @@ const ApprovalAuthenticated = () => {
               ) : list.length === 0 ? (
                 <Hint>{t('section.empty')}</Hint>
               ) : (
-                list.map((inst) => (
-                  <InstanceCard
-                    key={inst.id}
-                    inst={inst}
-                    fmt={fmt}
-                    mode={view === 'pending' ? 'pending' : 'mine'}
-                    onAct={onAct}
-                    onCancel={onCancel}
-                  />
-                ))
+                <>
+                  {list.map((inst) => (
+                    <InstanceCard
+                      key={inst.id}
+                      inst={inst}
+                      fmt={fmt}
+                      mode={view === 'pending' ? 'pending' : 'mine'}
+                      onAct={onAct}
+                      onCancel={onCancel}
+                    />
+                  ))}
+                  {activeQ.hasNextPage && (
+                    <button
+                      type="button"
+                      onClick={() => void activeQ.fetchNextPage()}
+                      disabled={activeQ.isFetchingNextPage}
+                      data-testid="approval-load-more"
+                      className={css({
+                        alignSelf: 'center',
+                        marginTop: '0.25rem',
+                        paddingX: '1rem',
+                        paddingY: '0.5rem',
+                        border: '1px solid token(colors.greyscale.300)',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'greyscale.000',
+                        color: 'greyscale.700',
+                        fontSize: '0.8125rem',
+                        cursor: activeQ.isFetchingNextPage
+                          ? 'default'
+                          : 'pointer',
+                      })}
+                    >
+                      {activeQ.isFetchingNextPage
+                        ? t('page.loading')
+                        : t('act.loadMore')}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </>
@@ -484,6 +532,24 @@ const InstanceCard = ({
       >
         {t('card.applicant')}: {inst.applicant?.full_name || '—'} · {fmt(inst.created_at)}
       </div>
+
+      {/* needs_assignment：审批人解析失败,给出可操作的引导(否则用户只看到红标一脸问号)。 */}
+      {inst.status === 'needs_assignment' && (
+        <div
+          className={css({
+            marginTop: '0.5rem',
+            padding: '0.5rem 0.625rem',
+            borderRadius: '0.5rem',
+            backgroundColor: 'danger.100',
+            border: '1px solid token(colors.danger.300)',
+            color: 'danger.600',
+            fontSize: '0.75rem',
+            lineHeight: 1.5,
+          })}
+        >
+          {t('card.needsAssignmentHint')}
+        </div>
+      )}
 
       {/* form data */}
       {Object.keys(inst.form_data).length > 0 && (

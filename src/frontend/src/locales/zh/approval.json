@@ -15,13 +15,19 @@
     "cancelled": "已撤销",
     "needs_assignment": "待指派"
   },
-  "card": { "applicant": "发起人", "node": "第 {{index}} 级", "unassigned": "待指派" },
+  "card": {
+    "applicant": "发起人",
+    "node": "第 {{index}} 级",
+    "unassigned": "待指派",
+    "needsAssignmentHint": "未能自动确定审批人(可能对应部门主管/角色缺失)。请联系管理员在后台补齐后重试指派。"
+  },
   "act": {
     "approve": "通过",
     "reject": "拒绝",
     "cancel": "撤销",
     "commentPlaceholder": "审批意见(可选)",
-    "confirmCancel": "确定撤销这条审批吗?"
+    "confirmCancel": "确定撤销这条审批吗?",
+    "loadMore": "加载更多"
   },
   "form": {
     "title": "发起审批",

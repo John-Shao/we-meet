@@ -15,13 +15,19 @@
     "cancelled": "Ingetrokken",
     "needs_assignment": "Toewijzing nodig"
   },
-  "card": { "applicant": "Aangevraagd door", "node": "Stap {{index}}", "unassigned": "Niet toegewezen" },
+  "card": {
+    "applicant": "Aangevraagd door",
+    "node": "Stap {{index}}",
+    "unassigned": "Niet toegewezen",
+    "needsAssignmentHint": "Fiatteur kon niet automatisch worden bepaald (afdelingshoofd/rol ontbreekt mogelijk). Vraag een beheerder om dit te herstellen en de toewijzing in de console opnieuw uit te voeren."
+  },
   "act": {
     "approve": "Goedkeuren",
     "reject": "Afwijzen",
     "cancel": "Intrekken",
     "commentPlaceholder": "Opmerking (optioneel)",
-    "confirmCancel": "Dit verzoek intrekken?"
+    "confirmCancel": "Dit verzoek intrekken?",
+    "loadMore": "Meer laden"
   },
   "form": {
     "title": "Nieuw verzoek",

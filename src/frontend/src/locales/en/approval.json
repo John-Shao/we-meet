@@ -15,13 +15,19 @@
     "cancelled": "Cancelled",
     "needs_assignment": "Needs assignment"
   },
-  "card": { "applicant": "Requested by", "node": "Step {{index}}", "unassigned": "Unassigned" },
+  "card": {
+    "applicant": "Requested by",
+    "node": "Step {{index}}",
+    "unassigned": "Unassigned",
+    "needsAssignmentHint": "Approver couldn't be resolved automatically (a department head / role may be missing). Ask an admin to fix it and retry assignment in the console."
+  },
   "act": {
     "approve": "Approve",
     "reject": "Reject",
     "cancel": "Withdraw",
     "commentPlaceholder": "Comment (optional)",
-    "confirmCancel": "Withdraw this request?"
+    "confirmCancel": "Withdraw this request?",
+    "loadMore": "Load more"
   },
   "form": {
     "title": "New request",

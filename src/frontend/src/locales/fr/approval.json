@@ -15,13 +15,19 @@
     "cancelled": "Annulée",
     "needs_assignment": "À assigner"
   },
-  "card": { "applicant": "Demandeur", "node": "Étape {{index}}", "unassigned": "Non assigné" },
+  "card": {
+    "applicant": "Demandeur",
+    "node": "Étape {{index}}",
+    "unassigned": "Non assigné",
+    "needsAssignmentHint": "Impossible de déterminer l'approbateur automatiquement (chef de service / rôle manquant). Demandez à un administrateur de corriger puis de relancer l'attribution dans la console."
+  },
   "act": {
     "approve": "Approuver",
     "reject": "Refuser",
     "cancel": "Annuler",
     "commentPlaceholder": "Commentaire (facultatif)",
-    "confirmCancel": "Annuler cette demande ?"
+    "confirmCancel": "Annuler cette demande ?",
+    "loadMore": "Charger plus"
   },
   "form": {
     "title": "Nouvelle demande",

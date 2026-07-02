@@ -15,13 +15,19 @@
     "cancelled": "Zurückgezogen",
     "needs_assignment": "Zuweisung nötig"
   },
-  "card": { "applicant": "Antragsteller", "node": "Schritt {{index}}", "unassigned": "Nicht zugewiesen" },
+  "card": {
+    "applicant": "Antragsteller",
+    "node": "Schritt {{index}}",
+    "unassigned": "Nicht zugewiesen",
+    "needsAssignmentHint": "Genehmiger konnte nicht automatisch ermittelt werden (Abteilungsleiter/Rolle fehlt evtl.). Bitten Sie einen Administrator, dies zu beheben und die Zuweisung in der Konsole erneut auszuführen."
+  },
   "act": {
     "approve": "Genehmigen",
     "reject": "Ablehnen",
     "cancel": "Zurückziehen",
     "commentPlaceholder": "Kommentar (optional)",
-    "confirmCancel": "Diesen Antrag zurückziehen?"
+    "confirmCancel": "Diesen Antrag zurückziehen?",
+    "loadMore": "Mehr laden"
   },
   "form": {
     "title": "Neuer Antrag",
