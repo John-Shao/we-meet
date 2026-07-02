@@ -28,8 +28,7 @@
     "deleteDept": "Supprimer le service",
     "deleteDeptConfirm": "Supprimer le service « {{name}} » ? Ses membres passeront en « aucun service ».",
     "deleteDeptError": "Échec de la suppression du service : {{message}}",
-    "selfTag": "(vous)",
-    "includeSubtree": "Inclure les sous-services"
+    "selfTag": "(vous)"
   },
   "detail": {
     "email": "E-mail",

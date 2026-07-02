@@ -28,8 +28,7 @@
     "deleteDept": "Abteilung löschen",
     "deleteDeptConfirm": "Abteilung „{{name}}“ löschen? Ihre Mitglieder werden „keine Abteilung“.",
     "deleteDeptError": "Abteilung konnte nicht gelöscht werden: {{message}}",
-    "selfTag": "(Sie)",
-    "includeSubtree": "Unterabteilungen einschließen"
+    "selfTag": "(Sie)"
   },
   "detail": {
     "email": "E-Mail",

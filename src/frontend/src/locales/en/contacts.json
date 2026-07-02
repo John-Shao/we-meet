@@ -28,8 +28,7 @@
     "deleteDept": "Delete department",
     "deleteDeptConfirm": "Delete department '{{name}}'? Its members will become 'no department'.",
     "deleteDeptError": "Failed to delete department: {{message}}",
-    "selfTag": "(you)",
-    "includeSubtree": "Include sub-departments"
+    "selfTag": "(you)"
   },
   "detail": {
     "email": "Email",

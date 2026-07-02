@@ -36,7 +36,6 @@ const ContactsAuthenticated = () => {
   const [, navigate] = useLocation()
   const { alert: showAlert } = useConfirm()
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
-  const [includeSubtree, setIncludeSubtree] = useState(false)
   const [selectedMember, setSelectedMember] = useState<DirectoryMember | null>(
     null
   )
@@ -52,17 +51,13 @@ const ContactsAuthenticated = () => {
     staleTime: 60_000,
   })
 
-  // 通讯录只负责「浏览」组织:选部门列直属(可含子树)成员,全部成员列整册。
-  // 按姓名找人统一走顶栏全局搜索(飞书式单一搜索入口),这里不再单设搜索框。
+  // 通讯录只负责「浏览」组织:选部门列其直属成员,全部成员列整册。
+  // 按姓名找人统一走顶栏全局搜索(飞书式单一搜索入口),这里不设搜索框。
   const { data: members = [], isFetching } = useQuery({
-    queryKey: [
-      'directory',
-      'members',
-      { dept: selectedDeptId, subtree: includeSubtree },
-    ],
+    queryKey: ['directory', 'members', { dept: selectedDeptId }],
     queryFn: () =>
       selectedDeptId
-        ? fetchDepartmentMembers(selectedDeptId, includeSubtree)
+        ? fetchDepartmentMembers(selectedDeptId)
         : fetchDirectoryMembers(),
     staleTime: 30_000,
   })
@@ -142,35 +137,6 @@ const ContactsAuthenticated = () => {
           overflow: 'hidden',
         })}
       >
-        {selectedDeptId && (
-          <div
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              padding: '0.75rem 1rem',
-            })}
-          >
-            <label
-              className={css({
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.375rem',
-                fontSize: '0.8125rem',
-                color: 'greyscale.700',
-                cursor: 'pointer',
-                userSelect: 'none',
-              })}
-            >
-              <input
-                type="checkbox"
-                checked={includeSubtree}
-                onChange={(e) => setIncludeSubtree(e.target.checked)}
-                data-testid="contacts-include-subtree"
-              />
-              {t('page.includeSubtree')}
-            </label>
-          </div>
-        )}
         <div className={css({ overflowY: 'auto', flex: 1 })}>
           {isFetching && members.length === 0 ? (
             <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
