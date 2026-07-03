@@ -216,6 +216,10 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
             alt=""
             className={css({
               height: '28px',
+              // 窄轨(可拖到 180px)时让 logo 收缩/左裁,而不是把右侧按钮组顶出界。
+              minWidth: 0,
+              flexShrink: 1,
+              maxWidth: '100%',
               objectFit: 'contain',
               objectPosition: 'left',
             })}
@@ -226,6 +230,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
             display: 'flex',
             alignItems: 'center',
             gap: '0.125rem',
+            flexShrink: 0,
             flexDirection: collapsed ? 'column' : 'row',
           })}
         >
