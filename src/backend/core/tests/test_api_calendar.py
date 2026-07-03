@@ -138,3 +138,109 @@ def test_rsvp_updates_attendee_and_rejects_bad_status():
         format="json",
     )
     assert bad.status_code == 400
+
+
+def test_list_filters_by_date_range():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="o@acme.com")
+    _membership(org, me)
+    soon_start = timezone.now() + timedelta(days=1)
+    soon = models.CalendarEvent.objects.create(
+        organization=org, organizer=me, title="Soon",
+        start_at=soon_start, end_at=soon_start + timedelta(hours=1),
+    )
+    later_start = timezone.now() + timedelta(days=10)
+    later = models.CalendarEvent.objects.create(
+        organization=org, organizer=me, title="Later",
+        start_at=later_start, end_at=later_start + timedelta(hours=1),
+    )
+
+    client = APIClient()
+    client.force_login(me)
+    win_start = timezone.now().isoformat()
+    win_end = (timezone.now() + timedelta(days=3)).isoformat()
+    ids = {
+        e["id"]
+        for e in client.get(
+            f"/api/v1.0/calendar-events/?start={win_start}&end={win_end}"
+        ).json()["results"]
+    }
+    assert str(soon.id) in ids
+    assert str(later.id) not in ids
+
+
+def test_only_organizer_can_update_and_delete():
+    org = factories.OrganizationFactory()
+    organizer = factories.UserFactory(email="o@acme.com")
+    _membership(org, organizer)
+    invitee = factories.UserFactory(email="i@acme.com")
+    _membership(org, invitee)
+    start, end = _times()
+    event = models.CalendarEvent.objects.create(
+        organization=org, organizer=organizer, title="Plan",
+        start_at=start, end_at=end,
+    )
+    models.EventAttendee.objects.create(
+        event=event, user=organizer,
+        role=models.EventAttendeeRoleChoices.ORGANIZER,
+    )
+    models.EventAttendee.objects.create(event=event, user=invitee)
+
+    # An invitee (in the queryset, so not 404) is forbidden from editing/deleting.
+    ic = APIClient()
+    ic.force_login(invitee)
+    assert (
+        ic.patch(
+            f"/api/v1.0/calendar-events/{event.id}/",
+            {"title": "Hacked"}, format="json",
+        ).status_code
+        == 403
+    )
+    assert ic.delete(f"/api/v1.0/calendar-events/{event.id}/").status_code == 403
+
+    # The organizer can.
+    oc = APIClient()
+    oc.force_login(organizer)
+    assert (
+        oc.patch(
+            f"/api/v1.0/calendar-events/{event.id}/",
+            {"title": "Renamed"}, format="json",
+        ).status_code
+        == 200
+    )
+    event.refresh_from_db()
+    assert event.title == "Renamed"
+    assert oc.delete(f"/api/v1.0/calendar-events/{event.id}/").status_code == 204
+
+
+def test_reschedule_syncs_linked_room():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="o@acme.com")
+    _membership(org, me)
+    start, end = _times()
+    client = APIClient()
+    client.force_login(me)
+    created = client.post(
+        "/api/v1.0/calendar-events/",
+        {"title": "Kickoff", "start_at": start.isoformat(), "end_at": end.isoformat()},
+        format="json",
+    )
+    assert created.status_code == 201, created.content
+    event = models.CalendarEvent.objects.get(id=created.json()["id"])
+    assert event.room is not None
+
+    new_start = start + timedelta(days=2)
+    new_end = new_start + timedelta(hours=1)
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event.id}/",
+        {
+            "title": "Kickoff v2",
+            "start_at": new_start.isoformat(),
+            "end_at": new_end.isoformat(),
+        },
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+    event.room.refresh_from_db()
+    assert event.room.name == "Kickoff v2"
+    assert event.room.scheduled_at == new_start

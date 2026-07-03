@@ -10,8 +10,9 @@ jusi-light-im being reachable.
 
 from django.db import transaction
 from django.db.models import Q
+from django.utils.dateparse import parse_datetime
 
-from rest_framework import decorators, serializers, viewsets
+from rest_framework import decorators, exceptions, serializers, viewsets
 from rest_framework import status as drf_status
 from rest_framework.response import Response
 
@@ -111,7 +112,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         if organization is None:
             return models.CalendarEvent.objects.none()
         user = self.request.user
-        return (
+        queryset = (
             models.CalendarEvent.objects.filter(organization=organization)
             .filter(Q(organizer=user) | Q(attendees__user=user))
             .distinct()
@@ -119,6 +120,24 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             .prefetch_related("attendees__user")
             .order_by("start_at")
         )
+        # Date-range window (?start & ?end, ISO 8601) — only for the list view, so
+        # retrieve/update by pk are never filtered out. Returns events overlapping
+        # the window: start_at < end AND end_at > start. Unparseable params ignored.
+        if self.action == "list":
+            start = parse_datetime(self.request.query_params.get("start", "") or "")
+            end = parse_datetime(self.request.query_params.get("end", "") or "")
+            if start:
+                queryset = queryset.filter(end_at__gt=start)
+            if end:
+                queryset = queryset.filter(start_at__lt=end)
+        return queryset
+
+    def _require_organizer(self, event):
+        """Only the organizer may edit / delete an event (invitees can RSVP only)."""
+        if event.organizer_id != self.request.user.id:
+            raise exceptions.PermissionDenied(
+                "Only the organizer can modify this event."
+            )
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -172,6 +191,50 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     user=attendee,
                     defaults={"role": models.RoleChoices.MEMBER},
                 )
+
+    def perform_update(self, serializer):
+        """Organizer-only edit. Syncs the linked Room's name / scheduled_at so a
+        reschedule (or rename) stays consistent; adds any newly-listed invitees
+        (never removes — removal stays an explicit later action)."""
+        self._require_organizer(serializer.instance)
+        data = serializer.validated_data
+        attendee_ids = data.pop("attendee_ids", None)
+        with transaction.atomic():
+            event = serializer.save()
+            room = event.room
+            if room is not None:
+                update_fields = []
+                if room.name != event.title:
+                    room.name = event.title
+                    update_fields.append("name")
+                if room.scheduled_at != event.start_at:
+                    room.scheduled_at = event.start_at
+                    update_fields.append("scheduled_at")
+                if update_fields:
+                    update_fields.append("updated_at")
+                    room.save(update_fields=update_fields)
+            if attendee_ids:
+                invited = models.User.objects.filter(id__in=attendee_ids).exclude(
+                    id=event.organizer_id
+                )
+                for attendee in invited:
+                    models.EventAttendee.objects.get_or_create(
+                        event=event,
+                        user=attendee,
+                        defaults={"role": models.EventAttendeeRoleChoices.REQUIRED},
+                    )
+                    if room is not None:
+                        models.ResourceAccess.objects.get_or_create(
+                            resource=room,
+                            user=attendee,
+                            defaults={"role": models.RoleChoices.MEMBER},
+                        )
+
+    def perform_destroy(self, instance):
+        """Organizer-only delete. The Room survives (FK is SET_NULL) so a
+        recording / in-progress call isn't yanked out from under attendees."""
+        self._require_organizer(instance)
+        instance.delete()
 
     @decorators.action(detail=True, methods=["post"])
     def rsvp(self, request, pk=None):  # pylint: disable=unused-argument
