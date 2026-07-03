@@ -27,7 +27,9 @@
     "cancel": "Annuler",
     "commentPlaceholder": "Commentaire (facultatif)",
     "confirmCancel": "Annuler cette demande ?",
-    "loadMore": "Charger plus"
+    "loadMore": "Charger plus",
+    "urge": "Relancer",
+    "urged": "Relance envoyée — l'approbateur actuel a été rappelé."
   },
   "form": {
     "title": "Nouvelle demande",

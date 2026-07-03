@@ -58,3 +58,10 @@ export const cancelApproval = (id: string): Promise<ApprovalInstance> =>
     method: 'POST',
     body: '{}',
   })
+
+/** POST /api/v1.0/approvals/{id}/urge — applicant nudges the current approver (催办). */
+export const urgeApproval = (id: string): Promise<ApprovalInstance> =>
+  fetchApi<ApprovalInstance>(`/approvals/${encodeURIComponent(id)}/urge/`, {
+    method: 'POST',
+    body: '{}',
+  })

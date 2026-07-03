@@ -27,7 +27,9 @@
     "cancel": "Withdraw",
     "commentPlaceholder": "Comment (optional)",
     "confirmCancel": "Withdraw this request?",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "urge": "Nudge",
+    "urged": "Nudged — the current approver has been reminded."
   },
   "form": {
     "title": "New request",

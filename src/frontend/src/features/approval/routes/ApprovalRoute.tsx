@@ -24,6 +24,7 @@ import {
   cancelApproval,
   fetchApprovalsPage,
   fetchApprovalTemplates,
+  urgeApproval,
 } from '../api/fetchApproval'
 import type {
   ApprovalInstance,
@@ -143,6 +144,15 @@ const ApprovalAuthenticated = () => {
     try {
       await cancelApproval(id)
       await refresh()
+    } catch (e) {
+      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
+    }
+  }
+  const onUrge = async (id: string) => {
+    try {
+      await urgeApproval(id)
+      // 催办无状态变化,给一句确认反馈(否则用户不知点了有没有用)。
+      void showAlert({ message: t('act.urged') })
     } catch (e) {
       void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
     }
@@ -270,6 +280,7 @@ const ApprovalAuthenticated = () => {
                       mode={view === 'pending' ? 'pending' : 'mine'}
                       onAct={onAct}
                       onCancel={onCancel}
+                      onUrge={onUrge}
                     />
                   ))}
                   {activeQ.hasNextPage && (
@@ -477,12 +488,14 @@ const InstanceCard = ({
   mode,
   onAct,
   onCancel,
+  onUrge,
 }: {
   inst: ApprovalInstance
   fmt: (iso: string) => string
   mode: 'pending' | 'mine'
   onAct: (id: string, action: 'approved' | 'rejected', comment: string) => void
   onCancel: (id: string) => void
+  onUrge: (id: string) => void
 }) => {
   const { t } = useTranslation('approval')
   const [comment, setComment] = useState('')
@@ -660,7 +673,31 @@ const InstanceCard = ({
       )}
 
       {mode === 'mine' && inst.status === 'pending' && (
-        <div className={css({ marginTop: '0.625rem' })}>
+        <div
+          className={css({
+            marginTop: '0.625rem',
+            display: 'flex',
+            gap: '0.5rem',
+          })}
+        >
+          <button
+            type="button"
+            onClick={() => onUrge(inst.id)}
+            data-testid={`approval-urge-${inst.id}`}
+            className={css({
+              paddingX: '0.75rem',
+              paddingY: '0.3125rem',
+              border: '1px solid token(colors.primary.300)',
+              borderRadius: '0.5rem',
+              backgroundColor: 'greyscale.000',
+              color: 'primary.600',
+              fontSize: '0.8125rem',
+              cursor: 'pointer',
+              _hover: { backgroundColor: 'primary.50' },
+            })}
+          >
+            {t('act.urge')}
+          </button>
           <button
             type="button"
             onClick={() => onCancel(inst.id)}

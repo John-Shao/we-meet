@@ -22,6 +22,7 @@ from rest_framework import exceptions
 
 from core.models import (
     ApprovalActionChoices,
+    ApprovalDelegation,
     ApprovalInstance,
     ApprovalNodeType,
     ApprovalStatusChoices,
@@ -119,6 +120,22 @@ def cancel(instance, actor) -> ApprovalInstance:
     return instance
 
 
+def urge(instance, actor) -> ApprovalInstance:
+    """Applicant nudges the current approver (催办). Re-sends the pending-approval
+    IM notification; no state change. Only the applicant of a still-pending
+    instance may urge."""
+    if actor.id != instance.applicant_id:
+        raise exceptions.PermissionDenied("only the applicant may urge")
+    if instance.status != ApprovalStatusChoices.PENDING:
+        raise exceptions.ValidationError({"detail": "instance is not pending"})
+    task = instance.tasks.filter(node_index=instance.current_node).first()
+    approver = task.approver if task else None
+    if approver is None:
+        raise exceptions.ValidationError({"detail": "no current approver to urge"})
+    _notify_user(approver, f"⏰ 催办:{instance.template.name} 待你审批")
+    return instance
+
+
 def retry_assignment(instance) -> bool:
     """Re-resolve the current node's approver for a NEEDS_ASSIGNMENT instance.
 
@@ -179,23 +196,50 @@ def resolve_approver(instance, node):
     """Resolve a flow node to a User, or None if unassignable.
 
     direct_manager / department_head fall back to the org owner; user / org_role
-    are explicit (no fallback — an unresolved one is a config error).
+    are explicit (no fallback — an unresolved one is a config error). A resolved
+    approver is then run through any active delegation (P5) so the task lands on
+    the stand-in during the delegator's absence.
     """
     node = node or {}
     node_type = node.get("type")
     org = instance.organization
 
     if node_type == ApprovalNodeType.USER:
-        return _user_by_id(node.get("user_id"))
-    if node_type == ApprovalNodeType.ORG_ROLE:
-        return _first_member_with_role(org, node.get("role"))
-    if node_type == ApprovalNodeType.DEPARTMENT_HEAD:
+        base = _user_by_id(node.get("user_id"))
+    elif node_type == ApprovalNodeType.ORG_ROLE:
+        base = _first_member_with_role(org, node.get("role"))
+    elif node_type == ApprovalNodeType.DEPARTMENT_HEAD:
         dept = _dept_by_id(node.get("department_id"))
         head = dept.head if dept else None
-        return head or _org_owner(org)
-    if node_type == ApprovalNodeType.DIRECT_MANAGER:
-        return _direct_manager(instance.applicant, org) or _org_owner(org)
-    return None
+        base = head or _org_owner(org)
+    elif node_type == ApprovalNodeType.DIRECT_MANAGER:
+        base = _direct_manager(instance.applicant, org) or _org_owner(org)
+    else:
+        base = None
+    return _apply_delegation(base, org)
+
+
+def _apply_delegation(approver, org):
+    """If ``approver`` has an active delegation in ``org`` right now, return the
+    delegate instead — one hop only (delegations never chain, so no loops)."""
+    if approver is None:
+        return None
+    now = timezone.now()
+    delegation = (
+        ApprovalDelegation.objects.filter(
+            organization=org,
+            delegator=approver,
+            is_active=True,
+            start_at__lte=now,
+            end_at__gte=now,
+        )
+        .select_related("delegate")
+        .order_by("-start_at")
+        .first()
+    )
+    if delegation and delegation.delegate_id != approver.id:
+        return delegation.delegate
+    return approver
 
 
 def _direct_manager(applicant, org):

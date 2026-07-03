@@ -27,7 +27,9 @@
     "cancel": "Intrekken",
     "commentPlaceholder": "Opmerking (optioneel)",
     "confirmCancel": "Dit verzoek intrekken?",
-    "loadMore": "Meer laden"
+    "loadMore": "Meer laden",
+    "urge": "Herinneren",
+    "urged": "Herinnering verstuurd — de huidige fiatteur is op de hoogte gebracht."
   },
   "form": {
     "title": "Nieuw verzoek",

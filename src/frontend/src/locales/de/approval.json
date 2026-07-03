@@ -27,7 +27,9 @@
     "cancel": "Zurückziehen",
     "commentPlaceholder": "Kommentar (optional)",
     "confirmCancel": "Diesen Antrag zurückziehen?",
-    "loadMore": "Mehr laden"
+    "loadMore": "Mehr laden",
+    "urge": "Erinnern",
+    "urged": "Erinnerung gesendet — der aktuelle Genehmiger wurde benachrichtigt."
   },
   "form": {
     "title": "Neuer Antrag",

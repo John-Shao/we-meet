@@ -851,3 +851,33 @@ class ApprovalInstanceAdmin(admin.ModelAdmin):
             request,
             f"已恢复 {recovered} 条(转为待审批);{skipped} 条仍无法解析或状态不符,已跳过。",
         )
+
+
+@admin.register(models.ApprovalDelegation)
+class ApprovalDelegationAdmin(admin.ModelAdmin):
+    """Ops-configured approval delegations — hand one user's approval tasks to
+    another for a time window. Editable here (the management surface); resolution
+    substitutes the delegate automatically during the active window."""
+
+    list_display = (
+        "delegator",
+        "delegate",
+        "start_at",
+        "end_at",
+        "is_active",
+        "organization",
+    )
+    list_filter = ("organization", "is_active")
+    search_fields = (
+        "=id",
+        "delegator__email",
+        "delegate__email",
+        "delegator__full_name",
+        "delegate__full_name",
+    )
+    autocomplete_fields = ("organization", "delegator", "delegate")
+    readonly_fields = ("id", "created_at", "updated_at")
+
+    def get_changeform_initial_data(self, request):
+        orgs = list(models.Organization.objects.all()[:2])
+        return {"organization": orgs[0].pk} if len(orgs) == 1 else {}

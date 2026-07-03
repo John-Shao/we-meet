@@ -2262,3 +2262,43 @@ class ApprovalTask(BaseModel):
 
     def __str__(self):
         return f"task#{self.node_index} of {self.instance_id} ({self.action})"
+
+
+class ApprovalDelegation(BaseModel):
+    """Delegate one user's approval tasks to another for a time window (P5).
+
+    When approver resolution lands on ``delegator`` during an active window, the
+    task is assigned to ``delegate`` instead (one hop — delegations do not chain,
+    which also prevents loops). Ops-configured via Django admin, consistent with
+    the management-console transition.
+    """
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="approval_delegations",
+    )
+    delegator = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="approval_delegations_out",
+        help_text=_("Whose approval tasks are handed off."),
+    )
+    delegate = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="approval_delegations_in",
+        help_text=_("Who acts on the delegator's behalf."),
+    )
+    start_at = models.DateTimeField()
+    end_at = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "meet_approval_delegation"
+        ordering = ("-start_at",)
+        verbose_name = _("Approval delegation")
+        verbose_name_plural = _("Approval delegations")
+
+    def __str__(self):
+        return f"{self.delegator_id} → {self.delegate_id}"

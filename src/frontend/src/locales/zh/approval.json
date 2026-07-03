@@ -27,7 +27,9 @@
     "cancel": "撤销",
     "commentPlaceholder": "审批意见(可选)",
     "confirmCancel": "确定撤销这条审批吗?",
-    "loadMore": "加载更多"
+    "loadMore": "加载更多",
+    "urge": "催办",
+    "urged": "已催办,已再次提醒当前审批人。"
   },
   "form": {
     "title": "发起审批",

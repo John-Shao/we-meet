@@ -7,13 +7,16 @@ JusiImAdminClient is mocked so the notification path runs without a real server.
 
 # pylint: disable=redefined-outer-name,unused-argument
 
+from datetime import timedelta
 from unittest import mock
 
 import pytest
+from django.utils import timezone
 
 from core.factories import OrganizationFactory, UserFactory
 from core.models import (
     ApprovalActionChoices,
+    ApprovalDelegation,
     ApprovalInstance,
     ApprovalStatusChoices,
     ApprovalTemplate,
@@ -243,3 +246,67 @@ def test_opening_node_sends_system_dm(mock_im):
     assert "待你审批" in pm["body"] and pm["body"].startswith("🗳️")
     # owner of the system DM is the reserved SYSTEM uid
     assert mock_im.create_direct.call_args.kwargs["owner_uid"] == approval.SYSTEM_UID
+
+
+# ---- delegation (P5) ----
+
+
+def test_delegation_substitutes_approver(mock_im):
+    org = OrganizationFactory()
+    applicant, manager, deputy = UserFactory(), UserFactory(), UserFactory()
+    dept = Department.objects.create(organization=org, name="研发", head=manager)
+    _membership(org, applicant, department=dept)
+    now = timezone.now()
+    ApprovalDelegation.objects.create(
+        organization=org, delegator=manager, delegate=deputy,
+        start_at=now - timedelta(hours=1), end_at=now + timedelta(hours=1),
+    )
+
+    inst = approval.submit(_template(org, [{"type": "direct_manager"}]), applicant)
+    # The manager is away → the task lands on their delegate.
+    assert _current_task(inst).approver_id == deputy.id
+    assert inst.status == ApprovalStatusChoices.PENDING
+
+
+def test_expired_or_inactive_delegation_ignored(mock_im):
+    org = OrganizationFactory()
+    applicant, manager, deputy = UserFactory(), UserFactory(), UserFactory()
+    dept = Department.objects.create(organization=org, name="研发", head=manager)
+    _membership(org, applicant, department=dept)
+    now = timezone.now()
+    # Window already elapsed → no substitution.
+    ApprovalDelegation.objects.create(
+        organization=org, delegator=manager, delegate=deputy,
+        start_at=now - timedelta(days=5), end_at=now - timedelta(days=1),
+    )
+    # Active window but toggled off → still no substitution.
+    ApprovalDelegation.objects.create(
+        organization=org, delegator=manager, delegate=deputy, is_active=False,
+        start_at=now - timedelta(hours=1), end_at=now + timedelta(hours=1),
+    )
+
+    inst = approval.submit(_template(org, [{"type": "direct_manager"}]), applicant)
+    assert _current_task(inst).approver_id == manager.id
+
+
+# ---- urge / 催办 (P5) ----
+
+
+def test_urge_notifies_current_approver_and_guards(mock_im):
+    org = OrganizationFactory()
+    applicant, manager = UserFactory(), UserFactory()
+    dept = Department.objects.create(organization=org, name="研发", head=manager)
+    _membership(org, applicant, department=dept)
+    inst = approval.submit(_template(org, [{"type": "direct_manager"}]), applicant)
+    before = mock_im.post_message.call_count
+
+    # Applicant nudges → re-sends the ping, no state change.
+    approval.urge(inst, applicant)
+    assert mock_im.post_message.call_count == before + 1
+    assert mock_im.post_message.call_args.kwargs["body"].startswith("⏰ 催办")
+    inst.refresh_from_db()
+    assert inst.status == ApprovalStatusChoices.PENDING
+
+    # Only the applicant may urge.
+    with pytest.raises(exceptions.PermissionDenied):
+        approval.urge(inst, manager)

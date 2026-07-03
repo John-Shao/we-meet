@@ -165,3 +165,12 @@ class ApprovalInstanceViewSet(
         return Response(
             ApprovalInstanceSerializer(instance, context={"request": request}).data
         )
+
+    @decorators.action(detail=True, methods=["post"])
+    def urge(self, request, pk=None):  # pylint: disable=unused-argument
+        """Applicant nudges the current approver (催办) — re-sends the IM ping."""
+        instance = self.get_object()
+        instance = approval_service.urge(instance, request.user)
+        return Response(
+            ApprovalInstanceSerializer(instance, context={"request": request}).data
+        )
