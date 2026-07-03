@@ -8,9 +8,20 @@ import type {
   UpdateEventPayload,
 } from './ApiCalendar'
 
-/** GET /api/v1.0/calendar-events — events the caller organizes or is invited to. */
-export const fetchCalendarEvents = (): Promise<CalendarEvent[]> =>
-  fetchApi<Paginated<CalendarEvent>>('/calendar-events/').then((p) => p.results)
+/** GET /api/v1.0/calendar-events — events the caller organizes or is invited to.
+ *  Optional ISO `range` narrows to events overlapping [start, end] (server-side),
+ *  so month paging fetches only the visible window instead of the whole calendar. */
+export const fetchCalendarEvents = (range?: {
+  start: string
+  end: string
+}): Promise<CalendarEvent[]> => {
+  const qs = range
+    ? `?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}`
+    : ''
+  return fetchApi<Paginated<CalendarEvent>>(`/calendar-events/${qs}`).then(
+    (p) => p.results
+  )
+}
 
 /** POST /api/v1.0/calendar-events — create an event (also provisions its Room). */
 export const createCalendarEvent = (

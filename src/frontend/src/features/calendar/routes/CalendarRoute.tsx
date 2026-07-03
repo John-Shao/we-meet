@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
+import { addMonths, endOfMonth, startOfDay, startOfMonth } from 'date-fns'
 
 import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
@@ -22,7 +23,7 @@ import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
 import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EventDetailDialog } from '../components/EventDetailDialog'
 
-const EVENTS_KEY = ['calendar', 'events'] as const
+const EVENTS_KEY = ['calendar'] as const
 
 export const CalendarRoute = () => (
   <RequireAuth>
@@ -53,9 +54,33 @@ const CalendarAuthenticated = () => {
     setDraft(null)
   }
 
+  // 网格 + 迷你历:聚焦月份 ±1 个月窗口(覆盖月视图 6 周 + 迷你历翻页缓冲);
+  // 翻月即换 key 重取,不再一次拉全量。
+  const monthWindow = useMemo(
+    () => ({
+      start: startOfMonth(addMonths(date, -1)).toISOString(),
+      end: endOfMonth(addMonths(date, 1)).toISOString(),
+    }),
+    [date]
+  )
   const { data: events = [], isLoading } = useQuery({
-    queryKey: EVENTS_KEY,
-    queryFn: fetchCalendarEvents,
+    queryKey: ['calendar', 'window', monthWindow],
+    queryFn: () => fetchCalendarEvents(monthWindow),
+    staleTime: 30_000,
+  })
+
+  // 侧栏「即将开始」:与聚焦日期无关,始终 now 起的未来窗口(独立查询,避免聚焦
+  // 远月时上游窗口拿不到近期事件)。key 按天,当天内稳定复用。
+  const upcomingWindow = useMemo(() => {
+    const now = new Date()
+    return {
+      start: startOfDay(now).toISOString(),
+      end: addMonths(now, 6).toISOString(),
+    }
+  }, [])
+  const { data: upcomingEvents = [] } = useQuery({
+    queryKey: ['calendar', 'upcoming', upcomingWindow],
+    queryFn: () => fetchCalendarEvents(upcomingWindow),
     staleTime: 30_000,
   })
 
@@ -92,6 +117,7 @@ const CalendarAuthenticated = () => {
           date={date}
           onDateChange={setDate}
           events={events}
+          upcomingEvents={upcomingEvents}
           onSelectEvent={setDetailEvent}
         />
       </ResizablePanel>

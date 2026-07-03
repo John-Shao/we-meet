@@ -28,7 +28,11 @@ const formatWhen = (iso: string, locale: string) => {
 interface Props {
   date: Date
   onDateChange: (date: Date) => void
+  /** Focused-month window — drives the mini calendar's event dots. */
   events: CalendarEvent[]
+  /** Now-relative forward window — drives the「即将开始」list (independent of the
+   * focused month, so it stays correct when the grid is paged to a far month). */
+  upcomingEvents: CalendarEvent[]
   onSelectEvent: (event: CalendarEvent) => void
 }
 
@@ -36,6 +40,7 @@ export const CalendarSidebar = ({
   date,
   onDateChange,
   events,
+  upcomingEvents,
   onSelectEvent,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
@@ -43,14 +48,14 @@ export const CalendarSidebar = ({
   // Upcoming = events whose start is in the future, soonest first, capped.
   const upcoming = useMemo(() => {
     const now = Date.now()
-    return events
+    return upcomingEvents
       .filter((e) => new Date(e.start_at).getTime() >= now)
       .sort(
         (a, b) =>
           new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
       )
       .slice(0, 6)
-  }, [events])
+  }, [upcomingEvents])
 
   return (
     <aside
