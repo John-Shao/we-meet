@@ -16,13 +16,14 @@
 |---|---|---|---|---|
 | 仅前端代码 | frontend | 否 | ✅ frontend | 否 |
 | 仅后端代码(无新迁移) | backend | 否 | ✅ backend | 否 |
-| 后端**有新迁移** | backend | 否 | ✅ backend | ✅ 见下 |
+| 后端**有新迁移** | backend | ✅ **必须**(触发 migrate hook) | ✅ backend | ✅ hook 自动(附手动兜底) |
 | 改了 helm **values / 模板**(新增 CronJob、env、资源等) | 视情况 | ✅ **必须** | 若同时改了代码则 ✅ | 视情况 |
 
 > ⚠️ **关键坑**:因为生产是 `tag: latest`,`helm upgrade` **不会**因为镜像内容变了就重建 Deployment(tag 没变)。所以:
 > - **代码变更** → 必须 `rollout restart` 才能拉到新推的 `latest` 镜像。
 > - **values/模板变更**(如新增 CronJob)→ 必须 `helm upgrade` 才会生效,`rollout` 不会创建新对象。
-> - 两者都改 → **先 `helm upgrade` 再 `rollout restart`**。
+> - **有数据库迁移** → 必须 `helm upgrade`:迁移靠 chart 的 **migrate hook** 触发,而 helm hook **每次 `helm upgrade` 都会跑**(不是只在 values 变化时)。hook 的 Job 用 `latest` 标签 → 拉到刚推的新镜像跑迁移。只 `rollout` 不 `helm upgrade` 会漏迁移,访问相关表报 `relation "…" does not exist` 500。
+> - 顺序:**先 `helm upgrade`(迁移先跑)再 `rollout restart`(新代码才服务)** —— 保证迁移早于新代码,避免新代码查无表。
 
 ---
 
@@ -55,12 +56,16 @@ kubectl -n meet rollout status  deploy/meet-frontend --timeout=120s
 kubectl -n meet rollout status  deploy/meet-backend  --timeout=120s
 ```
 
-### 若本次有新迁移
+### 若本次有新迁移(必读)
+迁移由上面的 **`helm upgrade` migrate hook 自动跑**(每次 upgrade 都触发,用 latest 新镜像)。所以有迁移时,阶段 B 的 `helm upgrade` 不是可选而是**必须**,且要排在 `rollout` 之前。
+
+跑完 upgrade + rollout 后,**确认迁移已落**:
 ```bash
-kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input
 kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | tail -5
+#   期望目标迁移显示 [X];若仍是 [ ],说明 hook 没跑成,手动兜底:
+kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input
 ```
-> 迁移随后端镜像走;`helm upgrade` 的 migrate hook 只在 chart/values 触发时跑,日常 latest 发布下**手动执行更稳**(参见记忆:只换镜像不触发 migrate hook 会漏迁移报 relation does not exist)。
+> 手动兜底要在**新后端 pod 就绪后**(pod 里已是含该迁移的新代码)执行 —— 所以兜底命令放在 rollout 之后。切勿在 `helm upgrade` 前用旧 pod 跑 migrate(旧代码没有该迁移文件)。
 
 ---
 
@@ -86,3 +91,33 @@ kubectl -n meet logs job/reminders-manual-1       # 期望正常退出、无 tra
 kubectl -n meet delete job reminders-manual-1     # 验完清理
 ```
 页面:日历新建日程能填/看描述;建「~6 分钟后开始、提前 5 分钟提醒」的日程,等下个整点 CronJob 跑过收到「🔔 即将开始」;Django admin → Approval instances → 选 `needs_assignment` 实例 → 动作「重试审批人解析」(先补好部门主管/角色)。
+
+---
+
+## 已归档的实例:2026-07-03 审批催办 + 委托(commit 21b64040,**含迁移**)
+
+一次 **前端 + 后端 + 迁移(0048)** 的发布,是「有迁移」路径的样板。
+
+改动:
+1. **催办(前端 + 后端)**:`POST /approvals/{id}/urge/` + 前端「我发起的」卡片「催办」按钮。
+2. **委托(后端 + 迁移)**:新模型 `ApprovalDelegation`(迁移 `0048_approvaldelegation`)+ `resolve_approver` 委托替换 + `ApprovalDelegationAdmin`。
+
+发布(**有迁移 → helm upgrade 必须,且排在 rollout 前**):
+```bash
+# 构建机
+bash deploy/aliyun/build-and-push.sh frontend backend
+# ECS
+cd /opt/we-meet && git pull origin aliyun-dev
+helm upgrade --install meet ./src/helm/meet -n meet \
+  -f ./src/helm/env.d/common.yaml.gotmpl \
+  -f ./src/helm/env.d/aliyun-prod/values.meet.yaml \
+  -f ./src/helm/env.d/aliyun-prod/values.secrets.yaml --wait --timeout 15m
+kubectl -n meet rollout restart deploy/meet-frontend deploy/meet-backend
+kubectl -n meet rollout status  deploy/meet-backend --timeout=120s
+```
+验证:
+```bash
+kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | grep 0048
+#   期望:[X] 0048_approvaldelegation  ;若为 [ ] 则手动 migrate 兜底(见上)
+```
+页面:审批「我发起的」pending 卡片有「催办」按钮,点后当前审批人 IM 收「⏰ 催办」;Django admin → Approval delegations 建一条有效委托 → 该主管作审批人的新申请任务落到受托人。
