@@ -2335,6 +2335,7 @@ class AuditActionChoices(models.TextChoices):
 
     DEPT_CREATE = "dept.create", _("Department created")
     DEPT_RENAME = "dept.rename", _("Department renamed")
+    DEPT_MOVE = "dept.move", _("Department moved")
     DEPT_DELETE = "dept.delete", _("Department deleted")
     MEMBER_ADD = "member.add", _("Member added")
     MEMBER_UPDATE = "member.update", _("Member updated")

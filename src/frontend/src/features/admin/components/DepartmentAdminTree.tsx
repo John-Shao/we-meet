@@ -5,6 +5,7 @@ import {
   RiAddLine,
   RiEditLine,
   RiDeleteBinLine,
+  RiFolderTransferLine,
 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
@@ -17,6 +18,7 @@ interface Props {
   onSelect: (id: string) => void
   onAddChild: (parent: AdminDepartment) => void
   onRename: (dept: AdminDepartment) => void
+  onMove: (dept: AdminDepartment) => void
   onDelete: (dept: AdminDepartment) => void
 }
 
@@ -32,6 +34,7 @@ export const DepartmentAdminTree = ({
   onSelect,
   onAddChild,
   onRename,
+  onMove,
   onDelete,
 }: Props) => {
   const { t } = useTranslation('admin')
@@ -149,6 +152,15 @@ export const DepartmentAdminTree = ({
                 className={iconBtn}
               >
                 <RiEditLine size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove(d)}
+                aria-label={t('org.move')}
+                title={t('org.move')}
+                className={iconBtn}
+              >
+                <RiFolderTransferLine size={15} />
               </button>
               <button
                 type="button"

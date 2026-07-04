@@ -14,12 +14,14 @@ import {
   createDepartment,
   deleteDepartment,
   fetchAdminDepartments,
+  moveDepartment,
   updateDepartment,
 } from '../api/adminDepartments'
 import { describeApiError } from '../api/errors'
 import { DepartmentAdminTree } from '../components/DepartmentAdminTree'
 import { TextPromptDialog } from '../components/TextPromptDialog'
 import { DeleteDepartmentDialog } from '../components/DeleteDepartmentDialog'
+import { SelectDialog } from '../components/SelectDialog'
 
 type PromptState =
   | { mode: 'create'; parent: AdminDepartment | null }
@@ -36,6 +38,7 @@ export const AdminOrg = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [prompt, setPrompt] = useState<PromptState>(null)
   const [deleteTarget, setDeleteTarget] = useState<AdminDepartment | null>(null)
+  const [moveTarget, setMoveTarget] = useState<AdminDepartment | null>(null)
 
   const { data: departments = [] } = useQuery({
     queryKey: DEPARTMENTS_KEY,
@@ -85,6 +88,30 @@ export const AdminOrg = () => {
     },
     onError,
   })
+
+  const moveMut = useMutation({
+    mutationFn: (vars: { id: string; parent: string | null }) =>
+      moveDepartment(vars.id, vars.parent),
+    onSuccess: () => {
+      invalidate()
+      setMoveTarget(null)
+    },
+    onError,
+  })
+
+  // Valid move targets: any department that is NOT the node itself and NOT in
+  // its subtree (a materialized-path prefix match), plus "top level".
+  const moveOptions = moveTarget
+    ? [
+        { value: '', label: t('org.moveToTop') },
+        ...departments
+          .filter(
+            (d) =>
+              d.id !== moveTarget.id && !d.path.startsWith(moveTarget.path),
+          )
+          .map((d) => ({ value: d.id, label: d.name })),
+      ]
+    : []
 
   const submitPrompt = (value: string) => {
     if (prompt?.mode === 'create') {
@@ -149,6 +176,7 @@ export const AdminOrg = () => {
                 onSelect={setSelectedId}
                 onAddChild={(parent) => setPrompt({ mode: 'create', parent })}
                 onRename={(dept) => setPrompt({ mode: 'rename', dept })}
+                onMove={setMoveTarget}
                 onDelete={setDeleteTarget}
               />
             )}
@@ -218,6 +246,20 @@ export const AdminOrg = () => {
           deleteTarget && deleteMut.mutate({ id: deleteTarget.id, reassignTo })
         }
         onClose={() => setDeleteTarget(null)}
+      />
+
+      <SelectDialog
+        isOpen={moveTarget !== null}
+        title={t('org.moveTitle', { name: moveTarget?.name ?? '' })}
+        label={t('org.moveLabel')}
+        options={moveOptions}
+        initialValue={moveTarget?.parent ?? ''}
+        confirmLabel={t('org.move')}
+        submitting={moveMut.isPending}
+        onSubmit={(value) =>
+          moveTarget && moveMut.mutate({ id: moveTarget.id, parent: value || null })
+        }
+        onClose={() => setMoveTarget(null)}
       />
     </div>
   )

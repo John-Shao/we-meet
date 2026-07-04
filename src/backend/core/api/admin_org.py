@@ -21,6 +21,8 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from rest_framework import mixins, serializers, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from core import models, utils
 from core.api import permissions
@@ -309,6 +311,80 @@ class DepartmentAdminViewSet(
             target_label=instance.name,
             metadata={"reassign_to": str(target.id) if target else None},
         )
+
+    @action(detail=True, methods=["post"])
+    def move(self, request, *args, **kwargs):
+        """Reparent a department, rewriting its whole subtree's materialized paths.
+
+        Body ``{"parent": "<dept_id>" | null}`` (null → top level). The model's
+        ``save()`` only refreshes one node's path/depth (by design, see
+        ``Department`` docstring); moving a subtree is the console's job, done
+        here. Rejects moving a department under itself or one of its descendants
+        (a cycle). ``team_key`` is id-derived and stays stable, so team-scoped
+        access grants survive the move.
+        """
+        node = self.get_object()
+        organization = self.get_organization()
+        parent_id = request.data.get("parent")
+
+        new_parent = None
+        if parent_id:
+            new_parent = models.Department.objects.filter(
+                id=parent_id,
+                organization=organization,
+                deleted_at__isnull=True,
+            ).first()
+            if new_parent is None:
+                raise serializers.ValidationError(
+                    {"parent": "invalid target parent"}
+                )
+            # node.path includes self, so a descendant's path starts with it.
+            if new_parent.id == node.id or new_parent.path.startswith(node.path):
+                raise serializers.ValidationError(
+                    {"parent": "cannot move a department under itself or its descendant"}
+                )
+
+        new_parent_id = new_parent.id if new_parent else None
+        if node.parent_id == new_parent_id:
+            return Response(DepartmentAdminSerializer(node).data)  # no-op
+
+        old_path = node.path
+        new_path = (
+            f"{new_parent.path}{node.id.hex}/" if new_parent else f"{node.id.hex}/"
+        )
+        new_depth = (new_parent.depth + 1) if new_parent else 0
+        depth_delta = new_depth - node.depth
+
+        # The subtree (descendants only; the node itself is updated separately).
+        descendants = list(
+            models.Department.objects.filter(
+                organization=organization, path__startswith=old_path
+            ).exclude(id=node.id)
+        )
+
+        with transaction.atomic():
+            # .update() bypasses Department.save()'s single-node path refresh,
+            # letting us write the exact recomputed subtree paths directly.
+            models.Department.objects.filter(id=node.id).update(
+                parent=new_parent, path=new_path, depth=new_depth
+            )
+            for dept in descendants:
+                models.Department.objects.filter(id=dept.id).update(
+                    path=new_path + dept.path[len(old_path):],
+                    depth=dept.depth + depth_delta,
+                )
+
+        node.refresh_from_db()
+        record_audit(
+            actor=self.request.user,
+            organization=organization,
+            action=models.AuditActionChoices.DEPT_MOVE,
+            target_type="department",
+            target_id=node.id,
+            target_label=node.name,
+            metadata={"to_parent": new_parent_id and str(new_parent_id)},
+        )
+        return Response(DepartmentAdminSerializer(node).data)
 
 
 class MembershipAdminViewSet(

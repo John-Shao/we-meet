@@ -244,6 +244,129 @@ def test_admin_audit_requires_org_admin():
     assert client.get("/api/v1.0/admin/audit-logs/").status_code == 403
 
 
+def test_admin_audit_records_department_move():
+    org = factories.OrganizationFactory()
+    client, _ = _admin_client(org)
+    root = models.Department.objects.create(organization=org, name="Root")
+    node = models.Department.objects.create(
+        organization=org, name="Node", parent=root
+    )
+
+    other_root = models.Department.objects.create(organization=org, name="Other")
+    moved = client.post(
+        f"/api/v1.0/admin/departments/{node.id}/move/",
+        {"parent": str(other_root.id)},
+        format="json",
+    )
+    assert moved.status_code == 200, moved.content
+
+    logs = client.get("/api/v1.0/admin/audit-logs/?action=dept.move")
+    assert logs.status_code == 200, logs.content
+    assert any(row["target_label"] == "Node" for row in logs.json()["results"])
+
+
+# --- department reparent (move) ---------------------------------------------
+
+
+def test_admin_department_move_rewrites_subtree_paths():
+    """Moving a department rewrites its whole subtree's path and depth."""
+    org = factories.OrganizationFactory()
+    client, _ = _admin_client(org)
+    a = models.Department.objects.create(organization=org, name="A")
+    b = models.Department.objects.create(organization=org, name="B", parent=a)
+    c = models.Department.objects.create(organization=org, name="C", parent=b)
+    target = models.Department.objects.create(organization=org, name="T")
+
+    # Move B (with child C) under T.
+    response = client.post(
+        f"/api/v1.0/admin/departments/{b.id}/move/",
+        {"parent": str(target.id)},
+        format="json",
+    )
+    assert response.status_code == 200, response.content
+
+    b.refresh_from_db()
+    c.refresh_from_db()
+    assert b.parent_id == target.id
+    assert b.depth == 1
+    assert b.path == f"{target.id.hex}/{b.id.hex}/"
+    # Descendant C follows: its path is rebuilt under B's new path, depth + shifted.
+    assert c.path == f"{target.id.hex}/{b.id.hex}/{c.id.hex}/"
+    assert c.depth == 2
+    assert c.parent_id == b.id  # adjacency unchanged, only materialized path moved
+
+
+def test_admin_department_move_to_top_level():
+    org = factories.OrganizationFactory()
+    client, _ = _admin_client(org)
+    root = models.Department.objects.create(organization=org, name="Root")
+    child = models.Department.objects.create(
+        organization=org, name="Child", parent=root
+    )
+
+    response = client.post(
+        f"/api/v1.0/admin/departments/{child.id}/move/",
+        {"parent": None},
+        format="json",
+    )
+    assert response.status_code == 200, response.content
+    child.refresh_from_db()
+    assert child.parent_id is None
+    assert child.depth == 0
+    assert child.path == f"{child.id.hex}/"
+
+
+def test_admin_department_move_rejects_cycle():
+    """A department cannot be moved under itself or one of its descendants."""
+    org = factories.OrganizationFactory()
+    client, _ = _admin_client(org)
+    a = models.Department.objects.create(organization=org, name="A")
+    b = models.Department.objects.create(organization=org, name="B", parent=a)
+
+    # Under itself.
+    under_self = client.post(
+        f"/api/v1.0/admin/departments/{a.id}/move/",
+        {"parent": str(a.id)},
+        format="json",
+    )
+    assert under_self.status_code == 400, under_self.content
+
+    # Under its own descendant.
+    under_descendant = client.post(
+        f"/api/v1.0/admin/departments/{a.id}/move/",
+        {"parent": str(b.id)},
+        format="json",
+    )
+    assert under_descendant.status_code == 400, under_descendant.content
+
+
+def test_admin_department_move_rejects_foreign_parent():
+    org = factories.OrganizationFactory()
+    other = factories.OrganizationFactory()
+    foreign = models.Department.objects.create(organization=other, name="Foreign")
+    client, _ = _admin_client(org)
+    node = models.Department.objects.create(organization=org, name="Node")
+
+    response = client.post(
+        f"/api/v1.0/admin/departments/{node.id}/move/",
+        {"parent": str(foreign.id)},
+        format="json",
+    )
+    assert response.status_code == 400, response.content
+
+
+def test_admin_department_move_requires_org_admin():
+    org = factories.OrganizationFactory()
+    node = models.Department.objects.create(organization=org, name="Node")
+    client, _ = _member_client(org)
+    response = client.post(
+        f"/api/v1.0/admin/departments/{node.id}/move/",
+        {"parent": None},
+        format="json",
+    )
+    assert response.status_code == 403
+
+
 def test_admin_audit_is_org_scoped():
     org = factories.OrganizationFactory()
     other = factories.OrganizationFactory()

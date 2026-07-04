@@ -46,6 +46,20 @@ export const updateDepartment = (
   })
 
 /**
+ * Reparent a department (null = top level). The backend rewrites the whole
+ * subtree's materialized paths and rejects moving a department under itself or
+ * one of its descendants. POST /admin/departments/{id}/move/.
+ */
+export const moveDepartment = (
+  id: string,
+  parentId: string | null,
+): Promise<AdminDepartment> =>
+  fetchApi<AdminDepartment>(`/admin/departments/${id}/move/`, {
+    method: 'POST',
+    body: JSON.stringify({ parent: parentId }),
+  })
+
+/**
  * Soft-delete a department. Its members fall back to organization-level unless
  * `reassignToId` is given (then they move there). Backend refuses (400) if the
  * department still has sub-departments.
