@@ -1,0 +1,33 @@
+{
+  "shell": {
+    "title": "Verwaltungskonsole",
+    "backToApp": "Zurück zum Arbeitsbereich",
+    "nav": {
+      "dashboard": "Dashboard",
+      "org": "Organisation",
+      "members": "Mitglieder",
+      "audit": "Auditprotokoll"
+    }
+  },
+  "forbidden": {
+    "title": "Zugriff verweigert",
+    "description": "Die Verwaltungskonsole ist nur für Organisationsadministratoren verfügbar. Wende dich an deinen Administrator, wenn du Zugriff benötigst.",
+    "back": "Zurück zum Arbeitsbereich"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "placeholder": "Das Dashboard ist bald verfügbar."
+  },
+  "org": {
+    "title": "Organisation",
+    "placeholder": "Die Organisationsverwaltung ist bald verfügbar."
+  },
+  "members": {
+    "title": "Mitglieder",
+    "placeholder": "Die Mitgliederverwaltung ist bald verfügbar."
+  },
+  "audit": {
+    "title": "Auditprotokoll",
+    "placeholder": "Das Auditprotokoll ist bald verfügbar."
+  }
+}

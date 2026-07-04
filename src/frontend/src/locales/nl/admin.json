@@ -1,0 +1,33 @@
+{
+  "shell": {
+    "title": "Beheerconsole",
+    "backToApp": "Terug naar werkruimte",
+    "nav": {
+      "dashboard": "Dashboard",
+      "org": "Organisatie",
+      "members": "Leden",
+      "audit": "Auditlogboek"
+    }
+  },
+  "forbidden": {
+    "title": "Toegang geweigerd",
+    "description": "De beheerconsole is alleen beschikbaar voor organisatiebeheerders. Neem contact op met je beheerder als je toegang nodig hebt.",
+    "back": "Terug naar werkruimte"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "placeholder": "Het dashboard komt binnenkort."
+  },
+  "org": {
+    "title": "Organisatie",
+    "placeholder": "Organisatiebeheer komt binnenkort."
+  },
+  "members": {
+    "title": "Leden",
+    "placeholder": "Ledenbeheer komt binnenkort."
+  },
+  "audit": {
+    "title": "Auditlogboek",
+    "placeholder": "Het auditlogboek komt binnenkort."
+  }
+}

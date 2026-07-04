@@ -15,6 +15,8 @@ from django.db.models import Q
 
 from rest_framework import mixins, serializers, viewsets
 from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from core import models, utils
 from core.api import permissions
@@ -200,3 +202,45 @@ class DirectoryMemberViewSet(
         context = super().get_serializer_context()
         context["request"] = self.request
         return context
+
+
+class DirectoryMeView(APIView):
+    """The caller's own membership context — organization + org role.
+
+    The management console (M 端) reads this to decide whether to admit the
+    caller (``is_org_admin``) and to label the current organization in its
+    shell. It stays read-only and member-accessible; the actual admin
+    mutations remain guarded by ``IsOrgAdmin`` (``core/api/admin_org.py``).
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        membership = (
+            models.Membership.objects.filter(
+                user=request.user,
+                status=models.MembershipStatusChoices.ACTIVE,
+            )
+            .select_related("organization")
+            .order_by("-is_primary", "created_at")
+            .first()
+        )
+        if membership is None:
+            return Response(
+                {"organization": None, "org_role": None, "is_org_admin": False}
+            )
+        organization = membership.organization
+        is_org_admin = membership.org_role in (
+            models.OrgRoleChoices.ADMIN,
+            models.OrgRoleChoices.OWNER,
+        )
+        return Response(
+            {
+                "organization": {
+                    "id": str(organization.id),
+                    "name": organization.name,
+                },
+                "org_role": membership.org_role,
+                "is_org_admin": is_org_admin,
+            }
+        )

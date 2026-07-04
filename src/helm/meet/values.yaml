@@ -84,7 +84,9 @@ ingressAdmin:
   enabled: false
   className: null
   host: meet.example.com
-  path: /admin
+  # Django admin lives at /dj-admin/ (meet/urls.py) so the front /admin/ path is
+  # free for the management console (M 端) SPA served by the frontend.
+  path: /dj-admin
   ## @param ingressAdmin.hosts Additional host to configure for the Ingress
   hosts: [ ]
   #  - chart-example.local

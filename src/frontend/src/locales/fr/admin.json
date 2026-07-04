@@ -1,0 +1,33 @@
+{
+  "shell": {
+    "title": "Console d'administration",
+    "backToApp": "Retour à l'espace de travail",
+    "nav": {
+      "dashboard": "Tableau de bord",
+      "org": "Organisation",
+      "members": "Membres",
+      "audit": "Journal d'audit"
+    }
+  },
+  "forbidden": {
+    "title": "Accès refusé",
+    "description": "La console d'administration est réservée aux administrateurs de l'organisation. Contactez votre administrateur si vous avez besoin d'un accès.",
+    "back": "Retour à l'espace de travail"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "placeholder": "Le tableau de bord arrive bientôt."
+  },
+  "org": {
+    "title": "Organisation",
+    "placeholder": "La gestion de l'organisation arrive bientôt."
+  },
+  "members": {
+    "title": "Membres",
+    "placeholder": "La gestion des membres arrive bientôt."
+  },
+  "audit": {
+    "title": "Journal d'audit",
+    "placeholder": "Le journal d'audit arrive bientôt."
+  }
+}

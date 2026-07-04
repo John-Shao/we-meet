@@ -12,7 +12,11 @@ from core.api.admin_org import DepartmentAdminViewSet, MembershipAdminViewSet
 from core.api.agent_internal import IngestTranscriptView
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.calendar import CalendarEventViewSet
-from core.api.directory import DepartmentViewSet, DirectoryMemberViewSet
+from core.api.directory import (
+    DepartmentViewSet,
+    DirectoryMeView,
+    DirectoryMemberViewSet,
+)
 from core.api.im import ImViewSet
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.qr_login import (
@@ -79,6 +83,7 @@ urlpatterns = [
             [
                 *router.urls,
                 *oidc_urls,
+                path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),
                 path("config/", get_frontend_configuration, name="config"),
             ]
         ),

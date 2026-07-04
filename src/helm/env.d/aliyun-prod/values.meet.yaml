@@ -264,7 +264,8 @@ ingressAdmin:
   enabled: true
   className: nginx
   host: meet.we-meet.online
-  path: /admin
+  # Django admin at /dj-admin/; front /admin/ is the management console (M 端) SPA.
+  path: /dj-admin
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   tls:

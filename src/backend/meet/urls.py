@@ -13,7 +13,9 @@ from drf_spectacular.views import (
 )
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    # Django admin moved off /admin/ so the front path is free for the
+    # management console (M 端) SPA served at /admin/. See the M 端 plan.
+    path("dj-admin/", admin.site.urls),
     path("", include("core.urls")),
     path("", include("lasuite.oidc_resource_server.urls")),
 ]

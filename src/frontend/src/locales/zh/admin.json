@@ -1,0 +1,33 @@
+{
+  "shell": {
+    "title": "管理后台",
+    "backToApp": "返回工作台",
+    "nav": {
+      "dashboard": "数据看板",
+      "org": "组织架构",
+      "members": "成员治理",
+      "audit": "审计日志"
+    }
+  },
+  "forbidden": {
+    "title": "无访问权限",
+    "description": "管理后台仅对企业管理员开放。如需权限,请联系你的组织管理员。",
+    "back": "返回工作台"
+  },
+  "dashboard": {
+    "title": "数据看板",
+    "placeholder": "数据看板即将上线。"
+  },
+  "org": {
+    "title": "组织架构",
+    "placeholder": "组织架构管理即将上线。"
+  },
+  "members": {
+    "title": "成员治理",
+    "placeholder": "成员治理即将上线。"
+  },
+  "audit": {
+    "title": "审计日志",
+    "placeholder": "审计日志即将上线。"
+  }
+}

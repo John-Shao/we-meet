@@ -1,0 +1,33 @@
+{
+  "shell": {
+    "title": "Admin Console",
+    "backToApp": "Back to workspace",
+    "nav": {
+      "dashboard": "Dashboard",
+      "org": "Organization",
+      "members": "Members",
+      "audit": "Audit log"
+    }
+  },
+  "forbidden": {
+    "title": "Access denied",
+    "description": "The admin console is available to organization administrators only. Contact your organization admin if you need access.",
+    "back": "Back to workspace"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "placeholder": "The dashboard is coming soon."
+  },
+  "org": {
+    "title": "Organization",
+    "placeholder": "Organization management is coming soon."
+  },
+  "members": {
+    "title": "Members",
+    "placeholder": "Member management is coming soon."
+  },
+  "audit": {
+    "title": "Audit log",
+    "placeholder": "The audit log is coming soon."
+  }
+}
