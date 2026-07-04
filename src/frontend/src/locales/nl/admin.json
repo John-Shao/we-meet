@@ -60,8 +60,24 @@
     "create": "Aanmaken",
     "delete": "Verwijderen"
   },
+  "invite": {
+    "button": "Lid uitnodigen",
+    "title": "Lid uitnodigen",
+    "email": "E-mail",
+    "department": "Afdeling",
+    "role": "Rol",
+    "jobTitle": "Functietitel",
+    "hint": "Bij de eerste aanmelding treedt de genodigde toe met deze afdeling / rol / functie. Alleen match op e-mail.",
+    "send": "Uitnodiging versturen",
+    "noPending": "Geen openstaande uitnodigingen.",
+    "invitedAt": "Uitgenodigd",
+    "revoke": "Intrekken",
+    "revokeConfirm": "Uitnodiging voor \"{{email}}\" intrekken?"
+  },
   "members": {
     "title": "Leden",
+    "tabMembers": "Leden",
+    "tabInvitations": "Openstaande uitnodigingen",
     "filterAllStatus": "Alle statussen",
     "filterAllDepartments": "Alle afdelingen",
     "searchPlaceholder": "Zoek op naam of e-mail",

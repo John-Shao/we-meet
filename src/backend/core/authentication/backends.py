@@ -1,6 +1,7 @@
 """Authentication Backends for the Meet core app."""
 
 import contextlib
+import logging
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured, SuspiciousOperation
@@ -11,11 +12,14 @@ from lasuite.oidc_login.backends import (
 )
 
 from core.models import Membership, MembershipStatusChoices, Organization, User
+from core.services.invitation_provisioning import claim_pending_invitations
 from core.services.marketing import (
     ContactCreationError,
     ContactData,
     get_marketing_service,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
@@ -58,6 +62,15 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         email = claims["email"]
         if is_new_user and email and settings.SIGNUP_NEW_USER_TO_MARKETING_EMAIL:
             self.signup_to_marketing_email(email)
+        # Pre-provisioning: a pending invitation places the user into the invited
+        # department / role before ensure_default_org_membership falls back to a
+        # plain org-level membership. Best-effort — never break login over it.
+        try:
+            claim_pending_invitations(user)
+        except Exception:  # noqa: BLE001 — provisioning must not block sign-in
+            logger.exception(
+                "Failed to claim pending invitations for user %s", user.pk
+            )
         self.ensure_default_org_membership(user)
 
     @staticmethod

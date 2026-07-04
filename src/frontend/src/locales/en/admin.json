@@ -60,8 +60,24 @@
     "create": "Create",
     "delete": "Delete"
   },
+  "invite": {
+    "button": "Invite member",
+    "title": "Invite member",
+    "email": "Email",
+    "department": "Department",
+    "role": "Role",
+    "jobTitle": "Job title",
+    "hint": "On first sign-in the invitee joins the organization with this department / role / title. Email match only.",
+    "send": "Send invite",
+    "noPending": "No pending invitations.",
+    "invitedAt": "Invited",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke the invitation for \"{{email}}\"?"
+  },
   "members": {
     "title": "Members",
+    "tabMembers": "Members",
+    "tabInvitations": "Pending invitations",
     "filterAllStatus": "All statuses",
     "filterAllDepartments": "All departments",
     "searchPlaceholder": "Search name or email",

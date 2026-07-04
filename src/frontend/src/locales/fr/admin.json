@@ -60,8 +60,24 @@
     "create": "Créer",
     "delete": "Supprimer"
   },
+  "invite": {
+    "button": "Inviter un membre",
+    "title": "Inviter un membre",
+    "email": "E-mail",
+    "department": "Service",
+    "role": "Rôle",
+    "jobTitle": "Intitulé du poste",
+    "hint": "À sa première connexion, l'invité rejoint l'organisation avec ce service / rôle / intitulé. Correspondance par e-mail uniquement.",
+    "send": "Envoyer l'invitation",
+    "noPending": "Aucune invitation en attente.",
+    "invitedAt": "Invité le",
+    "revoke": "Révoquer",
+    "revokeConfirm": "Révoquer l'invitation pour « {{email}} » ?"
+  },
   "members": {
     "title": "Membres",
+    "tabMembers": "Membres",
+    "tabInvitations": "Invitations en attente",
     "filterAllStatus": "Tous les statuts",
     "filterAllDepartments": "Tous les services",
     "searchPlaceholder": "Rechercher un nom ou un e-mail",

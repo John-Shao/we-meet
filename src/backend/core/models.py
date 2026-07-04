@@ -2339,6 +2339,8 @@ class AuditActionChoices(models.TextChoices):
     DEPT_MOVE = "dept.move", _("Department moved")
     DEPT_DELETE = "dept.delete", _("Department deleted")
     MEMBER_ADD = "member.add", _("Member added")
+    MEMBER_INVITE = "member.invite", _("Member invited")
+    MEMBER_INVITE_REVOKE = "member.invite_revoke", _("Member invitation revoked")
     MEMBER_UPDATE = "member.update", _("Member updated")
     MEMBER_ROLE_CHANGE = "member.role_change", _("Member role changed")
     MEMBER_DEPARTMENT_CHANGE = "member.department_change", _("Member department changed")
@@ -2412,3 +2414,82 @@ class AuditLog(BaseModel):
 
     def __str__(self):
         return f"{self.actor_id} {self.action} {self.target_type}:{self.target_id}"
+
+
+# --- M 端 成员预配置 / 邀请 ---
+
+
+class InvitationStatusChoices(models.TextChoices):
+    """Lifecycle of an organization invitation."""
+
+    PENDING = "pending", _("Pending")
+    ACCEPTED = "accepted", _("Accepted")
+    REVOKED = "revoked", _("Revoked")
+
+
+class OrgInvitation(BaseModel):
+    """A pre-provisioning invitation: places a person into a department / role
+    before they first sign in.
+
+    Matched by email when the invitee logs in (OIDC claim hook), which then
+    creates their Membership with the invited department / role / title instead
+    of the plain org-level default. Deliberately email-only — the login claim
+    carries an email but no phone, so phone-OTP-only accounts can't be matched
+    (they fall back to the default membership).
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="invitations"
+    )
+    email = models.EmailField(_("email"))
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        related_name="invitations",
+        null=True,
+        blank=True,
+        help_text=_("Department the invitee lands in (null = organization-level)."),
+    )
+    org_role = models.CharField(
+        max_length=20, choices=OrgRoleChoices.choices, default=OrgRoleChoices.MEMBER
+    )
+    title = models.CharField(_("title"), max_length=255, blank=True, default="")
+    status = models.CharField(
+        max_length=20,
+        choices=InvitationStatusChoices.choices,
+        default=InvitationStatusChoices.PENDING,
+    )
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="sent_invitations",
+        null=True,
+        blank=True,
+    )
+    accepted_user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="accepted_invitations",
+        null=True,
+        blank=True,
+    )
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_org_invitation"
+        ordering = ("-created_at",)
+        verbose_name = _("Organization invitation")
+        verbose_name_plural = _("Organization invitations")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "email"],
+                condition=models.Q(status="pending"),
+                name="one_pending_invite_per_email_org",
+                violation_error_message=_(
+                    "A pending invitation already exists for this email."
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.email} → {self.organization_id} ({self.status})"

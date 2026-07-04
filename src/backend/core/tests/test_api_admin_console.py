@@ -418,3 +418,127 @@ def test_admin_audit_is_org_scoped():
     assert all(
         row["target_label"] != "Secret" for row in logs.json()["results"]
     )
+
+
+# --- member invitations / pre-provisioning ----------------------------------
+
+
+def test_admin_create_invitation_pending():
+    org = factories.OrganizationFactory()
+    client, _ = _admin_client(org)
+    dept = models.Department.objects.create(organization=org, name="Eng")
+
+    response = client.post(
+        "/api/v1.0/admin/invitations/",
+        {
+            "email": "NewHire@Example.com",
+            "department": str(dept.id),
+            "org_role": ADMIN,
+            "title": "Lead",
+        },
+        format="json",
+    )
+    assert response.status_code == 201, response.content
+    inv = models.OrgInvitation.objects.get(organization=org)
+    assert inv.email == "newhire@example.com"  # normalized
+    assert inv.status == models.InvitationStatusChoices.PENDING
+    assert inv.department_id == dept.id
+
+    logs = client.get("/api/v1.0/admin/audit-logs/?action=member.invite")
+    assert any(
+        row["target_label"] == "newhire@example.com"
+        for row in logs.json()["results"]
+    )
+
+
+def test_admin_invitation_claimed_on_login_provisions_membership():
+    from core.services.invitation_provisioning import claim_pending_invitations
+
+    org = factories.OrganizationFactory()
+    dept = models.Department.objects.create(organization=org, name="Eng")
+    models.OrgInvitation.objects.create(
+        organization=org,
+        email="hire@example.com",
+        department=dept,
+        org_role=ADMIN,
+        title="Lead",
+    )
+    user = factories.UserFactory(email="Hire@example.com")
+
+    applied = claim_pending_invitations(user)
+    assert applied == 1
+
+    membership = models.Membership.objects.get(user=user, organization=org)
+    assert membership.department_id == dept.id
+    assert membership.org_role == ADMIN
+    assert membership.title == "Lead"
+    assert membership.status == ACTIVE
+    assert membership.is_primary is True
+
+    inv = models.OrgInvitation.objects.get(email="hire@example.com")
+    assert inv.status == models.InvitationStatusChoices.ACCEPTED
+    assert inv.accepted_user_id == user.id
+
+
+def test_invitation_claim_ignores_unmatched_email():
+    from core.services.invitation_provisioning import claim_pending_invitations
+
+    org = factories.OrganizationFactory()
+    models.OrgInvitation.objects.create(
+        organization=org, email="someone@example.com"
+    )
+    user = factories.UserFactory(email="other@example.com")
+
+    assert claim_pending_invitations(user) == 0
+    assert not models.Membership.objects.filter(user=user).exists()
+    assert (
+        models.OrgInvitation.objects.get(email="someone@example.com").status
+        == models.InvitationStatusChoices.PENDING
+    )
+
+
+def test_admin_revoke_invitation_is_soft_and_not_claimable():
+    from core.services.invitation_provisioning import claim_pending_invitations
+
+    org = factories.OrganizationFactory()
+    client, _ = _admin_client(org)
+    inv = models.OrgInvitation.objects.create(
+        organization=org, email="hire@example.com"
+    )
+
+    revoke = client.delete(f"/api/v1.0/admin/invitations/{inv.id}/")
+    assert revoke.status_code == 204, revoke.content
+    inv.refresh_from_db()
+    assert inv.status == models.InvitationStatusChoices.REVOKED
+
+    # A revoked invitation must not provision anything on login.
+    user = factories.UserFactory(email="hire@example.com")
+    assert claim_pending_invitations(user) == 0
+
+
+def test_admin_duplicate_pending_invitation_rejected():
+    org = factories.OrganizationFactory()
+    client, _ = _admin_client(org)
+    models.OrgInvitation.objects.create(
+        organization=org, email="dup@example.com"
+    )
+    response = client.post(
+        "/api/v1.0/admin/invitations/",
+        {"email": "dup@example.com"},
+        format="json",
+    )
+    assert response.status_code == 400, response.content
+
+
+def test_admin_invitations_require_org_admin():
+    org = factories.OrganizationFactory()
+    client, _ = _member_client(org)
+    assert client.get("/api/v1.0/admin/invitations/").status_code == 403
+    assert (
+        client.post(
+            "/api/v1.0/admin/invitations/",
+            {"email": "x@example.com"},
+            format="json",
+        ).status_code
+        == 403
+    )

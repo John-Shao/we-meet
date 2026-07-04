@@ -13,6 +13,7 @@ from core.api.agent_internal import IngestTranscriptView
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.calendar import CalendarEventViewSet
 from core.api.admin_audit import AuditLogViewSet
+from core.api.admin_invitations import OrgInvitationViewSet
 from core.api.admin_stats import AdminStatsOverviewView
 from core.api.directory import (
     DepartmentViewSet,
@@ -62,6 +63,9 @@ router.register(
 )
 router.register(
     "admin/audit-logs", AuditLogViewSet, basename="admin_audit_logs"
+)
+router.register(
+    "admin/invitations", OrgInvitationViewSet, basename="admin_invitations"
 )
 router.register(
     "approval-templates", ApprovalTemplateViewSet, basename="approval_templates"

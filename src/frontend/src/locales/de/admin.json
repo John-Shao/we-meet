@@ -60,8 +60,24 @@
     "create": "Erstellen",
     "delete": "Löschen"
   },
+  "invite": {
+    "button": "Mitglied einladen",
+    "title": "Mitglied einladen",
+    "email": "E-Mail",
+    "department": "Abteilung",
+    "role": "Rolle",
+    "jobTitle": "Position",
+    "hint": "Bei der ersten Anmeldung tritt die eingeladene Person mit dieser Abteilung / Rolle / Position bei. Nur E-Mail-Abgleich.",
+    "send": "Einladung senden",
+    "noPending": "Keine offenen Einladungen.",
+    "invitedAt": "Eingeladen",
+    "revoke": "Widerrufen",
+    "revokeConfirm": "Einladung für „{{email}}“ widerrufen?"
+  },
   "members": {
     "title": "Mitglieder",
+    "tabMembers": "Mitglieder",
+    "tabInvitations": "Offene Einladungen",
     "filterAllStatus": "Alle Status",
     "filterAllDepartments": "Alle Abteilungen",
     "searchPlaceholder": "Name oder E-Mail suchen",

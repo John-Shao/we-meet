@@ -7,10 +7,11 @@ import {
   MenuItem,
   Button as RACButton,
 } from 'react-aria-components'
-import { RiMoreFill, RiSearchLine } from '@remixicon/react'
+import { RiMoreFill, RiSearchLine, RiUserAddLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { Menu } from '@/primitives/Menu'
+import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import {
@@ -22,9 +23,12 @@ import {
   updateMembership,
 } from '../api/adminMembers'
 import { fetchAdminDepartments } from '../api/adminDepartments'
+import { createInvitation, fetchInvitations } from '../api/adminInvitations'
 import { describeApiError } from '../api/errors'
 import { SelectDialog } from '../components/SelectDialog'
 import { TextPromptDialog } from '../components/TextPromptDialog'
+import { InviteDialog } from '../components/InviteDialog'
+import { InvitationsPanel } from '../components/InvitationsPanel'
 
 const MEMBERS_KEY = ['admin', 'members']
 
@@ -42,6 +46,8 @@ export const AdminMembers = () => {
   const [roleTarget, setRoleTarget] = useState<AdminMember | null>(null)
   const [deptTarget, setDeptTarget] = useState<AdminMember | null>(null)
   const [titleTarget, setTitleTarget] = useState<AdminMember | null>(null)
+  const [view, setView] = useState<'members' | 'invitations'>('members')
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   const filters = { status, department, q, page }
 
@@ -77,6 +83,24 @@ export const AdminMembers = () => {
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteMembership(id),
     onSuccess: invalidate,
+    onError,
+  })
+
+  // Pending-invitation count for the tab badge (shared cache with the panel).
+  const { data: inviteData } = useQuery({
+    queryKey: ['admin', 'invitations'],
+    queryFn: () => fetchInvitations('pending'),
+    staleTime: 15_000,
+  })
+  const pendingCount = inviteData?.count ?? 0
+
+  const inviteMut = useMutation({
+    mutationFn: createInvitation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'invitations'] })
+      invalidate()
+      setInviteOpen(false)
+    },
     onError,
   })
 
@@ -125,9 +149,29 @@ export const AdminMembers = () => {
           borderBottom: '1px solid token(colors.greyscale.200)',
         })}
       >
-        <h1 className={css({ fontSize: '1.125rem', fontWeight: 'bold', color: 'greyscale.900', marginBottom: '0.75rem' })}>
-          {t('members.title')}
-        </h1>
+        <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' })}>
+          <h1 className={css({ fontSize: '1.125rem', fontWeight: 'bold', color: 'greyscale.900' })}>
+            {t('members.title')}
+          </h1>
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<RiUserAddLine size={16} />}
+            onPress={() => setInviteOpen(true)}
+          >
+            {t('invite.button')}
+          </Button>
+        </div>
+        <div className={css({ display: 'flex', gap: '1rem', marginBottom: '0.75rem', borderBottom: '1px solid token(colors.greyscale.200)' })}>
+          <button type="button" onClick={() => setView('members')} className={tab(view === 'members')}>
+            {t('members.tabMembers')}
+          </button>
+          <button type="button" onClick={() => setView('invitations')} className={tab(view === 'invitations')}>
+            {t('members.tabInvitations')}
+            {pendingCount > 0 && <span className={tabBadge}>{pendingCount}</span>}
+          </button>
+        </div>
+        {view === 'members' && (
         <div className={css({ display: 'flex', gap: '0.625rem', flexWrap: 'wrap', alignItems: 'center' })}>
           <select
             value={status}
@@ -185,10 +229,13 @@ export const AdminMembers = () => {
             </button>
           </form>
         </div>
+        )}
       </div>
 
       <div className={css({ flex: 1, overflowY: 'auto' })}>
-        {isFetching && members.length === 0 ? (
+        {view === 'invitations' ? (
+          <InvitationsPanel />
+        ) : isFetching && members.length === 0 ? (
           <p className={emptyText}>{t('members.loading')}</p>
         ) : members.length === 0 ? (
           <p className={emptyText}>{t('members.noMembers')}</p>
@@ -274,6 +321,7 @@ export const AdminMembers = () => {
         )}
       </div>
 
+      {view === 'members' && (
       <div
         className={css({
           flexShrink: 0,
@@ -306,6 +354,15 @@ export const AdminMembers = () => {
           {t('members.next')}
         </button>
       </div>
+      )}
+
+      <InviteDialog
+        isOpen={inviteOpen}
+        departments={departments}
+        submitting={inviteMut.isPending}
+        onSubmit={(input) => inviteMut.mutate(input)}
+        onClose={() => setInviteOpen(false)}
+      />
 
       <SelectDialog
         isOpen={roleTarget !== null}
@@ -390,6 +447,36 @@ const filterSelect = css({
   backgroundColor: 'greyscale.000',
   color: 'default.text',
   fontSize: '0.875rem',
+})
+const tab = (active: boolean) =>
+  css({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    paddingX: '0.25rem',
+    paddingBottom: '0.5rem',
+    marginBottom: '-1px',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+    color: active ? 'primary.700' : 'greyscale.600',
+    fontWeight: active ? '600' : undefined,
+    borderBottom: active
+      ? '2px solid token(colors.primary.600)'
+      : '2px solid transparent',
+  })
+const tabBadge = css({
+  minWidth: '1.125rem',
+  height: '1.125rem',
+  paddingX: '0.25rem',
+  borderRadius: '999px',
+  backgroundColor: 'primary.100',
+  color: 'primary.700',
+  fontSize: '0.6875rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 })
 const iconBtn = css({
   display: 'inline-flex',

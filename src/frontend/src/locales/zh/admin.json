@@ -60,8 +60,24 @@
     "create": "创建",
     "delete": "删除"
   },
+  "invite": {
+    "button": "邀请成员",
+    "title": "邀请成员",
+    "email": "邮箱",
+    "department": "部门",
+    "role": "角色",
+    "jobTitle": "职位",
+    "hint": "被邀请人首次登录后,将按此部门/角色/职位自动加入组织。仅支持邮箱匹配。",
+    "send": "发送邀请",
+    "noPending": "暂无待接受的邀请。",
+    "invitedAt": "邀请时间",
+    "revoke": "撤销",
+    "revokeConfirm": "确定撤销对「{{email}}」的邀请?"
+  },
   "members": {
     "title": "成员治理",
+    "tabMembers": "成员",
+    "tabInvitations": "待接受邀请",
     "filterAllStatus": "全部状态",
     "filterAllDepartments": "全部部门",
     "searchPlaceholder": "搜索姓名或邮箱",
