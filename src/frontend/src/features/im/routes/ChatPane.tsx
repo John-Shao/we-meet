@@ -164,12 +164,14 @@ export const ChatPane = ({
   // 已读回执(P13):每个成员的 last_read_seq;首次拉快照 + onRead 保活。
   const reads = useReadMarkers(client, cid)
 
-  // Resolve member uids → display names so group messages show names, not uids.
+  // Resolve member uids → display names + avatars. 群聊气泡显示发送人名字/头像;
+  // 一对一也需解析对端头像(气泡左侧对方头像),否则 names 为空 → 头像退兜底、
+  // nameOf 退成裸 uid。故不再限 isGroup,direct 的 [self, peer] 一并解析。
   const memberUids = conversation.members
   const { data: names = {} } = useQuery({
     queryKey: ['im', 'member-names', memberUids],
     queryFn: () => resolveImUsers(memberUids),
-    enabled: isGroup && memberUids.length > 0,
+    enabled: memberUids.length > 0,
     staleTime: 60_000,
   })
   // P10 群昵称:the roster carries each member's per-group nickname, which
