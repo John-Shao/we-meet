@@ -43,7 +43,46 @@
   },
   "members": {
     "title": "Membres",
-    "placeholder": "La gestion des membres arrive bientôt."
+    "filterAllStatus": "Tous les statuts",
+    "filterAllDepartments": "Tous les services",
+    "searchPlaceholder": "Rechercher un nom ou un e-mail",
+    "search": "Rechercher",
+    "loading": "Chargement…",
+    "noMembers": "Aucun membre ne correspond à ces filtres.",
+    "colMember": "Membre",
+    "colDepartment": "Service",
+    "colRole": "Rôle",
+    "colStatus": "Statut",
+    "orgLevel": "Organisation (sans service)",
+    "rowActions": "Plus d'actions",
+    "changeRole": "Changer le rôle",
+    "changeDepartment": "Changer de service",
+    "changeTitle": "Changer le titre",
+    "suspend": "Suspendre",
+    "restore": "Réactiver",
+    "remove": "Retirer de l'organisation",
+    "changeRoleTitle": "Changer le rôle",
+    "changeDepartmentTitle": "Changer de service",
+    "changeTitleTitle": "Changer le titre",
+    "titlePlaceholder": "Intitulé du poste",
+    "suspendConfirm": "Suspendre « {{name}} » ? Cette personne perdra l'accès aux ressources de l'organisation.",
+    "restoreConfirm": "Réactiver « {{name}} » en tant que membre actif ?",
+    "removeConfirm": "Retirer « {{name}} » de l'organisation ? Cela supprime son adhésion.",
+    "total": "{{count}} membres",
+    "prev": "Précédent",
+    "next": "Suivant"
+  },
+  "role": {
+    "member": "Membre",
+    "dept_admin": "Admin de service",
+    "administrator": "Admin de l'organisation",
+    "owner": "Propriétaire de l'organisation"
+  },
+  "status": {
+    "active": "Actif",
+    "invited": "Invité",
+    "suspended": "Suspendu",
+    "left": "Parti"
   },
   "audit": {
     "title": "Journal d'audit",

@@ -43,7 +43,46 @@
   },
   "members": {
     "title": "Leden",
-    "placeholder": "Ledenbeheer komt binnenkort."
+    "filterAllStatus": "Alle statussen",
+    "filterAllDepartments": "Alle afdelingen",
+    "searchPlaceholder": "Zoek op naam of e-mail",
+    "search": "Zoeken",
+    "loading": "Laden…",
+    "noMembers": "Geen leden voldoen aan deze filters.",
+    "colMember": "Lid",
+    "colDepartment": "Afdeling",
+    "colRole": "Rol",
+    "colStatus": "Status",
+    "orgLevel": "Organisatie (geen afdeling)",
+    "rowActions": "Meer acties",
+    "changeRole": "Rol wijzigen",
+    "changeDepartment": "Afdeling wijzigen",
+    "changeTitle": "Functie wijzigen",
+    "suspend": "Opschorten",
+    "restore": "Herstellen",
+    "remove": "Uit organisatie verwijderen",
+    "changeRoleTitle": "Rol wijzigen",
+    "changeDepartmentTitle": "Afdeling wijzigen",
+    "changeTitleTitle": "Functie wijzigen",
+    "titlePlaceholder": "Functietitel",
+    "suspendConfirm": "\"{{name}}\" opschorten? Deze persoon verliest toegang tot organisatiebronnen.",
+    "restoreConfirm": "\"{{name}}\" herstellen als actief lid?",
+    "removeConfirm": "\"{{name}}\" uit de organisatie verwijderen? Dit verwijdert het lidmaatschap.",
+    "total": "{{count}} leden",
+    "prev": "Vorige",
+    "next": "Volgende"
+  },
+  "role": {
+    "member": "Lid",
+    "dept_admin": "Afdelingsbeheerder",
+    "administrator": "Organisatiebeheerder",
+    "owner": "Organisatie-eigenaar"
+  },
+  "status": {
+    "active": "Actief",
+    "invited": "Uitgenodigd",
+    "suspended": "Opgeschort",
+    "left": "Vertrokken"
   },
   "audit": {
     "title": "Auditlogboek",

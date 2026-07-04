@@ -43,7 +43,46 @@
   },
   "members": {
     "title": "Members",
-    "placeholder": "Member management is coming soon."
+    "filterAllStatus": "All statuses",
+    "filterAllDepartments": "All departments",
+    "searchPlaceholder": "Search name or email",
+    "search": "Search",
+    "loading": "Loading…",
+    "noMembers": "No members match these filters.",
+    "colMember": "Member",
+    "colDepartment": "Department",
+    "colRole": "Role",
+    "colStatus": "Status",
+    "orgLevel": "Organization (no department)",
+    "rowActions": "More actions",
+    "changeRole": "Change role",
+    "changeDepartment": "Change department",
+    "changeTitle": "Change title",
+    "suspend": "Suspend",
+    "restore": "Restore",
+    "remove": "Remove from organization",
+    "changeRoleTitle": "Change role",
+    "changeDepartmentTitle": "Change department",
+    "changeTitleTitle": "Change title",
+    "titlePlaceholder": "Job title",
+    "suspendConfirm": "Suspend \"{{name}}\"? They will lose access to organization resources.",
+    "restoreConfirm": "Restore \"{{name}}\" as an active member?",
+    "removeConfirm": "Remove \"{{name}}\" from the organization? This deletes their membership.",
+    "total": "{{count}} members",
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "role": {
+    "member": "Member",
+    "dept_admin": "Department admin",
+    "administrator": "Organization admin",
+    "owner": "Organization owner"
+  },
+  "status": {
+    "active": "Active",
+    "invited": "Invited",
+    "suspended": "Suspended",
+    "left": "Left"
   },
   "audit": {
     "title": "Audit log",

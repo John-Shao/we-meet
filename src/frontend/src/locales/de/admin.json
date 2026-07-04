@@ -43,7 +43,46 @@
   },
   "members": {
     "title": "Mitglieder",
-    "placeholder": "Die Mitgliederverwaltung ist bald verfügbar."
+    "filterAllStatus": "Alle Status",
+    "filterAllDepartments": "Alle Abteilungen",
+    "searchPlaceholder": "Name oder E-Mail suchen",
+    "search": "Suchen",
+    "loading": "Wird geladen…",
+    "noMembers": "Keine Mitglieder entsprechen diesen Filtern.",
+    "colMember": "Mitglied",
+    "colDepartment": "Abteilung",
+    "colRole": "Rolle",
+    "colStatus": "Status",
+    "orgLevel": "Organisation (keine Abteilung)",
+    "rowActions": "Weitere Aktionen",
+    "changeRole": "Rolle ändern",
+    "changeDepartment": "Abteilung ändern",
+    "changeTitle": "Titel ändern",
+    "suspend": "Sperren",
+    "restore": "Wiederherstellen",
+    "remove": "Aus Organisation entfernen",
+    "changeRoleTitle": "Rolle ändern",
+    "changeDepartmentTitle": "Abteilung ändern",
+    "changeTitleTitle": "Titel ändern",
+    "titlePlaceholder": "Position",
+    "suspendConfirm": "„{{name}}“ sperren? Diese Person verliert den Zugriff auf Organisationsressourcen.",
+    "restoreConfirm": "„{{name}}“ als aktives Mitglied wiederherstellen?",
+    "removeConfirm": "„{{name}}“ aus der Organisation entfernen? Dies löscht die Mitgliedschaft.",
+    "total": "{{count}} Mitglieder",
+    "prev": "Zurück",
+    "next": "Weiter"
+  },
+  "role": {
+    "member": "Mitglied",
+    "dept_admin": "Abteilungsadmin",
+    "administrator": "Organisationsadmin",
+    "owner": "Organisationseigentümer"
+  },
+  "status": {
+    "active": "Aktiv",
+    "invited": "Eingeladen",
+    "suspended": "Gesperrt",
+    "left": "Ausgetreten"
   },
   "audit": {
     "title": "Auditprotokoll",
