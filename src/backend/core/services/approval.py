@@ -17,6 +17,7 @@ import logging
 import uuid
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import exceptions
 
@@ -27,6 +28,7 @@ from core.models import (
     ApprovalNodeType,
     ApprovalStatusChoices,
     ApprovalTask,
+    ApprovalTaskKind,
     Department,
     Membership,
     MembershipStatusChoices,
@@ -45,9 +47,9 @@ SYSTEM_UID = "00000000-0000-0000-0000-000000000000"
 
 
 def submit(template, applicant, form_data=None) -> ApprovalInstance:
-    """Create an instance off ``template`` and open its first node.
+    """Create an instance off ``template`` and open from its first node.
 
-    An empty flow auto-approves immediately. Returns the instance.
+    An empty flow (or one that only skips / CCs) auto-approves. Returns the instance.
     """
     instance = ApprovalInstance.objects.create(
         organization=template.organization,
@@ -57,56 +59,82 @@ def submit(template, applicant, form_data=None) -> ApprovalInstance:
         status=ApprovalStatusChoices.PENDING,
         current_node=0,
     )
-    if not (template.flow or []):
-        instance.status = ApprovalStatusChoices.APPROVED
-        instance.save(update_fields=["status", "updated_at"])
-        _notify_applicant_decision(instance)
-        return instance
-    _open_node(instance, 0)
+    _open_from(instance, 0)
     return instance
 
 
 def act(instance, actor, action, comment="") -> ApprovalInstance:
-    """Record ``actor``'s decision on the current node, then advance / finish.
+    """Record ``actor``'s decision on their task at the current node, then evaluate
+    the node (会签 aggregation) and advance / finish.
 
-    Raises ValidationError (bad state / action) or PermissionDenied (not the
-    current approver).
+    - any REJECTED on the node → instance rejected (both and & or modes).
+    - or-mode: one APPROVED passes the node (remaining pending siblings closed).
+    - and/single-mode: the node passes once every approver has approved.
+
+    Raises ValidationError (bad state / action) or PermissionDenied (not a current
+    approver). Wrapped in a row-locked transaction so concurrent acts on an
+    or-node can't double-advance.
     """
     if action not in (
         ApprovalActionChoices.APPROVED,
         ApprovalActionChoices.REJECTED,
     ):
         raise exceptions.ValidationError({"action": "must be approved or rejected"})
-    if instance.status != ApprovalStatusChoices.PENDING:
-        raise exceptions.ValidationError({"detail": "instance is not pending"})
 
-    task = instance.tasks.filter(node_index=instance.current_node).first()
-    if task is None or task.approver_id is None or task.approver_id != actor.id:
-        raise exceptions.PermissionDenied("not the current approver")
-    if task.action != ApprovalActionChoices.PENDING:
-        raise exceptions.ValidationError({"detail": "task already acted on"})
+    with transaction.atomic():
+        # Lock the instance so a parallel act sees our status/task change.
+        instance = ApprovalInstance.objects.select_for_update().get(pk=instance.pk)
+        if instance.status != ApprovalStatusChoices.PENDING:
+            raise exceptions.ValidationError({"detail": "instance is not pending"})
 
-    task.action = action
-    task.comment = comment or ""
-    task.acted_at = timezone.now()
-    task.save(update_fields=["action", "comment", "acted_at", "updated_at"])
+        idx = instance.current_node
+        task = instance.tasks.filter(
+            node_index=idx,
+            approver_id=actor.id,
+            kind=ApprovalTaskKind.APPROVE,
+        ).first()
+        if task is None:
+            raise exceptions.PermissionDenied("not a current approver")
+        if task.action != ApprovalActionChoices.PENDING:
+            raise exceptions.ValidationError({"detail": "task already acted on"})
 
-    if action == ApprovalActionChoices.REJECTED:
-        instance.status = ApprovalStatusChoices.REJECTED
-        instance.save(update_fields=["status", "updated_at"])
-        _notify_applicant_decision(instance)
+        task.action = action
+        task.comment = comment or ""
+        task.acted_at = timezone.now()
+        task.save(update_fields=["action", "comment", "acted_at", "updated_at"])
+
+        # Aggregate the node's real approver tasks (exclude cc / null placeholders).
+        node = (instance.template.flow or [])[idx]
+        mode = (node or {}).get("mode", "single")
+        siblings = list(
+            instance.tasks.filter(
+                node_index=idx,
+                kind=ApprovalTaskKind.APPROVE,
+                approver__isnull=False,
+            )
+        )
+        if any(t.action == ApprovalActionChoices.REJECTED for t in siblings):
+            instance.status = ApprovalStatusChoices.REJECTED
+            instance.save(update_fields=["status", "updated_at"])
+            _notify_applicant_decision(instance)
+            return instance
+
+        approved = [t for t in siblings if t.action == ApprovalActionChoices.APPROVED]
+        if mode == "or":
+            node_done = len(approved) >= 1
+            if node_done:
+                # One approval carries the node — close the other pending siblings.
+                for t in siblings:
+                    if t.action == ApprovalActionChoices.PENDING:
+                        t.action = ApprovalActionChoices.SKIPPED
+                        t.acted_at = timezone.now()
+                        t.save(update_fields=["action", "acted_at", "updated_at"])
+        else:  # and / single
+            node_done = len(approved) == len(siblings)
+
+        if node_done:
+            _open_from(instance, idx + 1)
         return instance
-
-    flow = instance.template.flow or []
-    if instance.current_node >= len(flow) - 1:
-        instance.status = ApprovalStatusChoices.APPROVED
-        instance.save(update_fields=["status", "updated_at"])
-        _notify_applicant_decision(instance)
-    else:
-        instance.current_node += 1
-        instance.save(update_fields=["current_node", "updated_at"])
-        _open_node(instance, instance.current_node)
-    return instance
 
 
 def cancel(instance, actor) -> ApprovalInstance:
@@ -128,11 +156,17 @@ def urge(instance, actor) -> ApprovalInstance:
         raise exceptions.PermissionDenied("only the applicant may urge")
     if instance.status != ApprovalStatusChoices.PENDING:
         raise exceptions.ValidationError({"detail": "instance is not pending"})
-    task = instance.tasks.filter(node_index=instance.current_node).first()
-    approver = task.approver if task else None
-    if approver is None:
+    pending = instance.tasks.filter(
+        node_index=instance.current_node,
+        kind=ApprovalTaskKind.APPROVE,
+        action=ApprovalActionChoices.PENDING,
+        approver__isnull=False,
+    ).select_related("approver")
+    approvers = [t.approver for t in pending]
+    if not approvers:
         raise exceptions.ValidationError({"detail": "no current approver to urge"})
-    _notify_user(approver, f"⏰ 催办:{instance.template.name} 待你审批")
+    for approver in approvers:
+        _notify_user(approver, f"⏰ 催办:{instance.template.name} 待你审批")
     return instance
 
 
@@ -151,42 +185,98 @@ def retry_assignment(instance) -> bool:
     flow = instance.template.flow or []
     idx = instance.current_node
     node = flow[idx] if 0 <= idx < len(flow) else None
-    approver = resolve_approver(instance, node) if node is not None else None
-    if approver is None:
+    approvers = resolve_all(instance, node) if node is not None else []
+    if not approvers:
         return False
-    # _open_node left a task with a null approver at this node; reuse it (the
-    # (instance, node_index) unique constraint forbids a second one).
-    task, _ = ApprovalTask.objects.get_or_create(instance=instance, node_index=idx)
-    task.approver = approver
-    task.action = ApprovalActionChoices.PENDING
-    task.comment = ""
-    task.acted_at = None
-    task.save()
+    # Drop the null-approver placeholder left by _open_from, then open the node
+    # for real (会签 → one task per approver).
+    instance.tasks.filter(node_index=idx, approver__isnull=True).delete()
+    for approver in approvers:
+        ApprovalTask.objects.create(
+            instance=instance, node_index=idx, approver=approver,
+            kind=ApprovalTaskKind.APPROVE,
+        )
     instance.status = ApprovalStatusChoices.PENDING
     instance.save(update_fields=["status", "updated_at"])
-    _notify_user(approver, f"🗳️ 待你审批：{instance.template.name}")
+    for approver in approvers:
+        _notify_user(approver, f"🗳️ 待你审批：{instance.template.name}")
     return True
 
 
-def _open_node(instance, idx) -> None:
-    """Resolve node ``idx``'s approver, create its task, notify them.
+def _open_from(instance, idx) -> None:
+    """Advance the flow from node ``idx``, auto-passing 抄送 (cc) and condition-
+    skipped nodes, until a node that needs an approver — then create its tasks and
+    stop. Running off the end approves the instance.
 
-    Unresolvable node → instance flips to NEEDS_ASSIGNMENT (task kept with a null
-    approver) so an admin can step in; the flow does not silently auto-pass.
+    Unresolvable approver node → NEEDS_ASSIGNMENT (a null-approver placeholder kept
+    at that node) so an admin can retry; the flow never silently auto-passes it.
     """
-    node = (instance.template.flow or [])[idx]
-    approver = resolve_approver(instance, node)
-    ApprovalTask.objects.create(
-        instance=instance, node_index=idx, approver=approver
-    )
-    if approver is None:
-        instance.status = ApprovalStatusChoices.NEEDS_ASSIGNMENT
-        instance.save(update_fields=["status", "updated_at"])
-        logger.warning(
-            "approval %s node %s unresolved (no approver)", instance.id, idx
-        )
+    flow = instance.template.flow or []
+    while idx < len(flow):
+        node = flow[idx] or {}
+
+        # 抄送:notify + auto-advance (never blocks).
+        if node.get("type") == ApprovalNodeType.CC:
+            _record_cc(instance, idx, node)
+            idx += 1
+            continue
+
+        # 条件跳过:condition present + false → skip this node.
+        if not _condition_holds(node, instance.form_data):
+            ApprovalTask.objects.create(
+                instance=instance, node_index=idx, approver=None,
+                kind=ApprovalTaskKind.APPROVE, action=ApprovalActionChoices.SKIPPED,
+            )
+            idx += 1
+            continue
+
+        approvers = resolve_all(instance, node)
+        if not approvers:
+            instance.current_node = idx
+            instance.status = ApprovalStatusChoices.NEEDS_ASSIGNMENT
+            instance.save(update_fields=["current_node", "status", "updated_at"])
+            ApprovalTask.objects.create(
+                instance=instance, node_index=idx, approver=None,
+                kind=ApprovalTaskKind.APPROVE,
+            )
+            logger.warning(
+                "approval %s node %s unresolved (no approver)", instance.id, idx
+            )
+            return
+
+        instance.current_node = idx
+        instance.save(update_fields=["current_node", "updated_at"])
+        for approver in approvers:
+            ApprovalTask.objects.create(
+                instance=instance, node_index=idx, approver=approver,
+                kind=ApprovalTaskKind.APPROVE,
+            )
+        for approver in approvers:
+            _notify_user(approver, f"🗳️ 待你审批：{instance.template.name}")
         return
-    _notify_user(approver, f"🗳️ 待你审批：{instance.template.name}")
+
+    # Flow exhausted → approved.
+    instance.status = ApprovalStatusChoices.APPROVED
+    instance.save(update_fields=["status", "updated_at"])
+    _notify_applicant_decision(instance)
+
+
+def _record_cc(instance, idx, node) -> None:
+    """抄送 node: one cc task per resolved target + an FYI IM ping, then auto-pass."""
+    targets = []
+    seen = set()
+    for sub in node.get("targets") or []:
+        user = resolve_approver(instance, sub)
+        if user and user.id not in seen:
+            seen.add(user.id)
+            targets.append(user)
+    for user in targets:
+        ApprovalTask.objects.create(
+            instance=instance, node_index=idx, approver=user,
+            kind=ApprovalTaskKind.CC, action=ApprovalActionChoices.NOTIFIED,
+        )
+    for user in targets:
+        _notify_user(user, f"📄 抄送:{instance.template.name}")
 
 
 # ---- approver resolution -----------------------------------------------------
@@ -240,6 +330,64 @@ def _apply_delegation(approver, org):
     if delegation and delegation.delegate_id != approver.id:
         return delegation.delegate
     return approver
+
+
+def resolve_all(instance, node):
+    """Resolve a node to a de-duplicated list of approver Users (会签).
+
+    ``node.approvers`` (a list of sub-rules) → one User each; otherwise the node's
+    own single rule → a 1-element list. Each resolved user passes through delegation
+    (via resolve_approver). Empty list = unresolvable.
+    """
+    node = node or {}
+    specs = node.get("approvers")
+    if not specs:
+        one = resolve_approver(instance, node)
+        return [one] if one else []
+    users = []
+    seen = set()
+    for sub in specs:
+        user = resolve_approver(instance, sub)
+        if user and user.id not in seen:
+            seen.add(user.id)
+            users.append(user)
+    return users
+
+
+def _condition_holds(node, form_data) -> bool:
+    """True if the node has no condition, or its condition holds against form_data.
+
+    condition = {"field", "op", "value"}; op ∈ == != > >= < <= in. A missing field
+    or type mismatch evaluates False (→ skip the node), never raises.
+    """
+    cond = (node or {}).get("condition")
+    if not cond:
+        return True
+    actual = (form_data or {}).get(cond.get("field"))
+    return _cmp(actual, cond.get("op"), cond.get("value"))
+
+
+def _cmp(actual, op, expected) -> bool:
+    try:
+        if op == "==":
+            return actual == expected
+        if op == "!=":
+            return actual != expected
+        if op == "in":
+            return actual in (expected or [])
+        # Ordering comparisons coerce to float so "5000" (form text) works.
+        a, b = float(actual), float(expected)
+        if op == ">":
+            return a > b
+        if op == ">=":
+            return a >= b
+        if op == "<":
+            return a < b
+        if op == "<=":
+            return a <= b
+    except (TypeError, ValueError):
+        return False
+    return False
 
 
 def _direct_manager(applicant, org):

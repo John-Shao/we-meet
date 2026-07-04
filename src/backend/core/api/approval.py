@@ -32,7 +32,7 @@ class ApprovalTaskSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.ApprovalTask
-        fields = ["node_index", "approver", "action", "comment", "acted_at"]
+        fields = ["node_index", "approver", "action", "kind", "comment", "acted_at"]
         read_only_fields = fields
 
 

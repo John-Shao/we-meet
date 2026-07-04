@@ -19,6 +19,7 @@ from core.models import (
     ApprovalDelegation,
     ApprovalInstance,
     ApprovalStatusChoices,
+    ApprovalTaskKind,
     ApprovalTemplate,
     Department,
     Membership,
@@ -310,3 +311,114 @@ def test_urge_notifies_current_approver_and_guards(mock_im):
     # Only the applicant may urge.
     with pytest.raises(exceptions.PermissionDenied):
         approval.urge(inst, manager)
+
+
+# ---- 会签 / countersign (P5b) ----
+
+
+def _users(user, ids):
+    return [{"type": "user", "user_id": str(i)} for i in ids]
+
+
+def test_countersign_and_all_must_approve(mock_im):
+    org = OrganizationFactory()
+    applicant, a, b = UserFactory(), UserFactory(), UserFactory()
+    flow = [{"mode": "and", "approvers": _users(applicant, [a.id, b.id])}]
+    inst = approval.submit(_template(org, flow), applicant)
+    assert inst.tasks.filter(
+        node_index=0, action=ApprovalActionChoices.PENDING
+    ).count() == 2
+
+    approval.act(inst, a, ApprovalActionChoices.APPROVED)
+    inst.refresh_from_db()
+    assert inst.status == ApprovalStatusChoices.PENDING  # still waiting on b
+
+    approval.act(inst, b, ApprovalActionChoices.APPROVED)
+    inst.refresh_from_db()
+    assert inst.status == ApprovalStatusChoices.APPROVED
+
+
+def test_countersign_and_any_reject_rejects(mock_im):
+    org = OrganizationFactory()
+    applicant, a, b = UserFactory(), UserFactory(), UserFactory()
+    flow = [{"mode": "and", "approvers": _users(applicant, [a.id, b.id])}]
+    inst = approval.submit(_template(org, flow), applicant)
+
+    approval.act(inst, a, ApprovalActionChoices.REJECTED)
+    inst.refresh_from_db()
+    assert inst.status == ApprovalStatusChoices.REJECTED
+
+
+def test_countersign_or_any_one_passes(mock_im):
+    org = OrganizationFactory()
+    applicant, a, b = UserFactory(), UserFactory(), UserFactory()
+    flow = [{"mode": "or", "approvers": _users(applicant, [a.id, b.id])}]
+    inst = approval.submit(_template(org, flow), applicant)
+
+    approval.act(inst, a, ApprovalActionChoices.APPROVED)
+    inst.refresh_from_db()
+    assert inst.status == ApprovalStatusChoices.APPROVED
+    # b's sibling task was closed → b can no longer act (instance done).
+    with pytest.raises(exceptions.ValidationError):
+        approval.act(inst, b, ApprovalActionChoices.APPROVED)
+
+
+# ---- 条件跳过 / conditional skip (P5b) ----
+
+
+def test_conditional_node_skipped_when_false(mock_im):
+    org = OrganizationFactory()
+    applicant, a, b = UserFactory(), UserFactory(), UserFactory()
+    flow = [
+        {"type": "user", "user_id": str(a.id),
+         "condition": {"field": "amount", "op": ">", "value": 5000}},
+        {"type": "user", "user_id": str(b.id)},
+    ]
+    inst = approval.submit(_template(org, flow), applicant, {"amount": "1000"})
+    inst.refresh_from_db()
+    assert inst.current_node == 1
+    assert inst.tasks.filter(
+        node_index=0, action=ApprovalActionChoices.SKIPPED
+    ).exists()
+
+    approval.act(inst, b, ApprovalActionChoices.APPROVED)
+    inst.refresh_from_db()
+    assert inst.status == ApprovalStatusChoices.APPROVED
+
+
+def test_conditional_node_kept_when_true(mock_im):
+    org = OrganizationFactory()
+    applicant, a, b = UserFactory(), UserFactory(), UserFactory()
+    flow = [
+        {"type": "user", "user_id": str(a.id),
+         "condition": {"field": "amount", "op": ">", "value": 5000}},
+        {"type": "user", "user_id": str(b.id)},
+    ]
+    inst = approval.submit(_template(org, flow), applicant, {"amount": "6000"})
+    inst.refresh_from_db()
+    assert inst.current_node == 0
+    assert inst.tasks.filter(
+        node_index=0, approver=a, action=ApprovalActionChoices.PENDING
+    ).exists()
+
+
+# ---- 抄送 / carbon-copy (P5b) ----
+
+
+def test_cc_node_auto_passes_and_notifies(mock_im):
+    org = OrganizationFactory()
+    applicant, a, c = UserFactory(), UserFactory(), UserFactory()
+    flow = [
+        {"type": "user", "user_id": str(a.id)},
+        {"type": "cc", "targets": [{"type": "user", "user_id": str(c.id)}]},
+    ]
+    inst = approval.submit(_template(org, flow), applicant)
+
+    approval.act(inst, a, ApprovalActionChoices.APPROVED)
+    inst.refresh_from_db()
+    assert inst.status == ApprovalStatusChoices.APPROVED
+    assert inst.tasks.filter(
+        node_index=1, kind=ApprovalTaskKind.CC, approver=c
+    ).exists()
+    bodies = [call.kwargs["body"] for call in mock_im.post_message.call_args_list]
+    assert any(body.startswith("📄 抄送") for body in bodies)

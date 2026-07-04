@@ -2142,6 +2142,8 @@ class ApprovalNodeType(models.TextChoices):
     DEPARTMENT_HEAD = "department_head", _("Department head")
     ORG_ROLE = "org_role", _("Organization role")
     USER = "user", _("Specific user")
+    # P5b: a 抄送 (carbon-copy) node — notifies its targets and auto-advances.
+    CC = "cc", _("Carbon copy")
 
 
 class ApprovalStatusChoices(models.TextChoices):
@@ -2160,6 +2162,17 @@ class ApprovalActionChoices(models.TextChoices):
     PENDING = "pending", _("Pending")
     APPROVED = "approved", _("Approved")
     REJECTED = "rejected", _("Rejected")
+    # P5b: node skipped by a false condition; or-mode siblings closed after one
+    # approval; and a 抄送 row that was merely notified.
+    SKIPPED = "skipped", _("Skipped")
+    NOTIFIED = "notified", _("Notified")
+
+
+class ApprovalTaskKind(models.TextChoices):
+    """Whether a task is a real approval step or a 抄送 (carbon-copy) notice."""
+
+    APPROVE = "approve", _("Approval")
+    CC = "cc", _("Carbon copy")
 
 
 class ApprovalTemplate(BaseModel):
@@ -2245,6 +2258,12 @@ class ApprovalTask(BaseModel):
         choices=ApprovalActionChoices.choices,
         default=ApprovalActionChoices.PENDING,
     )
+    # P5b: a node may now hold several tasks (会签 multi-approver, 抄送 notices).
+    kind = models.CharField(
+        max_length=20,
+        choices=ApprovalTaskKind.choices,
+        default=ApprovalTaskKind.APPROVE,
+    )
     comment = models.TextField(_("comment"), blank=True, default="")
     acted_at = models.DateTimeField(null=True, blank=True)
 
@@ -2254,9 +2273,13 @@ class ApprovalTask(BaseModel):
         verbose_name = _("Approval task")
         verbose_name_plural = _("Approval tasks")
         constraints = [
+            # P5b: one row per (node, approver) so a node can carry several
+            # approvers. Null-approver rows (needs_assignment / skipped) are
+            # exempt — Postgres treats NULLs as distinct — and the engine keeps
+            # at most one such row per node itself.
             models.UniqueConstraint(
-                fields=["instance", "node_index"],
-                name="approval_task_unique_instance_node",
+                fields=["instance", "node_index", "approver"],
+                name="approval_task_unique_instance_node_approver",
             ),
         ]
 
