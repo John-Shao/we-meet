@@ -13,13 +13,19 @@
     "approved": "Approuvée",
     "rejected": "Refusée",
     "cancelled": "Annulée",
-    "needs_assignment": "À assigner"
+    "needs_assignment": "À assigner",
+    "skipped": "Ignorée"
   },
   "card": {
     "applicant": "Demandeur",
     "node": "Étape {{index}}",
     "unassigned": "Non assigné",
-    "needsAssignmentHint": "Impossible de déterminer l'approbateur automatiquement (chef de service / rôle manquant). Demandez à un administrateur de corriger puis de relancer l'attribution dans la console."
+    "needsAssignmentHint": "Impossible de déterminer l'approbateur automatiquement (chef de service / rôle manquant). Demandez à un administrateur de corriger puis de relancer l'attribution dans la console.",
+    "cc": "En copie",
+    "skipped": "Ignorée (condition non remplie)",
+    "countersignAnd": "Signature conjointe",
+    "countersignOr": "Un seul signe",
+    "progress": "{{done}}/{{total}} approuvé"
   },
   "act": {
     "approve": "Approuver",

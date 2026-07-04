@@ -13,13 +13,19 @@
     "approved": "Goedgekeurd",
     "rejected": "Afgewezen",
     "cancelled": "Ingetrokken",
-    "needs_assignment": "Toewijzing nodig"
+    "needs_assignment": "Toewijzing nodig",
+    "skipped": "Overgeslagen"
   },
   "card": {
     "applicant": "Aangevraagd door",
     "node": "Stap {{index}}",
     "unassigned": "Niet toegewezen",
-    "needsAssignmentHint": "Fiatteur kon niet automatisch worden bepaald (afdelingshoofd/rol ontbreekt mogelijk). Vraag een beheerder om dit te herstellen en de toewijzing in de console opnieuw uit te voeren."
+    "needsAssignmentHint": "Fiatteur kon niet automatisch worden bepaald (afdelingshoofd/rol ontbreekt mogelijk). Vraag een beheerder om dit te herstellen en de toewijzing in de console opnieuw uit te voeren.",
+    "cc": "CC",
+    "skipped": "Overgeslagen (voorwaarde niet vervuld)",
+    "countersignAnd": "Gezamenlijk",
+    "countersignOr": "Eén volstaat",
+    "progress": "{{done}}/{{total}} goedgekeurd"
   },
   "act": {
     "approve": "Goedkeuren",

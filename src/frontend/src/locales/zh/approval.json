@@ -13,13 +13,19 @@
     "approved": "已通过",
     "rejected": "已拒绝",
     "cancelled": "已撤销",
-    "needs_assignment": "待指派"
+    "needs_assignment": "待指派",
+    "skipped": "已跳过"
   },
   "card": {
     "applicant": "发起人",
     "node": "第 {{index}} 级",
     "unassigned": "待指派",
-    "needsAssignmentHint": "未能自动确定审批人(可能对应部门主管/角色缺失)。请联系管理员在后台补齐后重试指派。"
+    "needsAssignmentHint": "未能自动确定审批人(可能对应部门主管/角色缺失)。请联系管理员在后台补齐后重试指派。",
+    "cc": "抄送",
+    "skipped": "已跳过(条件不满足)",
+    "countersignAnd": "并签",
+    "countersignOr": "或签",
+    "progress": "{{done}}/{{total}} 已批"
   },
   "act": {
     "approve": "通过",

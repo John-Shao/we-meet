@@ -13,13 +13,19 @@
     "approved": "Approved",
     "rejected": "Rejected",
     "cancelled": "Cancelled",
-    "needs_assignment": "Needs assignment"
+    "needs_assignment": "Needs assignment",
+    "skipped": "Skipped"
   },
   "card": {
     "applicant": "Requested by",
     "node": "Step {{index}}",
     "unassigned": "Unassigned",
-    "needsAssignmentHint": "Approver couldn't be resolved automatically (a department head / role may be missing). Ask an admin to fix it and retry assignment in the console."
+    "needsAssignmentHint": "Approver couldn't be resolved automatically (a department head / role may be missing). Ask an admin to fix it and retry assignment in the console.",
+    "cc": "CC",
+    "skipped": "Skipped (condition not met)",
+    "countersignAnd": "All must sign",
+    "countersignOr": "Any one signs",
+    "progress": "{{done}}/{{total}} approved"
   },
   "act": {
     "approve": "Approve",

@@ -9,7 +9,14 @@ export type ApprovalStatus =
   | 'cancelled'
   | 'needs_assignment'
 
-export type ApprovalAction = 'pending' | 'approved' | 'rejected'
+export type ApprovalAction =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'skipped'
+  | 'notified'
+
+export type ApprovalTaskKind = 'approve' | 'cc'
 
 /** One field of a template's request form (MVP convention over the free-form
  *  form_schema JSON authored in Django admin). */
@@ -42,8 +49,17 @@ export interface ApprovalTask {
   node_index: number
   approver: UserLite | null
   action: ApprovalAction
+  kind: ApprovalTaskKind
   comment: string
   acted_at: string | null
+}
+
+/** Display-only per-node metadata (P5b): mode drives the 会签 label. */
+export interface ApprovalNodeMeta {
+  index: number
+  type: string | null
+  /** 'single' | 'and' | 'or' */
+  mode: string
 }
 
 export interface ApprovalInstance {
@@ -55,6 +71,7 @@ export interface ApprovalInstance {
   status: ApprovalStatus
   current_node: number
   tasks: ApprovalTask[]
+  nodes: ApprovalNodeMeta[]
   created_at: string
 }
 

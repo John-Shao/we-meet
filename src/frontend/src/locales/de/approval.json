@@ -13,13 +13,19 @@
     "approved": "Genehmigt",
     "rejected": "Abgelehnt",
     "cancelled": "Zurückgezogen",
-    "needs_assignment": "Zuweisung nötig"
+    "needs_assignment": "Zuweisung nötig",
+    "skipped": "Übersprungen"
   },
   "card": {
     "applicant": "Antragsteller",
     "node": "Schritt {{index}}",
     "unassigned": "Nicht zugewiesen",
-    "needsAssignmentHint": "Genehmiger konnte nicht automatisch ermittelt werden (Abteilungsleiter/Rolle fehlt evtl.). Bitten Sie einen Administrator, dies zu beheben und die Zuweisung in der Konsole erneut auszuführen."
+    "needsAssignmentHint": "Genehmiger konnte nicht automatisch ermittelt werden (Abteilungsleiter/Rolle fehlt evtl.). Bitten Sie einen Administrator, dies zu beheben und die Zuweisung in der Konsole erneut auszuführen.",
+    "cc": "Kopie",
+    "skipped": "Übersprungen (Bedingung nicht erfüllt)",
+    "countersignAnd": "Gemeinsam",
+    "countersignOr": "Einer genügt",
+    "progress": "{{done}}/{{total}} genehmigt"
   },
   "act": {
     "approve": "Genehmigen",

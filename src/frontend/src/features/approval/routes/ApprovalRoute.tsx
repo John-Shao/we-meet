@@ -482,6 +482,109 @@ const Hint = ({ children }: { children: React.ReactNode }) => (
   </p>
 )
 
+const chainRow = (active: boolean) =>
+  css({
+    fontSize: '0.75rem',
+    color: active ? 'greyscale.900' : 'greyscale.500',
+  })
+
+/**
+ * 审批链时间线,按节点分组(P5b):
+ * - 单签节点 → 一行(审批人 · 状态 · 意见)。
+ * - 会签节点(≥2 审批人)→ 「并签/或签 · N/M 已批」+ 各审批人明细。
+ * - 抄送节点 → 「抄送:张三、李四」。
+ * - 条件跳过节点 → 「已跳过」淡显。
+ */
+const NodeChain = ({ inst }: { inst: ApprovalInstance }) => {
+  const { t } = useTranslation('approval')
+  const nodeIndexes = [...new Set(inst.tasks.map((x) => x.node_index))].sort(
+    (a, b) => a - b
+  )
+  const modeOf = (idx: number) =>
+    inst.nodes?.find((n) => n.index === idx)?.mode ?? 'single'
+
+  return (
+    <ol
+      className={css({
+        listStyle: 'none',
+        margin: '0.625rem 0 0',
+        padding: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.25rem',
+      })}
+    >
+      {nodeIndexes.map((idx) => {
+        const tasks = inst.tasks.filter((x) => x.node_index === idx)
+        const cc = tasks.filter((x) => x.kind === 'cc')
+        const approvers = tasks.filter((x) => x.kind === 'approve' && x.approver)
+        const skipped = tasks.find(
+          (x) => x.kind === 'approve' && !x.approver && x.action === 'skipped'
+        )
+        const active = idx === inst.current_node && inst.status === 'pending'
+        const label = t('card.node', { index: idx + 1 })
+
+        if (cc.length > 0) {
+          return (
+            <li key={idx} className={chainRow(false)}>
+              {label} · {t('card.cc')}:
+              {cc.map((x) => x.approver?.full_name || '—').join('、')}
+            </li>
+          )
+        }
+        if (skipped) {
+          return (
+            <li key={idx} className={chainRow(false)}>
+              {label}:{t('card.skipped')}
+            </li>
+          )
+        }
+        if (approvers.length <= 1) {
+          const task = approvers[0] ?? tasks[0]
+          return (
+            <li key={idx} className={chainRow(active)}>
+              {label}：{task?.approver?.full_name || t('card.unassigned')}
+              {task && task.action !== 'pending' &&
+                ` · ${t(`status.${task.action}`)}`}
+              {task?.comment && ` · ${task.comment}`}
+            </li>
+          )
+        }
+        const done = approvers.filter((x) => x.action === 'approved').length
+        return (
+          <li key={idx} className={chainRow(active)}>
+            <span className={css({ fontWeight: 500 })}>
+              {label} ·{' '}
+              {modeOf(idx) === 'or'
+                ? t('card.countersignOr')
+                : t('card.countersignAnd')}{' '}
+              · {t('card.progress', { done, total: approvers.length })}
+            </span>
+            <ul
+              className={css({
+                listStyle: 'none',
+                margin: '0.125rem 0 0',
+                padding: '0 0 0 0.75rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.125rem',
+              })}
+            >
+              {approvers.map((x) => (
+                <li key={x.approver?.id ?? x.node_index}>
+                  {x.approver?.full_name}
+                  {x.action !== 'pending' && ` · ${t(`status.${x.action}`)}`}
+                  {x.comment && ` · ${x.comment}`}
+                </li>
+              ))}
+            </ul>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
 const InstanceCard = ({
   inst,
   fmt,
@@ -585,36 +688,8 @@ const InstanceCard = ({
         </dl>
       )}
 
-      {/* approver chain */}
-      <ol
-        className={css({
-          listStyle: 'none',
-          margin: '0.625rem 0 0',
-          padding: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.25rem',
-        })}
-      >
-        {inst.tasks.map((task) => (
-          <li
-            key={task.node_index}
-            className={css({
-              fontSize: '0.75rem',
-              color:
-                task.node_index === inst.current_node &&
-                inst.status === 'pending'
-                  ? 'greyscale.900'
-                  : 'greyscale.500',
-            })}
-          >
-            {t('card.node', { index: task.node_index + 1 })}：
-            {task.approver?.full_name || t('card.unassigned')}
-            {task.action !== 'pending' && ` · ${t(`status.${task.action}`)}`}
-            {task.comment && ` · ${task.comment}`}
-          </li>
-        ))}
-      </ol>
+      {/* approver chain — grouped by node (P5b: 会签/跳过/抄送) */}
+      <NodeChain inst={inst} />
 
       {/* actions */}
       {mode === 'pending' && inst.status === 'pending' && (

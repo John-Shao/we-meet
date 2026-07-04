@@ -42,6 +42,7 @@ class ApprovalInstanceSerializer(serializers.ModelSerializer):
     applicant = UserLightSerializer(read_only=True)
     template_name = serializers.CharField(source="template.name", read_only=True)
     tasks = ApprovalTaskSerializer(many=True, read_only=True)
+    nodes = serializers.SerializerMethodField()
 
     class Meta:
         model = models.ApprovalInstance
@@ -54,9 +55,22 @@ class ApprovalInstanceSerializer(serializers.ModelSerializer):
             "status",
             "current_node",
             "tasks",
+            "nodes",
             "created_at",
         ]
         read_only_fields = fields
+
+    def get_nodes(self, obj):
+        """Display-only per-node metadata for the timeline (mode + cc flag). Only
+        index / type / mode — never the approver-resolution rule details."""
+        return [
+            {
+                "index": i,
+                "type": (node or {}).get("type"),
+                "mode": (node or {}).get("mode", "single"),
+            }
+            for i, node in enumerate(obj.template.flow or [])
+        ]
 
 
 class ApprovalSubmitSerializer(serializers.Serializer):
