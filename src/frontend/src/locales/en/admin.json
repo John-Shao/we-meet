@@ -20,7 +20,26 @@
   },
   "org": {
     "title": "Organization",
-    "placeholder": "Organization management is coming soon."
+    "newDepartment": "New department",
+    "newSubDepartment": "New sub-department",
+    "rename": "Rename",
+    "createTitle": "New department",
+    "renameTitle": "Rename department",
+    "namePlaceholder": "Department name",
+    "empty": "No departments yet. Click \"New department\" to start building your org structure.",
+    "selectDept": "Select a department on the left to view its members.",
+    "loadingMembers": "Loading members…",
+    "noMembers": "This department has no members yet.",
+    "deleteTitle": "Delete department",
+    "deleteConfirm": "Delete department \"{{name}}\"? Its direct members will move to:",
+    "reassignLabel": "Move members to",
+    "reassignToOrg": "Organization (no department)"
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Create",
+    "delete": "Delete"
   },
   "members": {
     "title": "Members",

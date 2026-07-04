@@ -20,7 +20,26 @@
   },
   "org": {
     "title": "Organisation",
-    "placeholder": "La gestion de l'organisation arrive bientôt."
+    "newDepartment": "Nouveau service",
+    "newSubDepartment": "Nouveau sous-service",
+    "rename": "Renommer",
+    "createTitle": "Nouveau service",
+    "renameTitle": "Renommer le service",
+    "namePlaceholder": "Nom du service",
+    "empty": "Aucun service pour l'instant. Cliquez sur « Nouveau service » pour construire votre organisation.",
+    "selectDept": "Sélectionnez un service à gauche pour voir ses membres.",
+    "loadingMembers": "Chargement des membres…",
+    "noMembers": "Ce service n'a encore aucun membre.",
+    "deleteTitle": "Supprimer le service",
+    "deleteConfirm": "Supprimer le service « {{name}} » ? Ses membres directs seront déplacés vers :",
+    "reassignLabel": "Déplacer les membres vers",
+    "reassignToOrg": "Organisation (sans service)"
+  },
+  "actions": {
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "create": "Créer",
+    "delete": "Supprimer"
   },
   "members": {
     "title": "Membres",

@@ -20,7 +20,26 @@
   },
   "org": {
     "title": "Organisatie",
-    "placeholder": "Organisatiebeheer komt binnenkort."
+    "newDepartment": "Nieuwe afdeling",
+    "newSubDepartment": "Nieuwe subafdeling",
+    "rename": "Naam wijzigen",
+    "createTitle": "Nieuwe afdeling",
+    "renameTitle": "Afdeling hernoemen",
+    "namePlaceholder": "Afdelingsnaam",
+    "empty": "Nog geen afdelingen. Klik op \"Nieuwe afdeling\" om je organisatiestructuur op te bouwen.",
+    "selectDept": "Selecteer links een afdeling om de leden te bekijken.",
+    "loadingMembers": "Leden laden…",
+    "noMembers": "Deze afdeling heeft nog geen leden.",
+    "deleteTitle": "Afdeling verwijderen",
+    "deleteConfirm": "Afdeling \"{{name}}\" verwijderen? De directe leden worden verplaatst naar:",
+    "reassignLabel": "Leden verplaatsen naar",
+    "reassignToOrg": "Organisatie (geen afdeling)"
+  },
+  "actions": {
+    "cancel": "Annuleren",
+    "save": "Opslaan",
+    "create": "Aanmaken",
+    "delete": "Verwijderen"
   },
   "members": {
     "title": "Leden",

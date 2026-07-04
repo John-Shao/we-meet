@@ -20,7 +20,26 @@
   },
   "org": {
     "title": "Organisation",
-    "placeholder": "Die Organisationsverwaltung ist bald verfügbar."
+    "newDepartment": "Neue Abteilung",
+    "newSubDepartment": "Neue Unterabteilung",
+    "rename": "Umbenennen",
+    "createTitle": "Neue Abteilung",
+    "renameTitle": "Abteilung umbenennen",
+    "namePlaceholder": "Abteilungsname",
+    "empty": "Noch keine Abteilungen. Klicken Sie auf „Neue Abteilung“, um Ihre Organisationsstruktur aufzubauen.",
+    "selectDept": "Wählen Sie links eine Abteilung, um deren Mitglieder zu sehen.",
+    "loadingMembers": "Mitglieder werden geladen…",
+    "noMembers": "Diese Abteilung hat noch keine Mitglieder.",
+    "deleteTitle": "Abteilung löschen",
+    "deleteConfirm": "Abteilung „{{name}}“ löschen? Ihre direkten Mitglieder werden verschoben nach:",
+    "reassignLabel": "Mitglieder verschieben nach",
+    "reassignToOrg": "Organisation (keine Abteilung)"
+  },
+  "actions": {
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "create": "Erstellen",
+    "delete": "Löschen"
   },
   "members": {
     "title": "Mitglieder",

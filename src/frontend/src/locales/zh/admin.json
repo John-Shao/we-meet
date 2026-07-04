@@ -20,7 +20,26 @@
   },
   "org": {
     "title": "组织架构",
-    "placeholder": "组织架构管理即将上线。"
+    "newDepartment": "新建部门",
+    "newSubDepartment": "新建子部门",
+    "rename": "重命名",
+    "createTitle": "新建部门",
+    "renameTitle": "重命名部门",
+    "namePlaceholder": "部门名称",
+    "empty": "暂无部门,点击「新建部门」开始搭建组织架构。",
+    "selectDept": "选择左侧部门查看成员。",
+    "loadingMembers": "加载成员中…",
+    "noMembers": "该部门暂无成员。",
+    "deleteTitle": "删除部门",
+    "deleteConfirm": "确定删除部门「{{name}}」?其直属成员将转移到:",
+    "reassignLabel": "成员转移至",
+    "reassignToOrg": "组织(无部门)"
+  },
+  "actions": {
+    "cancel": "取消",
+    "save": "保存",
+    "create": "创建",
+    "delete": "删除"
   },
   "members": {
     "title": "成员治理",
