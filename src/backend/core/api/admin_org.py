@@ -258,18 +258,35 @@ class DepartmentAdminViewSet(
         )
 
     def perform_update(self, serializer):
-        old_name = serializer.instance.name
+        before = {
+            "name": serializer.instance.name,
+            "head": str(serializer.instance.head_id) if serializer.instance.head_id else None,
+            "sort_order": serializer.instance.sort_order,
+        }
         instance = serializer.save()
-        if instance.name != old_name:
-            record_audit(
-                actor=self.request.user,
-                organization=self.get_organization(),
-                action=models.AuditActionChoices.DEPT_RENAME,
-                target_type="department",
-                target_id=instance.id,
-                target_label=instance.name,
-                metadata={"before": {"name": old_name}, "after": {"name": instance.name}},
-            )
+        after = {
+            "name": instance.name,
+            "head": str(instance.head_id) if instance.head_id else None,
+            "sort_order": instance.sort_order,
+        }
+        changes = {k: {"from": before[k], "to": after[k]} for k in after if before[k] != after[k]}
+        if not changes:
+            return
+        # A pure rename gets its own action; head / sort edits fold into dept.update.
+        action = (
+            models.AuditActionChoices.DEPT_RENAME
+            if set(changes) == {"name"}
+            else models.AuditActionChoices.DEPT_UPDATE
+        )
+        record_audit(
+            actor=self.request.user,
+            organization=self.get_organization(),
+            action=action,
+            target_type="department",
+            target_id=instance.id,
+            target_label=instance.name,
+            metadata={"changes": changes},
+        )
 
     def perform_destroy(self, instance):
         """Soft-delete a department.

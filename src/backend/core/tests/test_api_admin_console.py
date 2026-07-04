@@ -355,6 +355,42 @@ def test_admin_department_move_rejects_foreign_parent():
     assert response.status_code == 400, response.content
 
 
+def test_admin_department_head_assignment_audits_update():
+    """Assigning a head (an org member) succeeds and logs a dept.update."""
+    org = factories.OrganizationFactory()
+    client, _ = _admin_client(org)
+    dept = models.Department.objects.create(organization=org, name="Eng")
+    head_user = factories.UserFactory()
+    _member(org, head_user)
+
+    response = client.patch(
+        f"/api/v1.0/admin/departments/{dept.id}/",
+        {"head": str(head_user.id)},
+        format="json",
+    )
+    assert response.status_code == 200, response.content
+    dept.refresh_from_db()
+    assert dept.head_id == head_user.id
+
+    logs = client.get("/api/v1.0/admin/audit-logs/?action=dept.update")
+    assert logs.status_code == 200, logs.content
+    assert any(row["target_label"] == "Eng" for row in logs.json()["results"])
+
+
+def test_admin_department_head_must_be_org_member():
+    org = factories.OrganizationFactory()
+    client, _ = _admin_client(org)
+    dept = models.Department.objects.create(organization=org, name="Eng")
+    outsider = factories.UserFactory()  # has no membership in org
+
+    response = client.patch(
+        f"/api/v1.0/admin/departments/{dept.id}/",
+        {"head": str(outsider.id)},
+        format="json",
+    )
+    assert response.status_code == 400, response.content
+
+
 def test_admin_department_move_requires_org_admin():
     org = factories.OrganizationFactory()
     node = models.Department.objects.create(organization=org, name="Node")

@@ -8,6 +8,7 @@ import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { fetchDepartmentMembers } from '@/features/contacts/api/fetchDepartmentMembers'
+import { fetchDirectoryMembers } from '@/features/contacts/api/fetchDirectoryMembers'
 
 import {
   type AdminDepartment,
@@ -39,6 +40,7 @@ export const AdminOrg = () => {
   const [prompt, setPrompt] = useState<PromptState>(null)
   const [deleteTarget, setDeleteTarget] = useState<AdminDepartment | null>(null)
   const [moveTarget, setMoveTarget] = useState<AdminDepartment | null>(null)
+  const [headTarget, setHeadTarget] = useState<AdminDepartment | null>(null)
 
   const { data: departments = [] } = useQuery({
     queryKey: DEPARTMENTS_KEY,
@@ -97,6 +99,25 @@ export const AdminOrg = () => {
       setMoveTarget(null)
     },
     onError,
+  })
+
+  const headMut = useMutation({
+    mutationFn: (vars: { id: string; head: string | null }) =>
+      updateDepartment(vars.id, { head: vars.head }),
+    onSuccess: () => {
+      invalidate()
+      setHeadTarget(null)
+    },
+    onError,
+  })
+
+  // Org members for the head picker (head must be an active member; backend
+  // enforces via validate_head). Loaded only while the picker is open.
+  const { data: orgMembers = [] } = useQuery({
+    queryKey: ['admin', 'orgMembers'],
+    queryFn: () => fetchDirectoryMembers(),
+    enabled: headTarget !== null,
+    staleTime: 60_000,
   })
 
   // Valid move targets: any department that is NOT the node itself and NOT in
@@ -190,9 +211,43 @@ export const AdminOrg = () => {
             </p>
           ) : (
             <div className={css({ padding: '1.25rem' })}>
-              <h2 className={css({ fontSize: '1rem', fontWeight: 'bold', marginBottom: '0.75rem', color: 'greyscale.900' })}>
+              <h2 className={css({ fontSize: '1rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'greyscale.900' })}>
                 {selectedDept.name}
               </h2>
+              <div
+                className={css({
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  marginBottom: '1rem',
+                  fontSize: '0.875rem',
+                  color: 'greyscale.600',
+                })}
+              >
+                <span>{t('org.head')}:</span>
+                <span className={css({ color: 'greyscale.900' })}>
+                  {selectedDept.head
+                    ? selectedDept.head.full_name || selectedDept.head.short_name
+                    : t('org.noHead')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setHeadTarget(selectedDept)}
+                  className={css({
+                    border: '1px solid token(colors.primary.300)',
+                    borderRadius: '0.375rem',
+                    backgroundColor: 'greyscale.000',
+                    color: 'primary.600',
+                    paddingX: '0.5rem',
+                    paddingY: '0.1875rem',
+                    fontSize: '0.8125rem',
+                    cursor: 'pointer',
+                    _hover: { backgroundColor: 'primary.50' },
+                  })}
+                >
+                  {t('org.setHead')}
+                </button>
+              </div>
               {membersFetching && members.length === 0 ? (
                 <p className={css({ color: 'greyscale.500', fontSize: '0.875rem' })}>{t('org.loadingMembers')}</p>
               ) : members.length === 0 ? (
@@ -260,6 +315,26 @@ export const AdminOrg = () => {
           moveTarget && moveMut.mutate({ id: moveTarget.id, parent: value || null })
         }
         onClose={() => setMoveTarget(null)}
+      />
+
+      <SelectDialog
+        isOpen={headTarget !== null}
+        title={t('org.setHeadTitle', { name: headTarget?.name ?? '' })}
+        label={t('org.head')}
+        options={[
+          { value: '', label: t('org.noHead') },
+          ...orgMembers.map((m) => ({
+            value: m.id,
+            label: m.full_name || m.short_name || m.email || '',
+          })),
+        ]}
+        initialValue={headTarget?.head?.id ?? ''}
+        confirmLabel={t('actions.save')}
+        submitting={headMut.isPending}
+        onSubmit={(value) =>
+          headTarget && headMut.mutate({ id: headTarget.id, head: value || null })
+        }
+        onClose={() => setHeadTarget(null)}
       />
     </div>
   )
