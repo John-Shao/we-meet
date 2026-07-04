@@ -332,8 +332,9 @@ export const MessageItem = ({
       })}
       data-testid="im-msg"
     >
-      {/* 接收消息(群聊):左侧发送人头像 */}
-      {!isOwn && showSender && (
+      {/* 接收消息(一对一 + 群聊):左侧对方头像(对齐企业微信/微信;
+          发送人名字仅群聊显示,见下方 showSender 分支) */}
+      {!isOwn && (
         <Avatar name={name} src={senderAvatarUrl} size="2rem" />
       )}
       <div
