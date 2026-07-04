@@ -16,7 +16,18 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "placeholder": "The dashboard is coming soon."
+    "loading": "Loading…",
+    "membersActive": "Active members",
+    "membersTotal": "Total members",
+    "membersInvited": "Invited",
+    "membersSuspended": "Suspended",
+    "departments": "Departments",
+    "meetings": "Meetings",
+    "summaries": "Meeting notes",
+    "approvalsPending": "Pending approvals",
+    "trendTitle": "Meeting activity (last 14 days)",
+    "trendTotal": "{{count}} total",
+    "trendEmpty": "No data yet"
   },
   "org": {
     "title": "Organization",

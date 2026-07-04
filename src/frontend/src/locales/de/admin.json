@@ -16,7 +16,18 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "placeholder": "Das Dashboard ist bald verfügbar."
+    "loading": "Wird geladen…",
+    "membersActive": "Aktive Mitglieder",
+    "membersTotal": "Mitglieder gesamt",
+    "membersInvited": "Eingeladen",
+    "membersSuspended": "Gesperrt",
+    "departments": "Abteilungen",
+    "meetings": "Besprechungen",
+    "summaries": "Besprechungsnotizen",
+    "approvalsPending": "Offene Genehmigungen",
+    "trendTitle": "Besprechungsaktivität (letzte 14 Tage)",
+    "trendTotal": "{{count}} gesamt",
+    "trendEmpty": "Noch keine Daten"
   },
   "org": {
     "title": "Organisation",

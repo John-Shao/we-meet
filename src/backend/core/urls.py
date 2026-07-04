@@ -12,6 +12,7 @@ from core.api.admin_org import DepartmentAdminViewSet, MembershipAdminViewSet
 from core.api.agent_internal import IngestTranscriptView
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.calendar import CalendarEventViewSet
+from core.api.admin_stats import AdminStatsOverviewView
 from core.api.directory import (
     DepartmentViewSet,
     DirectoryMeView,
@@ -84,6 +85,11 @@ urlpatterns = [
                 *router.urls,
                 *oidc_urls,
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),
+                path(
+                    "admin/stats/overview/",
+                    AdminStatsOverviewView.as_view(),
+                    name="admin_stats_overview",
+                ),
                 path("config/", get_frontend_configuration, name="config"),
             ]
         ),

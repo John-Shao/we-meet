@@ -16,7 +16,18 @@
   },
   "dashboard": {
     "title": "数据看板",
-    "placeholder": "数据看板即将上线。"
+    "loading": "加载中…",
+    "membersActive": "活跃成员",
+    "membersTotal": "成员总数",
+    "membersInvited": "待加入",
+    "membersSuspended": "已停用",
+    "departments": "部门数",
+    "meetings": "会议数",
+    "summaries": "会议纪要",
+    "approvalsPending": "待办审批",
+    "trendTitle": "会议活跃度(近 14 天)",
+    "trendTotal": "共 {{count}} 次",
+    "trendEmpty": "暂无数据"
   },
   "org": {
     "title": "组织架构",

@@ -16,7 +16,18 @@
   },
   "dashboard": {
     "title": "Tableau de bord",
-    "placeholder": "Le tableau de bord arrive bientôt."
+    "loading": "Chargement…",
+    "membersActive": "Membres actifs",
+    "membersTotal": "Total des membres",
+    "membersInvited": "Invités",
+    "membersSuspended": "Suspendus",
+    "departments": "Services",
+    "meetings": "Réunions",
+    "summaries": "Comptes rendus",
+    "approvalsPending": "Approbations en attente",
+    "trendTitle": "Activité des réunions (14 derniers jours)",
+    "trendTotal": "{{count}} au total",
+    "trendEmpty": "Pas encore de données"
   },
   "org": {
     "title": "Organisation",

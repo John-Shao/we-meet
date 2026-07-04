@@ -16,7 +16,18 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "placeholder": "Het dashboard komt binnenkort."
+    "loading": "Laden…",
+    "membersActive": "Actieve leden",
+    "membersTotal": "Totaal leden",
+    "membersInvited": "Uitgenodigd",
+    "membersSuspended": "Opgeschort",
+    "departments": "Afdelingen",
+    "meetings": "Vergaderingen",
+    "summaries": "Verslagen",
+    "approvalsPending": "Openstaande goedkeuringen",
+    "trendTitle": "Vergaderactiviteit (laatste 14 dagen)",
+    "trendTotal": "{{count}} totaal",
+    "trendEmpty": "Nog geen gegevens"
   },
   "org": {
     "title": "Organisatie",
