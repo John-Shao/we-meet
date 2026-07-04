@@ -97,6 +97,30 @@
   },
   "audit": {
     "title": "Audit log",
-    "placeholder": "The audit log is coming soon."
+    "filterAllActions": "All actions",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "loading": "Loading…",
+    "noLogs": "No audit records yet.",
+    "colTime": "Time",
+    "colActor": "Actor",
+    "colAction": "Action",
+    "colTarget": "Target",
+    "systemActor": "System",
+    "total": "{{count}} records",
+    "prev": "Previous",
+    "next": "Next",
+    "action": {
+      "dept_create": "Department created",
+      "dept_rename": "Department renamed",
+      "dept_delete": "Department deleted",
+      "member_add": "Member added",
+      "member_update": "Member updated",
+      "member_role_change": "Role changed",
+      "member_department_change": "Department changed",
+      "member_suspend": "Member suspended",
+      "member_restore": "Member restored",
+      "member_remove": "Member removed"
+    }
   }
 }

@@ -97,6 +97,30 @@
   },
   "audit": {
     "title": "Journal d'audit",
-    "placeholder": "Le journal d'audit arrive bientôt."
+    "filterAllActions": "Toutes les actions",
+    "dateFrom": "Du",
+    "dateTo": "Au",
+    "loading": "Chargement…",
+    "noLogs": "Aucun enregistrement d'audit.",
+    "colTime": "Heure",
+    "colActor": "Auteur",
+    "colAction": "Action",
+    "colTarget": "Cible",
+    "systemActor": "Système",
+    "total": "{{count}} enregistrements",
+    "prev": "Précédent",
+    "next": "Suivant",
+    "action": {
+      "dept_create": "Service créé",
+      "dept_rename": "Service renommé",
+      "dept_delete": "Service supprimé",
+      "member_add": "Membre ajouté",
+      "member_update": "Membre mis à jour",
+      "member_role_change": "Rôle modifié",
+      "member_department_change": "Service modifié",
+      "member_suspend": "Membre suspendu",
+      "member_restore": "Membre réactivé",
+      "member_remove": "Membre retiré"
+    }
   }
 }

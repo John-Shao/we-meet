@@ -97,6 +97,30 @@
   },
   "audit": {
     "title": "审计日志",
-    "placeholder": "审计日志即将上线。"
+    "filterAllActions": "全部操作",
+    "dateFrom": "从",
+    "dateTo": "至",
+    "loading": "加载中…",
+    "noLogs": "暂无审计记录。",
+    "colTime": "时间",
+    "colActor": "操作人",
+    "colAction": "操作",
+    "colTarget": "对象",
+    "systemActor": "系统",
+    "total": "共 {{count}} 条",
+    "prev": "上一页",
+    "next": "下一页",
+    "action": {
+      "dept_create": "新建部门",
+      "dept_rename": "重命名部门",
+      "dept_delete": "删除部门",
+      "member_add": "添加成员",
+      "member_update": "更新成员",
+      "member_role_change": "修改成员角色",
+      "member_department_change": "调整成员部门",
+      "member_suspend": "停用成员",
+      "member_restore": "恢复成员",
+      "member_remove": "移出成员"
+    }
   }
 }

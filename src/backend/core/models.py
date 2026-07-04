@@ -2325,3 +2325,88 @@ class ApprovalDelegation(BaseModel):
 
     def __str__(self):
         return f"{self.delegator_id} → {self.delegate_id}"
+
+
+# --- M 端 (management console) 审计日志 ---
+
+
+class AuditActionChoices(models.TextChoices):
+    """Administrative actions recorded in the console audit log."""
+
+    DEPT_CREATE = "dept.create", _("Department created")
+    DEPT_RENAME = "dept.rename", _("Department renamed")
+    DEPT_DELETE = "dept.delete", _("Department deleted")
+    MEMBER_ADD = "member.add", _("Member added")
+    MEMBER_UPDATE = "member.update", _("Member updated")
+    MEMBER_ROLE_CHANGE = "member.role_change", _("Member role changed")
+    MEMBER_DEPARTMENT_CHANGE = "member.department_change", _("Member department changed")
+    MEMBER_SUSPEND = "member.suspend", _("Member suspended")
+    MEMBER_RESTORE = "member.restore", _("Member restored")
+    MEMBER_REMOVE = "member.remove", _("Member removed")
+
+
+class AuditLog(BaseModel):
+    """An append-only record of an administrative action in the console (M 端).
+
+    Answers "who did what, when" for org governance. Written from the admin API
+    write paths via ``core.services.audit.record_audit``; read back (org-scoped)
+    through ``core/api/admin_audit.py``. ``actor`` is nulled rather than cascaded
+    if the acting user is deleted, so history survives.
+    """
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="audit_logs",
+    )
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_actions",
+        help_text=_("The admin who performed the action (null if since deleted)."),
+    )
+    action = models.CharField(max_length=40, choices=AuditActionChoices.choices)
+    target_type = models.CharField(
+        max_length=40,
+        blank=True,
+        default="",
+        help_text=_("The kind of object acted on, e.g. 'department' / 'membership'."),
+    )
+    target_id = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text=_("Id of the object acted on."),
+    )
+    target_label = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=_("Human-readable name of the target at action time."),
+    )
+    metadata = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_("Action detail, e.g. before/after field values."),
+    )
+
+    class Meta:
+        db_table = "meet_audit_log"
+        ordering = ("-created_at",)
+        verbose_name = _("Audit log")
+        verbose_name_plural = _("Audit logs")
+        indexes = [
+            models.Index(
+                fields=["organization", "-created_at"],
+                name="meet_audit_org_created_idx",
+            ),
+            models.Index(
+                fields=["actor", "-created_at"],
+                name="meet_audit_actor_created_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.actor_id} {self.action} {self.target_type}:{self.target_id}"

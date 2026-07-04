@@ -97,6 +97,30 @@
   },
   "audit": {
     "title": "Auditlogboek",
-    "placeholder": "Het auditlogboek komt binnenkort."
+    "filterAllActions": "Alle acties",
+    "dateFrom": "Van",
+    "dateTo": "Tot",
+    "loading": "Laden…",
+    "noLogs": "Nog geen auditrecords.",
+    "colTime": "Tijd",
+    "colActor": "Uitvoerder",
+    "colAction": "Actie",
+    "colTarget": "Doel",
+    "systemActor": "Systeem",
+    "total": "{{count}} records",
+    "prev": "Vorige",
+    "next": "Volgende",
+    "action": {
+      "dept_create": "Afdeling aangemaakt",
+      "dept_rename": "Afdeling hernoemd",
+      "dept_delete": "Afdeling verwijderd",
+      "member_add": "Lid toegevoegd",
+      "member_update": "Lid bijgewerkt",
+      "member_role_change": "Rol gewijzigd",
+      "member_department_change": "Afdeling gewijzigd",
+      "member_suspend": "Lid opgeschort",
+      "member_restore": "Lid hersteld",
+      "member_remove": "Lid verwijderd"
+    }
   }
 }

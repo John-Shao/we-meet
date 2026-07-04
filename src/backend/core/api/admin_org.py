@@ -26,6 +26,7 @@ from core import models, utils
 from core.api import permissions
 from core.api.directory import get_caller_organization
 from core.api.viewsets import Pagination
+from core.services.audit import record_audit
 
 
 class IsOrgAdmin(permissions.IsAuthenticated):
@@ -240,6 +241,34 @@ class DepartmentAdminViewSet(
             organization=organization, deleted_at__isnull=True
         )
 
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        record_audit(
+            actor=self.request.user,
+            organization=self.get_organization(),
+            action=models.AuditActionChoices.DEPT_CREATE,
+            target_type="department",
+            target_id=instance.id,
+            target_label=instance.name,
+            metadata={
+                "parent": str(instance.parent_id) if instance.parent_id else None
+            },
+        )
+
+    def perform_update(self, serializer):
+        old_name = serializer.instance.name
+        instance = serializer.save()
+        if instance.name != old_name:
+            record_audit(
+                actor=self.request.user,
+                organization=self.get_organization(),
+                action=models.AuditActionChoices.DEPT_RENAME,
+                target_type="department",
+                target_id=instance.id,
+                target_label=instance.name,
+                metadata={"before": {"name": old_name}, "after": {"name": instance.name}},
+            )
+
     def perform_destroy(self, instance):
         """Soft-delete a department.
 
@@ -271,6 +300,15 @@ class DepartmentAdminViewSet(
             instance.is_active = False
             instance.deleted_at = timezone.now()
             instance.save()
+        record_audit(
+            actor=self.request.user,
+            organization=instance.organization,
+            action=models.AuditActionChoices.DEPT_DELETE,
+            target_type="department",
+            target_id=instance.id,
+            target_label=instance.name,
+            metadata={"reassign_to": str(target.id) if target else None},
+        )
 
 
 class MembershipAdminViewSet(
@@ -320,3 +358,84 @@ class MembershipAdminViewSet(
                 | Q(user__email__icontains=query)
             )
         return queryset.order_by("user__full_name")
+
+    @staticmethod
+    def _member_label(membership):
+        user = membership.user
+        return user.full_name or user.email or str(user.sub or user.id)
+
+    @staticmethod
+    def _member_snapshot(membership):
+        return {
+            "status": membership.status,
+            "org_role": membership.org_role,
+            "department": (
+                str(membership.department_id) if membership.department_id else None
+            ),
+            "title": membership.title,
+        }
+
+    @staticmethod
+    def _member_update_action(before, after):
+        """Pick the most specific audit action for a membership edit."""
+        if before["status"] != after["status"]:
+            if after["status"] == models.MembershipStatusChoices.SUSPENDED:
+                return models.AuditActionChoices.MEMBER_SUSPEND
+            if (
+                before["status"] == models.MembershipStatusChoices.SUSPENDED
+                and after["status"] == models.MembershipStatusChoices.ACTIVE
+            ):
+                return models.AuditActionChoices.MEMBER_RESTORE
+        if before["org_role"] != after["org_role"]:
+            return models.AuditActionChoices.MEMBER_ROLE_CHANGE
+        if before["department"] != after["department"]:
+            return models.AuditActionChoices.MEMBER_DEPARTMENT_CHANGE
+        return models.AuditActionChoices.MEMBER_UPDATE
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        record_audit(
+            actor=self.request.user,
+            organization=self.get_organization(),
+            action=models.AuditActionChoices.MEMBER_ADD,
+            target_type="membership",
+            target_id=instance.id,
+            target_label=self._member_label(instance),
+            metadata=self._member_snapshot(instance),
+        )
+
+    def perform_update(self, serializer):
+        before = self._member_snapshot(serializer.instance)
+        label = self._member_label(serializer.instance)
+        instance = serializer.save()
+        after = self._member_snapshot(instance)
+        changes = {
+            key: {"from": before[key], "to": after[key]}
+            for key in after
+            if before[key] != after[key]
+        }
+        if not changes:
+            return
+        record_audit(
+            actor=self.request.user,
+            organization=self.get_organization(),
+            action=self._member_update_action(before, after),
+            target_type="membership",
+            target_id=instance.id,
+            target_label=label,
+            metadata={"changes": changes},
+        )
+
+    def perform_destroy(self, instance):
+        label = self._member_label(instance)
+        organization = instance.organization
+        target_id = instance.id
+        super().perform_destroy(instance)
+        record_audit(
+            actor=self.request.user,
+            organization=organization,
+            action=models.AuditActionChoices.MEMBER_REMOVE,
+            target_type="membership",
+            target_id=target_id,
+            target_label=label,
+        )

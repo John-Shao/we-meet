@@ -97,6 +97,30 @@
   },
   "audit": {
     "title": "Auditprotokoll",
-    "placeholder": "Das Auditprotokoll ist bald verfügbar."
+    "filterAllActions": "Alle Aktionen",
+    "dateFrom": "Von",
+    "dateTo": "Bis",
+    "loading": "Wird geladen…",
+    "noLogs": "Noch keine Auditeinträge.",
+    "colTime": "Zeit",
+    "colActor": "Akteur",
+    "colAction": "Aktion",
+    "colTarget": "Ziel",
+    "systemActor": "System",
+    "total": "{{count}} Einträge",
+    "prev": "Zurück",
+    "next": "Weiter",
+    "action": {
+      "dept_create": "Abteilung erstellt",
+      "dept_rename": "Abteilung umbenannt",
+      "dept_delete": "Abteilung gelöscht",
+      "member_add": "Mitglied hinzugefügt",
+      "member_update": "Mitglied aktualisiert",
+      "member_role_change": "Rolle geändert",
+      "member_department_change": "Abteilung geändert",
+      "member_suspend": "Mitglied gesperrt",
+      "member_restore": "Mitglied wiederhergestellt",
+      "member_remove": "Mitglied entfernt"
+    }
   }
 }
