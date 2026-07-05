@@ -157,8 +157,11 @@ export const ChatPane = ({
   const { data: messages = [], isLoading } = useMessages(client, cid)
   // 渲染流:剔除控制消息(撤回墓碑 / 表情回复),它们不占气泡也不算时间间隔基准。
   const visibleMessages = useMemo(
-    () => messages.filter((m) => !CONTROL_TYPES.has(m.content_type)),
-    [messages]
+    () =>
+      messages.filter(
+        (m) => !CONTROL_TYPES.has(m.content_type) && !deletedMids.has(m.mid)
+      ),
+    [messages, deletedMids]
   )
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -451,6 +454,9 @@ export const ChatPane = ({
   // 逐条转发 / 合并转发。合并把每条烘焙成 {发送人, 文本快照, 时间} 一次性打包。
   const [selectMode, setSelectMode] = useState(false)
   const [selectedMids, setSelectedMids] = useState<Set<number>>(new Set())
+  // Client-side deleted mids — cleared when switching conversations.
+  const [deletedMids, setDeletedMids] = useState<Set<number>>(new Set())
+  useEffect(() => setDeletedMids(new Set()), [cid])
   const enterSelect = (m: Message) => {
     setSelectMode(true)
     setSelectedMids(new Set([m.mid]))
@@ -471,6 +477,12 @@ export const ChatPane = ({
     if (!ok) return
     try {
       await deleteMessages(cid, [...selectedMids].map(String))
+      // Filter deleted mids from the local message list immediately.
+      setDeletedMids((prev) => {
+        const next = new Set(prev)
+        for (const mid of selectedMids) next.add(mid)
+        return next
+      })
       exitSelect()
     } catch (e) {
       await showAlert({

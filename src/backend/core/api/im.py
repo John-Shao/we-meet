@@ -625,8 +625,10 @@ class ImViewSet(viewsets.ViewSet):
     def messages_delete(self, request):
         """Batch-delete messages from a conversation. Any member may delete messages.
 
-        Body: ``{cid, mids: [<mid string>, ...]}``. Deleted messages are hidden for
-        all conversation members. The caller must be a current member of cid.
+        Body: ``{cid, mids: [<mid string>, ...]}``. Deletion is client-side only
+        for now — the mids are validated and membership is confirmed, but the
+        actual hiding happens in the frontend cache (jusi-light-im does not yet
+        expose a server-side delete endpoint).
         """
         data = request.data or {}
         cid = (data.get("cid") or "").strip()
@@ -647,19 +649,12 @@ class ImViewSet(viewsets.ViewSet):
         if not mids:
             raise ValidationError({"mids": "at least one valid mid is required"})
 
+        # Confirm membership (also verifies IM connectivity).
         client = self._make_client()
         me = self._issue(client, self._external_id(request.user))
-        # Confirm membership.
         self._require_role(client, cid, me, owner_only=False)
 
-        try:
-            result = client.delete_messages(cid, mids)
-        except JusiImUnreachableError as exc:
-            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
-        except JusiImBadResponseError as exc:
-            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
-
-        return Response(result, status=status.HTTP_200_OK)
+        return Response({"cid": cid, "deleted": len(mids)}, status=status.HTTP_200_OK)
 
     # ---- shared helpers (P9) ----
 

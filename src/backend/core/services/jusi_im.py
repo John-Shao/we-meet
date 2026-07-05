@@ -335,26 +335,6 @@ class JusiImAdminClient:
                 f"post_message: unexpected response shape: {data}"
             ) from exc
 
-    def delete_messages(self, cid: str, mids: list[str]) -> dict[str, Any]:
-        """Batch-delete messages from cid. Deleted messages are hidden for all members.
-
-        ``mids`` is a list of message id strings. The response shape::
-
-            {"cid": "<cid>", "deleted": <int>}
-        """
-        if not cid:
-            raise ValueError("cid is required")
-        if not mids:
-            raise ValueError("at least one mid is required")
-        payload: dict[str, Any] = {"cid": cid, "mids": list(mids)}
-        data = self._signed_request("POST", "/admin/messages/delete", payload)
-        try:
-            return {"cid": data["cid"], "deleted": int(data["deleted"])}
-        except (KeyError, TypeError, ValueError) as exc:
-            raise JusiImBadResponseError(
-                f"delete_messages: unexpected response shape: {data}"
-            ) from exc
-
     # ---- helpers ----
 
     def _signed_request(self, method: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
