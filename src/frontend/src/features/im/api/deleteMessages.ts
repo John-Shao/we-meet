@@ -7,7 +7,7 @@ export const deleteMessages = async (
   cid: string,
   mids: string[],
 ): Promise<{ cid: string; deleted: number }> => {
-  const response = await fetch('/api/v1.0/im/messages/delete', {
+  const response = await fetch('/api/v1.0/im/messages/delete/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
