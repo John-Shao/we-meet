@@ -13,6 +13,7 @@ import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
 import { uploadChatVoice, ChatVoiceError } from '../api/uploadChatVoice'
+import { deleteMessages } from '../api/deleteMessages'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { MessageItem, type ReactionChip } from '../components/MessageItem'
 import { ImageLightbox } from '../components/ImageLightbox'
@@ -459,6 +460,25 @@ export const ChatPane = ({
     setSelectMode(false)
     setSelectedMids(new Set())
   }
+
+  const handleDeleteSelected = async () => {
+    const count = selectedMids.size
+    if (count === 0) return
+    const ok = await askConfirm(
+      t('select.deleteConfirm', { count })
+    )
+    if (!ok) return
+    try {
+      await deleteMessages(cid, [...selectedMids].map(String))
+      exitSelect()
+    } catch (e) {
+      await showAlert(
+        t('select.deleteError', {
+          message: e instanceof Error ? e.message : String(e),
+        })
+      )
+    }
+  }
   const toggleSelect = (mid: number) =>
     setSelectedMids((prev) => {
       const next = new Set(prev)
@@ -904,9 +924,18 @@ export const ChatPane = ({
                 disabled={selectedMids.size === 0}
                 onClick={doForwardMerged}
                 data-testid="select-forward-merged"
-                className={selectBtnCls(selectedMids.size > 0, true)}
+                className={selectBtnCls(selectedMids.size > 0)}
               >
                 {t('select.forwardMerged')}
+              </button>
+              <button
+                type="button"
+                disabled={selectedMids.size === 0}
+                onClick={handleDeleteSelected}
+                data-testid="select-delete"
+                className={selectBtnCls(selectedMids.size > 0, true)}
+              >
+                {t('select.delete')}
               </button>
             </div>
           ) : (

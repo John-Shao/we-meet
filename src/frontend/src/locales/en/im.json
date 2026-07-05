@@ -36,7 +36,12 @@
   "select": {
     "count": "{{count}} selected",
     "forwardEach": "Forward individually",
-    "forwardMerged": "Forward as one"
+    "forwardMerged": "Forward as one",
+    "enter": "Select",
+    "exit": "Cancel",
+    "delete": "Delete",
+    "deleteConfirm": "Delete {{count}} selected messages? They will be hidden for all members.",
+    "deleteError": "Delete failed: {{message}}"
   },
   "merged": {
     "card": "Chat record",

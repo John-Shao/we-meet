@@ -621,6 +621,46 @@ class ImViewSet(viewsets.ViewSet):
         )
         return Response({"cid": cid}, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["post"], url_path="messages/delete")
+    def messages_delete(self, request):
+        """Batch-delete messages from a conversation. Any member may delete messages.
+
+        Body: ``{cid, mids: [<mid string>, ...]}``. Deleted messages are hidden for
+        all conversation members. The caller must be a current member of cid.
+        """
+        data = request.data or {}
+        cid = (data.get("cid") or "").strip()
+        raw_mids = data.get("mids")
+        if not cid:
+            raise ValidationError({"cid": "cid is required"})
+        if not isinstance(raw_mids, list) or not raw_mids:
+            raise ValidationError({"mids": "at least one mid is required"})
+
+        # De-dupe mids.
+        mids: list[str] = []
+        seen: set = set()
+        for m in raw_mids:
+            s = str(m).strip()
+            if s and s not in seen:
+                seen.add(s)
+                mids.append(s)
+        if not mids:
+            raise ValidationError({"mids": "at least one valid mid is required"})
+
+        client = self._make_client()
+        me = self._issue(client, self._external_id(request.user))
+        # Confirm membership.
+        self._require_role(client, cid, me, owner_only=False)
+
+        try:
+            result = client.delete_messages(cid, mids)
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+
+        return Response(result, status=status.HTTP_200_OK)
+
     # ---- shared helpers (P9) ----
 
     def _make_client(self) -> JusiImAdminClient:

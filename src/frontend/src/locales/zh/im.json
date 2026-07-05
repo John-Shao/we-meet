@@ -36,7 +36,12 @@
   "select": {
     "count": "已选 {{count}} 项",
     "forwardEach": "逐条转发",
-    "forwardMerged": "合并转发"
+    "forwardMerged": "合并转发",
+    "enter": "多选",
+    "exit": "取消",
+    "delete": "删除",
+    "deleteConfirm": "确定删除选中的 {{count}} 条消息？删除后所有成员均不可见。",
+    "deleteError": "删除失败：{{message}}"
   },
   "merged": {
     "card": "聊天记录",

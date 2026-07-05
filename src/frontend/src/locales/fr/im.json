@@ -36,7 +36,12 @@
   "select": {
     "count": "{{count}} sélectionné(s)",
     "forwardEach": "Transférer un à un",
-    "forwardMerged": "Transférer groupé"
+    "forwardMerged": "Transférer groupé",
+    "enter": "Sélectionner",
+    "exit": "Annuler",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer {{count}} messages sélectionnés ? Ils seront masqués pour tous les membres.",
+    "deleteError": "Échec de la suppression : {{message}}"
   },
   "merged": {
     "card": "Historique de discussion",

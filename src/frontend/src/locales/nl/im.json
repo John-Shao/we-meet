@@ -36,7 +36,12 @@
   "select": {
     "count": "{{count}} geselecteerd",
     "forwardEach": "Afzonderlijk doorsturen",
-    "forwardMerged": "Samengevoegd doorsturen"
+    "forwardMerged": "Samengevoegd doorsturen",
+    "enter": "Selecteren",
+    "exit": "Annuleren",
+    "delete": "Verwijderen",
+    "deleteConfirm": "{{count}} geselecteerde berichten verwijderen? Ze worden voor alle leden verborgen.",
+    "deleteError": "Verwijderen mislukt: {{message}}"
   },
   "merged": {
     "card": "Chatgeschiedenis",

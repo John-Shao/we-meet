@@ -36,7 +36,12 @@
   "select": {
     "count": "{{count}} ausgewählt",
     "forwardEach": "Einzeln weiterleiten",
-    "forwardMerged": "Zusammengefasst weiterleiten"
+    "forwardMerged": "Als Verlauf weiterleiten",
+    "enter": "Auswählen",
+    "exit": "Abbrechen",
+    "delete": "Löschen",
+    "deleteConfirm": "{{count}} ausgewählte Nachrichten löschen? Sie werden für alle Mitglieder ausgeblendet.",
+    "deleteError": "Löschen fehlgeschlagen: {{message}}"
   },
   "merged": {
     "card": "Chatverlauf",
