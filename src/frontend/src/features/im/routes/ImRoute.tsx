@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'wouter'
+import { useSearchParams, useLocation } from 'wouter'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
@@ -70,6 +70,7 @@ const ImAuthenticated = () => {
   )
   // 从通讯录跳来时 URL 带 ?cid=<会话>,直接预选并打开该会话。
   const [searchParams] = useSearchParams()
+  const [, navigate] = useLocation()
   const initialCID = searchParams.get('cid')
   const [selectedCID, setSelectedCID] = useState<string | null>(initialCID)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -617,6 +618,7 @@ const ImAuthenticated = () => {
               }
               onForward={(m) => setForwarding(m)}
               onForwardMany={(p) => setForwardingMany(p)}
+              onMemberClick={(userId) => navigate(`/contacts?member=${userId}`)}
               infoPanel={
                 rightPanel === 'members' &&
                 selectedConv.type === 'group' ? (

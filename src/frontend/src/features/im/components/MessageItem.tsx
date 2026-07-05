@@ -66,6 +66,8 @@ interface Props {
     clickable?: boolean
     onClick?: () => void
   }
+  /** Click the sender's avatar → navigate to their personal info page. */
+  onAvatarClick?: () => void
 }
 
 /** Voice message bubble: play/pause + duration; width scales with length. */
@@ -244,6 +246,7 @@ export const MessageItem = ({
   mentionNames = [],
   selfMentionNames = [],
   readReceipt,
+  onAvatarClick,
 }: Props) => {
   const { t } = useTranslation('im')
   const isImage = message.content_type === 'image'
@@ -335,7 +338,15 @@ export const MessageItem = ({
       {/* 接收消息(一对一 + 群聊):左侧对方头像(对齐企业微信/微信;
           发送人名字仅群聊显示,见下方 showSender 分支) */}
       {!isOwn && (
-        <Avatar name={name} src={senderAvatarUrl} size="2rem" />
+        <span
+          onClick={onAvatarClick}
+          className={css({
+            cursor: onAvatarClick ? 'pointer' : 'default',
+            flexShrink: 0,
+          })}
+        >
+          <Avatar name={name} src={senderAvatarUrl} size="2rem" />
+        </span>
       )}
       <div
         className={css({
@@ -654,7 +665,17 @@ export const MessageItem = ({
           ))}
       </div>
       {/* 自己发的消息(一对一 + 群聊):右侧自己头像,不显示名字 */}
-      {isOwn && <Avatar name={name} src={senderAvatarUrl} size="2rem" />}
+      {isOwn && (
+        <span
+          onClick={onAvatarClick}
+          className={css({
+            cursor: onAvatarClick ? 'pointer' : 'default',
+            flexShrink: 0,
+          })}
+        >
+          <Avatar name={name} src={senderAvatarUrl} size="2rem" />
+        </span>
+      )}
     </div>
   )
 

@@ -134,6 +134,8 @@ interface Props {
   /** Group info / member side panel; rendered to the right of the message
    * stream, below the header (Feishu-style). Null when collapsed. */
   infoPanel?: ReactNode
+  /** Navigate to a member's personal info page (userId → contacts detail). */
+  onMemberClick?: (userId: string) => void
 }
 
 export const ChatPane = ({
@@ -148,6 +150,7 @@ export const ChatPane = ({
   onForward,
   onForwardMany,
   infoPanel,
+  onMemberClick,
 }: Props) => {
   const { t, i18n } = useTranslation('im')
   const { user } = useUser()
@@ -904,6 +907,11 @@ export const ChatPane = ({
                       mentionNames={highlightNames}
                       selfMentionNames={[selfName, everyone].filter(Boolean)}
                       readReceipt={isOwnMsg ? receiptFor(m) : undefined}
+                      onAvatarClick={
+                        names[m.sender_uid]?.id
+                          ? () => onMemberClick?.(names[m.sender_uid]!.id!)
+                          : undefined
+                      }
                     />
                   </Fragment>
                 )
