@@ -464,19 +464,20 @@ export const ChatPane = ({
   const handleDeleteSelected = async () => {
     const count = selectedMids.size
     if (count === 0) return
-    const ok = await askConfirm(
-      t('select.deleteConfirm', { count })
-    )
+    const ok = await askConfirm({
+      message: t('select.deleteConfirm', { count }),
+      danger: true,
+    })
     if (!ok) return
     try {
       await deleteMessages(cid, [...selectedMids].map(String))
       exitSelect()
     } catch (e) {
-      await showAlert(
-        t('select.deleteError', {
+      await showAlert({
+        message: t('select.deleteError', {
           message: e instanceof Error ? e.message : String(e),
-        })
-      )
+        }),
+      })
     }
   }
   const toggleSelect = (mid: number) =>
