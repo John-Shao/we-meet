@@ -1,9 +1,11 @@
 import { fetchApi } from '@/api/fetchApi'
 
 /**
- * POST /api/v1.0/im/messages/delete/ — batch-delete messages from a conversation.
+ * POST /api/v1.0/im/messages/delete/ — "delete for me" of the given messages.
  *
- * Deleted messages are hidden for all conversation members.
+ * The endpoint only verifies membership; jusi-light-im has no server-side
+ * delete yet, so the actual hiding is client-local (caller persists the mids
+ * and filters them out). Deleted messages stay visible to other members.
  */
 export const deleteMessages = (
   cid: string,

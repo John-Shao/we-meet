@@ -37,10 +37,8 @@
     "count": "{{count}} geselecteerd",
     "forwardEach": "Afzonderlijk doorsturen",
     "forwardMerged": "Samengevoegd doorsturen",
-    "enter": "Selecteren",
-    "exit": "Annuleren",
     "delete": "Verwijderen",
-    "deleteConfirm": "{{count}} geselecteerde berichten verwijderen? Ze worden voor alle leden verborgen.",
+    "deleteConfirm": "{{count}} geselecteerde berichten verwijderen? Ze worden alleen uit jouw weergave verwijderd; andere leden zien ze nog.",
     "deleteError": "Verwijderen mislukt: {{message}}"
   },
   "merged": {

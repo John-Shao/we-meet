@@ -37,10 +37,8 @@
     "count": "{{count}} ausgewählt",
     "forwardEach": "Einzeln weiterleiten",
     "forwardMerged": "Als Verlauf weiterleiten",
-    "enter": "Auswählen",
-    "exit": "Abbrechen",
     "delete": "Löschen",
-    "deleteConfirm": "{{count}} ausgewählte Nachrichten löschen? Sie werden für alle Mitglieder ausgeblendet.",
+    "deleteConfirm": "{{count}} ausgewählte Nachrichten löschen? Sie werden nur aus deiner Ansicht entfernt; andere Mitglieder sehen sie weiterhin.",
     "deleteError": "Löschen fehlgeschlagen: {{message}}"
   },
   "merged": {

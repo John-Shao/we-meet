@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { useLocation } from 'wouter'
+import { useLocation, useSearchParams } from 'wouter'
 
 import { css } from '@/styled-system/css'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
@@ -15,6 +15,7 @@ import { MemberDetailPanel } from '../components/MemberDetailPanel'
 import { fetchDepartmentMembers } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
 import { fetchDirectoryMembers } from '../api/fetchDirectoryMembers'
+import { fetchDirectoryMember } from '../api/fetchDirectoryMember'
 import type { DirectoryMember } from '../api/ApiDirectory'
 
 /**
@@ -44,6 +45,24 @@ const ContactsAuthenticated = () => {
     setSelectedDeptId(id)
     setSelectedMember(null)
   }
+
+  // 深链 `/contacts?member=<userId>`(如从 IM 消息头像点击跳转):按 id 拉该成员
+  // 并打开详情卡。用 ref 记录已应用的 id,关闭后不再自动重开。
+  const [searchParams] = useSearchParams()
+  const memberIdParam = searchParams.get('member')
+  const { data: linkedMember } = useQuery({
+    queryKey: ['directory', 'member', memberIdParam],
+    queryFn: () => fetchDirectoryMember(memberIdParam!),
+    enabled: !!memberIdParam,
+    staleTime: 30_000,
+  })
+  const appliedMemberIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (linkedMember && appliedMemberIdRef.current !== linkedMember.id) {
+      appliedMemberIdRef.current = linkedMember.id
+      setSelectedMember(linkedMember)
+    }
+  }, [linkedMember])
 
   const { data: departments = [] } = useQuery({
     queryKey: ['directory', 'departments'],

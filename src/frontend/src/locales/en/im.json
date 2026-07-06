@@ -37,10 +37,8 @@
     "count": "{{count}} selected",
     "forwardEach": "Forward individually",
     "forwardMerged": "Forward as one",
-    "enter": "Select",
-    "exit": "Cancel",
     "delete": "Delete",
-    "deleteConfirm": "Delete {{count}} selected messages? They will be hidden for all members.",
+    "deleteConfirm": "Delete {{count}} selected messages? They'll be removed from your view only — other members can still see them.",
     "deleteError": "Delete failed: {{message}}"
   },
   "merged": {

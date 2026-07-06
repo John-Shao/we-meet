@@ -37,10 +37,8 @@
     "count": "{{count}} sélectionné(s)",
     "forwardEach": "Transférer un à un",
     "forwardMerged": "Transférer groupé",
-    "enter": "Sélectionner",
-    "exit": "Annuler",
     "delete": "Supprimer",
-    "deleteConfirm": "Supprimer {{count}} messages sélectionnés ? Ils seront masqués pour tous les membres.",
+    "deleteConfirm": "Supprimer {{count}} messages sélectionnés ? Ils seront retirés de votre affichage uniquement ; les autres membres les voient toujours.",
     "deleteError": "Échec de la suppression : {{message}}"
   },
   "merged": {

@@ -158,9 +158,17 @@ export const ChatPane = ({
   const cid = conversation.cid
   const isGroup = conversation.type === 'group'
   const { data: messages = [], isLoading } = useMessages(client, cid)
-  // Client-side deleted mids — cleared when switching conversations.
+  // 「删除」= 仅本端删除(微信/飞书语义):不影响其他成员,但要在本设备持久化,
+  // 否则刷新/切会话就复现。按 cid 存 localStorage,进会话时载入。
   const [deletedMids, setDeletedMids] = useState<Set<number>>(new Set())
-  useEffect(() => setDeletedMids(new Set()), [cid])
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`im:deleted:${cid}`)
+      setDeletedMids(raw ? new Set(JSON.parse(raw) as number[]) : new Set())
+    } catch {
+      setDeletedMids(new Set())
+    }
+  }, [cid])
   // 渲染流:剔除控制消息(撤回墓碑 / 表情回复),它们不占气泡也不算时间间隔基准。
   const visibleMessages = useMemo(
     () =>
@@ -480,12 +488,15 @@ export const ChatPane = ({
     if (!ok) return
     try {
       await deleteMessages(cid, [...selectedMids].map(String))
-      // Filter deleted mids from the local message list immediately.
-      setDeletedMids((prev) => {
-        const next = new Set(prev)
-        for (const mid of selectedMids) next.add(mid)
-        return next
-      })
+      // Hide locally + persist per-cid so it survives refresh / conversation switch.
+      const next = new Set(deletedMids)
+      for (const mid of selectedMids) next.add(mid)
+      setDeletedMids(next)
+      try {
+        localStorage.setItem(`im:deleted:${cid}`, JSON.stringify([...next]))
+      } catch {
+        /* storage full / disabled — deletion stays for this session only */
+      }
       exitSelect()
     } catch (e) {
       await showAlert({
@@ -908,7 +919,7 @@ export const ChatPane = ({
                       selfMentionNames={[selfName, everyone].filter(Boolean)}
                       readReceipt={isOwnMsg ? receiptFor(m) : undefined}
                       onAvatarClick={
-                        names[m.sender_uid]?.id
+                        !selectMode && names[m.sender_uid]?.id
                           ? () => onMemberClick?.(names[m.sender_uid]!.id!)
                           : undefined
                       }
