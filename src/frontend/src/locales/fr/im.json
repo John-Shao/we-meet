@@ -31,7 +31,16 @@
     "copy": "Copier",
     "reply": "Répondre",
     "forward": "Transférer",
-    "multiSelect": "Sélectionner"
+    "multiSelect": "Sélectionner",
+    "markLater": "À traiter plus tard"
+  },
+  "later": {
+    "title": "Plus tard",
+    "empty": "Rien à traiter plus tard",
+    "noPreview": "[Pas d'aperçu]",
+    "done": "Terminé",
+    "remove": "Retirer",
+    "error": "Échec de l'action : {{message}}"
   },
   "select": {
     "count": "{{count}} sélectionné(s)",

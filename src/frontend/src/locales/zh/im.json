@@ -31,7 +31,16 @@
     "copy": "复制",
     "reply": "回复",
     "forward": "转发",
-    "multiSelect": "多选"
+    "multiSelect": "多选",
+    "markLater": "稍后处理"
+  },
+  "later": {
+    "title": "稍后处理",
+    "empty": "没有待处理的消息",
+    "noPreview": "[无预览]",
+    "done": "完成",
+    "remove": "移除",
+    "error": "操作失败:{{message}}"
   },
   "select": {
     "count": "已选 {{count}} 项",

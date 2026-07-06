@@ -31,7 +31,16 @@
     "copy": "Kopieren",
     "reply": "Antworten",
     "forward": "Weiterleiten",
-    "multiSelect": "Auswählen"
+    "multiSelect": "Auswählen",
+    "markLater": "Für später merken"
+  },
+  "later": {
+    "title": "Später",
+    "empty": "Nichts für später gemerkt",
+    "noPreview": "[Keine Vorschau]",
+    "done": "Erledigt",
+    "remove": "Entfernen",
+    "error": "Aktion fehlgeschlagen: {{message}}"
   },
   "select": {
     "count": "{{count}} ausgewählt",

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary, Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
@@ -14,6 +14,7 @@ import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
 import { uploadChatVoice, ChatVoiceError } from '../api/uploadChatVoice'
 import { deleteMessages } from '../api/deleteMessages'
+import { markLater } from '../api/markLater'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { MessageItem, type ReactionChip } from '../components/MessageItem'
 import { ImageLightbox } from '../components/ImageLightbox'
@@ -155,6 +156,7 @@ export const ChatPane = ({
   const { t, i18n } = useTranslation('im')
   const { user } = useUser()
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
+  const queryClient = useQueryClient()
   const cid = conversation.cid
   const isGroup = conversation.type === 'group'
   const { data: messages = [], isLoading } = useMessages(client, cid)
@@ -575,6 +577,28 @@ export const ChatPane = ({
     null
   )
 
+  // 稍后处理:落库 + 失效 later 查询让入口 badge / 列表即时刷新。幂等 —
+  // 重复标记服务端 get_or_create 吸收,已完成条目会被重新打开。
+  const handleMarkLater = async (m: Message) => {
+    try {
+      await markLater({
+        cid,
+        mid: String(m.mid),
+        seq: m.seq,
+        snippet: snippetOf(m, t),
+        sender_name: nameOf(m.sender_uid),
+        content_type: m.content_type,
+      })
+      void queryClient.invalidateQueries({ queryKey: ['im', 'later'] })
+    } catch (err) {
+      void showAlert({
+        message: t('later.error', {
+          message: err instanceof Error ? err.message : String(err),
+        }),
+      })
+    }
+  }
+
   const buildMenuItems = (m: Message): ContextMenuItem[] => {
     const items: ContextMenuItem[] = []
     // 复制:文本 / 引用(取回复正文);图片、文件不提供复制。
@@ -597,6 +621,12 @@ export const ChatPane = ({
       key: 'reply',
       label: t('actions.reply'),
       onSelect: () => onReply(m),
+    })
+    // 稍后处理(P3-M1,飞书式):个人书签,存 we-meet 侧,含快照(见 LaterDialog)。
+    items.push({
+      key: 'markLater',
+      label: t('actions.markLater'),
+      onSelect: () => void handleMarkLater(m),
     })
     // 转发(P7-e):text/image/file/quote 都可转发;system/control/已撤回不会
     // 走到这里(openMenu 已拦截)。

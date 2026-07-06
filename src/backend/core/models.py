@@ -2493,3 +2493,55 @@ class OrgInvitation(BaseModel):
 
     def __str__(self):
         return f"{self.email} → {self.organization_id} ({self.status})"
+
+
+class ImLaterItem(BaseModel):
+    """A per-user「稍后处理」bookmark on one IM message (P3-M1, see
+    docs/features/foundation_p0_p3.md §P3-D2).
+
+    Lives entirely on the we-meet side: jusi-light-im has no per-user flag
+    store, and a later-bookmark is strictly personal state (never shared with
+    other members), so no jusi roster round-trip is needed at mark time.
+    ``snippet`` / ``sender_name`` are snapshots taken when the user marks the
+    message, so the later-list still renders (as a tombstone-ish row) after
+    the original message is recalled or deleted.
+    """
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="im_later_items"
+    )
+    cid = models.CharField(_("conversation id"), max_length=64)
+    mid = models.CharField(_("message id"), max_length=32)
+    seq = models.BigIntegerField(
+        _("message seq"),
+        default=0,
+        help_text=_("Conversation seq at mark time; reserved for jump-to-message."),
+    )
+    snippet = models.TextField(_("snippet"), blank=True, default="")
+    sender_name = models.CharField(
+        _("sender name"), max_length=128, blank=True, default=""
+    )
+    content_type = models.CharField(
+        _("content type"), max_length=32, blank=True, default=""
+    )
+    done_at = models.DateTimeField(_("done at"), null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_im_later_item"
+        ordering = ("-created_at",)
+        verbose_name = _("IM later item")
+        verbose_name_plural = _("IM later items")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "cid", "mid"],
+                name="one_later_per_user_message",
+            ),
+        ]
+        indexes = [
+            # Badge / pending-list scan.
+            models.Index(fields=["user", "done_at"], name="imlater_user_done_idx"),
+        ]
+
+    def __str__(self):
+        state = "done" if self.done_at else "pending"
+        return f"Later({self.user_id}, {self.cid}#{self.mid}, {state})"

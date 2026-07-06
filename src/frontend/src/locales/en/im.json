@@ -31,7 +31,16 @@
     "copy": "Copy",
     "reply": "Reply",
     "forward": "Forward",
-    "multiSelect": "Select"
+    "multiSelect": "Select",
+    "markLater": "Mark for later"
+  },
+  "later": {
+    "title": "Later",
+    "empty": "Nothing marked for later",
+    "noPreview": "[No preview]",
+    "done": "Done",
+    "remove": "Remove",
+    "error": "Action failed: {{message}}"
   },
   "select": {
     "count": "{{count}} selected",

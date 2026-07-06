@@ -21,6 +21,7 @@ from core.api.directory import (
     DirectoryMemberViewSet,
 )
 from core.api.im import ImViewSet
+from core.api.im_later import ImLaterViewSet
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.qr_login import (
     QrCancelView,
@@ -46,6 +47,7 @@ router.register(
     basename="addons_sessions",
 )
 router.register("im", ImViewSet, basename="im")
+router.register("im/later", ImLaterViewSet, basename="im_later")
 router.register(
     "calendar-events", CalendarEventViewSet, basename="calendar_events"
 )

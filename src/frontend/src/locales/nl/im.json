@@ -31,7 +31,16 @@
     "copy": "Kopiëren",
     "reply": "Beantwoorden",
     "forward": "Doorsturen",
-    "multiSelect": "Selecteren"
+    "multiSelect": "Selecteren",
+    "markLater": "Voor later bewaren"
+  },
+  "later": {
+    "title": "Later",
+    "empty": "Niets voor later bewaard",
+    "noPreview": "[Geen voorbeeld]",
+    "done": "Klaar",
+    "remove": "Verwijderen",
+    "error": "Actie mislukt: {{message}}"
   },
   "select": {
     "count": "{{count}} geselecteerd",

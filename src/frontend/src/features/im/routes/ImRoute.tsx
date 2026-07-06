@@ -27,6 +27,8 @@ import { GroupSettingsPanel } from '../components/GroupSettingsPanel'
 import { DirectSettingsPanel } from '../components/DirectSettingsPanel'
 import { GroupPicker } from '../components/GroupPicker'
 import { ForwardDialog, type ForwardConv } from '../components/ForwardDialog'
+import { LaterDialog } from '../components/LaterDialog'
+import { listLater } from '../api/listLater'
 import type { MergedBody } from '../components/MergedRecordDialog'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
@@ -75,6 +77,13 @@ const ImAuthenticated = () => {
   const [selectedCID, setSelectedCID] = useState<string | null>(initialCID)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [groupPickerOpen, setGroupPickerOpen] = useState(false)
+  // 稍后处理(P3-M1):列表弹窗开关 + 待处理数(会话列表头部入口的角标)。
+  const [laterOpen, setLaterOpen] = useState(false)
+  const { data: laterItems = [] } = useQuery({
+    queryKey: ['im', 'later', 'pending'],
+    queryFn: () => listLater('pending'),
+    staleTime: 30_000,
+  })
   // Right-side panel below the chat header: 群成员 / 群设置 / 收起。Mutually
   // exclusive — opening one collapses the other.
   const [rightPanel, setRightPanel] = useState<'members' | 'settings' | null>(
@@ -521,6 +530,52 @@ const ImAuthenticated = () => {
             <div className={css({ display: 'flex', gap: '0.375rem' })}>
               <button
                 type="button"
+                onClick={() => setLaterOpen(true)}
+                title={t('later.title')}
+                aria-label={t('later.title')}
+                data-testid="im-later"
+                className={css({
+                  position: 'relative',
+                  border: '1px solid token(colors.greyscale.300)',
+                  borderRadius: '999px',
+                  backgroundColor: 'greyscale.000',
+                  width: '1.75rem',
+                  height: '1.75rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.9rem',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  color: 'greyscale.700',
+                  _hover: { backgroundColor: 'greyscale.100' },
+                })}
+              >
+                🕐
+                {laterItems.length > 0 && (
+                  <span
+                    data-testid="im-later-badge"
+                    className={css({
+                      position: 'absolute',
+                      top: '-0.375rem',
+                      right: '-0.375rem',
+                      minWidth: '1rem',
+                      height: '1rem',
+                      paddingX: '0.25rem',
+                      borderRadius: '999px',
+                      backgroundColor: 'danger.500',
+                      color: 'greyscale.000',
+                      fontSize: '0.625rem',
+                      lineHeight: '1rem',
+                      textAlign: 'center',
+                    })}
+                  >
+                    {laterItems.length > 99 ? '99+' : laterItems.length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setGroupSeed([])
                   setGroupPickerOpen(true)
@@ -671,6 +726,15 @@ const ImAuthenticated = () => {
         <ContactPicker
           onSelect={handleSelectMember}
           onClose={() => setPickerOpen(false)}
+        />
+      )}
+      {laterOpen && (
+        <LaterDialog
+          onOpenConversation={(cid) => {
+            setSelectedCID(cid)
+            setLaterOpen(false)
+          }}
+          onClose={() => setLaterOpen(false)}
         />
       )}
       {groupPickerOpen && (
