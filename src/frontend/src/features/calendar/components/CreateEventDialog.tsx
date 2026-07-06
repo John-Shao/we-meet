@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
@@ -58,9 +58,25 @@ export const CreateEventDialog = ({
   const [start, setStart] = useState(toLocalInput(start0))
   const [end, setEnd] = useState(toLocalInput(end0))
   const [allDay, setAllDay] = useState(editEvent?.all_day ?? initialAllDay ?? false)
-  const [reminder, setReminder] = useState(
-    editEvent ? String(editEvent.reminders?.[0] ?? '') : '10'
-  ) // minutes-before, '' = none
+  // Reminders are a set of minutes-before (multi). Editing preserves ALL of the
+  // event's existing reminders instead of collapsing to the first one.
+  const [reminders, setReminders] = useState<Set<number>>(
+    () => (editEvent ? new Set(editEvent.reminders ?? []) : new Set([10]))
+  )
+  // Preset choices + any non-preset value the event already carries (so an
+  // externally-set reminder stays visible + toggleable, never silently dropped).
+  const reminderOptions = useMemo(() => {
+    const presets = [10, 30, 60]
+    const extra = (editEvent?.reminders ?? []).filter((r) => !presets.includes(r))
+    return [...new Set([...presets, ...extra])].sort((a, b) => a - b)
+  }, [editEvent])
+  const toggleReminder = (minutes: number) =>
+    setReminders((prev) => {
+      const next = new Set(prev)
+      if (next.has(minutes)) next.delete(minutes)
+      else next.add(minutes)
+      return next
+    })
   const [selected, setSelected] = useState<Map<string, string>>(new Map())
   const [busy, setBusy] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
@@ -104,7 +120,7 @@ export const CreateEventDialog = ({
         start_at: startDate.toISOString(),
         end_at: endDate.toISOString(),
         all_day: allDay,
-        reminders: reminder ? [Number(reminder)] : [],
+        reminders: [...reminders].sort((a, b) => a - b),
       }
       const event = editEvent
         ? await updateCalendarEvent(editEvent.id, base)
@@ -235,39 +251,40 @@ export const CreateEventDialog = ({
             />
             {t('form.allDay')}
           </label>
-          <label
+          <div
             className={css({
               display: 'flex',
               alignItems: 'center',
-              gap: '0.375rem',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
               fontSize: '0.875rem',
               color: 'greyscale.800',
             })}
           >
             <span>{t('form.reminder')}</span>
-            <select
-              value={reminder}
-              onChange={(e) => setReminder(e.target.value)}
-              className={css({
-                paddingX: '0.5rem',
-                paddingY: '0.375rem',
-                border: '1px solid token(colors.greyscale.300)',
-                borderRadius: '0.5rem',
-                fontSize: '0.875rem',
-              })}
-            >
-              <option value="">{t('form.reminderNone')}</option>
-              <option value="10">
-                {t('form.reminderMinutes', { count: 10 })}
-              </option>
-              <option value="30">
-                {t('form.reminderMinutes', { count: 30 })}
-              </option>
-              <option value="60">
-                {t('form.reminderMinutes', { count: 60 })}
-              </option>
-            </select>
-          </label>
+            {reminderOptions.map((m) => (
+              <label
+                key={m}
+                className={css({
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                })}
+              >
+                <input
+                  type="checkbox"
+                  checked={reminders.has(m)}
+                  onChange={() => toggleReminder(m)}
+                />
+                {t('form.reminderMinutes', { count: m })}
+              </label>
+            ))}
+            {reminders.size === 0 && (
+              <span className={css({ color: 'greyscale.500' })}>
+                {t('form.reminderNone')}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Attendees — create-only; editing attendees isn't wired server-side. */}
