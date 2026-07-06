@@ -72,6 +72,41 @@ def test_create_event_provisions_room_and_attendees():
     ).exists()
 
 
+def test_create_event_drops_cross_org_attendees():
+    """attendee_ids from outside the caller's org are silently dropped — no
+    cross-org invite into the event / Room / IM group."""
+    org = factories.OrganizationFactory()
+    other_org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="o@acme.com")
+    _membership(org, me)
+    peer = factories.UserFactory(email="p@acme.com")
+    _membership(org, peer)
+    outsider = factories.UserFactory(email="x@other.com")
+    _membership(other_org, outsider)  # active, but a different organization
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(me)
+    resp = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Planning",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "attendee_ids": [str(peer.id), str(outsider.id)],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    event = models.CalendarEvent.objects.get(id=resp.json()["id"])
+    assert event.attendees.filter(user=peer).exists()
+    assert not event.attendees.filter(user=outsider).exists()
+    assert event.room.accesses.filter(
+        user=peer, role=models.RoleChoices.MEMBER
+    ).exists()
+    assert not event.room.accesses.filter(user=outsider).exists()
+
+
 def test_list_scoped_to_org_and_visibility():
     org = factories.OrganizationFactory()
     organizer = factories.UserFactory(email="o@acme.com")

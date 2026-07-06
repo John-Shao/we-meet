@@ -177,8 +177,17 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 rsvp=models.EventRSVPChoices.ACCEPTED,
             )
             # Invitees → attendees + room members (so the IM group includes them).
-            invited = models.User.objects.filter(id__in=attendee_ids).exclude(
-                id=user.id
+            # Org-scoped: only active members of the caller's organization can be
+            # invited (no cross-org leakage into the event / Room / IM group);
+            # out-of-org ids are silently dropped, matching directory resolve.
+            invited = (
+                models.User.objects.filter(
+                    id__in=attendee_ids,
+                    memberships__organization=organization,
+                    memberships__status=models.MembershipStatusChoices.ACTIVE,
+                )
+                .exclude(id=user.id)
+                .distinct()
             )
             for attendee in invited:
                 models.EventAttendee.objects.get_or_create(
@@ -214,8 +223,16 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     update_fields.append("updated_at")
                     room.save(update_fields=update_fields)
             if attendee_ids:
-                invited = models.User.objects.filter(id__in=attendee_ids).exclude(
-                    id=event.organizer_id
+                # Org-scoped like perform_create: only active members of the
+                # event's organization can be added (no cross-org invite).
+                invited = (
+                    models.User.objects.filter(
+                        id__in=attendee_ids,
+                        memberships__organization=event.organization,
+                        memberships__status=models.MembershipStatusChoices.ACTIVE,
+                    )
+                    .exclude(id=event.organizer_id)
+                    .distinct()
                 )
                 for attendee in invited:
                     models.EventAttendee.objects.get_or_create(
