@@ -71,21 +71,33 @@ class GetuiClient:
         return token
 
     def push_to_cid(self, cid: str, title: str, body: str, payload: dict[str, Any]) -> bool:
-        """Transmission push to one device cid. Returns delivered-ish success.
+        """Notification push to one device cid. Returns delivered-ish success.
 
-        走透传(transmission)而非厂商通知模板:App 的个推 SDK 收到后自行起
-        通知(标题/正文/deep link 均在 payload 里),避免逐厂商模板差异。
+        走**通知(notification)**而非透传:通知消息由个推 SDK / 厂商通道直接展示,
+        能投达已被杀死的 App(透传只回调到 onReceiveMessageData,需 App 进程存活,
+        冷杀后收不到——这是最初上线时 A 机型收不到的根因)。
+
+        点击动作用 ``click_type=intent`` 拉起应用内深链
+        ``wemeet://im?cid=<会话id>``(见 App AndroidManifest / MainActivity.handleDeepLink)。
+        ⚠️ 深链用的是**会话 cid**(``payload["cid"]``),不是入参的设备 cid。
         """
+        conv_cid = str(payload.get("cid") or "")
+        notification: dict[str, Any] = {"title": title, "body": body}
+        if conv_cid:
+            # Android intent-URI: 主机 im + query cid,scheme wemeet,限定本包。
+            notification["click_type"] = "intent"
+            notification["intent"] = (
+                f"intent://im?cid={conv_cid}"
+                "#Intent;scheme=wemeet;package=com.we.meet;end"
+            )
+        else:
+            notification["click_type"] = "startapp"
+
         message = {
             "request_id": uuid.uuid4().hex,
+            "settings": {"ttl": 3600000},  # 离线保留 1h,过期不再补投
             "audience": {"cid": [cid]},
-            "push_message": {
-                "transmission": json.dumps(
-                    {"title": title, "body": body, **payload},
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                )
-            },
+            "push_message": {"notification": notification},
         }
         resp = requests.post(
             f"{_GETUI_BASE}/{self._app_id}/push/single/cid",
@@ -96,6 +108,16 @@ class GetuiClient:
         if resp.status_code >= 400:
             logger.warning(
                 "getui push to %s failed: %s %s", cid[:12], resp.status_code, resp.text[:200]
+            )
+            return False
+        # Getui v2 returns HTTP 200 even for logical errors; code==0 == accepted.
+        try:
+            code = resp.json().get("code")
+        except ValueError:
+            code = None
+        if code not in (0, None):
+            logger.warning(
+                "getui push to %s rejected: code=%s %s", cid[:12], code, resp.text[:200]
             )
             return False
         return True
