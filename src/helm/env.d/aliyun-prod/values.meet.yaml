@@ -186,6 +186,14 @@ backend:
     # ADMIN_HMAC_SECRET seeded on the jusi-light-im ECS — see
     # docs/runbooks/p6-deploy.md §3 in the jusi-light-im repo).
 
+    # ─── P0 离线推送 (foundation §P0) ────────────────────────────────────
+    # jusi-light-im p14 检测到会话全员离线 → 回调 /api/agent/push-hook/ →
+    # 后端经个推透传下发. 机密 (IM_PUSH_WEBHOOK_SECRET / GETUI_*) 在
+    # values.secrets.yaml. 此处仅放非机密开关:
+    #   PUSH_CONTENT_VISIBLE=True  推送带发件人+正文预览
+    #                        False 只推「你有一条新消息」(隐私/合规模式)
+    PUSH_CONTENT_VISIBLE: "True"
+
     FRONTEND_USE_FRENCH_GOV_FOOTER: "False"
     FRONTEND_USE_PROCONNECT_BUTTON: "False"
     FRONTEND_SILENCE_LIVEKIT_DEBUG: "True"
