@@ -23,6 +23,7 @@ from core.api.directory import (
 from core.api.im import ImViewSet
 from core.api.im_later import ImLaterViewSet
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
+from core.api.push import ImPushHookView, PushTokenView
 from core.api.qr_login import (
     QrCancelView,
     QrConfirmView,
@@ -95,6 +96,8 @@ urlpatterns = [
                 *router.urls,
                 *oidc_urls,
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),
+                # P0 离线推送:App 端注册/注销个推 cid。
+                path("push/tokens/", PushTokenView.as_view(), name="push_tokens"),
                 path(
                     "admin/stats/overview/",
                     AdminStatsOverviewView.as_view(),
@@ -128,6 +131,12 @@ urlpatterns = [
         "api/agent/transcripts/",
         IngestTranscriptView.as_view(),
         name="agent-ingest-transcript",
+    ),
+    # jusi-light-im p14 离线推送 webhook(HMAC 内部鉴权;NOT a public surface)。
+    path(
+        "api/agent/push-hook/",
+        ImPushHookView.as_view(),
+        name="agent-push-hook",
     ),
 ]
 

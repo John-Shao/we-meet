@@ -2495,6 +2495,59 @@ class OrgInvitation(BaseModel):
         return f"{self.email} → {self.organization_id} ({self.status})"
 
 
+class DevicePushToken(BaseModel):
+    """A mobile device's vendor-push registration (P0 离线推送, see
+    docs/features/foundation_p0_p3.md §P0).
+
+    One row per (provider, cid). Getui's cid identifies the device install;
+    re-registering after a reinstall or account switch re-binds the row to the
+    new user (update_or_create in the view), so a device never pushes to a
+    signed-out account.
+    """
+
+    class Provider(models.TextChoices):
+        GETUI = "getui", _("Getui")
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="push_tokens"
+    )
+    provider = models.CharField(
+        _("provider"),
+        max_length=16,
+        choices=Provider.choices,
+        default=Provider.GETUI,
+    )
+    cid = models.CharField(_("push client id"), max_length=128)
+    device_id = models.CharField(
+        _("device id"), max_length=128, blank=True, default=""
+    )
+    platform = models.CharField(
+        _("platform"), max_length=16, blank=True, default=""
+    )
+    app_version = models.CharField(
+        _("app version"), max_length=32, blank=True, default=""
+    )
+    last_seen_at = models.DateTimeField(_("last seen at"), null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_device_push_token"
+        ordering = ("-updated_at",)
+        verbose_name = _("device push token")
+        verbose_name_plural = _("device push tokens")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "cid"], name="one_row_per_provider_cid"
+            ),
+        ]
+        indexes = [
+            # Fan-out lookup: all live tokens for a set of users.
+            models.Index(fields=["user"], name="pushtoken_user_idx"),
+        ]
+
+    def __str__(self):
+        return f"PushToken({self.user_id}, {self.provider}:{self.cid[:12]}…)"
+
+
 class ImLaterItem(BaseModel):
     """A per-user「稍后处理」bookmark on one IM message (P3-M1, see
     docs/features/foundation_p0_p3.md §P3-D2).

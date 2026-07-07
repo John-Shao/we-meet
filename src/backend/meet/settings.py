@@ -777,6 +777,34 @@ class Base(Configuration):
         True, environ_name="LIVEKIT_VERIFY_SSL", environ_prefix=None
     )
 
+    # P0 离线推送 (docs/features/foundation_p0_p3.md §P0):
+    #   webhook_secret — 校验 jusi-light-im p14 webhook(与其 PUSH_WEBHOOK_SECRET
+    #                    一致);未设置时 /api/agent/push-hook/ fail-closed 404。
+    #   getui_* — 个推 REST v2 凭证;未配置时推送降级 no-op(webhook 仍 200)。
+    PUSH_CONFIGURATION = {
+        "webhook_secret": SecretFileValue(
+            None, environ_name="IM_PUSH_WEBHOOK_SECRET", environ_prefix=None
+        ),
+        "webhook_skew_seconds": values.IntegerValue(
+            300, environ_name="IM_PUSH_WEBHOOK_SKEW_S", environ_prefix=None
+        ),
+        "getui_app_id": values.Value(
+            "", environ_name="GETUI_APP_ID", environ_prefix=None
+        ),
+        "getui_app_key": values.Value(
+            "", environ_name="GETUI_APP_KEY", environ_prefix=None
+        ),
+        "getui_master_secret": SecretFileValue(
+            None, environ_name="GETUI_MASTER_SECRET", environ_prefix=None
+        ),
+        "content_visible": values.BooleanValue(
+            True, environ_name="PUSH_CONTENT_VISIBLE", environ_prefix=None
+        ),
+        "request_timeout_seconds": values.FloatValue(
+            5.0, environ_name="GETUI_TIMEOUT_S", environ_prefix=None
+        ),
+    }
+
     # Shared secret used by agent workers (multi_user_transcriber, etc.) to
     # call internal /api/agent/* endpoints. Must match the AGENT_INTERNAL_API_TOKEN
     # injected into the agent pods. Empty value disables the endpoint (fail-closed).
@@ -1344,6 +1372,18 @@ class Test(Base):
     DOCS_CONFIGURATION = {
         "api_url": "http://127.0.0.1.nip.io:8083",
         "server_to_server_token": "test-docs-server-to-server-token",
+        "request_timeout_seconds": 1.0,
+    }
+
+    # P0 离线推送 — webhook secret padded ≥32;getui 留空 → notify_offline
+    # 走 no-op 分支(测试里按需 mock GetuiClient)。
+    PUSH_CONFIGURATION = {
+        "webhook_secret": "test-im-push-webhook-secret-32chars!",
+        "webhook_skew_seconds": 300,
+        "getui_app_id": "",
+        "getui_app_key": "",
+        "getui_master_secret": "",
+        "content_visible": True,
         "request_timeout_seconds": 1.0,
     }
 
