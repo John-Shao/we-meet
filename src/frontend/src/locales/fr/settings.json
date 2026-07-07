@@ -135,7 +135,13 @@
       "avatar": "Avatar",
       "username": "Nom d'utilisateur",
       "email": "E-mail",
-      "notSet": "Non défini"
+      "notSet": "Non défini",
+      "edit": "Modifier {{field}}",
+      "save": "Enregistrer",
+      "cancel": "Annuler",
+      "saving": "Enregistrement…",
+      "usernameRequired": "Le nom d'utilisateur ne peut pas être vide",
+      "emailInvalid": "Format d'e-mail invalide"
     },
     "agreement": {
       "userAgreement": "Conditions d'utilisation",

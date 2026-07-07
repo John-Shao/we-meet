@@ -135,7 +135,13 @@
       "avatar": "Avatar",
       "username": "Username",
       "email": "Email",
-      "notSet": "Not set"
+      "notSet": "Not set",
+      "edit": "Edit {{field}}",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "usernameRequired": "Username cannot be empty",
+      "emailInvalid": "Invalid email format"
     },
     "agreement": {
       "userAgreement": "User Agreement",

@@ -135,7 +135,13 @@
       "avatar": "头像",
       "username": "用户名",
       "email": "邮箱",
-      "notSet": "未设置"
+      "notSet": "未设置",
+      "edit": "编辑{{field}}",
+      "save": "保存",
+      "cancel": "取消",
+      "saving": "保存中…",
+      "usernameRequired": "用户名不能为空",
+      "emailInvalid": "邮箱格式不正确"
     },
     "agreement": {
       "userAgreement": "用户协议",

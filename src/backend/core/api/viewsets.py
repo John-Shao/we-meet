@@ -461,6 +461,110 @@ class UserViewSet(
 
     @decorators.action(
         detail=False,
+        methods=["patch"],
+        url_name="update-email",
+        url_path="me/email",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def update_email(self, request):
+        """Update the user's identity email (Keycloak email + local sync).
+
+        Same rationale as :meth:`update_nickname`: we go through the Keycloak
+        Admin REST API with the service-account token rather than the Account
+        REST API, so we bypass the realm user-profile validators that 400 for
+        our SMS-registered users (blank ``lastName`` etc.). ``emailVerified`` is
+        set together with the address so no verify-email required-action is
+        pushed onto the user's next login. An empty body clears the email.
+
+        Body: ``{"email": "<string>"}`` (empty string clears).
+        """
+        # Lazy import — see the note in update_nickname above.
+        # pylint: disable=import-outside-toplevel
+        from django.core.exceptions import ValidationError as DjValidationError
+        from django.core.validators import validate_email as dj_validate_email
+
+        import requests
+
+        from core.api.mobile_auth import (
+            _admin_realm_url,
+            _get_service_account_token,
+        )
+
+        email = (request.data.get("email") or "").strip()
+        if email:
+            if len(email) > 254:
+                raise drf_exceptions.ValidationError(
+                    {"email": "Too long (max 254 chars)."}
+                )
+            try:
+                dj_validate_email(email)
+            except DjValidationError as exc:
+                raise drf_exceptions.ValidationError(
+                    {"email": "Invalid email address."}
+                ) from exc
+
+        user_sub = getattr(request.user, "sub", None)
+        if not user_sub:
+            return drf_response.Response(
+                {"error": "Missing Keycloak subject on user"},
+                status=drf_status.HTTP_400_BAD_REQUEST,
+            )
+
+        sa_token = _get_service_account_token()
+        if not sa_token:
+            return drf_response.Response(
+                {"error": "服务暂时不可用，请稍后重试"},
+                status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        try:
+            resp = requests.put(
+                f"{_admin_realm_url()}/users/{user_sub}",
+                json={"email": email, "emailVerified": bool(email)},
+                headers={
+                    "Authorization": f"Bearer {sa_token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=10,
+                verify=settings.OIDC_VERIFY_SSL,
+            )
+        except requests.RequestException:
+            logger.exception("Keycloak email update failed for user %s", user_sub)
+            return drf_response.Response(
+                {"error": "邮箱更新失败，请稍后重试"},
+                status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        # Keycloak enforces email uniqueness (unless the realm allows dupes) —
+        # a 409 means another account already owns this address. Surface it as a
+        # clean field error instead of a generic 503.
+        if resp.status_code == drf_status.HTTP_409_CONFLICT:
+            raise drf_exceptions.ValidationError({"email": "该邮箱已被占用"})
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError:
+            logger.error(
+                "Keycloak email update rejected for %s: %s %s",
+                user_sub,
+                resp.status_code,
+                resp.text,
+            )
+            return drf_response.Response(
+                {"error": "邮箱更新失败，请稍后重试"},
+                status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        # Eager local sync so /users/me/ is consistent on this session (mirrors
+        # update_nickname). ``None`` when cleared to match the model's nullable.
+        request.user.email = email or None
+        request.user.save(update_fields=["email"])
+
+        return drf_response.Response(
+            self.serializer_class(request.user, context={"request": request}).data
+        )
+
+    @decorators.action(
+        detail=False,
         methods=["post"],
         url_name="profile-upload-url",
         url_path="me/upload-url",

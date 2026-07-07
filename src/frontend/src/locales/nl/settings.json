@@ -135,7 +135,13 @@
       "avatar": "Avatar",
       "username": "Gebruikersnaam",
       "email": "E-mail",
-      "notSet": "Niet ingesteld"
+      "notSet": "Niet ingesteld",
+      "edit": "{{field}} bewerken",
+      "save": "Opslaan",
+      "cancel": "Annuleren",
+      "saving": "Bezig met opslaan…",
+      "usernameRequired": "Gebruikersnaam mag niet leeg zijn",
+      "emailInvalid": "Ongeldig e-mailformaat"
     },
     "agreement": {
       "userAgreement": "Gebruikersovereenkomst",

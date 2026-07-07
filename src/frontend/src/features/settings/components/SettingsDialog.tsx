@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSnapshot } from 'valtio'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   RiCloseLine,
   RiComputerLine,
   RiFileList3Line,
   RiMoonLine,
+  RiPencilLine,
   RiSettings3Line,
   RiSunLine,
   RiUser3Line,
@@ -16,6 +18,8 @@ import { css, cx } from '@/styled-system/css'
 import { useLanguageLabels } from '@/i18n/useLanguageLabels'
 import { type DialogProps } from '@/primitives'
 import { useUser } from '@/features/auth'
+import { updateEmail, updateNickname } from '@/features/auth/api/updateProfile'
+import { keys } from '@/api/queryKeys'
 import { LoginButton } from '@/components/LoginButton'
 import { Modal } from '@/components/Modal'
 import { routes } from '@/routes'
@@ -160,6 +164,7 @@ const AccountPanel = ({
 }) => {
   const { t } = useTranslation('settings')
   const { user } = useUser()
+  const qc = useQueryClient()
 
   if (!isLoggedIn) {
     return (
@@ -173,6 +178,7 @@ const AccountPanel = ({
   }
 
   const initial = (user?.full_name || user?.email || '?').slice(0, 1).toUpperCase()
+  const refreshUser = () => qc.invalidateQueries({ queryKey: [keys.user] })
 
   return (
     <div>
@@ -191,20 +197,153 @@ const AccountPanel = ({
           )}
         </button>
       </div>
-      <div className={infoRowCls}>
-        <span className={infoKeyCls}>{t('systemSettings.account.username')}</span>
-        <span className={infoValCls}>
-          {user?.full_name || t('systemSettings.account.notSet')}
-        </span>
-      </div>
-      <div className={infoRowCls}>
-        <span className={infoKeyCls}>{t('systemSettings.account.email')}</span>
-        <span className={infoValCls}>
-          {user?.email || t('systemSettings.account.notSet')}
-        </span>
-      </div>
+      <EditableRow
+        label={t('systemSettings.account.username')}
+        value={user?.full_name ?? ''}
+        placeholder={t('systemSettings.account.notSet')}
+        validate={(v) =>
+          v.trim() ? '' : t('systemSettings.account.usernameRequired')
+        }
+        onSave={async (v) => {
+          await updateNickname(v.trim())
+          await refreshUser()
+        }}
+      />
+      <EditableRow
+        label={t('systemSettings.account.email')}
+        value={user?.email ?? ''}
+        placeholder={t('systemSettings.account.notSet')}
+        inputType="email"
+        validate={(v) =>
+          !v.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())
+            ? ''
+            : t('systemSettings.account.emailInvalid')
+        }
+        onSave={async (v) => {
+          await updateEmail(v.trim())
+          await refreshUser()
+        }}
+      />
     </div>
   )
+}
+
+/* 单行可编辑字段:点铅笔进入编辑,保存走 onSave(乐观由 invalidate 兜底)。 */
+const EditableRow = ({
+  label,
+  value,
+  placeholder,
+  inputType = 'text',
+  validate,
+  onSave,
+}: {
+  label: string
+  value: string
+  placeholder: string
+  inputType?: 'text' | 'email'
+  validate?: (v: string) => string
+  onSave: (v: string) => Promise<void>
+}) => {
+  const { t } = useTranslation('settings')
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const startEdit = () => {
+    setDraft(value)
+    setError('')
+    setEditing(true)
+  }
+
+  const submit = async () => {
+    if (busy) return
+    const validationError = validate?.(draft) ?? ''
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      await onSave(draft)
+      setEditing(false)
+    } catch (e) {
+      setError(extractApiError(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className={infoRowCls}>
+        <span className={infoKeyCls}>{label}</span>
+        <button
+          type="button"
+          onClick={startEdit}
+          aria-label={t('systemSettings.account.edit', { field: label })}
+          className={editTriggerCls}
+        >
+          <span className={infoValCls}>{value || placeholder}</span>
+          <RiPencilLine size={16} className={pencilCls} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className={editRowCls}>
+      <div className={editHeadCls}>
+        <span className={infoKeyCls}>{label}</span>
+        <div className={editControlsCls}>
+          <input
+            type={inputType}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void submit()
+              if (e.key === 'Escape') setEditing(false)
+            }}
+            className={editInputCls}
+          />
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className={ghostBtnCls}
+          >
+            {t('systemSettings.account.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={busy}
+            className={primaryBtnCls}
+          >
+            {busy
+              ? t('systemSettings.account.saving')
+              : t('systemSettings.account.save')}
+          </button>
+        </div>
+      </div>
+      {error && <span className={editErrorCls}>{error}</span>}
+    </div>
+  )
+}
+
+/** Pull the server's friendly message out of an ApiError body, else fall back. */
+const extractApiError = (e: unknown): string => {
+  const body = (e as { body?: unknown })?.body
+  if (body && typeof body === 'object') {
+    const b = body as Record<string, unknown>
+    if (typeof b.error === 'string') return b.error
+    // DRF field error: { email: ["…"] } / { nickname: ["…"] }
+    for (const v of Object.values(b)) {
+      if (typeof v === 'string') return v
+      if (Array.isArray(v) && typeof v[0] === 'string') return v[0]
+    }
+  }
+  return e instanceof Error ? e.message : String(e)
 }
 
 /* ─── 服务协议:用户协议 + 隐私政策 ─────────────────────────────────── */
@@ -350,6 +489,77 @@ const infoRowCls = css({
 })
 const infoKeyCls = css({ fontSize: '0.9375rem', color: 'greyscale.800' })
 const infoValCls = css({ fontSize: '0.9375rem', color: 'greyscale.900' })
+const editTriggerCls = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  cursor: 'pointer',
+  maxWidth: '70%',
+  _hover: { '& svg': { color: 'primary.600' } },
+})
+const pencilCls = css({ color: 'greyscale.500', flexShrink: 0 })
+const editRowCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.5rem',
+  paddingY: '1rem',
+  borderBottom: '1px solid token(colors.greyscale.100)',
+})
+const editHeadCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '1rem',
+})
+const editControlsCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  flex: 1,
+  justifyContent: 'flex-end',
+})
+const editInputCls = css({
+  flex: 1,
+  maxWidth: '18rem',
+  paddingX: '0.75rem',
+  paddingY: '0.4375rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '0.5rem',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.900',
+  fontSize: '0.875rem',
+  outline: 'none',
+  _focus: { borderColor: 'primary.500' },
+})
+const ghostBtnCls = css({
+  paddingX: '0.875rem',
+  paddingY: '0.4375rem',
+  borderRadius: '0.5rem',
+  border: '1px solid token(colors.greyscale.300)',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.800',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+  flexShrink: 0,
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+const primaryBtnCls = css({
+  paddingX: '0.875rem',
+  paddingY: '0.4375rem',
+  borderRadius: '0.5rem',
+  border: 'none',
+  backgroundColor: 'primary.500',
+  color: 'white',
+  fontSize: '0.8125rem',
+  fontWeight: 'medium',
+  cursor: 'pointer',
+  flexShrink: 0,
+  _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+})
+const editErrorCls = css({ fontSize: '0.8125rem', color: 'danger.600' })
 const avatarBtnCls = css({
   width: '2.5rem',
   height: '2.5rem',
