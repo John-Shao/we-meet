@@ -157,7 +157,17 @@
 
 ## P0 离线推送上线接线(已落地)
 
-推送链路:**jusi-light-im 检测会话全员离线 → 打签名 webhook 给 we-meet 后端 `/api/agent/push-hook/` → 后端经个推透传下发设备**。两侧共享同一个 webhook HMAC 密钥,必须逐字符一致。
+推送链路:**jusi-light-im 检测会话全员离线 → 打签名 webhook 给 we-meet 后端 `/api/agent/push-hook/` → 后端经个推「通知」下发设备**。两侧共享同一个 webhook HMAC 密钥,必须逐字符一致。
+
+### 个推通知 payload 三坑(2026-07-07 荣耀 HONOR 300 实测,`core/services/push_send.py`)
+
+个推返回 `successed_*` 只代表**个推侧受理**,端侧弹不弹取决于 payload,三个字段缺一不显示:
+
+1. **发「通知(notification)」不发「透传(transmission)」**:透传只回调 `onReceiveMessageData` 需 App 存活;冷杀收不到。
+2. **notification 必带 `channel_id`/`channel_name`/`channel_level`**(Android 8+ 强制渠道):缺则 `successed` 但静默丢弃。用 `channel_level=4`,id 对齐 App 侧 `im_messages`。
+3. **`click_type=intent` 必带显式 `component=com.we.meet/com.we.meet.MainActivity`**:隐式 intent 建 PendingIntent 失败又是静默丢弃;`startapp` 也能弹但丢深链。深链 `intent://im?cid=<会话id>#Intent;scheme=wemeet;launchFlags=0x10020000;component=com.we.meet/com.we.meet.MainActivity;end` → `MainActivity.handleDeepLink` 直达会话。
+
+排障:个推后台「推送记录」各 tab **不统计单推**(single/cid),「暂无数据」是正常口径,别当判据;唯一判据是 API 返回体的 `data.<taskid>.<cid>` 状态 + 真机观察。厂商通道(荣耀/小米/OPPO/vivo)因自有通道已能投达而推迟为可靠性增强,非阻塞。
 
 ### 配置落点
 
