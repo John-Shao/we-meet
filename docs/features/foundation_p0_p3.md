@@ -193,13 +193,23 @@ sudo chmod 600 /etc/jusi-secrets/PUSH_WEBHOOK_SECRET
   ```
 - **[S0-b] jusi ECS 落密钥文件**(SSH 到 `159.75.95.21`):
   ```bash
-  echo -n '<$WEBHOOK>' | sudo tee /etc/jusi-secrets/PUSH_WEBHOOK_SECRET >/dev/null
+  echo -n '<$PUSH_WEBHOOK_SECRET>' | sudo tee /etc/jusi-secrets/PUSH_WEBHOOK_SECRET >/dev/null
   sudo chmod 600 /etc/jusi-secrets/PUSH_WEBHOOK_SECRET
   ```
-- **[S0-c] we-meet ECS 填 secrets**(SSH 到 aliyun-sjy,`/opt/we-meet`):在
-  `src/helm/env.d/aliyun-prod/values.secrets.yaml`(gitignored,机器本地)的
-  `backend.envVars` 里确认 `IM_PUSH_WEBHOOK_SECRET: <$WEBHOOK>`(与 S0-a 同值)、
-  `GETUI_APP_ID/APP_KEY/MASTER_SECRET` 已填真实个推凭证。
+- **[S0-c] we-meet ECS 填 secrets**(SSH 到 aliyun-sjy,`/opt/we-meet`):
+  ⚠️ **`values.secrets.yaml` 是 gitignored 的,`git pull` 不会同步它——开发机上的
+  改动到不了 ECS,必须直接在 ECS 本地编辑这份文件**(否则 helm 渲染出的后端 env 缺
+  这几个 key,`push-hook` 静默 fail-closed 404,而 `PUSH_CONTENT_VISIBLE` 这种来自
+  已提交 `values.meet.yaml` 的键却正常,极易误判为已生效)。在 `backend.envVars` 段
+  (与 `JUSI_IM_ADMIN_HMAC_SECRET` 并列,4 空格缩进)补:
+  ```yaml
+      IM_PUSH_WEBHOOK_SECRET: <$WEBHOOK>        # 与 S0-a / jusi PUSH_WEBHOOK_SECRET 同值
+      GETUI_APP_ID: "<appId>"
+      GETUI_APP_KEY: "<appKey>"
+      GETUI_MASTER_SECRET: "<masterSecret>"     # 仅服务端,严禁进 APK/前端
+  ```
+  改完必须重跑阶段二的 helm upgrade 才生效,并用 `printenv` 复验这 4 个 key 都在
+  (只见 `PUSH_CONTENT_VISIBLE` = 机密没进,回来补这步)。
 
 #### 阶段一 · jusi-light-im(纯增量,先上不影响老客户端)
 
@@ -239,8 +249,11 @@ sudo chmod 600 /etc/jusi-secrets/PUSH_WEBHOOK_SECRET
 - **[S2-e] 验证**:
   ```bash
   kubectl -n meet exec deploy/meet-backend -- printenv \
-    | grep -E 'IM_PUSH_WEBHOOK_SECRET|GETUI_APP_ID|PUSH_CONTENT_VISIBLE'
+    | grep -E 'IM_PUSH_WEBHOOK_SECRET|GETUI_APP_ID|GETUI_APP_KEY|PUSH_CONTENT_VISIBLE'
   ```
+  **必须 4 行齐**。若只见 `PUSH_CONTENT_VISIBLE`(它来自已提交的 `values.meet.yaml`),
+  说明机密没进 → 回 **[S0-c]** 在 ECS 本地补 `values.secrets.yaml` 再重跑 S2-c。
+  `IM_PUSH_WEBHOOK_SECRET` 的值应与 jusi pod 里 `PUSH_WEBHOOK_SECRET` 逐字符相同。
   前端(`meet-frontend`)随本次 helm 一并滚,已内置 `@jusi/light-im-sdk@0.1.0-alpha.8`。
 
 #### 阶段三 · Android APK
