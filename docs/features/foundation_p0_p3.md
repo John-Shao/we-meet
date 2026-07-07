@@ -155,9 +155,46 @@
 - 后端测试:先 build app-dev 再 `bin/pytest`;本机注意 15432/9000 端口占用,只起 pg+redis + `--no-deps`。
 - Android:改动涉及 SDK 时先清 SDK build 目录再打包(旧路径坑),确认 packageDebug 实际执行。
 
+## P0 离线推送上线接线(已落地)
+
+推送链路:**jusi-light-im 检测会话全员离线 → 打签名 webhook 给 we-meet 后端 `/api/agent/push-hook/` → 后端经个推透传下发设备**。两侧共享同一个 webhook HMAC 密钥,必须逐字符一致。
+
+### 配置落点
+
+| 变量 | 位置 | 性质 | 值 |
+|---|---|---|---|
+| `PUSH_WEBHOOK_URL` | jusi `deploy/k3s/.../values.prod.yaml`(config→ConfigMap) | 非机密 | `https://meet.we-meet.online/api/agent/push-hook/` |
+| `PUSH_WEBHOOK_SECRET` | jusi `secret:` 块空占位 + `secret.yaml` 模板;`06-deploy-jusi.sh` 从 ECS `/etc/jusi-secrets/PUSH_WEBHOOK_SECRET` 软读并 `--set` 注入 | **机密** | `openssl rand -hex 32` |
+| `IM_PUSH_WEBHOOK_SECRET` | we-meet `values.secrets.yaml`(**gitignored**,backend.envVars) | **机密** | **= jusi 的 `PUSH_WEBHOOK_SECRET`** |
+| `GETUI_APP_ID/APP_KEY/MASTER_SECRET` | we-meet `values.secrets.yaml` | **机密**(MasterSecret 仅此一处) | 个推控制台凭证 |
+| `PUSH_CONTENT_VISIBLE` | we-meet `values.meet.yaml`(committed) | 非机密开关 | `True`=带发件人+正文预览 / `False`=仅「你有新消息」 |
+
+`.dist` 模板与 `.env.example` 只放占位符,**真实机密严禁入库**(webhook secret 曾误入 jusi `.env.example`,已清)。
+
+### ECS 手动步(仓库放不了,和 `ADMIN_HMAC_SECRET` 同套路)
+
+jusi ECS(im.we-meet.online / 腾讯云 `159.75.95.21`)上落 webhook 密钥文件:
+```bash
+echo -n '<与 we-meet IM_PUSH_WEBHOOK_SECRET 同值>' \
+  | sudo tee /etc/jusi-secrets/PUSH_WEBHOOK_SECRET >/dev/null
+sudo chmod 600 /etc/jusi-secrets/PUSH_WEBHOOK_SECRET
+```
+缺此文件而 `PUSH_WEBHOOK_URL` 已设时,jusi 启动校验 fail-fast(secret<32)。
+
+### 上线顺序(先被依赖方后依赖方)
+
+1. **jusi-light-im**:`06-deploy-jusi.sh`(纯增量,先上不影响老客户端)。
+2. **we-meet 后端**:`helm upgrade`(**必带迁移 0054 ImLaterItem / 0055 DevicePushToken**,只换镜像会漏)。
+3. **Web**:SDK `@jusi/light-im-sdk@0.1.0-alpha.8` 已发 npm,重新构建部署。
+4. **Android APK**:分发;正式包开 `minifyEnabled` 时补 `-keep class com.igexin.**/com.getui.**`。
+
+### 灰度自检
+
+登录 → 上报 cid(we-meet `DevicePushToken` 有行)→ 对端离线发消息 → 通知栏收到 → 点通知深链 `wemeet://im?cid=` 进会话。
+
 ## 开放问题(拍板项)
 1. **P0**:厂商通道凭证(小米/OPPO/vivo)是否本期申请齐,还是先只走个推自有通道+保活验证效果?
-2. **P0**:离线推送正文默认带消息摘要还是仅「你有新消息」(涉及通知栏隐私口径)?
+2. ~~**P0**:离线推送正文默认带消息摘要还是仅「你有新消息」(涉及通知栏隐私口径)?~~ → 已解:`PUSH_CONTENT_VISIBLE` 开关,默认 `True`(带发件人+正文),可切隐私模式。
 3. **P1**:消息搜索结果是否进全局搜索「全部」混排,还是仅独立「消息」标签(建议先独立标签,混排等相关度排序)?
 4. **P2**:重复日程物化窗口 60 天是否够(影响「查看明年例会」场景;可配 settings)?
 5. **P3**:稍后处理与 Pin 的取舍——若只做一个,建议稍后处理(零 jusi 依赖、个人价值即时)。
