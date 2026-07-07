@@ -181,16 +181,89 @@ sudo chmod 600 /etc/jusi-secrets/PUSH_WEBHOOK_SECRET
 ```
 缺此文件而 `PUSH_WEBHOOK_URL` 已设时,jusi 启动校验 fail-fast(secret<32)。
 
-### 上线顺序(先被依赖方后依赖方)
+### Step-by-step 部署方案
 
-1. **jusi-light-im**:`06-deploy-jusi.sh`(纯增量,先上不影响老客户端)。
-2. **we-meet 后端**:`helm upgrade`(**必带迁移 0054 ImLaterItem / 0055 DevicePushToken**,只换镜像会漏)。
-3. **Web**:SDK `@jusi/light-im-sdk@0.1.0-alpha.8` 已发 npm,重新构建部署。
-4. **Android APK**:分发;正式包开 `minifyEnabled` 时补 `-keep class com.igexin.**/com.getui.**`。
+涉及两台 ECS,**顺序不可换**(先被依赖方后依赖方):jusi(im.we-meet.online / 腾讯云 `159.75.95.21`)→ we-meet(aliyun-sjy,后端+前端在同一 K3s)→ APK。命令引用各仓既有部署脚本,不手搓 helm flag。
 
-### 灰度自检
+#### 前置(一次性,只在首次上推送时做)
 
-登录 → 上报 cid(we-meet `DevicePushToken` 有行)→ 对端离线发消息 → 通知栏收到 → 点通知深链 `wemeet://im?cid=` 进会话。
+- **[S0-a] 生成共享密钥**(任一台执行一次,值两侧通用):
+  ```bash
+  openssl rand -hex 32     # 记为 $WEBHOOK  —— 已用 4805a70c…f5f8
+  ```
+- **[S0-b] jusi ECS 落密钥文件**(SSH 到 `159.75.95.21`):
+  ```bash
+  echo -n '<$WEBHOOK>' | sudo tee /etc/jusi-secrets/PUSH_WEBHOOK_SECRET >/dev/null
+  sudo chmod 600 /etc/jusi-secrets/PUSH_WEBHOOK_SECRET
+  ```
+- **[S0-c] we-meet ECS 填 secrets**(SSH 到 aliyun-sjy,`/opt/we-meet`):在
+  `src/helm/env.d/aliyun-prod/values.secrets.yaml`(gitignored,机器本地)的
+  `backend.envVars` 里确认 `IM_PUSH_WEBHOOK_SECRET: <$WEBHOOK>`(与 S0-a 同值)、
+  `GETUI_APP_ID/APP_KEY/MASTER_SECRET` 已填真实个推凭证。
+
+#### 阶段一 · jusi-light-im(纯增量,先上不影响老客户端)
+
+- **[S1-a]** SSH 到 jusi ECS,拉代码:`cd /opt/jusi-light-im && git pull origin main`。
+- **[S1-b]** 构建镜像并导入 k3s:`bash scripts/deploy/06a-build-local.sh`(本地镜像模式),
+  或已有 registry 镜像时跳过。
+- **[S1-c]** 部署:`sudo -E bash scripts/deploy/06-deploy-jusi.sh`
+  (`LOCAL_IMAGE=true` 走本地镜像;脚本自动从 `/etc/jusi-secrets/*` 读 secret 并
+  `--set`,tag 默认取 `git rev-parse --short HEAD`)。
+- **[S1-d] 验证**:
+  ```bash
+  kubectl -n jusi rollout status deploy/jusi-light-im --timeout=120s
+  kubectl -n jusi exec deploy/jusi-light-im -- printenv | grep -E 'PUSH_WEBHOOK_(URL|SECRET)'
+  # URL 应为 https://meet.we-meet.online/api/agent/push-hook/;SECRET 非空且 =$WEBHOOK
+  ```
+  日志无 `push webhook secret too short` / 启动 panic 即通过。
+
+#### 阶段二 · we-meet 后端+前端(aliyun-sjy)
+
+- **[S2-a]** 本机/CI 构建推送镜像:`bash deploy/aliyun/build-and-push.sh backend frontend`
+  (`export IMAGE_TAG=$(git rev-parse --short HEAD)` 走 sha tag;镜像进火山 CR)。
+- **[S2-b]** ECS 拉代码+values:`cd /opt/we-meet && git pull origin aliyun-dev`。
+- **[S2-c]** 把 `image.tag` 更新到本次 sha(`src/helm/env.d/aliyun-prod/values.meet.yaml`),
+  再 helm 升级(带 secrets + common 模板):
+  ```bash
+  helm -n meet upgrade meet ./src/helm/meet \
+    -f src/helm/env.d/common.yaml.gotmpl \
+    -f src/helm/env.d/aliyun-prod/values.meet.yaml \
+    -f src/helm/env.d/aliyun-prod/values.secrets.yaml --wait --timeout 15m
+  ```
+- **[S2-d] 迁移(不可跳过)**——helm 只滚 Pod,不会自动 migrate:
+  ```bash
+  kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input
+  kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | tail -6
+  # 确认 0054_imlateritem / 0055_devicepushtoken 均 [X]
+  ```
+- **[S2-e] 验证**:
+  ```bash
+  kubectl -n meet exec deploy/meet-backend -- printenv \
+    | grep -E 'IM_PUSH_WEBHOOK_SECRET|GETUI_APP_ID|PUSH_CONTENT_VISIBLE'
+  ```
+  前端(`meet-frontend`)随本次 helm 一并滚,已内置 `@jusi/light-im-sdk@0.1.0-alpha.8`。
+
+#### 阶段三 · Android APK
+
+- 分发 `app/build/outputs/apk/…`;正式包开 `minifyEnabled` 时补
+  `-keep class com.igexin.**/com.getui.**`,并在首次进 IM 请求通知运行时权限(Android 13+)。
+
+### 灰度自检(端到端)
+
+1. App 登录 → 后端 `DevicePushToken` 表出现该用户 + cid 行(`provider=getui`)。
+2. 用户 A **杀进程离线**,用户 B 发消息给 A。
+3. jusi 日志出现 webhook 投递;we-meet 后端 `push-hook` 200,`push_send` 调个推成功。
+4. A 通知栏收到(正文由 `PUSH_CONTENT_VISIBLE` 决定)。
+5. 点通知 → 深链 `wemeet://im?cid=` 直达对应会话。
+
+任一步断:secret 两侧不一致 → `push-hook` 401/404;cid 无行 → 上报没打通;个推失败 → 检查 GETUI_* 与设备是否注册。
+
+### 回滚
+
+- **jusi**:`helm -n jusi rollback jusi-light-im`(或重跑 06 到旧 tag)。推送是尽力而为、
+  发布侧单点触发,回滚不影响收发消息主链路。
+- **we-meet**:`helm -n meet rollback meet`。迁移纯新增、无破坏性,**不需要回滚 DB**;
+  旧镜像忽略新表即可。
 
 ## 开放问题(拍板项)
 1. **P0**:厂商通道凭证(小米/OPPO/vivo)是否本期申请齐,还是先只走个推自有通道+保活验证效果?
