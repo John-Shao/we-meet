@@ -10,6 +10,7 @@
     "all": "全部",
     "contacts": "联系人",
     "meetings": "会议",
+    "messages": "消息",
     "empty": "无匹配结果"
   },
   "logout": "退出登录",

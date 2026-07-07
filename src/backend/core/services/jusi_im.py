@@ -335,6 +335,32 @@ class JusiImAdminClient:
                 f"post_message: unexpected response shape: {data}"
             ) from exc
 
+    def search_messages(
+        self,
+        uid: str,
+        q: str,
+        cid: str | None = None,
+        limit: int = 20,
+        before_mid: int = 0,
+    ) -> dict[str, Any]:
+        """Full-text message search as `uid` (P15, jusi p15).
+
+        Membership is the permission model server-side: results only cover
+        conversations `uid` belongs to. Returns the raw jusi response
+        ``{"items": [...], "next_before_mid": int}`` — the view proxies it
+        through untouched.
+        """
+        if not uid:
+            raise ValueError("uid is required")
+        if not q:
+            raise ValueError("q is required")
+        payload: dict[str, Any] = {"uid": uid, "q": q, "limit": limit}
+        if cid:
+            payload["cid"] = cid
+        if before_mid:
+            payload["before_mid"] = before_mid
+        return self._signed_request("POST", "/admin/search/messages", payload)
+
     # ---- helpers ----
 
     def _signed_request(self, method: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:

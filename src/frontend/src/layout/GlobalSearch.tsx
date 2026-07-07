@@ -3,12 +3,19 @@ import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
 import { RiSearchLine } from '@remixicon/react'
 
+import { useQuery } from '@tanstack/react-query'
+
 import { css } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useDirectoryMemberSearch } from '@/features/contacts'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
+import {
+  searchImMessages,
+  type ImSearchItem,
+} from '@/features/im/api/searchImMessages'
+import { resolveImUsers } from '@/features/im/api/resolveImUsers'
 import {
   useRecentMeetings,
   useScheduledMeetings,
@@ -114,10 +121,10 @@ interface MeetingResult {
   target: string // id (recent) or slug (scheduled)
 }
 
-// 分类标签(飞书式):缩小搜索范围。目前可搜联系人 + 会议;消息等待 jusi 服务端
-// 搜索端点补齐后再加,不放空标签避免死路。
-type SearchCategory = 'all' | 'contacts' | 'meetings'
-const CATEGORIES: SearchCategory[] = ['all', 'contacts', 'meetings']
+// 分类标签(飞书式):缩小搜索范围。联系人 + 会议 + 消息(P1-M1,jusi p15
+// 服务端全文检索经 /im/search 代理)。
+type SearchCategory = 'all' | 'contacts' | 'meetings' | 'messages'
+const CATEGORIES: SearchCategory[] = ['all', 'contacts', 'meetings', 'messages']
 
 const SearchPalette = ({ onClose }: { onClose: () => void }) => {
   const { t } = useTranslation('shell')
@@ -133,7 +140,34 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
   const ql = query.trim().toLowerCase()
   const showContacts = category === 'all' || category === 'contacts'
   const showMeetings = category === 'all' || category === 'meetings'
+  const showMessages = category === 'all' || category === 'messages'
   const members = ql && showContacts ? selectable : []
+
+  // 消息全文搜索(P1-M1):≥2 字才发起(与服务端校验一致);「全部」下取少量,
+  // 「消息」标签下取满页。命中的发送者(jusi uid)批量解析成显示名。
+  const rawQ = query.trim()
+  const msgSearchEnabled = showMessages && rawQ.length >= 2
+  const { data: msgData, isFetching: msgFetching } = useQuery({
+    queryKey: ['im', 'msg-search', rawQ],
+    queryFn: () => searchImMessages(rawQ, { limit: 20 }),
+    enabled: msgSearchEnabled,
+    staleTime: 15_000,
+    retry: false,
+  })
+  const msgItems = useMemo<ImSearchItem[]>(() => {
+    if (!msgSearchEnabled || !msgData) return []
+    return category === 'messages' ? msgData.items : msgData.items.slice(0, 5)
+  }, [msgSearchEnabled, msgData, category])
+  const msgSenderUids = useMemo(
+    () => [...new Set(msgItems.map((m) => m.sender_uid))],
+    [msgItems]
+  )
+  const { data: msgSenders = {} } = useQuery({
+    queryKey: ['im', 'member-names', msgSenderUids],
+    queryFn: () => resolveImUsers(msgSenderUids),
+    enabled: msgSenderUids.length > 0,
+    staleTime: 60_000,
+  })
 
   const meetings = useMemo<MeetingResult[]>(() => {
     if (!ql || !showMeetings) return []
@@ -154,7 +188,13 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
     return all.filter((m) => m.name.toLowerCase().includes(ql)).slice(0, 8)
   }, [ql, recent, scheduled, showMeetings])
 
-  const empty = !!ql && !isFetching && members.length === 0 && meetings.length === 0
+  const empty =
+    !!ql &&
+    !isFetching &&
+    !msgFetching &&
+    members.length === 0 &&
+    meetings.length === 0 &&
+    msgItems.length === 0
 
   const openMember = async (id: string) => {
     try {
@@ -169,6 +209,22 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
     onClose()
     if (m.kind === 'scheduled') navigateTo('room', m.target)
     else navigateTo('meetingDetail', m.target)
+  }
+  // 点消息命中 → 进入该会话(按 seq 定位是 P1-M2,先只进会话)。
+  const openMessageHit = (m: ImSearchItem) => {
+    onClose()
+    navigate(`/im?cid=${encodeURIComponent(m.cid)}`)
+  }
+  const msgPreview = (m: ImSearchItem): string => {
+    if (m.content_type === 'quote') {
+      try {
+        return (JSON.parse(m.body)?.text as string) || m.body
+      } catch {
+        return m.body
+      }
+    }
+    if (m.content_type !== 'text') return `[${m.content_type}] ${m.body.slice(0, 40)}`
+    return m.body
   }
 
   return (
@@ -286,6 +342,24 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
                 onClick={() => openMeeting(m)}
                 avatarText="📹"
                 title={m.name || '—'}
+              />
+            ))}
+          </Group>
+        )}
+
+        {msgItems.length > 0 && (
+          <Group title={t('search.messages')}>
+            {msgItems.map((m) => (
+              <ResultRow
+                key={`m-${m.mid}`}
+                onClick={() => openMessageHit(m)}
+                testId={`global-search-msg-${m.mid}`}
+                avatarText="💬"
+                title={msgPreview(m)}
+                subtitle={[
+                  msgSenders[m.sender_uid]?.full_name || m.sender_uid,
+                  new Date(m.created_at).toLocaleString(),
+                ].join(' · ')}
               />
             ))}
           </Group>

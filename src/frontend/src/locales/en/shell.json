@@ -10,6 +10,7 @@
     "all": "All",
     "contacts": "Contacts",
     "meetings": "Meetings",
+    "messages": "Messages",
     "empty": "No matches"
   },
   "logout": "Sign out",

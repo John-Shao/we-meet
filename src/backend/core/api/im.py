@@ -656,6 +656,40 @@ class ImViewSet(viewsets.ViewSet):
 
         return Response({"cid": cid, "deleted": len(mids)}, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["get"], url_path="search")
+    def search(self, request):
+        """Full-text message search across the caller's conversations (P1-M1).
+
+        ``GET /api/v1.0/im/search/?q=&cid=&limit=&before_mid=`` — proxies jusi's
+        ``POST /admin/search/messages`` as the caller's IM identity (sub→uid
+        resolve happens here; membership is the permission model server-side).
+        Response: ``{items: [...], next_before_mid}`` passed through verbatim.
+        """
+        q = (request.query_params.get("q") or "").strip()
+        if len(q) < 2:
+            raise ValidationError({"q": "q must be at least 2 characters"})
+        cid = (request.query_params.get("cid") or "").strip() or None
+        try:
+            limit = min(max(int(request.query_params.get("limit") or 20), 1), 50)
+        except ValueError as exc:
+            raise ValidationError({"limit": "bad limit"}) from exc
+        try:
+            before_mid = int(request.query_params.get("before_mid") or 0)
+        except ValueError as exc:
+            raise ValidationError({"before_mid": "bad before_mid"}) from exc
+
+        client = self._make_client()
+        uid = self._resolve_uid(client, request.user)
+        try:
+            data = client.search_messages(
+                uid=uid, q=q, cid=cid, limit=limit, before_mid=before_mid
+            )
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+        return Response(data, status=status.HTTP_200_OK)
+
     # ---- shared helpers (P9) ----
 
     def _make_client(self) -> JusiImAdminClient:
