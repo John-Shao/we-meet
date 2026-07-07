@@ -40,6 +40,48 @@ export const useMessages = (client: Client, cid: string | null) => {
     return off
   }, [client, cid, qc])
 
+  // P16 原生撤回/表情回应:把服务端事件直接打进缓存里的消息最终态
+  // (recalled / reactions 字段)。历史加载时快照已带,这里只维护增量;
+  // 旧数据的控制消息回放仍由 ChatPane 兜底(双读)。
+  useEffect(() => {
+    if (!cid) return
+    const offRecalled = client.onMessageRecalled((e) => {
+      if (e.cid !== cid) return
+      qc.setQueryData<Message[]>(keyOf(cid), (prev) =>
+        prev?.map((m) =>
+          m.mid === e.mid ? { ...m, recalled: true, body: '' } : m
+        )
+      )
+    })
+    const offReaction = client.onReaction((e) => {
+      if (e.cid !== cid) return
+      qc.setQueryData<Message[]>(keyOf(cid), (prev) =>
+        prev?.map((m) => {
+          if (m.mid !== e.mid) return m
+          const groups = (m.reactions ?? []).map((g) => ({
+            emoji: g.emoji,
+            uids: [...g.uids],
+          }))
+          let g = groups.find((x) => x.emoji === e.emoji)
+          if (e.op === 'add') {
+            if (!g) {
+              g = { emoji: e.emoji, uids: [] }
+              groups.push(g)
+            }
+            if (!g.uids.includes(e.uid)) g.uids.push(e.uid)
+          } else if (g) {
+            g.uids = g.uids.filter((u) => u !== e.uid)
+          }
+          return { ...m, reactions: groups.filter((x) => x.uids.length > 0) }
+        })
+      )
+    })
+    return () => {
+      offRecalled()
+      offReaction()
+    }
+  }, [client, cid, qc])
+
   return useQuery({
     // Inline `cid` (not keyOf) so the query plugin sees it; matches keyOf(cid).
     queryKey: ['im', 'messages', cid ?? 'none'],

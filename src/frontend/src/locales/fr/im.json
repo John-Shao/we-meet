@@ -32,7 +32,14 @@
     "reply": "Répondre",
     "forward": "Transférer",
     "multiSelect": "Sélectionner",
-    "markLater": "À traiter plus tard"
+    "markLater": "À traiter plus tard",
+    "pin": "Épingler le message",
+    "unpin": "Désépingler"
+  },
+  "pins": {
+    "count": "{{count}} épinglé(s)",
+    "unpin": "Désépingler",
+    "noPreview": "[Pas d'aperçu]"
   },
   "later": {
     "title": "Plus tard",

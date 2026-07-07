@@ -32,7 +32,14 @@
     "reply": "Beantwoorden",
     "forward": "Doorsturen",
     "multiSelect": "Selecteren",
-    "markLater": "Voor later bewaren"
+    "markLater": "Voor later bewaren",
+    "pin": "Bericht vastzetten",
+    "unpin": "Losmaken"
+  },
+  "pins": {
+    "count": "{{count}} vastgezet",
+    "unpin": "Losmaken",
+    "noPreview": "[Geen voorbeeld]"
   },
   "later": {
     "title": "Later",

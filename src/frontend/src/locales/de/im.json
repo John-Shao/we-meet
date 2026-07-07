@@ -32,7 +32,14 @@
     "reply": "Antworten",
     "forward": "Weiterleiten",
     "multiSelect": "Auswählen",
-    "markLater": "Für später merken"
+    "markLater": "Für später merken",
+    "pin": "Nachricht anheften",
+    "unpin": "Lösen"
+  },
+  "pins": {
+    "count": "{{count}} angeheftet",
+    "unpin": "Lösen",
+    "noPreview": "[Keine Vorschau]"
   },
   "later": {
     "title": "Später",

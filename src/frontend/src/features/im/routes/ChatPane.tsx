@@ -16,6 +16,7 @@ import { uploadChatVoice, ChatVoiceError } from '../api/uploadChatVoice'
 import { deleteMessages } from '../api/deleteMessages'
 import { markLater } from '../api/markLater'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
+import { PinnedBar } from '../components/PinnedBar'
 import { MessageItem, type ReactionChip } from '../components/MessageItem'
 import { ImageLightbox } from '../components/ImageLightbox'
 import {
@@ -208,6 +209,13 @@ export const ChatPane = ({
     for (const r of roster) if (r.nickname) m[r.uid] = r.nickname
     return m
   }, [roster])
+  // P17 Pin 集合(与 PinnedBar 共享同一查询缓存,onPin 事件在 PinnedBar 里失效)。
+  const { data: pins = [] } = useQuery({
+    queryKey: ['im', 'pins', cid],
+    queryFn: () => client.listPins(cid),
+    staleTime: 30_000,
+  })
+  const pinnedMids = useMemo(() => new Set(pins.map((p) => p.mid)), [pins])
   // For a sender's display: nickname → directory name → uid.
   const nameOf = useMemo(
     () => (uid: string) => nickOf[uid] || names[uid]?.full_name || uid,
@@ -360,11 +368,16 @@ export const ChatPane = ({
     }
   }
 
-  // 撤回(P7-c):墓碑协议消息 content_type='recall'、body={target_mid}。所有端
-  // (含历史加载)据此把原消息渲染成「已撤回」;墓碑本身在列表里过滤掉,不显示。
+  // 撤回:P16 起走服务端原生(消息自带 recalled 最终态 + msg-recalled 事件,
+  // useMessages 已打进缓存);旧数据仍按 P7-c 客户端约定回放墓碑控制消息——
+  // 双读,新操作不再发 content_type='recall'。
   const recalledMids = useMemo(() => {
     const s = new Set<number>()
     for (const m of messages) {
+      if (m.recalled) {
+        s.add(m.mid) // P16 native
+        continue
+      }
       if (m.content_type === 'recall') {
         try {
           const parsed = JSON.parse(m.body)
@@ -380,9 +393,7 @@ export const ChatPane = ({
   const onRecall = async (m: Message) => {
     if (!(await askConfirm({ message: t('actions.recallConfirm') }))) return
     try {
-      await client.sendText(cid, JSON.stringify({ target_mid: m.mid }), {
-        contentType: 'recall',
-      })
+      client.recall(cid, m.mid)
     } catch (e) {
       void showAlert({
         message: t('actions.error', {
@@ -392,10 +403,19 @@ export const ChatPane = ({
     }
   }
 
-  // 表情回复(P7-b):控制消息 content_type='reaction'、body={target_mid,emoji,op}。
-  // 按 seq 顺序回放 add/remove 聚合成每条消息的表情集合;控制消息本身不入消息流。
+  // 表情回复:P16 起消息自带 reactions 聚合快照(增量由 useMessages 打进缓存);
+  // 旧数据仍按 P7-b 控制消息回放——双读合并(新旧数据无交集,不会重复计数)。
+  // 新操作不再发 content_type='reaction'。
   const reactionsByMid = useMemo(() => {
     const map = new Map<number, ReactionState>()
+    // P16 native snapshot.
+    for (const m of messages) {
+      if (!m.reactions?.length) continue
+      const st: ReactionState = {}
+      for (const g of m.reactions) st[g.emoji] = new Set(g.uids)
+      map.set(m.mid, st)
+    }
+    // Legacy control-message replay (pre-P16 rows only).
     for (const m of messages) {
       if (m.content_type !== 'reaction') continue
       try {
@@ -439,11 +459,7 @@ export const ChatPane = ({
   const onReact = async (m: Message, emoji: string) => {
     const mine = !!reactionsByMid.get(m.mid)?.[emoji]?.has(currentUserUID)
     try {
-      await client.sendText(
-        cid,
-        JSON.stringify({ target_mid: m.mid, emoji, op: mine ? 'remove' : 'add' }),
-        { contentType: 'reaction' }
-      )
+      client.react(cid, m.mid, emoji, mine ? 'remove' : 'add')
     } catch (e) {
       void showAlert({
         message: t('actions.error', {
@@ -627,6 +643,19 @@ export const ChatPane = ({
       key: 'markLater',
       label: t('actions.markLater'),
       onSelect: () => void handleMarkLater(m),
+    })
+    // Pin(P17,会话共享):按当前状态切换文案;权限由服务端裁决。
+    const pinned = pinnedMids.has(m.mid)
+    items.push({
+      key: 'pin',
+      label: pinned ? t('actions.unpin') : t('actions.pin'),
+      onSelect: () => {
+        try {
+          client.pin(cid, m.mid, pinned ? 'remove' : 'add')
+        } catch {
+          // not connected — PinnedBar stays as-is
+        }
+      },
     })
     // 转发(P7-e):text/image/file/quote 都可转发;system/control/已撤回不会
     // 走到这里(openMenu 已拦截)。
@@ -885,6 +914,8 @@ export const ChatPane = ({
             overflow: 'hidden',
           })}
         >
+          {/* P17 Pin 栏:有 Pin 时置于头部下方,点击展开完整列表。 */}
+          <PinnedBar client={client} cid={cid} nameOf={nameOf} />
           <div
             ref={scrollRef}
             className={css({

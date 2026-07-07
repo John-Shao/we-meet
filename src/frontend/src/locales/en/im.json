@@ -32,7 +32,14 @@
     "reply": "Reply",
     "forward": "Forward",
     "multiSelect": "Select",
-    "markLater": "Mark for later"
+    "markLater": "Mark for later",
+    "pin": "Pin message",
+    "unpin": "Unpin"
+  },
+  "pins": {
+    "count": "{{count}} pinned",
+    "unpin": "Unpin",
+    "noPreview": "[No preview]"
   },
   "later": {
     "title": "Later",

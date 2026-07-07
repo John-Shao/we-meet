@@ -32,7 +32,14 @@
     "reply": "回复",
     "forward": "转发",
     "multiSelect": "多选",
-    "markLater": "稍后处理"
+    "markLater": "稍后处理",
+    "pin": "置顶消息",
+    "unpin": "取消置顶"
+  },
+  "pins": {
+    "count": "{{count}} 条置顶",
+    "unpin": "取消置顶",
+    "noPreview": "[无预览]"
   },
   "later": {
     "title": "稍后处理",
