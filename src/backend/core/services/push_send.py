@@ -94,11 +94,16 @@ class GetuiClient:
             "channel_level": 4,  # 响铃 + 震动 + 横幅(与 App 侧 im_messages 渠道一致)
         }
         if conv_cid:
-            # Android intent-URI: 主机 im + query cid,scheme wemeet,限定本包。
+            # Android intent-URI:data=wemeet://im?cid=<会话id>,由
+            # MainActivity.handleDeepLink 解析跳转。⚠️ 必须显式 component 指向
+            # MainActivity——实测隐式 intent(仅 scheme+package)个推 SDK 建
+            # PendingIntent 失败会**整条静默丢弃、不显示**;带 component 才正常弹。
+            # launchFlags = NEW_TASK|SINGLE_TOP,与 App 透传路径的点击 intent 一致。
             notification["click_type"] = "intent"
             notification["intent"] = (
-                f"intent://im?cid={conv_cid}"
-                "#Intent;scheme=wemeet;package=com.we.meet;end"
+                f"intent://im?cid={conv_cid}#Intent;"
+                "scheme=wemeet;launchFlags=0x10020000;"
+                "component=com.we.meet/com.we.meet.MainActivity;end"
             )
             # 每会话一个稳定 notify_id:同会话新消息替换旧通知,不无限堆叠
             # (OPPO 厂商通道也要求 notify_id > 0)。
