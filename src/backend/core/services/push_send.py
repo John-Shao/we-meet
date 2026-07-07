@@ -80,15 +80,30 @@ class GetuiClient:
         点击动作用 ``click_type=intent`` 拉起应用内深链
         ``wemeet://im?cid=<会话id>``(见 App AndroidManifest / MainActivity.handleDeepLink)。
         ⚠️ 深链用的是**会话 cid**(``payload["cid"]``),不是入参的设备 cid。
+
+        ⚠️ ``channel_*`` 不可省:Android 8+ 通知必须挂 NotificationChannel,否则
+        个推 SDK 建通知时无有效渠道,``successed`` 但端侧静默丢弃、不显示(实测:
+        缺此三字段不弹,补上即弹)。
         """
         conv_cid = str(payload.get("cid") or "")
-        notification: dict[str, Any] = {"title": title, "body": body}
+        notification: dict[str, Any] = {
+            "title": title,
+            "body": body,
+            "channel_id": "im_messages",
+            "channel_name": "消息通知",
+            "channel_level": 4,  # 响铃 + 震动 + 横幅(与 App 侧 im_messages 渠道一致)
+        }
         if conv_cid:
             # Android intent-URI: 主机 im + query cid,scheme wemeet,限定本包。
             notification["click_type"] = "intent"
             notification["intent"] = (
                 f"intent://im?cid={conv_cid}"
                 "#Intent;scheme=wemeet;package=com.we.meet;end"
+            )
+            # 每会话一个稳定 notify_id:同会话新消息替换旧通知,不无限堆叠
+            # (OPPO 厂商通道也要求 notify_id > 0)。
+            notification["notify_id"] = (
+                int(hashlib.md5(conv_cid.encode()).hexdigest()[:8], 16) & 0x7FFFFFFF
             )
         else:
             notification["click_type"] = "startapp"
