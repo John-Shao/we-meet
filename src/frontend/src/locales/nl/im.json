@@ -70,7 +70,8 @@
     "empty": "Geen gesprekken",
     "done": "Doorgestuurd naar '{{name}}'",
     "doneMany": "Doorgestuurd naar {{count}} gesprekken",
-    "sendCount": "Versturen ({{count}})"
+    "sendCount": "Versturen ({{count}})",
+    "createGroup": "Groep maken en doorsturen"
   },
   "quote": {
     "replyTo": "Antwoord aan {{name}}",

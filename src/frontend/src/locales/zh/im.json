@@ -70,7 +70,8 @@
     "empty": "没有可转发的会话",
     "done": "已转发到「{{name}}」",
     "doneMany": "已转发到 {{count}} 个会话",
-    "sendCount": "发送 ({{count}})"
+    "sendCount": "发送 ({{count}})",
+    "createGroup": "创建群组并转发"
   },
   "quote": {
     "replyTo": "回复 {{name}}",

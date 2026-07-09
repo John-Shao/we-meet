@@ -70,7 +70,8 @@
     "empty": "Aucune conversation",
     "done": "Transféré vers « {{name}} »",
     "doneMany": "Transféré vers {{count}} conversations",
-    "sendCount": "Envoyer ({{count}})"
+    "sendCount": "Envoyer ({{count}})",
+    "createGroup": "Créer un groupe et transférer"
   },
   "quote": {
     "replyTo": "En réponse à {{name}}",

@@ -70,7 +70,8 @@
     "empty": "No conversations to forward to",
     "done": "Forwarded to \"{{name}}\"",
     "doneMany": "Forwarded to {{count}} conversations",
-    "sendCount": "Send ({{count}})"
+    "sendCount": "Send ({{count}})",
+    "createGroup": "Create a group and forward"
   },
   "quote": {
     "replyTo": "Replying to {{name}}",

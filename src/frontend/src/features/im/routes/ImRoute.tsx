@@ -77,6 +77,10 @@ const ImAuthenticated = () => {
   const [selectedCID, setSelectedCID] = useState<string | null>(initialCID)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [groupPickerOpen, setGroupPickerOpen] = useState(false)
+  // When true, the open GroupPicker is being used to "创建群组并转发": after the
+  // group is created, forward the pending message(s) into it instead of just
+  // navigating there.
+  const [groupForwardMode, setGroupForwardMode] = useState(false)
   // 稍后处理(P3-M1):列表弹窗开关 + 待处理数(会话列表头部入口的角标)。
   const [laterOpen, setLaterOpen] = useState(false)
   const { data: laterItems = [] } = useQuery({
@@ -467,6 +471,45 @@ const ImAuthenticated = () => {
     }
   }
 
+  // 创建群组并转发:建群成功后把待转发的消息发进新群(而非仅跳转)。载荷仍
+  // 存在 forwarding / forwardingMany 里(转发选择器未清),取用后清理。
+  const handleCreateGroupAndForward = async (
+    memberUserIds: string[],
+    name: string
+  ) => {
+    setGroupPickerOpen(false)
+    // Keep groupForwardMode true through creation so the (still-payloaded)
+    // ForwardDialog stays hidden while the group is being made; reset it in
+    // finally so a failure brings the picker back for a retry.
+    try {
+      const result = await createGroupConversation(memberUserIds, name)
+      const cid = result.cid
+      if (forwarding) {
+        await forwardOne(cid, forwarding)
+        setForwarding(null)
+      } else if (forwardingMany) {
+        const payload = forwardingMany
+        if (payload.mode === 'each') {
+          for (const m of payload.messages) await forwardOne(cid, m)
+        } else {
+          await client.sendText(cid, JSON.stringify(payload.merged), {
+            contentType: 'merged',
+          })
+        }
+        setForwardingMany(null)
+      }
+      await afterForward([cid])
+    } catch (e) {
+      void showAlert({
+        message: t('group.error', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
+    } finally {
+      setGroupForwardMode(false)
+    }
+  }
+
   // 会话 → 转发选择器条目(复用 nameOf / avatarOf / membersOf)。
   const forwardConvs: ForwardConv[] = conversations.map((c) => ({
     cid: c.cid,
@@ -739,8 +782,13 @@ const ImAuthenticated = () => {
       )}
       {groupPickerOpen && (
         <GroupPicker
-          onCreate={handleCreateGroup}
-          onClose={() => setGroupPickerOpen(false)}
+          onCreate={
+            groupForwardMode ? handleCreateGroupAndForward : handleCreateGroup
+          }
+          onClose={() => {
+            setGroupPickerOpen(false)
+            setGroupForwardMode(false)
+          }}
           initialMembers={groupSeed}
         />
       )}
@@ -751,15 +799,20 @@ const ImAuthenticated = () => {
           onClose={() => setAddOpen(false)}
         />
       )}
-      {forwarding && (
+      {forwarding && !groupForwardMode && (
         <ForwardDialog
           conversations={forwardConvs}
           previewText={forwardSnippet(forwarding)}
           onConfirm={(cids) => void handleForward(cids)}
+          onCreateGroupForward={() => {
+            setGroupSeed([])
+            setGroupForwardMode(true)
+            setGroupPickerOpen(true)
+          }}
           onClose={() => setForwarding(null)}
         />
       )}
-      {forwardingMany && (
+      {forwardingMany && !groupForwardMode && (
         <ForwardDialog
           conversations={forwardConvs}
           previewText={
@@ -768,6 +821,11 @@ const ImAuthenticated = () => {
               : t('select.count', { count: forwardingMany.messages.length })
           }
           onConfirm={(cids) => void handleForwardMany(cids)}
+          onCreateGroupForward={() => {
+            setGroupSeed([])
+            setGroupForwardMode(true)
+            setGroupPickerOpen(true)
+          }}
           onClose={() => setForwardingMany(null)}
         />
       )}
