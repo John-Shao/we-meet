@@ -3,12 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
 import { css } from '@/styled-system/css'
-import {
-  RiCloseLine,
-  RiPhoneFill,
-  RiPhoneLine,
-  RiVidiconLine,
-} from '@remixicon/react'
+import { RiPhoneFill, RiPhoneLine, RiVidiconLine } from '@remixicon/react'
 
 import { Avatar } from '../components/Avatar'
 import { resolveImUsers } from '../api/resolveImUsers'
@@ -85,7 +80,12 @@ export const CallOverlay = () => {
             color="#e5484d"
             onClick={cancelCall}
           >
-            <RiCloseLine size={28} color="white" />
+            {/* Hang-up glyph (tilted receiver) — matches the App's cancel. */}
+            <RiPhoneFill
+              size={26}
+              color="white"
+              style={{ transform: 'rotate(135deg)' }}
+            />
           </RoundButton>
         )}
         {state.phase === 'incoming' && (
