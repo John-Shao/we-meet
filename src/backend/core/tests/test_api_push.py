@@ -175,3 +175,78 @@ def test_hook_noop_when_getui_unconfigured():
     )
     assert response.status_code == 200
     assert response.json()["pushed"] == 0
+
+
+# ---- P18/P2 call-invite push ----
+
+
+def _call_payload(callee_uid: str, caller_uid: str = "01900000-aaaa-7000-8000-000000000001"):
+    return {
+        "type": "call",
+        "call_id": "call-p2-1",
+        "cid": "conv-direct-1",
+        "from": caller_uid,
+        "to": callee_uid,
+        "media": "audio",
+        "room_slug": "83920417",
+        "ts": 1720600000000,
+    }
+
+
+def test_hook_call_invite_pushes_dual_channel():
+    """type=call → notify_call → push_call_to_cid,payload 透传 + from_name 解析。"""
+    caller = UserFactory(full_name="李梓昂")
+    caller.im_uid = "01900000-aaaa-7000-8000-000000000001"
+    caller.save(update_fields=["im_uid"])
+    callee = UserFactory()
+    callee.im_uid = "01900000-bbbb-7000-8000-000000000002"
+    callee.save(update_fields=["im_uid"])
+    models.DevicePushToken.objects.create(
+        user=callee, cid="getui-cid-5", provider="getui"
+    )
+
+    fake_client = mock.Mock()
+    fake_client.push_call_to_cid.return_value = True
+
+    client = APIClient()
+    with mock.patch(
+        "core.services.push_send._client_from_settings", return_value=fake_client
+    ):
+        response = _post_hook(client, _call_payload(callee.im_uid))
+
+    assert response.status_code == 200, response.content
+    assert response.json()["pushed"] == 1
+    fake_client.push_to_cid.assert_not_called()
+    args = fake_client.push_call_to_cid.call_args
+    assert args.args[0] == "getui-cid-5"
+    assert "语音通话" in args.args[1]  # title
+    assert "李梓昂" in args.args[2]  # body carries the caller display name
+    device_payload = args.args[3]
+    assert device_payload["type"] == "call"
+    assert device_payload["call_id"] == "call-p2-1"
+    assert device_payload["from_name"] == "李梓昂"
+    assert device_payload["room_slug"] == "83920417"
+    assert device_payload["ts"] == 1720600000000
+
+
+def test_hook_call_invite_unknown_callee_is_noop():
+    """被叫 uid 未映射到 User → 200 + pushed=0(呼叫回落主叫超时)。"""
+    fake_client = mock.Mock()
+    client = APIClient()
+    with mock.patch(
+        "core.services.push_send._client_from_settings", return_value=fake_client
+    ):
+        response = _post_hook(
+            client, _call_payload("01900000-dead-7000-8000-000000000000")
+        )
+    assert response.status_code == 200
+    assert response.json()["pushed"] == 0
+    fake_client.push_call_to_cid.assert_not_called()
+
+
+def test_hook_unknown_type_ignored():
+    """未知 type → 200 + pushed=0(向前兼容,不当 im 消息误推)。"""
+    client = APIClient()
+    response = _post_hook(client, {"type": "future-thing", "whatever": 1})
+    assert response.status_code == 200
+    assert response.json()["pushed"] == 0

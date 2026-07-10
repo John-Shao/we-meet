@@ -20,7 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.models import DevicePushToken
-from core.services.push_send import notify_offline
+from core.services.push_send import notify_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -106,5 +106,5 @@ class ImPushHookView(APIView):
         if not hmac.compare_digest(mac.hexdigest(), sig):
             return Response(status=status.HTTP_401_UNAUTHORIZED)
 
-        sent = notify_offline(request.data or {})
+        sent = notify_webhook(request.data or {})
         return Response({"pushed": sent}, status=status.HTTP_200_OK)

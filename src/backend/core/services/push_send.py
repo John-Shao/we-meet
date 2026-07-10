@@ -16,6 +16,7 @@ import logging
 import time
 import uuid
 from typing import Any, Optional
+from urllib.parse import quote
 
 import requests
 from django.conf import settings
@@ -69,6 +70,83 @@ class GetuiClient:
             now + 23 * 3600
         )
         return token
+
+    def push_call_to_cid(self, cid: str, title: str, body: str, payload: dict[str, Any]) -> bool:
+        """Dual-channel call-invite push to one device cid (P18/P2 来电).
+
+        与 :meth:`push_to_cid`(纯通知)不同,来电走**双通道一条请求**:
+
+        - ``push_message.transmission``(个推通道,在线/进程存活):App 的
+          ``onReceiveMessageData`` 直接收到 payload JSON → 代码接管,全屏
+          来电页 + 铃声,不经通知栏;
+        - ``push_channel.android.ups.notification``(厂商通道,离线/冷杀):
+          来电渠道(``im_calls``)高优通知响铃,点击 intent 深链
+          ``wemeet://call?payload=<json>`` 拉起 App 进来电页。
+
+        个推按在线状态互斥投达,不会双响。``ttl=55s``:呼叫 60s 就超时,
+        过期的推送宁可不投,杜绝「几分钟后手机才响铃」。
+        """
+        payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        call_id = str(payload.get("call_id") or "")
+        # 同一呼叫的通知互相替换(invite 双通道重试/厂商补投场景)。
+        notify_id = int(hashlib.md5(call_id.encode()).hexdigest()[:8], 16) & 0x7FFFFFFF
+
+        # quote(safe="") 编码后作为 intent data 的 query 值;App 端
+        # handleDeepLink 用 Uri.getQueryParameter("payload") 取回原文 JSON。
+        intent = (
+            f"intent://call?payload={quote(payload_json, safe='')}#Intent;"
+            "scheme=wemeet;launchFlags=0x10020000;"
+            "component=com.we.meet/com.we.meet.MainActivity;end"
+        )
+        notification: dict[str, Any] = {
+            "title": title,
+            "body": body,
+            "channel_id": "im_calls",
+            "channel_name": "来电通知",
+            "channel_level": 4,  # 响铃 + 震动 + 横幅(App 侧 im_calls 渠道一致)
+            "click_type": "intent",
+            "intent": intent,
+            "notify_id": notify_id,
+        }
+        message = {
+            "request_id": uuid.uuid4().hex,
+            # 55s:比主叫 60s 振铃略短,过期不补投(来电迟到不如不到)。
+            "settings": {"ttl": 55000},
+            "audience": {"cid": [cid]},
+            # 在线(个推通道)走透传,由 App 进程内直接接管。
+            "push_message": {"transmission": payload_json},
+            # 离线走厂商通道通知(冷杀可达)。
+            "push_channel": {
+                "android": {"ups": {"notification": notification}},
+            },
+        }
+        resp = requests.post(
+            f"{_GETUI_BASE}/{self._app_id}/push/single/cid",
+            json=message,
+            headers={"token": self._auth_token()},
+            timeout=self._timeout,
+        )
+        if resp.status_code >= 400:
+            logger.warning(
+                "getui call push to %s failed: %s %s",
+                cid[:12],
+                resp.status_code,
+                resp.text[:200],
+            )
+            return False
+        try:
+            code = resp.json().get("code")
+        except ValueError:
+            code = None
+        if code not in (0, None):
+            logger.warning(
+                "getui call push to %s rejected: code=%s %s",
+                cid[:12],
+                code,
+                resp.text[:200],
+            )
+            return False
+        return True
 
     def push_to_cid(self, cid: str, title: str, body: str, payload: dict[str, Any]) -> bool:
         """Notification push to one device cid. Returns delivered-ish success.
@@ -156,6 +234,84 @@ def _client_from_settings() -> Optional[GetuiClient]:
         master_secret=str(master),
         timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
     )
+
+
+def notify_webhook(payload: dict[str, Any], client: Optional[GetuiClient] = None) -> int:
+    """Entry for the jusi webhook: fan by payload type.
+
+    缺省/``"im"`` → 消息离线通知(:func:`notify_offline`);``"call"`` →
+    来电唤醒(:func:`notify_call`)。未知类型记日志忽略(向前兼容)。
+    """
+    kind = str(payload.get("type") or "im")
+    if kind == "call":
+        return notify_call(payload, client=client)
+    if kind == "im":
+        return notify_offline(payload, client=client)
+    logger.info("push-hook: unknown payload type %r ignored", kind)
+    return 0
+
+
+def notify_call(payload: dict[str, Any], client: Optional[GetuiClient] = None) -> int:
+    """Handle one P18/P2 call-invite webhook: callee uid → tokens → 双通道推送.
+
+    Payload(jusi ``CallWebhookPayload``)自带完整呼叫信息;这里补上
+    ``from_name``(主叫显示名,Django 侧才有 User 映射)后原样透传给端上。
+    Returns the number of push attempts. Never raises.
+    """
+    callee_uid = str(payload.get("to") or "")
+    caller_uid = str(payload.get("from") or "")
+    call_id = str(payload.get("call_id") or "")
+    if not callee_uid or not call_id:
+        logger.info("call-push: missing to/call_id, ignoring")
+        return 0
+
+    callee = User.objects.filter(im_uid=callee_uid).first()
+    if callee is None:
+        logger.info("call-push: no user for callee uid %s", callee_uid[:12])
+        return 0
+    tokens = list(DevicePushToken.objects.filter(user=callee))
+    if not tokens:
+        return 0
+
+    if client is None:
+        client = _client_from_settings()
+    if client is None:
+        logger.info("call-push: getui unconfigured — skipping %d device(s)", len(tokens))
+        return 0
+
+    caller = User.objects.filter(im_uid=caller_uid).first() if caller_uid else None
+    from_name = (caller.full_name or "").strip() if caller else ""
+    if not from_name:
+        from_name = "对方"
+
+    media = str(payload.get("media") or "audio")
+    media_label = "视频通话" if media == "video" else "语音通话"
+    title = f"{media_label}邀请"
+    body = f"{from_name} 邀请你进行{media_label}"
+
+    device_payload = {
+        "type": "call",
+        "call_id": call_id,
+        "cid": str(payload.get("cid") or ""),
+        "from": caller_uid,
+        "from_name": from_name,
+        "media": media,
+        "room_slug": str(payload.get("room_slug") or ""),
+        "ts": payload.get("ts") or int(time.time() * 1000),
+    }
+
+    sent = 0
+    for token in tokens:
+        try:
+            if client.push_call_to_cid(token.cid, title, body, device_payload):
+                sent += 1
+        except requests.RequestException:
+            logger.warning(
+                "call-push: getui unreachable for %s", token.cid[:12], exc_info=True
+            )
+        except Exception:  # noqa: BLE001 — courtesy nudge, never propagate
+            logger.exception("call-push: unexpected push failure")
+    return sent
 
 
 def notify_offline(payload: dict[str, Any], client: Optional[GetuiClient] = None) -> int:
