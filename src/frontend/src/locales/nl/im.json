@@ -160,7 +160,8 @@
     "voice": "[Spraakbericht]",
     "reaction": "[Reactie]",
     "merged": "[Chatgeschiedenis]",
-    "recalled": "heeft een bericht ingetrokken"
+    "recalled": "heeft een bericht ingetrokken",
+    "call": "[Oproep]"
   },
   "voice": {
     "recording": "Opnemen…",
@@ -202,5 +203,35 @@
     "connected": "Verbonden",
     "reconnecting": "Opnieuw verbinden…",
     "auth_failed": "Authenticatie mislukt — vernieuw de pagina"
+  },
+  "call": {
+    "voice": "Spraakoproep",
+    "video": "Video-oproep",
+    "outgoingVoice": "Spraakoproep starten…",
+    "outgoingVideo": "Video-oproep starten…",
+    "waitingAnswer": "Wachten op antwoord…",
+    "incomingVoice": "nodigt je uit voor een spraakoproep",
+    "incomingVideo": "nodigt je uit voor een video-oproep",
+    "accept": "Opnemen",
+    "decline": "Weigeren",
+    "cancel": "Annuleren",
+    "connecting": "Verbinden…",
+    "roomName": "Gesprek met {{name}}",
+    "endDeclined": "Oproep geweigerd",
+    "endBusy": "De ander is in gesprek",
+    "endTimeout": "Geen antwoord",
+    "endUnreachable": "De ander is offline",
+    "endCanceledRemote": "Oproep geannuleerd",
+    "endAnsweredElsewhere": "Op een ander apparaat opgenomen",
+    "endFailed": "Oproep mislukt, probeer opnieuw",
+    "log": {
+      "voice": "Spraakoproep",
+      "video": "Video-oproep",
+      "canceled": "Geannuleerd",
+      "missed": "Geen antwoord",
+      "declined": "Geweigerd",
+      "busy": "In gesprek",
+      "unreachable": "Offline"
+    }
   }
 }

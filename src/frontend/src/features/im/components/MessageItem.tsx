@@ -1,6 +1,13 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiFile2Line, RiPlayMiniFill, RiPauseMiniFill, RiChat3Line } from '@remixicon/react'
+import {
+  RiFile2Line,
+  RiPlayMiniFill,
+  RiPauseMiniFill,
+  RiChat3Line,
+  RiPhoneLine,
+  RiVidiconLine,
+} from '@remixicon/react'
 import type { Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
@@ -181,7 +188,7 @@ const renderBody = (
   body: string,
   names: string[],
   selfNames: string[],
-  isOwn: boolean,
+  isOwn: boolean
 ): ReactNode => {
   if (names.length === 0 || !body.includes('@')) return body
   const sorted = [...names].sort((a, b) => b.length - a.length)
@@ -206,12 +213,18 @@ const renderBody = (
             key={i}
             style={
               isSelf
-                ? { backgroundColor: '#fde68a', color: '#92400e', borderRadius: '3px', padding: '0 2px', fontWeight: 700 }
+                ? {
+                    backgroundColor: '#fde68a',
+                    color: '#92400e',
+                    borderRadius: '3px',
+                    padding: '0 2px',
+                    fontWeight: 700,
+                  }
                 : { fontWeight: 700, color: isOwn ? '#dbeafe' : '#2563eb' }
             }
           >
             @{hit}
-          </span>,
+          </span>
         )
         i += 1 + hit.length
         continue
@@ -279,6 +292,62 @@ export const MessageItem = ({
           })}
         >
           {message.body}
+        </span>
+      </div>
+    )
+  }
+
+  // P1 一对一通话 call-log (body = {"media","result"}) → bubble-less phone row,
+  // mirroring the Android bubble: "语音通话 · 对方无应答".
+  if (message.content_type === 'call-log') {
+    let media = 'audio'
+    let result = 'missed'
+    try {
+      const parsed = JSON.parse(message.body) as {
+        media?: string
+        result?: string
+      }
+      media = parsed.media ?? media
+      result = parsed.result ?? result
+    } catch {
+      // Malformed body — fall through with defaults.
+    }
+    const resultKey = ['canceled', 'declined', 'busy', 'unreachable'].includes(
+      result
+    )
+      ? result
+      : 'missed'
+    return (
+      <div
+        className={css({
+          display: 'flex',
+          justifyContent: isOwn ? 'flex-end' : 'flex-start',
+          paddingX: '1rem',
+          paddingY: '0.375rem',
+        })}
+        data-testid="im-msg-calllog"
+      >
+        <span
+          className={css({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.375rem',
+            fontSize: '0.875rem',
+            color: 'greyscale.700',
+            backgroundColor: 'greyscale.100',
+            borderRadius: '0.75rem',
+            paddingX: '0.75rem',
+            paddingY: '0.5rem',
+          })}
+        >
+          {media === 'video' ? (
+            <RiVidiconLine size={16} />
+          ) : (
+            <RiPhoneLine size={16} />
+          )}
+          {t(media === 'video' ? 'call.log.video' : 'call.log.voice')}
+          {' · '}
+          {t(`call.log.${resultKey}`)}
         </span>
       </div>
     )
@@ -613,7 +682,9 @@ export const MessageItem = ({
                   borderColor: r.mine ? 'primary.300' : 'greyscale.200',
                   backgroundColor: r.mine ? 'primary.50' : 'greyscale.50',
                   color: r.mine ? 'primary.700' : 'greyscale.600',
-                  _hover: { backgroundColor: r.mine ? 'primary.100' : 'greyscale.100' },
+                  _hover: {
+                    backgroundColor: r.mine ? 'primary.100' : 'greyscale.100',
+                  },
                 })}
               >
                 <span>{r.emoji}</span>

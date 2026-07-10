@@ -37,10 +37,16 @@ export const Conference = ({
   roomId,
   initialRoomData,
   mode = 'join',
+  audioOnly = false,
 }: {
   roomId: string
   mode?: 'join' | 'create'
   initialRoomData?: ApiRoom
+  /**
+   * P1 一对一语音通话: enter with the camera off, overriding (but not
+   * mutating) the user's persisted videoEnabled preference.
+   */
+  audioOnly?: boolean
 }) => {
   const posthog = usePostHog()
   const { data: apiConfig } = useConfig()
@@ -219,6 +225,7 @@ export const Conference = ({
           connect={isConnectionWarmedUp}
           audio={userConfig.audioEnabled}
           video={
+            !audioOnly &&
             userConfig.videoEnabled && {
               processor: BackgroundProcessorFactory.fromProcessorConfig(
                 userConfig.processorConfig

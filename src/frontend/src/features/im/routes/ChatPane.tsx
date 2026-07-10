@@ -2,6 +2,8 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSnapshot } from 'valtio'
+import { RiPhoneLine, RiVidiconLine } from '@remixicon/react'
 import type { Client, ConversationSummary, Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
@@ -33,6 +35,7 @@ import {
 } from '../components/MessageContextMenu'
 import { useMessages } from '../hooks/useMessages'
 import { useReadMarkers } from '../hooks/useReadMarkers'
+import { callStore, startCall } from '../call/callController'
 
 // Recall is allowed only on your own messages within this window (WeChat: 2 min).
 const RECALL_WINDOW_MS = 2 * 60 * 1000
@@ -102,6 +105,7 @@ const snippetOf = (m: Message, t: (k: string) => string): string => {
   if (m.content_type === 'file') return t('preview.file')
   if (m.content_type === 'voice') return t('preview.voice')
   if (m.content_type === 'merged') return t('preview.merged')
+  if (m.content_type === 'call-log') return t('preview.call')
   if (m.content_type === 'quote') {
     try {
       return (JSON.parse(m.body)?.text as string) || ''
@@ -156,6 +160,8 @@ export const ChatPane = ({
 }: Props) => {
   const { t, i18n } = useTranslation('im')
   const { user } = useUser()
+  // P1 通话: re-render the header buttons' disabled state on call transitions.
+  const callSnap = useSnapshot(callStore)
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const queryClient = useQueryClient()
   const cid = conversation.cid
@@ -420,7 +426,8 @@ export const ChatPane = ({
       if (m.content_type !== 'reaction') continue
       try {
         const { target_mid, emoji, op } = JSON.parse(m.body)
-        if (typeof target_mid !== 'number' || typeof emoji !== 'string') continue
+        if (typeof target_mid !== 'number' || typeof emoji !== 'string')
+          continue
         let st = map.get(target_mid)
         if (!st) {
           st = {}
@@ -438,11 +445,7 @@ export const ChatPane = ({
 
   // 反应人显示名(飞书式 chip 显示名字):自己→「我」,群→目录名,私聊→对端标题。
   const uidDisplay = (uid: string): string =>
-    uid === currentUserUID
-      ? t('group.you')
-      : isGroup
-        ? nameOf(uid)
-        : title
+    uid === currentUserUID ? t('group.you') : isGroup ? nameOf(uid) : title
   const reactionsFor = (mid: number): ReactionChip[] => {
     const st = reactionsByMid.get(mid)
     if (!st) return []
@@ -547,6 +550,7 @@ export const ChatPane = ({
     }
     if (m.content_type === 'voice') return t('preview.voice')
     if (m.content_type === 'merged') return t('preview.merged')
+    if (m.content_type === 'call-log') return t('preview.call')
     if (m.content_type === 'quote') {
       try {
         return (JSON.parse(m.body)?.text as string) || ''
@@ -589,9 +593,11 @@ export const ChatPane = ({
   }
 
   // 右键上下文菜单(飞书式):快捷表情 + 复制 / 回复 / 撤回(自己 2 分钟内)。
-  const [menu, setMenu] = useState<{ x: number; y: number; message: Message } | null>(
-    null
-  )
+  const [menu, setMenu] = useState<{
+    x: number
+    y: number
+    message: Message
+  } | null>(null)
 
   // 稍后处理:落库 + 失效 later 查询让入口 badge / 列表即时刷新。幂等 —
   // 重复标记服务端 get_or_create 吸收,已完成条目会被重新打开。
@@ -692,6 +698,7 @@ export const ChatPane = ({
     // Control / system / already-recalled rows have no menu → native menu shows.
     if (
       m.content_type === 'system' ||
+      m.content_type === 'call-log' ||
       CONTROL_TYPES.has(m.content_type) ||
       recalledMids.has(m.mid)
     ) {
@@ -740,7 +747,9 @@ export const ChatPane = ({
 
   const receiptFor = (
     m: Message
-  ): { label: string; clickable?: boolean; onClick?: () => void } | undefined => {
+  ):
+    | { label: string; clickable?: boolean; onClick?: () => void }
+    | undefined => {
     if (m.mid !== lastOwnMid || m.seq <= 0) return undefined
     if (!isGroup) {
       if (!peerUid) return undefined
@@ -779,11 +788,9 @@ export const ChatPane = ({
 
   const onSend = async (text: string) => {
     if (replyTo) {
-      await client.sendText(
-        cid,
-        JSON.stringify({ reply_to: replyTo, text }),
-        { contentType: 'quote' }
-      )
+      await client.sendText(cid, JSON.stringify({ reply_to: replyTo, text }), {
+        contentType: 'quote',
+      })
       setReplyTo(null)
     } else {
       await client.sendText(cid, text)
@@ -880,6 +887,56 @@ export const ChatPane = ({
           >
             ⋯
           </button>
+        )}
+        {/* P1 一对一通话: voice / video call from the direct-chat header.
+            Buttons no-op while a call is already active (backstopped in the
+            controller too); the CallOverlay in ImUnreadProvider renders the
+            outgoing UI once the state machine leaves idle. */}
+        {!isGroup && peerUid && (
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                void startCall({
+                  cid,
+                  peerUid,
+                  peerName: title,
+                  peerAvatar: names[peerUid]?.avatar_url,
+                  media: 'audio',
+                  roomName: t('call.roomName', { name: title }),
+                  username: user?.full_name ?? '',
+                })
+              }
+              disabled={callSnap.state.phase !== 'idle'}
+              title={t('call.voice')}
+              aria-label={t('call.voice')}
+              data-testid="chat-voice-call"
+              className={headerBtn}
+            >
+              <RiPhoneLine size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void startCall({
+                  cid,
+                  peerUid,
+                  peerName: title,
+                  peerAvatar: names[peerUid]?.avatar_url,
+                  media: 'video',
+                  roomName: t('call.roomName', { name: title }),
+                  username: user?.full_name ?? '',
+                })
+              }
+              disabled={callSnap.state.phase !== 'idle'}
+              title={t('call.video')}
+              aria-label={t('call.video')}
+              data-testid="chat-video-call"
+              className={headerBtn}
+            >
+              <RiVidiconLine size={16} />
+            </button>
+          </>
         )}
         {!isGroup && onOpenSettings && (
           <button
@@ -1000,7 +1057,13 @@ export const ChatPane = ({
               >
                 {t('group.cancel')}
               </button>
-              <span className={css({ flex: 1, fontSize: '0.875rem', color: 'greyscale.600' })}>
+              <span
+                className={css({
+                  flex: 1,
+                  fontSize: '0.875rem',
+                  color: 'greyscale.600',
+                })}
+              >
                 {t('select.count', { count: selectedMids.size })}
               </span>
               <button

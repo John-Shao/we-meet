@@ -160,7 +160,8 @@
     "voice": "[语音]",
     "reaction": "[表情]",
     "merged": "[聊天记录]",
-    "recalled": "撤回了一条消息"
+    "recalled": "撤回了一条消息",
+    "call": "[通话]"
   },
   "voice": {
     "recording": "正在录音…",
@@ -202,5 +203,35 @@
     "connected": "已连接",
     "reconnecting": "正在重连…",
     "auth_failed": "鉴权失败,请刷新页面重试"
+  },
+  "call": {
+    "voice": "语音通话",
+    "video": "视频通话",
+    "outgoingVoice": "正在发起语音通话…",
+    "outgoingVideo": "正在发起视频通话…",
+    "waitingAnswer": "等待接听…",
+    "incomingVoice": "邀请你进行语音通话",
+    "incomingVideo": "邀请你进行视频通话",
+    "accept": "接听",
+    "decline": "拒绝",
+    "cancel": "取消",
+    "connecting": "接通中…",
+    "roomName": "与{{name}}的通话",
+    "endDeclined": "对方已拒绝",
+    "endBusy": "对方忙线中",
+    "endTimeout": "对方无应答",
+    "endUnreachable": "对方不在线",
+    "endCanceledRemote": "对方已取消",
+    "endAnsweredElsewhere": "已在其他设备接听",
+    "endFailed": "呼叫失败,请稍后重试",
+    "log": {
+      "voice": "语音通话",
+      "video": "视频通话",
+      "canceled": "已取消",
+      "missed": "对方无应答",
+      "declined": "对方已拒绝",
+      "busy": "对方忙线中",
+      "unreachable": "对方不在线"
+    }
   }
 }

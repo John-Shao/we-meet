@@ -160,7 +160,8 @@
     "voice": "[Sprachnachricht]",
     "reaction": "[Reaktion]",
     "merged": "[Chatverlauf]",
-    "recalled": "hat eine Nachricht zurückgezogen"
+    "recalled": "hat eine Nachricht zurückgezogen",
+    "call": "[Anruf]"
   },
   "voice": {
     "recording": "Aufnahme…",
@@ -202,5 +203,35 @@
     "connected": "Verbunden",
     "reconnecting": "Neuverbindung…",
     "auth_failed": "Authentifizierung fehlgeschlagen — bitte aktualisieren"
+  },
+  "call": {
+    "voice": "Sprachanruf",
+    "video": "Videoanruf",
+    "outgoingVoice": "Sprachanruf wird gestartet…",
+    "outgoingVideo": "Videoanruf wird gestartet…",
+    "waitingAnswer": "Warten auf Antwort…",
+    "incomingVoice": "lädt dich zu einem Sprachanruf ein",
+    "incomingVideo": "lädt dich zu einem Videoanruf ein",
+    "accept": "Annehmen",
+    "decline": "Ablehnen",
+    "cancel": "Abbrechen",
+    "connecting": "Verbinden…",
+    "roomName": "Anruf mit {{name}}",
+    "endDeclined": "Anruf abgelehnt",
+    "endBusy": "Gegenseite ist besetzt",
+    "endTimeout": "Keine Antwort",
+    "endUnreachable": "Gegenseite ist offline",
+    "endCanceledRemote": "Anruf abgebrochen",
+    "endAnsweredElsewhere": "Auf anderem Gerät angenommen",
+    "endFailed": "Anruf fehlgeschlagen, bitte erneut versuchen",
+    "log": {
+      "voice": "Sprachanruf",
+      "video": "Videoanruf",
+      "canceled": "Abgebrochen",
+      "missed": "Keine Antwort",
+      "declined": "Abgelehnt",
+      "busy": "Besetzt",
+      "unreachable": "Offline"
+    }
   }
 }

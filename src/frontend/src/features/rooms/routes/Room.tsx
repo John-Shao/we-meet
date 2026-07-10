@@ -22,7 +22,13 @@ const BaseRoom = ({ children }: { children: ReactNode }) => {
 
 export const Room = () => {
   const { isLoggedIn } = useUser()
-  const [hasSubmittedEntry, setHasSubmittedEntry] = useState(false)
+  // P1 一对一通话: the caller/callee already committed by calling/answering,
+  // so `autoJoin` skips the Join preview and lands straight in the room.
+  // `callAudioOnly` keeps the camera off for 语音通话 without touching the
+  // user's persisted device preferences.
+  const autoJoin = !!history.state?.autoJoin
+  const callAudioOnly = !!history.state?.callAudioOnly
+  const [hasSubmittedEntry, setHasSubmittedEntry] = useState(autoJoin)
 
   const { roomId } = useParams()
   const [location, setLocation] = useLocation()
@@ -70,6 +76,7 @@ export const Room = () => {
         initialRoomData={initialRoomData}
         roomId={roomId}
         mode={mode}
+        audioOnly={callAudioOnly}
       />
     </BaseRoom>
   )

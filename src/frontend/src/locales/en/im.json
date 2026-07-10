@@ -160,7 +160,8 @@
     "voice": "[Voice]",
     "reaction": "[Reaction]",
     "merged": "[Chat record]",
-    "recalled": "recalled a message"
+    "recalled": "recalled a message",
+    "call": "[Call]"
   },
   "voice": {
     "recording": "Recording…",
@@ -202,5 +203,35 @@
     "connected": "Connected",
     "reconnecting": "Reconnecting…",
     "auth_failed": "Authentication failed — please refresh and retry"
+  },
+  "call": {
+    "voice": "Voice call",
+    "video": "Video call",
+    "outgoingVoice": "Starting voice call…",
+    "outgoingVideo": "Starting video call…",
+    "waitingAnswer": "Waiting for answer…",
+    "incomingVoice": "invites you to a voice call",
+    "incomingVideo": "invites you to a video call",
+    "accept": "Accept",
+    "decline": "Decline",
+    "cancel": "Cancel",
+    "connecting": "Connecting…",
+    "roomName": "Call with {{name}}",
+    "endDeclined": "Call declined",
+    "endBusy": "The other party is busy",
+    "endTimeout": "No answer",
+    "endUnreachable": "The other party is offline",
+    "endCanceledRemote": "Call canceled",
+    "endAnsweredElsewhere": "Answered on another device",
+    "endFailed": "Call failed, please try again",
+    "log": {
+      "voice": "Voice call",
+      "video": "Video call",
+      "canceled": "Canceled",
+      "missed": "No answer",
+      "declined": "Declined",
+      "busy": "Busy",
+      "unreachable": "Offline"
+    }
   }
 }

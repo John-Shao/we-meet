@@ -12,7 +12,11 @@ import { Screen } from '@/layout/Screen'
 
 import { ContactPicker } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
-import type { ConversationSummary, ConvMember, Message } from '@jusi/light-im-sdk'
+import type {
+  ConversationSummary,
+  ConvMember,
+  Message,
+} from '@jusi/light-im-sdk'
 
 import { createDirectConversationByUserId } from '../api/createDirectConversation'
 import { createGroupConversation } from '../api/createGroupConversation'
@@ -290,9 +294,11 @@ const ImAuthenticated = () => {
                 ? t('preview.reaction')
                 : ct === 'recall'
                   ? t('preview.recalled')
-                  : ct === 'quote'
-                    ? parseQuoteText(c.last_message)
-                    : c.last_message ?? ''
+                  : ct === 'call-log'
+                    ? t('preview.call')
+                    : ct === 'quote'
+                      ? parseQuoteText(c.last_message)
+                      : (c.last_message ?? '')
     const ts = c.last_message_ts
     if (c.type !== 'group' || c.last_content_type === 'system') {
       return { text: body, ts }
@@ -542,147 +548,147 @@ const ImAuthenticated = () => {
           min={240}
           max={460}
         >
-        <aside
-          className={css({
-            width: '100%',
-            height: '100%',
-            borderRight: '1px solid token(colors.greyscale.200)',
-            overflowY: 'auto',
-            backgroundColor: 'greyscale.50',
-          })}
-        >
-          <div
+          <aside
             className={css({
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingX: '1rem',
-              paddingY: '0.75rem',
+              width: '100%',
+              height: '100%',
+              borderRight: '1px solid token(colors.greyscale.200)',
+              overflowY: 'auto',
+              backgroundColor: 'greyscale.50',
             })}
           >
-            <h2
+            <div
               className={css({
-                margin: 0,
-                fontSize: '1rem',
-                fontWeight: 'bold',
-                color: 'greyscale.900',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingX: '1rem',
+                paddingY: '0.75rem',
               })}
             >
-              {t('list.title')}
-            </h2>
-            <div className={css({ display: 'flex', gap: '0.375rem' })}>
-              <button
-                type="button"
-                onClick={() => setLaterOpen(true)}
-                title={t('later.title')}
-                aria-label={t('later.title')}
-                data-testid="im-later"
+              <h2
                 className={css({
-                  position: 'relative',
-                  border: '1px solid token(colors.greyscale.300)',
-                  borderRadius: '999px',
-                  backgroundColor: 'greyscale.000',
-                  width: '1.75rem',
-                  height: '1.75rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '0.9rem',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  color: 'greyscale.700',
-                  _hover: { backgroundColor: 'greyscale.100' },
+                  margin: 0,
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  color: 'greyscale.900',
                 })}
               >
-                🕐
-                {laterItems.length > 0 && (
-                  <span
-                    data-testid="im-later-badge"
-                    className={css({
-                      position: 'absolute',
-                      top: '-0.375rem',
-                      right: '-0.375rem',
-                      minWidth: '1rem',
-                      height: '1rem',
-                      paddingX: '0.25rem',
-                      borderRadius: '999px',
-                      backgroundColor: 'danger.500',
-                      color: 'greyscale.000',
-                      fontSize: '0.625rem',
-                      lineHeight: '1rem',
-                      textAlign: 'center',
-                    })}
-                  >
-                    {laterItems.length > 99 ? '99+' : laterItems.length}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setGroupSeed([])
-                  setGroupPickerOpen(true)
-                }}
-                title={t('group.button')}
-                aria-label={t('group.button')}
-                data-testid="im-new-group"
-                className={css({
-                  border: '1px solid token(colors.greyscale.300)',
-                  borderRadius: '999px',
-                  backgroundColor: 'greyscale.000',
-                  width: '1.75rem',
-                  height: '1.75rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '0.9rem',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  color: 'greyscale.700',
-                  _hover: { backgroundColor: 'greyscale.100' },
-                })}
-              >
-                👥
-              </button>
-              <button
-                type="button"
-                onClick={() => setPickerOpen(true)}
-                title={t('list.newDirect.button')}
-                aria-label={t('list.newDirect.button')}
-                data-testid="im-new-direct"
-                className={css({
-                  border: '1px solid token(colors.greyscale.300)',
-                  borderRadius: '999px',
-                  backgroundColor: 'greyscale.000',
-                  width: '1.75rem',
-                  height: '1.75rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '1.125rem',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  color: 'greyscale.700',
-                  _hover: { backgroundColor: 'greyscale.100' },
-                })}
-              >
-                +
-              </button>
+                {t('list.title')}
+              </h2>
+              <div className={css({ display: 'flex', gap: '0.375rem' })}>
+                <button
+                  type="button"
+                  onClick={() => setLaterOpen(true)}
+                  title={t('later.title')}
+                  aria-label={t('later.title')}
+                  data-testid="im-later"
+                  className={css({
+                    position: 'relative',
+                    border: '1px solid token(colors.greyscale.300)',
+                    borderRadius: '999px',
+                    backgroundColor: 'greyscale.000',
+                    width: '1.75rem',
+                    height: '1.75rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.9rem',
+                    lineHeight: 1,
+                    cursor: 'pointer',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  🕐
+                  {laterItems.length > 0 && (
+                    <span
+                      data-testid="im-later-badge"
+                      className={css({
+                        position: 'absolute',
+                        top: '-0.375rem',
+                        right: '-0.375rem',
+                        minWidth: '1rem',
+                        height: '1rem',
+                        paddingX: '0.25rem',
+                        borderRadius: '999px',
+                        backgroundColor: 'danger.500',
+                        color: 'greyscale.000',
+                        fontSize: '0.625rem',
+                        lineHeight: '1rem',
+                        textAlign: 'center',
+                      })}
+                    >
+                      {laterItems.length > 99 ? '99+' : laterItems.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGroupSeed([])
+                    setGroupPickerOpen(true)
+                  }}
+                  title={t('group.button')}
+                  aria-label={t('group.button')}
+                  data-testid="im-new-group"
+                  className={css({
+                    border: '1px solid token(colors.greyscale.300)',
+                    borderRadius: '999px',
+                    backgroundColor: 'greyscale.000',
+                    width: '1.75rem',
+                    height: '1.75rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.9rem',
+                    lineHeight: 1,
+                    cursor: 'pointer',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  👥
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  title={t('list.newDirect.button')}
+                  aria-label={t('list.newDirect.button')}
+                  data-testid="im-new-direct"
+                  className={css({
+                    border: '1px solid token(colors.greyscale.300)',
+                    borderRadius: '999px',
+                    backgroundColor: 'greyscale.000',
+                    width: '1.75rem',
+                    height: '1.75rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.125rem',
+                    lineHeight: 1,
+                    cursor: 'pointer',
+                    color: 'greyscale.700',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  +
+                </button>
+              </div>
             </div>
-          </div>
-          <ConversationList
-            conversations={conversations}
-            selectedCID={selectedCID}
-            onSelect={setSelectedCID}
-            loading={convLoading}
-            nameOf={nameOf}
-            avatarOf={avatarOf}
-            membersOf={membersOf}
-            onDelete={handleDelete}
-            mentionedCids={mentionedCids}
-            previewOf={previewOf}
-          />
-        </aside>
+            <ConversationList
+              conversations={conversations}
+              selectedCID={selectedCID}
+              onSelect={setSelectedCID}
+              loading={convLoading}
+              nameOf={nameOf}
+              avatarOf={avatarOf}
+              membersOf={membersOf}
+              onDelete={handleDelete}
+              mentionedCids={mentionedCids}
+              previewOf={previewOf}
+            />
+          </aside>
         </ResizablePanel>
         <main
           className={css({
@@ -718,8 +724,7 @@ const ImAuthenticated = () => {
               onForwardMany={(p) => setForwardingMany(p)}
               onMemberClick={(userId) => navigate(`/contacts?member=${userId}`)}
               infoPanel={
-                rightPanel === 'members' &&
-                selectedConv.type === 'group' ? (
+                rightPanel === 'members' && selectedConv.type === 'group' ? (
                   <GroupMembersPanel
                     client={client}
                     conversation={selectedConv}

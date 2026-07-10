@@ -160,7 +160,8 @@
     "voice": "[Vocal]",
     "reaction": "[Réaction]",
     "merged": "[Historique de discussion]",
-    "recalled": "a retiré un message"
+    "recalled": "a retiré un message",
+    "call": "[Appel]"
   },
   "voice": {
     "recording": "Enregistrement…",
@@ -202,5 +203,35 @@
     "connected": "Connecté",
     "reconnecting": "Reconnexion en cours…",
     "auth_failed": "Échec d'authentification — veuillez actualiser la page"
+  },
+  "call": {
+    "voice": "Appel vocal",
+    "video": "Appel vidéo",
+    "outgoingVoice": "Démarrage de l'appel vocal…",
+    "outgoingVideo": "Démarrage de l'appel vidéo…",
+    "waitingAnswer": "En attente de réponse…",
+    "incomingVoice": "vous invite à un appel vocal",
+    "incomingVideo": "vous invite à un appel vidéo",
+    "accept": "Accepter",
+    "decline": "Refuser",
+    "cancel": "Annuler",
+    "connecting": "Connexion…",
+    "roomName": "Appel avec {{name}}",
+    "endDeclined": "Appel refusé",
+    "endBusy": "L'autre partie est occupée",
+    "endTimeout": "Pas de réponse",
+    "endUnreachable": "L'autre partie est hors ligne",
+    "endCanceledRemote": "Appel annulé",
+    "endAnsweredElsewhere": "Répondu sur un autre appareil",
+    "endFailed": "Échec de l'appel, veuillez réessayer",
+    "log": {
+      "voice": "Appel vocal",
+      "video": "Appel vidéo",
+      "canceled": "Annulé",
+      "missed": "Pas de réponse",
+      "declined": "Refusé",
+      "busy": "Occupé",
+      "unreachable": "Hors ligne"
+    }
   }
 }

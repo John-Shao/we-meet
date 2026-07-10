@@ -3,6 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useImConnection } from '../hooks/useImConnection'
 
+import { CallOverlay } from '../call/CallOverlay'
+import { initCallController } from '../call/callController'
+
 /**
  * Global IM presence + unread aggregator (P6-e). Mounted once above the rail so
  * the SDK client connects app-wide (not just on /im) and the rail's 消息 badge
@@ -43,6 +46,12 @@ const ImUnreadConnected = ({ children }: { children: ReactNode }) => {
   const { client } = useImConnection()
   const qc = useQueryClient()
 
+  // P1 1:1 calls: bind the call state machine to the app-wide client so an
+  // incoming invite rings on ANY page; the overlay below renders it.
+  useEffect(() => {
+    initCallController(client)
+  }, [client])
+
   const { data: conversations = [] } = useQuery({
     queryKey: ['im', 'conversations'],
     queryFn: () => client.listConversations(),
@@ -70,6 +79,7 @@ const ImUnreadConnected = ({ children }: { children: ReactNode }) => {
   return (
     <ImUnreadContext.Provider value={{ messages }}>
       {children}
+      <CallOverlay />
     </ImUnreadContext.Provider>
   )
 }
