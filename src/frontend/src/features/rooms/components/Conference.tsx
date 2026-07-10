@@ -32,6 +32,7 @@ import { isFireFox } from '@/utils/livekit'
 import { useIsMobile } from '@/utils/useIsMobile'
 import { navigateTo } from '@/navigation/navigateTo'
 import { connectionObserverStore } from '@/stores/connectionObserver'
+import { notifyCallRoomLeft } from '@/features/im/call/callController'
 
 export const Conference = ({
   roomId,
@@ -58,6 +59,11 @@ export const Conference = ({
   useEffect(() => {
     posthog.capture('visit-room', { slug: roomId })
   }, [roomId, posthog])
+
+  // P1 一对一通话: leaving the room ends the call — the controller persists
+  // the "completed + duration" call-log if this device was the caller of a
+  // connected 1:1 call. Plain meetings no-op inside.
+  useEffect(() => () => notifyCallRoomLeft(), [])
   const fetchKey = [keys.room, roomId]
 
   const [isConnectionWarmedUp, setIsConnectionWarmedUp] = useState(false)

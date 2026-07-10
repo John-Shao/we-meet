@@ -42,6 +42,7 @@ export type CallEndReason =
   | 'busy' // peer busy
   | 'unreachable' // peer offline (server short-circuit)
   | 'answeredElsewhere' // another of my devices took it
+  | 'declinedElsewhere' // another of my devices rejected it
   | 'failed' // room create or socket failure
 
 export interface CallInfo {
@@ -81,6 +82,10 @@ let timeoutTimer: ReturnType<typeof setTimeout> | null = null
 let resendTimer: ReturnType<typeof setInterval> | null = null
 let lingerTimer: ReturnType<typeof setTimeout> | null = null
 const finishedCallIds: string[] = []
+
+/** A connected 1:1 call in flight on this device as the caller (drives the duration log). */
+let connectedCall: { cid: string; media: CallMedia; startedAt: number } | null =
+  null
 
 /**
  * Wire the controller to the app-wide SDK client. Idempotent; called from
@@ -272,6 +277,13 @@ const onAccept = (p: CallPayload): void => {
       finish(s.info, 'failed', { endRoom: true })
       return
     }
+    // Track the connected call so leaving the room can persist the
+    // "通话时长 mm:ss" log (caller side only — one party writes records).
+    connectedCall = {
+      cid: s.info.cid,
+      media: s.info.media,
+      startedAt: Date.now(),
+    }
     enterRoom(slug, s.info)
     finishQuietly(s.info)
   } else if (s.phase === 'incoming' && p.from === selfUid) {
@@ -288,13 +300,37 @@ const onTerminal = (
   const s = callStore.state
   if (!('info' in s) || s.info.callId !== p.call_id) return
   if (p.from === selfUid) {
-    // My own echo of a terminal I initiated — already handled locally; on a
-    // still-ringing other device it means "answered/declined elsewhere".
-    if (s.phase === 'incoming') finish(s.info, 'answeredElsewhere')
+    // My own echo of a terminal I initiated — already handled locally. On a
+    // still-ringing OTHER device of mine, converge with the right label: an
+    // echoed reject means "declined elsewhere", not "answered".
+    if (s.phase === 'incoming') {
+      finish(
+        s.info,
+        reason === 'declined' ? 'declinedElsewhere' : 'answeredElsewhere'
+      )
+    }
     return
   }
   if (s.info.outgoing && logResult) void sendCallLog(s.info, logResult)
   finish(s.info, reason, { endRoom: s.info.outgoing })
+}
+
+/**
+ * Called when the LiveKit room screen unmounts (Conference cleanup). If a
+ * connected 1:1 call was in flight on this device as the CALLER, persist the
+ * "completed + duration" call-log. Plain meetings and callee-side sessions
+ * no-op (connectedCall is only set on the caller's accept).
+ */
+export const notifyCallRoomLeft = (): void => {
+  const c = connectedCall
+  if (!c) return
+  connectedCall = null
+  const durationSec = Math.max(1, Math.round((Date.now() - c.startedAt) / 1000))
+  void sendCallLog(
+    { cid: c.cid, media: c.media } as CallInfo,
+    'completed',
+    durationSec
+  )
 }
 
 // ---- timers ----
@@ -375,13 +411,23 @@ const replyTo = (
 }
 
 /** 拍板 #2: persist the attempt as a call-log chat message (caller only). */
-const sendCallLog = async (info: CallInfo, result: string): Promise<void> => {
+const sendCallLog = async (
+  info: CallInfo,
+  result: string,
+  durationSec?: number
+): Promise<void> => {
   const c = client
   if (!c) return
   try {
-    await c.sendText(info.cid, JSON.stringify({ media: info.media, result }), {
-      contentType: 'call-log',
-    })
+    await c.sendText(
+      info.cid,
+      JSON.stringify({
+        media: info.media,
+        result,
+        ...(durationSec ? { duration: durationSec } : {}),
+      }),
+      { contentType: 'call-log' }
+    )
   } catch {
     // Best-effort — losing the log must not break call teardown.
   }

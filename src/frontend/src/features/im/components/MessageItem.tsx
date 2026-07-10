@@ -237,6 +237,16 @@ const renderBody = (
   return out
 }
 
+/** 通话时长 mm:ss (h:mm:ss beyond an hour) for completed call-log rows. */
+const formatCallDuration = (sec: number): string => {
+  const s = Math.max(0, Math.round(sec))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const ss = s % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(ss)}` : `${pad(m)}:${pad(ss)}`
+}
+
 export const MessageItem = ({
   message,
   isOwn,
@@ -297,26 +307,42 @@ export const MessageItem = ({
     )
   }
 
-  // P1 一对一通话 call-log (body = {"media","result"}) → bubble-less phone row,
-  // mirroring the Android bubble: "语音通话 · 对方无应答".
+  // P1 一对一通话 call-log (body = {"media","result","duration"?}) →
+  // bubble-less phone row, mirroring the Android bubble.
+  //
+  // Perspective-aware wording: the call-log's SENDER is always the caller, so
+  // isOwn means "I placed this call". The same declined record must read
+  // 「对方已拒绝」 to the caller but 「已拒绝」 to the callee who tapped it.
+  // Completed calls render the duration instead — identical on both sides.
   if (message.content_type === 'call-log') {
     let media = 'audio'
     let result = 'missed'
+    let duration = 0
     try {
       const parsed = JSON.parse(message.body) as {
         media?: string
         result?: string
+        duration?: number
       }
       media = parsed.media ?? media
       result = parsed.result ?? result
+      duration = parsed.duration ?? 0
     } catch {
       // Malformed body — fall through with defaults.
     }
-    const resultKey = ['canceled', 'declined', 'busy', 'unreachable'].includes(
-      result
-    )
+    const base = [
+      'canceled',
+      'declined',
+      'busy',
+      'unreachable',
+      'completed',
+    ].includes(result)
       ? result
       : 'missed'
+    const resultText =
+      base === 'completed'
+        ? formatCallDuration(duration)
+        : t(`call.log.${base}${isOwn ? '' : 'Peer'}`)
     return (
       <div
         className={css({
@@ -347,7 +373,7 @@ export const MessageItem = ({
           )}
           {t(media === 'video' ? 'call.log.video' : 'call.log.voice')}
           {' · '}
-          {t(`call.log.${resultKey}`)}
+          {resultText}
         </span>
       </div>
     )

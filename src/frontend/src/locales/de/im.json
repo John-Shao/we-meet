@@ -231,7 +231,13 @@
       "missed": "Keine Antwort",
       "declined": "Abgelehnt",
       "busy": "Besetzt",
-      "unreachable": "Offline"
-    }
+      "unreachable": "Offline",
+      "canceledPeer": "Vom Anrufer abgebrochen",
+      "missedPeer": "Verpasst",
+      "declinedPeer": "Abgelehnt",
+      "busyPeer": "Verpasst (besetzt)",
+      "unreachablePeer": "Verpasst (offline)"
+    },
+    "endDeclinedElsewhere": "Auf anderem Gerät abgelehnt"
   }
 }

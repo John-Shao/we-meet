@@ -231,7 +231,13 @@
       "missed": "对方无应答",
       "declined": "对方已拒绝",
       "busy": "对方忙线中",
-      "unreachable": "对方不在线"
-    }
+      "unreachable": "对方不在线",
+      "canceledPeer": "对方已取消",
+      "missedPeer": "未接听",
+      "declinedPeer": "已拒绝",
+      "busyPeer": "忙线未接",
+      "unreachablePeer": "离线未接"
+    },
+    "endDeclinedElsewhere": "已在其他设备拒绝"
   }
 }

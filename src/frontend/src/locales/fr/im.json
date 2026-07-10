@@ -231,7 +231,13 @@
       "missed": "Pas de réponse",
       "declined": "Refusé",
       "busy": "Occupé",
-      "unreachable": "Hors ligne"
-    }
+      "unreachable": "Hors ligne",
+      "canceledPeer": "Annulé par l'appelant",
+      "missedPeer": "Manqué",
+      "declinedPeer": "Refusé",
+      "busyPeer": "Manqué (occupé)",
+      "unreachablePeer": "Manqué (hors ligne)"
+    },
+    "endDeclinedElsewhere": "Refusé sur un autre appareil"
   }
 }

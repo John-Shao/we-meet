@@ -231,7 +231,13 @@
       "missed": "Geen antwoord",
       "declined": "Geweigerd",
       "busy": "In gesprek",
-      "unreachable": "Offline"
-    }
+      "unreachable": "Offline",
+      "canceledPeer": "Geannuleerd door beller",
+      "missedPeer": "Gemist",
+      "declinedPeer": "Geweigerd",
+      "busyPeer": "Gemist (in gesprek)",
+      "unreachablePeer": "Gemist (offline)"
+    },
+    "endDeclinedElsewhere": "Op een ander apparaat geweigerd"
   }
 }

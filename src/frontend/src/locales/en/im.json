@@ -231,7 +231,13 @@
       "missed": "No answer",
       "declined": "Declined",
       "busy": "Busy",
-      "unreachable": "Offline"
-    }
+      "unreachable": "Offline",
+      "canceledPeer": "Canceled by the other party",
+      "missedPeer": "Missed",
+      "declinedPeer": "Declined",
+      "busyPeer": "Missed (busy)",
+      "unreachablePeer": "Missed (offline)"
+    },
+    "endDeclinedElsewhere": "Declined on another device"
   }
 }

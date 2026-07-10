@@ -202,6 +202,8 @@ const endReasonText = (
       return t('call.endCanceledRemote')
     case 'answeredElsewhere':
       return t('call.endAnsweredElsewhere')
+    case 'declinedElsewhere':
+      return t('call.endDeclinedElsewhere')
     case 'failed':
       return t('call.endFailed')
     // Locally-initiated endings show no lingering message; the overlay just
