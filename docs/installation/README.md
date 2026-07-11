@@ -34,5 +34,6 @@ Currently, no cloud providers are listed for deploying La Suite Meet.
 本 fork 的实际部署与发布文档:
 - [阿里云生产部署(首次安装)](./aliyun.md)
 - [阿里云日常发布 Runbook(改代码后上线)](./aliyun-release-runbook-cn.md) —— build+push → 何时需 helm upgrade / rollout / migrate 的判断表,含实例
+- [京东云迁移 Runbook(meet 迁云 + 旧机改 Docs)](./jdcloud-migration-runbook-cn.md) —— 把 aliyun.md §十四 + docs-server.md 合成的连贯执行清单,含备案接入 / PG 迁移 / DNS 切换 / 回滚预案
 - [本地开发(Windows + 国内,Tilt/kind)](./local-dev-tilt-windows-cn.md)
 - [IM 跨仓发布「三波曲」](./im-release-three-waves-cn.md) —— 改动同时涉及 jusi-light-im(IM 后端)+ `@jusi/light-im-sdk` + we-meet 时的协调发布流程(① jusi → ② SDK → ③ we-meet),含 lockfile integrity / `tsc -b` / 镜像缓存等踩坑清单
