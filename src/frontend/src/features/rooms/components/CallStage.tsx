@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { Track } from 'livekit-client'
 import {
   RoomAudioRenderer,
@@ -9,6 +10,7 @@ import {
 import { css } from '@/styled-system/css'
 import { RiMicFill, RiMicOffFill, RiPhoneFill } from '@remixicon/react'
 import { Avatar } from '@/features/im/components/Avatar'
+import { resolveImUsers } from '@/features/im/api/resolveImUsers'
 import { navigateTo } from '@/navigation/navigateTo'
 
 /**
@@ -27,6 +29,19 @@ export const CallStage = ({
   const { enabled: micEnabled, toggle: toggleMic } = useTrackToggle({
     source: Track.Source.Microphone,
   })
+
+  // Resolve the peer's display name/avatar, same as CallOverlay: on the
+  // callee side the router state only carries the uid (peerName falls back
+  // to it), and a state-carried avatar URL is a presigned link that may
+  // already be stale — re-resolving covers both.
+  const { data: names } = useQuery({
+    queryKey: ['im', 'resolve', peer.uid],
+    queryFn: () => resolveImUsers([peer.uid]),
+    staleTime: 300_000,
+  })
+  const resolved = names?.[peer.uid]
+  const displayName = resolved?.full_name || resolved?.short_name || peer.name
+  const avatarUrl = resolved?.avatar_url || peer.avatar
 
   // Anchored on mount: both sides land here at accept, so mount ≈ connected.
   const [startMs] = useState(() => Date.now())
@@ -52,8 +67,8 @@ export const CallStage = ({
     <div className={stageRoot} data-testid="call-stage">
       <RoomAudioRenderer />
       <div className={centerCol}>
-        <Avatar name={peer.name} src={peer.avatar} size="7rem" />
-        <div className={nameText}>{peer.name}</div>
+        <Avatar name={displayName} src={avatarUrl} size="7rem" />
+        <div className={nameText}>{displayName}</div>
         <div className={durationText}>{formatElapsed(elapsed)}</div>
       </div>
       <div className={bottomRow}>
