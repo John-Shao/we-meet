@@ -13,6 +13,7 @@ from lasuite.oidc_login.backends import (
 
 from core.models import Membership, MembershipStatusChoices, Organization, User
 from core.services.invitation_provisioning import claim_pending_invitations
+from core.services.keycloak_phone import sync_user_phone
 from core.services.marketing import (
     ContactCreationError,
     ContactData,
@@ -72,6 +73,9 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
                 "Failed to claim pending invitations for user %s", user.pk
             )
         self.ensure_default_org_membership(user)
+        # P3: mirror Keycloak phoneNumber → User.phone (idempotent, self-healing
+        # on every login). Best-effort inside the service; never blocks sign-in.
+        sync_user_phone(user)
 
     @staticmethod
     def ensure_default_org_membership(user):

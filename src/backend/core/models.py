@@ -169,6 +169,18 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
     short_name = models.CharField(
         _("short name"), max_length=100, null=True, blank=True
     )
+    phone = models.CharField(
+        _("phone"),
+        help_text=_(
+            "Mobile number, authoritative copy in Keycloak (phoneNumber attribute); "
+            "synced here on each login by the OIDC backend. Empty for accounts "
+            "without a phone (email/device users). Same-org visible, masked by "
+            "default — full number only via the reveal endpoint (P3)."
+        ),
+        max_length=32,
+        blank=True,
+        default="",
+    )
     im_uid = models.CharField(
         _("IM uid"),
         help_text=_(

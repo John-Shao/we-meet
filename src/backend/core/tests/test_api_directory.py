@@ -2,6 +2,8 @@
 API tests for the directory (通讯录) endpoints.
 """
 
+from unittest import mock
+
 import pytest
 from rest_framework.test import APIClient
 
@@ -98,6 +100,117 @@ def test_api_directory_member_retrieve_by_user_id_flags_self():
     body = response.json()
     assert body["id"] == str(me.id)
     assert body["is_self"] is True
+
+
+# ---- P3 phone: masking + reveal ----
+
+
+def test_api_directory_phone_masked_for_others_full_for_self():
+    """Others' phone is masked (138****1990); own card carries the full number."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(full_name="Me", email="me@acme.com", phone="13800001990")
+    peer = factories.UserFactory(
+        full_name="Peer", email="peer@acme.com", phone="13911112222"
+    )
+    _membership(org, me)
+    _membership(org, peer)
+
+    client = APIClient()
+    client.force_login(me)
+
+    peer_card = client.get(f"/api/v1.0/directory/members/{peer.id}/").json()
+    assert peer_card["phone"] == "139****2222"  # first 3 + last 4
+
+    self_card = client.get(f"/api/v1.0/directory/members/{me.id}/").json()
+    assert self_card["phone"] == "13800001990"  # full for self
+
+
+def test_api_directory_phone_empty_when_unset():
+    """No phone → empty string, never a masked '****'."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="me@acme.com")
+    peer = factories.UserFactory(email="peer@acme.com", phone="")
+    _membership(org, me)
+    _membership(org, peer)
+
+    client = APIClient()
+    client.force_login(me)
+    card = client.get(f"/api/v1.0/directory/members/{peer.id}/").json()
+    assert card["phone"] == ""
+
+
+def test_api_reveal_phone_returns_full_and_notifies():
+    """reveal-phone returns the full number and fires the owner notice."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="me@acme.com")
+    peer = factories.UserFactory(email="peer@acme.com", phone="13911112222")
+    _membership(org, me)
+    _membership(org, peer)
+
+    client = APIClient()
+    client.force_login(me)
+    with mock.patch("core.api.directory.send_phone_viewed_notice") as notice:
+        resp = client.post(f"/api/v1.0/directory/members/{peer.id}/reveal-phone/")
+
+    assert resp.status_code == 200
+    assert resp.json()["phone"] == "13911112222"
+    notice.assert_called_once()
+
+
+def test_api_reveal_phone_self_no_notice():
+    """Revealing own number returns it but sends no notice."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="me@acme.com", phone="13800001990")
+    _membership(org, me)
+
+    client = APIClient()
+    client.force_login(me)
+    with mock.patch("core.api.directory.send_phone_viewed_notice") as notice:
+        resp = client.post(f"/api/v1.0/directory/members/{me.id}/reveal-phone/")
+
+    assert resp.status_code == 200
+    assert resp.json()["phone"] == "13800001990"
+    notice.assert_not_called()
+
+
+def test_api_reveal_phone_cross_org_404():
+    """A member from another org is invisible → reveal 404, no notice."""
+    org = factories.OrganizationFactory()
+    other = factories.OrganizationFactory()
+    me = factories.UserFactory(email="me@acme.com")
+    stranger = factories.UserFactory(email="s@other.com", phone="13777778888")
+    _membership(org, me)
+    _membership(other, stranger)
+
+    client = APIClient()
+    client.force_login(me)
+    with mock.patch("core.api.directory.send_phone_viewed_notice") as notice:
+        resp = client.post(
+            f"/api/v1.0/directory/members/{stranger.id}/reveal-phone/"
+        )
+
+    assert resp.status_code == 404
+    notice.assert_not_called()
+
+
+def test_api_reveal_phone_notice_failure_still_returns():
+    """A jusi hiccup in the notice must not fail the reveal."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="me@acme.com")
+    peer = factories.UserFactory(email="peer@acme.com", phone="13911112222")
+    _membership(org, me)
+    _membership(org, peer)
+
+    client = APIClient()
+    client.force_login(me)
+    with mock.patch(
+        "core.api.directory.send_phone_viewed_notice",
+        side_effect=RuntimeError("jusi down"),
+    ):
+        resp = client.post(f"/api/v1.0/directory/members/{peer.id}/reveal-phone/")
+
+    assert resp.status_code == 200
+    assert resp.json()["phone"] == "13911112222"
 
 
 def test_api_directory_departments_scoped_and_listed():

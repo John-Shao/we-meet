@@ -11,9 +11,11 @@ console (P1-d). Every queryset is scoped to the caller's organization from day
 one, even though MVP runs a single organization.
 """
 
+import logging
+
 from django.db.models import Q
 
-from rest_framework import mixins, serializers, viewsets
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -22,6 +24,9 @@ from core import models, utils
 from core.api import permissions
 from core.api.serializers import UserLightSerializer
 from core.api.viewsets import Pagination
+from core.services.phone_reveal import send_phone_viewed_notice
+
+logger = logging.getLogger(__name__)
 
 
 def get_caller_organization(user):
@@ -61,6 +66,16 @@ class DepartmentSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+def mask_phone(phone: str) -> str:
+    """Mask a phone for display: keep first 3 + last 4, star the middle
+    (138****1990). Numbers too short to keep both ends are fully starred.
+    The full number is served only by the reveal-phone endpoint (P3)."""
+    p = (phone or "").strip()
+    if len(p) <= 7:
+        return "*" * len(p)
+    return f"{p[:3]}****{p[-4:]}"
+
+
 class DirectoryMemberSerializer(serializers.Serializer):
     """Serialize a Membership row as a person-card for the directory / picker.
 
@@ -82,6 +97,7 @@ class DirectoryMemberSerializer(serializers.Serializer):
     org_role = serializers.CharField(read_only=True)
     department = serializers.SerializerMethodField()
     is_self = serializers.SerializerMethodField()
+    phone = serializers.SerializerMethodField()
 
     def get_avatar_url(self, obj):
         """Short-lived presigned GET URL for the avatar, '' if unset."""
@@ -97,6 +113,19 @@ class DirectoryMemberSerializer(serializers.Serializer):
         """Whether this card is the caller (lets the UI hide 'message myself')."""
         request = self.context.get("request")
         return bool(request and obj.user_id == request.user.id)
+
+    def get_phone(self, obj):
+        """Phone for the card. Same-org visibility is already enforced by the
+        queryset; here we only decide masking: self → full, others → masked
+        (138****1990). Empty when the user has no phone. The full number for
+        another member comes only from the reveal-phone endpoint (P3)."""
+        phone = obj.user.phone or ""
+        if not phone:
+            return ""
+        request = self.context.get("request")
+        if request and obj.user_id == request.user.id:
+            return phone
+        return mask_phone(phone)
 
 
 class DepartmentViewSet(
@@ -202,6 +231,31 @@ class DirectoryMemberViewSet(
         context = super().get_serializer_context()
         context["request"] = self.request
         return context
+
+    @action(detail=True, methods=["post"], url_path="reveal-phone")
+    def reveal_phone(self, request, user_id=None):
+        """Return a member's FULL phone number (the masked list never carries it).
+
+        Same-org visibility is enforced by get_queryset (cross-org → 404). Any
+        reveal of ANOTHER member's number posts a `phone-viewed` system message
+        into the direct conversation so the owner is notified (best-effort — a
+        jusi hiccup never blocks the reveal). Revealing one's own number is a
+        no-op notice-wise.
+        """
+        membership = self.get_object()
+        target = membership.user
+        phone = target.phone or ""
+        if phone and target.id != request.user.id:
+            try:
+                send_phone_viewed_notice(request.user, target)
+            except Exception:  # noqa: BLE001 — notice is best-effort
+                logger.warning(
+                    "phone-viewed notice failed (viewer=%s owner=%s)",
+                    request.user.pk,
+                    target.pk,
+                    exc_info=True,
+                )
+        return Response({"phone": phone}, status=status.HTTP_200_OK)
 
 
 class DirectoryMeView(APIView):

@@ -38,6 +38,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "email",
+            "phone",
             "full_name",
             "short_name",
             "timezone",
@@ -46,7 +47,8 @@ class UserSerializer(serializers.ModelSerializer):
             "avatar_url",
             "cover_url",
         ]
-        read_only_fields = ["id", "email", "full_name", "short_name"]
+        # phone: self viewing self → full number, no masking (P3).
+        read_only_fields = ["id", "email", "phone", "full_name", "short_name"]
 
     def get_avatar_url(self, instance):
         """Return a short-lived presigned GET URL for the avatar, '' if unset."""
