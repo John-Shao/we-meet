@@ -239,7 +239,12 @@
       "busyPeer": "Manqué (occupé)",
       "unreachablePeer": "Manqué (hors ligne)"
     },
-    "endDeclinedElsewhere": "Refusé sur un autre appareil"
+    "endDeclinedElsewhere": "Refusé sur un autre appareil",
+    "stage": {
+      "micOn": "Micro activé",
+      "muted": "Muet",
+      "hangup": "Raccrocher"
+    }
   },
   "phoneViewed": {
     "byMe": "Vous avez consulté son numéro",

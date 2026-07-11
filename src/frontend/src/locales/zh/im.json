@@ -239,7 +239,12 @@
       "busyPeer": "忙线未接",
       "unreachablePeer": "离线未接"
     },
-    "endDeclinedElsewhere": "已在其他设备拒绝"
+    "endDeclinedElsewhere": "已在其他设备拒绝",
+    "stage": {
+      "micOn": "麦克风已开",
+      "muted": "已静音",
+      "hangup": "挂断"
+    }
   },
   "phoneViewed": {
     "byMe": "你查看了对方的手机号码",

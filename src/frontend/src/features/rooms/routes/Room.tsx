@@ -28,6 +28,12 @@ export const Room = () => {
   // user's persisted device preferences.
   const autoJoin = !!history.state?.autoJoin
   const callAudioOnly = !!history.state?.callAudioOnly
+  // Peer identity carried by the call controller for the minimal in-call UI
+  // (voice). Lost on refresh (clearRouterState) — acceptable: a refreshed call
+  // is a dropped call, and the UI just falls back to the full meeting view.
+  const callPeer = history.state?.callPeer as
+    | { uid: string; name: string; avatar?: string }
+    | undefined
   const [hasSubmittedEntry, setHasSubmittedEntry] = useState(autoJoin)
 
   const { roomId } = useParams()
@@ -77,6 +83,7 @@ export const Room = () => {
         roomId={roomId}
         mode={mode}
         audioOnly={callAudioOnly}
+        callPeer={callPeer}
       />
     </BaseRoom>
   )

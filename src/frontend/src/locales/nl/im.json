@@ -239,7 +239,12 @@
       "busyPeer": "Gemist (in gesprek)",
       "unreachablePeer": "Gemist (offline)"
     },
-    "endDeclinedElsewhere": "Op een ander apparaat geweigerd"
+    "endDeclinedElsewhere": "Op een ander apparaat geweigerd",
+    "stage": {
+      "micOn": "Microfoon aan",
+      "muted": "Gedempt",
+      "hangup": "Ophangen"
+    }
   },
   "phoneViewed": {
     "byMe": "Je hebt hun nummer bekeken",

@@ -239,7 +239,12 @@
       "busyPeer": "Verpasst (besetzt)",
       "unreachablePeer": "Verpasst (offline)"
     },
-    "endDeclinedElsewhere": "Auf anderem Gerät abgelehnt"
+    "endDeclinedElsewhere": "Auf anderem Gerät abgelehnt",
+    "stage": {
+      "micOn": "Mikro an",
+      "muted": "Stumm",
+      "hangup": "Auflegen"
+    }
   },
   "phoneViewed": {
     "byMe": "Du hast die Telefonnummer angesehen",

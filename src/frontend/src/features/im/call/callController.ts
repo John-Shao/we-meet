@@ -440,6 +440,14 @@ const enterRoom = (slug: string, info: CallInfo): void => {
       autoJoin: true,
       // 语音通话 enters with the camera off (does not touch saved preferences).
       callAudioOnly: info.media === 'audio',
+      // Peer identity for the minimal in-call UI. Router state is the only
+      // carrier: the callStore resets the moment we navigate (finishQuietly),
+      // and LiveKit participants carry no photo.
+      callPeer: {
+        uid: info.peerUid,
+        name: info.peerName,
+        avatar: info.peerAvatar,
+      },
     },
   })
 }

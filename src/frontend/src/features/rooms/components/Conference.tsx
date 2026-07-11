@@ -22,6 +22,7 @@ import { ApiRoom } from '../api/ApiRoom'
 import { useCreateRoom } from '../api/createRoom'
 import { InviteDialog } from './InviteDialog'
 import { VideoConference } from '../livekit/prefabs/VideoConference'
+import { CallStage } from './CallStage'
 import { css } from '@/styled-system/css'
 import { BackgroundProcessorFactory } from '../livekit/components/blur'
 import { LocalUserChoices } from '@/stores/userChoices'
@@ -39,6 +40,7 @@ export const Conference = ({
   initialRoomData,
   mode = 'join',
   audioOnly = false,
+  callPeer,
 }: {
   roomId: string
   mode?: 'join' | 'create'
@@ -48,6 +50,11 @@ export const Conference = ({
    * mutating) the user's persisted videoEnabled preference.
    */
   audioOnly?: boolean
+  /**
+   * Peer of a 1:1 call. Together with [audioOnly] it swaps the meeting UI for
+   * the minimal voice-call stage (avatar + name + duration + mic/hangup).
+   */
+  callPeer?: { uid: string; name: string; avatar?: string }
 }) => {
   const posthog = usePostHog()
   const { data: apiConfig } = useConfig()
@@ -296,7 +303,11 @@ export const Conference = ({
             }
           }}
         >
-          <VideoConference />
+          {callPeer && audioOnly ? (
+            <CallStage peer={callPeer} />
+          ) : (
+            <VideoConference />
+          )}
           {showInviteDialog && !isMobile && (
             <InviteDialog
               isOpen={showInviteDialog}

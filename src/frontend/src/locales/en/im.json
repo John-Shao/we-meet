@@ -239,7 +239,12 @@
       "busyPeer": "Missed (busy)",
       "unreachablePeer": "Missed (offline)"
     },
-    "endDeclinedElsewhere": "Declined on another device"
+    "endDeclinedElsewhere": "Declined on another device",
+    "stage": {
+      "micOn": "Mic on",
+      "muted": "Muted",
+      "hangup": "Hang up"
+    }
   },
   "phoneViewed": {
     "byMe": "You viewed their phone number",
