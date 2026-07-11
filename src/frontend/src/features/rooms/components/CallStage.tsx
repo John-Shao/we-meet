@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Track } from 'livekit-client'
 import {
   RoomAudioRenderer,
+  useRemoteParticipants,
   useRoomContext,
   useTrackToggle,
 } from '@livekit/components-react'
@@ -62,6 +63,24 @@ export const CallStage = ({
       .disconnect(true)
       .catch((e) => console.error('hangup: disconnect failed:', e))
   }
+
+  // 1:1 semantics: the peer leaving ends the call on this side too (a meeting
+  // outlives any participant; a call doesn't). Armed only once the peer has
+  // actually been seen, and debounced so the participant-list blip of a
+  // LiveKit reconnect doesn't fake a hangup — any list change clears the
+  // pending leave.
+  const peerSeenRef = useRef(false)
+  const remoteParticipants = useRemoteParticipants()
+  useEffect(() => {
+    if (remoteParticipants.length > 0) {
+      peerSeenRef.current = true
+      return
+    }
+    if (!peerSeenRef.current) return
+    const timer = setTimeout(handleHangup, 1_500)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteParticipants])
 
   return (
     <div className={stageRoot} data-testid="call-stage">
