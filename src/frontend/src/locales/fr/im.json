@@ -243,7 +243,9 @@
     "stage": {
       "micOn": "Micro activé",
       "muted": "Muet",
-      "hangup": "Raccrocher"
+      "hangup": "Raccrocher",
+      "cameraOn": "Caméra activée",
+      "cameraOff": "Caméra coupée"
     }
   },
   "phoneViewed": {

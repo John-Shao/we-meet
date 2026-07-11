@@ -243,7 +243,9 @@
     "stage": {
       "micOn": "Microfoon aan",
       "muted": "Gedempt",
-      "hangup": "Ophangen"
+      "hangup": "Ophangen",
+      "cameraOn": "Camera aan",
+      "cameraOff": "Camera uit"
     }
   },
   "phoneViewed": {

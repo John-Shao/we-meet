@@ -6,30 +6,54 @@ import {
   RoomAudioRenderer,
   useRemoteParticipants,
   useRoomContext,
+  useTracks,
   useTrackToggle,
+  VideoTrack,
 } from '@livekit/components-react'
 import { css } from '@/styled-system/css'
-import { RiMicFill, RiMicOffFill, RiPhoneFill } from '@remixicon/react'
+import {
+  RiCameraOffFill,
+  RiMicFill,
+  RiMicOffFill,
+  RiPhoneFill,
+  RiVidiconFill,
+} from '@remixicon/react'
 import { Avatar } from '@/features/im/components/Avatar'
 import { resolveImUsers } from '@/features/im/api/resolveImUsers'
 import { navigateTo } from '@/navigation/navigateTo'
 
 /**
- * Minimal 1:1 voice-call stage (Feishu/WeCom style) — replaces the full
- * `<VideoConference/>` when the room was entered from a voice call: centered
- * avatar + name + mm:ss duration, mic toggle and a red hangup. Audio playback
- * needs its own `<RoomAudioRenderer/>` since the prefab's one is gone.
+ * Minimal 1:1 call stage (Feishu/WeChat style) — replaces the full
+ * `<VideoConference/>` when the room was entered from a call. Voice: centered
+ * avatar + name + mm:ss duration, mic toggle and a red hangup. Video adds a
+ * full-screen remote camera (avatar fallback while it's off), a mirrored
+ * self-view top-right and a camera toggle. Audio playback needs its own
+ * `<RoomAudioRenderer/>` since the prefab's one is gone.
  */
 export const CallStage = ({
   peer,
+  video = false,
 }: {
   peer: { uid: string; name: string; avatar?: string }
+  video?: boolean
 }) => {
   const { t } = useTranslation('im')
   const room = useRoomContext()
   const { enabled: micEnabled, toggle: toggleMic } = useTrackToggle({
     source: Track.Source.Microphone,
   })
+  const { enabled: camEnabled, toggle: toggleCam } = useTrackToggle({
+    source: Track.Source.Camera,
+  })
+  // Camera tracks for the two surfaces; unsubscribed/muted tracks are absent,
+  // so these double as the "is their/our camera on" signal.
+  const cameraTracks = useTracks([Track.Source.Camera])
+  const remoteCam = video
+    ? cameraTracks.find((ref) => !ref.participant.isLocal)
+    : undefined
+  const localCam = video
+    ? cameraTracks.find((ref) => ref.participant.isLocal)
+    : undefined
 
   // Resolve the peer's display name/avatar, same as CallOverlay: on the
   // callee side the router state only carries the uid (peerName falls back
@@ -85,11 +109,23 @@ export const CallStage = ({
   return (
     <div className={stageRoot} data-testid="call-stage">
       <RoomAudioRenderer />
-      <div className={centerCol}>
-        <Avatar name={displayName} src={avatarUrl} size="7rem" />
-        <div className={nameText}>{displayName}</div>
-        <div className={durationText}>{formatElapsed(elapsed)}</div>
-      </div>
+      {remoteCam ? (
+        <>
+          <VideoTrack trackRef={remoteCam} className={remoteVideoCss} />
+          <div className={durationPill}>{formatElapsed(elapsed)}</div>
+        </>
+      ) : (
+        <div className={centerCol}>
+          <Avatar name={displayName} src={avatarUrl} size="7rem" />
+          <div className={nameText}>{displayName}</div>
+          <div className={durationText}>{formatElapsed(elapsed)}</div>
+        </div>
+      )}
+      {localCam && (
+        <div className={selfView}>
+          <VideoTrack trackRef={localCam} className={selfVideoCss} />
+        </div>
+      )}
       <div className={bottomRow}>
         <RoundButton
           label={t(micEnabled ? 'call.stage.micOn' : 'call.stage.muted')}
@@ -113,6 +149,21 @@ export const CallStage = ({
             style={{ transform: 'rotate(135deg)' }}
           />
         </RoundButton>
+        {video && (
+          <RoundButton
+            label={t(
+              camEnabled ? 'call.stage.cameraOn' : 'call.stage.cameraOff'
+            )}
+            color={camEnabled ? '#6b7280' : '#9ca3af'}
+            onClick={() => void toggleCam()}
+          >
+            {camEnabled ? (
+              <RiVidiconFill size={26} color="white" />
+            ) : (
+              <RiCameraOffFill size={26} color="white" />
+            )}
+          </RoundButton>
+        )}
       </div>
     </div>
   )
@@ -187,6 +238,49 @@ const bottomRow = css({
   bottom: '3.5rem',
   display: 'flex',
   gap: '4rem',
+  zIndex: 1,
+})
+
+const remoteVideoCss = css({
+  position: 'absolute',
+  inset: 0,
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover',
+})
+
+const durationPill = css({
+  position: 'absolute',
+  top: '1rem',
+  left: '50%',
+  transform: 'translateX(-50%)',
+  padding: '0.25rem 0.75rem',
+  borderRadius: '0.75rem',
+  backgroundColor: 'rgba(0,0,0,0.35)',
+  color: 'white',
+  fontSize: '0.875rem',
+  fontVariantNumeric: 'tabular-nums',
+  zIndex: 1,
+})
+
+const selfView = css({
+  position: 'absolute',
+  top: '1rem',
+  right: '1rem',
+  width: '8.5rem',
+  height: '12rem',
+  borderRadius: '0.75rem',
+  overflow: 'hidden',
+  backgroundColor: 'rgba(0,0,0,0.4)',
+  zIndex: 1,
+})
+
+const selfVideoCss = css({
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover',
+  // Mirror the self-view like every calling app; remote stays un-mirrored.
+  transform: 'scaleX(-1)',
 })
 
 const roundButtonCol = css({

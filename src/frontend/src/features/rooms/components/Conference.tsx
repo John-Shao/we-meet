@@ -51,8 +51,9 @@ export const Conference = ({
    */
   audioOnly?: boolean
   /**
-   * Peer of a 1:1 call. Together with [audioOnly] it swaps the meeting UI for
-   * the minimal voice-call stage (avatar + name + duration + mic/hangup).
+   * Peer of a 1:1 call. Swaps the meeting UI for the minimal call stage —
+   * voice (avatar + name + duration + mic/hangup) when [audioOnly], video
+   * (full-screen remote + self-view + camera toggle) otherwise.
    */
   callPeer?: { uid: string; name: string; avatar?: string }
 }) => {
@@ -239,7 +240,10 @@ export const Conference = ({
           audio={userConfig.audioEnabled}
           video={
             !audioOnly &&
-            userConfig.videoEnabled && {
+            // A 1:1 video call starts with the camera ON regardless of the
+            // persisted meeting preference (the peer accepted a *video*
+            // call); plain meetings keep honouring the user's choice.
+            (!!callPeer || userConfig.videoEnabled) && {
               processor: BackgroundProcessorFactory.fromProcessorConfig(
                 userConfig.processorConfig
               ),
@@ -303,8 +307,8 @@ export const Conference = ({
             }
           }}
         >
-          {callPeer && audioOnly ? (
-            <CallStage peer={callPeer} />
+          {callPeer ? (
+            <CallStage peer={callPeer} video={!audioOnly} />
           ) : (
             <VideoConference />
           )}

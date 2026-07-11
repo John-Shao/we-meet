@@ -243,7 +243,9 @@
     "stage": {
       "micOn": "麦克风已开",
       "muted": "已静音",
-      "hangup": "挂断"
+      "hangup": "挂断",
+      "cameraOn": "摄像头已开",
+      "cameraOff": "摄像头已关"
     }
   },
   "phoneViewed": {
