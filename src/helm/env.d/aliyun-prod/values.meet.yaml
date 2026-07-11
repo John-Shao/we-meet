@@ -186,6 +186,16 @@ backend:
     # ADMIN_HMAC_SECRET seeded on the jusi-light-im ECS — see
     # docs/runbooks/p6-deploy.md §3 in the jusi-light-im repo).
 
+    # ─── P3 协作文档 (La Suite Docs / 妙记落 Doc) ─────────────────────────
+    # Summary SUCCESS → docs_client 建文档 → 存 MeetingDoc → doc 链接发进 IM。
+    # 与 JUSI_IM 一样在 generate_meeting_summary 的 celery 里跑（envVars 合并进
+    # celery-backend），故 DOCS_* 放 backend.envVars 正好。DOCS_API_URL 留空则妙记
+    # 落 Doc 静默 no-op（Docs 没起来不影响 meet）；它同时点亮前端「文档」导航入口。
+    # 部署见 docs/installation/docs-server.md §六。
+    DOCS_API_URL: https://docs.we-meet.online
+    # DOCS_SERVER_TO_SERVER_TOKEN 来自 values.secrets.yaml，须与 Docs 独立机的
+    # DJANGO_SERVER_TO_SERVER_API_TOKENS 逐字符一致（docs.values.yaml 里同一个 token）。
+
     # ─── P0 离线推送 (foundation §P0) ────────────────────────────────────
     # jusi-light-im p14 检测到会话全员离线 → 回调 /api/agent/push-hook/ →
     # 后端经个推透传下发. 机密 (IM_PUSH_WEBHOOK_SECRET / GETUI_*) 在
