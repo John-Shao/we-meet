@@ -68,6 +68,7 @@ export const CallOverlay = () => {
   return (
     <div className={overlayRoot} role="dialog" aria-label={statusText}>
       {state.phase === 'incoming' && <RingSound />}
+      {state.phase === 'outgoing' && state.waitingAnswer && <RingbackSound />}
       <div className={centerCol}>
         <Avatar name={displayName} src={avatarUrl} size="7rem" />
         <div className={nameText}>{displayName}</div>
@@ -176,6 +177,43 @@ const RingSound = () => {
       interval = setInterval(ring, 2_000)
     } catch {
       // Autoplay blocked — silent ring; the overlay is still visible.
+    }
+    return () => {
+      if (interval) clearInterval(interval)
+      void ctx?.close().catch(() => undefined)
+    }
+  }, [])
+  return null
+}
+
+/**
+ * Caller-side ringback while the callee's device is ringing — the Chinese
+ * national tone: 450Hz, 1s on / 4s off, looping. Mirrors the App's
+ * ToneGenerator ringback so both ends sound the same. Silent if autoplay is
+ * blocked; the visual overlay still shows 等待接听.
+ */
+const RingbackSound = () => {
+  useEffect(() => {
+    let ctx: AudioContext | null = null
+    let interval: ReturnType<typeof setInterval> | null = null
+    try {
+      ctx = new AudioContext()
+      const beep = () => {
+        if (!ctx || ctx.state === 'closed') return
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.frequency.value = 450
+        gain.gain.setValueAtTime(0.08, ctx.currentTime)
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + 1.0)
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start(ctx.currentTime)
+        osc.stop(ctx.currentTime + 1.02)
+      }
+      beep()
+      interval = setInterval(beep, 5_000) // 1s tone + 4s silence
+    } catch {
+      // Autoplay blocked — silent; the overlay still shows the state.
     }
     return () => {
       if (interval) clearInterval(interval)
