@@ -161,7 +161,8 @@
     "reaction": "[Réaction]",
     "merged": "[Historique de discussion]",
     "recalled": "a retiré un message",
-    "call": "[Appel]"
+    "call": "[Appel]",
+    "phoneViewed": "Numéro consulté"
   },
   "voice": {
     "recording": "Enregistrement…",
@@ -239,5 +240,9 @@
       "unreachablePeer": "Manqué (hors ligne)"
     },
     "endDeclinedElsewhere": "Refusé sur un autre appareil"
+  },
+  "phoneViewed": {
+    "byMe": "Vous avez consulté son numéro",
+    "byPeer": "On a consulté votre numéro"
   }
 }

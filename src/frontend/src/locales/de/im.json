@@ -161,7 +161,8 @@
     "reaction": "[Reaktion]",
     "merged": "[Chatverlauf]",
     "recalled": "hat eine Nachricht zurückgezogen",
-    "call": "[Anruf]"
+    "call": "[Anruf]",
+    "phoneViewed": "Telefonnummer angesehen"
   },
   "voice": {
     "recording": "Aufnahme…",
@@ -239,5 +240,9 @@
       "unreachablePeer": "Verpasst (offline)"
     },
     "endDeclinedElsewhere": "Auf anderem Gerät abgelehnt"
+  },
+  "phoneViewed": {
+    "byMe": "Du hast die Telefonnummer angesehen",
+    "byPeer": "Deine Telefonnummer wurde angesehen"
   }
 }

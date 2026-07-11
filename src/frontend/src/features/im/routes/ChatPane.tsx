@@ -106,6 +106,7 @@ const snippetOf = (m: Message, t: (k: string) => string): string => {
   if (m.content_type === 'voice') return t('preview.voice')
   if (m.content_type === 'merged') return t('preview.merged')
   if (m.content_type === 'call-log') return t('preview.call')
+  if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
   if (m.content_type === 'quote') {
     try {
       return (JSON.parse(m.body)?.text as string) || ''
@@ -551,6 +552,7 @@ export const ChatPane = ({
     if (m.content_type === 'voice') return t('preview.voice')
     if (m.content_type === 'merged') return t('preview.merged')
     if (m.content_type === 'call-log') return t('preview.call')
+    if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
     if (m.content_type === 'quote') {
       try {
         return (JSON.parse(m.body)?.text as string) || ''

@@ -161,7 +161,8 @@
     "reaction": "[表情]",
     "merged": "[聊天记录]",
     "recalled": "撤回了一条消息",
-    "call": "[通话]"
+    "call": "[通话]",
+    "phoneViewed": "手机号码查看提醒"
   },
   "voice": {
     "recording": "正在录音…",
@@ -239,5 +240,9 @@
       "unreachablePeer": "离线未接"
     },
     "endDeclinedElsewhere": "已在其他设备拒绝"
+  },
+  "phoneViewed": {
+    "byMe": "你查看了对方的手机号码",
+    "byPeer": "对方查看了你的手机号码"
   }
 }

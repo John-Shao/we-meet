@@ -161,7 +161,8 @@
     "reaction": "[Reaction]",
     "merged": "[Chat record]",
     "recalled": "recalled a message",
-    "call": "[Call]"
+    "call": "[Call]",
+    "phoneViewed": "Phone number viewed"
   },
   "voice": {
     "recording": "Recording…",
@@ -239,5 +240,9 @@
       "unreachablePeer": "Missed (offline)"
     },
     "endDeclinedElsewhere": "Declined on another device"
+  },
+  "phoneViewed": {
+    "byMe": "You viewed their phone number",
+    "byPeer": "They viewed your phone number"
   }
 }

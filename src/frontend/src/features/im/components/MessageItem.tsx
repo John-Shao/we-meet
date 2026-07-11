@@ -307,6 +307,38 @@ export const MessageItem = ({
     )
   }
 
+  // P3 手机号被查看提示 (phone-viewed) → centered muted notice, like system but
+  // perspective-aware: the SENDER is the viewer, so isOwn ⇒ 「你查看了对方的手机
+  // 号码」, incoming ⇒ 「对方查看了你的手机号码」(shown to the number's owner).
+  if (message.content_type === 'phone-viewed') {
+    return (
+      <div
+        className={css({
+          display: 'flex',
+          justifyContent: 'center',
+          paddingX: '1rem',
+          paddingY: '0.375rem',
+        })}
+        data-testid="im-msg-phone-viewed"
+      >
+        <span
+          className={css({
+            fontSize: '0.75rem',
+            color: 'greyscale.500',
+            backgroundColor: 'greyscale.100',
+            borderRadius: '0.5rem',
+            paddingX: '0.625rem',
+            paddingY: '0.25rem',
+            maxWidth: '80%',
+            textAlign: 'center',
+          })}
+        >
+          {isOwn ? t('phoneViewed.byMe') : t('phoneViewed.byPeer')}
+        </span>
+      </div>
+    )
+  }
+
   // P1 一对一通话 call-log (body = {"media","result","duration"?}) →
   // bubble-less phone row, mirroring the Android bubble.
   //

@@ -161,7 +161,8 @@
     "reaction": "[Reactie]",
     "merged": "[Chatgeschiedenis]",
     "recalled": "heeft een bericht ingetrokken",
-    "call": "[Oproep]"
+    "call": "[Oproep]",
+    "phoneViewed": "Telefoonnummer bekeken"
   },
   "voice": {
     "recording": "Opnemen…",
@@ -239,5 +240,9 @@
       "unreachablePeer": "Gemist (offline)"
     },
     "endDeclinedElsewhere": "Op een ander apparaat geweigerd"
+  },
+  "phoneViewed": {
+    "byMe": "Je hebt hun nummer bekeken",
+    "byPeer": "Je nummer is bekeken"
   }
 }
