@@ -296,9 +296,11 @@ const ImAuthenticated = () => {
                   ? t('preview.recalled')
                   : ct === 'call-log'
                     ? t('preview.call')
-                    : ct === 'quote'
-                      ? parseQuoteText(c.last_message)
-                      : (c.last_message ?? '')
+                    : ct === 'phone-viewed'
+                      ? t('preview.phoneViewed')
+                      : ct === 'quote'
+                        ? parseQuoteText(c.last_message)
+                        : (c.last_message ?? '')
     const ts = c.last_message_ts
     if (c.type !== 'group' || c.last_content_type === 'system') {
       return { text: body, ts }
