@@ -99,7 +99,7 @@ OTP 用户首次携 token 调 API 时，`OIDCAuthentication`（`OIDC_CREATE_USER
 | POST /rooms/{id}/end/ | 返回 `ended_at`；结束后 GET 房间无 `livekit` 块 |
 | POST /users/me/deregister/ | 返回 204 |
 
-⚠️ 阿里云 OSS 与火山 TOS 不同，无独立 S3 兼容 endpoint。部署后须实测预签名 PUT/GET 的 SigV4 签名是否被 OSS 接受；若不通，需改用 OSS 原生 SDK。
+✅ 阿里云 OSS 的 S3 兼容(SigV4)预签名 PUT/GET 已在生产验证走通：`values.meet.yaml` 配 `AWS_S3_SIGNATURE_VERSION=s3v4` + `AWS_S3_ADDRESSING_STYLE=virtual`，头像/封面(`we-meet-avatar`/`we-meet-cover`)与 IM(`we-chat-*`)桶均已投产，**无需改用 OSS 原生 SDK**。
 
 ## 8. 关键文件
 
