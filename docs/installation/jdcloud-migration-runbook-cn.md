@@ -16,7 +16,7 @@
 | 域名 | `we-meet.online`（meet/livekit/id） | **不变** | 只换 A 记录指向的公网 IP |
 | Keycloak | 阿里云 aliyun-zlm（2C2G，`id.we-meet.online`） | **不动** | 域名不变 → meet client redirect URI 无需改 |
 | 火山 CR 镜像仓库 | `jusi-cn-guangzhou.cr.volces.com/we-meet/*` | **不动** | 外部依赖，与计算节点解耦 |
-| 火山 TOS 媒体桶 | `we-meet`（`tos-s3-cn-guangzhou.volces.com`） | **不动** | 两机指同一个桶，媒体**不用迁** |
+| 阿里云 OSS 媒体桶 | `we-meet-video` 等（`oss-cn-shenzhen.aliyuncs.com`） | **不动** | 两机指同一个桶，媒体**不用迁** |
 | 火山方舟 LLM | `ARK_API_KEY` | **不动** | — |
 | PostgreSQL 数据 | aliyun-sjy in-cluster PVC | **迁**（`pg_dump` → 灌入新机） | 迁移窗口唯一要搬的数据 |
 | 旧 aliyun-sjy | meet 主节点 | 退役后 → **Docs 独立机** | 见 §7 |
@@ -32,7 +32,7 @@
 │ meet.we-meet.online / livekit.we-meet.online│           ┌─ 旧阿里云 4C8G（退役后改造）┐
 └────────────────────────────────────────────┘           │ La Suite Docs (K3s+helm)     │
                                                           │ docs.we-meet.online          │
-外部依赖（不动）: 火山 CR / TOS(桶 we-meet) / 方舟 LLM     └──────────────────────────────┘
+外部依赖: 火山 CR / OSS(桶 we-meet-video) / 方舟 LLM     └──────────────────────────────┘
                                                           （Docs 用新桶 we-meet-docs）
 ```
 
@@ -178,7 +178,7 @@ kubectl -n meet get certificate  # False 正常（DNS 未切）
 
 ## 5. 阶段 D：维护窗口——迁 PostgreSQL + 切 DNS（停机 10–30 min，挑低峰）
 
-> 媒体在 TOS 外部共享桶，两机指同一个，**不用迁**。只迁 PostgreSQL。
+> 媒体在阿里云 OSS 外部共享桶，两机指同一个，**不用迁**。只迁 PostgreSQL。
 >
 > ⚠️ **注意每条命令在哪台机器执行**——下面明确分「旧机 / 新机」两段，`kubectl` 上下文不同，别在同一台机上连着跑。
 
@@ -254,7 +254,7 @@ kubectl -n meet get certificate    # meet-tls / livekit-tls 变 True
 **联调**（缺一不可）：
 1. 浏览器打开 `https://meet.we-meet.online` → Keycloak 登录（走 `id.we-meet.online`，未动，应正常）。
 2. **双端入会，手机必走 4G**（验证 LiveKit UDP 50000–60000 / 7882 在京东云安全组放通）。
-3. 结束会议 → 出纪要（验证火山方舟 LLM + TOS 写入）。
+3. 结束会议 → 出纪要（验证火山方舟 LLM + 阿里云 OSS 写入）。
 4. 历史数据核对：登录后能看到迁移前的会议记录 / IM 会话（验证 PG 灌入成功）。
 
 ✅ 全绿后**旧机 meet 先别拆**，观察 1–2 天。
@@ -280,12 +280,12 @@ kubectl delete namespace meet
 
 关键落位（详见 docs-server.md）：
 
-1. **TOS 新桶** `we-meet-docs`（权限/CORS 参照 aliyun.md §九，CORS 来源 `https://docs.we-meet.online`）。
+1. **阿里云 OSS 新桶** `we-meet-docs`（深圳，权限/CORS 参照 aliyun.md §九，CORS 来源 `https://docs.we-meet.online`）。
 2. **共享 S2S token**：`openssl rand -hex 32` → 记为 `DOCS_S2S_TOKEN`（两边同值）。
 3. **DNS**：`docs.we-meet.online` A 记录 → 旧机公网 IP；安全组 `22`(你的IP)/`80`/`443`/`6443`(你的IP)。
 4. **Keycloak 加 `docs` client**（在 aliyun-zlm，realm 仍是 `meet`）：仿 [bootstrap-realm.sh](../../deploy/aliyun/keycloak/bootstrap-realm.sh) 的 meet client，`redirectUris=["https://docs.we-meet.online/*"]`，记下 client secret。→ 与 meet 同 realm，登录 meet 后访问 docs **SSO 免登**。
 5. **装单节点 K3s + cert-manager + ingress**（同 install-k3s.sh 套路，Docs 不需 livekit/hostPort）。
-6. **helm 装 Docs**（官方 chart `impress/docs`，**pin 版本别用 latest**），values 关键覆盖：OIDC 指 `id.we-meet.online/realms/meet`、S3 指 TOS 桶 `we-meet-docs`、`SERVER_TO_SERVER_API_TOKENS=[<DOCS_S2S_TOKEN>]`、`DJANGO_ALLOWED_HOSTS=docs.we-meet.online`。跑 `python manage.py migrate`。
+6. **helm 装 Docs**（官方 chart `impress/docs`，**pin 版本别用 latest**），values 关键覆盖：OIDC 指 `id.we-meet.online/realms/meet`、S3 指阿里云 OSS 桶 `we-meet-docs`、`SERVER_TO_SERVER_API_TOKENS=[<DOCS_S2S_TOKEN>]`、`DJANGO_ALLOWED_HOSTS=docs.we-meet.online`。跑 `python manage.py migrate`。
 7. **接通「妙记落 Doc」**（在京东云 meet 机）：给 backend 加两个 env 后 `helm upgrade meet`：
    ```yaml
    # values.meet.yaml (非密)
@@ -307,7 +307,7 @@ kubectl delete namespace meet
 | §D 切 DNS 后 ~ §F 退役前 | meet/livekit A 记录**切回旧机 IP**（旧机 stack 仍在跑，迁移期旧库只读） | 无 |
 | §F 退役后 | 已无旧机 stack；只能靠新机 + §D 的 `meet.sql.gz` dump 恢复 | 迁移窗口后的增量 |
 
-> 因此 **§F 退役旧机必须在新机稳定观察 1–2 天、且确认无需回滚后**才做。`meet.sql.gz` 建议加密备份到 TOS 或异地留存。
+> 因此 **§F 退役旧机必须在新机稳定观察 1–2 天、且确认无需回滚后**才做。`meet.sql.gz` 建议加密备份到阿里云 OSS 或异地留存。
 
 ---
 
@@ -318,7 +318,7 @@ kubectl delete namespace meet
 - [ ] `meet-tls` / `livekit-tls` 证书 True
 - [ ] 浏览器登录成功（Keycloak SSO 走 aliyun-zlm 正常）
 - [ ] 双端入会 + **手机 4G UDP** 通
-- [ ] 结束会议出纪要（方舟 LLM + TOS 写入正常）
+- [ ] 结束会议出纪要（方舟 LLM + OSS 写入正常）
 - [ ] 迁移前的历史会议/IM 数据可见（PG 灌入成功）
 - [ ] 观察 1–2 天无异常 → 退役旧机 meet
 - [ ] 旧机 Docs：`docs.we-meet.online` 免登可编辑

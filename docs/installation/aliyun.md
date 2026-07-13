@@ -31,13 +31,12 @@
 外部依赖:
   - 工程师 PC                        → 所有 docker build / push 都在 PC 上跑 (VPN 直连 pypi.org / docker.io)
   - 火山引擎 CR (示例 cn-guangzhou)   → 4 个 we-meet 镜像 (建命名空间 we-meet 隔离其他项目)
-  - 火山引擎 TOS (示例 cn-guangzhou)  → 媒体文件 / 总结产物, 专用桶 `we-meet`
+  - 阿里云 OSS (华南1·深圳)           → 媒体文件 / 总结产物, 主桶 `we-meet-video`(+avatar/cover/chat)
   - 火山方舟 (示例 cn-beijing)        → OpenAI 兼容 LLM (用客户的 ARK_API_KEY)
 ```
 
-> **跨云数据走向**: ECS 在阿里云华南-深圳 ↔ TOS 在火山华南-广州 (同地理区域跨云, 5-10 ms 延迟).
-> 必须用公网 endpoint `tos-s3-cn-guangzhou.volces.com` (内网 `ivolces.com` 仅火山 ECS 可达).
-> 流量按公网双向计费. LLM 调用在火山华北-北京, 跨地域 + 跨云 (~30 ms), 但调用频率低不敏感.
+> **跨云数据走向**: ECS 与对象存储 OSS 同在阿里云华南1·深圳、同账号, 走内网直连, 无跨云流量 / 公网存储计费.
+> LLM 调用在火山华北-北京 (方舟), 跨地域 + 跨云 (~30 ms), 但调用频率低不敏感; 移动端短信走火山引擎账号.
 
 **为什么 aliyun-zlm 不做 K3s worker?** 跨 VPC 即跨公网，K8s pod 网络要么开 WireGuard/Tailscale 隧道、要么把 6443 暴露公网，运维成本远高于把 Keycloak 单独跑在它上面的收益。Keycloak 流量本身就走公网 HTTPS（OIDC 协议要求），对延迟容忍度高，是天然的"独立服务点"。
 
@@ -79,7 +78,7 @@ bash deploy/aliyun/setup-customer.sh your-domain.com ops@your-domain.com
 1. 把 9 个文件里的 `example.com` → 客户域名（含 docs/aliyun.md）
 2. 把 Caddyfile / cluster-issuer.yaml 里的 `REPLACE_OWNER_EMAIL@...` 占位换成 `OPS_EMAIL`（用于 Let's Encrypt 通知）
 3. 从 `.dist` 模板**生成** `values.secrets.yaml` + `keycloak/.env`，自动填随机密钥（DJANGO_SECRET_KEY / POSTGRES_APP_PASSWORD / REDIS_PASSWORD / LIVEKIT_API_SECRET / SUMMARY_API_TOKEN / KC_ADMIN_PASSWORD 等）
-4. 末尾打印 **checklist**: 还需手动填什么外部凭据（火山 CR / TOS AK / ARK API key / Keycloak client secret 等），及从哪儿拿
+4. 末尾打印 **checklist**: 还需手动填什么外部凭据（火山 CR / 阿里云 OSS AK / ARK API key / Keycloak client secret 等），及从哪儿拿
 
 然后跑 [deploy/aliyun/check-config.sh](../../deploy/aliyun/check-config.sh) 做配置自检（占位是否都替换好 / 必填 secrets 是否都填了 / 跨文件密钥是否一致 / 域名是否能 DNS 解析），再照常走 §3 → §8：
 
@@ -322,7 +321,7 @@ bash deploy/aliyun/build-and-push.sh --push-only     # 只 push (镜像已 build
 
 > ⚠️ **yq -r 必须**：Ubuntu apt 装的 Python yq 默认输出 JSON 带双引号；`-r` 才是裸字符串。Mike Farah 的 Go yq 不加 `-r` 也能输出裸字符串，但加上 `-r` 两种都兼容。
 
-> CR 凭据与 TOS 主账号 AK/SK 是 **两组不同的凭据**（TOS 用主账号 AK/SK 通过 S3 协议访问；CR 用实例级用户名+密码）。真实值在你 fill 完 [values.secrets.yaml.dist](../../src/helm/env.d/aliyun-prod/values.secrets.yaml.dist) → values.secrets.yaml 里。该文件已 gitignored，不会推到 GitHub。
+> CR 凭据与 OSS AK/SK 是 **两组不同的凭据**（OSS 用阿里云 AK/SK 通过 S3 兼容协议访问；CR 用实例级用户名+密码）。真实值在你 fill 完 [values.secrets.yaml.dist](../../src/helm/env.d/aliyun-prod/values.secrets.yaml.dist) → values.secrets.yaml 里。该文件已 gitignored，不会推到 GitHub。
 
 构建完成把 IMAGE_TAG 填回 [values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) 里 4 处 `image.tag`（或保留 `latest` + `pullPolicy: Always`，前者更稳但每次发版多改一行 yaml）。
 
@@ -522,40 +521,44 @@ PC 浏览器开 `https://meet.example.com/abc-def`（任意房间名），手机
 
 ---
 
-## 九、对象存储（火山引擎 TOS, 专用桶 `we-meet`）
+## 九、对象存储（阿里云 OSS, 华南1·深圳, 与 ECS 同区同账号）
 
-values 模板默认配置（按需调整）:
+> we-meet 生产：计算(ECS/K3s)与存储(OSS)都在阿里云华南1·深圳、同账号，内网直连、无跨云流量。
+> 后端只认标准 `AWS_S3_*`（S3 兼容），换云对象存储只要 S3 兼容即可，见 [values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) 的 Storage 段。
 
-- Endpoint: `https://tos-s3-cn-guangzhou.volces.com`（**模板默认 cn-guangzhou**，客户桶在其他 region 改 values.meet.yaml 里 `AWS_S3_ENDPOINT_URL` + `AWS_S3_REGION_NAME` 三处）
-- Region: `cn-guangzhou`
-- Bucket: `we-meet`（项目专用，客户控制台手动创建空桶）
-- AK/SK: 客户的火山主账号 AK/SK 或有 TOS 权限的 IAM 用户凭据，填到 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml)
+values 实配（见 values.meet.yaml）:
+
+- Endpoint: `https://oss-cn-shenzhen.aliyuncs.com`（换 region 改 values.meet.yaml 里 `AWS_S3_ENDPOINT_URL` + `AWS_S3_REGION_NAME`）
+- Region: `cn-shenzhen`；S3 兼容需 `AWS_S3_SIGNATURE_VERSION=s3v4` + `AWS_S3_ADDRESSING_STYLE=virtual`（已配）
+- Bucket: 主桶 `we-meet-video`（recordings/纪要产物）+ `we-meet-avatar`/`we-meet-cover`（头像/封面）+ `we-chat-image`/`we-chat-doc`/`we-chat-audio`（IM 图片/文件/语音）；控制台手动创建、全部保持「私有」
+- AK/SK: 阿里云主账号 AK/SK 或有 OSS 权限的 RAM 用户凭据，填到 [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml)
 
 ### 9.1 RAM 权限 / 桶策略 (必检)
 
-填的 AK 是火山主账号或某个 IAM 用户的密钥. 确认它对 `we-meet` 桶有读写权限:
+填的 AK 是阿里云主账号或某个 RAM 用户的密钥. 确认它对上述桶有读写权限:
 
-1. 访问控制台 → **存储桶授权策略管理** (左侧菜单)
-2. 如果没有针对 `we-meet` 的策略, 加一条:
+1. RAM 控制台 → 权限管理 → 权限策略（或 OSS Bucket → 授权策略）
+2. 如果是 RAM 子账号, 加一条自定义策略 (主账号 AK 默认全权限, 可跳过):
 
 ```jsonc
 {
+    "Version": "1",
     "Statement": [{
         "Effect": "Allow",
-        "Action": ["tos:*"],
+        "Action": ["oss:*"],
         "Resource": [
-            "trn:tos:::we-meet",
-            "trn:tos:::we-meet/*"
+            "acs:oss:*:*:we-meet-*", "acs:oss:*:*:we-meet-*/*",
+            "acs:oss:*:*:we-chat-*", "acs:oss:*:*:we-chat-*/*"
         ]
     }]
 }
 ```
 
-主账号 AK 默认有所有桶的全部权限, 可以跳过这一步. 如果是子账号 AK, 必须配.
+主账号 AK 默认有所有桶的全部权限, 可以跳过这一步. 如果是 RAM 子账号, 必须配.
 
 ### 9.2 CORS 规则 (前端浏览器直传时必需)
 
-如果走前端浏览器直传 (presigned URL upload, 节省后端带宽), 在 TOS 控制台 → 跨域访问设置 加:
+如果走前端浏览器直传 (presigned URL upload, 节省后端带宽), 在 OSS 控制台 → 对应 Bucket → 权限管理 → 跨域设置 (CORS) 加规则:
 
 ```
 来源:    https://meet.example.com
@@ -566,15 +569,15 @@ values 模板默认配置（按需调整）:
 
 如果只走后端代理 (默认配置), 这一步可跳过.
 
-### 9.3 公开读子目录 (可选, 用户头像等场景)
+### 9.3 头像 / 封面 / IM 桶 (已投产)
 
-如果以后要加 user-avatar / user-cover / user-post 等公开桶逻辑 (上游 we-meet 不带这些), 在 `we-meet` 桶下建子目录 + 设置子目录公开读策略, 不需要再开新桶.
+头像 `we-meet-avatar`、封面 `we-meet-cover`、IM 图片/文件/语音 `we-chat-*` 已在 values.meet.yaml 显式声明并投产, 全部保持「私有」, 后端用预签名 GET URL 下发, 无需公开读策略.
 
 ### 9.4 切换 AK / 切换桶
 
-只想换 AK/SK: [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 里 `AWS_S3_ACCESS_KEY_ID` / `AWS_S3_SECRET_ACCESS_KEY` 出现 4 处 (backend / celery / summary 系 / agentMetadata), 全改后 `helm upgrade meet`.
+只想换 AK/SK: [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 里 `AWS_S3_ACCESS_KEY_ID` / `AWS_S3_SECRET_ACCESS_KEY` 出现多处 (backend / celery / summary 系 / agentMetadata), 全改后 `helm upgrade meet`.
 
-切换桶名: [values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) 里 `AWS_STORAGE_BUCKET_NAME` 出现 3 处, 同步修改.
+切换桶名: [values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) 里 `AWS_STORAGE_BUCKET_NAME*` 各处同步修改.
 
 ---
 
@@ -648,7 +651,7 @@ helm upgrade --install meet ./src/helm/meet -n meet \
   -f src/helm/env.d/aliyun-prod/values.secrets.yaml \
   --set image.tag=$NEW_TAG
 
-# 数据库备份 (PVC 在本地盘, 建议定期 dump 到 TOS)
+# 数据库备份 (PVC 在本地盘, 建议定期 dump 到阿里云 OSS)
 kubectl -n meet exec postgresql-0 -- pg_dump -U meet meet | gzip > meet-$(date +%F).sql.gz
 tosutil cp meet-$(date +%F).sql.gz tos://we-meet/backups/
 
@@ -1025,7 +1028,7 @@ kubectl -n meet annotate ingress meet-admin nginx.ingress.kubernetes.io/ssl-redi
 > 这两个原因可能叠加：先确认是否被云平台拦截（外部 curl），排除后再检查 ssl-redirect。
 
 ### 14.3 维护窗口：迁数据 + 切 DNS（挑低峰，停机约 10–30 min）
-媒体在 TOS（外部共享桶，两机指同一个）**不用迁**，只迁 PostgreSQL：
+媒体在阿里云 OSS（外部共享桶，两机指同一个）**不用迁**，只迁 PostgreSQL：
 ```bash
 # ① 旧机停写
 kubectl -n meet scale deploy/meet-backend --replicas=0
@@ -1092,6 +1095,6 @@ kubectl -n meet exec deploy/meet-backend -- sh -c \
 | [deploy/aliyun/website/manifests.yaml](../../deploy/aliyun/website/manifests.yaml) | 官网 K8s manifest（ns website + nginx Deployment + Service + Ingress）（§十三）|
 | [deploy/aliyun/website/sync.sh](../../deploy/aliyun/website/sync.sh) | **在 PC 上** build we-meet.online 静态站 + rsync 到 aliyun-sjy（§13.4）|
 | [deploy/aliyun/website/README.md](../../deploy/aliyun/website/README.md) | 官网部署 README（与 §十三 同源，更详细的 troubleshooting）|
-| [docs/installation/docs-server.md](docs-server.md) | **Docs 独立机**部署 runbook（单节点 k3s + Docs 官方 helm + Keycloak docs client + TOS + 妙记落 Doc 接通）|
+| [docs/installation/docs-server.md](docs-server.md) | **Docs 独立机**部署 runbook（单节点 k3s + Docs 官方 helm + Keycloak docs client + OSS + 妙记落 Doc 接通）|
 | [docs/phases/p3-collab-docs.md](../phases/p3-collab-docs.md) | P3 协作文档设计 + 纸面 spike 结论 |
 | [docs/phases/p3-collab-docs.md](../phases/p3-collab-docs.md) | P3 协作文档设计 + 纸面 spike 结论 |

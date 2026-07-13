@@ -119,12 +119,12 @@ we-meet 的协同面目前只有 **IM + 会议**，缺飞书最日常的协作�
 | Redis | Docs 专属 |
 | ingress + TLS | k3s 自带 traefik（或 ingress-nginx）+ cert-manager，给 `docs.<domain>` 签 LE 证书；y-provider 的 ws 路由一并配 |
 
-**不需要 minio**：Docs 的 `AWS_S3_*` 指向**火山 TOS**（新建桶 `we-meet-docs`），AK/SK 复用现有 TOS 凭据——零新增存储设施。国内 pull `lasuite/impress-*` 慢的话，可像 meet 镜像那样先镜像到火山 CR `we-meet` 命名空间。
+**不需要 minio**：Docs 的 `AWS_S3_*` 指向**阿里云 OSS 深圳**（S3 兼容，新建桶 `we-meet-docs`，与本机同区），配一副 OSS AK/SK——零新增存储设施。国内 pull `lasuite/impress-*` 慢的话，可像 meet 镜像那样先镜像到火山 CR `we-meet` 命名空间。
 
 **关键 values / env（与 we-meet & Keycloak 对接的几项）：**
 - **OIDC 指同一个 Keycloak**（aliyun-zlm，realm `meet`）：provider=`https://id.<domain>/realms/meet`、`OIDC_RP_CLIENT_ID=docs`、`OIDC_RP_CLIENT_SECRET=<新 client secret>`、`OIDC_REDIRECT_ALLOWED_HOSTS=[https://docs.<domain>]`。→ 与 meet 同 realm = 新标签 SSO 免登。
 - **`SERVER_TO_SERVER_API_TOKENS=<共享 token>`** —— 与 we-meet 后端的 `DOCS_SERVER_TO_SERVER_TOKEN` **同一个值**，即 `DocsClient.create_for_owner` 用的 token。
-- **S3**：`AWS_S3_ENDPOINT_URL=https://tos-s3-cn-guangzhou.volces.com` + bucket `we-meet-docs` + 现有 TOS AK/SK。
+- **S3**：`AWS_S3_ENDPOINT_URL=https://oss-cn-shenzhen.aliyuncs.com`（阿里云 OSS 深圳，S3 兼容，与本机同区）+ bucket `we-meet-docs` + OSS AK/SK；`AWS_S3_REGION_NAME=oss-cn-shenzhen`。
 - **y-provider**：`Y_PROVIDER_API_KEY` + `COLLABORATION_SERVER_SECRET`（随机生成）。
 
 **Keycloak（aliyun-zlm）加 `docs` client**：照 `bootstrap-realm.sh:59` 的 meet client，`redirectUris=[https://docs.<domain>/*]`、`webOrigins=[https://docs.<domain>]`、confidential。

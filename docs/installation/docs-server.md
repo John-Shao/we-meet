@@ -13,7 +13,7 @@
 | **旧 4C8G（本机）** | **Docs —— 单节点 K3s + Docs 官方 helm chart**（即 jusi-light-im 的独立机路子） |
 | 2C2G aliyun-zlm | Keycloak（**不动**，仅加一个 `docs` client） |
 
-正文存火山 **TOS**（新桶 `we-meet-docs`），PG/Redis 为 Docs 专属、与 meet 完全隔离。
+正文存**阿里云 OSS 深圳**（S3 兼容，与本机同区；新桶 `we-meet-docs`），PG/Redis 为 Docs 专属、与 meet 完全隔离。
 
 > ⚠️ **走 helm 不走 compose**：Docs 官方生产路径就是 k8s/helm；compose 他们明说自己生产不用、仅社区支持。**chart + 镜像版本务必 pin**，别用浮动 latest。
 
@@ -22,7 +22,7 @@
 ## 一、前置
 
 1. 旧机已退役 meet（[aliyun.md §14.5](aliyun.md#145-退役旧机-meet确认新机稳定后)），整机可用。
-2. 火山 TOS 控制台新建桶 `we-meet-docs`（权限 / CORS 参照 [aliyun.md §九](aliyun.md)；CORS 来源填 `https://docs.<域名>`）。
+2. 阿里云 OSS 控制台（**华南1·深圳** `cn-shenzhen`，与本机同区）新建桶 `we-meet-docs`（权限私有 / CORS 来源填 `https://docs.<域名>`，允许 GET/PUT/POST/DELETE + `*` 头）。
 3. 生成**共享 server-to-server token**（妙记落 Doc 用，两边同值）：
    ```bash
    openssl rand -hex 32      # 记为 DOCS_S2S_TOKEN
@@ -62,7 +62,7 @@ helm install impress impress/docs -n docs --create-namespace \
   -f docs.values.yaml --version <pin-到具体版本>
 ```
 
-`docs.values.yaml` 的关键覆盖项（接我们的 Keycloak / TOS / token；落到 chart 的 yaml 结构以官方 `impress.values.yaml` **当前版本**为准——下面列的是「要设哪些值」）：
+`docs.values.yaml` 的关键覆盖项（接我们的 Keycloak / OSS / token；落到 chart 的 yaml 结构以官方 `impress.values.yaml` **当前版本**为准——下面列的是「要设哪些值」）：
 
 **OIDC → 指我们的 Keycloak realm `meet`**（注意 realm 是 `meet` 不是示例里的 `impress`）：
 ```yaml
@@ -78,13 +78,14 @@ OIDC_RP_SCOPES:                 "openid email"
 OIDC_REDIRECT_ALLOWED_HOSTS:    ["https://docs.<域名>"]
 ```
 
-**对象存储 → 火山 TOS**（外部 S3，跳过 minio）：
+**对象存储 → 阿里云 OSS 深圳**（S3 兼容外部 S3，跳过 minio）：
 ```yaml
-AWS_S3_ENDPOINT_URL:      https://tos-s3-cn-guangzhou.volces.com
-AWS_S3_ACCESS_KEY_ID:     <TOS AK>
-AWS_S3_SECRET_ACCESS_KEY: <TOS SK>
+AWS_S3_ENDPOINT_URL:      https://oss-cn-shenzhen.aliyuncs.com
+AWS_S3_ACCESS_KEY_ID:     <OSS AK>
+AWS_S3_SECRET_ACCESS_KEY: <OSS SK>
 AWS_STORAGE_BUCKET_NAME:  we-meet-docs
-AWS_S3_REGION_NAME:       cn-guangzhou
+AWS_S3_REGION_NAME:       oss-cn-shenzhen   # ⚠️ SigV4 签名区需实测，403 时试纯 cn-shenzhen
+AWS_S3_ADDRESSING_STYLE:  virtual           # OSS 走 vhost 风格
 ```
 
 **妙记落 Doc 的服务端 token（与 we-meet 同值，这是关键对接点）**：
@@ -137,4 +138,4 @@ DOCS_SERVER_TO_SERVER_TOKEN: <DOCS_S2S_TOKEN>
 - **compose 是社区支持、helm 才是官方生产路径** → 用 helm；**pin chart + 镜像版本**，别浮动 latest。
 - `SERVER_TO_SERVER_API_TOKENS` 是**高权限**（能代任意用户建文档）→ 只配在 Docs + meet 后端 secret，绝不外泄/进前端。
 - chart 的 values 结构会随版本变 → 上面列的是「要设哪些值」，落 yaml 时对着所 pin 版本的 `docs/examples/helm/impress.values.yaml` 填。
-- 资源：本机 4C8G/40G，正文走 TOS、本地盘只存元数据 + 镜像，够用；并发协同编辑暴涨时盯 y-provider 内存。
+- 资源：本机 4C8G/40G，正文走 OSS、本地盘只存元数据 + 镜像，够用；并发协同编辑暴涨时盯 y-provider 内存。
