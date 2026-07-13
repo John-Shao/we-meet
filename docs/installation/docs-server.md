@@ -52,17 +52,21 @@
 
 ## 四、helm 部署 Docs
 
-官方 chart（chart 名 `docs`，仓库 `src/helm/impress`）：
+**不走 `helm repo add`**——`https://github.com/John-Shao/we-meet-docs` 是仓库主页，不是 GitHub Pages（该 fork 未开 Pages，也没有 `gh-pages` 分支），直接拿来 `helm repo add` 会报 "not a valid chart repository"。fork 里已经带了 chart 本体（`src/helm/impress`，chart 名 `docs`，当前 `version: 5.4.1`），克隆下来本地装即可——天然是简体中文化后的版本，也不会跟自建的三个镜像默认值对不上（用官方 chart 装出来默认拉 `lasuite/impress-*` 官方镜像）：
 
 ```bash
-helm repo add impress https://suitenumerique.github.io/docs/
-helm repo update
-# 官方示例 values 作模板（docs/examples/helm/impress.values.yaml），改成下面的接入项：
-helm install impress impress/docs -n docs --create-namespace \
-  -f docs.values.yaml --version <pin-到具体版本>
+git clone -b docs-dev https://github.com/John-Shao/we-meet-docs.git
+cd we-meet-docs
+git rev-parse HEAD   # 记下当前 commit，作为这次部署的版本锚点
+
+# 参考 src/helm/impress/values.yaml（默认值全集）+ README.md（generate-readme.sh 生成），改成下面的接入项：
+helm install impress ./src/helm/impress -n docs --create-namespace \
+  -f docs.values.yaml
 ```
 
-`docs.values.yaml` 的关键覆盖项（接我们的 Keycloak / OSS / token；落到 chart 的 yaml 结构以官方 `impress.values.yaml` **当前版本**为准——下面列的是「要设哪些值」）：
+> 本地路径安装没有 `--version` 语义——版本就是当前 checkout 的那个 commit。升级前 `git fetch && git log HEAD..origin/docs-dev --oneline` 看 diff 再 `git pull`，别无脑 pull。若要跟上游 `suitenumerique/docs` 同步：`git remote add upstream https://github.com/suitenumerique/docs.git && git fetch upstream && git merge upstream/main`（merge 前排查 i18n 改动冲突）。
+
+`docs.values.yaml` 的关键覆盖项（接我们的 Keycloak / OSS / token；落到 chart 的 yaml 结构以 fork 当前 checkout 的 `src/helm/impress/values.yaml` 为准——下面列的是「要设哪些值」）：
 
 **OIDC → 指我们的 Keycloak realm `meet`**（注意 realm 是 `meet` 不是示例里的 `impress`）：
 ```yaml
@@ -109,7 +113,7 @@ COLLABORATION_SERVER_SECRET: <openssl rand -hex 32>
 kubectl -n docs exec deploy/impress-backend -- python manage.py migrate
 ```
 
-> 国内 pull `lasuite/impress-*`（backend/frontend/y-provider）慢的话，可像 meet 镜像那样先**镜像到火山 CR `we-meet` 命名空间**，再把 values 里的 image repo 改过去。
+> 镜像不用再临时镜像官方 `lasuite/impress-*`——fork 的 `deploy/aliyun-docs/build-and-push.sh` 已经是自建三镜像（backend/frontend/y-provider）+ 推火山 CR `we-meet` 命名空间的固定流程，`docs.values.yaml` 的 image repo 直接指过去即可。
 
 ## 五、DNS / TLS / 验证 Docs
 
