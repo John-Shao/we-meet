@@ -3,7 +3,7 @@
 > we-meet P3 集成 [La Suite Docs](https://github.com/suitenumerique/docs)：会议纪要自动落成协作文档（妙记），并提供文档入口。本文是 **Docs 独立机** 的部署 runbook。
 > 设计与纸面 spike 结论见 [../phases/p3-collab-docs.md](../phases/p3-collab-docs.md)。meet 迁到新机的步骤见 [aliyun.md §十四](aliyun.md#十四迁移--扩容把-meet-迁到更大的新机器4c16g)。
 >
-> ✅ **就绪产物**（照本 runbook 落成的实文件，含占位待填）：[../../deploy/aliyun/docs/](../../deploy/aliyun/docs/) —— `docs.values.yaml`（helm values）+ `build-and-push.sh`（自建三镜像）+ README（部署顺序/占位清单）；Keycloak client 脚本 [../../deploy/aliyun/keycloak/bootstrap-docs-client.sh](../../deploy/aliyun/keycloak/bootstrap-docs-client.sh)。定制 fork 在 `github.com/John-Shao/we-meet-docs` 分支 `docs-dev`（已简体中文化）。
+> ✅ **就绪产物**：部署套件已随 fork 独立到 `github.com/John-Shao/we-meet-docs`（分支 `docs-dev`，已简体中文化）的 `deploy/aliyun-docs/` —— `docs.values.yaml`（helm values）+ `build-and-push.sh`（自建三镜像）+ `bootstrap-docs-client.sh`（Keycloak `docs` client，独立版）+ `README.md`（部署顺序/占位清单）。本文为背景 runbook；**meet 侧接线**（`DOCS_API_URL` / `DOCS_SERVER_TO_SERVER_TOKEN`）仍在本仓库 `src/helm/env.d/aliyun-prod/`。
 
 ## 拓扑（三机落位）
 
@@ -38,7 +38,7 @@
 - `webOrigins: ["https://docs.<域名>"]`
 - `post.logout.redirect.uris: "https://docs.<域名>"`
 
-记下生成的 **client secret**（下一步 `OIDC_RP_CLIENT_SECRET` 用）。脚本已就绪 [../../deploy/aliyun/keycloak/bootstrap-docs-client.sh](../../deploy/aliyun/keycloak/bootstrap-docs-client.sh)（照 `bootstrap-realm.sh` 的 meet client 建 `docs` client）——在 aliyun-zlm 的 keycloak 目录跑 `DOCS_HOST=docs.<域名> KC_URL=https://id.<域名> bash bootstrap-docs-client.sh`，脚本末尾会打印要填进 `docs.values.yaml` 的 `OIDC_RP_CLIENT_ID/SECRET/REDIRECT_ALLOWED_HOSTS`。
+记下生成的 **client secret**（下一步 `OIDC_RP_CLIENT_SECRET` 用）。脚本 `bootstrap-docs-client.sh` 已随 fork 到 we-meet-docs 的 `deploy/aliyun-docs/`（独立版，凭据走 env，照 we-meet `bootstrap-realm.sh` 的 meet client 建 `docs` client）——跑 `KC_URL=https://id.<域名> KC_ADMIN_USER=... KC_ADMIN_PASSWORD=... DOCS_HOST=docs.<域名> bash deploy/aliyun-docs/bootstrap-docs-client.sh`，脚本末尾会打印要填进 `docs.values.yaml` 的 `OIDC_RP_CLIENT_ID/SECRET/REDIRECT_ALLOWED_HOSTS`。
 
 > Docs 与 meet 在**同一个 realm `meet`** → 用户登录 meet 后访问 docs 走同一 Keycloak SSO 会话，新标签**免登**。
 
