@@ -22,6 +22,7 @@ from core.api.directory import (
 )
 from core.api.im import ImViewSet
 from core.api.im_later import ImLaterViewSet
+from core.api.keycloak_sms import KeycloakSmsGatewayView
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.push import ImPushHookView, PushTokenView
 from core.api.qr_login import (
@@ -118,6 +119,13 @@ urlpatterns = [
         "api/mobile/auth/refresh/",
         RefreshTokenView.as_view(),
         name="mobile-refresh-token",
+    ),
+    # SMS gateway for the Keycloak phone-auth plugin (浏览器手机验证码登录). Keycloak
+    # generates the OTP and POSTs it here; we relay it via the Volcengine template.
+    path(
+        "keycloak-sms/send/",
+        KeycloakSmsGatewayView.as_view(),
+        name="keycloak-sms-send",
     ),
     # QR-code login: web shows the QR, App scans + confirms, web polls.
     path("api/qr-login/initiate/", QrInitiateView.as_view(), name="qr-login-initiate"),

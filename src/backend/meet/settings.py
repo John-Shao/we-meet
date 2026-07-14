@@ -228,6 +228,12 @@ class Base(Configuration):
         None, environ_name="VOLC_SMS_TEMPLATE_ID", environ_prefix=None
     )
 
+    # Shared bearer token the Keycloak phone-auth plugin sends to
+    # /keycloak-sms/send/ (must match the authenticator's sms_gateway_token).
+    KEYCLOAK_SMS_GATEWAY_TOKEN = values.Value(
+        None, environ_name="KEYCLOAK_SMS_GATEWAY_TOKEN", environ_prefix=None
+    )
+
     # Mobile OTP login — exchanges a verified phone number for Keycloak tokens
     # via the `meet-service` confidential client (Token Exchange).
     MOBILE_AUTH_SERVICE_CLIENT_ID = values.Value(
