@@ -28,7 +28,10 @@
 #   --push-only         只 push, 不 build (等价于 push.sh — 假定镜像本地已存在)
 #   --no-cache          docker build 不用层 cache (强制重新拉依赖, 排查 stale cache)
 #
-# 有效模块: backend frontend summary agents
+# 有效模块: backend frontend summary agents keycloak
+#   keycloak 特殊: Dockerfile 在外部仓库 keycloak-phone-auth, tag 固定 25.0-phone
+#   (不打 latest), 部署走 aliyun-zlm 的 docker compose (非 k8s). 版本化、独立节奏,
+#   不进默认全量, 需显式:  bash deploy/aliyun/build-and-push.sh keycloak
 
 set -euo pipefail
 
@@ -66,13 +69,15 @@ done
 set -- "${POSITIONAL[@]:-}"
 
 # ─── 模块选择 ─────────────────────────────────────────────────────────────
-MODULES="backend frontend summary agents"
-SELECTED="${*:-$MODULES}"
+# keycloak 版本化、独立节奏, 不进默认全量; 显式 `... keycloak` 才 build.
+ALL_MODULES="backend frontend summary agents keycloak"
+DEFAULT_MODULES="backend frontend summary agents"
+SELECTED="${*:-$DEFAULT_MODULES}"
 ORIG_ARGS="${*:-}"
 for m in $SELECTED; do
-  case " $MODULES " in
+  case " $ALL_MODULES " in
     *" $m "*) ;;
-    *) die "未知模块 '$m' (有效模块: $MODULES)" ;;
+    *) die "未知模块 '$m' (有效模块: $ALL_MODULES)" ;;
   esac
 done
 
@@ -112,6 +117,12 @@ VOLC_CR_REGISTRY="$(secret_or "${VOLC_CR_REGISTRY:-}" '.image.credentials.regist
 : "${VOLC_CR_REGISTRY:=your-cr.cr-domain.com}"
 : "${VOLC_CR_NAMESPACE:=we-meet}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
+
+# keycloak (phone-auth) 特殊: 源在外部仓库 keycloak-phone-auth (we-meet 同级目录),
+# tag 版本化固定 (不打 latest), 镜像名 keycloak (不带 meet- 前缀).
+KEYCLOAK_TAG="${KEYCLOAK_TAG:-25.0-phone}"
+KEYCLOAK_SRC="${KEYCLOAK_SRC:-$REPO_ROOT/../keycloak-phone-auth}"
+KEYCLOAK_IMAGE="${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/keycloak:${KEYCLOAK_TAG}"
 
 if [[ "$VOLC_CR_REGISTRY" == "your-cr.cr-domain.com" ]]; then
   die "$(printf '%s\n' \
@@ -161,6 +172,18 @@ build_one() {
   docker build --network host ${NO_CACHE} "${extra[@]}" -f "$dockerfile" --target "$target" -t "$img" -t "$img_latest" "$context"
 }
 
+# keycloak: 独立仓库 keycloak-phone-auth 的 Dockerfile (根 context, 无 named target),
+# 镜像名 keycloak (不带 meet- 前缀), tag 固定 $KEYCLOAK_TAG (不打 latest).
+build_keycloak() {
+  want keycloak || return 0
+  [[ -d "$KEYCLOAK_SRC" ]] || die "keycloak 源码目录不存在: $KEYCLOAK_SRC
+    先把 keycloak-phone-auth clone 到 we-meet 同级目录, 或 export KEYCLOAK_SRC=<路径>"
+  echo
+  echo "==> Building $KEYCLOAK_IMAGE${NO_CACHE:+ (no cache)}"
+  echo "    context: $KEYCLOAK_SRC (外部仓库 keycloak-phone-auth)"
+  docker build --network host ${NO_CACHE} -t "$KEYCLOAK_IMAGE" "$KEYCLOAK_SRC"
+}
+
 if [[ $DO_BUILD == 1 ]]; then
   echo "================================================================"
   echo "BUILD 阶段 — 拉 pypi.org / docker.io / registry.npmjs.org"
@@ -175,12 +198,15 @@ if [[ $DO_BUILD == 1 ]]; then
   build_one summary  ./src/summary/Dockerfile   ./src/summary production
   # 4. Agents (LiveKit transcription/metadata)
   build_one agents   ./src/agents/Dockerfile    ./src/agents  production
+  # 5. Keycloak (phone-auth) — 外部仓库 / 固定 tag / 无 target, 见 build_keycloak.
+  build_keycloak
 
   echo
   echo "================================================================"
   echo "BUILD 完成 (尚未推送):"
   for m in $SELECTED; do
-    echo "  ${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${m}:${IMAGE_TAG}"
+    if [[ "$m" == keycloak ]]; then echo "  $KEYCLOAK_IMAGE"
+    else echo "  ${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${m}:${IMAGE_TAG}"; fi
   done
   echo "================================================================"
 fi
@@ -198,6 +224,13 @@ push_one() {
     echo "==> Pushing $img_latest"
     docker push "$img_latest"
   fi
+}
+
+push_keycloak() {
+  want keycloak || return 0
+  echo
+  echo "==> Pushing $KEYCLOAK_IMAGE"
+  docker push "$KEYCLOAK_IMAGE"
 }
 
 if [[ $DO_PUSH == 1 ]]; then
@@ -220,40 +253,55 @@ if [[ $DO_PUSH == 1 ]]; then
   push_one frontend
   push_one summary
   push_one agents
+  push_keycloak
 
   echo
   echo "================================================================"
   echo "PUSH 完成:"
   for m in $SELECTED; do
-    echo "  ${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${m}:${IMAGE_TAG}"
+    if [[ "$m" == keycloak ]]; then echo "  $KEYCLOAK_IMAGE"
+    else echo "  ${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${m}:${IMAGE_TAG}"; fi
   done
   echo
-  echo "下一步 (在生产 ECS aliyun-sjy 上):"
+  echo "下一步:"
   echo
-  echo "  # 1. 拉取最新代码 + values"
-  echo "  cd /opt/we-meet && git pull origin aliyun-dev"
-  echo
-  if [[ "$IMAGE_TAG" == "latest" ]]; then
-    echo "  # 2. latest tag 工作流: helm 不会自动 roll Deployment, 必须手动 rollout"
-    restart=""
-    for m in $SELECTED; do
-      [[ -n "$restart" ]] && restart="$restart "
-      restart="${restart}deploy/meet-${m}"
-    done
-    echo "  kubectl -n meet rollout restart ${restart}"
-    for m in $SELECTED; do
-      echo "  kubectl -n meet rollout status  deploy/meet-${m} --timeout=120s"
-    done
-  else
-    echo "  # 2. <commit-sha> tag 工作流: 先把 image.tag 改到 ${IMAGE_TAG}, 再 helm upgrade"
-    echo "  # (在 src/helm/env.d/aliyun-prod/values.meet.yaml 中更新 image.tag)"
-    echo "  helm -n meet upgrade meet ./src/helm/meet -f src/helm/env.d/aliyun-prod/values.meet.yaml"
+
+  # k8s 模块 (meet 服务, aliyun-sjy) — 排除 keycloak (它走 compose)
+  K8S_SEL=""
+  for m in $SELECTED; do
+    [[ "$m" == keycloak ]] && continue
+    K8S_SEL="${K8S_SEL:+$K8S_SEL }$m"
+  done
+
+  if [[ -n "$K8S_SEL" ]]; then
+    echo "  # ── meet 服务 (aliyun-sjy, k8s) ──"
+    echo "  cd /opt/we-meet && git pull origin aliyun-dev"
+    if [[ "$IMAGE_TAG" == "latest" ]]; then
+      echo "  # latest tag: helm 不自动 roll Deployment, 手动 rollout"
+      restart=""
+      for m in $K8S_SEL; do restart="${restart:+$restart }deploy/meet-${m}"; done
+      echo "  kubectl -n meet rollout restart ${restart}"
+      for m in $K8S_SEL; do
+        echo "  kubectl -n meet rollout status  deploy/meet-${m} --timeout=120s"
+      done
+    else
+      echo "  # <commit-sha> tag: 先把 image.tag 改到 ${IMAGE_TAG}, 再 helm upgrade"
+      echo "  # (在 src/helm/env.d/aliyun-prod/values.meet.yaml 中更新 image.tag)"
+      echo "  helm -n meet upgrade meet ./src/helm/meet -f src/helm/env.d/aliyun-prod/values.meet.yaml"
+    fi
+    if [[ " $K8S_SEL " == *" backend "* ]]; then
+      echo "  # backend 迁移 (无迁移可跳过):"
+      echo "  kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input"
+      echo "  kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | tail -5"
+    fi
+    echo
   fi
-  echo
-  if [[ " $SELECTED " == *" backend "* ]]; then
-    echo "  # 3. backend: 若本次包含数据库迁移, 应用之 (无迁移可跳过)"
-    echo "  kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input"
-    echo "  kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | tail -5"
+
+  if want keycloak; then
+    echo "  # ── keycloak (aliyun-zlm, docker compose，非 k8s) ──"
+    echo "  docker login $VOLC_CR_REGISTRY"
+    echo "  cd ~/we-meet && git pull && cd deploy/aliyun/keycloak"
+    echo "  docker compose pull && docker compose up -d"
     echo
   fi
   echo "================================================================"
