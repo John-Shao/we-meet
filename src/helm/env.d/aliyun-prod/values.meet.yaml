@@ -277,6 +277,17 @@ ingress:
   tls:
     enabled: true
     secretName: meet-tls
+  # /keycloak-sms/ → backend（Keycloak phone-auth 插件的短信网关端点）。
+  # 它是顶层路径（非 /api），主 ingress 默认只把 /api、/external-api 转给 backend，
+  # 其余落 frontend 静态 nginx → 对 POST 报 405。经 customBackends 注入主 ingress。
+  customBackends:
+    - path: /keycloak-sms/
+      pathType: Prefix
+      backend:
+        service:
+          name: meet-backend
+          port:
+            number: 80
 
 ingressAdmin:
   enabled: true
