@@ -11,7 +11,7 @@
 |---|---|
 | 新 4C16G | meet 整套（backend/frontend/summary/celery/agents/livekit/pg/redis）—— 见 aliyun.md §十四 |
 | **旧 4C8G（本机）** | **Docs —— 单节点 K3s + Docs 官方 helm chart**（即 jusi-light-im 的独立机路子） |
-| 2C2G aliyun-zlm | Keycloak（**不动**，仅加一个 `docs` client） |
+| 2C2G aliyun-zlm | Keycloak（加一个 `docs` client；已为 SSO 装 phone-auth 插件、realm 全局手机号登录，见 [sso-integration-plan.md](sso-integration-plan.md)） |
 
 正文存**阿里云 OSS 深圳**（S3 兼容，与本机同区；新桶 `we-meet-docs`），PG/Redis 为 Docs 专属、与 meet 完全隔离。
 
@@ -36,11 +36,11 @@
 - `clientId: docs`，confidential（`publicClient: false`），`standardFlowEnabled: true`
 - `redirectUris: ["https://docs.<域名>/*"]`
 - `webOrigins: ["https://docs.<域名>"]`
-- `post.logout.redirect.uris: "https://docs.<域名>"`
+- `post.logout.redirect.uris: "https://docs.<域名>##https://docs.<域名>/*"`（带/不带尾斜杠两条，否则 logout 报 `Invalid redirect uri`；`bootstrap-docs-client.sh` 已按此建，现有 client 用 `bootstrap-logout-uris.sh` 补）
 
 记下生成的 **client secret**（下一步 `OIDC_RP_CLIENT_SECRET` 用）。脚本 `bootstrap-docs-client.sh` 已随 fork 到 we-meet-docs 的 `deploy/aliyun-docs/`（独立版，凭据走 env，照 we-meet `bootstrap-realm.sh` 的 meet client 建 `docs` client）——跑 `KC_URL=https://id.<域名> KC_ADMIN_USER=... KC_ADMIN_PASSWORD=... DOCS_HOST=docs.<域名> bash deploy/aliyun-docs/bootstrap-docs-client.sh`，脚本末尾会打印要填进 `docs.values.yaml` 的 `OIDC_RP_CLIENT_ID/SECRET/REDIRECT_ALLOWED_HOSTS`。
 
-> Docs 与 meet 在**同一个 realm `meet`** → 用户登录 meet 后访问 docs 走同一 Keycloak SSO 会话，新标签**免登**。
+> Docs 与 meet 在**同一个 realm `meet`** → 用户登录 meet 后访问 docs 走同一 Keycloak SSO 会话，新标签**免登**。docs **直接入口**（未登录）则走 Keycloak 手机验证码登录页（realm 全局 `phone-browser` flow）→ 登录后同样建立 SSO 会话。整套见 [sso-integration-plan.md](sso-integration-plan.md)。
 
 ## 三、装单节点 K3s（本机）
 
@@ -120,7 +120,7 @@ kubectl -n docs exec deploy/impress-backend -- python manage.py migrate
 ```bash
 kubectl -n docs get certificate    # 等变 True（DNS 指本机 + 80 通后 LE 签）
 ```
-新标签打开 `https://docs.<域名>`：已登录 meet 的话应**免登**（同 Keycloak SSO）→ 能建 / 编辑文档。
+新标签打开 `https://docs.<域名>`：已登录 meet 的话应**免登**（同 Keycloak SSO）；未登录则跳 Keycloak **手机验证码页**（realm 全局）→ 登录后能建 / 编辑文档。
 
 ## 六、接通「妙记落 Doc」（在 meet 那台）
 
