@@ -39,10 +39,13 @@ services:
           memory: 384M
 
   keycloak:
-    # 原版 KC 25 + phone-auth 手机验证码认证器（本机 docker build，见 we-meet/keycloak-phone-auth/Dockerfile）。
-    # 构建（在 we-meet/keycloak-phone-auth 目录，默认已是 KC25）： docker build -t we-meet/keycloak:25.0-phone .
-    # 回滚：改回 quay.io/keycloak/keycloak:25.0 即可（provider/主题不影响原有流程）。
-    image: we-meet/keycloak:25.0-phone
+    # 原版 KC 25 + phone-auth 认证器。镜像在【工程师 PC】build 后 push 火山 CR，
+    # ECS 只 docker pull —— 2C2G ECS 上 kc.sh build 会 OOM (code 137)。
+    # 构建：cd keycloak-phone-auth
+    #   docker build -t jusi-cn-guangzhou.cr.volces.com/we-meet/keycloak:25.0-phone .
+    #   docker push jusi-cn-guangzhou.cr.volces.com/we-meet/keycloak:25.0-phone
+    # 回滚：改回 quay.io/keycloak/keycloak:25.0（provider/主题不影响原有流程）。
+    image: jusi-cn-guangzhou.cr.volces.com/we-meet/keycloak:25.0-phone
     container_name: keycloak
     restart: unless-stopped
     depends_on:
@@ -69,10 +72,10 @@ services:
       JAVA_OPTS_KC_HEAP: "-XX:MaxHeapFreeRatio=10 -XX:MinHeapFreeRatio=5 -Xms256m -Xmx768m"
     command:
       - start
-      # No --optimized flag: Keycloak 25 auto-builds the optimized image on
-      # each start. First boot is slow (~30-60s), subsequent restarts use the
-      # cached build. To skip the auto-build, bake a custom image with
-      # `kc.sh build` and pass `--optimized` here.
+      # --optimized：镜像已在 build 期 kc.sh build（带 --db/--health/--features，
+      # 见 keycloak-phone-auth/Dockerfile），启动不再 augmentation → 秒起、不 OOM。
+      # ⚠️ 改 build-time 选项（db/features/health）必须重 build 镜像，不能只改这里。
+      - --optimized
     expose:
       - "8080"
     deploy:
