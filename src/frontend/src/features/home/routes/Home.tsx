@@ -12,7 +12,7 @@ import { Screen } from '@/layout/Screen'
 import { useCreateRoom } from '@/features/rooms'
 import { useUser, UserAware } from '@/features/auth'
 import { JoinMeetingDialog } from '../components/JoinMeetingDialog'
-import { LoginDialog } from '@/features/home/components/LoginDialog'
+import { authUrl } from '@/features/auth'
 import { ScheduleMeetingDialog } from '@/features/home/components/ScheduleMeetingDialog'
 import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
 import { IntroSlider } from '@/features/home/components/IntroSlider'
@@ -347,12 +347,15 @@ export const Home = () => {
                   alignItems: { base: 'center', xsm: 'items-start' },
                 })}
               >
-                <DialogTrigger>
-                  <Button variant="primary" data-attr="login">
-                    {t('login')}
-                  </Button>
-                  <LoginDialog />
-                </DialogTrigger>
+                <Button
+                  variant="primary"
+                  data-attr="login"
+                  onPress={() => {
+                    window.location.href = authUrl()
+                  }}
+                >
+                  {t('login')}
+                </Button>
                 <DialogTrigger>
                   <Button variant="secondary">{t('joinMeeting')}</Button>
                   <JoinMeetingDialog />
