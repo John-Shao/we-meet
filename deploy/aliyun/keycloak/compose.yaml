@@ -39,7 +39,10 @@ services:
           memory: 384M
 
   keycloak:
-    image: quay.io/keycloak/keycloak:25.0
+    # 原版 KC 25 + phone-auth 手机验证码认证器（本机 docker build，见 we-meet/keycloak-phone-auth/Dockerfile）。
+    # 构建（在 we-meet/keycloak-phone-auth 目录，默认已是 KC25）： docker build -t we-meet/keycloak:25.0-phone .
+    # 回滚：改回 quay.io/keycloak/keycloak:25.0 即可（provider/主题不影响原有流程）。
+    image: we-meet/keycloak:25.0-phone
     container_name: keycloak
     restart: unless-stopped
     depends_on:
