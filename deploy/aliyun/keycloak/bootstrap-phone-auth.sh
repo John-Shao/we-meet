@@ -40,6 +40,9 @@ OTP_MAX="${OTP_MAX_ATTEMPTS:-3}"
 # （values.meet.yaml）。留空 DEMO_OTP 即禁用 demo。
 DEMO_PHONES="${DEMO_PHONES:-13800000000,13800000001,13800000002,13800000003,13800000004,13800000005,13800000006,13800000007,13800000008,13800000009}"
 DEMO_OTP="${DEMO_OTP:-123456}"
+# 合成 email 域名：手机用户建号写 <手机号>@<域名> + emailVerified，
+# 免 Keycloak VERIFY_PROFILE 卡手机用户手填 email/姓名。
+EMAIL_DOMAIN="${EMAIL_DOMAIN:-phone.we-meet.online}"
 THEME="${PHONE_LOGIN_THEME:-phone}"
 BINDING="${PHONE_FLOW_BINDING:-client}"   # client | realm | none
 
@@ -105,8 +108,8 @@ EXEC_ID=$(echo "$EXEC" | jq -r '.id')
 CFG_ID=$(echo "$EXEC" | jq -r '.authenticationConfig // empty')
 CFG=$(jq -n --arg u "$GATEWAY_URL" --arg t "$GATEWAY_TOKEN" \
   --arg l "$OTP_LENGTH" --arg e "$OTP_EXPIRY" --arg m "$OTP_MAX" \
-  --arg dp "$DEMO_PHONES" --arg dotp "$DEMO_OTP" \
-  '{alias:"phone-otp-config",config:{sms_gateway_url:$u,sms_gateway_token:$t,otp_length:$l,otp_expiry_seconds:$e,otp_max_attempts:$m,demo_phones:$dp,demo_otp:$dotp}}')
+  --arg dp "$DEMO_PHONES" --arg dotp "$DEMO_OTP" --arg edom "$EMAIL_DOMAIN" \
+  '{alias:"phone-otp-config",config:{sms_gateway_url:$u,sms_gateway_token:$t,otp_length:$l,otp_expiry_seconds:$e,otp_max_attempts:$m,demo_phones:$dp,demo_otp:$dotp,email_domain:$edom}}')
 if [[ -n "$CFG_ID" ]]; then
   echo "$CFG" | jq '.id="'"$CFG_ID"'"' \
     | api -X PUT "$KC_URL/admin/realms/$REALM/authentication/config/$CFG_ID" -d @-

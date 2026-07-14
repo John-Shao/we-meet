@@ -185,5 +185,5 @@ backend 侧 demo（`core/api/mobile_auth.py`）：`MOBILE_AUTH_DEMO_PHONES`（`1
 1. **静默桥接（原阶段二，已放弃）**：原计划让 meet web 保留自建弹窗、后台桥接建 KC 会话（`meet-assertion` 认证器 + 后端签 HS256 断言 + `kc_bridge` cookie）。**实际改为 web 直接走 OIDC**（更简单、标准、无需新认证器/断言安全面）。若未来要「保留 meet 弹窗 UX 又要 SSO」，可回到此思路 —— 但需重新评估断言安全（≤60s、单次 jti、专用密钥、cookie `HttpOnly/Secure/SameSite`）。
 2. **KC 25 → 26 升级**：全集群版本统一。前置：`pg_dump` 备份（DB 迁移单向）、保留 25 镜像可回滚、**重点复验 token-exchange**（KC26 有重构，meet mobile OTP / App 全靠它）与 Caddy hostname；插件换 26 build。
 3. **登录界面品牌化**：把 `phone` 主题做成 we-meet 品牌页（FreeMarker+CSS 或 Keycloakify）。web 用户现在都看 KC 页（不再是 meet 弹窗），此项价值上升。
-4. **手机用户合成 email**（可选）：Docs 登录不需要，但「按邮箱分享/邀请」等下游功能对 null-email 用户无从下手；如需可在 KC 给手机用户加 `email` 属性（如 `<手机号>@phone.we-meet.online`）。
+4. **手机用户 profile 合成（✅ 已实现）**：手机用户没 email/姓名会触发 Keycloak `VERIFY_PROFILE`、卡在「Update Account Information」页逼手填。插件 `PhoneAuthenticator.fillProfile()` 在建号/登录时**补全缺失字段**：`email = <手机号>@phone.we-meet.online`（`email_domain` config 可配，`bootstrap-phone-auth.sh` 传）+ `emailVerified=true`、`firstName = meet-<后4位>`、`lastName = we`。新老用户下次登录自动补全，profile 完整即不再触发 VERIFY_PROFILE（无需关 required action）。改后同样要 rebuild 镜像 + 重跑 bootstrap（写 `email_domain`）。
 5. **dead code 清理**：web 端不再用的 `LoginDialog`/`PhoneLoginPanel`/`QrLoginPanel`（`api/mobileOtp.ts` 得留着，App 用）。
