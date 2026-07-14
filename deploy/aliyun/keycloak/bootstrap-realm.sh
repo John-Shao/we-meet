@@ -73,7 +73,7 @@ curl -sS -X POST "$KC_URL/admin/realms/$REALM/clients" "${AUTH[@]}" -d '{
     "https://meet.we-meet.online"
   ],
   "attributes": {
-    "post.logout.redirect.uris": "https://meet.we-meet.online"
+    "post.logout.redirect.uris": "https://meet.we-meet.online##https://meet.we-meet.online/*"
   }
 }' || echo "(client may already exist)"
 
