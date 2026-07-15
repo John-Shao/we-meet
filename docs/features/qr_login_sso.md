@@ -1,6 +1,6 @@
 # 扫码登录 SSO — 设计文档
 
-状态:阶段一 + 阶段二**已部署验证通过**(2026-07-15;双栏页 + 扫码建会话 + SSO 全链路实测通过。meet client 当前绑 `unified-browser`。踩坑:改 theme 后 login.css 按 KC 版本号缓存,须无痕/硬刷才见新样式)
+状态:阶段一 + 阶段二**已上线**(2026-07-15;双栏页 + 扫码建会话 + SSO 全链路实测通过,**realm 全局 `browserFlow=unified-browser` 已铺开**,meet/docs 均走双栏、互通免登实测通过,meet client 冗余 override 已清空跟随 realm。阶段一独立 `phone-browser`/`scan-browser` 保留待退役。踩坑:改 theme 后 login.css 按 KC 版本号缓存,须无痕/硬刷才见新样式)
 背景:统一 SSO 已打通(web 走 Keycloak OIDC);扫码登录前后端代码仍在但被旁路,且现有实现给不了 SSO。
 调研依据:`core/api/qr_login.py`、`core/api/mobile_auth.py`、`core/api/keycloak_sms.py`、`keycloak-phone-auth/PhoneAuthenticator.java`、`deploy/aliyun/keycloak/bootstrap-phone-auth.sh`、`docs/installation/sso-integration-plan.md` §6。
 原则:① 最大复用现有资产 ② 只扩展不改 upstream ③ 分阶段落地(先跑通再做双栏)。

@@ -12,6 +12,8 @@
 
 **meet / docs / 未来任何接同一 realm 的 OIDC 应用，web 端统一走 Keycloak 手机验证码登录，一次登录、全产品免登（真·SSO）。** 登录、登出、demo 测试号全部实测通过（2026-07-14）。
 
+> **2026-07-15 演进**：web 登录已从「手机验证码单栏页」升级为**双栏统一登录页**（左扫码 + 右手机号 OTP，`unified-login-authenticator`）。realm `browserFlow` 已由 `phone-browser` 换成 **`unified-browser`**（realm 全局），meet / docs 双栏 + 扫码建会话 + 互通免登**实测通过**。阶段一独立 `phone-browser` / `scan-browser` flow 保留待退役。完整设计与实现见 **[qr_login_sso.md](../features/qr_login_sso.md)**。下文是 2026-07-14 手机号 SSO 打通的**原始实施记录**，其中 `phone-authenticator` 的手机 OTP 逻辑已被 `unified-login-authenticator` 平移复用，仍有效。
+
 ### 与原方案的关键差异
 
 | 项 | 原方案 | 实际实施 |
