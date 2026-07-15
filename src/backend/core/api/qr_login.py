@@ -407,3 +407,29 @@ class QrAuthenticatorStatusView(APIView):
         if st == STATUS_CANCELLED:
             return Response({"status": STATUS_CANCELLED})
         return Response({"status": STATUS_PENDING})
+
+
+class QrReadyView(APIView):
+    """极简「确认了吗」信号，供 Keycloak 双栏登录页(阶段二)的扫码列 AJAX 轮询。
+
+    GET /api/qr-login/ready/?token=...  →  {"status": "pending|scanned|confirmed|cancelled|expired"}
+
+    与 /authenticator-status/ 分工：那个是 KC 服务端建会话的**身份来源**（受
+    shared-bearer 保护、含 sub）；这个只回一个非敏感 status，让 KC 双栏页的浏览器
+    JS 判断何时提交最终确认（KC 页在 id.we-meet.online、后端在 meet.we-meet.online，
+    跨域，故显式 `Access-Control-Allow-Origin: *`——只回 status、无 token、无 PII、
+    非删除，条目留给 authenticator-status 读、TTL 兜底）。详见
+    docs/features/qr_login_sso.md。
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [QrPollThrottle]
+
+    def get(self, request):
+        token = request.query_params.get("token", "").strip()
+        entry = cache.get(_key(token)) if token else None
+        st = entry.get("status") if entry else None
+        resp = Response({"status": st or "expired"})
+        resp["Access-Control-Allow-Origin"] = "*"
+        return resp

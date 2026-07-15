@@ -31,6 +31,7 @@ from core.api.qr_login import (
     QrConfirmView,
     QrInitiateView,
     QrPollView,
+    QrReadyView,
     QrScanView,
 )
 from core.external_api import viewsets as external_viewsets
@@ -140,6 +141,8 @@ urlpatterns = [
         QrAuthenticatorStatusView.as_view(),
         name="qr-login-authenticator-status",
     ),
+    # 极简 status 信号，供 KC 双栏登录页扫码列 AJAX 轮询（跨域 ACAO:*，仅 status）。
+    path("api/qr-login/ready/", QrReadyView.as_view(), name="qr-login-ready"),
     # Internal API for agent workers (multi_user_transcriber, etc.).
     # Authenticates via X-Agent-Token shared secret; NOT a public surface.
     path(
