@@ -1,6 +1,6 @@
 # 扫码登录 SSO — 设计文档
 
-状态:设计中(未实施,2026-07-15)
+状态:阶段一代码已实现、待部署验证;阶段二(双栏)待做(2026-07-15)
 背景:统一 SSO 已打通(web 走 Keycloak OIDC);扫码登录前后端代码仍在但被旁路,且现有实现给不了 SSO。
 调研依据:`core/api/qr_login.py`、`core/api/mobile_auth.py`、`core/api/keycloak_sms.py`、`keycloak-phone-auth/PhoneAuthenticator.java`、`deploy/aliyun/keycloak/bootstrap-phone-auth.sh`、`docs/installation/sso-integration-plan.md` §6。
 原则:① 最大复用现有资产 ② 只扩展不改 upstream ③ 分阶段落地(先跑通再做双栏)。
@@ -97,11 +97,12 @@ sequenceDiagram
 
 ## 6. 分阶段里程碑
 
-**阶段一(MVP · 扫码独立页,跑通 SSO)**
-- KC:`ScanAuthenticator` + factory + `scan-login.ftl` + `scan-poll.js` + `ScanGatewayClient` + 注册。
-- 后端:confirm 落点改造 + `authenticator-status` 端点 + `settings` + url。
-- flow:`bootstrap-scan-auth.sh`;扫码页 ↔ 手机号页用 KC「其他登录方式」(try-another-way)或页内链接互切。
-- 验收:无痕 web 点登录 → KC 扫码页 → App 扫码确认 → web 建 KC 会话 → 打开 docs 免登。
+**阶段一(MVP · 扫码独立页,跑通 SSO)—— ✅ 代码已实现,待部署验证**
+- KC:`ScanAuthenticator` + factory + `scan-login.ftl` + `scan-poll.js` + `ScanGatewayClient` + 注册(插件 commit `6564bc8`;Dockerfile builder 阶段已编译验证)。二维码服务端 zxing 生成;轮询走**纯 GET reload**(规避 session_code 轮转/CORS/竞态)。
+- 后端:confirm 落点改造(不 mint token)+ `authenticator-status` 端点(shared-bearer fail-closed)+ `settings` + url(commit `b0a52c8e`)。
+- flow:`bootstrap-scan-auth.sh`(commit `79fe1887`,默认 binding=none);扫码页 ↔ 手机号页整合(scan-forms 并入 phone-browser 作 try-another-way)是阶段一终态、单独做。
+- 部署:backend/keycloak 三处配 `QR_AUTHENTICATOR_GATEWAY_TOKEN` 同值 → `build-and-push.sh keycloak` + compose up → `bootstrap-scan-auth.sh`。
+- 验收:无痕 web(测试 client 绑 scan-browser)→ KC 扫码页 → App 扫码确认 → web 建 KC 会话 → 打开 docs 免登。
 
 **阶段二(抖音式双栏合一)**
 - 目标:左扫码 + 右手机号 OTP 单页。
