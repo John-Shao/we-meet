@@ -234,6 +234,14 @@ class Base(Configuration):
         None, environ_name="KEYCLOAK_SMS_GATEWAY_TOKEN", environ_prefix=None
     )
 
+    # Shared bearer the Keycloak scan-login authenticator sends to
+    # /api/qr-login/authenticator-status/. fail-closed: if unset, that endpoint
+    # refuses everything (it's the identity source for KC session building —
+    # see docs/features/qr_login_sso.md).
+    QR_AUTHENTICATOR_GATEWAY_TOKEN = values.Value(
+        None, environ_name="QR_AUTHENTICATOR_GATEWAY_TOKEN", environ_prefix=None
+    )
+
     # Mobile OTP login — exchanges a verified phone number for Keycloak tokens
     # via the `meet-service` confidential client (Token Exchange).
     MOBILE_AUTH_SERVICE_CLIENT_ID = values.Value(

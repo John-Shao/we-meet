@@ -26,6 +26,7 @@ from core.api.keycloak_sms import KeycloakSmsGatewayView
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.push import ImPushHookView, PushTokenView
 from core.api.qr_login import (
+    QrAuthenticatorStatusView,
     QrCancelView,
     QrConfirmView,
     QrInitiateView,
@@ -133,6 +134,12 @@ urlpatterns = [
     path("api/qr-login/scan/", QrScanView.as_view(), name="qr-login-scan"),
     path("api/qr-login/confirm/", QrConfirmView.as_view(), name="qr-login-confirm"),
     path("api/qr-login/cancel/", QrCancelView.as_view(), name="qr-login-cancel"),
+    # Keycloak 扫码认证器专用：查状态 + 已确认用户身份（shared-bearer, 不发 token）。
+    path(
+        "api/qr-login/authenticator-status/",
+        QrAuthenticatorStatusView.as_view(),
+        name="qr-login-authenticator-status",
+    ),
     # Internal API for agent workers (multi_user_transcriber, etc.).
     # Authenticates via X-Agent-Token shared secret; NOT a public surface.
     path(

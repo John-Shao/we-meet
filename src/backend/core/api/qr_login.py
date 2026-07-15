@@ -38,7 +38,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
-from .mobile_auth import _admin_realm_url, _get_service_account_token, _token_exchange
+from .mobile_auth import _admin_realm_url, _get_service_account_token
 
 logger = logging.getLogger(__name__)
 
@@ -301,20 +301,13 @@ class QrConfirmView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        sa_token = _get_service_account_token()
-        if not sa_token:
-            return Response(
-                {"error": "服务暂时不可用，请稍后重试"},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        tokens = _token_exchange(user_sub, sa_token)
-        if not tokens:
-            return Response(
-                {"error": "令牌获取失败，请稍后重试"},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
-        entry.update({"status": STATUS_CONFIRMED, **tokens})
+        # SSO 落点（2026-07 改造）：不再用 Token Exchange mint token —— 那样只把
+        # token 发给 web、不在 Keycloak 域给浏览器建会话，扫码只登进 meet 单点、
+        # 给不了跨系统 SSO。改为只标 confirmed；entry 已含 scanned_user_id(=KC user
+        # sub) + user{phone,name}。由 Keycloak 扫码认证器轮询 authenticator-status
+        # 拿到身份后自己 setUser + success 建浏览器 SSO 会话。
+        # 详见 docs/features/qr_login_sso.md。
+        entry.update({"status": STATUS_CONFIRMED})
         cache.set(_key(token), entry, timeout=_TTL_SECONDS)
         return Response({"success": True})
 
@@ -344,3 +337,73 @@ class QrCancelView(APIView):
             cache.set(_key(token), entry, timeout=_TTL_SECONDS)
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class QrAuthenticatorStatusView(APIView):
+    """Keycloak 扫码认证器专用：查 qrToken 状态 + 已确认用户身份（不发 token）。
+
+    GET /api/qr-login/authenticator-status/?token=...
+    Auth: Authorization: Bearer <QR_AUTHENTICATOR_GATEWAY_TOKEN>
+
+    与 /poll/（web 用、AllowAny、confirmed 时发 token）刻意分离：这个端点是
+    Keycloak 扫码认证器建会话的**身份来源**，只回 {sub, phone, name}、绝不回
+    token；且 **fail-closed** —— gateway token 未配置直接拒绝（与 keycloak_sms
+    的「未配即放行」相反，因为这里护的是建会话的身份）。
+    详见 docs/features/qr_login_sso.md。
+
+    Responses:
+      - {"status": "pending"}
+      - {"status": "scanned"|"confirmed", "user": {"sub", "phone", "name"}}
+      - {"status": "cancelled"} / {"status": "expired"}
+    """
+
+    # Machine-to-machine (Keycloak → backend): bypass global OIDC auth/throttle,
+    # guard with the shared bearer below.
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = []
+
+    def get(self, request):
+        expected = settings.QR_AUTHENTICATOR_GATEWAY_TOKEN
+        # fail-closed：未配置即拒绝（绝不放行——这是建会话的身份来源）。
+        if not expected:
+            logger.error(
+                "QR_AUTHENTICATOR_GATEWAY_TOKEN not configured — refusing "
+                "authenticator-status (fail-closed)"
+            )
+            return Response(
+                {"error": "gateway not configured"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        presented = (
+            request.headers.get("Authorization", "")
+            .removeprefix("Bearer ")
+            .strip()
+        )
+        # bytes 版：避免 str 版对非 ASCII header 抛 TypeError（畸形请求→500）。
+        if not secrets.compare_digest(presented.encode(), expected.encode()):
+            return Response(
+                {"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        token = request.query_params.get("token", "").strip()
+        if not token:
+            return Response(
+                {"error": "token is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        entry = cache.get(_key(token))
+        if not entry:
+            return Response({"status": "expired"})
+
+        st = entry.get("status")
+        if st in (STATUS_SCANNED, STATUS_CONFIRMED):
+            # 只暴露身份（sub=scanned_user_id 是 KC user UUID，供认证器 getUserById），
+            # 绝不回 token。
+            user = dict(entry.get("user") or {})
+            user["sub"] = entry.get("scanned_user_id")
+            return Response({"status": st, "user": user})
+        if st == STATUS_CANCELLED:
+            return Response({"status": STATUS_CANCELLED})
+        return Response({"status": STATUS_PENDING})
