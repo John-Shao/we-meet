@@ -225,10 +225,8 @@ export const Header = () => {
                 </Link>
               )}
               {!!user && docsUrl && (
-                <a
-                  href={docsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Link
+                  to="/docs"
                   aria-label={t('nav.ariaLabel', { ns: 'docs' })}
                   className={css({
                     paddingX: '0.75rem',
@@ -240,7 +238,7 @@ export const Header = () => {
                   })}
                 >
                   {t('nav.title', { ns: 'docs' })}
-                </a>
+                </Link>
               )}
               {!!user && (
                 <Link

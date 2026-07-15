@@ -15,6 +15,7 @@ import { ImRoute } from '@/features/im'
 import { ContactsRoute } from '@/features/contacts'
 import { CalendarRoute } from '@/features/calendar'
 import { ApprovalRoute } from '@/features/approval'
+import { DocsRoute } from '@/features/docs'
 
 const roomIdRegex = new RegExp(`^[/](?<roomId>${flexibleRoomIdPattern})$`)
 
@@ -32,7 +33,8 @@ export const routes: Record<
   | 'im'
   | 'contacts'
   | 'calendar'
-  | 'approval',
+  | 'approval'
+  | 'docs',
   {
     name: RouteName
     path: RegExp | string
@@ -114,6 +116,11 @@ export const routes: Record<
     name: 'approval',
     path: '/approval',
     Component: ApprovalRoute,
+  },
+  docs: {
+    name: 'docs',
+    path: '/docs',
+    Component: DocsRoute,
   },
 }
 

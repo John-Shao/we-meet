@@ -1,0 +1,1 @@
+export { DocsRoute } from './DocsFrame'

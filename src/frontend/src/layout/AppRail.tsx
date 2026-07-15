@@ -315,16 +315,19 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
           )
         })}
         {docsUrl && (
-          <a
-            href={docsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            to="/docs"
+            data-testid="rail-/docs"
             title={collapsed ? t('nav.docs') : undefined}
-            className={cx(itemBase, collapsed ? itemCollapsed : undefined)}
+            className={cx(
+              itemBase,
+              location === '/docs' ? itemActive : undefined,
+              collapsed ? itemCollapsed : undefined
+            )}
           >
             <RiFileTextLine size={18} />
             {!collapsed && <span>{t('nav.docs')}</span>}
-          </a>
+          </Link>
         )}
       </div>
 
