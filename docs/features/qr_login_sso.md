@@ -1,6 +1,6 @@
 # 扫码登录 SSO — 设计文档
 
-状态:阶段一代码已实现、待部署验证;阶段二(双栏)待做(2026-07-15)
+状态:阶段一 + 阶段二代码均已实现、待部署验证(2026-07-15)
 背景:统一 SSO 已打通(web 走 Keycloak OIDC);扫码登录前后端代码仍在但被旁路,且现有实现给不了 SSO。
 调研依据:`core/api/qr_login.py`、`core/api/mobile_auth.py`、`core/api/keycloak_sms.py`、`keycloak-phone-auth/PhoneAuthenticator.java`、`deploy/aliyun/keycloak/bootstrap-phone-auth.sh`、`docs/installation/sso-integration-plan.md` §6。
 原则:① 最大复用现有资产 ② 只扩展不改 upstream ③ 分阶段落地(先跑通再做双栏)。
@@ -104,10 +104,12 @@ sequenceDiagram
 - 部署:backend/keycloak 三处配 `QR_AUTHENTICATOR_GATEWAY_TOKEN` 同值 → `build-and-push.sh keycloak` + compose up → `bootstrap-scan-auth.sh`。
 - 验收:无痕 web(测试 client 绑 scan-browser)→ KC 扫码页 → App 扫码确认 → web 建 KC 会话 → 打开 docs 免登。
 
-**阶段二(抖音式双栏合一)**
+**阶段二(抖音式双栏合一)—— ✅ 代码已实现,待部署验证**
 - 目标:左扫码 + 右手机号 OTP 单页。
-- 关键难点 + 推荐解法:同页两登录方式 →**把 scan 与 phone 合并成一个 `unified-login-authenticator`**,单 execution 渲染双栏页,`action()` 内部按提交字段分派(有 `phone` 字段走 OTP 分支、轮询走扫码分支)。这是单页双栏最干净的实现,避免「两 authenticator 同页共存」的 flow 层麻烦。
-- 阶段一到阶段二是「拆分的两 authenticator」→「合并的一 authenticator」的重构,阶段一代码大部分可平移。
+- 实现:**`UnifiedLoginAuthenticator`**(合并 scan+phone,单 execution 渲染双栏,`action()` 按字段分派:`qrConfirm`→扫码建会话 / `phone`→发码 / `otp`→验证;手机 OTP 逻辑平移自 `PhoneAuthenticator`,HTTP 客户端复用 `ScanGatewayClient`/`SmsGatewayClient`)+ `unified-login.ftl` 双栏页 + `bootstrap-unified-auth.sh`(插件 commit `7f0113b`、后端/flow `3ac07990`)。
+- **关键改动:扫码列轮询从阶段一的整页 GET reload 改为 AJAX**(`unified-poll.js` fetch 后端 **新增的 `GET /api/qr-login/ready/`**,只读 `{status}`、`ACAO:*`、非删除)—— 因为整页 reload 会冲掉右列正在输入的手机号/验证码;confirmed 才提交一次 `qrConfirm`,服务端仍查**受保护的 authenticator-status** 建会话(身份不经浏览器)。
+- 阶段一独立 `phone-browser`/`scan-browser` 保留不动;unified 验证上线后再退役旧两个。
+- config 合并两侧全部键;`bootstrap-unified-auth.sh` 默认 binding=none。
 
 ## 7. 并行可选项:App 迁 Keycloak OIDC
 
