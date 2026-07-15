@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# bootstrap-i18n.sh — 开启 meet realm 国际化（中/英），登录页按浏览器语言切换。
+# bootstrap-i18n.sh — 开启 meet realm 国际化（五语），登录页按浏览器语言自动匹配。
 #
 # 生效顺序（Keycloak）：OIDC ui_locales 参数 → 用户已存 locale → 浏览器
-# Accept-Language → realm defaultLocale。故：中文浏览器/默认 → 中文；
-# Accept-Language 命中 en → 英文。theme 的 UI 文案已抽成 ${msg(key)}，
-# 由 messages_zh_CN.properties / messages_en.properties 提供两套翻译。
+# Accept-Language → realm defaultLocale。登录页**不提供切换器**，纯按浏览器语言：
+# Accept-Language 命中 zh-CN/en/de/fr/nl → 对应语言；全不命中 → defaultLocale=en
+# 兜底英语。theme UI 文案已抽成 ${msg(key)}，各 messages_<locale>.properties 提供翻译。
 #
 # ⚠️ 部署顺序：**先跑本脚本**（realm 配置，落 DB），**再上新 theme 镜像**，
 #    避免"国际化未开 + 新 theme 已带 messages_en"时英文闪现的窗口。
+#    改 defaultLocale（zh-CN→en）单跑本脚本即可，无需重上 theme。
 #
 # Run:  bash bootstrap-i18n.sh
 set -euo pipefail
@@ -17,7 +18,8 @@ set -a; source .env; set +a
 
 KC_URL="${KC_URL:-https://id.we-meet.online}"
 REALM="${REALM:-meet}"
-DEFAULT_LOCALE="${DEFAULT_LOCALE:-zh-CN}"
+# 兜底语言=英语：浏览器语言全不命中五语时落这里
+DEFAULT_LOCALE="${DEFAULT_LOCALE:-en}"
 # 对齐 we-meet 五语：中/英/德/法/荷（theme 提供各自 messages_<locale>.properties）
 SUPPORTED_LOCALES="${SUPPORTED_LOCALES:-[\"zh-CN\",\"en\",\"de\",\"fr\",\"nl\"]}"
 
@@ -38,8 +40,9 @@ curl -sS "${AUTH[@]}" -X PUT "$KC_URL/admin/realms/$REALM" -d "{
 }"
 
 echo
-echo "完成。验证："
+echo "完成。验证（登录页无切换器，纯按浏览器语言）："
 echo "  - 中文浏览器无痕开登录页 → 中文；"
 echo "  - 浏览器语言设 English（或 curl -H 'Accept-Language: en'）→ 英文；"
+echo "  - 设不支持的语言（如 ja，curl -H 'Accept-Language: ja'）→ 兜底英文；"
 echo "  - 标签页标题也随语言（loginTitle 已本地化）。"
 echo "回滚：PUT realm internationalizationEnabled=false。"
