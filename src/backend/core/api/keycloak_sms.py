@@ -18,6 +18,7 @@ import secrets
 from django.conf import settings
 
 from rest_framework import status
+from rest_framework.parsers import FormParser, JSONParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -86,6 +87,9 @@ class KeycloakOtpSendView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
     throttle_classes = [MobileAuthThrottle]
+    # 收 form-urlencoded：让浏览器跨域用「简单请求」发码，免 CORS 预检
+    # （项目 DRF 默认仅 JSON，会对 form 回 415）。也兼容 JSON。
+    parser_classes = [FormParser, JSONParser]
 
     def post(self, request):
         phone = (request.data.get("phone") or "").strip()
