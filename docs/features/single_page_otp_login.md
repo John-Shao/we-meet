@@ -1,6 +1,6 @@
 # 单页手机号登录（抖音式：获取验证码→输码→验证登录 一页完成）— 设计文档
 
-状态:已实现、待部署验证(2026-07-15)
+状态:**已上线、实测通过**(2026-07-15;realm `unified-browser` 手机侧单页,获取验证码不刷新 + 验证登录一次提交建会话,meet/docs 全通)
 背景:统一双栏登录页(realm `unified-browser`)手机侧原为**两步整页刷新**(输手机号→整页 POST 发码→第二页输码→验证登录)。改为抖音式**单页**:手机号 + 验证码同页,「获取验证码」内联 AJAX 发码(不刷新)+ 倒计时,填完「验证登录」一次提交。
 调研依据:`core/api/mobile_auth.py`(OTP 发/校验/cache/demo)、`core/api/keycloak_sms.py`(shared-bearer 网关)、`keycloak-phone-auth/UnifiedLoginAuthenticator.java`、`docs/features/qr_login_sso.md`。
 原则:① 复用现成 OTP 与已验证的通信模式 ② 不碰 Keycloak 内部 session_code ③ 扫码侧不动。
@@ -58,3 +58,7 @@
 2. **部署**:PC `build-and-push.sh keycloak` + `build-and-push.sh backend`→`helm upgrade` → zlm `compose pull && up`。**不用重跑 bootstrap**。
 3. **E2E(无痕)**:输手机号→获取验证码(收短信 / demo 号固定码)→倒计时启动、页面不刷新→输码→验证登录→建会话进 meet→开 docs 免登。
 4. **边界**:错码→重渲染报错(手机号回填);错多次→attempts 拦;demo 号(13800000000/123456)可登;扫码侧不受影响仍可用。
+
+## 7. 部署踩坑（实测暴露）
+- **DRF 默认仅收 JSON**:`otp/send` 收浏览器 form-urlencoded 会回 **415**。修:该视图显式 `parser_classes=[FormParser, JSONParser]`(保「简单请求免预检」设计)。
+- **ftl 变量名要与 Java `setAttribute` 完全一致**:单页重写把属性名改成 `readBase` 但漏改扫码列 ftl 的 `${readyBase}`(未定义)→ FreeMarker `InvalidReferenceException` → **整页 500**。改 theme 后务必无痕验证渲染。
