@@ -62,3 +62,14 @@
 ## 7. 部署踩坑（实测暴露）
 - **DRF 默认仅收 JSON**:`otp/send` 收浏览器 form-urlencoded 会回 **415**。修:该视图显式 `parser_classes=[FormParser, JSONParser]`(保「简单请求免预检」设计)。
 - **ftl 变量名要与 Java `setAttribute` 完全一致**:单页重写把属性名改成 `readBase` 但漏改扫码列 ftl 的 `${readyBase}`(未定义)→ FreeMarker `InvalidReferenceException` → **整页 500**。改 theme 后务必无痕验证渲染。
+
+## 8. 多语言 i18n（2026-07-15 上线）
+
+**形态**:登录页**不放语言切换器**,语言完全跟浏览器 `Accept-Language` 自动匹配。支持五语(对齐 we-meet):`zh-CN / en / de / fr / nl`;命中出对应语言,全不命中由 realm `defaultLocale=en` **兜底英语**(ja 浏览器 → 英文即验证兜底)。
+
+**实现**:
+- theme UI 文案全抽 `${msg(key)}`,`messages/` 下六份 `messages[_<locale>].properties`(含无后缀 `messages.properties` 作全 locale 兜底,避免解析不到 key 直接吐 key 名);后端错误改回 **reason code**(`wrong/locked/expired/phone`),由 KC 按登录页 locale 渲染 `otp.wrong`/`otp.locked`/… ——错误提示也跟随语言。
+- realm `internationalizationEnabled=true` + `supportedLocales=[zh-CN,en,de,fr,nl]` + `defaultLocale=en`,由 `deploy/aliyun/keycloak/bootstrap-i18n.sh` 落库(改 defaultLocale 单跑此脚本即可,不用重上 theme)。
+
+**关键坑:父主题 `#kc-locale` 语言切换器在自定义 authenticator 下点击必 400。** realm 开 i18n 后基础 `template.ftl` 会渲染语言下拉,其链接是 KC 的 **client_data 重启链**(只带 `client_id/tab_id/execution/kc_locale`,丢 `redirect_uri/scope/response_type`);自定义 authenticator challenge 页点它 → KC 重启路径重新校验 redirect_uri → `400 无效的参数 : redirect_uri`(同一 redirect_uri 初始能过、重启过不了,KC 已知问题 keycloak#16063)。故 CSS `#kc-locale{display:none}` 隐藏它,纯靠 `Accept-Language` 匹配。
+- **若将来要页面切换器**:别用父主题那个(必 400)。自渲染 `<select>`(`locale.supported`),change 时写 `KEYCLOAK_LOCALE` cookie + `location.assign(pathname+search)` 原样 GET 重载(别用 `reload()`——POST 重渲染页会重放表单),避开重启链。此方案本会话已跑通,后按「纯匹配」需求回退。
