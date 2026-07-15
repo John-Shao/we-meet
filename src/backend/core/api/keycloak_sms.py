@@ -148,7 +148,9 @@ class KeycloakOtpVerifyView(APIView):
         phone = (request.data.get("phone") or "").strip()
         otp = (request.data.get("otp") or "").strip()
         if not PHONE_REGEX.match(phone):
-            return Response({"valid": False, "error": "手机号格式不正确"})
+            return Response({"valid": False, "reason": "phone", "remaining": None})
 
-        ok, err = _validate_otp(phone, otp)
-        return Response({"valid": ok, "error": err})
+        # 回稳定 reason 码（expired/locked/wrong/None），由 KC 认证器映射到 message
+        # key 按登录页语言渲染；不回本地化文案、不发 token。
+        ok, reason, remaining = _validate_otp(phone, otp)
+        return Response({"valid": ok, "reason": reason, "remaining": remaining})

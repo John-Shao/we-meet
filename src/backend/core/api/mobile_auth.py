@@ -224,32 +224,46 @@ def _issue_otp(phone: str) -> bool:
     return True
 
 
-def _validate_otp(phone: str, otp_input: str) -> tuple[bool, str | None]:
+def _validate_otp(phone: str, otp_input: str) -> tuple[bool, str | None, int | None]:
     """Validate OTP against cache (attempts/expiry/compare). Deletes on success.
 
-    Returns (True, None) on success, else (False, error_msg). 不 mint token ——
-    被 VerifyOtpView(mobile，校验后再 Token Exchange)与 Keycloak 统一认证器校验
-    网关（keycloak_sms.KeycloakOtpVerifyView，只校验不发 token）共用。
+    Returns (ok, reason, remaining):
+      - (True, None, None) 成功
+      - (False, "expired", None) 无缓存/过期
+      - (False, "locked", None) 错误次数超限
+      - (False, "wrong", remaining) 验证码错误
+    回**稳定 reason 码**（不是本地化文案），供 KC 认证器映射到 message key 由
+    Keycloak 按登录页语言渲染；mobile 侧用 `_otp_error_msg` 转中文。不 mint token。
     """
     cache_key = f"{_OTP_CACHE_PREFIX}{phone}"
     cached = cache.get(cache_key)
     if not cached:
-        return False, "验证码已过期，请重新获取"
+        return False, "expired", None
 
     attempts = cached.get("attempts", 0)
     max_attempts = settings.MOBILE_AUTH_OTP_MAX_ATTEMPTS
     if attempts >= max_attempts:
         cache.delete(cache_key)
-        return False, "错误次数过多，请重新获取验证码"
+        return False, "locked", None
 
     if cached["otp"] != otp_input:
         cached["attempts"] = attempts + 1
         cache.set(cache_key, cached, timeout=settings.MOBILE_AUTH_OTP_EXPIRY)
-        remaining = max_attempts - cached["attempts"]
-        return False, f"验证码错误，还有 {remaining} 次机会"
+        return False, "wrong", max_attempts - cached["attempts"]
 
     cache.delete(cache_key)
-    return True, None
+    return True, None, None
+
+
+def _otp_error_msg(reason: str | None, remaining: int | None) -> str:
+    """reason 码 → 中文文案（mobile app 契约保持中文）。"""
+    if reason == "expired":
+        return "验证码已过期，请重新获取"
+    if reason == "locked":
+        return "错误次数过多，请重新获取验证码"
+    if reason == "wrong":
+        return f"验证码错误，还有 {remaining} 次机会"
+    return "验证码错误"
 
 
 # ---------------------------------------------------------------------------
@@ -321,9 +335,12 @@ class VerifyOtpView(APIView):
                 {"error": "手机号格式不正确"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        ok, err = _validate_otp(phone, otp_input)
+        ok, reason, remaining = _validate_otp(phone, otp_input)
         if not ok:
-            return Response({"error": err}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": _otp_error_msg(reason, remaining)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Get Keycloak tokens via Token Exchange
         sa_token = _get_service_account_token()
