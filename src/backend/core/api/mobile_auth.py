@@ -201,6 +201,57 @@ def _token_exchange(user_id: str, sa_token: str) -> dict | None:
         return None
 
 
+def _issue_otp(phone: str) -> bool:
+    """Generate (or demo-fixed) OTP, store in cache, send SMS. True on success.
+
+    一套 OTP 生成/存储/发送/demo 逻辑，被 mobile SendOtpView 与 Keycloak 双栏登录页
+    发码网关（keycloak_sms.KeycloakOtpSendView）共用。
+    """
+    expiry = settings.MOBILE_AUTH_OTP_EXPIRY
+    cache_key = f"{_OTP_CACHE_PREFIX}{phone}"
+
+    demo_otp = settings.MOBILE_AUTH_DEMO_OTP
+    if demo_otp and phone in settings.MOBILE_AUTH_DEMO_PHONES:
+        cache.set(cache_key, {"otp": demo_otp, "attempts": 0}, timeout=expiry)
+        return True
+
+    otp_len = settings.MOBILE_AUTH_OTP_LENGTH
+    otp = "".join(str(random.SystemRandom().randint(0, 9)) for _ in range(otp_len))
+    cache.set(cache_key, {"otp": otp, "attempts": 0}, timeout=expiry)
+    if not _send_sms(phone, otp):
+        cache.delete(cache_key)
+        return False
+    return True
+
+
+def _validate_otp(phone: str, otp_input: str) -> tuple[bool, str | None]:
+    """Validate OTP against cache (attempts/expiry/compare). Deletes on success.
+
+    Returns (True, None) on success, else (False, error_msg). 不 mint token ——
+    被 VerifyOtpView(mobile，校验后再 Token Exchange)与 Keycloak 统一认证器校验
+    网关（keycloak_sms.KeycloakOtpVerifyView，只校验不发 token）共用。
+    """
+    cache_key = f"{_OTP_CACHE_PREFIX}{phone}"
+    cached = cache.get(cache_key)
+    if not cached:
+        return False, "验证码已过期，请重新获取"
+
+    attempts = cached.get("attempts", 0)
+    max_attempts = settings.MOBILE_AUTH_OTP_MAX_ATTEMPTS
+    if attempts >= max_attempts:
+        cache.delete(cache_key)
+        return False, "错误次数过多，请重新获取验证码"
+
+    if cached["otp"] != otp_input:
+        cached["attempts"] = attempts + 1
+        cache.set(cache_key, cached, timeout=settings.MOBILE_AUTH_OTP_EXPIRY)
+        remaining = max_attempts - cached["attempts"]
+        return False, f"验证码错误，还有 {remaining} 次机会"
+
+    cache.delete(cache_key)
+    return True, None
+
+
 # ---------------------------------------------------------------------------
 # Views
 # ---------------------------------------------------------------------------
@@ -239,35 +290,14 @@ class SendOtpView(APIView):
             return Response(
                 {"error": "手机号格式不正确"}, status=status.HTTP_400_BAD_REQUEST
             )
-
-        expiry = settings.MOBILE_AUTH_OTP_EXPIRY
-
-        # Demo account: use fixed OTP, skip SMS
-        demo_otp = settings.MOBILE_AUTH_DEMO_OTP
-        if demo_otp and phone in settings.MOBILE_AUTH_DEMO_PHONES:
-            cache.set(
-                f"{_OTP_CACHE_PREFIX}{phone}",
-                {"otp": demo_otp, "attempts": 0},
-                timeout=expiry,
-            )
-            return Response({"success": True, "expires_in": expiry})
-
-        otp_len = settings.MOBILE_AUTH_OTP_LENGTH
-        otp = "".join(
-            str(random.SystemRandom().randint(0, 9)) for _ in range(otp_len)
-        )
-
-        cache_key = f"{_OTP_CACHE_PREFIX}{phone}"
-        cache.set(cache_key, {"otp": otp, "attempts": 0}, timeout=expiry)
-
-        if not _send_sms(phone, otp):
-            cache.delete(cache_key)
+        if not _issue_otp(phone):
             return Response(
                 {"error": "短信发送失败，请稍后重试"},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-
-        return Response({"success": True, "expires_in": expiry})
+        return Response(
+            {"success": True, "expires_in": settings.MOBILE_AUTH_OTP_EXPIRY}
+        )
 
 
 class VerifyOtpView(APIView):
@@ -291,35 +321,9 @@ class VerifyOtpView(APIView):
                 {"error": "手机号格式不正确"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        cache_key = f"{_OTP_CACHE_PREFIX}{phone}"
-        cached = cache.get(cache_key)
-
-        if not cached:
-            return Response(
-                {"error": "验证码已过期，请重新获取"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        attempts = cached.get("attempts", 0)
-        max_attempts = settings.MOBILE_AUTH_OTP_MAX_ATTEMPTS
-        if attempts >= max_attempts:
-            cache.delete(cache_key)
-            return Response(
-                {"error": "错误次数过多，请重新获取验证码"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if cached["otp"] != otp_input:
-            cached["attempts"] = attempts + 1
-            cache.set(cache_key, cached, timeout=settings.MOBILE_AUTH_OTP_EXPIRY)
-            remaining = max_attempts - cached["attempts"]
-            return Response(
-                {"error": f"验证码错误，还有 {remaining} 次机会"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # OTP correct — invalidate immediately
-        cache.delete(cache_key)
+        ok, err = _validate_otp(phone, otp_input)
+        if not ok:
+            return Response({"error": err}, status=status.HTTP_400_BAD_REQUEST)
 
         # Get Keycloak tokens via Token Exchange
         sa_token = _get_service_account_token()

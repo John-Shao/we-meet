@@ -22,7 +22,11 @@ from core.api.directory import (
 )
 from core.api.im import ImViewSet
 from core.api.im_later import ImLaterViewSet
-from core.api.keycloak_sms import KeycloakSmsGatewayView
+from core.api.keycloak_sms import (
+    KeycloakOtpSendView,
+    KeycloakOtpVerifyView,
+    KeycloakSmsGatewayView,
+)
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.push import ImPushHookView, PushTokenView
 from core.api.qr_login import (
@@ -128,6 +132,17 @@ urlpatterns = [
         "keycloak-sms/send/",
         KeycloakSmsGatewayView.as_view(),
         name="keycloak-sms-send",
+    ),
+    # 双栏登录页手机侧：AJAX 发码（跨域 ACAO:*）+ KC 认证器校验（shared-bearer）。
+    path(
+        "api/keycloak-sms/otp/send/",
+        KeycloakOtpSendView.as_view(),
+        name="keycloak-otp-send",
+    ),
+    path(
+        "api/keycloak-sms/otp/verify/",
+        KeycloakOtpVerifyView.as_view(),
+        name="keycloak-otp-verify",
     ),
     # QR-code login: web shows the QR, App scans + confirms, web polls.
     path("api/qr-login/initiate/", QrInitiateView.as_view(), name="qr-login-initiate"),
