@@ -18,7 +18,8 @@ set -a; source .env; set +a
 KC_URL="${KC_URL:-https://id.we-meet.online}"
 REALM="${REALM:-meet}"
 DEFAULT_LOCALE="${DEFAULT_LOCALE:-zh-CN}"
-SUPPORTED_LOCALES="${SUPPORTED_LOCALES:-[\"zh-CN\",\"en\"]}"
+# 对齐 we-meet 五语：中/英/德/法/荷（theme 提供各自 messages_<locale>.properties）
+SUPPORTED_LOCALES="${SUPPORTED_LOCALES:-[\"zh-CN\",\"en\",\"de\",\"fr\",\"nl\"]}"
 
 echo "==> Admin login"
 TOKEN=$(curl -sS --fail "$KC_URL/realms/master/protocol/openid-connect/token" \
