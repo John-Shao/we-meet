@@ -14,16 +14,22 @@ import { useConfig } from '@/api/useConfig'
  * docsUrl 缺失(后端未配 DOCS_API_URL)时导航入口本就不显示;直连 /docs 则渲染空。
  */
 export const DocsRoute = () => {
-  const { t } = useTranslation('docs')
+  const { t, i18n } = useTranslation('docs')
   const { data: config } = useConfig()
   const docsUrl = config?.docs?.url
   // docsUrl 缺失时渲染空(导航入口本就隐藏;直连 /docs 才可能到这)。空 fragment
   // 满足路由 Component 的 () => JSX.Element 契约。
   if (!docsUrl) return <></>
 
+  // ?embed=1 让 docs 收敛掉自带的退出/语言切换（docs 的 LeftPanelFooter）；?lang= 用 meet
+  // 当前语言驱动 docs（docs i18next 的 querystring 探测）。去尾斜杠避免出现双斜杠。
+  const embedSrc = `${docsUrl.replace(/\/+$/, '')}/?embed=1&lang=${encodeURIComponent(
+    i18n.language,
+  )}`
+
   return (
     <iframe
-      src={docsUrl}
+      src={embedSrc}
       title={t('nav.title')}
       // 内容区(Layout 的 <main>)是 flex 列;flex:1 + minHeight:0 让 iframe 铺满可用高度。
       className={css({
