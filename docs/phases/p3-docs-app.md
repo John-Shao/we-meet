@@ -42,10 +42,12 @@ WebLoginScreen(WebView)
   → access/refresh(offline)/id_token → TokenStore(authFlow=web)
   → CookieManager.flush() → 进主界面
 
-[云文档 tab]
-DocsScreen(WebView) → https://docs.we-meet.online/?embed=1&lang=zh-cn
-  → docs 302 KC → 命中 CookieManager 里的 KC 会话 → 静默 SSO → 免登进入
-  → sessionStorage 里的 embed 标记生效 → 隐藏 docs 用户区(D7)
+[云文档 tab]  ← 实测订正:必须从 authenticate 端点进,且靠 UA 认嵌入(见 §七)
+DocsScreen(WebView) → https://docs.we-meet.online/api/v1.0/authenticate/
+                        ?returnTo=<docs 根 URL(带 embed/lang)>
+  → docs 302 KC → 命中 CookieManager 里的 KC 会话 → 静默 SSO → 302 回 docs
+  → docs 建「已认证」会话 → 落到文档列表(免登)
+  → WebView 的 UA 含 WeMeetApp 标记 → docs 隐藏自带用户区(D7 订正)
 
 [API 与刷新]
 业务 API:AuthInterceptor 加 Bearer(不变)
@@ -66,14 +68,17 @@ DocsScreen(WebView) → https://docs.we-meet.online/?embed=1&lang=zh-cn
 | `ui/login/WebLoginScreen.kt`(新) | WebView 登录页:加载 authorize、拦截回调、loading/error 态、完成回调 `onLoggedIn` |
 | `ui/nav/AppNav.kt` | `Routes.LOGIN` 按 `WE_MEET_WEB_LOGIN` 分发 WebLoginScreen / LoginScreen |
 | `ui/main/MainTabScreen.kt` | `MainTab.Docs` 第 5 tab + 提升持有 docs WebView(D6) |
-| `ui/docs/DocsScreen.kt`(新) | docs WebView(embed+lang URL、BackHandler、进度条) |
-| `res/values/strings.xml` + `values-zh-rCN/` | `tab_docs`(Docs/云文档)+ 登录页文案 |
+| `ui/docs/DocsScreen.kt`(新) | docs WebView。**四个实测要点(§七)**:①`MATCH_PARENT` LayoutParams;②`WebViewClient` 必须在 `loadUrl` 前设;③入口走 `/api/v1.0/authenticate/?returnTo=`;④UA 追加 `WeMeetApp/1.0 (embedded-docs)`。另:BackHandler、无手势导航一律留在 WebView |
+| `res/values/strings.xml` + 其余四语 | `tab_docs`(Docs/云文档)+ 登录页文案(五语齐) |
 
 **we-meet(仅脚本)**
 - `deploy/aliyun/keycloak/bootstrap-app-client.sh`(新):realm `meet` 加 public client `app`(D2)。**部署时需在 aliyun-zlm 跑一次**。
 
-**we-meet-docs(docs-dev,一处)**
-- `src/frontend/apps/impress/src/hooks/useIsEmbedded.tsx`:模块级 sessionStorage 捕获(D7)→ **重建 docs 前端镜像**。
+**we-meet-docs(docs-dev)**
+- `src/frontend/apps/impress/src/hooks/useIsEmbedded.tsx`:判据 = iframe ∨ **UA 含 `WeMeetApp`** ∨ sessionStorage ∨ `?embed=1`(D7 订正,见 §七.5)→ **重建 docs 前端镜像**。
+
+**keycloak-phone-auth(main,登录页主题)**
+- `theme/phone/login/resources/css/login.css` + `js/unified-poll.js`:触摸设备(`(hover:none) and (pointer:coarse)`)隐藏扫码列并跳过轮询 —— 手机上扫自己屏幕没意义;**不用宽度判**,否则桌面窄窗口会误伤(那里二维码仍有用)。→ **重建 keycloak 镜像**。
 
 ## 五、风险
 
@@ -95,3 +100,88 @@ DocsScreen(WebView) → https://docs.we-meet.online/?embed=1&lang=zh-cn
 | 6 | 登出 → 再进登录页 | 需重新输 OTP(cookie 已清),不会静默续登前一账号 |
 | 7 | 老包升级(legacy token 在库) | 不强制重登;登出后再登走 web 流 |
 | 8 | `WE_MEET_WEB_LOGIN=false` 构建 | 回退原生 OTP 登录,App 全功能照旧(docs tab 首开需在页内登录) |
+
+---
+
+## 七、实战踩坑录(2026-07-16 落地,真机 + 模拟器验收通过)
+
+> 设计(§二)整体成立 —— **CDP 实测确认登录 WebView 种的 KC 会话 cookie
+> (`KEYCLOAK_IDENTITY`/`KEYCLOAK_SESSION`/`AUTH_SESSION_ID`)确实进了进程级
+> CookieManager,docs 的 WebView 直接命中**,鉴权改造这条主链没白做。
+> 但下面 5 个坑**设计时全没想到**,且多数光读代码看不出来,是靠 Chrome DevTools
+> Protocol(`adb forward` + `webview_devtools_remote_<pid>`)实测撞出来的。
+
+### 1. Kotlin 嵌套块注释吃掉整个文件
+`KeycloakOidc.kt` 的 KDoc 里写了 `/api/mobile/auth/*` —— 其中的 `/*` 被 Kotlin 当成
+**嵌套块注释**起始(Kotlin 支持注释嵌套),外层 KDoc 就此不闭合,报
+`Syntax error: Unclosed comment`,连带整个类"不存在"、几十处 Unresolved reference。
+**注释里别写含 `/*` 的路径通配。**
+
+### 2. `WebViewClient` 必须在 `loadUrl` **之前**设 —— 一因两果
+最初把 client 设在 `DocsTabScreen`(要等用户点开 tab 才组合),而 `loadUrl` 在
+`createDocsWebView` 里就发生了。**没有 WebViewClient 的 WebView 会把导航交给系统
+浏览器**(Android 官方默认行为),于是 docs 的 `/`→`/home/` 重定向逃出 WebView:
+- **无手势**(自动重定向)→ Chromium 报 `Denied starting an intent without a user
+  gesture` 拦下 → 导航被吞 → **页面空白**(真机现象);
+- **有手势**(点 tab)→ 拉起成功 → **蹦出 Chrome**(模拟器现象)。
+
+配套加固:`shouldOverrideUrlLoading` 里**无用户手势的导航一律 `return false`**
+(留在 WebView),只有用户真手点的外站才外跳 —— 这样即便域名判断出错,最坏也只是
+外链在 WebView 内打开,**结构上不可能再变空白**。
+
+### 3. docs 打开 `/` 不会自动 OIDC 登录
+全新 WebView 没有 docs 会话,而 docs 根路径**只渲染匿名着陆页**("Start Writing"),
+`/users/me/` 一路 401,页面停在 spinner。web 端 iframe 之所以直接见文档列表,是因为
+那个浏览器**早就登录过 docs**、已有已认证会话 —— 这掩盖了问题。
+**修法**:从 `/api/v1.0/authenticate/?returnTo=<目标>` 进入,用已有 KC 会话静默换出
+docs 的已认证会话。CDP 实测:`/users/me/` **401 → 200**,文档列表渲染。
+
+### 4. WebView 没 LayoutParams → CSS 视口高度报 0 → 所有 `vh/dvh` 归零 ⭐
+现象:点 docs 左上角面板开关,**只出遮罩、面板不见**(真机+模拟器一致,同 URL 在
+浏览器窄窗口正常)。CDP 对照实验一锤定音:
+```
+innerHeight=780   supportsDvh=true          ← 视口明明是 780
+100dvh → 0px   100svh → 0px   100vh → 0px   ← 视口单位全废
+100%   → 780.19px                            ← 只有百分比正常
+```
+根因:程序化 `new WebView(context)` **没有 LayoutParams**,宿主按 `WRAP_CONTENT`
+量它,Chromium 于是把 CSS 视口高度报成 0。docs 左面板恰是 `height:100dvh` → 算成 0,
+又叠加 `overflow:hidden` → 渲染成一个**空抽屉**。
+**修法**:`layoutParams = MATCH_PARENT/MATCH_PARENT`。复测全部恢复 780.19px。
+**这条影响 WebView 里任何用 vh/dvh 的页面,不止这个面板;docs 侧零改动。**
+
+### 5. `?embed=1` 活不过重定向 → 改用 UA 标记
+embed 判据演进了三轮,前两轮都被现实推翻:
+| 判据 | 结果 |
+|---|---|
+| `?embed=1` URL 参数 | ✗ docs 的 `/`→`/home/`、`authenticate`→`returnTo`→`/` 都会丢掉 query |
+| `window.self !== window.top` | ✓ web iframe 可靠;✗ **App WebView 是顶层加载,恒 false** |
+| **UA 追加 `WeMeetApp`** | ✓ 不依赖 URL、不依赖 iframe 嵌套,**抗重定向** —— App 端最终方案 |
+
+现判据 = `iframe ∨ UA ∨ sessionStorage ∨ ?embed=1`(任一成立),web 端行为不变。
+⚠️ **UA 标记串在两仓各存一份**(`DocsScreen.kt` 的 `EMBED_UA_MARKER` ↔
+`useIsEmbedded.tsx` 的 `EMBED_UA_MARKER`),**改动须同步**,两边注释已交叉引用。
+
+### 落地结果
+| 能力 | 状态 |
+|---|---|
+| WebView Keycloak OIDC 登录(鉴权改造) | ✅ 真机通过 |
+| 第 5 tab 云文档 · 免登直入文档列表 | ✅ 真机通过 |
+| 导航面板 / 文档列表渲染 | ✅ 真机通过 |
+| 手机端登录页隐藏二维码 | ✅ 真机通过 |
+| docs 用户区收敛到 meet 框架 | ✅ 真机通过 |
+
+**§五 风险 2(统一登录页竖屏双栏排版)已解**:不是排版问题,而是二维码在手机上
+本就不该出现 —— 按触摸特征隐藏(见 §四 keycloak-phone-auth)。
+
+### 调试手法备忘(下次直接用)
+WebView 出问题别靠猜,**开 CDP 直连页面**:
+```bash
+adb forward tcp:9222 localabstract:webview_devtools_remote_$(adb shell pidof com.we.meet)
+curl -s http://localhost:9222/json          # 列可检查页面 + 当前 URL + ws 地址
+# 再用 websocket-client 跑 CDP:Network.getAllCookies / Runtime.evaluate /
+# Network.responseReceived(抓 401)/ Log.entryAdded。
+# 注意:websocket 握手需 suppress_origin=True,否则 403 Rejected origin。
+```
+debug 包已开 `WebView.setWebContentsDebuggingEnabled(true)`,也可 PC Chrome 开
+`chrome://inspect` 直接看 Console/Network。
