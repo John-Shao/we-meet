@@ -20,10 +20,6 @@ import { createDirectConversationByUserId } from '../api/createDirectConversatio
  * no call-log (a rejected meet-invite must not fake a "missed call" entry).
  */
 
-/** Until @jusi/light-im-sdk 0.1.0-alpha.10 (P19) is installed, `kind` rides as
- * an extra key — the SDK sends the payload object verbatim. */
-type MeetCallPayload = CallPayload & { kind?: '' | 'meet' }
-
 export type MeetInviteState =
   | 'inviting' // frame(s) sent, no receipt yet
   | 'ringing' // invitee's device acked
@@ -231,7 +227,7 @@ const sendFrame = (
   const c = client
   if (!c || !invite.cid || !invite.peerUid) return false
   try {
-    const payload: MeetCallPayload = {
+    const payload: CallPayload = {
       event,
       call_id: invite.callId,
       cid: invite.cid,

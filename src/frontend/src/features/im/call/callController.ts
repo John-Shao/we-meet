@@ -261,9 +261,8 @@ const onInvite = (p: CallPayload): void => {
     media: p.media ?? 'audio',
     outgoing: false,
     roomSlug: p.room_slug,
-    // P4: escalation invites carry kind="meet" (needs SDK ≥0.1.0-alpha.10
-    // for the type; the runtime value flows regardless).
-    kind: (p as CallPayload & { kind?: '' | 'meet' }).kind,
+    // P4: escalation invites carry kind="meet" (P19, SDK ≥0.1.0-alpha.10).
+    kind: p.kind,
   }
   callStore.state = { phase: 'incoming', info }
   replyTo(p, CallEvent.Ringing)
