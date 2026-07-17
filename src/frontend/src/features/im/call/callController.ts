@@ -60,10 +60,11 @@ export interface CallInfo {
   outgoing: boolean
   roomSlug?: string
   roomId?: string
-  /** P4: "meet" marks an escalation invite into an existing multi-party
-   * room — the overlay swaps the ring text and accept lands in the
-   * multi-party form (voice grid / full meeting UI) instead of the 1:1 stage. */
-  kind?: '' | 'meet'
+  /** P4: "meet" (1:1 escalation / meeting pull) or "group" (群语音) mark an
+   * invite into an existing multi-party room — the overlay swaps the ring
+   * text and accept lands in the multi-party form instead of the 1:1 stage.
+   * Only "meet" writes the invitee-side direct-chat record. */
+  kind?: '' | 'meet' | 'group'
 }
 
 export type CallPhase =
@@ -237,6 +238,7 @@ export const startGroupVoiceCall = async (p: {
     media: 'audio',
     roomSlug: room.slug,
     roomName: p.roomName,
+    kind: 'group',
   })
   navigateTo('room', room.slug, {
     state: { autoJoin: true, callAudioOnly: true, callMeet: true },
@@ -265,6 +267,8 @@ export const acceptCall = (): void => {
   sendFrame(s.info, CallEvent.Accept)
   // P4: an accepted meet-invite gets an invitee-side duration record (拍板:
   // the invitee is the single writer in the inviter↔invitee conversation).
+  // 群语音 (kind="group") deliberately does NOT — the group chat carries the
+  // single record (P4.1 实测拍板).
   if (s.info.kind === 'meet') {
     connectedMeetCall = {
       cid: s.info.cid,
@@ -339,8 +343,9 @@ const onInvite = (p: CallPayload): void => {
     media: p.media ?? 'audio',
     outgoing: false,
     roomSlug: p.room_slug,
-    // P4: escalation invites carry kind="meet" (P19, SDK ≥0.1.0-alpha.10).
-    kind: p.kind,
+    // P4: escalation invites carry kind (P19; "group" rides verbatim beyond
+    // the SDK's ''|'meet' typing).
+    kind: p.kind as CallInfo['kind'],
   }
   callStore.state = { phase: 'incoming', info }
   replyTo(p, CallEvent.Ringing)
@@ -594,7 +599,7 @@ const enterRoom = (slug: string, info: CallInfo): void => {
       // P4: an accepted escalation invite lands straight in the multi-party
       // form — voice keeps the minimal stage but grid-seeded, video goes to
       // the full meeting UI.
-      callMeet: info.kind === 'meet',
+      callMeet: info.kind === 'meet' || info.kind === 'group',
     },
   })
 }

@@ -90,6 +90,10 @@ export interface MeetInviteOpts {
   roomSlug: string
   /** e.g. t('call.meetInviteRoomName', {name}) — shown by older clients. */
   roomName: string
+  /** 'meet' (1:1 escalation / meeting pull — invitee writes the direct-chat
+   * record) vs 'group' (群语音 — only the GROUP record exists; the invitee
+   * must NOT double-log into the direct chat). Relayed verbatim by jusi. */
+  kind?: 'meet' | 'group'
 }
 
 /**
@@ -239,7 +243,9 @@ const sendFrame = (
       reason,
       ...(event === CallEvent.Invite && opts
         ? {
-            kind: 'meet' as const,
+            // SDK types kind as ''|'meet'; 'group' rides verbatim (server
+            // relays any string) — widen locally until the next SDK bump.
+            kind: (opts.kind ?? 'meet') as 'meet',
             media: opts.media,
             room_slug: opts.roomSlug,
             room_name: opts.roomName,
