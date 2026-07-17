@@ -92,6 +92,16 @@ const finishedCallIds: string[] = []
 let connectedCall: { cid: string; media: CallMedia; startedAt: number } | null =
   null
 
+/** P4: a meet-invite this device ACCEPTED (drives the invitee-side record —
+ * the invitee writes `completed`+duration into the inviter↔invitee direct
+ * conversation on leave, so both of them see the record; the tracker itself
+ * never writes logs). */
+let connectedMeetCall: {
+  cid: string
+  media: CallMedia
+  startedAt: number
+} | null = null
+
 /**
  * Wire the controller to the app-wide SDK client. Idempotent; called from
  * ImUnreadProvider (the same place that keeps the client connected app-wide),
@@ -194,6 +204,15 @@ export const acceptCall = (): void => {
   }
   callStore.state = { phase: 'connecting', info: s.info }
   sendFrame(s.info, CallEvent.Accept)
+  // P4: an accepted meet-invite gets an invitee-side duration record (拍板:
+  // the invitee is the single writer in the inviter↔invitee conversation).
+  if (s.info.kind === 'meet') {
+    connectedMeetCall = {
+      cid: s.info.cid,
+      media: s.info.media,
+      startedAt: Date.now(),
+    }
+  }
   enterRoom(slug, s.info)
   finishQuietly(s.info)
 }
@@ -353,6 +372,16 @@ export const scheduleCallRoomLeave = (extra?: () => void): void => {
       const durationSec = Math.max(1, Math.round((leftAtMs - c.startedAt) / 1000))
       void sendCallLog(
         { cid: c.cid, media: c.media } as CallInfo,
+        'completed',
+        durationSec
+      )
+    }
+    const m = connectedMeetCall
+    if (m) {
+      connectedMeetCall = null
+      const durationSec = Math.max(1, Math.round((leftAtMs - m.startedAt) / 1000))
+      void sendCallLog(
+        { cid: m.cid, media: m.media } as CallInfo,
         'completed',
         durationSec
       )
