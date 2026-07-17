@@ -359,14 +359,14 @@ export const Conference = ({
 }
 
 /**
- * P4 upgrade fork (must live INSIDE LiveKitRoom for the participant hooks).
- * upgraded := entered as an escalation invitee ∥ this side sent an invite ∥
- * the room grew past 1:1 — the roster is the truth source, so B (who didn't
- * pull anyone) follows automatically. One-way latch: no falling back to the
- * 1:1 stage when people leave (设计 §2.4).
+ * P4 fork (must live INSIDE LiveKitRoom for the participant hooks) —
+ * 2026-07-17 现状模型拍板:
  *
- *   voice: minimal stage always — single-peer layout, grid once upgraded
- *   video: 1:1 stage → full meeting UI once upgraded
+ *   voice: CALL semantics throughout — always the minimal stage, whose form
+ *          follows the live roster inside CallStage (grid ↔ 1:1 ↔ auto-end).
+ *   video: escalation LATCHES into the full meeting UI (meeting semantics —
+ *          no fallback at 2, no auto-end). Latch := entered as an escalation
+ *          invitee ∥ this side sent an invite ∥ the room grew past 1:1.
  */
 const CallOrMeeting = ({
   callPeer,
@@ -383,20 +383,14 @@ const CallOrMeeting = ({
 }) => {
   const remoteCount = useRemoteParticipants().length
   const invitesSent = useSnapshot(meetInviteStore).upgraded
-  // One-way LATCH, not a live computation: when the third participant later
-  // leaves, remoteCount drops back below 2 and a computed value would fall
-  // back to the 1:1 stage — the latch keeps every side in the multi-party
-  // form for the rest of the session (设计 §2.4).
   const latchedRef = useRef(callMeet)
   if (callMeet || invitesSent || remoteCount >= 2) latchedRef.current = true
-  const upgraded = latchedRef.current
   if (!callPeer && !callMeet) return <VideoConference />
-  if (!audioOnly && upgraded) return <VideoConference />
+  if (!audioOnly && latchedRef.current) return <VideoConference />
   return (
     <CallStage
       peer={callPeer}
       video={!audioOnly}
-      upgraded={upgraded}
       roomSlug={roomSlug}
       selfName={selfName}
     />

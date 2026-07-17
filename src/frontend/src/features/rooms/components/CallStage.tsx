@@ -37,10 +37,12 @@ import { navigateTo } from '@/navigation/navigateTo'
  * Minimal call stage (Feishu/WeChat style) — replaces the full
  * `<VideoConference/>` when the room was entered from a call.
  *
- * 1:1 voice: centered avatar + name + mm:ss duration. 1:1 video: full-screen
- * remote camera + mirrored self-view. P4 escalation keeps VOICE on this stage
- * as a multi-party avatar grid (WeChat group-voice style) — video escalation
- * switches to the full meeting UI at the Conference level instead.
+ * VOICE keeps CALL semantics throughout (2026-07-17 现状模型拍板): the form
+ * follows the live roster — ≥3 people render the WeChat-group-voice avatar
+ * grid, back to 2 falls back to the 1:1 layout, and alone auto-ends like a
+ * 1:1 call (held open only while an escalation invite is still ringing).
+ * VIDEO escalation instead latches into the full meeting UI at the
+ * Conference level (meeting semantics — no fallback, no auto-end).
  *
  * Audio playback needs its own `<RoomAudioRenderer/>` since the prefab's one
  * is gone.
@@ -48,15 +50,12 @@ import { navigateTo } from '@/navigation/navigateTo'
 export const CallStage = ({
   peer,
   video = false,
-  upgraded = false,
   roomSlug,
   selfName,
 }: {
   /** 1:1 peer identity; absent when an invitee lands straight in a meet. */
   peer?: { uid: string; name: string; avatar?: string }
   video?: boolean
-  /** P4: multi-party form — grid layout, no auto-hangup, leave ≠ end. */
-  upgraded?: boolean
   /** Current room slug — rides in escalation invites (no new room). */
   roomSlug: string
   /** Inviter display name for the invite's room_name. */
@@ -72,17 +71,24 @@ export const CallStage = ({
   })
   const [showInvitePicker, setShowInvitePicker] = useState(false)
   const invites = useSnapshot(meetInviteStore).invites
+  const remoteParticipants = useRemoteParticipants()
+  const { localParticipant } = useLocalParticipant()
+  // Voice form follows the roster: grid at ≥2 remotes, or while invitees are
+  // still ringing (self + dimmed chips); otherwise the 1:1 layout.
+  const activeInvites = invites.filter(
+    (i) => i.state === 'inviting' || i.state === 'ringing'
+  )
+  const gridMode =
+    !video && (remoteParticipants.length >= 2 || activeInvites.length > 0)
   // Camera tracks for the two 1:1 video surfaces; unsubscribed/muted tracks
   // are absent, so these double as the "is their/our camera on" signal.
   const cameraTracks = useTracks([Track.Source.Camera])
-  const remoteCam =
-    video && !upgraded
-      ? cameraTracks.find((ref) => !ref.participant.isLocal)
-      : undefined
-  const localCam =
-    video && !upgraded
-      ? cameraTracks.find((ref) => ref.participant.isLocal)
-      : undefined
+  const remoteCam = video
+    ? cameraTracks.find((ref) => !ref.participant.isLocal)
+    : undefined
+  const localCam = video
+    ? cameraTracks.find((ref) => ref.participant.isLocal)
+    : undefined
 
   // Resolve the peer's display name/avatar, same as CallOverlay: on the
   // callee side the router state only carries the uid (peerName falls back
@@ -118,17 +124,15 @@ export const CallStage = ({
       .catch((e) => console.error('hangup: disconnect failed:', e))
   }
 
-  // 1:1 semantics: the peer leaving ends the call on this side too (a meeting
-  // outlives any participant; a call doesn't). Armed only once the peer has
-  // actually been seen, and debounced so the participant-list blip of a
-  // LiveKit reconnect doesn't fake a hangup — any list change clears the
-  // pending leave. P4: upgrading DISARMS this for good — in the multi-party
-  // form people come and go and only a manual hangup leaves.
+  // Call semantics: everyone else leaving ends the call on this side too —
+  // 1:1 AND multi-party voice alike (现状1/问题5 拍板: a call is a call, only
+  // meetings outlive their participants). Armed only once a peer has actually
+  // been seen, debounced against LiveKit-reconnect roster blips, and HELD
+  // while an escalation invite is still ringing (auto-ending would cancel
+  // the invitee mid-ring).
   const peerSeenRef = useRef(false)
-  const remoteParticipants = useRemoteParticipants()
-  const { localParticipant } = useLocalParticipant()
   useEffect(() => {
-    if (upgraded) return
+    if (activeInvites.length > 0) return
     if (remoteParticipants.length > 0) {
       peerSeenRef.current = true
       return
@@ -137,7 +141,7 @@ export const CallStage = ({
     const timer = setTimeout(handleHangup, 1_500)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remoteParticipants, upgraded])
+  }, [remoteParticipants, activeInvites.length])
 
   const handleInvite = (targets: Parameters<typeof sendMeetInvites>[0]) => {
     sendMeetInvites(targets, {
@@ -147,12 +151,13 @@ export const CallStage = ({
     })
   }
 
-  // Grid model: everyone in the room + still-pending invitees (dimmed chips).
   // Names/avatars are resolved from the DIRECTORY by participant identity
   // (= OIDC sub) — the LiveKit token name is a self-chosen join-preview name
-  // (stale "John" / synthetic emails, 实测问题2) and carries no photo.
+  // (stale "John" / synthetic emails, 实测问题2) and carries no photo. Audio
+  // resolves the whole roster (grid tiles AND the 1:1-fallback solo display,
+  // whose remaining peer may not be the original callPeer).
   const { user: selfUser } = useUser()
-  const identities = upgraded
+  const identities = !video
     ? [
         ...(localParticipant?.identity ? [localParticipant.identity] : []),
         ...remoteParticipants.map((p) => p.identity),
@@ -171,9 +176,16 @@ export const CallStage = ({
       src: entry?.avatar_url || undefined,
     }
   }
-  const pendingInvites = invites.filter(
-    (i) => i.state === 'inviting' || i.state === 'ringing'
-  )
+  // Voice 1:1 layout target: the person actually in the room (after a grid →
+  // 1:1 fallback that may be someone OTHER than the original callPeer); the
+  // router-state peer is the pre-connection fallback.
+  const soloRemote = !video ? remoteParticipants[0] : undefined
+  const soloProfile = soloRemote
+    ? gridProfile(soloRemote.identity, soloRemote.name || soloRemote.identity)
+    : undefined
+  const soloName = soloProfile?.name || displayName
+  const soloAvatar = soloProfile?.src || avatarUrl
+  const pendingInvites = activeInvites
   const failedInvites = invites.filter(
     (i) =>
       i.state === 'rejected' ||
@@ -186,7 +198,7 @@ export const CallStage = ({
   return (
     <div className={stageRoot} data-testid="call-stage">
       <RoomAudioRenderer />
-      {upgraded ? (
+      {gridMode ? (
         <div className={centerCol}>
           <div className={gridWrap} data-testid="call-grid">
             {(() => {
@@ -235,9 +247,6 @@ export const CallStage = ({
             </div>
           )}
           <div className={durationText}>{formatElapsed(elapsed)}</div>
-          {remoteParticipants.length === 0 && pendingInvites.length === 0 && (
-            <div className={leftAloneText}>{t('call.stage.leftAlone')}</div>
-          )}
         </div>
       ) : remoteCam ? (
         <>
@@ -246,8 +255,12 @@ export const CallStage = ({
         </>
       ) : (
         <div className={centerCol}>
-          <Avatar name={displayName ?? ''} src={avatarUrl} size="7rem" />
-          <div className={nameText}>{displayName}</div>
+          <Avatar
+            name={(video ? displayName : soloName) ?? ''}
+            src={video ? avatarUrl : soloAvatar}
+            size="7rem"
+          />
+          <div className={nameText}>{video ? displayName : soloName}</div>
           <div className={durationText}>{formatElapsed(elapsed)}</div>
         </div>
       )}
@@ -279,7 +292,7 @@ export const CallStage = ({
             style={{ transform: 'rotate(135deg)' }}
           />
         </RoundButton>
-        {video && !upgraded && (
+        {video && (
           <RoundButton
             label={t(
               camEnabled ? 'call.stage.cameraOn' : 'call.stage.cameraOff'
@@ -450,11 +463,6 @@ const failedLine = css({
   fontSize: '0.8125rem',
   color: 'rgba(255,255,255,0.55)',
   textAlign: 'center',
-})
-
-const leftAloneText = css({
-  fontSize: '0.9375rem',
-  color: 'rgba(255,255,255,0.7)',
 })
 
 const nameText = css({
