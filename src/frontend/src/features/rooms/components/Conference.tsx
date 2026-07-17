@@ -9,6 +9,7 @@ import {
   DisconnectReason,
   MediaDeviceFailure,
   Room,
+  RoomEvent,
   RoomOptions,
   VideoPresets,
 } from 'livekit-client'
@@ -42,7 +43,9 @@ import {
   meetInviteStore,
   resetMeetInvites,
 } from '@/features/im/call/meetInviteTracker'
-import { useRemoteParticipants } from '@livekit/components-react'
+import type { RemoteInviteChip } from './CallStage'
+import { patchRoom } from '../api/patchRoom'
+import { useRemoteParticipants, useRoomContext } from '@livekit/components-react'
 import { useSnapshot } from 'valtio'
 
 export const Conference = ({
@@ -340,6 +343,7 @@ export const Conference = ({
             audioOnly={audioOnly}
             roomSlug={roomId}
             selfName={userConfig.username}
+            roomData={data}
           />
           {showInviteDialog && !isMobile && (
             <InviteDialog
@@ -358,6 +362,9 @@ export const Conference = ({
   )
 }
 
+/** LiveKit data-channel topic for escalation-invite snapshots (M2). */
+const MEET_INVITES_TOPIC = 'meet-invites'
+
 /**
  * P4 fork (must live INSIDE LiveKitRoom for the participant hooks) —
  * 2026-07-17 现状模型拍板:
@@ -366,7 +373,15 @@ export const Conference = ({
  *          follows the live roster inside CallStage (grid ↔ 1:1 ↔ auto-end).
  *   video: escalation LATCHES into the full meeting UI (meeting semantics —
  *          no fallback at 2, no auto-end). Latch := entered as an escalation
- *          invitee ∥ this side sent an invite ∥ the room grew past 1:1.
+ *          invitee ∥ this side sent an invite ∥ the room grew past 1:1 ∥ a
+ *          co-participant broadcast ringing invites (M2 data message).
+ *
+ * M2 extras living here because this component survives every form switch:
+ *  - broadcast the LOCAL active-invite snapshot over a data message so the
+ *    OTHER side of the call renders the ringing chips too (voice) / switches
+ *    to the meeting UI before the invitee even joins (video);
+ *  - owner-side room rename once the call truly became multi-party, so the
+ *    meeting history stops showing a 3-way call as「与X的通话」.
  */
 const CallOrMeeting = ({
   callPeer,
@@ -374,17 +389,111 @@ const CallOrMeeting = ({
   audioOnly,
   roomSlug,
   selfName,
+  roomData,
 }: {
   callPeer?: { uid: string; name: string; avatar?: string }
   callMeet: boolean
   audioOnly: boolean
   roomSlug: string
   selfName: string
+  roomData?: ApiRoom
 }) => {
-  const remoteCount = useRemoteParticipants().length
-  const invitesSent = useSnapshot(meetInviteStore).upgraded
+  const { t } = useTranslation('im')
+  const room = useRoomContext()
+  const remoteParticipants = useRemoteParticipants()
+  const remoteCount = remoteParticipants.length
+  const snap = useSnapshot(meetInviteStore)
+  const invitesSent = snap.upgraded
+  const isCallEntry = !!callPeer || callMeet
+
+  // -- M2: broadcast the local active-invite snapshot on every change (the
+  // empty snapshot clears the peers' chips). Reliable + tiny payload.
+  const activeLocal = snap.invites.filter(
+    (i) => i.state === 'inviting' || i.state === 'ringing'
+  )
+  const activeKey = activeLocal.map((i) => `${i.callId}:${i.state}`).join(',')
+  const publishedKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!isCallEntry) return
+    if (publishedKeyRef.current === activeKey) return
+    // Never skip the initial empty publish state — but do skip publishing
+    // "empty" before anything was ever sent.
+    if (publishedKeyRef.current === null && activeKey === '') return
+    publishedKeyRef.current = activeKey
+    const payload = JSON.stringify({
+      invites: activeLocal.map((i) => ({ label: i.label, state: i.state })),
+    })
+    void room.localParticipant
+      .publishData(new TextEncoder().encode(payload), {
+        topic: MEET_INVITES_TOPIC,
+        reliable: true,
+      })
+      .catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey, isCallEntry, room])
+
+  // -- M2: receive co-participants' snapshots; a sender leaving the room
+  // invalidates their snapshot (their invites were canceled on leave).
+  const [remoteBySender, setRemoteBySender] = useState<
+    Record<string, RemoteInviteChip[]>
+  >({})
+  useEffect(() => {
+    const handler = (
+      payload: Uint8Array,
+      participant?: { identity: string },
+      _kind?: unknown,
+      topic?: string
+    ) => {
+      if (topic !== MEET_INVITES_TOPIC || !participant) return
+      try {
+        const parsed = JSON.parse(new TextDecoder().decode(payload)) as {
+          invites?: RemoteInviteChip[]
+        }
+        const chips = (parsed.invites ?? [])
+          .filter((c) => c && typeof c.label === 'string')
+          .map((c) => ({
+            label: c.label,
+            state: c.state === 'ringing' ? ('ringing' as const) : ('inviting' as const),
+          }))
+        setRemoteBySender((prev) => ({ ...prev, [participant.identity]: chips }))
+      } catch {
+        // Malformed broadcast — ignore.
+      }
+    }
+    room.on(RoomEvent.DataReceived, handler)
+    return () => {
+      room.off(RoomEvent.DataReceived, handler)
+    }
+  }, [room])
+  const presentIds = new Set(remoteParticipants.map((p) => p.identity))
+  const remoteInvites = Object.entries(remoteBySender)
+    .filter(([identity]) => presentIds.has(identity))
+    .flatMap(([, chips]) => chips)
+
   const latchedRef = useRef(callMeet)
-  if (callMeet || invitesSent || remoteCount >= 2) latchedRef.current = true
+  if (
+    callMeet ||
+    invitesSent ||
+    remoteCount >= 2 ||
+    (isCallEntry && remoteInvites.length > 0)
+  ) {
+    latchedRef.current = true
+  }
+
+  // -- M2: owner-side rename once the call truly became multi-party. Runs at
+  // most once per session; non-owners and plain meetings never touch it.
+  const renamedRef = useRef(false)
+  useEffect(() => {
+    if (!isCallEntry || renamedRef.current) return
+    if (remoteCount < 2 || !roomData?.is_administrable) return
+    renamedRef.current = true
+    const name = t('call.meetInviteRoomName', { name: selfName })
+    if (!name || roomData.name === name) return
+    void patchRoom({ roomId: roomData.id, room: { name } }).catch(
+      () => undefined
+    )
+  }, [remoteCount, isCallEntry, roomData, selfName, t])
+
   if (!callPeer && !callMeet) return <VideoConference />
   if (!audioOnly && latchedRef.current) return <VideoConference />
   return (
@@ -393,6 +502,7 @@ const CallOrMeeting = ({
       video={!audioOnly}
       roomSlug={roomSlug}
       selfName={selfName}
+      remoteInvites={remoteInvites}
     />
   )
 }

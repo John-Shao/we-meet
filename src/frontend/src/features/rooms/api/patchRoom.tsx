@@ -5,7 +5,7 @@ import { ApiError } from '@/api/ApiError'
 
 export type PatchRoomParams = {
   roomId: string
-  room: Partial<Pick<ApiRoom, 'configuration' | 'access_level'>>
+  room: Partial<Pick<ApiRoom, 'configuration' | 'access_level' | 'name'>>
 }
 
 export const patchRoom = ({ roomId, room }: PatchRoomParams) => {

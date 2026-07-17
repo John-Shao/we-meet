@@ -33,6 +33,12 @@ import {
 import { useSnapshot } from 'valtio'
 import { navigateTo } from '@/navigation/navigateTo'
 
+/** One co-participant-broadcast ringing invite (M2 data message). */
+export interface RemoteInviteChip {
+  label: string
+  state: 'inviting' | 'ringing'
+}
+
 /**
  * Minimal call stage (Feishu/WeChat style) — replaces the full
  * `<VideoConference/>` when the room was entered from a call.
@@ -52,6 +58,7 @@ export const CallStage = ({
   video = false,
   roomSlug,
   selfName,
+  remoteInvites = [],
 }: {
   /** 1:1 peer identity; absent when an invitee lands straight in a meet. */
   peer?: { uid: string; name: string; avatar?: string }
@@ -60,6 +67,9 @@ export const CallStage = ({
   roomSlug: string
   /** Inviter display name for the invite's room_name. */
   selfName: string
+  /** M2: co-participants' ringing invites (data-message broadcast) — shown
+   * as dimmed chips so the whole call sees who is being pulled in. */
+  remoteInvites?: RemoteInviteChip[]
 }) => {
   const { t } = useTranslation('im')
   const room = useRoomContext()
@@ -79,7 +89,10 @@ export const CallStage = ({
     (i) => i.state === 'inviting' || i.state === 'ringing'
   )
   const gridMode =
-    !video && (remoteParticipants.length >= 2 || activeInvites.length > 0)
+    !video &&
+    (remoteParticipants.length >= 2 ||
+      activeInvites.length > 0 ||
+      remoteInvites.length > 0)
   // Camera tracks for the two 1:1 video surfaces; unsubscribed/muted tracks
   // are absent, so these double as the "is their/our camera on" signal.
   const cameraTracks = useTracks([Track.Source.Camera])
@@ -233,6 +246,18 @@ export const CallStage = ({
                 dimmed
                 stateLabel={t(
                   i.state === 'ringing'
+                    ? 'call.invite.stateRinging'
+                    : 'call.invite.stateInviting'
+                )}
+              />
+            ))}
+            {remoteInvites.map((c, idx) => (
+              <GridTile
+                key={`remote:${c.label}:${idx}`}
+                name={c.label}
+                dimmed
+                stateLabel={t(
+                  c.state === 'ringing'
                     ? 'call.invite.stateRinging'
                     : 'call.invite.stateInviting'
                 )}
