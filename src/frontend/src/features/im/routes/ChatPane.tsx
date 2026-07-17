@@ -150,6 +150,10 @@ interface Props {
   infoPanel?: ReactNode
   /** Navigate to a member's personal info page (userId → contacts detail). */
   onMemberClick?: (userId: string) => void
+  /** P1-M2 消息定位: open the history anchored at this seq (search hit /
+   * 稍后处理跳转), scroll it into view and flash it. `key` is a nonce so
+   * clicking the same hit twice re-locates. */
+  locate?: { seq: number; key: string } | null
 }
 
 export const ChatPane = ({
@@ -165,6 +169,7 @@ export const ChatPane = ({
   onForwardMany,
   infoPanel,
   onMemberClick,
+  locate,
 }: Props) => {
   const { t, i18n } = useTranslation('im')
   const { user } = useUser()
@@ -174,7 +179,33 @@ export const ChatPane = ({
   const queryClient = useQueryClient()
   const cid = conversation.cid
   const isGroup = conversation.type === 'group'
-  const { data: messages = [], isLoading } = useMessages(client, cid)
+  // P1-M2 定位: the anchor is owned locally so「跳至最新」can clear it; a new
+  // locate.key (nonce) re-anchors even for the same seq. The cid is captured
+  // at set-time so a stale anchor never bleeds into another conversation the
+  // user switches to manually.
+  const [anchor, setAnchor] = useState<{
+    seq: number
+    key: string
+    cid: string
+  } | null>(locate ? { ...locate, cid } : null)
+  useEffect(() => {
+    setAnchor(locate ? { ...locate, cid } : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locate?.key])
+  const activeAnchor = anchor && anchor.cid === cid ? anchor : null
+  const {
+    data: messages = [],
+    isLoading,
+    caughtUp,
+    hasMoreOlder,
+    loadOlder,
+    loadNewer,
+  } = useMessages(client, cid, activeAnchor)
+  // 定位闪烁: two-phase (on → fade) so the background transition animates out.
+  const [flash, setFlash] = useState<{ seq: number; on: boolean } | null>(null)
+  const consumedLocateRef = useRef<string | null>(null)
+  // Suppress the auto-scroll-to-bottom effect around top-pagination prepends.
+  const skipAutoScrollRef = useRef(false)
   // 「删除」= 仅本端删除(微信/飞书语义):不影响其他成员,但要在本设备持久化,
   // 否则刷新/切会话就复现。按 cid 存 localStorage,进会话时载入。
   const [deletedMids, setDeletedMids] = useState<Set<number>>(new Set())
@@ -717,24 +748,88 @@ export const ChatPane = ({
     setMenu({ x: e.clientX, y: e.clientY, message: m })
   }
 
-  // Auto-scroll on new message.
+  // Auto-scroll on new message. Suppressed while anchored behind the tail
+  // (P1-M2: the user is reading history) and around top-pagination prepends
+  // (the scroll offset is restored manually instead).
   useEffect(() => {
+    if (activeAnchor && !caughtUp) return
+    if (skipAutoScrollRef.current) {
+      skipAutoScrollRef.current = false
+      return
+    }
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: 'smooth',
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length])
 
-  // Mark the latest seq read whenever we render a non-empty view.
+  // P1-M2 定位: once the anchored window is in, scroll the target row into
+  // view (center) and flash it. Consumed once per locate nonce; a missing row
+  // (deleted locally / hidden control type) falls back to the bottom.
   useEffect(() => {
-    if (messages.length === 0) return
+    if (!activeAnchor || isLoading || messages.length === 0) return
+    if (consumedLocateRef.current === activeAnchor.key) return
+    consumedLocateRef.current = activeAnchor.key
+    requestAnimationFrame(() => {
+      const el = scrollRef.current?.querySelector(
+        `[data-seq="${activeAnchor.seq}"]`
+      ) as HTMLElement | null
+      if (el) {
+        el.scrollIntoView({ block: 'center' })
+        setFlash({ seq: activeAnchor.seq, on: true })
+        setTimeout(() => setFlash((f) => (f ? { ...f, on: false } : f)), 900)
+        setTimeout(() => setFlash(null), 2600)
+      } else {
+        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+      }
+      // Probe the tail once: when the anchor sits inside the newest page this
+      // flips caughtUp immediately (live append + markRead resume) instead of
+      // waiting for a bottom-scroll.
+      void loadNewer()
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAnchor, isLoading, messages.length])
+
+  // Mark the latest seq read whenever we render a non-empty view — but NOT
+  // while an anchored window lags behind the tail (its last row isn't the
+  // real latest; reporting it could regress the read marker).
+  useEffect(() => {
+    if (messages.length === 0 || !caughtUp) return
     const latest = messages[messages.length - 1]
     if (latest && latest.seq > 0) {
       void client.markRead(cid, latest.seq).catch(() => {
         // best-effort; the marker will catch up on the next render
       })
     }
-  }, [client, cid, messages])
+  }, [client, cid, messages, caughtUp])
+
+  // P1-M2 双向翻页: top → prepend an older page (scroll offset restored so
+  // the view doesn't jump); bottom while anchored → pull the next newer page
+  // until the live tail is reached.
+  const onScrollPane = async () => {
+    const el = scrollRef.current
+    if (!el) return
+    if (el.scrollTop <= 40 && hasMoreOlder && !isLoading) {
+      const prevHeight = el.scrollHeight
+      const prevTop = el.scrollTop
+      skipAutoScrollRef.current = true
+      const prepended = await loadOlder()
+      if (prepended) {
+        requestAnimationFrame(() => {
+          el.scrollTop = prevTop + (el.scrollHeight - prevHeight)
+        })
+      }
+    }
+    if (
+      activeAnchor &&
+      !caughtUp &&
+      el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    ) {
+      skipAutoScrollRef.current = true
+      void loadNewer()
+    }
+  }
 
   // 已读回执(P13):回执只挂在「自己发的、未被撤回的最新一条」消息上(飞书/微信式),
   // 避免每条气泡都堆一行。读标记单调,故最新一条的状态足以代表全部。
@@ -1033,6 +1128,7 @@ export const ChatPane = ({
           <PinnedBar client={client} cid={cid} nameOf={nameOf} />
           <div
             ref={scrollRef}
+            onScroll={() => void onScrollPane()}
             className={css({
               flex: 1,
               overflowY: 'auto',
@@ -1064,6 +1160,20 @@ export const ChatPane = ({
                         )}
                       />
                     )}
+                    {/* data-seq: P1-M2 定位锚点;flash 用背景过渡渐隐。 */}
+                    <div
+                      data-seq={m.seq}
+                      style={
+                        flash?.seq === m.seq
+                          ? {
+                              backgroundColor: flash.on
+                                ? 'rgba(255, 213, 79, 0.35)'
+                                : 'transparent',
+                              transition: 'background-color 1.6s ease-out',
+                            }
+                          : undefined
+                      }
+                    >
                     <MessageItem
                       message={m}
                       isOwn={isOwnMsg}
@@ -1100,11 +1210,26 @@ export const ChatPane = ({
                           : undefined
                       }
                     />
+                    </div>
                   </Fragment>
                 )
               })
             )}
           </div>
+          {/* P1-M2: while the anchored window lags behind the tail, offer a
+              one-tap way back to the live view. */}
+          {activeAnchor && !caughtUp && (
+            <div className={jumpLatestWrap}>
+              <button
+                type="button"
+                onClick={() => setAnchor(null)}
+                data-testid="chat-jump-latest"
+                className={jumpLatestBtn}
+              >
+                {t('chat.jumpToLatest')}
+              </button>
+            </div>
+          )}
           {selectMode ? (
             <div className={selectBarCls}>
               <button
@@ -1243,6 +1368,28 @@ const selectBtnCls = (enabled: boolean, primary = false) =>
     cursor: enabled ? 'pointer' : 'not-allowed',
     _hover: primary ? {} : { backgroundColor: 'greyscale.100' },
   })
+
+/* P1-M2 定位: floating "跳至最新" pill above the input while the anchored
+ * window lags behind the live tail. */
+const jumpLatestWrap = css({
+  position: 'relative',
+  height: 0,
+  display: 'flex',
+  justifyContent: 'center',
+})
+const jumpLatestBtn = css({
+  position: 'absolute',
+  bottom: '0.5rem',
+  padding: '0.375rem 0.875rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '999px',
+  backgroundColor: 'greyscale.000',
+  color: 'primary.600',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
 
 const headerBtn = css({
   flexShrink: 0,

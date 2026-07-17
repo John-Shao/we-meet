@@ -10,8 +10,9 @@ import { doneLater } from '../api/doneLater'
 import { removeLater } from '../api/removeLater'
 
 interface Props {
-  /** Jump into the item's conversation (ImRoute selects the cid + closes). */
-  onOpenConversation: (cid: string) => void
+  /** Jump into the item's conversation (ImRoute selects the cid + closes).
+   * P1-M2: seq rides along so the pane can locate the exact message. */
+  onOpenConversation: (cid: string, seq?: number) => void
   onClose: () => void
 }
 
@@ -134,7 +135,7 @@ export const LaterDialog = ({ onOpenConversation, onClose }: Props) => {
             >
               <button
                 type="button"
-                onClick={() => onOpenConversation(item.cid)}
+                onClick={() => onOpenConversation(item.cid, item.seq)}
                 className={css({
                   flex: 1,
                   minWidth: 0,

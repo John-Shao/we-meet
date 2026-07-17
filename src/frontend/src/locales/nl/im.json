@@ -144,7 +144,8 @@
   "chat": {
     "loading": "Geschiedenis laden…",
     "empty": "Nog geen berichten — verzend het eerste",
-    "pickPrompt": "Kies links een gesprek om te beginnen"
+    "pickPrompt": "Kies links een gesprek om te beginnen",
+    "jumpToLatest": "Naar nieuwste"
   },
   "input": {
     "placeholder": "Typ een bericht…",

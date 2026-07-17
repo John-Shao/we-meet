@@ -144,7 +144,8 @@
   "chat": {
     "loading": "正在加载历史消息…",
     "empty": "暂无消息,发出第一条吧",
-    "pickPrompt": "从左侧选择一个会话开始聊天"
+    "pickPrompt": "从左侧选择一个会话开始聊天",
+    "jumpToLatest": "跳至最新"
   },
   "input": {
     "placeholder": "输入消息…",

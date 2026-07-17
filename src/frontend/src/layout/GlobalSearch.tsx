@@ -210,10 +210,13 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
     if (m.kind === 'scheduled') navigateTo('room', m.target)
     else navigateTo('meetingDetail', m.target)
   }
-  // 点消息命中 → 进入该会话(按 seq 定位是 P1-M2,先只进会话)。
+  // 点消息命中 → 进入该会话并按 seq 定位(P1-M2)。`t` 是 nonce:同一条命中
+  // 反复点击也会重新定位。
   const openMessageHit = (m: ImSearchItem) => {
     onClose()
-    navigate(`/im?cid=${encodeURIComponent(m.cid)}`)
+    navigate(
+      `/im?cid=${encodeURIComponent(m.cid)}&seq=${m.seq}&t=${Date.now()}`
+    )
   }
   const msgPreview = (m: ImSearchItem): string => {
     if (m.content_type === 'quote') {

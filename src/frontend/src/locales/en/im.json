@@ -144,7 +144,8 @@
   "chat": {
     "loading": "Loading history…",
     "empty": "No messages yet — send the first one",
-    "pickPrompt": "Pick a conversation on the left to start chatting"
+    "pickPrompt": "Pick a conversation on the left to start chatting",
+    "jumpToLatest": "Jump to latest"
   },
   "input": {
     "placeholder": "Type a message…",

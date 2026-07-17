@@ -79,6 +79,24 @@ const ImAuthenticated = () => {
   const [, navigate] = useLocation()
   const initialCID = searchParams.get('cid')
   const [selectedCID, setSelectedCID] = useState<string | null>(initialCID)
+  // P1-M2 消息定位: ?seq=&t=(nonce) → ChatPane anchors at that seq. Also fed
+  // by the 稍后处理 dialog below (same mechanism, no URL round-trip).
+  const seqParam = searchParams.get('seq')
+  const seqNonce = searchParams.get('t')
+  const [locate, setLocate] = useState<{ seq: number; key: string } | null>(
+    () => {
+      const n = Number(seqParam)
+      return seqParam && Number.isFinite(n) && n > 0
+        ? { seq: n, key: `${n}:${seqNonce ?? ''}` }
+        : null
+    }
+  )
+  useEffect(() => {
+    const n = Number(seqParam)
+    if (seqParam && Number.isFinite(n) && n > 0) {
+      setLocate({ seq: n, key: `${n}:${seqNonce ?? ''}` })
+    }
+  }, [seqParam, seqNonce])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [groupPickerOpen, setGroupPickerOpen] = useState(false)
   // When true, the open GroupPicker is being used to "创建群组并转发": after the
@@ -708,6 +726,7 @@ const ImAuthenticated = () => {
               title={nameOf(selectedConv)}
               currentUserUID={currentUserUID}
               sendDisabled={sendDisabled}
+              locate={locate}
               onOpenInfo={
                 selectedConv.type === 'group'
                   ? () =>
@@ -780,8 +799,12 @@ const ImAuthenticated = () => {
       )}
       {laterOpen && (
         <LaterDialog
-          onOpenConversation={(cid) => {
+          onOpenConversation={(cid, seq) => {
             setSelectedCID(cid)
+            // P1-M2: 稍后处理早就存了 seq——跳转直接复用消息定位。
+            if (seq && seq > 0) {
+              setLocate({ seq, key: `${seq}:${Date.now()}` })
+            }
             setLaterOpen(false)
           }}
           onClose={() => setLaterOpen(false)}

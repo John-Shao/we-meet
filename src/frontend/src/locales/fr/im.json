@@ -144,7 +144,8 @@
   "chat": {
     "loading": "Chargement de l'historique…",
     "empty": "Aucun message — envoyez le premier",
-    "pickPrompt": "Choisissez une conversation à gauche pour commencer"
+    "pickPrompt": "Choisissez une conversation à gauche pour commencer",
+    "jumpToLatest": "Aller au plus récent"
   },
   "input": {
     "placeholder": "Écrivez un message…",

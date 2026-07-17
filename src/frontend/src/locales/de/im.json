@@ -144,7 +144,8 @@
   "chat": {
     "loading": "Verlauf wird geladen…",
     "empty": "Noch keine Nachrichten — senden Sie die erste",
-    "pickPrompt": "Wählen Sie links eine Unterhaltung aus"
+    "pickPrompt": "Wählen Sie links eine Unterhaltung aus",
+    "jumpToLatest": "Zum Neuesten"
   },
   "input": {
     "placeholder": "Nachricht eingeben…",
