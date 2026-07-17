@@ -75,7 +75,9 @@ DocsScreen(WebView) → https://docs.we-meet.online/api/v1.0/authenticate/
 - `deploy/aliyun/keycloak/bootstrap-app-client.sh`(新):realm `meet` 加 public client `app`(D2)。**部署时需在 aliyun-zlm 跑一次**。
 
 **we-meet-docs(docs-dev)**
-- `src/frontend/apps/impress/src/hooks/useIsEmbedded.tsx`:判据 = iframe ∨ **UA 含 `WeMeetApp`** ∨ sessionStorage ∨ `?embed=1`(D7 订正,见 §七.5)→ **重建 docs 前端镜像**。
+- `src/frontend/apps/impress/src/hooks/useIsEmbedded.tsx`:①嵌入判据 = iframe ∨ **UA 含 `WeMeetApp`** ∨ sessionStorage ∨ `?embed=1`(D7 订正,见 §七.5);②新增 `embedderLanguage()` —— 取外层框架语言(`?lang=` → App 走 `navigator.language` → 否则 null,见 §七.6)。
+- `src/frontend/apps/impress/src/core/config/ConfigProvider.tsx`:语言同步改为**内嵌时框架语言优先于 `user.language`**(§七.6 的修复本体)。
+- 以上均需 **重建 docs 前端镜像**。
 
 **keycloak-phone-auth(main,登录页主题)**
 - `theme/phone/login/resources/css/login.css` + `js/unified-poll.js`:触摸设备(`(hover:none) and (pointer:coarse)`)隐藏扫码列并跳过轮询 —— 手机上扫自己屏幕没意义;**不用宽度判**,否则桌面窄窗口会误伤(那里二维码仍有用)。→ **重建 keycloak 镜像**。
@@ -108,8 +110,9 @@ DocsScreen(WebView) → https://docs.we-meet.online/api/v1.0/authenticate/
 > 设计(§二)整体成立 —— **CDP 实测确认登录 WebView 种的 KC 会话 cookie
 > (`KEYCLOAK_IDENTITY`/`KEYCLOAK_SESSION`/`AUTH_SESSION_ID`)确实进了进程级
 > CookieManager,docs 的 WebView 直接命中**,鉴权改造这条主链没白做。
-> 但下面 5 个坑**设计时全没想到**,且多数光读代码看不出来,是靠 Chrome DevTools
+> 但下面 6 个坑**设计时全没想到**,且多数光读代码看不出来,是靠 Chrome DevTools
 > Protocol(`adb forward` + `webview_devtools_remote_<pid>`)实测撞出来的。
+> 其中坑 6 更是**只读 App 侧代码永远找不到** —— 必须去读 docs 的前端源码。
 
 ### 1. Kotlin 嵌套块注释吃掉整个文件
 `KeycloakOidc.kt` 的 KDoc 里写了 `/api/mobile/auth/*` —— 其中的 `/*` 被 Kotlin 当成
@@ -162,6 +165,65 @@ embed 判据演进了三轮,前两轮都被现实推翻:
 ⚠️ **UA 标记串在两仓各存一份**(`DocsScreen.kt` 的 `EMBED_UA_MARKER` ↔
 `useIsEmbedded.tsx` 的 `EMBED_UA_MARKER`),**改动须同步**,两边注释已交叉引用。
 
+### 6. docs 的 `user.language` 凌驾一切 → 内嵌方**永远打不过 profile** ⭐⭐
+
+> 2026-07-17 追加。**本坑价值最高**:它让「外层框架驱动 docs 语言」的三条路
+> **全部失效**,且失效得很隐蔽 —— 你塞什么它都"接受"了,然后偷偷改回去。
+
+**现象**:App 是简体中文,云文档始终英文;改「我的 → 设置 → 语言」也纹丝不动。
+
+**根因**(`docs` 的 `core/config/ConfigProvider.tsx:37`):
+
+```tsx
+const targetLanguage = user?.language ?? i18n.resolvedLanguage ?? i18n.language;
+void changeLanguageSynchronized(targetLanguage, user);
+```
+
+每次加载,`/users/me/` 一回来就把 i18next **强制改成 profile 里的 `user.language`**,
+再由 i18next 的 `caches:['cookie']` 把结果**写回** `docs_language`。App 用户是新建的,
+profile 默认 `en-us` → 永远英文。于是:
+
+| 你以为能驱动语言的 | 实际 |
+|---|---|
+| `?lang=` | 先被 authenticate→returnTo→`/` 重定向链丢掉(同坑 5);**就算活下来也会被 profile 顶掉** |
+| `docs_language` cookie | 塞进去也被顶掉,并被 i18next **写回 `en`**(伪装成"没生效") |
+| `navigator.language` | 优先级最低,同样被顶掉 |
+
+**排错过程**(值得复盘,我走了两轮弯路):
+1. 先以为只是 `?lang=` 被重定向丢了 → 加 cookie → **无效**;
+2. CDP 直接把 cookie 强设 `zh-cn` → reload 后**它自己变回 `en`** → 才意识到有更高
+   优先级的东西在写;
+3. 抓 `Network.responseReceivedExtraInfo` 的 `Set-Cookie`:**服务端没写** → 锁定是
+   前端在写;后端也无辜(实测 `LANGUAGES` 含 `zh-cn`、`LANGUAGE_CODE` 就是 `zh-cn`);
+4. 读 `ConfigProvider` 那 4 行 → 真相。
+
+**修法**(docs 侧,`743e10f4`):内嵌时**框架语言优先于 profile**。
+`changeLanguageSynchronized` 会把它 PATCH 回 profile,所以**只顶一次**,之后 profile
+与框架自洽;独立访问 docs 行为不变。
+
+框架语言怎么取(新增 `embedderLanguage()`,在 `hooks/useIsEmbedded.tsx`):
+
+| 场景 | 信号 | 为什么 |
+|---|---|---|
+| web iframe | `?lang=` | meet 直接带参加载 docs,最显式 |
+| **App WebView** | **`navigator.language`** | **WebView 的 navigator 继承 app 的 Configuration —— 它就是应用内语言**(实测:设备 `en-US`、app 选简体中文 → `navigator.language === 'zh-CN'`),且不被 i18next 的 cookie 缓存污染 |
+| web iframe 但丢参 | `null`(保持 profile 优先) | 此时 navigator 是**浏览器**语言,未必等于 meet 界面语言,拿它覆盖会造成回归 |
+
+**我在此坑里的两个错判**(记下来警示):
+- 曾断言「navigator 是设备语言,所以不能用」→ **错**,WebView 跟的是 app locale,它**本来就是对的**;
+- 曾加 `docs_language` cookie 同步 → **完全无效**,已撤(App 侧无需为语言做任何事)。
+
+**对抗式验收**(排除"碰巧对"):把 profile 强设成与 App **相反**的语言,再看谁赢。
+```
+profile 强设 zh-cn + App 英文 → docs 显示 All docs ✓(框架赢)
+              且 profile 被回写 en-us ✓(只顶一次,之后自洽)
+```
+中→英、英→中双向真机通过。
+
+> **通用教训**:接入任何"被内嵌的 web 应用"时,先查它有没有**服务端/用户级的偏好**
+> 在前端之上做最终裁决(语言、主题、时区都常见)。外层框架用 URL 参数 / cookie /
+> 浏览器特征去"暗示"它,永远打不过一条 `user.xxx ?? ...`。
+
 ### 落地结果
 | 能力 | 状态 |
 |---|---|
@@ -170,6 +232,7 @@ embed 判据演进了三轮,前两轮都被现实推翻:
 | 导航面板 / 文档列表渲染 | ✅ 真机通过 |
 | 手机端登录页隐藏二维码 | ✅ 真机通过 |
 | docs 用户区收敛到 meet 框架 | ✅ 真机通过 |
+| docs 语言跟随「我的 → 设置 → 语言」 | ✅ 真机通过(双向 + 对抗测试,见坑 6) |
 
 **§五 风险 2(统一登录页竖屏双栏排版)已解**:不是排版问题,而是二维码在手机上
 本就不该出现 —— 按触摸特征隐藏(见 §四 keycloak-phone-auth)。
@@ -183,5 +246,19 @@ curl -s http://localhost:9222/json          # 列可检查页面 + 当前 URL + 
 # Network.responseReceived(抓 401)/ Log.entryAdded。
 # 注意:websocket 握手需 suppress_origin=True,否则 403 Rejected origin。
 ```
+
+几个屡试不爽的招(按坑号对应):
+- **`Runtime.evaluate` + `awaitPromise:true` 直接在页内 `fetch` 它自己的 API**
+  (`/users/me/`、`/config/`)—— 一步看清后端到底给了什么,不用翻部署配置(坑 6 靠它
+  排除了后端嫌疑)。
+- **在页面里先"模拟"待改的逻辑再动手**:坑 6 里我先用 evaluate 跑了一遍新
+  ConfigProvider 的判定 + PATCH,确认 reload 后真变中文,才去改代码 —— 省掉一整轮
+  「构建镜像 → 部署 → 发现不对」。
+- **`Network.responseReceivedExtraInfo` 抓 `Set-Cookie`** —— 判断某个 cookie 是服务端
+  写的还是前端 JS 写的,一验便知(坑 6 的关键分水岭)。
+- **CSS 单位可疑时,页内造探针元素量**:`100dvh/100vh/100%` 各算多少(坑 4 靠这个
+  一锤定音:`vh→0px` 而 `%→780px`)。
+- **对抗式验收**:把被测系统的持久状态**故意设成与期望相反**再看谁赢,排除"碰巧对"
+  (坑 6)。
 debug 包已开 `WebView.setWebContentsDebuggingEnabled(true)`,也可 PC Chrome 开
 `chrome://inspect` 直接看 Console/Network。
