@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Track } from 'livekit-client'
 import {
   RoomAudioRenderer,
+  useLocalParticipant,
   useRemoteParticipants,
   useRoomContext,
   useTracks,
@@ -16,26 +17,48 @@ import {
   RiMicFill,
   RiMicOffFill,
   RiPhoneFill,
+  RiUserAddLine,
   RiVidiconFill,
 } from '@remixicon/react'
 import { Avatar } from '@/features/im/components/Avatar'
 import { resolveImUsers } from '@/features/im/api/resolveImUsers'
+import { MeetInvitePicker } from '@/features/im/call/MeetInvitePicker'
+import {
+  meetInviteStore,
+  sendMeetInvites,
+  type MeetInvite,
+} from '@/features/im/call/meetInviteTracker'
+import { useSnapshot } from 'valtio'
 import { navigateTo } from '@/navigation/navigateTo'
 
 /**
- * Minimal 1:1 call stage (Feishu/WeChat style) — replaces the full
- * `<VideoConference/>` when the room was entered from a call. Voice: centered
- * avatar + name + mm:ss duration, mic toggle and a red hangup. Video adds a
- * full-screen remote camera (avatar fallback while it's off), a mirrored
- * self-view top-right and a camera toggle. Audio playback needs its own
- * `<RoomAudioRenderer/>` since the prefab's one is gone.
+ * Minimal call stage (Feishu/WeChat style) — replaces the full
+ * `<VideoConference/>` when the room was entered from a call.
+ *
+ * 1:1 voice: centered avatar + name + mm:ss duration. 1:1 video: full-screen
+ * remote camera + mirrored self-view. P4 escalation keeps VOICE on this stage
+ * as a multi-party avatar grid (WeChat group-voice style) — video escalation
+ * switches to the full meeting UI at the Conference level instead.
+ *
+ * Audio playback needs its own `<RoomAudioRenderer/>` since the prefab's one
+ * is gone.
  */
 export const CallStage = ({
   peer,
   video = false,
+  upgraded = false,
+  roomSlug,
+  selfName,
 }: {
-  peer: { uid: string; name: string; avatar?: string }
+  /** 1:1 peer identity; absent when an invitee lands straight in a meet. */
+  peer?: { uid: string; name: string; avatar?: string }
   video?: boolean
+  /** P4: multi-party form — grid layout, no auto-hangup, leave ≠ end. */
+  upgraded?: boolean
+  /** Current room slug — rides in escalation invites (no new room). */
+  roomSlug: string
+  /** Inviter display name for the invite's room_name. */
+  selfName: string
 }) => {
   const { t } = useTranslation('im')
   const room = useRoomContext()
@@ -45,28 +68,33 @@ export const CallStage = ({
   const { enabled: camEnabled, toggle: toggleCam } = useTrackToggle({
     source: Track.Source.Camera,
   })
-  // Camera tracks for the two surfaces; unsubscribed/muted tracks are absent,
-  // so these double as the "is their/our camera on" signal.
+  const [showInvitePicker, setShowInvitePicker] = useState(false)
+  const invites = useSnapshot(meetInviteStore).invites
+  // Camera tracks for the two 1:1 video surfaces; unsubscribed/muted tracks
+  // are absent, so these double as the "is their/our camera on" signal.
   const cameraTracks = useTracks([Track.Source.Camera])
-  const remoteCam = video
-    ? cameraTracks.find((ref) => !ref.participant.isLocal)
-    : undefined
-  const localCam = video
-    ? cameraTracks.find((ref) => ref.participant.isLocal)
-    : undefined
+  const remoteCam =
+    video && !upgraded
+      ? cameraTracks.find((ref) => !ref.participant.isLocal)
+      : undefined
+  const localCam =
+    video && !upgraded
+      ? cameraTracks.find((ref) => ref.participant.isLocal)
+      : undefined
 
   // Resolve the peer's display name/avatar, same as CallOverlay: on the
   // callee side the router state only carries the uid (peerName falls back
   // to it), and a state-carried avatar URL is a presigned link that may
   // already be stale — re-resolving covers both.
   const { data: names } = useQuery({
-    queryKey: ['im', 'resolve', peer.uid],
-    queryFn: () => resolveImUsers([peer.uid]),
+    queryKey: ['im', 'resolve', peer?.uid],
+    queryFn: () => resolveImUsers([peer!.uid]),
+    enabled: !!peer,
     staleTime: 300_000,
   })
-  const resolved = names?.[peer.uid]
-  const displayName = resolved?.full_name || resolved?.short_name || peer.name
-  const avatarUrl = resolved?.avatar_url || peer.avatar
+  const resolved = peer ? names?.[peer.uid] : undefined
+  const displayName = resolved?.full_name || resolved?.short_name || peer?.name
+  const avatarUrl = resolved?.avatar_url || peer?.avatar
 
   // Anchored on mount: both sides land here at accept, so mount ≈ connected.
   const [startMs] = useState(() => Date.now())
@@ -92,10 +120,13 @@ export const CallStage = ({
   // outlives any participant; a call doesn't). Armed only once the peer has
   // actually been seen, and debounced so the participant-list blip of a
   // LiveKit reconnect doesn't fake a hangup — any list change clears the
-  // pending leave.
+  // pending leave. P4: upgrading DISARMS this for good — in the multi-party
+  // form people come and go and only a manual hangup leaves.
   const peerSeenRef = useRef(false)
   const remoteParticipants = useRemoteParticipants()
+  const { localParticipant } = useLocalParticipant()
   useEffect(() => {
+    if (upgraded) return
     if (remoteParticipants.length > 0) {
       peerSeenRef.current = true
       return
@@ -104,19 +135,81 @@ export const CallStage = ({
     const timer = setTimeout(handleHangup, 1_500)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remoteParticipants])
+  }, [remoteParticipants, upgraded])
+
+  const handleInvite = (targets: Parameters<typeof sendMeetInvites>[0]) => {
+    sendMeetInvites(targets, {
+      media: video ? 'video' : 'audio',
+      roomSlug,
+      roomName: t('call.meetInviteRoomName', { name: selfName }),
+    })
+  }
+
+  // Grid model: everyone in the room + still-pending invitees (dimmed chips).
+  // LiveKit participant.name is the token's display name; photos aren't
+  // carried by LiveKit, so grid tiles use letter avatars (设计 §4.4 兜底).
+  const pendingInvites = invites.filter(
+    (i) => i.state === 'inviting' || i.state === 'ringing'
+  )
+  const failedInvites = invites.filter(
+    (i) =>
+      i.state === 'rejected' ||
+      i.state === 'busy' ||
+      i.state === 'unreachable' ||
+      i.state === 'timeout' ||
+      i.state === 'failed'
+  )
 
   return (
     <div className={stageRoot} data-testid="call-stage">
       <RoomAudioRenderer />
-      {remoteCam ? (
+      {upgraded ? (
+        <div className={centerCol}>
+          <div className={gridWrap} data-testid="call-grid">
+            <GridTile
+              name={localParticipant?.name || selfName || t('call.stage.me')}
+              suffix={t('call.stage.me')}
+            />
+            {remoteParticipants.map((p) => (
+              <GridTile
+                key={p.identity}
+                name={p.name || p.identity}
+                speaking={p.isSpeaking}
+              />
+            ))}
+            {pendingInvites.map((i) => (
+              <GridTile
+                key={i.callId}
+                name={i.label}
+                dimmed
+                stateLabel={t(
+                  i.state === 'ringing'
+                    ? 'call.invite.stateRinging'
+                    : 'call.invite.stateInviting'
+                )}
+              />
+            ))}
+          </div>
+          {failedInvites.length > 0 && (
+            <div className={failedLine}>
+              {failedInvites
+                .map((i) => `${i.label}: ${inviteStateText(t, i)}`)
+                .join('  ·  ')}
+            </div>
+          )}
+          <div className={durationText}>{formatElapsed(elapsed)}</div>
+          {remoteParticipants.length === 0 && pendingInvites.length === 0 && (
+            <div className={leftAloneText}>{t('call.stage.leftAlone')}</div>
+          )}
+        </div>
+      ) : remoteCam ? (
         <>
           <VideoTrack trackRef={remoteCam} className={remoteVideoCss} />
           <div className={durationPill}>{formatElapsed(elapsed)}</div>
         </>
       ) : (
         <div className={centerCol}>
-          <Avatar name={displayName} src={avatarUrl} size="7rem" />
+          <Avatar name={displayName ?? ''} src={avatarUrl} size="7rem" />
           <div className={nameText}>{displayName}</div>
           <div className={durationText}>{formatElapsed(elapsed)}</div>
         </div>
@@ -149,7 +242,7 @@ export const CallStage = ({
             style={{ transform: 'rotate(135deg)' }}
           />
         </RoundButton>
-        {video && (
+        {video && !upgraded && (
           <RoundButton
             label={t(
               camEnabled ? 'call.stage.cameraOn' : 'call.stage.cameraOff'
@@ -164,9 +257,71 @@ export const CallStage = ({
             )}
           </RoundButton>
         )}
+        <RoundButton
+          label={t('call.stage.addMember')}
+          color="#6b7280"
+          onClick={() => setShowInvitePicker(true)}
+        >
+          <RiUserAddLine size={26} color="white" />
+        </RoundButton>
       </div>
+      {showInvitePicker && (
+        <MeetInvitePicker
+          onInvite={handleInvite}
+          onClose={() => setShowInvitePicker(false)}
+        />
+      )}
     </div>
   )
+}
+
+/** One avatar cell of the voice grid (≤9 shown 3×3; beyond that a "+N"). */
+const GridTile = ({
+  name,
+  suffix,
+  dimmed = false,
+  speaking = false,
+  stateLabel,
+}: {
+  name: string
+  suffix?: string
+  dimmed?: boolean
+  speaking?: boolean
+  stateLabel?: string
+}) => (
+  <div className={gridTile} style={dimmed ? { opacity: 0.45 } : undefined}>
+    <div
+      className={css({ borderRadius: '50%' })}
+      style={
+        speaking ? { boxShadow: '0 0 0 3px #30a46c', borderRadius: '50%' } : undefined
+      }
+    >
+      <Avatar name={name} size="4.5rem" />
+    </div>
+    <span className={gridTileName}>
+      {name}
+      {suffix ? `(${suffix})` : ''}
+    </span>
+    {stateLabel && <span className={gridTileState}>{stateLabel}</span>}
+  </div>
+)
+
+const inviteStateText = (
+  t: (k: string) => string,
+  invite: Pick<MeetInvite, 'state'>
+): string => {
+  switch (invite.state) {
+    case 'rejected':
+      return t('call.invite.stateRejected')
+    case 'busy':
+      return t('call.invite.stateBusy')
+    case 'unreachable':
+      return t('call.invite.stateUnreachable')
+    case 'timeout':
+      return t('call.invite.stateTimeout')
+    default:
+      return t('call.invite.stateFailed')
+  }
 }
 
 const RoundButton = ({
@@ -219,6 +374,48 @@ const centerCol = css({
   flexDirection: 'column',
   alignItems: 'center',
   gap: '1rem',
+})
+
+const gridWrap = css({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, minmax(6rem, 8rem))',
+  gap: '1.25rem 1rem',
+  justifyContent: 'center',
+  maxHeight: '55vh',
+  overflowY: 'auto',
+})
+
+const gridTile = css({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '0.375rem',
+})
+
+const gridTileName = css({
+  maxWidth: '7.5rem',
+  fontSize: '0.875rem',
+  color: 'white',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+const gridTileState = css({
+  fontSize: '0.75rem',
+  color: 'rgba(255,255,255,0.6)',
+})
+
+const failedLine = css({
+  maxWidth: '80%',
+  fontSize: '0.8125rem',
+  color: 'rgba(255,255,255,0.55)',
+  textAlign: 'center',
+})
+
+const leftAloneText = css({
+  fontSize: '0.9375rem',
+  color: 'rgba(255,255,255,0.7)',
 })
 
 const nameText = css({

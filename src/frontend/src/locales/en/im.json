@@ -245,7 +245,24 @@
       "muted": "Muted",
       "hangup": "Hang up",
       "cameraOn": "Camera on",
-      "cameraOff": "Camera off"
+      "cameraOff": "Camera off",
+      "addMember": "Add member",
+      "leftAlone": "Everyone else has left",
+      "me": "Me"
+    },
+    "incomingMeetVoice": "invites you to join a voice call",
+    "incomingMeetVideo": "invites you to join a video call",
+    "meetInviteRoomName": "{{name}}'s group call",
+    "invite": {
+      "title": "Add members",
+      "confirm": "Invite",
+      "stateInviting": "Inviting…",
+      "stateRinging": "Ringing…",
+      "stateRejected": "Declined",
+      "stateBusy": "Busy",
+      "stateUnreachable": "Offline",
+      "stateTimeout": "No answer",
+      "stateFailed": "Invite failed"
     }
   },
   "phoneViewed": {

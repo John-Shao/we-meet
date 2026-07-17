@@ -245,7 +245,24 @@
       "muted": "Gedempt",
       "hangup": "Ophangen",
       "cameraOn": "Camera aan",
-      "cameraOff": "Camera uit"
+      "cameraOff": "Camera uit",
+      "addMember": "Lid toevoegen",
+      "leftAlone": "Alle anderen zijn vertrokken",
+      "me": "Ik"
+    },
+    "incomingMeetVoice": "nodigt je uit voor een spraakoproep",
+    "incomingMeetVideo": "nodigt je uit voor een video-oproep",
+    "meetInviteRoomName": "Groepsgesprek van {{name}}",
+    "invite": {
+      "title": "Leden toevoegen",
+      "confirm": "Uitnodigen",
+      "stateInviting": "Uitnodigen…",
+      "stateRinging": "Gaat over…",
+      "stateRejected": "Geweigerd",
+      "stateBusy": "Bezet",
+      "stateUnreachable": "Offline",
+      "stateTimeout": "Geen antwoord",
+      "stateFailed": "Uitnodiging mislukt"
     }
   },
   "phoneViewed": {

@@ -245,7 +245,24 @@
       "muted": "Muet",
       "hangup": "Raccrocher",
       "cameraOn": "Caméra activée",
-      "cameraOff": "Caméra coupée"
+      "cameraOff": "Caméra coupée",
+      "addMember": "Ajouter un membre",
+      "leftAlone": "Tous les autres sont partis",
+      "me": "Moi"
+    },
+    "incomingMeetVoice": "vous invite à rejoindre un appel vocal",
+    "incomingMeetVideo": "vous invite à rejoindre un appel vidéo",
+    "meetInviteRoomName": "Appel de groupe de {{name}}",
+    "invite": {
+      "title": "Ajouter des membres",
+      "confirm": "Inviter",
+      "stateInviting": "Invitation…",
+      "stateRinging": "Sonnerie…",
+      "stateRejected": "Refusé",
+      "stateBusy": "Occupé",
+      "stateUnreachable": "Hors ligne",
+      "stateTimeout": "Sans réponse",
+      "stateFailed": "Échec de l'invitation"
     }
   },
   "phoneViewed": {

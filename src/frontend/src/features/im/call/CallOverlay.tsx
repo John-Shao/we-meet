@@ -53,6 +53,13 @@ export const CallOverlay = () => {
             ? t('call.outgoingVideo')
             : t('call.outgoingVoice')
       case 'incoming':
+        // P4: an escalation invite rings as "邀请你加入…" instead of a plain
+        // 1:1 来电 — the accept flow then lands in the multi-party form.
+        if (info.kind === 'meet') {
+          return info.media === 'video'
+            ? t('call.incomingMeetVideo')
+            : t('call.incomingMeetVoice')
+        }
         return info.media === 'video'
           ? t('call.incomingVideo')
           : t('call.incomingVoice')

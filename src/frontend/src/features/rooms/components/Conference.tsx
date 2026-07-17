@@ -34,6 +34,13 @@ import { useIsMobile } from '@/utils/useIsMobile'
 import { navigateTo } from '@/navigation/navigateTo'
 import { connectionObserverStore } from '@/stores/connectionObserver'
 import { notifyCallRoomLeft } from '@/features/im/call/callController'
+import {
+  cancelPendingMeetInvites,
+  meetInviteStore,
+  resetMeetInvites,
+} from '@/features/im/call/meetInviteTracker'
+import { useRemoteParticipants } from '@livekit/components-react'
+import { useSnapshot } from 'valtio'
 
 export const Conference = ({
   roomId,
@@ -41,6 +48,7 @@ export const Conference = ({
   mode = 'join',
   audioOnly = false,
   callPeer,
+  callMeet = false,
 }: {
   roomId: string
   mode?: 'join' | 'create'
@@ -56,6 +64,11 @@ export const Conference = ({
    * (full-screen remote + self-view + camera toggle) otherwise.
    */
   callPeer?: { uid: string; name: string; avatar?: string }
+  /**
+   * P4: this entry is an accepted escalation invite — land straight in the
+   * multi-party form (voice grid / full meeting UI), never the 1:1 stage.
+   */
+  callMeet?: boolean
 }) => {
   const posthog = usePostHog()
   const { data: apiConfig } = useConfig()
@@ -71,7 +84,16 @@ export const Conference = ({
   // P1 一对一通话: leaving the room ends the call — the controller persists
   // the "completed + duration" call-log if this device was the caller of a
   // connected 1:1 call. Plain meetings no-op inside.
-  useEffect(() => () => notifyCallRoomLeft(), [])
+  // P4: leaving also cancels any still-ringing escalation invites (拍板 #1 —
+  // the invite dies with the inviter) and resets the upgrade latch.
+  useEffect(
+    () => () => {
+      notifyCallRoomLeft()
+      cancelPendingMeetInvites()
+      resetMeetInvites()
+    },
+    []
+  )
   const fetchKey = [keys.room, roomId]
 
   const [isConnectionWarmedUp, setIsConnectionWarmedUp] = useState(false)
@@ -307,11 +329,13 @@ export const Conference = ({
             }
           }}
         >
-          {callPeer ? (
-            <CallStage peer={callPeer} video={!audioOnly} />
-          ) : (
-            <VideoConference />
-          )}
+          <CallOrMeeting
+            callPeer={callPeer}
+            callMeet={callMeet}
+            audioOnly={audioOnly}
+            roomSlug={roomId}
+            selfName={userConfig.username}
+          />
           {showInviteDialog && !isMobile && (
             <InviteDialog
               isOpen={showInviteDialog}
@@ -326,5 +350,44 @@ export const Conference = ({
         </LiveKitRoom>
       </Screen>
     </QueryAware>
+  )
+}
+
+/**
+ * P4 upgrade fork (must live INSIDE LiveKitRoom for the participant hooks).
+ * upgraded := entered as an escalation invitee ∥ this side sent an invite ∥
+ * the room grew past 1:1 — the roster is the truth source, so B (who didn't
+ * pull anyone) follows automatically. One-way latch: no falling back to the
+ * 1:1 stage when people leave (设计 §2.4).
+ *
+ *   voice: minimal stage always — single-peer layout, grid once upgraded
+ *   video: 1:1 stage → full meeting UI once upgraded
+ */
+const CallOrMeeting = ({
+  callPeer,
+  callMeet,
+  audioOnly,
+  roomSlug,
+  selfName,
+}: {
+  callPeer?: { uid: string; name: string; avatar?: string }
+  callMeet: boolean
+  audioOnly: boolean
+  roomSlug: string
+  selfName: string
+}) => {
+  const remoteCount = useRemoteParticipants().length
+  const invitesSent = useSnapshot(meetInviteStore).upgraded
+  if (!callPeer && !callMeet) return <VideoConference />
+  const upgraded = callMeet || invitesSent || remoteCount >= 2
+  if (!audioOnly && upgraded) return <VideoConference />
+  return (
+    <CallStage
+      peer={callPeer}
+      video={!audioOnly}
+      upgraded={upgraded}
+      roomSlug={roomSlug}
+      selfName={selfName}
+    />
   )
 }

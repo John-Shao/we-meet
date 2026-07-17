@@ -11,6 +11,7 @@ import { fetchApi } from '@/api/fetchApi'
 import { navigateTo } from '@/navigation/navigateTo'
 
 import { fetchImToken } from '../api/fetchImToken'
+import { initMeetInviteTracker } from './meetInviteTracker'
 import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
 
 /**
@@ -55,6 +56,10 @@ export interface CallInfo {
   outgoing: boolean
   roomSlug?: string
   roomId?: string
+  /** P4: "meet" marks an escalation invite into an existing multi-party
+   * room — the overlay swaps the ring text and accept lands in the
+   * multi-party form (voice grid / full meeting UI) instead of the 1:1 stage. */
+  kind?: '' | 'meet'
 }
 
 export type CallPhase =
@@ -97,6 +102,9 @@ export const initCallController = (c: Client) => {
   unsubscribe?.()
   client = c
   unsubscribe = c.onCall(onFrame)
+  // P4: the escalation-invite tracker shares the client but runs its own
+  // parallel per-invitee mini state machines (this controller stays 1:1).
+  initMeetInviteTracker(c)
   // Cache our own jusi uid for multi-device echo filtering. Best-effort — if
   // it fails, the echo check degrades gracefully (worst case: an own-device
   // echo shows "answered elsewhere" slightly less precisely).
@@ -253,6 +261,9 @@ const onInvite = (p: CallPayload): void => {
     media: p.media ?? 'audio',
     outgoing: false,
     roomSlug: p.room_slug,
+    // P4: escalation invites carry kind="meet" (needs SDK ≥0.1.0-alpha.10
+    // for the type; the runtime value flows regardless).
+    kind: (p as CallPayload & { kind?: '' | 'meet' }).kind,
   }
   callStore.state = { phase: 'incoming', info }
   replyTo(p, CallEvent.Ringing)
@@ -448,6 +459,10 @@ const enterRoom = (slug: string, info: CallInfo): void => {
         name: info.peerName,
         avatar: info.peerAvatar,
       },
+      // P4: an accepted escalation invite lands straight in the multi-party
+      // form — voice keeps the minimal stage but grid-seeded, video goes to
+      // the full meeting UI.
+      callMeet: info.kind === 'meet',
     },
   })
 }

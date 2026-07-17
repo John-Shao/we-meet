@@ -286,8 +286,14 @@ def notify_call(payload: dict[str, Any], client: Optional[GetuiClient] = None) -
 
     media = str(payload.get("media") or "audio")
     media_label = "视频通话" if media == "video" else "语音通话"
-    title = f"{media_label}邀请"
-    body = f"{from_name} 邀请你进行{media_label}"
+    # P4/P19: kind="meet" = 通话中拉人的入会邀请,通知文案区别于普通来电。
+    kind = str(payload.get("kind") or "")
+    if kind == "meet":
+        title = f"{media_label}邀请"
+        body = f"{from_name} 邀请你加入{media_label}"
+    else:
+        title = f"{media_label}邀请"
+        body = f"{from_name} 邀请你进行{media_label}"
 
     device_payload = {
         "type": "call",
@@ -297,6 +303,7 @@ def notify_call(payload: dict[str, Any], client: Optional[GetuiClient] = None) -
         "from_name": from_name,
         "media": media,
         "room_slug": str(payload.get("room_slug") or ""),
+        "kind": kind,
         "ts": payload.get("ts") or int(time.time() * 1000),
     }
 

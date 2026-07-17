@@ -34,6 +34,8 @@ export const Room = () => {
   const callPeer = history.state?.callPeer as
     | { uid: string; name: string; avatar?: string }
     | undefined
+  // P4: accepted escalation invite — land straight in the multi-party form.
+  const callMeet = !!history.state?.callMeet
   const [hasSubmittedEntry, setHasSubmittedEntry] = useState(autoJoin)
 
   const { roomId } = useParams()
@@ -84,6 +86,7 @@ export const Room = () => {
         mode={mode}
         audioOnly={callAudioOnly}
         callPeer={callPeer}
+        callMeet={callMeet}
       />
     </BaseRoom>
   )

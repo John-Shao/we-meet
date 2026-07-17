@@ -245,7 +245,24 @@
       "muted": "已静音",
       "hangup": "挂断",
       "cameraOn": "摄像头已开",
-      "cameraOff": "摄像头已关"
+      "cameraOff": "摄像头已关",
+      "addMember": "添加成员",
+      "leftAlone": "其他人已离开",
+      "me": "我"
+    },
+    "incomingMeetVoice": "邀请你加入语音通话",
+    "incomingMeetVideo": "邀请你加入视频通话",
+    "meetInviteRoomName": "{{name}}发起的多人通话",
+    "invite": {
+      "title": "添加成员",
+      "confirm": "邀请",
+      "stateInviting": "邀请中…",
+      "stateRinging": "响铃中…",
+      "stateRejected": "已拒绝",
+      "stateBusy": "忙线",
+      "stateUnreachable": "不在线",
+      "stateTimeout": "无应答",
+      "stateFailed": "邀请失败"
     }
   },
   "phoneViewed": {
