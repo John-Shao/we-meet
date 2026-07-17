@@ -41,6 +41,8 @@ import {
   startGroupVoiceCall,
 } from '../call/callController'
 import { GroupVoiceCallPicker } from '../call/GroupVoiceCallPicker'
+import { useCreateRoom } from '@/features/rooms/api/createRoom'
+import { navigateTo } from '@/navigation/navigateTo'
 
 // Recall is allowed only on your own messages within this window (WeChat: 2 min).
 const RECALL_WINDOW_MS = 2 * 60 * 1000
@@ -753,6 +755,25 @@ export const ChatPane = ({
   const [readListSeq, setReadListSeq] = useState<number | null>(null)
   // P4.1 群语音通话: member picker visibility.
   const [groupCallOpen, setGroupCallOpen] = useState(false)
+  // 群聊「快速会议」(对齐 App 顶栏入口): create the room named
+  // 「{群名}的视频会议」 and enter via the device-preview page — the same
+  // Home quick-meeting flow (create:true auto-opens the invite dialog).
+  const { mutateAsync: createGroupMeeting, isPending: creatingMeeting } =
+    useCreateRoom()
+  const startGroupMeeting = async () => {
+    if (creatingMeeting) return
+    try {
+      const room = await createGroupMeeting({
+        name: t('call.groupMeetingRoomName', { name: title }),
+        username: user?.full_name ?? '',
+      })
+      navigateTo('room', room.slug, {
+        state: { create: true, initialRoomData: room },
+      })
+    } catch {
+      // Room create failed — button stays enabled for a retry.
+    }
+  }
 
   const receiptFor = (
     m: Message
@@ -885,6 +906,20 @@ export const ChatPane = ({
             className={headerBtn}
           >
             <RiPhoneLine size={16} />
+          </button>
+        )}
+        {/* 群聊快速会议(对齐 App): 建「{群名}的视频会议」→ 设备预览 → 会议。 */}
+        {isGroup && (
+          <button
+            type="button"
+            onClick={() => void startGroupMeeting()}
+            disabled={creatingMeeting}
+            title={t('call.groupMeeting')}
+            aria-label={t('call.groupMeeting')}
+            data-testid="chat-group-meeting"
+            className={headerBtn}
+          >
+            <RiVidiconLine size={16} />
           </button>
         )}
         {isGroup && onAddMembers && (

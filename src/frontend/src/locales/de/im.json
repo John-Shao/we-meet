@@ -268,7 +268,9 @@
     "groupPicker": {
       "title": "Sprachanruf starten",
       "confirm": "Anrufen"
-    }
+    },
+    "groupMeetingRoomName": "Meeting {{name}}",
+    "groupMeeting": "Meeting starten"
   },
   "phoneViewed": {
     "byMe": "Du hast die Telefonnummer angesehen",

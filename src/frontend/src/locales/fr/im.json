@@ -268,7 +268,9 @@
     "groupPicker": {
       "title": "Démarrer un appel vocal",
       "confirm": "Appeler"
-    }
+    },
+    "groupMeetingRoomName": "Réunion {{name}}",
+    "groupMeeting": "Démarrer la réunion"
   },
   "phoneViewed": {
     "byMe": "Vous avez consulté son numéro",

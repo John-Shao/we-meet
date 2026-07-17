@@ -268,7 +268,9 @@
     "groupPicker": {
       "title": "Spraakoproep starten",
       "confirm": "Bellen"
-    }
+    },
+    "groupMeetingRoomName": "Vergadering {{name}}",
+    "groupMeeting": "Vergadering starten"
   },
   "phoneViewed": {
     "byMe": "Je hebt hun nummer bekeken",

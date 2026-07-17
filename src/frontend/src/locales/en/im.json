@@ -268,7 +268,9 @@
     "groupPicker": {
       "title": "Start voice call",
       "confirm": "Call"
-    }
+    },
+    "groupMeetingRoomName": "{{name}} meeting",
+    "groupMeeting": "Start meeting"
   },
   "phoneViewed": {
     "byMe": "You viewed their phone number",
