@@ -404,7 +404,6 @@ const CallOrMeeting = ({
   const remoteParticipants = useRemoteParticipants()
   const remoteCount = remoteParticipants.length
   const snap = useSnapshot(meetInviteStore)
-  const invitesSent = snap.upgraded
   const isCallEntry = !!callPeer || callMeet
 
   // -- M2: broadcast the local active-invite snapshot on every change (the
@@ -479,15 +478,11 @@ const CallOrMeeting = ({
     .filter(([identity]) => presentIds.has(identity))
     .flatMap(([, chips]) => chips)
 
+  // 拍板(2026-07-17 三次): the video latch flips only when the 3rd person
+  // has ACTUALLY joined (remotes ≥ 2) — not at invite time. Both sides stay
+  // on the 1:1 video stage while the invitee rings (App 方案 adopted).
   const latchedRef = useRef(callMeet)
-  if (
-    callMeet ||
-    invitesSent ||
-    remoteCount >= 2 ||
-    (isCallEntry && remoteInvites.length > 0)
-  ) {
-    latchedRef.current = true
-  }
+  if (callMeet || remoteCount >= 2) latchedRef.current = true
 
   // -- M2: owner-side rename once the call truly became multi-party. Runs at
   // most once per session; non-owners and plain meetings never touch it.
