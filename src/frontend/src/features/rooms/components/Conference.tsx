@@ -422,7 +422,11 @@ const CallOrMeeting = ({
     if (publishedKeyRef.current === null && activeKey === '') return
     publishedKeyRef.current = activeKey
     const payload = JSON.stringify({
-      invites: activeLocal.map((i) => ({ label: i.label, state: i.state })),
+      invites: activeLocal.map((i) => ({
+        label: i.label,
+        state: i.state,
+        avatarUrl: i.avatarUrl,
+      })),
     })
     void room.localParticipant
       .publishData(new TextEncoder().encode(payload), {
@@ -455,6 +459,10 @@ const CallOrMeeting = ({
           .map((c) => ({
             label: c.label,
             state: c.state === 'ringing' ? ('ringing' as const) : ('inviting' as const),
+            avatarUrl:
+              typeof c.avatarUrl === 'string' && c.avatarUrl
+                ? c.avatarUrl
+                : undefined,
           }))
         setRemoteBySender((prev) => ({ ...prev, [participant.identity]: chips }))
       } catch {

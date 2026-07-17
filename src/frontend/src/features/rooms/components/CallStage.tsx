@@ -37,6 +37,9 @@ import { navigateTo } from '@/navigation/navigateTo'
 export interface RemoteInviteChip {
   label: string
   state: 'inviting' | 'ringing'
+  /** Short-lived presigned URL from the inviter's picker — shared so every
+   * side of the call renders the same chip avatar. */
+  avatarUrl?: string
 }
 
 /**
@@ -255,6 +258,7 @@ export const CallStage = ({
               <GridTile
                 key={`remote:${c.label}:${idx}`}
                 name={c.label}
+                src={c.avatarUrl}
                 dimmed
                 stateLabel={t(
                   c.state === 'ringing'
