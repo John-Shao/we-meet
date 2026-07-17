@@ -1168,6 +1168,7 @@ export const ChatPane = ({
           onClose={() => setGroupCallOpen(false)}
           onCall={(targets) =>
             void startGroupVoiceCall({
+              groupCid: cid,
               roomName: t('call.groupCallRoomName', { name: title }),
               username: user?.full_name ?? '',
               targets,

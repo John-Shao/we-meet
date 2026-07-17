@@ -106,6 +106,24 @@ let connectedMeetCall: {
   startedAt: number
 } | null = null
 
+/** P4.1: a group voice call this device INITIATED — drives the GROUP-chat
+ * record on leave: `completed` + duration anchored at the FIRST answer
+ * (WeChat口径, ring-wait excluded), or `canceled` when nobody ever joined.
+ * connectedAt is stamped by the room UI (CallStage) via
+ * [markGroupCallConnected] the moment a remote appears. */
+let groupCall: {
+  cid: string
+  connectedAt: number | null
+} | null = null
+
+/** Stamped by CallStage when the first remote participant shows up. Idempotent
+ * and a no-op outside group-call sessions. */
+export const markGroupCallConnected = (): void => {
+  if (groupCall && groupCall.connectedAt === null) {
+    groupCall.connectedAt = Date.now()
+  }
+}
+
 /**
  * Wire the controller to the app-wide SDK client. Idempotent; called from
  * ImUnreadProvider (the same place that keeps the client connected app-wide),
@@ -195,6 +213,8 @@ export const startCall = async (p: StartCallParams): Promise<void> => {
  * "alone + no pending invites → auto-end" semantics converge every outcome.
  */
 export const startGroupVoiceCall = async (p: {
+  /** The GROUP conversation — receives the call-log record on leave. */
+  groupCid: string
   /** Room name AND the invite frame's room_name,「{群名}的语音通话」. */
   roomName: string
   /** Display name for room creation (mirrors startCall). */
@@ -212,6 +232,7 @@ export const startGroupVoiceCall = async (p: {
   } catch {
     return // room create failed — button stays enabled, user can retry
   }
+  groupCall = { cid: p.groupCid, connectedAt: null }
   sendMeetInvites(p.targets, {
     media: 'audio',
     roomSlug: room.slug,
@@ -423,6 +444,25 @@ export const scheduleCallRoomLeave = (extra?: () => void): void => {
         'completed',
         durationSec
       )
+    }
+    // P4.1: the group-call record lands in the GROUP conversation. Duration
+    // counts from the first answer; a call nobody joined logs as canceled.
+    const g = groupCall
+    if (g) {
+      groupCall = null
+      if (g.connectedAt !== null) {
+        const durationSec = Math.max(
+          1,
+          Math.round((leftAtMs - g.connectedAt) / 1000)
+        )
+        void sendCallLog(
+          { cid: g.cid, media: 'audio' } as CallInfo,
+          'completed',
+          durationSec
+        )
+      } else {
+        void sendCallLog({ cid: g.cid, media: 'audio' } as CallInfo, 'canceled')
+      }
     }
     extra?.()
   }, LEAVE_GRACE_MS)

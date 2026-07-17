@@ -31,6 +31,7 @@ import {
   type MeetInvite,
 } from '@/features/im/call/meetInviteTracker'
 import { useSnapshot } from 'valtio'
+import { markGroupCallConnected } from '@/features/im/call/callController'
 import { navigateTo } from '@/navigation/navigateTo'
 
 /** One co-participant-broadcast ringing invite (M2 data message). */
@@ -148,6 +149,11 @@ export const CallStage = ({
   // the invitee mid-ring).
   const peerSeenRef = useRef(false)
   useEffect(() => {
+    if (remoteParticipants.length > 0) {
+      // P4.1: stamps the group-call connect instant (no-op otherwise) so the
+      // group record's duration excludes the ring wait.
+      markGroupCallConnected()
+    }
     if (activeInvites.length > 0) return
     if (remoteParticipants.length > 0) {
       peerSeenRef.current = true
