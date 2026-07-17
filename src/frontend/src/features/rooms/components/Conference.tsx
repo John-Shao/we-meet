@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -33,7 +33,10 @@ import { isFireFox } from '@/utils/livekit'
 import { useIsMobile } from '@/utils/useIsMobile'
 import { navigateTo } from '@/navigation/navigateTo'
 import { connectionObserverStore } from '@/stores/connectionObserver'
-import { notifyCallRoomLeft } from '@/features/im/call/callController'
+import {
+  cancelCallRoomLeave,
+  scheduleCallRoomLeave,
+} from '@/features/im/call/callController'
 import {
   cancelPendingMeetInvites,
   meetInviteStore,
@@ -86,14 +89,16 @@ export const Conference = ({
   // connected 1:1 call. Plain meetings no-op inside.
   // P4: leaving also cancels any still-ringing escalation invites (拍板 #1 —
   // the invite dies with the inviter) and resets the upgrade latch.
-  useEffect(
-    () => () => {
-      notifyCallRoomLeft()
-      cancelPendingMeetInvites()
-      resetMeetInvites()
-    },
-    []
-  )
+  // Debounced: a transient unmount/remount (StrictMode, router blips) must
+  // not fake a hangup — the remount cancels the scheduled flush (问题7).
+  useEffect(() => {
+    cancelCallRoomLeave()
+    return () =>
+      scheduleCallRoomLeave(() => {
+        cancelPendingMeetInvites()
+        resetMeetInvites()
+      })
+  }, [])
   const fetchKey = [keys.room, roomId]
 
   const [isConnectionWarmedUp, setIsConnectionWarmedUp] = useState(false)
@@ -378,8 +383,14 @@ const CallOrMeeting = ({
 }) => {
   const remoteCount = useRemoteParticipants().length
   const invitesSent = useSnapshot(meetInviteStore).upgraded
+  // One-way LATCH, not a live computation: when the third participant later
+  // leaves, remoteCount drops back below 2 and a computed value would fall
+  // back to the 1:1 stage — the latch keeps every side in the multi-party
+  // form for the rest of the session (设计 §2.4).
+  const latchedRef = useRef(callMeet)
+  if (callMeet || invitesSent || remoteCount >= 2) latchedRef.current = true
+  const upgraded = latchedRef.current
   if (!callPeer && !callMeet) return <VideoConference />
-  const upgraded = callMeet || invitesSent || remoteCount >= 2
   if (!audioOnly && upgraded) return <VideoConference />
   return (
     <CallStage

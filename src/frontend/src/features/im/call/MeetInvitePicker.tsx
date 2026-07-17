@@ -24,8 +24,11 @@ export const MeetInvitePicker = ({
 }) => {
   const { t } = useTranslation('im')
   const [query, setQuery] = useState('')
-  // id → label captured at toggle time (list content changes with the query).
-  const [selected, setSelected] = useState<Map<string, string>>(new Map())
+  // id → {label, avatar} captured at toggle time (list content changes with
+  // the query).
+  const [selected, setSelected] = useState<
+    Map<string, { label: string; avatarUrl?: string }>
+  >(new Map())
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -44,17 +47,21 @@ export const MeetInvitePicker = ({
   })
   const selectable = members.filter((m) => !m.is_self)
 
-  const toggle = (id: string, label: string) =>
+  const toggle = (id: string, label: string, avatarUrl?: string) =>
     setSelected((prev) => {
       const next = new Map(prev)
       if (next.has(id)) next.delete(id)
-      else next.set(id, label)
+      else next.set(id, { label, avatarUrl })
       return next
     })
 
   const confirm = () => {
     onInvite(
-      [...selected.entries()].map(([userId, label]) => ({ userId, label }))
+      [...selected.entries()].map(([userId, v]) => ({
+        userId,
+        label: v.label,
+        avatarUrl: v.avatarUrl,
+      }))
     )
     onClose()
   }
@@ -122,7 +129,7 @@ export const MeetInvitePicker = ({
                   <li key={m.id}>
                     <button
                       type="button"
-                      onClick={() => toggle(m.id, label)}
+                      onClick={() => toggle(m.id, label, m.avatar_url || undefined)}
                       aria-pressed={checked}
                       data-testid={`meet-invite-item-${m.id}`}
                       className={css({

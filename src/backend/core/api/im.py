@@ -167,6 +167,54 @@ class ImViewSet(viewsets.ViewSet):
             }
         return Response(out, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["post"], url_path="users/resolve-subs")
+    def resolve_subs(self, request):
+        """Resolve OIDC subs → display names/avatars (P4 通话多人宫格).
+
+        Body: ``{"subs": ["<sub>", ...]}``. Same org-scoped contract as
+        :meth:`resolve_users`, keyed by ``User.sub`` instead of the IM uid —
+        LiveKit participant identity IS the sub (``utils.generate_token``), so
+        the in-call grid resolves room occupants to directory profiles without
+        trusting the token's self-chosen display name.
+        """
+        data = request.data or {}
+        raw = data.get("subs")
+        if not isinstance(raw, list):
+            raise ValidationError({"subs": "list of subs required"})
+        seen: set = set()
+        subs = []
+        for s in raw:
+            if isinstance(s, str) and s and s not in seen:
+                seen.add(s)
+                subs.append(s)
+            if len(subs) >= 200:
+                break
+
+        out: dict = {}
+        if not subs:
+            return Response(out, status=status.HTTP_200_OK)
+
+        organization = get_caller_organization(request.user)
+        qs = models.User.objects.filter(sub__in=subs, is_device=False)
+        if organization is not None:
+            qs = qs.filter(
+                memberships__organization=organization,
+                memberships__status=models.MembershipStatusChoices.ACTIVE,
+            ).distinct()
+        else:
+            qs = qs.filter(pk=request.user.pk)
+
+        for u in qs:
+            out[str(u.sub)] = {
+                "id": str(u.id),
+                "full_name": u.full_name or u.short_name or u.email or "",
+                "short_name": u.short_name or "",
+                "avatar_url": utils.generate_profile_image_get_url(
+                    "avatar", u.avatar_key
+                ),
+            }
+        return Response(out, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=["post"], url_path="images/upload-url")
     def chat_image_upload_url(self, request):
         """Issue a presigned PUT URL for an IM image message (P7).

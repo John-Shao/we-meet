@@ -326,21 +326,47 @@ const onTerminal = (
 }
 
 /**
- * Called when the LiveKit room screen unmounts (Conference cleanup). If a
- * connected 1:1 call was in flight on this device as the CALLER, persist the
- * "completed + duration" call-log. Plain meetings and callee-side sessions
- * no-op (connectedCall is only set on the caller's accept).
+ * End-of-room-session bookkeeping, debounced against transient unmounts.
+ *
+ * Conference schedules the flush on unmount and CANCELS it on (re)mount: a
+ * StrictMode double-mount or any router-induced unmount/remount blip would
+ * otherwise consume [connectedCall] seconds into the call and persist a
+ * bogus "00:01" duration log (P4 实测问题7). The duration is anchored to the
+ * moment of the LAST unmount, so the grace window never inflates it.
+ *
+ * On flush: if a connected 1:1 call was in flight on this device as the
+ * CALLER, persist the "completed + duration" call-log (plain meetings and
+ * callee-side sessions no-op — connectedCall is only set on the caller's
+ * accept), then run [extra] (P4: cancel still-ringing escalation invites).
  */
-export const notifyCallRoomLeft = (): void => {
-  const c = connectedCall
-  if (!c) return
-  connectedCall = null
-  const durationSec = Math.max(1, Math.round((Date.now() - c.startedAt) / 1000))
-  void sendCallLog(
-    { cid: c.cid, media: c.media } as CallInfo,
-    'completed',
-    durationSec
-  )
+const LEAVE_GRACE_MS = 2_000
+let leaveTimer: ReturnType<typeof setTimeout> | null = null
+
+export const scheduleCallRoomLeave = (extra?: () => void): void => {
+  const leftAtMs = Date.now()
+  if (leaveTimer) clearTimeout(leaveTimer)
+  leaveTimer = setTimeout(() => {
+    leaveTimer = null
+    const c = connectedCall
+    if (c) {
+      connectedCall = null
+      const durationSec = Math.max(1, Math.round((leftAtMs - c.startedAt) / 1000))
+      void sendCallLog(
+        { cid: c.cid, media: c.media } as CallInfo,
+        'completed',
+        durationSec
+      )
+    }
+    extra?.()
+  }, LEAVE_GRACE_MS)
+}
+
+/** The room screen (re)mounted within the grace window — not a real leave. */
+export const cancelCallRoomLeave = (): void => {
+  if (leaveTimer) {
+    clearTimeout(leaveTimer)
+    leaveTimer = null
+  }
 }
 
 // ---- timers ----

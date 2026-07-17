@@ -37,6 +37,8 @@ export interface MeetInvite {
   userId: string
   /** Display label captured at pick time (grid chip + fallbacks). */
   label: string
+  /** Presigned avatar URL captured at pick time (dimmed grid chip). */
+  avatarUrl?: string
   state: MeetInviteState
   peerUid?: string
   cid?: string
@@ -80,6 +82,7 @@ export const initMeetInviteTracker = (c: Client): void => {
 export interface MeetInviteTarget {
   userId: string
   label: string
+  avatarUrl?: string
 }
 
 export interface MeetInviteOpts {
@@ -110,6 +113,7 @@ export const sendMeetInvites = (
       callId: crypto.randomUUID(),
       userId: target.userId,
       label: target.label,
+      avatarUrl: target.avatarUrl,
       state: 'inviting',
     }
     meetInviteStore.invites.push(invite)

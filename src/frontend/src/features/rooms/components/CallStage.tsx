@@ -22,6 +22,8 @@ import {
 } from '@remixicon/react'
 import { Avatar } from '@/features/im/components/Avatar'
 import { resolveImUsers } from '@/features/im/api/resolveImUsers'
+import { resolveRoomUsers } from '@/features/im/api/resolveRoomUsers'
+import { useUser } from '@/features/auth'
 import { MeetInvitePicker } from '@/features/im/call/MeetInvitePicker'
 import {
   meetInviteStore,
@@ -146,8 +148,29 @@ export const CallStage = ({
   }
 
   // Grid model: everyone in the room + still-pending invitees (dimmed chips).
-  // LiveKit participant.name is the token's display name; photos aren't
-  // carried by LiveKit, so grid tiles use letter avatars (设计 §4.4 兜底).
+  // Names/avatars are resolved from the DIRECTORY by participant identity
+  // (= OIDC sub) — the LiveKit token name is a self-chosen join-preview name
+  // (stale "John" / synthetic emails, 实测问题2) and carries no photo.
+  const { user: selfUser } = useUser()
+  const identities = upgraded
+    ? [
+        ...(localParticipant?.identity ? [localParticipant.identity] : []),
+        ...remoteParticipants.map((p) => p.identity),
+      ].sort()
+    : []
+  const { data: roomUsers } = useQuery({
+    queryKey: ['rooms', 'resolve-subs', identities],
+    queryFn: () => resolveRoomUsers(identities),
+    enabled: identities.length > 0,
+    staleTime: 300_000,
+  })
+  const gridProfile = (identity: string, fallback: string) => {
+    const entry = roomUsers?.[identity]
+    return {
+      name: entry?.full_name || entry?.short_name || fallback,
+      src: entry?.avatar_url || undefined,
+    }
+  }
   const pendingInvites = invites.filter(
     (i) => i.state === 'inviting' || i.state === 'ringing'
   )
@@ -166,21 +189,35 @@ export const CallStage = ({
       {upgraded ? (
         <div className={centerCol}>
           <div className={gridWrap} data-testid="call-grid">
-            <GridTile
-              name={localParticipant?.name || selfName || t('call.stage.me')}
-              suffix={t('call.stage.me')}
-            />
-            {remoteParticipants.map((p) => (
-              <GridTile
-                key={p.identity}
-                name={p.name || p.identity}
-                speaking={p.isSpeaking}
-              />
-            ))}
+            {(() => {
+              const self = gridProfile(
+                localParticipant?.identity ?? '',
+                selfUser?.full_name || selfName || t('call.stage.me')
+              )
+              return (
+                <GridTile
+                  name={self.name}
+                  src={self.src || selfUser?.avatar_url || undefined}
+                  suffix={t('call.stage.me')}
+                />
+              )
+            })()}
+            {remoteParticipants.map((p) => {
+              const prof = gridProfile(p.identity, p.name || p.identity)
+              return (
+                <GridTile
+                  key={p.identity}
+                  name={prof.name}
+                  src={prof.src}
+                  speaking={p.isSpeaking}
+                />
+              )
+            })}
             {pendingInvites.map((i) => (
               <GridTile
                 key={i.callId}
                 name={i.label}
+                src={i.avatarUrl}
                 dimmed
                 stateLabel={t(
                   i.state === 'ringing'
@@ -275,15 +312,17 @@ export const CallStage = ({
   )
 }
 
-/** One avatar cell of the voice grid (≤9 shown 3×3; beyond that a "+N"). */
+/** One avatar cell of the voice grid (3 columns, scrolls beyond 3 rows). */
 const GridTile = ({
   name,
+  src,
   suffix,
   dimmed = false,
   speaking = false,
   stateLabel,
 }: {
   name: string
+  src?: string
   suffix?: string
   dimmed?: boolean
   speaking?: boolean
@@ -296,7 +335,7 @@ const GridTile = ({
         speaking ? { boxShadow: '0 0 0 3px #30a46c', borderRadius: '50%' } : undefined
       }
     >
-      <Avatar name={name} size="4.5rem" />
+      <Avatar name={name} src={src} size="4.5rem" />
     </div>
     <span className={gridTileName}>
       {name}
