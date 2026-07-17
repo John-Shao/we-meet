@@ -487,10 +487,12 @@ const CallOrMeeting = ({
   if (callMeet || remoteCount >= 2) latchedRef.current = true
 
   // -- M2: owner-side rename once the call truly became multi-party. Runs at
-  // most once per session; non-owners and plain meetings never touch it.
+  // most once per session; ONLY for the 1:1-escalation entry (callPeer) —
+  // group voice calls arrive with callMeet-only and their room is already
+  // named「{群名}的语音通话」, which must not be overwritten (P4.1).
   const renamedRef = useRef(false)
   useEffect(() => {
-    if (!isCallEntry || renamedRef.current) return
+    if (!callPeer || renamedRef.current) return
     if (remoteCount < 2 || !roomData?.is_administrable) return
     renamedRef.current = true
     // selfName is the join-preview preference name — often unset for
@@ -503,7 +505,8 @@ const CallOrMeeting = ({
     void patchRoom({ roomId: roomData.id, room: { name } }).catch(
       () => undefined
     )
-  }, [remoteCount, isCallEntry, roomData, selfName, t])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteCount, callPeer, roomData, selfName, t])
 
   if (!callPeer && !callMeet) return <VideoConference />
   if (!audioOnly && latchedRef.current) return <VideoConference />

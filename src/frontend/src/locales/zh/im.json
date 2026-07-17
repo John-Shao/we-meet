@@ -263,6 +263,11 @@
       "stateUnreachable": "不在线",
       "stateTimeout": "无应答",
       "stateFailed": "邀请失败"
+    },
+    "groupCallRoomName": "{{name}}的语音通话",
+    "groupPicker": {
+      "title": "发起语音通话",
+      "confirm": "呼叫"
     }
   },
   "phoneViewed": {

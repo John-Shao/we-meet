@@ -263,6 +263,11 @@
       "stateUnreachable": "Hors ligne",
       "stateTimeout": "Sans réponse",
       "stateFailed": "Échec de l'invitation"
+    },
+    "groupCallRoomName": "Appel vocal {{name}}",
+    "groupPicker": {
+      "title": "Démarrer un appel vocal",
+      "confirm": "Appeler"
     }
   },
   "phoneViewed": {

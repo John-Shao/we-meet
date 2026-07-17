@@ -263,6 +263,11 @@
       "stateUnreachable": "Offline",
       "stateTimeout": "Geen antwoord",
       "stateFailed": "Uitnodiging mislukt"
+    },
+    "groupCallRoomName": "Spraakoproep {{name}}",
+    "groupPicker": {
+      "title": "Spraakoproep starten",
+      "confirm": "Bellen"
     }
   },
   "phoneViewed": {

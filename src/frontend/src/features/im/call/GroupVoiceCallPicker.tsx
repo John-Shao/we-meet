@@ -1,41 +1,73 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
+import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
-import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
+import { useUser } from '@/features/auth'
+import { MemberAvatar } from '@/features/contacts'
 
+import { resolveImUsers } from '../api/resolveImUsers'
 import type { MeetInviteTarget } from './meetInviteTracker'
 
 /**
- * P4 通话中拉人 — directory multi-picker shown over the in-call stage.
- * Mirrors AddMemberDialog's shape but is decoupled from any group cid: the
- * output is just picked members, which the caller hands to sendMeetInvites.
- * Members already in the room are not filtered here (LiveKit identity is the
- * OIDC sub, not the directory id) — a re-invited present member simply
- * auto-answers busy and the grid already shows who's in.
+ * P4.1 群语音通话 — GROUP-MEMBER multi-picker (unlike MeetInvitePicker, which
+ * is directory-scoped): roster from listMembers(cid), resolved to org display
+ * profiles. Everyone is pre-selected (拍板: 默认全选 — small groups ring
+ * everyone in one tap); self is excluded; members that don't resolve in the
+ * caller's org are hidden (cross-org data boundary, same as the chat list).
+ * Output is MeetInviteTarget[] — the resolved `.id` IS the we-meet userId the
+ * tracker needs, so the P4 invite engine is reused untouched.
  */
-export const MeetInvitePicker = ({
-  onInvite,
+export const GroupVoiceCallPicker = ({
+  client,
+  cid,
+  onCall,
   onClose,
-  excludeUserIds,
 }: {
-  onInvite: (targets: MeetInviteTarget[]) => void
+  client: Client
+  cid: string
+  onCall: (targets: MeetInviteTarget[]) => void
   onClose: () => void
-  /** P4.1 会议拉人: hide members already in the room (resolve-subs ids). */
-  excludeUserIds?: Set<string>
 }) => {
   const { t } = useTranslation('im')
-  const [query, setQuery] = useState('')
-  // id → {label, avatar} captured at toggle time (list content changes with
-  // the query).
-  const [selected, setSelected] = useState<
-    Map<string, { label: string; avatarUrl?: string }>
-  >(new Map())
-  const searchRef = useRef<HTMLInputElement>(null)
+  const { user } = useUser()
+
+  const { data: roster = [], isFetching } = useQuery({
+    queryKey: ['im', 'members', cid],
+    queryFn: () => client.listMembers(cid),
+    staleTime: 30_000,
+  })
+  const uids = roster.map((m) => m.uid)
+  const { data: resolved = {} } = useQuery({
+    queryKey: ['im', 'member-names', uids],
+    queryFn: () => resolveImUsers(uids),
+    enabled: uids.length > 0,
+    staleTime: 60_000,
+  })
+  const candidates = uids
+    .map((uid) => resolved[uid])
+    .filter((e): e is NonNullable<typeof e> => !!e)
+    .filter((e) => e.id !== user?.id)
+    .map((e) => ({
+      userId: e.id,
+      label: e.full_name || e.short_name || e.id,
+      avatarUrl: e.avatar_url || undefined,
+    }))
+
+  // null = "everything selected" until the user first toggles — this is how
+  // 默认全选 survives the roster arriving asynchronously.
+  const [deselected, setDeselected] = useState<Set<string>>(new Set())
+  const isChecked = (id: string) => !deselected.has(id)
+  const toggle = (id: string) =>
+    setDeselected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   useEffect(() => {
-    searchRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
@@ -43,31 +75,10 @@ export const MeetInvitePicker = ({
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const { data: members = [], isFetching } = useQuery({
-    queryKey: ['directory', 'members', query],
-    queryFn: () => fetchDirectoryMembers(query),
-    staleTime: 30_000,
-  })
-  const selectable = members
-    .filter((m) => !m.is_self)
-    .filter((m) => !excludeUserIds?.has(m.id))
-
-  const toggle = (id: string, label: string, avatarUrl?: string) =>
-    setSelected((prev) => {
-      const next = new Map(prev)
-      if (next.has(id)) next.delete(id)
-      else next.set(id, { label, avatarUrl })
-      return next
-    })
-
+  const picked = candidates.filter((c) => isChecked(c.userId))
   const confirm = () => {
-    onInvite(
-      [...selected.entries()].map(([userId, v]) => ({
-        userId,
-        label: v.label,
-        avatarUrl: v.avatarUrl,
-      }))
-    )
+    if (picked.length === 0) return
+    onCall(picked)
     onClose()
   }
 
@@ -82,7 +93,7 @@ export const MeetInvitePicker = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={t('call.invite.title')}
+        aria-label={t('call.groupPicker.title')}
         className={modal}
       >
         <div className={modalHead}>
@@ -94,7 +105,7 @@ export const MeetInvitePicker = ({
               color: 'greyscale.900',
             })}
           >
-            {t('call.invite.title')}
+            {t('call.groupPicker.title')}
           </h2>
           <button
             type="button"
@@ -105,38 +116,22 @@ export const MeetInvitePicker = ({
             ×
           </button>
         </div>
-        <div className={css({ padding: '0.75rem 1rem' })}>
-          <input
-            ref={searchRef}
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('group.searchPlaceholder')}
-            data-testid="meet-invite-search"
-            className={inputCls}
-          />
-        </div>
         <div className={css({ overflowY: 'auto', flex: 1 })}>
-          {isFetching && selectable.length === 0 ? (
+          {isFetching && candidates.length === 0 ? (
             <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
               {t('group.loading')}
             </p>
-          ) : selectable.length === 0 ? (
-            <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-              {t('manage.empty')}
-            </p>
           ) : (
             <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
-              {selectable.map((m) => {
-                const label = m.full_name || m.short_name || m.email || m.id
-                const checked = selected.has(m.id)
+              {candidates.map((m) => {
+                const checked = isChecked(m.userId)
                 return (
-                  <li key={m.id}>
+                  <li key={m.userId}>
                     <button
                       type="button"
-                      onClick={() => toggle(m.id, label, m.avatar_url || undefined)}
+                      onClick={() => toggle(m.userId)}
                       aria-pressed={checked}
-                      data-testid={`meet-invite-item-${m.id}`}
+                      data-testid={`group-call-item-${m.userId}`}
                       className={css({
                         display: 'flex',
                         alignItems: 'center',
@@ -171,35 +166,17 @@ export const MeetInvitePicker = ({
                       >
                         {checked ? '✓' : ''}
                       </span>
-                      <MemberAvatar name={label} src={m.avatar_url} size="2rem" />
+                      <MemberAvatar name={m.label} src={m.avatarUrl} size="2rem" />
                       <span
                         className={css({
-                          display: 'flex',
-                          flexDirection: 'column',
-                          minWidth: 0,
+                          fontWeight: 'medium',
+                          color: 'greyscale.900',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
                         })}
                       >
-                        <span
-                          className={css({
-                            fontWeight: 'medium',
-                            color: 'greyscale.900',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          })}
-                        >
-                          {label}
-                        </span>
-                        <span
-                          className={css({
-                            fontSize: '0.75rem',
-                            color: 'greyscale.500',
-                          })}
-                        >
-                          {[m.title, m.department?.name]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </span>
+                        {m.label}
                       </span>
                     </button>
                   </li>
@@ -210,27 +187,27 @@ export const MeetInvitePicker = ({
         </div>
         <div className={modalFoot}>
           <span className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}>
-            {t('group.selected', { count: selected.size })}
+            {t('group.selected', { count: picked.length })}
           </span>
           <button
             type="button"
-            disabled={selected.size === 0}
+            disabled={picked.length === 0}
             onClick={confirm}
-            data-testid="meet-invite-confirm"
+            data-testid="group-call-confirm"
             className={css({
               paddingX: '1rem',
               paddingY: '0.5rem',
               border: 'none',
               borderRadius: '0.5rem',
               backgroundColor:
-                selected.size > 0 ? 'primary.500' : 'greyscale.300',
+                picked.length > 0 ? 'primary.500' : 'greyscale.300',
               color: 'white',
               fontSize: '0.875rem',
               fontWeight: 'medium',
-              cursor: selected.size > 0 ? 'pointer' : 'not-allowed',
+              cursor: picked.length > 0 ? 'pointer' : 'not-allowed',
             })}
           >
-            {t('call.invite.confirm')}
+            {t('call.groupPicker.confirm')}
           </button>
         </div>
       </div>
@@ -282,14 +259,4 @@ const closeBtn = css({
   lineHeight: 1,
   cursor: 'pointer',
   color: 'greyscale.600',
-})
-const inputCls = css({
-  width: '100%',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  fontSize: '0.875rem',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
 })

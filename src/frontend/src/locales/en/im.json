@@ -263,6 +263,11 @@
       "stateUnreachable": "Offline",
       "stateTimeout": "No answer",
       "stateFailed": "Invite failed"
+    },
+    "groupCallRoomName": "{{name}} voice call",
+    "groupPicker": {
+      "title": "Start voice call",
+      "confirm": "Call"
     }
   },
   "phoneViewed": {

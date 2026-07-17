@@ -263,6 +263,11 @@
       "stateUnreachable": "Offline",
       "stateTimeout": "Keine Antwort",
       "stateFailed": "Einladung fehlgeschlagen"
+    },
+    "groupCallRoomName": "Sprachanruf {{name}}",
+    "groupPicker": {
+      "title": "Sprachanruf starten",
+      "confirm": "Anrufen"
     }
   },
   "phoneViewed": {

@@ -11,7 +11,11 @@ import { fetchApi } from '@/api/fetchApi'
 import { navigateTo } from '@/navigation/navigateTo'
 
 import { fetchImToken } from '../api/fetchImToken'
-import { initMeetInviteTracker } from './meetInviteTracker'
+import {
+  initMeetInviteTracker,
+  sendMeetInvites,
+  type MeetInviteTarget,
+} from './meetInviteTracker'
 import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
 
 /**
@@ -182,6 +186,40 @@ export const startCall = async (p: StartCallParams): Promise<void> => {
   }
   startInviteResend(withRoom)
   startTimeout(withRoom, /*asCaller=*/ true)
+}
+
+/**
+ * P4.1 群语音通话: create the room, ring the picked group members (parallel
+ * meet-invites), enter the voice grid. No Outgoing state — there is no single
+ * callee to wait on; the grid's ringing chips ARE the waiting UI, and the
+ * "alone + no pending invites → auto-end" semantics converge every outcome.
+ */
+export const startGroupVoiceCall = async (p: {
+  /** Room name AND the invite frame's room_name,「{群名}的语音通话」. */
+  roomName: string
+  /** Display name for room creation (mirrors startCall). */
+  username: string
+  targets: MeetInviteTarget[]
+}): Promise<void> => {
+  if (!client || p.targets.length === 0) return
+  if (callStore.state.phase !== 'idle') return
+  let room: ApiRoom
+  try {
+    room = await fetchApi<ApiRoom>(
+      `rooms/?username=${encodeURIComponent(p.username)}`,
+      { method: 'POST', body: JSON.stringify({ name: p.roomName }) }
+    )
+  } catch {
+    return // room create failed — button stays enabled, user can retry
+  }
+  sendMeetInvites(p.targets, {
+    media: 'audio',
+    roomSlug: room.slug,
+    roomName: p.roomName,
+  })
+  navigateTo('room', room.slug, {
+    state: { autoJoin: true, callAudioOnly: true, callMeet: true },
+  })
 }
 
 export const cancelCall = (): void => {

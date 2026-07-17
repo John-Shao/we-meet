@@ -35,7 +35,12 @@ import {
 } from '../components/MessageContextMenu'
 import { useMessages } from '../hooks/useMessages'
 import { useReadMarkers } from '../hooks/useReadMarkers'
-import { callStore, startCall } from '../call/callController'
+import {
+  callStore,
+  startCall,
+  startGroupVoiceCall,
+} from '../call/callController'
+import { GroupVoiceCallPicker } from '../call/GroupVoiceCallPicker'
 
 // Recall is allowed only on your own messages within this window (WeChat: 2 min).
 const RECALL_WINDOW_MS = 2 * 60 * 1000
@@ -746,6 +751,8 @@ export const ChatPane = ({
 
   // 群聊名单弹窗:记录被点开回执的目标消息 seq(据此把成员分已读 / 未读)。
   const [readListSeq, setReadListSeq] = useState<number | null>(null)
+  // P4.1 群语音通话: member picker visibility.
+  const [groupCallOpen, setGroupCallOpen] = useState(false)
 
   const receiptFor = (
     m: Message
@@ -866,6 +873,20 @@ export const ChatPane = ({
             </div>
           )}
         </div>
+        {/* P4.1 群语音通话: member picker → parallel ringing invites. */}
+        {isGroup && (
+          <button
+            type="button"
+            onClick={() => setGroupCallOpen(true)}
+            disabled={callSnap.state.phase !== 'idle'}
+            title={t('call.groupPicker.title')}
+            aria-label={t('call.groupPicker.title')}
+            data-testid="chat-group-voice-call"
+            className={headerBtn}
+          >
+            <RiPhoneLine size={16} />
+          </button>
+        )}
         {isGroup && onAddMembers && (
           <button
             type="button"
@@ -1138,6 +1159,20 @@ export const ChatPane = ({
         <MergedRecordDialog
           record={mergedView}
           onClose={() => setMergedView(null)}
+        />
+      )}
+      {groupCallOpen && (
+        <GroupVoiceCallPicker
+          client={client}
+          cid={cid}
+          onClose={() => setGroupCallOpen(false)}
+          onCall={(targets) =>
+            void startGroupVoiceCall({
+              roomName: t('call.groupCallRoomName', { name: title }),
+              username: user?.full_name ?? '',
+              targets,
+            })
+          }
         />
       )}
     </div>
