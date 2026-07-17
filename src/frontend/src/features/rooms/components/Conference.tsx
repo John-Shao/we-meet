@@ -13,6 +13,7 @@ import {
   RoomOptions,
   VideoPresets,
 } from 'livekit-client'
+import { useUser } from '@/features/auth'
 import { keys } from '@/api/queryKeys'
 import { queryClient } from '@/api/queryClient'
 import { Screen } from '@/layout/Screen'
@@ -401,6 +402,7 @@ const CallOrMeeting = ({
 }) => {
   const { t } = useTranslation('im')
   const room = useRoomContext()
+  const { user } = useUser()
   const remoteParticipants = useRemoteParticipants()
   const remoteCount = remoteParticipants.length
   const snap = useSnapshot(meetInviteStore)
@@ -491,8 +493,13 @@ const CallOrMeeting = ({
     if (!isCallEntry || renamedRef.current) return
     if (remoteCount < 2 || !roomData?.is_administrable) return
     renamedRef.current = true
-    const name = t('call.meetInviteRoomName', { name: selfName })
-    if (!name || roomData.name === name) return
+    // selfName is the join-preview preference name — often unset for
+    // call-flow entrants (实测:「发起的多人通话」missing the owner). The
+    // directory display name is the reliable fallback.
+    const ownerName = user?.full_name || selfName
+    if (!ownerName) return
+    const name = t('call.meetInviteRoomName', { name: ownerName })
+    if (roomData.name === name) return
     void patchRoom({ roomId: roomData.id, room: { name } }).catch(
       () => undefined
     )
