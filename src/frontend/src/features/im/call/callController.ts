@@ -114,6 +114,9 @@ let connectedMeetCall: {
  * [markGroupCallConnected] the moment a remote appears. */
 let groupCall: {
   cid: string
+  /** Room slug — stamped into the end-record so the ongoing card (same slug)
+   * can render as ended. */
+  slug: string
   connectedAt: number | null
 } | null = null
 
@@ -233,7 +236,18 @@ export const startGroupVoiceCall = async (p: {
   } catch {
     return // room create failed — button stays enabled, user can retry
   }
-  groupCall = { cid: p.groupCid, connectedAt: null }
+  groupCall = { cid: p.groupCid, slug: room.slug, connectedAt: null }
+  // P4.1 进行中卡片: every group member (rung or not) sees a joinable card;
+  // the end-record below flips it to the ended state.
+  try {
+    await client.sendText(
+      p.groupCid,
+      JSON.stringify({ slug: room.slug, media: 'audio' }),
+      { contentType: 'group-call' }
+    )
+  } catch {
+    // Best-effort — the ringing invites still go out.
+  }
   sendMeetInvites(p.targets, {
     media: 'audio',
     roomSlug: room.slug,
@@ -463,10 +477,16 @@ export const scheduleCallRoomLeave = (extra?: () => void): void => {
         void sendCallLog(
           { cid: g.cid, media: 'audio' } as CallInfo,
           'completed',
-          durationSec
+          durationSec,
+          g.slug
         )
       } else {
-        void sendCallLog({ cid: g.cid, media: 'audio' } as CallInfo, 'canceled')
+        void sendCallLog(
+          { cid: g.cid, media: 'audio' } as CallInfo,
+          'canceled',
+          undefined,
+          g.slug
+        )
       }
     }
     extra?.()
@@ -562,7 +582,8 @@ const replyTo = (
 const sendCallLog = async (
   info: CallInfo,
   result: string,
-  durationSec?: number
+  durationSec?: number,
+  slug?: string
 ): Promise<void> => {
   const c = client
   if (!c) return
@@ -573,6 +594,9 @@ const sendCallLog = async (
         media: info.media,
         result,
         ...(durationSec ? { duration: durationSec } : {}),
+        // P4.1: ties the group end-record to its ongoing card. Renderers of
+        // plain call-logs ignore unknown fields.
+        ...(slug ? { slug } : {}),
       }),
       { contentType: 'call-log' }
     )

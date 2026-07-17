@@ -271,7 +271,14 @@
       "confirm": "呼叫"
     },
     "groupMeetingRoomName": "{{name}}的视频会议",
-    "groupMeeting": "发起会议"
+    "groupMeeting": "发起会议",
+    "groupCard": {
+      "title": "语音通话",
+      "ongoing": "通话中",
+      "ended": "已结束",
+      "join": "加入",
+      "endedAlert": "通话已结束"
+    }
   },
   "phoneViewed": {
     "byMe": "你查看了对方的手机号码",

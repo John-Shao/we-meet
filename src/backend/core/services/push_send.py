@@ -350,6 +350,19 @@ def notify_offline(payload: dict[str, Any], client: Optional[GetuiClient] = None
     cfg = getattr(settings, "PUSH_CONFIGURATION", None) or {}
     content_visible = bool(cfg.get("content_visible", True))
     snippet = str(payload.get("body_snippet") or "")
+    # Non-text bodies are JSON/object keys — map them to human labels instead
+    # of leaking raw payloads into the notification shade.
+    content_type = str(payload.get("content_type") or "")
+    type_labels = {
+        "image": "[图片]",
+        "file": "[文件]",
+        "voice": "[语音]",
+        "merged": "[聊天记录]",
+        "call-log": "[通话]",
+        "group-call": "[语音通话]",
+    }
+    if content_type in type_labels:
+        snippet = type_labels[content_type]
     title = "we-meet"
     body = snippet if (content_visible and snippet) else "你有一条新消息"
     deep = {

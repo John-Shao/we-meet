@@ -7,6 +7,7 @@ import { RiPhoneLine, RiVidiconLine } from '@remixicon/react'
 import type { Client, ConversationSummary, Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { fetchApi } from '@/api/fetchApi'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
 
@@ -113,6 +114,7 @@ const snippetOf = (m: Message, t: (k: string) => string): string => {
   if (m.content_type === 'voice') return t('preview.voice')
   if (m.content_type === 'merged') return t('preview.merged')
   if (m.content_type === 'call-log') return t('preview.call')
+  if (m.content_type === 'group-call') return t('preview.call')
   if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
   if (m.content_type === 'quote') {
     try {
@@ -226,6 +228,51 @@ export const ChatPane = ({
     [messages, deletedMids]
   )
   const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  // P4.1 群语音卡片: end-records (call-log carrying a slug) flip the matching
+  // ongoing card to its ended state.
+  const endedGroupCallSlugs = useMemo(() => {
+    const set = new Set<string>()
+    for (const m of messages) {
+      if (m.content_type !== 'call-log') continue
+      try {
+        const slug = (JSON.parse(m.body) as { slug?: string }).slug
+        if (slug) set.add(slug)
+      } catch {
+        // ignore malformed bodies
+      }
+    }
+    return set
+  }, [messages])
+
+  const groupCallSlugOf = (m: Message): string | null => {
+    try {
+      return (JSON.parse(m.body) as { slug?: string }).slug ?? null
+    } catch {
+      return null
+    }
+  }
+
+  // Join a live group voice call from its card: resolve the room first — an
+  // ended room issues no LiveKit token, which is the "already over" signal
+  // (covers cards whose end-record sits outside the loaded window).
+  const joinGroupCall = async (slug: string) => {
+    if (callSnap.state.phase !== 'idle') return
+    try {
+      const room = await fetchApi<{ livekit?: { token?: string } }>(
+        `rooms/${encodeURIComponent(slug)}/`
+      )
+      if (!room?.livekit?.token) {
+        void showAlert({ message: t('call.groupCard.endedAlert') })
+        return
+      }
+      navigateTo('room', slug, {
+        state: { autoJoin: true, callAudioOnly: true, callMeet: true },
+      })
+    } catch {
+      void showAlert({ message: t('call.groupCard.endedAlert') })
+    }
+  }
 
   // 已读回执(P13):每个成员的 last_read_seq;首次拉快照 + onRead 保活。
   const reads = useReadMarkers(client, cid)
@@ -590,6 +637,7 @@ export const ChatPane = ({
     if (m.content_type === 'voice') return t('preview.voice')
     if (m.content_type === 'merged') return t('preview.merged')
     if (m.content_type === 'call-log') return t('preview.call')
+    if (m.content_type === 'group-call') return t('preview.call')
     if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
     if (m.content_type === 'quote') {
       try {
@@ -1207,6 +1255,19 @@ export const ChatPane = ({
                       onAvatarClick={
                         !selectMode && names[m.sender_uid]?.id
                           ? () => onMemberClick?.(names[m.sender_uid]!.id!)
+                          : undefined
+                      }
+                      onJoinGroupCall={
+                        m.content_type === 'group-call' && groupCallSlugOf(m)
+                          ? () => void joinGroupCall(groupCallSlugOf(m)!)
+                          : undefined
+                      }
+                      groupCallEnded={
+                        m.content_type === 'group-call'
+                          ? (() => {
+                              const s = groupCallSlugOf(m)
+                              return !s || endedGroupCallSlugs.has(s)
+                            })()
                           : undefined
                       }
                     />

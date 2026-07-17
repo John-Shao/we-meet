@@ -271,7 +271,14 @@
       "confirm": "Call"
     },
     "groupMeetingRoomName": "{{name}} meeting",
-    "groupMeeting": "Start meeting"
+    "groupMeeting": "Start meeting",
+    "groupCard": {
+      "title": "Voice call",
+      "ongoing": "In progress",
+      "ended": "Ended",
+      "join": "Join",
+      "endedAlert": "The call has ended"
+    }
   },
   "phoneViewed": {
     "byMe": "You viewed their phone number",

@@ -312,7 +312,7 @@ const ImAuthenticated = () => {
                 ? t('preview.reaction')
                 : ct === 'recall'
                   ? t('preview.recalled')
-                  : ct === 'call-log'
+                  : ct === 'call-log' || ct === 'group-call'
                     ? t('preview.call')
                     : ct === 'phone-viewed'
                       ? t('preview.phoneViewed')

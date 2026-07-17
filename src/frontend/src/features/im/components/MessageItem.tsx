@@ -52,6 +52,10 @@ interface Props {
   onImageClick?: () => void
   /** Open a merged chat-record (content_type='merged') → viewer dialog. */
   onMergedClick?: () => void
+  /** P4.1 群语音卡片:点「加入」进入进行中的语音宫格(content_type='group-call')。 */
+  onJoinGroupCall?: () => void
+  /** P4.1 群语音卡片:该场通话已结束(同流存在同 slug 的结束记录)→ 灰态不可点。 */
+  groupCallEnded?: boolean
   /** 多选模式(合并/逐条转发):渲染左侧勾选框,整行点击切换选中。 */
   selectMode?: boolean
   /** This message is currently selected in multi-select mode. */
@@ -262,6 +266,8 @@ export const MessageItem = ({
   onContextMenu,
   onImageClick,
   onMergedClick,
+  onJoinGroupCall,
+  groupCallEnded,
   selectMode,
   selected,
   onToggleSelect,
@@ -335,6 +341,62 @@ export const MessageItem = ({
         >
           {isOwn ? t('phoneViewed.byMe') : t('phoneViewed.byPeer')}
         </span>
+      </div>
+    )
+  }
+
+  // P4.1 群语音「进行中」卡片 (body = {"slug","media"}) — every member (rung
+  // or not, joined later or not) can tap to join the live grid. Once the
+  // group's end-record (call-log carrying the same slug) exists downstream,
+  // the card renders as ended; a stale "ongoing" card (end-record outside the
+  // loaded window) is caught at join time by the room resolve.
+  if (message.content_type === 'group-call') {
+    const ended = groupCallEnded ?? false
+    return (
+      <div
+        className={css({
+          display: 'flex',
+          justifyContent: 'center',
+          paddingX: '1rem',
+          paddingY: '0.375rem',
+        })}
+        data-testid="im-msg-groupcall"
+      >
+        <button
+          type="button"
+          disabled={ended || !onJoinGroupCall}
+          onClick={onJoinGroupCall}
+          className={css({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontSize: '0.875rem',
+            color: 'greyscale.700',
+            backgroundColor: 'greyscale.100',
+            border: '1px solid token(colors.greyscale.200)',
+            borderRadius: '0.75rem',
+            paddingX: '0.875rem',
+            paddingY: '0.5rem',
+            cursor: 'pointer',
+            _disabled: { cursor: 'default', opacity: 0.7 },
+            _hover: { backgroundColor: 'greyscale.200' },
+          })}
+        >
+          <RiPhoneLine size={16} />
+          {t('call.groupCard.title')}
+          {' · '}
+          {ended ? t('call.groupCard.ended') : t('call.groupCard.ongoing')}
+          {!ended && (
+            <span
+              className={css({
+                color: 'primary.600',
+                fontWeight: 'medium',
+              })}
+            >
+              {t('call.groupCard.join')}
+            </span>
+          )}
+        </button>
       </div>
     )
   }

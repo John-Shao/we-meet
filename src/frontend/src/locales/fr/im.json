@@ -271,7 +271,14 @@
       "confirm": "Appeler"
     },
     "groupMeetingRoomName": "Réunion {{name}}",
-    "groupMeeting": "Démarrer la réunion"
+    "groupMeeting": "Démarrer la réunion",
+    "groupCard": {
+      "title": "Appel vocal",
+      "ongoing": "En cours",
+      "ended": "Terminé",
+      "join": "Rejoindre",
+      "endedAlert": "L'appel est terminé"
+    }
   },
   "phoneViewed": {
     "byMe": "Vous avez consulté son numéro",

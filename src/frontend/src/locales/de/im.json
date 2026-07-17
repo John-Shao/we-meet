@@ -271,7 +271,14 @@
       "confirm": "Anrufen"
     },
     "groupMeetingRoomName": "Meeting {{name}}",
-    "groupMeeting": "Meeting starten"
+    "groupMeeting": "Meeting starten",
+    "groupCard": {
+      "title": "Sprachanruf",
+      "ongoing": "Läuft",
+      "ended": "Beendet",
+      "join": "Beitreten",
+      "endedAlert": "Der Anruf ist beendet"
+    }
   },
   "phoneViewed": {
     "byMe": "Du hast die Telefonnummer angesehen",

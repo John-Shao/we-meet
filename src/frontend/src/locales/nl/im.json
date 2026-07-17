@@ -271,7 +271,14 @@
       "confirm": "Bellen"
     },
     "groupMeetingRoomName": "Vergadering {{name}}",
-    "groupMeeting": "Vergadering starten"
+    "groupMeeting": "Vergadering starten",
+    "groupCard": {
+      "title": "Spraakoproep",
+      "ongoing": "Bezig",
+      "ended": "Beëindigd",
+      "join": "Deelnemen",
+      "endedAlert": "De oproep is beëindigd"
+    }
   },
   "phoneViewed": {
     "byMe": "Je hebt hun nummer bekeken",
