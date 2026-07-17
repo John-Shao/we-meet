@@ -343,7 +343,8 @@ export const Conference = ({
             audioOnly={audioOnly}
             roomSlug={roomId}
             selfName={userConfig.username}
-            roomData={data}
+            // queryFn's 404-fallback catch types `data` as ApiRoom | void.
+            roomData={data ?? undefined}
           />
           {showInviteDialog && !isMobile && (
             <InviteDialog
