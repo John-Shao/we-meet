@@ -11,6 +11,7 @@
     "contacts": "Contacts",
     "meetings": "Réunions",
     "messages": "Messages",
+    "conversations": "Conversations",
     "empty": "Aucun résultat",
     "ai": "Demander à l’IA",
     "askAi": "Demander à l’IA : {{q}}",

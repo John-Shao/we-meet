@@ -11,6 +11,7 @@
     "contacts": "联系人",
     "meetings": "会议",
     "messages": "消息",
+    "conversations": "会话",
     "empty": "无匹配结果",
     "ai": "AI 问答",
     "askAi": "向 AI 提问:{{q}}",

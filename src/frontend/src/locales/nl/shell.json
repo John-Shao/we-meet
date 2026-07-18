@@ -11,6 +11,7 @@
     "contacts": "Contacten",
     "meetings": "Vergaderingen",
     "messages": "Berichten",
+    "conversations": "Gesprekken",
     "empty": "Geen resultaten",
     "ai": "Vraag AI",
     "askAi": "Vraag AI: {{q}}",

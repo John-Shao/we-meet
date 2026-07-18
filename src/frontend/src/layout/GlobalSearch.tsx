@@ -4,7 +4,8 @@ import { useLocation } from 'wouter'
 import { RiSearchLine, RiSparklingLine } from '@remixicon/react'
 import ReactMarkdown from 'react-markdown'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css, cx } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
@@ -19,6 +20,7 @@ import {
   type ImSearchItem,
 } from '@/features/im/api/searchImMessages'
 import { resolveImUsers } from '@/features/im/api/resolveImUsers'
+import { fetchImToken } from '@/features/im/api/fetchImToken'
 import {
   useRecentMeetings,
   useScheduledMeetings,
@@ -221,6 +223,62 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
     staleTime: 60_000,
   })
 
+  // 会话组(对齐 App「会话」快捷径):群名/直聊对端名 本地过滤,点击直达
+  // 聊天。列表=打开面板时对全局 ImUnreadProvider 维护的 ['im','conversations']
+  // 缓存取快照(面板条件挂载,每次打开都是新鲜快照;IM 未配置时缓存不存在
+  // →恒空,天然降级,不触碰 SDK)。直聊对端名批量解析,解析不出的不参与
+  // 匹配(避免「私聊」兜底文案造成噪音命中)。
+  const queryClient = useQueryClient()
+  const [convList] = useState<ConversationSummary[]>(
+    () =>
+      queryClient.getQueryData<ConversationSummary[]>([
+        'im',
+        'conversations',
+      ]) ?? []
+  )
+  const showConvs = category === 'all' || category === 'messages'
+  const { data: imSelf } = useQuery({
+    queryKey: ['im', 'self-token'],
+    queryFn: () => fetchImToken(),
+    enabled: convList.length > 0,
+    staleTime: 600_000,
+  })
+  const selfUid = imSelf?.uid ?? ''
+  const convPeerUids = useMemo(
+    () =>
+      [
+        ...new Set(
+          convList
+            .filter((c) => c.type === 'direct')
+            .map((c) => c.members.find((u) => u !== selfUid))
+            .filter((u): u is string => !!u)
+        ),
+      ].sort(),
+    [convList, selfUid]
+  )
+  const { data: convPeerNames = {} } = useQuery({
+    queryKey: ['im', 'peer-names', convPeerUids],
+    queryFn: () => resolveImUsers(convPeerUids),
+    enabled: convPeerUids.length > 0 && !!selfUid,
+    staleTime: 60_000,
+  })
+  const convHits = useMemo(() => {
+    if (!ql || !showConvs) return []
+    return convList
+      .map((c) => {
+        const name =
+          c.type === 'group'
+            ? c.name.trim()
+            : (() => {
+                const peer = c.members.find((u) => u !== selfUid)
+                return (peer && convPeerNames[peer]?.full_name) || ''
+              })()
+        return { cid: c.cid, name }
+      })
+      .filter((c) => !!c.name && c.name.toLowerCase().includes(ql))
+      .slice(0, 8)
+  }, [ql, showConvs, convList, convPeerNames, selfUid])
+
   // 文档搜索(P1-4 M1):≥2 字触发;「全部」下取 4 条,「文档」标签取满 8。
   const docsSearchEnabled = showDocs && rawQ.length >= 2
   const { data: docsData = [], isFetching: docsFetching } = useQuery({
@@ -259,6 +317,7 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
     !isFetching &&
     !msgFetching &&
     !docsFetching &&
+    convHits.length === 0 &&
     members.length === 0 &&
     meetings.length === 0 &&
     msgItems.length === 0 &&
@@ -285,6 +344,11 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
     navigate(
       `/im?cid=${encodeURIComponent(m.cid)}&seq=${m.seq}&t=${Date.now()}`
     )
+  }
+  // 会话命中 → 直达聊天(不带 seq,落在最新位置)。
+  const openConvHit = (cid: string) => {
+    close()
+    navigate(`/im?cid=${encodeURIComponent(cid)}`)
   }
   // 文档命中 → 新标签打开 Docs 深链(与 MeetingDoc 链接既有口径一致;
   // /docs iframe 内深链留待后续)。
@@ -461,6 +525,20 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
               {t('search.askAi', { q: rawQ })}
             </span>
           </button>
+        )}
+
+        {convHits.length > 0 && (
+          <Group title={t('search.conversations')}>
+            {convHits.map((c) => (
+              <ResultRow
+                key={`c-${c.cid}`}
+                onClick={() => openConvHit(c.cid)}
+                testId={`global-search-conv-${c.cid}`}
+                avatarText={c.name.slice(0, 1).toUpperCase()}
+                title={c.name}
+              />
+            ))}
+          </Group>
         )}
 
         {members.length > 0 && (
