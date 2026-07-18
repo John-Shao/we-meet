@@ -1173,7 +1173,15 @@ export const ChatPane = ({
           })}
         >
           {/* P17 Pin 栏:有 Pin 时置于头部下方,点击展开完整列表。 */}
-          <PinnedBar client={client} cid={cid} nameOf={nameOf} />
+          <PinnedBar
+            client={client}
+            cid={cid}
+            nameOf={nameOf}
+            // P3-M3 后补: 点置顶条目 → 复用 P1-M2 锚定定位(nonce 保证重复点击生效)。
+            onJump={(seq) =>
+              setAnchor({ seq, key: `pin-${seq}-${Date.now()}`, cid })
+            }
+          />
           <div
             ref={scrollRef}
             onScroll={() => void onScrollPane()}

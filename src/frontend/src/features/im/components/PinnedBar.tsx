@@ -14,11 +14,14 @@ export const PinnedBar = ({
   client,
   cid,
   nameOf,
+  onJump,
 }: {
   client: Client
   cid: string
   /** uid → 显示名(群昵称→目录名→uid),复用 ChatPane 的解析。 */
   nameOf: (uid: string) => string
+  /** P3-M3 后补子项: 点击置顶条目跳转定位到消息(P1-M2 locate 同款)。 */
+  onJump?: (seq: number) => void
 }) => {
   const { t } = useTranslation('im')
   const queryClient = useQueryClient()
@@ -110,7 +113,37 @@ export const PinnedBar = ({
                 borderBottom: '1px solid token(colors.greyscale.100)',
               })}
             >
-              <div className={css({ flex: 1, minWidth: 0 })}>
+              <div
+                role={onJump ? 'button' : undefined}
+                tabIndex={onJump ? 0 : undefined}
+                onClick={
+                  onJump
+                    ? () => {
+                        setOpen(false)
+                        onJump(p.message.seq)
+                      }
+                    : undefined
+                }
+                onKeyDown={
+                  onJump
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setOpen(false)
+                          onJump(p.message.seq)
+                        }
+                      }
+                    : undefined
+                }
+                data-testid={`im-pin-jump-${p.mid}`}
+                className={css({
+                  flex: 1,
+                  minWidth: 0,
+                  cursor: onJump ? 'pointer' : 'default',
+                  borderRadius: '4px',
+                  _hover: onJump ? { backgroundColor: 'greyscale.100' } : {},
+                })}
+              >
                 <div
                   className={css({
                     fontSize: '0.75rem',
