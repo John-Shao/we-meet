@@ -996,7 +996,7 @@ export const ChatPane = ({
             <button
               type="button"
               onClick={onOpenSettings}
-              title={t('manage.settings')}
+              title={isGroup ? t('manage.info') : t('manage.settings')}
               data-testid="chat-group-title"
               className={css({
                 display: 'block',
@@ -1081,8 +1081,8 @@ export const ChatPane = ({
           <button
             type="button"
             onClick={onOpenInfo}
-            title={t('manage.membersTitle')}
-            aria-label={t('manage.membersTitle')}
+            title={t('manage.info')}
+            aria-label={t('manage.info')}
             data-testid="chat-group-info"
             className={headerBtn}
           >

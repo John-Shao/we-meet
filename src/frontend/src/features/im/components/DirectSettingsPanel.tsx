@@ -23,7 +23,7 @@ interface Props {
 
 /**
  * 一对一会话设置(对标飞书):创建群组 + 消息免打扰 / 置顶会话(P10 私有开关)+
- * 清空聊天记录。群相关项(改名/成员/退群)不适用 direct,见 {@link GroupSettingsPanel}。
+ * 清空聊天记录。群相关项(改名/成员/退群)不适用 direct,见 {@link GroupInfoPanel}。
  * 以 chat header 右侧固定列呈现,与群设置同位。
  */
 export const DirectSettingsPanel = ({

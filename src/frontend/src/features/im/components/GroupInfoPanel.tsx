@@ -9,13 +9,17 @@ import { useConfirm } from '@/components/ConfirmProvider'
 
 import { announceLeave } from '../api/announceLeave'
 import { updateGroupMeta } from '../api/updateGroupMeta'
+import { removeMember } from '../api/removeMember'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { GroupAvatar } from './GroupAvatar'
+import { Avatar } from './Avatar'
 
 interface Props {
   client: Client
   conversation: ConversationSummary
   currentUserUID: string
+  /** Opens the add-members dialog (＋ next to the member count). */
+  onAddMembers: () => void
   /** Called after the caller leaves the group (clears the open conversation). */
   onLeft: () => void
   onClose: () => void
@@ -31,15 +35,19 @@ const readDescription = (meta: unknown): string => {
 }
 
 /**
- * 群设置 — opened by clicking the group name. Holds the group-level settings:
- * rename + description (owner only), my group nickname / 免打扰 / @所有人不提示 /
- * 置顶 (every member, P10), 清空聊天记录, and leave. The roster lives in
- * {@link GroupMembersPanel}. Rendered as a fixed column below the chat header.
+ * 群聊信息 — the single group panel, merging what used to be the separate
+ * 群成员 (roster) and 群设置 (attributes) columns into one, mirroring the
+ * Android `GroupInfoScreen`. Top-to-bottom: group avatar + name (owner
+ * rename), 群描述 (owner edit), my group nickname, the private 置顶 / 免打扰 /
+ * @所有人不提示 toggles (P10), the member roster (count + add + owner badge +
+ * transfer/kick), 清空聊天记录, and leave. Rendered as a fixed column below
+ * the chat header.
  */
-export const GroupSettingsPanel = ({
+export const GroupInfoPanel = ({
   client,
   conversation,
   currentUserUID,
+  onAddMembers,
   onLeft,
   onClose,
 }: Props) => {
@@ -66,29 +74,6 @@ export const GroupSettingsPanel = ({
   const nickRef = useRef<HTMLInputElement>(null)
   const displayName = conversation.name || t('convName.groupFallback')
 
-  // My own group nickname lives in the roster (listMembers carries nickname).
-  const { data: roster = [] } = useQuery({
-    queryKey: ['im', 'members', cid],
-    queryFn: () => client.listMembers(cid),
-    staleTime: 30_000,
-    retry: false,
-  })
-  const myNickname =
-    roster.find((m) => m.uid === currentUserUID)?.nickname ?? ''
-
-  // 群头像九宫格:解析前 9 名成员的头像/名字拼贴(同会话列表的群头像)。
-  const tileUids = conversation.members.slice(0, 9)
-  const { data: memberInfo = {} } = useQuery({
-    queryKey: ['im', 'group-member-info', tileUids],
-    queryFn: () => resolveImUsers(tileUids),
-    enabled: tileUids.length > 0,
-    staleTime: 60_000,
-  })
-  const avatarTiles = tileUids.map((uid) => ({
-    name: memberInfo[uid]?.full_name || '',
-    src: memberInfo[uid]?.avatar_url || undefined,
-  }))
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -107,12 +92,64 @@ export const GroupSettingsPanel = ({
     if (editingNick) nickRef.current?.focus()
   }, [editingNick])
 
+  // The roster is its own REST query; a conv lifecycle event for this group
+  // (someone joined / left / was removed) only refreshes the conversation list,
+  // not this query — so without invalidating here the open panel stays stale
+  // until reopened. Refetch the roster whenever this conversation changes.
+  useEffect(() => {
+    const off = client.onConversation((ev) => {
+      if (ev.cid === cid) {
+        void qc.invalidateQueries({ queryKey: ['im', 'members', cid] })
+      }
+    })
+    return off
+  }, [client, cid, qc])
+
+  const { data: roster = [], isLoading } = useQuery({
+    queryKey: ['im', 'members', cid],
+    queryFn: () => client.listMembers(cid),
+    staleTime: 30_000,
+    // Never retry: a 403 (you left / were removed) won't succeed on retry, and
+    // the default 3× backoff would freeze the UI ~5s after leaving the group.
+    retry: false,
+  })
+  const rosterUids = roster.map((m) => m.uid)
+  const { data: names = {} } = useQuery({
+    queryKey: ['im', 'member-names', rosterUids],
+    queryFn: () => resolveImUsers(rosterUids),
+    enabled: rosterUids.length > 0,
+    staleTime: 60_000,
+  })
+  // P10: a member's group nickname overrides their org-directory name.
+  const nameOf = (uid: string) =>
+    roster.find((m) => m.uid === uid)?.nickname || names[uid]?.full_name || uid
+  const myNickname =
+    roster.find((m) => m.uid === currentUserUID)?.nickname ?? ''
+
+  // 群头像九宫格:解析前 9 名成员的头像/名字拼贴(同会话列表的群头像)。
+  const tileUids = conversation.members.slice(0, 9)
+  const { data: tileInfo = {} } = useQuery({
+    queryKey: ['im', 'group-member-info', tileUids],
+    queryFn: () => resolveImUsers(tileUids),
+    enabled: tileUids.length > 0,
+    staleTime: 60_000,
+  })
+  const avatarTiles = tileUids.map((uid) => ({
+    name: tileInfo[uid]?.full_name || '',
+    src: tileInfo[uid]?.avatar_url || undefined,
+  }))
+
   const onError = (e: unknown) =>
     void showAlert({
       message: t('manage.error', {
         message: e instanceof Error ? e.message : String(e),
       }),
     })
+
+  const refresh = async () => {
+    await qc.invalidateQueries({ queryKey: ['im', 'members', cid] })
+    await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+  }
 
   const saveName = async () => {
     const next = nameDraft.trim()
@@ -185,6 +222,47 @@ export const GroupSettingsPanel = ({
     try {
       await client.setConversationSettings(cid, patch)
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+    } catch (e) {
+      onError(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const kick = async (uid: string) => {
+    const userId = names[uid]?.id
+    if (!userId) return
+    if (
+      !(await askConfirm({
+        message: t('manage.removeConfirm', { name: nameOf(uid) }),
+        confirmLabel: t('manage.remove'),
+        danger: true,
+      }))
+    )
+      return
+    setBusy(true)
+    try {
+      await removeMember(cid, userId)
+      await refresh()
+    } catch (e) {
+      onError(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const transfer = async (uid: string) => {
+    if (
+      !(await askConfirm({
+        message: t('manage.transferConfirm', { name: nameOf(uid) }),
+        confirmLabel: t('manage.transfer'),
+      }))
+    )
+      return
+    setBusy(true)
+    try {
+      await client.transferOwner(cid, uid)
+      await refresh()
     } catch (e) {
       onError(e)
     } finally {
@@ -267,7 +345,7 @@ export const GroupSettingsPanel = ({
 
   return (
     <aside
-      aria-label={t('manage.settings')}
+      aria-label={t('manage.info')}
       className={css({
         display: 'flex',
         flexDirection: 'column',
@@ -299,7 +377,7 @@ export const GroupSettingsPanel = ({
             color: 'greyscale.900',
           })}
         >
-          {t('manage.settings')}
+          {t('manage.info')}
         </h2>
         <button
           type="button"
@@ -550,6 +628,144 @@ export const GroupSettingsPanel = ({
           'group-mute-all-toggle'
         )}
 
+        {/* Members: count + add, then the roster (owner badge + transfer/kick) */}
+        <div
+          className={css({
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingX: '1rem',
+            paddingTop: '0.875rem',
+            paddingBottom: '0.375rem',
+          })}
+        >
+          <span className={sectionLabel}>
+            {t('manage.members')} ({roster.length})
+          </span>
+          <button
+            type="button"
+            onClick={onAddMembers}
+            title={t('manage.addMembers')}
+            aria-label={t('manage.addMembers')}
+            data-testid="group-add-members"
+            className={editBtn}
+          >
+            ＋
+          </button>
+        </div>
+        <ul
+          className={css({
+            listStyle: 'none',
+            margin: 0,
+            padding: '0 0 0.5rem',
+          })}
+        >
+          {isLoading ? (
+            <li
+              className={css({ padding: '0.5rem 1rem', color: 'greyscale.500' })}
+            >
+              {t('group.loading')}
+            </li>
+          ) : (
+            roster.map((m) => {
+              const label = nameOf(m.uid)
+              const isSelf = m.uid === currentUserUID
+              // Drive the badge off owner_uid (authoritative) rather than the
+              // roster role, which can lag a transfer until the row re-syncs.
+              const isRowOwner = m.uid === conversation.owner_uid
+              const canActOnRow = isOwner && !isSelf && !isRowOwner
+              return (
+                <li
+                  key={m.uid}
+                  className={css({
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.625rem',
+                    paddingX: '1rem',
+                    paddingY: '0.375rem',
+                    _hover: { backgroundColor: 'greyscale.50' },
+                  })}
+                >
+                  <Avatar
+                    name={label}
+                    src={names[m.uid]?.avatar_url}
+                    size="2rem"
+                  />
+                  <span
+                    className={css({
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      color: 'greyscale.900',
+                    })}
+                  >
+                    {label}
+                  </span>
+                  {isRowOwner && (
+                    <span
+                      className={css({
+                        flexShrink: 0,
+                        fontSize: '0.6875rem',
+                        borderRadius: '0.25rem',
+                        paddingX: '0.25rem',
+                        color: 'primary.600',
+                        backgroundColor: 'primary.50',
+                        border: '1px solid token(colors.primary.200)',
+                      })}
+                    >
+                      {t('manage.owner')}
+                    </span>
+                  )}
+                  {canActOnRow && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => transfer(m.uid)}
+                        title={t('manage.transfer')}
+                        aria-label={t('manage.transfer')}
+                        data-testid={`member-transfer-${m.uid}`}
+                        className={css({
+                          flexShrink: 0,
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          color: 'greyscale.500',
+                          fontSize: '0.875rem',
+                          _hover: { color: 'primary.500' },
+                        })}
+                      >
+                        ♛
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || !names[m.uid]?.id}
+                        onClick={() => kick(m.uid)}
+                        title={t('manage.remove')}
+                        aria-label={t('manage.remove')}
+                        data-testid={`member-kick-${m.uid}`}
+                        className={css({
+                          flexShrink: 0,
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          color: 'greyscale.500',
+                          fontSize: '0.875rem',
+                          _hover: { color: 'error.500' },
+                        })}
+                      >
+                        ×
+                      </button>
+                    </>
+                  )}
+                </li>
+              )
+            })
+          )}
+        </ul>
+
         {/* Clear history (per-member) */}
         <button
           type="button"
@@ -561,7 +777,7 @@ export const GroupSettingsPanel = ({
             textAlign: 'left',
             padding: '0.625rem 1rem',
             border: 'none',
-            borderBottom: '1px solid token(colors.greyscale.100)',
+            borderTop: '1px solid token(colors.greyscale.100)',
             backgroundColor: 'greyscale.000',
             color: 'greyscale.900',
             fontSize: '0.875rem',

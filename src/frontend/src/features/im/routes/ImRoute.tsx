@@ -26,8 +26,7 @@ import { ChatPane } from './ChatPane'
 import { AddMemberDialog } from '../components/AddMemberDialog'
 import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
 import { ConversationList } from '../components/ConversationList'
-import { GroupMembersPanel } from '../components/GroupMembersPanel'
-import { GroupSettingsPanel } from '../components/GroupSettingsPanel'
+import { GroupInfoPanel } from '../components/GroupInfoPanel'
 import { DirectSettingsPanel } from '../components/DirectSettingsPanel'
 import { GroupPicker } from '../components/GroupPicker'
 import { ForwardDialog, type ForwardConv } from '../components/ForwardDialog'
@@ -110,11 +109,9 @@ const ImAuthenticated = () => {
     queryFn: () => listLater('pending'),
     staleTime: 30_000,
   })
-  // Right-side panel below the chat header: 群成员 / 群设置 / 收起。Mutually
-  // exclusive — opening one collapses the other.
-  const [rightPanel, setRightPanel] = useState<'members' | 'settings' | null>(
-    null
-  )
+  // Right-side panel below the chat header: 群聊信息(group)/ 会话设置(direct)
+  // / 收起。A single toggle — 群成员与群属性已合并为一个 GroupInfoPanel(对齐 App)。
+  const [rightPanel, setRightPanel] = useState<'info' | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   // 转发(P7-e):右键选中的待转发消息;非空时弹出目标会话选择器。
   const [forwarding, setForwarding] = useState<Message | null>(null)
@@ -729,12 +726,11 @@ const ImAuthenticated = () => {
               locate={locate}
               onOpenInfo={
                 selectedConv.type === 'group'
-                  ? () =>
-                      setRightPanel((p) => (p === 'members' ? null : 'members'))
+                  ? () => setRightPanel((p) => (p === 'info' ? null : 'info'))
                   : undefined
               }
               onOpenSettings={() =>
-                setRightPanel((p) => (p === 'settings' ? null : 'settings'))
+                setRightPanel((p) => (p === 'info' ? null : 'info'))
               }
               onAddMembers={
                 selectedConv.type === 'group'
@@ -745,19 +741,13 @@ const ImAuthenticated = () => {
               onForwardMany={(p) => setForwardingMany(p)}
               onMemberClick={(userId) => navigate(`/contacts?member=${userId}`)}
               infoPanel={
-                rightPanel === 'members' && selectedConv.type === 'group' ? (
-                  <GroupMembersPanel
-                    client={client}
-                    conversation={selectedConv}
-                    currentUserUID={currentUserUID}
-                    onClose={() => setRightPanel(null)}
-                  />
-                ) : rightPanel === 'settings' ? (
+                rightPanel === 'info' ? (
                   selectedConv.type === 'group' ? (
-                    <GroupSettingsPanel
+                    <GroupInfoPanel
                       client={client}
                       conversation={selectedConv}
                       currentUserUID={currentUserUID}
+                      onAddMembers={() => setAddOpen(true)}
                       onLeft={() => {
                         setRightPanel(null)
                         setSelectedCID(null)
