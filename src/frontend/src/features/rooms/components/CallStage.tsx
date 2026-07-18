@@ -393,7 +393,8 @@ const GridTile = ({
   </div>
 )
 
-const inviteStateText = (
+/** 终态邀请 → 展示文案(P4-M3 会议悬浮层复用,故导出)。 */
+export const inviteStateText = (
   t: (k: string) => string,
   invite: Pick<MeetInvite, 'state'>
 ): string => {

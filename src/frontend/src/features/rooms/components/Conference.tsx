@@ -45,6 +45,7 @@ import {
   resetMeetInvites,
 } from '@/features/im/call/meetInviteTracker'
 import type { RemoteInviteChip } from './CallStage'
+import { MeetInviteOverlay } from './MeetInviteOverlay'
 import { patchRoom } from '../api/patchRoom'
 import { useRemoteParticipants, useRoomContext } from '@livekit/components-react'
 import { useSnapshot } from 'valtio'
@@ -406,17 +407,17 @@ const CallOrMeeting = ({
   const remoteParticipants = useRemoteParticipants()
   const remoteCount = remoteParticipants.length
   const snap = useSnapshot(meetInviteStore)
-  const isCallEntry = !!callPeer || callMeet
 
   // -- M2: broadcast the local active-invite snapshot on every change (the
   // empty snapshot clears the peers' chips). Reliable + tiny payload.
+  // P4-M3 起不再限 call 入口:普通会议里经参会者面板拉人(P4.1)同样广播,
+  // 全员的悬浮 chips 可见「谁在被邀请」(对齐语音宫格的 M2 语义)。
   const activeLocal = snap.invites.filter(
     (i) => i.state === 'inviting' || i.state === 'ringing'
   )
   const activeKey = activeLocal.map((i) => `${i.callId}:${i.state}`).join(',')
   const publishedKeyRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!isCallEntry) return
     if (publishedKeyRef.current === activeKey) return
     // Never skip the initial empty publish state — but do skip publishing
     // "empty" before anything was ever sent.
@@ -436,7 +437,7 @@ const CallOrMeeting = ({
       })
       .catch(() => undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey, isCallEntry, room])
+  }, [activeKey, room])
 
   // -- M2: receive co-participants' snapshots; a sender leaving the room
   // invalidates their snapshot (their invites were canceled on leave).
@@ -508,8 +509,16 @@ const CallOrMeeting = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteCount, callPeer, roomData, selfName, t])
 
-  if (!callPeer && !callMeet) return <VideoConference />
-  if (!audioOnly && latchedRef.current) return <VideoConference />
+  // P4-M3: 完整会议 UI 没有语音宫格的占位瓦片,拉人后没有任何反馈——顶部
+  // 悬浮 chips 展示 响铃中(本端+他人广播)与本端终态(拒绝/无应答/忙线)。
+  const meetingUi = (
+    <div className={css({ position: 'relative', height: '100%' })}>
+      <VideoConference />
+      <MeetInviteOverlay remoteInvites={remoteInvites} />
+    </div>
+  )
+  if (!callPeer && !callMeet) return meetingUi
+  if (!audioOnly && latchedRef.current) return meetingUi
   return (
     <CallStage
       peer={callPeer}
