@@ -238,7 +238,8 @@
       "missedPeer": "Manqué",
       "declinedPeer": "Refusé",
       "busyPeer": "Manqué (occupé)",
-      "unreachablePeer": "Manqué (hors ligne)"
+      "unreachablePeer": "Manqué (hors ligne)",
+      "meetInvite": "Invitation à la réunion"
     },
     "endDeclinedElsewhere": "Refusé sur un autre appareil",
     "stage": {

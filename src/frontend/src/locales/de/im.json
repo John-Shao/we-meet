@@ -238,7 +238,8 @@
       "missedPeer": "Verpasst",
       "declinedPeer": "Abgelehnt",
       "busyPeer": "Verpasst (besetzt)",
-      "unreachablePeer": "Verpasst (offline)"
+      "unreachablePeer": "Verpasst (offline)",
+      "meetInvite": "Besprechungseinladung"
     },
     "endDeclinedElsewhere": "Auf anderem Gerät abgelehnt",
     "stage": {

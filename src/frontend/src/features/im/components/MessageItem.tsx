@@ -412,15 +412,20 @@ export const MessageItem = ({
     let media = 'audio'
     let result = 'missed'
     let duration = 0
+    let isMeetInvite = false
     try {
       const parsed = JSON.parse(message.body) as {
         media?: string
         result?: string
         duration?: number
+        kind?: string
       }
       media = parsed.media ?? media
       result = parsed.result ?? result
       duration = parsed.duration ?? 0
+      // P4-M3: kind:'meet' = 未接通的会议邀请记录,渲染为「会议邀请 · x」
+      // 而非未接来电(样式区分是当年允许落这条记录的前提)。
+      isMeetInvite = parsed.kind === 'meet'
     } catch {
       // Malformed body — fall through with defaults.
     }
@@ -433,10 +438,14 @@ export const MessageItem = ({
     ].includes(result)
       ? result
       : 'missed'
-    const resultText =
+    const plainText =
       base === 'completed'
         ? formatCallDuration(duration)
         : t(`call.log.${base}${isOwn ? '' : 'Peer'}`)
+    const resultText =
+      isMeetInvite && base !== 'completed'
+        ? `${t('call.log.meetInvite')} · ${plainText}`
+        : plainText
     return (
       <div
         className={css({

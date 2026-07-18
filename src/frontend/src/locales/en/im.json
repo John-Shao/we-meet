@@ -238,7 +238,8 @@
       "missedPeer": "Missed",
       "declinedPeer": "Declined",
       "busyPeer": "Missed (busy)",
-      "unreachablePeer": "Missed (offline)"
+      "unreachablePeer": "Missed (offline)",
+      "meetInvite": "Meeting invite"
     },
     "endDeclinedElsewhere": "Declined on another device",
     "stage": {

@@ -42,6 +42,9 @@ export interface MeetInvite {
   state: MeetInviteState
   peerUid?: string
   cid?: string
+  /** P4-M3 未接记录用:发邀时的媒介与 kind(group 邀请不落 direct 记录)。 */
+  media?: 'audio' | 'video'
+  kind?: 'meet' | 'group'
 }
 
 export const meetInviteStore = proxy<{
@@ -119,6 +122,8 @@ export const sendMeetInvites = (
       label: target.label,
       avatarUrl: target.avatarUrl,
       state: 'inviting',
+      media: opts.media,
+      kind: opts.kind ?? 'meet',
     }
     meetInviteStore.invites.push(invite)
     void dispatch(invite, opts)
@@ -262,6 +267,16 @@ const sendFrame = (
 const find = (callId: string): MeetInvite | undefined =>
   meetInviteStore.invites.find((i) => i.callId === callId)
 
+/** P4-M3 未接会议邀请 → call-log result 映射(accepted 由离房结算写
+ * completed;failed 多半连 cid 都没有;group 邀请不落 direct 记录)。 */
+const MISS_RESULT: Partial<Record<MeetInviteState, string>> = {
+  timeout: 'missed',
+  rejected: 'declined',
+  busy: 'busy',
+  unreachable: 'unreachable',
+  canceled: 'canceled',
+}
+
 const setState = (callId: string, state: MeetInviteState): void => {
   const invite = find(callId)
   if (!invite || TERMINAL.has(invite.state)) return
@@ -271,5 +286,22 @@ const setState = (callId: string, state: MeetInviteState): void => {
     if (t?.resend) clearInterval(t.resend)
     if (t?.timeout) clearTimeout(t.timeout)
     timers.delete(callId)
+    // P4-M3: 未接通的 meet 邀请落一条 A↔C「会议邀请」记录(body 带
+    // kind:'meet',渲染为「会议邀请 · 未接/已拒绝…」而非未接来电——
+    // M1 当年不写记录正是为了防伪装成未接电话,样式化后解禁)。
+    const result = MISS_RESULT[state]
+    if (result && invite.cid && invite.kind !== 'group' && client) {
+      void client
+        .sendText(
+          invite.cid,
+          JSON.stringify({
+            media: invite.media ?? 'audio',
+            result,
+            kind: 'meet',
+          }),
+          { contentType: 'call-log' }
+        )
+        .catch(() => undefined)
+    }
   }
 }

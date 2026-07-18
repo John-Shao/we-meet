@@ -238,7 +238,8 @@
       "missedPeer": "未接听",
       "declinedPeer": "已拒绝",
       "busyPeer": "忙线未接",
-      "unreachablePeer": "离线未接"
+      "unreachablePeer": "离线未接",
+      "meetInvite": "会议邀请"
     },
     "endDeclinedElsewhere": "已在其他设备拒绝",
     "stage": {

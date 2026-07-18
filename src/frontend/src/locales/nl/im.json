@@ -238,7 +238,8 @@
       "missedPeer": "Gemist",
       "declinedPeer": "Geweigerd",
       "busyPeer": "Gemist (in gesprek)",
-      "unreachablePeer": "Gemist (offline)"
+      "unreachablePeer": "Gemist (offline)",
+      "meetInvite": "Vergaderuitnodiging"
     },
     "endDeclinedElsewhere": "Op een ander apparaat geweigerd",
     "stage": {
