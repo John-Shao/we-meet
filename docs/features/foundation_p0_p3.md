@@ -73,9 +73,9 @@
 **Android**:Messages tab 顶部搜索入口,复用 bridge 与同一端点(M3)。
 
 ### 分期
-- M1:jusi 端点 + Web「消息」标签(点击先只进会话不定位)。
-- M2:ChatPane 按 seq 定位加载 + 高亮闪烁。
-- M3:Android 入口。
+- M1:jusi 端点 + Web「消息」标签(点击先只进会话不定位)。✅ 已完成(jusi p15 + commit 167ad26d)
+- M2:ChatPane 按 seq 定位加载 + 高亮闪烁。✅ 已完成(2026-07-17,commit 47ea7504;`?seq&t` 深链 + beforeSeq=seq+11 开窗 + 双向翻页 + 锚点黄底渐隐 +「跳至最新」;稍后处理跳转同路径)
+- M3:Android 入口。✅ 已完成(2026-07-18,android commit bbd3c97;全局搜索页=会话本地过滤+消息服务端检索双分区,命中进会话按 seq 回翻定位[200/页×5 页上限]+高亮 2.5s;原会话列表内本地过滤下线)
 
 ---
 
