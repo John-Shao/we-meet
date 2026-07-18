@@ -1,12 +1,14 @@
-"""P0 离线推送的两个入口 (docs/features/foundation_p0_p3.md §P0):
+"""P0 离线推送的入口 (docs/features/foundation_p0_p3.md §P0):
 
 - ``POST/DELETE /api/v1.0/push/tokens/`` — App 端注册/注销个推 cid(用户态)。
+- ``GET/PUT /api/v1.0/push/preferences/`` — P0-M3 免打扰时段偏好(用户态)。
 - ``POST /api/agent/push-hook/`` — jusi-light-im p14 webhook 的接收端(内部,
   HMAC 校验,规范串与 jusi push.Sign 完全同构:method\\npath\\nts\\nbody)。
 """
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import hmac
 import logging
@@ -19,7 +21,7 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.models import DevicePushToken
+from core.models import DevicePushToken, PushPreference
 from core.services.push_send import notify_webhook
 
 logger = logging.getLogger(__name__)
@@ -64,6 +66,50 @@ class PushTokenView(APIView):
             user=request.user, cid=cid
         ).delete()
         return Response({"deleted": deleted}, status=status.HTTP_200_OK)
+
+
+class PushPreferenceView(APIView):
+    """P0-M3 免打扰时段: read / update the caller's push preference.
+
+    时间为「墙上钟」,按用户账号时区(``User.timezone``)解释;跨午夜区间
+    (start > end)合法。仅抑制消息通知(notify_offline),来电不受影响。
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @staticmethod
+    def _serialize(pref: PushPreference) -> dict:
+        return {
+            "quiet_enabled": pref.quiet_enabled,
+            "quiet_start": pref.quiet_start.strftime("%H:%M"),
+            "quiet_end": pref.quiet_end.strftime("%H:%M"),
+            # 只读信息:App 端展示「按账号时区」用,改时区走既有用户资料接口。
+            "timezone": str(pref.user.timezone),
+        }
+
+    def get(self, request):
+        pref, _ = PushPreference.objects.get_or_create(user=request.user)
+        return Response(self._serialize(pref), status=status.HTTP_200_OK)
+
+    def put(self, request):
+        data = request.data or {}
+        pref, _ = PushPreference.objects.get_or_create(user=request.user)
+
+        if "quiet_enabled" in data:
+            pref.quiet_enabled = bool(data["quiet_enabled"])
+        for field in ("quiet_start", "quiet_end"):
+            if field not in data:
+                continue
+            raw = str(data[field] or "")
+            try:
+                parsed = datetime.datetime.strptime(raw, "%H:%M").time()
+            except ValueError:
+                return Response(
+                    {field: "expected HH:MM"}, status=status.HTTP_400_BAD_REQUEST
+                )
+            setattr(pref, field, parsed)
+        pref.save()
+        return Response(self._serialize(pref), status=status.HTTP_200_OK)
 
 
 class ImPushHookView(APIView):

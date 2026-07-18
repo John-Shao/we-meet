@@ -28,7 +28,7 @@ from core.api.keycloak_sms import (
     KeycloakSmsGatewayView,
 )
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
-from core.api.push import ImPushHookView, PushTokenView
+from core.api.push import ImPushHookView, PushPreferenceView, PushTokenView
 from core.api.qr_login import (
     QrAuthenticatorStatusView,
     QrCancelView,
@@ -105,6 +105,12 @@ urlpatterns = [
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),
                 # P0 离线推送:App 端注册/注销个推 cid。
                 path("push/tokens/", PushTokenView.as_view(), name="push_tokens"),
+                # P0-M3 免打扰时段偏好。
+                path(
+                    "push/preferences/",
+                    PushPreferenceView.as_view(),
+                    name="push_preferences",
+                ),
                 path(
                     "admin/stats/overview/",
                     AdminStatsOverviewView.as_view(),

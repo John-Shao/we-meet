@@ -20,8 +20,9 @@ from urllib.parse import quote
 
 import requests
 from django.conf import settings
+from django.utils import timezone as django_timezone
 
-from core.models import DevicePushToken, User
+from core.models import DevicePushToken, PushPreference, User
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +258,9 @@ def notify_call(payload: dict[str, Any], client: Optional[GetuiClient] = None) -
     Payload(jusi ``CallWebhookPayload``)自带完整呼叫信息;这里补上
     ``from_name``(主叫显示名,Django 侧才有 User 映射)后原样透传给端上。
     Returns the number of push attempts. Never raises.
+
+    P0-M3 有意不查免打扰(:func:`quiet_user_ids`):来电是实时呼叫,错过
+    成本高且被叫可手动拒接——免打扰只静默消息通知。
     """
     callee_uid = str(payload.get("to") or "")
     caller_uid = str(payload.get("from") or "")
@@ -321,11 +325,45 @@ def notify_call(payload: dict[str, Any], client: Optional[GetuiClient] = None) -
     return sent
 
 
+def quiet_user_ids(user_ids, now=None) -> set:
+    """P0-M3 免打扰:返回当前处于静默时段的用户 id 子集。
+
+    按各自 ``User.timezone`` 的墙上钟判断;跨午夜区间(start > end)合法,
+    start == end 视为全天静默。仅 ``notify_offline`` 调用——来电
+    (:func:`notify_call`)有意穿透,实时呼叫错过成本高且被叫可手动拒接。
+    """
+    ids = [i for i in user_ids if i]
+    if not ids:
+        return set()
+    now = now or django_timezone.now()
+    quiet: set = set()
+    prefs = PushPreference.objects.filter(
+        user_id__in=ids, quiet_enabled=True
+    ).select_related("user")
+    for pref in prefs:
+        try:
+            local_t = now.astimezone(pref.user.timezone).time()
+        except Exception:  # noqa: BLE001 — 坏时区数据不该挡推送
+            logger.warning("quiet-hours: bad timezone for user %s", pref.user_id)
+            continue
+        start, end = pref.quiet_start, pref.quiet_end
+        if start == end:
+            in_quiet = True  # 全天
+        elif start < end:
+            in_quiet = start <= local_t < end
+        else:  # 跨午夜,如 22:00 → 08:00
+            in_quiet = local_t >= start or local_t < end
+        if in_quiet:
+            quiet.add(pref.user_id)
+    return quiet
+
+
 def notify_offline(payload: dict[str, Any], client: Optional[GetuiClient] = None) -> int:
     """Handle one p14 webhook payload: resolve offline uids → tokens → push.
 
     Returns the number of push attempts made (0 when Getui is unconfigured or
     nobody has a registered device). Never raises — every failure is logged.
+    P0-M3: 处于免打扰时段的用户被静默跳过(见 :func:`quiet_user_ids`)。
     """
     offline_uids = [str(u) for u in (payload.get("offline_uids") or []) if u]
     if not offline_uids:
@@ -338,6 +376,14 @@ def notify_offline(payload: dict[str, Any], client: Optional[GetuiClient] = None
     tokens = list(DevicePushToken.objects.filter(user__in=users))
     if not tokens:
         return 0
+
+    # P0-M3 免打扰:静默时段内的用户整机跳过(消息通知;来电不在此过滤)。
+    quiet = quiet_user_ids({t.user_id for t in tokens})
+    if quiet:
+        tokens = [t for t in tokens if t.user_id not in quiet]
+        logger.info("push-hook: %d user(s) in quiet hours skipped", len(quiet))
+        if not tokens:
+            return 0
 
     if client is None:
         client = _client_from_settings()

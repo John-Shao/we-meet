@@ -6,7 +6,7 @@ Declare and configure the models for the Meet core application
 
 import secrets
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, time as dt_time, timedelta
 from logging import getLogger
 from os.path import splitext
 from typing import List, Optional
@@ -2558,6 +2558,35 @@ class DevicePushToken(BaseModel):
 
     def __str__(self):
         return f"PushToken({self.user_id}, {self.provider}:{self.cid[:12]}…)"
+
+
+class PushPreference(BaseModel):
+    """Per-user offline-push preference (P0-M3 免打扰时段, see
+    docs/features/foundation_p0_p3.md §P0).
+
+    Quiet hours are wall-clock in the user's own ``User.timezone``. An
+    overnight range (``quiet_start > quiet_end``, e.g. 22:00→08:00) wraps
+    midnight; ``quiet_start == quiet_end`` with the switch on means all-day
+    quiet. Scope: only message notifications (``notify_offline``) are
+    suppressed — call invites (``notify_call``) always ring through, 实时呼叫
+    错过成本高且被叫可手动拒接(飞书「电话穿透」同款默认).
+    """
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="push_preference"
+    )
+    quiet_enabled = models.BooleanField(_("quiet hours enabled"), default=False)
+    quiet_start = models.TimeField(_("quiet start"), default=dt_time(22, 0))
+    quiet_end = models.TimeField(_("quiet end"), default=dt_time(8, 0))
+
+    class Meta:
+        db_table = "meet_push_preference"
+        verbose_name = _("push preference")
+        verbose_name_plural = _("push preferences")
+
+    def __str__(self):
+        state = "on" if self.quiet_enabled else "off"
+        return f"PushPreference({self.user_id}, quiet={state} {self.quiet_start}-{self.quiet_end})"
 
 
 class ImLaterItem(BaseModel):

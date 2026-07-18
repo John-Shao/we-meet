@@ -1,6 +1,6 @@
 # 基础功能补全 P0–P3 — 设计文档(非 AI 线)
 
-状态:设计待拍板(先评审,拍板再开干)
+状态:P0/P1/P3 全部完成(2026-07-18 收口);P2 日历未开始
 背景:AI 线(含 `meeting_summary_closure.md`)暂缓,优先补齐基础功能差距。
 调研依据:`docs/research/competitor-gap-feishu-wecom-dingtalk-2026-07.md` §四/§五
 原则:只扩展不修改;涉及 jusi-light-im 的部分只列需求与接口约定,其服务端实现须按惯例在 jusi-light-im 仓库先出 `docs/phases/pN-*.md` 再开干。
@@ -49,7 +49,7 @@
 ### 验收与分期
 - M1:token 注册 + 日历提醒离线可达(杀进程后仍收到)。✅ 已完成(2026-07-18 盘点确认:零代码——token 注册随 M2 上线;提醒经 jusi admin 注入即触发 p14 离线推送,与 IM 消息同链路,见上方触发源 1 订正。链路各环核实:prod reminders CronJob enabled */5、admin post 调 MessagePublished、text 不被过滤、cid 为 UUID 深链安全)
 - M2:IM 离线消息推送 + 聚合节流 + deep link 直达会话(jusi 侧先出 pN 设计)。✅ 已完成(jusi p14 + 个推通知路径真机实测通过;三坑见 §排障)
-- M3:会议事件 + 通知设置(免打扰时段,存 we-meet 侧用户偏好)。⏳ 会议事件中「被邀入会」已随 P4/p19 走 notify_call 上线;剩余=免打扰时段偏好
+- M3:会议事件 + 通知设置(免打扰时段,存 we-meet 侧用户偏好)。✅ 已完成(会议事件:「被邀入会」随 P4/p19 走 notify_call 上线,会议开始提醒即日历提醒链路。免打扰时段 2026-07-18 上线:`PushPreference`(OneToOne,墙上钟按 `User.timezone` 解释,跨午夜合法,start==end=全天)+ `GET/PUT push/preferences/` + `notify_offline` 发送前过滤;**来电有意穿透**(实时呼叫错过成本高,飞书「电话穿透」同款默认);App 设置页「消息免打扰」开关+起止时间。含迁移 0057,部署需 migrate)
 - 端到端验收:A 给 B 发消息,B 杀进程 → B 锁屏收到通知 → 点击直达该会话。
 
 ---
