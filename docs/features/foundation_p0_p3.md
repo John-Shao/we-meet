@@ -109,7 +109,7 @@
 ### 分期
 - M1:RRULE 物化 + 创建 UI(Web)+「仅此次」删除。✅ 已完成(2026-07-18:`calendar_recurrence.materialize_recurrences` 60 天窗口、墙上钟按事件时区展开、单主事件单轮上限 120;挂 `send_due_reminders` 同一 beat 先物化后扫提醒,零新增 CronJob;幂等=先查后建+条件唯一索引 `calevent_parent_start_uniq`+exdates;迁移 0058。删除语义:子场次=仅此次(exdate 记 ISO-UTC),主事件=删系列含未来场次。Web:创建对话框预设 不重复/每天/每工作日/每周/每月+截止日(UNTIL 用浮动本地时刻,无 Z——dateutil naive dtstart 下拒绝 UTC 形式),详情弹窗重复标识,删除确认三分文案。**M1 边界**:编辑主事件不回写已物化的未来场次(新物化场次用新值),完整语义待 M2 三选)
 - M2:三选编辑语义完整 + exdates。✅ 已完成(2026-07-18:PATCH 带 `edit_scope`=one|following|all,DELETE 带 `?scope=following`。one=改子行+主事件记原时刻 exdate(改时刻也不复活原槽位,撞唯一索引报 400);following=系列分裂——老主事件 UNTIL 截断到分界前一秒(COUNT 移除),新主事件带编辑值接管、COUNT 扣已流逝场次、exdates 按分界分家随 delta 平移、名册复制即时物化;all=标量传播全系列+时间按该场次新旧差平移(主事件 dtstart/exdates/未来子行同步平移),未来窗口重物化、RSVP 按平移映射保留,历史场次只跟标量不动时刻。Web:重复子场次的编辑/删除先弹三选(EditScopeDialog,弹窗即确认)。**M2 边界**:主事件行即系列首场,首场不支持 one/following(等价 all);改 RRULE 本身不在三选内)
-- M3:忙闲视图 + Android 重复日程创建。
+- M3:忙闲视图 + Android 重复日程创建。✅ 已完成(2026-07-18:`GET /api/v1.0/calendar-events/freebusy/?attendee_ids=&start=&end=`——只出 busy 区间不泄露标题/详情,rsvp=declined 不算忙,重叠区间合并,attendee_ids 组织隔离静默丢弃,窗口上限 31 天(路径挂在 calendar-events 下,与文档原拟 `/calendar/freebusy/` 略异,以实现为准)。Web:CreateEventDialog 选人后内嵌 FreeBusyBar——按所选日 00:00–24:00 每人一行横向时间条,busy 灰块+所选时段覆盖层,冲突人名与时段标红提示**不阻断**;发起人自己也占一行;全天事件无时段不展示。Android:CreateEventScreen 加重复预设下拉(不重复/每天/每工作日/每周/每月)+截止日期,RRULE 组装与 Web 同口径(UNTIL 浮动本地);**M3 边界**:App 端删除子场次走服务端缺省=仅此次,三选 UI 与忙闲条暂不做 App 端)
 
 ---
 

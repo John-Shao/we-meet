@@ -85,5 +85,10 @@
     "one": "Nur dieser Termin",
     "following": "Dieser und alle folgenden Termine",
     "all": "Alle Termine"
+  },
+  "freebusy": {
+    "title": "Verfügbarkeit am gewählten Tag",
+    "me": "Ich",
+    "conflict": "{{count}} Teilnehmer im gewählten Zeitraum beschäftigt"
   }
 }

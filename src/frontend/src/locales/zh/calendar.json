@@ -85,5 +85,10 @@
     "one": "仅此场次",
     "following": "此场次及以后",
     "all": "所有场次"
+  },
+  "freebusy": {
+    "title": "所选日期的忙闲",
+    "me": "我",
+    "conflict": "{{count}} 人在所选时段忙碌"
   }
 }

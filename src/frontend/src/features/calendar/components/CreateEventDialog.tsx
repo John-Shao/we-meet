@@ -5,10 +5,12 @@ import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { useUser } from '@/features/auth'
 import { useDirectoryMemberSearch, MemberAvatar } from '@/features/contacts'
 
 import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent, EditScope } from '../api/ApiCalendar'
+import { FreeBusyBar } from './FreeBusyBar'
 
 interface Props {
   onCreated: (event: CalendarEvent) => void
@@ -88,6 +90,8 @@ export const CreateEventDialog = ({
   const titleRef = useRef<HTMLInputElement>(null)
   const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
   const { alert: showAlert } = useConfirm()
+  // P2-M3 忙闲条:发起人自己也占一行。
+  const { user } = useUser()
 
   const toggle = (id: string, label: string) =>
     setSelected((prev) => {
@@ -377,6 +381,29 @@ export const CreateEventDialog = ({
               {t('form.selected', { count: selected.size })}
             </span>
           </div>
+          {/* P2-M3 忙闲:选人后展示当天每人 busy 条(全天事件无具体时段,略)。 */}
+          {selected.size > 0 && !allDay && start && end && (
+            <div className={css({ margin: '0 0 0.625rem' })}>
+              <FreeBusyBar
+                people={[
+                  ...(user
+                    ? [
+                        {
+                          id: user.id,
+                          label: user.full_name || t('freebusy.me'),
+                        },
+                      ]
+                    : []),
+                  ...[...selected.entries()].map(([id, label]) => ({
+                    id,
+                    label,
+                  })),
+                ]}
+                slotStart={new Date(start)}
+                slotEnd={new Date(end)}
+              />
+            </div>
+          )}
           {selected.size > 0 && (
             <ul
               className={css({

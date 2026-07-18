@@ -85,5 +85,10 @@
     "one": "Alleen deze keer",
     "following": "Deze en volgende keren",
     "all": "Alle keren"
+  },
+  "freebusy": {
+    "title": "Beschikbaarheid op de gekozen dag",
+    "me": "Ik",
+    "conflict": "{{count}} deelnemer(s) bezet in het gekozen tijdvak"
   }
 }

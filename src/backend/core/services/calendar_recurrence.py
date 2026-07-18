@@ -226,7 +226,7 @@ def _shift_exdates(exdates, delta) -> list:
     for s in exdates or []:
         try:
             shifted.append((datetime.fromisoformat(s) + delta).isoformat())
-        except ValueError:
+        except (ValueError, TypeError):
             shifted.append(s)
     return shifted
 
@@ -255,8 +255,9 @@ def split_series(child, new_values) -> CalendarEvent:
         keep, moved = [], []
         for s in parent.recurrence_exdates or []:
             try:
+                # TypeError 兜 naive 串与 aware pivot 的比较(理论不该出现,防御)。
                 is_after = datetime.fromisoformat(s) >= pivot
-            except ValueError:
+            except (ValueError, TypeError):
                 keep.append(s)
                 continue
             (moved if is_after else keep).append(s)
@@ -295,6 +296,10 @@ def edit_series_all(parent, pivot_old_start, new_values, now=None) -> CalendarEv
     - 主事件 dtstart/exdates 随 delta 平移;未来窗口重物化,已 RSVP 状态按
       平移映射(旧时刻 = 新时刻 - delta)保留——冲突以新时间为准(doc 口径)。
     - 历史子行只传播标量,不动时间(已经发生过的场次不回改时刻)。
+
+    已知损失:RSVP 平移映射按墙上钟展开做精确时刻匹配。跨 DST 边界的地区,
+    平移后的新场次可能 ≠ 旧场次 + delta(墙上钟发散),该场次 RSVP 会被重置为
+    待应答。中国无 DST 不受影响;若日后接入有 DST 的时区需在此加容差匹配。
     """
     now = now or timezone.now()
     new_start = new_values.get("start_at")
@@ -334,7 +339,9 @@ def edit_series_all(parent, pivot_old_start, new_values, now=None) -> CalendarEv
         if "reminders" in new_values:
             past_updates["reminders"] = list(new_values["reminders"] or [])
         if past_updates:
-            parent.occurrences.update(**past_updates)
+            # QuerySet.update 绕过 auto_now,显式刷 updated_at,免得历史子行与
+            # 重物化的未来子行(create,updated_at 是新的)时间戳不一致。
+            parent.occurrences.update(updated_at=now, **past_updates)
 
         materialize_parent(parent, now=now)
         if snapshot:
@@ -362,7 +369,7 @@ def delete_following(child) -> None:
     def _before_pivot(s: str) -> bool:
         try:
             return datetime.fromisoformat(s) < pivot
-        except ValueError:
+        except (ValueError, TypeError):
             return True
 
     with transaction.atomic():

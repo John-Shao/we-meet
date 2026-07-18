@@ -320,6 +320,181 @@ def test_delete_following_truncates_series():
     assert materialize_recurrences(now=NOW) == 0
 
 
+def test_edit_all_from_parent_propagates_to_whole_series():
+    """主事件直接编辑(无 edit_scope)= 全部:标量传播 + 时间平移全系列。"""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    parent = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=4")
+    materialize_recurrences(now=NOW)
+    assert parent.occurrences.count() == 3
+
+    new_start = parent.start_at + timedelta(hours=2)
+    client = APIClient()
+    client.force_login(me)
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{parent.id}/",
+        {
+            "title": "全员站会",
+            "start_at": new_start.isoformat(),
+            "end_at": (new_start + timedelta(hours=1)).isoformat(),
+        },
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["id"] == str(parent.id)
+
+    parent.refresh_from_db()
+    assert parent.title == "全员站会"
+    assert parent.start_at == new_start
+    fresh = list(parent.occurrences.order_by("start_at"))
+    assert len(fresh) == 3
+    assert all(k.title == "全员站会" for k in fresh)
+    # 全系列 +2h:子场次 = 主 + n 天。
+    assert fresh[0].start_at == parent.start_at + timedelta(days=1)
+
+
+def test_edit_following_without_count_preserves_until_rule():
+    """无 COUNT 的规则做 following 分裂:新系列原样保留 FREQ/UNTIL,不凭空塞 COUNT。"""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    parent = _make_parent(org, me, rrule="FREQ=DAILY;UNTIL=20260725T235959")
+    materialize_recurrences(now=NOW)
+    # 7/20(主)…7/25;取 7/22 为分界。
+    pivot_child = parent.occurrences.order_by("start_at")[1]
+    new_start = pivot_child.start_at + timedelta(hours=2)
+
+    client = APIClient()
+    client.force_login(me)
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{pivot_child.id}/",
+        {
+            "start_at": new_start.isoformat(),
+            "end_at": (new_start + timedelta(hours=1)).isoformat(),
+            "edit_scope": "following",
+        },
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+
+    parent.refresh_from_db()
+    assert parent.occurrences.first().start_at < pivot_child.start_at
+
+    new_parent = models.CalendarEvent.objects.get(id=resp.json()["id"])
+    assert new_parent.start_at == new_start
+    # 无 COUNT → 新系列保留原 UNTIL,不出现 COUNT。
+    assert "COUNT=" not in new_parent.recurrence
+    assert "FREQ=DAILY" in new_parent.recurrence
+    assert "UNTIL=20260725T235959" in new_parent.recurrence
+
+
+def test_edit_one_onto_existing_slot_returns_400():
+    """仅此次改时刻撞到另一已物化场次的槽位 → (parent,start_at) 唯一索引 400。"""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    parent = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=4")
+    materialize_recurrences(now=NOW)
+    kids = list(parent.occurrences.order_by("start_at"))
+    first, second = kids[0], kids[1]
+
+    client = APIClient()
+    client.force_login(me)
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{first.id}/",
+        {
+            "title": "撞车",
+            "start_at": second.start_at.isoformat(),
+            "end_at": (second.start_at + timedelta(hours=1)).isoformat(),
+        },
+        format="json",
+    )
+    assert resp.status_code == 400, resp.content
+    assert "start_at" in resp.json()
+    # 撞车行未落库:原槽位仍是原标题。
+    first.refresh_from_db()
+    assert first.title == "站会"
+
+
+# ---- P2-M3 忙闲视图 ----
+
+
+def test_freebusy_returns_merged_intervals_without_details():
+    """busy 区间合并、declined 排除、跨组织丢弃、响应不含标题。"""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    peer = factories.UserFactory()
+    _membership(org, peer)
+    outsider = factories.UserFactory()  # 另一组织,应被静默丢弃
+    other_org = factories.OrganizationFactory()
+    _membership(other_org, outsider)
+
+    day = datetime(2026, 7, 21, 0, 0, tzinfo=dt_timezone.utc)
+
+    def _event(title, s_h, e_h, attendee, rsvp="accepted"):
+        ev = models.CalendarEvent.objects.create(
+            organization=org,
+            organizer=me,
+            title=title,
+            start_at=day + timedelta(hours=s_h),
+            end_at=day + timedelta(hours=e_h),
+            timezone=ZoneInfo("Asia/Shanghai"),
+        )
+        models.EventAttendee.objects.create(event=ev, user=attendee, rsvp=rsvp)
+        return ev
+
+    _event("秘密评审", 2, 4, peer)            # 02-04
+    _event("重叠会", 3, 5, peer)              # 03-05 → 与上合并为 02-05
+    _event("已拒绝", 8, 9, peer, rsvp="declined")  # 不算忙
+    _event("我的会", 10, 11, me)
+
+    client = APIClient()
+    client.force_login(me)
+    resp = client.get(
+        "/api/v1.0/calendar-events/freebusy/",
+        {
+            "attendee_ids": f"{peer.id},{outsider.id},{me.id}",
+            "start": day.isoformat(),
+            "end": (day + timedelta(days=1)).isoformat(),
+        },
+    )
+    assert resp.status_code == 200, resp.content
+    results = {r["user_id"]: r["busy"] for r in resp.json()["results"]}
+    # 跨组织的 outsider 不在结果里。
+    assert str(outsider.id) not in results
+    # peer:02-04 与 03-05 合并;declined 不出现。
+    assert results[str(peer.id)] == [
+        {
+            "start": (day + timedelta(hours=2)).isoformat(),
+            "end": (day + timedelta(hours=5)).isoformat(),
+        }
+    ]
+    assert len(results[str(me.id)]) == 1
+    # 只出区间——响应文本不含任何标题。
+    assert "秘密评审" not in resp.content.decode()
+
+
+def test_freebusy_rejects_oversized_window():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    day = datetime(2026, 7, 21, 0, 0, tzinfo=dt_timezone.utc)
+
+    client = APIClient()
+    client.force_login(me)
+    resp = client.get(
+        "/api/v1.0/calendar-events/freebusy/",
+        {
+            "attendee_ids": str(me.id),
+            "start": day.isoformat(),
+            "end": (day + timedelta(days=40)).isoformat(),
+        },
+    )
+    assert resp.status_code == 400
+
+
 def test_create_event_accepts_rrule_and_serializes_it():
     org = factories.OrganizationFactory()
     me = factories.UserFactory()

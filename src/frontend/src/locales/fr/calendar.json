@@ -85,5 +85,10 @@
     "one": "Uniquement cette occurrence",
     "following": "Cette occurrence et les suivantes",
     "all": "Toutes les occurrences"
+  },
+  "freebusy": {
+    "title": "Disponibilités du jour choisi",
+    "me": "Moi",
+    "conflict": "{{count}} participant(s) occupé(s) sur le créneau choisi"
   }
 }

@@ -54,6 +54,28 @@ export const deleteCalendarEvent = (
     { method: 'DELETE' }
   ).then(() => undefined)
 
+/** P2-M3 忙闲:一个人在窗口内的 busy 区间(仅区间,无标题/详情)。 */
+export interface BusyInterval {
+  start: string
+  end: string
+}
+export interface FreeBusyEntry {
+  user_id: string
+  busy: BusyInterval[]
+}
+
+/** GET /api/v1.0/calendar-events/freebusy — 窗口内每人的 busy 区间列表。 */
+export const fetchFreeBusy = (
+  attendeeIds: string[],
+  start: string,
+  end: string
+): Promise<FreeBusyEntry[]> =>
+  fetchApi<{ results: FreeBusyEntry[] }>(
+    `/calendar-events/freebusy/?attendee_ids=${attendeeIds
+      .map(encodeURIComponent)
+      .join(',')}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+  ).then((r) => r.results)
+
 /** POST /api/v1.0/calendar-events/{id}/rsvp — set the caller's RSVP. */
 export const rsvpCalendarEvent = (
   id: string,

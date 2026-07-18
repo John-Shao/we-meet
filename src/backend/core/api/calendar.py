@@ -8,6 +8,9 @@ on first need / by the reminder job in P2-c), so event creation never depends on
 jusi-light-im being reachable.
 """
 
+import uuid
+from datetime import timedelta
+
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
@@ -391,6 +394,79 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     start_at__gte=django_timezone.now()
                 ).delete()
             instance.delete()
+
+    @decorators.action(detail=False, methods=["get"], url_path="freebusy")
+    def freebusy(self, request):
+        """P2-M3 忙闲视图:`?attendee_ids=a,b&start=ISO&end=ISO` → 每人 busy 区间。
+
+        只返回区间,**不泄露标题/详情**(private 事件同样只出区间)。busy 口径:
+        该人 rsvp≠declined 的 CONFIRMED 事件与窗口的交集,重叠区间合并。
+        attendee_ids 按组织隔离过滤(跨组织 id 静默丢弃,同建事件口径);
+        窗口上限 31 天。
+        """
+        organization = get_caller_organization(request.user)
+        if organization is None:
+            return Response({"results": []})
+
+        raw_ids = []
+        for chunk in str(request.query_params.get("attendee_ids") or "").split(","):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            try:
+                raw_ids.append(uuid.UUID(chunk))
+            except ValueError:
+                continue  # 非法 id 静默丢弃
+        start = parse_datetime(request.query_params.get("start", "") or "")
+        end = parse_datetime(request.query_params.get("end", "") or "")
+        if not raw_ids or not start or not end or end <= start:
+            raise exceptions.ValidationError(
+                {"detail": "attendee_ids, start and end (ISO, end > start) required"}
+            )
+        if end - start > timedelta(days=31):
+            raise exceptions.ValidationError(
+                {"detail": "window too large (max 31 days)"}
+            )
+
+        users = models.User.objects.filter(
+            id__in=raw_ids,
+            memberships__organization=organization,
+            memberships__status=models.MembershipStatusChoices.ACTIVE,
+        ).distinct()
+
+        rows = (
+            models.EventAttendee.objects.filter(
+                user__in=users,
+                event__organization=organization,
+                event__status=models.EventStatusChoices.CONFIRMED,
+                event__start_at__lt=end,
+                event__end_at__gt=start,
+            )
+            .exclude(rsvp=models.EventRSVPChoices.DECLINED)
+            .values_list("user_id", "event__start_at", "event__end_at")
+        )
+        busy_map = {str(u.id): [] for u in users}
+        for uid, s_at, e_at in rows:
+            busy_map[str(uid)].append((max(s_at, start), min(e_at, end)))
+
+        results = []
+        for uid, intervals in busy_map.items():
+            merged = []
+            for s_at, e_at in sorted(intervals):
+                if merged and s_at <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(merged[-1][1], e_at))
+                else:
+                    merged.append((s_at, e_at))
+            results.append(
+                {
+                    "user_id": uid,
+                    "busy": [
+                        {"start": s.isoformat(), "end": e.isoformat()}
+                        for s, e in merged
+                    ],
+                }
+            )
+        return Response({"results": results})
 
     @decorators.action(detail=True, methods=["post"])
     def rsvp(self, request, pk=None):  # pylint: disable=unused-argument

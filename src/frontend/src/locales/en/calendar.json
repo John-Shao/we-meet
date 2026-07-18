@@ -85,5 +85,10 @@
     "one": "This occurrence only",
     "following": "This and following occurrences",
     "all": "All occurrences"
+  },
+  "freebusy": {
+    "title": "Availability on the selected day",
+    "me": "Me",
+    "conflict": "{{count}} attendee(s) busy during the selected time"
   }
 }
