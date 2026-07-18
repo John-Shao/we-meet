@@ -19,7 +19,8 @@
     "aiSources": "Bronnen",
     "aiMoreSources": "Meer bronnen ({{count}})",
     "aiDegraded": "AI-antwoord tijdelijk niet beschikbaar — dit zijn de gevonden resultaten.",
-    "aiError": "Verzoek mislukt. Probeer opnieuw."
+    "aiError": "Verzoek mislukt. Probeer opnieuw.",
+    "docs": "Documenten"
   },
   "logout": "Afmelden",
   "confirm": "Bevestigen",

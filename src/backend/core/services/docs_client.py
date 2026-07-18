@@ -30,6 +30,15 @@ class DocsCreateResponse:
     id: str
 
 
+@dataclass(frozen=True)
+class DocsSearchHit:
+    """One row of GET /api/v1.0/documents/search-for-user/(P1-4 M1)。"""
+
+    id: str
+    title: str
+    updated_at: str
+
+
 class DocsServiceError(Exception):
     """Base for failures talking to La Suite Docs."""
 
@@ -125,3 +134,58 @@ class DocsClient:
             return DocsCreateResponse(id=str(data["id"]))
         except (KeyError, TypeError) as exc:
             raise DocsBadResponseError(f"unexpected response shape: {data}") from exc
+
+    SEARCH_FOR_USER_PATH = "/api/v1.0/documents/search-for-user/"
+
+    def search_for_user(self, *, sub: str, query: str) -> list[DocsSearchHit]:
+        """按用户可见范围搜文档标题(P1-4 搜索入口统一 M1)。
+
+        代理 Docs 的 s2s ``search-for-user`` 端点——可见性过滤在 Docs 侧
+        (DocumentAccess ∪ 非受限 LinkTrace,与用户登录态完全同口径)。
+        ``sub`` 必须来自调用者身份,绝不接受请求参数。
+        """
+        if not sub:
+            raise ValueError("sub is required")
+        if not query or len(query.strip()) < 2:
+            return []
+
+        url = self._api_url + self.SEARCH_FOR_USER_PATH
+        try:
+            response = requests.get(
+                url,
+                params={"sub": sub, "q": query.strip()},
+                headers={"Authorization": f"Bearer {self._token}"},
+                timeout=self._timeout,
+            )
+        except requests.RequestException as exc:
+            logger.exception("docs server unreachable: %s", url)
+            raise DocsUnreachableError(str(exc)) from exc
+
+        if response.status_code >= 500:
+            raise DocsUnreachableError(
+                f"docs returned {response.status_code} from {self.SEARCH_FOR_USER_PATH}"
+            )
+        if response.status_code >= 400:
+            raise DocsBadResponseError(
+                f"docs returned {response.status_code} from "
+                f"{self.SEARCH_FOR_USER_PATH}: {response.text[:200]}"
+            )
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise DocsBadResponseError("response was not JSON") from exc
+        results = data.get("results") if isinstance(data, dict) else None
+        if not isinstance(results, list):
+            raise DocsBadResponseError(f"unexpected response shape: {data}")
+        hits: list[DocsSearchHit] = []
+        for row in results:
+            if not isinstance(row, dict):
+                continue
+            hits.append(
+                DocsSearchHit(
+                    id=str(row.get("id") or ""),
+                    title=str(row.get("title") or ""),
+                    updated_at=str(row.get("updated_at") or ""),
+                )
+            )
+        return hits

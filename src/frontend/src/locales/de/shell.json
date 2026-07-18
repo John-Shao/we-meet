@@ -19,7 +19,8 @@
     "aiSources": "Quellen",
     "aiMoreSources": "Weitere Quellen ({{count}})",
     "aiDegraded": "KI-Antwort vorübergehend nicht verfügbar — hier sind die gefundenen Treffer.",
-    "aiError": "Anfrage fehlgeschlagen. Bitte erneut versuchen."
+    "aiError": "Anfrage fehlgeschlagen. Bitte erneut versuchen.",
+    "docs": "Dokumente"
   },
   "logout": "Abmelden",
   "confirm": "Bestätigen",

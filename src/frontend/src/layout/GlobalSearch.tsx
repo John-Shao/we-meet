@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { css, cx } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
+import { fetchApi } from '@/api/fetchApi'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useConfig } from '@/api/useConfig'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -128,14 +129,34 @@ interface MeetingResult {
 }
 
 // 分类标签(飞书式):缩小搜索范围。联系人 + 会议 + 消息(P1-M1,jusi p15
-// 服务端全文检索经 /im/search 代理)+ AI 问答(P1-4,config flag 控显隐)。
-type SearchCategory = 'all' | 'contacts' | 'meetings' | 'messages' | 'ai'
+// 服务端全文检索经 /im/search 代理)+ 文档(P1-4 搜索入口统一 M1,Docs s2s
+// 代理)+ AI 问答(P1-4,config flag 控显隐)。
+type SearchCategory =
+  | 'all'
+  | 'contacts'
+  | 'meetings'
+  | 'messages'
+  | 'docs'
+  | 'ai'
 const BASE_CATEGORIES: SearchCategory[] = [
   'all',
   'contacts',
   'meetings',
   'messages',
+  'docs',
 ]
+
+/** 文档命中(后端 /docs/search/ 代理,可见性在 Docs 侧过滤)。 */
+interface DocsSearchHit {
+  id: string
+  title: string
+  updated_at: string
+  url: string
+}
+const searchDocs = (q: string): Promise<DocsSearchHit[]> =>
+  fetchApi<{ results: DocsSearchHit[] }>(
+    `/docs/search/?q=${encodeURIComponent(q)}`
+  ).then((r) => r.results)
 
 const SearchPalette = ({ onClose }: { onClose: () => void }) => {
   const { t } = useTranslation('shell')
@@ -171,6 +192,7 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
   const showContacts = category === 'all' || category === 'contacts'
   const showMeetings = category === 'all' || category === 'meetings'
   const showMessages = category === 'all' || category === 'messages'
+  const showDocs = category === 'all' || category === 'docs'
   const members = ql && showContacts ? selectable : []
 
   // 消息全文搜索(P1-M1):≥2 字才发起(与服务端校验一致);「全部」下取少量,
@@ -199,6 +221,20 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
     staleTime: 60_000,
   })
 
+  // 文档搜索(P1-4 M1):≥2 字触发;「全部」下取 4 条,「文档」标签取满 8。
+  const docsSearchEnabled = showDocs && rawQ.length >= 2
+  const { data: docsData = [], isFetching: docsFetching } = useQuery({
+    queryKey: ['docs', 'search', rawQ],
+    queryFn: () => searchDocs(rawQ),
+    enabled: docsSearchEnabled,
+    staleTime: 15_000,
+    retry: false,
+  })
+  const docsHits = useMemo<DocsSearchHit[]>(() => {
+    if (!docsSearchEnabled) return []
+    return category === 'docs' ? docsData : docsData.slice(0, 4)
+  }, [docsSearchEnabled, docsData, category])
+
   const meetings = useMemo<MeetingResult[]>(() => {
     if (!ql || !showMeetings) return []
     const all: MeetingResult[] = [
@@ -222,9 +258,11 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
     !!ql &&
     !isFetching &&
     !msgFetching &&
+    !docsFetching &&
     members.length === 0 &&
     meetings.length === 0 &&
-    msgItems.length === 0
+    msgItems.length === 0 &&
+    docsHits.length === 0
 
   const openMember = async (id: string) => {
     try {
@@ -247,6 +285,12 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
     navigate(
       `/im?cid=${encodeURIComponent(m.cid)}&seq=${m.seq}&t=${Date.now()}`
     )
+  }
+  // 文档命中 → 新标签打开 Docs 深链(与 MeetingDoc 链接既有口径一致;
+  // /docs iframe 内深链留待后续)。
+  const openDocHit = (hit: DocsSearchHit) => {
+    close()
+    window.open(hit.url, '_blank', 'noopener')
   }
   // P1-4 引用 chip 三类跳转(§D4):会议/纪要 → 详情;消息 → IM 定位;
   // 日程 → 日历按日定位(?d,CalendarRoute 新参数)。
@@ -461,6 +505,25 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
                   msgSenders[m.sender_uid]?.full_name || m.sender_uid,
                   new Date(m.created_at).toLocaleString(),
                 ].join(' · ')}
+              />
+            ))}
+          </Group>
+        )}
+
+        {docsHits.length > 0 && (
+          <Group title={t('search.docs')}>
+            {docsHits.map((d) => (
+              <ResultRow
+                key={`d-${d.id}`}
+                onClick={() => openDocHit(d)}
+                testId={`global-search-doc-${d.id}`}
+                avatarText="📄"
+                title={d.title || '—'}
+                subtitle={
+                  d.updated_at
+                    ? new Date(d.updated_at).toLocaleString()
+                    : undefined
+                }
               />
             ))}
           </Group>

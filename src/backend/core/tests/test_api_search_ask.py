@@ -284,3 +284,65 @@ def test_keywords_extraction_shapes():
     assert "季度预算" in kws  # 引号短语优先
     assert "OKR2026" in kws  # 英数 token 保留
     assert len(kws) <= 3
+
+
+# ---- P1-4 搜索入口统一 M1:Docs 文档搜索代理 ----
+
+
+def test_docs_search_requires_auth_and_degrades_gracefully(settings):
+    client = APIClient()
+    assert client.get("/api/v1.0/docs/search/?q=预算").status_code == 401
+
+    user = factories.UserFactory()
+    client.force_login(user)
+    # q 太短 → 空列表。
+    assert client.get("/api/v1.0/docs/search/?q=x").json() == {"results": []}
+    # Docs 未配置 → 空列表而非 5xx(搜索面板从源降级哲学)。
+    settings.DOCS_CONFIGURATION = {}
+    assert client.get("/api/v1.0/docs/search/?q=预算").json() == {"results": []}
+
+
+def test_docs_search_proxies_with_caller_sub(settings):
+    settings.DOCS_CONFIGURATION = {
+        "api_url": "https://docs.example.com",
+        "server_to_server_token": "tok",
+    }
+    user = factories.UserFactory(sub="sub-abc")
+    client = APIClient()
+    client.force_login(user)
+
+    from core.services.docs_client import DocsSearchHit
+
+    with mock.patch(
+        "core.services.docs_client.DocsClient.search_for_user",
+        return_value=[
+            DocsSearchHit(id="d1", title="季度预算方案", updated_at="2026-07-18T00:00:00Z")
+        ],
+    ) as spy:
+        resp = client.get("/api/v1.0/docs/search/?q=预算")
+    assert resp.status_code == 200
+    rows = resp.json()["results"]
+    assert rows[0]["title"] == "季度预算方案"
+    assert rows[0]["url"] == "https://docs.example.com/docs/d1/"
+    # sub 服务端注入 = 调用者本人,绝不来自请求参数。
+    assert spy.call_args.kwargs["sub"] == "sub-abc"
+
+
+def test_docs_search_unreachable_returns_empty(settings):
+    settings.DOCS_CONFIGURATION = {
+        "api_url": "https://docs.example.com",
+        "server_to_server_token": "tok",
+    }
+    user = factories.UserFactory(sub="sub-abc")
+    client = APIClient()
+    client.force_login(user)
+
+    from core.services.docs_client import DocsUnreachableError
+
+    with mock.patch(
+        "core.services.docs_client.DocsClient.search_for_user",
+        side_effect=DocsUnreachableError("down"),
+    ):
+        resp = client.get("/api/v1.0/docs/search/?q=预算")
+    assert resp.status_code == 200
+    assert resp.json() == {"results": []}

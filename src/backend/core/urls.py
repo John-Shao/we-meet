@@ -29,7 +29,7 @@ from core.api.keycloak_sms import (
 )
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.push import ImPushHookView, PushPreferenceView, PushTokenView
-from core.api.search import GlobalAskStreamView, GlobalAskView
+from core.api.search import DocsSearchView, GlobalAskStreamView, GlobalAskView
 from core.api.qr_login import (
     QrAuthenticatorStatusView,
     QrCancelView,
@@ -124,6 +124,12 @@ urlpatterns = [
                     "search/ask-stream/",
                     GlobalAskStreamView.as_view(),
                     name="search_ask_stream",
+                ),
+                # P1-4 搜索入口统一:Docs 文档搜索代理(s2s,按调用者可见范围)。
+                path(
+                    "docs/search/",
+                    DocsSearchView.as_view(),
+                    name="docs_search",
                 ),
             ]
         ),

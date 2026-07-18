@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import logging
 
+from django.conf import settings
+
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -45,6 +47,57 @@ class GlobalAskView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         return Response(result, status=status.HTTP_200_OK)
+
+
+class DocsSearchView(APIView):
+    """P1-4 搜索入口统一 M1:按调用者可见范围搜 Docs 文档标题。
+
+    ``GET /api/v1.0/docs/search/?q=`` → 代理 Docs fork 的 s2s
+    ``search-for-user``(sub 服务端注入,绝不接受参数)。搜索面板的从源:
+    Docs 未配置/不可达/无 sub 一律**空列表**而非 5xx——面板不该因从源挂掉
+    而报错(与全局搜索「每源独立降级」同哲学)。
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        query = str(request.query_params.get("q") or "").strip()
+        if len(query) < 2:
+            return Response({"results": []})
+
+        cfg = getattr(settings, "DOCS_CONFIGURATION", None) or {}
+        api_url = cfg.get("api_url") or ""
+        token = cfg.get("server_to_server_token") or ""
+        sub = str(getattr(request.user, "sub", "") or "")
+        if not api_url or not token or not sub:
+            return Response({"results": []})
+
+        from core.services.docs_client import DocsClient, DocsServiceError
+
+        client = DocsClient(
+            api_url=str(api_url),
+            server_to_server_token=str(token),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 3),
+        )
+        try:
+            hits = client.search_for_user(sub=sub, query=query)
+        except DocsServiceError as exc:
+            logger.warning("docs search degraded: %s", exc)
+            return Response({"results": []})
+        base = str(api_url).rstrip("/")
+        return Response(
+            {
+                "results": [
+                    {
+                        "id": hit.id,
+                        "title": hit.title,
+                        "updated_at": hit.updated_at,
+                        "url": f"{base}/docs/{hit.id}/",
+                    }
+                    for hit in hits
+                ]
+            }
+        )
 
 
 class GlobalAskStreamView(APIView):

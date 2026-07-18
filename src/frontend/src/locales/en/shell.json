@@ -19,7 +19,8 @@
     "aiSources": "Sources",
     "aiMoreSources": "More sources ({{count}})",
     "aiDegraded": "AI answering is temporarily unavailable — here are the matching results found for you.",
-    "aiError": "Request failed. Please try again."
+    "aiError": "Request failed. Please try again.",
+    "docs": "Docs"
   },
   "logout": "Sign out",
   "confirm": "Confirm",
