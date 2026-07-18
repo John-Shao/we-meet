@@ -8,8 +8,9 @@ CalendarRoute 窗口数据到位后自动开该事件详情弹窗,超窗/无权�
 退回按日定位;一次性消费不随翻月重触发。
 M3(App)实施注记:GlobalAskSse(鉴权 OkHttp 流式,契约同 §D2,离页断流)+
 搜索页 AI 分类(显式触发/灰态引用先行/★ 标已用/degraded 检索结果模式/IM
-缺席弱提示);引用点击 消息→会话定位、会议→历史详情,**日历引用 App 端仅
-展示**(无按日定位路由,后续拉齐)。android commit 6c13d32。
+缺席弱提示);引用点击 消息→会话定位、会议→历史详情、日历→事件详情
+(citation.event_id → EventDetailScreen 按 id 自加载,2026-07-18 拉齐,
+android 91c1511)。android commit 6c13d32。
 M2 实施注记:`_recall_im` 按 §D1 源B 全量落地——uid 只取调用者(resolve_uid
 缓存+懒注册,失败=无 IM 身份静默跳源)、独立 2s 超时 JusiImAdminClient、≤3 线程
 逐关键词 limit=5、轮转交错 + mid 去重、仅 text/quote(quote 取 JSON.text)、
