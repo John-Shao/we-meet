@@ -1,6 +1,11 @@
 # 全局搜索 AI 化(P1-4)— 设计文档
 
-状态:M1+M2 已完成(2026-07-18);M3(评测集/模型对比/日 quota/Android)待启动。
+状态:M1+M2 已完成,M3 客户端部分已完成(2026-07-18);M3 剩余=评测集/
+pro-lite 对比/日 quota(需线上数据)+ `/calendar?event=` 事件级定位。
+M3(App)实施注记:GlobalAskSse(鉴权 OkHttp 流式,契约同 §D2,离页断流)+
+搜索页 AI 分类(显式触发/灰态引用先行/★ 标已用/degraded 检索结果模式/IM
+缺席弱提示);引用点击 消息→会话定位、会议→历史详情,**日历引用 App 端仅
+展示**(无按日定位路由,后续拉齐)。android commit 6c13d32。
 M2 实施注记:`_recall_im` 按 §D1 源B 全量落地——uid 只取调用者(resolve_uid
 缓存+懒注册,失败=无 IM 身份静默跳源)、独立 2s 超时 JusiImAdminClient、≤3 线程
 逐关键词 limit=5、轮转交错 + mid 去重、仅 text/quote(quote 取 JSON.text)、
