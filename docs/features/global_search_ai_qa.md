@@ -11,6 +11,9 @@ M3(App)实施注记:GlobalAskSse(鉴权 OkHttp 流式,契约同 §D2,离页断�
 缺席弱提示);引用点击 消息→会话定位、会议→历史详情、日历→事件详情
 (citation.event_id → EventDetailScreen 按 id 自加载,2026-07-18 拉齐,
 android 91c1511)。android commit 6c13d32。
+搜索入口统一收尾注记:App「会议」分类已并入排期会议(Web
+fetchScheduledMeetings 口径:scheduled_at≥今天且未关闭;历史优先去重,
+排期命中📅进会预览,断网退回纯本地;android eab6180),双端会议口径拉齐。
 M2 实施注记:`_recall_im` 按 §D1 源B 全量落地——uid 只取调用者(resolve_uid
 缓存+懒注册,失败=无 IM 身份静默跳源)、独立 2s 超时 JusiImAdminClient、≤3 线程
 逐关键词 limit=5、轮转交错 + mid 去重、仅 text/quote(quote 取 JSON.text)、
