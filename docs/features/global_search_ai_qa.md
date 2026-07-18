@@ -1,7 +1,11 @@
 # 全局搜索 AI 化(P1-4)— 设计文档
 
 状态:M1+M2 已完成,M3 客户端部分已完成(2026-07-18);M3 剩余=评测集/
-pro-lite 对比/日 quota(需线上数据)+ `/calendar?event=` 事件级定位。
+pro-lite 对比/日 quota(均需线上数据)。
+M3(Web)实施注记:`/calendar?event=` 事件级定位已落地——calendar citation
+带 `event_id`(重复系列=最近场次的具体行),chip 跳 `?d=…&event=…`;
+CalendarRoute 窗口数据到位后自动开该事件详情弹窗,超窗/无权限/已删则静默
+退回按日定位;一次性消费不随翻月重触发。
 M3(App)实施注记:GlobalAskSse(鉴权 OkHttp 流式,契约同 §D2,离页断流)+
 搜索页 AI 分类(显式触发/灰态引用先行/★ 标已用/degraded 检索结果模式/IM
 缺席弱提示);引用点击 消息→会话定位、会议→历史详情,**日历引用 App 端仅
@@ -309,7 +313,7 @@ prompt 声明「节内已按相关度排序,节间不可比」。预算:6400+120
 |---|---|
 | M1 | 进程内三源(A 字幕+C 日历+D 纪要)+ 完整动线(快捷行/AI 标签/三类跳转/`/calendar?d=`)+ throttle/flag 双端 + `GLOBAL_ASK_LLM_ENDPOINT` 配置键 + D7 兜底全套 |
 | M2 | IM 源(B:im_uid 解析链/≤3 线程并发/2s 超时/text·quote 过滤)+ 缺源弱提示 UI + jusi 断网验收 |
-| M3 | 20 问评测集(各源命中率 + pro vs lite 标记纪律/首 token/成本对比)、per-user 日上限评估、Android、`/calendar?event=` 事件级定位、纪要向量化(仅当 icontains 被证明瓶颈) |
+| M3 | 20 问评测集(各源命中率 + pro vs lite 标记纪律/首 token/成本对比)、per-user 日上限评估、Android(已完成)、`/calendar?event=` 事件级定位(已完成)、纪要向量化(仅当 icontains 被证明瓶颈) |
 
 ## 8. 开放问题(拍板项)
 

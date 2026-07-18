@@ -303,7 +303,12 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
         `/im?cid=${encodeURIComponent(c.cid)}&seq=${c.seq ?? ''}&t=${Date.now()}`
       )
     } else if (c.kind === 'calendar' && c.date) {
-      navigate(`/calendar?d=${c.date}`)
+      // M3:带 event_id 时事件级定位(自动开详情);缺省退回按日定位。
+      navigate(
+        c.event_id
+          ? `/calendar?d=${c.date}&event=${c.event_id}`
+          : `/calendar?d=${c.date}`
+      )
     }
   }
   const msgPreview = (m: ImSearchItem): string => {

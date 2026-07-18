@@ -101,6 +101,8 @@ def test_calendar_not_visible_across_users_or_orgs():
     entries = svc._recall_calendar(me, ["预算"], citations)
     assert len(entries) == 1
     assert citations[0]["kind"] == "calendar"
+    # M3:事件级定位需要具体场次 id(/calendar?d=…&event=…)。
+    assert citations[0]["event_id"] == str(event.id)
 
 
 def test_summaries_room_member_boundary():
@@ -165,6 +167,8 @@ def test_calendar_series_deduped_to_nearest():
     entries = svc._recall_calendar(me, ["周会"], citations)
     # 同一系列 4 行只留距今最近的一场,不占满 cap。
     assert len(entries) == 1
+    # event_id 指向最近场次(此处=明天的主事件行),供事件级定位直开详情。
+    assert citations[0]["event_id"] == str(parent.id)
 
 
 # ---- 罐头 / 引用 / 降级 ----

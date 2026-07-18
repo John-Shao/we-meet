@@ -643,6 +643,9 @@ class GlobalAskService:
                     "snippet": f"{local:%Y-%m-%d %H:%M}"
                     + (f" · {organizer}" if organizer else ""),
                     "date": local.date().isoformat(),
+                    # M3:事件级定位(/calendar?d=…&event=…)。重复系列此处已
+                    # 取「最近一场」,id 即该场次(物化子行),前端可直开详情。
+                    "event_id": str(event.id),
                 }
             )
             line = (

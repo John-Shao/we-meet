@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
@@ -59,6 +59,12 @@ const CalendarAuthenticated = () => {
     }
     return new Date()
   })
+  // P1-4 M3:?event=<id> 事件级定位——窗口数据到位后自动打开该事件详情。
+  // 与 ?d= 配套下发(?d 保证事件落在 ±1 月查询窗口内);找不到(超窗/无权限/
+  // 已删)则静默放弃,仅按日定位。一次性消费,不随翻月重触发。
+  const [pendingEventId, setPendingEventId] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get('event') || null
+  )
 
   const openCreate = (slot: SlotDraft | null) => {
     setDraft(slot)
@@ -83,6 +89,13 @@ const CalendarAuthenticated = () => {
     queryFn: () => fetchCalendarEvents(monthWindow),
     staleTime: 30_000,
   })
+
+  useEffect(() => {
+    if (!pendingEventId || isLoading) return
+    const target = events.find((e) => e.id === pendingEventId)
+    if (target) setDetailEvent(target)
+    setPendingEventId(null)
+  }, [pendingEventId, isLoading, events])
 
   // 侧栏「即将开始」:与聚焦日期无关,始终 now 起的未来窗口(独立查询,避免聚焦
   // 远月时上游窗口拿不到近期事件)。key 按天,当天内稳定复用。

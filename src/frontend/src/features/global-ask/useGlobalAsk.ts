@@ -13,6 +13,7 @@ export interface GlobalAskCitation {
   cid?: string
   seq?: number
   date?: string
+  event_id?: string
 }
 
 export type GlobalAskSources = Record<string, string>
