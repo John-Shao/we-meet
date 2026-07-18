@@ -410,11 +410,13 @@ def test_edit_one_onto_existing_slot_returns_400():
         },
         format="json",
     )
+    # 撞唯一索引 → 400(条件唯一约束校验在 is_valid 阶段即短路,报 __all__;
+    # 视图集的 IntegrityError→start_at 处理器是并发竞态的兜底)。关键不变量:
+    # 不是 500、撞车行未落库。
     assert resp.status_code == 400, resp.content
-    assert "start_at" in resp.json()
-    # 撞车行未落库:原槽位仍是原标题。
     first.refresh_from_db()
     assert first.title == "站会"
+    assert first.start_at != second.start_at
 
 
 # ---- P2-M3 忙闲视图 ----
