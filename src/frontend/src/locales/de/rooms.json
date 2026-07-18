@@ -313,7 +313,6 @@
         }
       }
     },
-
     "faceLandmarks": {
       "title": "Visuelle Effekte",
       "glasses": {
@@ -602,7 +601,16 @@
         "all": "Alle ablehnen"
       }
     },
-    "moreOptions": "Weitere Optionen"
+    "moreOptions": "Weitere Optionen",
+    "tabAll": "Alle ({{count}})",
+    "tabSuggested": "Vorgeschlagen ({{count}})",
+    "searchOrCall": "Suchen oder anrufen",
+    "inviteAction": "Einladen",
+    "suggestedEmpty": "Keine vorgeschlagenen Teilnehmer",
+    "call": "Anrufen",
+    "callAgain": "Erneut anrufen",
+    "cancelCall": "Anruf abbrechen",
+    "meetingCode": "Meeting-Code"
   },
   "participantMenu": {
     "remove": {

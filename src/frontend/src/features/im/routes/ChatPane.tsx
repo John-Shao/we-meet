@@ -1395,12 +1395,14 @@ export const ChatPane = ({
           client={client}
           cid={cid}
           onClose={() => setGroupCallOpen(false)}
-          onCall={(targets) =>
+          onCall={(targets, allMembers) =>
             void startGroupVoiceCall({
               groupCid: cid,
               roomName: t('call.groupCallRoomName', { name: title }),
               username: user?.full_name ?? '',
               targets,
+              // P5 建议参会: whole group roster, not just the picked ones.
+              suggestUserIds: allMembers.map((m) => m.userId),
             })
           }
         />

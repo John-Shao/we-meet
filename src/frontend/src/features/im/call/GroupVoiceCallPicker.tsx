@@ -27,7 +27,9 @@ export const GroupVoiceCallPicker = ({
 }: {
   client: Client
   cid: string
-  onCall: (targets: MeetInviteTarget[]) => void
+  /** `allMembers` (P5): the full resolved roster regardless of check state —
+   * the caller reports it as the room's suggested invitees. */
+  onCall: (targets: MeetInviteTarget[], allMembers: MeetInviteTarget[]) => void
   onClose: () => void
 }) => {
   const { t } = useTranslation('im')
@@ -78,7 +80,7 @@ export const GroupVoiceCallPicker = ({
   const picked = candidates.filter((c) => isChecked(c.userId))
   const confirm = () => {
     if (picked.length === 0) return
-    onCall(picked)
+    onCall(picked, candidates)
     onClose()
   }
 

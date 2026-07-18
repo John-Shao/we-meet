@@ -130,6 +130,15 @@ export const sendMeetInvites = (
   }
 }
 
+/** P5 建议参会: cancel ONE in-flight invite (per-row ✕ in the suggested
+ * tab) — same frame + state transition as the leave-room bulk cancel. */
+export const cancelMeetInvite = (callId: string): void => {
+  const invite = find(callId)
+  if (!invite || TERMINAL.has(invite.state)) return
+  sendFrame(invite, CallEvent.Cancel, 'canceled')
+  setState(invite.callId, 'canceled')
+}
+
 /** Send `cancel` to every non-terminal invitee — called when the inviter
  * leaves the room (拍板 #1: the invite dies with the inviter's presence). */
 export const cancelPendingMeetInvites = (): void => {

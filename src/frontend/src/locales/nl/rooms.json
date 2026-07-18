@@ -601,7 +601,16 @@
         "all": "Alles weigeren"
       }
     },
-    "moreOptions": "Meer opties"
+    "moreOptions": "Meer opties",
+    "tabAll": "Alle ({{count}})",
+    "tabSuggested": "Voorgesteld ({{count}})",
+    "searchOrCall": "Zoeken of bellen",
+    "inviteAction": "Uitnodigen",
+    "suggestedEmpty": "Geen voorgestelde deelnemers",
+    "call": "Bellen",
+    "callAgain": "Opnieuw bellen",
+    "cancelCall": "Oproep annuleren",
+    "meetingCode": "Vergadercode"
   },
   "participantMenu": {
     "remove": {

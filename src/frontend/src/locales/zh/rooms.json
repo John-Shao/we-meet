@@ -601,7 +601,16 @@
         "all": "全部拒绝"
       }
     },
-    "moreOptions": "更多选项"
+    "moreOptions": "更多选项",
+    "tabAll": "全部 ({{count}})",
+    "tabSuggested": "建议参会 ({{count}})",
+    "searchOrCall": "搜索或呼叫",
+    "inviteAction": "邀请",
+    "suggestedEmpty": "暂无建议参会人",
+    "call": "呼叫",
+    "callAgain": "再次呼叫",
+    "cancelCall": "取消呼叫",
+    "meetingCode": "会议号"
   },
   "participantMenu": {
     "remove": {

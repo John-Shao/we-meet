@@ -17,6 +17,7 @@ import {
   type MeetInviteTarget,
 } from './meetInviteTracker'
 import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
+import { reportSuggestedParticipants } from '@/features/rooms/api/suggestedParticipants'
 
 /**
  * P1 一对一通话 — web/desktop call state machine. Mirrors the Android
@@ -235,6 +236,10 @@ export const startGroupVoiceCall = async (p: {
   /** Display name for room creation (mirrors startCall). */
   username: string
   targets: MeetInviteTarget[]
+  /** P5 建议参会: the FULL group roster (picked or not) — reported as the
+   * room's suggested invitees so the in-meeting participants panel offers
+   * every group member for (re-)calling, Feishu-style. */
+  suggestUserIds?: string[]
 }): Promise<void> => {
   if (!client || p.targets.length === 0) return
   if (callStore.state.phase !== 'idle') return
@@ -248,6 +253,12 @@ export const startGroupVoiceCall = async (p: {
     return // room create failed — button stays enabled, user can retry
   }
   groupCall = { cid: p.groupCid, slug: room.slug, connectedAt: null }
+  // P5: fire-and-forget — ringing never blocks on suggestion bookkeeping.
+  reportSuggestedParticipants(
+    room.slug,
+    p.suggestUserIds ?? p.targets.map((t) => t.userId),
+    'group'
+  )
   // P4.1 进行中卡片: every group member (rung or not) sees a joinable card;
   // the end-record below flips it to the ended state.
   try {

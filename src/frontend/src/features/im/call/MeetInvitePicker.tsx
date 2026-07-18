@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
@@ -19,11 +19,15 @@ export const MeetInvitePicker = ({
   onInvite,
   onClose,
   excludeUserIds,
+  footer,
 }: {
   onInvite: (targets: MeetInviteTarget[]) => void
   onClose: () => void
   /** P4.1 会议拉人: hide members already in the room (resolve-subs ids). */
   excludeUserIds?: Set<string>
+  /** P5 统一邀请面板: share-link / meeting-code section rendered between the
+   * member list and the confirm bar — absent for plain pickers. */
+  footer?: ReactNode
 }) => {
   const { t } = useTranslation('im')
   const [query, setQuery] = useState('')
@@ -208,6 +212,7 @@ export const MeetInvitePicker = ({
             </ul>
           )}
         </div>
+        {footer}
         <div className={modalFoot}>
           <span className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}>
             {t('group.selected', { count: selected.size })}

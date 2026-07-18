@@ -601,7 +601,16 @@
         "all": "Deny all"
       }
     },
-    "moreOptions": "More options"
+    "moreOptions": "More options",
+    "tabAll": "All ({{count}})",
+    "tabSuggested": "Suggested ({{count}})",
+    "searchOrCall": "Search or call",
+    "inviteAction": "Invite",
+    "suggestedEmpty": "No suggested participants",
+    "call": "Call",
+    "callAgain": "Call again",
+    "cancelCall": "Cancel call",
+    "meetingCode": "Meeting code"
   },
   "participantMenu": {
     "remove": {

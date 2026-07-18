@@ -47,6 +47,10 @@ import {
 } from '@/features/im/call/meetInviteTracker'
 import type { RemoteInviteChip } from './CallStage'
 import { MeetInviteOverlay } from './MeetInviteOverlay'
+import {
+  remoteInvitesStore,
+  resetRemoteInvites,
+} from './remoteInvitesStore'
 import { patchRoom } from '../api/patchRoom'
 import { useRemoteParticipants, useRoomContext } from '@livekit/components-react'
 import { useSnapshot } from 'valtio'
@@ -103,6 +107,7 @@ export const Conference = ({
       scheduleCallRoomLeave(() => {
         cancelPendingMeetInvites()
         resetMeetInvites()
+        resetRemoteInvites() // P5: stale co-participant snapshots die with us
       })
   }, [])
 
@@ -436,6 +441,8 @@ const CallOrMeeting = ({
         label: i.label,
         state: i.state,
         avatarUrl: i.avatarUrl,
+        // P5: lets receivers' suggested tab match this ring to a person row.
+        userId: i.userId,
       })),
     })
     void room.localParticipant
@@ -449,9 +456,10 @@ const CallOrMeeting = ({
 
   // -- M2: receive co-participants' snapshots; a sender leaving the room
   // invalidates their snapshot (their invites were canceled on leave).
-  const [remoteBySender, setRemoteBySender] = useState<
-    Record<string, RemoteInviteChip[]>
-  >({})
+  // P5: snapshots land in remoteInvitesStore (module valtio) so the
+  // participants side panel's suggested tab — a different component tree —
+  // can mark "someone else is already calling them".
+  const remoteSnap = useSnapshot(remoteInvitesStore)
   useEffect(() => {
     const handler = (
       payload: Uint8Array,
@@ -473,8 +481,13 @@ const CallOrMeeting = ({
               typeof c.avatarUrl === 'string' && c.avatarUrl
                 ? c.avatarUrl
                 : undefined,
+            userId:
+              typeof c.userId === 'string' && c.userId ? c.userId : undefined,
           }))
-        setRemoteBySender((prev) => ({ ...prev, [participant.identity]: chips }))
+        remoteInvitesStore.bySender = {
+          ...remoteInvitesStore.bySender,
+          [participant.identity]: chips,
+        }
       } catch {
         // Malformed broadcast — ignore.
       }
@@ -485,9 +498,9 @@ const CallOrMeeting = ({
     }
   }, [room])
   const presentIds = new Set(remoteParticipants.map((p) => p.identity))
-  const remoteInvites = Object.entries(remoteBySender)
+  const remoteInvites = Object.entries(remoteSnap.bySender)
     .filter(([identity]) => presentIds.has(identity))
-    .flatMap(([, chips]) => chips)
+    .flatMap(([, chips]) => chips as RemoteInviteChip[])
 
   // 拍板(2026-07-17 三次): the video latch flips only when the 3rd person
   // has ACTUALLY joined (remotes ≥ 2) — not at invite time. Both sides stay

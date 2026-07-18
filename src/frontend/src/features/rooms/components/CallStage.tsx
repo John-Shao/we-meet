@@ -24,10 +24,9 @@ import { Avatar } from '@/features/im/components/Avatar'
 import { resolveImUsers } from '@/features/im/api/resolveImUsers'
 import { resolveRoomUsers } from '@/features/im/api/resolveRoomUsers'
 import { useUser } from '@/features/auth'
-import { MeetInvitePicker } from '@/features/im/call/MeetInvitePicker'
+import { UnifiedInvitePanel } from './UnifiedInvitePanel'
 import {
   meetInviteStore,
-  sendMeetInvites,
   type MeetInvite,
 } from '@/features/im/call/meetInviteTracker'
 import { useSnapshot } from 'valtio'
@@ -41,6 +40,10 @@ export interface RemoteInviteChip {
   /** Short-lived presigned URL from the inviter's picker — shared so every
    * side of the call renders the same chip avatar. */
   avatarUrl?: string
+  /** P5: we-meet user id of the person being rung — lets the suggested tab
+   * mark "someone else is already calling them". Optional: broadcasts from
+   * pre-P5 clients don't carry it (their chips just can't match a row). */
+  userId?: string
 }
 
 /**
@@ -164,14 +167,6 @@ export const CallStage = ({
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteParticipants, activeInvites.length])
-
-  const handleInvite = (targets: Parameters<typeof sendMeetInvites>[0]) => {
-    sendMeetInvites(targets, {
-      media: video ? 'video' : 'audio',
-      roomSlug,
-      roomName: t('call.meetInviteRoomName', { name: selfName }),
-    })
-  }
 
   // Names/avatars are resolved from the DIRECTORY by participant identity
   // (= OIDC sub) — the LiveKit token name is a self-chosen join-preview name
@@ -351,8 +346,9 @@ export const CallStage = ({
         </RoundButton>
       </div>
       {showInvitePicker && (
-        <MeetInvitePicker
-          onInvite={handleInvite}
+        <UnifiedInvitePanel
+          roomSlug={roomSlug}
+          media={video ? 'video' : 'audio'}
           onClose={() => setShowInvitePicker(false)}
         />
       )}
