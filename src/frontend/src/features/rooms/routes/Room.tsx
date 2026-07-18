@@ -53,13 +53,10 @@ export const Room = () => {
     }
   }
 
-  // 进房决定必须挺过一次「布局重挂载」:预览页带左侧栏(showHeader=true,走
-  // Layout 的 <ImUnreadProvider> 分支),而房间是全屏(showHeader=false,走另
-  // 一分支)。两分支根元素类型不同,React 会把整棵 children(含本 Room)卸载重
-  // 挂,导致 hasSubmittedEntry 复位成 autoJoin——快速会议无 autoJoin,于是弹回
-  // 预览页(现象:点「加入」闪一下「摄像头启动中」又回到初始状态)。把已过预览
-  // 写进浏览器级 history.state(独立于 React,重挂后仍在),重挂时 autoJoin 读回
-  // true,直接落在房间。复用 autoJoin 语义正确:它本就表示「跳过预览直接进房」。
+  // 把「已过预览」写进浏览器级 history.state(独立于 React,组件重挂后仍在),
+  // 重挂时 autoJoin 读回 true 直接落房。复用 autoJoin 语义正确:它本就表示
+  // 「跳过预览直接进房」。Layout 已按 isLoggedIn(而非 showHeader)分支,进房时
+  // 不再重挂 Room,此处属兜底——仅 isLoggedIn 边界翻转等极端情形才用得上。
   const enterRoom = () => {
     try {
       window.history.replaceState(

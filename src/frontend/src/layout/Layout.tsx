@@ -42,12 +42,21 @@ export const Layout = ({ children }: { children: ReactNode }) => {
     })
 
   // P6: logged-in workspace routes get the Feishu-style left rail (column 1).
-  // The in-call room (showHeader=false) and anonymous pages keep the original
-  // top-Header / full-screen layout untouched.
-  if (showHeader && isLoggedIn) {
+  //
+  // 关键(2026-07-18 根治「布局分支切换重挂 children」):这里按 isLoggedIn 分支,
+  // 而 *不* 按 showHeader。showHeader 只决定 rail / SkipLink 的显隐——它们是
+  // <main> 的位置兄弟节点,增删不影响 React 对 <main>(以及其中 {children})的
+  // 按位复用,故 showHeader 翻转(如预览页带栏 → 进房全屏)不再卸载重挂路由组件,
+  // 路由内 state(如 Room.hasSubmittedEntry)得以保留,点「加入」不再弹回预览。
+  //
+  // 附带效果:ImUnreadProvider 在会中(showHeader=false)也保持挂载,IM 连接与
+  // 来电浮层(CallOverlay,本就声明「ring on ANY page」)全程常驻——先前它被意外
+  // 关在带栏分支里,会中收不到 1:1 来电,这里一并补上。仅 isLoggedIn 边界(登录/
+  // 登出)才换根分支,那本就要整页重载,重挂无妨。
+  if (isLoggedIn) {
     return (
       <ImUnreadProvider>
-        <SkipLink />
+        {showHeader && <SkipLink />}
         <div
           className={css({
             display: 'flex',
@@ -56,23 +65,24 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             color: 'default.text',
           })}
         >
-          {railCollapsed ? (
-            <div
-              className={css({ flexShrink: 0, height: '100%' })}
-              style={{ width: 64 }}
-            >
-              <AppRail collapsed onToggleCollapse={toggleRail} />
-            </div>
-          ) : (
-            <ResizablePanel
-              storageKey="we-meet:app-rail-width"
-              defaultWidth={210}
-              min={180}
-              max={320}
-            >
-              <AppRail onToggleCollapse={toggleRail} />
-            </ResizablePanel>
-          )}
+          {showHeader &&
+            (railCollapsed ? (
+              <div
+                className={css({ flexShrink: 0, height: '100%' })}
+                style={{ width: 64 }}
+              >
+                <AppRail collapsed onToggleCollapse={toggleRail} />
+              </div>
+            ) : (
+              <ResizablePanel
+                storageKey="we-meet:app-rail-width"
+                defaultWidth={210}
+                min={180}
+                max={320}
+              >
+                <AppRail onToggleCollapse={toggleRail} />
+              </ResizablePanel>
+            ))}
           <main
             id={MAIN_CONTENT_ID}
             className={css({
