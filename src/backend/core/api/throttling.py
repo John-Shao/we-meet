@@ -95,6 +95,24 @@ class RoomAIRateThrottle(MonitoredUserRateThrottle):
         return self.cache_format % {"scope": self.scope, "ident": ident}
 
 
+class GlobalSearchAIRateThrottle(MonitoredUserRateThrottle):
+    """Per-user throttle for the global-search AI QA endpoints (P1-4).
+
+    独立 scope,不与 personal_ai 抢额度;免费开放下的四道成本闸之一
+    (显式触发/本限流/全空不调 LLM/熔断,见 global_search_ai_qa.md §D7)。
+    """
+
+    scope = "global_search_ai"
+
+    def get_cache_key(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return None
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": str(request.user.pk),
+        }
+
+
 class PersonalAIRateThrottle(MonitoredUserRateThrottle):
     """Per-user throttle for the cross-meeting (personal) AI endpoint.
 

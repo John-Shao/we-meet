@@ -1,6 +1,11 @@
 # 全局搜索 AI 化(P1-4)— 设计文档
 
-状态:设计已评审(2026-07-18,拍板①②③④已落定,见 §8 前言);待「进 M1」开工
+状态:M1 已完成(2026-07-18);M2(IM 源)待启动。M1 实施注记:后端
+`core/services/global_ask.py` + `core/api/search.py` 按 §D1-D7 全量落地
+(三源/引用契约/熔断/检索结果模式/独立 ep 配置键/flag 双端 gate/throttle),
+测试 12 条(权限跨用户负例×3/罐头零调用/熔断/引用提取/流契约/端点 gate)全过;
+前端 GlobalSearch 第 5 分类+快捷行+AI 面板(灰态→高亮/折叠/降级横幅/关面板
+abort)+ `/calendar?d=` + i18n 五语。
 对标:飞书 aily/知识问答(专业版付费)、钉钉 AI搜问(免费边界未决)、企微智能搜索
 调研依据:`docs/research/competitor-gap-feishu-wecom-dingtalk-2026-07.md` §五 P1-4
 

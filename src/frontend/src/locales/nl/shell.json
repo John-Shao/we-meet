@@ -11,7 +11,15 @@
     "contacts": "Contacten",
     "meetings": "Vergaderingen",
     "messages": "Berichten",
-    "empty": "Geen resultaten"
+    "empty": "Geen resultaten",
+    "ai": "Vraag AI",
+    "askAi": "Vraag AI: {{q}}",
+    "aiHint": "Typ een vraag (≥2 tekens) en druk op Enter — AI antwoordt op basis van je vergaderingen, agenda en notulen, met bronnen.",
+    "aiAsking": "Zoeken en nadenken…",
+    "aiSources": "Bronnen",
+    "aiMoreSources": "Meer bronnen ({{count}})",
+    "aiDegraded": "AI-antwoord tijdelijk niet beschikbaar — dit zijn de gevonden resultaten.",
+    "aiError": "Verzoek mislukt. Probeer opnieuw."
   },
   "logout": "Afmelden",
   "confirm": "Bevestigen",

@@ -42,6 +42,10 @@ export interface ApiConfig {
   subtitle: {
     enabled: boolean
   }
+  /** P1-4 全局搜索 AI 问答;缺省/false ⇒ 隐藏 AI 标签与快捷行。 */
+  search_ai?: {
+    enabled?: boolean
+  }
   docs?: {
     // Public La Suite Docs site URL; present only when the Docs bridge is
     // configured server-side. Absent/null ⇒ hide the "文档" nav entry.

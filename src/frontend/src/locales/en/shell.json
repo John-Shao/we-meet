@@ -11,7 +11,15 @@
     "contacts": "Contacts",
     "meetings": "Meetings",
     "messages": "Messages",
-    "empty": "No matches"
+    "empty": "No matches",
+    "ai": "Ask AI",
+    "askAi": "Ask AI: {{q}}",
+    "aiHint": "Type a question (≥2 chars), then press Enter or the button — AI answers from your meetings, calendar and minutes with citations.",
+    "aiAsking": "Searching and thinking…",
+    "aiSources": "Sources",
+    "aiMoreSources": "More sources ({{count}})",
+    "aiDegraded": "AI answering is temporarily unavailable — here are the matching results found for you.",
+    "aiError": "Request failed. Please try again."
   },
   "logout": "Sign out",
   "confirm": "Confirm",

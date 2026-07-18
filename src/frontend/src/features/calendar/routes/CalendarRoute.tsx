@@ -50,7 +50,15 @@ const CalendarAuthenticated = () => {
     event: CalendarEvent
   } | null>(null)
   const [editScope, setEditScope] = useState<EditScope | undefined>(undefined)
-  const [date, setDate] = useState<Date>(() => new Date())
+  // P1-4:AI 引用/外链可带 ?d=YYYY-MM-DD 定位到该日所在视图(仅初始化时读)。
+  const [date, setDate] = useState<Date>(() => {
+    const d = new URLSearchParams(window.location.search).get('d')
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const parsed = new Date(`${d}T00:00`)
+      if (!Number.isNaN(parsed.getTime())) return parsed
+    }
+    return new Date()
+  })
 
   const openCreate = (slot: SlotDraft | null) => {
     setDraft(slot)

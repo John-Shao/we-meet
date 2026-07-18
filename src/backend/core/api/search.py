@@ -1,0 +1,66 @@
+"""全局搜索 AI 问答端点(P1-4 M1,docs/features/global_search_ai_qa.md §D3)。
+
+- ``POST /api/v1.0/search/ask/``        — 非流式,一次性返回。
+- ``POST /api/v1.0/search/ask-stream/`` — SSE:meta{citations,sources} →
+  delta×N → done{citations_used, degraded}。
+
+双端 gate:FeatureFlag ``search_ai``(关闭 404,只藏前端挡不住直接调 API
+烧钱)+ 独立 throttle scope ``global_search_ai``(不与 personal_ai 抢额度)。
+"""
+
+from __future__ import annotations
+
+import logging
+
+from rest_framework import permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from core.api import serializers, throttling
+from core.api.feature_flag import FeatureFlag
+from core.api.viewsets import ServerSentEventRenderer, _sse_response
+from core.services.global_ask import GlobalAskService
+
+logger = logging.getLogger(__name__)
+
+
+class GlobalAskView(APIView):
+    """一次性问答。Body ``{"question": "..."}``(≤500 字,单轮)。"""
+
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [throttling.GlobalSearchAIRateThrottle]
+
+    @FeatureFlag.require("search_ai")
+    def post(self, request):
+        serializer = serializers.AskPersonalAISerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        question = serializer.validated_data["question"]
+        try:
+            result = GlobalAskService().ask(user=request.user, question=question)
+        except Exception as exc:  # pylint: disable=broad-except
+            # LLM 失败在服务内已转 degraded;走到这里是检索层面的意外。
+            logger.exception("global ask failed for user %s", request.user.pk)
+            return Response(
+                {"error": f"Global ask failed: {exc}"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class GlobalAskStreamView(APIView):
+    """流式问答(SSE)。事件契约见 §D2;LLM 失败不 error 而是
+    ``done{degraded: true}``——前端转「检索结果模式」(§D7)。"""
+
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [throttling.GlobalSearchAIRateThrottle]
+    renderer_classes = [ServerSentEventRenderer]
+
+    @FeatureFlag.require("search_ai")
+    def post(self, request):
+        serializer = serializers.AskPersonalAISerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        question = serializer.validated_data["question"]
+        event_iter = GlobalAskService().ask_stream(
+            user=request.user, question=question
+        )
+        return _sse_response(event_iter, error_label="Global ask")

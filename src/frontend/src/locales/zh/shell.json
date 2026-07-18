@@ -11,7 +11,15 @@
     "contacts": "联系人",
     "meetings": "会议",
     "messages": "消息",
-    "empty": "无匹配结果"
+    "empty": "无匹配结果",
+    "ai": "AI 问答",
+    "askAi": "向 AI 提问:{{q}}",
+    "aiHint": "输入问题(≥2 字)后回车或点击按钮——AI 将基于你的会议、日程与纪要作答并附引用。",
+    "aiAsking": "检索与思考中…",
+    "aiSources": "参考来源",
+    "aiMoreSources": "更多来源({{count}})",
+    "aiDegraded": "AI 回答暂不可用——以下是为你检索到的相关内容。",
+    "aiError": "请求失败,请稍后重试。"
   },
   "logout": "退出登录",
   "confirm": "确定",

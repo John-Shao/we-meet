@@ -16,6 +16,8 @@ class FeatureFlag:
         "file_upload": "FILE_UPLOAD_ENABLED",
         "addons": "ADDONS_ENABLED",
         "application": "APPLICATION_ENABLED",
+        # P1-4 全局搜索 AI 问答(关闭=端点 404,config 同步藏前端入口)。
+        "search_ai": "GLOBAL_SEARCH_AI_ENABLED",
     }
 
     @classmethod

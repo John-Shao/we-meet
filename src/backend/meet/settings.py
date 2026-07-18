@@ -456,6 +456,12 @@ class Base(Configuration):
                 environ_name="PERSONAL_AI_THROTTLE_RATES",
                 environ_prefix=None,
             ),
+            # P1-4 — 全局搜索 AI 问答(独立 scope,不与 personal_ai 抢额度)。
+            "global_search_ai": values.Value(
+                default="10/minute",
+                environ_name="GLOBAL_SEARCH_AI_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
         },
     }
     MONITORED_THROTTLE_FAILURE_CALLBACK = (
@@ -872,6 +878,15 @@ class Base(Configuration):
     )
     DOUBAO_LLM_ENDPOINT = values.Value(
         None, environ_name="DOUBAO_LLM_ENDPOINT", environ_prefix=None
+    )
+    # P1-4 全局搜索 AI 问答:独立 ep(可单独换档降成本,如 lite-32k),
+    # 缺省回落 DOUBAO_LLM_ENDPOINT(见 global_search_ai_qa.md §D6)。
+    GLOBAL_ASK_LLM_ENDPOINT = values.Value(
+        None, environ_name="GLOBAL_ASK_LLM_ENDPOINT", environ_prefix=None
+    )
+    # P1-4 功能开关(FeatureFlag "search_ai";关闭=端点 404+前端藏入口)。
+    GLOBAL_SEARCH_AI_ENABLED = values.BooleanValue(
+        True, environ_name="GLOBAL_SEARCH_AI_ENABLED", environ_prefix=None
     )
     # Sprint 2.4 — Doubao text embedding endpoint (Ark /v1/embeddings).
     # Optional: when unset, the embedding pipeline silently skips, the

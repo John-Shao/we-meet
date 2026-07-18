@@ -66,6 +66,9 @@ def get_frontend_configuration(request):
             "default_country": settings.ROOM_TELEPHONY_DEFAULT_COUNTRY,
         },
         "subtitle": {"enabled": settings.ROOM_SUBTITLE_ENABLED},
+        # P1-4 全局搜索 AI 问答:false ⇒ 前端隐藏 AI 标签/快捷行(端点侧
+        # 另有 FeatureFlag 404,双端 gate)。
+        "search_ai": {"enabled": settings.GLOBAL_SEARCH_AI_ENABLED},
         "docs": {
             # Public La Suite Docs site URL — present only when the Docs bridge is
             # configured (DOCS_CONFIGURATION.api_url). Drives the optional "文档" nav

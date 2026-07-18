@@ -11,7 +11,15 @@
     "contacts": "Kontakte",
     "meetings": "Meetings",
     "messages": "Nachrichten",
-    "empty": "Keine Treffer"
+    "empty": "Keine Treffer",
+    "ai": "KI fragen",
+    "askAi": "KI fragen: {{q}}",
+    "aiHint": "Frage eingeben (≥2 Zeichen), dann Enter — die KI antwortet aus Ihren Meetings, Terminen und Protokollen mit Quellen.",
+    "aiAsking": "Suche und Analyse…",
+    "aiSources": "Quellen",
+    "aiMoreSources": "Weitere Quellen ({{count}})",
+    "aiDegraded": "KI-Antwort vorübergehend nicht verfügbar — hier sind die gefundenen Treffer.",
+    "aiError": "Anfrage fehlgeschlagen. Bitte erneut versuchen."
   },
   "logout": "Abmelden",
   "confirm": "Bestätigen",

@@ -29,6 +29,7 @@ from core.api.keycloak_sms import (
 )
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.push import ImPushHookView, PushPreferenceView, PushTokenView
+from core.api.search import GlobalAskStreamView, GlobalAskView
 from core.api.qr_login import (
     QrAuthenticatorStatusView,
     QrCancelView,
@@ -117,6 +118,13 @@ urlpatterns = [
                     name="admin_stats_overview",
                 ),
                 path("config/", get_frontend_configuration, name="config"),
+                # P1-4 全局搜索 AI 问答。
+                path("search/ask/", GlobalAskView.as_view(), name="search_ask"),
+                path(
+                    "search/ask-stream/",
+                    GlobalAskStreamView.as_view(),
+                    name="search_ask_stream",
+                ),
             ]
         ),
     ),
