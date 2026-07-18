@@ -38,6 +38,7 @@ import { connectionObserverStore } from '@/stores/connectionObserver'
 import {
   cancelCallRoomLeave,
   scheduleCallRoomLeave,
+  setInMeeting,
 } from '@/features/im/call/callController'
 import {
   cancelPendingMeetInvites,
@@ -103,6 +104,13 @@ export const Conference = ({
         cancelPendingMeetInvites()
         resetMeetInvites()
       })
+  }, [])
+
+  // 标记「本机在房内」——供 callController 对会中新来电立刻回 Busy(而非静默等
+  // 超时)。连接中的 1:1 通话此时 callStore 已是 idle,只有这个标记看得见。
+  useEffect(() => {
+    setInMeeting(true)
+    return () => setInMeeting(false)
   }, [])
   const fetchKey = [keys.room, roomId]
 

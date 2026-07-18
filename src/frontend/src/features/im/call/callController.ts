@@ -128,6 +128,17 @@ export const markGroupCallConnected = (): void => {
   }
 }
 
+/** Whether this device is currently inside a room (meeting OR 1:1/群 call).
+ * Toggled by Conference on mount/unmount. Used to auto-busy an incoming 1:1
+ * invite that lands while already in a room — note a *connected* 1:1 call has
+ * callStore back at `idle` (set on room entry), so the phase check alone can't
+ * see it; this flag is the reliable signal. A plain flag (not showHeader) so
+ * the cold-load default showHeader=false never spuriously replies Busy. */
+let inMeeting = false
+export const setInMeeting = (v: boolean): void => {
+  inMeeting = v
+}
+
 /**
  * Wire the controller to the app-wide SDK client. Idempotent; called from
  * ImUnreadProvider (the same place that keeps the client connected app-wide),
@@ -345,6 +356,12 @@ const onInvite = (p: CallPayload): void => {
     } else {
       replyTo(p, CallEvent.Busy, 'busy')
     }
+    return
+  }
+  // 已在会中/通话中(此时本机呼叫态已是 idle,靠 inMeeting 才看得见)——立刻回
+  // Busy,让对端马上收到「忙线」而不是干听 60s 回铃。对端 onTerminal(busy) 结束。
+  if (inMeeting) {
+    replyTo(p, CallEvent.Busy, 'busy')
     return
   }
   const info: CallInfo = {
