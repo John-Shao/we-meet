@@ -248,8 +248,8 @@ const sendFrame = (
       reason,
       ...(event === CallEvent.Invite && opts
         ? {
-            // SDK types kind as ''|'meet'; 'group' rides verbatim (server
-            // relays any string) — widen locally until the next SDK bump.
+            // alpha.11 仍未放宽 kind(''|'meet');'group' 由服务端原样中继。
+            // 放宽已进 SDK 源码(alpha.12),发布后删本 cast。
             kind: (opts.kind ?? 'meet') as 'meet',
             media: opts.media,
             room_slug: opts.roomSlug,
