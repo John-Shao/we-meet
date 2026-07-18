@@ -70,11 +70,45 @@ def test_issue_token_signs_method_path_ts_body(monkeypatch):
 
     body_bytes = captured["data"]
     payload = json.loads(body_bytes)
-    assert payload == {"external_id": "user-abc", "ttl_seconds": 3600}
+    assert payload["external_id"] == "user-abc"
+    assert payload["ttl_seconds"] == 3600
+    # A per-request nonce makes every signed body unique so two same-second
+    # requests never collide into a replayed signature (jusi rejects those 401).
+    assert payload["_nonce"]
 
     ts = captured["headers"]["X-Timestamp"]
     sig = captured["headers"]["X-Signature"]
+    # Signature must cover the exact bytes sent (nonce included).
     assert sig == _expected_sig("POST", "/admin/tokens/issue", ts, body_bytes)
+
+
+def test_issue_token_same_second_calls_have_distinct_signatures(monkeypatch):
+    """Two identical issue_token calls in the same second must NOT sign identically.
+
+    Regression: jusi-light-im's admin auth replay-rejects a repeated signature
+    with 401 (→ 503). The signed material is METHOD+PATH+TS(second)+BODY, and
+    issue_token's body is deterministic per user, so without a per-request nonce
+    two same-second calls would collide. The nonce keeps each signature unique.
+    """
+    sigs = []
+
+    def fake_post(url, data, headers, timeout):  # pylint: disable=unused-argument
+        sigs.append(headers["X-Signature"])
+        resp = mock.Mock()
+        resp.status_code = 200
+        resp.json.return_value = {"uid": "u", "token": "t", "expires_at": 1}
+        return resp
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    # Freeze the clock so both calls sign with the same second — the exact
+    # condition that previously produced identical signatures.
+    monkeypatch.setattr("core.services.jusi_im.time.time", lambda: 1784385371.5)
+
+    client = JusiImAdminClient(api_url=API_URL, admin_hmac_secret=SECRET)
+    client.issue_token(external_id="user-abc", ttl_seconds=3600)
+    client.issue_token(external_id="user-abc", ttl_seconds=3600)
+
+    assert sigs[0] != sigs[1]
 
 
 def test_issue_token_maps_connection_failure_to_unreachable(monkeypatch):

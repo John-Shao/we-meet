@@ -418,8 +418,20 @@ class JusiImAdminClient:
     @staticmethod
     def _json_body(payload: dict[str, Any]) -> bytes:
         # Compact form so the body bytes match exactly what we sign + send on the wire.
+        #
+        # A per-request nonce guarantees two otherwise-identical requests produce
+        # distinct signatures. The signature covers METHOD+PATH+TS+BODY at *second*
+        # granularity, and some payloads are deterministic per user (notably
+        # issue_token's {external_id, ttl_seconds}), so two calls landing in the
+        # same wall-clock second would sign to identical bytes. jusi-light-im's
+        # admin auth treats a repeated signature as a replay and rejects it with
+        # 401 — surfacing as intermittent 503s when the client bursts token/ calls.
+        # jusi ignores unknown body fields, so the nonce is inert to its logic.
         import json
+        import secrets
 
-        return json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode(
+        body = dict(payload)
+        body.setdefault("_nonce", secrets.token_hex(8))
+        return json.dumps(body, separators=(",", ":"), ensure_ascii=False).encode(
             "utf-8"
         )
