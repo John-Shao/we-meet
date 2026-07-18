@@ -6,7 +6,8 @@
     "info": "Meeting info",
     "summary": "Summary",
     "actionItems": "Action items",
-    "transcript": "Transcript"
+    "transcript": "Transcript",
+    "chapters": "Chapters"
   },
   "info": {
     "name": "Name",
@@ -59,5 +60,8 @@
     "enterMeeting": "Enter",
     "delete": "Delete",
     "deleteConfirm": "Delete \"{{name}}\"? If you own the meeting it will also be removed for everyone else."
+  },
+  "chapters": {
+    "empty": "No chapters yet — they are generated with the summary."
   }
 }

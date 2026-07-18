@@ -317,10 +317,28 @@ class ActionItemSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class SummaryChapterSerializer(serializers.ModelSerializer):
+    """纪要闭环 D1:智能章节(read-only,嵌在 Summary 里)。"""
+
+    class Meta:
+        model = models.SummaryChapter
+        fields = [
+            "id",
+            "title",
+            "digest",
+            "started_at",
+            "ended_at",
+            "sort_order",
+        ]
+        read_only_fields = fields
+
+
 class SummarySerializer(serializers.ModelSerializer):
     """Read-only serializer for the meeting detail page."""
 
     action_items = ActionItemSerializer(many=True, read_only=True)
+    # 纪要闭环 D2:三板块之三。旧客户端忽略新字段即可,无破坏性变更。
+    chapters = SummaryChapterSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Summary
@@ -334,6 +352,7 @@ class SummarySerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "action_items",
+            "chapters",
         ]
         read_only_fields = fields
 

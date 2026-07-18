@@ -6,7 +6,8 @@
     "info": "会议信息",
     "summary": "纪要",
     "actionItems": "行动项",
-    "transcript": "字幕记录"
+    "transcript": "字幕记录",
+    "chapters": "智能章节"
   },
   "info": {
     "name": "会议名称",
@@ -59,5 +60,8 @@
     "enterMeeting": "进入会议",
     "delete": "删除",
     "deleteConfirm": "确定要删除「{{name}}」吗？若您是该会议的发起人，将同时删除所有人的此条记录。"
+  },
+  "chapters": {
+    "empty": "暂无章节——章节随纪要一起生成。"
   }
 }

@@ -6,7 +6,8 @@
     "info": "Info",
     "summary": "Samenvatting",
     "actionItems": "Actiepunten",
-    "transcript": "Transcriptie"
+    "transcript": "Transcriptie",
+    "chapters": "Hoofdstukken"
   },
   "info": {
     "name": "Naam",
@@ -53,5 +54,8 @@
     "untitled": "(Vergadering zonder titel)",
     "showAll": "Alles tonen ({{count}})",
     "collapse": "Inklappen"
+  },
+  "chapters": {
+    "empty": "Nog geen hoofdstukken — ze worden met de samenvatting gegenereerd."
   }
 }

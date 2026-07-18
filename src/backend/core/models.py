@@ -1576,6 +1576,47 @@ class ActionItem(BaseModel):
         return f"{owner}{self.content[:80]}"
 
 
+class SummaryChapter(BaseModel):
+    """智能章节(纪要闭环 P0-3 D1):LLM 按话题切分的会议时间轴段落。
+
+    与 ActionItem 同生命周期——``_persist`` 事务内全删重建,regen 幂等。
+    时间窗来自转写时间戳(``[HH:MM:SS]`` 由 LLM 回填,服务端按转写首条
+    日期锚点还原为 aware datetime,跨零点单调修正)。
+    """
+
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name="summary_chapters",
+        verbose_name=_("room"),
+    )
+    summary = models.ForeignKey(
+        Summary,
+        on_delete=models.CASCADE,
+        related_name="chapters",
+        verbose_name=_("summary"),
+    )
+    title = models.CharField(_("title"), max_length=200)
+    digest = models.TextField(
+        _("digest"),
+        blank=True,
+        default="",
+        help_text=_("1-3 sentence gist of this chapter."),
+    )
+    started_at = models.DateTimeField(_("started at"), null=True, blank=True)
+    ended_at = models.DateTimeField(_("ended at"), null=True, blank=True)
+    sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
+
+    class Meta:
+        db_table = "meet_summary_chapter"
+        verbose_name = _("summary chapter")
+        verbose_name_plural = _("summary chapters")
+        ordering = ("room", "sort_order", "created_at")
+
+    def __str__(self) -> str:
+        return f"Chapter({self.sort_order}, {self.title[:40]})"
+
+
 class TranscriptChunk(BaseModel):
     """A retrieval unit for cross-meeting RAG (Sprint 2.4).
 

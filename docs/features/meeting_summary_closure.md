@@ -1,6 +1,6 @@
 # 会议纪要闭环打磨(P0-3)— 设计文档
 
-状态:设计待拍板(先评审,拍板再开干)
+状态:M1 已完成(2026-07-18,AI 线随 foundation 收口恢复);M2/M3 待 §8 拍板
 对标:飞书 AI Notes(自评 M4)、钉钉 AI听记 8.1.5 图文纪要
 调研依据:`docs/research/competitor-gap-feishu-wecom-dingtalk-2026-07.md` §五 P0-3
 
@@ -146,6 +146,14 @@ edited_at = models.DateTimeField(null=True, blank=True)
 | M1 | D1 章节 + D2 Web 三板块 + D4 卡片正文(群路由) | 无 |
 | M2 | D3 可编辑 + 审计 | M1 |
 | M3 | D4 私聊路由(灰度开关)+ Android 章节渲染 | M1;jusi direct 会话 admin 建会话能力确认 |
+
+**M1 实施注记(2026-07-18)**:SummaryChapter(迁移 0059)+ 第三次 LLM 调用(软失败,
+防御式解析同 `_parse_action_items`,HH:MM:SS 锚定转写首条日期、跨零点单调修正,硬上限
+12 章);`_persist` 事务内与 ActionItem 同款全删重建;`SummarySerializer` 嵌套 chapters
+(旧客户端忽略);推送正文 `_summary_card_body`(标题+前 3 条要点合计截 120 字+行动项/
+章节计数+链接,零 LLM 成本);Web `MeetingDetail` 新增「智能章节」Tab(时间轴+标题+要点,
+本期仅展示)。**D5 偏差**:章节提示词与另两条同为内置常量——AIPrompt 实为助手侧用户可见
+目录(label/content 平铺),塞系统提示词会污染目录;三条提示词配置化留待统一收编。
 
 ## 8. 开放问题(拍板项)
 

@@ -6,7 +6,8 @@
     "info": "Infos",
     "summary": "Zusammenfassung",
     "actionItems": "Maßnahmen",
-    "transcript": "Transkript"
+    "transcript": "Transkript",
+    "chapters": "Kapitel"
   },
   "info": {
     "name": "Name",
@@ -53,5 +54,8 @@
     "untitled": "(Besprechung ohne Titel)",
     "showAll": "Alle anzeigen ({{count}})",
     "collapse": "Einklappen"
+  },
+  "chapters": {
+    "empty": "Noch keine Kapitel — sie werden mit der Zusammenfassung erzeugt."
   }
 }

@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+from datetime import datetime, timedelta
 from typing import Optional
 
 from django.conf import settings
@@ -27,6 +29,7 @@ from core.models import (
     RoleChoices,
     Room,
     Summary,
+    SummaryChapter,
     Transcript,
 )
 from core.services.llm_client import LLMClient, LLMUnavailable
@@ -46,6 +49,25 @@ _SUMMARY_SYSTEM = (
     "3. 忠实于字幕原文，不要凭空补充信息。\n"
     "4. 字幕语言以中文为主时，纪要输出中文；以英文为主时，输出英文；混合时，"
     "默认中文。"
+)
+
+# 纪要闭环 P0-3 D1:智能章节。与另两条提示词同为内置常量(D5 原拟进 AIPrompt,
+# 但 AIPrompt 是助手侧的用户可见目录,塞系统提示词会污染目录——三条统一保持常量,
+# 配置化留待统一收编)。
+_CHAPTERS_SYSTEM = (
+    "你是会议章节划分助手。把下面带时间戳的会议字幕按**话题**切成 3-8 个章节。"
+    "输出**严格 JSON**,schema:\n"
+    "{\n"
+    '  "chapters": [\n'
+    '    {"title": "<章节标题,≤20字>", "digest": "<1-3句要点>",'
+    ' "start": "HH:MM:SS", "end": "HH:MM:SS"}\n'
+    "  ]\n"
+    "}\n"
+    "规则:\n"
+    "1. 必须返回合法 JSON,不要任何额外文字/解释/Markdown 代码块。\n"
+    "2. start/end 取该话题在字幕中的起止时间戳,按出现顺序排列、不重叠。\n"
+    "3. 字幕过短或无法划分时返回 ``{\"chapters\": []}``。\n"
+    "4. 标题与要点语言跟随字幕主要语言。"
 )
 
 _ACTION_ITEMS_SYSTEM = (
@@ -129,10 +151,22 @@ class MeetingSummaryService:
             logger.exception("LLM action-items call failed for room %s", room.id)
             items = []  # Soft failure: keep the summary, lose the items.
 
+        # 纪要闭环 D1:第三次调用抽智能章节。同样软失败——章节抽取失败
+        # 不影响摘要/行动项落库。
+        try:
+            chapters_raw = client.chat_json(
+                system=_CHAPTERS_SYSTEM, user=formatted, temperature=0.2
+            )
+            chapters = self._parse_chapters(chapters_raw, transcripts)
+        except Exception:  # noqa: BLE001
+            logger.exception("LLM chapters call failed for room %s", room.id)
+            chapters = []
+
         summary = self._persist(
             room=room,
             summary_text=summary_text,
             items=items,
+            chapters=chapters,
             transcripts=transcripts,
             model_used=client.model,
         )
@@ -203,6 +237,102 @@ class MeetingSummaryService:
             )
         return cleaned
 
+    def _parse_chapters(
+        self, raw: str, transcripts: list[Transcript]
+    ) -> list[dict]:
+        """Best-effort chapters JSON parse(纪要闭环 D1)。
+
+        防御口径与 ``_parse_action_items`` 一致:剥 Markdown 围栏、逐字段
+        清洗;时间戳 ``HH:MM:SS`` 以转写首条 ``started_at`` 的日期为锚点
+        还原为 aware datetime,跨零点按单调递增修正;非法时间置 None 不弃行。
+        """
+        if not raw:
+            return []
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            stripped = stripped.strip("`").lstrip("json").strip()
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            logger.warning("Chapters JSON parse failed; raw=%r", raw[:200])
+            return []
+        chapters = payload.get("chapters") if isinstance(payload, dict) else None
+        if not isinstance(chapters, list):
+            return []
+
+        anchor = transcripts[0].started_at if transcripts else None
+        prev: Optional[datetime] = None
+
+        def to_dt(value: object) -> Optional[datetime]:
+            nonlocal prev
+            if anchor is None or not isinstance(value, str):
+                return None
+            if not re.fullmatch(r"\d{1,2}:\d{2}:\d{2}", value.strip()):
+                return None
+            h, m, s = (int(x) for x in value.strip().split(":"))
+            if h > 23 or m > 59 or s > 59:
+                return None
+            dt = anchor.replace(hour=h, minute=m, second=s, microsecond=0)
+            # 跨零点:比上一个时间点早 = 已过午夜,顺延一天(单调修正)。
+            while prev is not None and dt < prev:
+                dt += timedelta(days=1)
+            prev = dt
+            return dt
+
+        cleaned: list[dict] = []
+        for chapter in chapters:
+            if not isinstance(chapter, dict):
+                continue
+            title = str(chapter.get("title") or "").strip()[:200]
+            if not title:
+                continue
+            cleaned.append(
+                {
+                    "title": title,
+                    "digest": str(chapter.get("digest") or "").strip(),
+                    "started_at": to_dt(chapter.get("start")),
+                    "ended_at": to_dt(chapter.get("end")),
+                }
+            )
+            if len(cleaned) >= 12:  # 防御:提示词要求 3-8 个,硬上限 12
+                break
+        return cleaned
+
+    @staticmethod
+    def _summary_card_body(room: Room, summary: Summary, link: str) -> str:
+        """卡片式推送正文(纪要闭环 D4,纯字符串处理零 LLM 成本):
+
+        标题 + 摘要前几条要点(合计截 ~120 字)+ 行动项/章节计数 + 链接。
+        """
+        bullets: list[str] = []
+        total = 0
+        for line in (summary.content or "").splitlines():
+            text = line.strip()
+            if not re.match(r"^([-*•]|\d+[.、])\s*", text):
+                continue
+            text = re.sub(r"^([-*•]|\d+[.、])\s*", "", text).strip()
+            text = re.sub(r"[*_`#]", "", text)  # 去 Markdown 强调符
+            if not text:
+                continue
+            if total + len(text) > 120:
+                text = text[: max(0, 120 - total)]
+                if text:
+                    bullets.append(f"· {text}…")
+                break
+            bullets.append(f"· {text}")
+            total += len(text)
+            if len(bullets) >= 3:
+                break
+
+        items_count = summary.action_items.count()
+        chapters_count = summary.chapters.count()
+        name = getattr(room, "name", "") or "会议"
+        lines = [f"📋 「{name}」会议纪要"]
+        lines.extend(bullets)
+        lines.append(f"✅ 行动项 {items_count} 条 · 📑 章节 {chapters_count} 个")
+        lines.append(link)
+        return "\n".join(lines)
+
     def _push_summary_to_im(self, room: Room, summary: Summary) -> None:
         """Post a `📋 会议纪要已生成: <url>` system message into the room's IM group.
 
@@ -237,7 +367,8 @@ class MeetingSummaryService:
         if base and not base.endswith("/"):
             base += "/"
         link = f"{base}meetings/{room.id}" if base else str(room.id)
-        body = f"📋 会议纪要已生成: {link}"
+        # 纪要闭环 D4:纯文本协议内的卡片式正文(标题+要点+计数+链接)。
+        body = self._summary_card_body(room, summary, link)
 
         client = JusiImAdminClient(
             api_url=str(cfg["api_url"]),
@@ -354,6 +485,7 @@ class MeetingSummaryService:
         items: list[dict],
         transcripts: list[Transcript],
         model_used: str,
+        chapters: Optional[list[dict]] = None,
     ) -> Summary:
         summary, _ = Summary.objects.update_or_create(
             room=room,
@@ -375,10 +507,23 @@ class MeetingSummaryService:
                 due_text=item["due"],
                 sort_order=index,
             )
+        # 纪要闭环 D1:章节与行动项同语义——全删重建,regen 幂等。
+        SummaryChapter.objects.filter(room=room).delete()
+        for index, chapter in enumerate(chapters or []):
+            SummaryChapter.objects.create(
+                room=room,
+                summary=summary,
+                title=chapter["title"],
+                digest=chapter["digest"],
+                started_at=chapter["started_at"],
+                ended_at=chapter["ended_at"],
+                sort_order=index,
+            )
         logger.info(
-            "Generated summary for room %s — %d action items, %d transcripts",
+            "Generated summary for room %s — %d action items, %d chapters, %d transcripts",
             room.id,
             len(items),
+            len(chapters or []),
             len(transcripts),
         )
         return summary

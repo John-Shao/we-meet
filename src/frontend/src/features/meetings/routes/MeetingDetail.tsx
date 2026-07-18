@@ -113,6 +113,75 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
   )
 }
 
+/** 纪要闭环 D2:智能章节板块(时间轴 + 标题 + 要点;本期仅展示,不做跳转)。 */
+const ChaptersTab = ({ roomId }: { roomId: string }) => {
+  const { t, i18n } = useTranslation('meetings')
+  const { data, isLoading, error } = useMeetingSummary(roomId)
+
+  if (isLoading) return <Text>{t('loading')}</Text>
+  if (error?.statusCode === 404) return <Text>{t('chapters.empty')}</Text>
+  const chapters = data?.chapters ?? []
+  if (chapters.length === 0) return <Text>{t('chapters.empty')}</Text>
+
+  const fmt = (iso: string | null) =>
+    iso
+      ? new Date(iso).toLocaleTimeString(i18n.language, {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : ''
+
+  return (
+    <ol
+      className={css({
+        listStyle: 'none',
+        padding: 0,
+        margin: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.875rem',
+      })}
+    >
+      {chapters.map((chapter) => (
+        <li
+          key={chapter.id}
+          className={css({
+            display: 'flex',
+            gap: '0.75rem',
+            alignItems: 'flex-start',
+          })}
+        >
+          <span
+            className={css({
+              flexShrink: 0,
+              minWidth: '7.5rem',
+              fontFamily: 'monospace',
+              fontSize: '0.8125rem',
+              color: 'greyscale.500',
+              paddingTop: '0.125rem',
+            })}
+          >
+            {chapter.started_at
+              ? `${fmt(chapter.started_at)}${chapter.ended_at ? ` – ${fmt(chapter.ended_at)}` : ''}`
+              : '—'}
+          </span>
+          <div>
+            <Text bold>{chapter.title}</Text>
+            {chapter.digest && (
+              <Text
+                variant="note"
+                className={css({ marginTop: '0.125rem', display: 'block' })}
+              >
+                {chapter.digest}
+              </Text>
+            )}
+          </div>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 const ActionItemsTab = ({ roomId }: { roomId: string }) => {
   const { t } = useTranslation('meetings')
   const { data, isLoading, isError } = useMeetingActionItems(roomId)
@@ -375,6 +444,7 @@ export const MeetingDetail = () => {
                 <Tab id="info">{t('tabs.info')}</Tab>
                 <Tab id="summary">{t('tabs.summary')}</Tab>
                 <Tab id="action-items">{t('tabs.actionItems')}</Tab>
+                <Tab id="chapters">{t('tabs.chapters')}</Tab>
                 <Tab id="transcript">{t('tabs.transcript')}</Tab>
               </TabList>
               <TabPanel id="info" padding="md">
@@ -385,6 +455,9 @@ export const MeetingDetail = () => {
               </TabPanel>
               <TabPanel id="action-items" padding="md">
                 <ActionItemsTab roomId={roomId} />
+              </TabPanel>
+              <TabPanel id="chapters" padding="md">
+                <ChaptersTab roomId={roomId} />
               </TabPanel>
               <TabPanel id="transcript" padding="md">
                 <TranscriptTab roomId={roomId} />

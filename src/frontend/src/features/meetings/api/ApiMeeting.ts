@@ -20,6 +20,16 @@ export interface ApiActionItem {
   created_at: string
 }
 
+/** 纪要闭环 D1:智能章节(时间窗可空——LLM 未回填合法时间戳时仅展示标题要点)。 */
+export interface ApiSummaryChapter {
+  id: string
+  title: string
+  digest: string
+  started_at: string | null
+  ended_at: string | null
+  sort_order: number
+}
+
 export interface ApiSummary {
   id: string
   content: string
@@ -30,6 +40,8 @@ export interface ApiSummary {
   created_at: string
   updated_at: string
   action_items: ApiActionItem[]
+  /** 纪要闭环 D2:三板块之三(旧后端无此字段,可空兜底)。 */
+  chapters?: ApiSummaryChapter[]
 }
 
 export interface ApiRecentMeeting {
