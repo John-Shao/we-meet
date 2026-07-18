@@ -47,7 +47,11 @@ export interface CreateEventPayload {
   attendee_ids?: string[]
   description?: string
   timezone?: string
-  /** P2-M1: RRULE 串(如 FREQ=WEEKLY;UNTIL=20261231T235959Z),空/缺省=单次。 */
+  /**
+   * P2-M1: RRULE 串,空/缺省=单次。UNTIL 必须用「浮动本地时刻」(无 Z,如
+   * `FREQ=WEEKLY;UNTIL=20261231T235959`)——后端按事件时区墙上钟展开,dateutil
+   * 在 naive dtstart 下会拒绝带 Z 的 UTC 形式(400)。见 composeRRule。
+   */
   recurrence?: string
 }
 
