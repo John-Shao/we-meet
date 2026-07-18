@@ -21,6 +21,7 @@
     "aiMoreSources": "More sources ({{count}})",
     "aiDegraded": "AI answering is temporarily unavailable — here are the matching results found for you.",
     "aiError": "Request failed. Please try again.",
+    "aiQuota": "Too many requests or daily limit reached — try again later.",
     "docs": "Docs",
     "aiImUnavailable": "Chat messages were not included this time."
   },

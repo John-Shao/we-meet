@@ -113,6 +113,29 @@ class GlobalSearchAIRateThrottle(MonitoredUserRateThrottle):
         }
 
 
+class GlobalSearchAIDailyThrottle(MonitoredUserRateThrottle):
+    """P1-4 M3 成本护栏:AI 问答 per-user 日上限(免费开放的第五道闸)。
+
+    额度由 ``GLOBAL_ASK_DAILY_LIMIT`` 配置(0 = 不限,rate None 直接放行)。
+    与 ``global_search_ai`` 的 10/min 突发限流叠加:前者防脚本轰炸,本限
+    防全天挂机烧钱。窗口语义为 DRF 滚动 24h,非自然日,足够护栏用途。
+    """
+
+    scope = "global_search_ai_daily"
+
+    def get_rate(self):
+        limit = int(getattr(settings, "GLOBAL_ASK_DAILY_LIMIT", 0) or 0)
+        return f"{limit}/day" if limit > 0 else None
+
+    def get_cache_key(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return None
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": str(request.user.pk),
+        }
+
+
 class PersonalAIRateThrottle(MonitoredUserRateThrottle):
     """Per-user throttle for the cross-meeting (personal) AI endpoint.
 

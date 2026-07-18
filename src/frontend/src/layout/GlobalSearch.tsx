@@ -713,7 +713,8 @@ const AiPanel = ({
             marginBottom: '0.5rem',
           })}
         >
-          {t('search.aiError')}
+          {/* 429 = 限流(10/min 突发或日 quota),给专属文案而非笼统失败。 */}
+          {state.error === '429' ? t('search.aiQuota') : t('search.aiError')}
         </div>
       )}
       {/* M2 拍板③:IM 源缺席弱提示(jusi 不可达/无 IM 身份),不弹窗不报错。 */}

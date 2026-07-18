@@ -21,6 +21,7 @@
     "aiMoreSources": "Weitere Quellen ({{count}})",
     "aiDegraded": "KI-Antwort vorübergehend nicht verfügbar — hier sind die gefundenen Treffer.",
     "aiError": "Anfrage fehlgeschlagen. Bitte erneut versuchen.",
+    "aiQuota": "Zu viele Anfragen oder Tageslimit erreicht — bitte später erneut versuchen.",
     "docs": "Dokumente",
     "aiImUnavailable": "Chatnachrichten wurden diesmal nicht einbezogen."
   },

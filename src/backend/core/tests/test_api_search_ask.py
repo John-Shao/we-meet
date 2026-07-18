@@ -283,6 +283,61 @@ def test_endpoint_404_when_flag_off(settings):
     assert resp.status_code == 404
 
 
+_CANNED_RESULT = {
+    "answer": "ok",
+    "citations": [],
+    "citations_used": [],
+    "sources": {},
+    "model_used": "ep",
+    "degraded": False,
+}
+
+
+def test_daily_quota_429_and_zero_unlimited(settings):
+    """M3 成本护栏:超日限 429;GLOBAL_ASK_DAILY_LIMIT=0 完全放行。"""
+    settings.GLOBAL_ASK_DAILY_LIMIT = 2
+    user = factories.UserFactory()
+    client = APIClient()
+    client.force_login(user)
+    with mock.patch.object(GlobalAskService, "ask", return_value=_CANNED_RESULT):
+        for _ in range(2):
+            resp = client.post(
+                "/api/v1.0/search/ask/", {"question": "hi"}, format="json"
+            )
+            assert resp.status_code == 200
+        resp = client.post(
+            "/api/v1.0/search/ask/", {"question": "hi"}, format="json"
+        )
+        assert resp.status_code == 429
+
+        # 0 = 不限:rate=None 恒放行(换新用户避免沿用已满的计数;不能
+        # cache.clear()——测试的 session 也存 cache,清了会 401)。
+        settings.GLOBAL_ASK_DAILY_LIMIT = 0
+        other = factories.UserFactory()
+        client2 = APIClient()
+        client2.force_login(other)
+        for _ in range(3):
+            resp = client2.post(
+                "/api/v1.0/search/ask/", {"question": "hi"}, format="json"
+            )
+            assert resp.status_code == 200
+
+
+def test_ask_eval_command_smoke(tmp_path):
+    """评测 harness 冒烟:空库全罐头(零 LLM 调用),报告结构完整。"""
+    from django.core.management import call_command
+
+    factories.UserFactory(email="eval@example.com")
+    out = tmp_path / "report.md"
+    call_command("ask_eval", "--user", "eval@example.com", "--output", str(out))
+    text = out.read_text(encoding="utf-8")
+    assert "评测报告" in text
+    assert "| t1 |" in text
+    assert "| n2 |" in text
+    # 空库:期望源必然未命中,但负例的罐头判定应为真。
+    assert "罐头" in text
+
+
 def test_keywords_extraction_shapes():
     kws = GlobalAskService._keywords('查一下"季度预算"和 OKR2026 的进展')
     assert "季度预算" in kws  # 引号短语优先

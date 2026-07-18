@@ -1,7 +1,13 @@
 # 全局搜索 AI 化(P1-4)— 设计文档
 
-状态:M1+M2 已完成,M3 客户端部分已完成(2026-07-18);M3 剩余=评测集/
-pro-lite 对比/日 quota(均需线上数据)。
+状态:M1+M2+M3 机制全部落地(2026-07-18);剩余为纯运营动作——生产实跑
+`ask_eval` 评测、开通 lite ep 后跑对比、看量调 `GLOBAL_ASK_DAILY_LIMIT`。
+M3 收口注记:①评测 harness=`python manage.py ask_eval --user <email/phone>
+[--endpoint ep] [--output r.md]`,内置 20 问(字幕6/日历4/纪要3/IM3/跨源2/
+负例2),盯 期望源召回率/[n] 标记纪律/耗时/degraded/罐头误放行,pro-lite
+对比换 --endpoint 跑两遍;②日 quota=`GLOBAL_ASK_DAILY_LIMIT`(默认 100/滚动
+24h,0=不限,环境变量热调参)叠加在 10/min 之上,超限 429,双端专属文案
+(Web search.aiQuota / App im_search_ai_quota)。
 M3(Web)实施注记:`/calendar?event=` 事件级定位已落地——calendar citation
 带 `event_id`(重复系列=最近场次的具体行),chip 跳 `?d=…&event=…`;
 CalendarRoute 窗口数据到位后自动开该事件详情弹窗,超窗/无权限/已删则静默
@@ -317,14 +323,15 @@ prompt 声明「节内已按相关度排序,节间不可比」。预算:6400+120
 |---|---|
 | M1 | 进程内三源(A 字幕+C 日历+D 纪要)+ 完整动线(快捷行/AI 标签/三类跳转/`/calendar?d=`)+ throttle/flag 双端 + `GLOBAL_ASK_LLM_ENDPOINT` 配置键 + D7 兜底全套 |
 | M2 | IM 源(B:im_uid 解析链/≤3 线程并发/2s 超时/text·quote 过滤)+ 缺源弱提示 UI + jusi 断网验收 |
-| M3 | 20 问评测集(各源命中率 + pro vs lite 标记纪律/首 token/成本对比)、per-user 日上限评估、Android(已完成)、`/calendar?event=` 事件级定位(已完成)、纪要向量化(仅当 icontains 被证明瓶颈) |
+| M3 | 20 问评测集(harness `ask_eval` 已落地,生产实跑待部署)、per-user 日上限(已落地,默认 100/天可调)、Android(已完成)、`/calendar?event=` 事件级定位(已完成)、纪要向量化(仅当 icontains 被证明瓶颈) |
 
 ## 8. 开放问题(拍板项)
 
 已落定(2026-07-18 评审):①IM 进检索源、无组织开关;②M1 三源/M2 IM;③LLM 选型
 =默认 pro-32k+独立配置键(D6);④LLM 兜底=检索结果模式+熔断(D7)。
 
-待拍板:
-1. 快捷行文案与 AI 标签名(「AI 问答」vs「智能搜索」,五语文案随之)。
-2. M3 的 per-user 日上限阈值(免费开放的成本护栏,上线看量再定)。
-3. IM 源(M2)上线时「消息来源暂不可用」UI 弱提示的形态(建议要,弱文案不弹窗)。
+已全部落定:
+1. 标签名=「AI 问答」,快捷行「✨ 向 AI 提问:{q}」(M1 实现即定,五语已铺)。
+2. per-user 日上限:机制已实现(`GLOBAL_ASK_DAILY_LIMIT` 默认 100/滚动 24h,
+   0=不限,超限 429 双端专属文案);具体阈值上线看量经环境变量调参,无需发版。
+3. IM 缺源弱提示=行内弱文案不弹窗(M2 实现即定,双端已上)。

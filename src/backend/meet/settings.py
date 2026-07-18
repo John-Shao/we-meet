@@ -888,6 +888,11 @@ class Base(Configuration):
     GLOBAL_SEARCH_AI_ENABLED = values.BooleanValue(
         True, environ_name="GLOBAL_SEARCH_AI_ENABLED", environ_prefix=None
     )
+    # P1-4 M3 成本护栏:AI 问答 per-user 日上限(0 = 不限)。与 10/min
+    # 突发限流叠加;上线看量可经环境变量调参,无需发版(§8 开放问题 2)。
+    GLOBAL_ASK_DAILY_LIMIT = values.PositiveIntegerValue(
+        100, environ_name="GLOBAL_ASK_DAILY_LIMIT", environ_prefix=None
+    )
     # Sprint 2.4 — Doubao text embedding endpoint (Ark /v1/embeddings).
     # Optional: when unset, the embedding pipeline silently skips, the
     # personal AI endpoint returns the misconfig error.

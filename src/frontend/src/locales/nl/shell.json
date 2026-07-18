@@ -21,6 +21,7 @@
     "aiMoreSources": "Meer bronnen ({{count}})",
     "aiDegraded": "AI-antwoord tijdelijk niet beschikbaar — dit zijn de gevonden resultaten.",
     "aiError": "Verzoek mislukt. Probeer opnieuw.",
+    "aiQuota": "Te veel verzoeken of daglimiet bereikt — probeer het later opnieuw.",
     "docs": "Documenten",
     "aiImUnavailable": "Chatberichten zijn deze keer niet meegenomen."
   },

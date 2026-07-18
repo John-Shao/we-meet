@@ -30,7 +30,10 @@ class GlobalAskView(APIView):
     """一次性问答。Body ``{"question": "..."}``(≤500 字,单轮)。"""
 
     permission_classes = [permissions.IsAuthenticated]
-    throttle_classes = [throttling.GlobalSearchAIRateThrottle]
+    throttle_classes = [
+        throttling.GlobalSearchAIRateThrottle,
+        throttling.GlobalSearchAIDailyThrottle,
+    ]
 
     @FeatureFlag.require("search_ai")
     def post(self, request):
@@ -105,7 +108,10 @@ class GlobalAskStreamView(APIView):
     ``done{degraded: true}``——前端转「检索结果模式」(§D7)。"""
 
     permission_classes = [permissions.IsAuthenticated]
-    throttle_classes = [throttling.GlobalSearchAIRateThrottle]
+    throttle_classes = [
+        throttling.GlobalSearchAIRateThrottle,
+        throttling.GlobalSearchAIDailyThrottle,
+    ]
     renderer_classes = [ServerSentEventRenderer]
 
     @FeatureFlag.require("search_ai")

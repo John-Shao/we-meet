@@ -21,6 +21,7 @@
     "aiMoreSources": "Autres sources ({{count}})",
     "aiDegraded": "Réponse IA momentanément indisponible — voici les résultats trouvés pour vous.",
     "aiError": "Échec de la requête. Réessayez.",
+    "aiQuota": "Trop de requêtes ou limite quotidienne atteinte — réessayez plus tard.",
     "docs": "Documents",
     "aiImUnavailable": "Les messages de discussion n’ont pas été inclus cette fois."
   },
