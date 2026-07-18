@@ -20,7 +20,8 @@
     "aiMoreSources": "更多来源({{count}})",
     "aiDegraded": "AI 回答暂不可用——以下是为你检索到的相关内容。",
     "aiError": "请求失败,请稍后重试。",
-    "docs": "文档"
+    "docs": "文档",
+    "aiImUnavailable": "本次未包含聊天消息来源。"
   },
   "logout": "退出登录",
   "confirm": "确定",

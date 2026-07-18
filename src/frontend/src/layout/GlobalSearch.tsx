@@ -633,6 +633,19 @@ const AiPanel = ({
           {t('search.aiError')}
         </div>
       )}
+      {/* M2 拍板③:IM 源缺席弱提示(jusi 不可达/无 IM 身份),不弹窗不报错。 */}
+      {settled && state.sources.im === 'skipped' && !state.degraded && (
+        <div
+          className={css({
+            fontSize: '0.75rem',
+            color: 'greyscale.500',
+            marginBottom: '0.375rem',
+          })}
+          data-testid="global-search-ai-im-skipped"
+        >
+          {t('search.aiImUnavailable')}
+        </div>
+      )}
 
       {state.answer && (
         <div className={aiAnswerCls}>

@@ -346,3 +346,100 @@ def test_docs_search_unreachable_returns_empty(settings):
         resp = client.get("/api/v1.0/docs/search/?q=预算")
     assert resp.status_code == 200
     assert resp.json() == {"results": []}
+
+
+# ---- P1-4 M2:IM 消息源 ----
+
+
+def _im_client_mock(items_by_q):
+    client = mock.Mock()
+    client.search_messages.side_effect = lambda uid, q, limit: {
+        "items": items_by_q.get(q, [])
+    }
+    return client
+
+
+def test_im_recall_uses_caller_uid_dedupes_and_filters_types():
+    user = factories.UserFactory()
+    user.im_uid = "im-uid-caller"
+    user.save(update_fields=["im_uid"])
+    sender = factories.UserFactory(full_name="张三")
+    sender.im_uid = "im-uid-sender"
+    sender.save(update_fields=["im_uid"])
+
+    items_by_q = {
+        "预算": [
+            {"mid": 1, "cid": "c1", "seq": 10, "sender_uid": "im-uid-sender",
+             "content_type": "text", "body": "预算明天定", "created_at": 1752800000000},
+            {"mid": 2, "cid": "c1", "seq": 11, "sender_uid": "im-uid-sender",
+             "content_type": "image", "body": "{\"key\":\"chat/x.png\"}",
+             "created_at": 1752800001000},
+        ],
+        "报表": [
+            {"mid": 1, "cid": "c1", "seq": 10, "sender_uid": "im-uid-sender",
+             "content_type": "text", "body": "预算明天定", "created_at": 1752800000000},
+            {"mid": 3, "cid": "c2", "seq": 5, "sender_uid": "im-uid-sender",
+             "content_type": "quote",
+             "body": "{\"text\": \"报表引用正文\", \"quote_mid\": 9}",
+             "created_at": 1752800002000},
+        ],
+    }
+    fake_client = _im_client_mock(items_by_q)
+
+    svc = GlobalAskService(embed=_fake_embed(), llm=_fake_llm())
+    citations: list = []
+    with mock.patch(
+        "core.services.jusi_im.JusiImAdminClient", return_value=fake_client
+    ):
+        entries = svc._recall_im(user, ["预算", "报表"], citations)
+
+    # uid 只来自调用者(缓存的 im_uid,零 issue_token)。
+    for call in fake_client.search_messages.call_args_list:
+        assert call.kwargs["uid"] == "im-uid-caller"
+    # mid=1 去重;image 滤掉;quote 取 JSON.text → 共 2 条。
+    assert entries is not None and len(entries) == 2
+    kinds = {c["kind"] for c in citations}
+    assert kinds == {"im"}
+    assert citations[0]["title"] == "张三"  # 本地 im_uid 反查显示名
+    assert {c["cid"] for c in citations} == {"c1", "c2"}
+    assert "报表引用正文" in entries[1]
+
+
+def test_im_recall_skipped_when_unconfigured(settings):
+    settings.JUSI_IM_CONFIGURATION = {}
+    user = factories.UserFactory()
+    svc = GlobalAskService(embed=_fake_embed(), llm=_fake_llm())
+    assert svc._recall_im(user, ["预算"], []) is None
+
+
+def test_im_recall_skipped_when_all_calls_fail():
+    user = factories.UserFactory()
+    user.im_uid = "im-uid-caller"
+    user.save(update_fields=["im_uid"])
+    fake_client = mock.Mock()
+    fake_client.search_messages.side_effect = RuntimeError("down")
+
+    svc = GlobalAskService(embed=_fake_embed(), llm=_fake_llm())
+    with mock.patch(
+        "core.services.jusi_im.JusiImAdminClient", return_value=fake_client
+    ):
+        assert svc._recall_im(user, ["预算", "报表"], []) is None
+
+
+def test_prepare_marks_im_skipped_but_other_sources_ok():
+    """jusi 挂 → 答案照出,meta.sources.im=skipped(§D7 缺源不拖垮整体)。"""
+    user = factories.UserFactory()
+    user.im_uid = "im-uid-caller"
+    user.save(update_fields=["im_uid"])
+    _room_with_chunk(user)
+    fake_client = mock.Mock()
+    fake_client.search_messages.side_effect = RuntimeError("down")
+
+    svc = GlobalAskService(embed=_fake_embed(), llm=_fake_llm())
+    with mock.patch(
+        "core.services.jusi_im.JusiImAdminClient", return_value=fake_client
+    ):
+        result = svc.ask(user=user, question="预算确认了吗")
+    assert result["sources"]["im"] == "skipped"
+    assert result["sources"]["transcripts"] == "ok"
+    assert result["degraded"] is False

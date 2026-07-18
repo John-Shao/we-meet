@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Iterator, Optional
 
 from django.conf import settings
@@ -88,6 +88,11 @@ _CAP_CALENDAR = 4
 _TRUNC_CAL_DESC = 150
 _CAP_SUMMARIES = 2
 _SNIPPET_WINDOW = 300  # 纪要命中位置 ± 窗口
+# 源B IM(M2):独立 2s 超时客户端,逐关键词 limit=5,≤3 线程,整源预算 ~2.5s。
+_CAP_IM = 6
+_TRUNC_IM = 200
+_IM_TIMEOUT_SECONDS = 2.0
+_IM_PER_KEYWORD_LIMIT = 5
 
 _CITATION_MARK_RE = re.compile(r"\[(\d{1,2})\]")
 
@@ -247,6 +252,18 @@ class GlobalAskService:
             logger.exception("global-ask transcripts source failed")
             sources["transcripts"] = "skipped"
 
+        # 源B IM(M2):调用顺序与 prompt 分节顺序一致,保证 [n] 分节内递增。
+        try:
+            im_entries = self._recall_im(user, keywords, citations)
+            if im_entries is None:
+                sources["im"] = "skipped"  # 未配置/无 IM 身份/jusi 全程不可达
+            else:
+                section_entries["im"] = im_entries
+                sources["im"] = "ok" if im_entries else "empty"
+        except Exception:  # noqa: BLE001
+            logger.exception("global-ask im source failed")
+            sources["im"] = "skipped"
+
         # 源C 日历。
         try:
             entries = self._recall_calendar(user, keywords, citations)
@@ -264,9 +281,6 @@ class GlobalAskService:
         except Exception:  # noqa: BLE001
             logger.exception("global-ask summaries source failed")
             sources["summaries"] = "skipped"
-
-        # 源B IM = M2(设计 §7);占位标注,前端可提前渲染来源图例。
-        sources["im"] = "skipped"
 
         canned = not citations
         llm_allowed = _circuit_allows_llm()
@@ -410,6 +424,148 @@ class GlobalAskService:
             )
             entries.append(f"[{n}] ({when})《{room_name}》{speaker}: {text}")
         return entries
+
+    # ----------------------------------------------------------------- 源B
+
+    def _recall_im(
+        self, user, keywords: list[str], citations: list[dict]
+    ) -> Optional[list[str]]:
+        """IM 消息召回(M2,§D1 源B)。
+
+        返回 ``None`` = 整源跳过(未配置/调用者无 IM 身份/jusi 全程不可达),
+        ``[]`` = 检索执行了但无命中。uid **只取调用者**(resolve_uid 缓存+
+        懒注册),会话成员关系即 jusi 服务端权限模型;仅 text/quote 进上下文。
+        """
+        if not keywords:
+            return []
+        cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None) or {}
+        if not cfg.get("api_url") or not cfg.get("admin_hmac_secret"):
+            return None
+
+        from core.services.im_provisioning import resolve_uid
+        from core.services.jusi_im import JusiImAdminClient
+
+        # 独立短超时客户端:默认 5s × 3 词串行最坏 15s 不可接受(§D1)。
+        client = JusiImAdminClient(
+            api_url=str(cfg["api_url"]),
+            admin_hmac_secret=str(cfg["admin_hmac_secret"]),
+            timeout_seconds=_IM_TIMEOUT_SECONDS,
+        )
+        try:
+            uid = resolve_uid(client, user)
+        except Exception:  # noqa: BLE001 — 解析失败=无 IM 身份,静默跳源
+            logger.warning("global-ask im uid resolve failed", exc_info=True)
+            return None
+        if not uid:
+            return None
+
+        from concurrent.futures import ThreadPoolExecutor
+
+        failures = 0
+
+        def search_one(kw: str) -> list[dict]:
+            nonlocal failures
+            try:
+                resp = client.search_messages(
+                    uid=uid, q=kw, limit=_IM_PER_KEYWORD_LIMIT
+                )
+                items = resp.get("items") if isinstance(resp, dict) else None
+                return items if isinstance(items, list) else []
+            except Exception:  # noqa: BLE001 — 单词失败不拖垮整源
+                failures += 1
+                logger.warning("global-ask im search failed for kw", exc_info=True)
+                return []
+
+        with ThreadPoolExecutor(max_workers=min(3, len(keywords))) as pool:
+            per_keyword = list(pool.map(search_one, keywords))
+        if failures == len(keywords):
+            return None  # jusi 全程不可达 → skipped 而非 empty
+
+        # 轮转交错(每个关键词轮流出一条)+ mid 去重 + 仅 text/quote。
+        seen_mids: set = set()
+        picked: list[dict] = []
+        for rank in range(_IM_PER_KEYWORD_LIMIT):
+            for items in per_keyword:
+                if len(picked) >= _CAP_IM:
+                    break
+                if rank >= len(items):
+                    continue
+                item = items[rank]
+                mid = item.get("mid")
+                if mid is None or mid in seen_mids:
+                    continue
+                body = self._im_body_text(item)
+                if body is None:
+                    continue
+                seen_mids.add(mid)
+                picked.append({**item, "_text": body})
+            if len(picked) >= _CAP_IM:
+                break
+        if not picked:
+            return []
+
+        # 发送者名:本地 im_uid 反查(零外部调用),查不到保留 uid。
+        sender_uids = {str(p.get("sender_uid") or "") for p in picked}
+        User = self._user_model()
+        names = {
+            u.im_uid: (u.full_name or "").strip() or u.im_uid
+            for u in User.objects.filter(im_uid__in=[s for s in sender_uids if s])
+        }
+
+        entries: list[str] = []
+        for item in picked:
+            sender_uid = str(item.get("sender_uid") or "")
+            sender = names.get(sender_uid) or sender_uid[:12] or "?"
+            text = item["_text"][:_TRUNC_IM]
+            created_ms = item.get("created_at") or 0
+            when = ""
+            date_iso = ""
+            try:
+                dt = datetime.fromtimestamp(
+                    int(created_ms) / 1000, tz=dt_timezone.utc
+                )
+                when = dt.strftime("%Y-%m-%d %H:%M")
+                date_iso = dt.date().isoformat()
+            except (TypeError, ValueError, OSError):
+                pass
+            n = len(citations) + 1
+            citations.append(
+                {
+                    "n": n,
+                    "kind": "im",
+                    "title": sender,
+                    "snippet": text[:80],
+                    "cid": str(item.get("cid") or ""),
+                    "seq": item.get("seq"),
+                    "date": date_iso,
+                }
+            )
+            prefix = f"({when}) " if when else ""
+            entries.append(f"[{n}] {prefix}{sender}: {text}")
+        return entries
+
+    @staticmethod
+    def _im_body_text(item: dict) -> Optional[str]:
+        """text 原文;quote 取 JSON.text;其余类型(图片/文件等)是噪音,跳过。"""
+        content_type = str(item.get("content_type") or "text")
+        body = str(item.get("body") or "")
+        if content_type == "text":
+            return body.strip() or None
+        if content_type == "quote":
+            try:
+                import json as _json
+
+                text = _json.loads(body).get("text")
+                return (str(text).strip() or None) if text else None
+            except (ValueError, AttributeError):
+                return None
+        return None
+
+    @staticmethod
+    def _user_model():
+        from django.contrib.auth import get_user_model
+
+        return get_user_model()
 
     # ----------------------------------------------------------------- 源C
 

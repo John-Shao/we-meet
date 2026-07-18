@@ -1,6 +1,13 @@
 # 全局搜索 AI 化(P1-4)— 设计文档
 
-状态:M1 已完成(2026-07-18);M2(IM 源)待启动。M1 实施注记:后端
+状态:M1+M2 已完成(2026-07-18);M3(评测集/模型对比/日 quota/Android)待启动。
+M2 实施注记:`_recall_im` 按 §D1 源B 全量落地——uid 只取调用者(resolve_uid
+缓存+懒注册,失败=无 IM 身份静默跳源)、独立 2s 超时 JusiImAdminClient、≤3 线程
+逐关键词 limit=5、轮转交错 + mid 去重、仅 text/quote(quote 取 JSON.text)、
+发送者名本地 im_uid 反查;**skipped 语义**=未配置/无身份/全部关键词调用失败
+(与 empty 区分);前端 done 后 IM 缺席弱提示(拍板③,灰字不弹窗)。调用顺序
+与 prompt 分节一致保证 [n] 分节内递增。测试 +4(uid 断言/扇出去重与类型过滤/
+未配置与全挂 skipped/缺源不拖垮整体),19 条全过。M1 实施注记:后端
 `core/services/global_ask.py` + `core/api/search.py` 按 §D1-D7 全量落地
 (三源/引用契约/熔断/检索结果模式/独立 ep 配置键/flag 双端 gate/throttle),
 测试 12 条(权限跨用户负例×3/罐头零调用/熔断/引用提取/流契约/端点 gate)全过;

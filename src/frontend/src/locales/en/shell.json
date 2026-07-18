@@ -20,7 +20,8 @@
     "aiMoreSources": "More sources ({{count}})",
     "aiDegraded": "AI answering is temporarily unavailable — here are the matching results found for you.",
     "aiError": "Request failed. Please try again.",
-    "docs": "Docs"
+    "docs": "Docs",
+    "aiImUnavailable": "Chat messages were not included this time."
   },
   "logout": "Sign out",
   "confirm": "Confirm",

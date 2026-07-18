@@ -20,7 +20,8 @@
     "aiMoreSources": "Weitere Quellen ({{count}})",
     "aiDegraded": "KI-Antwort vorübergehend nicht verfügbar — hier sind die gefundenen Treffer.",
     "aiError": "Anfrage fehlgeschlagen. Bitte erneut versuchen.",
-    "docs": "Dokumente"
+    "docs": "Dokumente",
+    "aiImUnavailable": "Chatnachrichten wurden diesmal nicht einbezogen."
   },
   "logout": "Abmelden",
   "confirm": "Bestätigen",

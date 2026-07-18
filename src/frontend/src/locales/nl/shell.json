@@ -20,7 +20,8 @@
     "aiMoreSources": "Meer bronnen ({{count}})",
     "aiDegraded": "AI-antwoord tijdelijk niet beschikbaar — dit zijn de gevonden resultaten.",
     "aiError": "Verzoek mislukt. Probeer opnieuw.",
-    "docs": "Documenten"
+    "docs": "Documenten",
+    "aiImUnavailable": "Chatberichten zijn deze keer niet meegenomen."
   },
   "logout": "Afmelden",
   "confirm": "Bevestigen",

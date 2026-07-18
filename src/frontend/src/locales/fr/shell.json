@@ -20,7 +20,8 @@
     "aiMoreSources": "Autres sources ({{count}})",
     "aiDegraded": "Réponse IA momentanément indisponible — voici les résultats trouvés pour vous.",
     "aiError": "Échec de la requête. Réessayez.",
-    "docs": "Documents"
+    "docs": "Documents",
+    "aiImUnavailable": "Les messages de discussion n’ont pas été inclus cette fois."
   },
   "logout": "Se déconnecter",
   "confirm": "Confirmer",
