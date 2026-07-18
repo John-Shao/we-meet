@@ -248,9 +248,7 @@ const sendFrame = (
       reason,
       ...(event === CallEvent.Invite && opts
         ? {
-            // alpha.11 仍未放宽 kind(''|'meet');'group' 由服务端原样中继。
-            // 放宽已进 SDK 源码(alpha.12),发布后删本 cast。
-            kind: (opts.kind ?? 'meet') as 'meet',
+            kind: opts.kind ?? 'meet',
             media: opts.media,
             room_slug: opts.roomSlug,
             room_name: opts.roomName,
