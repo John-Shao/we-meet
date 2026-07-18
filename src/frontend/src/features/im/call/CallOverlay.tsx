@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
 import { css } from '@/styled-system/css'
+import { layoutStore } from '@/stores/layout'
 import { RiPhoneFill, RiPhoneLine, RiVidiconLine } from '@remixicon/react'
 
 import { Avatar } from '../components/Avatar'
@@ -26,6 +27,12 @@ export const CallOverlay = () => {
   const { t } = useTranslation('im')
   const snap = useSnapshot(callStore)
   const state = snap.state
+  // 会中(showHeader=false ≈ 全屏房间)不弹这个 z2000 全屏来电浮层——否则新来
+  // 电会直接盖住正在进行的会议。接听/呼出等流程发生在进房前(彼时 showHeader=true),
+  // 进房时 callController 已 finishQuietly 置 idle,故这里只会拦到「已在会中又有新
+  // 来电」这一种;此时静默(对端听回铃至超时),与布局重构前 CallOverlay 在会中不
+  // 挂载的行为一致。房间内的通话 UI 由 CallStage 负责,不依赖本浮层。
+  const { showHeader } = useSnapshot(layoutStore)
 
   const info: CallInfo | null =
     'info' in state ? (state.info as CallInfo) : null
@@ -42,7 +49,7 @@ export const CallOverlay = () => {
     resolved?.full_name || resolved?.short_name || info?.peerName || ''
   const avatarUrl = resolved?.avatar_url || info?.peerAvatar
 
-  if (state.phase === 'idle' || !info) return null
+  if (!showHeader || state.phase === 'idle' || !info) return null
 
   const statusText = (() => {
     switch (state.phase) {
