@@ -495,6 +495,9 @@ class MeetingSummaryService:
                 "transcripts_count": len(transcripts),
                 "status": Summary.Status.SUCCESS,
                 "error_message": "",
+                # M2:regen 只刷新 AI 原文与其时间戳,edited_* 永不在 defaults
+                # 里——人工编辑版在重新生成后完整保留(D3 语义)。
+                "content_generated_at": timezone.now(),
             },
         )
         ActionItem.objects.filter(room=room).delete()

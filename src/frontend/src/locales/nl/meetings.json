@@ -28,7 +28,18 @@
     "empty": "Nog geen samenvatting (vergadering nog niet beëindigd of samenvatting niet gegenereerd).",
     "failed": "Samenvatting genereren mislukt",
     "regenerate": "Opnieuw genereren",
-    "regenerating": "Bezig met genereren…"
+    "regenerating": "Bezig met genereren…",
+    "edit": "Bewerken",
+    "save": "Opslaan",
+    "saving": "Opslaan…",
+    "cancelEdit": "Annuleren",
+    "editedBadge": "Bewerkt",
+    "showingEdited": "De bewerkte versie wordt getoond.",
+    "aiUpdatedAfterEdit": "Het AI-origineel is na je bewerking opnieuw gegenereerd — je bewerkte versie wordt getoond.",
+    "viewAi": "AI-origineel bekijken",
+    "backToEdited": "Terug naar bewerkte versie",
+    "restoreAi": "AI-versie herstellen",
+    "saveFailed": "Opslaan mislukt."
   },
   "actionItems": {
     "empty": "Geen actiepunten",
@@ -56,6 +67,7 @@
     "collapse": "Inklappen"
   },
   "chapters": {
-    "empty": "Nog geen hoofdstukken — ze worden met de samenvatting gegenereerd."
+    "empty": "Nog geen hoofdstukken — ze worden met de samenvatting gegenereerd.",
+    "jumpHint": "Naar dit moment in het transcript springen"
   }
 }

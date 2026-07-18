@@ -1154,20 +1154,75 @@ class RoomViewSet(
 
     @decorators.action(
         detail=True,
-        methods=["get"],
+        methods=["get", "patch"],
         url_path="summary",
     )
     def get_summary(self, request, pk=None):  # pylint: disable=unused-argument
-        """Return the LLM-generated summary for this meeting, if any.
+        """Return / edit the LLM-generated summary for this meeting.
 
-        404 means the meeting has no summary yet (room never ended, or
+        GET — 404 means the meeting has no summary yet (room never ended, or
         summary generation never ran). Access control: any user who can
         retrieve the Room can retrieve its summary.
+
+        PATCH(纪要闭环 M2 D3)— body ``{"edited_content": "..."}``:
+        人工编辑落副本(AI 原文 ``content`` 永存),空串 = 恢复 AI 版本。
+        权限:房间 OWNER/ADMIN(拍板 #1:首期不放开全员);写审计一条。
         """
         room = self.get_object()
         summary = getattr(room, "summary", None)
         if summary is None:
             raise drf_exceptions.NotFound("No summary for this meeting yet.")
+
+        if request.method == "PATCH":
+            can_edit = room.accesses.filter(
+                user=request.user,
+                role__in=[models.RoleChoices.OWNER, models.RoleChoices.ADMIN],
+            ).exists()
+            if not can_edit:
+                raise drf_exceptions.PermissionDenied(
+                    "Only the room owner/admin can edit the summary."
+                )
+            data = request.data or {}
+            if "edited_content" not in data:
+                raise drf_exceptions.ValidationError(
+                    {"edited_content": "This field is required."}
+                )
+            edited = str(data.get("edited_content") or "")
+            if len(edited) > 200_000:
+                raise drf_exceptions.ValidationError(
+                    {"edited_content": "Too long (max 200000 chars)."}
+                )
+            restored = edited.strip() == ""
+            if restored:
+                summary.edited_content = ""
+                summary.edited_by = None
+                summary.edited_at = None
+            else:
+                summary.edited_content = edited
+                summary.edited_by = request.user
+                summary.edited_at = timezone.now()
+            summary.save(
+                update_fields=[
+                    "edited_content",
+                    "edited_by",
+                    "edited_at",
+                    "updated_at",
+                ]
+            )
+            # 审计:会议侧动作同样入 M 端审计流水(best-effort,不阻塞)。
+            from core.api.directory import get_caller_organization
+            from core.services.audit import record_audit
+
+            record_audit(
+                actor=request.user,
+                organization=get_caller_organization(request.user),
+                action=models.AuditActionChoices.SUMMARY_EDIT,
+                target_type="room",
+                target_id=room.id,
+                target_label=getattr(room, "name", "") or "",
+                metadata={"restored": restored},
+            )
+
         return drf_response.Response(serializers.SummarySerializer(summary).data)
 
     @decorators.action(

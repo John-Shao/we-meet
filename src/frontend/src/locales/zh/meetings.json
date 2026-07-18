@@ -28,7 +28,18 @@
     "empty": "暂无纪要（会议尚未结束或纪要尚未生成）",
     "failed": "纪要生成失败",
     "regenerate": "重新生成",
-    "regenerating": "生成中…"
+    "regenerating": "生成中…",
+    "edit": "编辑",
+    "save": "保存",
+    "saving": "保存中…",
+    "cancelEdit": "取消",
+    "editedBadge": "已编辑",
+    "showingEdited": "当前显示的是编辑版。",
+    "aiUpdatedAfterEdit": "AI 原文在你编辑后已更新——当前显示的是你的编辑版。",
+    "viewAi": "查看 AI 原文",
+    "backToEdited": "返回编辑版",
+    "restoreAi": "恢复 AI 版本",
+    "saveFailed": "保存失败。"
   },
   "actionItems": {
     "empty": "暂无行动项",
@@ -62,6 +73,7 @@
     "deleteConfirm": "确定要删除「{{name}}」吗？若您是该会议的发起人，将同时删除所有人的此条记录。"
   },
   "chapters": {
-    "empty": "暂无章节——章节随纪要一起生成。"
+    "empty": "暂无章节——章节随纪要一起生成。",
+    "jumpHint": "跳转到转写对应时刻"
   }
 }

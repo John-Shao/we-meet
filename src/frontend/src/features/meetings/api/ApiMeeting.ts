@@ -42,6 +42,12 @@ export interface ApiSummary {
   action_items: ApiActionItem[]
   /** 纪要闭环 D2:三板块之三(旧后端无此字段,可空兜底)。 */
   chapters?: ApiSummaryChapter[]
+  /** 纪要闭环 M2(D3)可编辑:content 永远是 AI 原文,展示用 effective_content。 */
+  is_edited?: boolean
+  effective_content?: string
+  ai_updated_after_edit?: boolean
+  edited_by?: ApiRoomAccessUser | null
+  edited_at?: string | null
 }
 
 export interface ApiRecentMeeting {

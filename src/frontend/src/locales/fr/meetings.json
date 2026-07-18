@@ -28,7 +28,18 @@
     "empty": "Pas encore de compte-rendu (réunion en cours ou compte-rendu non généré).",
     "failed": "Échec de la génération du compte-rendu",
     "regenerate": "Régénérer",
-    "regenerating": "Régénération…"
+    "regenerating": "Régénération…",
+    "edit": "Modifier",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "cancelEdit": "Annuler",
+    "editedBadge": "Modifié",
+    "showingEdited": "Version modifiée affichée.",
+    "aiUpdatedAfterEdit": "La version IA a été régénérée après votre modification — votre version modifiée est affichée.",
+    "viewAi": "Voir la version IA",
+    "backToEdited": "Revenir à la version modifiée",
+    "restoreAi": "Restaurer la version IA",
+    "saveFailed": "Échec de la sauvegarde."
   },
   "actionItems": {
     "empty": "Aucune action à mener",
@@ -56,6 +67,7 @@
     "collapse": "Réduire"
   },
   "chapters": {
-    "empty": "Pas encore de chapitres — ils sont générés avec le compte rendu."
+    "empty": "Pas encore de chapitres — ils sont générés avec le compte rendu.",
+    "jumpHint": "Aller à ce moment dans la transcription"
   }
 }

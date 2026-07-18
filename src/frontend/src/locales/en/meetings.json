@@ -28,7 +28,18 @@
     "empty": "No summary yet (meeting not finished or summary not generated).",
     "failed": "Summary generation failed",
     "regenerate": "Regenerate",
-    "regenerating": "Regenerating…"
+    "regenerating": "Regenerating…",
+    "edit": "Edit",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancelEdit": "Cancel",
+    "editedBadge": "Edited",
+    "showingEdited": "Showing the edited version.",
+    "aiUpdatedAfterEdit": "The AI original was regenerated after your edit — showing your edited version.",
+    "viewAi": "View AI original",
+    "backToEdited": "Back to edited version",
+    "restoreAi": "Restore AI version",
+    "saveFailed": "Failed to save."
   },
   "actionItems": {
     "empty": "No action items",
@@ -62,6 +73,7 @@
     "deleteConfirm": "Delete \"{{name}}\"? If you own the meeting it will also be removed for everyone else."
   },
   "chapters": {
-    "empty": "No chapters yet — they are generated with the summary."
+    "empty": "No chapters yet — they are generated with the summary.",
+    "jumpHint": "Jump to this moment in the transcript"
   }
 }

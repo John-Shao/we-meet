@@ -1,4 +1,4 @@
-import { ReactNode, useMemo } from 'react'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
 
 import { useTranslation } from 'react-i18next'
 import { useTitle } from 'hoofd'
@@ -19,6 +19,7 @@ import {
   useMeetingRoom,
   useMeetingSummary,
   useMeetingTranscripts,
+  usePatchSummary,
   useRegenerateSummary,
 } from '../api/fetchMeeting'
 
@@ -57,8 +58,25 @@ const APP_TITLE = import.meta.env.VITE_APP_TITLE ?? ''
 
 const SummaryTab = ({ roomId }: { roomId: string }) => {
   const { t } = useTranslation('meetings')
+  const { user } = useUser()
   const { data, isLoading, isError, error } = useMeetingSummary(roomId)
+  const { data: room } = useMeetingRoom(roomId)
   const regen = useRegenerateSummary(roomId)
+  const patch = usePatchSummary(roomId)
+  // M2 可编辑三态:展示(编辑版优先)/ 查看 AI 原文 / 编辑中。
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [viewAi, setViewAi] = useState(false)
+
+  // 拍板 #1:编辑权限首期仅房间 OWNER/ADMIN(accesses 仅对管理者返回,
+  // 普通参会者拿不到该数组,自然收敛为不可编辑)。
+  const canEdit =
+    !!user &&
+    !!room?.accesses?.some(
+      (a) =>
+        a.user.id === user.id &&
+        (a.role === 'owner' || a.role === 'administrator')
+    )
 
   const RegenButton = () => (
     <Button
@@ -89,6 +107,18 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
     )
   if (isError || !data) return <Text>{t('error.loadFailed')}</Text>
 
+  const effective = data.effective_content ?? data.content
+  const shown = viewAi ? data.content : effective
+
+  const save = () => {
+    patch.mutate(draft, {
+      onSuccess: () => setEditing(false),
+    })
+  }
+  const restoreAi = () => {
+    patch.mutate('', { onSuccess: () => setViewAi(false) })
+  }
+
   return (
     <div
       className={css({
@@ -97,24 +127,156 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
         gap: '0.75rem',
       })}
     >
-      <div className={css({ alignSelf: 'flex-end' })}>
+      <div
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          justifyContent: 'flex-end',
+          flexWrap: 'wrap',
+        })}
+      >
+        {data.is_edited && (
+          <span
+            className={css({
+              fontSize: '0.75rem',
+              color: 'greyscale.600',
+              backgroundColor: 'greyscale.100',
+              borderRadius: '999px',
+              padding: '0.125rem 0.5rem',
+            })}
+          >
+            {t('summary.editedBadge')}
+          </span>
+        )}
+        {canEdit && !editing && (
+          <Button
+            variant="tertiary"
+            size="sm"
+            onPress={() => {
+              setDraft(effective)
+              setViewAi(false)
+              setEditing(true)
+            }}
+          >
+            {t('summary.edit')}
+          </Button>
+        )}
         <RegenButton />
       </div>
-      {/* failed / empty / 404 all read the same to a meeting participant:
-          "no summary to show". The regenerate button stays available. */}
-      {data.status === 'failed' || !data.content ? (
+
+      {/* AI 原文在编辑后又更新了 → 提示 + 对照/恢复入口(D3 语义)。 */}
+      {data.is_edited && !editing && (
+        <div
+          className={css({
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            flexWrap: 'wrap',
+            fontSize: '0.8125rem',
+            color: 'greyscale.600',
+            backgroundColor: 'greyscale.050',
+            border: '1px solid token(colors.greyscale.200)',
+            borderRadius: '0.5rem',
+            padding: '0.5rem 0.75rem',
+          })}
+        >
+          <span>
+            {data.ai_updated_after_edit
+              ? t('summary.aiUpdatedAfterEdit')
+              : t('summary.showingEdited')}
+          </span>
+          <Button
+            variant="tertiary"
+            size="sm"
+            onPress={() => setViewAi((v) => !v)}
+          >
+            {viewAi ? t('summary.backToEdited') : t('summary.viewAi')}
+          </Button>
+          {canEdit && (
+            <Button
+              variant="tertiary"
+              size="sm"
+              isDisabled={patch.isPending}
+              onPress={restoreAi}
+            >
+              {t('summary.restoreAi')}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {editing ? (
+        <div
+          className={css({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+          })}
+        >
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={18}
+            data-testid="summary-editor"
+            className={css({
+              width: '100%',
+              fontFamily: 'monospace',
+              fontSize: '0.875rem',
+              lineHeight: 1.6,
+              padding: '0.75rem',
+              border: '1px solid token(colors.greyscale.300)',
+              borderRadius: '0.5rem',
+              resize: 'vertical',
+            })}
+          />
+          <div
+            className={css({
+              display: 'flex',
+              gap: '0.5rem',
+              justifyContent: 'flex-end',
+            })}
+          >
+            <Button
+              variant="tertiary"
+              size="sm"
+              onPress={() => setEditing(false)}
+            >
+              {t('summary.cancelEdit')}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              isDisabled={patch.isPending}
+              onPress={save}
+            >
+              {patch.isPending ? t('summary.saving') : t('summary.save')}
+            </Button>
+          </div>
+          {patch.isError && (
+            <Text variant="note">{t('summary.saveFailed')}</Text>
+          )}
+        </div>
+      ) : data.status === 'failed' || !shown ? (
         <Text>{t('summary.empty')}</Text>
       ) : (
         <div className={markdownBodyStyle}>
-          <ReactMarkdown>{data.content}</ReactMarkdown>
+          <ReactMarkdown>{shown}</ReactMarkdown>
         </div>
       )}
     </div>
   )
 }
 
-/** 纪要闭环 D2:智能章节板块(时间轴 + 标题 + 要点;本期仅展示,不做跳转)。 */
-const ChaptersTab = ({ roomId }: { roomId: string }) => {
+/** 纪要闭环 D2:智能章节板块(时间轴 + 标题 + 要点);M2 拍板 #3:点击带时间
+ * 窗的章节 → 切到转写 Tab 并滚动定位到对应时刻。 */
+const ChaptersTab = ({
+  roomId,
+  onJump,
+}: {
+  roomId: string
+  onJump?: (startIso: string) => void
+}) => {
   const { t, i18n } = useTranslation('meetings')
   const { data, isLoading, error } = useMeetingSummary(roomId)
 
@@ -142,42 +304,53 @@ const ChaptersTab = ({ roomId }: { roomId: string }) => {
         gap: '0.875rem',
       })}
     >
-      {chapters.map((chapter) => (
-        <li
-          key={chapter.id}
-          className={css({
-            display: 'flex',
-            gap: '0.75rem',
-            alignItems: 'flex-start',
-          })}
-        >
-          <span
+      {chapters.map((chapter) => {
+        const jumpable = !!onJump && !!chapter.started_at
+        return (
+          <li
+            key={chapter.id}
+            onClick={
+              jumpable ? () => onJump!(chapter.started_at as string) : undefined
+            }
+            title={jumpable ? t('chapters.jumpHint') : undefined}
             className={css({
-              flexShrink: 0,
-              minWidth: '7.5rem',
-              fontFamily: 'monospace',
-              fontSize: '0.8125rem',
-              color: 'greyscale.500',
-              paddingTop: '0.125rem',
+              display: 'flex',
+              gap: '0.75rem',
+              alignItems: 'flex-start',
+              borderRadius: '0.5rem',
+              padding: '0.25rem 0.375rem',
+              cursor: jumpable ? 'pointer' : 'default',
+              _hover: jumpable ? { backgroundColor: 'greyscale.050' } : {},
             })}
           >
-            {chapter.started_at
-              ? `${fmt(chapter.started_at)}${chapter.ended_at ? ` – ${fmt(chapter.ended_at)}` : ''}`
-              : '—'}
-          </span>
-          <div>
-            <Text bold>{chapter.title}</Text>
-            {chapter.digest && (
-              <Text
-                variant="note"
-                className={css({ marginTop: '0.125rem', display: 'block' })}
-              >
-                {chapter.digest}
-              </Text>
-            )}
-          </div>
-        </li>
-      ))}
+            <span
+              className={css({
+                flexShrink: 0,
+                minWidth: '7.5rem',
+                fontFamily: 'monospace',
+                fontSize: '0.8125rem',
+                color: 'greyscale.500',
+                paddingTop: '0.125rem',
+              })}
+            >
+              {chapter.started_at
+                ? `${fmt(chapter.started_at)}${chapter.ended_at ? ` – ${fmt(chapter.ended_at)}` : ''}`
+                : '—'}
+            </span>
+            <div>
+              <Text bold>{chapter.title}</Text>
+              {chapter.digest && (
+                <Text
+                  variant="note"
+                  className={css({ marginTop: '0.125rem', display: 'block' })}
+                >
+                  {chapter.digest}
+                </Text>
+              )}
+            </div>
+          </li>
+        )
+      })}
     </ol>
   )
 }
@@ -242,9 +415,38 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
   )
 }
 
-const TranscriptTab = ({ roomId }: { roomId: string }) => {
+const TranscriptTab = ({
+  roomId,
+  jumpTo,
+  onJumpDone,
+}: {
+  roomId: string
+  /** 章节跳转目标时刻(ISO);滚动到第一条不早于该时刻的转写并高亮。 */
+  jumpTo?: string | null
+  onJumpDone?: () => void
+}) => {
   const { t, i18n } = useTranslation('meetings')
   const { data, isLoading, isError } = useMeetingTranscripts(roomId)
+  const [flashId, setFlashId] = useState<string | null>(null)
+
+  // 拍板 #3 章节→转写:数据就绪 + 目标存在时滚动定位,高亮 2s 后消费。
+  useEffect(() => {
+    if (!jumpTo || !data || data.length === 0) return
+    const targetMs = new Date(jumpTo).getTime()
+    const row =
+      data.find((r) => new Date(r.started_at).getTime() >= targetMs) ??
+      data[data.length - 1]
+    const el = document.getElementById(`transcript-row-${row.id}`)
+    if (el) {
+      el.scrollIntoView({ block: 'center' })
+      setFlashId(row.id)
+      const timer = setTimeout(() => setFlashId(null), 2000)
+      onJumpDone?.()
+      return () => clearTimeout(timer)
+    }
+    onJumpDone?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpTo, data])
 
   if (isLoading) return <Text>{t('loading')}</Text>
   if (isError) return <Text>{t('error.loadFailed')}</Text>
@@ -275,12 +477,19 @@ const TranscriptTab = ({ roomId }: { roomId: string }) => {
         return (
           <div
             key={row.id}
+            id={`transcript-row-${row.id}`}
             className={css({
               borderLeft: '3px solid',
               borderColor: 'greyscale.300',
               paddingLeft: '0.75rem',
               paddingY: '0.25rem',
+              transition: 'background-color 0.6s ease',
             })}
+            style={
+              flashId === row.id
+                ? { backgroundColor: 'rgba(59,130,246,0.14)' }
+                : undefined
+            }
           >
             <div
               className={css({
@@ -410,6 +619,9 @@ export const MeetingDetail = () => {
   const { t } = useTranslation('meetings')
   const { roomId } = useParams<{ roomId: string }>()
   const { isLoggedIn, isLoading: isAuthLoading } = useUser()
+  // 拍板 #3 章节→转写跳转:Tabs 受控,章节点击切 Tab 并带上目标时刻。
+  const [tabKey, setTabKey] = useState<string>('info')
+  const [transcriptJump, setTranscriptJump] = useState<string | null>(null)
 
   const pageTitle = useMemo(() => `${APP_TITLE} - ${t('pageTitle')}`, [t])
   useTitle(pageTitle)
@@ -437,7 +649,8 @@ export const MeetingDetail = () => {
             <H lvl={1}>{t('pageTitle')}</H>
 
             <Tabs
-              defaultSelectedKey="info"
+              selectedKey={tabKey}
+              onSelectionChange={(key) => setTabKey(String(key))}
               className={css({ width: '100%' })}
             >
               <TabList aria-label={t('tabs.label')}>
@@ -457,10 +670,20 @@ export const MeetingDetail = () => {
                 <ActionItemsTab roomId={roomId} />
               </TabPanel>
               <TabPanel id="chapters" padding="md">
-                <ChaptersTab roomId={roomId} />
+                <ChaptersTab
+                  roomId={roomId}
+                  onJump={(startIso) => {
+                    setTranscriptJump(startIso)
+                    setTabKey('transcript')
+                  }}
+                />
               </TabPanel>
               <TabPanel id="transcript" padding="md">
-                <TranscriptTab roomId={roomId} />
+                <TranscriptTab
+                  roomId={roomId}
+                  jumpTo={transcriptJump}
+                  onJumpDone={() => setTranscriptJump(null)}
+                />
               </TabPanel>
             </Tabs>
           </VStack>

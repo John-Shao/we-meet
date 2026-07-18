@@ -107,6 +107,23 @@ export const useScheduledMeetings = (enabled: boolean = true) =>
     staleTime: 30_000,
   })
 
+/** 纪要闭环 M2(D3):人工编辑落副本;空串 = 恢复 AI 版本。OWNER/ADMIN only。 */
+const patchSummary = (roomId: string, editedContent: string) =>
+  fetchApi<ApiSummary>(`rooms/${roomId}/summary/`, {
+    method: 'PATCH',
+    body: JSON.stringify({ edited_content: editedContent }),
+  })
+
+export const usePatchSummary = (roomId: string | undefined) => {
+  const qc = useQueryClient()
+  return useMutation<ApiSummary, ApiError, string>({
+    mutationFn: (editedContent) => patchSummary(roomId!, editedContent),
+    onSuccess: (data) => {
+      qc.setQueryData(['meeting-summary', roomId], data)
+    },
+  })
+}
+
 const regenerateSummary = (roomId: string) =>
   fetchApi<{ status: string }>(`rooms/${roomId}/summary/regenerate/`, {
     method: 'POST',

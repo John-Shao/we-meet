@@ -1506,11 +1506,45 @@ class Summary(BaseModel):
         default=Status.PENDING,
     )
     error_message = models.TextField(_("error message"), blank=True, default="")
+    # 纪要闭环 M2(D3)可编辑:AI 原文永存 content,人工编辑落副本。
+    # effective_content = edited_content or content;空 = 未编辑。
+    edited_content = models.TextField(_("edited content"), blank=True, default="")
+    edited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="edited_summaries",
+        null=True,
+        blank=True,
+        verbose_name=_("edited by"),
+    )
+    edited_at = models.DateTimeField(_("edited at"), null=True, blank=True)
+    # regen 只更新 content 与此时间戳,不动 edited_*;与 edited_at 比较得出
+    # 「AI 原文已在你编辑后更新」提示(ai_updated_after_edit)。
+    content_generated_at = models.DateTimeField(
+        _("content generated at"), null=True, blank=True
+    )
 
     class Meta:
         verbose_name = _("meeting summary")
         verbose_name_plural = _("meeting summaries")
         ordering = ("-updated_at",)
+
+    @property
+    def is_edited(self) -> bool:
+        return bool(self.edited_content)
+
+    @property
+    def effective_content(self) -> str:
+        return self.edited_content or self.content
+
+    @property
+    def ai_updated_after_edit(self) -> bool:
+        return bool(
+            self.edited_content
+            and self.edited_at
+            and self.content_generated_at
+            and self.content_generated_at > self.edited_at
+        )
 
     def __str__(self) -> str:
         return f"Summary({self.room_id}, {self.status})"
@@ -2413,6 +2447,8 @@ class AuditActionChoices(models.TextChoices):
     MEMBER_SUSPEND = "member.suspend", _("Member suspended")
     MEMBER_RESTORE = "member.restore", _("Member restored")
     MEMBER_REMOVE = "member.remove", _("Member removed")
+    # 纪要闭环 M2:纪要编辑(会议侧动作,同样入 M 端审计)。
+    SUMMARY_EDIT = "summary.edit", _("Meeting summary edited")
 
 
 class AuditLog(BaseModel):

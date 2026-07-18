@@ -339,6 +339,11 @@ class SummarySerializer(serializers.ModelSerializer):
     action_items = ActionItemSerializer(many=True, read_only=True)
     # 纪要闭环 D2:三板块之三。旧客户端忽略新字段即可,无破坏性变更。
     chapters = SummaryChapterSerializer(many=True, read_only=True)
+    # 纪要闭环 M2(D3)可编辑:content 永远是 AI 原文;展示用 effective_content。
+    is_edited = serializers.BooleanField(read_only=True)
+    effective_content = serializers.CharField(read_only=True)
+    ai_updated_after_edit = serializers.BooleanField(read_only=True)
+    edited_by = UserLightSerializer(read_only=True)
 
     class Meta:
         model = models.Summary
@@ -353,6 +358,11 @@ class SummarySerializer(serializers.ModelSerializer):
             "updated_at",
             "action_items",
             "chapters",
+            "is_edited",
+            "effective_content",
+            "ai_updated_after_edit",
+            "edited_by",
+            "edited_at",
         ]
         read_only_fields = fields
 

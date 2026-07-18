@@ -28,7 +28,18 @@
     "empty": "Noch keine Zusammenfassung (Besprechung läuft oder noch nicht generiert).",
     "failed": "Zusammenfassung konnte nicht generiert werden",
     "regenerate": "Neu generieren",
-    "regenerating": "Wird generiert…"
+    "regenerating": "Wird generiert…",
+    "edit": "Bearbeiten",
+    "save": "Speichern",
+    "saving": "Speichern…",
+    "cancelEdit": "Abbrechen",
+    "editedBadge": "Bearbeitet",
+    "showingEdited": "Es wird die bearbeitete Version angezeigt.",
+    "aiUpdatedAfterEdit": "Das KI-Original wurde nach Ihrer Bearbeitung neu erzeugt — angezeigt wird Ihre bearbeitete Version.",
+    "viewAi": "KI-Original anzeigen",
+    "backToEdited": "Zurück zur bearbeiteten Version",
+    "restoreAi": "KI-Version wiederherstellen",
+    "saveFailed": "Speichern fehlgeschlagen."
   },
   "actionItems": {
     "empty": "Keine Maßnahmen",
@@ -56,6 +67,7 @@
     "collapse": "Einklappen"
   },
   "chapters": {
-    "empty": "Noch keine Kapitel — sie werden mit der Zusammenfassung erzeugt."
+    "empty": "Noch keine Kapitel — sie werden mit der Zusammenfassung erzeugt.",
+    "jumpHint": "Zu diesem Zeitpunkt im Transkript springen"
   }
 }

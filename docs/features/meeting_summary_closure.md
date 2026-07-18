@@ -1,6 +1,9 @@
 # 会议纪要闭环打磨(P0-3)— 设计文档
 
-状态:M1 已完成(2026-07-18,AI 线随 foundation 收口恢复);M2/M3 待 §8 拍板
+状态:M1+M2 已完成(2026-07-18);M3(私聊路由+Android 章节)待启动。
+拍板落定(2026-07-18,按建议通过):①编辑权限首期仅房间 OWNER/ADMIN;②无群多人
+会议推送等 P1-5 AI 助手入口统一承接;③章节→转写时间点跳转随 M2 落地;④不为纪要
+卡片加 jusi 原生消息类型(纯文本排版够用)。
 对标:飞书 AI Notes(自评 M4)、钉钉 AI听记 8.1.5 图文纪要
 调研依据:`docs/research/competitor-gap-feishu-wecom-dingtalk-2026-07.md` §五 P0-3
 
@@ -146,6 +149,15 @@ edited_at = models.DateTimeField(null=True, blank=True)
 | M1 | D1 章节 + D2 Web 三板块 + D4 卡片正文(群路由) | 无 |
 | M2 | D3 可编辑 + 审计 | M1 |
 | M3 | D4 私聊路由(灰度开关)+ Android 章节渲染 | M1;jusi direct 会话 admin 建会话能力确认 |
+
+**M2 实施注记(2026-07-18)**:Summary +edited_content/edited_by/edited_at/
+content_generated_at(迁移 0060,附 auditlog.action 加 summary.edit 选项);regen 的
+defaults 只含 content+content_generated_at,edited_* 永不覆盖;`ai_updated_after_edit`
+= content_generated_at > edited_at(模型属性)。PATCH rooms/{id}/summary/(与 GET 同
+action)——OWNER/ADMIN 校验、空串=恢复、20 万字上限、record_audit 一条(metadata.restored)。
+Web:SummaryTab 三态(编辑版展示/AI 原文对照/textarea 编辑),已编辑徽标 + AI 已更新提示
+条 + 恢复按钮;canEdit 由 room.accesses(仅管理者可见)自然收敛。章节→转写跳转(拍板③):
+Tabs 受控,章节点击切转写 Tab 并滚动到首条不早于章节起点的转写,高亮 2s。
 
 **M1 实施注记(2026-07-18)**:SummaryChapter(迁移 0059)+ 第三次 LLM 调用(软失败,
 防御式解析同 `_parse_action_items`,HH:MM:SS 锚定转写首条日期、跨零点单调修正,硬上限
