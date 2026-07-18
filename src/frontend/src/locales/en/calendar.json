@@ -31,7 +31,14 @@
     "error": "Failed: {{message}}",
     "endAfterStart": "End must be after start.",
     "noResults": "No members found",
-    "removeAttendee": "Remove {{name}}"
+    "removeAttendee": "Remove {{name}}",
+    "repeat": "Repeat",
+    "repeatNone": "Does not repeat",
+    "repeatDaily": "Daily",
+    "repeatWeekdays": "Every weekday",
+    "repeatWeekly": "Weekly",
+    "repeatMonthly": "Monthly",
+    "repeatUntil": "Until"
   },
   "card": {
     "organizer": "Organizer",
@@ -42,7 +49,11 @@
   "detail": {
     "edit": "Edit",
     "delete": "Delete",
-    "deleteConfirm": "Delete this event? Attendees will no longer see it."
+    "deleteConfirm": "Delete this event? Attendees will no longer see it.",
+    "recurrenceOccurrence": "One occurrence of a repeating event",
+    "recurrenceCustom": "Custom recurrence",
+    "deleteConfirmOccurrence": "Delete only this occurrence? Other occurrences in the series are kept.",
+    "deleteConfirmSeries": "Delete the entire series? All future occurrences will be removed."
   },
   "rsvp": {
     "label": "My response",

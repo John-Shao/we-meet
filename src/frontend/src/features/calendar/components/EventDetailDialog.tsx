@@ -81,6 +81,21 @@ export const EventDetailDialog = ({
         >
           {when}
         </p>
+        {/* P2-M1 重复标识:主事件按 FREQ 显示预设名;子场次显示「重复日程的一次」。 */}
+        {(event.recurrence || event.recurrence_parent) && (
+          <p
+            className={css({
+              margin: '0.25rem 0 0',
+              fontSize: '0.75rem',
+              color: 'greyscale.500',
+            })}
+          >
+            🔁{' '}
+            {event.recurrence_parent
+              ? t('detail.recurrenceOccurrence')
+              : t(recurrenceLabelKey(event.recurrence))}
+          </p>
+        )}
         <p
           className={css({
             margin: '0.25rem 0 0',
@@ -230,6 +245,16 @@ export const EventDetailDialog = ({
       </div>
     </Modal>
   )
+}
+
+/** RRULE → 预设文案 key(与 CreateEventDialog 的预设一一对应;非预设归自定义)。 */
+const recurrenceLabelKey = (rrule: string): string => {
+  if (rrule.includes('FREQ=WEEKLY') && rrule.includes('BYDAY=MO,TU,WE,TH,FR'))
+    return 'form.repeatWeekdays'
+  if (rrule.includes('FREQ=DAILY')) return 'form.repeatDaily'
+  if (rrule.includes('FREQ=WEEKLY')) return 'form.repeatWeekly'
+  if (rrule.includes('FREQ=MONTHLY')) return 'form.repeatMonthly'
+  return 'detail.recurrenceCustom'
 }
 
 const detailBtn = css({

@@ -107,8 +107,8 @@
 - UI:`CreateEventDialog` 选完与会人后展示横向时间条(每人一行,busy 块着色),冲突时选中时段标红提示但不阻断。
 
 ### 分期
-- M1:RRULE 物化 + 创建 UI(Web)+「仅此次」删除。
-- M2:三选编辑语义完整 + exdates。
+- M1:RRULE 物化 + 创建 UI(Web)+「仅此次」删除。✅ 已完成(2026-07-18:`calendar_recurrence.materialize_recurrences` 60 天窗口、墙上钟按事件时区展开、单主事件单轮上限 120;挂 `send_due_reminders` 同一 beat 先物化后扫提醒,零新增 CronJob;幂等=先查后建+条件唯一索引 `calevent_parent_start_uniq`+exdates;迁移 0058。删除语义:子场次=仅此次(exdate 记 ISO-UTC),主事件=删系列含未来场次。Web:创建对话框预设 不重复/每天/每工作日/每周/每月+截止日(UNTIL 用浮动本地时刻,无 Z——dateutil naive dtstart 下拒绝 UTC 形式),详情弹窗重复标识,删除确认三分文案。**M1 边界**:编辑主事件不回写已物化的未来场次(新物化场次用新值),完整语义待 M2 三选)
+- M2:三选编辑语义完整 + exdates。(exdates 基建已随 M1 落地,M2 剩「仅此次编辑」「此次及以后」两个语义)
 - M3:忙闲视图 + Android 重复日程创建。
 
 ---

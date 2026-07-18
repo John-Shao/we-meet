@@ -31,6 +31,10 @@ export interface CalendarEvent {
   attendees: EventAttendee[]
   my_rsvp: RSVPStatus | null
   created_at: string
+  /** P2-M1 重复日程:主事件带 RRULE 串;子场次为空串。 */
+  recurrence: string
+  /** 子场次指回主事件 id;主/单次事件为 null。 */
+  recurrence_parent: string | null
 }
 
 export interface CreateEventPayload {
@@ -43,6 +47,8 @@ export interface CreateEventPayload {
   attendee_ids?: string[]
   description?: string
   timezone?: string
+  /** P2-M1: RRULE 串(如 FREQ=WEEKLY;UNTIL=20261231T235959Z),空/缺省=单次。 */
+  recurrence?: string
 }
 
 /**

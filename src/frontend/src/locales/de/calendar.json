@@ -31,7 +31,14 @@
     "error": "Fehlgeschlagen: {{message}}",
     "endAfterStart": "Ende muss nach dem Beginn liegen.",
     "noResults": "Keine Mitglieder gefunden",
-    "removeAttendee": "{{name}} entfernen"
+    "removeAttendee": "{{name}} entfernen",
+    "repeat": "Wiederholen",
+    "repeatNone": "Keine Wiederholung",
+    "repeatDaily": "Täglich",
+    "repeatWeekdays": "Jeden Werktag",
+    "repeatWeekly": "Wöchentlich",
+    "repeatMonthly": "Monatlich",
+    "repeatUntil": "Bis"
   },
   "card": {
     "organizer": "Organisator",
@@ -42,7 +49,11 @@
   "detail": {
     "edit": "Bearbeiten",
     "delete": "Löschen",
-    "deleteConfirm": "Diesen Termin löschen? Teilnehmer sehen ihn dann nicht mehr."
+    "deleteConfirm": "Diesen Termin löschen? Teilnehmer sehen ihn dann nicht mehr.",
+    "recurrenceOccurrence": "Ein Termin einer Terminserie",
+    "recurrenceCustom": "Benutzerdefinierte Wiederholung",
+    "deleteConfirmOccurrence": "Nur diesen Termin löschen? Andere Termine der Serie bleiben erhalten.",
+    "deleteConfirmSeries": "Die gesamte Serie löschen? Alle zukünftigen Termine werden entfernt."
   },
   "rsvp": {
     "label": "Meine Antwort",

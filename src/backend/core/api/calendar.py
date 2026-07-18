@@ -63,6 +63,10 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "attendee_ids",
             "my_rsvp",
             "created_at",
+            # P2-M1 重复日程:主事件携带 RRULE;子场次 recurrence 为空、
+            # recurrence_parent 指回主事件(前端据此区分删除文案)。
+            "recurrence",
+            "recurrence_parent",
         ]
         read_only_fields = [
             "id",
@@ -73,7 +77,23 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "attendees",
             "my_rsvp",
             "created_at",
+            "recurrence_parent",
         ]
+
+    def validate_recurrence(self, value):
+        """RRULE 合法性前置校验(dateutil 同款解析),坏串 400 而非物化时炸。"""
+        value = (value or "").strip()
+        if not value:
+            return ""
+        from datetime import datetime
+
+        from dateutil.rrule import rrulestr
+
+        try:
+            rrulestr(value, dtstart=datetime(2026, 1, 1, 9, 0))
+        except (ValueError, TypeError) as exc:
+            raise serializers.ValidationError(f"invalid RRULE: {exc}") from exc
+        return value
 
     def get_attendees(self, obj):
         return [
@@ -249,9 +269,34 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         """Organizer-only delete. The Room survives (FK is SET_NULL) so a
-        recording / in-progress call isn't yanked out from under attendees."""
+        recording / in-progress call isn't yanked out from under attendees.
+
+        P2-M1 重复日程语义:
+        - 删**子场次**(recurrence_parent 非空)=「仅此次」:先在主事件
+          ``recurrence_exdates`` 记下该场次时刻(ISO-8601 UTC),防止下轮
+          物化重建,再删行。
+        - 删**主事件**(带 RRULE)= 删除整个系列:未来子场次(start_at 在
+          当前之后)一并删除;历史场次保留作记录。三选编辑语义是 M2 范畴。
+        """
         self._require_organizer(instance)
-        instance.delete()
+        from django.utils import timezone as django_timezone
+
+        with transaction.atomic():
+            parent = instance.recurrence_parent
+            if parent is not None:
+                exdates = list(parent.recurrence_exdates or [])
+                key = instance.start_at.isoformat()
+                if key not in exdates:
+                    exdates.append(key)
+                    parent.recurrence_exdates = exdates
+                    parent.save(
+                        update_fields=["recurrence_exdates", "updated_at"]
+                    )
+            elif instance.recurrence:
+                instance.occurrences.filter(
+                    start_at__gte=django_timezone.now()
+                ).delete()
+            instance.delete()
 
     @decorators.action(detail=True, methods=["post"])
     def rsvp(self, request, pk=None):  # pylint: disable=unused-argument

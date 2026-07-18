@@ -94,7 +94,14 @@ const CalendarAuthenticated = () => {
   }
 
   const removeEvent = async (event: CalendarEvent) => {
-    if (!(await askConfirm({ message: t('detail.deleteConfirm') }))) return
+    // P2-M1 重复日程:子场次=仅删此次(服务端记 exdate);带 RRULE 的主事件=
+    // 删整个系列(含未来场次);单次事件用原文案。
+    const confirmKey = event.recurrence_parent
+      ? 'detail.deleteConfirmOccurrence'
+      : event.recurrence
+        ? 'detail.deleteConfirmSeries'
+        : 'detail.deleteConfirm'
+    if (!(await askConfirm({ message: t(confirmKey) }))) return
     try {
       await deleteCalendarEvent(event.id)
       setDetailEvent(null)

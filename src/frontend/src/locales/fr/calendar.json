@@ -31,7 +31,14 @@
     "error": "Échec : {{message}}",
     "endAfterStart": "La fin doit être après le début.",
     "noResults": "Aucun membre trouvé",
-    "removeAttendee": "Retirer {{name}}"
+    "removeAttendee": "Retirer {{name}}",
+    "repeat": "Répéter",
+    "repeatNone": "Ne se répète pas",
+    "repeatDaily": "Tous les jours",
+    "repeatWeekdays": "Tous les jours ouvrés",
+    "repeatWeekly": "Toutes les semaines",
+    "repeatMonthly": "Tous les mois",
+    "repeatUntil": "Fin"
   },
   "card": {
     "organizer": "Organisateur",
@@ -42,7 +49,11 @@
   "detail": {
     "edit": "Modifier",
     "delete": "Supprimer",
-    "deleteConfirm": "Supprimer cet événement ? Les participants ne le verront plus."
+    "deleteConfirm": "Supprimer cet événement ? Les participants ne le verront plus.",
+    "recurrenceOccurrence": "Une occurrence de la série",
+    "recurrenceCustom": "Récurrence personnalisée",
+    "deleteConfirmOccurrence": "Supprimer uniquement cette occurrence ? Les autres occurrences de la série sont conservées.",
+    "deleteConfirmSeries": "Supprimer toute la série ? Toutes les occurrences futures seront supprimées."
   },
   "rsvp": {
     "label": "Ma réponse",

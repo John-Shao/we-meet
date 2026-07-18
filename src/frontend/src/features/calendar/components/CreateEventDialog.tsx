@@ -77,6 +77,9 @@ export const CreateEventDialog = ({
       else next.add(minutes)
       return next
     })
+  // P2-M1 重复日程:创建时可选预设;编辑重复规则属 M2 三选语义,编辑态不展示。
+  const [repeat, setRepeat] = useState('')
+  const [repeatUntil, setRepeatUntil] = useState('')
   const [selected, setSelected] = useState<Map<string, string>>(new Map())
   const [busy, setBusy] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
@@ -92,6 +95,18 @@ export const CreateEventDialog = ({
     })
 
   const canCreate = !!title.trim() && !!start && !!end && !busy
+
+  // RRULE 组装:UNTIL 用「浮动本地时刻」(无 Z 后缀)——与后端按事件时区的
+  // 墙上钟展开一致,且 dateutil 在 naive dtstart 下拒绝 UTC(Z)形式的 UNTIL。
+  const composeRRule = () => {
+    if (!repeat) return ''
+    let rule =
+      repeat === 'WEEKDAYS'
+        ? 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'
+        : `FREQ=${repeat}`
+    if (repeatUntil) rule += `;UNTIL=${repeatUntil.replace(/-/g, '')}T235959`
+    return rule
+  }
 
   const submit = async () => {
     if (!canCreate) return
@@ -124,7 +139,11 @@ export const CreateEventDialog = ({
       }
       const event = editEvent
         ? await updateCalendarEvent(editEvent.id, base)
-        : await createCalendarEvent({ ...base, attendee_ids: [...selected.keys()] })
+        : await createCalendarEvent({
+            ...base,
+            attendee_ids: [...selected.keys()],
+            recurrence: composeRRule(),
+          })
       onCreated(event)
     } catch (e) {
       void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
@@ -286,6 +305,52 @@ export const CreateEventDialog = ({
             )}
           </div>
         </div>
+
+        {/* P2-M1 重复 — 创建时可选;编辑重复规则属 M2 三选语义,编辑态隐藏。 */}
+        {!isEdit && (
+          <div
+            className={css({
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              fontSize: '0.875rem',
+              color: 'greyscale.800',
+            })}
+          >
+            <span>{t('form.repeat')}</span>
+            <select
+              value={repeat}
+              onChange={(e) => setRepeat(e.target.value)}
+              data-testid="event-repeat"
+              className={inputCls}
+            >
+              <option value="">{t('form.repeatNone')}</option>
+              <option value="DAILY">{t('form.repeatDaily')}</option>
+              <option value="WEEKDAYS">{t('form.repeatWeekdays')}</option>
+              <option value="WEEKLY">{t('form.repeatWeekly')}</option>
+              <option value="MONTHLY">{t('form.repeatMonthly')}</option>
+            </select>
+            {repeat && (
+              <label
+                className={css({
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.375rem',
+                })}
+              >
+                {t('form.repeatUntil')}
+                <input
+                  type="date"
+                  value={repeatUntil}
+                  onChange={(e) => setRepeatUntil(e.target.value)}
+                  data-testid="event-repeat-until"
+                  className={inputCls}
+                />
+              </label>
+            )}
+          </div>
+        )}
 
         {/* Attendees — create-only; editing attendees isn't wired server-side. */}
         {!isEdit && (

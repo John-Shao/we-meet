@@ -31,7 +31,14 @@
     "error": "Mislukt: {{message}}",
     "endAfterStart": "Einde moet na het begin liggen.",
     "noResults": "Geen leden gevonden",
-    "removeAttendee": "{{name}} verwijderen"
+    "removeAttendee": "{{name}} verwijderen",
+    "repeat": "Herhalen",
+    "repeatNone": "Wordt niet herhaald",
+    "repeatDaily": "Dagelijks",
+    "repeatWeekdays": "Elke werkdag",
+    "repeatWeekly": "Wekelijks",
+    "repeatMonthly": "Maandelijks",
+    "repeatUntil": "Tot"
   },
   "card": {
     "organizer": "Organisator",
@@ -42,7 +49,11 @@
   "detail": {
     "edit": "Bewerken",
     "delete": "Verwijderen",
-    "deleteConfirm": "Deze afspraak verwijderen? Deelnemers zien hem dan niet meer."
+    "deleteConfirm": "Deze afspraak verwijderen? Deelnemers zien hem dan niet meer.",
+    "recurrenceOccurrence": "Eén keer in een herhaalde afspraak",
+    "recurrenceCustom": "Aangepaste herhaling",
+    "deleteConfirmOccurrence": "Alleen deze keer verwijderen? Andere keren in de reeks blijven staan.",
+    "deleteConfirmSeries": "De hele reeks verwijderen? Alle toekomstige keren worden verwijderd."
   },
   "rsvp": {
     "label": "Mijn reactie",

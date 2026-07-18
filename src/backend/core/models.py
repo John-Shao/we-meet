@@ -2085,6 +2085,11 @@ class CalendarEvent(BaseModel):
         null=True,
         blank=True,
     )
+    # P2-M1 重复日程:被「仅此次」删除的发生(occurrence)的 start_at ISO-8601
+    # UTC 字符串列表——物化任务跳过这些时刻,防止删掉的场次被重新生成。
+    recurrence_exdates = models.JSONField(
+        _("recurrence exdates"), blank=True, default=list
+    )
 
     class Meta:
         db_table = "meet_calendar_event"
@@ -2094,6 +2099,14 @@ class CalendarEvent(BaseModel):
         indexes = [
             # Reminder scan: events starting soon that haven't been pushed yet.
             models.Index(fields=["start_at"], name="calevent_start_idx"),
+        ]
+        constraints = [
+            # P2-M1 物化幂等:同一主事件的同一发生时刻只允许一行子事件。
+            models.UniqueConstraint(
+                fields=["recurrence_parent", "start_at"],
+                condition=models.Q(recurrence_parent__isnull=False),
+                name="calevent_parent_start_uniq",
+            ),
         ]
 
     def __str__(self):
