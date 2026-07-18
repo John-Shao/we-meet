@@ -448,6 +448,20 @@ class RoomInviteSerializer(serializers.Serializer):
     emails = serializers.ListField(child=serializers.EmailField(), allow_empty=False)
 
 
+class RoomSuggestedInviteesSerializer(serializers.Serializer):
+    """Validate the P5 suggested-participants report body (user ids + source).
+
+    ``source`` mirrors ``RoomInvitee.source``: "group" for group-originated
+    calls (the whole source group becomes the suggestion list), "manual" for
+    people picked in the in-meeting invite panel.
+    """
+
+    user_ids = serializers.ListField(
+        child=serializers.UUIDField(), allow_empty=False, max_length=200
+    )
+    source = serializers.ChoiceField(choices=["group", "manual"], default="manual")
+
+
 class BaseParticipantsManagementSerializer(BaseValidationOnlySerializer):
     """Base serializer for participant management operations."""
 

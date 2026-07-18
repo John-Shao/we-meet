@@ -2729,3 +2729,53 @@ class ImLaterItem(BaseModel):
     def __str__(self):
         state = "done" if self.done_at else "pending"
         return f"Later({self.user_id}, {self.cid}#{self.mid}, {state})"
+
+
+class RoomInvitee(BaseModel):
+    """One person on a room's「建议参会」(suggested-participants) list (P5).
+
+    Records that ``user`` was invited to ``room`` outside the calendar path —
+    either rung from a group-originated call (``source="group"``) or picked in
+    the in-meeting invite panel (``source="manual"``). Calendar invitees are NOT
+    written here: scheduling already mirrors them as ``ResourceAccess`` members,
+    and the suggested-participants endpoint unions both tables at read time.
+
+    Deliberately carries NO permission semantics (unlike ``ResourceAccess``):
+    being listed grants nothing — it only feeds the suggestion list, so writes
+    can stay open to any participant without widening the room's ACL, and the
+    invitee's own room list is not polluted.
+    """
+
+    room = models.ForeignKey(
+        Room, on_delete=models.CASCADE, related_name="invitees"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="room_invites"
+    )
+    invited_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    source = models.CharField(
+        max_length=16,
+        choices=[("group", "group"), ("manual", "manual")],
+        default="manual",
+    )
+
+    class Meta:
+        db_table = "meet_room_invitee"
+        ordering = ("created_at",)
+        verbose_name = _("Room invitee")
+        verbose_name_plural = _("Room invitees")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room", "user"],
+                name="one_invite_per_room_user",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Invitee({self.user_id} → room {self.room_id}, {self.source})"

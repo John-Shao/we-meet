@@ -1081,6 +1081,112 @@ class RoomViewSet(
             status=drf_status.HTTP_200_OK,
         )
 
+    # ------------------------------------------------------------------
+    # P5 会中拉人 — 建议参会 (suggested participants)
+    # See docs/extensions/会中拉人P5_建议参会与统一邀请面板设计.md §4
+    # ------------------------------------------------------------------
+
+    @decorators.action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="suggested-participants",
+        # Any authenticated caller — NOT the viewset-level RoomPermissions —
+        # per拍板 "参会者皆可": everyone in the meeting can report/see the
+        # suggestion list. Being listed grants no room permission (RoomInvitee
+        # is ACL-free) and every read is org-scoped below, so the open write
+        # only ever influences what suggestions render.
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def suggested_participants(self, request, pk=None):  # pylint: disable=unused-argument
+        """P5「建议参会」: the room's invited-but-maybe-absent people.
+
+        GET  → union of ResourceAccess members (calendar mirror / manual room
+               members, source="member") and RoomInvitee rows (group-originated
+               calls / in-meeting picks). Cards carry ``sub`` so clients diff
+               against LiveKit participant identities locally — presence
+               subtraction never happens server-side.
+        POST → idempotently record invitees ({user_ids, source}). Ids outside
+               the caller's organization are silently dropped.
+        """
+        # Local import: directory.py imports Pagination from this module, so a
+        # module-level import here would be circular.
+        from core.api.directory import (  # pylint: disable=import-outside-toplevel
+            DirectoryMemberSerializer,
+            get_caller_organization,
+        )
+
+        room = self.get_object()
+        organization = get_caller_organization(request.user)
+
+        if request.method == "POST":
+            serializer = serializers.RoomSuggestedInviteesSerializer(
+                data=request.data
+            )
+            serializer.is_valid(raise_exception=True)
+            user_ids = set(serializer.validated_data["user_ids"])
+            source = serializer.validated_data["source"]
+
+            valid_ids = set()
+            if organization is not None:
+                valid_ids = set(
+                    models.Membership.objects.filter(
+                        organization=organization,
+                        status=models.MembershipStatusChoices.ACTIVE,
+                        user_id__in=user_ids,
+                    ).values_list("user_id", flat=True)
+                )
+            # ignore_conflicts makes re-reports (and concurrent reports of the
+            # same person) converge on the unique(room, user) constraint.
+            models.RoomInvitee.objects.bulk_create(
+                [
+                    models.RoomInvitee(
+                        room=room,
+                        user_id=user_id,
+                        invited_by=request.user,
+                        source=source,
+                    )
+                    for user_id in valid_ids
+                ],
+                ignore_conflicts=True,
+            )
+            return drf_response.Response(
+                {"status": "success", "accepted": len(valid_ids)},
+                status=drf_status.HTTP_200_OK,
+            )
+
+        # ---- GET ----
+        if organization is None:
+            return drf_response.Response({"suggestions": []})
+
+        # source per user id — ResourceAccess ("member") wins when both tables
+        # hold the same person: room membership is the stronger statement.
+        sources = {}
+        for user_id, invitee_source in models.RoomInvitee.objects.filter(
+            room=room
+        ).values_list("user_id", "source"):
+            sources[user_id] = invitee_source
+        for user_id in models.ResourceAccess.objects.filter(
+            resource=room
+        ).values_list("user_id", flat=True):
+            sources[user_id] = "member"
+
+        memberships = (
+            models.Membership.objects.filter(
+                organization=organization,
+                status=models.MembershipStatusChoices.ACTIVE,
+                user_id__in=sources.keys(),
+            )
+            .select_related("user", "department")
+            .order_by("created_at")[:200]
+        )
+        cards = DirectoryMemberSerializer(
+            memberships, many=True, context={"request": request}
+        ).data
+        for card, membership in zip(cards, memberships):
+            card["source"] = sources.get(membership.user_id, "manual")
+
+        return drf_response.Response({"suggestions": cards})
+
     @decorators.action(
         detail=True,
         methods=["post"],
