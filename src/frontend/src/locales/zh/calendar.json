@@ -38,7 +38,8 @@
     "repeatWeekdays": "每个工作日",
     "repeatWeekly": "每周",
     "repeatMonthly": "每月",
-    "repeatUntil": "截止"
+    "repeatUntil": "截止",
+    "confirm": "确定"
   },
   "card": {
     "organizer": "组织者",
@@ -77,5 +78,12 @@
   },
   "sidebar": {
     "upcoming": "即将开始"
+  },
+  "scope": {
+    "editTitle": "编辑重复日程",
+    "deleteTitle": "删除重复日程",
+    "one": "仅此场次",
+    "following": "此场次及以后",
+    "all": "所有场次"
   }
 }

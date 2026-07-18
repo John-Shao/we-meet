@@ -8,7 +8,7 @@ on first need / by the reminder job in P2-c), so event creation never depends on
 jusi-light-im being reachable.
 """
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 
@@ -21,6 +21,7 @@ from core.api import permissions
 from core.api.directory import get_caller_organization
 from core.api.serializers import UserLightSerializer
 from core.api.viewsets import Pagination
+from core.services import calendar_recurrence
 
 
 class CalendarEventSerializer(serializers.ModelSerializer):
@@ -221,6 +222,97 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     defaults={"role": models.RoleChoices.MEMBER},
                 )
 
+    def _sync_room(self, event):
+        """Keep the linked Room's name / scheduled_at consistent after an edit."""
+        room = event.room
+        if room is None:
+            return
+        update_fields = []
+        if room.name != event.title:
+            room.name = event.title
+            update_fields.append("name")
+        if room.scheduled_at != event.start_at:
+            room.scheduled_at = event.start_at
+            update_fields.append("scheduled_at")
+        if update_fields:
+            update_fields.append("updated_at")
+            room.save(update_fields=update_fields)
+
+    def update(self, request, *args, **kwargs):
+        """PATCH/PUT;P2-M2 重复日程三选语义(body 里的 ``edit_scope``):
+
+        - 子场次 + ``one``(缺省):只改该行,并在主事件记原时刻 exdate——
+          即使时刻被改,原槽位也不会被重新物化。
+        - 子场次 + ``following``:系列在该场次分裂,新主事件带编辑值接管后续,
+          返回体 = 新主事件。
+        - 子场次 + ``all`` / 主事件(任意 scope):走「全部」——标量传播全系列,
+          时间按该场次的新旧差平移,未来窗口重物化(RSVP 按平移保留)。
+        - 单次事件不受影响(原路径)。M2 边界:主事件行即系列首场,首场不支持
+          one/following(等价于 all);改 RRULE 本身不在三选语义内,忽略。
+        """
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        self._require_organizer(instance)
+        scope = str((request.data or {}).get("edit_scope") or "").strip()
+        if scope not in ("", "one", "following", "all"):
+            raise exceptions.ValidationError(
+                {"edit_scope": "expected one | following | all"}
+            )
+
+        serializer = self.get_serializer(
+            instance, data=request.data, partial=partial
+        )
+        serializer.is_valid(raise_exception=True)
+
+        parent = instance.recurrence_parent
+        is_recurring = parent is not None or bool(instance.recurrence)
+        if not is_recurring:
+            self.perform_update(serializer)
+            return Response(serializer.data)
+
+        data = dict(serializer.validated_data)
+        for excluded in ("attendee_ids", "timezone", "recurrence"):
+            data.pop(excluded, None)
+
+        if parent is not None and scope == "following":
+            new_parent = calendar_recurrence.split_series(instance, data)
+            return Response(self.get_serializer(new_parent).data)
+
+        if parent is not None and scope == "all":
+            updated = calendar_recurrence.edit_series_all(
+                parent, instance.start_at, data
+            )
+            self._sync_room(updated)
+            return Response(self.get_serializer(updated).data)
+
+        if parent is None:
+            # 主事件 = 系列锚点:任何 scope 都按「全部」处理。
+            updated = calendar_recurrence.edit_series_all(
+                instance, instance.start_at, data
+            )
+            self._sync_room(updated)
+            return Response(self.get_serializer(updated).data)
+
+        # 子场次缺省 / one:改行 + 主事件记原时刻 exdate。
+        original_start = instance.start_at
+        try:
+            with transaction.atomic():
+                event = serializer.save()
+                exdates = list(parent.recurrence_exdates or [])
+                key = original_start.isoformat()
+                if key not in exdates:
+                    exdates.append(key)
+                    parent.recurrence_exdates = exdates
+                    parent.save(
+                        update_fields=["recurrence_exdates", "updated_at"]
+                    )
+        except IntegrityError as exc:
+            # 撞 (recurrence_parent, start_at) 唯一索引 = 移到了别的场次槽位。
+            raise exceptions.ValidationError(
+                {"start_at": "another occurrence already exists at this time"}
+            ) from exc
+        return Response(self.get_serializer(event).data)
+
     def perform_update(self, serializer):
         """Organizer-only edit. Syncs the linked Room's name / scheduled_at so a
         reschedule (or rename) stays consistent; adds any newly-listed invitees
@@ -230,18 +322,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         attendee_ids = data.pop("attendee_ids", None)
         with transaction.atomic():
             event = serializer.save()
-            room = event.room
-            if room is not None:
-                update_fields = []
-                if room.name != event.title:
-                    room.name = event.title
-                    update_fields.append("name")
-                if room.scheduled_at != event.start_at:
-                    room.scheduled_at = event.start_at
-                    update_fields.append("scheduled_at")
-                if update_fields:
-                    update_fields.append("updated_at")
-                    room.save(update_fields=update_fields)
+            self._sync_room(event)
             if attendee_ids:
                 # Org-scoped like perform_create: only active members of the
                 # event's organization can be added (no cross-org invite).
@@ -266,6 +347,19 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                             user=attendee,
                             defaults={"role": models.RoleChoices.MEMBER},
                         )
+
+    def destroy(self, request, *args, **kwargs):
+        """DELETE;P2-M2 扩展 ``?scope=following``(仅子场次):系列在该场次
+        截断,该场次及之后全部删除。缺省走 M1 语义(perform_destroy)。"""
+        instance = self.get_object()
+        if (
+            str(request.query_params.get("scope") or "") == "following"
+            and instance.recurrence_parent_id
+        ):
+            self._require_organizer(instance)
+            calendar_recurrence.delete_following(instance)
+            return Response(status=drf_status.HTTP_204_NO_CONTENT)
+        return super().destroy(request, *args, **kwargs)
 
     def perform_destroy(self, instance):
         """Organizer-only delete. The Room survives (FK is SET_NULL) so a

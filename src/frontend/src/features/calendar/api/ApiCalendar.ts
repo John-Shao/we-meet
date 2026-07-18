@@ -51,6 +51,9 @@ export interface CreateEventPayload {
   recurrence?: string
 }
 
+/** P2-M2 重复日程编辑范围:仅此场次 / 此场次及以后 / 所有场次。 */
+export type EditScope = 'one' | 'following' | 'all'
+
 /**
  * PATCH payload for editing an event. Scalar fields only — the backend update
  * path does not (yet) re-sync attendees / Room, so the edit dialog omits the
@@ -63,4 +66,6 @@ export interface UpdateEventPayload {
   end_at?: string
   all_day?: boolean
   reminders?: number[]
+  /** P2-M2:重复日程子场次的编辑范围;单次事件省略。 */
+  edit_scope?: EditScope
 }

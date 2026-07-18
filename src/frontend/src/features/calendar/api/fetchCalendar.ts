@@ -42,11 +42,17 @@ export const updateCalendarEvent = (
     body: JSON.stringify(payload),
   })
 
-/** DELETE /api/v1.0/calendar-events/{id} — delete (cancel) an event. */
-export const deleteCalendarEvent = (id: string): Promise<void> =>
-  fetchApi(`/calendar-events/${encodeURIComponent(id)}/`, {
-    method: 'DELETE',
-  }).then(() => undefined)
+/** DELETE /api/v1.0/calendar-events/{id} — delete (cancel) an event.
+ *  P2-M2: `scope=following`(仅重复子场次)= 该场次及之后整段删除;缺省 =
+ *  M1 语义(子场次仅此次 / 主事件删系列 / 单次直接删)。 */
+export const deleteCalendarEvent = (
+  id: string,
+  scope?: 'following'
+): Promise<void> =>
+  fetchApi(
+    `/calendar-events/${encodeURIComponent(id)}/${scope ? `?scope=${scope}` : ''}`,
+    { method: 'DELETE' }
+  ).then(() => undefined)
 
 /** POST /api/v1.0/calendar-events/{id}/rsvp — set the caller's RSVP. */
 export const rsvpCalendarEvent = (

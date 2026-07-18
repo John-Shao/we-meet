@@ -38,7 +38,8 @@
     "repeatWeekdays": "Every weekday",
     "repeatWeekly": "Weekly",
     "repeatMonthly": "Monthly",
-    "repeatUntil": "Until"
+    "repeatUntil": "Until",
+    "confirm": "OK"
   },
   "card": {
     "organizer": "Organizer",
@@ -77,5 +78,12 @@
   },
   "sidebar": {
     "upcoming": "Upcoming"
+  },
+  "scope": {
+    "editTitle": "Edit repeating event",
+    "deleteTitle": "Delete repeating event",
+    "one": "This occurrence only",
+    "following": "This and following occurrences",
+    "all": "All occurrences"
   }
 }

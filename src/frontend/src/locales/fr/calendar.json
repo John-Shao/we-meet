@@ -38,7 +38,8 @@
     "repeatWeekdays": "Tous les jours ouvrés",
     "repeatWeekly": "Toutes les semaines",
     "repeatMonthly": "Tous les mois",
-    "repeatUntil": "Fin"
+    "repeatUntil": "Fin",
+    "confirm": "OK"
   },
   "card": {
     "organizer": "Organisateur",
@@ -77,5 +78,12 @@
   },
   "sidebar": {
     "upcoming": "À venir"
+  },
+  "scope": {
+    "editTitle": "Modifier la série",
+    "deleteTitle": "Supprimer la série",
+    "one": "Uniquement cette occurrence",
+    "following": "Cette occurrence et les suivantes",
+    "all": "Toutes les occurrences"
   }
 }

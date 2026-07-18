@@ -38,7 +38,8 @@
     "repeatWeekdays": "Elke werkdag",
     "repeatWeekly": "Wekelijks",
     "repeatMonthly": "Maandelijks",
-    "repeatUntil": "Tot"
+    "repeatUntil": "Tot",
+    "confirm": "OK"
   },
   "card": {
     "organizer": "Organisator",
@@ -77,5 +78,12 @@
   },
   "sidebar": {
     "upcoming": "Aankomend"
+  },
+  "scope": {
+    "editTitle": "Herhaalde afspraak bewerken",
+    "deleteTitle": "Herhaalde afspraak verwijderen",
+    "one": "Alleen deze keer",
+    "following": "Deze en volgende keren",
+    "all": "Alle keren"
   }
 }

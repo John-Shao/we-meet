@@ -8,7 +8,7 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { useDirectoryMemberSearch, MemberAvatar } from '@/features/contacts'
 
 import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
-import type { CalendarEvent } from '../api/ApiCalendar'
+import type { CalendarEvent, EditScope } from '../api/ApiCalendar'
 
 interface Props {
   onCreated: (event: CalendarEvent) => void
@@ -21,6 +21,8 @@ interface Props {
   /** When set, the dialog edits this event (PATCH) instead of creating one.
    * Scalar fields only — attendees aren't editable (backend doesn't re-sync). */
   editEvent?: CalendarEvent
+  /** P2-M2:重复子场次的编辑范围(one/following/all),随 PATCH 提交。 */
+  editScope?: EditScope
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -43,6 +45,7 @@ export const CreateEventDialog = ({
   initialEnd,
   initialAllDay,
   editEvent,
+  editScope,
 }: Props) => {
   const { t } = useTranslation('calendar')
   const isEdit = !!editEvent
@@ -138,7 +141,11 @@ export const CreateEventDialog = ({
         reminders: [...reminders].sort((a, b) => a - b),
       }
       const event = editEvent
-        ? await updateCalendarEvent(editEvent.id, base)
+        ? await updateCalendarEvent(
+            editEvent.id,
+            // P2-M2:重复子场次带三选范围;单次/主事件不带(主=服务端全部)。
+            editScope ? { ...base, edit_scope: editScope } : base
+          )
         : await createCalendarEvent({
             ...base,
             attendee_ids: [...selected.keys()],

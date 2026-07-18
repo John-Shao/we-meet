@@ -16,11 +16,12 @@ import {
   rsvpCalendarEvent,
   deleteCalendarEvent,
 } from '../api/fetchCalendar'
-import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
+import type { CalendarEvent, EditScope, RSVPStatus } from '../api/ApiCalendar'
 import { CreateEventDialog } from '../components/CreateEventDialog'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
 import { CalendarSidebar } from '../components/CalendarSidebar'
+import { EditScopeDialog } from '../components/EditScopeDialog'
 import { EventDetailDialog } from '../components/EventDetailDialog'
 
 const EVENTS_KEY = ['calendar'] as const
@@ -43,6 +44,12 @@ const CalendarAuthenticated = () => {
   const [draft, setDraft] = useState<SlotDraft | null>(null)
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null)
+  // P2-M2 三选:重复子场次的编辑/删除先弹范围选择;editScope 随编辑对话框提交。
+  const [scopeAsk, setScopeAsk] = useState<{
+    mode: 'edit' | 'delete'
+    event: CalendarEvent
+  } | null>(null)
+  const [editScope, setEditScope] = useState<EditScope | undefined>(undefined)
   const [date, setDate] = useState<Date>(() => new Date())
 
   const openCreate = (slot: SlotDraft | null) => {
@@ -94,17 +101,29 @@ const CalendarAuthenticated = () => {
   }
 
   const removeEvent = async (event: CalendarEvent) => {
-    // P2-M1 重复日程:子场次=仅删此次(服务端记 exdate);带 RRULE 的主事件=
-    // 删整个系列(含未来场次);单次事件用原文案。
-    const confirmKey = event.recurrence_parent
-      ? 'detail.deleteConfirmOccurrence'
-      : event.recurrence
-        ? 'detail.deleteConfirmSeries'
-        : 'detail.deleteConfirm'
+    // 单次=原文案;带 RRULE 的主事件=删整个系列。重复子场次不走这里(P2-M2
+    // 三选弹窗,见 onDelete 分支)。
+    const confirmKey = event.recurrence
+      ? 'detail.deleteConfirmSeries'
+      : 'detail.deleteConfirm'
     if (!(await askConfirm({ message: t(confirmKey) }))) return
     try {
       await deleteCalendarEvent(event.id)
       setDetailEvent(null)
+      await qc.invalidateQueries({ queryKey: EVENTS_KEY })
+    } catch (e) {
+      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
+    }
+  }
+
+  // P2-M2:重复子场次的范围化删除(one=仅此次[M1 exdate 语义],following=
+  // 该场次及之后截断)。三选弹窗本身即确认,不再二次 confirm。
+  const removeScoped = async (event: CalendarEvent, scope: EditScope) => {
+    try {
+      await deleteCalendarEvent(
+        event.id,
+        scope === 'following' ? 'following' : undefined
+      )
       await qc.invalidateQueries({ queryKey: EVENTS_KEY })
     } catch (e) {
       void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
@@ -200,10 +219,23 @@ const CalendarAuthenticated = () => {
           event={detailEvent}
           canManage={!!user && detailEvent.organizer?.id === user.id}
           onEdit={() => {
-            setEditEvent(detailEvent)
+            // P2-M2:重复子场次先选范围;主事件/单次直接进编辑(主=全部)。
+            if (detailEvent.recurrence_parent) {
+              setScopeAsk({ mode: 'edit', event: detailEvent })
+            } else {
+              setEditScope(undefined)
+              setEditEvent(detailEvent)
+            }
             setDetailEvent(null)
           }}
-          onDelete={() => void removeEvent(detailEvent)}
+          onDelete={() => {
+            if (detailEvent.recurrence_parent) {
+              setScopeAsk({ mode: 'delete', event: detailEvent })
+              setDetailEvent(null)
+            } else {
+              void removeEvent(detailEvent)
+            }
+          }}
           onRsvp={(status) => setRsvp(detailEvent, status)}
           onJoin={() => {
             if (detailEvent.room_slug) navigate(`/${detailEvent.room_slug}`)
@@ -228,10 +260,41 @@ const CalendarAuthenticated = () => {
       {editEvent && (
         <CreateEventDialog
           editEvent={editEvent}
-          onClose={() => setEditEvent(null)}
+          editScope={editScope}
+          onClose={() => {
+            setEditEvent(null)
+            setEditScope(undefined)
+          }}
           onCreated={() => {
             setEditEvent(null)
+            setEditScope(undefined)
             void qc.invalidateQueries({ queryKey: EVENTS_KEY })
+          }}
+        />
+      )}
+
+      {scopeAsk && (
+        <EditScopeDialog
+          title={t(
+            scopeAsk.mode === 'edit' ? 'scope.editTitle' : 'scope.deleteTitle'
+          )}
+          options={
+            scopeAsk.mode === 'edit'
+              ? ['one', 'following', 'all']
+              : ['one', 'following']
+          }
+          danger={scopeAsk.mode === 'delete'}
+          onClose={() => setScopeAsk(null)}
+          onConfirm={(scope) => {
+            const target = scopeAsk.event
+            const mode = scopeAsk.mode
+            setScopeAsk(null)
+            if (mode === 'edit') {
+              setEditScope(scope)
+              setEditEvent(target)
+            } else {
+              void removeScoped(target, scope)
+            }
           }}
         />
       )}
