@@ -91,4 +91,70 @@ i18n:`locales/{de,en,fr,nl,zh}/im.json`。
 - M1 Web 会话日历抽屉+日程卡片 —— we-meet `14368971`(tsc -b + eslint 通过;freeSlots 算法 esbuild+node 断言验证,前端无测试基建)。
 - M2 Android 四视图+忙闲对比+IM 集成 —— we-meet-android `6fc0b23`(assembleDebug 通过,APK 已出)。
 - M3 变更推送 —— we-meet `0e62e5a0` + we-meet-android `f2a40e3`(后端日历全范围 38 测试绿;core 全量套件中 rooms/recording 等 80 个失败为分叉既有,与 P8 无关,已用 HEAD 对照确认)。
-- ⚠️ M3 上线必须 helm upgrade 触发 migrate job(**0062**),`showmigrations core` 验证;只换镜像会 relation does not exist 500。
+- ⚠️ M3 上线必须应用迁移 **0062**(步骤见 §9;只换镜像不迁移会 relation does not exist 500)。
+
+## 9. 部署步骤(阿里云,沿用「latest 标签 + 手动 rollout」模型)
+
+> 通用背景与踩坑详解见 [../extensions/移动端扩展功能部署步骤.md](../extensions/移动端扩展功能部署步骤.md)。
+> 拓扑:`aliyun-sjy`(K3s 主节点,meet 全栈)。本次 **Keycloak(aliyun-zlm)、
+> jusi-light-im 服务端、summary/agents 镜像、values 均零改动**,不用碰。
+
+### 改动面
+
+| 改动 | 动作 |
+|------|------|
+| backend(M3 代码 + 迁移 **0062** + 第 0 步 bugfix) | 重建 **backend 镜像** + rollout + **migrate** |
+| frontend(M1 会话日历抽屉/日程卡片) | 重建 **frontend 镜像** + rollout |
+| Android(M2/M3,we-meet-android `6fc0b23`+`f2a40e3`) | 走既有发包流程出新包 |
+| values.meet.yaml / values.secrets.yaml | **无变更**(JUSI_IM_CONFIGURATION 已有,无新 env) |
+
+### 步骤 0 — 推送代码(本机)
+
+两仓 commit 已就绪待手动 push:we-meet(`a9ba0e78`/`14368971`/`0e62e5a0`+docs)、
+we-meet-android(`6fc0b23`/`f2a40e3`)。aliyun-sjy 的 `git pull` 依赖远端。
+
+### 步骤 1 — 构建并推送镜像(PC,VPN 开着)
+
+```bash
+bash deploy/aliyun/build-and-push.sh backend frontend
+```
+
+> ⚠️ 代码改动必须经此步重推镜像;ECS 上 `git pull` 不会更新 registry。
+
+### 步骤 2 — 滚动 + 迁移(aliyun-sjy)
+
+```bash
+ssh aliyun-sjy && cd <repo> && git pull
+
+# values/chart 本次无变更,helm upgrade 会是 no-op,可跳;核心是强制滚动:
+kubectl -n meet rollout restart deploy/meet-backend deploy/meet-frontend
+kubectl -n meet rollout status  deploy/meet-backend  --timeout=5m
+kubectl -n meet rollout status  deploy/meet-frontend --timeout=5m
+
+# 迁移(★ 本次关键):从新 backend Pod 手动跑,别指望 helm migrate hook
+kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input
+kubectl -n meet exec deploy/meet-backend -- \
+  python manage.py showmigrations core | tail -3   # 应见 0062_calendarevent_source_conversation_id [X]
+```
+
+### 步骤 3 — P8 冒烟(Web,meet.we-meet.online)
+
+1. 私聊 → 头部日历按钮 →「查看日历」抽屉:两列忙闲与日历页色块一致;拖选时段 → 底部判定文案正确。
+2. 从抽屉创建日程 → 日历页出现、参会人齐;**会话内出现日程卡片**,会话列表预览「[日程]」;点卡片可 RSVP/入会。
+3. 到日历页改该日程时间 → 会话收到「已改期」变更卡(带新旧时间);删除 → 「已取消」卡。改标题 → **不应**有卡片。
+4. 群聊「群成员日历」:多列横滚、跨组织成员置灰计数、建议时段 chips 可点。
+5. 非会话来源的日程(日历页直接建)改时间 → 无任何推送。
+
+### 步骤 4 — Android 发包
+
+新 APK 已本地构建(`app-debug.apk`);正式内测走既有发包流程(tag → CI → 蒲公英)。
+**旧安装包对 event-card 显示 JSON 原文** —— 属已知降级,发包后引导升级即可。
+
+### 回滚
+
+```bash
+helm -n meet rollback meet     # 镜像/配置回上一 release
+# 迁移回滚(如必要;0062 单列 additive,风险低):
+kubectl -n meet exec deploy/meet-backend -- python manage.py migrate core 0061
+# 注:回滚后新前端仍会发 source_conversation_id,DRF 对未知字段静默忽略,安全。
+```
