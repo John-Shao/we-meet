@@ -241,6 +241,8 @@ export const ParticipantsList = () => {
         <UnifiedInvitePanel
           roomSlug={roomSlug}
           excludeUserIds={excludeUserIds}
+          // 实测问题2: 面板搜索词带进 picker,输入不白打。
+          initialQuery={query.trim() || undefined}
           onClose={() => setInviteOpen(false)}
         />
       )}

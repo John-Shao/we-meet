@@ -20,6 +20,7 @@ export const MeetInvitePicker = ({
   onClose,
   excludeUserIds,
   footer,
+  initialQuery,
 }: {
   onInvite: (targets: MeetInviteTarget[]) => void
   onClose: () => void
@@ -28,9 +29,12 @@ export const MeetInvitePicker = ({
   /** P5 统一邀请面板: share-link / meeting-code section rendered between the
    * member list and the confirm bar — absent for plain pickers. */
   footer?: ReactNode
+  /** P5.1(实测问题2): seed the search with what the user already typed in
+   * the participants panel's 搜索或呼叫 box — 输入不白打. */
+  initialQuery?: string
 }) => {
   const { t } = useTranslation('im')
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery ?? '')
   // id → {label, avatar} captured at toggle time (list content changes with
   // the query).
   const [selected, setSelected] = useState<

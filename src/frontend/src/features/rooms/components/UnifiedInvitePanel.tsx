@@ -30,6 +30,7 @@ export const UnifiedInvitePanel = ({
   roomSlug,
   excludeUserIds,
   media = 'video',
+  initialQuery,
   onClose,
 }: {
   roomSlug: string
@@ -37,6 +38,8 @@ export const UnifiedInvitePanel = ({
   excludeUserIds?: Set<string>
   /** Ring media — 'audio' from the voice stage, 'video' everywhere else. */
   media?: 'audio' | 'video'
+  /** P5.1: seed the picker search with the participants-panel query. */
+  initialQuery?: string
   onClose: () => void
 }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'participants' })
@@ -83,6 +86,7 @@ export const UnifiedInvitePanel = ({
       onInvite={onInvite}
       onClose={onClose}
       excludeUserIds={excludeUserIds}
+      initialQuery={initialQuery}
       footer={
         <div
           className={css({

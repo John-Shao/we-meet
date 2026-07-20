@@ -90,6 +90,18 @@ export const Conference = ({
     userChoices: LocalUserChoices
   }
 
+  // P5.1(实测问题1): call/meet entries (ringing accept, group-card join,
+  // escalation) SKIP the join preview, so the persisted preview username is
+  // whatever the user typed in some past meeting — a stale alias. For
+  // logged-in org users on these paths the directory name is the identity
+  // (Feishu 口径); manual preview joins keep respecting the typed name.
+  const { user: selfUser } = useUser()
+  const isCallEntry = !!callPeer || callMeet
+  const joinUsername =
+    isCallEntry && selfUser?.full_name
+      ? selfUser.full_name
+      : userConfig.username
+
   useEffect(() => {
     posthog.capture('visit-room', { slug: roomId })
   }, [roomId, posthog])
@@ -143,14 +155,14 @@ export const Conference = ({
     queryFn: () =>
       fetchRoom({
         roomId: roomId as string,
-        username: userConfig.username,
+        username: joinUsername,
       }).catch((error) => {
         if (error.statusCode == '404') {
           // Auto-create fallback: user navigated to /:roomId for a slug that
           // doesn't exist yet (mainly the `ALLOW_UNREGISTERED_ROOMS` UX).
           // Use the URL fragment as the room name — backend still generates
           // its own 8-digit joinable slug regardless.
-          createRoom({ name: roomId, username: userConfig.username })
+          createRoom({ name: roomId, username: joinUsername })
         }
       }),
     retry: false,
@@ -357,7 +369,7 @@ export const Conference = ({
             callMeet={callMeet}
             audioOnly={audioOnly}
             roomSlug={roomId}
-            selfName={userConfig.username}
+            selfName={joinUsername}
             // queryFn's 404-fallback catch types `data` as ApiRoom | void.
             roomData={data ?? undefined}
           />
