@@ -524,8 +524,10 @@ export const ConversationCalendarPanel = ({
                             pointerEvents: 'none',
                           })}
                           style={{
-                            top: (s / 60) * HOUR_PX,
-                            height: Math.max(((e - s) / 60) * HOUR_PX, 3),
+                            // 上下各让 0.5px:首尾相接的两个日程之间露出
+                            // 1px 白缝,肉眼可辨是两块(后端已改为相接不合并)。
+                            top: (s / 60) * HOUR_PX + 0.5,
+                            height: Math.max(((e - s) / 60) * HOUR_PX - 1, 3),
                           }}
                         />
                       )

@@ -449,6 +449,9 @@ def test_freebusy_returns_merged_intervals_without_details():
 
     _event("秘密评审", 2, 4, peer)            # 02-04
     _event("重叠会", 3, 5, peer)              # 03-05 → 与上合并为 02-05
+    # P8-UX:首尾相接的两个日程不合并(否则群成员日历画成一个色块)。
+    _event("紧邻会A", 6, 7, peer)             # 06-07
+    _event("紧邻会B", 7, 8, peer)             # 07-08 → 保留边界,不并入上块
     _event("已拒绝", 8, 9, peer, rsvp="declined")  # 不算忙
     _event("我的会", 10, 11, me)
 
@@ -466,12 +469,21 @@ def test_freebusy_returns_merged_intervals_without_details():
     results = {r["user_id"]: r["busy"] for r in resp.json()["results"]}
     # 跨组织的 outsider 不在结果里。
     assert str(outsider.id) not in results
-    # peer:02-04 与 03-05 合并;declined 不出现。
+    # peer:02-04 与 03-05 重叠合并;06-07 与 07-08 首尾相接保留为两块;
+    # declined 不出现。
     assert results[str(peer.id)] == [
         {
             "start": (day + timedelta(hours=2)).isoformat(),
             "end": (day + timedelta(hours=5)).isoformat(),
-        }
+        },
+        {
+            "start": (day + timedelta(hours=6)).isoformat(),
+            "end": (day + timedelta(hours=7)).isoformat(),
+        },
+        {
+            "start": (day + timedelta(hours=7)).isoformat(),
+            "end": (day + timedelta(hours=8)).isoformat(),
+        },
     ]
     assert len(results[str(me.id)]) == 1
     # 只出区间——响应文本不含任何标题。

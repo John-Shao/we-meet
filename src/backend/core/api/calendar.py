@@ -449,7 +449,9 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         """P2-M3 忙闲视图:`?attendee_ids=a,b&start=ISO&end=ISO` → 每人 busy 区间。
 
         只返回区间,**不泄露标题/详情**(private 事件同样只出区间)。busy 口径:
-        该人 rsvp≠declined 的 CONFIRMED 事件与窗口的交集,重叠区间合并。
+        该人 rsvp≠declined 的 CONFIRMED 事件与窗口的交集,**仅重叠**区间合并
+        ——首尾相接(20-21 + 21-22)保留边界,客户端才能画出两个色块(飞书
+        同款;P8-UX 反馈:相接合并后群成员日历看不出是两个日程)。
         attendee_ids 按组织隔离过滤(跨组织 id 静默丢弃,同建事件口径);
         窗口上限 31 天。
         """
@@ -502,7 +504,8 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         for uid, intervals in busy_map.items():
             merged = []
             for s_at, e_at in sorted(intervals):
-                if merged and s_at <= merged[-1][1]:
+                # 严格 < :首尾相接不合并,保留两个日程的边界。
+                if merged and s_at < merged[-1][1]:
                     merged[-1] = (merged[-1][0], max(merged[-1][1], e_at))
                 else:
                     merged.append((s_at, e_at))
