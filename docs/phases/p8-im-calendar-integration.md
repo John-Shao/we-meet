@@ -1,6 +1,6 @@
 # P8 — IM 会话内日历 / 快速约会 + Android 日历视图补齐（对标飞书）
 
-> 状态:**设计定稿,实施中**。三里程碑:M1 Web → M2 Android → M3 变更推送。
+> 状态:**已交付,待实测**。三里程碑:M1 Web → M2 Android → M3 变更推送。
 > 性质:**只扩展不修改**。日历本体(P2)与 IM 富消息管线(P7)全部复用,不动 jusi-light-im 服务端。
 
 ## 1. 背景与需求
@@ -85,8 +85,10 @@ i18n:`locales/{de,en,fr,nl,zh}/im.json`。
 - 共同工作时间按浏览器/设备本地时区 09:00-18:00,跨时区团队不在本期。
 - 未升级客户端对 event-card 显示 JSON 原文(内部工具,双端同波发版收敛;必要时 M3 可降级发 system 纯文本)。
 
-## 8. 交付记录
+## 8. 交付记录(2026-07-20)
 
-- 第 0 步(顺手修的现网 bug):`perform_update` 未定义 `room` NameError(PATCH 带 attendee_ids 必 500)+ 窗口过滤测试 URL 编码假阴 —— we-meet a9ba0e78。
-- M1 / M2 / M3:待交付后回填 commit 号。
-- ⚠️ M3 上线必须 helm upgrade 触发 migrate job(0062),`showmigrations core` 验证。
+- 第 0 步(顺手修的现网 bug):`perform_update` 未定义 `room` NameError(PATCH 带 attendee_ids 必 500)+ 窗口过滤测试 URL 编码假阴 —— we-meet `a9ba0e78`。
+- M1 Web 会话日历抽屉+日程卡片 —— we-meet `14368971`(tsc -b + eslint 通过;freeSlots 算法 esbuild+node 断言验证,前端无测试基建)。
+- M2 Android 四视图+忙闲对比+IM 集成 —— we-meet-android `6fc0b23`(assembleDebug 通过,APK 已出)。
+- M3 变更推送 —— we-meet `0e62e5a0` + we-meet-android `f2a40e3`(后端日历全范围 38 测试绿;core 全量套件中 rooms/recording 等 80 个失败为分叉既有,与 P8 无关,已用 HEAD 对照确认)。
+- ⚠️ M3 上线必须 helm upgrade 触发 migrate job(**0062**),`showmigrations core` 验证;只换镜像会 relation does not exist 500。
