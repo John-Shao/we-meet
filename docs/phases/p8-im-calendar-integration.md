@@ -19,7 +19,7 @@
 | 能力 | 现状 | 出处 |
 |---|---|---|
 | 日历模型/CRUD/RSVP/重复/提醒 | ✅ P2 完整 | `core/models.py` CalendarEvent/EventAttendee;`core/api/calendar.py` |
-| 忙闲端点 | ✅ 已有 `GET /calendar-events/freebusy/?attendee_ids&start&end`,组织隔离、31 天上限、合并区间、跨组织 id 静默丢弃、不泄露标题 | `calendar.py` freebusy action |
+| 忙闲端点 | ✅ 已有 `GET /calendar-events/freebusy/?attendee_ids&start&end`,组织隔离、31 天上限、**仅重叠**区间合并(首尾相接保留边界,`4a204e8f`)、跨组织 id 静默丢弃、不泄露标题 | `calendar.py` freebusy action |
 | IM uid → we-meet 用户 | ✅ `im/users/resolve` 返回 `{id(UUID), name, avatar}`;Web `resolveImUsers`、App `ImUserInfo.id`/`GroupMemberUi.userId`/`peerUserId` 均已解析好 | `core/api/im.py` resolve_users |
 | IM 自定义消息类型 | ✅ `content_type` 透传(P7),已有 image/quote/file/recall/reaction/call-log/group-call 等先例 | `docs/phases/p7-im-rich-messages.md` |
 | 后端向会话发消息 | ✅ jusi admin client + `_post_system_message` 基建 | `core/api/im.py` |
