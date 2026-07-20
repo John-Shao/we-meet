@@ -270,6 +270,25 @@ export const EventCardMessage = ({
         )}
         {cardEl}
       </div>
+      {/* 自己发的消息:右侧自己头像(与 MessageItem 常规气泡一致)。 */}
+      {isOwn && (
+        <button
+          type="button"
+          onClick={onAvatarClick}
+          disabled={!onAvatarClick}
+          aria-label={name}
+          className={css({
+            flexShrink: 0,
+            padding: 0,
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            _disabled: { cursor: 'default' },
+          })}
+        >
+          <Avatar name={name} src={senderAvatarUrl} size="2rem" />
+        </button>
+      )}
     </div>
   )
 }
