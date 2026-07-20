@@ -3,7 +3,12 @@
 协议 v1(与 Web `eventCard.ts` / Android `MessageContent.EventCard` 一致):
 ``{v, kind, event_id, title, start, end, all_day, attendee_count,
 organizer_name, old_start?, old_end?, added_count?}``,content_type
-固定 ``event-card``,SYSTEM 身份注入。
+固定 ``event-card``。
+
+P8-UX:卡片以**组织者身份**注入(sender_uid = 组织者 IM uid,优先
+``User.im_uid`` 缓存,缺则 issue_token 惰性注册并回填)——双端据 sender
+渲染成组织者的正常消息气泡;uid 解析失败退 SYSTEM(客户端渲染居中通知,
+降级可接受)。
 
 契约:**best-effort** —— 推送失败只记 warning,绝不影响日程操作本身
 (镜像 im.py `_post_system_message`);创建卡由客户端发,这里只发变更/取消。
@@ -76,8 +81,40 @@ def build_event_card(
     return card
 
 
-def push_card(cid: str, card: dict) -> None:
-    """Best-effort 注入卡片;jusi 不可达/报错仅 warning。"""
+def _organizer_sender_uid(client: JusiImAdminClient, organizer) -> str | None:
+    """组织者的 IM uid:优先 ``User.im_uid`` 缓存,缺则 issue_token 惰性注册
+    并回填缓存(镜像 im.py `_resolve_uid`/`_cache_im_uid`)。失败返回 None →
+    调用方退 SYSTEM 身份(客户端渲染居中通知)。"""
+    if organizer is None:
+        return None
+    cached = getattr(organizer, "im_uid", None)
+    if cached:
+        return cached
+    external_id = str(getattr(organizer, "sub", None) or organizer.pk)
+    try:
+        resolved = client.issue_token(external_id=external_id, ttl_seconds=60)
+    except JusiImServiceError:
+        logger.warning(
+            "calendar_im_notify: organizer uid resolve failed for user %s",
+            organizer.pk, exc_info=True,
+        )
+        return None
+    uid = getattr(resolved, "uid", None)
+    if uid:
+        try:
+            organizer.im_uid = uid
+            organizer.save(update_fields=["im_uid"])
+        except Exception:  # noqa: BLE001 — 缓存回填失败不致命
+            logger.warning(
+                "calendar_im_notify: im_uid backfill failed for user %s",
+                organizer.pk, exc_info=True,
+            )
+    return uid
+
+
+def push_card(cid: str, card: dict, *, organizer=None) -> None:
+    """Best-effort 注入卡片(sender = 组织者,解析失败退 SYSTEM);
+    jusi 不可达/报错仅 warning。"""
     if not cid:
         return
     client = _make_client()
@@ -86,6 +123,7 @@ def push_card(cid: str, card: dict) -> None:
     try:
         client.post_message(
             cid=cid, body=json.dumps(card, ensure_ascii=False),
+            sender_uid=_organizer_sender_uid(client, organizer),
             content_type=CONTENT_TYPE,
         )
     except JusiImServiceError:
@@ -122,4 +160,5 @@ def notify_event_change(
             event, kind,
             old_start=old_start, old_end=old_end, added_count=added_count,
         ),
+        organizer=event.organizer,
     )

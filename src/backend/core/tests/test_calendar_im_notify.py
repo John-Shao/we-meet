@@ -78,6 +78,8 @@ def test_time_change_pushes_single_card(django_capture_on_commit_callbacks):
     assert card["v"] == 1
     assert card["event_id"] == body["id"]
     assert "old_start" in card and "old_end" in card
+    # P8-UX:变更卡以组织者身份发出。
+    assert push.call_args.kwargs["organizer"].email == "o@acme.com"
 
 
 def test_title_only_change_does_not_push(django_capture_on_commit_callbacks):
@@ -165,6 +167,8 @@ def test_destroy_pushes_cancelled_snapshot(django_capture_on_commit_callbacks):
     # 快照在删除前组好 —— 标题/人数仍在。
     assert card["title"] == "周会"
     assert card["attendee_count"] == 1
+    # P8-UX:取消卡以组织者身份发出(行已删,组织者对象来自删除前快照)。
+    assert push.call_args.kwargs["organizer"].email == "o@acme.com"
 
 
 def test_event_without_cid_never_pushes(django_capture_on_commit_callbacks):
@@ -183,6 +187,24 @@ def test_event_without_cid_never_pushes(django_capture_on_commit_callbacks):
             )
             client.delete(f"/api/v1.0/calendar-events/{body['id']}/")
     push.assert_not_called()
+
+
+def test_push_card_sender_is_organizer_with_system_fallback():
+    """P8-UX:sender_uid 优先 User.im_uid 缓存;解析失败退 None(SYSTEM)。"""
+    organizer = factories.UserFactory(email="cached@acme.com", im_uid="uid-cached")
+    fake = mock.Mock()
+    with mock.patch.object(calendar_im_notify, "_make_client", return_value=fake):
+        calendar_im_notify.push_card("cid-1", {"kind": "cancelled"}, organizer=organizer)
+    assert fake.post_message.call_args.kwargs["sender_uid"] == "uid-cached"
+    fake.issue_token.assert_not_called()
+
+    # 无缓存 + issue_token 失败 → SYSTEM(None)兜底,不炸。
+    stranger = factories.UserFactory(email="nocache@acme.com")
+    fake2 = mock.Mock()
+    fake2.issue_token.side_effect = calendar_im_notify.JusiImServiceError("down")
+    with mock.patch.object(calendar_im_notify, "_make_client", return_value=fake2):
+        calendar_im_notify.push_card("cid-1", {"kind": "cancelled"}, organizer=stranger)
+    assert fake2.post_message.call_args.kwargs["sender_uid"] is None
 
 
 def test_notify_event_change_skips_missing_event():

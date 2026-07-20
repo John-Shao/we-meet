@@ -416,12 +416,14 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
 
         # P8:取消卡快照必须在删除前组好(行与 attendees 马上级联消失);
         # 子场次不携带 source_conversation_id(物化不复制)→ 天然不推。
+        # 组织者一并快照 —— 卡片以其 IM 身份发出(P8-UX 组织者气泡)。
         cancel_cid = instance.source_conversation_id
         cancel_card = (
             calendar_im_notify.build_event_card(instance, "cancelled")
             if cancel_cid
             else None
         )
+        cancel_organizer = instance.organizer if cancel_cid else None
 
         with transaction.atomic():
             parent = instance.recurrence_parent
@@ -441,7 +443,9 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             instance.delete()
             if cancel_card is not None:
                 transaction.on_commit(
-                    lambda: calendar_im_notify.push_card(cancel_cid, cancel_card)
+                    lambda: calendar_im_notify.push_card(
+                        cancel_cid, cancel_card, organizer=cancel_organizer
+                    )
                 )
 
     @decorators.action(detail=False, methods=["get"], url_path="freebusy")
