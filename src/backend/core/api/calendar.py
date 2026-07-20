@@ -24,7 +24,7 @@ from core.api import permissions
 from core.api.directory import get_caller_organization
 from core.api.serializers import UserLightSerializer
 from core.api.viewsets import Pagination
-from core.services import calendar_recurrence
+from core.services import calendar_im_notify, calendar_recurrence
 
 
 class CalendarEventSerializer(serializers.ModelSerializer):
@@ -71,6 +71,8 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             # recurrence_parent 指回主事件(前端据此区分删除文案)。
             "recurrence",
             "recurrence_parent",
+            # P8:IM 会话来源(写入即可,不回读——防 cid 泄露给后来补拉详情的人)。
+            "source_conversation_id",
         ]
         read_only_fields = [
             "id",
@@ -83,6 +85,9 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "created_at",
             "recurrence_parent",
         ]
+        extra_kwargs = {
+            "source_conversation_id": {"write_only": True},
+        }
 
     def validate_recurrence(self, value):
         """RRULE 合法性前置校验(dateutil 同款解析),坏串 400 而非物化时炸。"""
@@ -319,8 +324,17 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         """Organizer-only edit. Syncs the linked Room's name / scheduled_at so a
         reschedule (or rename) stays consistent; adds any newly-listed invitees
-        (never removes — removal stays an explicit later action)."""
+        (never removes — removal stays an explicit later action).
+
+        P8 变更推送(仅非重复日程走此路径):save 前快照 start/end + attendee
+        集合 → 值差分 → ``transaction.on_commit`` 推 event-card。防噪规则:
+        改标题/描述/提醒不推;幂等 PATCH 不推;时间+人同变只发一张
+        time_changed(携 added_count);RSVP 不经此路径天然不推。
+        """
         self._require_organizer(serializer.instance)
+        instance = serializer.instance
+        old_start, old_end = instance.start_at, instance.end_at
+        old_attendees = set(instance.attendees.values_list("user_id", flat=True))
         data = serializer.validated_data
         attendee_ids = data.pop("attendee_ids", None)
         with transaction.atomic():
@@ -352,6 +366,27 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                             defaults={"role": models.RoleChoices.MEMBER},
                         )
 
+            if event.source_conversation_id:
+                new_attendees = set(
+                    event.attendees.values_list("user_id", flat=True)
+                )
+                kind = None
+                if (event.start_at, event.end_at) != (old_start, old_end):
+                    kind = "time_changed"
+                elif new_attendees != old_attendees:
+                    kind = "attendees_changed"
+                if kind:
+                    added = len(new_attendees - old_attendees)
+                    transaction.on_commit(
+                        lambda: calendar_im_notify.notify_event_change(
+                            event.id,
+                            kind,
+                            old_start=old_start,
+                            old_end=old_end,
+                            added_count=added,
+                        )
+                    )
+
     def destroy(self, request, *args, **kwargs):
         """DELETE;P2-M2 扩展 ``?scope=following``(仅子场次):系列在该场次
         截断,该场次及之后全部删除。缺省走 M1 语义(perform_destroy)。"""
@@ -379,6 +414,15 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         self._require_organizer(instance)
         from django.utils import timezone as django_timezone
 
+        # P8:取消卡快照必须在删除前组好(行与 attendees 马上级联消失);
+        # 子场次不携带 source_conversation_id(物化不复制)→ 天然不推。
+        cancel_cid = instance.source_conversation_id
+        cancel_card = (
+            calendar_im_notify.build_event_card(instance, "cancelled")
+            if cancel_cid
+            else None
+        )
+
         with transaction.atomic():
             parent = instance.recurrence_parent
             if parent is not None:
@@ -395,6 +439,10 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     start_at__gte=django_timezone.now()
                 ).delete()
             instance.delete()
+            if cancel_card is not None:
+                transaction.on_commit(
+                    lambda: calendar_im_notify.push_card(cancel_cid, cancel_card)
+                )
 
     @decorators.action(detail=False, methods=["get"], url_path="freebusy")
     def freebusy(self, request):

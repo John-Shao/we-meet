@@ -22,6 +22,8 @@ interface Props {
   initialAllDay?: boolean
   /** P8:预选参与者 id→label(IM 会话日历抽屉把会话成员带进来);仅创建态。 */
   initialSelected?: Map<string, string>
+  /** P8:来源会话 cid —— 随创建落库,变更/取消时后端向该会话推卡片。 */
+  sourceConversationId?: string
   /** When set, the dialog edits this event (PATCH) instead of creating one.
    * Scalar fields only — attendees aren't editable (backend doesn't re-sync). */
   editEvent?: CalendarEvent
@@ -49,6 +51,7 @@ export const CreateEventDialog = ({
   initialEnd,
   initialAllDay,
   initialSelected,
+  sourceConversationId,
   editEvent,
   editScope,
 }: Props) => {
@@ -163,6 +166,9 @@ export const CreateEventDialog = ({
             ...base,
             attendee_ids: [...selected.keys()],
             recurrence: composeRRule(),
+            ...(sourceConversationId
+              ? { source_conversation_id: sourceConversationId }
+              : {}),
           })
       onCreated(event)
     } catch (e) {

@@ -2165,6 +2165,19 @@ class CalendarEvent(BaseModel):
     recurrence_exdates = models.JSONField(
         _("recurrence exdates"), blank=True, default=list
     )
+    # P8:从 IM 会话日历抽屉创建时记录来源会话 cid;改时间/增删参会人/取消时
+    # 由 calendar_im_notify 向该会话推变更卡片。空 = 非会话来源,不推送。
+    # 刻意不校验有效性(建日程不依赖 jusi 可达);物化子场次不复制该字段。
+    source_conversation_id = models.CharField(
+        _("source conversation id"),
+        max_length=64,
+        blank=True,
+        default="",
+        help_text=_(
+            "IM conversation this event was created from; change cards are "
+            "pushed back to it (best-effort)."
+        ),
+    )
 
     class Meta:
         db_table = "meet_calendar_event"

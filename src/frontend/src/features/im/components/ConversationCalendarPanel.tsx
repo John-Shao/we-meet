@@ -639,6 +639,7 @@ export const ConversationCalendarPanel = ({
           initialStart={selStart}
           initialEnd={selEnd}
           initialSelected={initialSelected}
+          sourceConversationId={cid}
           onClose={() => setDialogOpen(false)}
           onCreated={(event) => {
             setDialogOpen(false)

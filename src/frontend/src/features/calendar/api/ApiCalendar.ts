@@ -53,6 +53,11 @@ export interface CreateEventPayload {
    * 在 naive dtstart 下会拒绝带 Z 的 UTC 形式(400)。见 composeRRule。
    */
   recurrence?: string
+  /**
+   * P8:来源 IM 会话 cid(仅会话日历抽屉传)。写入后改时间/增删参会人/取消
+   * 时后端向该会话推变更卡片;write_only,响应体不回读。
+   */
+  source_conversation_id?: string
 }
 
 /** P2-M2 重复日程编辑范围:仅此场次 / 此场次及以后 / 所有场次。 */
