@@ -372,64 +372,81 @@ export const ConversationCalendarPanel = ({
         </div>
       ) : (
         <div
+          ref={vscrollRef}
           className={css({
-            display: 'flex',
-            flexDirection: 'column',
             flex: 1,
             minHeight: 0,
-            overflowX: 'auto',
+            overflow: 'auto',
           })}
         >
-          {/* 列头:头像 + 名字(与网格同 flex 布局保证对齐) */}
-          <div
-            className={css({
-              display: 'flex',
-              flexShrink: 0,
-              paddingY: '0.375rem',
-            })}
-          >
-            <div style={{ width: RAIL_PX, flexShrink: 0 }} />
-            {activePeople.map((p) => (
+          {/* 单一滚动容器(修复双横滚条):宽度包住内容,列多时超出视口 →
+              只有这一根横滚条,列头/刻度用 sticky 钉住;少列时铺满面板宽。 */}
+          <div className={css({ minWidth: '100%', width: 'max-content' })}>
+            {/* 列头 sticky 顶:竖滚钉住,横滚随列一起走(与网格严格对齐) */}
+            <div
+              className={css({
+                display: 'flex',
+                position: 'sticky',
+                top: 0,
+                zIndex: 2,
+                backgroundColor: 'greyscale.000',
+                paddingY: '0.375rem',
+              })}
+            >
               <div
-                key={p.id}
                 className={css({
-                  flex: '1 0 auto',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  paddingX: '0.25rem',
+                  position: 'sticky',
+                  left: 0,
+                  zIndex: 3,
+                  backgroundColor: 'greyscale.000',
                 })}
-                style={{ minWidth: COL_MIN_PX, width: COL_MIN_PX }}
-              >
-                <Avatar name={p.label} src={p.avatar} size="1.75rem" />
-                <span
+                style={{ width: RAIL_PX, flexShrink: 0 }}
+              />
+              {activePeople.map((p) => (
+                <div
+                  key={p.id}
                   className={css({
-                    maxWidth: '100%',
-                    fontSize: '0.6875rem',
-                    color: 'greyscale.700',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    flex: '1 0 auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    paddingX: '0.25rem',
                   })}
+                  style={{ minWidth: COL_MIN_PX, width: COL_MIN_PX }}
                 >
-                  {p.label}
-                </span>
-              </div>
-            ))}
-          </div>
+                  <Avatar name={p.label} src={p.avatar} size="1.75rem" />
+                  <span
+                    className={css({
+                      maxWidth: '100%',
+                      fontSize: '0.6875rem',
+                      color: 'greyscale.700',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    })}
+                  >
+                    {p.label}
+                  </span>
+                </div>
+              ))}
+            </div>
 
-          {/* 时间轴主体 */}
-          <div
-            ref={vscrollRef}
-            className={css({ flex: 1, minHeight: 0, overflowY: 'auto' })}
-          >
+            {/* 时间轴主体 */}
             <div
               className={css({ display: 'flex', position: 'relative' })}
               style={{ height: 24 * HOUR_PX }}
             >
-              {/* 小时刻度列 */}
-              <div style={{ width: RAIL_PX, flexShrink: 0 }}>
+              {/* 小时刻度列 sticky 左:横滚时钉在左缘 */}
+              <div
+                className={css({
+                  position: 'sticky',
+                  left: 0,
+                  zIndex: 1,
+                  backgroundColor: 'greyscale.000',
+                })}
+                style={{ width: RAIL_PX, flexShrink: 0 }}
+              >
                 {Array.from({ length: 24 }, (_, h) => (
                   <div
                     key={h}
