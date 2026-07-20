@@ -22,11 +22,15 @@ import type { MeetInviteTarget } from './meetInviteTracker'
 export const GroupVoiceCallPicker = ({
   client,
   cid,
+  title,
   onCall,
   onClose,
 }: {
   client: Client
   cid: string
+  /** P5.1: heading override — the video-meeting entry reuses this picker
+   * (defaults to the group-voice-call title). */
+  title?: string
   /** `allMembers` (P5): the full resolved roster regardless of check state —
    * the caller reports it as the room's suggested invitees. */
   onCall: (targets: MeetInviteTarget[], allMembers: MeetInviteTarget[]) => void
@@ -95,7 +99,7 @@ export const GroupVoiceCallPicker = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={t('call.groupPicker.title')}
+        aria-label={title ?? t('call.groupPicker.title')}
         className={modal}
       >
         <div className={modalHead}>
@@ -107,7 +111,7 @@ export const GroupVoiceCallPicker = ({
               color: 'greyscale.900',
             })}
           >
-            {t('call.groupPicker.title')}
+            {title ?? t('call.groupPicker.title')}
           </h2>
           <button
             type="button"

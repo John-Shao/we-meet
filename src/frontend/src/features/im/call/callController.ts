@@ -119,6 +119,9 @@ let groupCall: {
    * can render as ended. */
   slug: string
   connectedAt: number | null
+  /** P5.1: 'audio' (群语音) or 'video' (群视频会议) — stamped into the
+   * end-record so the card wording matches the session. */
+  media: 'audio' | 'video'
 } | null = null
 
 /** Stamped by CallStage when the first remote participant shows up. Idempotent
@@ -231,11 +234,15 @@ export const startCall = async (p: StartCallParams): Promise<void> => {
 export const startGroupVoiceCall = async (p: {
   /** The GROUP conversation — receives the call-log record on leave. */
   groupCid: string
-  /** Room name AND the invite frame's room_name,「{群名}的语音通话」. */
+  /** Room name AND the invite frame's room_name,「{群名}的语音通话」/
+   *「{群名}的视频会议」. */
   roomName: string
   /** Display name for room creation (mirrors startCall). */
   username: string
   targets: MeetInviteTarget[]
+  /** P5.1 群视频会议走同一条振铃管线: 'audio' (default,语音宫格) or
+   * 'video' (initiator + invitees land in the full meeting UI). */
+  media?: 'audio' | 'video'
   /** P5 建议参会: the FULL group roster (picked or not) — reported as the
    * room's suggested invitees so the in-meeting participants panel offers
    * every group member for (re-)calling, Feishu-style. */
@@ -243,6 +250,7 @@ export const startGroupVoiceCall = async (p: {
 }): Promise<void> => {
   if (!client || p.targets.length === 0) return
   if (callStore.state.phase !== 'idle') return
+  const media = p.media ?? 'audio'
   let room: ApiRoom
   try {
     room = await fetchApi<ApiRoom>(
@@ -252,7 +260,7 @@ export const startGroupVoiceCall = async (p: {
   } catch {
     return // room create failed — button stays enabled, user can retry
   }
-  groupCall = { cid: p.groupCid, slug: room.slug, connectedAt: null }
+  groupCall = { cid: p.groupCid, slug: room.slug, connectedAt: null, media }
   // P5: fire-and-forget — ringing never blocks on suggestion bookkeeping.
   reportSuggestedParticipants(
     room.slug,
@@ -264,20 +272,20 @@ export const startGroupVoiceCall = async (p: {
   try {
     await client.sendText(
       p.groupCid,
-      JSON.stringify({ slug: room.slug, media: 'audio' }),
+      JSON.stringify({ slug: room.slug, media }),
       { contentType: 'group-call' }
     )
   } catch {
     // Best-effort — the ringing invites still go out.
   }
   sendMeetInvites(p.targets, {
-    media: 'audio',
+    media,
     roomSlug: room.slug,
     roomName: p.roomName,
     kind: 'group',
   })
   navigateTo('room', room.slug, {
-    state: { autoJoin: true, callAudioOnly: true, callMeet: true },
+    state: { autoJoin: true, callAudioOnly: media !== 'video', callMeet: true },
   })
 }
 
@@ -503,14 +511,14 @@ export const scheduleCallRoomLeave = (extra?: () => void): void => {
           Math.round((leftAtMs - g.connectedAt) / 1000)
         )
         void sendCallLog(
-          { cid: g.cid, media: 'audio' } as CallInfo,
+          { cid: g.cid, media: g.media } as CallInfo,
           'completed',
           durationSec,
           g.slug
         )
       } else {
         void sendCallLog(
-          { cid: g.cid, media: 'audio' } as CallInfo,
+          { cid: g.cid, media: g.media } as CallInfo,
           'canceled',
           undefined,
           g.slug

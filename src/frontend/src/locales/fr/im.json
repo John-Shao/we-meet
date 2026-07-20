@@ -269,7 +269,8 @@
     "groupCallRoomName": "Appel vocal {{name}}",
     "groupPicker": {
       "title": "Démarrer un appel vocal",
-      "confirm": "Appeler"
+      "confirm": "Appeler",
+      "videoTitle": "Démarrer une réunion vidéo"
     },
     "groupMeetingRoomName": "Réunion {{name}}",
     "groupMeeting": "Démarrer la réunion",

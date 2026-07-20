@@ -269,7 +269,8 @@
     "groupCallRoomName": "{{name}}的语音通话",
     "groupPicker": {
       "title": "发起语音通话",
-      "confirm": "呼叫"
+      "confirm": "呼叫",
+      "videoTitle": "发起视频会议"
     },
     "groupMeetingRoomName": "{{name}}的视频会议",
     "groupMeeting": "发起会议",

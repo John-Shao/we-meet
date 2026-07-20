@@ -42,7 +42,6 @@ import {
   startGroupVoiceCall,
 } from '../call/callController'
 import { GroupVoiceCallPicker } from '../call/GroupVoiceCallPicker'
-import { useCreateRoom } from '@/features/rooms/api/createRoom'
 import { navigateTo } from '@/navigation/navigateTo'
 
 // Recall is allowed only on your own messages within this window (WeChat: 2 min).
@@ -896,27 +895,14 @@ export const ChatPane = ({
 
   // 群聊名单弹窗:记录被点开回执的目标消息 seq(据此把成员分已读 / 未读)。
   const [readListSeq, setReadListSeq] = useState<number | null>(null)
-  // P4.1 群语音通话: member picker visibility.
-  const [groupCallOpen, setGroupCallOpen] = useState(false)
-  // 群聊「快速会议」(对齐 App 顶栏入口): create the room named
-  // 「{群名}的视频会议」 and enter via the device-preview page — the same
-  // Home quick-meeting flow (create:true auto-opens the invite dialog).
-  const { mutateAsync: createGroupMeeting, isPending: creatingMeeting } =
-    useCreateRoom()
-  const startGroupMeeting = async () => {
-    if (creatingMeeting) return
-    try {
-      const room = await createGroupMeeting({
-        name: t('call.groupMeetingRoomName', { name: title }),
-        username: user?.full_name ?? '',
-      })
-      navigateTo('room', room.slug, {
-        state: { create: true, initialRoomData: room },
-      })
-    } catch {
-      // Room create failed — button stays enabled for a retry.
-    }
-  }
+  // P4.1 群语音通话 / P5.1 群视频会议: member picker visibility + media.
+  // Both ride the same picker → startGroupVoiceCall ringing pipeline; video
+  // additionally reports every group member as a suggested participant and
+  // lands everyone in the full meeting UI (修复实测问题1/2: 群视频原快速会议
+  // 路径不振铃、不进建议参会名单)。
+  const [groupCallMedia, setGroupCallMedia] = useState<
+    'audio' | 'video' | null
+  >(null)
 
   const receiptFor = (
     m: Message
@@ -1041,7 +1027,7 @@ export const ChatPane = ({
         {isGroup && (
           <button
             type="button"
-            onClick={() => setGroupCallOpen(true)}
+            onClick={() => setGroupCallMedia('audio')}
             disabled={callSnap.state.phase !== 'idle'}
             title={t('call.groupPicker.title')}
             aria-label={t('call.groupPicker.title')}
@@ -1051,12 +1037,13 @@ export const ChatPane = ({
             <RiPhoneLine size={16} />
           </button>
         )}
-        {/* 群聊快速会议(对齐 App): 建「{群名}的视频会议」→ 设备预览 → 会议。 */}
+        {/* P5.1 群视频会议: same picker → ring members into the full meeting
+            UI (替代原快速会议路径——那条不振铃也不落建议参会名单)。 */}
         {isGroup && (
           <button
             type="button"
-            onClick={() => void startGroupMeeting()}
-            disabled={creatingMeeting}
+            onClick={() => setGroupCallMedia('video')}
+            disabled={callSnap.state.phase !== 'idle'}
             title={t('call.groupMeeting')}
             aria-label={t('call.groupMeeting')}
             data-testid="chat-group-meeting"
@@ -1390,17 +1377,26 @@ export const ChatPane = ({
           onClose={() => setMergedView(null)}
         />
       )}
-      {groupCallOpen && (
+      {groupCallMedia && (
         <GroupVoiceCallPicker
           client={client}
           cid={cid}
-          onClose={() => setGroupCallOpen(false)}
+          title={
+            groupCallMedia === 'video'
+              ? t('call.groupPicker.videoTitle')
+              : undefined
+          }
+          onClose={() => setGroupCallMedia(null)}
           onCall={(targets, allMembers) =>
             void startGroupVoiceCall({
               groupCid: cid,
-              roomName: t('call.groupCallRoomName', { name: title }),
+              roomName:
+                groupCallMedia === 'video'
+                  ? t('call.groupMeetingRoomName', { name: title })
+                  : t('call.groupCallRoomName', { name: title }),
               username: user?.full_name ?? '',
               targets,
+              media: groupCallMedia,
               // P5 建议参会: whole group roster, not just the picked ones.
               suggestUserIds: allMembers.map((m) => m.userId),
             })

@@ -269,7 +269,8 @@
     "groupCallRoomName": "{{name}} voice call",
     "groupPicker": {
       "title": "Start voice call",
-      "confirm": "Call"
+      "confirm": "Call",
+      "videoTitle": "Start video meeting"
     },
     "groupMeetingRoomName": "{{name}} meeting",
     "groupMeeting": "Start meeting",

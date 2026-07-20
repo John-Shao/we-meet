@@ -269,7 +269,8 @@
     "groupCallRoomName": "Spraakoproep {{name}}",
     "groupPicker": {
       "title": "Spraakoproep starten",
-      "confirm": "Bellen"
+      "confirm": "Bellen",
+      "videoTitle": "Videovergadering starten"
     },
     "groupMeetingRoomName": "Vergadering {{name}}",
     "groupMeeting": "Vergadering starten",

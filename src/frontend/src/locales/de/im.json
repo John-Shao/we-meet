@@ -269,7 +269,8 @@
     "groupCallRoomName": "Sprachanruf {{name}}",
     "groupPicker": {
       "title": "Sprachanruf starten",
-      "confirm": "Anrufen"
+      "confirm": "Anrufen",
+      "videoTitle": "Videokonferenz starten"
     },
     "groupMeetingRoomName": "Meeting {{name}}",
     "groupMeeting": "Meeting starten",
