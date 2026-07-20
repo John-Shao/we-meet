@@ -28,6 +28,7 @@ import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
 import { ConversationList } from '../components/ConversationList'
 import { GroupInfoPanel } from '../components/GroupInfoPanel'
 import { DirectSettingsPanel } from '../components/DirectSettingsPanel'
+import { ConversationCalendarPanel } from '../components/ConversationCalendarPanel'
 import { GroupPicker } from '../components/GroupPicker'
 import { ForwardDialog, type ForwardConv } from '../components/ForwardDialog'
 import { LaterDialog } from '../components/LaterDialog'
@@ -111,7 +112,8 @@ const ImAuthenticated = () => {
   })
   // Right-side panel below the chat header: 群聊信息(group)/ 会话设置(direct)
   // / 收起。A single toggle — 群成员与群属性已合并为一个 GroupInfoPanel(对齐 App)。
-  const [rightPanel, setRightPanel] = useState<'info' | null>(null)
+  // P8:'calendar' = 会话日历抽屉(私聊查看日历/群成员日历),与 info 互斥。
+  const [rightPanel, setRightPanel] = useState<'info' | 'calendar' | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   // 转发(P7-e):右键选中的待转发消息;非空时弹出目标会话选择器。
   const [forwarding, setForwarding] = useState<Message | null>(null)
@@ -313,9 +315,11 @@ const ImAuthenticated = () => {
                     ? t('preview.call')
                     : ct === 'phone-viewed'
                       ? t('preview.phoneViewed')
-                      : ct === 'quote'
-                        ? parseQuoteText(c.last_message)
-                        : (c.last_message ?? '')
+                      : ct === 'event-card'
+                        ? t('preview.event')
+                        : ct === 'quote'
+                          ? parseQuoteText(c.last_message)
+                          : (c.last_message ?? '')
     const ts = c.last_message_ts
     if (c.type !== 'group' || c.last_content_type === 'system') {
       return { text: body, ts }
@@ -737,11 +741,21 @@ const ImAuthenticated = () => {
                   ? () => setAddOpen(true)
                   : undefined
               }
+              onOpenCalendar={() =>
+                setRightPanel((p) => (p === 'calendar' ? null : 'calendar'))
+              }
               onForward={(m) => setForwarding(m)}
               onForwardMany={(p) => setForwardingMany(p)}
               onMemberClick={(userId) => navigate(`/contacts?member=${userId}`)}
               infoPanel={
-                rightPanel === 'info' ? (
+                rightPanel === 'calendar' ? (
+                  <ConversationCalendarPanel
+                    client={client}
+                    conversation={selectedConv}
+                    currentUserUID={currentUserUID}
+                    onClose={() => setRightPanel(null)}
+                  />
+                ) : rightPanel === 'info' ? (
                   selectedConv.type === 'group' ? (
                     <GroupInfoPanel
                       client={client}

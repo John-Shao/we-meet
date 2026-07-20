@@ -20,6 +20,8 @@ interface Props {
   initialStart?: Date
   initialEnd?: Date
   initialAllDay?: boolean
+  /** P8:预选参与者 id→label(IM 会话日历抽屉把会话成员带进来);仅创建态。 */
+  initialSelected?: Map<string, string>
   /** When set, the dialog edits this event (PATCH) instead of creating one.
    * Scalar fields only — attendees aren't editable (backend doesn't re-sync). */
   editEvent?: CalendarEvent
@@ -46,6 +48,7 @@ export const CreateEventDialog = ({
   initialStart,
   initialEnd,
   initialAllDay,
+  initialSelected,
   editEvent,
   editScope,
 }: Props) => {
@@ -62,17 +65,21 @@ export const CreateEventDialog = ({
   const [description, setDescription] = useState(editEvent?.description ?? '')
   const [start, setStart] = useState(toLocalInput(start0))
   const [end, setEnd] = useState(toLocalInput(end0))
-  const [allDay, setAllDay] = useState(editEvent?.all_day ?? initialAllDay ?? false)
+  const [allDay, setAllDay] = useState(
+    editEvent?.all_day ?? initialAllDay ?? false
+  )
   // Reminders are a set of minutes-before (multi). Editing preserves ALL of the
   // event's existing reminders instead of collapsing to the first one.
-  const [reminders, setReminders] = useState<Set<number>>(
-    () => (editEvent ? new Set(editEvent.reminders ?? []) : new Set([10]))
+  const [reminders, setReminders] = useState<Set<number>>(() =>
+    editEvent ? new Set(editEvent.reminders ?? []) : new Set([10])
   )
   // Preset choices + any non-preset value the event already carries (so an
   // externally-set reminder stays visible + toggleable, never silently dropped).
   const reminderOptions = useMemo(() => {
     const presets = [10, 30, 60]
-    const extra = (editEvent?.reminders ?? []).filter((r) => !presets.includes(r))
+    const extra = (editEvent?.reminders ?? []).filter(
+      (r) => !presets.includes(r)
+    )
     return [...new Set([...presets, ...extra])].sort((a, b) => a - b)
   }, [editEvent])
   const toggleReminder = (minutes: number) =>
@@ -85,7 +92,9 @@ export const CreateEventDialog = ({
   // P2-M1 重复日程:创建时可选预设;编辑重复规则属 M2 三选语义,编辑态不展示。
   const [repeat, setRepeat] = useState('')
   const [repeatUntil, setRepeatUntil] = useState('')
-  const [selected, setSelected] = useState<Map<string, string>>(new Map())
+  const [selected, setSelected] = useState<Map<string, string>>(
+    () => new Map(initialSelected ?? [])
+  )
   const [busy, setBusy] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
   const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
@@ -157,7 +166,9 @@ export const CreateEventDialog = ({
           })
       onCreated(event)
     } catch (e) {
-      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
+      void showAlert({
+        message: t('form.error', { message: apiErrorMessage(e) }),
+      })
       setBusy(false)
     }
   }
@@ -365,177 +376,181 @@ export const CreateEventDialog = ({
 
         {/* Attendees — create-only; editing attendees isn't wired server-side. */}
         {!isEdit && (
-        <div>
-          <div
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '0.375rem',
-            })}
-          >
-            <span className={labelCls}>{t('form.attendees')}</span>
-            <span
-              className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
-            >
-              {t('form.selected', { count: selected.size })}
-            </span>
-          </div>
-          {/* P2-M3 忙闲:选人后展示当天每人 busy 条(全天事件无具体时段,略)。 */}
-          {selected.size > 0 && !allDay && start && end && (
-            <div className={css({ margin: '0 0 0.625rem' })}>
-              <FreeBusyBar
-                people={[
-                  ...(user
-                    ? [
-                        {
-                          id: user.id,
-                          label: user.full_name || t('freebusy.me'),
-                        },
-                      ]
-                    : []),
-                  ...[...selected.entries()].map(([id, label]) => ({
-                    id,
-                    label,
-                  })),
-                ]}
-                slotStart={new Date(start)}
-                slotEnd={new Date(end)}
-              />
-            </div>
-          )}
-          {selected.size > 0 && (
-            <ul
+          <div>
+            <div
               className={css({
-                listStyle: 'none',
-                margin: '0 0 0.5rem',
-                padding: 0,
                 display: 'flex',
-                flexWrap: 'wrap',
-                gap: '0.375rem',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '0.375rem',
               })}
             >
-              {[...selected.entries()].map(([id, label]) => (
-                <li key={id} className={chipCls}>
-                  {label}
-                  <button
-                    type="button"
-                    onClick={() => toggle(id, label)}
-                    aria-label={t('form.removeAttendee', { name: label })}
-                    className={css({
-                      border: 'none',
-                      background: 'transparent',
-                      cursor: 'pointer',
-                      color: 'greyscale.500',
-                      _hover: { color: '#dc2626' },
-                    })}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('form.searchPlaceholder')}
-            data-testid="event-attendee-search"
-            className={inputCls}
-          />
-          <div
-            className={css({
-              marginTop: '0.5rem',
-              maxHeight: '180px',
-              overflowY: 'auto',
-              border: '1px solid token(colors.greyscale.200)',
-              borderRadius: '0.5rem',
-            })}
-          >
-            {isFetching && selectable.length === 0 ? (
-              <p
-                className={css({
-                  padding: '0.75rem',
-                  color: 'greyscale.500',
-                  fontSize: '0.875rem',
-                })}
+              <span className={labelCls}>{t('form.attendees')}</span>
+              <span
+                className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
               >
-                {t('form.loading')}
-              </p>
-            ) : selectable.length === 0 ? (
-              <p
-                className={css({
-                  padding: '0.75rem',
-                  color: 'greyscale.500',
-                  fontSize: '0.875rem',
-                })}
-              >
-                {t('form.noResults')}
-              </p>
-            ) : (
-              selectable.map((m) => {
-                const label = m.full_name || m.short_name || m.email || m.id
-                const checked = selected.has(m.id)
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => toggle(m.id, label)}
-                    data-testid={`event-attendee-${m.id}`}
-                    className={css({
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      width: '100%',
-                      paddingX: '0.75rem',
-                      paddingY: '0.5rem',
-                      border: 'none',
-                      borderBottom: '1px solid token(colors.greyscale.100)',
-                      backgroundColor: checked
-                        ? 'greyscale.100'
-                        : 'transparent',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      _hover: { backgroundColor: 'greyscale.100' },
-                    })}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={css({
-                        flexShrink: 0,
-                        width: '1.125rem',
-                        height: '1.125rem',
-                        borderRadius: '0.25rem',
-                        border: '1px solid token(colors.greyscale.400)',
-                        backgroundColor: checked ? 'primary.500' : 'white',
-                        color: 'white',
-                        fontSize: '0.75rem',
-                        lineHeight: '1.125rem',
-                        textAlign: 'center',
-                      })}
-                    >
-                      {checked ? '✓' : ''}
-                    </span>
-                    <MemberAvatar name={label} src={m.avatar_url} size="1.75rem" />
-                    <span
-                      className={css({
-                        minWidth: 0,
-                        fontSize: '0.875rem',
-                        color: 'greyscale.900',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      })}
-                    >
-                      {label}
-                    </span>
-                  </button>
-                )
-              })
+                {t('form.selected', { count: selected.size })}
+              </span>
+            </div>
+            {/* P2-M3 忙闲:选人后展示当天每人 busy 条(全天事件无具体时段,略)。 */}
+            {selected.size > 0 && !allDay && start && end && (
+              <div className={css({ margin: '0 0 0.625rem' })}>
+                <FreeBusyBar
+                  people={[
+                    ...(user
+                      ? [
+                          {
+                            id: user.id,
+                            label: user.full_name || t('freebusy.me'),
+                          },
+                        ]
+                      : []),
+                    ...[...selected.entries()].map(([id, label]) => ({
+                      id,
+                      label,
+                    })),
+                  ]}
+                  slotStart={new Date(start)}
+                  slotEnd={new Date(end)}
+                />
+              </div>
             )}
+            {selected.size > 0 && (
+              <ul
+                className={css({
+                  listStyle: 'none',
+                  margin: '0 0 0.5rem',
+                  padding: 0,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.375rem',
+                })}
+              >
+                {[...selected.entries()].map(([id, label]) => (
+                  <li key={id} className={chipCls}>
+                    {label}
+                    <button
+                      type="button"
+                      onClick={() => toggle(id, label)}
+                      aria-label={t('form.removeAttendee', { name: label })}
+                      className={css({
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        color: 'greyscale.500',
+                        _hover: { color: '#dc2626' },
+                      })}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('form.searchPlaceholder')}
+              data-testid="event-attendee-search"
+              className={inputCls}
+            />
+            <div
+              className={css({
+                marginTop: '0.5rem',
+                maxHeight: '180px',
+                overflowY: 'auto',
+                border: '1px solid token(colors.greyscale.200)',
+                borderRadius: '0.5rem',
+              })}
+            >
+              {isFetching && selectable.length === 0 ? (
+                <p
+                  className={css({
+                    padding: '0.75rem',
+                    color: 'greyscale.500',
+                    fontSize: '0.875rem',
+                  })}
+                >
+                  {t('form.loading')}
+                </p>
+              ) : selectable.length === 0 ? (
+                <p
+                  className={css({
+                    padding: '0.75rem',
+                    color: 'greyscale.500',
+                    fontSize: '0.875rem',
+                  })}
+                >
+                  {t('form.noResults')}
+                </p>
+              ) : (
+                selectable.map((m) => {
+                  const label = m.full_name || m.short_name || m.email || m.id
+                  const checked = selected.has(m.id)
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggle(m.id, label)}
+                      data-testid={`event-attendee-${m.id}`}
+                      className={css({
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        width: '100%',
+                        paddingX: '0.75rem',
+                        paddingY: '0.5rem',
+                        border: 'none',
+                        borderBottom: '1px solid token(colors.greyscale.100)',
+                        backgroundColor: checked
+                          ? 'greyscale.100'
+                          : 'transparent',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        _hover: { backgroundColor: 'greyscale.100' },
+                      })}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={css({
+                          flexShrink: 0,
+                          width: '1.125rem',
+                          height: '1.125rem',
+                          borderRadius: '0.25rem',
+                          border: '1px solid token(colors.greyscale.400)',
+                          backgroundColor: checked ? 'primary.500' : 'white',
+                          color: 'white',
+                          fontSize: '0.75rem',
+                          lineHeight: '1.125rem',
+                          textAlign: 'center',
+                        })}
+                      >
+                        {checked ? '✓' : ''}
+                      </span>
+                      <MemberAvatar
+                        name={label}
+                        src={m.avatar_url}
+                        size="1.75rem"
+                      />
+                      <span
+                        className={css({
+                          minWidth: 0,
+                          fontSize: '0.875rem',
+                          color: 'greyscale.900',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        })}
+                      >
+                        {label}
+                      </span>
+                    </button>
+                  )
+                })
+              )}
+            </div>
           </div>
-        </div>
         )}
       </div>
 

@@ -163,7 +163,34 @@
     "merged": "[Chat record]",
     "recalled": "recalled a message",
     "call": "[Call]",
-    "phoneViewed": "Phone number viewed"
+    "phoneViewed": "Phone number viewed",
+    "event": "[Event]"
+  },
+  "calendar": {
+    "open": "View calendar",
+    "groupOpen": "Members' calendars",
+    "today": "Today",
+    "prevDay": "Previous day",
+    "nextDay": "Next day",
+    "pickHint": "Click or drag an empty slot to pick a time",
+    "allFree": "Everyone is available",
+    "someBusy": "{{count}} busy at this time: {{names}}",
+    "unresolved": "{{count}} member(s) have no busy/free info (cross-org or inactive)",
+    "membersCapped": "Showing the first {{count}} members only",
+    "suggestTitle": "Suggested times",
+    "create": "Create event",
+    "cardSendFailed": "Event created, but the card failed to send",
+    "deleteConfirm": "Delete this event?",
+    "card": {
+      "attendees": "{{count}} attendees",
+      "organizer": "Organizer: {{name}}",
+      "view": "View",
+      "allDay": "All day",
+      "timeChanged": "Rescheduled",
+      "attendeesChanged": "Attendees changed",
+      "cancelled": "Cancelled",
+      "gone": "This event was cancelled or is not visible to you"
+    }
   },
   "voice": {
     "recording": "Recording…",

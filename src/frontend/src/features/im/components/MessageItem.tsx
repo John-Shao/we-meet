@@ -13,6 +13,7 @@ import type { Message } from '@jusi/light-im-sdk'
 import { css } from '@/styled-system/css'
 
 import { Avatar } from './Avatar'
+import { EventCardMessage } from './EventCardMessage'
 import type { MergedBody } from './MergedRecordDialog'
 
 /** One aggregated reaction chip under a message. */
@@ -52,6 +53,8 @@ interface Props {
   onImageClick?: () => void
   /** Open a merged chat-record (content_type='merged') → viewer dialog. */
   onMergedClick?: () => void
+  /** P8 日程卡片:点「查看」打开日程详情(content_type='event-card')。 */
+  onOpenEvent?: (eventId: string) => void
   /** P4.1 群语音卡片:点「加入」进入进行中的语音宫格(content_type='group-call')。 */
   onJoinGroupCall?: () => void
   /** P4.1 群语音卡片:该场通话已结束(同流存在同 slug 的结束记录)→ 灰态不可点。 */
@@ -266,6 +269,7 @@ export const MessageItem = ({
   onContextMenu,
   onImageClick,
   onMergedClick,
+  onOpenEvent,
   onJoinGroupCall,
   groupCallEnded,
   selectMode,
@@ -343,6 +347,12 @@ export const MessageItem = ({
         </span>
       </div>
     )
+  }
+
+  // P8 日程卡片(content_type='event-card',body = event-card v1 JSON)→ 居中
+  // 卡片,渲染与容错全在 EventCardMessage,此处只转发。
+  if (message.content_type === 'event-card') {
+    return <EventCardMessage body={message.body} onOpen={onOpenEvent} />
   }
 
   // P4.1 群语音「进行中」卡片 (body = {"slug","media"}) — every member (rung

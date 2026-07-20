@@ -163,7 +163,34 @@
     "merged": "[Chatverlauf]",
     "recalled": "hat eine Nachricht zurückgezogen",
     "call": "[Anruf]",
-    "phoneViewed": "Telefonnummer angesehen"
+    "phoneViewed": "Telefonnummer angesehen",
+    "event": "[Termin]"
+  },
+  "calendar": {
+    "open": "Kalender ansehen",
+    "groupOpen": "Kalender der Mitglieder",
+    "today": "Heute",
+    "prevDay": "Vortag",
+    "nextDay": "Nächster Tag",
+    "pickHint": "Freien Zeitraum anklicken oder ziehen",
+    "allFree": "Alle Teilnehmer sind verfügbar",
+    "someBusy": "{{count}} in diesem Zeitraum beschäftigt: {{names}}",
+    "unresolved": "{{count}} Mitglied(er) ohne Verfügbarkeit (organisationsfremd oder inaktiv)",
+    "membersCapped": "Nur die ersten {{count}} Mitglieder werden angezeigt",
+    "suggestTitle": "Vorgeschlagene Zeiten",
+    "create": "Termin erstellen",
+    "cardSendFailed": "Termin erstellt, aber Karte konnte nicht gesendet werden",
+    "deleteConfirm": "Diesen Termin löschen?",
+    "card": {
+      "attendees": "{{count}} Teilnehmer",
+      "organizer": "Organisator: {{name}}",
+      "view": "Ansehen",
+      "allDay": "Ganztägig",
+      "timeChanged": "Verschoben",
+      "attendeesChanged": "Teilnehmer geändert",
+      "cancelled": "Abgesagt",
+      "gone": "Dieser Termin wurde abgesagt oder ist für dich nicht sichtbar"
+    }
   },
   "voice": {
     "recording": "Aufnahme…",

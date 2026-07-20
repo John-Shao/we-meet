@@ -163,7 +163,34 @@
     "merged": "[聊天记录]",
     "recalled": "撤回了一条消息",
     "call": "[通话]",
-    "phoneViewed": "手机号码查看提醒"
+    "phoneViewed": "手机号码查看提醒",
+    "event": "[日程]"
+  },
+  "calendar": {
+    "open": "查看日历",
+    "groupOpen": "群成员日历",
+    "today": "今天",
+    "prevDay": "前一天",
+    "nextDay": "后一天",
+    "pickHint": "点击或拖动空白时段选择时间",
+    "allFree": "所有参与者都有空",
+    "someBusy": "{{count}} 人该时段忙碌:{{names}}",
+    "unresolved": "另有 {{count}} 位成员无法获取忙闲(跨组织或未激活)",
+    "membersCapped": "仅显示前 {{count}} 位成员",
+    "suggestTitle": "推荐时段",
+    "create": "创建日程",
+    "cardSendFailed": "日程已创建,但卡片发送失败",
+    "deleteConfirm": "确定删除该日程?",
+    "card": {
+      "attendees": "{{count}} 人参与",
+      "organizer": "组织者:{{name}}",
+      "view": "查看",
+      "allDay": "全天",
+      "timeChanged": "已改期",
+      "attendeesChanged": "参会人变更",
+      "cancelled": "已取消",
+      "gone": "该日程已取消或你不可见"
+    }
   },
   "voice": {
     "recording": "正在录音…",

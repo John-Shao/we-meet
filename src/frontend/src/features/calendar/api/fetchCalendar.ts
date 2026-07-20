@@ -23,6 +23,10 @@ export const fetchCalendarEvents = (range?: {
   )
 }
 
+/** GET /api/v1.0/calendar-events/{id} — one event (P8:IM 日程卡片跳详情用)。 */
+export const fetchCalendarEvent = (id: string): Promise<CalendarEvent> =>
+  fetchApi<CalendarEvent>(`/calendar-events/${encodeURIComponent(id)}/`)
+
 /** POST /api/v1.0/calendar-events — create an event (also provisions its Room). */
 export const createCalendarEvent = (
   payload: CreateEventPayload
@@ -73,7 +77,9 @@ export const fetchFreeBusy = (
   fetchApi<{ results: FreeBusyEntry[] }>(
     `/calendar-events/freebusy/?attendee_ids=${attendeeIds
       .map(encodeURIComponent)
-      .join(',')}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+      .join(
+        ','
+      )}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
   ).then((r) => r.results)
 
 /** POST /api/v1.0/calendar-events/{id}/rsvp — set the caller's RSVP. */

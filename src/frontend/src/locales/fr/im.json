@@ -163,7 +163,34 @@
     "merged": "[Historique de discussion]",
     "recalled": "a retiré un message",
     "call": "[Appel]",
-    "phoneViewed": "Numéro consulté"
+    "phoneViewed": "Numéro consulté",
+    "event": "[Événement]"
+  },
+  "calendar": {
+    "open": "Voir l'agenda",
+    "groupOpen": "Agendas des membres",
+    "today": "Aujourd'hui",
+    "prevDay": "Jour précédent",
+    "nextDay": "Jour suivant",
+    "pickHint": "Cliquez ou faites glisser un créneau libre",
+    "allFree": "Tous les participants sont disponibles",
+    "someBusy": "{{count}} occupé(s) sur ce créneau : {{names}}",
+    "unresolved": "{{count}} membre(s) sans disponibilité (hors organisation ou inactif)",
+    "membersCapped": "Seuls les {{count}} premiers membres sont affichés",
+    "suggestTitle": "Créneaux suggérés",
+    "create": "Créer un événement",
+    "cardSendFailed": "Événement créé, mais l'envoi de la carte a échoué",
+    "deleteConfirm": "Supprimer cet événement ?",
+    "card": {
+      "attendees": "{{count}} participants",
+      "organizer": "Organisateur : {{name}}",
+      "view": "Voir",
+      "allDay": "Journée entière",
+      "timeChanged": "Reprogrammé",
+      "attendeesChanged": "Participants modifiés",
+      "cancelled": "Annulé",
+      "gone": "Cet événement a été annulé ou ne vous est pas visible"
+    }
   },
   "voice": {
     "recording": "Enregistrement…",

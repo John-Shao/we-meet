@@ -3,13 +3,18 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
-import { RiPhoneLine, RiVidiconLine } from '@remixicon/react'
+import {
+  RiCalendarScheduleLine,
+  RiPhoneLine,
+  RiVidiconLine,
+} from '@remixicon/react'
 import type { Client, ConversationSummary, Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { fetchApi } from '@/api/fetchApi'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { EventDetailHost } from '@/features/calendar'
 
 import { resolveImUsers } from '../api/resolveImUsers'
 import { resolveChatImages } from '../api/resolveChatImages'
@@ -115,6 +120,7 @@ const snippetOf = (m: Message, t: (k: string) => string): string => {
   if (m.content_type === 'call-log') return t('preview.call')
   if (m.content_type === 'group-call') return t('preview.call')
   if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
+  if (m.content_type === 'event-card') return t('preview.event')
   if (m.content_type === 'quote') {
     try {
       return (JSON.parse(m.body)?.text as string) || ''
@@ -138,6 +144,8 @@ interface Props {
   onOpenSettings?: () => void
   /** Open the add-members picker (group only). */
   onAddMembers?: () => void
+  /** P8:开合会话日历抽屉(私聊「查看日历」/群聊「群成员日历」,ImRoute 持有面板)。 */
+  onOpenCalendar?: () => void
   /** Forward a message to another conversation (picker lives in ImRoute). */
   onForward?: (m: Message) => void
   /** 多选转发(合并/逐条):选好后派发给 ImRoute 走目标选择器。 */
@@ -166,6 +174,7 @@ export const ChatPane = ({
   onOpenInfo,
   onOpenSettings,
   onAddMembers,
+  onOpenCalendar,
   onForward,
   onForwardMany,
   infoPanel,
@@ -194,6 +203,8 @@ export const ChatPane = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locate?.key])
   const activeAnchor = anchor && anchor.cid === cid ? anchor : null
+  // P8 日程卡片点「查看」→ 本地宿主打开日程详情(EventDetailHost 按 id 拉取)。
+  const [viewEventId, setViewEventId] = useState<string | null>(null)
   const {
     data: messages = [],
     isLoading,
@@ -638,6 +649,7 @@ export const ChatPane = ({
     if (m.content_type === 'call-log') return t('preview.call')
     if (m.content_type === 'group-call') return t('preview.call')
     if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
+    if (m.content_type === 'event-card') return t('preview.event')
     if (m.content_type === 'quote') {
       try {
         return (JSON.parse(m.body)?.text as string) || ''
@@ -1052,6 +1064,19 @@ export const ChatPane = ({
             <RiVidiconLine size={16} />
           </button>
         )}
+        {/* P8 群成员日历:侧边抽屉看全员忙闲 + 拖时段建日程。 */}
+        {isGroup && onOpenCalendar && (
+          <button
+            type="button"
+            onClick={onOpenCalendar}
+            title={t('calendar.groupOpen')}
+            aria-label={t('calendar.groupOpen')}
+            data-testid="chat-calendar"
+            className={headerBtn}
+          >
+            <RiCalendarScheduleLine size={16} />
+          </button>
+        )}
         {isGroup && onAddMembers && (
           <button
             type="button"
@@ -1125,6 +1150,19 @@ export const ChatPane = ({
               <RiVidiconLine size={16} />
             </button>
           </>
+        )}
+        {/* P8 查看日历:双方忙闲对比 + 拖时段建日程(对标飞书)。 */}
+        {!isGroup && onOpenCalendar && (
+          <button
+            type="button"
+            onClick={onOpenCalendar}
+            title={t('calendar.open')}
+            aria-label={t('calendar.open')}
+            data-testid="chat-calendar"
+            className={headerBtn}
+          >
+            <RiCalendarScheduleLine size={16} />
+          </button>
         )}
         {!isGroup && onOpenSettings && (
           <button
@@ -1252,6 +1290,7 @@ export const ChatPane = ({
                           ? () => onMemberClick?.(names[m.sender_uid]!.id!)
                           : undefined
                       }
+                      onOpenEvent={selectMode ? undefined : setViewEventId}
                       onJoinGroupCall={
                         m.content_type === 'group-call' && groupCallSlugOf(m)
                           ? () => void joinGroupCall(groupCallSlugOf(m)!)
@@ -1401,6 +1440,12 @@ export const ChatPane = ({
               suggestUserIds: allMembers.map((m) => m.userId),
             })
           }
+        />
+      )}
+      {viewEventId && (
+        <EventDetailHost
+          eventId={viewEventId}
+          onClose={() => setViewEventId(null)}
         />
       )}
     </div>

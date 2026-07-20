@@ -163,7 +163,34 @@
     "merged": "[Chatgeschiedenis]",
     "recalled": "heeft een bericht ingetrokken",
     "call": "[Oproep]",
-    "phoneViewed": "Telefoonnummer bekeken"
+    "phoneViewed": "Telefoonnummer bekeken",
+    "event": "[Afspraak]"
+  },
+  "calendar": {
+    "open": "Agenda bekijken",
+    "groupOpen": "Agenda's van leden",
+    "today": "Vandaag",
+    "prevDay": "Vorige dag",
+    "nextDay": "Volgende dag",
+    "pickHint": "Klik of sleep een leeg tijdvak",
+    "allFree": "Alle deelnemers zijn beschikbaar",
+    "someBusy": "{{count}} bezet in dit tijdvak: {{names}}",
+    "unresolved": "{{count}} lid/leden zonder beschikbaarheid (buiten organisatie of inactief)",
+    "membersCapped": "Alleen de eerste {{count}} leden worden getoond",
+    "suggestTitle": "Voorgestelde tijden",
+    "create": "Afspraak maken",
+    "cardSendFailed": "Afspraak gemaakt, maar kaart verzenden mislukt",
+    "deleteConfirm": "Deze afspraak verwijderen?",
+    "card": {
+      "attendees": "{{count}} deelnemers",
+      "organizer": "Organisator: {{name}}",
+      "view": "Bekijken",
+      "allDay": "Hele dag",
+      "timeChanged": "Verzet",
+      "attendeesChanged": "Deelnemers gewijzigd",
+      "cancelled": "Geannuleerd",
+      "gone": "Deze afspraak is geannuleerd of niet zichtbaar voor jou"
+    }
   },
   "voice": {
     "recording": "Opnemen…",
