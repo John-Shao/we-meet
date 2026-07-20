@@ -1,5 +1,8 @@
 import type { CalendarEvent } from '@/features/calendar'
 
+/** jusi-light-im 服务端注入消息的 SYSTEM 身份 uid(后端变更/取消卡的 sender)。 */
+export const IM_SYSTEM_UID = '00000000-0000-0000-0000-000000000000'
+
 /** P8 event-card 线上协议 v1(与 Android / 后端 calendar_im_notify 一致)。 */
 export interface EventCardBody {
   v: number

@@ -3,6 +3,7 @@ import { RiCalendarEventLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 
+import { Avatar } from './Avatar'
 import { parseEventCard, type EventCardBody } from './eventCard'
 
 /**
@@ -37,50 +38,63 @@ const formatWhen = (
 }
 
 /**
- * P8 日程卡片消息(content_type='event-card')。居中卡片(样式对齐
- * group-call 卡):图标 + 标题(+变更角标)、时间行、N 人参与 · 组织者、
- * 「查看」打开日程详情。cancelled 卡降饱和 + 标题删除线;解析失败退灰胶囊。
+ * P8 日程卡片消息(content_type='event-card')。
+ *
+ * P8-UX:创建卡由组织者客户端发出 → 渲染为**正常消息气泡行**(头像/名字/
+ * 左右对齐,可右键转发);后端 SYSTEM 注入的变更/取消卡([system]=true)
+ * 保持居中系统样式。cancelled 卡降饱和 + 标题删除线;解析失败退灰胶囊。
  */
 export const EventCardMessage = ({
   body,
+  isOwn = false,
+  senderName,
+  senderAvatarUrl,
+  showSender = false,
+  system = false,
+  onAvatarClick,
+  onContextMenu,
   onOpen,
 }: {
   body: string
+  isOwn?: boolean
+  senderName?: string
+  senderAvatarUrl?: string
+  /** 群聊且非自己 → 气泡上方显示发送人名字。 */
+  showSender?: boolean
+  /** 后端 SYSTEM 注入(变更/取消卡)→ 居中系统样式,无发送者归属。 */
+  system?: boolean
+  onAvatarClick?: () => void
+  onContextMenu?: (e: React.MouseEvent) => void
   onOpen?: (eventId: string) => void
 }) => {
   const { t, i18n } = useTranslation('im')
   const card = parseEventCard(body)
 
+  let cardEl: React.ReactNode
   if (!card) {
-    return (
-      <div className={rowCls} data-testid="im-msg-event-card">
-        <span className={fallbackCls}>{t('preview.event')}</span>
-      </div>
-    )
-  }
+    cardEl = <span className={fallbackCls}>{t('preview.event')}</span>
+  } else {
+    const cancelled = card.kind === 'cancelled'
+    const badge =
+      card.kind === 'time_changed'
+        ? t('calendar.card.timeChanged')
+        : card.kind === 'attendees_changed'
+          ? t('calendar.card.attendeesChanged')
+          : cancelled
+            ? t('calendar.card.cancelled')
+            : null
+    const when = formatWhen(card, i18n.language, t('calendar.card.allDay'))
+    const oldWhen =
+      card.kind === 'time_changed' && card.old_start && card.old_end
+        ? formatWhen(
+            { ...card, start: card.old_start, end: card.old_end },
+            i18n.language,
+            t('calendar.card.allDay')
+          )
+        : null
+    const clickable = !!card.event_id && !!onOpen
 
-  const cancelled = card.kind === 'cancelled'
-  const badge =
-    card.kind === 'time_changed'
-      ? t('calendar.card.timeChanged')
-      : card.kind === 'attendees_changed'
-        ? t('calendar.card.attendeesChanged')
-        : cancelled
-          ? t('calendar.card.cancelled')
-          : null
-  const when = formatWhen(card, i18n.language, t('calendar.card.allDay'))
-  const oldWhen =
-    card.kind === 'time_changed' && card.old_start && card.old_end
-      ? formatWhen(
-          { ...card, start: card.old_start, end: card.old_end },
-          i18n.language,
-          t('calendar.card.allDay')
-        )
-      : null
-  const clickable = !!card.event_id && !!onOpen
-
-  return (
-    <div className={rowCls} data-testid="im-msg-event-card">
+    cardEl = (
       <button
         type="button"
         disabled={!clickable}
@@ -168,6 +182,7 @@ export const EventCardMessage = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: '0.5rem',
             fontSize: '0.75rem',
             color: 'greyscale.500',
           })}
@@ -188,11 +203,78 @@ export const EventCardMessage = ({
           )}
         </span>
       </button>
+    )
+  }
+
+  // 后端 SYSTEM 注入的变更/取消通知:居中,无发送者归属。
+  if (system) {
+    return (
+      <div className={centerRowCls} data-testid="im-msg-event-card">
+        {cardEl}
+      </div>
+    )
+  }
+
+  // 组织者(创建者)发出:正常消息行 —— 头像/名字/左右对齐,可右键操作。
+  const name = senderName || ''
+  return (
+    <div
+      onContextMenu={onContextMenu}
+      className={css({
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '0.5rem',
+        justifyContent: isOwn ? 'flex-end' : 'flex-start',
+        paddingX: '1rem',
+        paddingY: '0.25rem',
+      })}
+      data-testid="im-msg-event-card"
+    >
+      {!isOwn && (
+        <button
+          type="button"
+          onClick={onAvatarClick}
+          disabled={!onAvatarClick}
+          aria-label={name}
+          className={css({
+            flexShrink: 0,
+            padding: 0,
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            _disabled: { cursor: 'default' },
+          })}
+        >
+          <Avatar name={name} src={senderAvatarUrl} size="2rem" />
+        </button>
+      )}
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          maxWidth: '70%',
+          alignItems: isOwn ? 'flex-end' : 'flex-start',
+        })}
+      >
+        {!isOwn && showSender && (
+          <div
+            className={css({
+              fontSize: '0.75rem',
+              color: 'greyscale.600',
+              marginBottom: '0.25rem',
+              paddingX: '0.25rem',
+            })}
+          >
+            {name}
+          </div>
+        )}
+        {cardEl}
+      </div>
     </div>
   )
 }
 
-const rowCls = css({
+const centerRowCls = css({
   display: 'flex',
   justifyContent: 'center',
   paddingX: '1rem',

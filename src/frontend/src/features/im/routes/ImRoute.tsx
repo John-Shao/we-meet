@@ -428,13 +428,15 @@ const ImAuthenticated = () => {
     return m.body
   }
 
-  // 把单条消息转发到目标会话:图片/文件/合并记录直接复用原 body(OSS key 可跨会话
-  // resolve;合并 body 已自包含);引用只转可见正文为纯文本;其余原样发。
+  // 把单条消息转发到目标会话:图片/文件/合并记录/日程卡片直接复用原 body
+  // (OSS key 可跨会话 resolve;合并/卡片 body 已自包含);引用只转可见正文
+  // 为纯文本;其余原样发。
   const forwardOne = async (targetCid: string, m: Message) => {
     if (
       m.content_type === 'image' ||
       m.content_type === 'file' ||
-      m.content_type === 'merged'
+      m.content_type === 'merged' ||
+      m.content_type === 'event-card'
     ) {
       await client.sendText(targetCid, m.body, { contentType: m.content_type })
     } else if (m.content_type === 'quote') {

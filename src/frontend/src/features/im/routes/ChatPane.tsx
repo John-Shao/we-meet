@@ -728,6 +728,7 @@ export const ChatPane = ({
       m.content_type !== 'file' &&
       m.content_type !== 'voice' &&
       m.content_type !== 'merged' &&
+      m.content_type !== 'event-card' && // 复制裸 JSON 无意义
       m.body &&
       navigator.clipboard
     ) {

@@ -14,6 +14,7 @@ import { css } from '@/styled-system/css'
 
 import { Avatar } from './Avatar'
 import { EventCardMessage } from './EventCardMessage'
+import { IM_SYSTEM_UID } from './eventCard'
 import type { MergedBody } from './MergedRecordDialog'
 
 /** One aggregated reaction chip under a message. */
@@ -349,12 +350,6 @@ export const MessageItem = ({
     )
   }
 
-  // P8 日程卡片(content_type='event-card',body = event-card v1 JSON)→ 居中
-  // 卡片,渲染与容错全在 EventCardMessage,此处只转发。
-  if (message.content_type === 'event-card') {
-    return <EventCardMessage body={message.body} onOpen={onOpenEvent} />
-  }
-
   // P4.1 群语音「进行中」卡片 (body = {"slug","media"}) — every member (rung
   // or not, joined later or not) can tap to join the live grid. Once the
   // group's end-record (call-log carrying the same slug) exists downstream,
@@ -530,364 +525,391 @@ export const MessageItem = ({
     )
   }
 
-  const row = (
-    <div
-      onContextMenu={onContextMenu}
-      className={css({
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '0.5rem',
-        justifyContent: isOwn ? 'flex-end' : 'flex-start',
-        paddingX: '1rem',
-        paddingY: '0.25rem',
-      })}
-      data-testid="im-msg"
-    >
-      {/* 接收消息(一对一 + 群聊):左侧对方头像(对齐企业微信/微信;
-          发送人名字仅群聊显示,见下方 showSender 分支) */}
-      {!isOwn && (
-        <span
-          onClick={onAvatarClick}
-          className={css({
-            cursor: onAvatarClick ? 'pointer' : 'default',
-            flexShrink: 0,
-          })}
-        >
-          <Avatar name={name} src={senderAvatarUrl} size="2rem" />
-        </span>
-      )}
+  // P8-UX 日程卡片:组织者创建卡 = 正常消息行(头像/名字/对齐,可右键转发);
+  // 后端 SYSTEM 注入的变更/取消卡 = 居中系统样式。作为 row 参与下方的
+  // selectMode 包装 → 多选合并/逐条转发同样可用。
+  const row =
+    message.content_type === 'event-card' ? (
+      <EventCardMessage
+        body={message.body}
+        isOwn={isOwn}
+        senderName={name}
+        senderAvatarUrl={senderAvatarUrl}
+        showSender={showSender}
+        system={message.sender_uid === IM_SYSTEM_UID}
+        onAvatarClick={onAvatarClick}
+        onContextMenu={onContextMenu}
+        onOpen={onOpenEvent}
+      />
+    ) : (
       <div
+        onContextMenu={onContextMenu}
         className={css({
           display: 'flex',
-          flexDirection: 'column',
-          maxWidth: '70%',
-          alignItems: isOwn ? 'flex-end' : 'flex-start',
+          alignItems: 'flex-start',
+          gap: '0.5rem',
+          justifyContent: isOwn ? 'flex-end' : 'flex-start',
+          paddingX: '1rem',
+          paddingY: '0.25rem',
         })}
+        data-testid="im-msg"
       >
-        {!isOwn && showSender && (
-          <div
+        {/* 接收消息(一对一 + 群聊):左侧对方头像(对齐企业微信/微信;
+          发送人名字仅群聊显示,见下方 showSender 分支) */}
+        {!isOwn && (
+          <span
+            onClick={onAvatarClick}
             className={css({
-              fontSize: '0.75rem',
-              color: 'greyscale.600',
-              marginBottom: '0.25rem',
-              paddingX: '0.25rem',
+              cursor: onAvatarClick ? 'pointer' : 'default',
+              flexShrink: 0,
             })}
           >
-            {name}
-          </div>
+            <Avatar name={name} src={senderAvatarUrl} size="2rem" />
+          </span>
         )}
         <div
-          title={new Date(message.ts).toLocaleString()}
           className={css({
-            paddingX: isImage ? '0' : '0.75rem',
-            paddingY: isImage ? '0' : '0.5rem',
-            borderRadius: '0.75rem',
-            backgroundColor: isImage
-              ? 'transparent'
-              : isOwn
-                ? 'primary.500'
-                : 'greyscale.100',
-            color: isOwn ? 'white' : 'greyscale.900',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            maxWidth: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            maxWidth: '70%',
+            alignItems: isOwn ? 'flex-end' : 'flex-start',
           })}
         >
-          {isImage ? (
-            imageUrl ? (
-              <button
-                type="button"
-                onClick={onImageClick}
-                className={css({
-                  display: 'block',
-                  padding: 0,
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'zoom-in',
-                })}
-              >
-                <img
-                  src={imageUrl}
-                  alt={t('image.alt')}
-                  className={css({
-                    display: 'block',
-                    maxWidth: '15rem',
-                    maxHeight: '20rem',
-                    borderRadius: '0.75rem',
-                    objectFit: 'contain',
-                  })}
-                />
-              </button>
-            ) : (
-              // Resolving / expired presign — neutral placeholder box.
-              <div
-                className={css({
-                  width: '10rem',
-                  height: '7.5rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: 'greyscale.100',
-                })}
-              />
-            )
-          ) : isFile ? (
-            (() => {
-              const meta = parseJsonBody<FileBody>(message.body)
-              const fname = meta?.name || 'file'
-              const fsize = meta?.size ? formatBytes(meta.size) : ''
-              const inner = (
-                <span
-                  className={css({
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    minWidth: '12rem',
-                    maxWidth: '16rem',
-                  })}
-                >
-                  <RiFile2Line size={28} style={{ flexShrink: 0 }} />
-                  <span className={css({ minWidth: 0 })}>
-                    <span
-                      className={css({
-                        display: 'block',
-                        fontSize: '0.875rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      })}
-                    >
-                      {fname}
-                    </span>
-                    {fsize && (
-                      <span
-                        className={css({ fontSize: '0.6875rem', opacity: 0.7 })}
-                      >
-                        {fsize}
-                      </span>
-                    )}
-                  </span>
-                </span>
-              )
-              return fileUrl ? (
-                <a
-                  href={fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download={fname}
-                  className={css({ color: 'inherit', textDecoration: 'none' })}
-                >
-                  {inner}
-                </a>
-              ) : (
-                inner
-              )
-            })()
-          ) : isVoice ? (
-            <VoiceBubble
-              url={voiceUrl}
-              durationMs={voiceDurationMs}
-              isOwn={isOwn}
-            />
-          ) : isMerged ? (
-            (() => {
-              const rec = parseJsonBody<MergedBody>(message.body)
-              const lines = rec?.items?.slice(0, 3) ?? []
-              return (
+          {!isOwn && showSender && (
+            <div
+              className={css({
+                fontSize: '0.75rem',
+                color: 'greyscale.600',
+                marginBottom: '0.25rem',
+                paddingX: '0.25rem',
+              })}
+            >
+              {name}
+            </div>
+          )}
+          <div
+            title={new Date(message.ts).toLocaleString()}
+            className={css({
+              paddingX: isImage ? '0' : '0.75rem',
+              paddingY: isImage ? '0' : '0.5rem',
+              borderRadius: '0.75rem',
+              backgroundColor: isImage
+                ? 'transparent'
+                : isOwn
+                  ? 'primary.500'
+                  : 'greyscale.100',
+              color: isOwn ? 'white' : 'greyscale.900',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              maxWidth: '100%',
+            })}
+          >
+            {isImage ? (
+              imageUrl ? (
                 <button
                   type="button"
-                  onClick={onMergedClick}
-                  data-testid="im-merged-card"
+                  onClick={onImageClick}
                   className={css({
                     display: 'block',
-                    width: '15rem',
-                    maxWidth: '100%',
                     padding: 0,
                     border: 'none',
                     background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    color: 'inherit',
+                    cursor: 'zoom-in',
                   })}
                 >
+                  <img
+                    src={imageUrl}
+                    alt={t('image.alt')}
+                    className={css({
+                      display: 'block',
+                      maxWidth: '15rem',
+                      maxHeight: '20rem',
+                      borderRadius: '0.75rem',
+                      objectFit: 'contain',
+                    })}
+                  />
+                </button>
+              ) : (
+                // Resolving / expired presign — neutral placeholder box.
+                <div
+                  className={css({
+                    width: '10rem',
+                    height: '7.5rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'greyscale.100',
+                  })}
+                />
+              )
+            ) : isFile ? (
+              (() => {
+                const meta = parseJsonBody<FileBody>(message.body)
+                const fname = meta?.name || 'file'
+                const fsize = meta?.size ? formatBytes(meta.size) : ''
+                const inner = (
                   <span
                     className={css({
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.375rem',
-                      fontSize: '0.8125rem',
-                      fontWeight: 'medium',
-                      opacity: 0.9,
-                      marginBottom: '0.25rem',
+                      gap: '0.5rem',
+                      minWidth: '12rem',
+                      maxWidth: '16rem',
                     })}
                   >
-                    <RiChat3Line size={16} style={{ flexShrink: 0 }} />
-                    {rec?.title || t('merged.card')}
-                  </span>
-                  {lines.map((it, i) => (
-                    <span
-                      key={i}
-                      className={css({
-                        display: 'block',
-                        fontSize: '0.75rem',
-                        opacity: 0.7,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      })}
-                    >
-                      {it.sender}: {it.text}
+                    <RiFile2Line size={28} style={{ flexShrink: 0 }} />
+                    <span className={css({ minWidth: 0 })}>
+                      <span
+                        className={css({
+                          display: 'block',
+                          fontSize: '0.875rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        })}
+                      >
+                        {fname}
+                      </span>
+                      {fsize && (
+                        <span
+                          className={css({
+                            fontSize: '0.6875rem',
+                            opacity: 0.7,
+                          })}
+                        >
+                          {fsize}
+                        </span>
+                      )}
                     </span>
-                  ))}
-                  <span
+                  </span>
+                )
+                return fileUrl ? (
+                  <a
+                    href={fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download={fname}
+                    className={css({
+                      color: 'inherit',
+                      textDecoration: 'none',
+                    })}
+                  >
+                    {inner}
+                  </a>
+                ) : (
+                  inner
+                )
+              })()
+            ) : isVoice ? (
+              <VoiceBubble
+                url={voiceUrl}
+                durationMs={voiceDurationMs}
+                isOwn={isOwn}
+              />
+            ) : isMerged ? (
+              (() => {
+                const rec = parseJsonBody<MergedBody>(message.body)
+                const lines = rec?.items?.slice(0, 3) ?? []
+                return (
+                  <button
+                    type="button"
+                    onClick={onMergedClick}
+                    data-testid="im-merged-card"
                     className={css({
                       display: 'block',
-                      marginTop: '0.375rem',
-                      paddingTop: '0.25rem',
-                      borderTop: '1px solid',
-                      borderColor: isOwn
-                        ? 'rgba(255,255,255,0.3)'
-                        : 'greyscale.200',
-                      fontSize: '0.6875rem',
-                      opacity: 0.7,
+                      width: '15rem',
+                      maxWidth: '100%',
+                      padding: 0,
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: 'inherit',
                     })}
                   >
-                    {t('merged.view', { count: rec?.count ?? lines.length })}
-                  </span>
-                </button>
-              )
-            })()
-          ) : isQuote ? (
-            (() => {
-              const q = parseJsonBody<QuoteBody>(message.body)
-              return (
-                <>
-                  <div
-                    className={css({
-                      borderLeft: '3px solid',
-                      borderColor: isOwn
-                        ? 'rgba(255,255,255,0.5)'
-                        : 'greyscale.300',
-                      paddingLeft: '0.5rem',
-                      marginBottom: '0.25rem',
-                      fontSize: '0.75rem',
-                      opacity: 0.85,
-                    })}
-                  >
-                    {q?.reply_to?.sender ? `${q.reply_to.sender}: ` : ''}
-                    {q?.reply_to?.snippet || ''}
-                  </div>
-                  <div>
-                    {renderBody(
-                      q?.text || '',
-                      mentionNames,
-                      selfMentionNames,
-                      isOwn
-                    )}
-                  </div>
-                </>
-              )
-            })()
-          ) : (
-            <div>
-              {renderBody(message.body, mentionNames, selfMentionNames, isOwn)}
-            </div>
-          )}
-        </div>
-        {reactions.length > 0 && (
-          <div
-            className={css({
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.25rem',
-              marginTop: '0.25rem',
-            })}
-          >
-            {reactions.map((r) => (
-              <button
-                key={r.emoji}
-                type="button"
-                onClick={() => onReact?.(r.emoji)}
-                data-testid={`reaction-${r.emoji}`}
-                className={css({
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  maxWidth: '14rem',
-                  paddingX: '0.5rem',
-                  paddingY: '0.125rem',
-                  borderRadius: '999px',
-                  fontSize: '0.75rem',
-                  cursor: 'pointer',
-                  border: '1px solid',
-                  borderColor: r.mine ? 'primary.300' : 'greyscale.200',
-                  backgroundColor: r.mine ? 'primary.50' : 'greyscale.50',
-                  color: r.mine ? 'primary.700' : 'greyscale.600',
-                  _hover: {
-                    backgroundColor: r.mine ? 'primary.100' : 'greyscale.100',
-                  },
-                })}
-              >
-                <span>{r.emoji}</span>
-                <span
+                    <span
+                      className={css({
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.375rem',
+                        fontSize: '0.8125rem',
+                        fontWeight: 'medium',
+                        opacity: 0.9,
+                        marginBottom: '0.25rem',
+                      })}
+                    >
+                      <RiChat3Line size={16} style={{ flexShrink: 0 }} />
+                      {rec?.title || t('merged.card')}
+                    </span>
+                    {lines.map((it, i) => (
+                      <span
+                        key={i}
+                        className={css({
+                          display: 'block',
+                          fontSize: '0.75rem',
+                          opacity: 0.7,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        })}
+                      >
+                        {it.sender}: {it.text}
+                      </span>
+                    ))}
+                    <span
+                      className={css({
+                        display: 'block',
+                        marginTop: '0.375rem',
+                        paddingTop: '0.25rem',
+                        borderTop: '1px solid',
+                        borderColor: isOwn
+                          ? 'rgba(255,255,255,0.3)'
+                          : 'greyscale.200',
+                        fontSize: '0.6875rem',
+                        opacity: 0.7,
+                      })}
+                    >
+                      {t('merged.view', { count: rec?.count ?? lines.length })}
+                    </span>
+                  </button>
+                )
+              })()
+            ) : isQuote ? (
+              (() => {
+                const q = parseJsonBody<QuoteBody>(message.body)
+                return (
+                  <>
+                    <div
+                      className={css({
+                        borderLeft: '3px solid',
+                        borderColor: isOwn
+                          ? 'rgba(255,255,255,0.5)'
+                          : 'greyscale.300',
+                        paddingLeft: '0.5rem',
+                        marginBottom: '0.25rem',
+                        fontSize: '0.75rem',
+                        opacity: 0.85,
+                      })}
+                    >
+                      {q?.reply_to?.sender ? `${q.reply_to.sender}: ` : ''}
+                      {q?.reply_to?.snippet || ''}
+                    </div>
+                    <div>
+                      {renderBody(
+                        q?.text || '',
+                        mentionNames,
+                        selfMentionNames,
+                        isOwn
+                      )}
+                    </div>
+                  </>
+                )
+              })()
+            ) : (
+              <div>
+                {renderBody(
+                  message.body,
+                  mentionNames,
+                  selfMentionNames,
+                  isOwn
+                )}
+              </div>
+            )}
+          </div>
+          {reactions.length > 0 && (
+            <div
+              className={css({
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '0.25rem',
+                marginTop: '0.25rem',
+              })}
+            >
+              {reactions.map((r) => (
+                <button
+                  key={r.emoji}
+                  type="button"
+                  onClick={() => onReact?.(r.emoji)}
+                  data-testid={`reaction-${r.emoji}`}
                   className={css({
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    maxWidth: '14rem',
+                    paddingX: '0.5rem',
+                    paddingY: '0.125rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    border: '1px solid',
+                    borderColor: r.mine ? 'primary.300' : 'greyscale.200',
+                    backgroundColor: r.mine ? 'primary.50' : 'greyscale.50',
+                    color: r.mine ? 'primary.700' : 'greyscale.600',
+                    _hover: {
+                      backgroundColor: r.mine ? 'primary.100' : 'greyscale.100',
+                    },
                   })}
                 >
-                  {r.label}
-                </span>
+                  <span>{r.emoji}</span>
+                  <span
+                    className={css({
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    })}
+                  >
+                    {r.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {/* 已读回执(P13):自己发的最新一条消息下方,右对齐小字。 */}
+          {readReceipt &&
+            (readReceipt.clickable ? (
+              <button
+                type="button"
+                onClick={readReceipt.onClick}
+                data-testid="im-read-receipt"
+                className={css({
+                  marginTop: '0.25rem',
+                  paddingX: '0.25rem',
+                  border: 'none',
+                  background: 'transparent',
+                  fontSize: '0.6875rem',
+                  color: 'greyscale.500',
+                  cursor: 'pointer',
+                  _hover: { color: 'primary.500' },
+                })}
+              >
+                {readReceipt.label}
               </button>
+            ) : (
+              <span
+                data-testid="im-read-receipt"
+                className={css({
+                  marginTop: '0.25rem',
+                  paddingX: '0.25rem',
+                  fontSize: '0.6875rem',
+                  color: 'greyscale.500',
+                })}
+              >
+                {readReceipt.label}
+              </span>
             ))}
-          </div>
+        </div>
+        {/* 自己发的消息(一对一 + 群聊):右侧自己头像,不显示名字 */}
+        {isOwn && (
+          <span
+            onClick={onAvatarClick}
+            className={css({
+              cursor: onAvatarClick ? 'pointer' : 'default',
+              flexShrink: 0,
+            })}
+          >
+            <Avatar name={name} src={senderAvatarUrl} size="2rem" />
+          </span>
         )}
-        {/* 已读回执(P13):自己发的最新一条消息下方,右对齐小字。 */}
-        {readReceipt &&
-          (readReceipt.clickable ? (
-            <button
-              type="button"
-              onClick={readReceipt.onClick}
-              data-testid="im-read-receipt"
-              className={css({
-                marginTop: '0.25rem',
-                paddingX: '0.25rem',
-                border: 'none',
-                background: 'transparent',
-                fontSize: '0.6875rem',
-                color: 'greyscale.500',
-                cursor: 'pointer',
-                _hover: { color: 'primary.500' },
-              })}
-            >
-              {readReceipt.label}
-            </button>
-          ) : (
-            <span
-              data-testid="im-read-receipt"
-              className={css({
-                marginTop: '0.25rem',
-                paddingX: '0.25rem',
-                fontSize: '0.6875rem',
-                color: 'greyscale.500',
-              })}
-            >
-              {readReceipt.label}
-            </span>
-          ))}
       </div>
-      {/* 自己发的消息(一对一 + 群聊):右侧自己头像,不显示名字 */}
-      {isOwn && (
-        <span
-          onClick={onAvatarClick}
-          className={css({
-            cursor: onAvatarClick ? 'pointer' : 'default',
-            flexShrink: 0,
-          })}
-        >
-          <Avatar name={name} src={senderAvatarUrl} size="2rem" />
-        </span>
-      )}
-    </div>
-  )
+    )
 
   // 多选模式(合并/逐条转发):最左侧勾选框,整行点击切换选中;内容禁用指针,
   // 避免误触图片/表情等交互(飞书式左对齐勾选列)。
