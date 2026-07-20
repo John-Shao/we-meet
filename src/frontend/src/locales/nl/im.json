@@ -190,6 +190,12 @@
       "attendeesChanged": "Deelnemers gewijzigd",
       "cancelled": "Geannuleerd",
       "gone": "Deze afspraak is geannuleerd of niet zichtbaar voor jou"
+    },
+    "picker": {
+      "title": "Leden selecteren",
+      "search": "Leden zoeken",
+      "selected": "Geselecteerd: {{count}}",
+      "confirm": "OK"
     }
   },
   "voice": {

@@ -190,6 +190,12 @@
       "attendeesChanged": "Attendees changed",
       "cancelled": "Cancelled",
       "gone": "This event was cancelled or is not visible to you"
+    },
+    "picker": {
+      "title": "Select members",
+      "search": "Search members",
+      "selected": "Selected: {{count}}",
+      "confirm": "OK"
     }
   },
   "voice": {

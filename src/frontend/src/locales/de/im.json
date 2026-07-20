@@ -190,6 +190,12 @@
       "attendeesChanged": "Teilnehmer geändert",
       "cancelled": "Abgesagt",
       "gone": "Dieser Termin wurde abgesagt oder ist für dich nicht sichtbar"
+    },
+    "picker": {
+      "title": "Mitglieder auswählen",
+      "search": "Mitglieder suchen",
+      "selected": "Ausgewählt: {{count}}",
+      "confirm": "OK"
     }
   },
   "voice": {

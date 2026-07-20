@@ -190,6 +190,12 @@
       "attendeesChanged": "参会人变更",
       "cancelled": "已取消",
       "gone": "该日程已取消或你不可见"
+    },
+    "picker": {
+      "title": "选择成员",
+      "search": "搜索成员",
+      "selected": "已选: {{count}} 人",
+      "confirm": "确定"
     }
   },
   "voice": {

@@ -65,7 +65,15 @@ i18n:`locales/{de,en,fr,nl,zh}/im.json`。
 
 **四视图**:新 `ui/calendar/views/` 包 —— CalendarViewMode(AGENDA 默认)/ViewSwitcherSheet/AgendaView(周分组 sticky「第N周」+当天红线+头尾翻月,不做无限流)/**TimeGrid 可复用四件套**(TimeBlock/HourRail/NowIndicator/TimelineScaffold:Canvas 画格线 + 自定义 Layout 摆块 + verticalScroll)/DayTimelineView/WeekTimelineView(HorizontalPager 翻周)。CalendarViewModel 仅 +viewMode;数据复用 ±1 月窗口。
 
-**忙闲对比页**:`FreeBusyCompareScreen` + `FreeBusyViewModel`(单聊/群聊共用,群可勾选子集默认前 10 列;freebusy results 缺席的列=跨组织 → 置灰「日历不可见」且不参与判定);点空白 → 1h 选段(±30min 微调)→ 底部确认条(「所有参与者都有空 / N 人忙碌」)→ 预填创建。`CalendarApi/CalendarDtos` +freebusy;`AppNav` +FREE_BUSY 路由(ids/title/srcCid)。
+**忙闲对比页**:`FreeBusyCompareScreen`(单聊/群聊共用;freebusy results 缺席的列=跨组织 → 置灰「日历不可见」且不参与判定);点空白 → 1h 选段(±30min 微调)→ 底部确认条(「所有参与者都有空 / N 人忙碌」)→ 预填创建。`CalendarApi/CalendarDtos` +freebusy;`AppNav` +FREE_BUSY 路由(ids/title/srcCid)。
+
+> **UX 修正(2026-07-20,用户复核飞书截图后)**:① 头像列头在表格内与该列
+> 严格对齐(TimelineScaffold 新增 columnHeader/minColumnWidth,列头与网格
+> 共享同一横向 ScrollState);② 列宽弹性但有下限(约一屏 4 列),列多时
+> **列头 + 网格整体横向滚动**;③ 成员筛选不再用头像行点选 —— 右上角
+> 「选择成员」进独立选择页(搜索 + 圆形勾选 + 底部「已选 N 人/确定」),
+> **默认全选**、「我」恒选。Web 抽屉同步:右上角选择成员弹窗,列按勾选集
+> 过滤(列头/网格本就在同一横滚容器,天然满足 ①②)。
 
 **CreateEvent 预填**:路由参数方案(startSec/endSec/attendeeIds 可选 navArgument,既有调用零变化),屏内 DirectoryApi 补全身份。
 

@@ -190,6 +190,12 @@
       "attendeesChanged": "Participants modifiés",
       "cancelled": "Annulé",
       "gone": "Cet événement a été annulé ou ne vous est pas visible"
+    },
+    "picker": {
+      "title": "Choisir les membres",
+      "search": "Rechercher des membres",
+      "selected": "Sélection : {{count}}",
+      "confirm": "OK"
     }
   },
   "voice": {

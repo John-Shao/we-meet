@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { RiUserFollowLine } from '@remixicon/react'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { Modal } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
 import {
   CreateEventDialog,
@@ -89,6 +91,14 @@ export const ConversationCalendarPanel = ({
     }
   }, [memberUids, names, currentUserUID])
 
+  // ── 选择成员(飞书:默认全选,「我」恒选;null = 全选) ──
+  const [checked, setChecked] = useState<Set<string> | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const activePeople = useMemo(
+    () => (checked ? people.filter((p) => checked.has(p.id)) : people),
+    [people, checked]
+  )
+
   // ── 日期导航(单日窗口,远小于 freebusy 的 31 天上限) ──
   const [day, setDay] = useState(() => {
     const d = new Date()
@@ -114,7 +124,10 @@ export const ConversationCalendarPanel = ({
       return d
     })
 
-  const ids = useMemo(() => people.map((p) => p.id).sort(), [people])
+  const ids = useMemo(
+    () => activePeople.map((p) => p.id).sort(),
+    [activePeople]
+  )
   const { data: entries = [] } = useQuery({
     queryKey: ['im', 'freebusy', cid, dayKey, ids],
     queryFn: () => fetchFreeBusy(ids, day.toISOString(), dayEnd.toISOString()),
@@ -124,9 +137,9 @@ export const ConversationCalendarPanel = ({
   const busyOf = (id: string) =>
     entries.find((e) => e.user_id === id)?.busy ?? []
   const peopleBusy = useMemo(
-    () => people.map((p) => ({ id: p.id, busy: busyOf(p.id) })),
+    () => activePeople.map((p) => ({ id: p.id, busy: busyOf(p.id) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [people, entries]
+    [activePeople, entries]
   )
 
   // ── 时段选择(30min 吸附;拖动扩展,单击 = 30min) ──
@@ -166,14 +179,14 @@ export const ConversationCalendarPanel = ({
     sel && selStart && selEnd
       ? busyPeopleInRange(peopleBusy, selStart, selEnd)
       : []
-  const busyNames = people
+  const busyNames = activePeople
     .filter((p) => busyIds.includes(p.id))
     .map((p) => p.label)
 
   // ── 建议时段(全员空闲;entries 未回来前不显示) ──
   const suggestions: SuggestedSlot[] = useMemo(
     () =>
-      people.length > 1 && entries.length > 0
+      activePeople.length > 1 && entries.length > 0
         ? suggestCommonSlots(peopleBusy, day)
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,11 +209,11 @@ export const ConversationCalendarPanel = ({
   const initialSelected = useMemo(
     () =>
       new Map(
-        people
+        activePeople
           .filter((p) => p.uid !== currentUserUID)
           .map((p) => [p.id, p.label] as [string, string])
       ),
-    [people, currentUserUID]
+    [activePeople, currentUserUID]
   )
 
   const nowMin = (() => {
@@ -246,21 +259,47 @@ export const ConversationCalendarPanel = ({
         >
           {isGroup ? t('calendar.groupOpen') : t('calendar.open')}
         </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('manage.cancel')}
+        <div
           className={css({
-            border: 'none',
-            background: 'transparent',
-            fontSize: '1.25rem',
-            lineHeight: 1,
-            cursor: 'pointer',
-            color: 'greyscale.600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.375rem',
           })}
         >
-          ×
-        </button>
+          {/* P8-UX:选择成员(飞书右上角入口) */}
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            title={t('calendar.picker.title')}
+            aria-label={t('calendar.picker.title')}
+            data-testid="freebusy-pick-members"
+            className={css({
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              color: 'greyscale.600',
+              display: 'flex',
+              _hover: { color: 'primary.600' },
+            })}
+          >
+            <RiUserFollowLine size={17} />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('manage.cancel')}
+            className={css({
+              border: 'none',
+              background: 'transparent',
+              fontSize: '1.25rem',
+              lineHeight: 1,
+              cursor: 'pointer',
+              color: 'greyscale.600',
+            })}
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {/* 日期条 */}
@@ -350,7 +389,7 @@ export const ConversationCalendarPanel = ({
             })}
           >
             <div style={{ width: RAIL_PX, flexShrink: 0 }} />
-            {people.map((p) => (
+            {activePeople.map((p) => (
               <div
                 key={p.id}
                 className={css({
@@ -433,7 +472,7 @@ export const ConversationCalendarPanel = ({
                   className={workShade}
                   style={{ top: 18 * HOUR_PX, height: 6 * HOUR_PX }}
                 />
-                {people.map((p) => (
+                {activePeople.map((p) => (
                   <div
                     key={p.id}
                     className={css({
@@ -634,6 +673,19 @@ export const ConversationCalendarPanel = ({
         </button>
       </div>
 
+      {pickerOpen && (
+        <MemberPicker
+          people={people}
+          selfUid={currentUserUID}
+          initial={checked ?? new Set(people.map((p) => p.id))}
+          onConfirm={(next) => {
+            setChecked(next)
+            setPickerOpen(false)
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+
       {dialogOpen && selStart && selEnd && (
         <CreateEventDialog
           initialStart={selStart}
@@ -660,6 +712,193 @@ export const ConversationCalendarPanel = ({
         />
       )}
     </aside>
+  )
+}
+
+/**
+ * P8-UX 选择成员弹窗(飞书样式):圆形勾选列表 + 搜索 + 底部「已选 N 人 +
+ * 确定」。「我」恒选不可取消(发起人必参加);确定后忙闲列/建议/预填参会
+ * 全部按勾选集过滤。
+ */
+const MemberPicker = ({
+  people,
+  selfUid,
+  initial,
+  onConfirm,
+  onClose,
+}: {
+  people: { uid: string; id: string; label: string; avatar?: string }[]
+  selfUid: string
+  initial: Set<string>
+  onConfirm: (next: Set<string>) => void
+  onClose: () => void
+}) => {
+  const { t } = useTranslation('im')
+  const [temp, setTemp] = useState<Set<string>>(() => new Set(initial))
+  const [query, setQuery] = useState('')
+  const shown = query.trim()
+    ? people.filter((p) =>
+        p.label.toLowerCase().includes(query.trim().toLowerCase())
+      )
+    : people
+
+  const toggle = (p: { uid: string; id: string }) => {
+    if (p.uid === selfUid) return
+    setTemp((prev) => {
+      const next = new Set(prev)
+      if (next.has(p.id)) next.delete(p.id)
+      else next.add(p.id)
+      return next
+    })
+  }
+
+  return (
+    <Modal
+      onClose={onClose}
+      ariaLabel={t('calendar.picker.title')}
+      maxWidth="380px"
+    >
+      <div
+        className={css({
+          paddingX: '1rem',
+          paddingY: '0.75rem',
+          borderBottom: '1px solid token(colors.greyscale.200)',
+          fontSize: '1rem',
+          fontWeight: 'bold',
+          color: 'greyscale.900',
+        })}
+      >
+        {t('calendar.picker.title')}
+      </div>
+      <div className={css({ padding: '0.75rem 1rem 0' })}>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t('calendar.picker.search')}
+          className={css({
+            width: '100%',
+            paddingX: '0.75rem',
+            paddingY: '0.5rem',
+            border: '1px solid token(colors.greyscale.300)',
+            borderRadius: '0.5rem',
+            fontSize: '0.875rem',
+            outline: 'none',
+            _focus: { borderColor: 'primary.500' },
+          })}
+        />
+      </div>
+      <div
+        className={css({
+          maxHeight: '320px',
+          overflowY: 'auto',
+          padding: '0.5rem 0',
+        })}
+      >
+        {shown.map((p) => {
+          const isSelf = p.uid === selfUid
+          const isChecked = temp.has(p.id)
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => toggle(p)}
+              disabled={isSelf}
+              data-testid={`freebusy-picker-${p.id}`}
+              className={css({
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.625rem',
+                width: '100%',
+                paddingX: '1rem',
+                paddingY: '0.5rem',
+                border: 'none',
+                background: 'transparent',
+                textAlign: 'left',
+                cursor: 'pointer',
+                _disabled: { cursor: 'default' },
+                _hover: { backgroundColor: 'greyscale.100' },
+              })}
+            >
+              <span
+                aria-hidden="true"
+                className={css({
+                  flexShrink: 0,
+                  width: '1.125rem',
+                  height: '1.125rem',
+                  borderRadius: '999px',
+                  border: '1px solid token(colors.greyscale.400)',
+                  color: 'white',
+                  fontSize: '0.75rem',
+                  lineHeight: '1.125rem',
+                  textAlign: 'center',
+                })}
+                style={{
+                  backgroundColor: isChecked
+                    ? isSelf
+                      ? 'rgba(59,130,246,0.5)'
+                      : '#3b82f6'
+                    : 'white',
+                  borderColor: isChecked ? 'transparent' : undefined,
+                }}
+              >
+                {isChecked ? '✓' : ''}
+              </span>
+              <Avatar name={p.label} src={p.avatar} size="1.75rem" />
+              <span
+                className={css({
+                  minWidth: 0,
+                  fontSize: '0.875rem',
+                  color: 'greyscale.900',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                })}
+              >
+                {p.label}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      <div
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          paddingX: '1rem',
+          paddingY: '0.75rem',
+          borderTop: '1px solid token(colors.greyscale.200)',
+        })}
+      >
+        <span
+          className={css({
+            flex: 1,
+            fontSize: '0.8125rem',
+            color: 'primary.600',
+          })}
+        >
+          {t('calendar.picker.selected', { count: temp.size })}
+        </span>
+        <button
+          type="button"
+          onClick={() => onConfirm(temp)}
+          data-testid="freebusy-picker-confirm"
+          className={css({
+            paddingX: '1rem',
+            paddingY: '0.5rem',
+            border: 'none',
+            borderRadius: '0.5rem',
+            backgroundColor: 'primary.500',
+            color: 'white',
+            fontSize: '0.875rem',
+            fontWeight: 'medium',
+            cursor: 'pointer',
+          })}
+        >
+          {t('calendar.picker.confirm')}
+        </button>
+      </div>
+    </Modal>
   )
 }
 
