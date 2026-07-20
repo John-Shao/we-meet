@@ -750,36 +750,53 @@ const ImAuthenticated = () => {
               onForwardMany={(p) => setForwardingMany(p)}
               onMemberClick={(userId) => navigate(`/contacts?member=${userId}`)}
               infoPanel={
+                // P8-UX:右侧面板统一支持左缘拖拽调宽,宽度按面板类型分别记忆。
                 rightPanel === 'calendar' ? (
-                  <ConversationCalendarPanel
-                    client={client}
-                    conversation={selectedConv}
-                    currentUserUID={currentUserUID}
-                    onClose={() => setRightPanel(null)}
-                  />
-                ) : rightPanel === 'info' ? (
-                  selectedConv.type === 'group' ? (
-                    <GroupInfoPanel
+                  <ResizablePanel
+                    side="right"
+                    storageKey="im-right-calendar-w"
+                    defaultWidth={440}
+                    min={340}
+                    max={760}
+                  >
+                    <ConversationCalendarPanel
                       client={client}
                       conversation={selectedConv}
                       currentUserUID={currentUserUID}
-                      onAddMembers={() => setAddOpen(true)}
-                      onLeft={() => {
-                        setRightPanel(null)
-                        setSelectedCID(null)
-                      }}
                       onClose={() => setRightPanel(null)}
                     />
-                  ) : (
-                    <DirectSettingsPanel
-                      client={client}
-                      conversation={selectedConv}
-                      peerName={nameOf(selectedConv)}
-                      peerAvatarUrl={avatarOf(selectedConv)}
-                      onCreateGroup={() => void handleCreateGroupFromDirect()}
-                      onClose={() => setRightPanel(null)}
-                    />
-                  )
+                  </ResizablePanel>
+                ) : rightPanel === 'info' ? (
+                  <ResizablePanel
+                    side="right"
+                    storageKey="im-right-info-w"
+                    defaultWidth={300}
+                    min={260}
+                    max={560}
+                  >
+                    {selectedConv.type === 'group' ? (
+                      <GroupInfoPanel
+                        client={client}
+                        conversation={selectedConv}
+                        currentUserUID={currentUserUID}
+                        onAddMembers={() => setAddOpen(true)}
+                        onLeft={() => {
+                          setRightPanel(null)
+                          setSelectedCID(null)
+                        }}
+                        onClose={() => setRightPanel(null)}
+                      />
+                    ) : (
+                      <DirectSettingsPanel
+                        client={client}
+                        conversation={selectedConv}
+                        peerName={nameOf(selectedConv)}
+                        peerAvatarUrl={avatarOf(selectedConv)}
+                        onCreateGroup={() => void handleCreateGroupFromDirect()}
+                        onClose={() => setRightPanel(null)}
+                      />
+                    )}
+                  </ResizablePanel>
                 ) : null
               }
             />

@@ -5,11 +5,14 @@ import { css, cx } from '@/styled-system/css'
 
 /**
  * Feishu-style resizable secondary panel. Wraps a fixed-width side panel and
- * adds a draggable right edge; the chosen width persists in localStorage under
+ * adds a draggable edge; the chosen width persists in localStorage under
  * `storageKey`. The child fills 100% width/height — keep the panel's own
  * background/border/padding/scroll on the child's root element.
  *
- * The drag handle straddles the panel's right border, shows a faint blue line
+ * `side` is where the PANEL sits: 'left'(缺省,现状) = 拖拽柄在右缘,向右拖变宽;
+ * 'right'(P8-UX:IM 右侧 群/用户设置、会话日历等) = 柄在左缘,向左拖变宽。
+ *
+ * The drag handle straddles the panel's border, shows a faint blue line
  * on hover, and is solid blue while dragging.
  */
 
@@ -21,6 +24,7 @@ interface Props {
   defaultWidth: number
   min?: number
   max?: number
+  side?: 'left' | 'right'
   children: ReactNode
 }
 
@@ -29,6 +33,7 @@ export const ResizablePanel = ({
   defaultWidth,
   min = 200,
   max = 480,
+  side = 'left',
   children,
 }: Props) => {
   const { t } = useTranslation('shell')
@@ -55,8 +60,10 @@ export const ResizablePanel = ({
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'col-resize'
 
+    // 右侧面板:向左拖(clientX 变小)= 变宽 → 位移取反。
+    const sign = side === 'right' ? -1 : 1
     const onMove = (ev: PointerEvent) =>
-      setWidth(clamp(startW + (ev.clientX - startX), min, max))
+      setWidth(clamp(startW + sign * (ev.clientX - startX), min, max))
     const onUp = () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
@@ -84,7 +91,10 @@ export const ResizablePanel = ({
         aria-orientation="vertical"
         aria-label={t('resizeHandle')}
         onPointerDown={onPointerDown}
-        className={cx(handleCls, dragging ? draggingCls : undefined)}
+        className={cx(
+          side === 'right' ? handleLeftCls : handleCls,
+          dragging ? draggingCls : undefined
+        )}
       />
     </div>
   )
@@ -104,6 +114,28 @@ const handleCls = css({
     position: 'absolute',
     top: 0,
     right: '3px',
+    width: '2px',
+    height: '100%',
+    backgroundColor: 'transparent',
+    transition: 'background-color 0.15s',
+  },
+})
+
+/** side='right':柄骑在左边框上(面板在右,拖它的左缘)。 */
+const handleLeftCls = css({
+  position: 'absolute',
+  top: 0,
+  left: '-3px',
+  width: '6px',
+  height: '100%',
+  cursor: 'col-resize',
+  zIndex: 5,
+  _hover: { '&::after': { backgroundColor: 'primary.500' } },
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    left: '3px',
     width: '2px',
     height: '100%',
     backgroundColor: 'transparent',

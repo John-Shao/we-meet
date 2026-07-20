@@ -350,7 +350,8 @@ export const GroupInfoPanel = ({
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
-        width: '300px',
+        // P8-UX:宽度由外层 ResizablePanel(side=right)拖拽控制。
+        width: '100%',
         height: '100%',
         backgroundColor: 'greyscale.000',
         borderLeft: '1px solid token(colors.greyscale.200)',
