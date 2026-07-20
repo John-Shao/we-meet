@@ -327,6 +327,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             event = serializer.save()
             self._sync_room(event)
             if attendee_ids:
+                room = event.room
                 # Org-scoped like perform_create: only active members of the
                 # event's organization can be added (no cross-org invite).
                 invited = (

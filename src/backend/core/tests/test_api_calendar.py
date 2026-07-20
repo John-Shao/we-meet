@@ -194,10 +194,12 @@ def test_list_filters_by_date_range():
     client.force_login(me)
     win_start = timezone.now().isoformat()
     win_end = (timezone.now() + timedelta(days=3)).isoformat()
+    # Params as a dict so the ISO "+00:00" offset is URL-encoded — inlined in an
+    # f-string the "+" decodes to a space and the window filter is silently skipped.
     ids = {
         e["id"]
         for e in client.get(
-            f"/api/v1.0/calendar-events/?start={win_start}&end={win_end}"
+            "/api/v1.0/calendar-events/", {"start": win_start, "end": win_end}
         ).json()["results"]
     }
     assert str(soon.id) in ids
@@ -279,3 +281,36 @@ def test_reschedule_syncs_linked_room():
     event.room.refresh_from_db()
     assert event.room.name == "Kickoff v2"
     assert event.room.scheduled_at == new_start
+
+
+def test_update_adds_attendees_and_room_access():
+    """PATCH with attendee_ids adds the invitee + Room access (regression:
+    `room` was an undefined name in perform_update → NameError 500)."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="o@acme.com")
+    _membership(org, me)
+    late_invitee = factories.UserFactory(email="late@acme.com")
+    _membership(org, late_invitee)
+    start, end = _times()
+    client = APIClient()
+    client.force_login(me)
+    created = client.post(
+        "/api/v1.0/calendar-events/",
+        {"title": "Sync", "start_at": start.isoformat(), "end_at": end.isoformat()},
+        format="json",
+    )
+    assert created.status_code == 201, created.content
+    event = models.CalendarEvent.objects.get(id=created.json()["id"])
+
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event.id}/",
+        {"attendee_ids": [str(late_invitee.id)]},
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+    assert event.attendees.filter(
+        user=late_invitee, role=models.EventAttendeeRoleChoices.REQUIRED
+    ).exists()
+    assert event.room.accesses.filter(
+        user=late_invitee, role=models.RoleChoices.MEMBER
+    ).exists()
