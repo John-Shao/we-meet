@@ -94,7 +94,7 @@ export const FreeBusyBar = ({
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 })}
-                style={inConflict ? { color: '#dc2626' } : undefined}
+                style={inConflict ? { color: 'danger.600' } : undefined}
               >
                 {person.label}
               </span>
@@ -143,7 +143,7 @@ export const FreeBusyBar = ({
       {conflicts.length > 0 && (
         <div
           className={css({ fontSize: '0.75rem', marginTop: '0.375rem' })}
-          style={{ color: '#dc2626' }}
+          style={{ color: 'danger.600' }}
           data-testid="freebusy-conflict"
         >
           {t('freebusy.conflict', { count: conflicts.length })}

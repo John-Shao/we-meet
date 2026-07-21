@@ -213,7 +213,7 @@ export const EventDetailDialog = ({
                 data-testid="detail-delete"
                 className={cx(
                   detailBtn,
-                  css({ color: '#dc2626', borderColor: '#fecaca' })
+                  css({ color: 'danger.600', borderColor: '#fecaca' })
                 )}
               >
                 {t('detail.delete')}

@@ -709,7 +709,7 @@ const AiPanel = ({
         <div
           className={css({
             fontSize: '0.8125rem',
-            color: '#dc2626',
+            color: 'danger.600',
             marginBottom: '0.5rem',
           })}
         >

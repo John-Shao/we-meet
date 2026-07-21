@@ -16,8 +16,10 @@ const BetaBadge = () => (
       display: 'block',
       letterSpacing: '-0.02rem',
       padding: '0 0.25rem',
-      backgroundColor: '#E8EDFF',
-      color: '#0063CB',
+      // 蓝色 Beta 徽标:浅色浅蓝底/中蓝字,深色翻到 primaryDark 暗蓝底/亮蓝字。
+      backgroundColor: 'primary.50',
+      color: 'primary.700',
+      _dark: { backgroundColor: 'primaryDark.100', color: 'primaryDark.700' },
       fontSize: '12px',
       fontWeight: 500,
       margin: '0 0 0.9375rem 0.3125rem',

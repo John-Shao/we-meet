@@ -174,7 +174,7 @@ export const ConversationList = ({
                           fontWeight: 'bold',
                           fontSize: '0.8125rem',
                         })}
-                        style={{ color: '#dc2626' }}
+                        style={{ color: 'danger.600' }}
                       >
                         @
                       </span>
@@ -274,7 +274,7 @@ export const ConversationList = ({
                 cursor: 'pointer',
                 opacity: 0,
                 transition: 'opacity 0.15s, color 0.15s',
-                _hover: { color: '#dc2626' },
+                _hover: { color: 'danger.600' },
               })}
             >
               ✕

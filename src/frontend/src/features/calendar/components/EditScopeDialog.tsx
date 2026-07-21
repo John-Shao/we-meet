@@ -94,8 +94,8 @@ export const EditScopeDialog = ({
             className={cx(
               scopeBtn,
               css({
-                backgroundColor: danger ? '#dc2626' : 'primary.500',
-                borderColor: danger ? '#dc2626' : 'primary.500',
+                backgroundColor: danger ? 'danger.600' : 'primary.500',
+                borderColor: danger ? 'danger.600' : 'primary.500',
                 color: 'white',
               })
             )}

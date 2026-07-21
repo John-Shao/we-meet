@@ -47,6 +47,9 @@ const LoginHint = () => {
         boxShadow: '0 2px 5px rgba(0 0 0 / 0.1)',
         borderRadius: '1rem',
         backgroundColor: 'primary.200',
+        // 气泡底是固定浅蓝(primary.200 不翻转),文字须钉固定深色,
+        // 否则深色下继承 greyscale.1000(白)→ 白字压浅蓝底几乎不可读。
+        color: 'primary.900',
         display: 'none',
         xsm: {
           display: 'block',

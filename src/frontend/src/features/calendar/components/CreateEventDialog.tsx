@@ -474,7 +474,7 @@ export const CreateEventDialog = ({
                         background: 'transparent',
                         cursor: 'pointer',
                         color: 'greyscale.500',
-                        _hover: { color: '#dc2626' },
+                        _hover: { color: 'danger.600' },
                       })}
                     >
                       ×
