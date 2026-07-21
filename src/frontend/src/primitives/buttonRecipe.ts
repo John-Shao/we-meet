@@ -73,6 +73,13 @@ export const buttonRecipe = cva({
         color: 'primary.800',
         fontWeight: 'medium !important',
         borderColor: 'primary.800',
+        // 深色:primary.* 是固定色阶不翻转,深蓝 primary.800 配深底
+        // (greyscale.000→#161616)几乎不可见。文字/边框翻到 primaryDark 亮蓝,
+        // 与「进入会议」(scheduledCard.text=primaryDark.700)对齐可读度。
+        _dark: {
+          color: 'primaryDark.700',
+          borderColor: 'primaryDark.300',
+        },
         '&[data-hovered]': {
           backgroundColor: 'greyscale.100',
         },
@@ -84,6 +91,10 @@ export const buttonRecipe = cva({
         backgroundColor: 'transparent',
         fontWeight: 'medium !important',
         color: 'primary.800',
+        // 深色:同 secondary,深蓝文字在深底上不可读 → 翻到 primaryDark 亮蓝。
+        _dark: {
+          color: 'primaryDark.700',
+        },
         '&[data-hovered]': {
           backgroundColor: 'greyscale.100',
         },
