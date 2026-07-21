@@ -123,6 +123,7 @@
     "nav": {
       "general": "Allgemein",
       "account": "Konto",
+      "meeting": "Besprechungen",
       "calendar": "Kalender",
       "agreement": "Bedingungen"
     },
@@ -148,6 +149,11 @@
       "userAgreement": "Nutzungsbedingungen",
       "privacy": "Datenschutzrichtlinie",
       "view": "Ansehen"
+    },
+    "meeting": {
+      "videoCodec": "Video-Codec",
+      "defaultSuffix": "(Standard)",
+      "codecHint": "Wird beim nächsten Beitritt wirksam."
     }
   },
   "language": {

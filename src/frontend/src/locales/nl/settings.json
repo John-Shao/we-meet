@@ -123,6 +123,7 @@
     "nav": {
       "general": "Algemeen",
       "account": "Account",
+      "meeting": "Vergaderingen",
       "calendar": "Agenda",
       "agreement": "Voorwaarden"
     },
@@ -148,6 +149,11 @@
       "userAgreement": "Gebruikersovereenkomst",
       "privacy": "Privacybeleid",
       "view": "Bekijken"
+    },
+    "meeting": {
+      "videoCodec": "Videocodec",
+      "defaultSuffix": "(standaard)",
+      "codecHint": "Wordt van kracht bij de volgende vergadering."
     }
   },
   "language": {

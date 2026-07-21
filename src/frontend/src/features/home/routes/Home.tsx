@@ -4,6 +4,7 @@ import {
   RiFlashlightLine,
   RiCalendarLine,
   RiAddCircleLine,
+  RiSettings3Line,
 } from '@remixicon/react'
 import { Button } from '@/primitives'
 import { styled } from '@/styled-system/jsx'
@@ -22,6 +23,7 @@ import { PersonalAIFab } from '@/features/personal-ai'
 import { ReactNode, useEffect, useState } from 'react'
 
 import { css } from '@/styled-system/css'
+import { openSystemSettings } from '@/stores/systemSettings'
 import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePersistentUserChoices'
 import { useConfig } from '@/api/useConfig'
 import { ApiRoom } from '@/features/rooms/api/ApiRoom'
@@ -214,62 +216,95 @@ export const Home = () => {
               min={220}
               max={460}
             >
-            <aside
-              className={css({
-                width: '100%',
-                height: '100%',
-                borderRight: '1px solid token(colors.greyscale.200)',
-                backgroundColor: 'greyscale.000',
-                padding: '1.25rem 1rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1rem',
-              })}
-            >
-              <h1
+              <aside
                 className={css({
-                  fontSize: '1.125rem',
-                  fontWeight: 'bold',
-                  color: 'greyscale.900',
-                })}
-              >
-                {t('nav.meeting', { ns: 'shell' })}
-              </h1>
-              <div
-                className={css({
+                  width: '100%',
+                  height: '100%',
+                  borderRight: '1px solid token(colors.greyscale.200)',
+                  backgroundColor: 'greyscale.000',
+                  padding: '1.25rem 1rem',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '0.625rem',
-                  alignItems: 'stretch',
+                  gap: '1rem',
                 })}
               >
-                <Button
-                  variant="primary"
-                  data-attr="create-meeting"
-                  onPress={handleCreate}
+                <div
+                  className={css({
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  })}
                 >
-                  <RiFlashlightLine size={18} />
-                  {t('quickMeeting')}
-                </Button>
-                <DialogTrigger>
-                  <Button variant="secondary" data-attr="schedule-meeting">
-                    <RiCalendarLine size={18} />
-                    {t('scheduleMeeting')}
+                  <h1
+                    className={css({
+                      fontSize: '1.125rem',
+                      fontWeight: 'bold',
+                      color: 'greyscale.900',
+                    })}
+                  >
+                    {t('nav.meeting', { ns: 'shell' })}
+                  </h1>
+                  {/* P8 设置收敛:齿轮只是快捷入口,打开系统设置定位「会议设置」节。 */}
+                  <button
+                    type="button"
+                    onClick={() => openSystemSettings('meeting')}
+                    title={t('systemSettings.nav.meeting', { ns: 'settings' })}
+                    aria-label={t('systemSettings.nav.meeting', {
+                      ns: 'settings',
+                    })}
+                    data-testid="meeting-settings"
+                    className={css({
+                      width: '1.75rem',
+                      height: '1.75rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: 'none',
+                      borderRadius: '0.5rem',
+                      backgroundColor: 'transparent',
+                      color: 'greyscale.600',
+                      cursor: 'pointer',
+                      _hover: { backgroundColor: 'greyscale.100' },
+                    })}
+                  >
+                    <RiSettings3Line size={17} />
+                  </button>
+                </div>
+                <div
+                  className={css({
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.625rem',
+                    alignItems: 'stretch',
+                  })}
+                >
+                  <Button
+                    variant="primary"
+                    data-attr="create-meeting"
+                    onPress={handleCreate}
+                  >
+                    <RiFlashlightLine size={18} />
+                    {t('quickMeeting')}
                   </Button>
-                  <ScheduleMeetingDialog
-                    username={username}
-                    onCreated={setLaterRoom}
-                  />
-                </DialogTrigger>
-                <DialogTrigger>
-                  <Button variant="secondary">
-                    <RiAddCircleLine size={18} />
-                    {t('joinMeeting')}
-                  </Button>
-                  <JoinMeetingDialog />
-                </DialogTrigger>
-              </div>
-            </aside>
+                  <DialogTrigger>
+                    <Button variant="secondary" data-attr="schedule-meeting">
+                      <RiCalendarLine size={18} />
+                      {t('scheduleMeeting')}
+                    </Button>
+                    <ScheduleMeetingDialog
+                      username={username}
+                      onCreated={setLaterRoom}
+                    />
+                  </DialogTrigger>
+                  <DialogTrigger>
+                    <Button variant="secondary">
+                      <RiAddCircleLine size={18} />
+                      {t('joinMeeting')}
+                    </Button>
+                    <JoinMeetingDialog />
+                  </DialogTrigger>
+                </div>
+              </aside>
             </ResizablePanel>
             <main
               className={css({
@@ -287,88 +322,88 @@ export const Home = () => {
           <Columns>
             <LeftColumn>
               <Heading>{t('heading')}</Heading>
-            <IntroText>{t('intro')}</IntroText>
-            {isLoggedIn ? (
-              <div
-                className={css({
-                  display: 'flex',
-                  gap: 0.5,
-                  flexDirection: { base: 'column', xsm: 'row' },
-                  alignItems: { base: 'center', xsm: 'items-start' },
-                })}
-              >
-                <Button
-                  variant="primary"
-                  data-attr="create-meeting"
-                  onPress={async () => {
-                    // Backend generates the 8-digit slug on save — don't
-                    // ship a random 10-letter "code" that would co-exist
-                    // with it and confuse users.
-                    const owner = (user?.full_name || username || '').trim()
-                    const name = owner
-                      ? t('defaultRoomName', { user: owner })
-                      : t('defaultRoomNameAnonymous')
-                    createRoom({ name, username }).then((data) =>
-                      navigateTo('room', data.slug, {
-                        state: { create: true, initialRoomData: data },
-                      })
-                    )
-                  }}
+              <IntroText>{t('intro')}</IntroText>
+              {isLoggedIn ? (
+                <div
+                  className={css({
+                    display: 'flex',
+                    gap: 0.5,
+                    flexDirection: { base: 'column', xsm: 'row' },
+                    alignItems: { base: 'center', xsm: 'items-start' },
+                  })}
                 >
-                  {t('createMeeting')}
-                </Button>
-                {/* Logged-in users get the standard join entry — anonymous
+                  <Button
+                    variant="primary"
+                    data-attr="create-meeting"
+                    onPress={async () => {
+                      // Backend generates the 8-digit slug on save — don't
+                      // ship a random 10-letter "code" that would co-exist
+                      // with it and confuse users.
+                      const owner = (user?.full_name || username || '').trim()
+                      const name = owner
+                        ? t('defaultRoomName', { user: owner })
+                        : t('defaultRoomNameAnonymous')
+                      createRoom({ name, username }).then((data) =>
+                        navigateTo('room', data.slug, {
+                          state: { create: true, initialRoomData: data },
+                        })
+                      )
+                    }}
+                  >
+                    {t('createMeeting')}
+                  </Button>
+                  {/* Logged-in users get the standard join entry — anonymous
                     join is gated below (the button doesn't render at all
                     when isLoggedIn is false). */}
-                <DialogTrigger>
-                  <Button variant="secondary">{t('joinMeeting')}</Button>
-                  <JoinMeetingDialog />
-                </DialogTrigger>
-                <DialogTrigger>
-                  <Button variant="secondary" data-attr="schedule-meeting">
-                    {t('scheduleMeeting')}
-                  </Button>
-                  <ScheduleMeetingDialog
-                    username={username}
-                    onCreated={setLaterRoom}
-                  />
-                </DialogTrigger>
-              </div>
-            ) : (
-              // Anonymous users see [Login] + [Join meeting]. Login opens
-              // the Douyin-style dual-pane dialog (QR + phone OTP). Join
-              // works without login for public rooms — the room page
-              // routes restricted rooms back to login as needed.
-              <div
-                className={css({
-                  display: 'flex',
-                  gap: 0.5,
-                  flexDirection: { base: 'column', xsm: 'row' },
-                  alignItems: { base: 'center', xsm: 'items-start' },
-                })}
-              >
-                <Button
-                  variant="primary"
-                  data-attr="login"
-                  onPress={() => {
-                    window.location.href = authUrl()
-                  }}
+                  <DialogTrigger>
+                    <Button variant="secondary">{t('joinMeeting')}</Button>
+                    <JoinMeetingDialog />
+                  </DialogTrigger>
+                  <DialogTrigger>
+                    <Button variant="secondary" data-attr="schedule-meeting">
+                      {t('scheduleMeeting')}
+                    </Button>
+                    <ScheduleMeetingDialog
+                      username={username}
+                      onCreated={setLaterRoom}
+                    />
+                  </DialogTrigger>
+                </div>
+              ) : (
+                // Anonymous users see [Login] + [Join meeting]. Login opens
+                // the Douyin-style dual-pane dialog (QR + phone OTP). Join
+                // works without login for public rooms — the room page
+                // routes restricted rooms back to login as needed.
+                <div
+                  className={css({
+                    display: 'flex',
+                    gap: 0.5,
+                    flexDirection: { base: 'column', xsm: 'row' },
+                    alignItems: { base: 'center', xsm: 'items-start' },
+                  })}
                 >
-                  {t('login')}
-                </Button>
-                <DialogTrigger>
-                  <Button variant="secondary">{t('joinMeeting')}</Button>
-                  <JoinMeetingDialog />
-                </DialogTrigger>
-              </div>
-            )}
-            <ScheduledMeetingsList enabled={!!isLoggedIn} />
-            <RecentMeetingsList enabled={!!isLoggedIn} />
-            <Separator />
-            <MoreLink />
-          </LeftColumn>
-          <RightColumn>
-            <IntroSlider />
+                  <Button
+                    variant="primary"
+                    data-attr="login"
+                    onPress={() => {
+                      window.location.href = authUrl()
+                    }}
+                  >
+                    {t('login')}
+                  </Button>
+                  <DialogTrigger>
+                    <Button variant="secondary">{t('joinMeeting')}</Button>
+                    <JoinMeetingDialog />
+                  </DialogTrigger>
+                </div>
+              )}
+              <ScheduledMeetingsList enabled={!!isLoggedIn} />
+              <RecentMeetingsList enabled={!!isLoggedIn} />
+              <Separator />
+              <MoreLink />
+            </LeftColumn>
+            <RightColumn>
+              <IntroSlider />
             </RightColumn>
           </Columns>
         )}

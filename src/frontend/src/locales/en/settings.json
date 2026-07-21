@@ -123,6 +123,7 @@
     "nav": {
       "general": "General",
       "account": "Account",
+      "meeting": "Meetings",
       "calendar": "Calendar",
       "agreement": "Terms"
     },
@@ -148,6 +149,11 @@
       "userAgreement": "User Agreement",
       "privacy": "Privacy Policy",
       "view": "View"
+    },
+    "meeting": {
+      "videoCodec": "Video codec",
+      "defaultSuffix": "(default)",
+      "codecHint": "Takes effect the next time you join a meeting."
     }
   },
   "language": {

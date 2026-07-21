@@ -9,8 +9,13 @@ import {
   saveUserChoices,
 } from '@livekit/components-core'
 import { VideoQuality } from 'livekit-client'
+import type { VideoCodec } from 'livekit-client'
 
 export type VideoResolution = 'h720' | 'h360' | 'h180'
+
+/** P8 会议设置:Web 端可选发布编解码(浏览器广泛支持的子集;App 端另有
+ *  H.265,Web SDK/浏览器编码不支持故不提供)。 */
+export const VIDEO_PUBLISH_CODECS = ['h264', 'vp8', 'vp9'] as const
 
 export type LocalUserChoices = LocalUserChoicesLK & {
   processorConfig?: ProcessorConfig
@@ -18,6 +23,8 @@ export type LocalUserChoices = LocalUserChoicesLK & {
   audioOutputDeviceId?: string
   videoPublishResolution?: VideoResolution
   videoSubscribeQuality?: VideoQuality
+  /** P8 会议设置:发布端视频编解码,下一次加入会议时生效。 */
+  videoPublishCodec?: VideoCodec
 }
 
 function getUserChoicesState(): LocalUserChoices {
@@ -26,6 +33,7 @@ function getUserChoicesState(): LocalUserChoices {
     audioOutputDeviceId: 'default', // Use 'default' to match LiveKit's standard device selection behavior
     videoPublishResolution: 'h720',
     videoSubscribeQuality: VideoQuality.HIGH,
+    videoPublishCodec: 'vp9', // 保持既有默认(Conference 原来写死 vp9)
     ...loadUserChoices(),
   }
 }

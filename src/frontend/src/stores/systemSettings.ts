@@ -4,6 +4,7 @@ import { proxy } from 'valtio'
 export type SystemSettingsSection =
   | 'general'
   | 'account'
+  | 'meeting'
   | 'calendar'
   | 'agreement'
 

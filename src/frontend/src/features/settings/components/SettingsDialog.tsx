@@ -12,6 +12,7 @@ import {
   RiSettings3Line,
   RiSunLine,
   RiUser3Line,
+  RiVidiconLine,
 } from '@remixicon/react'
 import type { RemixiconComponentType } from '@remixicon/react'
 
@@ -27,6 +28,8 @@ import { Modal } from '@/components/Modal'
 import { routes } from '@/routes'
 import { themeStore, type ThemeMode } from '@/stores/theme'
 import type { SystemSettingsSection } from '@/stores/systemSettings'
+import { userChoicesStore, VIDEO_PUBLISH_CODECS } from '@/stores/userChoices'
+import type { VideoCodec } from 'livekit-client'
 import {
   DURATION_OPTIONS,
   REMINDER_OPTIONS,
@@ -77,6 +80,11 @@ export const SettingsDialog = ({
       key: 'account',
       label: t('systemSettings.nav.account'),
       Icon: RiUser3Line,
+    },
+    {
+      key: 'meeting',
+      label: t('systemSettings.nav.meeting'),
+      Icon: RiVidiconLine,
     },
     {
       key: 'calendar',
@@ -133,6 +141,7 @@ export const SettingsDialog = ({
               onEditAvatar={() => setAvatarOpen(true)}
             />
           )}
+          {section === 'meeting' && <MeetingPanel />}
           {section === 'calendar' && <CalendarPanel />}
           {section === 'agreement' && <AgreementPanel />}
         </section>
@@ -202,6 +211,53 @@ const GeneralPanel = () => {
         </select>
       </div>
     </>
+  )
+}
+
+/* ─── 会议设置(P8,对齐 App 端:视频编解码)───────────────────────────── */
+const MeetingPanel = () => {
+  const { t } = useTranslation('settings')
+  const { videoPublishCodec } = useSnapshot(userChoicesStore)
+
+  const codecLabel = (codec: VideoCodec): string => {
+    const name = codec === 'h264' ? 'H.264' : codec.toUpperCase()
+    return codec === 'vp9'
+      ? `${name} ${t('systemSettings.meeting.defaultSuffix')}`
+      : name
+  }
+
+  return (
+    <div>
+      <div className={infoRowCls}>
+        <span className={infoKeyCls}>
+          {t('systemSettings.meeting.videoCodec')}
+        </span>
+        <select
+          value={videoPublishCodec ?? 'vp9'}
+          onChange={(e) => {
+            userChoicesStore.videoPublishCodec = e.target.value as VideoCodec
+          }}
+          aria-label={t('systemSettings.meeting.videoCodec')}
+          data-testid="meeting-settings-codec"
+          className={selectCls}
+        >
+          {VIDEO_PUBLISH_CODECS.map((codec) => (
+            <option key={codec} value={codec}>
+              {codecLabel(codec)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p
+        className={css({
+          marginTop: '0.75rem',
+          fontSize: '0.8125rem',
+          color: 'greyscale.500',
+        })}
+      >
+        {t('systemSettings.meeting.codecHint')}
+      </p>
+    </div>
   )
 }
 

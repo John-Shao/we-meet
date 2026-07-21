@@ -123,6 +123,7 @@
     "nav": {
       "general": "通用设置",
       "account": "账号管理",
+      "meeting": "会议设置",
       "calendar": "日历设置",
       "agreement": "服务协议"
     },
@@ -148,6 +149,11 @@
       "userAgreement": "用户协议",
       "privacy": "隐私政策",
       "view": "查看"
+    },
+    "meeting": {
+      "videoCodec": "视频编解码",
+      "defaultSuffix": "（默认）",
+      "codecHint": "将在下一次加入会议时生效。"
     }
   },
   "language": {

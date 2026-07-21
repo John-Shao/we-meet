@@ -47,12 +47,12 @@ import {
 } from '@/features/im/call/meetInviteTracker'
 import type { RemoteInviteChip } from './CallStage'
 import { MeetInviteOverlay } from './MeetInviteOverlay'
-import {
-  remoteInvitesStore,
-  resetRemoteInvites,
-} from './remoteInvitesStore'
+import { remoteInvitesStore, resetRemoteInvites } from './remoteInvitesStore'
 import { patchRoom } from '../api/patchRoom'
-import { useRemoteParticipants, useRoomContext } from '@livekit/components-react'
+import {
+  useRemoteParticipants,
+  useRoomContext,
+} from '@livekit/components-react'
 import { useSnapshot } from 'valtio'
 
 export const Conference = ({
@@ -173,7 +173,8 @@ export const Conference = ({
       adaptiveStream: true,
       dynacast: true,
       publishDefaults: {
-        videoCodec: 'vp9',
+        // P8 会议设置:编解码跟用户偏好(我的→设置→会议设置),默认仍为 vp9。
+        videoCodec: userConfig.videoPublishCodec ?? 'vp9',
       },
       videoCaptureDefaults: {
         deviceId: userConfig.videoDeviceId ?? undefined,
@@ -192,6 +193,7 @@ export const Conference = ({
   }, [
     userConfig.videoDeviceId,
     userConfig.videoPublishResolution,
+    userConfig.videoPublishCodec,
     userConfig.audioDeviceId,
     userConfig.audioOutputDeviceId,
   ])
@@ -488,7 +490,10 @@ const CallOrMeeting = ({
           .filter((c) => c && typeof c.label === 'string')
           .map((c) => ({
             label: c.label,
-            state: c.state === 'ringing' ? ('ringing' as const) : ('inviting' as const),
+            state:
+              c.state === 'ringing'
+                ? ('ringing' as const)
+                : ('inviting' as const),
             avatarUrl:
               typeof c.avatarUrl === 'string' && c.avatarUrl
                 ? c.avatarUrl

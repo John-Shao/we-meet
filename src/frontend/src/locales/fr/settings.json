@@ -123,6 +123,7 @@
     "nav": {
       "general": "Général",
       "account": "Compte",
+      "meeting": "Réunions",
       "calendar": "Calendrier",
       "agreement": "Conditions"
     },
@@ -148,6 +149,11 @@
       "userAgreement": "Conditions d'utilisation",
       "privacy": "Politique de confidentialité",
       "view": "Voir"
+    },
+    "meeting": {
+      "videoCodec": "Codec vidéo",
+      "defaultSuffix": "(défaut)",
+      "codecHint": "Prend effet à la prochaine réunion."
     }
   },
   "language": {
