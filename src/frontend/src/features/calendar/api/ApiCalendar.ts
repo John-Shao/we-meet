@@ -64,9 +64,12 @@ export interface CreateEventPayload {
 export type EditScope = 'one' | 'following' | 'all'
 
 /**
- * PATCH payload for editing an event. Scalar fields only — the backend update
- * path does not (yet) re-sync attendees / Room, so the edit dialog omits the
- * attendee picker and never sends attendee_ids.
+ * PATCH payload for editing an event.
+ *
+ * P8 编辑增删参与者:`attendee_ids` 缺省 = 不动参与者(标量编辑);传列表 =
+ * **全量同步**(新面孔补进、不在列表的移除并同步移出 Room,组织者恒保留)。
+ * 重复日程的三选路径服务端会剔除该字段——编辑对话框仅对非重复日程展示
+ * 参与者选择。
  */
 export interface UpdateEventPayload {
   title?: string
@@ -75,6 +78,7 @@ export interface UpdateEventPayload {
   end_at?: string
   all_day?: boolean
   reminders?: number[]
+  attendee_ids?: string[]
   /** P2-M2:重复日程子场次的编辑范围;单次事件省略。 */
   edit_scope?: EditScope
 }

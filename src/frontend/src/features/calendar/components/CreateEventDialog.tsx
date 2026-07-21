@@ -26,7 +26,8 @@ interface Props {
   /** P8:来源会话 cid —— 随创建落库,变更/取消时后端向该会话推卡片。 */
   sourceConversationId?: string
   /** When set, the dialog edits this event (PATCH) instead of creating one.
-   * Scalar fields only — attendees aren't editable (backend doesn't re-sync). */
+   * P8:非重复日程的编辑态同样可增删参与者(attendee_ids 全量同步);
+   * 重复日程编辑仍为标量字段(服务端三选路径剔除 attendee_ids)。 */
   editEvent?: CalendarEvent
   /** P2-M2:重复子场次的编辑范围(one/following/all),随 PATCH 提交。 */
   editScope?: EditScope
@@ -107,9 +108,23 @@ export const CreateEventDialog = ({
   // P2-M1 重复日程:创建时可选预设;编辑重复规则属 M2 三选语义,编辑态不展示。
   const [repeat, setRepeat] = useState('')
   const [repeatUntil, setRepeatUntil] = useState('')
-  const [selected, setSelected] = useState<Map<string, string>>(
-    () => new Map(initialSelected ?? [])
-  )
+  // P8 编辑增删参与者:非重复日程编辑态放开参与者选择(全量同步语义);
+  // 重复日程的三选路径服务端剔除 attendee_ids,故 UI 也不展示。
+  const attendeesEditable =
+    !editEvent || (!editEvent.recurrence && !editEvent.recurrence_parent)
+  const [selected, setSelected] = useState<Map<string, string>>(() => {
+    if (editEvent) {
+      // 编辑态预填现有参与者(组织者恒在,不进列表、不可被移除)。
+      return new Map(
+        editEvent.attendees.flatMap((a) =>
+          a.role !== 'organizer' && a.id
+            ? [[a.id, a.full_name || a.email || '?'] as [string, string]]
+            : []
+        )
+      )
+    }
+    return new Map(initialSelected ?? [])
+  })
   const [busy, setBusy] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
   const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
@@ -169,11 +184,14 @@ export const CreateEventDialog = ({
         reminders: [...reminders].sort((a, b) => a - b),
       }
       const event = editEvent
-        ? await updateCalendarEvent(
-            editEvent.id,
+        ? await updateCalendarEvent(editEvent.id, {
             // P2-M2:重复子场次带三选范围;单次/主事件不带(主=服务端全部)。
-            editScope ? { ...base, edit_scope: editScope } : base
-          )
+            ...(editScope ? { ...base, edit_scope: editScope } : base),
+            // P8:非重复日程编辑同步参与者(全量);重复日程不传。
+            ...(attendeesEditable
+              ? { attendee_ids: [...selected.keys()] }
+              : {}),
+          })
         : await createCalendarEvent({
             ...base,
             attendee_ids: [...selected.keys()],
@@ -392,8 +410,8 @@ export const CreateEventDialog = ({
           </div>
         )}
 
-        {/* Attendees — create-only; editing attendees isn't wired server-side. */}
-        {!isEdit && (
+        {/* Attendees — 创建态 + 非重复日程编辑态(P8 全量同步);重复日程编辑不展示。 */}
+        {attendeesEditable && (
           <div>
             <div
               className={css({
