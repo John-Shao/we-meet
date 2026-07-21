@@ -14,7 +14,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RiCalendarLine } from '@remixicon/react'
 
-import { css, cx } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 import { H, Text } from '@/primitives'
 
 import { useScheduledMeetings } from '../api/fetchMeeting'
@@ -140,7 +140,9 @@ export const ScheduledMeetingsList = ({
                     timeIso: m.scheduled_at ?? null,
                   })
                 }
-                className={cx(
+                className={
+                  // 单 css() 内联条件:cx 叠加同属性原子类按样式表顺序取
+                  // 胜,选中底色可能被基类盖掉(panda-cx-atomic-order-trap)。
                   css({
                     width: '100%',
                     display: 'flex',
@@ -148,14 +150,15 @@ export const ScheduledMeetingsList = ({
                     gap: '0.75rem',
                     textAlign: 'left',
                     border: 'none',
-                    background: 'transparent',
+                    backgroundColor:
+                      selectedId === m.id
+                        ? 'scheduledCard.hover'
+                        : 'transparent',
                     padding: '0.875rem 1rem',
                     cursor: 'pointer',
                     _hover: { backgroundColor: 'scheduledCard.hover' },
-                  }),
-                  selectedId === m.id &&
-                    css({ backgroundColor: 'scheduledCard.hover' })
-                )}
+                  })
+                }
               >
                 <span
                   className={css({

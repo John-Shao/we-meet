@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ConversationSummary } from '@jusi/light-im-sdk'
 
-import { css, cx } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
 import { fetchApi } from '@/api/fetchApi'
 import { navigateTo } from '@/navigation/navigateTo'
@@ -383,7 +383,8 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
         return m.body
       }
     }
-    if (m.content_type !== 'text') return `[${m.content_type}] ${m.body.slice(0, 40)}`
+    if (m.content_type !== 'text')
+      return `[${m.content_type}] ${m.body.slice(0, 40)}`
     return m.body
   }
 
@@ -459,7 +460,9 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
                 backgroundColor: active ? 'primary.100' : 'transparent',
                 color: active ? 'primary.700' : 'greyscale.600',
                 fontWeight: active ? '600' : undefined,
-                _hover: { backgroundColor: active ? 'primary.100' : 'greyscale.100' },
+                _hover: {
+                  backgroundColor: active ? 'primary.100' : 'greyscale.100',
+                },
               })}
             >
               {t(`search.${cat}`)}
@@ -485,132 +488,130 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
           />
         ) : (
           <>
-        {!ql && (
-          <p className={hintCls}>{t('search.placeholder')}</p>
-        )}
-        {empty && <p className={hintCls}>{t('search.empty')}</p>}
+            {!ql && <p className={hintCls}>{t('search.placeholder')}</p>}
+            {empty && <p className={hintCls}>{t('search.empty')}</p>}
 
-        {/* P1-4 快捷行:「全部」下 q≥2 时置顶,点击切 AI 标签并提交。 */}
-        {aiEnabled && category === 'all' && rawQ.length >= 2 && (
-          <button
-            type="button"
-            onClick={submitAsk}
-            data-testid="global-search-ask-ai"
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.625rem',
-              width: '100%',
-              paddingX: '0.5rem',
-              paddingY: '0.625rem',
-              border: 'none',
-              borderRadius: '8px',
-              backgroundColor: 'primary.50',
-              color: 'primary.700',
-              fontSize: '0.875rem',
-              cursor: 'pointer',
-              textAlign: 'left',
-              marginBottom: '0.375rem',
-              _hover: { backgroundColor: 'primary.100' },
-            })}
-          >
-            <RiSparklingLine size={18} />
-            <span
-              className={css({
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              })}
-            >
-              {t('search.askAi', { q: rawQ })}
-            </span>
-          </button>
-        )}
+            {/* P1-4 快捷行:「全部」下 q≥2 时置顶,点击切 AI 标签并提交。 */}
+            {aiEnabled && category === 'all' && rawQ.length >= 2 && (
+              <button
+                type="button"
+                onClick={submitAsk}
+                data-testid="global-search-ask-ai"
+                className={css({
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.625rem',
+                  width: '100%',
+                  paddingX: '0.5rem',
+                  paddingY: '0.625rem',
+                  border: 'none',
+                  borderRadius: '8px',
+                  backgroundColor: 'primary.50',
+                  color: 'primary.700',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  marginBottom: '0.375rem',
+                  _hover: { backgroundColor: 'primary.100' },
+                })}
+              >
+                <RiSparklingLine size={18} />
+                <span
+                  className={css({
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  })}
+                >
+                  {t('search.askAi', { q: rawQ })}
+                </span>
+              </button>
+            )}
 
-        {convHits.length > 0 && (
-          <Group title={t('search.conversations')}>
-            {convHits.map((c) => (
-              <ResultRow
-                key={`c-${c.cid}`}
-                onClick={() => openConvHit(c.cid)}
-                testId={`global-search-conv-${c.cid}`}
-                avatarText={c.name.slice(0, 1).toUpperCase()}
-                title={c.name}
-              />
-            ))}
-          </Group>
-        )}
+            {convHits.length > 0 && (
+              <Group title={t('search.conversations')}>
+                {convHits.map((c) => (
+                  <ResultRow
+                    key={`c-${c.cid}`}
+                    onClick={() => openConvHit(c.cid)}
+                    testId={`global-search-conv-${c.cid}`}
+                    avatarText={c.name.slice(0, 1).toUpperCase()}
+                    title={c.name}
+                  />
+                ))}
+              </Group>
+            )}
 
-        {members.length > 0 && (
-          <Group title={t('search.contacts')}>
-            {members.slice(0, 8).map((m) => {
-              const label = m.full_name || m.short_name || m.email || m.id
-              return (
-                <ResultRow
-                  key={m.id}
-                  onClick={() => openMember(m.id)}
-                  testId={`global-search-member-${m.id}`}
-                  avatarText={label.slice(0, 1).toUpperCase()}
-                  avatarSrc={m.avatar_url}
-                  title={label}
-                  subtitle={[m.title, m.department?.name]
-                    .filter(Boolean)
-                    .join(' · ')}
-                />
-              )
-            })}
-          </Group>
-        )}
+            {members.length > 0 && (
+              <Group title={t('search.contacts')}>
+                {members.slice(0, 8).map((m) => {
+                  const label = m.full_name || m.short_name || m.email || m.id
+                  return (
+                    <ResultRow
+                      key={m.id}
+                      onClick={() => openMember(m.id)}
+                      testId={`global-search-member-${m.id}`}
+                      avatarText={label.slice(0, 1).toUpperCase()}
+                      avatarSrc={m.avatar_url}
+                      title={label}
+                      subtitle={[m.title, m.department?.name]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    />
+                  )
+                })}
+              </Group>
+            )}
 
-        {meetings.length > 0 && (
-          <Group title={t('search.meetings')}>
-            {meetings.map((m) => (
-              <ResultRow
-                key={m.key}
-                onClick={() => openMeeting(m)}
-                avatarText="📹"
-                title={m.name || '—'}
-              />
-            ))}
-          </Group>
-        )}
+            {meetings.length > 0 && (
+              <Group title={t('search.meetings')}>
+                {meetings.map((m) => (
+                  <ResultRow
+                    key={m.key}
+                    onClick={() => openMeeting(m)}
+                    avatarText="📹"
+                    title={m.name || '—'}
+                  />
+                ))}
+              </Group>
+            )}
 
-        {msgItems.length > 0 && (
-          <Group title={t('search.messages')}>
-            {msgItems.map((m) => (
-              <ResultRow
-                key={`m-${m.mid}`}
-                onClick={() => openMessageHit(m)}
-                testId={`global-search-msg-${m.mid}`}
-                avatarText="💬"
-                title={msgPreview(m)}
-                subtitle={[
-                  msgSenders[m.sender_uid]?.full_name || m.sender_uid,
-                  new Date(m.created_at).toLocaleString(),
-                ].join(' · ')}
-              />
-            ))}
-          </Group>
-        )}
+            {msgItems.length > 0 && (
+              <Group title={t('search.messages')}>
+                {msgItems.map((m) => (
+                  <ResultRow
+                    key={`m-${m.mid}`}
+                    onClick={() => openMessageHit(m)}
+                    testId={`global-search-msg-${m.mid}`}
+                    avatarText="💬"
+                    title={msgPreview(m)}
+                    subtitle={[
+                      msgSenders[m.sender_uid]?.full_name || m.sender_uid,
+                      new Date(m.created_at).toLocaleString(),
+                    ].join(' · ')}
+                  />
+                ))}
+              </Group>
+            )}
 
-        {docsHits.length > 0 && (
-          <Group title={t('search.docs')}>
-            {docsHits.map((d) => (
-              <ResultRow
-                key={`d-${d.id}`}
-                onClick={() => openDocHit(d)}
-                testId={`global-search-doc-${d.id}`}
-                avatarText="📄"
-                title={d.title || '—'}
-                subtitle={
-                  d.updated_at
-                    ? new Date(d.updated_at).toLocaleString()
-                    : undefined
-                }
-              />
-            ))}
-          </Group>
-        )}
+            {docsHits.length > 0 && (
+              <Group title={t('search.docs')}>
+                {docsHits.map((d) => (
+                  <ResultRow
+                    key={`d-${d.id}`}
+                    onClick={() => openDocHit(d)}
+                    testId={`global-search-doc-${d.id}`}
+                    avatarText="📄"
+                    title={d.title || '—'}
+                    subtitle={
+                      d.updated_at
+                        ? new Date(d.updated_at).toLocaleString()
+                        : undefined
+                    }
+                  />
+                ))}
+              </Group>
+            )}
           </>
         )}
       </div>
@@ -679,7 +680,10 @@ const AiPanel = ({
     : []
 
   return (
-    <div className={css({ padding: '0.5rem' })} data-testid="global-search-ai-panel">
+    <div
+      className={css({ padding: '0.5rem' })}
+      data-testid="global-search-ai-panel"
+    >
       <div
         className={css({
           fontSize: '0.8125rem',
@@ -820,7 +824,9 @@ const CitationChip = ({
       type="button"
       onClick={onClick}
       data-testid={`ai-citation-${citation.n}`}
-      className={cx(
+      className={
+        // 单 css() 内联条件:cx 叠加同属性原子类按样式表顺序取胜,高亮态
+        // 的 border/bg/color 可能被基类盖掉(panda-cx-atomic-order-trap)。
         css({
           display: 'inline-flex',
           alignItems: 'center',
@@ -829,21 +835,16 @@ const CitationChip = ({
           paddingX: '0.625rem',
           paddingY: '0.3125rem',
           borderRadius: '999px',
-          border: '1px solid token(colors.greyscale.200)',
-          backgroundColor: 'greyscale.000',
+          borderWidth: '1px',
+          borderStyle: 'solid',
+          borderColor: highlighted ? 'primary.400' : 'greyscale.200',
+          backgroundColor: highlighted ? 'primary.50' : 'greyscale.000',
           fontSize: '0.75rem',
-          color: 'greyscale.700',
+          color: highlighted ? 'primary.700' : 'greyscale.700',
           cursor: 'pointer',
           _hover: { borderColor: 'primary.300' },
-        }),
-        highlighted
-          ? css({
-              borderColor: 'primary.400',
-              backgroundColor: 'primary.50',
-              color: 'primary.700',
-            })
-          : undefined
-      )}
+        })
+      }
     >
       <span>{icon}</span>
       <span

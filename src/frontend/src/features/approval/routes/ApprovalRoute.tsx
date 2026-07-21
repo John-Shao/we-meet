@@ -90,14 +90,16 @@ const ApprovalAuthenticated = () => {
     queryKey: PENDING_LIST_KEY,
     queryFn: ({ pageParam }) => fetchApprovalsPage('pending', pageParam),
     initialPageParam: 1,
-    getNextPageParam: (last, pages) => (last.next ? pages.length + 1 : undefined),
+    getNextPageParam: (last, pages) =>
+      last.next ? pages.length + 1 : undefined,
     staleTime: 15_000,
   })
   const mineQ = useInfiniteQuery({
     queryKey: MINE_LIST_KEY,
     queryFn: ({ pageParam }) => fetchApprovalsPage('mine', pageParam),
     initialPageParam: 1,
-    getNextPageParam: (last, pages) => (last.next ? pages.length + 1 : undefined),
+    getNextPageParam: (last, pages) =>
+      last.next ? pages.length + 1 : undefined,
     staleTime: 15_000,
   })
   const pending = pendingQ.data?.pages.flatMap((p) => p.results) ?? []
@@ -135,7 +137,9 @@ const ApprovalAuthenticated = () => {
       await actApproval(id, action, comment)
       await refresh()
     } catch (e) {
-      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
+      void showAlert({
+        message: t('form.error', { message: apiErrorMessage(e) }),
+      })
     }
   }
   const onCancel = async (id: string) => {
@@ -145,7 +149,9 @@ const ApprovalAuthenticated = () => {
       await cancelApproval(id)
       await refresh()
     } catch (e) {
-      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
+      void showAlert({
+        message: t('form.error', { message: apiErrorMessage(e) }),
+      })
     }
   }
   const onUrge = async (id: string) => {
@@ -154,7 +160,9 @@ const ApprovalAuthenticated = () => {
       // 催办无状态变化,给一句确认反馈(否则用户不知点了有没有用)。
       void showAlert({ message: t('act.urged') })
     } catch (e) {
-      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
+      void showAlert({
+        message: t('form.error', { message: apiErrorMessage(e) }),
+      })
     }
   }
 
@@ -337,6 +345,8 @@ const contentTitle = css({
   color: 'greyscale.900',
 })
 
+// 布局与状态拆开:cx 叠加同属性原子类按样式表顺序取胜,active 的 bg/color
+// 曾依赖顺序侥幸生效(见 memory: panda-cx-atomic-order-trap)。
 const navItemBase = css({
   display: 'flex',
   alignItems: 'center',
@@ -345,12 +355,14 @@ const navItemBase = css({
   paddingY: '0.5rem',
   borderRadius: '8px',
   fontSize: '0.875rem',
-  color: 'greyscale.700',
   cursor: 'pointer',
   border: 'none',
-  backgroundColor: 'transparent',
   textAlign: 'left',
   width: '100%',
+})
+const navItemIdle = css({
+  color: 'greyscale.700',
+  backgroundColor: 'transparent',
   _hover: { backgroundColor: 'greyscale.100' },
 })
 const navItemActive = css({
@@ -375,7 +387,7 @@ const NavItem = ({
   <button
     type="button"
     onClick={onClick}
-    className={cx(navItemBase, active ? navItemActive : undefined)}
+    className={cx(navItemBase, active ? navItemActive : navItemIdle)}
   >
     {icon}
     <span className={css({ flex: 1 })}>{label}</span>
@@ -477,7 +489,9 @@ const TemplateCard = ({
 )
 
 const Hint = ({ children }: { children: React.ReactNode }) => (
-  <p className={css({ color: 'greyscale.500', fontSize: '0.875rem', margin: 0 })}>
+  <p
+    className={css({ color: 'greyscale.500', fontSize: '0.875rem', margin: 0 })}
+  >
     {children}
   </p>
 )
@@ -517,7 +531,9 @@ const NodeChain = ({ inst }: { inst: ApprovalInstance }) => {
       {nodeIndexes.map((idx) => {
         const tasks = inst.tasks.filter((x) => x.node_index === idx)
         const cc = tasks.filter((x) => x.kind === 'cc')
-        const approvers = tasks.filter((x) => x.kind === 'approve' && x.approver)
+        const approvers = tasks.filter(
+          (x) => x.kind === 'approve' && x.approver
+        )
         const skipped = tasks.find(
           (x) => x.kind === 'approve' && !x.approver && x.action === 'skipped'
         )
@@ -544,7 +560,8 @@ const NodeChain = ({ inst }: { inst: ApprovalInstance }) => {
           return (
             <li key={idx} className={chainRow(active)}>
               {label}：{task?.approver?.full_name || t('card.unassigned')}
-              {task && task.action !== 'pending' &&
+              {task &&
+                task.action !== 'pending' &&
                 ` · ${t(`status.${task.action}`)}`}
               {task?.comment && ` · ${task.comment}`}
             </li>
@@ -646,7 +663,8 @@ const InstanceCard = ({
           marginTop: '0.25rem',
         })}
       >
-        {t('card.applicant')}: {inst.applicant?.full_name || '—'} · {fmt(inst.created_at)}
+        {t('card.applicant')}: {inst.applicant?.full_name || '—'} ·{' '}
+        {fmt(inst.created_at)}
       </div>
 
       {/* needs_assignment：审批人解析失败,给出可操作的引导(否则用户只看到红标一脸问号)。 */}

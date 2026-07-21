@@ -16,7 +16,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RiVidiconLine } from '@remixicon/react'
 
-import { css, cx } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 import { H, Text } from '@/primitives'
 
 import { useRecentMeetings } from '../api/fetchMeeting'
@@ -143,7 +143,9 @@ export const RecentMeetingsList = ({
                     timeIso: m.summary_updated_at,
                   })
                 }
-                className={cx(
+                className={
+                  // 单 css() 内联条件:cx 叠加同属性原子类按样式表顺序取
+                  // 胜,选中底色可能被基类盖掉(panda-cx-atomic-order-trap)。
                   css({
                     width: '100%',
                     display: 'flex',
@@ -151,14 +153,13 @@ export const RecentMeetingsList = ({
                     gap: '0.75rem',
                     textAlign: 'left',
                     border: 'none',
-                    background: 'transparent',
+                    backgroundColor:
+                      selectedId === m.id ? 'greyscale.100' : 'transparent',
                     padding: '0.875rem 1rem',
                     cursor: 'pointer',
                     _hover: { backgroundColor: 'greyscale.50' },
-                  }),
-                  selectedId === m.id &&
-                    css({ backgroundColor: 'greyscale.100' })
-                )}
+                  })
+                }
               >
                 <span
                   className={css({

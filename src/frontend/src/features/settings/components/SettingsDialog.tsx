@@ -126,7 +126,10 @@ export const SettingsDialog = ({
               type="button"
               onClick={() => setSection(key)}
               aria-current={section === key}
-              className={cx(navItemCls, section === key && navItemActiveCls)}
+              className={cx(
+                navItemCls,
+                section === key ? navItemActiveCls : navItemIdleCls
+              )}
             >
               <Icon size={18} />
               <span>{label}</span>
@@ -188,7 +191,10 @@ const GeneralPanel = () => {
               themeStore.mode = key
             }}
             aria-pressed={mode === key}
-            className={cx(themeCardCls, mode === key && themeCardActiveCls)}
+            className={cx(
+              themeCardCls,
+              mode === key ? themeCardActiveCls : themeCardIdleCls
+            )}
           >
             <Icon size={22} />
             <span>{label}</span>
@@ -623,6 +629,9 @@ const navCls = css({
   gap: '0.25rem',
   padding: '0.5rem 0.75rem',
 })
+// 布局与状态背景拆开:cx 叠加同属性原子类按样式表顺序取胜,active 的
+// backgroundColor 曾与基类的 background 简写互撞靠顺序侥幸生效
+// (memory: panda-cx-atomic-order-trap)。
 const navItemCls = css({
   display: 'flex',
   alignItems: 'center',
@@ -632,13 +641,13 @@ const navItemCls = css({
   paddingY: '0.5rem',
   border: 'none',
   borderRadius: '0.5rem',
-  background: 'transparent',
   color: 'greyscale.800',
   fontSize: '0.9375rem',
   textAlign: 'left',
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.100' },
 })
+const navItemIdleCls = css({ backgroundColor: 'transparent' })
 const navItemActiveCls = css({
   backgroundColor: 'greyscale.100',
   fontWeight: 'medium',
@@ -660,6 +669,7 @@ const themeGridCls = css({
   gap: '0.75rem',
   marginBottom: '1.5rem',
 })
+// 同上:边框/背景/文字色全部下放到状态类,基类只留布局(零属性交集)。
 const themeCardCls = css({
   display: 'flex',
   flexDirection: 'column',
@@ -667,12 +677,16 @@ const themeCardCls = css({
   justifyContent: 'center',
   gap: '0.5rem',
   paddingY: '1.25rem',
-  border: '1px solid token(colors.greyscale.300)',
+  borderWidth: '1px',
+  borderStyle: 'solid',
   borderRadius: '0.5rem',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.800',
   fontSize: '0.875rem',
   cursor: 'pointer',
+})
+const themeCardIdleCls = css({
+  borderColor: 'greyscale.300',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.800',
   _hover: { borderColor: 'primary.400' },
 })
 const themeCardActiveCls = css({

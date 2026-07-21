@@ -116,7 +116,8 @@ const handleCls = css({
     right: '3px',
     width: '2px',
     height: '100%',
-    backgroundColor: 'transparent',
+    // 不设 backgroundColor(::after 默认透明)——避免与 draggingCls 的
+    // 同属性原子类按样式表顺序互撞(panda-cx-atomic-order-trap)。
     transition: 'background-color 0.15s',
   },
 })
@@ -138,7 +139,7 @@ const handleLeftCls = css({
     left: '3px',
     width: '2px',
     height: '100%',
-    backgroundColor: 'transparent',
+    // 同上:不设 backgroundColor,避免与 draggingCls 互撞。
     transition: 'background-color 0.15s',
   },
 })

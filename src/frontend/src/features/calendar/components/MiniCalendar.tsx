@@ -129,11 +129,15 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
               onClick={() => onChange(day)}
               className={cx(
                 cell,
+                // 背景两分支都显式给值:cell 里的 background 简写与这里的
+                // backgroundColor 曾按样式表顺序互撞(memory: panda-cx-
+                // atomic-order-trap),cell 已不再设背景。
                 css({
                   fontWeight: today ? 700 : 400,
                   ...(selected
                     ? { backgroundColor: 'primary.500', color: 'white' }
                     : {
+                        backgroundColor: 'transparent',
                         color: outside ? 'greyscale.400' : 'greyscale.800',
                         _hover: { backgroundColor: 'primary.50' },
                       }),
@@ -190,7 +194,6 @@ const cell = css({
   justifyContent: 'center',
   border: 'none',
   borderRadius: '6px',
-  background: 'transparent',
   fontSize: '0.8rem',
   cursor: 'pointer',
 })

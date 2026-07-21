@@ -22,7 +22,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
 
-import { css, cx } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 import { Menu } from '@/primitives/Menu'
 import { useUser } from '@/features/auth'
 import { useConfig } from '@/api/useConfig'
@@ -56,29 +56,29 @@ const NAV: NavItem[] = [
   { to: '/contacts', labelKey: 'nav.contacts', Icon: RiContactsBookLine },
 ]
 
-const itemBase = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.625rem',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  borderRadius: '8px',
-  fontSize: '0.875rem',
-  color: 'greyscale.700',
-  cursor: 'pointer',
-  textDecoration: 'none',
-  border: 'none',
-  backgroundColor: 'transparent',
-  textAlign: 'left',
-  width: '100%',
-  _hover: { backgroundColor: 'greyscale.100' },
-})
-const itemActive = css({
-  backgroundColor: 'greyscale.200',
-  color: 'greyscale.900',
-  fontWeight: '600',
-})
-const itemCollapsed = css({ justifyContent: 'center', paddingX: '0.5rem' })
+/** 单 css() 内联条件 —— cx 叠加同属性原子类按样式表顺序取胜(非书写
+ * 顺序),active 的 bg/color、collapsed 的 paddingX 都可能被基类盖掉
+ * (见 memory: panda-cx-atomic-order-trap)。 */
+const itemCls = (active: boolean, collapsed: boolean) =>
+  css({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: collapsed ? 'center' : 'flex-start',
+    gap: '0.625rem',
+    paddingX: collapsed ? '0.5rem' : '0.75rem',
+    paddingY: '0.5rem',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    color: active ? 'greyscale.900' : 'greyscale.700',
+    fontWeight: active ? '600' : 'normal',
+    cursor: 'pointer',
+    textDecoration: 'none',
+    border: 'none',
+    backgroundColor: active ? 'greyscale.200' : 'transparent',
+    textAlign: 'left',
+    width: '100%',
+    _hover: { backgroundColor: 'greyscale.100' },
+  })
 
 const iconButton = css({
   display: 'flex',
@@ -283,11 +283,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
               to={item.to}
               data-testid={`rail-${item.to}`}
               title={collapsed ? t(item.labelKey) : undefined}
-              className={cx(
-                itemBase,
-                location === item.to ? itemActive : undefined,
-                collapsed ? itemCollapsed : undefined
-              )}
+              className={itemCls(location === item.to, collapsed)}
             >
               <span
                 className={css({
@@ -344,11 +340,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
             to="/docs"
             data-testid="rail-/docs"
             title={collapsed ? t('nav.docs') : undefined}
-            className={cx(
-              itemBase,
-              location === '/docs' ? itemActive : undefined,
-              collapsed ? itemCollapsed : undefined
-            )}
+            className={itemCls(location === '/docs', collapsed)}
           >
             <RiFileTextLine size={18} />
             {!collapsed && <span>{t('nav.docs')}</span>}

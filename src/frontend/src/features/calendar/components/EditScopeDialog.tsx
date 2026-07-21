@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RadioGroup } from 'react-aria-components'
 
-import { css, cx } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
 import { Radio } from '@/primitives/Radio'
 
@@ -77,25 +77,18 @@ export const EditScopeDialog = ({
             marginTop: '1.25rem',
           })}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            className={scopeBtn}
-          >
+          <button type="button" onClick={onClose} className={scopeBtn}>
             {t('form.cancel')}
           </button>
           <button
             type="button"
             onClick={() => onConfirm(scope)}
             data-testid="scope-confirm"
-            className={cx(
-              scopeBtn,
-              css({
-                backgroundColor: danger ? 'danger.600' : 'primary.500',
-                borderColor: danger ? 'danger.600' : 'primary.500',
-                color: 'white',
-              })
-            )}
+            className={
+              // 完整类切换:cx 叠加同属性原子类按样式表顺序取胜,white 字
+              // 主色底可能被 scopeBtn 基类盖掉(panda-cx-atomic-order-trap)。
+              danger ? scopeConfirmDanger : scopeConfirmPrimary
+            }
           >
             {t('form.confirm')}
           </button>
@@ -112,6 +105,28 @@ const scopeBtn = css({
   borderRadius: '0.5rem',
   backgroundColor: 'greyscale.000',
   color: 'greyscale.700',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+})
+
+const scopeConfirmPrimary = css({
+  paddingX: '0.875rem',
+  paddingY: '0.4375rem',
+  border: '1px solid token(colors.primary.500)',
+  borderRadius: '0.5rem',
+  backgroundColor: 'primary.500',
+  color: 'white',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+})
+
+const scopeConfirmDanger = css({
+  paddingX: '0.875rem',
+  paddingY: '0.4375rem',
+  border: '1px solid token(colors.danger.600)',
+  borderRadius: '0.5rem',
+  backgroundColor: 'danger.600',
+  color: 'white',
   fontSize: '0.8125rem',
   cursor: 'pointer',
 })
