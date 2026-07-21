@@ -21,6 +21,10 @@
 > 「会议设置/日历设置」入口行,会议 tab/日历 tab 齿轮与之指向同一路由页。
 > 会中设置弹窗(SettingsDialogExtended,LiveKit 房间内设备/转录设置)依赖房间上下文,
 > 保持独立不并入。
+> web 会议设置节(对齐 App,`b24f9e3f`):视频编解码 H.264/VP8/VP9(默认 vp9 保持原
+> 写死值,存 userChoices 同套 localStorage,进房 publishDefaults 跟随,下次入会生效);
+> 会议页侧栏标题行齿轮 = openSystemSettings('meeting') 快捷入口;Web 不提供 H.265
+> (浏览器编码不支持,App native SDK 才有)。
 > 性质:**只扩展不修改**。日历本体(P2)与 IM 富消息管线(P7)全部复用,不动 jusi-light-im 服务端。
 
 ## 1. 背景与需求
