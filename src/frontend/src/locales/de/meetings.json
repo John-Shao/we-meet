@@ -69,5 +69,12 @@
   "chapters": {
     "empty": "Noch keine Kapitel — sie werden mit der Zusammenfassung erzeugt.",
     "jumpHint": "Zu diesem Zeitpunkt im Transkript springen"
+  },
+  "detail": {
+    "meetingId": "Meeting-ID: {{id}}",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "viewSummary": "Protokoll ansehen",
+    "close": "Schließen"
   }
 }

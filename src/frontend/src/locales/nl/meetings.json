@@ -69,5 +69,12 @@
   "chapters": {
     "empty": "Nog geen hoofdstukken — ze worden met de samenvatting gegenereerd.",
     "jumpHint": "Naar dit moment in het transcript springen"
+  },
+  "detail": {
+    "meetingId": "Vergader-ID: {{id}}",
+    "copy": "Kopiëren",
+    "copied": "Gekopieerd",
+    "viewSummary": "Notulen bekijken",
+    "close": "Sluiten"
   }
 }

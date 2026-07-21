@@ -18,7 +18,12 @@ import { ScheduleMeetingDialog } from '@/features/home/components/ScheduleMeetin
 import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
 import { IntroSlider } from '@/features/home/components/IntroSlider'
 import { MoreLink } from '@/features/home/components/MoreLink'
-import { RecentMeetingsList, ScheduledMeetingsList } from '@/features/meetings'
+import {
+  MeetingDetailPanel,
+  RecentMeetingsList,
+  ScheduledMeetingsList,
+  type MeetingSelection,
+} from '@/features/meetings'
 import { PersonalAIFab } from '@/features/personal-ai'
 import { ReactNode, useEffect, useState } from 'react'
 
@@ -166,6 +171,10 @@ export const Home = () => {
   const { mutateAsync: createRoom } = useCreateRoom()
   const [laterRoom, setLaterRoom] = useState<null | ApiRoom>(null)
   const [redirectFailed, setRedirectFailed] = useState(false)
+  // P8(对标飞书):点预约/历史会议行 → 右侧详情面板,操作收进面板。
+  const [meetingDetail, setMeetingDetail] = useState<MeetingSelection | null>(
+    null
+  )
 
   const { data } = useConfig()
 
@@ -314,9 +323,33 @@ export const Home = () => {
                 padding: '1.5rem',
               })}
             >
-              <ScheduledMeetingsList enabled showEmpty />
-              <RecentMeetingsList enabled showEmpty />
+              <ScheduledMeetingsList
+                enabled
+                showEmpty
+                onSelect={setMeetingDetail}
+                selectedId={meetingDetail?.id}
+              />
+              <RecentMeetingsList
+                enabled
+                showEmpty
+                onSelect={setMeetingDetail}
+                selectedId={meetingDetail?.id}
+              />
             </main>
+            {meetingDetail && (
+              <ResizablePanel
+                storageKey="we-meet:meeting-detail-w"
+                side="right"
+                defaultWidth={340}
+                min={280}
+                max={520}
+              >
+                <MeetingDetailPanel
+                  selection={meetingDetail}
+                  onClose={() => setMeetingDetail(null)}
+                />
+              </ResizablePanel>
+            )}
           </div>
         ) : (
           <Columns>
@@ -397,8 +430,16 @@ export const Home = () => {
                   </DialogTrigger>
                 </div>
               )}
-              <ScheduledMeetingsList enabled={!!isLoggedIn} />
-              <RecentMeetingsList enabled={!!isLoggedIn} />
+              <ScheduledMeetingsList
+                enabled={!!isLoggedIn}
+                onSelect={setMeetingDetail}
+                selectedId={meetingDetail?.id}
+              />
+              <RecentMeetingsList
+                enabled={!!isLoggedIn}
+                onSelect={setMeetingDetail}
+                selectedId={meetingDetail?.id}
+              />
               <Separator />
               <MoreLink />
             </LeftColumn>

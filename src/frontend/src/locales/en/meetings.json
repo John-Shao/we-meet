@@ -75,5 +75,12 @@
   "chapters": {
     "empty": "No chapters yet — they are generated with the summary.",
     "jumpHint": "Jump to this moment in the transcript"
+  },
+  "detail": {
+    "meetingId": "Meeting ID: {{id}}",
+    "copy": "Copy",
+    "copied": "Copied",
+    "viewSummary": "View minutes",
+    "close": "Close"
   }
 }
