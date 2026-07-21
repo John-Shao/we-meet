@@ -19,6 +19,8 @@ export const StyledSwitch = styled(RACSwitch, {
       height: '1.563rem',
       border: '0.125rem solid',
       borderColor: 'primary.800',
+      // 深色:primary.800 固定深蓝压近黑底几乎不可见 → 翻到 primaryDark 亮蓝。
+      _dark: { borderColor: 'primaryDark.500' },
       borderRadius: '1.143rem',
       transition: 'all 200ms, outline 200ms',
       _before: {
@@ -30,6 +32,7 @@ export const StyledSwitch = styled(RACSwitch, {
         height: '1.063rem',
         borderRadius: '1.063rem',
         background: 'primary.800',
+        _dark: { background: 'primaryDark.500' },
         transition: 'transform 200ms, background-color 200ms',
         transitionDelay: '0ms',
       },
@@ -65,6 +68,8 @@ export const StyledSwitch = styled(RACSwitch, {
     '&[data-selected] .indicator': {
       borderColor: 'primary.800',
       background: 'primary.800',
+      // 深色:选中态轨道同样翻亮蓝;白色滑块 + 深色勾在其上,对比成立。
+      _dark: { borderColor: 'primaryDark.500', background: 'primaryDark.500' },
       _before: {
         background: 'white',
         transform: 'translateX(100%)',

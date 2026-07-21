@@ -18,6 +18,7 @@ import type { RemixiconComponentType } from '@remixicon/react'
 import { css, cx } from '@/styled-system/css'
 import { useLanguageLabels } from '@/i18n/useLanguageLabels'
 import { type DialogProps } from '@/primitives'
+import { Switch } from '@/primitives/Switch'
 import { useUser } from '@/features/auth'
 import { updateEmail, updateNickname } from '@/features/auth/api/updateProfile'
 import { keys } from '@/api/queryKeys'
@@ -219,14 +220,17 @@ const CalendarPanel = () => {
 
   return (
     <div>
+      {/* 布尔偏好用开关(对标飞书),整行可点;标签作为 Switch 子节点 →
+          自带 label 关联,比裸 checkbox 命中区大、语义更清。 */}
       <div className={infoRowCls}>
-        <span className={infoKeyCls}>{t('settings.reminderEntry')}</span>
-        <input
-          type="checkbox"
-          checked={reminderOn}
-          onChange={(e) => setReminderOn(e.target.checked)}
+        <Switch
+          isSelected={reminderOn}
+          onChange={setReminderOn}
           data-testid="calendar-settings-reminder"
-        />
+          className={switchRowCls}
+        >
+          <span className={infoKeyCls}>{t('settings.reminderEntry')}</span>
+        </Switch>
       </div>
       <div className={infoRowCls}>
         <span className={infoKeyCls}>{t('settings.weekStart')}</span>
@@ -635,6 +639,12 @@ const infoRowCls = css({
   borderBottom: '1px solid token(colors.greyscale.100)',
 })
 const infoKeyCls = css({ fontSize: '0.9375rem', color: 'greyscale.800' })
+// Switch 撑满整行:标签(子节点)在左、开关在右,整行可点。
+const switchRowCls = css({
+  width: '100%',
+  flexDirection: 'row-reverse',
+  justifyContent: 'space-between',
+})
 const infoValCls = css({ fontSize: '0.9375rem', color: 'greyscale.900' })
 const editTriggerCls = css({
   display: 'inline-flex',
