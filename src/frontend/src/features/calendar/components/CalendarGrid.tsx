@@ -85,6 +85,20 @@ export const CalendarGrid = ({
     [events]
   )
 
+  // 24 小时时间轴(00:00–23:00,对标群成员日历):默认 culture(zh-CN)的
+  // 时间刻度带上午/下午,这里显式用 HH:mm 覆盖成 24h;周/日视图内的选择/事件
+  // 时间提示同样统一为 24h。
+  const formats = useMemo(
+    () => ({
+      timeGutterFormat: 'HH:mm',
+      selectRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
+        `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
+      eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
+        `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
+    }),
+    []
+  )
+
   const messages = useMemo(
     () => ({
       today: t('grid.today'),
@@ -117,6 +131,7 @@ export const CalendarGrid = ({
       views={['month', 'week', 'day', 'agenda']}
       popup
       selectable
+      formats={formats}
       messages={messages}
       onSelectEvent={(ev) => onSelectEvent(ev.resource)}
       onSelectSlot={(slot) => {
