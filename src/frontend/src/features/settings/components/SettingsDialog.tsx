@@ -269,9 +269,11 @@ const CalendarPanel = () => {
     weekStart,
     defaultDurationMin,
     defaultReminderMin,
+    dimPast,
     setWeekStart,
     setDefaultDuration,
     setDefaultReminder,
+    setDimPast,
   } = useCalendarSettings()
 
   return (
@@ -286,6 +288,16 @@ const CalendarPanel = () => {
           className={switchRowCls}
         >
           <span className={infoKeyCls}>{t('settings.reminderEntry')}</span>
+        </Switch>
+      </div>
+      <div className={infoRowCls}>
+        <Switch
+          isSelected={dimPast}
+          onChange={setDimPast}
+          data-testid="calendar-settings-dim-past"
+          className={switchRowCls}
+        >
+          <span className={infoKeyCls}>{t('settings.dimPast')}</span>
         </Switch>
       </div>
       <div className={infoRowCls}>

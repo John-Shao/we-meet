@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 const WEEK_KEY = 'calendar-week-start'
 const DURATION_KEY = 'calendar-default-duration'
 const REMINDER_KEY = 'calendar-default-reminder'
+const DIM_PAST_KEY = 'calendar-dim-past'
 const EVT = 'calendar-settings-changed'
 
 export type WeekStartPref = 'mon' | 'sun'
@@ -28,6 +29,8 @@ const readReminder = (): number | null => {
   return (REMINDER_OPTIONS as readonly number[]).includes(n) ? n : 10
 }
 
+const readDimPast = (): boolean => localStorage.getItem(DIM_PAST_KEY) !== '0'
+
 /**
  * 日历本地设置(P8 日历设置,对标飞书,纯客户端 localStorage):
  * - weekStart:每周的第一天(mon 默认 / sun),weekStartsOn 供 date-fns;
@@ -41,12 +44,14 @@ export const useCalendarSettings = () => {
   const [defaultReminderMin, setReminderState] = useState<number | null>(
     readReminder
   )
+  const [dimPast, setDimPastState] = useState<boolean>(readDimPast)
 
   useEffect(() => {
     const sync = () => {
       setWeekStartState(readWeekStart())
       setDurationState(readDuration())
       setReminderState(readReminder())
+      setDimPastState(readDimPast())
     }
     window.addEventListener('storage', sync)
     window.addEventListener(EVT, sync)
@@ -80,6 +85,11 @@ export const useCalendarSettings = () => {
     write(REMINDER_KEY, min == null ? 'none' : String(min))
   }
 
+  const setDimPast = (v: boolean) => {
+    setDimPastState(v)
+    write(DIM_PAST_KEY, v ? '1' : '0')
+  }
+
   return {
     weekStart,
     /** date-fns weekStartsOn:0=周日,1=周一。 */
@@ -87,8 +97,11 @@ export const useCalendarSettings = () => {
     defaultDurationMin,
     /** 新建日程默认提醒提前量(分钟);null = 不提醒。 */
     defaultReminderMin,
+    /** 降低已结束日程的亮度(对标飞书,默认开)。 */
+    dimPast,
     setWeekStart,
     setDefaultDuration,
     setDefaultReminder,
+    setDimPast,
   }
 }

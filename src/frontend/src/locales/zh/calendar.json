@@ -94,6 +94,7 @@
   "settings": {
     "title": "日历设置",
     "reminderEntry": "在消息列表提醒日程",
+    "dimPast": "降低已结束日程的亮度",
     "weekStart": "每周的第一天",
     "weekStartMon": "周一",
     "weekStartSun": "周日",

@@ -94,6 +94,7 @@
   "settings": {
     "title": "Agenda-instellingen",
     "reminderEntry": "Agendaherinnering in berichtenlijst",
+    "dimPast": "Voorbije afspraken dimmen",
     "weekStart": "Eerste dag van de week",
     "weekStartMon": "Maandag",
     "weekStartSun": "Zondag",

@@ -94,6 +94,7 @@
   "settings": {
     "title": "Kalendereinstellungen",
     "reminderEntry": "Terminerinnerung in der Nachrichtenliste",
+    "dimPast": "Vergangene Termine abdunkeln",
     "weekStart": "Erster Tag der Woche",
     "weekStartMon": "Montag",
     "weekStartSun": "Sonntag",

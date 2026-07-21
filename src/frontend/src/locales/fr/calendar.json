@@ -94,6 +94,7 @@
   "settings": {
     "title": "Paramètres du calendrier",
     "reminderEntry": "Rappel d'agenda dans la liste de messages",
+    "dimPast": "Atténuer les événements passés",
     "weekStart": "Premier jour de la semaine",
     "weekStartMon": "Lundi",
     "weekStartSun": "Dimanche",

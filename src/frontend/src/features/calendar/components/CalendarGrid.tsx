@@ -67,7 +67,7 @@ export const CalendarGrid = ({
   onSelectSlot,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
-  const { weekStartsOn } = useCalendarSettings()
+  const { weekStartsOn, dimPast } = useCalendarSettings()
   const localizer = useMemo(() => localizerFor(weekStartsOn), [weekStartsOn])
   const [view, setView] = useState<View>('week')
   const [dateState, setDateState] = useState<Date>(() => new Date())
@@ -138,6 +138,11 @@ export const CalendarGrid = ({
       selectable
       formats={formats}
       messages={messages}
+      // P8「降低已结束日程的亮度」(对标飞书,日历设置可关):渲染时判断,
+      // 不设 tick——交互/取数触发的重渲染足以让新跨过结束时刻的块变淡。
+      eventPropGetter={(ev) =>
+        dimPast && ev.end < new Date() ? { style: { opacity: 0.45 } } : {}
+      }
       onSelectEvent={(ev) => onSelectEvent(ev.resource)}
       onSelectSlot={(slot) => {
         // Month: a day click → all-day draft pinned to that day. Time views:
