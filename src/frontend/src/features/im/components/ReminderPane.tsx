@@ -4,6 +4,7 @@ import { useLocation } from 'wouter'
 import { RiCalendarTodoFill } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
+import { Switch } from '@/primitives/Switch'
 import {
   EventDetailHost,
   reminderCountdown,
@@ -84,24 +85,19 @@ export const ReminderPane = () => {
         >
           {t('reminder.title')}
         </h2>
-        <label
+        <Switch
+          isSelected={enabled}
+          onChange={setEnabled}
+          data-testid="reminder-toggle"
           className={css({
-            display: 'inline-flex',
-            alignItems: 'center',
+            flexDirection: 'row-reverse',
             gap: '0.375rem',
             fontSize: '0.8125rem',
             color: 'greyscale.600',
-            cursor: 'pointer',
           })}
         >
           {t('reminder.toggle')}
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-            data-testid="reminder-toggle"
-          />
-        </label>
+        </Switch>
       </div>
 
       <div

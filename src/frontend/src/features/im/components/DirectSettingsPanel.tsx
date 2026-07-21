@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { Switch } from '@/primitives/Switch'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { Avatar } from './Avatar'
@@ -88,28 +89,31 @@ export const DirectSettingsPanel = ({
     onChange: () => void,
     testid: string
   ): ReactNode => (
-    <label
+    <div
       className={css({
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
         padding: '0.625rem 1rem',
         borderBottom: '1px solid token(colors.greyscale.100)',
-        cursor: 'pointer',
       })}
     >
-      <span className={css({ fontSize: '0.875rem', color: 'greyscale.900' })}>
-        {label}
-      </span>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={busy}
+      {/* 布尔设置用开关(对标飞书):整行可点,标签作 Switch 子节点。 */}
+      <Switch
+        isSelected={checked}
+        isDisabled={busy}
         onChange={onChange}
         data-testid={testid}
-        className={css({ width: '1rem', height: '1rem', cursor: 'pointer' })}
-      />
-    </label>
+        className={css({
+          width: '100%',
+          flexDirection: 'row-reverse',
+          justifyContent: 'space-between',
+        })}
+      >
+        <span className={css({ fontSize: '0.875rem', color: 'greyscale.900' })}>
+          {label}
+        </span>
+      </Switch>
+    </div>
   )
 
   return (
