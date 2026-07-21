@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { css, cx } from '@/styled-system/css'
+import { StateHint } from '@/components/StateHint'
 import { useUser } from '@/features/auth'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 
@@ -151,7 +152,7 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
                 disabled
               />
               {isFetching && selectable.length === 0 ? (
-                <p className={css({ padding: '1rem', color: 'greyscale.500' })}>{t('group.loading')}</p>
+                <StateHint loading>{t('group.loading')}</StateHint>
               ) : (
                 selectable.map((m) => (
                   <Row

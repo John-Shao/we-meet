@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
+import { StateHint } from '@/components/StateHint'
 import { Modal } from '@/components/Modal'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
@@ -94,13 +95,9 @@ export const ContactPicker = ({ onSelect, onClose }: Props) => {
 
       <div className={css({ overflowY: 'auto', flex: 1 })}>
         {isFetching && selectable.length === 0 ? (
-          <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-            {t('picker.loading')}
-          </p>
+          <StateHint loading>{t('picker.loading')}</StateHint>
         ) : selectable.length === 0 ? (
-          <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-            {t('picker.empty')}
-          </p>
+          <StateHint>{t('picker.empty')}</StateHint>
         ) : (
           <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
             {selectable.map((member) => (

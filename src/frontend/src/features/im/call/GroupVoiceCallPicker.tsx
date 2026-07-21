@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { StateHint } from '@/components/StateHint'
 import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
 
@@ -124,9 +125,7 @@ export const GroupVoiceCallPicker = ({
         </div>
         <div className={css({ overflowY: 'auto', flex: 1 })}>
           {isFetching && candidates.length === 0 ? (
-            <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-              {t('group.loading')}
-            </p>
+            <StateHint loading>{t('group.loading')}</StateHint>
           ) : (
             <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
               {candidates.map((m) => {

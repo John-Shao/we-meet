@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'wouter'
 
 import { css } from '@/styled-system/css'
+import { StateHint } from '@/components/StateHint'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
@@ -158,13 +159,9 @@ const ContactsAuthenticated = () => {
       >
         <div className={css({ overflowY: 'auto', flex: 1 })}>
           {isFetching && members.length === 0 ? (
-            <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-              {t('page.loading')}
-            </p>
+            <StateHint loading>{t('page.loading')}</StateHint>
           ) : members.length === 0 ? (
-            <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-              {t('page.empty')}
-            </p>
+            <StateHint>{t('page.empty')}</StateHint>
           ) : (
             <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
               {members.map((member) => {

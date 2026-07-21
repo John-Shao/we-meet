@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import type { ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { StateHint } from '@/components/StateHint'
 
 import { Avatar } from './Avatar'
 import { GroupAvatar, type GroupAvatarMember } from './GroupAvatar'
@@ -63,9 +64,7 @@ export const ConversationList = ({
 
   if (loading) {
     return (
-      <div className={css({ padding: '1rem', color: 'greyscale.500' })}>
-        {t('list.loading')}
-      </div>
+      <StateHint loading>{t('list.loading')}</StateHint>
     )
   }
   if (conversations.length === 0) {

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 import { useConfirm } from '@/components/ConfirmProvider'
 
@@ -112,9 +113,9 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
         </div>
         <div className={css({ overflowY: 'auto', flex: 1 })}>
           {isFetching && selectable.length === 0 ? (
-            <p className={css({ padding: '1rem', color: 'greyscale.500' })}>{t('group.loading')}</p>
+            <StateHint loading>{t('group.loading')}</StateHint>
           ) : selectable.length === 0 ? (
-            <p className={css({ padding: '1rem', color: 'greyscale.500' })}>{t('manage.empty')}</p>
+            <StateHint>{t('manage.empty')}</StateHint>
           ) : (
             <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
               {selectable.map((m) => {

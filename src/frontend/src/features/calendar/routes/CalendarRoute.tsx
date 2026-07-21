@@ -5,6 +5,7 @@ import { useLocation } from 'wouter'
 import { addMonths, endOfMonth, startOfDay, startOfMonth } from 'date-fns'
 
 import { css } from '@/styled-system/css'
+import { StateHint } from '@/components/StateHint'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useUser } from '@/features/auth'
@@ -259,9 +260,7 @@ const CalendarAuthenticated = () => {
         {/* 月/周/日 网格(react-big-calendar);点事件开详情弹窗(RSVP/进会)。 */}
         <div className={css({ flex: 1, minHeight: 0 })}>
           {isLoading ? (
-            <p className={css({ color: 'greyscale.500' })}>
-              {t('page.loading')}
-            </p>
+            <StateHint loading>{t('page.loading')}</StateHint>
           ) : (
             <CalendarGrid
               events={events}
