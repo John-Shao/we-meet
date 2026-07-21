@@ -25,6 +25,9 @@
 > 写死值,存 userChoices 同套 localStorage,进房 publishDefaults 跟随,下次入会生效);
 > 会议页侧栏标题行齿轮 = openSystemSettings('meeting') 快捷入口;Web 不提供 H.265
 > (浏览器编码不支持,App native SDK 才有)。
+> 日历设置第 5 项:降低已结束日程的亮度(对标飞书,默认开,web `a702ab14`,android
+> `5616101`):结束早于当前的日程块降透明(web 主网格 opacity 0.45,android 日/周
+> 时间轴 + 日程/月视图卡片 alpha 0.5;与取消态删除线样式相互独立)。
 > 性质:**只扩展不修改**。日历本体(P2)与 IM 富消息管线(P7)全部复用,不动 jusi-light-im 服务端。
 
 ## 1. 背景与需求
