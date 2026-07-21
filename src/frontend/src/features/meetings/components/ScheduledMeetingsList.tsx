@@ -77,7 +77,7 @@ export const ScheduledMeetingsList = ({
             width: '100%',
             border: '1px solid',
             borderColor: 'greyscale.200',
-            borderRadius: '10px',
+            borderRadius: '8px',
             backgroundColor: 'greyscale.000',
             padding: '2.5rem 1rem',
             textAlign: 'center',
@@ -127,7 +127,7 @@ export const ScheduledMeetingsList = ({
           width: '100%',
           border: '1px solid',
           borderColor: 'scheduledCard.border',
-          borderRadius: '10px',
+          borderRadius: '8px',
           backgroundColor: 'scheduledCard.bg',
           overflow: 'hidden',
         })}
@@ -228,7 +228,7 @@ export const ScheduledMeetingsList = ({
                       alignItems: 'center',
                       gap: '0.25rem',
                       border: '1px solid token(colors.scheduledCard.border)',
-                      borderRadius: '6px',
+                      borderRadius: '8px',
                       background: 'transparent',
                       color: 'scheduledCard.text',
                       paddingX: '0.625rem',
@@ -251,7 +251,7 @@ export const ScheduledMeetingsList = ({
                         padding: '0.25rem',
                         cursor: 'pointer',
                         color: 'scheduledCard.text',
-                        borderRadius: '4px',
+                        borderRadius: '6px',
                         _hover: { backgroundColor: 'scheduledCard.hover' },
                       })}
                     >

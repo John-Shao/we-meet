@@ -78,7 +78,7 @@ export const RecentMeetingsList = ({
             width: '100%',
             border: '1px solid',
             borderColor: 'greyscale.200',
-            borderRadius: '10px',
+            borderRadius: '8px',
             backgroundColor: 'greyscale.000',
             padding: '2.5rem 1rem',
             textAlign: 'center',
@@ -128,7 +128,7 @@ export const RecentMeetingsList = ({
           width: '100%',
           border: '1px solid',
           borderColor: 'greyscale.200',
-          borderRadius: '10px',
+          borderRadius: '8px',
           backgroundColor: 'greyscale.000',
           overflow: 'hidden',
         })}
@@ -224,7 +224,7 @@ export const RecentMeetingsList = ({
                         alignItems: 'center',
                         gap: '0.25rem',
                         border: '1px solid token(colors.greyscale.300)',
-                        borderRadius: '6px',
+                        borderRadius: '8px',
                         background: 'transparent',
                         color: 'primary.600',
                         paddingX: '0.625rem',
@@ -248,7 +248,7 @@ export const RecentMeetingsList = ({
                         padding: '0.25rem',
                         cursor: 'pointer',
                         color: 'greyscale.600',
-                        borderRadius: '4px',
+                        borderRadius: '6px',
                         _hover: { backgroundColor: 'greyscale.200' },
                       })}
                     >

@@ -599,7 +599,7 @@ const themeCardCls = css({
   gap: '0.5rem',
   paddingY: '1.25rem',
   border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.625rem',
+  borderRadius: '0.5rem',
   backgroundColor: 'greyscale.000',
   color: 'greyscale.800',
   fontSize: '0.875rem',
@@ -622,7 +622,8 @@ const selectCls = css({
   paddingX: '0.875rem',
   paddingY: '0.5rem',
   border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '999px',
+  // 标准:表单控件用 8px 圆角,不用胶囊(胶囊只留搜索框/chip/头像)。
+  borderRadius: '0.5rem',
   backgroundColor: 'greyscale.000',
   color: 'greyscale.900',
   fontSize: '0.875rem',
@@ -742,7 +743,8 @@ const viewBtnCls = css({
   paddingX: '1.25rem',
   paddingY: '0.4375rem',
   border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '999px',
+  // 标准:动作按钮 8px 圆角,不用胶囊。
+  borderRadius: '0.5rem',
   backgroundColor: 'greyscale.000',
   color: 'greyscale.800',
   fontSize: '0.875rem',

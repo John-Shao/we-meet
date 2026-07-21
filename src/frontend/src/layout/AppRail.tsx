@@ -62,7 +62,7 @@ const itemBase = css({
   gap: '0.625rem',
   paddingX: '0.75rem',
   paddingY: '0.5rem',
-  borderRadius: '10px',
+  borderRadius: '8px',
   fontSize: '0.875rem',
   color: 'greyscale.700',
   cursor: 'pointer',
@@ -159,7 +159,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
       className={css({
         width: '32px',
         height: '32px',
-        borderRadius: '7px',
+        borderRadius: '8px',
         objectFit: 'cover',
         flexShrink: 0,
       })}
@@ -169,7 +169,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
       className={css({
         width: '32px',
         height: '32px',
-        borderRadius: '7px',
+        borderRadius: '8px',
         backgroundColor: 'primary.500',
         color: 'white',
         display: 'flex',
@@ -373,7 +373,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
                   border: 'none',
                   background: 'transparent',
                   padding: '0.25rem',
-                  borderRadius: '10px',
+                  borderRadius: '8px',
                   cursor: 'pointer',
                   _hover: { backgroundColor: 'greyscale.100' },
                 })}
@@ -391,7 +391,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
               gap: '0.5rem',
               paddingX: '0.25rem',
               paddingY: '0.25rem',
-              borderRadius: '10px',
+              borderRadius: '8px',
               _hover: { backgroundColor: 'greyscale.100' },
             })}
           >

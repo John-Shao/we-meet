@@ -1,5 +1,12 @@
 import { type RecipeVariantProps, cva } from '@/styled-system/css'
 
+/**
+ * Button 视觉标准(2026-07,全站按钮基准):
+ * - 圆角:常规按钮 8px(radii.8)、小按钮/图标钮 6px(radii.6);胶囊(full)只留给
+ *   搜索框、筛选/建议 chip、头像,动作按钮一律不用胶囊。
+ * - 填充分工:主操作=primary(实心蓝)、次操作=secondary(线框)、弱操作=
+ *   secondaryText(纯文字)。新按钮优先走本基元,别再手搓 <button> + 裸圆角。
+ */
 export const buttonRecipe = cva({
   base: {
     display: 'flex',
@@ -16,23 +23,23 @@ export const buttonRecipe = cva({
   variants: {
     size: {
       default: {
-        borderRadius: 4,
+        borderRadius: 8,
         paddingX: '1',
         paddingY: '0.625',
         '--square-padding': '{spacing.0.625}',
       },
       sm: {
-        borderRadius: 4,
+        borderRadius: 6,
         paddingX: '0.5',
         paddingY: '0.25',
         '--square-padding': '{spacing.0.25}',
       },
       xs: {
-        borderRadius: 4,
+        borderRadius: 6,
         '--square-padding': '0',
       },
       compact: {
-        borderRadius: 4,
+        borderRadius: 8,
         paddingX: '0.5',
         paddingY: '0.625',
         '--square-padding': '{spacing.0.625}',
