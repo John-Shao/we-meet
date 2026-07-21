@@ -88,18 +88,39 @@ def _push_one(event, cfg) -> bool:
         admin_hmac_secret=str(cfg["admin_hmac_secret"]),
         timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
     )
-    cid = _ensure_conversation(event.room, client)
-    if cid is None:
-        return False
 
     local_start = timezone.localtime(event.start_at, event.timezone)
     body = f"🔔 「{event.title}」即将开始（{local_start:%H:%M}）"
+
+    # P8-UX 收敛:从聊天创建的日程(source_conversation_id 非空)提醒**回源
+    # 会话**,不再为每个日程的 Room 懒建一次性提醒群 —— 那是会话列表被
+    # 「会话」群刷屏的根因。源会话投递失败(如已解散)降级走原 Room 群路径;
+    # 非会话来源日程(日历页创建)保持现状(Room 群入会后本就是会议聊天)。
+    if event.source_conversation_id:
+        try:
+            client.post_message(cid=event.source_conversation_id, body=body)
+        except (JusiImUnreachableError, JusiImBadResponseError) as exc:
+            logger.warning(
+                "reminder push to source conversation failed for event %s "
+                "(falling back to room group): %s",
+                event.id,
+                exc,
+            )
+        else:
+            return _mark_pushed(event, event.source_conversation_id)
+
+    cid = _ensure_conversation(event.room, client)
+    if cid is None:
+        return False
     try:
         client.post_message(cid=cid, body=body)
     except (JusiImUnreachableError, JusiImBadResponseError) as exc:
         logger.warning("reminder push failed for event %s: %s", event.id, exc)
         return False
+    return _mark_pushed(event, cid)
 
+
+def _mark_pushed(event, cid) -> bool:
     event.reminder_pushed_at = timezone.now()
     event.save(update_fields=["reminder_pushed_at", "updated_at"])
     logger.info("reminder pushed for event %s (cid=%s)", event.id, cid)

@@ -27,6 +27,7 @@ from core.models import (
 )
 from core.services.calendar_reminders import push_due_reminders
 from core.services.jusi_im import (
+    JusiImBadResponseError,
     JusiImConversationResponse,
     JusiImMessageResponse,
     JusiImTokenResponse,
@@ -165,6 +166,58 @@ def test_skips_cancelled_event(jusi_settings, mock_admin_client):
 
     assert push_due_reminders(now=now) == 0
     assert mock_admin_client.post_message.call_count == 0
+
+
+# ---- P8-UX 收敛:会话来源的日程提醒回源会话,不再拉一次性提醒群 ----
+
+
+def test_source_conversation_reminder_skips_group_creation(
+    jusi_settings, mock_admin_client
+):
+    now = timezone.now()
+    owner = UserFactory()
+    event = _make_event(
+        owner=owner, start_at=now + timedelta(minutes=5), reminders=[10]
+    )
+    event.source_conversation_id = "src-cid-1"
+    event.save(update_fields=["source_conversation_id"])
+
+    assert push_due_reminders(now=now) == 1
+
+    # 直发源会话:不建群、不落 MeetingConversation(刷屏根因就在建群)。
+    mock_admin_client.create_group.assert_not_called()
+    assert not MeetingConversation.objects.filter(room=event.room).exists()
+    pm = mock_admin_client.post_message.call_args.kwargs
+    assert pm["cid"] == "src-cid-1"
+    assert "周会" in pm["body"] and pm["body"].startswith("🔔")
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is not None
+
+
+def test_source_conversation_failure_falls_back_to_room_group(
+    jusi_settings, mock_admin_client
+):
+    now = timezone.now()
+    owner = UserFactory()
+    event = _make_event(
+        owner=owner, start_at=now + timedelta(minutes=5), reminders=[10]
+    )
+    event.source_conversation_id = "src-gone"
+    event.save(update_fields=["source_conversation_id"])
+
+    # 源会话已解散(4xx)→ 降级懒建 Room 群并重投,幂等标记照常落。
+    ok = JusiImMessageResponse(mid=1, cid="x", sender_uid="sys", seq=1, ts=0)
+    mock_admin_client.post_message.side_effect = [
+        JusiImBadResponseError("conversation not found"),
+        ok,
+    ]
+
+    assert push_due_reminders(now=now) == 1
+    mock_admin_client.create_group.assert_called_once()
+    mc = MeetingConversation.objects.get(room=event.room)
+    assert mock_admin_client.post_message.call_args.kwargs["cid"] == mc.cid
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is not None
 
 
 def test_skips_event_without_room(jusi_settings, mock_admin_client):
