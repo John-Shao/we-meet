@@ -123,6 +123,7 @@
     "nav": {
       "general": "General",
       "account": "Account",
+      "calendar": "Calendar",
       "agreement": "Terms"
     },
     "theme": {

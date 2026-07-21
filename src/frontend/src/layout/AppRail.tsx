@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import {
@@ -21,12 +20,17 @@ import {
   type RemixiconComponentType,
 } from '@remixicon/react'
 import { useQuery } from '@tanstack/react-query'
+import { useSnapshot } from 'valtio'
 
 import { css, cx } from '@/styled-system/css'
 import { Menu } from '@/primitives/Menu'
 import { useUser } from '@/features/auth'
 import { useConfig } from '@/api/useConfig'
 import { SettingsDialog } from '@/features/settings/components/SettingsDialog'
+import {
+  openSystemSettings,
+  systemSettingsStore,
+} from '@/stores/systemSettings'
 import { useImUnread } from '@/features/im/components/ImUnreadProvider'
 import { fetchApprovals } from '@/features/approval/api/fetchApproval'
 import { GlobalSearch } from './GlobalSearch'
@@ -120,9 +124,13 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const { user, logout } = useUser()
   const { data: config } = useConfig()
   const [location] = useLocation()
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  // P8 设置收敛:弹窗开关走全局 store,模块快捷入口(日历页齿轮等)也能打开。
+  const { open: settingsOpen, section: settingsSection } =
+    useSnapshot(systemSettingsStore)
   const docsUrl = config?.docs?.url
-  const initial = (user?.full_name || user?.email || '?').slice(0, 1).toUpperCase()
+  const initial = (user?.full_name || user?.email || '?')
+    .slice(0, 1)
+    .toUpperCase()
   const displayName = user?.full_name || user?.email || ''
 
   // Rail unread badges: messages from the global IM presence, approvals from the
@@ -138,7 +146,11 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
     refetchOnWindowFocus: false,
   })
   const badgeFor = (to: string): number =>
-    to === '/im' ? unreadMessages : to === '/approval' ? pendingApprovals.length : 0
+    to === '/im'
+      ? unreadMessages
+      : to === '/approval'
+        ? pendingApprovals.length
+        : 0
 
   const avatarNode = user?.avatar_url ? (
     <img
@@ -173,7 +185,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
 
   const moreMenuItems = (
     <RACMenu className={menuList}>
-      <MenuItem onAction={() => setSettingsOpen(true)} className={menuItemCls}>
+      <MenuItem onAction={() => openSystemSettings()} className={menuItemCls}>
         <RiSettings3Line size={16} />
         {t('settingsButtonLabel', { ns: 'settings' })}
       </MenuItem>
@@ -256,7 +268,13 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
       </div>
 
       {/* 模块导航。 */}
-      <div className={css({ display: 'flex', flexDirection: 'column', gap: '0.125rem' })}>
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.125rem',
+        })}
+      >
         {NAV.map((item) => {
           const badge = badgeFor(item.to)
           return (
@@ -272,7 +290,11 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
               )}
             >
               <span
-                className={css({ position: 'relative', display: 'flex', flexShrink: 0 })}
+                className={css({
+                  position: 'relative',
+                  display: 'flex',
+                  flexShrink: 0,
+                })}
               >
                 <item.Icon size={18} />
                 {collapsed && badge > 0 && (
@@ -398,7 +420,14 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
         )}
       </div>
 
-      <SettingsDialog isOpen={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsDialog
+        isOpen={settingsOpen}
+        initialSection={settingsSection}
+        onOpenChange={(v) => {
+          systemSettingsStore.open = v
+          if (!v) systemSettingsStore.section = undefined
+        }}
+      />
     </nav>
   )
 }

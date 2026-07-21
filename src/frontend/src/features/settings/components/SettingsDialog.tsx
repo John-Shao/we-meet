@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSnapshot } from 'valtio'
 import { useQueryClient } from '@tanstack/react-query'
 import {
+  RiCalendarTodoLine,
   RiCloseLine,
   RiComputerLine,
   RiFileList3Line,
@@ -24,30 +25,69 @@ import { LoginButton } from '@/components/LoginButton'
 import { Modal } from '@/components/Modal'
 import { routes } from '@/routes'
 import { themeStore, type ThemeMode } from '@/stores/theme'
+import type { SystemSettingsSection } from '@/stores/systemSettings'
+import {
+  DURATION_OPTIONS,
+  REMINDER_OPTIONS,
+  useCalendarSettings,
+  type WeekStartPref,
+} from '@/features/calendar/hooks/useCalendarSettings'
+import { useReminderEntryEnabled } from '@/features/im/hooks/useReminderEntry'
 import { AvatarUploadDialog } from './AvatarUploadDialog'
 
-export type SettingsDialogProps = Pick<DialogProps, 'isOpen' | 'onOpenChange'>
+export type SettingsDialogProps = Pick<
+  DialogProps,
+  'isOpen' | 'onOpenChange'
+> & {
+  /** P8 设置收敛:模块快捷入口指定打开时定位到的节(如日历页齿轮 → 'calendar')。 */
+  initialSection?: SystemSettingsSection
+}
 
-type Section = 'general' | 'account' | 'agreement'
+type Section = SystemSettingsSection
 
-export const SettingsDialog = ({ isOpen, onOpenChange }: SettingsDialogProps) => {
+export const SettingsDialog = ({
+  isOpen,
+  onOpenChange,
+  initialSection,
+}: SettingsDialogProps) => {
   const { t } = useTranslation('settings')
   const { isLoggedIn } = useUser()
   const [section, setSection] = useState<Section>('general')
   const [avatarOpen, setAvatarOpen] = useState(false)
 
+  // 快捷入口带节打开时定位;不带节保持上次/默认。
+  useEffect(() => {
+    if (initialSection) setSection(initialSection)
+  }, [initialSection])
+
   if (!isOpen) return null
 
-  const navItems: Array<{ key: Section; label: string; Icon: RemixiconComponentType }> =
-    [
-      { key: 'general', label: t('systemSettings.nav.general'), Icon: RiSettings3Line },
-      { key: 'account', label: t('systemSettings.nav.account'), Icon: RiUser3Line },
-      {
-        key: 'agreement',
-        label: t('systemSettings.nav.agreement'),
-        Icon: RiFileList3Line,
-      },
-    ]
+  const navItems: Array<{
+    key: Section
+    label: string
+    Icon: RemixiconComponentType
+  }> = [
+    {
+      key: 'general',
+      label: t('systemSettings.nav.general'),
+      Icon: RiSettings3Line,
+    },
+    {
+      key: 'account',
+      label: t('systemSettings.nav.account'),
+      Icon: RiUser3Line,
+    },
+    {
+      key: 'calendar',
+      label: t('systemSettings.nav.calendar'),
+      Icon: RiCalendarTodoLine,
+    },
+    {
+      key: 'agreement',
+      label: t('systemSettings.nav.agreement'),
+      Icon: RiFileList3Line,
+    },
+  ]
 
   return (
     <Modal
@@ -92,11 +132,14 @@ export const SettingsDialog = ({ isOpen, onOpenChange }: SettingsDialogProps) =>
               onEditAvatar={() => setAvatarOpen(true)}
             />
           )}
+          {section === 'calendar' && <CalendarPanel />}
           {section === 'agreement' && <AgreementPanel />}
         </section>
       </div>
 
-      {avatarOpen && <AvatarUploadDialog onClose={() => setAvatarOpen(false)} />}
+      {avatarOpen && (
+        <AvatarUploadDialog onClose={() => setAvatarOpen(false)} />
+      )}
     </Modal>
   )
 }
@@ -108,12 +151,19 @@ const GeneralPanel = () => {
   const { languagesList, currentLanguage } = useLanguageLabels()
   const { i18n } = useTranslation()
 
-  const themes: Array<{ key: ThemeMode; label: string; Icon: RemixiconComponentType }> =
-    [
-      { key: 'light', label: t('systemSettings.theme.light'), Icon: RiSunLine },
-      { key: 'dark', label: t('systemSettings.theme.dark'), Icon: RiMoonLine },
-      { key: 'system', label: t('systemSettings.theme.system'), Icon: RiComputerLine },
-    ]
+  const themes: Array<{
+    key: ThemeMode
+    label: string
+    Icon: RemixiconComponentType
+  }> = [
+    { key: 'light', label: t('systemSettings.theme.light'), Icon: RiSunLine },
+    { key: 'dark', label: t('systemSettings.theme.dark'), Icon: RiMoonLine },
+    {
+      key: 'system',
+      label: t('systemSettings.theme.system'),
+      Icon: RiComputerLine,
+    },
+  ]
 
   return (
     <>
@@ -154,6 +204,84 @@ const GeneralPanel = () => {
   )
 }
 
+/* ─── 日历设置(P8,对标飞书可落地子集,纯 localStorage)──────────────── */
+const CalendarPanel = () => {
+  const { t } = useTranslation('calendar')
+  const [reminderOn, setReminderOn] = useReminderEntryEnabled()
+  const {
+    weekStart,
+    defaultDurationMin,
+    defaultReminderMin,
+    setWeekStart,
+    setDefaultDuration,
+    setDefaultReminder,
+  } = useCalendarSettings()
+
+  return (
+    <div>
+      <div className={infoRowCls}>
+        <span className={infoKeyCls}>{t('settings.reminderEntry')}</span>
+        <input
+          type="checkbox"
+          checked={reminderOn}
+          onChange={(e) => setReminderOn(e.target.checked)}
+          data-testid="calendar-settings-reminder"
+        />
+      </div>
+      <div className={infoRowCls}>
+        <span className={infoKeyCls}>{t('settings.weekStart')}</span>
+        <select
+          value={weekStart}
+          onChange={(e) => setWeekStart(e.target.value as WeekStartPref)}
+          aria-label={t('settings.weekStart')}
+          data-testid="calendar-settings-week-start"
+          className={selectCls}
+        >
+          <option value="mon">{t('settings.weekStartMon')}</option>
+          <option value="sun">{t('settings.weekStartSun')}</option>
+        </select>
+      </div>
+      <div className={infoRowCls}>
+        <span className={infoKeyCls}>{t('settings.defaultDuration')}</span>
+        <select
+          value={defaultDurationMin}
+          onChange={(e) => setDefaultDuration(Number(e.target.value))}
+          aria-label={t('settings.defaultDuration')}
+          data-testid="calendar-settings-duration"
+          className={selectCls}
+        >
+          {DURATION_OPTIONS.map((min) => (
+            <option key={min} value={min}>
+              {t('settings.minutes', { count: min })}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={infoRowCls}>
+        <span className={infoKeyCls}>{t('settings.defaultReminder')}</span>
+        <select
+          value={defaultReminderMin ?? 'none'}
+          onChange={(e) =>
+            setDefaultReminder(
+              e.target.value === 'none' ? null : Number(e.target.value)
+            )
+          }
+          aria-label={t('settings.defaultReminder')}
+          data-testid="calendar-settings-reminder-min"
+          className={selectCls}
+        >
+          <option value="none">{t('form.reminderNone')}</option>
+          {REMINDER_OPTIONS.map((min) => (
+            <option key={min} value={min}>
+              {t('form.reminderMinutes', { count: min })}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  )
+}
+
 /* ─── 账号管理:头像 + 用户名 + 邮箱(只放已有字段)───────────────────── */
 const AccountPanel = ({
   isLoggedIn,
@@ -168,7 +296,13 @@ const AccountPanel = ({
 
   if (!isLoggedIn) {
     return (
-      <div className={css({ display: 'flex', flexDirection: 'column', gap: '0.75rem' })}>
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.75rem',
+        })}
+      >
         <p className={css({ color: 'greyscale.700' })}>
           {t('account.youAreNotLoggedIn')}
         </p>
@@ -177,7 +311,9 @@ const AccountPanel = ({
     )
   }
 
-  const initial = (user?.full_name || user?.email || '?').slice(0, 1).toUpperCase()
+  const initial = (user?.full_name || user?.email || '?')
+    .slice(0, 1)
+    .toUpperCase()
   const refreshUser = () => qc.invalidateQueries({ queryKey: [keys.user] })
 
   return (
@@ -350,15 +486,26 @@ const extractApiError = (e: unknown): string => {
 const AgreementPanel = () => {
   const { t } = useTranslation('settings')
   const links: Array<{ label: string; href: string }> = [
-    { label: t('systemSettings.agreement.userAgreement'), href: routes.termsOfService.path as string },
-    { label: t('systemSettings.agreement.privacy'), href: routes.legalTerms.path as string },
+    {
+      label: t('systemSettings.agreement.userAgreement'),
+      href: routes.termsOfService.path as string,
+    },
+    {
+      label: t('systemSettings.agreement.privacy'),
+      href: routes.legalTerms.path as string,
+    },
   ]
   return (
     <div>
       {links.map((l) => (
         <div key={l.href} className={infoRowCls}>
           <span className={infoValCls}>{l.label}</span>
-          <a href={l.href} target="_blank" rel="noopener noreferrer" className={viewBtnCls}>
+          <a
+            href={l.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={viewBtnCls}
+          >
             {t('systemSettings.agreement.view')}
           </a>
         </div>

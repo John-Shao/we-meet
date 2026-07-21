@@ -123,6 +123,7 @@
     "nav": {
       "general": "通用设置",
       "account": "账号管理",
+      "calendar": "日历设置",
       "agreement": "服务协议"
     },
     "theme": {

@@ -17,10 +17,10 @@ import {
   deleteCalendarEvent,
 } from '../api/fetchCalendar'
 import type { CalendarEvent, EditScope, RSVPStatus } from '../api/ApiCalendar'
+import { openSystemSettings } from '@/stores/systemSettings'
 import { CreateEventDialog } from '../components/CreateEventDialog'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
-import { CalendarSettingsDialog } from '../components/CalendarSettingsDialog'
 import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EditScopeDialog } from '../components/EditScopeDialog'
 import { EventDetailDialog } from '../components/EventDetailDialog'
@@ -42,8 +42,6 @@ const CalendarAuthenticated = () => {
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const { user } = useUser()
   const [creating, setCreating] = useState(false)
-  // P8 日历设置(周起始/默认时长/默认提醒/列表提醒入口开关)。
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [draft, setDraft] = useState<SlotDraft | null>(null)
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null)
@@ -213,9 +211,10 @@ const CalendarAuthenticated = () => {
               gap: '0.5rem',
             })}
           >
+            {/* P8 设置收敛:齿轮只是快捷入口,打开系统设置并定位「日历」节。 */}
             <button
               type="button"
-              onClick={() => setSettingsOpen(true)}
+              onClick={() => openSystemSettings('calendar')}
               title={t('settings.title')}
               aria-label={t('settings.title')}
               data-testid="calendar-settings"
@@ -274,10 +273,6 @@ const CalendarAuthenticated = () => {
           )}
         </div>
       </div>
-
-      {settingsOpen && (
-        <CalendarSettingsDialog onClose={() => setSettingsOpen(false)} />
-      )}
 
       {detailEvent && (
         <EventDetailDialog
