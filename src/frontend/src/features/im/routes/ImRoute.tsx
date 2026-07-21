@@ -703,7 +703,8 @@ const ImAuthenticated = () => {
                 </button>
               </div>
             </div>
-            {/* P8:当日有未结束日程时的置顶「日程提醒」入口(对标飞书)。 */}
+            {/* P8:当日有未结束日程时的「日程提醒」入口(对标飞书:列表
+                首项,在 aside 滚动容器内随列表一起滚动,非固定置顶)。 */}
             <ReminderEntry
               active={reminderOpen}
               onOpen={() => {
