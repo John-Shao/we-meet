@@ -477,6 +477,10 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         同款;P8-UX 反馈:相接合并后群成员日历看不出是两个日程)。
         attendee_ids 按组织隔离过滤(跨组织 id 静默丢弃,同建事件口径);
         窗口上限 31 天。
+
+        P8 编辑增删参与者修正:可选 ``exclude_event_id`` —— 编辑日程时把
+        **该日程本身**从忙闲里剔除,否则原参与者必然在其自身时段「忙碌」
+        而被误报冲突。非法 id 静默忽略。
         """
         organization = get_caller_organization(request.user)
         if organization is None:
@@ -502,23 +506,30 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 {"detail": "window too large (max 31 days)"}
             )
 
+        exclude_event_id = None
+        raw_exclude = str(request.query_params.get("exclude_event_id") or "").strip()
+        if raw_exclude:
+            try:
+                exclude_event_id = uuid.UUID(raw_exclude)
+            except ValueError:
+                pass  # 非法 id 静默忽略(与 attendee_ids 口径一致)
+
         users = models.User.objects.filter(
             id__in=raw_ids,
             memberships__organization=organization,
             memberships__status=models.MembershipStatusChoices.ACTIVE,
         ).distinct()
 
-        rows = (
-            models.EventAttendee.objects.filter(
-                user__in=users,
-                event__organization=organization,
-                event__status=models.EventStatusChoices.CONFIRMED,
-                event__start_at__lt=end,
-                event__end_at__gt=start,
-            )
-            .exclude(rsvp=models.EventRSVPChoices.DECLINED)
-            .values_list("user_id", "event__start_at", "event__end_at")
-        )
+        qs = models.EventAttendee.objects.filter(
+            user__in=users,
+            event__organization=organization,
+            event__status=models.EventStatusChoices.CONFIRMED,
+            event__start_at__lt=end,
+            event__end_at__gt=start,
+        ).exclude(rsvp=models.EventRSVPChoices.DECLINED)
+        if exclude_event_id is not None:
+            qs = qs.exclude(event_id=exclude_event_id)
+        rows = qs.values_list("user_id", "event__start_at", "event__end_at")
         busy_map = {str(u.id): [] for u in users}
         for uid, s_at, e_at in rows:
             busy_map[str(uid)].append((max(s_at, start), min(e_at, end)))

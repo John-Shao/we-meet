@@ -68,18 +68,25 @@ export interface FreeBusyEntry {
   busy: BusyInterval[]
 }
 
-/** GET /api/v1.0/calendar-events/freebusy — 窗口内每人的 busy 区间列表。 */
+/** GET /api/v1.0/calendar-events/freebusy — 窗口内每人的 busy 区间列表。
+ * P8:`excludeEventId` 编辑态传当前日程 id,把它自身从忙闲里剔除(否则原
+ * 参与者必在其自身时段被误报忙碌)。 */
 export const fetchFreeBusy = (
   attendeeIds: string[],
   start: string,
-  end: string
+  end: string,
+  excludeEventId?: string
 ): Promise<FreeBusyEntry[]> =>
   fetchApi<{ results: FreeBusyEntry[] }>(
     `/calendar-events/freebusy/?attendee_ids=${attendeeIds
       .map(encodeURIComponent)
       .join(
         ','
-      )}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+      )}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}${
+      excludeEventId
+        ? `&exclude_event_id=${encodeURIComponent(excludeEventId)}`
+        : ''
+    }`
   ).then((r) => r.results)
 
 /** POST /api/v1.0/calendar-events/{id}/rsvp — set the caller's RSVP. */

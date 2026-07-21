@@ -14,11 +14,15 @@ export const FreeBusyBar = ({
   people,
   slotStart,
   slotEnd,
+  excludeEventId,
 }: {
   /** 需要展示的人(含发起人自己);label 已解析好。 */
   people: { id: string; label: string }[]
   slotStart: Date
   slotEnd: Date
+  /** P8 编辑态:当前编辑的日程 id —— 从忙闲里剔除它自身,原参与者
+   * 不再被自己的这个日程误报冲突。 */
+  excludeEventId?: string
 }) => {
   const { t } = useTranslation('calendar')
   // 窗口 = 所选开始时刻当天的本地 00:00 → 次日 00:00。
@@ -29,13 +33,23 @@ export const FreeBusyBar = ({
 
   const ids = people.map((p) => p.id)
   const { data: entries = [] } = useQuery({
+    // key 用排序串(与顺序无关的稳定键)——刻意不放 ids 数组本体。
+    /* eslint-disable @tanstack/query/exhaustive-deps */
     queryKey: [
       'calendar',
       'freebusy',
       ids.slice().sort().join(','),
       dayStart.toISOString(),
+      excludeEventId ?? '',
     ],
-    queryFn: () => fetchFreeBusy(ids, dayStart.toISOString(), dayEnd.toISOString()),
+    /* eslint-enable @tanstack/query/exhaustive-deps */
+    queryFn: () =>
+      fetchFreeBusy(
+        ids,
+        dayStart.toISOString(),
+        dayEnd.toISOString(),
+        excludeEventId
+      ),
     enabled: ids.length > 0,
     staleTime: 30_000,
   })

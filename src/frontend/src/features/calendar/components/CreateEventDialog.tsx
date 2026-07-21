@@ -449,6 +449,8 @@ export const CreateEventDialog = ({
                   ]}
                   slotStart={new Date(start)}
                   slotEnd={new Date(end)}
+                  // P8 编辑态:剔除当前日程自身,原参与者不被它误报忙碌。
+                  excludeEventId={editEvent?.id}
                 />
               </div>
             )}

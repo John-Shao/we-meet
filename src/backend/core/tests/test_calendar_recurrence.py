@@ -19,11 +19,17 @@ def _membership(org, user, **kwargs):
     )
 
 
+# 系列基准日:真实当前时刻 + 30 天的 02:00 UTC(上海 10:00)。edit_series_all /
+# delete 的 API 路径内部用真实 timezone.now() 划分历史/未来场次(历史场次刻意
+# 不平移时间、不随主删除)——硬编码日期在其后运行会把系列前段划成历史,断言
+# 分叉(时间炸弹,2026-07-21 实爆:三例失败)。动态未来日让整个系列恒在未来。
+SERIES_START = (datetime.now(dt_timezone.utc) + timedelta(days=30)).replace(
+    hour=2, minute=0, second=0, microsecond=0
+)
+
+
 def _make_parent(org, organizer, *, rrule="FREQ=DAILY", tz="Asia/Shanghai", **extra):
-    start = extra.pop(
-        "start_at",
-        datetime(2026, 7, 20, 2, 0, tzinfo=dt_timezone.utc),  # 上海 10:00
-    )
+    start = extra.pop("start_at", SERIES_START)
     event = models.CalendarEvent.objects.create(
         organization=org,
         organizer=organizer,
@@ -44,7 +50,8 @@ def _make_parent(org, organizer, *, rrule="FREQ=DAILY", tz="Asia/Shanghai", **ex
     return event
 
 
-NOW = datetime(2026, 7, 19, 0, 0, tzinfo=dt_timezone.utc)
+# 物化窗口锚点:基准日前一天(相对系列恒为「未来一天前」)。
+NOW = SERIES_START - timedelta(days=1)
 
 
 def test_materialize_daily_creates_children_and_is_idempotent():
@@ -277,9 +284,7 @@ def test_edit_all_shifts_series_and_preserves_rsvp():
 
     parent.refresh_from_db()
     assert parent.title == "站会(晚一小时)"
-    assert parent.start_at == datetime(
-        2026, 7, 20, 3, 0, tzinfo=dt_timezone.utc
-    )  # 原 02:00 UTC + 1h
+    assert parent.start_at == SERIES_START + timedelta(hours=1)  # 原时刻 + 1h
     fresh = list(parent.occurrences.order_by("start_at"))
     assert len(fresh) == 3
     assert all(k.title == "站会(晚一小时)" for k in fresh)
@@ -359,9 +364,11 @@ def test_edit_following_without_count_preserves_until_rule():
     org = factories.OrganizationFactory()
     me = factories.UserFactory()
     _membership(org, me)
-    parent = _make_parent(org, me, rrule="FREQ=DAILY;UNTIL=20260725T235959")
+    # UNTIL 相对基准日 +5 天(浮动本地时刻;上海 10:00 开始,UTC 日期=本地日期)。
+    until = (SERIES_START + timedelta(days=5)).strftime("%Y%m%dT235959")
+    parent = _make_parent(org, me, rrule=f"FREQ=DAILY;UNTIL={until}")
     materialize_recurrences(now=NOW)
-    # 7/20(主)…7/25;取 7/22 为分界。
+    # 基准日(主)…+5 天;取 +2 天场次为分界。
     pivot_child = parent.occurrences.order_by("start_at")[1]
     new_start = pivot_child.start_at + timedelta(hours=2)
 
@@ -386,7 +393,7 @@ def test_edit_following_without_count_preserves_until_rule():
     # 无 COUNT → 新系列保留原 UNTIL,不出现 COUNT。
     assert "COUNT=" not in new_parent.recurrence
     assert "FREQ=DAILY" in new_parent.recurrence
-    assert "UNTIL=20260725T235959" in new_parent.recurrence
+    assert f"UNTIL={until}" in new_parent.recurrence
 
 
 def test_edit_one_onto_existing_slot_returns_400():
@@ -488,6 +495,66 @@ def test_freebusy_returns_merged_intervals_without_details():
     assert len(results[str(me.id)]) == 1
     # 只出区间——响应文本不含任何标题。
     assert "秘密评审" not in resp.content.decode()
+
+
+def test_freebusy_exclude_event_id_drops_own_slot():
+    """P8 编辑增删参与者:exclude_event_id 把该日程自身从忙闲剔除——编辑时
+    原参与者不再被自己的这个日程误报忙碌;其它日程照常算忙。"""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    peer = factories.UserFactory()
+    _membership(org, peer)
+    day = datetime(2026, 7, 21, 0, 0, tzinfo=dt_timezone.utc)
+
+    def _event(title, s_h, e_h):
+        ev = models.CalendarEvent.objects.create(
+            organization=org,
+            organizer=me,
+            title=title,
+            start_at=day + timedelta(hours=s_h),
+            end_at=day + timedelta(hours=e_h),
+            timezone=ZoneInfo("Asia/Shanghai"),
+        )
+        models.EventAttendee.objects.create(event=ev, user=peer, rsvp="accepted")
+        return ev
+
+    editing = _event("被编辑的日程", 14, 16)
+    _event("别的会", 9, 10)
+
+    client = APIClient()
+    client.force_login(me)
+    resp = client.get(
+        "/api/v1.0/calendar-events/freebusy/",
+        {
+            "attendee_ids": str(peer.id),
+            "start": day.isoformat(),
+            "end": (day + timedelta(days=1)).isoformat(),
+            "exclude_event_id": str(editing.id),
+        },
+    )
+    assert resp.status_code == 200, resp.content
+    busy = resp.json()["results"][0]["busy"]
+    # 只剩「别的会」;被编辑的日程自身不再算忙。
+    assert busy == [
+        {
+            "start": (day + timedelta(hours=9)).isoformat(),
+            "end": (day + timedelta(hours=10)).isoformat(),
+        }
+    ]
+
+    # 非法 exclude_event_id 静默忽略(两块都在)。
+    resp = client.get(
+        "/api/v1.0/calendar-events/freebusy/",
+        {
+            "attendee_ids": str(peer.id),
+            "start": day.isoformat(),
+            "end": (day + timedelta(days=1)).isoformat(),
+            "exclude_event_id": "not-a-uuid",
+        },
+    )
+    assert resp.status_code == 200, resp.content
+    assert len(resp.json()["results"][0]["busy"]) == 2
 
 
 def test_freebusy_rejects_oversized_window():
