@@ -172,8 +172,8 @@ export const ConversationList = ({
                           flexShrink: 0,
                           fontWeight: 'bold',
                           fontSize: '0.8125rem',
+                          color: 'danger.600',
                         })}
-                        style={{ color: 'danger.600' }}
                       >
                         @
                       </span>
