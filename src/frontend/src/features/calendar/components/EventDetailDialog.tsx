@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { RiCheckLine, RiCloseLine, RiQuestionLine } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
@@ -187,6 +188,95 @@ export const EventDetailDialog = ({
             )
           )}
         </div>
+
+        {/* 参与人列表(对齐 App 端:RSVP 状态图标 + 名字 + 组织者标签)。 */}
+        {event.attendees.length > 0 && (
+          <div
+            className={css({
+              marginTop: '1rem',
+              paddingTop: '0.75rem',
+              borderTop: '1px solid token(colors.greyscale.100)',
+            })}
+          >
+            <div
+              className={css({
+                fontSize: '0.8125rem',
+                fontWeight: 'medium',
+                color: 'greyscale.800',
+                marginBottom: '0.375rem',
+              })}
+            >
+              {t('detail.attendeesTitle', { count: event.attendees.length })}
+            </div>
+            <ul
+              className={css({
+                listStyle: 'none',
+                margin: 0,
+                padding: 0,
+                maxHeight: '10.5rem',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.375rem',
+              })}
+            >
+              {event.attendees.map((a, i) => {
+                const StatusIcon =
+                  a.rsvp === 'accepted'
+                    ? RiCheckLine
+                    : a.rsvp === 'declined'
+                      ? RiCloseLine
+                      : RiQuestionLine
+                return (
+                  <li
+                    key={a.id ?? i}
+                    className={css({
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    })}
+                  >
+                    <StatusIcon
+                      size={15}
+                      aria-label={a.rsvp ?? 'needs_action'}
+                      className={cx(
+                        css({ flexShrink: 0 }),
+                        a.rsvp === 'accepted'
+                          ? css({ color: 'primary.600' })
+                          : a.rsvp === 'declined'
+                            ? css({ color: '#dc2626' })
+                            : css({ color: 'greyscale.400' })
+                      )}
+                    />
+                    <span
+                      className={css({
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontSize: '0.8125rem',
+                        color: 'greyscale.800',
+                      })}
+                    >
+                      {a.full_name || a.email || '—'}
+                    </span>
+                    {a.role === 'organizer' && (
+                      <span
+                        className={css({
+                          flexShrink: 0,
+                          fontSize: '0.6875rem',
+                          color: 'primary.600',
+                        })}
+                      >
+                        {t('card.organizer')}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
 
         {/* Actions: 编辑/删除(organizer)靠左,进入会议靠右 */}
         <div

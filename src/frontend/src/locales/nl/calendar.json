@@ -54,7 +54,8 @@
     "recurrenceOccurrence": "Eén keer in een herhaalde afspraak",
     "recurrenceCustom": "Aangepaste herhaling",
     "deleteConfirmOccurrence": "Alleen deze keer verwijderen? Andere keren in de reeks blijven staan.",
-    "deleteConfirmSeries": "De hele reeks verwijderen? Alle toekomstige keren worden verwijderd."
+    "deleteConfirmSeries": "De hele reeks verwijderen? Alle toekomstige keren worden verwijderd.",
+    "attendeesTitle": "Deelnemers ({{count}})"
   },
   "rsvp": {
     "label": "Mijn reactie",

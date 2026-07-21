@@ -54,7 +54,8 @@
     "recurrenceOccurrence": "Ein Termin einer Terminserie",
     "recurrenceCustom": "Benutzerdefinierte Wiederholung",
     "deleteConfirmOccurrence": "Nur diesen Termin löschen? Andere Termine der Serie bleiben erhalten.",
-    "deleteConfirmSeries": "Die gesamte Serie löschen? Alle zukünftigen Termine werden entfernt."
+    "deleteConfirmSeries": "Die gesamte Serie löschen? Alle zukünftigen Termine werden entfernt.",
+    "attendeesTitle": "Teilnehmer ({{count}})"
   },
   "rsvp": {
     "label": "Meine Antwort",

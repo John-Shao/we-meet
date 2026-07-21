@@ -54,7 +54,8 @@
     "recurrenceOccurrence": "One occurrence of a repeating event",
     "recurrenceCustom": "Custom recurrence",
     "deleteConfirmOccurrence": "Delete only this occurrence? Other occurrences in the series are kept.",
-    "deleteConfirmSeries": "Delete the entire series? All future occurrences will be removed."
+    "deleteConfirmSeries": "Delete the entire series? All future occurrences will be removed.",
+    "attendeesTitle": "Attendees ({{count}})"
   },
   "rsvp": {
     "label": "My response",
