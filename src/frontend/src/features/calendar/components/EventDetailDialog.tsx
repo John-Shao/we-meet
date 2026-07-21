@@ -97,6 +97,7 @@ export const EventDetailDialog = ({
               : t(recurrenceLabelKey(event.recurrence))}
           </p>
         )}
+        {/* 人数信息由下方「参与人 (N)」承载,此处只留组织者,免重复。 */}
         <p
           className={css({
             margin: '0.25rem 0 0',
@@ -104,10 +105,7 @@ export const EventDetailDialog = ({
             color: 'greyscale.500',
           })}
         >
-          {t('card.organizer')}: {event.organizer?.full_name || '—'} ·{' '}
-          {t('card.attendees', {
-            count: event.attendees.filter((a) => a.role !== 'organizer').length,
-          })}
+          {t('card.organizer')}: {event.organizer?.full_name || '—'}
         </p>
         {event.description && (
           <p
@@ -163,25 +161,10 @@ export const EventDetailDialog = ({
                 type="button"
                 onClick={() => handle(status)}
                 data-testid={`detail-rsvp-${status}`}
-                className={cx(
-                  css({
-                    paddingX: '0.625rem',
-                    paddingY: '0.25rem',
-                    borderRadius: '999px',
-                    border: '1px solid token(colors.greyscale.300)',
-                    fontSize: '0.75rem',
-                    cursor: 'pointer',
-                    backgroundColor: 'greyscale.000',
-                    color: 'greyscale.700',
-                  }),
-                  rsvp === status
-                    ? css({
-                        backgroundColor: 'primary.500',
-                        color: 'white',
-                        borderColor: 'primary.500',
-                      })
-                    : undefined
-                )}
+                // 选中/未选两个完整类整体切换 —— cx 叠加同属性原子类时按
+                // 样式表顺序取胜(非书写顺序),选中态的 white 字曾被基类的
+                // greyscale.700 盖掉,蓝底深灰字区分度差。
+                className={rsvp === status ? rsvpBtnActive : rsvpBtn}
               >
                 {t(`rsvp.${status}`)}
               </button>
@@ -301,10 +284,7 @@ export const EventDetailDialog = ({
                 type="button"
                 onClick={onDelete}
                 data-testid="detail-delete"
-                className={cx(
-                  detailBtn,
-                  css({ color: 'danger.600', borderColor: '#fecaca' })
-                )}
+                className={detailBtnDanger}
               >
                 {t('detail.delete')}
               </button>
@@ -347,6 +327,30 @@ const recurrenceLabelKey = (rrule: string): string => {
   return 'detail.recurrenceCustom'
 }
 
+const rsvpBtn = css({
+  paddingX: '0.625rem',
+  paddingY: '0.25rem',
+  borderRadius: '999px',
+  border: '1px solid token(colors.greyscale.300)',
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.700',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+
+const rsvpBtnActive = css({
+  paddingX: '0.625rem',
+  paddingY: '0.25rem',
+  borderRadius: '999px',
+  border: '1px solid token(colors.primary.500)',
+  fontSize: '0.75rem',
+  fontWeight: 'medium',
+  cursor: 'pointer',
+  backgroundColor: 'primary.500',
+  color: 'white',
+})
+
 const detailBtn = css({
   paddingX: '0.75rem',
   paddingY: '0.5rem',
@@ -357,4 +361,17 @@ const detailBtn = css({
   fontSize: '0.8125rem',
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.100' },
+})
+
+// 与 rsvpBtn 同因:不用 cx 叠加同属性(danger 色可能被基类盖掉),完整类。
+const detailBtnDanger = css({
+  paddingX: '0.75rem',
+  paddingY: '0.5rem',
+  border: '1px solid #fecaca',
+  borderRadius: '0.5rem',
+  backgroundColor: 'greyscale.000',
+  color: 'danger.600',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'danger.50' },
 })
