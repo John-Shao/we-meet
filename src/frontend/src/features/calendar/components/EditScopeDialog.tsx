@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { RadioGroup } from 'react-aria-components'
 
 import { css, cx } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
+import { Radio } from '@/primitives/Radio'
 
 import type { EditScope } from '../api/ApiCalendar'
 
@@ -41,7 +43,10 @@ export const EditScopeDialog = ({
         >
           {title}
         </h2>
-        <div
+        <RadioGroup
+          aria-label={title}
+          value={scope}
+          onChange={(v) => setScope(v as EditScope)}
           className={css({
             display: 'flex',
             flexDirection: 'column',
@@ -50,28 +55,20 @@ export const EditScopeDialog = ({
           })}
         >
           {options.map((option) => (
-            <label
+            <Radio
               key={option}
+              value={option}
+              data-testid={`scope-${option}`}
               className={css({
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
                 fontSize: '0.875rem',
                 color: 'greyscale.800',
                 cursor: 'pointer',
               })}
             >
-              <input
-                type="radio"
-                name="edit-scope"
-                checked={scope === option}
-                onChange={() => setScope(option)}
-                data-testid={`scope-${option}`}
-              />
               {t(`scope.${option}`)}
-            </label>
+            </Radio>
           ))}
-        </div>
+        </RadioGroup>
         <div
           className={css({
             display: 'flex',
