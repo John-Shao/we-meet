@@ -17,6 +17,7 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { EventDetailHost } from '@/features/calendar'
 
 import { resolveImUsers } from '../api/resolveImUsers'
+import { IM_SYSTEM_UID } from '../components/eventCard'
 import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
@@ -291,12 +292,41 @@ export const ChatPane = ({
   // 一对一也需解析对端头像(气泡左侧对方头像),否则 names 为空 → 头像退兜底、
   // nameOf 退成裸 uid。故不再限 isGroup,direct 的 [self, peer] 一并解析。
   const memberUids = conversation.members
-  const { data: names = {} } = useQuery({
+  const { data: memberNames = {} } = useQuery({
     queryKey: ['im', 'member-names', memberUids],
     queryFn: () => resolveImUsers(memberUids),
     enabled: memberUids.length > 0,
     staleTime: 60_000,
   })
+  // P8-UX:退群成员的历史消息 —— sender 已不在 members,上面的查询覆盖不到,
+  // 名字/头像会退成裸 uid +「0」兜底。把消息流里出现的「非成员 sender」单独
+  // 批量解析(resolve 端点按组织过滤,不要求仍在会话内;SYSTEM 全零排除)。
+  // Android 无此问题(UserDirectory 本就按消息 sender 惰性解析)。
+  const extraSenderUids = useMemo(() => {
+    const inMembers = new Set(memberUids)
+    const out = new Set<string>()
+    for (const m of messages) {
+      if (
+        m.sender_uid &&
+        m.sender_uid !== IM_SYSTEM_UID &&
+        !inMembers.has(m.sender_uid)
+      ) {
+        out.add(m.sender_uid)
+      }
+    }
+    return [...out].sort()
+  }, [messages, memberUids])
+  const { data: extraNames = {} } = useQuery({
+    queryKey: ['im', 'member-names-extra', cid, extraSenderUids],
+    queryFn: () => resolveImUsers(extraSenderUids),
+    enabled: extraSenderUids.length > 0,
+    staleTime: 60_000,
+  })
+  // 现任成员优先(群昵称等语义不变),离群成员补位。
+  const names = useMemo(
+    () => ({ ...extraNames, ...memberNames }),
+    [memberNames, extraNames]
+  )
   // P10 群昵称:the roster carries each member's per-group nickname, which
   // overrides their org-directory name within THIS conversation.
   const { data: roster = [] } = useQuery({
@@ -1256,56 +1286,56 @@ export const ChatPane = ({
                           : undefined
                       }
                     >
-                    <MessageItem
-                      message={m}
-                      isOwn={isOwnMsg}
-                      senderName={
-                        isOwnMsg
-                          ? user?.full_name || selfName || currentUserUID
-                          : nameOf(m.sender_uid)
-                      }
-                      senderAvatarUrl={
-                        isOwnMsg
-                          ? user?.avatar_url || undefined
-                          : names[m.sender_uid]?.avatar_url
-                      }
-                      imageUrl={imageUrlOf(m)}
-                      fileUrl={fileUrlOf(m)}
-                      voiceUrl={voiceUrlOf(m)}
-                      voiceDurationMs={voiceDurationOf(m)}
-                      reactions={reactionsFor(m.mid)}
-                      onReact={(emoji) => void onReact(m, emoji)}
-                      recalled={recalledMids.has(m.mid)}
-                      onContextMenu={(e) => openMenu(e, m)}
-                      onImageClick={() => openImage(m)}
-                      onMergedClick={() => openMerged(m)}
-                      selectMode={selectMode}
-                      selected={selectedMids.has(m.mid)}
-                      onToggleSelect={() => toggleSelect(m.mid)}
-                      showSender={isGroup}
-                      mentionNames={highlightNames}
-                      selfMentionNames={[selfName, everyone].filter(Boolean)}
-                      readReceipt={isOwnMsg ? receiptFor(m) : undefined}
-                      onAvatarClick={
-                        !selectMode && names[m.sender_uid]?.id
-                          ? () => onMemberClick?.(names[m.sender_uid]!.id!)
-                          : undefined
-                      }
-                      onOpenEvent={selectMode ? undefined : setViewEventId}
-                      onJoinGroupCall={
-                        m.content_type === 'group-call' && groupCallSlugOf(m)
-                          ? () => void joinGroupCall(groupCallSlugOf(m)!)
-                          : undefined
-                      }
-                      groupCallEnded={
-                        m.content_type === 'group-call'
-                          ? (() => {
-                              const s = groupCallSlugOf(m)
-                              return !s || endedGroupCallSlugs.has(s)
-                            })()
-                          : undefined
-                      }
-                    />
+                      <MessageItem
+                        message={m}
+                        isOwn={isOwnMsg}
+                        senderName={
+                          isOwnMsg
+                            ? user?.full_name || selfName || currentUserUID
+                            : nameOf(m.sender_uid)
+                        }
+                        senderAvatarUrl={
+                          isOwnMsg
+                            ? user?.avatar_url || undefined
+                            : names[m.sender_uid]?.avatar_url
+                        }
+                        imageUrl={imageUrlOf(m)}
+                        fileUrl={fileUrlOf(m)}
+                        voiceUrl={voiceUrlOf(m)}
+                        voiceDurationMs={voiceDurationOf(m)}
+                        reactions={reactionsFor(m.mid)}
+                        onReact={(emoji) => void onReact(m, emoji)}
+                        recalled={recalledMids.has(m.mid)}
+                        onContextMenu={(e) => openMenu(e, m)}
+                        onImageClick={() => openImage(m)}
+                        onMergedClick={() => openMerged(m)}
+                        selectMode={selectMode}
+                        selected={selectedMids.has(m.mid)}
+                        onToggleSelect={() => toggleSelect(m.mid)}
+                        showSender={isGroup}
+                        mentionNames={highlightNames}
+                        selfMentionNames={[selfName, everyone].filter(Boolean)}
+                        readReceipt={isOwnMsg ? receiptFor(m) : undefined}
+                        onAvatarClick={
+                          !selectMode && names[m.sender_uid]?.id
+                            ? () => onMemberClick?.(names[m.sender_uid]!.id!)
+                            : undefined
+                        }
+                        onOpenEvent={selectMode ? undefined : setViewEventId}
+                        onJoinGroupCall={
+                          m.content_type === 'group-call' && groupCallSlugOf(m)
+                            ? () => void joinGroupCall(groupCallSlugOf(m)!)
+                            : undefined
+                        }
+                        groupCallEnded={
+                          m.content_type === 'group-call'
+                            ? (() => {
+                                const s = groupCallSlugOf(m)
+                                return !s || endedGroupCallSlugs.has(s)
+                              })()
+                            : undefined
+                        }
+                      />
                     </div>
                   </Fragment>
                 )
