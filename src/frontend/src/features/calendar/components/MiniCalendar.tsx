@@ -17,6 +17,7 @@ import type { Locale } from 'date-fns'
 
 import { css, cx } from '@/styled-system/css'
 import type { CalendarEvent } from '../api/ApiCalendar'
+import { useCalendarSettings } from '../hooks/useCalendarSettings'
 
 /**
  * Feishu-style mini month picker for the calendar secondary panel (二级导航栏).
@@ -40,6 +41,8 @@ interface Props {
 export const MiniCalendar = ({ value, onChange, events }: Props) => {
   const { i18n } = useTranslation('calendar')
   const locale = localeFor(i18n.language)
+  // 周起始日跟「日历设置」(P8),覆盖 locale 缺省。
+  const { weekStartsOn } = useCalendarSettings()
   const [viewMonth, setViewMonth] = useState<Date>(() => startOfMonth(value))
 
   // Days that have at least one event — keyed by yyyy-MM-dd for O(1) lookup.
@@ -50,15 +53,16 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
   }, [events])
 
   const weeks = useMemo(() => {
-    const start = startOfWeek(startOfMonth(viewMonth), { locale })
-    const end = endOfWeek(endOfMonth(viewMonth), { locale })
+    const start = startOfWeek(startOfMonth(viewMonth), { locale, weekStartsOn })
+    const end = endOfWeek(endOfMonth(viewMonth), { locale, weekStartsOn })
     const days = eachDayOfInterval({ start, end })
     const grid: Date[][] = []
     for (let i = 0; i < days.length; i += 7) grid.push(days.slice(i, i + 7))
     return grid
-  }, [viewMonth, locale])
+  }, [viewMonth, locale, weekStartsOn])
 
-  const weekdayLabels = weeks[0]?.map((d) => format(d, 'EEEEEE', { locale })) ?? []
+  const weekdayLabels =
+    weeks[0]?.map((d) => format(d, 'EEEEEE', { locale })) ?? []
 
   return (
     <div className={css({ userSelect: 'none' })}>
@@ -70,7 +74,13 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
           marginBottom: '0.5rem',
         })}
       >
-        <span className={css({ fontSize: '0.9rem', fontWeight: 600, color: 'greyscale.900' })}>
+        <span
+          className={css({
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            color: 'greyscale.900',
+          })}
+        >
           {format(viewMonth, 'yyyy.MM', { locale })}
         </span>
         <span className={css({ display: 'flex', gap: '0.25rem' })}>

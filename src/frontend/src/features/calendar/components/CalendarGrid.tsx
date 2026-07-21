@@ -8,21 +8,24 @@ import 'react-big-calendar/lib/css/react-big-calendar.css'
 import './calendarGridOverrides.css'
 
 import type { CalendarEvent } from '../api/ApiCalendar'
+import { useCalendarSettings } from '../hooks/useCalendarSettings'
 
 /**
  * Feishu-style 月/周/日 calendar grid (P6-e #3), backed by react-big-calendar.
  * Events come from the same fetch the agenda used; clicking one bubbles the
  * underlying CalendarEvent up so the route can open its detail dialog (RSVP /
  * 进入会议). Toolbar labels are localized off the `calendar` namespace.
+ * 周起始日跟「日历设置」(P8),localizer 随之重建。
  */
 
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales: { 'zh-CN': zhCN, en: enUS, fr, de, nl },
-})
+const localizerFor = (weekStartsOn: 0 | 1) =>
+  dateFnsLocalizer({
+    format,
+    parse,
+    startOfWeek: (date: Date | number) => startOfWeek(date, { weekStartsOn }),
+    getDay,
+    locales: { 'zh-CN': zhCN, en: enUS, fr, de, nl },
+  })
 
 const cultureFor = (lng: string): string => {
   if (lng.startsWith('zh')) return 'zh-CN'
@@ -64,6 +67,8 @@ export const CalendarGrid = ({
   onSelectSlot,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
+  const { weekStartsOn } = useCalendarSettings()
+  const localizer = useMemo(() => localizerFor(weekStartsOn), [weekStartsOn])
   const [view, setView] = useState<View>('week')
   const [dateState, setDateState] = useState<Date>(() => new Date())
   const date = dateProp ?? dateState

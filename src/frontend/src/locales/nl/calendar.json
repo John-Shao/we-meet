@@ -90,5 +90,16 @@
     "title": "Beschikbaarheid op de gekozen dag",
     "me": "Ik",
     "conflict": "{{count}} deelnemer(s) bezet in het gekozen tijdvak"
+  },
+  "settings": {
+    "title": "Agenda-instellingen",
+    "reminderEntry": "Agendaherinnering in berichtenlijst",
+    "weekStart": "Eerste dag van de week",
+    "weekStartMon": "Maandag",
+    "weekStartSun": "Zondag",
+    "defaultDuration": "Standaardduur",
+    "minutes": "{{count}} min",
+    "defaultReminder": "Standaardherinnering",
+    "close": "Klaar"
   }
 }

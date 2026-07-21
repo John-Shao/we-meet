@@ -90,5 +90,16 @@
     "title": "Verfügbarkeit am gewählten Tag",
     "me": "Ich",
     "conflict": "{{count}} Teilnehmer im gewählten Zeitraum beschäftigt"
+  },
+  "settings": {
+    "title": "Kalendereinstellungen",
+    "reminderEntry": "Terminerinnerung in der Nachrichtenliste",
+    "weekStart": "Erster Tag der Woche",
+    "weekStartMon": "Montag",
+    "weekStartSun": "Sonntag",
+    "defaultDuration": "Standarddauer",
+    "minutes": "{{count}} Min.",
+    "defaultReminder": "Standarderinnerung",
+    "close": "Fertig"
   }
 }

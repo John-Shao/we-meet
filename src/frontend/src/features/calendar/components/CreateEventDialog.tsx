@@ -10,6 +10,7 @@ import { useDirectoryMemberSearch, MemberAvatar } from '@/features/contacts'
 
 import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent, EditScope } from '../api/ApiCalendar'
+import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import { FreeBusyBar } from './FreeBusyBar'
 
 interface Props {
@@ -56,13 +57,15 @@ export const CreateEventDialog = ({
   editScope,
 }: Props) => {
   const { t } = useTranslation('calendar')
+  // P8 日历设置:新建态的默认时长/默认提醒从本地设置读(编辑态用事件自身值)。
+  const { defaultDurationMin, defaultReminderMin } = useCalendarSettings()
   const isEdit = !!editEvent
   const start0 = editEvent
     ? new Date(editEvent.start_at)
     : (initialStart ?? defaultStart())
   const end0 = editEvent
     ? new Date(editEvent.end_at)
-    : (initialEnd ?? new Date(start0.getTime() + 60 * 60 * 1000))
+    : (initialEnd ?? new Date(start0.getTime() + defaultDurationMin * 60_000))
 
   const [title, setTitle] = useState(editEvent?.title ?? '')
   const [description, setDescription] = useState(editEvent?.description ?? '')
@@ -72,18 +75,27 @@ export const CreateEventDialog = ({
     editEvent?.all_day ?? initialAllDay ?? false
   )
   // Reminders are a set of minutes-before (multi). Editing preserves ALL of the
-  // event's existing reminders instead of collapsing to the first one.
+  // event's existing reminders instead of collapsing to the first one; creating
+  // seeds from the 日历设置 default (null = 不提醒 → empty set).
   const [reminders, setReminders] = useState<Set<number>>(() =>
-    editEvent ? new Set(editEvent.reminders ?? []) : new Set([10])
+    editEvent
+      ? new Set(editEvent.reminders ?? [])
+      : new Set(defaultReminderMin == null ? [] : [defaultReminderMin])
   )
-  // Preset choices + any non-preset value the event already carries (so an
-  // externally-set reminder stays visible + toggleable, never silently dropped).
+  // Preset choices + any non-preset value the event already carries or the
+  // settings default seeded (so a seeded 5/15min stays visible + toggleable,
+  // never silently dropped).
   const reminderOptions = useMemo(() => {
     const presets = [10, 30, 60]
-    const extra = (editEvent?.reminders ?? []).filter(
-      (r) => !presets.includes(r)
-    )
+    const seed = editEvent
+      ? (editEvent.reminders ?? [])
+      : defaultReminderMin == null
+        ? []
+        : [defaultReminderMin]
+    const extra = seed.filter((r) => !presets.includes(r))
     return [...new Set([...presets, ...extra])].sort((a, b) => a - b)
+    // defaultReminderMin 只作为初值种子,设置页改动不重排已打开的表单。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editEvent])
   const toggleReminder = (minutes: number) =>
     setReminders((prev) => {

@@ -90,5 +90,16 @@
     "title": "Disponibilités du jour choisi",
     "me": "Moi",
     "conflict": "{{count}} participant(s) occupé(s) sur le créneau choisi"
+  },
+  "settings": {
+    "title": "Paramètres du calendrier",
+    "reminderEntry": "Rappel d'agenda dans la liste de messages",
+    "weekStart": "Premier jour de la semaine",
+    "weekStartMon": "Lundi",
+    "weekStartSun": "Dimanche",
+    "defaultDuration": "Durée par défaut",
+    "minutes": "{{count}} min",
+    "defaultReminder": "Rappel par défaut",
+    "close": "Terminé"
   }
 }

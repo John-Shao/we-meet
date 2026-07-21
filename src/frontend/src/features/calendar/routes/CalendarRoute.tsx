@@ -20,6 +20,7 @@ import type { CalendarEvent, EditScope, RSVPStatus } from '../api/ApiCalendar'
 import { CreateEventDialog } from '../components/CreateEventDialog'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
+import { CalendarSettingsDialog } from '../components/CalendarSettingsDialog'
 import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EditScopeDialog } from '../components/EditScopeDialog'
 import { EventDetailDialog } from '../components/EventDetailDialog'
@@ -41,6 +42,8 @@ const CalendarAuthenticated = () => {
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const { user } = useUser()
   const [creating, setCreating] = useState(false)
+  // P8 日历设置(周起始/默认时长/默认提醒/列表提醒入口开关)。
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [draft, setDraft] = useState<SlotDraft | null>(null)
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null)
@@ -117,7 +120,9 @@ const CalendarAuthenticated = () => {
       await rsvpCalendarEvent(event.id, status)
       await qc.invalidateQueries({ queryKey: EVENTS_KEY })
     } catch (e) {
-      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
+      void showAlert({
+        message: t('form.error', { message: apiErrorMessage(e) }),
+      })
     }
   }
 
@@ -133,7 +138,9 @@ const CalendarAuthenticated = () => {
       setDetailEvent(null)
       await qc.invalidateQueries({ queryKey: EVENTS_KEY })
     } catch (e) {
-      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
+      void showAlert({
+        message: t('form.error', { message: apiErrorMessage(e) }),
+      })
     }
   }
 
@@ -147,7 +154,9 @@ const CalendarAuthenticated = () => {
       )
       await qc.invalidateQueries({ queryKey: EVENTS_KEY })
     } catch (e) {
-      void showAlert({ message: t('form.error', { message: apiErrorMessage(e) }) })
+      void showAlert({
+        message: t('form.error', { message: apiErrorMessage(e) }),
+      })
     }
   }
 
@@ -197,24 +206,55 @@ const CalendarAuthenticated = () => {
           >
             {t('page.title')}
           </h1>
-          <button
-            type="button"
-            onClick={() => openCreate(null)}
-            data-testid="calendar-create"
+          <div
             className={css({
-              paddingX: '1rem',
-              paddingY: '0.5rem',
-              border: 'none',
-              borderRadius: '0.5rem',
-              backgroundColor: 'primary.500',
-              color: 'white',
-              fontSize: '0.875rem',
-              fontWeight: 'medium',
-              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
             })}
           >
-            ＋ {t('page.create')}
-          </button>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              title={t('settings.title')}
+              aria-label={t('settings.title')}
+              data-testid="calendar-settings"
+              className={css({
+                width: '2rem',
+                height: '2rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '1px solid token(colors.greyscale.300)',
+                borderRadius: '0.5rem',
+                backgroundColor: 'greyscale.000',
+                color: 'greyscale.700',
+                fontSize: '0.9375rem',
+                cursor: 'pointer',
+                _hover: { backgroundColor: 'greyscale.100' },
+              })}
+            >
+              ⚙
+            </button>
+            <button
+              type="button"
+              onClick={() => openCreate(null)}
+              data-testid="calendar-create"
+              className={css({
+                paddingX: '1rem',
+                paddingY: '0.5rem',
+                border: 'none',
+                borderRadius: '0.5rem',
+                backgroundColor: 'primary.500',
+                color: 'white',
+                fontSize: '0.875rem',
+                fontWeight: 'medium',
+                cursor: 'pointer',
+              })}
+            >
+              ＋ {t('page.create')}
+            </button>
+          </div>
         </div>
 
         {/* 月/周/日 网格(react-big-calendar);点事件开详情弹窗(RSVP/进会)。 */}
@@ -234,6 +274,10 @@ const CalendarAuthenticated = () => {
           )}
         </div>
       </div>
+
+      {settingsOpen && (
+        <CalendarSettingsDialog onClose={() => setSettingsOpen(false)} />
+      )}
 
       {detailEvent && (
         <EventDetailDialog

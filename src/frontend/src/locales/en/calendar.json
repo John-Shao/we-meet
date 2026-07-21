@@ -90,5 +90,16 @@
     "title": "Availability on the selected day",
     "me": "Me",
     "conflict": "{{count}} attendee(s) busy during the selected time"
+  },
+  "settings": {
+    "title": "Calendar settings",
+    "reminderEntry": "Show event reminder in message list",
+    "weekStart": "First day of week",
+    "weekStartMon": "Monday",
+    "weekStartSun": "Sunday",
+    "defaultDuration": "Default event duration",
+    "minutes": "{{count}} min",
+    "defaultReminder": "Default reminder",
+    "close": "Done"
   }
 }

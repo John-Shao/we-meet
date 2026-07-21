@@ -90,5 +90,16 @@
     "title": "所选日期的忙闲",
     "me": "我",
     "conflict": "{{count}} 人在所选时段忙碌"
+  },
+  "settings": {
+    "title": "日历设置",
+    "reminderEntry": "在消息列表提醒日程",
+    "weekStart": "每周的第一天",
+    "weekStartMon": "周一",
+    "weekStartSun": "周日",
+    "defaultDuration": "日程默认时长",
+    "minutes": "{{count}} 分钟",
+    "defaultReminder": "默认提醒时间",
+    "close": "完成"
   }
 }
