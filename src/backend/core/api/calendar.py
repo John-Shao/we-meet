@@ -323,13 +323,17 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         """Organizer-only edit. Syncs the linked Room's name / scheduled_at so a
-        reschedule (or rename) stays consistent; adds any newly-listed invitees
-        (never removes — removal stays an explicit later action).
+        reschedule (or rename) stays consistent.
+
+        参与者(P8 编辑增删):``attendee_ids`` 缺省(None)= 不动;传列表 =
+        **全量同步** —— 列表内新面孔补建 attendee + room member,不在列表的
+        既有参与者删行并移出 room(组织者恒保留,不受列表影响)。重复日程的
+        三选路径在 update() 里已剔除 attendee_ids,不经此逻辑。
 
         P8 变更推送(仅非重复日程走此路径):save 前快照 start/end + attendee
         集合 → 值差分 → ``transaction.on_commit`` 推 event-card。防噪规则:
         改标题/描述/提醒不推;幂等 PATCH 不推;时间+人同变只发一张
-        time_changed(携 added_count);RSVP 不经此路径天然不推。
+        time_changed(携增删计数);RSVP 不经此路径天然不推。
         """
         self._require_organizer(serializer.instance)
         instance = serializer.instance
@@ -340,7 +344,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             event = serializer.save()
             self._sync_room(event)
-            if attendee_ids:
+            if attendee_ids is not None:
                 room = event.room
                 # Org-scoped like perform_create: only active members of the
                 # event's organization can be added (no cross-org invite).
@@ -353,7 +357,9 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     .exclude(id=event.organizer_id)
                     .distinct()
                 )
+                target_ids = set()
                 for attendee in invited:
+                    target_ids.add(attendee.id)
                     models.EventAttendee.objects.get_or_create(
                         event=event,
                         user=attendee,
@@ -365,6 +371,17 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                             user=attendee,
                             defaults={"role": models.RoleChoices.MEMBER},
                         )
+                # 全量同步的删除侧:不在目标列表的非组织者参与者移除,并同步
+                # 移出 room 成员(OWNER=组织者,保险起见永不删)。
+                removed_ids = (
+                    old_attendees - target_ids - {event.organizer_id}
+                )
+                if removed_ids:
+                    event.attendees.filter(user_id__in=removed_ids).delete()
+                    if room is not None:
+                        models.ResourceAccess.objects.filter(
+                            resource=room, user_id__in=removed_ids
+                        ).exclude(role=models.RoleChoices.OWNER).delete()
 
             if event.source_conversation_id:
                 new_attendees = set(
@@ -377,6 +394,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     kind = "attendees_changed"
                 if kind:
                     added = len(new_attendees - old_attendees)
+                    removed = len(old_attendees - new_attendees)
                     transaction.on_commit(
                         lambda: calendar_im_notify.notify_event_change(
                             event.id,
@@ -384,6 +402,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                             old_start=old_start,
                             old_end=old_end,
                             added_count=added,
+                            removed_count=removed,
                         )
                     )
 

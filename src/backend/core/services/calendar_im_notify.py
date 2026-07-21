@@ -2,8 +2,8 @@
 
 协议 v1(与 Web `eventCard.ts` / Android `MessageContent.EventCard` 一致):
 ``{v, kind, event_id, title, start, end, all_day, attendee_count,
-organizer_name, old_start?, old_end?, added_count?}``,content_type
-固定 ``event-card``。
+organizer_name, old_start?, old_end?, added_count?, removed_count?}``,
+content_type 固定 ``event-card``。
 
 P8-UX:卡片以**组织者身份**注入(sender_uid = 组织者 IM uid,优先
 ``User.im_uid`` 缓存,缺则 issue_token 惰性注册并回填)——双端据 sender
@@ -60,6 +60,7 @@ def build_event_card(
     old_start=None,
     old_end=None,
     added_count: int = 0,
+    removed_count: int = 0,
 ) -> dict:
     """组协议 v1 卡片 dict。perform_destroy 在删除前调用留快照。"""
     card = {
@@ -78,6 +79,8 @@ def build_event_card(
         card["old_end"] = old_end.isoformat()
     if kind == "attendees_changed" and added_count:
         card["added_count"] = added_count
+    if kind == "attendees_changed" and removed_count:
+        card["removed_count"] = removed_count
     return card
 
 
@@ -140,6 +143,7 @@ def notify_event_change(
     old_start=None,
     old_end=None,
     added_count: int = 0,
+    removed_count: int = 0,
 ) -> None:
     """on_commit 后重取 event(闭包持旧对象会读到过期值)并推送。
 
@@ -158,7 +162,8 @@ def notify_event_change(
         event.source_conversation_id,
         build_event_card(
             event, kind,
-            old_start=old_start, old_end=old_end, added_count=added_count,
+            old_start=old_start, old_end=old_end,
+            added_count=added_count, removed_count=removed_count,
         ),
         organizer=event.organizer,
     )

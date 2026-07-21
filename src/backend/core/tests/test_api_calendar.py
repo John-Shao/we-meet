@@ -314,3 +314,112 @@ def test_update_adds_attendees_and_room_access():
     assert event.room.accesses.filter(
         user=late_invitee, role=models.RoleChoices.MEMBER
     ).exists()
+
+
+def test_update_attendee_ids_full_sync_adds_and_removes():
+    """P8 编辑增删参与者:attendee_ids 传列表 = 全量同步 —— 新面孔补进,
+    不在列表的既有参与者删行并移出 Room;组织者恒保留。"""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="o@acme.com")
+    keep = factories.UserFactory(email="keep@acme.com")
+    drop = factories.UserFactory(email="drop@acme.com")
+    added = factories.UserFactory(email="added@acme.com")
+    for u in (me, keep, drop, added):
+        _membership(org, u)
+    start, end = _times()
+    client = APIClient()
+    client.force_login(me)
+    created = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Sync",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "attendee_ids": [str(keep.id), str(drop.id)],
+        },
+        format="json",
+    )
+    assert created.status_code == 201, created.content
+    event = models.CalendarEvent.objects.get(id=created.json()["id"])
+
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event.id}/",
+        {"attendee_ids": [str(keep.id), str(added.id)]},
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+    attendee_users = set(event.attendees.values_list("user_id", flat=True))
+    assert attendee_users == {me.id, keep.id, added.id}
+    room_users = set(event.room.accesses.values_list("user_id", flat=True))
+    assert drop.id not in room_users
+    assert added.id in room_users
+    # 组织者的 OWNER 访问不受同步影响。
+    assert event.room.accesses.filter(
+        user=me, role=models.RoleChoices.OWNER
+    ).exists()
+
+
+def test_update_attendee_ids_absent_keeps_attendees():
+    """PATCH 不带 attendee_ids(标量编辑)→ 参与者原样保留(兼容既有客户端)。"""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="o@acme.com")
+    peer = factories.UserFactory(email="p@acme.com")
+    _membership(org, me)
+    _membership(org, peer)
+    start, end = _times()
+    client = APIClient()
+    client.force_login(me)
+    created = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Keep",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "attendee_ids": [str(peer.id)],
+        },
+        format="json",
+    )
+    assert created.status_code == 201, created.content
+    event = models.CalendarEvent.objects.get(id=created.json()["id"])
+
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event.id}/",
+        {"title": "Keep v2"},
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+    assert event.attendees.filter(user=peer).exists()
+
+
+def test_update_attendee_ids_empty_list_removes_all_but_organizer():
+    """attendee_ids=[] = 清空受邀者,只剩组织者(组织者永不可被同步删除)。"""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(email="o@acme.com")
+    peer = factories.UserFactory(email="p@acme.com")
+    _membership(org, me)
+    _membership(org, peer)
+    start, end = _times()
+    client = APIClient()
+    client.force_login(me)
+    created = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Solo",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "attendee_ids": [str(peer.id)],
+        },
+        format="json",
+    )
+    assert created.status_code == 201, created.content
+    event = models.CalendarEvent.objects.get(id=created.json()["id"])
+
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event.id}/",
+        {"attendee_ids": []},
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+    attendee_users = set(event.attendees.values_list("user_id", flat=True))
+    assert attendee_users == {me.id}
+    assert not event.room.accesses.filter(user=peer).exists()
