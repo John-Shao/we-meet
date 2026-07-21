@@ -4,96 +4,55 @@ import {
 } from 'react-aria-components'
 import { styled } from '@/styled-system/jsx'
 import { StyledVariantProps } from '@/styled-system/types'
-import { RiCheckLine, RiCloseFill } from '@remixicon/react'
 
+/**
+ * 简洁版 iOS 风格开关:关=灰色实心轨道、开=蓝色实心轨道,白色圆点滑块带轻微
+ * 阴影,轨道内不放勾/叉图标。灰/蓝实心轨道深浅色都成立(灰用会翻转的
+ * greyscale.300,蓝用品牌 primary.500),白滑块两态皆清晰,无需额外深色处理。
+ */
 export const StyledSwitch = styled(RACSwitch, {
   base: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.571rem',
     color: 'greyscale.1000',
+    cursor: 'pointer',
     forcedColorAdjust: 'none',
     '& .indicator': {
       position: 'relative',
+      flexShrink: 0,
       width: '2.6rem',
-      height: '1.563rem',
-      border: '0.125rem solid',
-      borderColor: 'primary.800',
-      // 深色:primary.800 固定深蓝压近黑底几乎不可见 → 翻到 primaryDark 亮蓝。
-      _dark: { borderColor: 'primaryDark.500' },
-      borderRadius: '1.143rem',
-      transition: 'all 200ms, outline 200ms',
+      height: '1.5rem',
+      borderRadius: 'full',
+      // 关态:灰色实心轨道。
+      background: 'greyscale.300',
+      transition: 'background-color 200ms',
       _before: {
-        willChange: 'transform',
         content: '""',
         display: 'block',
-        margin: '0.125rem',
-        width: '1.063rem',
-        height: '1.063rem',
-        borderRadius: '1.063rem',
-        background: 'primary.800',
-        _dark: { background: 'primaryDark.500' },
-        transition: 'transform 200ms, background-color 200ms',
-        transitionDelay: '0ms',
-      },
-    },
-    '& .checkmark': {
-      position: 'absolute',
-      display: 'block',
-      top: '50%',
-      right: '0.1rem',
-      transform: 'translateY(-50%)',
-      color: 'primary.800',
-      fontSize: '0.75rem',
-      fontWeight: 'bold',
-      pointerEvents: 'none',
-      zIndex: 1,
-      opacity: 0,
-    },
-    '& .cross': {
-      position: 'absolute',
-      display: 'block',
-      top: '50%',
-      left: '0.13rem',
-      transform: 'translateY(-50%)',
-      color: 'white',
-      fontSize: '0.70rem',
-      fontWeight: 'bold',
-      pointerEvents: 'none',
-      zIndex: 1,
-      opacity: 1,
-      transition: 'opacity 200ms',
-      transitionDelay: '0ms',
-    },
-    '&[data-selected] .indicator': {
-      borderColor: 'primary.800',
-      background: 'primary.800',
-      // 深色:选中态轨道同样翻亮蓝;白色滑块 + 深色勾在其上,对比成立。
-      _dark: { borderColor: 'primaryDark.500', background: 'primaryDark.500' },
-      _before: {
+        position: 'absolute',
+        top: '50%',
+        left: '0.125rem',
+        width: '1.25rem',
+        height: '1.25rem',
+        borderRadius: 'full',
         background: 'white',
-        transform: 'translateX(100%)',
+        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.25)',
+        transform: 'translateY(-50%)',
+        transition: 'transform 200ms',
+        willChange: 'transform',
       },
     },
-    '&[data-selected] .checkmark': {
-      opacity: 1,
-      transition: 'opacity 30ms',
-      transitionDelay: '150ms',
-    },
-    '&[data-selected] .cross': {
-      opacity: 0,
-      transition: 'opacity 10ms',
-      transitionDelay: '0ms',
-    },
-    '&[data-disabled] .indicator': {
-      borderColor: 'primary.200',
-      background: 'transparent',
+    // 开态:蓝色实心轨道 + 滑块右移(2.6 - 1.25 - 0.125*2 = 1.1rem)。
+    '&[data-selected] .indicator': {
+      background: 'primary.500',
       _before: {
-        background: 'primary.200',
+        transform: 'translateY(-50%) translateX(1.1rem)',
       },
     },
-    '&[data-disabled] .cross': {
-      color: 'primary.500',
+    '&[data-disabled]': {
+      cursor: 'default',
+      opacity: 0.5,
     },
     '&[data-focus-visible] .indicator': {
       outline: '2px solid!',
@@ -114,14 +73,7 @@ export const Switch = ({ children, ...props }: SwitchProps) => (
   <StyledSwitch {...props}>
     {(renderProps) => (
       <>
-        <div className="indicator">
-          <span className="checkmark" aria-hidden="true">
-            <RiCheckLine size={16} />
-          </span>
-          <span className="cross" aria-hidden="true">
-            <RiCloseFill size={16} />
-          </span>
-        </div>
+        <div className="indicator" />
         {typeof children === 'function' ? children(renderProps) : children}
       </>
     )}
