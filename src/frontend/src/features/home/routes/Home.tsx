@@ -267,7 +267,7 @@ export const Home = () => {
                       _hover: { backgroundColor: 'greyscale.100' },
                     })}
                   >
-                    <RiSettings3Line size={17} />
+                    <RiSettings3Line size={16} />
                   </button>
                 </div>
                 <div

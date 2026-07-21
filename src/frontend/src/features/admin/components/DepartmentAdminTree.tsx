@@ -142,7 +142,7 @@ export const DepartmentAdminTree = ({
                 title={t('org.newSubDepartment')}
                 className={iconBtn}
               >
-                <RiAddLine size={15} />
+                <RiAddLine size={16} />
               </button>
               <button
                 type="button"
@@ -151,7 +151,7 @@ export const DepartmentAdminTree = ({
                 title={t('org.rename')}
                 className={iconBtn}
               >
-                <RiEditLine size={15} />
+                <RiEditLine size={16} />
               </button>
               <button
                 type="button"
@@ -160,7 +160,7 @@ export const DepartmentAdminTree = ({
                 title={t('org.move')}
                 className={iconBtn}
               >
-                <RiFolderTransferLine size={15} />
+                <RiFolderTransferLine size={16} />
               </button>
               <button
                 type="button"
@@ -169,7 +169,7 @@ export const DepartmentAdminTree = ({
                 title={t('actions.delete')}
                 className={iconBtn}
               >
-                <RiDeleteBinLine size={15} />
+                <RiDeleteBinLine size={16} />
               </button>
             </span>
           </div>

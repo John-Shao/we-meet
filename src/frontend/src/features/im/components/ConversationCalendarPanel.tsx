@@ -282,7 +282,7 @@ export const ConversationCalendarPanel = ({
               _hover: { color: 'primary.600' },
             })}
           >
-            <RiUserFollowLine size={17} />
+            <RiUserFollowLine size={16} />
           </button>
           <button
             type="button"

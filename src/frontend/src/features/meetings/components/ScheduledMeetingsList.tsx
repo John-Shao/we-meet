@@ -239,7 +239,7 @@ export const ScheduledMeetingsList = ({
                       _hover: { backgroundColor: 'scheduledCard.hover' },
                     })}
                   >
-                    <RiVidiconLine size={15} />
+                    <RiVidiconLine size={16} />
                     {t('home.enterMeeting')}
                   </button>
                   <Menu>

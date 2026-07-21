@@ -206,7 +206,7 @@ export const ParticipantsList = () => {
               _hover: { backgroundColor: 'primary.600' },
             })}
           >
-            <RiUserAddLine size={15} />
+            <RiUserAddLine size={16} />
             {t('inviteAction')}
           </button>
         )}

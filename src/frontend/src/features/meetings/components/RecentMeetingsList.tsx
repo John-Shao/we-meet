@@ -235,7 +235,7 @@ export const RecentMeetingsList = ({
                         _hover: { backgroundColor: 'greyscale.100' },
                       })}
                     >
-                      <RiVidiconLine size={15} />
+                      <RiVidiconLine size={16} />
                       {t('home.enterMeeting')}
                     </button>
                   )}

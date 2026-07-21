@@ -208,7 +208,7 @@ export const SuggestedParticipantsList = ({
                     color: 'primary.600',
                     backgroundColor: 'transparent',
                     cursor: 'pointer',
-                    _hover: { backgroundColor: 'primary.050' },
+                    _hover: { backgroundColor: 'primary.50' },
                   })}
                 >
                   <RiPhoneLine size={14} />
