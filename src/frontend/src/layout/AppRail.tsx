@@ -222,6 +222,9 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
               maxWidth: '100%',
               objectFit: 'contain',
               objectPosition: 'left',
+              // logo.svg 字形近黑固定色,深色底上不可见;反相翻亮度 + hue-rotate
+              // 补偿保留淡红(与 Header 一致)。
+              _dark: { filter: 'invert(1) hue-rotate(180deg)' },
             })}
           />
         )}

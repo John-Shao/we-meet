@@ -23,6 +23,9 @@ const Logo = () => (
     className={`Header-logo ${css({
       maxHeight: { base: '30px', sm: '40px' },
       marginTop: { base: '10px', sm: '5px' },
+      // logo.svg 字形是近黑固定色(非 currentColor),深色底上几乎不可见。
+      // 反相翻亮度、再 hue-rotate 补偿使那抹淡红仍偏红(不变成青)。
+      _dark: { filter: 'invert(1) hue-rotate(180deg)' },
     })}`}
   />
 )
