@@ -198,6 +198,16 @@
       "confirm": "OK"
     }
   },
+  "reminder": {
+    "title": "Event reminders",
+    "today": "Today's schedule",
+    "tomorrow": "Tomorrow's schedule",
+    "now": "Now",
+    "inMinutes": "in {{count}} min",
+    "join": "Join meeting",
+    "toggle": "Show reminders in message list",
+    "empty": "No events today or tomorrow"
+  },
   "voice": {
     "recording": "Recording…",
     "send": "Send",

@@ -198,6 +198,16 @@
       "confirm": "OK"
     }
   },
+  "reminder": {
+    "title": "Agendaherinneringen",
+    "today": "Vandaag",
+    "tomorrow": "Morgen",
+    "now": "Nu",
+    "inMinutes": "over {{count}} min",
+    "join": "Deelnemen aan vergadering",
+    "toggle": "Herinneringen in berichtenlijst",
+    "empty": "Geen afspraken vandaag of morgen"
+  },
   "voice": {
     "recording": "Opnemen…",
     "send": "Versturen",

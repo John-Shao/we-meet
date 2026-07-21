@@ -7,6 +7,7 @@ export { EventDetailHost } from './components/EventDetailHost'
 export {
   fetchFreeBusy,
   fetchCalendarEvent,
+  fetchCalendarEvents,
   type FreeBusyEntry,
   type BusyInterval,
 } from './api/fetchCalendar'
@@ -17,3 +18,10 @@ export {
   type PersonBusy,
   type SuggestedSlot,
 } from './utils/freeSlots'
+export {
+  bucketReminderWindow,
+  reminderCountdown,
+  reminderTimeRange,
+  type ReminderBuckets,
+  type ReminderCountdown,
+} from './utils/reminderWindow'

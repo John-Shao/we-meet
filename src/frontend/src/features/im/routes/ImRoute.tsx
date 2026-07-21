@@ -29,6 +29,8 @@ import { ConversationList } from '../components/ConversationList'
 import { GroupInfoPanel } from '../components/GroupInfoPanel'
 import { DirectSettingsPanel } from '../components/DirectSettingsPanel'
 import { ConversationCalendarPanel } from '../components/ConversationCalendarPanel'
+import { ReminderEntry } from '../components/ReminderEntry'
+import { ReminderPane } from '../components/ReminderPane'
 import { GroupPicker } from '../components/GroupPicker'
 import { ForwardDialog, type ForwardConv } from '../components/ForwardDialog'
 import { LaterDialog } from '../components/LaterDialog'
@@ -114,6 +116,8 @@ const ImAuthenticated = () => {
   // / 收起。A single toggle — 群成员与群属性已合并为一个 GroupInfoPanel(对齐 App)。
   // P8:'calendar' = 会话日历抽屉(私聊查看日历/群成员日历),与 info 互斥。
   const [rightPanel, setRightPanel] = useState<'info' | 'calendar' | null>(null)
+  // P8「在消息列表提醒日程」:置顶入口点开的日程提醒页(占中栏,与会话互斥)。
+  const [reminderOpen, setReminderOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   // 转发(P7-e):右键选中的待转发消息;非空时弹出目标会话选择器。
   const [forwarding, setForwarding] = useState<Message | null>(null)
@@ -699,10 +703,21 @@ const ImAuthenticated = () => {
                 </button>
               </div>
             </div>
+            {/* P8:当日有未结束日程时的置顶「日程提醒」入口(对标飞书)。 */}
+            <ReminderEntry
+              active={reminderOpen}
+              onOpen={() => {
+                setReminderOpen(true)
+                setSelectedCID(null)
+              }}
+            />
             <ConversationList
               conversations={conversations}
-              selectedCID={selectedCID}
-              onSelect={setSelectedCID}
+              selectedCID={reminderOpen ? null : selectedCID}
+              onSelect={(cid) => {
+                setReminderOpen(false)
+                setSelectedCID(cid)
+              }}
               loading={convLoading}
               nameOf={nameOf}
               avatarOf={avatarOf}
@@ -722,7 +737,9 @@ const ImAuthenticated = () => {
             overflow: 'hidden',
           })}
         >
-          {selectedConv ? (
+          {reminderOpen ? (
+            <ReminderPane />
+          ) : selectedConv ? (
             <ChatPane
               client={client}
               conversation={selectedConv}

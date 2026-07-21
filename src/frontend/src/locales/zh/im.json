@@ -198,6 +198,16 @@
       "confirm": "确定"
     }
   },
+  "reminder": {
+    "title": "日程提醒",
+    "today": "今日安排",
+    "tomorrow": "明日安排",
+    "now": "现在",
+    "inMinutes": "{{count}} 分钟后",
+    "join": "进入会议",
+    "toggle": "在消息列表提醒日程",
+    "empty": "今明两天暂无日程"
+  },
   "voice": {
     "recording": "正在录音…",
     "send": "发送",

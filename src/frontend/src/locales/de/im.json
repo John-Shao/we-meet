@@ -198,6 +198,16 @@
       "confirm": "OK"
     }
   },
+  "reminder": {
+    "title": "Terminerinnerungen",
+    "today": "Heute",
+    "tomorrow": "Morgen",
+    "now": "Jetzt",
+    "inMinutes": "in {{count}} Min.",
+    "join": "Meeting beitreten",
+    "toggle": "Erinnerungen in der Nachrichtenliste",
+    "empty": "Keine Termine heute oder morgen"
+  },
   "voice": {
     "recording": "Aufnahme…",
     "send": "Senden",

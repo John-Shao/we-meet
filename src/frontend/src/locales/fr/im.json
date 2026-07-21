@@ -198,6 +198,16 @@
       "confirm": "OK"
     }
   },
+  "reminder": {
+    "title": "Rappels d’agenda",
+    "today": "Aujourd'hui",
+    "tomorrow": "Demain",
+    "now": "Maintenant",
+    "inMinutes": "dans {{count}} min",
+    "join": "Rejoindre la réunion",
+    "toggle": "Afficher les rappels dans la liste",
+    "empty": "Aucun événement aujourd'hui ni demain"
+  },
   "voice": {
     "recording": "Enregistrement…",
     "send": "Envoyer",
