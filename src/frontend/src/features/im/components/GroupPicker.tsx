@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { css, cx } from '@/styled-system/css'
+import { Modal } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { useUser } from '@/features/auth'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
@@ -36,15 +37,6 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
 
   const selfLabel = user?.full_name || user?.email || t('group.you')
 
-  useEffect(() => {
-    searchRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   const { data: members = [], isFetching } = useQuery({
     queryKey: ['directory', 'members', query],
     queryFn: () => fetchDirectoryMembers(query),
@@ -65,38 +57,13 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
   const total = selected.size + 1
 
   return (
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-      className={css({
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        padding: '1rem',
-      })}
+    <Modal
+      onClose={onClose}
+      ariaLabel={t('group.title')}
+      maxWidth="640px"
+      maxHeight="72vh"
+      initialFocusRef={searchRef}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('group.title')}
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          width: '100%',
-          maxWidth: '640px',
-          maxHeight: '72vh',
-          backgroundColor: 'greyscale.000',
-          borderRadius: '0.75rem',
-          overflow: 'hidden',
-          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)',
-        })}
-      >
         <div
           className={css({
             display: 'flex',
@@ -223,8 +190,7 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
             {t('group.create')}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 

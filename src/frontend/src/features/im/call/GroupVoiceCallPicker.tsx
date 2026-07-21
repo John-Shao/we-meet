@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { Modal } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
@@ -74,14 +75,6 @@ export const GroupVoiceCallPicker = ({
       return next
     })
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   const picked = candidates.filter((c) => isChecked(c.userId))
   const confirm = () => {
     if (picked.length === 0) return
@@ -90,20 +83,13 @@ export const GroupVoiceCallPicker = ({
   }
 
   return (
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-      className={overlay}
+    <Modal
+      onClose={onClose}
+      ariaLabel={title ?? t('call.groupPicker.title')}
+      maxWidth="440px"
+      maxHeight="72vh"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title ?? t('call.groupPicker.title')}
-        className={modal}
-      >
-        <div className={modalHead}>
+      <div className={modalHead}>
           <h2
             className={css({
               margin: 0,
@@ -215,32 +201,10 @@ export const GroupVoiceCallPicker = ({
             {t('call.groupPicker.confirm')}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
-const overlay = css({
-  position: 'fixed',
-  inset: 0,
-  zIndex: 1000,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: 'rgba(0, 0, 0, 0.4)',
-  padding: '1rem',
-})
-const modal = css({
-  display: 'flex',
-  flexDirection: 'column',
-  width: '100%',
-  maxWidth: '440px',
-  maxHeight: '72vh',
-  backgroundColor: 'greyscale.000',
-  borderRadius: '0.75rem',
-  overflow: 'hidden',
-  boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)',
-})
 const modalHead = css({
   display: 'flex',
   alignItems: 'center',

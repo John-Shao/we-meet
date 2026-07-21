@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { Modal } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -29,15 +30,6 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
   const [busy, setBusy] = useState(false)
   const { alert: showAlert } = useConfirm()
   const searchRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    searchRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   // Current roster → resolve to we-meet ids so we can lock existing members.
   const { data: roster = [] } = useQuery({
@@ -84,15 +76,14 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
   }
 
   return (
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-      className={overlay}
+    <Modal
+      onClose={onClose}
+      ariaLabel={t('manage.addTitle')}
+      maxWidth="440px"
+      maxHeight="72vh"
+      initialFocusRef={searchRef}
     >
-      <div role="dialog" aria-modal="true" aria-label={t('manage.addTitle')} className={modal}>
-        <div className={modalHead}>
+      <div className={modalHead}>
           <h2 className={css({ margin: 0, fontSize: '1rem', fontWeight: 'bold', color: 'greyscale.900' })}>
             {t('manage.addTitle')}
           </h2>
@@ -206,32 +197,10 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
             {busy ? t('input.sending') : t('manage.addMembers')}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
-const overlay = css({
-  position: 'fixed',
-  inset: 0,
-  zIndex: 1000,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: 'rgba(0, 0, 0, 0.4)',
-  padding: '1rem',
-})
-const modal = css({
-  display: 'flex',
-  flexDirection: 'column',
-  width: '100%',
-  maxWidth: '440px',
-  maxHeight: '72vh',
-  backgroundColor: 'greyscale.000',
-  borderRadius: '0.75rem',
-  overflow: 'hidden',
-  boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)',
-})
 const modalHead = css({
   display: 'flex',
   alignItems: 'center',
