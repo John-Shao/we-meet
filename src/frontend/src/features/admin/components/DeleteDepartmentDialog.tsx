@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/primitives/Dialog'
 import { Button } from '@/primitives'
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+import { selectChrome } from '@/primitives/selectChrome'
 
 import type { AdminDepartment } from '../api/adminDepartments'
 
@@ -70,7 +71,9 @@ export const DeleteDepartmentDialog = ({
         <select
           value={reassignTo}
           onChange={(e) => setReassignTo(e.target.value)}
-          className={css({
+          className={cx(
+            selectChrome,
+            css({
             width: '100%',
             padding: '0.375rem 0.5rem',
             border: '1px solid token(colors.control.border)',
@@ -78,7 +81,8 @@ export const DeleteDepartmentDialog = ({
             backgroundColor: 'greyscale.000',
             color: 'default.text',
             fontSize: '0.875rem',
-          })}
+            })
+          )}
         >
           <option value="">{t('org.reassignToOrg')}</option>
           {candidates.map((d) => (

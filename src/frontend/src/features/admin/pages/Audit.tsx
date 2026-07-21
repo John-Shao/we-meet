@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+import { selectChrome } from '@/primitives/selectChrome'
 
 import {
   type AuditLogEntry,
@@ -71,7 +72,7 @@ export const AdminAudit = () => {
           <select
             value={action}
             onChange={(e) => resetPageThen(() => setAction(e.target.value))}
-            className={filterControl}
+            className={cx(filterControl, selectChrome)}
           >
             <option value="">{t('audit.filterAllActions')}</option>
             {AUDIT_ACTIONS.map((a) => (

@@ -20,6 +20,7 @@ import { css, cx } from '@/styled-system/css'
 import { useLanguageLabels } from '@/i18n/useLanguageLabels'
 import { type DialogProps } from '@/primitives'
 import { Switch } from '@/primitives/Switch'
+import { selectChrome } from '@/primitives/selectChrome'
 import { useUser } from '@/features/auth'
 import { updateEmail, updateNickname } from '@/features/auth/api/updateProfile'
 import { keys } from '@/api/queryKeys'
@@ -685,20 +686,23 @@ const rowCls = css({
   justifyContent: 'space-between',
   gap: '1rem',
 })
-const selectCls = css({
-  minWidth: '10rem',
-  paddingX: '0.875rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  // 标准:表单控件用 8px 圆角,不用胶囊(胶囊只留搜索框/chip/头像)。
-  borderRadius: '0.5rem',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.900',
-  fontSize: '0.875rem',
-  cursor: 'pointer',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
-})
+const selectCls = cx(
+  css({
+    minWidth: '10rem',
+    paddingX: '0.875rem',
+    paddingY: '0.5rem',
+    border: '1px solid token(colors.greyscale.300)',
+    // 标准:表单控件用 8px 圆角,不用胶囊(胶囊只留搜索框/chip/头像)。
+    borderRadius: '0.5rem',
+    backgroundColor: 'greyscale.000',
+    color: 'greyscale.900',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    outline: 'none',
+    _focus: { borderColor: 'primary.500' },
+  }),
+  selectChrome
+)
 const infoRowCls = css({
   display: 'flex',
   alignItems: 'center',

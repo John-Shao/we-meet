@@ -2,7 +2,8 @@ import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+import { selectChrome } from '@/primitives/selectChrome'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal } from '@/components/Modal'
 
@@ -102,7 +103,7 @@ export const SubmitApprovalDialog = ({
               setTemplateId(e.target.value)
               setFormData({})
             }}
-            className={fieldCss}
+            className={cx(fieldCss, selectChrome)}
           >
             <option value="">{t('form.templatePlaceholder')}</option>
             {templates.map((tpl) => (

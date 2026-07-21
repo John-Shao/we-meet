@@ -9,7 +9,8 @@ import {
 } from 'react-aria-components'
 import { RiMoreFill, RiSearchLine, RiUserAddLine } from '@remixicon/react'
 
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+import { selectChrome } from '@/primitives/selectChrome'
 import { Menu } from '@/primitives/Menu'
 import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -440,14 +441,17 @@ const thBase = {
 const th = css(thBase)
 const td = css({ paddingX: '1rem', paddingY: '0.5rem', color: 'greyscale.800', verticalAlign: 'middle' })
 const emptyText = css({ padding: '1.5rem', color: 'greyscale.500', fontSize: '0.9375rem' })
-const filterSelect = css({
-  padding: '0.375rem 0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '4px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.875rem',
-})
+const filterSelect = cx(
+  css({
+    padding: '0.375rem 0.5rem',
+    border: '1px solid token(colors.control.border)',
+    borderRadius: '4px',
+    backgroundColor: 'greyscale.000',
+    color: 'default.text',
+    fontSize: '0.875rem',
+  }),
+  selectChrome
+)
 const tab = (active: boolean) =>
   css({
     display: 'inline-flex',

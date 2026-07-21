@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/primitives/Dialog'
 import { Button, Input } from '@/primitives'
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+import { selectChrome } from '@/primitives/selectChrome'
 
 import { ORG_ROLES } from '../api/adminMembers'
 import type { CreateInvitationInput } from '../api/adminInvitations'
@@ -133,12 +134,15 @@ const fieldLabel = css({
   fontSize: '0.875rem',
   color: 'greyscale.700',
 })
-const selectCss = css({
-  width: '100%',
-  padding: '0.375rem 0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '4px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.875rem',
-})
+const selectCss = cx(
+  css({
+    width: '100%',
+    padding: '0.375rem 0.5rem',
+    border: '1px solid token(colors.control.border)',
+    borderRadius: '4px',
+    backgroundColor: 'greyscale.000',
+    color: 'default.text',
+    fontSize: '0.875rem',
+  }),
+  selectChrome
+)

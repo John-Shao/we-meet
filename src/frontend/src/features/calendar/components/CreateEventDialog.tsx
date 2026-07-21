@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+import { selectChrome } from '@/primitives/selectChrome'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -381,7 +382,7 @@ export const CreateEventDialog = ({
               value={repeat}
               onChange={(e) => setRepeat(e.target.value)}
               data-testid="event-repeat"
-              className={inputCls}
+              className={cx(inputCls, selectChrome)}
             >
               <option value="">{t('form.repeatNone')}</option>
               <option value="DAILY">{t('form.repeatDaily')}</option>
