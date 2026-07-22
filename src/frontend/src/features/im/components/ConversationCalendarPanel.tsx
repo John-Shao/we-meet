@@ -356,11 +356,16 @@ export const ConversationCalendarPanel = ({
             color: 'greyscale.900',
           })}
         >
-          {day.toLocaleDateString(i18n.language, {
-            month: 'long',
-            day: 'numeric',
-            weekday: 'short',
-          })}
+          {i18n.language.startsWith('zh')
+            ? `${day.toLocaleDateString(i18n.language, {
+                month: 'long',
+                day: 'numeric',
+              })} ${day.toLocaleDateString(i18n.language, { weekday: 'short' })}`
+            : day.toLocaleDateString(i18n.language, {
+                month: 'long',
+                day: 'numeric',
+                weekday: 'short',
+              })}
         </span>
       </div>
 
