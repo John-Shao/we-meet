@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Calendar, dateFnsLocalizer, type View } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
-import { zhCN, enUS, fr, de, nl } from 'date-fns/locale'
+import { zhCN, enUS, fr, de, nl, type Locale } from 'date-fns/locale'
 
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import './calendarGridOverrides.css'
@@ -34,6 +34,10 @@ const cultureFor = (lng: string): string => {
   return ['fr', 'de', 'nl'].includes(base) ? base : 'en'
 }
 
+const extraLocales: Record<string, Locale> = { fr, de, nl }
+const localeFor = (lng: string): Locale =>
+  lng.startsWith('zh') ? zhCN : (extraLocales[lng.slice(0, 2)] ?? enUS)
+
 interface RbcEvent {
   id: string
   title: string
@@ -43,8 +47,19 @@ interface RbcEvent {
   resource: CalendarEvent
 }
 
-// 飞书式工具栏替换 rbc 默认 toolbar;模块级常量保证引用稳定,避免重挂。
-const rbcComponents = { toolbar: CalendarToolbar }
+// 飞书式周视图表头:星期在上、日期数字在下,与全天行视觉合并
+// (calendarGridOverrides.css 去掉表头下边线并放大数字)。
+const weekHeaderFor = (locale: Locale) =>
+  function WeekHeader({ date }: { date: Date }) {
+    return (
+      <div className="wm-week-header">
+        <span className="wm-week-header-weekday">
+          {format(date, 'EEE', { locale })}
+        </span>
+        <span className="wm-week-header-date">{format(date, 'd')}</span>
+      </div>
+    )
+  }
 
 export interface SlotDraft {
   start: Date
@@ -116,8 +131,36 @@ export const CalendarGrid = ({
         `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
       eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
         `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
+      // 周视图标题对齐飞书:「2026年7月19日 - 25日」,跨月/跨年时补齐月份/
+      // 年份;仅中文覆盖,其他语言保留 rbc 默认区间格式。
+      ...(i18n.language.startsWith('zh')
+        ? {
+            dayRangeHeaderFormat: ({
+              start,
+              end,
+            }: {
+              start: Date
+              end: Date
+            }) => {
+              const sameYear = start.getFullYear() === end.getFullYear()
+              const sameMonth = sameYear && start.getMonth() === end.getMonth()
+              const endFmt = sameMonth ? 'd日' : sameYear ? 'M月d日' : 'yyyy年M月d日'
+              return `${format(start, 'yyyy年M月d日')} - ${format(end, endFmt)}`
+            },
+          }
+        : {}),
     }),
-    []
+    [i18n.language]
+  )
+
+  // 飞书式工具栏替换 rbc 默认 toolbar;useMemo 保证引用稳定避免重挂,
+  // 仅语言切换时重建(周表头星期文案随语言)。
+  const rbcComponents = useMemo(
+    () => ({
+      toolbar: CalendarToolbar,
+      week: { header: weekHeaderFor(localeFor(i18n.language)) },
+    }),
+    [i18n.language]
   )
 
   const messages = useMemo(

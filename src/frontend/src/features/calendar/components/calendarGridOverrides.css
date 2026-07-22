@@ -132,6 +132,34 @@
   font-weight: 600;
 }
 
+/* ── 周视图表头:飞书式两行堆叠 ─────────────────────────────────────────
+   星期(周三)小字在上、日期数字放大在下,左对齐;去掉表头下边线,让表头
+   与全天行合并成一个视觉单元格。今天列沿用上方 rbc-today 蓝色规则。 */
+.rbc-time-view .rbc-header {
+  border-bottom: none;
+}
+.wm-week-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 8px 0;
+  text-align: left;
+}
+.wm-week-header-weekday {
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--colors-greyscale-600);
+}
+.wm-week-header-date {
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.rbc-time-view .rbc-header.rbc-today .wm-week-header-weekday {
+  color: inherit;
+}
+
 /* 时间轴分割:整点线清晰(greyscale.300),半点线更淡(greyscale.100),
    降低网格密集感、主次分明。react-big-calendar 默认半点线是近白 #f7f7f7,
    深色下反而最亮,这里显式压暗。 */
