@@ -46,6 +46,10 @@ const navBtn = css({
 const segmentBase = css({
   paddingX: '1.25rem',
   paddingY: '0.4375rem',
+  // 单字的日/周/月与两字的「日程」等宽:min-width 取「日程」自然宽度
+  // (两字 28px + 左右 padding 40px)。
+  minWidth: '4.25rem',
+  textAlign: 'center',
   border: 'none',
   borderRadius: '0.375rem',
   fontSize: '0.875rem',
