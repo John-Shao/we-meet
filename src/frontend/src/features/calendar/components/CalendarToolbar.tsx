@@ -18,9 +18,9 @@ const VIEW_ORDER: View[] = ['day', 'week', 'month', 'agenda']
 const todayBtn = css({
   paddingX: '0.75rem',
   paddingY: '0.3125rem',
-  border: '1px solid token(colors.greyscale.300)',
+  border: 'none',
   borderRadius: '0.5rem',
-  backgroundColor: 'greyscale.000',
+  backgroundColor: 'transparent',
   color: 'greyscale.800',
   fontSize: '0.875rem',
   cursor: 'pointer',
@@ -109,11 +109,23 @@ export const CalendarViewSwitcher = ({
   )
 }
 
+// 翻页箭头 tooltip 按视图区分:日=前一天/后一天、周=上周/下周、
+// 月=上个月/下个月;日程视图沿用通用「上一个/下一个」。
+const NAV_TIP_KEYS: Partial<Record<View, [string, string]>> = {
+  day: ['grid.prevDay', 'grid.nextDay'],
+  week: ['grid.prevWeek', 'grid.nextWeek'],
+  month: ['grid.prevMonth', 'grid.nextMonth'],
+}
+
 export function CalendarToolbar<
   TEvent extends object,
   TResource extends object,
 >({ label, date, view, onNavigate }: ToolbarProps<TEvent, TResource>) {
   const { t } = useTranslation('calendar')
+  const [prevKey, nextKey] = NAV_TIP_KEYS[view] ?? [
+    'grid.previous',
+    'grid.next',
+  ]
 
   return (
     <div
@@ -130,8 +142,8 @@ export function CalendarToolbar<
         <button
           type="button"
           className={navBtn}
-          aria-label={t('grid.previous')}
-          title={t('grid.previous')}
+          aria-label={t(prevKey)}
+          title={t(prevKey)}
           onClick={() => onNavigate('PREV')}
         >
           ‹
@@ -142,8 +154,8 @@ export function CalendarToolbar<
         <button
           type="button"
           className={navBtn}
-          aria-label={t('grid.next')}
-          title={t('grid.next')}
+          aria-label={t(nextKey)}
+          title={t(nextKey)}
           onClick={() => onNavigate('NEXT')}
         >
           ›
