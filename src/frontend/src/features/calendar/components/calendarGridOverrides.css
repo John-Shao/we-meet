@@ -34,6 +34,9 @@
 .rbc-time-view .rbc-event {
   display: flex;
   flex-direction: column;
+  /* rbc 默认 flex-flow: column wrap:短块装不下时间行时会把它 wrap 到右侧
+     新列,露出时间首字符(「08:30」→ 0)。禁止换列,装不下就裁掉。 */
+  flex-wrap: nowrap;
 }
 .rbc-time-view .rbc-event-label {
   order: 2;
