@@ -22,6 +22,12 @@
 .rbc-event-content {
   font-weight: 500;
 }
+/* 日程标题字号:rbc 默认继承根 16px,全视图(月/周/日块+日程列表)统一
+   缩小一号到 14px。 */
+.rbc-event,
+.rbc-agenda-view .rbc-agenda-event-cell {
+  font-size: 0.875rem;
+}
 
 /* Time-grid (周/日) blocks: 飞书排布 = 标题第一行、时间第二行。
    rbc 默认 label(时间)在前,这里翻转顺序并调小时间字号。 */
