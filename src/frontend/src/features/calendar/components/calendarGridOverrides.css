@@ -43,6 +43,25 @@
   text-overflow: ellipsis;
 }
 
+/* ── 新建日程草稿占位块(对齐 Google Calendar):弹窗打开期间选中时段
+   保持高亮 —— 实心蓝 + 白字,盖过上面的浅蓝事件样式。 */
+.rbc-event.wm-slot-draft,
+.rbc-day-slot .rbc-event.wm-slot-draft {
+  background-color: #3370ff;
+  border-left-color: #2860d9;
+  color: #fff;
+  cursor: default;
+}
+.rbc-event.wm-slot-draft .rbc-event-label {
+  color: rgba(255, 255, 255, 0.85);
+}
+[data-theme='dark'] .rbc-event.wm-slot-draft,
+[data-theme='dark'] .rbc-day-slot .rbc-event.wm-slot-draft {
+  background-color: #5c8dff;
+  border-left-color: #3370ff;
+  color: #fff;
+}
+
 /* ── 当前时间线:飞书红线 + 左端圆点(原蓝色) ─────────────────────────── */
 .rbc-current-time-indicator {
   background-color: #f54a45;

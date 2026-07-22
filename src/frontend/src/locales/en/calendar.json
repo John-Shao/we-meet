@@ -81,6 +81,7 @@
     "time": "Time",
     "event": "Event",
     "noEvents": "No events in this range",
+    "draftTitle": "(No title)",
     "showMore": "+{{count}} more"
   },
   "sidebar": {

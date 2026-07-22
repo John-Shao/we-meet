@@ -81,6 +81,7 @@
     "time": "Zeit",
     "event": "Ereignis",
     "noEvents": "Keine Ereignisse in diesem Zeitraum",
+    "draftTitle": "(Ohne Titel)",
     "showMore": "+{{count}} weitere"
   },
   "sidebar": {

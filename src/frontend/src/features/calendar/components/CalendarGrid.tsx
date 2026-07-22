@@ -84,6 +84,10 @@ export interface SlotDraft {
   allDay: boolean
 }
 
+// 新建日程弹窗期间注入网格的占位草稿事件 id(对齐 Google Calendar:选中
+// 时段在弹窗打开时保持高亮)。
+const DRAFT_ID = '__slot-draft__'
+
 interface Props {
   events: CalendarEvent[]
   onSelectEvent: (event: CalendarEvent) => void
@@ -96,6 +100,8 @@ interface Props {
   onViewChange?: (view: View) => void
   /** Click/drag an empty slot → 飞书式快捷创建,带预填时间。 */
   onSelectSlot?: (draft: SlotDraft) => void
+  /** 新建弹窗打开期间的草稿时段:渲染为「(无标题)」占位块保持选中态。 */
+  slotDraft?: SlotDraft | null
 }
 
 export const CalendarGrid = ({
@@ -106,6 +112,7 @@ export const CalendarGrid = ({
   view: viewProp,
   onViewChange,
   onSelectSlot,
+  slotDraft,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
   const { weekStartsOn, dimPast } = useCalendarSettings()
@@ -123,18 +130,27 @@ export const CalendarGrid = ({
     onNavigate?.(d)
   }
 
-  const rbcEvents = useMemo<RbcEvent[]>(
-    () =>
-      events.map((e) => ({
-        id: e.id,
-        title: e.title,
-        start: new Date(e.start_at),
-        end: new Date(e.end_at),
-        allDay: e.all_day,
-        resource: e,
-      })),
-    [events]
-  )
+  const rbcEvents = useMemo<RbcEvent[]>(() => {
+    const list: RbcEvent[] = events.map((e) => ({
+      id: e.id,
+      title: e.title,
+      start: new Date(e.start_at),
+      end: new Date(e.end_at),
+      allDay: e.all_day,
+      resource: e,
+    }))
+    if (slotDraft) {
+      list.push({
+        id: DRAFT_ID,
+        title: t('grid.draftTitle'),
+        start: slotDraft.start,
+        end: slotDraft.end,
+        allDay: slotDraft.allDay,
+        resource: null as unknown as CalendarEvent,
+      })
+    }
+    return list
+  }, [events, slotDraft, t])
 
   // 24 小时时间轴(00:00–23:00,对标群成员日历):默认 culture(zh-CN)的
   // 时间刻度带上午/下午,这里显式用 HH:mm 覆盖成 24h;周/日视图内的选择/事件
@@ -219,14 +235,20 @@ export const CalendarGrid = ({
       messages={messages}
       // P8「降低已结束日程的亮度」(对标飞书,日历设置可关):渲染时判断,
       // 不设 tick——交互/取数触发的重渲染足以让新跨过结束时刻的块变淡。
-      eventPropGetter={(ev) => ({
-        // wm-month-timed 只在月视图 CSS 里生效,周/日视图带着也无副作用。
-        ...(isMonthBar(ev) ? {} : { className: 'wm-month-timed' }),
-        ...(dimPast && ev.end < new Date()
-          ? { style: { opacity: 0.45 } }
-          : {}),
-      })}
-      onSelectEvent={(ev) => onSelectEvent(ev.resource)}
+      eventPropGetter={(ev) => {
+        // 草稿占位块:选中态实心蓝,不参与 dimPast/月视图纯文字行。
+        if (ev.id === DRAFT_ID) return { className: 'wm-slot-draft' }
+        return {
+          // wm-month-timed 只在月视图 CSS 里生效,周/日视图带着也无副作用。
+          ...(isMonthBar(ev) ? {} : { className: 'wm-month-timed' }),
+          ...(dimPast && ev.end < new Date()
+            ? { style: { opacity: 0.45 } }
+            : {}),
+        }
+      }}
+      onSelectEvent={(ev) => {
+        if (ev.id !== DRAFT_ID) onSelectEvent(ev.resource)
+      }}
       onSelectSlot={(slot) => {
         // Month: a day click → all-day draft pinned to that day. Time views:
         // use the dragged/clicked range; a bare click gives a 30-min slot,

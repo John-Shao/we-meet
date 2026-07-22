@@ -81,6 +81,7 @@
     "time": "Tijd",
     "event": "Gebeurtenis",
     "noEvents": "Geen gebeurtenissen in dit bereik",
+    "draftTitle": "(Zonder titel)",
     "showMore": "+{{count}} meer"
   },
   "sidebar": {

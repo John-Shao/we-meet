@@ -81,6 +81,7 @@
     "time": "Heure",
     "event": "Événement",
     "noEvents": "Aucun événement sur cette période",
+    "draftTitle": "(Sans titre)",
     "showMore": "+{{count}} autres"
   },
   "sidebar": {

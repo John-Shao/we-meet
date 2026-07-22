@@ -267,6 +267,7 @@ const CalendarAuthenticated = () => {
               view={view}
               onViewChange={setView}
               onSelectSlot={openCreate}
+              slotDraft={creating ? draft : null}
             />
           )}
         </div>
