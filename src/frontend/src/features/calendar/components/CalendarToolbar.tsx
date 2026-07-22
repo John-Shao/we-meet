@@ -127,9 +127,6 @@ export function CalendarToolbar<
       <div
         className={css({ display: 'flex', alignItems: 'center', gap: '0.375rem' })}
       >
-        <button type="button" className={todayBtn} onClick={() => onNavigate('TODAY')}>
-          {t('grid.today')}
-        </button>
         <button
           type="button"
           className={navBtn}
@@ -138,6 +135,9 @@ export function CalendarToolbar<
           onClick={() => onNavigate('PREV')}
         >
           ‹
+        </button>
+        <button type="button" className={todayBtn} onClick={() => onNavigate('TODAY')}>
+          {t('grid.today')}
         </button>
         <button
           type="button"
