@@ -195,6 +195,39 @@
   padding-right: 0;
 }
 
+/* ── 月视图限时日程:对齐飞书——去掉蓝底/左竖条,渲染为「蓝点 + 时间 +
+   标题」纯文字行(结构见 CalendarGrid 的 MonthEvent);全天/跨天日程不带
+   此类,保留上方蓝色横条样式。dimPast 的透明度内联样式两者通用。 */
+.rbc-month-view .rbc-event.wm-month-timed {
+  background-color: transparent;
+  border-left: none;
+  border-radius: 0;
+  color: var(--colors-greyscale-900);
+  padding: 1px 8px;
+}
+.wm-month-timed-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.wm-month-timed-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #3370ff;
+}
+.wm-month-timed-time {
+  flex: none;
+  color: var(--colors-greyscale-600);
+}
+.wm-month-timed-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 时间轴分割与刻度:对齐群成员日历(ConversationCalendarPanel)——
    去掉半小时线,小时线淡化(greyscale.100≈#eef0f2),时间标签小号灰字。 */
 .rbc-timeslot-group {
@@ -227,4 +260,7 @@
 [data-theme='dark'] .rbc-time-view .rbc-header.rbc-today,
 [data-theme='dark'] .rbc-time-view .rbc-header.rbc-today .rbc-button-link {
   color: #88a2e4;
+}
+[data-theme='dark'] .wm-month-timed-dot {
+  background-color: #5c8dff;
 }

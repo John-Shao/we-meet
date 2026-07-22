@@ -47,6 +47,23 @@ interface RbcEvent {
   resource: CalendarEvent
 }
 
+// 月视图日程展示对齐飞书:全天/跨天日程保留蓝色横条,限时日程改为
+// 「蓝点 + 开始时间 + 标题」纯文字行(样式见 calendarGridOverrides.css,
+// 由 eventPropGetter 挂 wm-month-timed 类去掉底色)。
+const isMonthBar = (e: { allDay: boolean; start: Date; end: Date }) =>
+  e.allDay || e.end.getTime() - e.start.getTime() >= 86_400_000
+
+function MonthEvent({ event }: { event: RbcEvent }) {
+  if (isMonthBar(event)) return <>{event.title}</>
+  return (
+    <span className="wm-month-timed-inner">
+      <span className="wm-month-timed-dot" />
+      <span className="wm-month-timed-time">{format(event.start, 'HH:mm')}</span>
+      <span className="wm-month-timed-title">{event.title}</span>
+    </span>
+  )
+}
+
 // 飞书式周视图表头:星期在上、日期数字在下,与全天行视觉合并
 // (calendarGridOverrides.css 去掉表头下边线并放大数字)。
 const weekHeaderFor = (locale: Locale) =>
@@ -160,6 +177,7 @@ export const CalendarGrid = ({
     () => ({
       toolbar: CalendarToolbar,
       week: { header: weekHeaderFor(localeFor(i18n.language)) },
+      month: { event: MonthEvent },
     }),
     [i18n.language]
   )
@@ -201,9 +219,13 @@ export const CalendarGrid = ({
       messages={messages}
       // P8「降低已结束日程的亮度」(对标飞书,日历设置可关):渲染时判断,
       // 不设 tick——交互/取数触发的重渲染足以让新跨过结束时刻的块变淡。
-      eventPropGetter={(ev) =>
-        dimPast && ev.end < new Date() ? { style: { opacity: 0.45 } } : {}
-      }
+      eventPropGetter={(ev) => ({
+        // wm-month-timed 只在月视图 CSS 里生效,周/日视图带着也无副作用。
+        ...(isMonthBar(ev) ? {} : { className: 'wm-month-timed' }),
+        ...(dimPast && ev.end < new Date()
+          ? { style: { opacity: 0.45 } }
+          : {}),
+      })}
       onSelectEvent={(ev) => onSelectEvent(ev.resource)}
       onSelectSlot={(slot) => {
         // Month: a day click → all-day draft pinned to that day. Time views:
