@@ -2,12 +2,18 @@
 
 A periodic job (k8s CronJob → ``manage.py send_due_reminders``) scans events
 whose reminder lead time has arrived but that haven't been reminded yet, and
-posts a "🔔 即将开始" nudge into the event room's IM group (creating the group
-lazily if it was never opened). Idempotent via ``CalendarEvent.reminder_pushed_at``.
+posts a "🔔 即将开始" nudge into an *existing* IM conversation — the source
+conversation for chat-created events, else the room's meeting group.
 
-Best-effort: one event's transport failure does NOT abort the batch — its
-``reminder_pushed_at`` stays NULL so the next run retries it. Mirrors the
-nudge-to-IM pattern of ``meeting_summary._push_summary_to_im``.
+Reminders NEVER create a group: the lazily-created one-shot reminder groups
+were the root cause of conversation-list flooding. When no conversation
+exists, the in-app reminder entry (消息列表「日程提醒」, both clients) is the
+only surface and the event is marked handled.
+
+Idempotent via ``CalendarEvent.reminder_pushed_at``. Transient transport
+failures (network / 5xx) leave the flag NULL so the next run retries;
+permanent failures (4xx, e.g. the source group was dissolved) mark the event
+handled to stop pointless retries inside the 24h scan window.
 """
 
 import logging
@@ -16,13 +22,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
 
-from core.models import (
-    CalendarEvent,
-    EventStatusChoices,
-    MeetingConversation,
-    RoleChoices,
-    User,
-)
+from core.models import CalendarEvent, EventStatusChoices, MeetingConversation
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,12 @@ MAX_LEAD_HOURS = 24
 
 
 def push_due_reminders(now=None) -> int:
-    """Push IM reminders for events whose reminder time has arrived.
+    """Handle due reminders.
 
-    Returns the number of reminders pushed.
+    Returns the number of events handled (nudge pushed, or intentionally
+    skipped because no conversation exists). Transiently-failed events are
+    not counted — their ``reminder_pushed_at`` stays NULL and the next run
+    retries them.
     """
     now = now or timezone.now()
     cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
@@ -53,7 +56,7 @@ def push_due_reminders(now=None) -> int:
         .select_related("room")
     )
 
-    pushed = 0
+    handled = 0
     for event in candidates:
         lead = _lead_minutes(event)
         if lead is None:
@@ -61,8 +64,8 @@ def push_due_reminders(now=None) -> int:
         if now < event.start_at - timedelta(minutes=lead):
             continue  # reminder time not reached yet
         if _push_one(event, cfg):
-            pushed += 1
-    return pushed
+            handled += 1
+    return handled
 
 
 def _lead_minutes(event):
@@ -92,88 +95,67 @@ def _push_one(event, cfg) -> bool:
     local_start = timezone.localtime(event.start_at, event.timezone)
     body = f"🔔 「{event.title}」即将开始（{local_start:%H:%M}）"
 
-    # P8-UX 收敛:从聊天创建的日程(source_conversation_id 非空)提醒**回源
-    # 会话**,不再为每个日程的 Room 懒建一次性提醒群 —— 那是会话列表被
-    # 「会话」群刷屏的根因。源会话投递失败(如已解散)降级走原 Room 群路径;
-    # 非会话来源日程(日历页创建)保持现状(Room 群入会后本就是会议聊天)。
+    # 从聊天创建的日程回源会话。瞬时故障(网络/5xx)→ 不标记,下轮 cron
+    # 重试;永久失败(4xx,典型是源群已解散 404)→ 降级尝试已存在的会议群。
     if event.source_conversation_id:
         try:
             client.post_message(cid=event.source_conversation_id, body=body)
-        except (JusiImUnreachableError, JusiImBadResponseError) as exc:
+        except JusiImUnreachableError as exc:
             logger.warning(
-                "reminder push to source conversation failed for event %s "
-                "(falling back to room group): %s",
+                "reminder push to source conversation failed (transient) for "
+                "event %s; will retry: %s",
+                event.id,
+                exc,
+            )
+            return False
+        except JusiImBadResponseError as exc:
+            logger.warning(
+                "reminder push to source conversation failed (permanent, e.g. "
+                "dissolved) for event %s; trying existing room group: %s",
                 event.id,
                 exc,
             )
         else:
-            return _mark_pushed(event, event.source_conversation_id)
+            return _mark_handled(event, event.source_conversation_id)
 
-    cid = _ensure_conversation(event.room, client)
-    if cid is None:
-        return False
+    # 只投「已存在」的会议群,绝不为发提醒建群 —— 懒建的一次性提醒群是
+    # 会话列表刷屏的根因。无群可投时仅靠双端消息列表「日程提醒」入口兜底,
+    # 标记已处理防止 24h 扫描窗口内反复重扫。
+    existing = MeetingConversation.objects.filter(room=event.room).first()
+    if existing is None:
+        logger.info(
+            "reminder for event %s has no existing IM conversation; "
+            "in-app reminder entry only",
+            event.id,
+        )
+        return _mark_handled(event, None)
+
     try:
-        client.post_message(cid=cid, body=body)
-    except (JusiImUnreachableError, JusiImBadResponseError) as exc:
-        logger.warning("reminder push failed for event %s: %s", event.id, exc)
+        client.post_message(cid=existing.cid, body=body)
+    except JusiImUnreachableError as exc:
+        logger.warning(
+            "reminder push failed (transient) for event %s; will retry: %s",
+            event.id,
+            exc,
+        )
         return False
-    return _mark_pushed(event, cid)
+    except JusiImBadResponseError as exc:
+        logger.warning(
+            "reminder push failed (permanent) for event %s; marking handled: %s",
+            event.id,
+            exc,
+        )
+        return _mark_handled(event, None)
+    return _mark_handled(event, existing.cid)
 
 
-def _mark_pushed(event, cid) -> bool:
+def _mark_handled(event, cid) -> bool:
+    """Set the idempotency flag. ``cid=None`` means no push happened (no
+    conversation to deliver to) — the in-app reminder entry is the surface."""
     event.reminder_pushed_at = timezone.now()
     event.save(update_fields=["reminder_pushed_at", "updated_at"])
-    logger.info("reminder pushed for event %s (cid=%s)", event.id, cid)
+    if cid:
+        logger.info("reminder pushed for event %s (cid=%s)", event.id, cid)
+    else:
+        logger.info("reminder marked handled without push for event %s", event.id)
     return True
-
-
-def _ensure_conversation(room, client):
-    """Return the room's IM group cid, lazily creating the group if needed.
-
-    Mirrors RoomViewSet.im_ensure_group. Returns None on jusi error / no owner.
-
-    Members are passed as jusi-light-im *internal* uids (resolved + minted via
-    ``im_provisioning``), NOT we-meet ``sub`` — the jusi members/owner_uid columns
-    FK to ``users(uid)``, so a raw sub would fail the FK (500) and, even without the
-    FK, the SDK clients (which speak jusi uid) would never see the group.
-    """
-    from core.services.im_provisioning import resolve_uid, resolve_uids
-    from core.services.jusi_im import (
-        JusiImBadResponseError,
-        JusiImUnreachableError,
-    )
-
-    existing = MeetingConversation.objects.filter(room=room).first()
-    if existing:
-        return existing.cid
-
-    owner = (
-        room.accesses.filter(role=RoleChoices.OWNER).select_related("user").first()
-    )
-    if not owner or not owner.user:
-        return None
-
-    room_users = list(User.objects.filter(resources=room))
-    if owner.user.pk not in {u.pk for u in room_users}:
-        room_users.append(owner.user)
-
-    cid = MeetingConversation.cid_for_room(room.id)
-    try:
-        uid_map = resolve_uids(client, room_users)
-        owner_uid = uid_map.get(owner.user.pk) or resolve_uid(client, owner.user)
-        if not owner_uid:
-            return None
-        member_uids = list(dict.fromkeys(uid_map.values()))
-        if owner_uid not in member_uids:
-            member_uids.append(owner_uid)
-        client.create_group(
-            cid=cid,
-            owner_uid=owner_uid,
-            members=member_uids,
-            meta={"meeting_id": str(room.id), "source": "we-meet"},
-        )
-    except (JusiImUnreachableError, JusiImBadResponseError) as exc:
-        logger.warning("reminder ensure-group failed for room %s: %s", room.id, exc)
-        return None
-    MeetingConversation.objects.create(room=room, cid=cid)
-    return cid

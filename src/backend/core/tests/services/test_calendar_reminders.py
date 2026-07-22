@@ -1,10 +1,11 @@
 """Tests for the P2 calendar reminder job (``push_due_reminders``).
 
-Covers the lazy IM-group provisioning + nudge push, the idempotency guard, the
-reminder-window gate, and — crucially — the regression that the group is created
-with jusi *internal uids* (resolved via issue_token), NOT raw we-meet subs. Passing
-a sub fails jusi's owner_uid/members FK to users(uid) with a 500 (the bug that
-blocked §7 in E2E).
+Covers the reminder push into *existing* conversations only (source
+conversation first, else the room's meeting group), the no-group-creation
+invariant (lazy one-shot reminder groups were the conversation-list flooding
+root cause), the idempotency guard, the reminder-window gate, and the
+transient-vs-permanent failure split (transient retries next run; permanent —
+e.g. source group dissolved — marks handled without a push).
 
 The JusiImAdminClient is mocked so the test needs no running jusi-light-im.
 """
@@ -28,17 +29,11 @@ from core.models import (
 from core.services.calendar_reminders import push_due_reminders
 from core.services.jusi_im import (
     JusiImBadResponseError,
-    JusiImConversationResponse,
     JusiImMessageResponse,
-    JusiImTokenResponse,
+    JusiImUnreachableError,
 )
 
 pytestmark = pytest.mark.django_db
-
-
-def _imuid(external_id: str) -> str:
-    """The jusi uid our mocked issue_token mints for a given external_id (sub)."""
-    return f"imuid-{external_id}"
 
 
 @pytest.fixture
@@ -57,12 +52,6 @@ def mock_admin_client():
     with mock.patch("core.services.jusi_im.JusiImAdminClient") as ctor:
         instance = mock.Mock()
         ctor.return_value = instance
-        instance.issue_token.side_effect = lambda external_id, ttl_seconds: (
-            JusiImTokenResponse(uid=_imuid(external_id), token="t", expires_at=0)
-        )
-        instance.create_group.return_value = JusiImConversationResponse(
-            cid="x", type="group", owner_uid="x", members=[], created_at=0
-        )
         instance.post_message.return_value = JusiImMessageResponse(
             mid=1, cid="x", sender_uid="sys", seq=1, ts=0
         )
@@ -89,40 +78,43 @@ def _make_event(*, owner, start_at, reminders, status=EventStatusChoices.CONFIRM
     )
 
 
-# ---- happy path ----
+def _attach_group(event, cid="room-cid-1"):
+    return MeetingConversation.objects.create(room=event.room, cid=cid)
 
 
-def test_pushes_reminder_creates_group_and_message(jusi_settings, mock_admin_client):
+# ---- happy paths ----
+
+
+def test_pushes_into_existing_room_group(jusi_settings, mock_admin_client):
     now = timezone.now()
     owner = UserFactory()
-    other = UserFactory()
     event = _make_event(owner=owner, start_at=now + timedelta(minutes=5), reminders=[10])
-    ResourceAccess.objects.create(
-        resource=event.room, user=other, role=RoleChoices.MEMBER
-    )
+    mc = _attach_group(event)
 
-    pushed = push_due_reminders(now=now)
+    assert push_due_reminders(now=now) == 1
 
-    assert pushed == 1
-    # Group lazily created + persisted.
-    mc = MeetingConversation.objects.get(room=event.room)
-    assert mc.cid == MeetingConversation.cid_for_room(event.room.id)
-
-    # REGRESSION GUARD: group created with resolved jusi uids, NOT raw subs.
-    mock_admin_client.create_group.assert_called_once()
-    cg = mock_admin_client.create_group.call_args.kwargs
-    assert cg["owner_uid"] == _imuid(str(owner.sub or owner.id))
-    assert set(cg["members"]) >= {
-        _imuid(str(owner.sub or owner.id)),
-        _imuid(str(other.sub or other.id)),
-    }
-    assert str(owner.sub) not in cg["members"], "must not pass raw sub"
-
-    # Nudge posted to the group; idempotency guard set.
+    # 只投既有群,绝不建群。
+    mock_admin_client.create_group.assert_not_called()
     mock_admin_client.post_message.assert_called_once()
     pm = mock_admin_client.post_message.call_args.kwargs
     assert pm["cid"] == mc.cid
     assert "周会" in pm["body"] and pm["body"].startswith("🔔")
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is not None
+
+
+def test_no_conversation_marks_handled_without_push(jusi_settings, mock_admin_client):
+    """无源会话、无既有会议群 → 不建群不发消息,仅标记已处理(消息列表
+    「日程提醒」入口兜底)。这是刷屏治理的核心断言。"""
+    now = timezone.now()
+    owner = UserFactory()
+    event = _make_event(owner=owner, start_at=now + timedelta(minutes=5), reminders=[10])
+
+    assert push_due_reminders(now=now) == 1
+
+    mock_admin_client.create_group.assert_not_called()
+    mock_admin_client.post_message.assert_not_called()
+    assert not MeetingConversation.objects.filter(room=event.room).exists()
     event.refresh_from_db()
     assert event.reminder_pushed_at is not None
 
@@ -133,7 +125,8 @@ def test_pushes_reminder_creates_group_and_message(jusi_settings, mock_admin_cli
 def test_second_run_does_not_double_push(jusi_settings, mock_admin_client):
     now = timezone.now()
     owner = UserFactory()
-    _make_event(owner=owner, start_at=now + timedelta(minutes=5), reminders=[10])
+    event = _make_event(owner=owner, start_at=now + timedelta(minutes=5), reminders=[10])
+    _attach_group(event)
 
     assert push_due_reminders(now=now) == 1
     assert push_due_reminders(now=now) == 0, "reminder_pushed_at must block re-push"
@@ -150,7 +143,6 @@ def test_skips_when_reminder_window_not_reached(jusi_settings, mock_admin_client
     _make_event(owner=owner, start_at=now + timedelta(hours=2), reminders=[10])
 
     assert push_due_reminders(now=now) == 0
-    assert mock_admin_client.create_group.call_count == 0
     assert mock_admin_client.post_message.call_count == 0
 
 
@@ -168,58 +160,6 @@ def test_skips_cancelled_event(jusi_settings, mock_admin_client):
     assert mock_admin_client.post_message.call_count == 0
 
 
-# ---- P8-UX 收敛:会话来源的日程提醒回源会话,不再拉一次性提醒群 ----
-
-
-def test_source_conversation_reminder_skips_group_creation(
-    jusi_settings, mock_admin_client
-):
-    now = timezone.now()
-    owner = UserFactory()
-    event = _make_event(
-        owner=owner, start_at=now + timedelta(minutes=5), reminders=[10]
-    )
-    event.source_conversation_id = "src-cid-1"
-    event.save(update_fields=["source_conversation_id"])
-
-    assert push_due_reminders(now=now) == 1
-
-    # 直发源会话:不建群、不落 MeetingConversation(刷屏根因就在建群)。
-    mock_admin_client.create_group.assert_not_called()
-    assert not MeetingConversation.objects.filter(room=event.room).exists()
-    pm = mock_admin_client.post_message.call_args.kwargs
-    assert pm["cid"] == "src-cid-1"
-    assert "周会" in pm["body"] and pm["body"].startswith("🔔")
-    event.refresh_from_db()
-    assert event.reminder_pushed_at is not None
-
-
-def test_source_conversation_failure_falls_back_to_room_group(
-    jusi_settings, mock_admin_client
-):
-    now = timezone.now()
-    owner = UserFactory()
-    event = _make_event(
-        owner=owner, start_at=now + timedelta(minutes=5), reminders=[10]
-    )
-    event.source_conversation_id = "src-gone"
-    event.save(update_fields=["source_conversation_id"])
-
-    # 源会话已解散(4xx)→ 降级懒建 Room 群并重投,幂等标记照常落。
-    ok = JusiImMessageResponse(mid=1, cid="x", sender_uid="sys", seq=1, ts=0)
-    mock_admin_client.post_message.side_effect = [
-        JusiImBadResponseError("conversation not found"),
-        ok,
-    ]
-
-    assert push_due_reminders(now=now) == 1
-    mock_admin_client.create_group.assert_called_once()
-    mc = MeetingConversation.objects.get(room=event.room)
-    assert mock_admin_client.post_message.call_args.kwargs["cid"] == mc.cid
-    event.refresh_from_db()
-    assert event.reminder_pushed_at is not None
-
-
 def test_skips_event_without_room(jusi_settings, mock_admin_client):
     now = timezone.now()
     owner = UserFactory()
@@ -229,3 +169,107 @@ def test_skips_event_without_room(jusi_settings, mock_admin_client):
 
     assert push_due_reminders(now=now) == 0
     assert mock_admin_client.post_message.call_count == 0
+
+
+# ---- 会话来源日程:回源会话 + 失败分级 ----
+
+
+def test_source_conversation_reminder_posts_to_source(jusi_settings, mock_admin_client):
+    now = timezone.now()
+    owner = UserFactory()
+    event = _make_event(owner=owner, start_at=now + timedelta(minutes=5), reminders=[10])
+    event.source_conversation_id = "src-cid-1"
+    event.save(update_fields=["source_conversation_id"])
+
+    assert push_due_reminders(now=now) == 1
+
+    mock_admin_client.create_group.assert_not_called()
+    assert not MeetingConversation.objects.filter(room=event.room).exists()
+    pm = mock_admin_client.post_message.call_args.kwargs
+    assert pm["cid"] == "src-cid-1"
+    assert "周会" in pm["body"] and pm["body"].startswith("🔔")
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is not None
+
+
+def test_source_permanent_failure_falls_back_to_existing_group(
+    jusi_settings, mock_admin_client
+):
+    """源群已解散(4xx)→ 降级投已存在的会议群;仍然不建群。"""
+    now = timezone.now()
+    owner = UserFactory()
+    event = _make_event(owner=owner, start_at=now + timedelta(minutes=5), reminders=[10])
+    event.source_conversation_id = "src-gone"
+    event.save(update_fields=["source_conversation_id"])
+    mc = _attach_group(event)
+
+    ok = JusiImMessageResponse(mid=1, cid="x", sender_uid="sys", seq=1, ts=0)
+    mock_admin_client.post_message.side_effect = [
+        JusiImBadResponseError("conversation not found"),
+        ok,
+    ]
+
+    assert push_due_reminders(now=now) == 1
+    mock_admin_client.create_group.assert_not_called()
+    assert mock_admin_client.post_message.call_count == 2
+    assert mock_admin_client.post_message.call_args.kwargs["cid"] == mc.cid
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is not None
+
+
+def test_source_permanent_failure_without_group_marks_handled(
+    jusi_settings, mock_admin_client
+):
+    """源群已解散且无既有会议群 → 不建群,标记已处理防止反复重试。"""
+    now = timezone.now()
+    owner = UserFactory()
+    event = _make_event(owner=owner, start_at=now + timedelta(minutes=5), reminders=[10])
+    event.source_conversation_id = "src-gone"
+    event.save(update_fields=["source_conversation_id"])
+
+    mock_admin_client.post_message.side_effect = JusiImBadResponseError(
+        "conversation not found"
+    )
+
+    assert push_due_reminders(now=now) == 1
+    mock_admin_client.create_group.assert_not_called()
+    assert mock_admin_client.post_message.call_count == 1
+    assert not MeetingConversation.objects.filter(room=event.room).exists()
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is not None
+
+
+def test_source_transient_failure_retries_next_run(jusi_settings, mock_admin_client):
+    """网络/5xx 瞬时故障 → 不标记,下轮重试(自愈路径)。"""
+    now = timezone.now()
+    owner = UserFactory()
+    event = _make_event(owner=owner, start_at=now + timedelta(minutes=5), reminders=[10])
+    event.source_conversation_id = "src-cid-1"
+    event.save(update_fields=["source_conversation_id"])
+
+    mock_admin_client.post_message.side_effect = JusiImUnreachableError("timeout")
+
+    assert push_due_reminders(now=now) == 0
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is None, "transient failure must stay retryable"
+
+    # 恢复后下一轮成功投递。
+    mock_admin_client.post_message.side_effect = None
+    assert push_due_reminders(now=now) == 1
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is not None
+
+
+def test_room_group_transient_failure_retries_next_run(
+    jusi_settings, mock_admin_client
+):
+    now = timezone.now()
+    owner = UserFactory()
+    event = _make_event(owner=owner, start_at=now + timedelta(minutes=5), reminders=[10])
+    _attach_group(event)
+
+    mock_admin_client.post_message.side_effect = JusiImUnreachableError("timeout")
+
+    assert push_due_reminders(now=now) == 0
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is None
