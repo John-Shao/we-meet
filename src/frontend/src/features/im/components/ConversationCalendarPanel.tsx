@@ -9,6 +9,7 @@ import { Modal } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
 import {
   CreateEventDialog,
+  MiniCalendar,
   fetchFreeBusy,
   busyPeopleInRange,
   suggestCommonSlots,
@@ -105,6 +106,8 @@ export const ConversationCalendarPanel = ({
     d.setHours(0, 0, 0, 0)
     return d
   })
+  // 日期标题下拉的小月历(对齐飞书,点标题展开选日期)。
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
   const dayEnd = useMemo(() => {
     const d = new Date(day)
     d.setDate(d.getDate() + 1)
@@ -331,12 +334,13 @@ export const ConversationCalendarPanel = ({
           className={css({
             paddingX: '0.5rem',
             paddingY: '0.25rem',
-            border: '1px solid token(colors.greyscale.300)',
+            border: 'none',
             borderRadius: '0.375rem',
             background: 'transparent',
             fontSize: '0.75rem',
             cursor: 'pointer',
             color: isToday ? 'primary.600' : 'greyscale.700',
+            _hover: { backgroundColor: 'greyscale.100' },
           })}
         >
           {t('calendar.today')}
@@ -349,24 +353,78 @@ export const ConversationCalendarPanel = ({
         >
           ›
         </button>
-        <span
-          className={css({
-            fontSize: '0.875rem',
-            fontWeight: 'medium',
-            color: 'greyscale.900',
-          })}
-        >
-          {i18n.language.startsWith('zh')
-            ? `${day.toLocaleDateString(i18n.language, {
-                month: 'long',
-                day: 'numeric',
-              })} ${day.toLocaleDateString(i18n.language, { weekday: 'short' })}`
-            : day.toLocaleDateString(i18n.language, {
-                month: 'long',
-                day: 'numeric',
-                weekday: 'short',
-              })}
-        </span>
+        <div className={css({ position: 'relative' })}>
+          <button
+            type="button"
+            onClick={() => setDatePickerOpen((v) => !v)}
+            className={css({
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              border: 'none',
+              borderRadius: '0.375rem',
+              background: 'transparent',
+              paddingX: '0.375rem',
+              paddingY: '0.25rem',
+              fontSize: '0.875rem',
+              fontWeight: 'medium',
+              color: 'greyscale.900',
+              cursor: 'pointer',
+              _hover: { backgroundColor: 'greyscale.100' },
+            })}
+          >
+            {i18n.language.startsWith('zh')
+              ? `${day.toLocaleDateString(i18n.language, {
+                  month: 'long',
+                  day: 'numeric',
+                })} ${day.toLocaleDateString(i18n.language, { weekday: 'short' })}`
+              : day.toLocaleDateString(i18n.language, {
+                  month: 'long',
+                  day: 'numeric',
+                  weekday: 'short',
+                })}
+            <span
+              aria-hidden
+              className={css({ fontSize: '0.625rem', color: 'greyscale.500' })}
+            >
+              {datePickerOpen ? '▲' : '▼'}
+            </span>
+          </button>
+          {datePickerOpen && (
+            <>
+              {/* 点击外部关闭 */}
+              <div
+                className={css({ position: 'fixed', inset: 0, zIndex: 20 })}
+                onClick={() => setDatePickerOpen(false)}
+              />
+              <div
+                className={css({
+                  position: 'absolute',
+                  top: 'calc(100% + 4px)',
+                  left: 0,
+                  zIndex: 21,
+                  width: '16.5rem',
+                  padding: '0.75rem',
+                  backgroundColor: 'greyscale.000',
+                  border: '1px solid token(colors.greyscale.200)',
+                  borderRadius: '0.5rem',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                })}
+              >
+                <MiniCalendar
+                  value={day}
+                  onChange={(d) => {
+                    const nd = new Date(d)
+                    nd.setHours(0, 0, 0, 0)
+                    setDay(nd)
+                    setDatePickerOpen(false)
+                  }}
+                  events={[]}
+                />
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {namesLoading ? (
@@ -929,13 +987,14 @@ const MemberPicker = ({
 const navBtn = css({
   width: '1.5rem',
   height: '1.5rem',
-  border: '1px solid token(colors.greyscale.300)',
+  border: 'none',
   borderRadius: '0.375rem',
   background: 'transparent',
   cursor: 'pointer',
   color: 'greyscale.700',
   fontSize: '0.875rem',
   lineHeight: 1,
+  _hover: { backgroundColor: 'greyscale.100' },
 })
 const hintCls = css({
   padding: '1rem',
