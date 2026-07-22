@@ -138,6 +138,11 @@
 .rbc-time-view .rbc-header {
   border-bottom: none;
 }
+/* 两行堆叠比默认单行高,rbc 表头行不会自动撑开且 .rbc-header 自带
+   overflow:hidden,不给最小高度日期数字会被裁掉只露个头。 */
+.rbc-time-view .rbc-row.rbc-time-header-cell {
+  min-height: 3.25rem;
+}
 .wm-week-header {
   display: flex;
   flex-direction: column;

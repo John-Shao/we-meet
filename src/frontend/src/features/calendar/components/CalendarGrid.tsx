@@ -213,6 +213,20 @@ export const CalendarGrid = ({
           onSelectSlot?.({ start, end: start, allDay: true })
           return
         }
+        // 周/日视图顶部全天行:rbc 给「当天 00:00 → 次日 00:00(开区间)」,
+        // 直接透传会弹出 00:00 起止的时间草稿;视为全天日程(对齐月视图),
+        // 结束日回退一天转成闭区间。
+        const isMidnight = (d: Date) =>
+          d.getHours() === 0 && d.getMinutes() === 0
+        if (isMidnight(start) && isMidnight(slot.end) && slot.end > start) {
+          const endDay = new Date(slot.end.getTime() - 86_400_000)
+          onSelectSlot?.({
+            start,
+            end: endDay > start ? endDay : start,
+            allDay: true,
+          })
+          return
+        }
         const end =
           slot.end > start ? slot.end : new Date(start.getTime() + 3600_000)
         onSelectSlot?.({ start, end, allDay: false })
