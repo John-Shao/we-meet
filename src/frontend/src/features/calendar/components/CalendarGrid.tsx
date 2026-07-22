@@ -59,6 +59,9 @@ interface Props {
    * falls back to internal state when omitted so the grid stays standalone. */
   date?: Date
   onNavigate?: (date: Date) => void
+  /** Controlled view(页头分段切换器驱动),同 date 模式,缺省走内部状态。 */
+  view?: View
+  onViewChange?: (view: View) => void
   /** Click/drag an empty slot → 飞书式快捷创建,带预填时间。 */
   onSelectSlot?: (draft: SlotDraft) => void
 }
@@ -68,12 +71,19 @@ export const CalendarGrid = ({
   onSelectEvent,
   date: dateProp,
   onNavigate,
+  view: viewProp,
+  onViewChange,
   onSelectSlot,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
   const { weekStartsOn, dimPast } = useCalendarSettings()
   const localizer = useMemo(() => localizerFor(weekStartsOn), [weekStartsOn])
-  const [view, setView] = useState<View>('week')
+  const [viewState, setViewState] = useState<View>('week')
+  const view = viewProp ?? viewState
+  const setView = (v: View) => {
+    setViewState(v)
+    onViewChange?.(v)
+  }
   const [dateState, setDateState] = useState<Date>(() => new Date())
   const date = dateProp ?? dateState
   const setDate = (d: Date) => {

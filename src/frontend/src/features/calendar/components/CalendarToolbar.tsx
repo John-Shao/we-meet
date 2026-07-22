@@ -6,9 +6,10 @@ import { css, cx } from '@/styled-system/css'
 
 /**
  * 飞书式日历工具栏,替换 react-big-calendar 默认 toolbar(P8 微调):
- * 左侧「今天 + ‹ › + 日期标题」一组靠左,右侧「日/周/月/日程」分段切换。
- * 文案沿用 calendar:grid.*;日视图看今天时标题后缀蓝色「今天」,对齐飞书。
- * 翻页箭头与 MiniCalendar 同用 ‹ › 字形,保持特性内一致。
+ * 网格上方只留「今天 + ‹ › + 日期标题」;「日/周/月/日程」分段切换器单独
+ * 导出(CalendarViewSwitcher),由路由页头渲染(原「日历」标题位),view
+ * 状态提升到路由层受控。文案沿用 calendar:grid.*;日视图看今天时标题后缀
+ * 蓝色「今天」,对齐飞书。翻页箭头与 MiniCalendar 同用 ‹ › 字形。
  */
 
 // 飞书分段控件顺序是 日|周|月,与 rbc 传入的 views 顺序无关,这里显式排序。
@@ -27,8 +28,8 @@ const todayBtn = css({
 })
 
 const navBtn = css({
-  width: '1.75rem',
-  height: '1.75rem',
+  width: '2rem',
+  height: '2rem',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -36,7 +37,7 @@ const navBtn = css({
   borderRadius: '0.375rem',
   backgroundColor: 'transparent',
   color: 'greyscale.600',
-  fontSize: '1.125rem',
+  fontSize: '1.375rem',
   lineHeight: 1,
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.900' },
@@ -68,20 +69,53 @@ const segmentIdle = css({
   _hover: { color: 'greyscale.900' },
 })
 
+/** 「日/周/月/日程」分段切换器,由路由页头渲染(占原「日历」标题位)。 */
+export const CalendarViewSwitcher = ({
+  view,
+  onView,
+  views = VIEW_ORDER,
+}: {
+  view: View
+  onView: (view: View) => void
+  views?: View[]
+}) => {
+  const { t } = useTranslation('calendar')
+  const ordered = VIEW_ORDER.filter((v) => views.includes(v))
+  return (
+    <div
+      className={css({
+        display: 'inline-flex',
+        gap: '2px',
+        padding: '2px',
+        borderRadius: '0.5rem',
+        backgroundColor: 'greyscale.100',
+      })}
+    >
+      {ordered.map((v) => (
+        <button
+          key={v}
+          type="button"
+          className={cx(segmentBase, v === view ? segmentActive : segmentIdle)}
+          onClick={() => onView(v)}
+        >
+          {t(`grid.${v}`)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function CalendarToolbar<
   TEvent extends object,
   TResource extends object,
->({ label, date, view, views, onNavigate, onView }: ToolbarProps<TEvent, TResource>) {
+>({ label, date, view, onNavigate }: ToolbarProps<TEvent, TResource>) {
   const { t } = useTranslation('calendar')
-  const available = Array.isArray(views) ? views : (Object.keys(views) as View[])
-  const ordered = VIEW_ORDER.filter((v) => available.includes(v))
 
   return (
     <div
       className={css({
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
         gap: '0.75rem',
         marginBottom: '0.75rem',
       })}
@@ -132,27 +166,6 @@ export function CalendarToolbar<
             {t('grid.today')}
           </span>
         )}
-      </div>
-
-      <div
-        className={css({
-          display: 'inline-flex',
-          gap: '2px',
-          padding: '2px',
-          borderRadius: '0.5rem',
-          backgroundColor: 'greyscale.100',
-        })}
-      >
-        {ordered.map((v) => (
-          <button
-            key={v}
-            type="button"
-            className={cx(segmentBase, v === view ? segmentActive : segmentIdle)}
-            onClick={() => onView(v)}
-          >
-            {t(`grid.${v}`)}
-          </button>
-        ))}
       </div>
     </div>
   )

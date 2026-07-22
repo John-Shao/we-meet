@@ -22,6 +22,8 @@ import { openSystemSettings } from '@/stores/systemSettings'
 import { CreateEventDialog } from '../components/CreateEventDialog'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
+import { CalendarViewSwitcher } from '../components/CalendarToolbar'
+import type { View } from 'react-big-calendar'
 import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EditScopeDialog } from '../components/EditScopeDialog'
 import { EventDetailDialog } from '../components/EventDetailDialog'
@@ -67,6 +69,8 @@ const CalendarAuthenticated = () => {
   const [pendingEventId, setPendingEventId] = useState<string | null>(
     () => new URLSearchParams(window.location.search).get('event') || null
   )
+  // 视图状态提升到路由层:页头分段切换器(原「日历」标题位)与网格共用。
+  const [view, setView] = useState<View>('week')
 
   const openCreate = (slot: SlotDraft | null) => {
     setDraft(slot)
@@ -195,16 +199,8 @@ const CalendarAuthenticated = () => {
             marginBottom: '1rem',
           })}
         >
-          <h1
-            className={css({
-              margin: 0,
-              fontSize: '1.25rem',
-              fontWeight: 'bold',
-              color: 'greyscale.900',
-            })}
-          >
-            {t('page.title')}
-          </h1>
+          {/* 原「日历」标题位换成 日/周/月/日程 分段切换器(飞书式)。 */}
+          <CalendarViewSwitcher view={view} onView={setView} />
           <div
             className={css({
               display: 'flex',
@@ -212,30 +208,6 @@ const CalendarAuthenticated = () => {
               gap: '0.5rem',
             })}
           >
-            {/* P8 设置收敛:齿轮只是快捷入口,打开系统设置并定位「日历」节。 */}
-            <button
-              type="button"
-              onClick={() => openSystemSettings('calendar')}
-              title={t('settings.title')}
-              aria-label={t('settings.title')}
-              data-testid="calendar-settings"
-              className={css({
-                width: '2rem',
-                height: '2rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '1px solid token(colors.greyscale.300)',
-                borderRadius: '0.5rem',
-                backgroundColor: 'greyscale.000',
-                color: 'greyscale.700',
-                fontSize: '0.9375rem',
-                cursor: 'pointer',
-                _hover: { backgroundColor: 'greyscale.100' },
-              })}
-            >
-              ⚙
-            </button>
             <button
               type="button"
               onClick={() => openCreate(null)}
@@ -254,6 +226,31 @@ const CalendarAuthenticated = () => {
             >
               ＋ {t('page.create')}
             </button>
+            {/* P8 设置收敛:齿轮只是快捷入口,打开系统设置并定位「日历」节。
+               无边框纯图标钮,置于「新建日程」右侧。 */}
+            <button
+              type="button"
+              onClick={() => openSystemSettings('calendar')}
+              title={t('settings.title')}
+              aria-label={t('settings.title')}
+              data-testid="calendar-settings"
+              className={css({
+                width: '2rem',
+                height: '2rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: 'none',
+                borderRadius: '0.375rem',
+                backgroundColor: 'transparent',
+                color: 'greyscale.700',
+                fontSize: '1.0625rem',
+                cursor: 'pointer',
+                _hover: { backgroundColor: 'greyscale.100' },
+              })}
+            >
+              ⚙
+            </button>
           </div>
         </div>
 
@@ -267,6 +264,8 @@ const CalendarAuthenticated = () => {
               onSelectEvent={setDetailEvent}
               date={date}
               onNavigate={setDate}
+              view={view}
+              onViewChange={setView}
               onSelectSlot={openCreate}
             />
           )}
