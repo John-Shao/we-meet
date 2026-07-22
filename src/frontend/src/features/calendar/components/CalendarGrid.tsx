@@ -10,6 +10,7 @@ import './calendarGridOverrides.css'
 import type { CalendarEvent } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import { CalendarToolbar } from './CalendarToolbar'
+import { AgendaListView } from './AgendaListView'
 
 /**
  * Feishu-style 月/周/日 calendar grid (P6-e #3), backed by react-big-calendar.
@@ -109,6 +110,15 @@ export interface SlotDraft {
 // 时段在弹窗打开时保持高亮)。
 const DRAFT_ID = '__slot-draft__'
 
+// 「日程」视图换成自研平铺列表(AgendaListView,飞书式);模块级常量保证
+// 引用稳定避免视图重挂。类型上 rbc 的 Views 不含自定义组件签名,窄化断言。
+const RBC_VIEWS = {
+  month: true,
+  week: true,
+  day: true,
+  agenda: AgendaListView,
+} as unknown as View[]
+
 interface Props {
   events: CalendarEvent[]
   onSelectEvent: (event: CalendarEvent) => void
@@ -185,24 +195,22 @@ export const CalendarGrid = ({
         `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
       eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
         `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
-      // 周/月视图标题对齐飞书:「2026年7月19日 - 25日」「2026年7月」,跨月/
-      // 跨年时补齐月份/年份;仅中文覆盖,其他语言保留 rbc 默认格式。
+      // 周/月/日程视图标题对齐飞书:「2026年7月19日 - 25日」「2026年7月」,
+      // 跨月/跨年时补齐月份/年份;仅中文覆盖,其他语言保留 rbc 默认格式。
       ...(i18n.language.startsWith('zh')
-        ? {
-            monthHeaderFormat: 'yyyy年M月',
-            dayRangeHeaderFormat: ({
-              start,
-              end,
-            }: {
-              start: Date
-              end: Date
-            }) => {
+        ? (() => {
+            const zhRange = ({ start, end }: { start: Date; end: Date }) => {
               const sameYear = start.getFullYear() === end.getFullYear()
               const sameMonth = sameYear && start.getMonth() === end.getMonth()
               const endFmt = sameMonth ? 'd日' : sameYear ? 'M月d日' : 'yyyy年M月d日'
               return `${format(start, 'yyyy年M月d日')} - ${format(end, endFmt)}`
-            },
-          }
+            }
+            return {
+              monthHeaderFormat: 'yyyy年M月',
+              dayRangeHeaderFormat: zhRange,
+              agendaHeaderFormat: zhRange,
+            }
+          })()
         : {}),
     }),
     [i18n.language]
@@ -249,7 +257,7 @@ export const CalendarGrid = ({
       onView={setView}
       date={date}
       onNavigate={setDate}
-      views={['month', 'week', 'day', 'agenda']}
+      views={RBC_VIEWS}
       components={rbcComponents}
       popup
       selectable

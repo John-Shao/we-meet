@@ -78,8 +78,11 @@
     "day": "Jour",
     "agenda": "Agenda",
     "date": "Date",
+    "weekday": "Jour",
     "time": "Heure",
+    "organizer": "Organisateur",
     "event": "Événement",
+    "detailHint": "Sélectionnez un événement pour voir les détails",
     "noEvents": "Aucun événement sur cette période",
     "draftTitle": "(Sans titre)",
     "showMore": "+{{count}} autres"

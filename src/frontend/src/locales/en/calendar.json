@@ -78,8 +78,11 @@
     "day": "Day",
     "agenda": "Agenda",
     "date": "Date",
+    "weekday": "Day",
     "time": "Time",
+    "organizer": "Organizer",
     "event": "Event",
+    "detailHint": "Select an event to see details",
     "noEvents": "No events in this range",
     "draftTitle": "(No title)",
     "showMore": "+{{count}} more"

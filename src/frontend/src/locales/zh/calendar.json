@@ -78,8 +78,11 @@
     "day": "日",
     "agenda": "日程",
     "date": "日期",
+    "weekday": "周",
     "time": "时间",
+    "organizer": "组织者",
     "event": "事件",
+    "detailHint": "选择日程查看详情",
     "noEvents": "本区间暂无日程",
     "draftTitle": "(无标题)",
     "showMore": "还有 {{count}} 项"

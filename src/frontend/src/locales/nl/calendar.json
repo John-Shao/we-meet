@@ -78,8 +78,11 @@
     "day": "Dag",
     "agenda": "Agenda",
     "date": "Datum",
+    "weekday": "Dag",
     "time": "Tijd",
+    "organizer": "Organisator",
     "event": "Gebeurtenis",
+    "detailHint": "Selecteer een gebeurtenis om details te bekijken",
     "noEvents": "Geen gebeurtenissen in dit bereik",
     "draftTitle": "(Zonder titel)",
     "showMore": "+{{count}} meer"
