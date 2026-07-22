@@ -166,10 +166,14 @@
   color: inherit;
 }
 
-/* ── 月视图表头:对齐飞书——去掉表头网格线,周几字样与周视图表头一致
-   (0.875rem/greyscale.600/常规字重),左对齐。 */
+/* ── 月视图表头:对齐飞书——去掉整体外框(上/左/右线),表头仅保留下
+   分隔线、无列间竖线;周几字样与周视图表头一致(0.875rem/greyscale.600/
+   常规字重),左对齐;日期数字左对齐与周几竖向对齐。 */
+.rbc-month-view {
+  border: none;
+}
 .rbc-month-view .rbc-header {
-  border-bottom: none;
+  border-bottom: 1px solid var(--colors-greyscale-200);
   font-size: 0.875rem;
   font-weight: 400;
   color: var(--colors-greyscale-600);
@@ -178,6 +182,11 @@
 }
 .rbc-month-view .rbc-header + .rbc-header {
   border-left: none;
+}
+.rbc-month-view .rbc-date-cell {
+  text-align: left;
+  padding-left: 8px;
+  padding-right: 0;
 }
 
 /* 时间轴分割与刻度:对齐群成员日历(ConversationCalendarPanel)——
