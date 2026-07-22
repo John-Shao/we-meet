@@ -153,6 +153,7 @@
 }
 .wm-week-header-weekday {
   font-size: 0.875rem;
+  font-weight: 400;
   line-height: 1;
   color: var(--colors-greyscale-600);
 }
@@ -163,6 +164,20 @@
 }
 .rbc-time-view .rbc-header.rbc-today .wm-week-header-weekday {
   color: inherit;
+}
+
+/* ── 月视图表头:对齐飞书——去掉表头网格线,周几字样与周视图表头一致
+   (0.875rem/greyscale.600/常规字重),左对齐。 */
+.rbc-month-view .rbc-header {
+  border-bottom: none;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--colors-greyscale-600);
+  text-align: left;
+  padding: 6px 8px;
+}
+.rbc-month-view .rbc-header + .rbc-header {
+  border-left: none;
 }
 
 /* 时间轴分割与刻度:对齐群成员日历(ConversationCalendarPanel)——
