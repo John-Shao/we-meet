@@ -987,12 +987,16 @@ const MemberPicker = ({
 const navBtn = css({
   width: '1.5rem',
   height: '1.5rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   border: 'none',
   borderRadius: '0.375rem',
   background: 'transparent',
   cursor: 'pointer',
   color: 'greyscale.700',
-  fontSize: '0.875rem',
+  // ‹ › 字形本身偏小,小字号下只剩几个像素;跟日历工具栏同档用大字号。
+  fontSize: '1.25rem',
   lineHeight: 1,
   _hover: { backgroundColor: 'greyscale.100' },
 })
