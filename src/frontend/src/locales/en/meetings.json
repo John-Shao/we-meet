@@ -63,21 +63,20 @@
     "recentEmpty": "No past meetings",
     "scheduledTitle": "Scheduled meetings",
     "scheduledEmpty": "No upcoming meetings",
-    "scheduledTimePrefix": "Scheduled for {{time}}",
     "untitled": "(Untitled meeting)",
     "showAll": "Show all ({{count}})",
     "collapse": "Collapse",
     "rowMore": "More",
     "enterMeeting": "Enter",
     "delete": "Delete",
-    "deleteConfirm": "Delete \"{{name}}\"? If you own the meeting it will also be removed for everyone else."
+    "deleteConfirm": "Delete \"{{name}}\"? If you own the meeting it will also be removed for everyone else.",
+    "today": "Today"
   },
   "chapters": {
     "empty": "No chapters yet — they are generated with the summary.",
     "jumpHint": "Jump to this moment in the transcript"
   },
   "detail": {
-    "meetingId": "Meeting ID: {{id}}",
     "copy": "Copy",
     "copied": "Copied",
     "viewSummary": "View minutes",

@@ -15,6 +15,16 @@ import { navigateTo } from '@/navigation/navigateTo'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useDeleteRoom } from '@/features/rooms/api/deleteRoom'
 
+/** 8/9/6 位会议号按组分隔(与 App 端 formatSlug 同口径)。 */
+const formatSlugDigits = (slug: string): string => {
+  const digits = slug.replace(/\D/g, '')
+  if (digits.length === 8) return `${digits.slice(0, 4)} ${digits.slice(4)}`
+  if (digits.length === 9)
+    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`
+  if (digits.length === 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`
+  return slug
+}
+
 /** 会议列表选中项(预约 / 历史共用的展示子集)。 */
 export interface MeetingSelection {
   kind: 'scheduled' | 'recent'
@@ -153,18 +163,16 @@ export const MeetingDetailPanel = ({
           {timeText && (
             <div className={rowCls}>
               <RiTimeLine size={16} className={rowIconCls} />
-              <span className={rowTextCls}>
-                {selection.kind === 'scheduled'
-                  ? t('home.scheduledTimePrefix', { time: timeText })
-                  : timeText}
-              </span>
+              {/* 图标已表意,不带「预约时间:」前缀(与 App 端对齐)。 */}
+              <span className={rowTextCls}>{timeText}</span>
             </div>
           )}
           {selection.slug && (
             <div className={rowCls}>
               <RiHashtag size={16} className={rowIconCls} />
+              {/* 会议号纯分组数字,# 图标已表意(与 App 端 formatSlug 同口径)。 */}
               <span className={rowTextCls}>
-                {t('detail.meetingId', { id: selection.slug })}
+                {formatSlugDigits(selection.slug)}
               </span>
               <button
                 type="button"

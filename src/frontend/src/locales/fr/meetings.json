@@ -64,14 +64,14 @@
     "scheduledEmpty": "Aucune réunion à venir",
     "untitled": "(Réunion sans titre)",
     "showAll": "Tout afficher ({{count}})",
-    "collapse": "Réduire"
+    "collapse": "Réduire",
+    "today": "Aujourd'hui"
   },
   "chapters": {
     "empty": "Pas encore de chapitres — ils sont générés avec le compte rendu.",
     "jumpHint": "Aller à ce moment dans la transcription"
   },
   "detail": {
-    "meetingId": "ID : {{id}}",
     "copy": "Copier",
     "copied": "Copié",
     "viewSummary": "Voir le compte rendu",

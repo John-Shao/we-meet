@@ -63,21 +63,20 @@
     "recentEmpty": "暂无历史会议",
     "scheduledTitle": "预约会议",
     "scheduledEmpty": "暂无待开始的会议",
-    "scheduledTimePrefix": "预约时间：{{time}}",
     "untitled": "（未命名会议）",
     "showAll": "查看全部（{{count}}）",
     "collapse": "收起",
     "rowMore": "更多",
     "enterMeeting": "进入会议",
     "delete": "删除",
-    "deleteConfirm": "确定要删除「{{name}}」吗？若您是该会议的发起人，将同时删除所有人的此条记录。"
+    "deleteConfirm": "确定要删除「{{name}}」吗？若您是该会议的发起人，将同时删除所有人的此条记录。",
+    "today": "今天"
   },
   "chapters": {
     "empty": "暂无章节——章节随纪要一起生成。",
     "jumpHint": "跳转到转写对应时刻"
   },
   "detail": {
-    "meetingId": "会议号:{{id}}",
     "copy": "复制",
     "copied": "已复制",
     "viewSummary": "查看会议纪要",

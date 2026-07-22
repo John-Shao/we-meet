@@ -22,12 +22,26 @@ import type { MeetingSelection } from './MeetingDetailPanel'
 
 const COLLAPSED_COUNT = 5
 
-const formatScheduledAt = (iso: string, locale: string) => {
+/** 预约时间口径(与 App 端对齐):当天 →「今天 HH:mm」;否则「M月d日
+ * HH:mm」(不带年,预约都是近期未来)。 */
+const formatScheduledAt = (iso: string, locale: string, today: string) => {
   try {
-    return new Intl.DateTimeFormat(locale || undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(new Date(iso))
+    const d = new Date(iso)
+    const now = new Date()
+    const sameDay =
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    const time = new Intl.DateTimeFormat(locale || undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(d)
+    if (sameDay) return `${today} ${time}`
+    const monthDay = new Intl.DateTimeFormat(locale || undefined, {
+      month: 'short',
+      day: 'numeric',
+    }).format(d)
+    return `${monthDay} ${time}`
   } catch {
     return iso
   }
@@ -195,9 +209,11 @@ export const ScheduledMeetingsList = ({
                         marginTop: '0.125rem',
                       })}
                     >
-                      {t('home.scheduledTimePrefix', {
-                        time: formatScheduledAt(m.scheduled_at, i18n.language),
-                      })}
+                      {formatScheduledAt(
+                        m.scheduled_at,
+                        i18n.language,
+                        t('home.today')
+                      )}
                     </Text>
                   )}
                 </span>
