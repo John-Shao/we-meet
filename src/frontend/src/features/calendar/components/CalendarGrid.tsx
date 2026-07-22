@@ -131,10 +131,11 @@ export const CalendarGrid = ({
         `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
       eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
         `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
-      // 周视图标题对齐飞书:「2026年7月19日 - 25日」,跨月/跨年时补齐月份/
-      // 年份;仅中文覆盖,其他语言保留 rbc 默认区间格式。
+      // 周/月视图标题对齐飞书:「2026年7月19日 - 25日」「2026年7月」,跨月/
+      // 跨年时补齐月份/年份;仅中文覆盖,其他语言保留 rbc 默认格式。
       ...(i18n.language.startsWith('zh')
         ? {
+            monthHeaderFormat: 'yyyy年M月',
             dayRangeHeaderFormat: ({
               start,
               end,

@@ -44,8 +44,8 @@ const navBtn = css({
 })
 
 const segmentBase = css({
-  paddingX: '0.75rem',
-  paddingY: '0.25rem',
+  paddingX: '1.25rem',
+  paddingY: '0.4375rem',
   border: 'none',
   borderRadius: '0.375rem',
   fontSize: '0.875rem',
@@ -148,7 +148,6 @@ export function CalendarToolbar<
           className={css({
             marginLeft: '0.25rem',
             fontSize: '1rem',
-            fontWeight: 600,
             color: 'greyscale.900',
           })}
         >
