@@ -64,6 +64,27 @@ function MonthEvent({ event }: { event: RbcEvent }) {
   )
 }
 
+// 周/日视图事件内容对齐飞书:短日程(≤45 分钟,块高只够一行)渲染成
+// 「标题,时间」单行(配套 CSS 隐藏第二行时间标签);长日程保持
+// 标题行 + 时间行。中文用全角逗号分隔。
+const SHORT_TIMED_MS = 45 * 60_000
+const isShortTimed = (e: { allDay: boolean; start: Date; end: Date }) =>
+  !e.allDay && e.end.getTime() - e.start.getTime() <= SHORT_TIMED_MS
+
+const timeEventFor = (zh: boolean) =>
+  function TimeEvent({ event }: { event: RbcEvent }) {
+    if (!isShortTimed(event)) return <>{event.title}</>
+    return (
+      <>
+        {event.title}
+        {zh ? '，' : ', '}
+        <span className="wm-time-inline">
+          {`${format(event.start, 'HH:mm')} – ${format(event.end, 'HH:mm')}`}
+        </span>
+      </>
+    )
+  }
+
 // 飞书式周视图表头:星期在上、日期数字在下,与全天行视觉合并
 // (calendarGridOverrides.css 去掉表头下边线并放大数字)。
 const weekHeaderFor = (locale: Locale) =>
@@ -189,14 +210,15 @@ export const CalendarGrid = ({
 
   // 飞书式工具栏替换 rbc 默认 toolbar;useMemo 保证引用稳定避免重挂,
   // 仅语言切换时重建(周表头星期文案随语言)。
-  const rbcComponents = useMemo(
-    () => ({
+  const rbcComponents = useMemo(() => {
+    const TimeEvent = timeEventFor(i18n.language.startsWith('zh'))
+    return {
       toolbar: CalendarToolbar,
-      week: { header: weekHeaderFor(localeFor(i18n.language)) },
+      week: { header: weekHeaderFor(localeFor(i18n.language)), event: TimeEvent },
+      day: { event: TimeEvent },
       month: { event: MonthEvent },
-    }),
-    [i18n.language]
-  )
+    }
+  }, [i18n.language])
 
   const messages = useMemo(
     () => ({
@@ -236,11 +258,13 @@ export const CalendarGrid = ({
       // P8「降低已结束日程的亮度」(对标飞书,日历设置可关):渲染时判断,
       // 不设 tick——交互/取数触发的重渲染足以让新跨过结束时刻的块变淡。
       eventPropGetter={(ev) => {
+        // wm-short-timed:周/日视图短日程隐藏第二行时间(由 TimeEvent 内联)。
+        const short = isShortTimed(ev) ? ' wm-short-timed' : ''
         // 草稿占位块:选中态实心蓝,不参与 dimPast/月视图纯文字行。
-        if (ev.id === DRAFT_ID) return { className: 'wm-slot-draft' }
+        if (ev.id === DRAFT_ID) return { className: `wm-slot-draft${short}` }
         return {
           // wm-month-timed 只在月视图 CSS 里生效,周/日视图带着也无副作用。
-          ...(isMonthBar(ev) ? {} : { className: 'wm-month-timed' }),
+          ...(isMonthBar(ev) ? {} : { className: `wm-month-timed${short}` }),
           ...(dimPast && ev.end < new Date()
             ? { style: { opacity: 0.45 } }
             : {}),

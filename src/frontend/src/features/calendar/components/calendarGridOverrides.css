@@ -45,6 +45,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 短日程(≤45min,飞书式单行「标题,时间」):隐藏第二行时间标签,时间由
+   TimeEvent 组件内联在标题后。 */
+.rbc-time-view .rbc-event.wm-short-timed .rbc-event-label {
+  display: none;
+}
+.wm-time-inline {
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.85;
+  white-space: nowrap;
+}
 
 /* ── 新建日程草稿占位块(对齐 Google Calendar):弹窗打开期间选中时段
    保持高亮 —— 实心蓝 + 白字,盖过上面的浅蓝事件样式。 */
