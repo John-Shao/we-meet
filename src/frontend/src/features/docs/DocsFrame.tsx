@@ -33,10 +33,19 @@ export const DocsRoute = () => {
 
   // ?embed=1 让 docs 收敛掉自带的用户区(docs 的 LeftPanelFooter);?lang= 用 meet 当前
   // 语言驱动 docs(docs i18next 的 querystring 探测);?theme= 传初始深浅。去尾斜杠避免双斜杠。
-  const embedSrc = docsUrl
-    ? `${docsUrl.replace(/\/+$/, '')}/?embed=1&lang=${encodeURIComponent(
+  const docsBase = docsUrl?.replace(/\/+$/, '') ?? ''
+  const embedTarget = docsBase
+    ? `${docsBase}/?embed=1&lang=${encodeURIComponent(
         i18n.language,
       )}&theme=${initialScheme}`
+    : ''
+  // 与 App 端(we-meet-android DocsScreen.docsUrl)对齐:经 docs 的 OIDC
+  // authenticate 入口进站,而非裸 `/`。无 docs 会话的浏览器(新浏览器/无痕窗)
+  // 直接进 `/` 会被 docs 前端甩到 /home/ 英文营销页;authenticate 则拿已有
+  // Keycloak 会话(meet/docs/id 同注册域,iframe 内 cookie 照常携带)服务端
+  // 静默换 docs 会话,302 回 returnTo 直达文档列表,营销页整链路不出现。
+  const embedSrc = embedTarget
+    ? `${docsBase}/api/v1.0/authenticate/?returnTo=${encodeURIComponent(embedTarget)}`
     : ''
 
   // 同域把当前深浅同步给 iframe 内 docs:主题变化即发;docs 挂载后会发
