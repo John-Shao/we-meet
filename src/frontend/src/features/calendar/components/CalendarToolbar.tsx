@@ -1,0 +1,159 @@
+import { useTranslation } from 'react-i18next'
+import type { ToolbarProps, View } from 'react-big-calendar'
+import { isToday } from 'date-fns'
+
+import { css, cx } from '@/styled-system/css'
+
+/**
+ * 飞书式日历工具栏,替换 react-big-calendar 默认 toolbar(P8 微调):
+ * 左侧「今天 + ‹ › + 日期标题」一组靠左,右侧「日/周/月/日程」分段切换。
+ * 文案沿用 calendar:grid.*;日视图看今天时标题后缀蓝色「今天」,对齐飞书。
+ * 翻页箭头与 MiniCalendar 同用 ‹ › 字形,保持特性内一致。
+ */
+
+// 飞书分段控件顺序是 日|周|月,与 rbc 传入的 views 顺序无关,这里显式排序。
+const VIEW_ORDER: View[] = ['day', 'week', 'month', 'agenda']
+
+const todayBtn = css({
+  paddingX: '0.75rem',
+  paddingY: '0.3125rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '0.5rem',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.800',
+  fontSize: '0.875rem',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+
+const navBtn = css({
+  width: '1.75rem',
+  height: '1.75rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  borderRadius: '0.375rem',
+  backgroundColor: 'transparent',
+  color: 'greyscale.600',
+  fontSize: '1.125rem',
+  lineHeight: 1,
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.900' },
+})
+
+const segmentBase = css({
+  paddingX: '0.75rem',
+  paddingY: '0.25rem',
+  border: 'none',
+  borderRadius: '0.375rem',
+  fontSize: '0.875rem',
+  cursor: 'pointer',
+  transition: 'background 150ms, color 150ms',
+})
+
+// 选中/未选中用两个完整类切换,不 cx 叠加同属性原子类(样式表顺序陷阱)。
+const segmentActive = css({
+  backgroundColor: 'greyscale.000',
+  color: 'primary.600',
+  fontWeight: 600,
+  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.08)',
+  // primary.* 固定色阶不随主题翻转,深底上翻到 primaryDark 亮蓝保证可读。
+  _dark: { color: 'primaryDark.700' },
+})
+
+const segmentIdle = css({
+  backgroundColor: 'transparent',
+  color: 'greyscale.700',
+  _hover: { color: 'greyscale.900' },
+})
+
+export function CalendarToolbar<
+  TEvent extends object,
+  TResource extends object,
+>({ label, date, view, views, onNavigate, onView }: ToolbarProps<TEvent, TResource>) {
+  const { t } = useTranslation('calendar')
+  const available = Array.isArray(views) ? views : (Object.keys(views) as View[])
+  const ordered = VIEW_ORDER.filter((v) => available.includes(v))
+
+  return (
+    <div
+      className={css({
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '0.75rem',
+        marginBottom: '0.75rem',
+      })}
+    >
+      <div
+        className={css({ display: 'flex', alignItems: 'center', gap: '0.375rem' })}
+      >
+        <button type="button" className={todayBtn} onClick={() => onNavigate('TODAY')}>
+          {t('grid.today')}
+        </button>
+        <button
+          type="button"
+          className={navBtn}
+          aria-label={t('grid.previous')}
+          title={t('grid.previous')}
+          onClick={() => onNavigate('PREV')}
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          className={navBtn}
+          aria-label={t('grid.next')}
+          title={t('grid.next')}
+          onClick={() => onNavigate('NEXT')}
+        >
+          ›
+        </button>
+        <span
+          className={css({
+            marginLeft: '0.25rem',
+            fontSize: '1rem',
+            fontWeight: 600,
+            color: 'greyscale.900',
+          })}
+        >
+          {label}
+        </span>
+        {view === 'day' && isToday(date) && (
+          <span
+            className={css({
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: 'primary.600',
+              _dark: { color: 'primaryDark.700' },
+            })}
+          >
+            {t('grid.today')}
+          </span>
+        )}
+      </div>
+
+      <div
+        className={css({
+          display: 'inline-flex',
+          gap: '2px',
+          padding: '2px',
+          borderRadius: '0.5rem',
+          backgroundColor: 'greyscale.100',
+        })}
+      >
+        {ordered.map((v) => (
+          <button
+            key={v}
+            type="button"
+            className={cx(segmentBase, v === view ? segmentActive : segmentIdle)}
+            onClick={() => onView(v)}
+          >
+            {t(`grid.${v}`)}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}

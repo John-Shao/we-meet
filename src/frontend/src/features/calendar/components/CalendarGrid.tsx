@@ -9,6 +9,7 @@ import './calendarGridOverrides.css'
 
 import type { CalendarEvent } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
+import { CalendarToolbar } from './CalendarToolbar'
 
 /**
  * Feishu-style 月/周/日 calendar grid (P6-e #3), backed by react-big-calendar.
@@ -41,6 +42,9 @@ interface RbcEvent {
   allDay: boolean
   resource: CalendarEvent
 }
+
+// 飞书式工具栏替换 rbc 默认 toolbar;模块级常量保证引用稳定,避免重挂。
+const rbcComponents = { toolbar: CalendarToolbar }
 
 export interface SlotDraft {
   start: Date
@@ -95,6 +99,8 @@ export const CalendarGrid = ({
   // 时间提示同样统一为 24h。
   const formats = useMemo(
     () => ({
+      // 日视图标题对齐飞书:「2026年7月22日 星期三」(PPP 随 culture 本地化)。
+      dayHeaderFormat: 'PPP EEEE',
       timeGutterFormat: 'HH:mm',
       selectRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
         `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
@@ -134,6 +140,7 @@ export const CalendarGrid = ({
       date={date}
       onNavigate={setDate}
       views={['month', 'week', 'day', 'agenda']}
+      components={rbcComponents}
       popup
       selectable
       formats={formats}

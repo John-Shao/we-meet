@@ -1,50 +1,56 @@
 /* Feishu-blue restyle over react-big-calendar's default theme (P6-e #3). */
 
+/* ── 事件块:飞书式浅蓝底 + 左侧蓝竖条 + 蓝色文字 ─────────────────────────
+   替换原实心蓝块(白字)。dimPast 的 opacity 内联样式不受影响。
+   深色下 primary 深蓝文字压深底不可读,翻到 primaryDark 亮蓝(见文件尾)。 */
 .rbc-event,
+.rbc-day-slot .rbc-event,
 .rbc-day-slot .rbc-background-event {
-  background-color: #3370ff;
+  background-color: rgba(51, 112, 255, 0.12);
   border: none;
+  border-left: 3px solid #3370ff;
+  border-radius: 4px;
+  color: #1e4db3;
 }
 .rbc-event.rbc-selected,
 .rbc-day-slot .rbc-selected.rbc-background-event {
-  background-color: #2860d9;
+  background-color: rgba(51, 112, 255, 0.24);
 }
 .rbc-event:focus {
   outline: 2px solid #2860d9;
 }
+.rbc-event-content {
+  font-weight: 500;
+}
 
-/* Time-grid (周/日) event blocks are narrow — show the title only and drop
-   the time-range label; the full time still shows in the native hover tooltip.
-   Month/agenda views don't render .rbc-event-label, so they're unaffected. */
+/* Time-grid (周/日) blocks: 飞书排布 = 标题第一行、时间第二行。
+   rbc 默认 label(时间)在前,这里翻转顺序并调小时间字号。 */
+.rbc-time-view .rbc-event {
+  display: flex;
+  flex-direction: column;
+}
 .rbc-time-view .rbc-event-label {
-  display: none;
+  order: 2;
+  font-size: 0.75rem;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Today highlight + current-time indicator */
-.rbc-today {
-  background-color: #ebf1ff;
-}
+/* ── 当前时间线:飞书红线 + 左端圆点(原蓝色) ─────────────────────────── */
 .rbc-current-time-indicator {
-  background-color: #3370ff;
+  background-color: #f54a45;
+  height: 2px;
 }
-
-/* Toolbar: active view button + hover in Feishu blue */
-.rbc-toolbar button.rbc-active,
-.rbc-toolbar button.rbc-active:hover,
-.rbc-toolbar button.rbc-active:focus {
-  background-color: #3370ff;
-  border-color: #3370ff;
-  color: #fff;
-}
-.rbc-toolbar button:hover {
-  border-color: #3370ff;
-  color: #2860d9;
-}
-.rbc-toolbar button:focus {
-  border-color: #3370ff;
-}
-.rbc-toolbar .rbc-toolbar-label {
-  font-weight: 600;
+.rbc-current-time-indicator::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #f54a45;
 }
 
 /* ── Theme-aware structural colors ──────────────────────────────────────
@@ -52,7 +58,7 @@
    Re-express its structural colors with panda greyscale CSS vars so they flip
    automatically in dark mode ([data-theme=dark] remaps the vars). Light mode
    stays visually the same (greyscale.000=#FFF, 900≈原文字色). Accent rules
-   above (event/today/toolbar-active in 飞书蓝) are intentionally unchanged. */
+   above (event/time-indicator) are intentionally hardcoded. */
 .rbc-calendar {
   color: var(--colors-greyscale-900);
 }
@@ -95,21 +101,35 @@
 .rbc-off-range {
   color: var(--colors-greyscale-400);
 }
-/* Today: 半透明蓝,浅/深底上都成立(替换原实心 #ebf1ff)。 */
-.rbc-today {
-  background-color: rgba(51, 112, 255, 0.12);
-}
-.rbc-toolbar button {
-  color: var(--colors-greyscale-800);
-  background-color: var(--colors-greyscale-000);
-  border-color: var(--colors-greyscale-300);
-}
-.rbc-toolbar button:disabled {
-  color: var(--colors-greyscale-400);
-}
 .rbc-show-more {
   background-color: transparent;
   color: var(--colors-primary-600);
+}
+
+/* ── 今天高亮:对齐飞书 ─────────────────────────────────────────────────
+   飞书不整列/整格铺蓝底(日视图整屏发蓝就是这个),改为:
+   - 月视图:今天的日期数字戴蓝色圆形徽标;
+   - 周/日视图表头:今天的日期文字变蓝加粗;
+   - 时间网格列不再铺底色。 */
+.rbc-today {
+  background-color: transparent;
+}
+.rbc-month-view .rbc-date-cell.rbc-now .rbc-button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.25rem;
+  border-radius: 50%;
+  background-color: #3370ff;
+  color: #fff;
+  font-weight: 600;
+}
+.rbc-time-view .rbc-header.rbc-today,
+.rbc-time-view .rbc-header.rbc-today .rbc-button-link {
+  color: #3370ff;
+  font-weight: 600;
 }
 
 /* 时间轴分割:整点线清晰(greyscale.300),半点线更淡(greyscale.100),
@@ -121,4 +141,24 @@
 .rbc-day-slot .rbc-time-slot,
 .rbc-time-gutter .rbc-time-slot {
   border-top-color: var(--colors-greyscale-100);
+}
+
+/* ── 深色:事件块配色翻转 ───────────────────────────────────────────────
+   primary 是固定色阶不随主题翻,#1E4DB3 深蓝文字在深底不可见;
+   翻到 primaryDark 亮蓝系(700=#A3B8EC 文字,400=#5570B8 竖条),
+   底色加深一档保持层次。今天徽标/表头蓝同步提亮。 */
+[data-theme='dark'] .rbc-event,
+[data-theme='dark'] .rbc-day-slot .rbc-event,
+[data-theme='dark'] .rbc-day-slot .rbc-background-event {
+  background-color: rgba(51, 112, 255, 0.22);
+  border-left-color: #5c8dff;
+  color: #a3b8ec;
+}
+[data-theme='dark'] .rbc-event.rbc-selected,
+[data-theme='dark'] .rbc-day-slot .rbc-selected.rbc-background-event {
+  background-color: rgba(51, 112, 255, 0.36);
+}
+[data-theme='dark'] .rbc-time-view .rbc-header.rbc-today,
+[data-theme='dark'] .rbc-time-view .rbc-header.rbc-today .rbc-button-link {
+  color: #88a2e4;
 }
