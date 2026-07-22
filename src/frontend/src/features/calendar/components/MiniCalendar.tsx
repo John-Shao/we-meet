@@ -175,7 +175,8 @@ const navBtn = css({
   borderRadius: '6px',
   background: 'transparent',
   color: 'greyscale.700',
-  fontSize: '1rem',
+  // ‹ › 字形本身偏小,统一走 1.25rem 档(同会话日历面板箭头)。
+  fontSize: '1.25rem',
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.100' },
 })
