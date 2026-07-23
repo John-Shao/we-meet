@@ -63,6 +63,20 @@ export function AgendaListView({
       .sort((a, b) => a.start.getTime() - b.start.getTime())
   }, [events, date, length])
 
+  // 相同日期的行合并日期格:首行索引 → rowSpan(rows 已按开始时间排序)。
+  const dateSpans = useMemo(() => {
+    const spans = new Map<number, number>()
+    let i = 0
+    while (i < rows.length) {
+      const key = format(rows[i].start, 'yyyy-MM-dd')
+      let j = i + 1
+      while (j < rows.length && format(rows[j].start, 'yyyy-MM-dd') === key) j++
+      spans.set(i, j - i)
+      i = j
+    }
+    return spans
+  }, [rows])
+
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const selected = rows.find((r) => r.id === selectedId) ?? null
@@ -142,7 +156,12 @@ export function AgendaListView({
           <table className={tableCls}>
             <thead>
               <tr>
-                <th className={cx(thCls, css({ width: '10.5rem' }))}>
+                <th
+                  className={cx(
+                    thCls,
+                    css({ width: '10.5rem', textAlign: 'center' })
+                  )}
+                >
                   {t('grid.date')}
                 </th>
                 <th className={cx(thCls, css({ width: '9rem' }))}>
@@ -155,8 +174,9 @@ export function AgendaListView({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {rows.map((r, idx) => {
                 const isSel = r.id === selectedId
+                const span = dateSpans.get(idx)
                 return (
                   <tr
                     key={r.id}
@@ -167,10 +187,13 @@ export function AgendaListView({
                     onDoubleClick={() => onSelectEvent?.(r)}
                     className={cx(rowCls, isSel ? rowSelCls : rowIdleCls)}
                   >
-                    {/* 星期是日期的冗余表达,合并展示(对齐飞书)。 */}
-                    <td className={tdCls}>
-                      {`${format(r.start, 'yyyy-MM-dd')} ${format(r.start, 'EEE', { locale })}`}
-                    </td>
+                    {/* 同日期合并展示(rowSpan),居中;选中/悬停高亮不覆盖此列。
+                       星期是日期的冗余表达,并入同格(对齐飞书)。 */}
+                    {span !== undefined && (
+                      <td data-merged-date rowSpan={span} className={dateTdCls}>
+                        {`${format(r.start, 'yyyy-MM-dd')} ${format(r.start, 'EEE', { locale })}`}
+                      </td>
+                    )}
                     <td className={tdCls}>{timeCell(r)}</td>
                     <td className={cx(tdCls, ellipsisCls)}>
                       {r.resource?.organizer?.full_name || '—'}
@@ -323,14 +346,22 @@ const rowCls = css({
 })
 
 // 选中/未选中两个完整类切换,不 cx 叠加同属性(panda-cx-atomic-order-trap)。
+// 高亮打在日期列以外的单元格上:合并的日期格(data-merged-date)保持素色。
 const rowSelCls = css({
-  backgroundColor: 'primary.100',
-  _dark: { backgroundColor: 'rgba(51, 112, 255, 0.28)' },
+  '& td:not([data-merged-date])': {
+    backgroundColor: 'primary.100',
+  },
+  _dark: {
+    '& td:not([data-merged-date])': {
+      backgroundColor: 'rgba(51, 112, 255, 0.28)',
+    },
+  },
 })
 
 const rowIdleCls = css({
-  backgroundColor: 'transparent',
-  _hover: { backgroundColor: 'greyscale.50' },
+  '&:hover td:not([data-merged-date])': {
+    backgroundColor: 'greyscale.50',
+  },
 })
 
 const tdCls = css({
@@ -338,6 +369,16 @@ const tdCls = css({
   borderBottom: '1px solid token(colors.greyscale.100)',
   color: 'greyscale.800',
   whiteSpace: 'nowrap',
+})
+
+/** 合并的日期格:水平/垂直居中,不参与行选中高亮。 */
+const dateTdCls = css({
+  padding: '0.5rem 0.75rem',
+  borderBottom: '1px solid token(colors.greyscale.100)',
+  color: 'greyscale.800',
+  whiteSpace: 'nowrap',
+  textAlign: 'center',
+  verticalAlign: 'middle',
 })
 
 const ellipsisCls = css({
