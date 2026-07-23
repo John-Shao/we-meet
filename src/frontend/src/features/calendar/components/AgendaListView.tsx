@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addDays, format } from 'date-fns'
+import { addDays, addYears, format } from 'date-fns'
 import { zhCN, enUS, fr, de, nl, type Locale } from 'date-fns/locale'
 
 import { css, cx } from '@/styled-system/css'
@@ -14,10 +14,11 @@ import type { CalendarEvent } from '../api/ApiCalendar'
  * - 整行可选,↑/↓ 方向键移动选中并滚动跟随,Enter/双击打开完整详情弹窗
  * - 右侧详情面板(ResizablePanel 可拖宽)展示选中日程概要
  * 以 rbc 自定义视图接入(navigate/title/range 静态方法),工具栏与翻页
- * 沿用 CalendarToolbar,翻页步长与内置 Agenda 一致(30 天)。
+ * 沿用 CalendarToolbar。
+ *
+ * 区间:锚点日期(默认今天,‹/›按天调整或第二栏小月历跳转)起一年
+ * [date, date+1y);标题展示闭区间尾日(date+1y-1d)。
  */
-
-const AGENDA_LENGTH_DAYS = 30
 
 const localeFor = (lng: string): Locale => {
   if (lng.startsWith('zh')) return zhCN
@@ -38,30 +39,24 @@ interface AgendaEvent {
 interface Props {
   date: Date
   events?: AgendaEvent[]
-  length?: number
   onSelectEvent?: (ev: AgendaEvent) => void
 }
 
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v))
 
-export function AgendaListView({
-  date,
-  events = [],
-  length = AGENDA_LENGTH_DAYS,
-  onSelectEvent,
-}: Props) {
+export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
   const { t, i18n } = useTranslation('calendar')
   const locale = localeFor(i18n.language)
 
   const rows = useMemo(() => {
     const start = new Date(date)
     start.setHours(0, 0, 0, 0)
-    const end = addDays(start, length)
+    const end = addYears(start, 1)
     return events
       .filter((e) => e.resource && e.end > start && e.start < end)
       .sort((a, b) => a.start.getTime() - b.start.getTime())
-  }, [events, date, length])
+  }, [events, date])
 
   // 相同日期的行合并日期格:首行索引 → rowSpan(rows 已按开始时间排序)。
   const dateSpans = useMemo(() => {
@@ -278,24 +273,17 @@ export function AgendaListView({
   )
 }
 
-// ---- rbc 自定义视图静态接口(工具栏标题/翻页步长 30 天) ----
+// ---- rbc 自定义视图静态接口 ----
+// 区间一年;‹/› 按天调整锚点日期;标题尾日按闭区间展示(+1y-1d)。
 
-AgendaListView.range = (start: Date, opts?: { length?: number }) => {
-  const length = opts?.length ?? AGENDA_LENGTH_DAYS
-  return { start, end: addDays(start, length) }
-}
+AgendaListView.range = (start: Date) => ({ start, end: addYears(start, 1) })
 
-AgendaListView.navigate = (
-  date: Date,
-  action: string,
-  opts?: { length?: number }
-) => {
-  const length = opts?.length ?? AGENDA_LENGTH_DAYS
+AgendaListView.navigate = (date: Date, action: string) => {
   switch (action) {
     case 'PREV':
-      return addDays(date, -length)
+      return addDays(date, -1)
     case 'NEXT':
-      return addDays(date, length)
+      return addDays(date, 1)
     default:
       return date
   }
@@ -303,17 +291,12 @@ AgendaListView.navigate = (
 
 AgendaListView.title = (
   start: Date,
-  opts: {
-    length?: number
-    localizer: { format: (range: unknown, fmt: string) => string }
-  }
-) => {
-  const length = opts.length ?? AGENDA_LENGTH_DAYS
-  return opts.localizer.format(
-    { start, end: addDays(start, length) },
+  opts: { localizer: { format: (range: unknown, fmt: string) => string } }
+) =>
+  opts.localizer.format(
+    { start, end: addDays(addYears(start, 1), -1) },
     'agendaHeaderFormat'
   )
-}
 
 // ---- 样式 ----
 

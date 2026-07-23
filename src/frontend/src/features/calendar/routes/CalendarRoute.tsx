@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
-import { addMonths, endOfMonth, startOfDay, startOfMonth } from 'date-fns'
+import { addMonths, addYears, endOfMonth, startOfDay, startOfMonth } from 'date-fns'
 
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
@@ -82,14 +82,21 @@ const CalendarAuthenticated = () => {
   }
 
   // 网格 + 迷你历:聚焦月份 ±1 个月窗口(覆盖月视图 6 周 + 迷你历翻页缓冲);
-  // 翻月即换 key 重取,不再一次拉全量。
-  const monthWindow = useMemo(
-    () => ({
+  // 翻月即换 key 重取,不再一次拉全量。日程视图例外:列表展示锚点日期起
+  // 一年,取数窗口同步拉到 [当日, +1年)。
+  const monthWindow = useMemo(() => {
+    if (view === 'agenda') {
+      const anchor = startOfDay(date)
+      return {
+        start: anchor.toISOString(),
+        end: addYears(anchor, 1).toISOString(),
+      }
+    }
+    return {
       start: startOfMonth(addMonths(date, -1)).toISOString(),
       end: endOfMonth(addMonths(date, 1)).toISOString(),
-    }),
-    [date]
-  )
+    }
+  }, [date, view])
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['calendar', 'window', monthWindow],
     queryFn: () => fetchCalendarEvents(monthWindow),
