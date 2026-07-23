@@ -8,6 +8,8 @@ export interface EventAttendee {
   id: string | null
   full_name: string | null
   email: string
+  /** 短时效预签名头像 URL,'' = 未上传(字母色块兜底)。 */
+  avatar_url?: string
   rsvp: RSVPStatus
   role: 'organizer' | 'required' | 'optional'
 }
@@ -24,7 +26,13 @@ export interface CalendarEvent {
   status: string
   visibility: string
   reminders: number[]
-  organizer: { id: string; full_name: string | null } | null
+  organizer: {
+    id: string
+    full_name: string | null
+    short_name?: string | null
+    /** 短时效预签名头像 URL,'' = 未上传(字母色块兜底)。 */
+    avatar_url?: string
+  } | null
   /** Room id (join target) + slug; null when the event has no room. */
   room: string | null
   room_slug: string | null

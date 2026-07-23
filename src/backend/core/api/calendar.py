@@ -19,10 +19,9 @@ from rest_framework import decorators, exceptions, serializers, viewsets
 from rest_framework import status as drf_status
 from rest_framework.response import Response
 
-from core import models
+from core import models, utils
 from core.api import permissions
 from core.api.directory import get_caller_organization
-from core.api.serializers import UserLightSerializer
 from core.api.viewsets import Pagination
 from core.services import calendar_im_notify, calendar_recurrence
 
@@ -34,7 +33,9 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     ``attendees`` / ``my_rsvp`` / ``room_slug`` are read-only enrichments.
     """
 
-    organizer = UserLightSerializer(read_only=True)
+    # 组织者带头像(短时效预签名 URL,同 directory/im resolve 口径),供日程
+    # 视图详情面板等处渲染「头像+名称」。
+    organizer = serializers.SerializerMethodField()
     # TimeZoneField → declare explicitly so it round-trips as an IANA name string.
     timezone = serializers.CharField(required=False, allow_blank=True)
     attendee_ids = serializers.ListField(
@@ -104,12 +105,29 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"invalid RRULE: {exc}") from exc
         return value
 
+    def get_organizer(self, obj):
+        if not obj.organizer_id:
+            return None
+        return {
+            "id": str(obj.organizer_id),
+            "full_name": obj.organizer.full_name,
+            "short_name": obj.organizer.short_name,
+            "avatar_url": utils.generate_profile_image_get_url(
+                "avatar", obj.organizer.avatar_key
+            ),
+        }
+
     def get_attendees(self, obj):
         return [
             {
                 "id": str(a.user_id) if a.user_id else None,
                 "full_name": a.user.full_name if a.user_id else None,
                 "email": a.email or (a.user.email if a.user_id else ""),
+                "avatar_url": utils.generate_profile_image_get_url(
+                    "avatar", a.user.avatar_key
+                )
+                if a.user_id
+                else "",
                 "rsvp": a.rsvp,
                 "role": a.role,
             }

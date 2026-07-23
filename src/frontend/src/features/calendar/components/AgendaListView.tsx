@@ -6,6 +6,7 @@ import { zhCN, enUS, fr, de, nl, type Locale } from 'date-fns/locale'
 
 import { css, cx } from '@/styled-system/css'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { MemberAvatar } from '@/features/contacts'
 
 import type { CalendarEvent } from '../api/ApiCalendar'
 
@@ -220,74 +221,110 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
         max={520}
         side="right"
       >
+        {/* flex 纵排:内容区滚动,「进入会议」按钮沉底常驻。 */}
         <div
           className={css({
             height: '100%',
-            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
             padding: '1rem',
             backgroundColor: 'greyscale.000',
             borderLeft: '1px solid token(colors.greyscale.200)',
           })}
         >
-          {selected && detail ? (
-            <div className={css({ display: 'flex', flexDirection: 'column', gap: '0.75rem' })}>
-              <h3
+          <div
+            className={css({
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+            })}
+          >
+            {selected && detail ? (
+              <div
                 className={css({
-                  margin: 0,
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  color: 'greyscale.900',
-                  overflowWrap: 'anywhere',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
                 })}
               >
-                {selected.title}
-              </h3>
-              <div className={css({ fontSize: '0.875rem', color: 'greyscale.800' })}>
-                {detailTime(selected)}
-              </div>
-              <div className={detailRowCls}>
-                <span className={detailLabelCls}>{t('card.organizer')}</span>
-                <span>{detail.organizer?.full_name || '—'}</span>
-              </div>
-              <div className={detailRowCls}>
-                <span className={detailLabelCls}>
-                  {t('detail.attendeesTitle', {
-                    count: detail.attendees.length,
-                  })}
-                </span>
-                <span className={css({ overflowWrap: 'anywhere' })}>
-                  {detail.attendees.map((a) => a.full_name || a.email).join('、')}
-                </span>
-              </div>
-              {detail.description && (
-                <div
+                <h3
                   className={css({
-                    fontSize: '0.8125rem',
-                    color: 'greyscale.700',
-                    whiteSpace: 'pre-wrap',
+                    margin: 0,
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    color: 'greyscale.900',
                     overflowWrap: 'anywhere',
-                    borderTop: '1px solid token(colors.greyscale.100)',
-                    paddingTop: '0.75rem',
                   })}
                 >
-                  {detail.description}
-                </div>
-              )}
-              {detail.room_slug && (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/${detail.room_slug}`)}
-                  data-testid="agenda-join"
-                  className={joinBtnCls}
+                  {selected.title}
+                </h3>
+                <div
+                  className={css({ fontSize: '0.875rem', color: 'greyscale.800' })}
                 >
-                  {t('card.join')}
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className={css({ fontSize: '0.875rem', color: 'greyscale.500' })}>
-              {t('grid.detailHint')}
-            </div>
+                  {detailTime(selected)}
+                </div>
+                <div className={detailRowCls}>
+                  <span className={detailLabelCls}>{t('card.organizer')}</span>
+                  <span className={personCls}>
+                    <MemberAvatar
+                      name={detail.organizer?.full_name || '?'}
+                      src={detail.organizer?.avatar_url}
+                      size="1.5rem"
+                    />
+                    {detail.organizer?.full_name || '—'}
+                  </span>
+                </div>
+                <div className={detailRowCls}>
+                  <span className={detailLabelCls}>
+                    {t('detail.attendeesTitle', {
+                      count: detail.attendees.length,
+                    })}
+                  </span>
+                  <span className={personListCls}>
+                    {detail.attendees.map((a) => (
+                      <span key={a.id ?? a.email} className={personCls}>
+                        <MemberAvatar
+                          name={a.full_name || a.email}
+                          src={a.avatar_url}
+                          size="1.5rem"
+                        />
+                        {a.full_name || a.email}
+                      </span>
+                    ))}
+                  </span>
+                </div>
+                {detail.description && (
+                  <div
+                    className={css({
+                      fontSize: '0.8125rem',
+                      color: 'greyscale.700',
+                      whiteSpace: 'pre-wrap',
+                      overflowWrap: 'anywhere',
+                      borderTop: '1px solid token(colors.greyscale.100)',
+                      paddingTop: '0.75rem',
+                    })}
+                  >
+                    {detail.description}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                className={css({ fontSize: '0.875rem', color: 'greyscale.500' })}
+              >
+                {t('grid.detailHint')}
+              </div>
+            )}
+          </div>
+          {detail?.room_slug && (
+            <button
+              type="button"
+              onClick={() => navigate(`/${detail.room_slug}`)}
+              data-testid="agenda-join"
+              className={joinBtnCls}
+            >
+              {t('card.join')}
+            </button>
           )}
         </div>
       </ResizablePanel>
@@ -407,9 +444,23 @@ const dateTdTodayCls = css({
   _dark: { color: 'primaryDark.700' },
 })
 
-/** 进入会议:样式对齐 EventDetailDialog 的 detail-join。 */
+/** 头像+名称的单人条目;列表纵向排布。 */
+const personCls = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  overflowWrap: 'anywhere',
+})
+
+const personListCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.375rem',
+})
+
+/** 进入会议:样式对齐 EventDetailDialog 的 detail-join,沉底常驻。 */
 const joinBtnCls = css({
-  marginTop: '0.25rem',
+  marginTop: '0.75rem',
   paddingX: '1rem',
   paddingY: '0.5rem',
   border: 'none',
