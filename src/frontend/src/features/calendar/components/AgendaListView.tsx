@@ -156,21 +156,17 @@ export function AgendaListView({
           <table className={tableCls}>
             <thead>
               <tr>
-                <th
-                  className={cx(
-                    thCls,
-                    css({ width: '10.5rem', textAlign: 'center' })
-                  )}
-                >
+                {/* 前三列(日期/时间/组织者)表头表体统一左右居中 */}
+                <th className={cx(thCls, centerCls, css({ width: '10.5rem' }))}>
                   {t('grid.date')}
                 </th>
-                <th className={cx(thCls, css({ width: '9rem' }))}>
+                <th className={cx(thCls, centerCls, css({ width: '9rem' }))}>
                   {t('grid.time')}
                 </th>
-                <th className={cx(thCls, css({ width: '9rem' }))}>
+                <th className={cx(thCls, centerCls, css({ width: '9rem' }))}>
                   {t('grid.organizer')}
                 </th>
-                <th className={thCls}>{t('grid.event')}</th>
+                <th className={cx(thCls, leftCls)}>{t('grid.event')}</th>
               </tr>
             </thead>
             <tbody>
@@ -194,8 +190,8 @@ export function AgendaListView({
                         {`${format(r.start, 'yyyy-MM-dd')} ${format(r.start, 'EEE', { locale })}`}
                       </td>
                     )}
-                    <td className={tdCls}>{timeCell(r)}</td>
-                    <td className={cx(tdCls, ellipsisCls)}>
+                    <td className={cx(tdCls, centerCls)}>{timeCell(r)}</td>
+                    <td className={cx(tdCls, ellipsisCls, centerCls)}>
                       {r.resource?.organizer?.full_name || '—'}
                     </td>
                     <td className={cx(tdCls, ellipsisCls)}>{r.title}</td>
@@ -327,11 +323,12 @@ const tableCls = css({
   fontSize: '0.875rem',
 })
 
+// textAlign 不放在 thCls 里:各列用 centerCls/leftCls 单独指定,避免 cx
+// 叠加同属性原子类按样式表顺序取胜的陷阱(panda-cx-atomic-order-trap)。
 const thCls = css({
   position: 'sticky',
   top: 0,
   zIndex: 1,
-  textAlign: 'left',
   fontWeight: 500,
   fontSize: '0.8125rem',
   color: 'greyscale.600',
@@ -380,6 +377,10 @@ const dateTdCls = css({
   textAlign: 'center',
   verticalAlign: 'middle',
 })
+
+const centerCls = css({ textAlign: 'center' })
+// th 浏览器默认居中,事件列需显式左对齐。
+const leftCls = css({ textAlign: 'left' })
 
 const ellipsisCls = css({
   maxWidth: 0,
