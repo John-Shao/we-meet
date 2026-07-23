@@ -9,6 +9,7 @@ import './calendarGridOverrides.css'
 
 import type { CalendarEvent } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
+import { resolveRbcView } from '../utils/rbcView'
 import { CalendarToolbar } from './CalendarToolbar'
 import { AgendaListView } from './AgendaListView'
 
@@ -155,8 +156,7 @@ export const CalendarGrid = ({
   const view = viewProp ?? viewState
   // 关周末时把周视图映射到内置 work_week(周一~周五);其余视图透传。app 层
   // view 恒为 'week',若 rbc 回吐 work_week(如内部下钻)映射回 'week'。
-  const effectiveView: View =
-    view === 'week' && !showWeekend ? ('work_week' as View) : view
+  const effectiveView = resolveRbcView(view, showWeekend)
   const setView = (v: View) => {
     setViewState(v)
     onViewChange?.(v)
