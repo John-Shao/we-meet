@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'wouter'
 import { addDays, addYears, format } from 'date-fns'
 import { zhCN, enUS, fr, de, nl, type Locale } from 'date-fns/locale'
 
@@ -48,6 +49,7 @@ const clamp = (v: number, lo: number, hi: number) =>
 export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
   const { t, i18n } = useTranslation('calendar')
   const locale = localeFor(i18n.language)
+  const [, navigate] = useLocation()
 
   const rows = useMemo(() => {
     const start = new Date(date)
@@ -75,6 +77,8 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const selected = rows.find((r) => r.id === selectedId) ?? null
+  // 提前收窄成非空 const,闭包(onClick)里 TS 才保得住类型。
+  const detail = selected?.resource ?? null
 
   // 选中行滚动跟随(方向键连按时保持可见)。
   useEffect(() => {
@@ -179,9 +183,19 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
                     className={cx(rowCls, isSel ? rowSelCls : rowIdleCls)}
                   >
                     {/* 同日期合并展示(rowSpan),居中;选中/悬停高亮不覆盖此列。
-                       星期是日期的冗余表达,并入同格(对齐飞书)。 */}
+                       星期是日期的冗余表达,并入同格(对齐飞书);今天蓝色加粗
+                       作视觉锚点。 */}
                     {span !== undefined && (
-                      <td data-merged-date rowSpan={span} className={dateTdCls}>
+                      <td
+                        data-merged-date
+                        rowSpan={span}
+                        className={
+                          format(r.start, 'yyyy-MM-dd') ===
+                          format(new Date(), 'yyyy-MM-dd')
+                            ? dateTdTodayCls
+                            : dateTdCls
+                        }
+                      >
                         {`${format(r.start, 'yyyy-MM-dd')} ${format(r.start, 'EEE', { locale })}`}
                       </td>
                     )}
@@ -215,7 +229,7 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
             borderLeft: '1px solid token(colors.greyscale.200)',
           })}
         >
-          {selected?.resource ? (
+          {selected && detail ? (
             <div className={css({ display: 'flex', flexDirection: 'column', gap: '0.75rem' })}>
               <h3
                 className={css({
@@ -233,21 +247,19 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
               </div>
               <div className={detailRowCls}>
                 <span className={detailLabelCls}>{t('card.organizer')}</span>
-                <span>{selected.resource.organizer?.full_name || '—'}</span>
+                <span>{detail.organizer?.full_name || '—'}</span>
               </div>
               <div className={detailRowCls}>
                 <span className={detailLabelCls}>
                   {t('detail.attendeesTitle', {
-                    count: selected.resource.attendees.length,
+                    count: detail.attendees.length,
                   })}
                 </span>
                 <span className={css({ overflowWrap: 'anywhere' })}>
-                  {selected.resource.attendees
-                    .map((a) => a.full_name || a.email)
-                    .join('、')}
+                  {detail.attendees.map((a) => a.full_name || a.email).join('、')}
                 </span>
               </div>
-              {selected.resource.description && (
+              {detail.description && (
                 <div
                   className={css({
                     fontSize: '0.8125rem',
@@ -258,8 +270,18 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
                     paddingTop: '0.75rem',
                   })}
                 >
-                  {selected.resource.description}
+                  {detail.description}
                 </div>
+              )}
+              {detail.room_slug && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/${detail.room_slug}`)}
+                  data-testid="agenda-join"
+                  className={joinBtnCls}
+                >
+                  {t('card.join')}
+                </button>
               )}
             </div>
           ) : (
@@ -370,6 +392,33 @@ const ellipsisCls = css({
   minWidth: '6rem',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
+})
+
+/** 今天的日期格:蓝色加粗视觉锚点。与 dateTdCls 整类切换,不 cx 叠加同
+ * 属性(panda-cx-atomic-order-trap);深色下 primary 不翻转,换 primaryDark。 */
+const dateTdTodayCls = css({
+  padding: '0.5rem 0.75rem',
+  borderBottom: '1px solid token(colors.greyscale.100)',
+  whiteSpace: 'nowrap',
+  textAlign: 'center',
+  verticalAlign: 'middle',
+  color: 'primary.600',
+  fontWeight: 600,
+  _dark: { color: 'primaryDark.700' },
+})
+
+/** 进入会议:样式对齐 EventDetailDialog 的 detail-join。 */
+const joinBtnCls = css({
+  marginTop: '0.25rem',
+  paddingX: '1rem',
+  paddingY: '0.5rem',
+  border: 'none',
+  borderRadius: '0.5rem',
+  backgroundColor: 'primary.500',
+  color: 'white',
+  fontSize: '0.875rem',
+  fontWeight: 'medium',
+  cursor: 'pointer',
 })
 
 const detailRowCls = css({
