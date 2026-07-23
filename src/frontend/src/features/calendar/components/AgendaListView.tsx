@@ -142,11 +142,8 @@ export function AgendaListView({
           <table className={tableCls}>
             <thead>
               <tr>
-                <th className={cx(thCls, css({ width: '7.5rem' }))}>
+                <th className={cx(thCls, css({ width: '10.5rem' }))}>
                   {t('grid.date')}
-                </th>
-                <th className={cx(thCls, css({ width: '4.5rem' }))}>
-                  {t('grid.weekday')}
                 </th>
                 <th className={cx(thCls, css({ width: '9rem' }))}>
                   {t('grid.time')}
@@ -170,8 +167,10 @@ export function AgendaListView({
                     onDoubleClick={() => onSelectEvent?.(r)}
                     className={cx(rowCls, isSel ? rowSelCls : rowIdleCls)}
                   >
-                    <td className={tdCls}>{format(r.start, 'yyyy-MM-dd')}</td>
-                    <td className={tdCls}>{format(r.start, 'EEE', { locale })}</td>
+                    {/* 星期是日期的冗余表达,合并展示(对齐飞书)。 */}
+                    <td className={tdCls}>
+                      {`${format(r.start, 'yyyy-MM-dd')} ${format(r.start, 'EEE', { locale })}`}
+                    </td>
                     <td className={tdCls}>{timeCell(r)}</td>
                     <td className={cx(tdCls, ellipsisCls)}>
                       {r.resource?.organizer?.full_name || '—'}
