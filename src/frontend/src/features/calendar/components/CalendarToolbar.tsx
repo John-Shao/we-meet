@@ -114,6 +114,8 @@ export const CalendarViewSwitcher = ({
 const NAV_TIP_KEYS: Partial<Record<View, [string, string]>> = {
   day: ['grid.prevDay', 'grid.nextDay'],
   week: ['grid.prevWeek', 'grid.nextWeek'],
+  // 关周末时周视图渲染为 work_week,翻页语义仍是上周/下周。
+  work_week: ['grid.prevWeek', 'grid.nextWeek'],
   month: ['grid.prevMonth', 'grid.nextMonth'],
   agenda: ['grid.prevDay', 'grid.nextDay'],
 }

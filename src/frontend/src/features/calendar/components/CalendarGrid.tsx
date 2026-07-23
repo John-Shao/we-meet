@@ -115,6 +115,9 @@ const DRAFT_ID = '__slot-draft__'
 const RBC_VIEWS = {
   month: true,
   week: true,
+  // 显示周末关闭时,周视图渲染层收敛到内置 work_week(周一~周五);切换器/
+  // 路由层 view 仍是 'week',仅此处映射,不额外暴露 work_week 分段按钮。
+  work_week: true,
   day: true,
   agenda: AgendaListView,
 } as unknown as View[]
@@ -146,10 +149,14 @@ export const CalendarGrid = ({
   slotDraft,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
-  const { weekStartsOn, dimPast } = useCalendarSettings()
+  const { weekStartsOn, dimPast, showWeekend } = useCalendarSettings()
   const localizer = useMemo(() => localizerFor(weekStartsOn), [weekStartsOn])
   const [viewState, setViewState] = useState<View>('week')
   const view = viewProp ?? viewState
+  // 关周末时把周视图映射到内置 work_week(周一~周五);其余视图透传。app 层
+  // view 恒为 'week',若 rbc 回吐 work_week(如内部下钻)映射回 'week'。
+  const effectiveView: View =
+    view === 'week' && !showWeekend ? ('work_week' as View) : view
   const setView = (v: View) => {
     setViewState(v)
     onViewChange?.(v)
@@ -220,9 +227,12 @@ export const CalendarGrid = ({
   // 仅语言切换时重建(周表头星期文案随语言)。
   const rbcComponents = useMemo(() => {
     const TimeEvent = timeEventFor(i18n.language.startsWith('zh'))
+    const weekHeader = weekHeaderFor(localeFor(i18n.language))
     return {
       toolbar: CalendarToolbar,
-      week: { header: weekHeaderFor(localeFor(i18n.language)), event: TimeEvent },
+      week: { header: weekHeader, event: TimeEvent },
+      // work_week 复用周视图的表头/事件组件(仅列数收敛为 5)。
+      work_week: { header: weekHeader, event: TimeEvent },
       day: { event: TimeEvent },
       month: { event: MonthEvent },
     }
@@ -253,8 +263,8 @@ export const CalendarGrid = ({
       events={rbcEvents}
       startAccessor="start"
       endAccessor="end"
-      view={view}
-      onView={setView}
+      view={effectiveView}
+      onView={(v) => setView(v === ('work_week' as View) ? 'week' : v)}
       date={date}
       onNavigate={setDate}
       views={RBC_VIEWS}

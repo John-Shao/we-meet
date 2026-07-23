@@ -34,6 +34,7 @@ import type { VideoCodec } from 'livekit-client'
 import {
   DURATION_OPTIONS,
   REMINDER_OPTIONS,
+  reminderOptionLabel,
   useCalendarSettings,
   type WeekStartPref,
 } from '@/features/calendar/hooks/useCalendarSettings'
@@ -277,10 +278,12 @@ const CalendarPanel = () => {
     defaultDurationMin,
     defaultReminderMin,
     dimPast,
+    showWeekend,
     setWeekStart,
     setDefaultDuration,
     setDefaultReminder,
     setDimPast,
+    setShowWeekend,
   } = useCalendarSettings()
 
   return (
@@ -321,6 +324,16 @@ const CalendarPanel = () => {
         </select>
       </div>
       <div className={infoRowCls}>
+        <Switch
+          isSelected={showWeekend}
+          onChange={setShowWeekend}
+          data-testid="calendar-settings-show-weekend"
+          className={switchRowCls}
+        >
+          <span className={infoKeyCls}>{t('settings.showWeekend')}</span>
+        </Switch>
+      </div>
+      <div className={infoRowCls}>
         <span className={infoKeyCls}>{t('settings.defaultDuration')}</span>
         <select
           value={defaultDurationMin}
@@ -352,7 +365,7 @@ const CalendarPanel = () => {
           <option value="none">{t('form.reminderNone')}</option>
           {REMINDER_OPTIONS.map((min) => (
             <option key={min} value={min}>
-              {t('form.reminderMinutes', { count: min })}
+              {reminderOptionLabel(t, min)}
             </option>
           ))}
         </select>

@@ -11,7 +11,10 @@ import { useDirectoryMemberSearch, MemberAvatar } from '@/features/contacts'
 
 import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent, EditScope } from '../api/ApiCalendar'
-import { useCalendarSettings } from '../hooks/useCalendarSettings'
+import {
+  reminderOptionLabel,
+  useCalendarSettings,
+} from '../hooks/useCalendarSettings'
 import { FreeBusyBar } from './FreeBusyBar'
 
 interface Props {
@@ -354,7 +357,7 @@ export const CreateEventDialog = ({
                   checked={reminders.has(m)}
                   onChange={() => toggleReminder(m)}
                 />
-                {t('form.reminderMinutes', { count: m })}
+                {reminderOptionLabel(t, m)}
               </label>
             ))}
             {reminders.size === 0 && (
