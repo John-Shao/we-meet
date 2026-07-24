@@ -177,7 +177,8 @@
     "selected": "Geselecteerd: {{count}}",
     "send": "Verzenden ({{count}})",
     "empty": "Geen documenten om te delen",
-    "error": "Documenten laden mislukt"
+    "error": "Documenten laden mislukt",
+    "sendError": "Document verzenden mislukt, probeer opnieuw"
   },
   "calendar": {
     "open": "Agenda bekijken",

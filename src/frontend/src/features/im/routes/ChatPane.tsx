@@ -490,12 +490,18 @@ export const ChatPane = ({
   }
 
   // 分享云文档到聊天(入口 A):选择器多选后逐个发 content_type='doc-card'。
+  // 与 onSendImage/onSendFile 一致:发送失败弹提示(否则调用处 void 吞掉
+  // rejection,断线时静默失败 + 后续文档不再发)。
   const onConfirmDocPicker = async (docs: MyDocumentHit[]) => {
     setShowDocPicker(false)
-    for (const doc of docs) {
-      await client.sendText(cid, buildDocCardBody(doc), {
-        contentType: 'doc-card',
-      })
+    try {
+      for (const doc of docs) {
+        await client.sendText(cid, buildDocCardBody(doc), {
+          contentType: 'doc-card',
+        })
+      }
+    } catch {
+      void showAlert({ message: t('docPicker.sendError') })
     }
   }
 

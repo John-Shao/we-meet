@@ -177,7 +177,8 @@
     "selected": "已选 {{count}} 项",
     "send": "发送 ({{count}})",
     "empty": "暂无可分享的文档",
-    "error": "获取文档列表失败"
+    "error": "获取文档列表失败",
+    "sendError": "文档发送失败,请重试"
   },
   "calendar": {
     "open": "查看日历",

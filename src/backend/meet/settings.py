@@ -462,6 +462,13 @@ class Base(Configuration):
                 environ_name="GLOBAL_SEARCH_AI_THROTTLE_RATES",
                 environ_prefix=None,
             ),
+            # 分享云文档到聊天 — 选择器"我的文档"列表(空 q 是常态,每次必发
+            # Docs s2s + DB 排序)。宽到够 type-ahead(无防抖),但封住裸循环轰炸。
+            "docs_my_documents": values.Value(
+                default="120/minute",
+                environ_name="DOCS_MY_DOCUMENTS_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
         },
     }
     MONITORED_THROTTLE_FAILURE_CALLBACK = (

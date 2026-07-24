@@ -407,6 +407,69 @@ def test_docs_search_unreachable_returns_empty(settings):
     assert resp.json() == {"results": []}
 
 
+# ---- 分享云文档到聊天:入口 A 的"我的文档"列表代理 ----
+
+
+def test_docs_my_documents_requires_auth_and_degrades_gracefully(settings):
+    client = APIClient()
+    assert client.get("/api/v1.0/docs/my-documents/").status_code == 401
+
+    user = factories.UserFactory()
+    client.force_login(user)
+    # 与 docs/search 不同:空 q 是常态(最近文档),不再有 len<2 门槛。
+    # Docs 未配置 → 仍走降级返回空列表而非 5xx。
+    settings.DOCS_CONFIGURATION = {}
+    assert client.get("/api/v1.0/docs/my-documents/").json() == {"results": []}
+
+
+def test_docs_my_documents_proxies_and_ignores_param_sub(settings):
+    settings.DOCS_CONFIGURATION = {
+        "api_url": "https://docs.example.com",
+        "server_to_server_token": "tok",
+    }
+    user = factories.UserFactory(sub="sub-abc")
+    client = APIClient()
+    client.force_login(user)
+
+    from core.services.docs_client import DocsSearchHit
+
+    with mock.patch(
+        "core.services.docs_client.DocsClient.list_for_user",
+        return_value=[
+            DocsSearchHit(id="d1", title="巨思相机产品设计", updated_at="2026-07-18T00:00:00Z")
+        ],
+    ) as spy:
+        # 客户端试图伪造 ?sub=evil-victim 越权拉他人文档 —— 必须被无视。
+        resp = client.get("/api/v1.0/docs/my-documents/?sub=evil-victim&q=巨思")
+    assert resp.status_code == 200
+    rows = resp.json()["results"]
+    assert rows[0]["title"] == "巨思相机产品设计"
+    assert rows[0]["url"] == "https://docs.example.com/docs/d1/"
+    # sub 严格取调用者本人,q 透传;?sub= 参数不进入 s2s 调用(IDOR 防护)。
+    assert spy.call_args.kwargs["sub"] == "sub-abc"
+    assert spy.call_args.kwargs["query"] == "巨思"
+
+
+def test_docs_my_documents_unreachable_returns_empty(settings):
+    settings.DOCS_CONFIGURATION = {
+        "api_url": "https://docs.example.com",
+        "server_to_server_token": "tok",
+    }
+    user = factories.UserFactory(sub="sub-abc")
+    client = APIClient()
+    client.force_login(user)
+
+    from core.services.docs_client import DocsUnreachableError
+
+    with mock.patch(
+        "core.services.docs_client.DocsClient.list_for_user",
+        side_effect=DocsUnreachableError("down"),
+    ):
+        resp = client.get("/api/v1.0/docs/my-documents/")
+    assert resp.status_code == 200
+    assert resp.json() == {"results": []}
+
+
 # ---- P1-4 M2:IM 消息源 ----
 
 

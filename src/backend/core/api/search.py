@@ -110,9 +110,13 @@ class DocsMyDocumentsView(APIView):
     ``list-for-user``(sub 服务端注入,绝不接受参数)。``q`` 可选,用于选择器
     内搜索;同 :class:`DocsSearchView`,Docs 未配置/不可达/无 sub 一律**空
     列表**而非 5xx。
+
+    带 per-user throttle:空 q 是常态且每次必发 Docs s2s + DB 排序,不像
+    ``DocsSearchView`` 有 ``len(q)<2`` 早返回,故加一道防裸循环轰炸的闸。
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [throttling.DocsMyDocumentsRateThrottle]
 
     def get(self, request):
         query = str(request.query_params.get("q") or "").strip()

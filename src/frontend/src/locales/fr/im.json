@@ -177,7 +177,8 @@
     "selected": "Sélectionné : {{count}}",
     "send": "Envoyer ({{count}})",
     "empty": "Aucun document à partager",
-    "error": "Échec du chargement des documents"
+    "error": "Échec du chargement des documents",
+    "sendError": "Échec de l'envoi du document, veuillez réessayer"
   },
   "calendar": {
     "open": "Voir l'agenda",

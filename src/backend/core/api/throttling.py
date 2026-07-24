@@ -136,6 +136,30 @@ class GlobalSearchAIDailyThrottle(MonitoredUserRateThrottle):
         }
 
 
+class DocsMyDocumentsRateThrottle(MonitoredUserRateThrottle):
+    """Per-user throttle for the "share doc to chat" picker list endpoint.
+
+    Unlike ``DocsSearchView`` (which short-circuits to an empty list when
+    ``len(q) < 2`` before ever touching Docs), ``my-documents`` treats an empty
+    ``q`` as the common "recent documents" case and therefore hits the Docs
+    server-to-server endpoint + a DB ``ORDER BY`` on every call. This guards a
+    bare ``GET /docs/my-documents/`` loop from hammering Docs — not a security
+    control, just an accidental-hammering backstop (see DRF docs). The default
+    rate stays generous enough for type-ahead in the picker (no client-side
+    debounce today).
+    """
+
+    scope = "docs_my_documents"
+
+    def get_cache_key(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return None
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": str(request.user.pk),
+        }
+
+
 class PersonalAIRateThrottle(MonitoredUserRateThrottle):
     """Per-user throttle for the cross-meeting (personal) AI endpoint.
 

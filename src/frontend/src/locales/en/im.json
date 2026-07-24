@@ -177,7 +177,8 @@
     "selected": "Selected: {{count}}",
     "send": "Send ({{count}})",
     "empty": "No documents to share",
-    "error": "Failed to load documents"
+    "error": "Failed to load documents",
+    "sendError": "Failed to send document, please retry"
   },
   "calendar": {
     "open": "View calendar",

@@ -177,7 +177,8 @@
     "selected": "Ausgewählt: {{count}}",
     "send": "Senden ({{count}})",
     "empty": "Keine Dokumente zum Teilen",
-    "error": "Dokumente konnten nicht geladen werden"
+    "error": "Dokumente konnten nicht geladen werden",
+    "sendError": "Dokument konnte nicht gesendet werden, bitte erneut versuchen"
   },
   "calendar": {
     "open": "Kalender ansehen",
