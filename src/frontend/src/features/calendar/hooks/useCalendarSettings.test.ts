@@ -32,7 +32,13 @@ describe('reminderOptionLabel', () => {
 })
 
 describe('useCalendarSettings — showWeekend', () => {
-  it('localStorage 空时默认关(只显工作周)', () => {
+  it('localStorage 空时默认开(显示整周)', () => {
+    const { result } = renderHook(() => useCalendarSettings())
+    expect(result.current.showWeekend).toBe(true)
+  })
+
+  it('显式存 "0" → 关(收敛成工作周)', () => {
+    localStorage.setItem(WEEKEND_KEY, '0')
     const { result } = renderHook(() => useCalendarSettings())
     expect(result.current.showWeekend).toBe(false)
   })
