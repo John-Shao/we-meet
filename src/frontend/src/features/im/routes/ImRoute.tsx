@@ -321,9 +321,11 @@ const ImAuthenticated = () => {
                       ? t('preview.phoneViewed')
                       : ct === 'event-card'
                         ? t('preview.event')
-                        : ct === 'quote'
-                          ? parseQuoteText(c.last_message)
-                          : (c.last_message ?? '')
+                        : ct === 'doc-card'
+                          ? t('preview.doc')
+                          : ct === 'quote'
+                            ? parseQuoteText(c.last_message)
+                            : (c.last_message ?? '')
     const ts = c.last_message_ts
     if (c.type !== 'group' || c.last_content_type === 'system') {
       return { text: body, ts }

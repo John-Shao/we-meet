@@ -61,9 +61,12 @@ export const DocsRoute = () => {
   // authenticate 入口进站,而非裸 `/`。无 docs 会话的浏览器(新浏览器/无痕窗)
   // 直接进 `/` 会被 docs 前端甩到 /home/ 英文营销页;authenticate 则拿已有
   // Keycloak 会话(meet/docs/id 同注册域,iframe 内 cookie 照常携带)服务端
-  // 静默换 docs 会话,302 回 returnTo 直达文档列表,营销页整链路不出现。
+  // 静默换 docs 会话,302 回落地页,营销页整链路不出现。
+  // ⚠️ 参数名必须是 `next`(docs authenticate 走 mozilla-django-oidc,认 `next`;
+  // 前端 gotoSilentLogin 亦用 `next`)。曾误用 `returnTo` → 被忽略、一律落 `/`
+  // (列表),深链打不开分享的文档 + embed/lang/theme query 全丢(靠 UA 兜底)。
   const embedSrc = embedTarget
-    ? `${docsBase}/api/v1.0/authenticate/?returnTo=${encodeURIComponent(embedTarget)}`
+    ? `${docsBase}/api/v1.0/authenticate/?next=${encodeURIComponent(embedTarget)}`
     : ''
 
   // 同域把当前深浅同步给 iframe 内 docs:主题变化即发;docs 挂载后会发

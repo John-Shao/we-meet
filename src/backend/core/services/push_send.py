@@ -406,6 +406,8 @@ def notify_offline(payload: dict[str, Any], client: Optional[GetuiClient] = None
         "merged": "[聊天记录]",
         "call-log": "[通话]",
         "group-call": "[语音通话]",
+        "event-card": "[日程]",
+        "doc-card": "[云文档]",
     }
     if content_type in type_labels:
         snippet = type_labels[content_type]
