@@ -738,6 +738,80 @@ class ImViewSet(viewsets.ViewSet):
             raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
         return Response(data, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["post"], url_path="grant-doc-access")
+    def grant_doc_access(self, request):
+        """分享云文档到聊天:给会话成员精准授文档**只读**权限。
+
+        Body ``{doc_id, cids: [...]}``。对每个会话以调用者身份拉 roster
+        (jusi 只对成员返回 roster → 天然校验调用者确在会话内;非成员/不可达的
+        cid 跳过,不连累其余),收集成员 uid → we-meet User →(sub, email)→
+        调 Docs s2s 精准授权(在 Docs 建 reader access / 未登录过按 email 建
+        invitation)。**best-effort**:Docs/jusi 未配置或失败一律 granted=0,绝不
+        阻断分享本身(卡片由客户端经 IM SDK 独立发送,与本调用解耦)。跨组织成员
+        照授(不做 org 过滤)——群可跨组织,与「能给会话发消息即可授其只读」一致。
+        """
+        doc_id = str(request.data.get("doc_id") or "").strip()
+        cids = request.data.get("cids")
+        if not doc_id or not isinstance(cids, list) or not cids:
+            raise ValidationError({"detail": "doc_id and cids[] required"})
+
+        docs_cfg = getattr(settings, "DOCS_CONFIGURATION", None) or {}
+        api_url = docs_cfg.get("api_url") or ""
+        token = docs_cfg.get("server_to_server_token") or ""
+        if not api_url or not token:
+            return Response({"granted": 0})
+
+        client = self._make_client()
+        me = self._issue(client, self._external_id(request.user))
+        member_uids: set[str] = set()
+        for raw_cid in cids:
+            cid = str(raw_cid or "").strip()
+            if not cid:
+                continue
+            try:
+                roster = self._require_role(client, cid, me, owner_only=False)
+            except (
+                PermissionDenied,
+                JusiImUnreachableHTTPError,
+                JusiImInvalidResponseHTTPError,
+            ):
+                # 调用者不是该会话成员 / jusi 抖动 → 跳过此 cid。
+                continue
+            for member in roster:
+                uid = str(member.get("uid") or "")
+                if uid and uid != me.uid:
+                    member_uids.add(uid)
+        if not member_uids:
+            return Response({"granted": 0})
+
+        # 不做组织过滤:群可跨组织,授权面 = 会话全体成员本身。
+        users = models.User.objects.filter(
+            im_uid__in=member_uids, is_device=False
+        )
+        payload = [
+            {"sub": str(u.sub or ""), "email": str(u.email or "")}
+            for u in users
+            if u.sub
+        ]
+        if not payload:
+            return Response({"granted": 0})
+
+        from core.services.docs_client import DocsClient, DocsServiceError
+
+        docs_client = DocsClient(
+            api_url=str(api_url),
+            server_to_server_token=str(token),
+            timeout_seconds=float(docs_cfg.get("request_timeout_seconds") or 3),
+        )
+        try:
+            granted = docs_client.grant_access_for_users(
+                doc_id=doc_id, users=payload
+            )
+        except DocsServiceError as exc:
+            logger.warning("grant-doc-access degraded: %s", exc)
+            return Response({"granted": 0})
+        return Response({"granted": granted})
+
     # ---- shared helpers (P9) ----
 
     def _make_client(self) -> JusiImAdminClient:

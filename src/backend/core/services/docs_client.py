@@ -190,6 +190,51 @@ class DocsClient:
             )
         return hits
 
+    GRANT_ACCESS_PATH = "/api/v1.0/documents/grant-access-for-users/"
+
+    def grant_access_for_users(
+        self, *, doc_id: str, users: list[dict[str, str]]
+    ) -> int:
+        """精准授权:给一批用户(会话成员)对文档授只读(分享云文档到聊天)。
+
+        ``users`` = ``[{"sub", "email"}]``——Docs 侧按 sub 命中授
+        DocumentAccess(reader),未命中按 email 建 Invitation(reader)。返回实际
+        新增授权数(已有更高角色的幂等跳过)。best-effort:调用方(分享流程)
+        捕获 DocsServiceError 降级,不阻断发卡片本身。
+        """
+        if not doc_id:
+            raise ValueError("doc_id is required")
+        if not users:
+            return 0
+
+        url = self._api_url + self.GRANT_ACCESS_PATH
+        try:
+            response = requests.post(
+                url,
+                json={"doc_id": doc_id, "users": users},
+                headers={"Authorization": f"Bearer {self._token}"},
+                timeout=self._timeout,
+            )
+        except requests.RequestException as exc:
+            logger.exception("docs server unreachable: %s", url)
+            raise DocsUnreachableError(str(exc)) from exc
+
+        if response.status_code >= 500:
+            raise DocsUnreachableError(
+                f"docs returned {response.status_code} from {self.GRANT_ACCESS_PATH}"
+            )
+        if response.status_code >= 400:
+            raise DocsBadResponseError(
+                f"docs returned {response.status_code} from "
+                f"{self.GRANT_ACCESS_PATH}: {response.text[:200]}"
+            )
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise DocsBadResponseError("response was not JSON") from exc
+        granted = data.get("granted") if isinstance(data, dict) else None
+        return int(granted) if isinstance(granted, int) else 0
+
     LIST_FOR_USER_PATH = "/api/v1.0/documents/list-for-user/"
 
     def list_for_user(self, *, sub: str, query: str = "") -> list[DocsSearchHit]:

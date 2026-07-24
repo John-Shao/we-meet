@@ -10,6 +10,7 @@ import { resolveTheme, themeStore } from '@/stores/theme'
 import { buildDocCardBody } from '@/features/im/components/docCard'
 import { ForwardDialog } from '@/features/im/components/ForwardDialog'
 import { useForwardConversations } from '@/features/im/hooks/useForwardConversations'
+import { grantDocAccess } from '@/features/im/api/grantDocAccess'
 
 /**
  * 云文档:在 meet 导航框架内 iframe 嵌入 La Suite Docs(docs.<域名>),取代原来的
@@ -150,6 +151,8 @@ export const DocsRoute = () => {
                     { contentType: 'doc-card' },
                   )
                 }
+                // 分享即精准授权:给选中会话的成员授只读(best-effort)。
+                grantDocAccess(doc.docId, cids)
               } catch {
                 void showAlert({ message: tIm('docPicker.error') })
               }

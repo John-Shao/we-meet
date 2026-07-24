@@ -344,3 +344,91 @@ def test_chat_audio_upload_url_happy_path():
     assert r.status_code == 200, r.content
     assert r.json() == payload
     assert gen.call_args.kwargs["filename"] == "voice.webm"
+
+
+# ---- 分享云文档到聊天:精准授权代理 grant-doc-access ----
+
+GRANT_DOC_ACCESS = "/api/v1.0/im/grant-doc-access/"
+
+
+def test_grant_doc_access_anonymous():
+    """匿名 → 401(DRF 鉴权闸,不触碰 jusi/docs)。"""
+    assert APIClient().post(
+        GRANT_DOC_ACCESS, {"doc_id": "d1", "cids": ["c1"]}, format="json"
+    ).status_code == 401
+
+
+def test_grant_doc_access_resolves_members_and_grants(mock_admin_client, settings):
+    """会话成员(排除分享者自己)→ sub/email → 调 Docs 精准授权。"""
+    settings.DOCS_CONFIGURATION = {
+        "api_url": "https://docs.example.com",
+        "server_to_server_token": "tok",
+    }
+    sharer = UserFactory(sub="sub-sharer")
+    UserFactory(sub="sub-1", email="m1@phone.we-meet.online", im_uid="uid-1")
+    UserFactory(sub="sub-2", email="m2@phone.we-meet.online", im_uid="uid-2")
+
+    mock_admin_client.issue_token.return_value = JusiImTokenResponse(
+        uid="uid-sharer", token="jwt", expires_at=1781700000
+    )
+    mock_admin_client.get_members.return_value = [
+        {"uid": "uid-sharer", "role": "owner"},
+        {"uid": "uid-1", "role": "member"},
+        {"uid": "uid-2", "role": "member"},
+    ]
+
+    client = APIClient()
+    client.force_login(sharer)
+    with mock.patch(
+        "core.services.docs_client.DocsClient.grant_access_for_users",
+        return_value=2,
+    ) as spy:
+        r = client.post(
+            GRANT_DOC_ACCESS, {"doc_id": "d1", "cids": ["cid-A"]}, format="json"
+        )
+
+    assert r.status_code == 200, r.content
+    assert r.json() == {"granted": 2}
+    kwargs = spy.call_args.kwargs
+    assert kwargs["doc_id"] == "d1"
+    # 分享者自己(uid == me.uid)被排除;只授其余成员。
+    assert {u["sub"] for u in kwargs["users"]} == {"sub-1", "sub-2"}
+
+
+def test_grant_doc_access_skips_non_member_cid(mock_admin_client, settings):
+    """jusi 对非成员返回 403 → 该 cid 跳过;无成员则不调 Docs、granted=0。"""
+    settings.DOCS_CONFIGURATION = {
+        "api_url": "https://docs.example.com",
+        "server_to_server_token": "tok",
+    }
+    sharer = UserFactory(sub="sub-sharer")
+    mock_admin_client.issue_token.return_value = JusiImTokenResponse(
+        uid="uid-sharer", token="jwt", expires_at=1
+    )
+    mock_admin_client.get_members.side_effect = JusiImBadResponseError("403")
+
+    client = APIClient()
+    client.force_login(sharer)
+    with mock.patch(
+        "core.services.docs_client.DocsClient.grant_access_for_users"
+    ) as spy:
+        r = client.post(
+            GRANT_DOC_ACCESS, {"doc_id": "d1", "cids": ["cid-X"]}, format="json"
+        )
+
+    assert r.status_code == 200
+    assert r.json() == {"granted": 0}
+    spy.assert_not_called()
+
+
+def test_grant_doc_access_degrades_when_docs_unconfigured(mock_admin_client, settings):
+    """Docs 未配置 → granted=0,且在铸 IM token 前就短路(不打 jusi)。"""
+    settings.DOCS_CONFIGURATION = {}
+    client = APIClient()
+    client.force_login(UserFactory())
+    r = client.post(
+        GRANT_DOC_ACCESS, {"doc_id": "d1", "cids": ["cid-A"]}, format="json"
+    )
+    assert r.status_code == 200
+    assert r.json() == {"granted": 0}
+    mock_admin_client.issue_token.assert_not_called()

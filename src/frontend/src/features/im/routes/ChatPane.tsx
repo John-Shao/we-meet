@@ -20,6 +20,7 @@ import { resolveImUsers } from '../api/resolveImUsers'
 import { IM_SYSTEM_UID } from '../components/eventCard'
 import { buildDocCardBody } from '../components/docCard'
 import { DocPickerDialog } from '../components/DocPickerDialog'
+import { grantDocAccess } from '../api/grantDocAccess'
 import type { MyDocumentHit } from '../api/fetchMyDocuments'
 import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
@@ -499,6 +500,8 @@ export const ChatPane = ({
         await client.sendText(cid, buildDocCardBody(doc), {
           contentType: 'doc-card',
         })
+        // 分享即精准授权:让当前会话成员点开卡片能直接看(best-effort)。
+        grantDocAccess(doc.id, [cid])
       }
     } catch {
       void showAlert({ message: t('docPicker.sendError') })
