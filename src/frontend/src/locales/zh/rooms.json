@@ -170,6 +170,7 @@
     "countdownAnnouncement": "通话将在 {{duration}} 后结束。"
   },
   "controls": {
+    "share": "分享会议",
     "region": "通话控制",
     "microphone": "麦克风",
     "camera": "摄像头",

@@ -157,6 +157,7 @@
     "doc": "Document sturen"
   },
   "preview": {
+    "meeting": "[Vergadering]",
     "image": "[Afbeelding]",
     "file": "[Bestand]",
     "voice": "[Spraakbericht]",

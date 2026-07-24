@@ -170,6 +170,7 @@
     "countdownAnnouncement": "Call ends in {{duration}}."
   },
   "controls": {
+    "share": "Share meeting",
     "region": "Call controls",
     "microphone": "Microphone",
     "camera": "Camera",

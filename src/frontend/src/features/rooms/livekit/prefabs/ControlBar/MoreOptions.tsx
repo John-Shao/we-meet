@@ -5,6 +5,7 @@ import { ParticipantsToggle } from '../../components/controls/Participants/Parti
 import { ToolsToggle } from '../../components/controls/ToolsToggle'
 import { InfoToggle } from '../../components/controls/InfoToggle'
 import { AdminToggle } from '../../components/AdminToggle'
+import { MeetingShareButton } from '../../components/controls/MeetingShareButton'
 import { useSize } from '../../hooks/useResizeObserver'
 import { useState, RefObject } from 'react'
 import { Dialog, DialogTrigger, Popover } from 'react-aria-components'
@@ -25,6 +26,7 @@ const NavigationControls = ({
     <ParticipantsToggle onPress={onPress} tooltipType={tooltipType} />
     <ToolsToggle onPress={onPress} tooltipType={tooltipType} />
     <RoomAIToggle onPress={onPress} tooltipType={tooltipType} />
+    <MeetingShareButton onPress={() => onPress?.({} as never)} />
     <AdminToggle onPress={onPress} tooltipType={tooltipType} />
   </>
 )

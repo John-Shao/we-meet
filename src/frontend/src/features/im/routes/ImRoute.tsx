@@ -319,6 +319,8 @@ const ImAuthenticated = () => {
                     ? t('preview.call')
                     : ct === 'phone-viewed'
                       ? t('preview.phoneViewed')
+                      : ct === 'meeting-card'
+                        ? t('preview.meeting')
                       : ct === 'event-card'
                         ? t('preview.event')
                         : ct === 'doc-card'
@@ -444,6 +446,7 @@ const ImAuthenticated = () => {
       m.content_type === 'file' ||
       m.content_type === 'merged' ||
       m.content_type === 'event-card' ||
+      m.content_type === 'meeting-card' ||
       m.content_type === 'doc-card'
     ) {
       await client.sendText(targetCid, m.body, { contentType: m.content_type })

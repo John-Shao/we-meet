@@ -166,7 +166,13 @@
     "call": "[Call]",
     "phoneViewed": "Phone number viewed",
     "event": "[Event]",
-    "doc": "[Document]"
+    "doc": "[Document]",
+    "meeting": "[Meeting]"
+  },
+  "meetingCard": {
+    "ongoing": "In progress",
+    "scheduled": "Scheduled meeting",
+    "join": "Join meeting"
   },
   "docCard": {
     "view": "View document"

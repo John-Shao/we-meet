@@ -6,6 +6,7 @@ import {
   RiFileList3Line,
   RiHashtag,
   RiLinkM,
+  RiShareForwardLine,
   RiTimeLine,
   RiVidiconLine,
 } from '@remixicon/react'
@@ -14,6 +15,7 @@ import { css } from '@/styled-system/css'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useDeleteRoom } from '@/features/rooms/api/deleteRoom'
+import { MeetingShareDialog } from './MeetingShareDialog'
 
 /** 8/9/6 位会议号按组分隔(与 App 端 formatSlug 同口径)。 */
 const formatSlugDigits = (slug: string): string => {
@@ -51,6 +53,7 @@ export const MeetingDetailPanel = ({
   const { confirm: askConfirm } = useConfirm()
   const { mutate: deleteRoom } = useDeleteRoom()
   const [copied, setCopied] = useState<'id' | 'link' | null>(null)
+  const [sharing, setSharing] = useState(false)
 
   // 切换选中项时清掉「已复制」瞬时态。
   useEffect(() => setCopied(null), [selection.id])
@@ -117,6 +120,18 @@ export const MeetingDetailPanel = ({
           padding: '0.75rem 0.75rem 0',
         })}
       >
+        {selection.kind === 'scheduled' && (
+          <button
+            type="button"
+            onClick={() => setSharing(true)}
+            title={t('share.action', { defaultValue: '分享会议' })}
+            aria-label={t('share.action', { defaultValue: '分享会议' })}
+            data-testid="meeting-detail-share"
+            className={iconBtnCls}
+          >
+            <RiShareForwardLine size={18} />
+          </button>
+        )}
         <button
           type="button"
           onClick={handleDelete}
@@ -272,6 +287,18 @@ export const MeetingDetailPanel = ({
           )}
         </div>
       </div>
+      {sharing && selection.kind === 'scheduled' && selection.slug && (
+        <MeetingShareDialog
+          meeting={{
+            id: selection.id,
+            slug: selection.slug,
+            name: label,
+            status: 'scheduled',
+            scheduledAt: selection.timeIso,
+          }}
+          onClose={() => setSharing(false)}
+        />
+      )}
     </aside>
   )
 }

@@ -27,6 +27,7 @@ import { VideoDeviceControl } from '../../components/controls/Device/VideoDevice
 import { useSettingsDialog } from '@/features/settings/hook/useSettingsDialog'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
+import { MeetingShareButton } from '../../components/controls/MeetingShareButton'
 
 export function MobileControlBar({
   onDeviceError,
@@ -119,6 +120,10 @@ export function MobileControlBar({
             />
             <ToolsToggle
               description={true}
+              onPress={() => setIsMenuOpened(false)}
+            />
+            <MeetingShareButton
+              description
               onPress={() => setIsMenuOpened(false)}
             />
             <Button

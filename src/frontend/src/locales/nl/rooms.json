@@ -170,6 +170,7 @@
     "countdownAnnouncement": "Het gesprek eindigt over {{duration}}."
   },
   "controls": {
+    "share": "Vergadering delen",
     "region": "Gespreksbesturing",
     "microphone": "Microfoon",
     "camera": "Camera",

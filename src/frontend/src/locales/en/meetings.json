@@ -81,5 +81,9 @@
     "copied": "Copied",
     "viewSummary": "View minutes",
     "close": "Close"
+  },
+  "share": {
+    "action": "Share meeting",
+    "sendFailed": "Unable to share the meeting. Please try again."
   }
 }

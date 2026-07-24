@@ -15,6 +15,7 @@ import { css } from '@/styled-system/css'
 import { Avatar } from './Avatar'
 import { DocCardMessage } from './DocCardMessage'
 import { EventCardMessage } from './EventCardMessage'
+import { MeetingCardMessage } from './MeetingCardMessage'
 import { IM_SYSTEM_UID } from './eventCard'
 import type { MergedBody } from './MergedRecordDialog'
 
@@ -533,7 +534,14 @@ export const MessageItem = ({
   // 后端 SYSTEM 注入的变更/取消卡 = 居中系统样式。作为 row 参与下方的
   // selectMode 包装 → 多选合并/逐条转发同样可用。
   const row =
-    message.content_type === 'event-card' ? (
+    message.content_type === 'meeting-card' ? (
+      <div
+        onContextMenu={onContextMenu}
+        className={css({ display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start', paddingX: '1rem', paddingY: '0.25rem' })}
+      >
+        <MeetingCardMessage body={message.body} />
+      </div>
+    ) : message.content_type === 'event-card' ? (
       <EventCardMessage
         body={message.body}
         isOwn={isOwn}
