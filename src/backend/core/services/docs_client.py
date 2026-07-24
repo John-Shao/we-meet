@@ -190,6 +190,16 @@ class DocsClient:
             )
         return hits
 
+    def user_can_access_document(self, *, sub: str, doc_id: str) -> bool:
+        """Return whether Docs currently exposes ``doc_id`` to ``sub``.
+
+        Docs is authoritative for ownership and reader access.  This check is
+        required before a server-to-server grant can add other readers.
+        """
+        if not sub or not doc_id:
+            return False
+        return any(hit.id == doc_id for hit in self.list_for_user(sub=sub))
+
     GRANT_ACCESS_PATH = "/api/v1.0/documents/grant-access-for-users/"
 
     def grant_access_for_users(

@@ -761,6 +761,26 @@ class ImViewSet(viewsets.ViewSet):
         if not api_url or not token:
             return Response({"granted": 0})
 
+        from core.services.docs_client import DocsClient, DocsServiceError
+
+        docs_client = DocsClient(
+            api_url=str(api_url),
+            server_to_server_token=str(token),
+            timeout_seconds=float(docs_cfg.get("request_timeout_seconds") or 3),
+        )
+        # ``doc_id`` is client input, not proof that the caller may share it.
+        # Ask Docs (the access-control authority) before resolving recipients.
+        # A failed visibility check must fail closed rather than grant access.
+        try:
+            can_share = docs_client.user_can_access_document(
+                sub=str(request.user.sub or ""), doc_id=doc_id
+            )
+        except DocsServiceError as exc:
+            logger.warning("grant-doc-access visibility check failed: %s", exc)
+            return Response({"granted": 0})
+        if not can_share:
+            raise PermissionDenied("You do not have access to this document.")
+
         client = self._make_client()
         me = self._issue(client, self._external_id(request.user))
         member_uids: set[str] = set()
@@ -796,13 +816,6 @@ class ImViewSet(viewsets.ViewSet):
         if not payload:
             return Response({"granted": 0})
 
-        from core.services.docs_client import DocsClient, DocsServiceError
-
-        docs_client = DocsClient(
-            api_url=str(api_url),
-            server_to_server_token=str(token),
-            timeout_seconds=float(docs_cfg.get("request_timeout_seconds") or 3),
-        )
         try:
             granted = docs_client.grant_access_for_users(
                 doc_id=doc_id, users=payload

@@ -380,6 +380,9 @@ def test_grant_doc_access_resolves_members_and_grants(mock_admin_client, setting
     client = APIClient()
     client.force_login(sharer)
     with mock.patch(
+        "core.services.docs_client.DocsClient.user_can_access_document",
+        return_value=True,
+    ), mock.patch(
         "core.services.docs_client.DocsClient.grant_access_for_users",
         return_value=2,
     ) as spy:
@@ -410,6 +413,9 @@ def test_grant_doc_access_skips_non_member_cid(mock_admin_client, settings):
     client = APIClient()
     client.force_login(sharer)
     with mock.patch(
+        "core.services.docs_client.DocsClient.user_can_access_document",
+        return_value=True,
+    ), mock.patch(
         "core.services.docs_client.DocsClient.grant_access_for_users"
     ) as spy:
         r = client.post(
@@ -419,6 +425,34 @@ def test_grant_doc_access_skips_non_member_cid(mock_admin_client, settings):
     assert r.status_code == 200
     assert r.json() == {"granted": 0}
     spy.assert_not_called()
+
+
+def test_grant_doc_access_rejects_document_not_visible_to_sharer(
+    mock_admin_client, settings
+):
+    """A guessed document id cannot be used to grant a chat's members access."""
+    settings.DOCS_CONFIGURATION = {
+        "api_url": "https://docs.example.com",
+        "server_to_server_token": "tok",
+    }
+    client = APIClient()
+    client.force_login(UserFactory(sub="sub-sharer"))
+
+    with mock.patch(
+        "core.services.docs_client.DocsClient.user_can_access_document",
+        return_value=False,
+    ), mock.patch(
+        "core.services.docs_client.DocsClient.grant_access_for_users",
+    ) as grant:
+        response = client.post(
+            GRANT_DOC_ACCESS,
+            {"doc_id": "guessed-document", "cids": ["cid-A"]},
+            format="json",
+        )
+
+    assert response.status_code == 403
+    grant.assert_not_called()
+    mock_admin_client.issue_token.assert_not_called()
 
 
 def test_grant_doc_access_degrades_when_docs_unconfigured(mock_admin_client, settings):
