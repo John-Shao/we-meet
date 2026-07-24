@@ -153,7 +153,8 @@
     "sending": "发送中…",
     "image": "发送图片",
     "file": "发送文件",
-    "voice": "语音"
+    "voice": "语音",
+    "doc": "发送云文档"
   },
   "preview": {
     "image": "[图片]",
@@ -164,7 +165,19 @@
     "recalled": "撤回了一条消息",
     "call": "[通话]",
     "phoneViewed": "手机号码查看提醒",
-    "event": "[日程]"
+    "event": "[日程]",
+    "doc": "[云文档]"
+  },
+  "docCard": {
+    "view": "查看文档"
+  },
+  "docPicker": {
+    "title": "发送云文档",
+    "search": "搜索文档",
+    "selected": "已选 {{count}} 项",
+    "send": "发送 ({{count}})",
+    "empty": "暂无可分享的文档",
+    "error": "获取文档列表失败"
   },
   "calendar": {
     "open": "查看日历",

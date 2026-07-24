@@ -422,6 +422,7 @@ const ImAuthenticated = () => {
       }
     }
     if (m.content_type === 'merged') return t('preview.merged')
+    if (m.content_type === 'doc-card') return t('preview.doc')
     if (m.content_type === 'quote') {
       try {
         return (JSON.parse(m.body)?.text as string) || ''
@@ -440,7 +441,8 @@ const ImAuthenticated = () => {
       m.content_type === 'image' ||
       m.content_type === 'file' ||
       m.content_type === 'merged' ||
-      m.content_type === 'event-card'
+      m.content_type === 'event-card' ||
+      m.content_type === 'doc-card'
     ) {
       await client.sendText(targetCid, m.body, { contentType: m.content_type })
     } else if (m.content_type === 'quote') {

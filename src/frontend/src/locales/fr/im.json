@@ -153,7 +153,8 @@
     "sending": "Envoi en cours…",
     "image": "Envoyer une image",
     "file": "Envoyer un fichier",
-    "voice": "Vocal"
+    "voice": "Vocal",
+    "doc": "Envoyer un document"
   },
   "preview": {
     "image": "[Image]",
@@ -164,7 +165,19 @@
     "recalled": "a retiré un message",
     "call": "[Appel]",
     "phoneViewed": "Numéro consulté",
-    "event": "[Événement]"
+    "event": "[Événement]",
+    "doc": "[Document]"
+  },
+  "docCard": {
+    "view": "Voir le document"
+  },
+  "docPicker": {
+    "title": "Envoyer un document",
+    "search": "Rechercher des documents",
+    "selected": "Sélectionné : {{count}}",
+    "send": "Envoyer ({{count}})",
+    "empty": "Aucun document à partager",
+    "error": "Échec du chargement des documents"
   },
   "calendar": {
     "open": "Voir l'agenda",

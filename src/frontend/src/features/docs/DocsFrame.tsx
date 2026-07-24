@@ -1,10 +1,15 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useParams } from 'wouter'
 import { useSnapshot } from 'valtio'
 import { css } from '@/styled-system/css'
 import { useConfig } from '@/api/useConfig'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { Screen } from '@/layout/Screen'
 import { resolveTheme, themeStore } from '@/stores/theme'
+import { buildDocCardBody } from '@/features/im/components/docCard'
+import { ForwardDialog } from '@/features/im/components/ForwardDialog'
+import { useForwardConversations } from '@/features/im/hooks/useForwardConversations'
 
 /**
  * 云文档:在 meet 导航框架内 iframe 嵌入 La Suite Docs(docs.<域名>),取代原来的
@@ -22,20 +27,33 @@ import { resolveTheme, themeStore } from '@/stores/theme'
  */
 export const DocsRoute = () => {
   const { t, i18n } = useTranslation('docs')
+  const { t: tIm } = useTranslation('im')
+  const { docId } = useParams<{ docId?: string }>()
   const { data: config } = useConfig()
   const docsUrl = config?.docs?.url
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const { mode } = useSnapshot(themeStore)
   const colorScheme = resolveTheme(mode)
+  const { alert: showAlert } = useConfirm()
+  const { client, conversations } = useForwardConversations()
+  // 分享云文档到聊天(入口 B):docs 里点「分享到聊天」→ postMessage 过来,
+  // 弹会话选择器;选完直接用 IM SDK 单例发卡片,docs 侧全程不知道 IM 存在。
+  const [shareDoc, setShareDoc] = useState<{
+    docId: string
+    title: string
+    url: string
+  } | null>(null)
   // src 只用首帧主题:?theme= 让 docs embedderTheme 首屏即对色(免闪);运行时切换走
   // 下方 postMessage,不改 src 以免 iframe 整页重载。
   const initialScheme = useRef(colorScheme).current
 
   // ?embed=1 让 docs 收敛掉自带的用户区(docs 的 LeftPanelFooter);?lang= 用 meet 当前
   // 语言驱动 docs(docs i18next 的 querystring 探测);?theme= 传初始深浅。去尾斜杠避免双斜杠。
+  // 分享云文档到聊天:带 docId 时深链到具体文档(/docs/{docId}/),否则落文档列表首页。
   const docsBase = docsUrl?.replace(/\/+$/, '') ?? ''
+  const embedPath = docId ? `/docs/${docId}/` : '/'
   const embedTarget = docsBase
-    ? `${docsBase}/?embed=1&lang=${encodeURIComponent(
+    ? `${docsBase}${embedPath}?embed=1&lang=${encodeURIComponent(
         i18n.language,
       )}&theme=${initialScheme}`
     : ''
@@ -67,6 +85,33 @@ export const DocsRoute = () => {
     return () => window.removeEventListener('message', onMsg)
   }, [colorScheme])
 
+  // 分享云文档到聊天(入口 B):docs 发来 wemeet-share-doc → 弹会话选择器。
+  // 与上面的主题同步不同,这条消息会触发实际发消息动作,所以额外校验来源
+  // origin 等于 docs 域(主题同步是纯展示,坏了也无所谓;这个不行)。
+  useEffect(() => {
+    if (!docsBase) return
+    let docsOrigin: string
+    try {
+      docsOrigin = new URL(docsBase).origin
+    } catch {
+      return
+    }
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== docsOrigin) return
+      const data = e.data as
+        | { type?: string; docId?: string; title?: string; url?: string }
+        | null
+      if (data?.type !== 'wemeet-share-doc' || !data.docId || !data.url) return
+      setShareDoc({
+        docId: data.docId,
+        title: data.title || '',
+        url: data.url,
+      })
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [docsBase])
+
   return (
     <Screen header footer={false}>
       {docsUrl && (
@@ -83,6 +128,30 @@ export const DocsRoute = () => {
             display: 'block',
           })}
           allow="clipboard-read; clipboard-write; fullscreen"
+        />
+      )}
+      {shareDoc && (
+        <ForwardDialog
+          conversations={conversations}
+          previewText={shareDoc.title || tIm('preview.doc')}
+          onClose={() => setShareDoc(null)}
+          onConfirm={(cids) => {
+            const doc = shareDoc
+            setShareDoc(null)
+            void (async () => {
+              try {
+                for (const cid of cids) {
+                  await client.sendText(
+                    cid,
+                    buildDocCardBody({ id: doc.docId, title: doc.title, url: doc.url }),
+                    { contentType: 'doc-card' },
+                  )
+                }
+              } catch {
+                void showAlert({ message: tIm('docPicker.error') })
+              }
+            })()
+          }}
         />
       )}
     </Screen>

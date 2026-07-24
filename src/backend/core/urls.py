@@ -29,7 +29,12 @@ from core.api.keycloak_sms import (
 )
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.push import ImPushHookView, PushPreferenceView, PushTokenView
-from core.api.search import DocsSearchView, GlobalAskStreamView, GlobalAskView
+from core.api.search import (
+    DocsMyDocumentsView,
+    DocsSearchView,
+    GlobalAskStreamView,
+    GlobalAskView,
+)
 from core.api.qr_login import (
     QrAuthenticatorStatusView,
     QrCancelView,
@@ -130,6 +135,12 @@ urlpatterns = [
                     "docs/search/",
                     DocsSearchView.as_view(),
                     name="docs_search",
+                ),
+                # 分享云文档到聊天(入口 A):选择器"我的文档"列表代理(s2s)。
+                path(
+                    "docs/my-documents/",
+                    DocsMyDocumentsView.as_view(),
+                    name="docs_my_documents",
                 ),
             ]
         ),

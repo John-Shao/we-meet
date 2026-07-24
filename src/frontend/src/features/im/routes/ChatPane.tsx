@@ -18,6 +18,9 @@ import { EventDetailHost } from '@/features/calendar'
 
 import { resolveImUsers } from '../api/resolveImUsers'
 import { IM_SYSTEM_UID } from '../components/eventCard'
+import { buildDocCardBody } from '../components/docCard'
+import { DocPickerDialog } from '../components/DocPickerDialog'
+import type { MyDocumentHit } from '../api/fetchMyDocuments'
 import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
@@ -206,6 +209,8 @@ export const ChatPane = ({
   const activeAnchor = anchor && anchor.cid === cid ? anchor : null
   // P8 日程卡片点「查看」→ 本地宿主打开日程详情(EventDetailHost 按 id 拉取)。
   const [viewEventId, setViewEventId] = useState<string | null>(null)
+  // 分享云文档到聊天(入口 A):输入框「文档」按钮 → 选择器。
+  const [showDocPicker, setShowDocPicker] = useState(false)
   const {
     data: messages = [],
     isLoading,
@@ -481,6 +486,16 @@ export const ChatPane = ({
     } catch (e) {
       const code = e instanceof ChatFileError ? e.code : 'uploadError'
       void showAlert({ message: t(`file.${code}`) })
+    }
+  }
+
+  // 分享云文档到聊天(入口 A):选择器多选后逐个发 content_type='doc-card'。
+  const onConfirmDocPicker = async (docs: MyDocumentHit[]) => {
+    setShowDocPicker(false)
+    for (const doc of docs) {
+      await client.sendText(cid, buildDocCardBody(doc), {
+        contentType: 'doc-card',
+      })
     }
   }
 
@@ -1322,6 +1337,11 @@ export const ChatPane = ({
                             : undefined
                         }
                         onOpenEvent={selectMode ? undefined : setViewEventId}
+                        onOpenDoc={
+                          selectMode
+                            ? undefined
+                            : (card) => navigateTo('docs', card.doc_id)
+                        }
                         onJoinGroupCall={
                           m.content_type === 'group-call' && groupCallSlugOf(m)
                             ? () => void joinGroupCall(groupCallSlugOf(m)!)
@@ -1408,6 +1428,7 @@ export const ChatPane = ({
               onSend={onSend}
               onSendImage={onSendImage}
               onSendFile={onSendFile}
+              onSendDoc={() => setShowDocPicker(true)}
               onSendVoice={onSendVoice}
               reply={replyTo}
               onCancelReply={() => setReplyTo(null)}
@@ -1477,6 +1498,12 @@ export const ChatPane = ({
         <EventDetailHost
           eventId={viewEventId}
           onClose={() => setViewEventId(null)}
+        />
+      )}
+      {showDocPicker && (
+        <DocPickerDialog
+          onConfirm={(docs) => void onConfirmDocPicker(docs)}
+          onClose={() => setShowDocPicker(false)}
         />
       )}
     </div>

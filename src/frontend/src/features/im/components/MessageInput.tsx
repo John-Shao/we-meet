@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   RiImageLine,
   RiAttachment2,
+  RiFileTextLine,
   RiCloseLine,
   RiMicLine,
   RiSendPlane2Fill,
@@ -25,6 +26,8 @@ interface Props {
   onSendImage?: (file: File) => Promise<void> | void
   /** Send a picked arbitrary file (P7-b). Omitted → no file button. */
   onSendFile?: (file: File) => Promise<void> | void
+  /** Open the "share document" picker. Omitted → no doc button. */
+  onSendDoc?: () => void
   /** Send a recorded voice clip (P7-i). Omitted → no mic button. */
   onSendVoice?: (blob: Blob, durationMs: number) => Promise<void> | void
   /** Active reply context (P7-b); shows a quote bar above the input. */
@@ -51,6 +54,7 @@ export const MessageInput = ({
   mentionables = [],
   onSendImage,
   onSendFile,
+  onSendDoc,
   onSendVoice,
   reply,
   onCancelReply,
@@ -512,6 +516,32 @@ export const MessageInput = ({
             <RiAttachment2 size={18} />
           </button>
         </>
+      )}
+      {onSendDoc && (
+        <button
+          type="button"
+          onClick={onSendDoc}
+          disabled={disabled || uploading}
+          aria-label={t('input.doc')}
+          title={t('input.doc')}
+          data-testid="im-doc-btn"
+          className={css({
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '2.375rem',
+            border: '1px solid token(colors.greyscale.300)',
+            borderRadius: '0.5rem',
+            backgroundColor: 'greyscale.000',
+            color: 'greyscale.600',
+            cursor: 'pointer',
+            _hover: { backgroundColor: 'greyscale.100' },
+            _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+          })}
+        >
+          <RiFileTextLine size={18} />
+        </button>
       )}
       {onSendVoice && (
         <button

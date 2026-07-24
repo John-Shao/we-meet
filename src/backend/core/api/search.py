@@ -103,6 +103,55 @@ class DocsSearchView(APIView):
         )
 
 
+class DocsMyDocumentsView(APIView):
+    """分享云文档到聊天(入口 A)的"我的文档"列表:按调用者可见范围返回最近文档。
+
+    ``GET /api/v1.0/docs/my-documents/?q=`` → 代理 Docs fork 的 s2s
+    ``list-for-user``(sub 服务端注入,绝不接受参数)。``q`` 可选,用于选择器
+    内搜索;同 :class:`DocsSearchView`,Docs 未配置/不可达/无 sub 一律**空
+    列表**而非 5xx。
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        query = str(request.query_params.get("q") or "").strip()
+
+        cfg = getattr(settings, "DOCS_CONFIGURATION", None) or {}
+        api_url = cfg.get("api_url") or ""
+        token = cfg.get("server_to_server_token") or ""
+        sub = str(getattr(request.user, "sub", "") or "")
+        if not api_url or not token or not sub:
+            return Response({"results": []})
+
+        from core.services.docs_client import DocsClient, DocsServiceError
+
+        client = DocsClient(
+            api_url=str(api_url),
+            server_to_server_token=str(token),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 3),
+        )
+        try:
+            hits = client.list_for_user(sub=sub, query=query)
+        except DocsServiceError as exc:
+            logger.warning("docs my-documents degraded: %s", exc)
+            return Response({"results": []})
+        base = str(api_url).rstrip("/")
+        return Response(
+            {
+                "results": [
+                    {
+                        "id": hit.id,
+                        "title": hit.title,
+                        "updated_at": hit.updated_at,
+                        "url": f"{base}/docs/{hit.id}/",
+                    }
+                    for hit in hits
+                ]
+            }
+        )
+
+
 class GlobalAskStreamView(APIView):
     """流式问答(SSE)。事件契约见 §D2;LLM 失败不 error 而是
     ``done{degraded: true}``——前端转「检索结果模式」(§D7)。"""

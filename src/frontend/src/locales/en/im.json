@@ -153,7 +153,8 @@
     "sending": "Sending…",
     "image": "Send image",
     "file": "Send file",
-    "voice": "Voice"
+    "voice": "Voice",
+    "doc": "Send document"
   },
   "preview": {
     "image": "[Image]",
@@ -164,7 +165,19 @@
     "recalled": "recalled a message",
     "call": "[Call]",
     "phoneViewed": "Phone number viewed",
-    "event": "[Event]"
+    "event": "[Event]",
+    "doc": "[Document]"
+  },
+  "docCard": {
+    "view": "View document"
+  },
+  "docPicker": {
+    "title": "Send document",
+    "search": "Search documents",
+    "selected": "Selected: {{count}}",
+    "send": "Send ({{count}})",
+    "empty": "No documents to share",
+    "error": "Failed to load documents"
   },
   "calendar": {
     "open": "View calendar",

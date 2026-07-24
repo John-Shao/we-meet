@@ -19,6 +19,10 @@ import { DocsRoute } from '@/features/docs'
 
 const roomIdRegex = new RegExp(`^[/](?<roomId>${flexibleRoomIdPattern})$`)
 
+// 分享云文档到聊天:卡片「查看文档」需要深链到具体文档,而不只是文档列表首页。
+const docIdRegex =
+  /^\/docs(?:\/(?<docId>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?$/
+
 export const routes: Record<
   | 'home'
   | 'room'
@@ -119,7 +123,8 @@ export const routes: Record<
   },
   docs: {
     name: 'docs',
-    path: '/docs',
+    path: docIdRegex,
+    to: (docId?: string) => (docId ? `/docs/${docId.trim()}` : '/docs'),
     Component: DocsRoute,
   },
 }

@@ -153,7 +153,8 @@
     "sending": "Wird gesendet…",
     "image": "Bild senden",
     "file": "Datei senden",
-    "voice": "Sprache"
+    "voice": "Sprache",
+    "doc": "Dokument senden"
   },
   "preview": {
     "image": "[Bild]",
@@ -164,7 +165,19 @@
     "recalled": "hat eine Nachricht zurückgezogen",
     "call": "[Anruf]",
     "phoneViewed": "Telefonnummer angesehen",
-    "event": "[Termin]"
+    "event": "[Termin]",
+    "doc": "[Dokument]"
+  },
+  "docCard": {
+    "view": "Dokument öffnen"
+  },
+  "docPicker": {
+    "title": "Dokument senden",
+    "search": "Dokumente durchsuchen",
+    "selected": "Ausgewählt: {{count}}",
+    "send": "Senden ({{count}})",
+    "empty": "Keine Dokumente zum Teilen",
+    "error": "Dokumente konnten nicht geladen werden"
   },
   "calendar": {
     "open": "Kalender ansehen",

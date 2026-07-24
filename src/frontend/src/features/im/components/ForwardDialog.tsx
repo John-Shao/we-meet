@@ -24,8 +24,9 @@ interface Props {
   previewText: string
   /** Confirm forwarding to one or more target conversations (飞书式多选)。 */
   onConfirm: (cids: string[]) => void
-  /** Open the create-group flow, then forward into the new group (飞书式)。 */
-  onCreateGroupForward: () => void
+  /** Open the create-group flow, then forward into the new group (飞书式)。
+   * Omitted (e.g. picker invoked outside the IM route) → row hidden. */
+  onCreateGroupForward?: () => void
   onClose: () => void
 }
 
@@ -93,17 +94,19 @@ export const ForwardDialog = ({
         />
       </div>
 
-      <button
-        type="button"
-        onClick={onCreateGroupForward}
-        data-testid="forward-create-group"
-        className={createGroupCls}
-      >
-        <span className={nameCls}>{t('forward.createGroup')}</span>
-        <span aria-hidden="true" className={chevronCls}>
-          ›
-        </span>
-      </button>
+      {onCreateGroupForward && (
+        <button
+          type="button"
+          onClick={onCreateGroupForward}
+          data-testid="forward-create-group"
+          className={createGroupCls}
+        >
+          <span className={nameCls}>{t('forward.createGroup')}</span>
+          <span aria-hidden="true" className={chevronCls}>
+            ›
+          </span>
+        </button>
+      )}
 
       <div className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem' })}>
         {filtered.length === 0 ? (

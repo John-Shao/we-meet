@@ -153,7 +153,8 @@
     "sending": "Verzenden…",
     "image": "Afbeelding sturen",
     "file": "Bestand sturen",
-    "voice": "Spraak"
+    "voice": "Spraak",
+    "doc": "Document sturen"
   },
   "preview": {
     "image": "[Afbeelding]",
@@ -164,7 +165,19 @@
     "recalled": "heeft een bericht ingetrokken",
     "call": "[Oproep]",
     "phoneViewed": "Telefoonnummer bekeken",
-    "event": "[Afspraak]"
+    "event": "[Afspraak]",
+    "doc": "[Document]"
+  },
+  "docCard": {
+    "view": "Document bekijken"
+  },
+  "docPicker": {
+    "title": "Document sturen",
+    "search": "Documenten zoeken",
+    "selected": "Geselecteerd: {{count}}",
+    "send": "Verzenden ({{count}})",
+    "empty": "Geen documenten om te delen",
+    "error": "Documenten laden mislukt"
   },
   "calendar": {
     "open": "Agenda bekijken",
