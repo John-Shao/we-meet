@@ -33,8 +33,8 @@ const readReminder = (): number | null => {
 
 const readDimPast = (): boolean => localStorage.getItem(DIM_PAST_KEY) !== '0'
 
-// 周视图是否显示周末列(对齐 App:默认开显示整周;显式存 '0' 才收敛成
-// 周一~周五工作周)。
+// 周视图是否显示周末列。Web 大屏默认开(显示整周);显式存 '0' 才收敛成
+// 周一~周五工作周。App 端小屏默认关,刻意按端差异化(见 SettingsStore)。
 const readWeekend = (): boolean => localStorage.getItem(WEEKEND_KEY) !== '0'
 
 /**
@@ -129,7 +129,7 @@ export const useCalendarSettings = () => {
     defaultReminderMin,
     /** 降低已结束日程的亮度(对标飞书,默认开)。 */
     dimPast,
-    /** 周视图是否显示周末列(对齐 App:默认开显示整周,关则只显工作周 5 列)。 */
+    /** 周视图是否显示周末列(Web 默认开显示整周,关则只显工作周 5 列;App 默认关)。 */
     showWeekend,
     setWeekStart,
     setDefaultDuration,
