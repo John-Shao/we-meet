@@ -14,13 +14,6 @@
     "subtitle": "登录后享受完整的会议体验"
   },
   "scheduleMeeting": "预约会议",
-  "scheduleMeetingDialog": {
-    "title": "预约会议",
-    "nameLabel": "会议名称",
-    "timeLabel": "预约时间",
-    "timeHint": "请选择会议开始的日期和时间",
-    "submit": "创建"
-  },
   "joinMeetingTipContent": "您可以将完整的会议链接粘贴到浏览器地址栏中加入会议。",
   "loginPanels": {
     "qrTitle": "扫码登录",
@@ -36,19 +29,6 @@
   "createMenu": {
     "laterOption": "创建后续会议",
     "instantOption": "立即开始会议"
-  },
-  "laterMeetingDialog": {
-    "heading": "您的连接信息",
-    "description": "请将以下信息分享给受邀者，他们无需登录即可加入会议。此会议为长期会议，可重复使用。",
-    "permissions": "拥有此链接的人无需经您许可即可加入此会议。",
-    "copy": "复制信息",
-    "copied": "信息已复制到剪贴板",
-    "copyUrl": "复制会议链接",
-    "scheduledAt": "预约时间：",
-    "phone": {
-      "call": "拨打：",
-      "pinCode": "代码："
-    }
   },
   "introSlider": {
     "previous": {

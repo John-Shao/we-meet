@@ -23,18 +23,6 @@
     "laterOption": "Meeting für später planen",
     "instantOption": "Meeting sofort starten"
   },
-  "laterMeetingDialog": {
-    "heading": "Zugangsdaten",
-    "description": "Teile diese Informationen mit den Gästen. Sie können dem Meeting beitreten, ohne sich anmelden zu müssen. Dieses Meeting ist dauerhaft und kann wiederverwendet werden.",
-    "permissions": "Personen mit diesem Link benötigen keine Genehmigung, um diesem Meeting beizutreten.",
-    "copy": "Informationen kopieren",
-    "copied": "Informationen kopiert",
-    "copyUrl": "Meeting-Link kopieren",
-    "phone": {
-      "call": "Ruf an:",
-      "pinCode": "Code:"
-    }
-  },
   "introSlider": {
     "previous": {
       "label": "Vorherige Folie",

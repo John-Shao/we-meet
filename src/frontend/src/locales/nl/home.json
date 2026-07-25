@@ -23,18 +23,6 @@
     "laterOption": "Maak een vergadering voor een latere datum",
     "instantOption": "Begin direct een vergadering"
   },
-  "laterMeetingDialog": {
-    "heading": "Uw verbindingsgegevens",
-    "description": "Deel deze informatie met de genodigden. Zij kunnen deelnemen aan de vergadering zonder zich aan te melden. Deze vergadering is permanent en kan hergebruikt worden.",
-    "permissions": "Mensen met deze link hebben uw toestemming niet nodig om deel te nemen aan deze vergadering.",
-    "copy": "Informatie kopiëren",
-    "copied": "Informatie gekopieerd",
-    "copyUrl": "Kopieer de vergaderlink",
-    "phone": {
-      "call": "Bel:",
-      "pinCode": "Code:"
-    }
-  },
   "introSlider": {
     "previous": {
       "label": "Vorige dia",

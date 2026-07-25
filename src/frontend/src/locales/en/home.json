@@ -14,13 +14,6 @@
     "subtitle": "Sign in to unlock the full meeting experience"
   },
   "scheduleMeeting": "Schedule a meeting",
-  "scheduleMeetingDialog": {
-    "title": "Schedule a meeting",
-    "nameLabel": "Meeting name",
-    "timeLabel": "Scheduled time",
-    "timeHint": "Pick the date and time the meeting will start.",
-    "submit": "Create"
-  },
   "joinMeetingTipContent": "You can join a meeting by pasting its full link in the browser's address bar.",
   "loginPanels": {
     "qrTitle": "Scan to sign in",
@@ -36,19 +29,6 @@
   "createMenu": {
     "laterOption": "Create a meeting for a later date",
     "instantOption": "Start an instant meeting"
-  },
-  "laterMeetingDialog": {
-    "heading": "Your connection details",
-    "description": "Share this information with the guests. They will be able to join the meeting without needing to sign in. This meeting is permanent and can be reused.",
-    "permissions": "People with this link do not need your permission to join this meeting.",
-    "copy": "Copy information",
-    "copied": "Information copied to clipboard",
-    "copyUrl": "Copy the meeting link",
-    "scheduledAt": "Scheduled for:",
-    "phone": {
-      "call": "Call:",
-      "pinCode": "Code:"
-    }
   },
   "introSlider": {
     "previous": {
