@@ -535,12 +535,15 @@ export const MessageItem = ({
   // selectMode 包装 → 多选合并/逐条转发同样可用。
   const row =
     message.content_type === 'meeting-card' ? (
-      <div
+      <MeetingCardMessage
+        body={message.body}
+        isOwn={isOwn}
+        senderName={name}
+        senderAvatarUrl={senderAvatarUrl}
+        showSender={showSender}
+        onAvatarClick={onAvatarClick}
         onContextMenu={onContextMenu}
-        className={css({ display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start', paddingX: '1rem', paddingY: '0.25rem' })}
-      >
-        <MeetingCardMessage body={message.body} />
-      </div>
+      />
     ) : message.content_type === 'event-card' ? (
       <EventCardMessage
         body={message.body}
