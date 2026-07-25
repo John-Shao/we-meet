@@ -65,7 +65,12 @@
     "meetingNo": "Meeting ID",
     "meetingLink": "Link",
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "meetingRoom": "Meeting room",
+    "meetingRoomConflict": "room not booked",
+    "summary": "Meeting notes",
+    "summaryPending": "generating…",
+    "summaryView": "View notes"
   },
   "rsvp": {
     "label": "My response",

@@ -1,0 +1,54 @@
+{
+  "tab": {
+    "calendar": "Agenda",
+    "meetingRooms": "Salles"
+  },
+  "pane": {
+    "loading": "Chargement…",
+    "empty": "Aucune salle ne correspond à ces filtres",
+    "loadError": "Impossible de charger les salles",
+    "retry": "Réessayer"
+  },
+  "timeline": {
+    "roomColumn": "Salle",
+    "booked": "Réservée",
+    "clickToBook": "Cliquez sur un créneau libre pour réserver {{room}}"
+  },
+  "filters": {
+    "level": "Niveau",
+    "levelAll": "Tous les niveaux",
+    "capacity": "Capacité",
+    "capacityAny": "Toute capacité",
+    "capacityAtLeast": "Au moins {{count}}",
+    "facilities": "Équipements",
+    "reset": "Réinitialiser"
+  },
+  "picker": {
+    "label": "Salle de réunion",
+    "add": "Ajouter une salle",
+    "change": "Changer",
+    "collapse": "Réduire",
+    "clear": "Retirer la salle",
+    "none": "Aucune salle réservée",
+    "tabAvailable": "Disponibles",
+    "tabAll": "Toutes les salles",
+    "searchPlaceholder": "Rechercher une salle ou un niveau",
+    "capacityHint": "{{count}} participants — choisissez une salle adaptée",
+    "emptyAvailable": "Aucune salle libre sur ce créneau. Changez d'horaire ou de filtres.",
+    "unavailable": "Occupée sur ce créneau",
+    "allDayUnsupported": "Les événements sur la journée ne peuvent pas réserver de salle"
+  },
+  "conflict": {
+    "inline": "{{name}} est déjà réservée sur le nouvel horaire",
+    "switchRoom": "Choisir une autre",
+    "clearBooking": "Retirer la salle",
+    "serverRejected": "Cette salle vient d'être prise. Choisissez-en une autre."
+  },
+  "status": {
+    "active": "Active",
+    "disabled": "Désactivée"
+  },
+  "unit": {
+    "people": "{{count}} personnes"
+  }
+}

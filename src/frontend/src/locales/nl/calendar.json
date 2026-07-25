@@ -65,7 +65,12 @@
     "meetingNo": "Vergader-ID",
     "meetingLink": "Link",
     "copy": "Kopiëren",
-    "copied": "Gekopieerd"
+    "copied": "Gekopieerd",
+    "meetingRoom": "Vergaderruimte",
+    "meetingRoomConflict": "ruimte niet gereserveerd",
+    "summary": "Notulen",
+    "summaryPending": "wordt gegenereerd…",
+    "summaryView": "Notulen bekijken"
   },
   "rsvp": {
     "label": "Mijn reactie",

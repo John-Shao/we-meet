@@ -1,0 +1,54 @@
+{
+  "tab": {
+    "calendar": "Calendar",
+    "meetingRooms": "Meeting rooms"
+  },
+  "pane": {
+    "loading": "Loading…",
+    "empty": "No meeting rooms match these filters",
+    "loadError": "Could not load meeting rooms",
+    "retry": "Retry"
+  },
+  "timeline": {
+    "roomColumn": "Room",
+    "booked": "Booked",
+    "clickToBook": "Click a free slot to book {{room}}"
+  },
+  "filters": {
+    "level": "Level",
+    "levelAll": "All levels",
+    "capacity": "Capacity",
+    "capacityAny": "Any capacity",
+    "capacityAtLeast": "At least {{count}}",
+    "facilities": "Facilities",
+    "reset": "Reset filters"
+  },
+  "picker": {
+    "label": "Meeting room",
+    "add": "Add a room",
+    "change": "Change",
+    "collapse": "Collapse",
+    "clear": "Remove room",
+    "none": "No room booked",
+    "tabAvailable": "Available",
+    "tabAll": "All rooms",
+    "searchPlaceholder": "Search rooms or levels",
+    "capacityHint": "{{count}} attending — pick a room that fits",
+    "emptyAvailable": "No room is free for this slot. Try another time or loosen the filters.",
+    "unavailable": "Booked for this slot",
+    "allDayUnsupported": "All-day events cannot book a room yet"
+  },
+  "conflict": {
+    "inline": "{{name}} is already booked for the new time",
+    "switchRoom": "Pick another",
+    "clearBooking": "Remove room",
+    "serverRejected": "Someone just took that room. Please pick another."
+  },
+  "status": {
+    "active": "Active",
+    "disabled": "Disabled"
+  },
+  "unit": {
+    "people": "{{count}} people"
+  }
+}

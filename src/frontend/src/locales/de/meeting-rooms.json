@@ -1,0 +1,54 @@
+{
+  "tab": {
+    "calendar": "Kalender",
+    "meetingRooms": "Besprechungsräume"
+  },
+  "pane": {
+    "loading": "Wird geladen…",
+    "empty": "Keine Räume passen zu diesen Filtern",
+    "loadError": "Räume konnten nicht geladen werden",
+    "retry": "Erneut versuchen"
+  },
+  "timeline": {
+    "roomColumn": "Raum",
+    "booked": "Gebucht",
+    "clickToBook": "Freien Slot anklicken, um {{room}} zu buchen"
+  },
+  "filters": {
+    "level": "Ebene",
+    "levelAll": "Alle Ebenen",
+    "capacity": "Kapazität",
+    "capacityAny": "Beliebige Kapazität",
+    "capacityAtLeast": "Mindestens {{count}}",
+    "facilities": "Ausstattung",
+    "reset": "Filter zurücksetzen"
+  },
+  "picker": {
+    "label": "Besprechungsraum",
+    "add": "Raum hinzufügen",
+    "change": "Ändern",
+    "collapse": "Einklappen",
+    "clear": "Raum entfernen",
+    "none": "Kein Raum gebucht",
+    "tabAvailable": "Verfügbar",
+    "tabAll": "Alle Räume",
+    "searchPlaceholder": "Räume oder Ebenen suchen",
+    "capacityHint": "{{count}} Teilnehmende — passenden Raum wählen",
+    "emptyAvailable": "Für diesen Zeitraum ist kein Raum frei. Andere Zeit oder Filter versuchen.",
+    "unavailable": "In diesem Zeitraum belegt",
+    "allDayUnsupported": "Ganztägige Termine können noch keinen Raum buchen"
+  },
+  "conflict": {
+    "inline": "{{name}} ist zur neuen Zeit bereits belegt",
+    "switchRoom": "Anderen wählen",
+    "clearBooking": "Raum entfernen",
+    "serverRejected": "Der Raum wurde gerade vergeben. Bitte einen anderen wählen."
+  },
+  "status": {
+    "active": "Aktiv",
+    "disabled": "Deaktiviert"
+  },
+  "unit": {
+    "people": "{{count}} Personen"
+  }
+}

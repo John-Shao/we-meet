@@ -6,7 +6,8 @@
       "dashboard": "Tableau de bord",
       "org": "Organisation",
       "members": "Membres",
-      "audit": "Journal d'audit"
+      "audit": "Journal d'audit",
+      "meetingRooms": "Salles"
     }
   },
   "forbidden": {
@@ -58,7 +59,10 @@
     "cancel": "Annuler",
     "save": "Enregistrer",
     "create": "Créer",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "previous": "Précédent",
+    "next": "Suivant"
   },
   "invite": {
     "button": "Inviter un membre",
@@ -146,5 +150,38 @@
       "member_restore": "Membre réactivé",
       "member_remove": "Membre retiré"
     }
+  },
+  "meetingRooms": {
+    "title": "Salles de réunion",
+    "allRooms": "Toutes les salles",
+    "newLevel": "Ajouter un niveau",
+    "newSubLevel": "Ajouter un sous-niveau",
+    "editLevel": "Modifier le niveau",
+    "parentLevel": "Niveau",
+    "topLevel": "Niveau racine",
+    "levelName": "Nom du niveau",
+    "levelTimezone": "Fuseau horaire",
+    "timezoneInherit": "Hériter du parent",
+    "newRoom": "Ajouter une salle",
+    "editRoom": "Modifier la salle",
+    "roomName": "Nom de la salle",
+    "roomCode": "Code de la salle",
+    "capacity": "Capacité",
+    "facilities": "Équipements",
+    "colName": "Salle",
+    "colLevel": "Niveau",
+    "colCapacity": "Capacité",
+    "colFacilities": "Équipements",
+    "colStatus": "Statut",
+    "statusActive": "Active",
+    "statusDisabled": "Désactivée",
+    "disable": "Désactiver",
+    "enable": "Activer",
+    "rowActions": "Autres actions",
+    "loading": "Chargement…",
+    "emptyLevels": "Aucun niveau — ajoutez d'abord un bâtiment ou un étage",
+    "emptyRooms": "Aucune salle dans ce niveau",
+    "deleteRoomConfirm": "Supprimer la salle « {{name}} » ? Les réservations existantes sont conservées.",
+    "deleteLevelConfirm": "Supprimer le niveau « {{name}} » ?"
   }
 }

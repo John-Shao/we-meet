@@ -65,7 +65,12 @@
     "meetingNo": "会议号",
     "meetingLink": "链接",
     "copy": "复制",
-    "copied": "已复制"
+    "copied": "已复制",
+    "meetingRoom": "会议室",
+    "meetingRoomConflict": "会议室未预订成功",
+    "summary": "会议纪要",
+    "summaryPending": "生成中…",
+    "summaryView": "查看纪要"
   },
   "rsvp": {
     "label": "我的回复",

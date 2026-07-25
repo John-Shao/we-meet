@@ -23,6 +23,11 @@ import { CreateEventDialog } from '../components/CreateEventDialog'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
 import { CalendarViewSwitcher } from '../components/CalendarToolbar'
+import {
+  CalendarPageTabs,
+  type CalendarPageTab,
+} from '../components/CalendarPageTabs'
+import { MeetingRoomsPane } from '@/features/meeting-rooms'
 import type { View } from 'react-big-calendar'
 import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EditScopeDialog } from '../components/EditScopeDialog'
@@ -74,10 +79,26 @@ const CalendarAuthenticated = () => {
   )
   // 视图状态提升到路由层:页头分段切换器(原「日历」标题位)与网格共用。
   const [view, setView] = useState<View>('week')
+  // P9:「日历 / 会议室」页面级 Tab。写回 ?tab=rooms 以便刷新/分享保持
+  // (沿用本文件读 ?d= 的同款 URLSearchParams 手法)。
+  const [tab, setTab] = useState<CalendarPageTab>(() =>
+    new URLSearchParams(window.location.search).get('tab') === 'rooms'
+      ? 'meetingRooms'
+      : 'calendar'
+  )
 
   const openCreate = (slot: SlotDraft | null) => {
     setDraft(slot)
     setCreating(true)
+  }
+
+  const changeTab = (next: CalendarPageTab) => {
+    setTab(next)
+    const params = new URLSearchParams()
+    if (next === 'meetingRooms') params.set('tab', 'rooms')
+    const search = params.toString()
+    // replace: switching tabs should not pile up browser history entries.
+    navigate(`/calendar${search ? `?${search}` : ''}`, { replace: true })
   }
   const closeCreate = () => {
     setCreating(false)
@@ -104,6 +125,8 @@ const CalendarAuthenticated = () => {
     queryKey: ['calendar', 'window', monthWindow],
     queryFn: () => fetchCalendarEvents(monthWindow),
     staleTime: 30_000,
+    // 会议室 Tab 不渲染网格,±1 月的事件窗口是纯浪费。
+    enabled: tab === 'calendar',
   })
 
   useEffect(() => {
@@ -209,8 +232,20 @@ const CalendarAuthenticated = () => {
             marginBottom: '1rem',
           })}
         >
-          {/* 原「日历」标题位换成 日/周/月/日程 分段切换器(飞书式)。 */}
-          <CalendarViewSwitcher view={view} onView={setView} />
+          {/* 原「日历」标题位换成 日/周/月/日程 分段切换器(飞书式);
+             P9 起左侧再挂一组页面级 Tab(日历 / 会议室)。 */}
+          <div
+            className={css({
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+            })}
+          >
+            <CalendarPageTabs tab={tab} onTab={changeTab} />
+            {tab === 'calendar' && (
+              <CalendarViewSwitcher view={view} onView={setView} />
+            )}
+          </div>
           <div
             className={css({
               display: 'flex',
@@ -264,9 +299,17 @@ const CalendarAuthenticated = () => {
           </div>
         </div>
 
-        {/* 月/周/日 网格(react-big-calendar);点事件开详情弹窗(RSVP/进会)。 */}
+        {/* 月/周/日 网格(react-big-calendar);点事件开详情弹窗(RSVP/进会)。
+           P9 会议室 Tab 走自研横向时间轴(资源 × 时间,不是 rbc 的事件流)。 */}
         <div className={css({ flex: 1, minHeight: 0 })}>
-          {isLoading ? (
+          {tab === 'meetingRooms' ? (
+            <MeetingRoomsPane
+              date={date}
+              onSelectSlot={(_roomId, slotStart, slotEnd) =>
+                openCreate({ start: slotStart, end: slotEnd, allDay: false })
+              }
+            />
+          ) : isLoading ? (
             <StateHint loading>{t('page.loading')}</StateHint>
           ) : (
             <CalendarGrid

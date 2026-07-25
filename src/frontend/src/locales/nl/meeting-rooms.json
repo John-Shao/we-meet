@@ -1,0 +1,54 @@
+{
+  "tab": {
+    "calendar": "Agenda",
+    "meetingRooms": "Vergaderruimtes"
+  },
+  "pane": {
+    "loading": "Laden…",
+    "empty": "Geen vergaderruimtes gevonden",
+    "loadError": "Vergaderruimtes konden niet worden geladen",
+    "retry": "Opnieuw"
+  },
+  "timeline": {
+    "roomColumn": "Ruimte",
+    "booked": "Gereserveerd",
+    "clickToBook": "Klik op een vrij blok om {{room}} te reserveren"
+  },
+  "filters": {
+    "level": "Niveau",
+    "levelAll": "Alle niveaus",
+    "capacity": "Capaciteit",
+    "capacityAny": "Alle capaciteiten",
+    "capacityAtLeast": "Minstens {{count}}",
+    "facilities": "Voorzieningen",
+    "reset": "Filters wissen"
+  },
+  "picker": {
+    "label": "Vergaderruimte",
+    "add": "Ruimte toevoegen",
+    "change": "Wijzigen",
+    "collapse": "Inklappen",
+    "clear": "Ruimte verwijderen",
+    "none": "Geen ruimte gereserveerd",
+    "tabAvailable": "Beschikbaar",
+    "tabAll": "Alle ruimtes",
+    "searchPlaceholder": "Zoek ruimtes of niveaus",
+    "capacityHint": "{{count}} deelnemers — kies een passende ruimte",
+    "emptyAvailable": "Geen ruimte vrij op dit moment. Kies een ander tijdstip of pas de filters aan.",
+    "unavailable": "Bezet op dit tijdstip",
+    "allDayUnsupported": "Hele-dag-afspraken kunnen nog geen ruimte reserveren"
+  },
+  "conflict": {
+    "inline": "{{name}} is al gereserveerd op de nieuwe tijd",
+    "switchRoom": "Andere kiezen",
+    "clearBooking": "Ruimte verwijderen",
+    "serverRejected": "Die ruimte is net bezet geraakt. Kies een andere."
+  },
+  "status": {
+    "active": "Actief",
+    "disabled": "Uitgeschakeld"
+  },
+  "unit": {
+    "people": "{{count}} personen"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "tab": {
+    "calendar": "日历",
+    "meetingRooms": "会议室"
+  },
+  "pane": {
+    "loading": "加载中…",
+    "empty": "没有符合条件的会议室",
+    "loadError": "会议室信息加载失败",
+    "retry": "重试"
+  },
+  "timeline": {
+    "roomColumn": "会议室",
+    "booked": "已预订",
+    "clickToBook": "点击空档预订「{{room}}」"
+  },
+  "filters": {
+    "level": "所属层级",
+    "levelAll": "全部层级",
+    "capacity": "容纳人数",
+    "capacityAny": "不限人数",
+    "capacityAtLeast": "至少 {{count}} 人",
+    "facilities": "设施",
+    "reset": "重置筛选"
+  },
+  "picker": {
+    "label": "会议室",
+    "add": "添加会议室",
+    "change": "更换",
+    "collapse": "收起",
+    "clear": "取消预订",
+    "none": "未预订会议室",
+    "tabAvailable": "可用会议室",
+    "tabAll": "所有会议室",
+    "searchPlaceholder": "搜索会议室或层级",
+    "capacityHint": "当前 {{count}} 人参会,建议选容量不小于此的会议室",
+    "emptyAvailable": "该时段暂无可用会议室,试试调整时间或筛选条件",
+    "unavailable": "该时段已被占用",
+    "allDayUnsupported": "全天日程暂不支持预订会议室"
+  },
+  "conflict": {
+    "inline": "「{{name}}」在新时段已被占用",
+    "switchRoom": "换一间",
+    "clearBooking": "取消预订",
+    "serverRejected": "该会议室刚被他人订走,请重新选择"
+  },
+  "status": {
+    "active": "正常",
+    "disabled": "已禁用"
+  },
+  "unit": {
+    "people": "{{count}} 人"
+  }
+}

@@ -5,6 +5,8 @@ import { RiCheckLine, RiCloseLine, RiQuestionLine } from '@remixicon/react'
 import { css, cx } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
 import { useUser } from '@/features/auth'
+import { navigateTo } from '@/navigation/navigateTo'
+import { useMeetingSummary } from '@/features/meetings/api/fetchMeeting'
 
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 
@@ -55,6 +57,20 @@ export const EventDetailDialog = ({
       /* 剪贴板被策略拒绝:静默,用户可手动选择文本 */
     }
   }
+  // 会后纪要(阶段 2:日程详情覆盖「会前预约 → 会后纪要」全生命周期)。
+  // 仅已结束且有房间时才查,避免给每个未来日程平白多打一次 404。
+  // 纪要读权限本就是「拿到房间 id 即可」(RoomViewSet SAFE_METHODS 放行),
+  // 与详情已暴露的 room_slug 同口径,不新增暴露面。
+  const ended = new Date(event.end_at).getTime() < Date.now()
+  const { data: summary } = useMeetingSummary(
+    ended && event.room ? event.room : undefined
+  )
+  // 摘要预览:人工编辑版优先(effective_content),回退 AI 原文。
+  const summaryPreview = (summary?.effective_content || summary?.content || '')
+    .replace(/[#*`>\-\n]+/g, ' ')
+    .trim()
+    .slice(0, 90)
+
   // 详情可被非参与人打开(分享到群后凭 id 只读),但表态仍限参与人/组织者 ——
   // 后端 rsvp 走受限 queryset,非参与人点了必失败,故直接不渲染 RSVP 区。
   const canRsvp =
@@ -134,6 +150,30 @@ export const EventDetailDialog = ({
         >
           {t('card.organizer')}: {event.organizer?.full_name || '—'}
         </p>
+        {/* P9 实体会议室 —— 刻意放在信息区(时间/组织者/地点),不并进下面的
+            「进入会议」区块:那是 LiveKit 视频房间的按钮区,混在一起只会加剧
+            两个 room 的命名混淆。 */}
+        {event.meeting_room && (
+          <p
+            className={css({
+              margin: '0.25rem 0 0',
+              fontSize: '0.75rem',
+              color: 'greyscale.500',
+            })}
+            data-testid="detail-meeting-room"
+          >
+            🏢 {t('detail.meetingRoom')}: {event.meeting_room.name}
+            {event.meeting_room.path_label
+              ? ` · ${event.meeting_room.path_label}`
+              : ''}
+            {event.meeting_room.booking_status === 'conflict' && (
+              <span className={css({ color: 'danger.600' })}>
+                {' '}
+                · {t('detail.meetingRoomConflict')}
+              </span>
+            )}
+          </p>
+        )}
         {/* 会议信息(对标飞书:日程详情内嵌会议区块)—— 会议号/链接是「把会
             发给别人」的高频动作,原先只有底部一个「进入会议」按钮拿不到。 */}
         {event.room_slug && (
@@ -167,6 +207,33 @@ export const EventDetailDialog = ({
               </button>
             </div>
           </div>
+        )}
+        {/* 会后纪要:紧跟会议信息,构成「会前(会议号/链接)→ 会后(纪要)」的
+            完整生命周期。这里只给摘要 + 入口,完整纪要/待办/转录仍在会议详情页
+            渲染 —— 不把重内容塞进这个紧凑弹窗,也不重复实现一遍。 */}
+        {ended && event.room && summary && summary.status !== 'failed' && (
+          <button
+            type="button"
+            onClick={() => {
+              onClose()
+              navigateTo('meetingDetail', event.room)
+            }}
+            data-testid="detail-summary"
+            className={summaryBoxCls}
+          >
+            <span className={summaryTitleCls}>
+              📝 {t('detail.summary')}
+              {summary.status === 'pending' && (
+                <span className={summaryPendingCls}>
+                  {t('detail.summaryPending')}
+                </span>
+              )}
+            </span>
+            {summaryPreview && (
+              <span className={summaryPreviewCls}>{summaryPreview}…</span>
+            )}
+            <span className={summaryLinkCls}>{t('detail.summaryView')}</span>
+          </button>
         )}
         {event.description && (
           <p
@@ -518,6 +585,48 @@ const meetingCopyCls = css({
   fontSize: '0.75rem',
   cursor: 'pointer',
   _hover: { textDecoration: 'underline' },
+})
+
+const summaryBoxCls = css({
+  marginTop: '0.5rem',
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: '0.125rem',
+  textAlign: 'left',
+  paddingX: '0.75rem',
+  paddingY: '0.5rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '0.5rem',
+  backgroundColor: 'greyscale.000',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.50' },
+})
+
+const summaryTitleCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  fontSize: '0.8125rem',
+  fontWeight: 'medium',
+  color: 'greyscale.800',
+})
+
+const summaryPendingCls = css({ fontSize: '0.75rem', color: 'greyscale.500' })
+
+// 两行截断:panda 不认 WebkitBoxOrient 驼峰键,用 lineClamp 简写。
+const summaryPreviewCls = css({
+  fontSize: '0.75rem',
+  color: 'greyscale.600',
+  lineClamp: '2',
+  overflow: 'hidden',
+})
+
+const summaryLinkCls = css({
+  fontSize: '0.75rem',
+  color: 'primary.600',
+  fontWeight: 'medium',
 })
 
 const moreWrapCls = css({ position: 'relative', display: 'inline-flex' })

@@ -1,5 +1,7 @@
 /** DTOs for the calendar / scheduling API (P2). Mirrors core/api/calendar.py. */
 
+import type { MeetingRoomBrief } from '@/features/meeting-rooms'
+
 export type { Paginated } from '@/api/Paginated'
 
 export type RSVPStatus = 'needs_action' | 'accepted' | 'declined' | 'tentative'
@@ -36,6 +38,12 @@ export interface CalendarEvent {
   /** Room id (join target) + slug; null when the event has no room. */
   room: string | null
   room_slug: string | null
+  /**
+   * P9 实体会议室 —— 与上面的 LiveKit `room` 无关。null = 未预订。
+   * `booking_status === 'conflict'` 表示该场次没抢到房间(重复日程滚动物化
+   * 时可能发生),会议照开,只是没订上会议室。
+   */
+  meeting_room: MeetingRoomBrief | null
   attendees: EventAttendee[]
   my_rsvp: RSVPStatus | null
   created_at: string
@@ -66,6 +74,13 @@ export interface CreateEventPayload {
    * 时后端向该会话推变更卡片;write_only,响应体不回读。
    */
   source_conversation_id?: string
+  /**
+   * P9 会议室 id。`''` = 不预订;字段缺省 = 不动既有预订。用空串而非 null
+   * 表达「清空」,是为了和 Android 对齐(Moshi 不序列化 null)。
+   */
+  meeting_room_id?: string
+  /** 重复日程占用策略:`strict`(默认,冲突即 409)/ `skip`(冲突场次标记)。 */
+  booking_conflict_policy?: 'strict' | 'skip'
 }
 
 /** P2-M2 重复日程编辑范围:仅此场次 / 此场次及以后 / 所有场次。 */
@@ -89,4 +104,7 @@ export interface UpdateEventPayload {
   attendee_ids?: string[]
   /** P2-M2:重复日程子场次的编辑范围;单次事件省略。 */
   edit_scope?: EditScope
+  /** P9:`''` = 释放会议室;缺省 = 不动。见 CreateEventPayload 的说明。 */
+  meeting_room_id?: string
+  booking_conflict_policy?: 'strict' | 'skip'
 }

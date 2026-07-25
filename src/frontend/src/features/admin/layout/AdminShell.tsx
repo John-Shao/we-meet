@@ -6,6 +6,7 @@ import {
   RiGovernmentLine,
   RiTeamLine,
   RiFileList3Line,
+  RiBuilding2Line,
   RiArrowLeftLine,
   type RemixiconComponentType,
 } from '@remixicon/react'
@@ -25,6 +26,11 @@ const NAV: NavItem[] = [
   { to: '/', labelKey: 'shell.nav.dashboard', Icon: RiDashboardLine },
   { to: '/org', labelKey: 'shell.nav.org', Icon: RiGovernmentLine },
   { to: '/members', labelKey: 'shell.nav.members', Icon: RiTeamLine },
+  {
+    to: '/meeting-rooms',
+    labelKey: 'shell.nav.meetingRooms',
+    Icon: RiBuilding2Line,
+  },
   { to: '/audit', labelKey: 'shell.nav.audit', Icon: RiFileList3Line },
 ]
 

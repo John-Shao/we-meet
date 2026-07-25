@@ -6,7 +6,8 @@
       "dashboard": "数据看板",
       "org": "组织架构",
       "members": "成员治理",
-      "audit": "审计日志"
+      "audit": "审计日志",
+      "meetingRooms": "会议室"
     }
   },
   "forbidden": {
@@ -58,7 +59,10 @@
     "cancel": "取消",
     "save": "保存",
     "create": "创建",
-    "delete": "删除"
+    "delete": "删除",
+    "edit": "编辑",
+    "previous": "上一页",
+    "next": "下一页"
   },
   "invite": {
     "button": "邀请成员",
@@ -146,5 +150,38 @@
       "member_restore": "恢复成员",
       "member_remove": "移出成员"
     }
+  },
+  "meetingRooms": {
+    "title": "会议室",
+    "allRooms": "全部会议室",
+    "newLevel": "添加层级",
+    "newSubLevel": "添加子层级",
+    "editLevel": "编辑层级",
+    "parentLevel": "所属层级",
+    "topLevel": "顶级",
+    "levelName": "层级名称",
+    "levelTimezone": "层级时区",
+    "timezoneInherit": "继承上级时区",
+    "newRoom": "添加会议室",
+    "editRoom": "编辑会议室",
+    "roomName": "会议室名称",
+    "roomCode": "会议室编号",
+    "capacity": "容纳人数",
+    "facilities": "设施信息",
+    "colName": "会议室名称",
+    "colLevel": "所属层级",
+    "colCapacity": "容纳人数",
+    "colFacilities": "设施信息",
+    "colStatus": "状态",
+    "statusActive": "正常",
+    "statusDisabled": "已禁用",
+    "disable": "禁用",
+    "enable": "启用",
+    "rowActions": "更多操作",
+    "loading": "加载中…",
+    "emptyLevels": "还没有层级,先添加一个建筑或楼层",
+    "emptyRooms": "该层级下还没有会议室",
+    "deleteRoomConfirm": "确定删除会议室「{{name}}」吗?已有的预订不会被取消。",
+    "deleteLevelConfirm": "确定删除层级「{{name}}」吗?"
   }
 }

@@ -6,7 +6,8 @@
       "dashboard": "Dashboard",
       "org": "Organisatie",
       "members": "Leden",
-      "audit": "Auditlogboek"
+      "audit": "Auditlogboek",
+      "meetingRooms": "Vergaderruimtes"
     }
   },
   "forbidden": {
@@ -58,7 +59,10 @@
     "cancel": "Annuleren",
     "save": "Opslaan",
     "create": "Aanmaken",
-    "delete": "Verwijderen"
+    "delete": "Verwijderen",
+    "edit": "Bewerken",
+    "previous": "Vorige",
+    "next": "Volgende"
   },
   "invite": {
     "button": "Lid uitnodigen",
@@ -146,5 +150,38 @@
       "member_restore": "Lid hersteld",
       "member_remove": "Lid verwijderd"
     }
+  },
+  "meetingRooms": {
+    "title": "Vergaderruimtes",
+    "allRooms": "Alle ruimtes",
+    "newLevel": "Niveau toevoegen",
+    "newSubLevel": "Subniveau toevoegen",
+    "editLevel": "Niveau bewerken",
+    "parentLevel": "Niveau",
+    "topLevel": "Hoogste niveau",
+    "levelName": "Naam van niveau",
+    "levelTimezone": "Tijdzone",
+    "timezoneInherit": "Overnemen van bovenliggend niveau",
+    "newRoom": "Ruimte toevoegen",
+    "editRoom": "Ruimte bewerken",
+    "roomName": "Naam van ruimte",
+    "roomCode": "Ruimtecode",
+    "capacity": "Capaciteit",
+    "facilities": "Voorzieningen",
+    "colName": "Ruimte",
+    "colLevel": "Niveau",
+    "colCapacity": "Capaciteit",
+    "colFacilities": "Voorzieningen",
+    "colStatus": "Status",
+    "statusActive": "Actief",
+    "statusDisabled": "Uitgeschakeld",
+    "disable": "Uitschakelen",
+    "enable": "Inschakelen",
+    "rowActions": "Meer acties",
+    "loading": "Laden…",
+    "emptyLevels": "Nog geen niveaus — voeg eerst een gebouw of verdieping toe",
+    "emptyRooms": "Nog geen ruimtes op dit niveau",
+    "deleteRoomConfirm": "Ruimte \"{{name}}\" verwijderen? Bestaande reserveringen blijven staan.",
+    "deleteLevelConfirm": "Niveau \"{{name}}\" verwijderen?"
   }
 }

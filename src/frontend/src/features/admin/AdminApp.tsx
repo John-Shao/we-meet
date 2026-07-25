@@ -5,6 +5,7 @@ import { AdminShell } from './layout/AdminShell'
 import { AdminDashboard } from './pages/Dashboard'
 import { AdminOrg } from './pages/Org'
 import { AdminMembers } from './pages/Members'
+import { AdminMeetingRooms } from './pages/MeetingRooms'
 import { AdminAudit } from './pages/Audit'
 
 /**
@@ -25,6 +26,9 @@ const AdminApp = () => (
         </Route>
         <Route path="/members">
           <AdminMembers />
+        </Route>
+        <Route path="/meeting-rooms">
+          <AdminMeetingRooms />
         </Route>
         <Route path="/audit">
           <AdminAudit />

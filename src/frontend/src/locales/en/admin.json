@@ -6,7 +6,8 @@
       "dashboard": "Dashboard",
       "org": "Organization",
       "members": "Members",
-      "audit": "Audit log"
+      "audit": "Audit log",
+      "meetingRooms": "Meeting rooms"
     }
   },
   "forbidden": {
@@ -58,7 +59,10 @@
     "cancel": "Cancel",
     "save": "Save",
     "create": "Create",
-    "delete": "Delete"
+    "delete": "Delete",
+    "edit": "Edit",
+    "previous": "Previous",
+    "next": "Next"
   },
   "invite": {
     "button": "Invite member",
@@ -146,5 +150,38 @@
       "member_restore": "Member restored",
       "member_remove": "Member removed"
     }
+  },
+  "meetingRooms": {
+    "title": "Meeting rooms",
+    "allRooms": "All rooms",
+    "newLevel": "Add level",
+    "newSubLevel": "Add sub-level",
+    "editLevel": "Edit level",
+    "parentLevel": "Level",
+    "topLevel": "Top level",
+    "levelName": "Level name",
+    "levelTimezone": "Level timezone",
+    "timezoneInherit": "Inherit from parent",
+    "newRoom": "Add room",
+    "editRoom": "Edit room",
+    "roomName": "Room name",
+    "roomCode": "Room code",
+    "capacity": "Capacity",
+    "facilities": "Facilities",
+    "colName": "Room",
+    "colLevel": "Level",
+    "colCapacity": "Capacity",
+    "colFacilities": "Facilities",
+    "colStatus": "Status",
+    "statusActive": "Active",
+    "statusDisabled": "Disabled",
+    "disable": "Disable",
+    "enable": "Enable",
+    "rowActions": "More actions",
+    "loading": "Loading…",
+    "emptyLevels": "No levels yet — add a building or floor first",
+    "emptyRooms": "No rooms in this level yet",
+    "deleteRoomConfirm": "Delete room \"{{name}}\"? Existing bookings are kept.",
+    "deleteLevelConfirm": "Delete level \"{{name}}\"?"
   }
 }

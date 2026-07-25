@@ -65,7 +65,12 @@
     "meetingNo": "N° de réunion",
     "meetingLink": "Lien",
     "copy": "Copier",
-    "copied": "Copié"
+    "copied": "Copié",
+    "meetingRoom": "Salle de réunion",
+    "meetingRoomConflict": "salle non réservée",
+    "summary": "Compte rendu",
+    "summaryPending": "génération…",
+    "summaryView": "Voir le compte rendu"
   },
   "rsvp": {
     "label": "Ma réponse",

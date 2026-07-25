@@ -8,6 +8,8 @@ import { Modal } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useUser } from '@/features/auth'
 import { useDirectoryMemberSearch, MemberAvatar } from '@/features/contacts'
+import { MeetingRoomField } from '@/features/meeting-rooms'
+import type { MeetingRoomBrief } from '@/features/meeting-rooms'
 
 import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent, EditScope } from '../api/ApiCalendar'
@@ -16,6 +18,13 @@ import {
   useCalendarSettings,
 } from '../hooks/useCalendarSettings'
 import { FreeBusyBar } from './FreeBusyBar'
+import {
+  chipCls,
+  fieldCls,
+  ghostBtn,
+  inputCls,
+  labelCls,
+} from './formStyles'
 
 interface Props {
   onCreated: (event: CalendarEvent) => void
@@ -130,6 +139,12 @@ export const CreateEventDialog = ({
     return new Map(initialSelected ?? [])
   })
   const [busy, setBusy] = useState(false)
+  // P9 会议室:编辑态从事件预填;`roomConflicted` 是客户端预判(服务端 409
+  // 才是权威),用来提前禁用提交并就地解释原因。
+  const [meetingRoom, setMeetingRoom] = useState<MeetingRoomBrief | null>(
+    editEvent?.meeting_room ?? null
+  )
+  const [roomConflicted, setRoomConflicted] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
   const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
   const { alert: showAlert } = useConfirm()
@@ -144,7 +159,8 @@ export const CreateEventDialog = ({
       return next
     })
 
-  const canCreate = !!title.trim() && !!start && !!end && !busy
+  const canCreate =
+    !!title.trim() && !!start && !!end && !busy && !roomConflicted
 
   // RRULE 组装:UNTIL 用「浮动本地时刻」(无 Z 后缀)——与后端按事件时区的
   // 墙上钟展开一致,且 dateutil 在 naive dtstart 下拒绝 UTC(Z)形式的 UNTIL。
@@ -186,6 +202,10 @@ export const CreateEventDialog = ({
         end_at: endDate.toISOString(),
         all_day: allDay,
         reminders: [...reminders].sort((a, b) => a - b),
+        // P9 会议室:'' = 不预订 / 清空既有预订。刻意用空串而不是 null,
+        // 好让 Android(Moshi 不序列化 null)能表达同一个意思;后端两者都收。
+        // 全天日程不带该字段 —— M1 不支持全天订会议室。
+        ...(allDay ? {} : { meeting_room_id: meetingRoom?.id ?? '' }),
       }
       const event = editEvent
         ? await updateCalendarEvent(editEvent.id, {
@@ -594,6 +614,19 @@ export const CreateEventDialog = ({
             </div>
           </div>
         )}
+
+        {/* P9 会议室 —— 放在参与者之后:容量筛选按已选人数起算,可用性依赖
+            上方选好的时段,冲突提示条也就正好压在提交按钮上方。 */}
+        <MeetingRoomField
+          value={meetingRoom}
+          onChange={setMeetingRoom}
+          start={start ? new Date(allDay ? `${dateOnly(start)}T00:00` : start) : null}
+          end={end ? new Date(allDay ? `${dateOnly(end)}T00:00` : end) : null}
+          allDay={allDay}
+          attendeeCount={selected.size + 1}
+          excludeEventId={editEvent?.id}
+          onConflictChange={setRoomConflicted}
+        />
       </div>
 
       <div
@@ -649,16 +682,6 @@ const closeBtn = css({
   cursor: 'pointer',
   color: 'greyscale.600',
 })
-const inputCls = css({
-  width: '100%',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  fontSize: '0.875rem',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
-})
 const textareaCls = css({
   width: '100%',
   paddingX: '0.75rem',
@@ -671,33 +694,4 @@ const textareaCls = css({
   resize: 'vertical',
   minHeight: '3.5rem',
   _focus: { borderColor: 'primary.500' },
-})
-const fieldCls = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.25rem',
-  flex: 1,
-  minWidth: '12rem',
-})
-const labelCls = css({ fontSize: '0.8125rem', color: 'greyscale.600' })
-const ghostBtn = css({
-  paddingX: '0.875rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.700',
-  fontSize: '0.875rem',
-  cursor: 'pointer',
-})
-const chipCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.25rem',
-  paddingX: '0.5rem',
-  paddingY: '0.25rem',
-  borderRadius: '0.375rem',
-  backgroundColor: 'greyscale.100',
-  fontSize: '0.8125rem',
-  color: 'greyscale.800',
 })

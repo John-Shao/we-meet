@@ -6,7 +6,8 @@
       "dashboard": "Dashboard",
       "org": "Organisation",
       "members": "Mitglieder",
-      "audit": "Auditprotokoll"
+      "audit": "Auditprotokoll",
+      "meetingRooms": "Besprechungsräume"
     }
   },
   "forbidden": {
@@ -58,7 +59,10 @@
     "cancel": "Abbrechen",
     "save": "Speichern",
     "create": "Erstellen",
-    "delete": "Löschen"
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "previous": "Zurück",
+    "next": "Weiter"
   },
   "invite": {
     "button": "Mitglied einladen",
@@ -146,5 +150,38 @@
       "member_restore": "Mitglied wiederhergestellt",
       "member_remove": "Mitglied entfernt"
     }
+  },
+  "meetingRooms": {
+    "title": "Besprechungsräume",
+    "allRooms": "Alle Räume",
+    "newLevel": "Ebene hinzufügen",
+    "newSubLevel": "Unterebene hinzufügen",
+    "editLevel": "Ebene bearbeiten",
+    "parentLevel": "Ebene",
+    "topLevel": "Oberste Ebene",
+    "levelName": "Name der Ebene",
+    "levelTimezone": "Zeitzone",
+    "timezoneInherit": "Von übergeordneter Ebene erben",
+    "newRoom": "Raum hinzufügen",
+    "editRoom": "Raum bearbeiten",
+    "roomName": "Raumname",
+    "roomCode": "Raumnummer",
+    "capacity": "Kapazität",
+    "facilities": "Ausstattung",
+    "colName": "Raum",
+    "colLevel": "Ebene",
+    "colCapacity": "Kapazität",
+    "colFacilities": "Ausstattung",
+    "colStatus": "Status",
+    "statusActive": "Aktiv",
+    "statusDisabled": "Deaktiviert",
+    "disable": "Deaktivieren",
+    "enable": "Aktivieren",
+    "rowActions": "Weitere Aktionen",
+    "loading": "Wird geladen…",
+    "emptyLevels": "Noch keine Ebenen — zuerst ein Gebäude oder Stockwerk anlegen",
+    "emptyRooms": "Noch keine Räume auf dieser Ebene",
+    "deleteRoomConfirm": "Raum \"{{name}}\" löschen? Bestehende Buchungen bleiben erhalten.",
+    "deleteLevelConfirm": "Ebene \"{{name}}\" löschen?"
   }
 }
