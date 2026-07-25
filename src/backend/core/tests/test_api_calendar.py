@@ -423,3 +423,90 @@ def test_update_attendee_ids_empty_list_removes_all_but_organizer():
     attendee_users = set(event.attendees.values_list("user_id", flat=True))
     assert attendee_users == {me.id}
     assert not event.room.accesses.filter(user=peer).exists()
+
+
+# ---- 分享日程到聊天:详情放宽为「凭 id 只读」,其余权限不放宽 ----
+
+
+def _event_for_share():
+    """组织者 + 一名参与人建好日程,并返回(日程, 组织者, 局外人)。
+
+    局外人 = 同组织但既非组织者也非参与人,模拟「群里收到分享卡片的人」。
+    """
+    org = factories.OrganizationFactory()
+    organizer = factories.UserFactory(full_name="Organizer")
+    _membership(org, organizer)
+    attendee = factories.UserFactory(full_name="Attendee")
+    _membership(org, attendee)
+    outsider = factories.UserFactory(full_name="Outsider")
+    _membership(org, outsider)
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(organizer)
+    resp = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "周末派对",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "attendee_ids": [str(attendee.id)],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    return resp.json()["id"], organizer, outsider
+
+
+def test_outsider_can_retrieve_shared_event():
+    """非参与人凭 event_id 可读详情 —— 群里点开分享卡片不再「日程加载失败」。"""
+    event_id, _, outsider = _event_for_share()
+    client = APIClient()
+    client.force_login(outsider)
+    resp = client.get(f"/api/v1.0/calendar-events/{event_id}/")
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["title"] == "周末派对"
+    # 非参与人没有表态记录 → 客户端据此收起 RSVP 区。
+    assert resp.json()["my_rsvp"] is None
+
+
+def test_outsider_cannot_rsvp_shared_event():
+    """放宽只到「读」为止:非参与人不能替自己表态(rsvp 仍走受限 queryset)。"""
+    event_id, _, outsider = _event_for_share()
+    client = APIClient()
+    client.force_login(outsider)
+    resp = client.post(
+        f"/api/v1.0/calendar-events/{event_id}/rsvp/",
+        {"status": "accepted"},
+        format="json",
+    )
+    assert resp.status_code == 404, resp.content
+
+
+def test_outsider_cannot_modify_or_delete_shared_event():
+    """非参与人不能改/删他人日程。"""
+    event_id, _, outsider = _event_for_share()
+    client = APIClient()
+    client.force_login(outsider)
+    assert (
+        client.patch(
+            f"/api/v1.0/calendar-events/{event_id}/",
+            {"title": "hacked"},
+            format="json",
+        ).status_code
+        == 404
+    )
+    assert (
+        client.delete(f"/api/v1.0/calendar-events/{event_id}/").status_code == 404
+    )
+
+
+def test_outsider_does_not_see_shared_event_in_list():
+    """列表不放宽:被分享的日程不会混进局外人自己的日历。"""
+    event_id, _, outsider = _event_for_share()
+    client = APIClient()
+    client.force_login(outsider)
+    resp = client.get("/api/v1.0/calendar-events/")
+    assert resp.status_code == 200, resp.content
+    ids = [row["id"] for row in resp.json()["results"]]
+    assert event_id not in ids

@@ -4,6 +4,7 @@ import { RiCheckLine, RiCloseLine, RiQuestionLine } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
+import { useUser } from '@/features/auth'
 
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 
@@ -36,9 +37,16 @@ export const EventDetailDialog = ({
   onShare,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
+  const { user } = useUser()
   const [rsvp, setRsvp] = useState<RSVPStatus | null>(event.my_rsvp ?? null)
   // 「更多」菜单(删除收纳其中,对标飞书)。
   const [moreOpen, setMoreOpen] = useState(false)
+  // 详情可被非参与人打开(分享到群后凭 id 只读),但表态仍限参与人/组织者 ——
+  // 后端 rsvp 走受限 queryset,非参与人点了必失败,故直接不渲染 RSVP 区。
+  const canRsvp =
+    !!user &&
+    (event.organizer?.id === user.id ||
+      event.attendees.some((a) => a.id === user.id))
 
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(i18n.language, {
@@ -140,7 +148,8 @@ export const EventDetailDialog = ({
           </p>
         )}
 
-        {/* RSVP */}
+        {/* RSVP —— 仅参与人/组织者可见(非参与人是「被分享者」,只读) */}
+        {canRsvp && (
         <div
           className={css({
             display: 'flex',
@@ -176,6 +185,7 @@ export const EventDetailDialog = ({
             )
           )}
         </div>
+        )}
 
         {/* 参与人列表(对齐 App 端:RSVP 状态图标 + 名字 + 组织者标签)。 */}
         {event.attendees.length > 0 && (

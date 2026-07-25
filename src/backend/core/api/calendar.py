@@ -155,6 +155,18 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
     pagination_class = Pagination
 
     def get_queryset(self):
+        # 分享日程到聊天:详情放宽为「凭 event_id 只读」——群里的非参与人点开
+        # 分享卡片也能看基本信息(标题/时间/组织者/入会),语义同「拿到链接就能看」。
+        # **只放宽 retrieve**,其余一律不动:list 仍只列自己的;update/destroy 走
+        # 下面的受限 queryset + _require_organizer;rsvp 同样走受限 queryset,
+        # 因此非参与人拿不到对象、无法表态。不做组织过滤——群本就可跨组织
+        # (与云文档分享授权同口径)。
+        if self.action == "retrieve":
+            return (
+                models.CalendarEvent.objects.all()
+                .select_related("organizer", "room")
+                .prefetch_related("attendees__user")
+            )
         organization = get_caller_organization(self.request.user)
         if organization is None:
             return models.CalendarEvent.objects.none()
