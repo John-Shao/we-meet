@@ -83,12 +83,14 @@ export const DepartmentAdminTree = ({
                 backgroundColor: active ? 'primary.100' : 'greyscale.100',
                 '& [data-row-actions]': { opacity: 1 },
               },
-              // primary.* 固定色阶不随主题翻转 —— 深色下必须翻到 primaryDark,
-              // 否则浅蓝底压浅蓝字,选中行反而看不清。
+              // primary.* 固定色阶不随主题翻转 —— 深色下必须整组翻到
+              // primaryDark,**包括 _hover**:漏了它,鼠标放到选中行上背景就
+              // 单独跳回浅蓝,配浅蓝文字直接看不见。
               _dark: active
                 ? {
                     borderLeftColor: 'primaryDark.500',
                     backgroundColor: 'primaryDark.100',
+                    _hover: { backgroundColor: 'primaryDark.100' },
                   }
                 : {},
             })}

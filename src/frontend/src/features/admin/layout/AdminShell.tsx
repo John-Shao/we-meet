@@ -136,22 +136,39 @@ export const AdminShell = ({ children }: { children: ReactNode }) => {
   )
 }
 
-const navLink = (active: boolean) =>
-  css({
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.625rem',
-    paddingX: '1rem',
-    paddingY: '0.625rem',
-    fontSize: '0.875rem',
-    cursor: 'pointer',
-    color: active ? 'primary.700' : 'greyscale.800',
-    fontWeight: active ? '600' : undefined,
-    backgroundColor: active ? 'primary.100' : 'transparent',
-    _hover: { backgroundColor: active ? 'primary.100' : 'greyscale.100' },
-    // primary.* 是固定色阶不随主题翻转:深色下不翻到 primaryDark,选中项会是
-    // 一条刺眼的浅蓝亮带,且与页面其它选中态不一致。
-    _dark: active
-      ? { color: 'primaryDark.900', backgroundColor: 'primaryDark.100' }
-      : {},
-  })
+const navLinkBase = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
+  paddingX: '1rem',
+  paddingY: '0.625rem',
+  fontSize: '0.875rem',
+  cursor: 'pointer',
+} as const
+
+// 选中/未选中用两个完整类切换,不在一个 css() 里用 active 三元拼同一批属性:
+// 悬停态尤其容易漏 —— 少写一个 _dark 下的 _hover,鼠标一放上去背景就跳回
+// 固定色阶的浅蓝,配浅蓝文字直接看不见(实测反馈)。
+const navLinkIdle = css({
+  ...navLinkBase,
+  color: 'greyscale.800',
+  backgroundColor: 'transparent',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+
+const navLinkActive = css({
+  ...navLinkBase,
+  color: 'primary.700',
+  fontWeight: '600',
+  backgroundColor: 'primary.100',
+  _hover: { backgroundColor: 'primary.100' },
+  // primary.* 是固定色阶,不随主题翻转 —— 深色下必须整组翻到 primaryDark,
+  // **包括 _hover**,否则悬停时底色单独跳回浅蓝。
+  _dark: {
+    color: 'primaryDark.900',
+    backgroundColor: 'primaryDark.100',
+    _hover: { backgroundColor: 'primaryDark.100' },
+  },
+})
+
+const navLink = (active: boolean) => (active ? navLinkActive : navLinkIdle)
