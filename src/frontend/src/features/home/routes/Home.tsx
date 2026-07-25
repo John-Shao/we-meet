@@ -14,8 +14,7 @@ import { useCreateRoom } from '@/features/rooms'
 import { useUser, UserAware } from '@/features/auth'
 import { JoinMeetingDialog } from '../components/JoinMeetingDialog'
 import { authUrl } from '@/features/auth'
-import { ScheduleMeetingDialog } from '@/features/home/components/ScheduleMeetingDialog'
-import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
+import { CreateEventDialog } from '@/features/calendar'
 import { IntroSlider } from '@/features/home/components/IntroSlider'
 import { MoreLink } from '@/features/home/components/MoreLink'
 import {
@@ -31,7 +30,7 @@ import { css } from '@/styled-system/css'
 import { openSystemSettings } from '@/stores/systemSettings'
 import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePersistentUserChoices'
 import { useConfig } from '@/api/useConfig'
-import { ApiRoom } from '@/features/rooms/api/ApiRoom'
+import { useQueryClient } from '@tanstack/react-query'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { ResizablePanel } from '@/components/ResizablePanel'
 
@@ -169,7 +168,9 @@ export const Home = () => {
   } = usePersistentUserChoices()
 
   const { mutateAsync: createRoom } = useCreateRoom()
-  const [laterRoom, setLaterRoom] = useState<null | ApiRoom>(null)
+  // 预约会议 = 创建日程(与飞书一致):点击打开日历的 CreateEventDialog。
+  const [scheduling, setScheduling] = useState(false)
+  const qc = useQueryClient()
   const [redirectFailed, setRedirectFailed] = useState(false)
   // P8(对标飞书):点预约/历史会议行 → 右侧详情面板,操作收进面板。
   const [meetingDetail, setMeetingDetail] = useState<MeetingSelection | null>(
@@ -295,16 +296,14 @@ export const Home = () => {
                     <RiFlashlightLine size={18} />
                     {t('quickMeeting')}
                   </Button>
-                  <DialogTrigger>
-                    <Button variant="secondary" data-attr="schedule-meeting">
-                      <RiCalendarLine size={18} />
-                      {t('scheduleMeeting')}
-                    </Button>
-                    <ScheduleMeetingDialog
-                      username={username}
-                      onCreated={setLaterRoom}
-                    />
-                  </DialogTrigger>
+                  <Button
+                    variant="secondary"
+                    data-attr="schedule-meeting"
+                    onPress={() => setScheduling(true)}
+                  >
+                    <RiCalendarLine size={18} />
+                    {t('scheduleMeeting')}
+                  </Button>
                   <DialogTrigger>
                     <Button variant="secondary">
                       <RiAddCircleLine size={18} />
@@ -392,15 +391,13 @@ export const Home = () => {
                     <Button variant="secondary">{t('joinMeeting')}</Button>
                     <JoinMeetingDialog />
                   </DialogTrigger>
-                  <DialogTrigger>
-                    <Button variant="secondary" data-attr="schedule-meeting">
-                      {t('scheduleMeeting')}
-                    </Button>
-                    <ScheduleMeetingDialog
-                      username={username}
-                      onCreated={setLaterRoom}
-                    />
-                  </DialogTrigger>
+                  <Button
+                    variant="secondary"
+                    data-attr="schedule-meeting"
+                    onPress={() => setScheduling(true)}
+                  >
+                    {t('scheduleMeeting')}
+                  </Button>
                 </div>
               ) : (
                 // Anonymous users see [Login] + [Join meeting]. Login opens
@@ -448,10 +445,16 @@ export const Home = () => {
             </RightColumn>
           </Columns>
         )}
-        <LaterMeetingDialog
-          room={laterRoom}
-          onOpenChange={() => setLaterRoom(null)}
-        />
+        {scheduling && (
+          <CreateEventDialog
+            onClose={() => setScheduling(false)}
+            onCreated={() => {
+              setScheduling(false)
+              // 日程创建时后端自建带 scheduled_at 的 Room → 刷新首页预约列表。
+              void qc.invalidateQueries({ queryKey: ['scheduled-meetings'] })
+            }}
+          />
+        )}
         {isLoggedIn && <PersonalAIFab />}
       </Screen>
     </UserAware>
