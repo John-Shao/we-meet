@@ -881,3 +881,80 @@ class ApprovalDelegationAdmin(admin.ModelAdmin):
     def get_changeform_initial_data(self, request):
         orgs = list(models.Organization.objects.all()[:2])
         return {"organization": orgs[0].pk} if len(orgs) == 1 else {}
+
+
+# --- P9 会议室 (physical meeting rooms) ---
+
+
+@admin.register(models.MeetingRoomNode)
+class MeetingRoomNodeAdmin(admin.ModelAdmin):
+    """A level in the meeting-room hierarchy (region / building / floor).
+
+    ``path`` / ``depth`` are derived in ``save()`` and rewritten as a subtree by
+    the console's move action, so they are read-only here — hand-editing one
+    would silently detach its descendants.
+    """
+
+    list_display = ("name", "organization", "depth", "timezone", "is_active")
+    list_filter = ("organization", "is_active")
+    search_fields = ("=id", "name")
+    autocomplete_fields = ("organization", "parent")
+    readonly_fields = ("id", "path", "depth", "created_at", "updated_at")
+    ordering = ("path",)
+
+
+@admin.register(models.MeetingRoomFacility)
+class MeetingRoomFacilityAdmin(admin.ModelAdmin):
+    """Facility dictionary (TV / projector / whiteboard ...)."""
+
+    list_display = ("name", "code", "organization", "sort_order", "is_active")
+    list_filter = ("organization", "is_active")
+    search_fields = ("=id", "name", "code")
+    autocomplete_fields = ("organization",)
+    readonly_fields = ("id", "created_at", "updated_at")
+
+
+@admin.register(models.MeetingRoom)
+class MeetingRoomAdmin(admin.ModelAdmin):
+    """A bookable physical room. Occupancy lives in MeetingRoomBooking."""
+
+    list_display = ("name", "code", "node", "capacity", "is_active", "organization")
+    list_filter = ("organization", "is_active", "requires_approval")
+    search_fields = ("=id", "name", "code")
+    autocomplete_fields = ("organization", "node", "approval_template")
+    filter_horizontal = ("facilities", "bookable_departments")
+    readonly_fields = ("id", "created_at", "updated_at")
+
+
+@admin.register(models.MeetingRoomBooking)
+class MeetingRoomBookingAdmin(admin.ModelAdmin):
+    """Room occupancy — deliberately read-only.
+
+    Every field is read-only because editing a booking by hand would bypass
+    ``core.services.meeting_room_booking``, the module that keeps a booking's
+    range in step with its event. Release a room by editing the event instead.
+    """
+
+    list_display = ("room", "start_at", "end_at", "status", "source", "booked_by")
+    list_filter = ("status", "source", "organization")
+    search_fields = ("=id", "room__name", "title")
+    date_hierarchy = "start_at"
+    readonly_fields = (
+        "id",
+        "organization",
+        "room",
+        "event",
+        "booked_by",
+        "start_at",
+        "end_at",
+        "status",
+        "source",
+        "title",
+        "approval_instance",
+        "cancelled_at",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False

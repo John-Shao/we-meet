@@ -510,3 +510,257 @@ def test_outsider_does_not_see_shared_event_in_list():
     assert resp.status_code == 200, resp.content
     ids = [row["id"] for row in resp.json()["results"]]
     assert event_id not in ids
+
+
+# --- P9 会议室:通过日程字段预订实体会议室 ---
+
+
+def _room(org, **kwargs):
+    return factories.MeetingRoomFactory(organization=org, **kwargs)
+
+
+def test_create_event_books_a_meeting_room():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    room = _room(org, name="3F-01", capacity=8)
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(me)
+    resp = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Design review",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "meeting_room_id": str(room.id),
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["meeting_room"]["name"] == "3F-01"
+    assert body["meeting_room"]["booking_status"] == "confirmed"
+
+    booking = models.MeetingRoomBooking.objects.get(room=room)
+    assert (booking.start_at, booking.end_at) == (start, end)
+
+
+def test_creating_over_a_booked_room_returns_409_and_saves_nothing():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    room = _room(org)
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(me)
+    payload = {
+        "title": "First",
+        "start_at": start.isoformat(),
+        "end_at": end.isoformat(),
+        "meeting_room_id": str(room.id),
+    }
+    assert client.post(
+        "/api/v1.0/calendar-events/", payload, format="json"
+    ).status_code == 201
+
+    resp = client.post(
+        "/api/v1.0/calendar-events/", {**payload, "title": "Second"}, format="json"
+    )
+    assert resp.status_code == 409, resp.content
+    body = resp.json()
+    assert body["code"] == "meeting_room_unavailable"
+    assert body["conflicts"][0]["room_id"] == str(room.id)
+    # The rejected event must not have been half-created.
+    assert not models.CalendarEvent.objects.filter(title="Second").exists()
+
+
+def test_rescheduling_moves_the_room_booking():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    room = _room(org)
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(me)
+    event_id = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Standup",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "meeting_room_id": str(room.id),
+        },
+        format="json",
+    ).json()["id"]
+
+    moved_start = start + timedelta(hours=4)
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event_id}/",
+        {
+            "start_at": moved_start.isoformat(),
+            "end_at": (moved_start + timedelta(hours=1)).isoformat(),
+        },
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+    booking = models.MeetingRoomBooking.objects.get(event_id=event_id)
+    assert booking.start_at == moved_start
+
+
+@pytest.mark.parametrize("clear_value", [None, ""])
+def test_clearing_the_room_releases_the_booking(clear_value):
+    """Both null and empty string mean "release" — Moshi cannot send null."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    room = _room(org)
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(me)
+    event_id = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Standup",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "meeting_room_id": str(room.id),
+        },
+        format="json",
+    ).json()["id"]
+
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event_id}/",
+        {"meeting_room_id": clear_value},
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["meeting_room"] is None
+    assert not models.MeetingRoomBooking.objects.filter(event_id=event_id).exists()
+
+
+def test_omitting_the_field_leaves_the_room_alone():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    room = _room(org)
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(me)
+    event_id = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Standup",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "meeting_room_id": str(room.id),
+        },
+        format="json",
+    ).json()["id"]
+
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event_id}/", {"title": "Renamed"}, format="json"
+    )
+    assert resp.status_code == 200
+    assert resp.json()["meeting_room"]["id"] == str(room.id)
+
+
+def test_deleting_an_event_releases_its_room():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    room = _room(org)
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(me)
+    event_id = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Standup",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "meeting_room_id": str(room.id),
+        },
+        format="json",
+    ).json()["id"]
+
+    assert client.delete(
+        f"/api/v1.0/calendar-events/{event_id}/"
+    ).status_code == 204
+    assert not models.MeetingRoomBooking.objects.filter(room=room).exists()
+
+
+def test_all_day_events_cannot_book_a_room():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    room = _room(org)
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(me)
+    resp = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Offsite",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "all_day": True,
+            "meeting_room_id": str(room.id),
+        },
+        format="json",
+    )
+    assert resp.status_code == 400
+    assert "meeting_room_id" in resp.json()
+
+
+def test_room_from_another_organization_is_rejected():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    foreign = factories.MeetingRoomFactory()
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(me)
+    resp = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Sneaky",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "meeting_room_id": str(foreign.id),
+        },
+        format="json",
+    )
+    # Explicit 400 rather than the silent drop attendee_ids uses: the user
+    # picked this room and must not be told it was booked when it was not.
+    assert resp.status_code == 400
+    assert "meeting_room_id" in resp.json()
+
+
+def test_events_without_a_room_report_none():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    start, end = _times()
+
+    client = APIClient()
+    client.force_login(me)
+    resp = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "No room needed",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+        },
+        format="json",
+    )
+    assert resp.status_code == 201
+    assert resp.json()["meeting_room"] is None

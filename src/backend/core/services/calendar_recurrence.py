@@ -31,6 +31,7 @@ from core.models import (
     EventRSVPChoices,
     EventStatusChoices,
 )
+from core.services import meeting_room_booking
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,11 @@ def materialize_recurrences(now=None, horizon_days: int = HORIZON_DAYS) -> int:
 def _materialize_one(parent, now, horizon) -> int:
     duration = parent.end_at - parent.start_at
     tz = parent.timezone
+    # P9 会议室:整个系列订的是主事件那间房。取一次,循环里给每个子场次各建
+    # 一条 booking —— 抢不到就落 conflict 行(policy=skip),绝不中断物化:
+    # 会议照开,只是那一场没订上会议室。
+    parent_booking = meeting_room_booking.active_booking_for(parent)
+    series_room = parent_booking.room if parent_booking is not None else None
 
     # 墙上钟展开:dtstart 用创作时区的 naive 本地时间,发生集也是 naive 本地。
     local_start = parent.start_at.astimezone(tz).replace(tzinfo=None)
@@ -139,6 +145,13 @@ def _materialize_one(parent, now, horizon) -> int:
                         for a in attendee_rows
                     ]
                 )
+                if series_room is not None:
+                    meeting_room_booking.book_for_event(
+                        child,
+                        series_room,
+                        policy=meeting_room_booking.SKIP,
+                        booked_by=parent.organizer,
+                    )
         except IntegrityError:
             continue  # 并发/重复轮次撞唯一索引 = 已存在,幂等跳过
         created += 1
@@ -250,6 +263,9 @@ def split_series(child, new_values) -> CalendarEvent:
     new_end = new_values.get("end_at") or (new_start + duration)
     delta = new_start - pivot
     new_rrule = _remaining_rrule_for_split(parent, pivot)
+    # 会议室随系列迁移到新主事件(读在删除之前,否则拿不到)。
+    old_booking = meeting_room_booking.active_booking_for(parent)
+    series_room = old_booking.room if old_booking is not None else None
 
     with transaction.atomic():
         keep, moved = [], []
@@ -286,6 +302,15 @@ def split_series(child, new_values) -> CalendarEvent:
         )
         _copy_attendees(parent, new_parent)
         parent.occurrences.filter(start_at__gte=pivot).delete()
+        # P9 会议室:顺序不可颠倒。旧子场次先删(booking 随 CASCADE 释放),
+        # 新主事件才抢得到那个槽位——反过来它会撞上自己的旧场次。
+        if series_room is not None:
+            meeting_room_booking.book_for_event(
+                new_parent,
+                series_room,
+                policy=meeting_room_booking.SKIP,
+                booked_by=parent.organizer,
+            )
         materialize_parent(new_parent)
     return new_parent
 
@@ -332,6 +357,12 @@ def edit_series_all(parent, pivot_old_start, new_values, now=None) -> CalendarEv
             for c in future
         }
         parent.occurrences.filter(start_at__gte=now).delete()
+        # P9 会议室:未来子场次的 booking 刚随删除释放,主事件此刻才能安全平移
+        # 到新时段;子场次的 booking 由下面的 materialize_parent 重建。
+        # policy=skip —— 系列编辑动辄几十场,一场冲突整体拒绝会让用户彻底改不动。
+        meeting_room_booking.resync_event_booking(
+            parent, policy=meeting_room_booking.SKIP
+        )
 
         past_updates = {
             f: new_values[f] for f in SCALAR_FIELDS if f in new_values

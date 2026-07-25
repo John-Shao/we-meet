@@ -1,0 +1,263 @@
+"""API tests for the meeting-room admin console endpoints (P9, M side)."""
+
+import pytest
+from rest_framework.test import APIClient
+
+from core import factories, models
+
+pytestmark = pytest.mark.django_db
+
+NODES = "/api/v1.0/admin/meeting-room-nodes/"
+ROOMS = "/api/v1.0/admin/meeting-rooms/"
+FACILITIES = "/api/v1.0/admin/meeting-room-facilities/"
+
+
+def _membership(org, user, role=models.OrgRoleChoices.MEMBER):
+    return models.Membership.objects.create(
+        organization=org, user=user, is_primary=True, org_role=role
+    )
+
+
+def _client(user):
+    client = APIClient()
+    client.force_login(user)
+    return client
+
+
+@pytest.fixture(name="admin_org")
+def admin_org_fixture():
+    org = factories.OrganizationFactory()
+    admin = factories.UserFactory()
+    _membership(org, admin, models.OrgRoleChoices.ADMIN)
+    return org, admin
+
+
+# --- permissions -----------------------------------------------------------
+
+
+@pytest.mark.parametrize("path", [NODES, ROOMS, FACILITIES])
+def test_plain_members_cannot_write(admin_org, path):
+    org, _admin = admin_org
+    member = factories.UserFactory()
+    _membership(org, member)
+
+    resp = _client(member).post(path, {"name": "Nope"}, format="json")
+    assert resp.status_code == 403
+
+
+def test_anonymous_is_rejected():
+    assert APIClient().get(NODES).status_code == 401
+
+
+def test_cannot_parent_a_node_under_another_organization(admin_org):
+    _org, admin = admin_org
+    foreign = factories.MeetingRoomNodeFactory()
+
+    resp = _client(admin).post(
+        NODES, {"name": "Tower A", "parent": str(foreign.id)}, format="json"
+    )
+    assert resp.status_code == 400
+
+
+# --- hierarchy CRUD --------------------------------------------------------
+
+
+def test_create_node_derives_path_and_depth(admin_org):
+    org, admin = admin_org
+    client = _client(admin)
+
+    region = client.post(
+        NODES, {"name": "China", "timezone": "Asia/Shanghai"}, format="json"
+    ).json()
+    floor = client.post(
+        NODES, {"name": "3F", "parent": region["id"]}, format="json"
+    ).json()
+
+    assert region["depth"] == 0
+    assert floor["depth"] == 1
+    assert floor["path"].startswith(region["path"])
+    # Blank timezone means "inherit", not "UTC".
+    assert floor["timezone"] is None
+    assert floor["effective_timezone"] == "Asia/Shanghai"
+
+
+def test_patch_cannot_reparent_a_node(admin_org):
+    """Reparenting rewrites a subtree — it must go through `move`."""
+    org, admin = admin_org
+    a = factories.MeetingRoomNodeFactory(organization=org, name="A")
+    b = factories.MeetingRoomNodeFactory(organization=org, name="B")
+
+    resp = _client(admin).patch(
+        f"{NODES}{b.id}/", {"parent": str(a.id)}, format="json"
+    )
+    assert resp.status_code == 200
+    b.refresh_from_db()
+    assert b.parent_id is None
+
+
+def test_move_rewrites_the_whole_subtree(admin_org):
+    org, admin = admin_org
+    old_root = factories.MeetingRoomNodeFactory(organization=org, name="Old")
+    branch = factories.MeetingRoomNodeFactory(
+        organization=org, name="Branch", parent=old_root
+    )
+    leaf = factories.MeetingRoomNodeFactory(
+        organization=org, name="Leaf", parent=branch
+    )
+    new_root = factories.MeetingRoomNodeFactory(organization=org, name="New")
+
+    resp = _client(admin).post(
+        f"{NODES}{branch.id}/move/", {"parent": str(new_root.id)}, format="json"
+    )
+    assert resp.status_code == 200
+
+    branch.refresh_from_db()
+    leaf.refresh_from_db()
+    assert branch.parent_id == new_root.id
+    assert branch.path == f"{new_root.path}{branch.id.hex}/"
+    assert leaf.path == f"{branch.path}{leaf.id.hex}/"
+    assert leaf.depth == 2
+
+
+def test_move_rejects_a_cycle(admin_org):
+    org, admin = admin_org
+    root = factories.MeetingRoomNodeFactory(organization=org)
+    child = factories.MeetingRoomNodeFactory(organization=org, parent=root)
+
+    resp = _client(admin).post(
+        f"{NODES}{root.id}/move/", {"parent": str(child.id)}, format="json"
+    )
+    assert resp.status_code == 400
+
+
+def test_cannot_delete_a_node_that_still_has_children_or_rooms(admin_org):
+    org, admin = admin_org
+    client = _client(admin)
+    parent = factories.MeetingRoomNodeFactory(organization=org)
+    child = factories.MeetingRoomNodeFactory(organization=org, parent=parent)
+
+    assert client.delete(f"{NODES}{parent.id}/").status_code == 400
+
+    factories.MeetingRoomFactory(organization=org, node=child)
+    assert client.delete(f"{NODES}{child.id}/").status_code == 400
+
+
+def test_deleting_an_empty_node_soft_deletes_and_hides_it(admin_org):
+    org, admin = admin_org
+    node = factories.MeetingRoomNodeFactory(organization=org)
+
+    assert _client(admin).delete(f"{NODES}{node.id}/").status_code == 204
+    node.refresh_from_db()
+    assert node.deleted_at is not None
+    assert node.is_active is False
+    # Gone from the C side too.
+    member = factories.UserFactory()
+    _membership(org, member)
+    assert _client(member).get("/api/v1.0/meeting-room-nodes/").json() == []
+
+
+# --- rooms -----------------------------------------------------------------
+
+
+def test_create_room_with_facilities(admin_org):
+    org, admin = admin_org
+    node = factories.MeetingRoomNodeFactory(organization=org, name="3F")
+    tv = factories.MeetingRoomFacilityFactory(organization=org, name="TV")
+
+    resp = _client(admin).post(
+        ROOMS,
+        {
+            "name": "3F-01",
+            "node": str(node.id),
+            "capacity": 12,
+            "facility_ids": [str(tv.id)],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["capacity"] == 12
+    assert [f["name"] for f in body["facilities"]] == ["TV"]
+    assert body["path_label"] == "3F"
+
+
+def test_room_node_must_belong_to_the_callers_organization(admin_org):
+    _org, admin = admin_org
+    foreign_node = factories.MeetingRoomNodeFactory()
+
+    resp = _client(admin).post(
+        ROOMS, {"name": "Sneaky", "node": str(foreign_node.id)}, format="json"
+    )
+    assert resp.status_code == 400
+
+
+def test_deleting_a_room_is_soft_and_keeps_existing_bookings(admin_org):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org)
+    event = factories.CalendarEventFactory(organization=org, organizer=admin)
+    booking = models.MeetingRoomBooking.objects.create(
+        organization=org,
+        room=room,
+        event=event,
+        start_at=event.start_at,
+        end_at=event.end_at,
+    )
+
+    assert _client(admin).delete(f"{ROOMS}{room.id}/").status_code == 204
+    room.refresh_from_db()
+    assert room.deleted_at is not None
+    # The meeting on someone's calendar is not yanked out from under them.
+    assert models.MeetingRoomBooking.objects.filter(id=booking.id).exists()
+
+
+def test_room_list_filters_by_node_subtree(admin_org):
+    org, admin = admin_org
+    building = factories.MeetingRoomNodeFactory(organization=org)
+    floor = factories.MeetingRoomNodeFactory(organization=org, parent=building)
+    factories.MeetingRoomFactory(organization=org, node=floor, name="Inside")
+    factories.MeetingRoomFactory(organization=org, name="Outside")
+
+    resp = _client(admin).get(f"{ROOMS}?node={building.id}")
+    assert [r["name"] for r in resp.json()["results"]] == ["Inside"]
+
+
+# --- facilities ------------------------------------------------------------
+
+
+def test_duplicate_facility_name_is_rejected(admin_org):
+    org, admin = admin_org
+    factories.MeetingRoomFacilityFactory(organization=org, name="TV")
+
+    resp = _client(admin).post(FACILITIES, {"name": "TV"}, format="json")
+    assert resp.status_code == 400
+
+
+def test_facility_in_use_is_retired_rather_than_deleted(admin_org):
+    org, admin = admin_org
+    facility = factories.MeetingRoomFacilityFactory(organization=org)
+    room = factories.MeetingRoomFactory(organization=org)
+    room.facilities.set([facility])
+
+    assert _client(admin).delete(f"{FACILITIES}{facility.id}/").status_code == 204
+    facility.refresh_from_db()
+    assert facility.is_active is False
+
+
+# --- audit -----------------------------------------------------------------
+
+
+def test_writes_are_audited(admin_org):
+    org, admin = admin_org
+    client = _client(admin)
+    node = client.post(NODES, {"name": "China"}, format="json").json()
+    client.post(
+        ROOMS, {"name": "3F-01", "node": node["id"]}, format="json"
+    )
+
+    actions = set(
+        models.AuditLog.objects.filter(organization=org).values_list(
+            "action", flat=True
+        )
+    )
+    assert models.AuditActionChoices.ROOM_NODE_CREATE in actions
+    assert models.AuditActionChoices.MEETING_ROOM_CREATE in actions

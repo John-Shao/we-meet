@@ -8,6 +8,12 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
+from core.api.admin_meeting_rooms import (
+    MeetingRoomAdminViewSet,
+    MeetingRoomBookingAdminViewSet,
+    MeetingRoomFacilityAdminViewSet,
+    MeetingRoomNodeAdminViewSet,
+)
 from core.api.admin_org import DepartmentAdminViewSet, MembershipAdminViewSet
 from core.api.agent_internal import IngestTranscriptView
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
@@ -21,6 +27,11 @@ from core.api.directory import (
     DirectoryMemberViewSet,
 )
 from core.api.im import ImViewSet
+from core.api.meeting_rooms import (
+    MeetingRoomFacilityViewSet,
+    MeetingRoomNodeViewSet,
+    MeetingRoomViewSet,
+)
 from core.api.im_later import ImLaterViewSet
 from core.api.keycloak_sms import (
     KeycloakOtpSendView,
@@ -79,6 +90,36 @@ router.register(
 )
 router.register(
     "admin/audit-logs", AuditLogViewSet, basename="admin_audit_logs"
+)
+# P9 会议室 —— 实体会议室,与上面的 "rooms"(LiveKit 视频房间) 无关。
+router.register(
+    "meeting-rooms", MeetingRoomViewSet, basename="meeting_rooms"
+)
+router.register(
+    "meeting-room-nodes", MeetingRoomNodeViewSet, basename="meeting_room_nodes"
+)
+router.register(
+    "meeting-room-facilities",
+    MeetingRoomFacilityViewSet,
+    basename="meeting_room_facilities",
+)
+router.register(
+    "admin/meeting-rooms", MeetingRoomAdminViewSet, basename="admin_meeting_rooms"
+)
+router.register(
+    "admin/meeting-room-nodes",
+    MeetingRoomNodeAdminViewSet,
+    basename="admin_meeting_room_nodes",
+)
+router.register(
+    "admin/meeting-room-facilities",
+    MeetingRoomFacilityAdminViewSet,
+    basename="admin_meeting_room_facilities",
+)
+router.register(
+    "admin/meeting-room-bookings",
+    MeetingRoomBookingAdminViewSet,
+    basename="admin_meeting_room_bookings",
 )
 router.register(
     "admin/invitations", OrgInvitationViewSet, basename="admin_invitations"

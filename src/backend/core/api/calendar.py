@@ -13,6 +13,7 @@ from datetime import timedelta
 
 from django.db import IntegrityError, transaction
 from django.db.models import Q
+from django.utils import timezone as django_timezone
 from django.utils.dateparse import parse_datetime
 
 from rest_framework import decorators, exceptions, serializers, viewsets
@@ -22,8 +23,17 @@ from rest_framework.response import Response
 from core import models, utils
 from core.api import permissions
 from core.api.directory import get_caller_organization
+from core.api.meeting_rooms import node_path_label
 from core.api.viewsets import Pagination
-from core.services import calendar_im_notify, calendar_recurrence
+from core.services import calendar_im_notify, calendar_recurrence, meeting_room_booking
+
+
+class MeetingRoomUnavailableError(exceptions.APIException):
+    """409 — the requested meeting room is already booked for that range."""
+
+    status_code = drf_status.HTTP_409_CONFLICT
+    default_code = "meeting_room_unavailable"
+    default_detail = "The meeting room is already booked for this time."
 
 
 class CalendarEventSerializer(serializers.ModelSerializer):
@@ -47,6 +57,15 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     attendees = serializers.SerializerMethodField()
     room_slug = serializers.SerializerMethodField()
     my_rsvp = serializers.SerializerMethodField()
+    # P9 实体会议室 —— 与上面的 ``room`` (LiveKit 视频房间) 毫无关系。
+    # 写:``meeting_room_id``;absent = 不动,null/"" = 释放,uuid = 预订/换房。
+    meeting_room = serializers.SerializerMethodField()
+    meeting_room_id = serializers.CharField(
+        write_only=True, required=False, allow_null=True, allow_blank=True
+    )
+    booking_conflict_policy = serializers.ChoiceField(
+        choices=["strict", "skip"], write_only=True, required=False, default="strict"
+    )
 
     class Meta:
         model = models.CalendarEvent
@@ -68,6 +87,9 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "attendee_ids",
             "my_rsvp",
             "created_at",
+            "meeting_room",
+            "meeting_room_id",
+            "booking_conflict_policy",
             # P2-M1 重复日程:主事件携带 RRULE;子场次 recurrence 为空、
             # recurrence_parent 指回主事件(前端据此区分删除文案)。
             "recurrence",
@@ -137,6 +159,67 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     def get_room_slug(self, obj):
         return obj.room.slug if obj.room_id else None
 
+    def validate_meeting_room_id(self, value):
+        """Resolve the room id, org-scoped. Empty string / null = release.
+
+        Unlike ``attendee_ids`` (where out-of-org ids are silently dropped), a
+        bad room id is a 400: the user explicitly picked a room, and silently
+        dropping it would leave them believing it was booked.
+        """
+        raw = (value or "").strip()
+        if not raw:
+            return None
+        try:
+            room_uuid = uuid.UUID(raw)
+        except (ValueError, TypeError) as exc:
+            raise serializers.ValidationError("invalid meeting room id") from exc
+        request = self.context.get("request")
+        organization = (
+            get_caller_organization(request.user) if request is not None else None
+        )
+        room = models.MeetingRoom.objects.filter(
+            id=room_uuid,
+            organization=organization,
+            is_active=True,
+            deleted_at__isnull=True,
+        ).first()
+        if room is None:
+            raise serializers.ValidationError("unknown or unavailable meeting room")
+        return room
+
+    def validate(self, attrs):
+        """All-day events cannot hold a room (M1) — see docs/phases/p9."""
+        attrs = super().validate(attrs)
+        room = attrs.get("meeting_room_id")
+        all_day = attrs.get(
+            "all_day", getattr(self.instance, "all_day", False)
+        )
+        if room is not None and all_day:
+            raise serializers.ValidationError(
+                {"meeting_room_id": "all-day events cannot book a meeting room"}
+            )
+        return attrs
+
+    def get_meeting_room(self, obj):
+        booking = meeting_room_booking.pick_live_booking(obj.room_bookings.all())
+        if booking is None:
+            return None
+        room = booking.room
+        # One label cache per serializer instance: a month of events sharing a
+        # few rooms costs a few ancestor lookups, not one per row.
+        if not hasattr(self, "_node_label_cache"):
+            self._node_label_cache = {}
+        return {
+            "id": str(room.id),
+            "name": room.name,
+            "code": room.code,
+            "capacity": room.capacity,
+            "node": {"id": str(room.node_id), "name": room.node.name},
+            "path_label": node_path_label(room.node, self._node_label_cache),
+            "timezone": str(room.node.resolve_timezone()),
+            "booking_status": booking.status,
+        }
+
     def get_my_rsvp(self, obj):
         request = self.context.get("request")
         if not request:
@@ -165,7 +248,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             return (
                 models.CalendarEvent.objects.all()
                 .select_related("organizer", "room")
-                .prefetch_related("attendees__user")
+                .prefetch_related("attendees__user", "room_bookings__room__node")
             )
         organization = get_caller_organization(self.request.user)
         if organization is None:
@@ -176,7 +259,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             .filter(Q(organizer=user) | Q(attendees__user=user))
             .distinct()
             .select_related("organizer", "room")
-            .prefetch_related("attendees__user")
+            .prefetch_related("attendees__user", "room_bookings__room__node")
             .order_by("start_at")
         )
         # Date-range window (?start & ?end, ISO 8601) — only for the list view, so
@@ -190,6 +273,33 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             if end:
                 queryset = queryset.filter(start_at__lt=end)
         return queryset
+
+    def handle_exception(self, exc):
+        """Turn a room clash into a 409 carrying the blocking ranges.
+
+        Done here rather than at each call site so create / update / the three
+        recurring-edit branches all report it identically.
+        """
+        if isinstance(exc, meeting_room_booking.MeetingRoomUnavailable):
+            exc = MeetingRoomUnavailableError(
+                {
+                    "detail": "meeting room unavailable",
+                    "code": "meeting_room_unavailable",
+                    "conflicts": exc.conflicts,
+                }
+            )
+        return super().handle_exception(exc)
+
+    @staticmethod
+    def _pop_room_args(data):
+        """Extract the room fields from validated_data (they are not model fields).
+
+        Returns ``(room, policy)`` where room is ``UNSET`` when the client did
+        not mention it at all, ``None`` to release, or a MeetingRoom to book.
+        """
+        room = data.pop("meeting_room_id", meeting_room_booking.UNSET)
+        policy = data.pop("booking_conflict_policy", meeting_room_booking.STRICT)
+        return room, policy
 
     def _require_organizer(self, event):
         """Only the organizer may edit / delete an event (invitees can RSVP only)."""
@@ -214,6 +324,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         attendee_ids = data.pop("attendee_ids", [])
         timezone_name = data.pop("timezone", "") or str(user.timezone)
+        meeting_room, booking_policy = self._pop_room_args(data)
 
         with transaction.atomic():
             room = models.Room.objects.create(
@@ -259,6 +370,46 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     user=attendee,
                     defaults={"role": models.RoleChoices.MEMBER},
                 )
+            # P9 会议室:主事件行 = 系列首场,先抢它。冲突时 strict 抛出 →
+            # 整个事务回滚 → 409,日程不落库(用户改时间或换房再来)。
+            # 重复日程的后续场次此刻还没物化,它们的 booking 由物化任务补建
+            # (policy=skip);占用只在 60 天物化窗口内被保证——见 docs/phases/p9。
+            if meeting_room not in (meeting_room_booking.UNSET, None):
+                meeting_room_booking.book_for_event(
+                    event, meeting_room, policy=booking_policy, booked_by=user
+                )
+
+    def _resync_series_room(self, parent, meeting_room):
+        """Apply an explicit room change across a whole series.
+
+        Retiming an existing booking is already handled inside
+        ``calendar_recurrence``; this runs only when the caller actually named a
+        different room (or cleared it), and then it has to reach every future
+        occurrence — each holds its own booking row.
+
+        ``skip``, not ``strict``: a series edit touches dozens of occurrences,
+        and refusing the whole thing because occurrence #7 is taken would leave
+        the user unable to edit their own recurring meeting at all. Occurrences
+        that miss out are recorded as ``conflict`` and surfaced per-occurrence.
+        """
+        if meeting_room is meeting_room_booking.UNSET:
+            return
+        meeting_room_booking.resync_event_booking(
+            parent,
+            room=meeting_room,
+            policy=meeting_room_booking.SKIP,
+            booked_by=self.request.user,
+        )
+        for child in parent.occurrences.filter(
+            start_at__gte=django_timezone.now()
+        ):
+            meeting_room_booking.resync_event_booking(
+                child,
+                room=meeting_room,
+                policy=meeting_room_booking.SKIP,
+                booked_by=self.request.user,
+            )
+        meeting_room_booking.invalidate_booking_cache(parent)
 
     def _sync_room(self, event):
         """Keep the linked Room's name / scheduled_at consistent after an edit."""
@@ -309,11 +460,15 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
 
         data = dict(serializer.validated_data)
+        # 会议室在三选分支里单独处理:series 级用 skip(一场冲突不该让用户
+        # 彻底改不动系列),单场 one 用调用方给的 policy(默认 strict)。
+        meeting_room, booking_policy = self._pop_room_args(data)
         for excluded in ("attendee_ids", "timezone", "recurrence"):
             data.pop(excluded, None)
 
         if parent is not None and scope == "following":
             new_parent = calendar_recurrence.split_series(instance, data)
+            self._resync_series_room(new_parent, meeting_room)
             return Response(self.get_serializer(new_parent).data)
 
         if parent is not None and scope == "all":
@@ -321,6 +476,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 parent, instance.start_at, data
             )
             self._sync_room(updated)
+            self._resync_series_room(updated, meeting_room)
             return Response(self.get_serializer(updated).data)
 
         if parent is None:
@@ -329,6 +485,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 instance, instance.start_at, data
             )
             self._sync_room(updated)
+            self._resync_series_room(updated, meeting_room)
             return Response(self.get_serializer(updated).data)
 
         # 子场次缺省 / one:改行 + 主事件记原时刻 exdate。
@@ -336,6 +493,13 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 event = serializer.save()
+                meeting_room_booking.resync_event_booking(
+                    event,
+                    room=meeting_room,
+                    policy=booking_policy,
+                    booked_by=request.user,
+                )
+                meeting_room_booking.invalidate_booking_cache(event)
                 exdates = list(parent.recurrence_exdates or [])
                 key = original_start.isoformat()
                 if key not in exdates:
@@ -371,9 +535,19 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         old_attendees = set(instance.attendees.values_list("user_id", flat=True))
         data = serializer.validated_data
         attendee_ids = data.pop("attendee_ids", None)
+        meeting_room, booking_policy = self._pop_room_args(data)
         with transaction.atomic():
             event = serializer.save()
             self._sync_room(event)
+            # P9 会议室:单次日程用 strict —— 用户明确改了这一场,订不上就该
+            # 直说(409),而不是悄悄留下一个没订到房的日程。
+            meeting_room_booking.resync_event_booking(
+                event,
+                room=meeting_room,
+                policy=booking_policy,
+                booked_by=self.request.user,
+            )
+            meeting_room_booking.invalidate_booking_cache(event)
             if attendee_ids is not None:
                 room = event.room
                 # Org-scoped like perform_create: only active members of the

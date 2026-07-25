@@ -2,11 +2,13 @@
 Core application factories
 """
 
+from datetime import timedelta
 from io import BytesIO
 
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.core.files.storage import default_storage
+from django.utils import timezone as django_timezone
 from django.utils.text import slugify
 
 import factory.fuzzy
@@ -232,3 +234,60 @@ class FileFactory(factory.django.DjangoModelFactory):
             self.save()
 
             default_storage.save(self.file_key, BytesIO(content))
+
+
+# --- P9 会议室 (physical meeting rooms) ---
+
+
+class MeetingRoomNodeFactory(factory.django.DjangoModelFactory):
+    """Create fake meeting-room hierarchy nodes for testing."""
+
+    class Meta:
+        model = models.MeetingRoomNode
+
+    organization = factory.SubFactory(OrganizationFactory)
+    name = factory.Sequence(lambda n: f"Level {n!s}")
+
+
+class MeetingRoomFacilityFactory(factory.django.DjangoModelFactory):
+    """Create fake meeting-room facilities for testing."""
+
+    class Meta:
+        model = models.MeetingRoomFacility
+
+    organization = factory.SubFactory(OrganizationFactory)
+    name = factory.Sequence(lambda n: f"Facility {n!s}")
+    code = factory.Sequence(lambda n: f"facility-{n!s}")
+
+
+class MeetingRoomFactory(factory.django.DjangoModelFactory):
+    """Create fake meeting rooms for testing.
+
+    The node defaults to one in the *same* organization as the room, so a bare
+    ``MeetingRoomFactory()`` never produces a cross-org row.
+    """
+
+    class Meta:
+        model = models.MeetingRoom
+
+    organization = factory.SubFactory(OrganizationFactory)
+    node = factory.SubFactory(
+        MeetingRoomNodeFactory, organization=factory.SelfAttribute("..organization")
+    )
+    name = factory.Sequence(lambda n: f"Meeting room {n!s}")
+    capacity = 10
+
+
+class CalendarEventFactory(factory.django.DjangoModelFactory):
+    """Create fake calendar events for testing."""
+
+    class Meta:
+        model = models.CalendarEvent
+
+    organization = factory.SubFactory(OrganizationFactory)
+    organizer = factory.SubFactory(UserFactory)
+    title = factory.Sequence(lambda n: f"Event {n!s}")
+    start_at = factory.LazyFunction(
+        lambda: django_timezone.now() + timedelta(days=1)
+    )
+    end_at = factory.LazyAttribute(lambda o: o.start_at + timedelta(hours=1))

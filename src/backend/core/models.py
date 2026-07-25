@@ -10,11 +10,13 @@ from datetime import datetime, time as dt_time, timedelta
 from logging import getLogger
 from os.path import splitext
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.contrib.auth import models as auth_models
 from django.contrib.auth.base_user import AbstractBaseUser
-from django.contrib.postgres.fields import ArrayField
+from django.contrib.postgres.constraints import ExclusionConstraint
+from django.contrib.postgres.fields import ArrayField, DateTimeRangeField, RangeBoundary, RangeOperators
 from django.core import mail, validators
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models, transaction
@@ -2462,6 +2464,26 @@ class AuditActionChoices(models.TextChoices):
     MEMBER_REMOVE = "member.remove", _("Member removed")
     # 纪要闭环 M2:纪要编辑(会议侧动作,同样入 M 端审计)。
     SUMMARY_EDIT = "summary.edit", _("Meeting summary edited")
+    # P9 会议室(实体会议室,与 LiveKit Room 无关)。
+    ROOM_NODE_CREATE = "room_node.create", _("Room hierarchy node created")
+    ROOM_NODE_UPDATE = "room_node.update", _("Room hierarchy node updated")
+    ROOM_NODE_MOVE = "room_node.move", _("Room hierarchy node moved")
+    ROOM_NODE_DELETE = "room_node.delete", _("Room hierarchy node deleted")
+    MEETING_ROOM_CREATE = "meeting_room.create", _("Meeting room created")
+    MEETING_ROOM_UPDATE = "meeting_room.update", _("Meeting room updated")
+    MEETING_ROOM_DELETE = "meeting_room.delete", _("Meeting room deleted")
+    MEETING_ROOM_FACILITY_CREATE = (
+        "meeting_room_facility.create",
+        _("Meeting room facility created"),
+    )
+    MEETING_ROOM_FACILITY_UPDATE = (
+        "meeting_room_facility.update",
+        _("Meeting room facility updated"),
+    )
+    MEETING_ROOM_FACILITY_DELETE = (
+        "meeting_room_facility.delete",
+        _("Meeting room facility deleted"),
+    )
 
 
 class AuditLog(BaseModel):
@@ -2792,3 +2814,394 @@ class RoomInvitee(BaseModel):
 
     def __str__(self):
         return f"Invitee({self.user_id} → room {self.room_id}, {self.source})"
+
+
+# --- P9 会议室 (physical meeting rooms) ---
+#
+# 命名警告:上面的 ``Room`` 是 LiveKit *视频会议房间*。这一节全部是**实体
+# 会议室**(飞书「会议室管理」对标),前缀一律 ``MeetingRoom*`` / 表名
+# ``meet_meeting_room*`` / 路由 ``meeting-rooms``。两者没有任何关系。
+
+
+class MeetingRoomBookingScope(models.TextChoices):
+    """Who may book a meeting room (M2; M1 always behaves as ORG)."""
+
+    ORG = "org", _("Whole organization")
+    DEPARTMENTS = "departments", _("Selected departments")
+
+
+class MeetingRoomBookingStatus(models.TextChoices):
+    """Lifecycle of a room booking.
+
+    ``CONFIRMED`` / ``PENDING`` hold the slot (they participate in the exclusion
+    constraint); ``CONFLICT`` / ``CANCELLED`` do not.
+    """
+
+    CONFIRMED = "confirmed", _("Confirmed")
+    PENDING = "pending", _("Pending approval")
+    # 重复日程滚动物化时抢不到房间的场次:日程照常存在,只是没订上会议室。
+    CONFLICT = "conflict", _("Conflicted")
+    CANCELLED = "cancelled", _("Cancelled")
+
+
+class MeetingRoomBookingSource(models.TextChoices):
+    """What created the booking."""
+
+    EVENT = "event", _("Calendar event")
+    MANUAL = "manual", _("Manual")
+    MAINTENANCE = "maintenance", _("Maintenance")
+
+
+#: Booking states that actually hold the slot. Kept in sync with the literal
+#: list inside ``MeetingRoomBooking``'s exclusion constraint condition (the
+#: constraint must inline literals so migrations stay stable).
+ACTIVE_BOOKING_STATUSES = (
+    MeetingRoomBookingStatus.CONFIRMED,
+    MeetingRoomBookingStatus.PENDING,
+)
+
+
+class TsTzRange(models.Func):
+    """``tstzrange(start, end, bounds)`` — used by the no-overlap constraint.
+
+    Must live at module level: migrations serialize it as ``core.models.TsTzRange``.
+    """
+
+    function = "TSTZRANGE"
+    output_field = DateTimeRangeField()
+
+
+class MeetingRoomNode(BaseModel):
+    """A node in the meeting-room hierarchy (region / building / floor / ...).
+
+    Same shape as :class:`Department`: adjacency list (``parent``) plus a
+    materialized ``path`` of ancestor ids, so a subtree is a single
+    ``path__startswith`` lookup. Arbitrary depth — 飞书 allows 地区 → 建筑 →
+    楼层 and deeper. Reparenting rewrites descendant paths and is handled by the
+    admin API's ``move`` action, not here.
+
+    ``timezone`` is optional: an empty value inherits from the nearest ancestor
+    that has one, falling back to ``settings.TIME_ZONE``.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="meeting_room_nodes"
+    )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="children",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(_("name"), max_length=255)
+    # Slash-joined ancestor ids INCLUDING self (e.g. "<root>/<child>/").
+    path = models.CharField(
+        _("path"), max_length=1024, blank=True, default="", db_index=True
+    )
+    depth = models.PositiveIntegerField(_("depth"), default=0)
+    sort_order = models.PositiveIntegerField(_("sort order"), default=0)
+    timezone = TimeZoneField(
+        _("timezone"),
+        choices_display="WITH_GMT_OFFSET",
+        use_pytz=False,
+        null=True,
+        blank=True,
+        help_text=_("Empty inherits from the nearest ancestor that sets one."),
+    )
+    is_active = models.BooleanField(_("active"), default=True)
+    deleted_at = models.DateTimeField(_("deleted at"), null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_meeting_room_node"
+        ordering = ("path", "sort_order", "name")
+        verbose_name = _("Meeting room node")
+        verbose_name_plural = _("Meeting room nodes")
+        indexes = [
+            models.Index(fields=["organization", "path"], name="mrnode_org_path_idx"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        # Must run BEFORE super().save(): BaseModel.save() calls full_clean().
+        self._refresh_tree_fields()
+        super().save(*args, **kwargs)
+
+    def _refresh_tree_fields(self):
+        """Derive path / depth from this row's id and its parent (self only)."""
+        if self.parent_id:
+            self.path = f"{self.parent.path}{self.id.hex}/"
+            self.depth = self.parent.depth + 1
+        else:
+            self.path = f"{self.id.hex}/"
+            self.depth = 0
+
+    def ancestor_ids(self):
+        """Ancestor ids parsed out of ``path``, root first, excluding self."""
+        hexes = [h for h in self.path.strip("/").split("/") if h][:-1]
+        return [uuid.UUID(h) for h in hexes]
+
+    def resolve_timezone(self):
+        """This node's timezone, or the nearest ancestor's, or the site default."""
+        if self.timezone:
+            return self.timezone
+        ids = self.ancestor_ids()
+        if not ids:
+            return ZoneInfo(settings.TIME_ZONE)
+        ancestors = {
+            node.id: node
+            for node in MeetingRoomNode.objects.filter(id__in=ids).only(
+                "id", "timezone"
+            )
+        }
+        for node_id in reversed(ids):  # nearest ancestor first
+            node = ancestors.get(node_id)
+            if node is not None and node.timezone:
+                return node.timezone
+        return ZoneInfo(settings.TIME_ZONE)
+
+
+class MeetingRoomFacility(BaseModel):
+    """A bookable room's equipment type (TV, projector, whiteboard, ...).
+
+    A dictionary table rather than a JSON tag array: 飞书 lets admins add their
+    own facility types, and renaming / reordering / retiring one must not require
+    rewriting every room row.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="meeting_room_facilities"
+    )
+    name = models.CharField(_("name"), max_length=64)
+    code = models.CharField(
+        _("code"),
+        max_length=32,
+        blank=True,
+        default="",
+        help_text=_("Stable key the clients map to an icon (tv, projector, ...)."),
+    )
+    sort_order = models.PositiveIntegerField(_("sort order"), default=0)
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        db_table = "meet_meeting_room_facility"
+        ordering = ("sort_order", "name")
+        verbose_name = _("Meeting room facility")
+        verbose_name_plural = _("Meeting room facilities")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "name"],
+                name="mrfacility_uniq_org_name",
+                violation_error_message=_("A facility with this name already exists."),
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class MeetingRoom(BaseModel):
+    """A physical, bookable meeting room.
+
+    Attached to a :class:`MeetingRoomNode` (its floor / building). Occupancy
+    lives in :class:`MeetingRoomBooking`, never on this row.
+
+    The ``booking_scope`` / ``requires_approval`` / ``max_booking_minutes`` /
+    ``advance_booking_days`` fields are M2 policy knobs landed up front so
+    enabling them later is a code change, not a migration. M1 only enforces
+    ``is_active``.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="meeting_rooms"
+    )
+    node = models.ForeignKey(
+        MeetingRoomNode, on_delete=models.PROTECT, related_name="rooms"
+    )
+    name = models.CharField(_("name"), max_length=255)
+    code = models.CharField(_("code"), max_length=64, blank=True, default="")
+    capacity = models.PositiveIntegerField(
+        _("capacity"), default=0, help_text=_("0 means unspecified.")
+    )
+    description = models.TextField(_("description"), blank=True, default="")
+    facilities = models.ManyToManyField(
+        MeetingRoomFacility,
+        blank=True,
+        related_name="rooms",
+        db_table="meet_meeting_room_facility_link",
+    )
+    sort_order = models.PositiveIntegerField(_("sort order"), default=0)
+
+    is_active = models.BooleanField(_("active"), default=True)
+    disabled_reason = models.CharField(
+        _("disabled reason"), max_length=255, blank=True, default=""
+    )
+
+    # --- M2 policy knobs (fields only; no behaviour in M1) ---
+    booking_scope = models.CharField(
+        max_length=20,
+        choices=MeetingRoomBookingScope.choices,
+        default=MeetingRoomBookingScope.ORG,
+    )
+    bookable_departments = models.ManyToManyField(
+        Department,
+        blank=True,
+        related_name="bookable_meeting_rooms",
+        db_table="meet_meeting_room_department",
+    )
+    requires_approval = models.BooleanField(_("requires approval"), default=False)
+    approval_template = models.ForeignKey(
+        "ApprovalTemplate",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_rooms",
+    )
+    max_booking_minutes = models.PositiveIntegerField(null=True, blank=True)
+    advance_booking_days = models.PositiveIntegerField(null=True, blank=True)
+
+    deleted_at = models.DateTimeField(_("deleted at"), null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_meeting_room"
+        ordering = ("sort_order", "name")
+        verbose_name = _("Meeting room")
+        verbose_name_plural = _("Meeting rooms")
+        indexes = [
+            models.Index(
+                fields=["organization", "is_active"], name="mroom_org_active_idx"
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "code"],
+                condition=models.Q(deleted_at__isnull=True) & ~models.Q(code=""),
+                name="mroom_uniq_org_code",
+                violation_error_message=_("A room with this code already exists."),
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class MeetingRoomBooking(BaseModel):
+    """One room held for one time range.
+
+    A row per *occurrence*: a weekly event books one row per materialized
+    occurrence, so the database exclusion constraint below is what actually
+    prevents double-booking — no application-level "check then insert" race.
+
+    Deliberately a separate table rather than an FK on :class:`CalendarEvent`:
+    M2 maintenance / manual holds are not events, and two tables could not share
+    one exclusion constraint.
+
+    **Write only through** ``core.services.meeting_room_booking`` — that module
+    owns the savepoint + conflict-translation logic that keeps bookings in sync
+    with their events.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="meeting_room_bookings"
+    )
+    room = models.ForeignKey(
+        MeetingRoom, on_delete=models.CASCADE, related_name="bookings"
+    )
+    event = models.ForeignKey(
+        CalendarEvent,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="room_bookings",
+        help_text=_("Null for a manual / maintenance hold (M2)."),
+    )
+    booked_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_room_bookings",
+    )
+    start_at = models.DateTimeField(_("start at"))
+    end_at = models.DateTimeField(_("end at"))
+    status = models.CharField(
+        max_length=20,
+        choices=MeetingRoomBookingStatus.choices,
+        default=MeetingRoomBookingStatus.CONFIRMED,
+    )
+    source = models.CharField(
+        max_length=20,
+        choices=MeetingRoomBookingSource.choices,
+        default=MeetingRoomBookingSource.EVENT,
+    )
+    title = models.CharField(
+        _("title"),
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=_("Label for manual / maintenance holds; event holds read the event."),
+    )
+    approval_instance = models.ForeignKey(
+        "ApprovalInstance",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_room_bookings",
+    )
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_meeting_room_booking"
+        ordering = ("start_at",)
+        verbose_name = _("Meeting room booking")
+        verbose_name_plural = _("Meeting room bookings")
+        indexes = [
+            models.Index(fields=["room", "start_at"], name="mrbooking_room_start_idx"),
+            models.Index(
+                fields=["organization", "start_at"], name="mrbooking_org_start_idx"
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(end_at__gt=models.F("start_at")),
+                name="mrbooking_end_after_start",
+                violation_error_message=_("End must be after start."),
+            ),
+            # One live booking per (event, room) so a resync never fans out.
+            models.UniqueConstraint(
+                fields=["event", "room"],
+                condition=models.Q(event__isnull=False) & ~models.Q(status="cancelled"),
+                name="mrbooking_uniq_event_room",
+            ),
+            # The double-booking guard. Half-open [start, end) so 10-11 and
+            # 11-12 are back-to-back, not a conflict — same rule as the
+            # calendar freebusy endpoint. Status literals are inlined on
+            # purpose: referencing a constant makes makemigrations churn.
+            ExclusionConstraint(
+                name="mrbooking_no_overlap",
+                expressions=[
+                    ("room", RangeOperators.EQUAL),
+                    (
+                        TsTzRange("start_at", "end_at", RangeBoundary()),
+                        RangeOperators.OVERLAPS,
+                    ),
+                ],
+                condition=models.Q(status__in=["confirmed", "pending"]),
+                violation_error_message=_(
+                    "This meeting room is already booked for that time."
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.room_id} [{self.start_at:%Y-%m-%d %H:%M} → {self.end_at:%H:%M}]"
+
+    def save(self, *args, **kwargs):
+        # Skip full_clean's constraint pre-check: the DB exclusion constraint is
+        # the single arbiter. Without this the *same* conflict raises
+        # ValidationError when uncontended and IntegrityError under concurrency,
+        # and callers inevitably catch only one of them.
+        self.full_clean(validate_constraints=False)
+        super(BaseModel, self).save(*args, **kwargs)  # pylint: disable=bad-super-call
