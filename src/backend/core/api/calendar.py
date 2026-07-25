@@ -28,6 +28,12 @@ from core.api.viewsets import Pagination
 from core.services import calendar_im_notify, calendar_recurrence, meeting_room_booking
 
 
+#: "the client did not mention this field at all" — distinct from an explicit
+#: ``false``. Only meaningful for fields whose absence and whose ``false`` must
+#: do different things (see ``with_video_meeting``).
+ABSENT = object()
+
+
 class MeetingRoomUnavailableError(exceptions.APIException):
     """409 — the requested meeting room is already booked for that range."""
 
@@ -66,6 +72,11 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     booking_conflict_policy = serializers.ChoiceField(
         choices=["strict", "skip"], write_only=True, required=False, default="strict"
     )
+    # 视频会议是否随日程开(对标飞书「移除视频会议」)。刻意**不给 default**:
+    # 创建时缺省 = True(老客户端行为不变),编辑时缺省 = 不动。给了 default
+    # 之后两者就再也分不开,任何一次 PATCH 都会给「本来没有会议」的日程凭空
+    # 补一个房间。读侧看 ``room`` / ``room_slug`` 是否为空即可。
+    with_video_meeting = serializers.BooleanField(write_only=True, required=False)
 
     class Meta:
         model = models.CalendarEvent
@@ -90,6 +101,7 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "meeting_room",
             "meeting_room_id",
             "booking_conflict_policy",
+            "with_video_meeting",
             # P2-M1 重复日程:主事件携带 RRULE;子场次 recurrence 为空、
             # recurrence_parent 指回主事件(前端据此区分删除文案)。
             "recurrence",
@@ -325,14 +337,18 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         attendee_ids = data.pop("attendee_ids", [])
         timezone_name = data.pop("timezone", "") or str(user.timezone)
         meeting_room, booking_policy = self._pop_room_args(data)
+        # 缺省 = 开(老客户端不传该字段,行为保持不变)。
+        with_video = bool(data.pop("with_video_meeting", True))
 
         with transaction.atomic():
-            room = models.Room.objects.create(
-                name=data["title"], scheduled_at=data["start_at"]
-            )
-            models.ResourceAccess.objects.create(
-                resource=room, user=user, role=models.RoleChoices.OWNER
-            )
+            room = None
+            if with_video:
+                room = models.Room.objects.create(
+                    name=data["title"], scheduled_at=data["start_at"]
+                )
+                models.ResourceAccess.objects.create(
+                    resource=room, user=user, role=models.RoleChoices.OWNER
+                )
             event = serializer.save(
                 organizer=user,
                 organization=organization,
@@ -365,11 +381,12 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     user=attendee,
                     defaults={"role": models.EventAttendeeRoleChoices.REQUIRED},
                 )
-                models.ResourceAccess.objects.get_or_create(
-                    resource=room,
-                    user=attendee,
-                    defaults={"role": models.RoleChoices.MEMBER},
-                )
+                if room is not None:
+                    models.ResourceAccess.objects.get_or_create(
+                        resource=room,
+                        user=attendee,
+                        defaults={"role": models.RoleChoices.MEMBER},
+                    )
             # P9 会议室:主事件行 = 系列首场,先抢它。冲突时 strict 抛出 →
             # 整个事务回滚 → 409,日程不落库(用户改时间或换房再来)。
             # 重复日程的后续场次此刻还没物化,它们的 booking 由物化任务补建
@@ -378,6 +395,50 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 meeting_room_booking.book_for_event(
                     event, meeting_room, policy=booking_policy, booked_by=user
                 )
+
+    @staticmethod
+    def _provision_video_room(event, organizer, attendees=()):
+        """Create the event's LiveKit room and grant everyone access.
+
+        Used both when an event is created with a video meeting and when one is
+        added back to an event that had none.
+        """
+        room = models.Room.objects.create(
+            name=event.title, scheduled_at=event.start_at
+        )
+        models.ResourceAccess.objects.create(
+            resource=room, user=organizer, role=models.RoleChoices.OWNER
+        )
+        for attendee in attendees:
+            models.ResourceAccess.objects.get_or_create(
+                resource=room,
+                user=attendee,
+                defaults={"role": models.RoleChoices.MEMBER},
+            )
+        return room
+
+    def _apply_video_meeting(self, event, wanted):
+        """Add / remove the event's video meeting on edit. Returns True if changed.
+
+        Removing only **detaches** the room, it does not delete it — same
+        reasoning as ``perform_destroy``: a recording or an in-progress call
+        must not be yanked out from under whoever is in it. Re-adding therefore
+        mints a fresh room (and a fresh meeting number), which is what
+        「移除视频会议」 means anywhere else too.
+        """
+        if wanted is ABSENT or bool(wanted) == (event.room_id is not None):
+            return False
+        if wanted:
+            attendees = models.User.objects.filter(
+                event_attendances__event=event
+            ).exclude(id=event.organizer_id)
+            event.room = self._provision_video_room(
+                event, event.organizer, attendees
+            )
+        else:
+            event.room = None
+        event.save(update_fields=["room", "updated_at"])
+        return True
 
     def _resync_series_room(self, parent, meeting_room):
         """Apply an explicit room change across a whole series.
@@ -463,6 +524,10 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         # 会议室在三选分支里单独处理:series 级用 skip(一场冲突不该让用户
         # 彻底改不动系列),单场 one 用调用方给的 policy(默认 strict)。
         meeting_room, booking_policy = self._pop_room_args(data)
+        # 系列级(all / following)刻意不支持增删视频会议:改一次要同步重写整
+        # 串已物化子场次的 room,与 attendee_ids 在三选路径下被剔除是同一档
+        # 降级(前端同样对重复日程隐藏该控件)。仅「仅此次」按单场处理。
+        with_video = data.pop("with_video_meeting", ABSENT)
         for excluded in ("attendee_ids", "timezone", "recurrence"):
             data.pop(excluded, None)
 
@@ -493,6 +558,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 event = serializer.save()
+                self._apply_video_meeting(event, with_video)
                 meeting_room_booking.resync_event_booking(
                     event,
                     room=meeting_room,
@@ -536,8 +602,11 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         attendee_ids = data.pop("attendee_ids", None)
         meeting_room, booking_policy = self._pop_room_args(data)
+        # 编辑时缺省 = 不动(见字段注释),所以哨兵不是 True/False 而是 ABSENT。
+        with_video = data.pop("with_video_meeting", ABSENT)
         with transaction.atomic():
             event = serializer.save()
+            self._apply_video_meeting(event, with_video)
             self._sync_room(event)
             # P9 会议室:单次日程用 strict —— 用户明确改了这一场,订不上就该
             # 直说(409),而不是悄悄留下一个没订到房的日程。

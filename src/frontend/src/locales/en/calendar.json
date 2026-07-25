@@ -42,7 +42,12 @@
     "repeatWeekly": "Weekly",
     "repeatMonthly": "Monthly",
     "repeatUntil": "Until",
-    "confirm": "OK"
+    "confirm": "OK",
+    "videoMeeting": "Video meeting",
+    "videoMeetingRemove": "Remove",
+    "videoMeetingAdd": "Add",
+    "videoMeetingOn": "A video meeting will be created with this event",
+    "videoMeetingOff": "No video meeting — this is just a calendar entry"
   },
   "card": {
     "organizer": "Organizer",

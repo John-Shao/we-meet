@@ -81,6 +81,11 @@ export interface CreateEventPayload {
   meeting_room_id?: string
   /** 重复日程占用策略:`strict`(默认,冲突即 409)/ `skip`(冲突场次标记)。 */
   booking_conflict_policy?: 'strict' | 'skip'
+  /**
+   * 是否随日程开一场视频会议(对标飞书「移除视频会议」)。缺省 = 开,与
+   * 改动前行为一致;传 false 则只建日程,`room` / `room_slug` 为 null。
+   */
+  with_video_meeting?: boolean
 }
 
 /** P2-M2 重复日程编辑范围:仅此场次 / 此场次及以后 / 所有场次。 */
@@ -107,4 +112,11 @@ export interface UpdateEventPayload {
   /** P9:`''` = 释放会议室;缺省 = 不动。见 CreateEventPayload 的说明。 */
   meeting_room_id?: string
   booking_conflict_policy?: 'strict' | 'skip'
+  /**
+   * 增删视频会议。**缺省 = 不动** —— 与创建时的「缺省 = 开」不同,否则任何
+   * 一次标量编辑都会给本来没有会议的日程凭空补一个房间。
+   * 移除只是解绑,房间本身保留(可能正在录制/有人在里面);重新添加会拿到
+   * 一个新房间,会议号随之变化。重复日程的系列级编辑不支持该字段。
+   */
+  with_video_meeting?: boolean
 }

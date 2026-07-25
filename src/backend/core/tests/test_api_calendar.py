@@ -764,3 +764,141 @@ def test_events_without_a_room_report_none():
     )
     assert resp.status_code == 201
     assert resp.json()["meeting_room"] is None
+
+
+# --- 视频会议可选(对标飞书「移除视频会议」) ---
+
+
+def _create(client, **overrides):
+    start, end = _times()
+    payload = {
+        "title": "Sync",
+        "start_at": start.isoformat(),
+        "end_at": end.isoformat(),
+        **overrides,
+    }
+    return client.post("/api/v1.0/calendar-events/", payload, format="json")
+
+
+def _organizer_client():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    client = APIClient()
+    client.force_login(me)
+    return org, me, client
+
+
+def test_event_can_be_created_without_a_video_meeting():
+    _org, _me, client = _organizer_client()
+
+    resp = _create(client, with_video_meeting=False)
+
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["room"] is None
+    assert body["room_slug"] is None
+    event = models.CalendarEvent.objects.get(id=body["id"])
+    assert event.room is None
+
+
+def test_omitting_the_flag_still_provisions_a_room():
+    """老客户端不传该字段 —— 行为必须与改动前一字不差。"""
+    _org, _me, client = _organizer_client()
+
+    body = _create(client).json()
+
+    assert body["room"] is not None
+    assert body["room_slug"]
+
+
+def test_creating_without_video_still_invites_attendees():
+    org, me, client = _organizer_client()
+    peer = factories.UserFactory()
+    _membership(org, peer)
+
+    body = _create(
+        client, with_video_meeting=False, attendee_ids=[str(peer.id)]
+    ).json()
+
+    event = models.CalendarEvent.objects.get(id=body["id"])
+    assert event.room is None
+    # 没有房间不影响参与者名册 —— 只是没有 ResourceAccess 可发。
+    assert event.attendees.filter(user=peer).exists()
+    assert event.attendees.filter(user=me).exists()
+
+
+def test_adding_a_video_meeting_to_an_existing_event():
+    org, me, client = _organizer_client()
+    peer = factories.UserFactory()
+    _membership(org, peer)
+    event_id = _create(
+        client, with_video_meeting=False, attendee_ids=[str(peer.id)]
+    ).json()["id"]
+
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event_id}/",
+        {"with_video_meeting": True},
+        format="json",
+    )
+
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["room_slug"]
+    event = models.CalendarEvent.objects.get(id=event_id)
+    assert event.room is not None
+    # 补建房间时要把既有参与者一起放进去,否则他们进不了会。
+    assert event.room.accesses.filter(
+        user=me, role=models.RoleChoices.OWNER
+    ).exists()
+    assert event.room.accesses.filter(
+        user=peer, role=models.RoleChoices.MEMBER
+    ).exists()
+
+
+def test_removing_a_video_meeting_detaches_but_keeps_the_room():
+    _org, _me, client = _organizer_client()
+    created = _create(client).json()
+    event_id, room_id = created["id"], created["room"]
+
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event_id}/",
+        {"with_video_meeting": False},
+        format="json",
+    )
+
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["room"] is None
+    assert models.CalendarEvent.objects.get(id=event_id).room is None
+    # 房间本身保留:可能正在录制/有人在里面,同 perform_destroy 的口径。
+    assert models.Room.objects.filter(id=room_id).exists()
+
+
+def test_patching_other_fields_leaves_the_video_meeting_alone():
+    """字段缺省 = 不动。少了这条,任何一次 PATCH 都会给无会议的日程补房间。"""
+    _org, _me, client = _organizer_client()
+    event_id = _create(client, with_video_meeting=False).json()["id"]
+
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event_id}/",
+        {"title": "Renamed"},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["room"] is None
+
+
+def test_toggling_video_meeting_is_idempotent():
+    _org, _me, client = _organizer_client()
+    created = _create(client).json()
+    event_id, room_id = created["id"], created["room"]
+
+    resp = client.patch(
+        f"/api/v1.0/calendar-events/{event_id}/",
+        {"with_video_meeting": True},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    # 本来就有会议 —— 不该换一个新房间(会议号会变,已发出去的链接就废了)。
+    assert resp.json()["room"] == room_id

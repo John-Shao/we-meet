@@ -42,7 +42,12 @@
     "repeatWeekly": "Wekelijks",
     "repeatMonthly": "Maandelijks",
     "repeatUntil": "Tot",
-    "confirm": "OK"
+    "confirm": "OK",
+    "videoMeeting": "Videovergadering",
+    "videoMeetingRemove": "Verwijderen",
+    "videoMeetingAdd": "Toevoegen",
+    "videoMeetingOn": "Er wordt een videovergadering bij deze afspraak aangemaakt",
+    "videoMeetingOff": "Geen videovergadering — alleen een agenda-item"
   },
   "card": {
     "organizer": "Organisator",

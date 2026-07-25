@@ -139,6 +139,13 @@ export const CreateEventDialog = ({
     return new Map(initialSelected ?? [])
   })
   const [busy, setBusy] = useState(false)
+  // 视频会议(对标飞书:可移除的一项,而非日程的固有属性)。创建默认开;
+  // 编辑态按事件当前有没有房间预填。
+  const [withVideo, setWithVideo] = useState(
+    editEvent ? editEvent.room !== null : true
+  )
+  // 重复日程的系列级编辑不放开该字段(服务端三选路径会剔除),与参与者同档。
+  const videoEditable = attendeesEditable
   // P9 会议室:编辑态从事件预填;`roomConflicted` 是客户端预判(服务端 409
   // 才是权威),用来提前禁用提交并就地解释原因。
   const [meetingRoom, setMeetingRoom] = useState<MeetingRoomBrief | null>(
@@ -206,6 +213,9 @@ export const CreateEventDialog = ({
         // 好让 Android(Moshi 不序列化 null)能表达同一个意思;后端两者都收。
         // 全天日程不带该字段 —— M1 不支持全天订会议室。
         ...(allDay ? {} : { meeting_room_id: meetingRoom?.id ?? '' }),
+        // 创建时总是明说;编辑时只在可改的场景下带上(重复日程系列级不传,
+        // 让服务端保持原样)。
+        ...(videoEditable ? { with_video_meeting: withVideo } : {}),
       }
       const event = editEvent
         ? await updateCalendarEvent(editEvent.id, {
@@ -615,6 +625,31 @@ export const CreateEventDialog = ({
           </div>
         )}
 
+        {/* 视频会议 —— 对标飞书,是一项「可以移除」的东西而不是日程的固有
+            属性。放在会议室之前:两者都是「在哪开」,线上先于线下。 */}
+        {videoEditable && (
+          <div data-testid="event-video-meeting">
+            <div className={videoRowCls}>
+              <span className={labelCls}>{t('form.videoMeeting')}</span>
+              <button
+                type="button"
+                className={ghostLinkCls}
+                onClick={() => setWithVideo((prev) => !prev)}
+                data-testid="event-video-toggle"
+              >
+                {withVideo
+                  ? t('form.videoMeetingRemove')
+                  : t('form.videoMeetingAdd')}
+              </button>
+            </div>
+            <div className={videoHintCls}>
+              {withVideo
+                ? t('form.videoMeetingOn')
+                : t('form.videoMeetingOff')}
+            </div>
+          </div>
+        )}
+
         {/* P9 会议室 —— 放在参与者之后:容量筛选按已选人数起算,可用性依赖
             上方选好的时段,冲突提示条也就正好压在提交按钮上方。 */}
         <MeetingRoomField
@@ -694,4 +729,24 @@ const textareaCls = css({
   resize: 'vertical',
   minHeight: '3.5rem',
   _focus: { borderColor: 'primary.500' },
+})
+
+const videoRowCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.5rem',
+})
+const ghostLinkCls = css({
+  border: 'none',
+  background: 'transparent',
+  color: 'primary.500',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+  _dark: { color: 'primaryDark.700' },
+})
+const videoHintCls = css({
+  marginTop: '0.125rem',
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
 })

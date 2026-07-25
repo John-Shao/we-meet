@@ -42,7 +42,12 @@
     "repeatWeekly": "Wöchentlich",
     "repeatMonthly": "Monatlich",
     "repeatUntil": "Bis",
-    "confirm": "OK"
+    "confirm": "OK",
+    "videoMeeting": "Videokonferenz",
+    "videoMeetingRemove": "Entfernen",
+    "videoMeetingAdd": "Hinzufügen",
+    "videoMeetingOn": "Zu diesem Termin wird eine Videokonferenz erstellt",
+    "videoMeetingOff": "Keine Videokonferenz — nur ein Kalendereintrag"
   },
   "card": {
     "organizer": "Organisator",
