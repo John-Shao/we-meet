@@ -14,7 +14,7 @@ import { useCreateRoom } from '@/features/rooms'
 import { useUser, UserAware } from '@/features/auth'
 import { JoinMeetingDialog } from '../components/JoinMeetingDialog'
 import { authUrl } from '@/features/auth'
-import { CreateEventDialog } from '@/features/calendar'
+import { CreateEventDialog, EventDetailHost } from '@/features/calendar'
 import { IntroSlider } from '@/features/home/components/IntroSlider'
 import { MoreLink } from '@/features/home/components/MoreLink'
 import {
@@ -335,19 +335,29 @@ export const Home = () => {
                 selectedId={meetingDetail?.id}
               />
             </main>
-            {meetingDetail && (
-              <ResizablePanel
-                storageKey="we-meet:meeting-detail-w"
-                side="right"
-                defaultWidth={340}
-                min={280}
-                max={520}
-              >
-                <MeetingDetailPanel
-                  selection={meetingDetail}
-                  onClose={() => setMeetingDetail(null)}
-                />
-              </ResizablePanel>
+            {/* 一场会一个详情页:预约会议 = 创建日程后,有日程的走统一的
+                「日程详情」(与日历/IM 同一个组件,带参与人/RSVP/纪要);
+                无日程的(快速会议、存量裸预约、历史会议)才留会议面板。 */}
+            {meetingDetail?.eventId ? (
+              <EventDetailHost
+                eventId={meetingDetail.eventId}
+                onClose={() => setMeetingDetail(null)}
+              />
+            ) : (
+              meetingDetail && (
+                <ResizablePanel
+                  storageKey="we-meet:meeting-detail-w"
+                  side="right"
+                  defaultWidth={340}
+                  min={280}
+                  max={520}
+                >
+                  <MeetingDetailPanel
+                    selection={meetingDetail}
+                    onClose={() => setMeetingDetail(null)}
+                  />
+                </ResizablePanel>
+              )
             )}
           </div>
         ) : (

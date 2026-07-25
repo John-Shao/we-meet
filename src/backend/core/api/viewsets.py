@@ -690,6 +690,14 @@ class RoomViewSet(
     queryset = models.Room.objects.all()
     serializer_class = serializers.RoomSerializer
 
+    def get_queryset(self):
+        """列表页预取关联日程 —— RoomSerializer.get_event_id 逐间查会 N+1
+        (预约列表一次拉 50 间)。详情页只取一间,无需预取。"""
+        queryset = super().get_queryset()
+        if self.action == "list":
+            queryset = queryset.prefetch_related("calendar_events")
+        return queryset
+
     def get_object(self):
         """Allow getting a room by its UUID or its numeric slug (meeting code)."""
         pk = self.kwargs["pk"]

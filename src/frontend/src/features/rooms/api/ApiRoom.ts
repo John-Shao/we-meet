@@ -27,6 +27,12 @@ export type ApiRoom = {
   is_administrable: boolean
   /** 严格房主。删除房间只认这个(admin 删会 403),收敛删除入口须用它。 */
   is_owner?: boolean
+  /**
+   * 关联日程 id;无日程(快速会议/存量裸预约)= null。
+   * 「预约会议 = 创建日程」后同一场会既在会议列表又在日历,客户端据此把
+   * 详情统一收敛到日程详情,避免一场会两个详情页。
+   */
+  event_id?: string | null
   access_level: ApiAccessLevel
   livekit?: ApiLiveKit
   configuration?: RoomConfiguration

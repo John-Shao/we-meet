@@ -166,6 +166,7 @@ class RoomSerializer(serializers.ModelSerializer):
 
     closed_at = serializers.SerializerMethodField()
     owner = serializers.SerializerMethodField()
+    event_id = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Room
@@ -179,6 +180,7 @@ class RoomSerializer(serializers.ModelSerializer):
             "closed_at",
             "owner",
             "scheduled_at",
+            "event_id",
         ]
         read_only_fields = ["id", "slug", "pin_code", "created_at", "owner"]
 
@@ -195,6 +197,17 @@ class RoomSerializer(serializers.ModelSerializer):
             return None
         user = owner_access.user
         return user.full_name or user.short_name or user.email or None
+
+    def get_event_id(self, instance):
+        """关联日程 id;无日程(快速会议/存量裸预约)= None。
+
+        「预约会议 = 创建日程」后,日程创建会顺带建房,于是同一场会既在
+        会议列表(房间)又在日历(日程)。客户端据此把详情统一收敛到日程
+        详情,避免同一场会两个详情页(有日程 → 日程详情;无 → 会议详情)。
+        列表页已 prefetch calendar_events,不逐间多查。
+        """
+        event = next(iter(instance.calendar_events.all()), None)
+        return str(event.id) if event else None
 
     def validate_configuration(self, value):
         """Validate room configuration against the RoomConfiguration schema."""

@@ -41,6 +41,11 @@ export interface MeetingSelection {
    * scheduled 取 `is_administrable`,recent 取新增的 `is_owner`。
    */
   canManage: boolean
+  /**
+   * 关联日程 id;有则详情统一走「日程详情」(一场会一个详情页),
+   * 无(快速会议/存量裸预约/历史会议)才用本面板。
+   */
+  eventId?: string | null
 }
 
 /**
