@@ -58,7 +58,10 @@
     "recurrenceCustom": "Custom recurrence",
     "deleteConfirmOccurrence": "Delete only this occurrence? Other occurrences in the series are kept.",
     "deleteConfirmSeries": "Delete the entire series? All future occurrences will be removed.",
-    "attendeesTitle": "Attendees ({{count}})"
+    "attendeesTitle": "Attendees ({{count}})",
+    "share": "Share",
+    "more": "More",
+    "shareFailed": "Failed to share the event, please retry"
   },
   "rsvp": {
     "label": "My response",

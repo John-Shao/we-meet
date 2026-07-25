@@ -58,7 +58,10 @@
     "recurrenceCustom": "Récurrence personnalisée",
     "deleteConfirmOccurrence": "Supprimer uniquement cette occurrence ? Les autres occurrences de la série sont conservées.",
     "deleteConfirmSeries": "Supprimer toute la série ? Toutes les occurrences futures seront supprimées.",
-    "attendeesTitle": "Participants ({{count}})"
+    "attendeesTitle": "Participants ({{count}})",
+    "share": "Partager",
+    "more": "Plus",
+    "shareFailed": "Échec du partage de l'événement, veuillez réessayer"
   },
   "rsvp": {
     "label": "Ma réponse",

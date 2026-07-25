@@ -58,7 +58,10 @@
     "recurrenceCustom": "Benutzerdefinierte Wiederholung",
     "deleteConfirmOccurrence": "Nur diesen Termin löschen? Andere Termine der Serie bleiben erhalten.",
     "deleteConfirmSeries": "Die gesamte Serie löschen? Alle zukünftigen Termine werden entfernt.",
-    "attendeesTitle": "Teilnehmer ({{count}})"
+    "attendeesTitle": "Teilnehmer ({{count}})",
+    "share": "Teilen",
+    "more": "Mehr",
+    "shareFailed": "Termin konnte nicht geteilt werden, bitte erneut versuchen"
   },
   "rsvp": {
     "label": "Meine Antwort",

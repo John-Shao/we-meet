@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
@@ -14,6 +15,7 @@ import {
   rsvpCalendarEvent,
 } from '../api/fetchCalendar'
 import { EventDetailDialog } from './EventDetailDialog'
+import { EventShareDialog } from './EventShareDialog'
 
 /**
  * P8:按 id 拉取日程并复用现有 EventDetailDialog —— IM 日程卡片点「查看」
@@ -35,6 +37,8 @@ export const EventDetailHost = ({
   const { user } = useUser()
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const queryClient = useQueryClient()
+  // 转分享:详情先关掉再开分享,避免两个 Modal 叠加。
+  const [sharing, setSharing] = useState(false)
 
   const {
     data: event,
@@ -82,10 +86,14 @@ export const EventDetailHost = ({
     navigate('/calendar')
   }
 
+  if (sharing)
+    return <EventShareDialog event={event} onClose={() => setSharing(false)} />
+
   return (
     <EventDetailDialog
       event={event}
       canManage={!!user && event.organizer?.id === user.id}
+      onShare={() => setSharing(true)}
       onEdit={toCalendar}
       onDelete={() => {
         // 重复日程的范围三选留在日历页;单次日程就地确认删除。

@@ -16,6 +16,8 @@ interface Props {
   canManage?: boolean
   onEdit?: () => void
   onDelete?: () => void
+  /** 分享日程到聊天(不限组织者);缺省则不显示分享按钮。 */
+  onShare?: () => void
 }
 
 /**
@@ -31,9 +33,12 @@ export const EventDetailDialog = ({
   canManage,
   onEdit,
   onDelete,
+  onShare,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
   const [rsvp, setRsvp] = useState<RSVPStatus | null>(event.my_rsvp ?? null)
+  // 「更多」菜单(删除收纳其中,对标飞书)。
+  const [moreOpen, setMoreOpen] = useState(false)
 
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(i18n.language, {
@@ -261,7 +266,7 @@ export const EventDetailDialog = ({
           </div>
         )}
 
-        {/* Actions: 编辑/删除(organizer)靠左,进入会议靠右 */}
+        {/* Actions: 分享/编辑/更多(organizer)靠左,进入会议靠右 */}
         <div
           className={css({
             display: 'flex',
@@ -270,6 +275,16 @@ export const EventDetailDialog = ({
             marginTop: '1.25rem',
           })}
         >
+          {onShare && (
+            <button
+              type="button"
+              onClick={onShare}
+              data-testid="detail-share"
+              className={detailBtn}
+            >
+              {t('detail.share')}
+            </button>
+          )}
           {canManage && (
             <>
               <button
@@ -280,14 +295,42 @@ export const EventDetailDialog = ({
               >
                 {t('detail.edit')}
               </button>
-              <button
-                type="button"
-                onClick={onDelete}
-                data-testid="detail-delete"
-                className={detailBtnDanger}
-              >
-                {t('detail.delete')}
-              </button>
+              {/* 删除收进「更多」:高危操作不与常用操作并排(对标飞书)。 */}
+              <div className={moreWrapCls}>
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen((v) => !v)}
+                  data-testid="detail-more"
+                  aria-haspopup="menu"
+                  aria-expanded={moreOpen}
+                  className={detailBtn}
+                >
+                  {t('detail.more')}
+                </button>
+                {moreOpen && (
+                  <>
+                    {/* 透明遮罩兜住「点外部关闭」,省掉全局监听器。 */}
+                    <div
+                      className={moreBackdropCls}
+                      onClick={() => setMoreOpen(false)}
+                    />
+                    <div role="menu" className={moreMenuCls}>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setMoreOpen(false)
+                          onDelete?.()
+                        }}
+                        data-testid="detail-delete"
+                        className={moreItemDangerCls}
+                      >
+                        {t('detail.delete')}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </>
           )}
           {event.room_slug && (
@@ -363,13 +406,33 @@ const detailBtn = css({
   _hover: { backgroundColor: 'greyscale.100' },
 })
 
-// 与 rsvpBtn 同因:不用 cx 叠加同属性(danger 色可能被基类盖掉),完整类。
-const detailBtnDanger = css({
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  border: '1px solid #fecaca',
+const moreWrapCls = css({ position: 'relative', display: 'inline-flex' })
+
+// 遮罩只负责「点外部关闭」,层级压在菜单之下、其余 UI 之上。
+const moreBackdropCls = css({ position: 'fixed', inset: 0, zIndex: 10 })
+
+const moreMenuCls = css({
+  position: 'absolute',
+  top: 'calc(100% + 0.25rem)',
+  left: 0,
+  zIndex: 11,
+  minWidth: '8rem',
+  paddingY: '0.25rem',
+  border: '1px solid token(colors.greyscale.200)',
   borderRadius: '0.5rem',
   backgroundColor: 'greyscale.000',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+})
+
+// 与 rsvpBtn 同因:不用 cx 叠加同属性(danger 色可能被基类盖掉),完整类。
+const moreItemDangerCls = css({
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  paddingX: '0.75rem',
+  paddingY: '0.5rem',
+  border: 'none',
+  backgroundColor: 'transparent',
   color: 'danger.600',
   fontSize: '0.8125rem',
   cursor: 'pointer',

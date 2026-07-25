@@ -27,6 +27,7 @@ import type { View } from 'react-big-calendar'
 import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EditScopeDialog } from '../components/EditScopeDialog'
 import { EventDetailDialog } from '../components/EventDetailDialog'
+import { EventShareDialog } from '../components/EventShareDialog'
 
 const EVENTS_KEY = ['calendar'] as const
 
@@ -47,6 +48,8 @@ const CalendarAuthenticated = () => {
   const [creating, setCreating] = useState(false)
   const [draft, setDraft] = useState<SlotDraft | null>(null)
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
+  // 分享日程到聊天:与详情弹窗并列(而非嵌套),避免弹窗套弹窗。
+  const [sharingEvent, setSharingEvent] = useState<CalendarEvent | null>(null)
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null)
   // P2-M2 三选:重复子场次的编辑/删除先弹范围选择;editScope 随编辑对话框提交。
   const [scopeAsk, setScopeAsk] = useState<{
@@ -302,11 +305,19 @@ const CalendarAuthenticated = () => {
               void removeEvent(detailEvent)
             }
           }}
+          onShare={() => setSharingEvent(detailEvent)}
           onRsvp={(status) => setRsvp(detailEvent, status)}
           onJoin={() => {
             if (detailEvent.room_slug) navigate(`/${detailEvent.room_slug}`)
           }}
           onClose={() => setDetailEvent(null)}
+        />
+      )}
+
+      {sharingEvent && (
+        <EventShareDialog
+          event={sharingEvent}
+          onClose={() => setSharingEvent(null)}
         />
       )}
 

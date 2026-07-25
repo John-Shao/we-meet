@@ -58,7 +58,10 @@
     "recurrenceCustom": "自定义重复",
     "deleteConfirmOccurrence": "仅删除此场次？系列中的其他场次将保留。",
     "deleteConfirmSeries": "删除整个系列？所有未来场次将一并删除。",
-    "attendeesTitle": "参与人 ({{count}})"
+    "attendeesTitle": "参与人 ({{count}})",
+    "share": "分享",
+    "more": "更多",
+    "shareFailed": "日程分享失败，请重试"
   },
   "rsvp": {
     "label": "我的回复",
