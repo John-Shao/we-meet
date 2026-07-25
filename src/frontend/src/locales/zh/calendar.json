@@ -61,7 +61,11 @@
     "attendeesTitle": "参与人 ({{count}})",
     "share": "分享",
     "more": "更多",
-    "shareFailed": "日程分享失败，请重试"
+    "shareFailed": "日程分享失败，请重试",
+    "meetingNo": "会议号",
+    "meetingLink": "链接",
+    "copy": "复制",
+    "copied": "已复制"
   },
   "rsvp": {
     "label": "我的回复",

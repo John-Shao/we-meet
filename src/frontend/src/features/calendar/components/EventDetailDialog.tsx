@@ -41,6 +41,20 @@ export const EventDetailDialog = ({
   const [rsvp, setRsvp] = useState<RSVPStatus | null>(event.my_rsvp ?? null)
   // 「更多」菜单(删除收纳其中,对标飞书)。
   const [moreOpen, setMoreOpen] = useState(false)
+  // 会议号/链接的「已复制」瞬时态。
+  const [copied, setCopied] = useState<'id' | 'link' | null>(null)
+  const meetingLink = event.room_slug
+    ? `${window.location.origin}/${event.room_slug}`
+    : ''
+  const copyMeeting = async (kind: 'id' | 'link', text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(kind)
+      setTimeout(() => setCopied((c) => (c === kind ? null : c)), 1500)
+    } catch {
+      /* 剪贴板被策略拒绝:静默,用户可手动选择文本 */
+    }
+  }
   // 详情可被非参与人打开(分享到群后凭 id 只读),但表态仍限参与人/组织者 ——
   // 后端 rsvp 走受限 queryset,非参与人点了必失败,故直接不渲染 RSVP 区。
   const canRsvp =
@@ -120,6 +134,40 @@ export const EventDetailDialog = ({
         >
           {t('card.organizer')}: {event.organizer?.full_name || '—'}
         </p>
+        {/* 会议信息(对标飞书:日程详情内嵌会议区块)—— 会议号/链接是「把会
+            发给别人」的高频动作,原先只有底部一个「进入会议」按钮拿不到。 */}
+        {event.room_slug && (
+          <div className={meetingBoxCls}>
+            <div className={meetingRowCls}>
+              <span className={meetingLabelCls}>{t('detail.meetingNo')}</span>
+              <span className={meetingValueCls}>
+                {formatSlugDigits(event.room_slug)}
+              </span>
+              <button
+                type="button"
+                onClick={() => void copyMeeting('id', event.room_slug!)}
+                data-testid="detail-copy-no"
+                className={meetingCopyCls}
+              >
+                {copied === 'id' ? t('detail.copied') : t('detail.copy')}
+              </button>
+            </div>
+            <div className={meetingRowCls}>
+              <span className={meetingLabelCls}>{t('detail.meetingLink')}</span>
+              <span className={cx(meetingValueCls, meetingLinkCls)}>
+                {meetingLink}
+              </span>
+              <button
+                type="button"
+                onClick={() => void copyMeeting('link', meetingLink)}
+                data-testid="detail-copy-link"
+                className={meetingCopyCls}
+              >
+                {copied === 'link' ? t('detail.copied') : t('detail.copy')}
+              </button>
+            </div>
+          </div>
+        )}
         {event.description && (
           <p
             className={css({
@@ -414,6 +462,62 @@ const detailBtn = css({
   fontSize: '0.8125rem',
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.100' },
+})
+
+/** 会议号按位数分组:8→4+4、9→3+3+3、6→3+3(与会议详情面板同口径)。 */
+const formatSlugDigits = (slug: string): string => {
+  const digits = slug.replace(/\D/g, '')
+  if (digits.length === 8) return `${digits.slice(0, 4)} ${digits.slice(4)}`
+  if (digits.length === 9)
+    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`
+  if (digits.length === 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`
+  return slug
+}
+
+const meetingBoxCls = css({
+  marginTop: '0.75rem',
+  paddingX: '0.75rem',
+  paddingY: '0.5rem',
+  borderRadius: '0.5rem',
+  backgroundColor: 'greyscale.50',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+})
+
+const meetingRowCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  minWidth: 0,
+})
+
+const meetingLabelCls = css({
+  flexShrink: 0,
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+})
+
+const meetingValueCls = css({
+  minWidth: 0,
+  flex: 1,
+  fontSize: '0.8125rem',
+  color: 'greyscale.800',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+const meetingLinkCls = css({ color: 'greyscale.600' })
+
+const meetingCopyCls = css({
+  flexShrink: 0,
+  border: 'none',
+  background: 'transparent',
+  color: 'primary.600',
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+  _hover: { textDecoration: 'underline' },
 })
 
 const moreWrapCls = css({ position: 'relative', display: 'inline-flex' })

@@ -61,7 +61,11 @@
     "attendeesTitle": "Teilnehmer ({{count}})",
     "share": "Teilen",
     "more": "Mehr",
-    "shareFailed": "Termin konnte nicht geteilt werden, bitte erneut versuchen"
+    "shareFailed": "Termin konnte nicht geteilt werden, bitte erneut versuchen",
+    "meetingNo": "Meeting-ID",
+    "meetingLink": "Link",
+    "copy": "Kopieren",
+    "copied": "Kopiert"
   },
   "rsvp": {
     "label": "Meine Antwort",

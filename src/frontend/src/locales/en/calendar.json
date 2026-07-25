@@ -61,7 +61,11 @@
     "attendeesTitle": "Attendees ({{count}})",
     "share": "Share",
     "more": "More",
-    "shareFailed": "Failed to share the event, please retry"
+    "shareFailed": "Failed to share the event, please retry",
+    "meetingNo": "Meeting ID",
+    "meetingLink": "Link",
+    "copy": "Copy",
+    "copied": "Copied"
   },
   "rsvp": {
     "label": "My response",

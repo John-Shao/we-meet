@@ -61,7 +61,11 @@
     "attendeesTitle": "Deelnemers ({{count}})",
     "share": "Delen",
     "more": "Meer",
-    "shareFailed": "Delen van agenda-item mislukt, probeer opnieuw"
+    "shareFailed": "Delen van agenda-item mislukt, probeer opnieuw",
+    "meetingNo": "Vergader-ID",
+    "meetingLink": "Link",
+    "copy": "Kopiëren",
+    "copied": "Gekopieerd"
   },
   "rsvp": {
     "label": "Mijn reactie",

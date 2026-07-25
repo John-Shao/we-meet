@@ -61,7 +61,11 @@
     "attendeesTitle": "Participants ({{count}})",
     "share": "Partager",
     "more": "Plus",
-    "shareFailed": "Échec du partage de l'événement, veuillez réessayer"
+    "shareFailed": "Échec du partage de l'événement, veuillez réessayer",
+    "meetingNo": "N° de réunion",
+    "meetingLink": "Lien",
+    "copy": "Copier",
+    "copied": "Copié"
   },
   "rsvp": {
     "label": "Ma réponse",
