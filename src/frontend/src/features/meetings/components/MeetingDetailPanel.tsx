@@ -35,6 +35,12 @@ export interface MeetingSelection {
   slug: string | null
   /** scheduled → scheduled_at;recent → summary_updated_at。 */
   timeIso: string | null
+  /**
+   * 我是否是这场会的房主。列表混着「我创建的」和「我只是参会的」,而删除仅
+   * 房主可做(后端 DELETE → is_owner),不收敛的话参会者点了吃 403。
+   * scheduled 取 `is_administrable`,recent 取新增的 `is_owner`。
+   */
+  canManage: boolean
 }
 
 /**
@@ -132,16 +138,19 @@ export const MeetingDetailPanel = ({
             <RiShareForwardLine size={18} />
           </button>
         )}
-        <button
-          type="button"
-          onClick={handleDelete}
-          title={t('home.delete')}
-          aria-label={t('home.delete')}
-          data-testid="meeting-detail-delete"
-          className={iconBtnCls}
-        >
-          <RiDeleteBinLine size={18} />
-        </button>
+        {/* 删除仅房主可见:参会者对别人的会没有删除权(后端 DELETE → is_owner)。 */}
+        {selection.canManage && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            title={t('home.delete')}
+            aria-label={t('home.delete')}
+            data-testid="meeting-detail-delete"
+            className={iconBtnCls}
+          >
+            <RiDeleteBinLine size={18} />
+          </button>
+        )}
         <button
           type="button"
           onClick={onClose}

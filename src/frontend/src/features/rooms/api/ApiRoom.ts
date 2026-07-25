@@ -23,7 +23,10 @@ export type ApiRoom = {
   name: string
   slug: string
   pin_code: string
+  /** admin 或 owner —— 可改房间配置。 */
   is_administrable: boolean
+  /** 严格房主。删除房间只认这个(admin 删会 403),收敛删除入口须用它。 */
+  is_owner?: boolean
   access_level: ApiAccessLevel
   livekit?: ApiLiveKit
   configuration?: RoomConfiguration

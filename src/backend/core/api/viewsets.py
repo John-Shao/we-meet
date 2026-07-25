@@ -1234,11 +1234,22 @@ class RoomViewSet(
         Most-recent-first, capped at 20. Powers the "My recent meetings"
         section on the home page and links each entry to /meetings/<id>.
         """
-        rooms = (
+        rooms = list(
             self.get_queryset()
             .filter(users=request.user, summary__isnull=False)
             .distinct()
             .order_by("-summary__updated_at")[:20]
+        )
+        # 归属:列表混着「我创建的」和「我只是参会的」(filter 是 users=me,不是
+        # owner=me)。删除仅房主可做(RoomPermissions:DELETE → is_owner),客户端
+        # 需要据此收起删除入口,否则参会者点了吃 403。一次查完 20 间房的 OWNER
+        # 关系,避免逐间 room.is_owner() 的 N+1。
+        owner_room_ids = set(
+            models.ResourceAccess.objects.filter(
+                resource_id__in=[room.id for room in rooms],
+                user=request.user,
+                role=models.RoleChoices.OWNER,
+            ).values_list("resource_id", flat=True)
         )
         # Tiny shape — the home page only needs id / display label / when
         # the summary was last refreshed. Anything heavier loads on the
@@ -1252,6 +1263,7 @@ class RoomViewSet(
                     room.summary.updated_at.isoformat() if room.summary else None
                 ),
                 "summary_status": room.summary.status if room.summary else None,
+                "is_owner": room.id in owner_room_ids,
             }
             for room in rooms
         ]

@@ -255,6 +255,10 @@ class RoomSerializer(serializers.ModelSerializer):
             del output["pin_code"]
 
         output["is_administrable"] = is_admin_or_owner
+        # 删除房间要求的是 OWNER(RoomPermissions:DELETE → is_owner),比
+        # is_administrable(admin 亦为真)更严;客户端收敛删除入口须用这个,
+        # 否则 ADMIN 会看到删除按钮然后吃 403。复用上面已算好的 role,无额外查询。
+        output["is_owner"] = models.RoleChoices.check_owner_role(role)
 
         return output
 

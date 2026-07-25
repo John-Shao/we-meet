@@ -141,6 +141,7 @@ export const RecentMeetingsList = ({
                     name: m.name,
                     slug: m.slug,
                     timeIso: m.summary_updated_at,
+                    canManage: !!m.is_owner,
                   })
                 }
                 className={

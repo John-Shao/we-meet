@@ -56,6 +56,8 @@ export interface ApiRecentMeeting {
   slug: string | null
   summary_updated_at: string | null
   summary_status: SummaryStatus | null
+  /** 我是否是房主 —— 列表含「我只是参会」的会议,删除仅房主可做。 */
+  is_owner: boolean
 }
 
 export interface ApiTranscript {

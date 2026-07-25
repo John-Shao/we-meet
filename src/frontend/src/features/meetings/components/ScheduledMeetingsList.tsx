@@ -152,6 +152,7 @@ export const ScheduledMeetingsList = ({
                     name: m.name,
                     slug: m.slug || null,
                     timeIso: m.scheduled_at ?? null,
+                    canManage: !!m.is_owner,
                   })
                 }
                 className={
