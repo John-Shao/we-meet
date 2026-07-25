@@ -149,4 +149,9 @@ const navLink = (active: boolean) =>
     fontWeight: active ? '600' : undefined,
     backgroundColor: active ? 'primary.100' : 'transparent',
     _hover: { backgroundColor: active ? 'primary.100' : 'greyscale.100' },
+    // primary.* 是固定色阶不随主题翻转:深色下不翻到 primaryDark,选中项会是
+    // 一条刺眼的浅蓝亮带,且与页面其它选中态不一致。
+    _dark: active
+      ? { color: 'primaryDark.900', backgroundColor: 'primaryDark.100' }
+      : {},
   })

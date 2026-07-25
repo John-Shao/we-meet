@@ -156,11 +156,16 @@ const rowBase = {
   display: 'flex',
   alignItems: 'center',
   borderBottom: '1px solid token(colors.greyscale.100)',
+  // 每一行都留 3px 左边条,只有选中行才上色 —— 否则选中时内容会横跳 3px。
+  // 边条是选中态的主要信号:底色差异在深色下天然微弱,一条实色竖线不会。
+  borderLeftWidth: '3px',
+  borderLeftStyle: 'solid',
 } as const
 // Two complete classes rather than cx-layering the background: atomic classes
 // resolve by stylesheet order, not by the order they are combined.
 const rowIdleCls = css({
   ...rowBase,
+  borderLeftColor: 'transparent',
   backgroundColor: 'transparent',
   _hover: {
     backgroundColor: 'greyscale.100',
@@ -169,7 +174,14 @@ const rowIdleCls = css({
 })
 const rowActiveCls = css({
   ...rowBase,
+  borderLeftColor: 'primary.500',
   backgroundColor: 'primary.100',
+  // primary.* 是固定色阶,不随主题翻转。深色下不翻到 primaryDark 的话,
+  // 浅蓝底(#D6E4FF)配浅蓝字(#C0CFF3)对比度约 1.15:1,整行糊成一片。
+  _dark: {
+    borderLeftColor: 'primaryDark.500',
+    backgroundColor: 'primaryDark.100',
+  },
   _hover: { '& [data-row-actions]': { opacity: 1 } },
 })
 const nodeLabelBase = {
@@ -191,7 +203,8 @@ const nodeLabelActiveCls = css({
   ...nodeLabelBase,
   color: 'primary.700',
   fontWeight: '600',
-  _dark: { color: 'primaryDark.800' },
+  // 对 primaryDark.100 底:900(#DCE6FB) 约 11:1,比 800 更跳得出来。
+  _dark: { color: 'primaryDark.900' },
 })
 const countCls = css({ color: 'greyscale.400', fontWeight: 'normal' })
 const actionsCls = css({

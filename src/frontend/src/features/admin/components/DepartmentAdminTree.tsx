@@ -74,11 +74,23 @@ export const DepartmentAdminTree = ({
               display: 'flex',
               alignItems: 'center',
               borderBottom: '1px solid token(colors.greyscale.100)',
+              // 每行都留 3px 左边条,只有选中行上色,避免选中时内容横跳。
+              borderLeftWidth: '3px',
+              borderLeftStyle: 'solid',
+              borderLeftColor: active ? 'primary.500' : 'transparent',
               backgroundColor: active ? 'primary.100' : 'transparent',
               _hover: {
                 backgroundColor: active ? 'primary.100' : 'greyscale.100',
                 '& [data-row-actions]': { opacity: 1 },
               },
+              // primary.* 固定色阶不随主题翻转 —— 深色下必须翻到 primaryDark,
+              // 否则浅蓝底压浅蓝字,选中行反而看不清。
+              _dark: active
+                ? {
+                    borderLeftColor: 'primaryDark.500',
+                    backgroundColor: 'primaryDark.100',
+                  }
+                : {},
             })}
             style={{ paddingLeft: `${0.25 + depth * 0.85}rem` }}
           >
@@ -116,6 +128,7 @@ export const DepartmentAdminTree = ({
                 cursor: 'pointer',
                 color: active ? 'primary.700' : 'greyscale.800',
                 fontWeight: active ? '600' : undefined,
+                _dark: active ? { color: 'primaryDark.900' } : {},
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
