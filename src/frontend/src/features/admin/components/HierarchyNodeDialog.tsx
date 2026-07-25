@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/primitives/Dialog'
 import { Button, Input } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 import { css, cx } from '@/styled-system/css'
+import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 import type { AdminMeetingRoomNode } from '../api/adminMeetingRooms'
 
@@ -14,21 +15,6 @@ export interface HierarchyNodeValues {
   timezone: string
   /** null = top level. Only applied on create / move. */
   parent: string | null
-}
-
-/** IANA zones the browser knows about; falls back to a short list if absent. */
-const timezoneOptions = (): string[] => {
-  const supported = (
-    Intl as unknown as { supportedValuesOf?: (k: string) => string[] }
-  ).supportedValuesOf
-  if (typeof supported === 'function') {
-    try {
-      return supported('timeZone')
-    } catch {
-      /* fall through to the short list */
-    }
-  }
-  return ['Asia/Shanghai', 'Asia/Tokyo', 'Europe/Paris', 'UTC']
 }
 
 /**
@@ -57,10 +43,17 @@ export const HierarchyNodeDialog = ({
   onSubmit: (values: HierarchyNodeValues) => void
   onClose: () => void
 }) => {
-  const { t } = useTranslation('admin')
+  const { t, i18n } = useTranslation('admin')
   const [name, setName] = useState('')
   const [timezone, setTimezone] = useState('')
   const [parentId, setParentId] = useState<string>('')
+
+  // ~400 zones × 3 Intl formatters — build once the dialog is actually open,
+  // and only once per language (the util caches across mounts).
+  const zones = useMemo(
+    () => (isOpen ? buildTimezoneOptions(i18n.language) : []),
+    [isOpen, i18n.language]
+  )
 
   useEffect(() => {
     if (!isOpen) return
@@ -137,9 +130,9 @@ export const HierarchyNodeDialog = ({
             onChange={(e) => setTimezone(e.target.value)}
           >
             <option value="">{t('meetingRooms.timezoneInherit')}</option>
-            {timezoneOptions().map((zone) => (
+            {zones.map(({ zone, label }) => (
               <option key={zone} value={zone}>
-                {zone}
+                {label}
               </option>
             ))}
           </select>
