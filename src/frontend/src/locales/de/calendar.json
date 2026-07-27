@@ -75,7 +75,10 @@
     "meetingRoomConflict": "Raum nicht gebucht",
     "summary": "Protokoll",
     "summaryPending": "wird erstellt…",
-    "summaryView": "Protokoll ansehen"
+    "summaryView": "Protokoll ansehen",
+    "close": "Schließen",
+    "attendeeCount": "{{count}} Teilnehmende",
+    "attendeeAccepted": "{{count}} zugesagt"
   },
   "rsvp": {
     "label": "Meine Antwort",

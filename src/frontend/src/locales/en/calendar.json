@@ -75,7 +75,10 @@
     "meetingRoomConflict": "room not booked",
     "summary": "Meeting notes",
     "summaryPending": "generating…",
-    "summaryView": "View notes"
+    "summaryView": "View notes",
+    "close": "Close",
+    "attendeeCount": "{{count}} attendees",
+    "attendeeAccepted": "{{count}} accepted"
   },
   "rsvp": {
     "label": "My response",

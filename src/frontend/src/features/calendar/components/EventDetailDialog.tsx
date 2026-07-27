@@ -1,10 +1,27 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiCheckLine, RiCloseLine, RiQuestionLine } from '@remixicon/react'
+import {
+  RiBuilding2Line,
+  RiCheckLine,
+  RiCloseLine,
+  RiFileList2Line,
+  RiFileTextLine,
+  RiGroupLine,
+  RiMoreLine,
+  RiNotification3Line,
+  RiPencilLine,
+  RiQuestionLine,
+  RiRepeatLine,
+  RiShareForwardLine,
+  RiUserLine,
+  RiVidiconLine,
+  type RemixiconComponentType,
+} from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
 import { useUser } from '@/features/auth'
+import { MemberAvatar } from '@/features/contacts'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingSummary } from '@/features/meetings/api/fetchMeeting'
 
@@ -24,9 +41,16 @@ interface Props {
 }
 
 /**
- * Event detail popup opened by clicking a grid event (对标飞书). Carries the
- * RSVP (接受/待定/拒绝) + 进入会议 actions the agenda used to show inline, so the
- * grid keeps full functionality.
+ * Event detail popup opened by clicking a grid event (对标飞书).
+ *
+ * 布局两段(2026-07 对标飞书重排):
+ * 1. 头部固定 —— 色块+标题一行,操作(分享/编辑/更多/关闭)收成右上角图标钮,
+ *    时间用主色强调并带「今天」标记;
+ * 2. 信息区滚动 —— 每条信息一行「图标沟槽 + 内容」,取代原先散落的
+ *    emoji 前缀 + 「标签: 值」行文,信息类型靠左侧图标一眼可辨。
+ *
+ * 「进入会议」跟着会议号/链接进信息区(对标飞书的「发起视频会议」),不再单独
+ * 占一条底部操作栏 —— 底部操作栏随之取消,RSVP 维持原来的正文内小胶囊。
  */
 export const EventDetailDialog = ({
   event,
@@ -78,10 +102,13 @@ export const EventDetailDialog = ({
     (event.organizer?.id === user.id ||
       event.attendees.some((a) => a.id === user.id))
 
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleString(i18n.language, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
+  const fmtDate = (iso: string, tz?: string) =>
+    new Date(iso).toLocaleDateString(i18n.language, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+      timeZone: tz,
     })
   const fmtTime = (iso: string) =>
     new Date(iso).toLocaleTimeString(i18n.language, {
@@ -92,11 +119,16 @@ export const EventDetailDialog = ({
     new Date(event.start_at).toDateString() ===
     new Date(event.end_at).toDateString()
   const when = event.all_day
-    ? new Date(event.start_at).toLocaleDateString(i18n.language, {
-        dateStyle: 'medium',
-        timeZone: event.timezone || undefined,
-      })
-    : `${fmt(event.start_at)} – ${sameDay ? fmtTime(event.end_at) : fmt(event.end_at)}`
+    ? fmtDate(event.start_at, event.timezone || undefined)
+    : sameDay
+      ? `${fmtDate(event.start_at)} ${fmtTime(event.start_at)} – ${fmtTime(event.end_at)}`
+      : `${fmtDate(event.start_at)} ${fmtTime(event.start_at)} – ${fmtDate(event.end_at)} ${fmtTime(event.end_at)}`
+  const isToday =
+    new Date(event.start_at).toDateString() === new Date().toDateString()
+
+  const acceptedCount = event.attendees.filter(
+    (a) => a.rsvp === 'accepted'
+  ).length
 
   const handle = (status: RSVPStatus) => {
     setRsvp(status)
@@ -104,235 +136,202 @@ export const EventDetailDialog = ({
   }
 
   return (
-    <Modal onClose={onClose} ariaLabel={event.title} maxWidth="420px">
-      <div className={css({ padding: '1.25rem' })}>
-        <h2
-          className={css({
-            margin: 0,
-            fontSize: '1.125rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {event.title}
-        </h2>
-        <p
-          className={css({
-            margin: '0.5rem 0 0',
-            fontSize: '0.875rem',
-            color: 'greyscale.700',
-          })}
-        >
+    <Modal onClose={onClose} ariaLabel={event.title} maxWidth="440px">
+      {/* 头部:标题 + 右上角图标操作 + 时间 —— 固定不随信息区滚动 */}
+      <div className={headerCls}>
+        <div className={headerTopCls}>
+          <span className={dotCls} aria-hidden="true" />
+          <h2 className={titleCls}>{event.title}</h2>
+          <div className={headerActionsCls}>
+            {onShare && (
+              <button
+                type="button"
+                onClick={onShare}
+                data-testid="detail-share"
+                title={t('detail.share')}
+                aria-label={t('detail.share')}
+                className={iconBtnCls}
+              >
+                <RiShareForwardLine size={17} />
+              </button>
+            )}
+            {canManage && (
+              <>
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  data-testid="detail-edit"
+                  title={t('detail.edit')}
+                  aria-label={t('detail.edit')}
+                  className={iconBtnCls}
+                >
+                  <RiPencilLine size={17} />
+                </button>
+                {/* 删除收进「更多」:高危操作不与常用操作并排(对标飞书)。 */}
+                <div className={moreWrapCls}>
+                  <button
+                    type="button"
+                    onClick={() => setMoreOpen((v) => !v)}
+                    data-testid="detail-more"
+                    aria-haspopup="menu"
+                    aria-expanded={moreOpen}
+                    title={t('detail.more')}
+                    aria-label={t('detail.more')}
+                    className={iconBtnCls}
+                  >
+                    <RiMoreLine size={17} />
+                  </button>
+                  {moreOpen && (
+                    <>
+                      {/* 透明遮罩兜住「点外部关闭」,省掉全局监听器。 */}
+                      <div
+                        className={moreBackdropCls}
+                        onClick={() => setMoreOpen(false)}
+                      />
+                      <div role="menu" className={moreMenuCls}>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setMoreOpen(false)
+                            onDelete?.()
+                          }}
+                          data-testid="detail-delete"
+                          className={moreItemDangerCls}
+                        >
+                          {t('detail.delete')}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              data-testid="detail-close"
+              title={t('detail.close')}
+              aria-label={t('detail.close')}
+              className={iconBtnCls}
+            >
+              <RiCloseLine size={18} />
+            </button>
+          </div>
+        </div>
+        <p className={whenCls}>
           {when}
+          {isToday && <span className={todayTagCls}>{t('grid.today')}</span>}
         </p>
+      </div>
+
+      {/* 信息区:一行一条「图标 + 内容」,超长时只滚这一段 */}
+      <div className={bodyCls}>
         {/* P2-M1 重复标识:主事件按 FREQ 显示预设名;子场次显示「重复日程的一次」。 */}
         {(event.recurrence || event.recurrence_parent) && (
-          <p
-            className={css({
-              margin: '0.25rem 0 0',
-              fontSize: '0.75rem',
-              color: 'greyscale.500',
-            })}
-          >
-            🔁{' '}
-            {event.recurrence_parent
-              ? t('detail.recurrenceOccurrence')
-              : t(recurrenceLabelKey(event.recurrence))}
-          </p>
+          <InfoRow icon={RiRepeatLine}>
+            <span className={mutedTextCls}>
+              {event.recurrence_parent
+                ? t('detail.recurrenceOccurrence')
+                : t(recurrenceLabelKey(event.recurrence))}
+            </span>
+          </InfoRow>
         )}
-        {/* 人数信息由下方「参与人 (N)」承载,此处只留组织者,免重复。 */}
-        <p
-          className={css({
-            margin: '0.25rem 0 0',
-            fontSize: '0.75rem',
-            color: 'greyscale.500',
-          })}
-        >
-          {t('card.organizer')}: {event.organizer?.full_name || '—'}
-        </p>
-        {/* P9 实体会议室 —— 刻意放在信息区(时间/组织者/地点),不并进下面的
-            「进入会议」区块:那是 LiveKit 视频房间的按钮区,混在一起只会加剧
-            两个 room 的命名混淆。 */}
-        {event.meeting_room && (
-          <p
-            className={css({
-              margin: '0.25rem 0 0',
-              fontSize: '0.75rem',
-              color: 'greyscale.500',
-            })}
-            data-testid="detail-meeting-room"
-          >
-            🏢 {t('detail.meetingRoom')}: {event.meeting_room.name}
-            {event.meeting_room.path_label
-              ? ` · ${event.meeting_room.path_label}`
-              : ''}
-            {event.meeting_room.booking_status === 'conflict' && (
-              <span className={css({ color: 'danger.600' })}>
-                {' '}
-                · {t('detail.meetingRoomConflict')}
-              </span>
-            )}
-          </p>
-        )}
+
         {/* 会议信息(对标飞书:日程详情内嵌会议区块)—— 会议号/链接是「把会
             发给别人」的高频动作,原先只有底部一个「进入会议」按钮拿不到。 */}
         {event.room_slug && (
-          <div className={meetingBoxCls}>
-            <div className={meetingRowCls}>
-              <span className={meetingLabelCls}>{t('detail.meetingNo')}</span>
-              <span className={meetingValueCls}>
-                {formatSlugDigits(event.room_slug)}
-              </span>
-              <button
-                type="button"
-                onClick={() => void copyMeeting('id', event.room_slug!)}
-                data-testid="detail-copy-no"
-                className={meetingCopyCls}
-              >
-                {copied === 'id' ? t('detail.copied') : t('detail.copy')}
-              </button>
+          <InfoRow icon={RiVidiconLine}>
+            <button
+              type="button"
+              onClick={onJoin}
+              data-testid="detail-join"
+              className={joinBtnCls}
+            >
+              {t('card.join')}
+            </button>
+            <div className={meetingBoxCls}>
+              <div className={meetingRowCls}>
+                <span className={meetingLabelCls}>{t('detail.meetingNo')}</span>
+                <span className={meetingValueCls}>
+                  {formatSlugDigits(event.room_slug)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void copyMeeting('id', event.room_slug!)}
+                  data-testid="detail-copy-no"
+                  className={meetingCopyCls}
+                >
+                  {copied === 'id' ? t('detail.copied') : t('detail.copy')}
+                </button>
+              </div>
+              <div className={meetingRowCls}>
+                <span className={meetingLabelCls}>
+                  {t('detail.meetingLink')}
+                </span>
+                <span className={cx(meetingValueCls, meetingLinkCls)}>
+                  {meetingLink}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void copyMeeting('link', meetingLink)}
+                  data-testid="detail-copy-link"
+                  className={meetingCopyCls}
+                >
+                  {copied === 'link' ? t('detail.copied') : t('detail.copy')}
+                </button>
+              </div>
             </div>
-            <div className={meetingRowCls}>
-              <span className={meetingLabelCls}>{t('detail.meetingLink')}</span>
-              <span className={cx(meetingValueCls, meetingLinkCls)}>
-                {meetingLink}
-              </span>
-              <button
-                type="button"
-                onClick={() => void copyMeeting('link', meetingLink)}
-                data-testid="detail-copy-link"
-                className={meetingCopyCls}
-              >
-                {copied === 'link' ? t('detail.copied') : t('detail.copy')}
-              </button>
-            </div>
-          </div>
+          </InfoRow>
         )}
-        {/* 会后纪要:紧跟会议信息,构成「会前(会议号/链接)→ 会后(纪要)」的
-            完整生命周期。这里只给摘要 + 入口,完整纪要/待办/转录仍在会议详情页
-            渲染 —— 不把重内容塞进这个紧凑弹窗,也不重复实现一遍。 */}
-        {ended && event.room && summary && summary.status !== 'failed' && (
-          <button
-            type="button"
-            onClick={() => {
-              onClose()
-              navigateTo('meetingDetail', event.room)
-            }}
-            data-testid="detail-summary"
-            className={summaryBoxCls}
-          >
-            <span className={summaryTitleCls}>
-              📝 {t('detail.summary')}
-              {summary.status === 'pending' && (
-                <span className={summaryPendingCls}>
-                  {t('detail.summaryPending')}
+
+        {/* P9 实体会议室 —— 刻意与上面的「进入会议」分行:那是 LiveKit 视频房间,
+            混在一起只会加剧两个 room 的命名混淆。 */}
+        {event.meeting_room && (
+          <InfoRow icon={RiBuilding2Line} testId="detail-meeting-room">
+            <span className={bodyTextCls}>
+              {event.meeting_room.name}
+              {event.meeting_room.path_label
+                ? ` · ${event.meeting_room.path_label}`
+                : ''}
+              {event.meeting_room.booking_status === 'conflict' && (
+                <span className={css({ color: 'danger.600' })}>
+                  {' '}
+                  · {t('detail.meetingRoomConflict')}
                 </span>
               )}
             </span>
-            {summaryPreview && (
-              <span className={summaryPreviewCls}>{summaryPreview}…</span>
-            )}
-            <span className={summaryLinkCls}>{t('detail.summaryView')}</span>
-          </button>
-        )}
-        {event.description && (
-          <p
-            className={css({
-              margin: '0.75rem 0 0',
-              fontSize: '0.8125rem',
-              color: 'greyscale.700',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            })}
-          >
-            {event.description}
-          </p>
-        )}
-        {event.reminders && event.reminders.length > 0 && (
-          <p
-            className={css({
-              margin: '0.5rem 0 0',
-              fontSize: '0.75rem',
-              color: 'greyscale.500',
-            })}
-          >
-            🔔 {t('card.reminder')}:{' '}
-            {event.reminders
-              .map((m) => t('form.reminderMinutes', { count: m }))
-              .join('、')}
-          </p>
+          </InfoRow>
         )}
 
-        {/* RSVP —— 仅参与人/组织者可见(非参与人是「被分享者」,只读) */}
-        {canRsvp && (
-        <div
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '0.375rem',
-            marginTop: '1rem',
-          })}
-        >
-          <span
-            className={css({
-              fontSize: '0.75rem',
-              color: 'greyscale.500',
-              marginRight: '0.25rem',
-            })}
-          >
-            {t('rsvp.label')}:
+        {/* 组织者:头像 + 名字 + 标签,与参与人列表同一套人物呈现 */}
+        <InfoRow icon={RiUserLine}>
+          <span className={personCls}>
+            <MemberAvatar
+              name={event.organizer?.full_name || '?'}
+              src={event.organizer?.avatar_url}
+              size="1.375rem"
+            />
+            <span className={personNameCls}>
+              {event.organizer?.full_name || '—'}
+            </span>
+            <span className={organizerTagCls}>{t('card.organizer')}</span>
           </span>
-          {(['accepted', 'tentative', 'declined'] as RSVPStatus[]).map(
-            (status) => (
-              <button
-                key={status}
-                type="button"
-                onClick={() => handle(status)}
-                data-testid={`detail-rsvp-${status}`}
-                // 选中/未选两个完整类整体切换 —— cx 叠加同属性原子类时按
-                // 样式表顺序取胜(非书写顺序),选中态的 white 字曾被基类的
-                // greyscale.700 盖掉,蓝底深灰字区分度差。
-                className={rsvp === status ? rsvpBtnActive : rsvpBtn}
-              >
-                {t(`rsvp.${status}`)}
-              </button>
-            )
-          )}
-        </div>
-        )}
+        </InfoRow>
 
         {/* 参与人列表(对齐 App 端:RSVP 状态图标 + 名字 + 组织者标签)。 */}
         {event.attendees.length > 0 && (
-          <div
-            className={css({
-              marginTop: '1rem',
-              paddingTop: '0.75rem',
-              borderTop: '1px solid token(colors.greyscale.100)',
-            })}
-          >
-            <div
-              className={css({
-                fontSize: '0.8125rem',
-                fontWeight: 'medium',
-                color: 'greyscale.800',
-                marginBottom: '0.375rem',
-              })}
-            >
-              {t('detail.attendeesTitle', { count: event.attendees.length })}
+          <InfoRow icon={RiGroupLine}>
+            <div className={attendeeHeadCls}>
+              {t('detail.attendeeCount', { count: event.attendees.length })}
+              {acceptedCount > 0 && (
+                <span className={mutedTextCls}>
+                  {' · '}
+                  {t('detail.attendeeAccepted', { count: acceptedCount })}
+                </span>
+              )}
             </div>
-            <ul
-              className={css({
-                listStyle: 'none',
-                margin: 0,
-                padding: 0,
-                maxHeight: '10.5rem',
-                overflowY: 'auto',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.375rem',
-              })}
-            >
+            <ul className={attendeeListCls}>
               {event.attendees.map((a, i) => {
                 const StatusIcon =
                   a.rsvp === 'accepted'
@@ -341,149 +340,129 @@ export const EventDetailDialog = ({
                       ? RiCloseLine
                       : RiQuestionLine
                 return (
-                  <li
-                    key={a.id ?? i}
-                    className={css({
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                    })}
-                  >
+                  <li key={a.id ?? i} className={attendeeItemCls}>
+                    <MemberAvatar
+                      name={a.full_name || a.email || '?'}
+                      src={a.avatar_url}
+                      size="1.375rem"
+                    />
+                    <span className={personNameCls}>
+                      {a.full_name || a.email || '—'}
+                    </span>
+                    {a.role === 'organizer' && (
+                      <span className={organizerTagCls}>
+                        {t('card.organizer')}
+                      </span>
+                    )}
                     <StatusIcon
                       size={15}
                       aria-label={a.rsvp ?? 'needs_action'}
                       className={cx(
-                        css({ flexShrink: 0 }),
+                        statusIconCls,
                         a.rsvp === 'accepted'
-                          ? css({ color: 'primary.600' })
+                          ? statusAcceptedCls
                           : a.rsvp === 'declined'
-                            ? css({ color: '#dc2626' })
-                            : css({ color: 'greyscale.400' })
+                            ? statusDeclinedCls
+                            : statusPendingCls
                       )}
                     />
-                    <span
-                      className={css({
-                        minWidth: 0,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: '0.8125rem',
-                        color: 'greyscale.800',
-                      })}
-                    >
-                      {a.full_name || a.email || '—'}
-                    </span>
-                    {a.role === 'organizer' && (
-                      <span
-                        className={css({
-                          flexShrink: 0,
-                          fontSize: '0.6875rem',
-                          color: 'primary.600',
-                        })}
-                      >
-                        {t('card.organizer')}
-                      </span>
-                    )}
                   </li>
                 )
               })}
             </ul>
-          </div>
+          </InfoRow>
         )}
 
-        {/* Actions: 分享/编辑/更多(organizer)靠左,进入会议靠右 */}
-        <div
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            marginTop: '1.25rem',
-          })}
-        >
-          {onShare && (
+        {/* 会后纪要:「会前(会议号/链接)→ 会后(纪要)」的完整生命周期。这里只给
+            摘要 + 入口,完整纪要/待办/转录仍在会议详情页渲染 —— 不把重内容塞进
+            这个紧凑弹窗,也不重复实现一遍。 */}
+        {ended && event.room && summary && summary.status !== 'failed' && (
+          <InfoRow icon={RiFileList2Line}>
             <button
               type="button"
-              onClick={onShare}
-              data-testid="detail-share"
-              className={detailBtn}
+              onClick={() => {
+                onClose()
+                navigateTo('meetingDetail', event.room)
+              }}
+              data-testid="detail-summary"
+              className={summaryBoxCls}
             >
-              {t('detail.share')}
-            </button>
-          )}
-          {canManage && (
-            <>
-              <button
-                type="button"
-                onClick={onEdit}
-                data-testid="detail-edit"
-                className={detailBtn}
-              >
-                {t('detail.edit')}
-              </button>
-              {/* 删除收进「更多」:高危操作不与常用操作并排(对标飞书)。 */}
-              <div className={moreWrapCls}>
-                <button
-                  type="button"
-                  onClick={() => setMoreOpen((v) => !v)}
-                  data-testid="detail-more"
-                  aria-haspopup="menu"
-                  aria-expanded={moreOpen}
-                  className={detailBtn}
-                >
-                  {t('detail.more')}
-                </button>
-                {moreOpen && (
-                  <>
-                    {/* 透明遮罩兜住「点外部关闭」,省掉全局监听器。 */}
-                    <div
-                      className={moreBackdropCls}
-                      onClick={() => setMoreOpen(false)}
-                    />
-                    <div role="menu" className={moreMenuCls}>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setMoreOpen(false)
-                          onDelete?.()
-                        }}
-                        data-testid="detail-delete"
-                        className={moreItemDangerCls}
-                      >
-                        {t('detail.delete')}
-                      </button>
-                    </div>
-                  </>
+              <span className={summaryTitleCls}>
+                {t('detail.summary')}
+                {summary.status === 'pending' && (
+                  <span className={summaryPendingCls}>
+                    {t('detail.summaryPending')}
+                  </span>
                 )}
-              </div>
-            </>
-          )}
-          {event.room_slug && (
-            <button
-              type="button"
-              onClick={onJoin}
-              data-testid="detail-join"
-              className={css({
-                marginLeft: 'auto',
-                paddingX: '1rem',
-                paddingY: '0.5rem',
-                border: 'none',
-                borderRadius: '0.5rem',
-                backgroundColor: 'primary.500',
-                color: 'white',
-                fontSize: '0.875rem',
-                fontWeight: 'medium',
-                cursor: 'pointer',
-              })}
-            >
-              {t('card.join')}
+              </span>
+              {summaryPreview && (
+                <span className={summaryPreviewCls}>{summaryPreview}…</span>
+              )}
+              <span className={summaryLinkCls}>{t('detail.summaryView')}</span>
             </button>
-          )}
-        </div>
+          </InfoRow>
+        )}
+
+        {event.description && (
+          <InfoRow icon={RiFileTextLine}>
+            <p className={descriptionCls}>{event.description}</p>
+          </InfoRow>
+        )}
+
+        {event.reminders && event.reminders.length > 0 && (
+          <InfoRow icon={RiNotification3Line}>
+            <span className={mutedTextCls}>
+              {event.reminders
+                .map((m) => t('form.reminderMinutes', { count: m }))
+                .join('、')}
+            </span>
+          </InfoRow>
+        )}
+
+        {/* RSVP —— 维持原样(正文内标签 + 小胶囊);仅参与人/组织者可见,
+            非参与人是「被分享者」,只读。 */}
+        {canRsvp && (
+          <div className={rsvpRowCls}>
+            <span className={rsvpLabelCls}>{t('rsvp.label')}:</span>
+            {(['accepted', 'tentative', 'declined'] as RSVPStatus[]).map(
+              (status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => handle(status)}
+                  data-testid={`detail-rsvp-${status}`}
+                  aria-pressed={rsvp === status}
+                  // 选中/未选两个完整类整体切换 —— cx 叠加同属性原子类时按
+                  // 样式表顺序取胜(非书写顺序),选中态的 white 字曾被基类的
+                  // greyscale.700 盖掉,蓝底深灰字区分度差。
+                  className={rsvp === status ? rsvpBtnActive : rsvpBtn}
+                >
+                  {t(`rsvp.${status}`)}
+                </button>
+              )
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   )
 }
+
+/** 信息行:左侧固定图标沟槽 + 右侧内容,让各类信息纵向对齐(对标飞书)。 */
+const InfoRow = ({
+  icon: Icon,
+  testId,
+  children,
+}: {
+  icon: RemixiconComponentType
+  testId?: string
+  children: ReactNode
+}) => (
+  <div className={infoRowCls} data-testid={testId}>
+    <Icon size={16} className={infoIconCls} />
+    <div className={infoBodyCls}>{children}</div>
+  </div>
+)
 
 /** RRULE → 预设文案 key(与 CreateEventDialog 的预设一一对应;非预设归自定义)。 */
 const recurrenceLabelKey = (rrule: string): string => {
@@ -495,40 +474,214 @@ const recurrenceLabelKey = (rrule: string): string => {
   return 'detail.recurrenceCustom'
 }
 
-const rsvpBtn = css({
-  paddingX: '0.625rem',
-  paddingY: '0.25rem',
-  borderRadius: '999px',
-  border: '1px solid token(colors.greyscale.300)',
-  fontSize: '0.75rem',
-  cursor: 'pointer',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.700',
-  _hover: { backgroundColor: 'greyscale.100' },
+/* ---------- header ---------- */
+
+const headerCls = css({
+  flexShrink: 0,
+  padding: '1.125rem 1.25rem 0.875rem',
 })
 
-const rsvpBtnActive = css({
-  paddingX: '0.625rem',
-  paddingY: '0.25rem',
-  borderRadius: '999px',
-  border: '1px solid token(colors.primary.500)',
-  fontSize: '0.75rem',
-  fontWeight: 'medium',
+const headerTopCls = css({
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: '0.5rem',
+})
+
+// 色块对齐标题首行的视觉中心(对标飞书的日历色标)。
+const dotCls = css({
+  flexShrink: 0,
+  width: '0.625rem',
+  height: '0.625rem',
+  marginTop: '0.375rem',
+  borderRadius: '0.1875rem',
+  backgroundColor: 'primary.500',
+  _dark: { backgroundColor: 'primaryDark.500' },
+})
+
+const titleCls = css({
+  flex: 1,
+  minWidth: 0,
+  margin: 0,
+  fontSize: '1.0625rem',
+  fontWeight: 'bold',
+  lineHeight: 1.4,
+  color: 'greyscale.900',
+  overflowWrap: 'anywhere',
+})
+
+const headerActionsCls = css({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.125rem',
+  marginTop: '-0.125rem',
+})
+
+// 图标钮走小控件圆角 6px(按钮视觉标准:常规 8 / 小控件 6)。
+const iconBtnCls = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '1.75rem',
+  height: '1.75rem',
+  border: 'none',
+  borderRadius: 6,
+  backgroundColor: 'transparent',
+  color: 'greyscale.600',
   cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.900' },
+})
+
+// 时间是这个弹窗的第一信息,用主色 + 中号字重压过其余灰字。
+const whenCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: '0.375rem',
+  margin: '0.5rem 0 0',
+  paddingLeft: '1.125rem',
+  fontSize: '0.875rem',
+  fontWeight: 'medium',
+  color: 'primary.600',
+  _dark: { color: 'primaryDark.700' },
+})
+
+const todayTagCls = css({
+  paddingX: '0.375rem',
+  paddingY: '0.0625rem',
+  borderRadius: 6,
+  backgroundColor: 'primary.100',
+  color: 'primary.700',
+  fontSize: '0.6875rem',
+  fontWeight: 'medium',
+  _dark: { backgroundColor: 'primaryDark.100', color: 'primaryDark.800' },
+})
+
+/* ---------- body / info rows ---------- */
+
+const bodyCls = css({
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  paddingX: '1.25rem',
+  paddingBottom: '0.75rem',
+})
+
+const infoRowCls = css({
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: '0.625rem',
+  paddingY: '0.4375rem',
+})
+
+const infoIconCls = css({
+  flexShrink: 0,
+  marginTop: '0.1875rem',
+  color: 'greyscale.500',
+})
+
+const infoBodyCls = css({
+  flex: 1,
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: '0.375rem',
+})
+
+const bodyTextCls = css({ fontSize: '0.8125rem', color: 'greyscale.800' })
+
+const mutedTextCls = css({ fontSize: '0.8125rem', color: 'greyscale.600' })
+
+const descriptionCls = css({
+  margin: 0,
+  fontSize: '0.8125rem',
+  color: 'greyscale.700',
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+})
+
+/* ---------- people ---------- */
+
+const personCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  minWidth: 0,
+  maxWidth: '100%',
+})
+
+const personNameCls = css({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: '0.8125rem',
+  color: 'greyscale.800',
+})
+
+const organizerTagCls = css({
+  flexShrink: 0,
+  paddingX: '0.25rem',
+  paddingY: '0.0625rem',
+  borderRadius: 6,
+  backgroundColor: 'primary.100',
+  color: 'primary.700',
+  fontSize: '0.6875rem',
+  _dark: { backgroundColor: 'primaryDark.100', color: 'primaryDark.800' },
+})
+
+const attendeeHeadCls = css({
+  fontSize: '0.8125rem',
+  fontWeight: 'medium',
+  color: 'greyscale.800',
+})
+
+const attendeeListCls = css({
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+  width: '100%',
+  maxHeight: '9rem',
+  overflowY: 'auto',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.375rem',
+})
+
+const attendeeItemCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  minWidth: 0,
+})
+
+// 状态图标推到行尾:名字左对齐成列,状态自成一列,扫读更快。
+const statusIconCls = css({ flexShrink: 0, marginLeft: 'auto' })
+const statusAcceptedCls = css({
+  color: 'primary.600',
+  _dark: { color: 'primaryDark.700' },
+})
+const statusDeclinedCls = css({ color: 'danger.600' })
+const statusPendingCls = css({ color: 'greyscale.400' })
+
+/* ---------- meeting ---------- */
+
+const joinBtnCls = css({
+  paddingX: '0.875rem',
+  paddingY: '0.375rem',
+  border: 'none',
+  borderRadius: 8,
   backgroundColor: 'primary.500',
   color: 'white',
-})
-
-const detailBtn = css({
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.700',
   fontSize: '0.8125rem',
+  fontWeight: 'medium',
   cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100' },
+  _hover: { backgroundColor: 'primary.600' },
+  _dark: {
+    backgroundColor: 'primaryDark.500',
+    _hover: { backgroundColor: 'primaryDark.700' },
+  },
 })
 
 /** 会议号按位数分组:8→4+4、9→3+3+3、6→3+3(与会议详情面板同口径)。 */
@@ -542,10 +695,10 @@ const formatSlugDigits = (slug: string): string => {
 }
 
 const meetingBoxCls = css({
-  marginTop: '0.75rem',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  borderRadius: '0.5rem',
+  width: '100%',
+  paddingX: '0.625rem',
+  paddingY: '0.4375rem',
+  borderRadius: 8,
   backgroundColor: 'greyscale.50',
   display: 'flex',
   flexDirection: 'column',
@@ -585,20 +738,22 @@ const meetingCopyCls = css({
   fontSize: '0.75rem',
   cursor: 'pointer',
   _hover: { textDecoration: 'underline' },
+  _dark: { color: 'primaryDark.700' },
 })
 
+/* ---------- summary ---------- */
+
 const summaryBoxCls = css({
-  marginTop: '0.5rem',
   width: '100%',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'flex-start',
   gap: '0.125rem',
   textAlign: 'left',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
+  paddingX: '0.625rem',
+  paddingY: '0.4375rem',
   border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '0.5rem',
+  borderRadius: 8,
   backgroundColor: 'greyscale.000',
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.50' },
@@ -627,22 +782,26 @@ const summaryLinkCls = css({
   fontSize: '0.75rem',
   color: 'primary.600',
   fontWeight: 'medium',
+  _dark: { color: 'primaryDark.700' },
 })
+
+/* ---------- more menu ---------- */
 
 const moreWrapCls = css({ position: 'relative', display: 'inline-flex' })
 
 // 遮罩只负责「点外部关闭」,层级压在菜单之下、其余 UI 之上。
 const moreBackdropCls = css({ position: 'fixed', inset: 0, zIndex: 10 })
 
+// 菜单右对齐:按钮已移到右上角,左对齐会溢出弹窗。
 const moreMenuCls = css({
   position: 'absolute',
   top: 'calc(100% + 0.25rem)',
-  left: 0,
+  right: 0,
   zIndex: 11,
   minWidth: '8rem',
   paddingY: '0.25rem',
   border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '0.5rem',
+  borderRadius: 8,
   backgroundColor: 'greyscale.000',
   boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
 })
@@ -660,4 +819,50 @@ const moreItemDangerCls = css({
   fontSize: '0.8125rem',
   cursor: 'pointer',
   _hover: { backgroundColor: 'danger.50' },
+})
+
+/* ---------- RSVP(维持原样:标签 + 小胶囊) ---------- */
+
+const rsvpRowCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: '0.375rem',
+  marginTop: '0.5rem',
+  paddingTop: '0.75rem',
+  borderTop: '1px solid token(colors.greyscale.100)',
+})
+
+const rsvpLabelCls = css({
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+  marginRight: '0.25rem',
+})
+
+const rsvpBtn = css({
+  paddingX: '0.625rem',
+  paddingY: '0.25rem',
+  borderRadius: '999px',
+  border: '1px solid token(colors.greyscale.300)',
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.700',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+
+const rsvpBtnActive = css({
+  paddingX: '0.625rem',
+  paddingY: '0.25rem',
+  borderRadius: '999px',
+  border: '1px solid token(colors.primary.500)',
+  fontSize: '0.75rem',
+  fontWeight: 'medium',
+  cursor: 'pointer',
+  backgroundColor: 'primary.500',
+  color: 'white',
+  _dark: {
+    backgroundColor: 'primaryDark.500',
+    borderColor: 'primaryDark.500',
+  },
 })

@@ -75,7 +75,10 @@
     "meetingRoomConflict": "salle non réservée",
     "summary": "Compte rendu",
     "summaryPending": "génération…",
-    "summaryView": "Voir le compte rendu"
+    "summaryView": "Voir le compte rendu",
+    "close": "Fermer",
+    "attendeeCount": "{{count}} participants",
+    "attendeeAccepted": "{{count}} ont accepté"
   },
   "rsvp": {
     "label": "Ma réponse",

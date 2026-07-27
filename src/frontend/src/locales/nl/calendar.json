@@ -75,7 +75,10 @@
     "meetingRoomConflict": "ruimte niet gereserveerd",
     "summary": "Notulen",
     "summaryPending": "wordt gegenereerd…",
-    "summaryView": "Notulen bekijken"
+    "summaryView": "Notulen bekijken",
+    "close": "Sluiten",
+    "attendeeCount": "{{count}} deelnemers",
+    "attendeeAccepted": "{{count}} geaccepteerd"
   },
   "rsvp": {
     "label": "Mijn reactie",
