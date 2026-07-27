@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import type { CalendarEvent } from '../api/ApiCalendar'
+import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { MiniCalendar } from './MiniCalendar'
 
 /**
@@ -24,6 +24,74 @@ const formatWhen = (iso: string, locale: string) => {
     return iso
   }
 }
+
+/* ── 表态样式:与网格视图同口径(calendarGridOverrides.css)——
+   接受=实心蓝竖条;待定/未回复=斜纹竖条;拒绝=灰条 + 标题/时间加删除线。
+   各状态整类切换,不 cx 叠加同属性(panda-cx-atomic-order-trap)。 */
+
+const barCls = css({
+  flexShrink: 0,
+  width: '3px',
+  borderRadius: '2px',
+  backgroundColor: 'primary.500',
+})
+
+const barTentativeCls = css({
+  flexShrink: 0,
+  width: '3px',
+  borderRadius: '2px',
+  // 斜纹角度/条宽与网格视图一字不差(primary.500 = #3370FF,
+  // 浅色档取 primary.200,近似网格里的 rgba(51,112,255,.3) 压白底)。
+  backgroundImage:
+    'repeating-linear-gradient(-45deg, #3370FF 0 2px, #B7D0FF 2px 4px)',
+})
+
+const barDeclinedCls = css({
+  flexShrink: 0,
+  width: '3px',
+  borderRadius: '2px',
+  backgroundColor: 'greyscale.400',
+})
+
+const barClsFor = (rsvp: RSVPStatus | null): string => {
+  if (rsvp === 'declined') return barDeclinedCls
+  if (rsvp === 'tentative' || rsvp === 'needs_action') return barTentativeCls
+  return barCls
+}
+
+const titleCls = css({
+  display: 'block',
+  fontSize: '0.85rem',
+  fontWeight: 500,
+  color: 'greyscale.900',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+const titleDeclinedCls = css({
+  display: 'block',
+  fontSize: '0.85rem',
+  fontWeight: 500,
+  color: 'greyscale.500',
+  textDecoration: 'line-through',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+const whenCls = css({
+  display: 'block',
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+})
+
+const whenDeclinedCls = css({
+  display: 'block',
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+  textDecoration: 'line-through',
+})
 
 interface Props {
   date: Date
@@ -127,34 +195,19 @@ export const CalendarSidebar = ({
                     _hover: { backgroundColor: 'primary.50' },
                   })}
                 >
-                  <span
-                    className={css({
-                      flexShrink: 0,
-                      width: '3px',
-                      borderRadius: '2px',
-                      backgroundColor: 'primary.500',
-                    })}
-                  />
+                  <span className={barClsFor(e.my_rsvp)} />
                   <span className={css({ minWidth: 0 })}>
                     <span
-                      className={css({
-                        display: 'block',
-                        fontSize: '0.85rem',
-                        fontWeight: 500,
-                        color: 'greyscale.900',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      })}
+                      className={
+                        e.my_rsvp === 'declined' ? titleDeclinedCls : titleCls
+                      }
                     >
                       {e.title}
                     </span>
                     <span
-                      className={css({
-                        display: 'block',
-                        fontSize: '0.75rem',
-                        color: 'greyscale.500',
-                      })}
+                      className={
+                        e.my_rsvp === 'declined' ? whenDeclinedCls : whenCls
+                      }
                     >
                       {formatWhen(e.start_at, i18n.language)}
                     </span>
