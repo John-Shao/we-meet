@@ -298,26 +298,23 @@
   background-color: #5c8dff;
 }
 
-/* ── 表态状态的块样式(对标飞书) ───────────────────────────────────────
-   接受 = 上面的默认样式(实心蓝竖条 + 浅蓝底 + 蓝字);
-   待定/未回复 = 竖条换斜纹,底色/文字不变 —— 「还没定」一眼可辨;
-   拒绝 = 整块转灰 + 标题/时间加删除线,退到背景里但仍占位。
+/* ── 表态状态的块样式(Web / App 统一:四态四色,一律实线) ───────────────
+   接受=蓝(默认样式,不额外挂类)、未反馈=紫、待定=琥珀、拒绝=灰 + 删除线。
+   每档三件套:竖条实心色、块底同色系低透明、文字取同色深档 —— 与 App 端
+   RsvpVisuals.kt 的色值一一对应,改色请两端同步。
    刻意放在文件末尾:深色块的默认蓝规则([data-theme=dark] .rbc-event)与这里
-   同特异性,写在前面会把拒绝的灰底盖回蓝色。 */
+   同特异性,写在前面会把这里的底色盖回蓝色。 */
+.rbc-event.wm-rsvp-needs,
+.rbc-day-slot .rbc-event.wm-rsvp-needs {
+  background-color: rgba(139, 92, 246, 0.12);
+  border-left-color: #8b5cf6;
+  color: #5b21b6;
+}
 .rbc-event.wm-rsvp-tentative,
 .rbc-day-slot .rbc-event.wm-rsvp-tentative {
-  /* 竖条本体交给 background-image 画斜纹:border 画不出条纹,故留透明边框
-     占位,再把背景原点挪到 border-box,让 3px 的斜纹正好落在边框区。 */
-  border-left-color: transparent;
-  background-image: repeating-linear-gradient(
-    -45deg,
-    #3370ff 0 2px,
-    rgba(51, 112, 255, 0.3) 2px 4px
-  );
-  background-repeat: no-repeat;
-  background-size: 3px 100%;
-  background-position: left top;
-  background-origin: border-box;
+  background-color: rgba(245, 158, 11, 0.14);
+  border-left-color: #f59e0b;
+  color: #92400e;
 }
 .rbc-event.wm-rsvp-declined,
 .rbc-day-slot .rbc-event.wm-rsvp-declined {
@@ -325,8 +322,16 @@
   border-left-color: var(--colors-greyscale-400);
   color: var(--colors-greyscale-500);
 }
-/* 选中态:上面的 .rbc-selected 蓝底规则在本节之前,拒绝块会盖掉它,
-   补一档灰保证点击有反馈。 */
+/* 选中态:上面的 .rbc-selected 蓝底规则在本节之前,会被这里的底色盖掉,
+   逐档补一挡深色保证点击有反馈。 */
+.rbc-event.wm-rsvp-needs.rbc-selected,
+.rbc-day-slot .rbc-event.wm-rsvp-needs.rbc-selected {
+  background-color: rgba(139, 92, 246, 0.24);
+}
+.rbc-event.wm-rsvp-tentative.rbc-selected,
+.rbc-day-slot .rbc-event.wm-rsvp-tentative.rbc-selected {
+  background-color: rgba(245, 158, 11, 0.26);
+}
 .rbc-event.wm-rsvp-declined.rbc-selected,
 .rbc-day-slot .rbc-event.wm-rsvp-declined.rbc-selected {
   background-color: var(--colors-greyscale-200);
@@ -337,16 +342,19 @@
   text-decoration: line-through;
 }
 
-/* 月视图限时日程是「点 + 时间 + 标题」纯文字行,没有竖条可换:
-   待定 → 空心点;拒绝 → 灰点 + 整行删除线。 */
+/* 月视图限时日程是「点 + 时间 + 标题」纯文字行,没有竖条:颜色落到圆点上,
+   拒绝额外整行删除线。 */
+.rbc-month-view .rbc-event.wm-month-timed.wm-rsvp-needs,
 .rbc-month-view .rbc-event.wm-month-timed.wm-rsvp-tentative {
-  background-image: none;
+  background-color: transparent;
+}
+.rbc-month-view .rbc-event.wm-month-timed.wm-rsvp-needs .wm-month-timed-dot {
+  background-color: #8b5cf6;
 }
 .rbc-month-view
   .rbc-event.wm-month-timed.wm-rsvp-tentative
   .wm-month-timed-dot {
-  background-color: transparent;
-  border: 1.5px solid #3370ff;
+  background-color: #f59e0b;
 }
 .rbc-month-view .rbc-event.wm-month-timed.wm-rsvp-declined {
   background-color: transparent;
@@ -362,16 +370,19 @@
   background-color: var(--colors-greyscale-400);
 }
 
-/* 深色:斜纹用亮蓝(#5C8DFF,同深色竖条);拒绝态的灰走 greyscale 变量,
-   本就随主题翻转,无需另写。 */
+/* 深色:紫/琥珀各提亮一档(深底上原色发闷),底色加深保持层次;
+   拒绝档走 greyscale 变量,本就随主题翻转,无需另写色值。 */
+[data-theme='dark'] .rbc-event.wm-rsvp-needs,
+[data-theme='dark'] .rbc-day-slot .rbc-event.wm-rsvp-needs {
+  background-color: rgba(139, 92, 246, 0.24);
+  border-left-color: #a78bfa;
+  color: #c4b5fd;
+}
 [data-theme='dark'] .rbc-event.wm-rsvp-tentative,
 [data-theme='dark'] .rbc-day-slot .rbc-event.wm-rsvp-tentative {
-  border-left-color: transparent;
-  background-image: repeating-linear-gradient(
-    -45deg,
-    #5c8dff 0 2px,
-    rgba(92, 141, 255, 0.35) 2px 4px
-  );
+  background-color: rgba(245, 158, 11, 0.22);
+  border-left-color: #fbbf24;
+  color: #fcd34d;
 }
 [data-theme='dark'] .rbc-event.wm-rsvp-declined,
 [data-theme='dark'] .rbc-day-slot .rbc-event.wm-rsvp-declined {
@@ -381,8 +392,13 @@
 }
 [data-theme='dark']
   .rbc-month-view
+  .rbc-event.wm-month-timed.wm-rsvp-needs
+  .wm-month-timed-dot {
+  background-color: #a78bfa;
+}
+[data-theme='dark']
+  .rbc-month-view
   .rbc-event.wm-month-timed.wm-rsvp-tentative
   .wm-month-timed-dot {
-  background-color: transparent;
-  border-color: #5c8dff;
+  background-color: #fbbf24;
 }

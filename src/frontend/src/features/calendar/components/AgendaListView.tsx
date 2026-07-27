@@ -8,7 +8,7 @@ import { css, cx } from '@/styled-system/css'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { MemberAvatar } from '@/features/contacts'
 
-import type { CalendarEvent } from '../api/ApiCalendar'
+import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 
 /**
  * rbc 自定义「日程」视图(对标飞书重做,替换 rbc 内置 Agenda):
@@ -204,15 +204,22 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
                     <td className={cx(tdCls, ellipsisCls, centerCls)}>
                       {r.resource?.organizer?.full_name || '—'}
                     </td>
-                    {/* 已拒绝的日程加删除线转灰(对齐网格视图的表态样式)。
-                       套一层 span 而不是给 td 叠类:tdCls 自带 color,
+                    {/* 表态:圆点上色(与月视图同语言),拒绝再加删除线转灰。
+                       标题套一层 span 而不是给 td 叠类:tdCls 自带 color,
                        cx 叠加同属性按样式表顺序取胜(panda-cx-atomic-order-trap)。 */}
                     <td className={cx(tdCls, ellipsisCls)}>
-                      {r.resource?.my_rsvp === 'declined' ? (
-                        <span className={declinedTitleCls}>{r.title}</span>
-                      ) : (
-                        r.title
-                      )}
+                      <span className={eventCellCls}>
+                        <span className={dotClsFor(r.resource?.my_rsvp)} />
+                        <span
+                          className={
+                            r.resource?.my_rsvp === 'declined'
+                              ? declinedTitleCls
+                              : titleSpanCls
+                          }
+                        >
+                          {r.title}
+                        </span>
+                      </span>
                     </td>
                   </tr>
                 )
@@ -433,10 +440,58 @@ const centerCls = css({ textAlign: 'center' })
 // th 浏览器默认居中,事件列需显式左对齐。
 const leftCls = css({ textAlign: 'left' })
 
+/* 表态四态四色(与网格/侧栏/App 端同一组色值):接受=蓝、未反馈=紫、
+   待定=琥珀、拒绝=灰。整类切换,不 cx 叠加同属性。 */
+
+const eventCellCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  minWidth: 0,
+})
+
+const titleSpanCls = css({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
 const declinedTitleCls = css({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   textDecoration: 'line-through',
   color: 'greyscale.500',
 })
+
+const dotBase = {
+  flexShrink: 0,
+  width: '6px',
+  height: '6px',
+  borderRadius: '50%',
+} as const
+
+const dotAcceptedCls = css({ ...dotBase, backgroundColor: 'primary.500' })
+const dotNeedsCls = css({
+  ...dotBase,
+  backgroundColor: '#8B5CF6',
+  _dark: { backgroundColor: '#A78BFA' },
+})
+const dotTentativeCls = css({
+  ...dotBase,
+  backgroundColor: '#F59E0B',
+  _dark: { backgroundColor: '#FBBF24' },
+})
+const dotDeclinedCls = css({ ...dotBase, backgroundColor: 'greyscale.400' })
+
+const dotClsFor = (rsvp?: RSVPStatus | null): string => {
+  if (rsvp === 'declined') return dotDeclinedCls
+  if (rsvp === 'tentative') return dotTentativeCls
+  if (rsvp === 'needs_action') return dotNeedsCls
+  return dotAcceptedCls
+}
 
 const ellipsisCls = css({
   maxWidth: 0,

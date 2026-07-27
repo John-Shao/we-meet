@@ -101,13 +101,14 @@ const weekHeaderFor = (locale: Locale) =>
     )
   }
 
-// 表态状态的块样式(对标飞书):接受=实心蓝竖条(默认样式,不加类);
-// 待定/未回复=斜纹竖条(未定的日程一眼可辨);拒绝=灰底 + 标题时间加删除线。
-// 样式落在 calendarGridOverrides.css,月视图的纯文字行同步换点/加删除线。
-// my_rsvp 为空(历史数据里组织者没有 attendee 行)按接受处理,不平白斜纹。
+// 表态状态的块样式:四态四色、一律实线(Web / App 统一)——
+// 接受=蓝(默认样式,不加类)、未反馈=紫、待定=琥珀、拒绝=灰 + 删除线。
+// 样式落在 calendarGridOverrides.css,月视图的纯文字行把颜色落到圆点上。
+// my_rsvp 为空(历史数据里组织者没有 attendee 行)按接受处理。
 const rsvpClassFor = (rsvp?: RSVPStatus | null): string => {
   if (rsvp === 'declined') return 'wm-rsvp-declined'
-  if (rsvp === 'tentative' || rsvp === 'needs_action') return 'wm-rsvp-tentative'
+  if (rsvp === 'tentative') return 'wm-rsvp-tentative'
+  if (rsvp === 'needs_action') return 'wm-rsvp-needs'
   return ''
 }
 

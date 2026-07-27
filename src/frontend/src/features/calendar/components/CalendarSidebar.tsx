@@ -26,7 +26,8 @@ const formatWhen = (iso: string, locale: string) => {
 }
 
 /* ── 表态样式:与网格视图同口径(calendarGridOverrides.css)——
-   接受=实心蓝竖条;待定/未回复=斜纹竖条;拒绝=灰条 + 标题/时间加删除线。
+   四态四色、一律实线:接受=蓝、未反馈=紫、待定=琥珀、拒绝=灰(+删除线)。
+   紫/琥珀直接写死色值与网格/App 端对齐(网格 CSS 的强调色一律硬编码);
    各状态整类切换,不 cx 叠加同属性(panda-cx-atomic-order-trap)。 */
 
 const barCls = css({
@@ -36,14 +37,20 @@ const barCls = css({
   backgroundColor: 'primary.500',
 })
 
+const barNeedsCls = css({
+  flexShrink: 0,
+  width: '3px',
+  borderRadius: '2px',
+  backgroundColor: '#8B5CF6',
+  _dark: { backgroundColor: '#A78BFA' },
+})
+
 const barTentativeCls = css({
   flexShrink: 0,
   width: '3px',
   borderRadius: '2px',
-  // 斜纹角度/条宽与网格视图一字不差(primary.500 = #3370FF,
-  // 浅色档取 primary.200,近似网格里的 rgba(51,112,255,.3) 压白底)。
-  backgroundImage:
-    'repeating-linear-gradient(-45deg, #3370FF 0 2px, #B7D0FF 2px 4px)',
+  backgroundColor: '#F59E0B',
+  _dark: { backgroundColor: '#FBBF24' },
 })
 
 const barDeclinedCls = css({
@@ -55,7 +62,8 @@ const barDeclinedCls = css({
 
 const barClsFor = (rsvp: RSVPStatus | null): string => {
   if (rsvp === 'declined') return barDeclinedCls
-  if (rsvp === 'tentative' || rsvp === 'needs_action') return barTentativeCls
+  if (rsvp === 'tentative') return barTentativeCls
+  if (rsvp === 'needs_action') return barNeedsCls
   return barCls
 }
 
