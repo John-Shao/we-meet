@@ -72,6 +72,11 @@ export const useForwardConversations = () => {
     const peer = c.members.find((u) => u !== currentUserUID)
     return (peer && peerNames[peer]?.avatar_url) || undefined
   }
+  const peerUserIdOf = (c: ConversationSummary): string | undefined => {
+    if (c.type === 'group') return undefined
+    const peer = c.members.find((u) => u !== currentUserUID)
+    return (peer && peerNames[peer]?.id) || undefined
+  }
   const membersOf = (c: ConversationSummary) => {
     if (c.type !== 'group') return undefined
     return c.members.slice(0, 9).map((uid) => ({
@@ -86,6 +91,7 @@ export const useForwardConversations = () => {
     avatarUrl: avatarOf(c),
     members: membersOf(c),
     isGroup: c.type === 'group',
+    peerUserId: peerUserIdOf(c),
   }))
 
   return { client, conversations: forwardConvs, isLoading }

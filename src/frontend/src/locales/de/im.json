@@ -65,9 +65,12 @@
   },
   "forward": {
     "title": "Weiterleiten an",
-    "searchPlaceholder": "Unterhaltungen suchen…",
+    "searchPlaceholder": "Unterhaltungen oder Kontakte suchen…",
     "send": "Senden",
     "loading": "Unterhaltungen werden geladen…",
+    "sectionConversations": "Unterhaltungen",
+    "sectionDirectory": "Verzeichnis",
+    "resolveFailed": "Unterhaltung konnte nicht erstellt werden, bitte erneut versuchen",
     "empty": "Keine Unterhaltungen",
     "done": "Weitergeleitet an „{{name}}“",
     "doneMany": "An {{count}} Unterhaltungen weitergeleitet",

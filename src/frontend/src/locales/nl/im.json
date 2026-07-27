@@ -65,9 +65,12 @@
   },
   "forward": {
     "title": "Doorsturen naar",
-    "searchPlaceholder": "Gesprekken zoeken…",
+    "searchPlaceholder": "Zoek gesprekken of contacten…",
     "send": "Versturen",
     "loading": "Gesprekken laden…",
+    "sectionConversations": "Gesprekken",
+    "sectionDirectory": "Adresboek",
+    "resolveFailed": "Gesprek starten mislukt, probeer opnieuw",
     "empty": "Geen gesprekken",
     "done": "Doorgestuurd naar '{{name}}'",
     "doneMany": "Doorgestuurd naar {{count}} gesprekken",

@@ -557,6 +557,11 @@ const ImAuthenticated = () => {
     avatarUrl: avatarOf(c),
     members: membersOf(c),
     isGroup: c.type === 'group',
+    // 与通讯录搜索结果去重用(见 ForwardDialog)。
+    peerUserId:
+      c.type === 'group'
+        ? undefined
+        : peerNames[c.members.find((u) => u !== currentUserUID) ?? '']?.id,
   }))
 
   return (

@@ -65,9 +65,12 @@
   },
   "forward": {
     "title": "转发到",
-    "searchPlaceholder": "搜索会话…",
+    "searchPlaceholder": "搜索会话或联系人…",
     "send": "发送",
     "loading": "正在加载会话…",
+    "sectionConversations": "会话",
+    "sectionDirectory": "通讯录",
+    "resolveFailed": "创建会话失败，请重试",
     "empty": "没有可转发的会话",
     "done": "已转发到「{{name}}」",
     "doneMany": "已转发到 {{count}} 个会话",

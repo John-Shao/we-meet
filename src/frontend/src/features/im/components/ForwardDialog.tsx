@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
-import { MemberAvatar } from '@/features/contacts'
+import { MemberAvatar, useDirectoryMemberSearch } from '@/features/contacts'
+
+import { createDirectConversationByUserId } from '../api/createDirectConversation'
 
 import { GroupAvatar, type GroupAvatarMember } from './GroupAvatar'
 
@@ -17,6 +19,9 @@ export interface ForwardConv {
   /** group member tiles for the mosaic avatar; undefined for direct. */
   members?: GroupAvatarMember[]
   isGroup: boolean
+  /** 单聊对端的 we-meet user id —— 用来和通讯录搜索结果去重(已经有会话的人
+   * 不该在「通讯录」分组里再出现一次)。缺失时该会话不参与去重。 */
+  peerUserId?: string
 }
 
 interface Props {
@@ -36,8 +41,13 @@ interface Props {
 }
 
 /**
- * 消息转发选择器(P7-e):从已有会话里挑一个目标,把选中的消息重发过去。
- * 单选 + 发送两步,避免误点直接外发;搜索按会话名过滤。
+ * 消息转发选择器(P7-e):挑一个或多个目标,把选中的消息重发过去。
+ * 勾选 + 发送两步,避免误点直接外发。
+ *
+ * 搜索同时覆盖**已有会话**和**通讯录**(对标飞书):还没聊过的同事也能直接转发,
+ * 确认时先 create-or-get 出单聊会话再发。目标解析在这里做而不是甩给调用方,是
+ * 为了让 `onConfirm(cids)` 这个契约保持不变 —— 四个调用方(消息转发/日程/会议/
+ * 云文档)一行不用改就都拿到了通讯录搜索。
  */
 export const ForwardDialog = ({
   conversations,
@@ -48,8 +58,17 @@ export const ForwardDialog = ({
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
-  const [query, setQuery] = useState('')
+  // 通讯录搜索自带防抖 + keepPreviousData;query 本身是即时的,所以会话列表
+  // 过滤不会跟着防抖延迟。
+  const { query, setQuery, selectable } = useDirectoryMemberSearch()
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  // 通讯录里选中的人:userId → 展示名。存名字是为了搜索词变了、行已经不在列表
+  // 里时,底部计数和后续解析仍然拿得到。
+  const [selectedUsers, setSelectedUsers] = useState<Map<string, string>>(
+    new Map()
+  )
+  const [resolving, setResolving] = useState(false)
+  const [resolveFailed, setResolveFailed] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const toggle = (cid: string) =>
     setSelected((prev) => {
@@ -58,12 +77,54 @@ export const ForwardDialog = ({
       else next.add(cid)
       return next
     })
+  const toggleUser = (id: string, name: string) =>
+    setSelectedUsers((prev) => {
+      const next = new Map(prev)
+      if (next.has(id)) next.delete(id)
+      else next.set(id, name)
+      return next
+    })
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return conversations
     return conversations.filter((c) => c.name.toLowerCase().includes(q))
   }, [conversations, query])
+
+  // 通讯录候选:仅在搜索时出现(不搜索时这里是「最近会话」,塞进整本通讯录只会
+  // 干扰);已经有单聊会话的人不重复出现 —— 选上面那行会话即可。
+  const directoryHits = useMemo(() => {
+    if (!query.trim()) return []
+    const known = new Set(
+      conversations.map((c) => c.peerUserId).filter((id): id is string => !!id)
+    )
+    return selectable.filter((m) => !known.has(m.id))
+  }, [query, selectable, conversations])
+
+  const totalSelected = selected.size + selectedUsers.size
+
+  const confirm = async () => {
+    setResolveFailed(false)
+    if (selectedUsers.size === 0) {
+      onConfirm([...selected])
+      return
+    }
+    // 通讯录选中的人还没有会话 —— 先 create-or-get(幂等,同一对用户永远同一个
+    // cid),全部成功才发:失败就地提示重试,而不是发一半留下不一致的结果。
+    setResolving(true)
+    try {
+      const cids = await Promise.all(
+        [...selectedUsers.keys()].map((id) =>
+          createDirectConversationByUserId(id).then((r) => r.cid)
+        )
+      )
+      onConfirm([...selected, ...cids])
+    } catch {
+      setResolveFailed(true)
+    } finally {
+      setResolving(false)
+    }
+  }
 
   return (
     <Modal
@@ -115,47 +176,89 @@ export const ForwardDialog = ({
       )}
 
       <div className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem' })}>
-        {filtered.length === 0 ? (
+        {filtered.length === 0 && directoryHits.length === 0 ? (
           <StateHint loading={isLoading}>
             {isLoading ? t('forward.loading') : t('forward.empty')}
           </StateHint>
         ) : (
-          filtered.map((c) => {
-            const active = selected.has(c.cid)
-            return (
-              <button
-                key={c.cid}
-                type="button"
-                onClick={() => toggle(c.cid)}
-                aria-pressed={active}
-                data-testid={`forward-item-${c.cid}`}
-                className={rowCls(active)}
-              >
-                <span className={checkboxCls(active)} aria-hidden="true">
-                  {active ? '✓' : ''}
-                </span>
-                {c.isGroup ? (
-                  <GroupAvatar members={c.members ?? []} size="2rem" />
-                ) : (
-                  <MemberAvatar name={c.name} src={c.avatarUrl} size="2rem" />
-                )}
-                <span className={nameCls}>{c.name}</span>
-              </button>
-            )
-          })
+          <>
+            {/* 分组标题只在两组都可能出现时才有意义(即正在搜索);不搜索时列表
+                就是「最近会话」,加个标题反而多余。 */}
+            {directoryHits.length > 0 && filtered.length > 0 && (
+              <p className={sectionCls}>{t('forward.sectionConversations')}</p>
+            )}
+            {filtered.map((c) => {
+              const active = selected.has(c.cid)
+              return (
+                <button
+                  key={c.cid}
+                  type="button"
+                  onClick={() => toggle(c.cid)}
+                  aria-pressed={active}
+                  data-testid={`forward-item-${c.cid}`}
+                  className={rowCls(active)}
+                >
+                  <span className={checkboxCls(active)} aria-hidden="true">
+                    {active ? '✓' : ''}
+                  </span>
+                  {c.isGroup ? (
+                    <GroupAvatar members={c.members ?? []} size="2rem" />
+                  ) : (
+                    <MemberAvatar name={c.name} src={c.avatarUrl} size="2rem" />
+                  )}
+                  <span className={nameCls}>{c.name}</span>
+                </button>
+              )
+            })}
+
+            {directoryHits.length > 0 && (
+              <p className={sectionCls}>{t('forward.sectionDirectory')}</p>
+            )}
+            {directoryHits.map((m) => {
+              const label = m.full_name || m.short_name || m.email || m.id
+              const active = selectedUsers.has(m.id)
+              const sub = [m.title, m.department?.name]
+                .filter(Boolean)
+                .join(' · ')
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => toggleUser(m.id, label)}
+                  aria-pressed={active}
+                  data-testid={`forward-user-${m.id}`}
+                  className={rowCls(active)}
+                >
+                  <span className={checkboxCls(active)} aria-hidden="true">
+                    {active ? '✓' : ''}
+                  </span>
+                  <MemberAvatar name={label} src={m.avatar_url} size="2rem" />
+                  <span className={nameColCls}>
+                    <span className={nameCls}>{label}</span>
+                    {sub ? <span className={subCls}>{sub}</span> : null}
+                  </span>
+                </button>
+              )
+            })}
+          </>
         )}
       </div>
 
       <div className={footerCls}>
+        {resolveFailed && (
+          <span className={errorCls} role="alert">
+            {t('forward.resolveFailed')}
+          </span>
+        )}
         <button
           type="button"
-          disabled={selected.size === 0}
-          onClick={() => selected.size > 0 && onConfirm([...selected])}
+          disabled={totalSelected === 0 || resolving}
+          onClick={() => void confirm()}
           data-testid="forward-send"
-          className={sendCls(selected.size > 0)}
+          className={sendCls(totalSelected > 0 && !resolving)}
         >
-          {selected.size > 0
-            ? t('forward.sendCount', { count: selected.size })
+          {totalSelected > 0
+            ? t('forward.sendCount', { count: totalSelected })
             : t('forward.send')}
         </button>
       </div>
@@ -253,6 +356,38 @@ const nameCls = css({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+})
+
+const nameColCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.125rem',
+  flex: 1,
+  minWidth: 0,
+})
+
+const subCls = css({
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+const sectionCls = css({
+  margin: 0,
+  paddingX: '1rem',
+  paddingY: '0.375rem',
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+  backgroundColor: 'greyscale.50',
+})
+
+const errorCls = css({
+  marginRight: 'auto',
+  alignSelf: 'center',
+  fontSize: '0.8125rem',
+  color: 'error.500',
 })
 
 const createGroupCls = css({

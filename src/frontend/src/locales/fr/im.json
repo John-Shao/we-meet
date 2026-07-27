@@ -65,9 +65,12 @@
   },
   "forward": {
     "title": "Transférer vers",
-    "searchPlaceholder": "Rechercher des conversations…",
+    "searchPlaceholder": "Rechercher des conversations ou contacts…",
     "send": "Envoyer",
     "loading": "Chargement des conversations…",
+    "sectionConversations": "Conversations",
+    "sectionDirectory": "Annuaire",
+    "resolveFailed": "Échec de la création de la conversation, réessayez",
     "empty": "Aucune conversation",
     "done": "Transféré vers « {{name}} »",
     "doneMany": "Transféré vers {{count}} conversations",
