@@ -4,10 +4,10 @@ import {
   RiBuilding2Line,
   RiCheckLine,
   RiCloseLine,
+  RiDeleteBinLine,
   RiFileList2Line,
   RiFileTextLine,
   RiGroupLine,
-  RiMoreLine,
   RiNotification3Line,
   RiPencilLine,
   RiQuestionLine,
@@ -43,14 +43,15 @@ interface Props {
 /**
  * Event detail popup opened by clicking a grid event (对标飞书).
  *
- * 布局两段(2026-07 对标飞书重排):
- * 1. 头部固定 —— 色块+标题一行,操作(分享/编辑/更多/关闭)收成右上角图标钮,
+ * 布局三段(2026-07 对标飞书重排):
+ * 1. 头部固定 —— 色块+标题一行,操作(分享/编辑/删除/关闭)收成右上角图标钮,
  *    时间用主色强调并带「今天」标记;
  * 2. 信息区滚动 —— 每条信息一行「图标沟槽 + 内容」,取代原先散落的
- *    emoji 前缀 + 「标签: 值」行文,信息类型靠左侧图标一眼可辨。
+ *    emoji 前缀 + 「标签: 值」行文,信息类型靠左侧图标一眼可辨;
+ * 3. 底部固定 —— RSVP 三档整行等分(原先是正文中间的小胶囊,主决策却最难点)。
  *
- * 「进入会议」跟着会议号/链接进信息区(对标飞书的「发起视频会议」),不再单独
- * 占一条底部操作栏 —— 底部操作栏随之取消,RSVP 维持原来的正文内小胶囊。
+ * 「进入会议」跟着会议号/链接进信息区(对标飞书的「发起视频会议」),不再独占
+ * 底部操作栏 —— 底栏留给表态。
  */
 export const EventDetailDialog = ({
   event,
@@ -65,8 +66,6 @@ export const EventDetailDialog = ({
   const { t, i18n } = useTranslation('calendar')
   const { user } = useUser()
   const [rsvp, setRsvp] = useState<RSVPStatus | null>(event.my_rsvp ?? null)
-  // 「更多」菜单(删除收纳其中,对标飞书)。
-  const [moreOpen, setMoreOpen] = useState(false)
   // 会议号/链接的「已复制」瞬时态。
   const [copied, setCopied] = useState<'id' | 'link' | null>(null)
   const meetingLink = event.room_slug
@@ -167,44 +166,18 @@ export const EventDetailDialog = ({
                 >
                   <RiPencilLine size={17} />
                 </button>
-                {/* 删除收进「更多」:高危操作不与常用操作并排(对标飞书)。 */}
-                <div className={moreWrapCls}>
-                  <button
-                    type="button"
-                    onClick={() => setMoreOpen((v) => !v)}
-                    data-testid="detail-more"
-                    aria-haspopup="menu"
-                    aria-expanded={moreOpen}
-                    title={t('detail.more')}
-                    aria-label={t('detail.more')}
-                    className={iconBtnCls}
-                  >
-                    <RiMoreLine size={17} />
-                  </button>
-                  {moreOpen && (
-                    <>
-                      {/* 透明遮罩兜住「点外部关闭」,省掉全局监听器。 */}
-                      <div
-                        className={moreBackdropCls}
-                        onClick={() => setMoreOpen(false)}
-                      />
-                      <div role="menu" className={moreMenuCls}>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setMoreOpen(false)
-                            onDelete?.()
-                          }}
-                          data-testid="detail-delete"
-                          className={moreItemDangerCls}
-                        >
-                          {t('detail.delete')}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                {/* 删除与编辑/分享并排(对标飞书):删除本就走二次确认,
+                    再套一层「更多」只是多一次点击。悬停转红做危险提示。 */}
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  data-testid="detail-delete"
+                  title={t('detail.delete')}
+                  aria-label={t('detail.delete')}
+                  className={iconBtnDangerCls}
+                >
+                  <RiDeleteBinLine size={17} />
+                </button>
               </>
             )}
             <button
@@ -418,32 +391,36 @@ export const EventDetailDialog = ({
             </span>
           </InfoRow>
         )}
-
-        {/* RSVP —— 维持原样(正文内标签 + 小胶囊);仅参与人/组织者可见,
-            非参与人是「被分享者」,只读。 */}
-        {canRsvp && (
-          <div className={rsvpRowCls}>
-            <span className={rsvpLabelCls}>{t('rsvp.label')}:</span>
-            {(['accepted', 'tentative', 'declined'] as RSVPStatus[]).map(
-              (status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => handle(status)}
-                  data-testid={`detail-rsvp-${status}`}
-                  aria-pressed={rsvp === status}
-                  // 选中/未选两个完整类整体切换 —— cx 叠加同属性原子类时按
-                  // 样式表顺序取胜(非书写顺序),选中态的 white 字曾被基类的
-                  // greyscale.700 盖掉,蓝底深灰字区分度差。
-                  className={rsvp === status ? rsvpBtnActive : rsvpBtn}
-                >
-                  {t(`rsvp.${status}`)}
-                </button>
-              )
-            )}
-          </div>
-        )}
       </div>
+
+      {/* 底栏 RSVP —— 三档等分整行(对标飞书);仅参与人/组织者可见,
+          非参与人是「被分享者」,只读,连底栏一起不渲染。 */}
+      {canRsvp && (
+        <div
+          className={footerCls}
+          role="group"
+          aria-label={t('rsvp.label')}
+          data-testid="detail-rsvp"
+        >
+          {(['accepted', 'tentative', 'declined'] as RSVPStatus[]).map(
+            (status) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => handle(status)}
+                data-testid={`detail-rsvp-${status}`}
+                aria-pressed={rsvp === status}
+                // 选中/未选两个完整类整体切换 —— cx 叠加同属性原子类时按
+                // 样式表顺序取胜(非书写顺序),选中态的 white 字曾被基类的
+                // greyscale.700 盖掉,蓝底深灰字区分度差。
+                className={rsvp === status ? rsvpBtnActive : rsvpBtn}
+              >
+                {t(`rsvp.${status}`)}
+              </button>
+            )
+          )}
+        </div>
+      )}
     </Modal>
   )
 }
@@ -530,6 +507,22 @@ const iconBtnCls = css({
   color: 'greyscale.600',
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.900' },
+})
+
+// 删除:静默态与其余图标同灰,悬停才转红 —— 不用 cx 叠加同属性原子类
+// (顺序取胜会让 danger 色被基类盖掉),整份完整类。
+const iconBtnDangerCls = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '1.75rem',
+  height: '1.75rem',
+  border: 'none',
+  borderRadius: 6,
+  backgroundColor: 'transparent',
+  color: 'greyscale.600',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'danger.50', color: 'danger.600' },
 })
 
 // 时间是这个弹窗的第一信息,用主色 + 中号字重压过其余灰字。
@@ -785,66 +778,23 @@ const summaryLinkCls = css({
   _dark: { color: 'primaryDark.700' },
 })
 
-/* ---------- more menu ---------- */
+/* ---------- footer RSVP ---------- */
 
-const moreWrapCls = css({ position: 'relative', display: 'inline-flex' })
-
-// 遮罩只负责「点外部关闭」,层级压在菜单之下、其余 UI 之上。
-const moreBackdropCls = css({ position: 'fixed', inset: 0, zIndex: 10 })
-
-// 菜单右对齐:按钮已移到右上角,左对齐会溢出弹窗。
-const moreMenuCls = css({
-  position: 'absolute',
-  top: 'calc(100% + 0.25rem)',
-  right: 0,
-  zIndex: 11,
-  minWidth: '8rem',
-  paddingY: '0.25rem',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: 8,
-  backgroundColor: 'greyscale.000',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-})
-
-// 与 rsvpBtn 同因:不用 cx 叠加同属性(danger 色可能被基类盖掉),完整类。
-const moreItemDangerCls = css({
-  display: 'block',
-  width: '100%',
-  textAlign: 'left',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  border: 'none',
-  backgroundColor: 'transparent',
-  color: 'danger.600',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'danger.50' },
-})
-
-/* ---------- RSVP(维持原样:标签 + 小胶囊) ---------- */
-
-const rsvpRowCls = css({
+const footerCls = css({
+  flexShrink: 0,
   display: 'flex',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: '0.375rem',
-  marginTop: '0.5rem',
-  paddingTop: '0.75rem',
+  gap: '0.5rem',
+  paddingX: '1.25rem',
+  paddingY: '0.875rem',
   borderTop: '1px solid token(colors.greyscale.100)',
 })
 
-const rsvpLabelCls = css({
-  fontSize: '0.75rem',
-  color: 'greyscale.500',
-  marginRight: '0.25rem',
-})
-
 const rsvpBtn = css({
-  paddingX: '0.625rem',
-  paddingY: '0.25rem',
-  borderRadius: '999px',
+  flex: 1,
+  paddingY: '0.5rem',
+  borderRadius: 8,
   border: '1px solid token(colors.greyscale.300)',
-  fontSize: '0.75rem',
+  fontSize: '0.8125rem',
   cursor: 'pointer',
   backgroundColor: 'greyscale.000',
   color: 'greyscale.700',
@@ -852,11 +802,11 @@ const rsvpBtn = css({
 })
 
 const rsvpBtnActive = css({
-  paddingX: '0.625rem',
-  paddingY: '0.25rem',
-  borderRadius: '999px',
+  flex: 1,
+  paddingY: '0.5rem',
+  borderRadius: 8,
   border: '1px solid token(colors.primary.500)',
-  fontSize: '0.75rem',
+  fontSize: '0.8125rem',
   fontWeight: 'medium',
   cursor: 'pointer',
   backgroundColor: 'primary.500',
