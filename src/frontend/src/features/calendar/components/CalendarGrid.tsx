@@ -7,7 +7,7 @@ import { zhCN, enUS, fr, de, nl, type Locale } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import './calendarGridOverrides.css'
 
-import type { CalendarEvent } from '../api/ApiCalendar'
+import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import { resolveRbcView } from '../utils/rbcView'
 import { CalendarToolbar } from './CalendarToolbar'
@@ -100,6 +100,16 @@ const weekHeaderFor = (locale: Locale) =>
       </div>
     )
   }
+
+// 表态状态的块样式(对标飞书):接受=实心蓝竖条(默认样式,不加类);
+// 待定/未回复=斜纹竖条(未定的日程一眼可辨);拒绝=灰底 + 标题时间加删除线。
+// 样式落在 calendarGridOverrides.css,月视图的纯文字行同步换点/加删除线。
+// my_rsvp 为空(历史数据里组织者没有 attendee 行)按接受处理,不平白斜纹。
+const rsvpClassFor = (rsvp?: RSVPStatus | null): string => {
+  if (rsvp === 'declined') return 'wm-rsvp-declined'
+  if (rsvp === 'tentative' || rsvp === 'needs_action') return 'wm-rsvp-tentative'
+  return ''
+}
 
 export interface SlotDraft {
   start: Date
@@ -278,11 +288,17 @@ export const CalendarGrid = ({
       eventPropGetter={(ev) => {
         // wm-short-timed:周/日视图短日程隐藏第二行时间(由 TimeEvent 内联)。
         const short = isShortTimed(ev) ? ' wm-short-timed' : ''
-        // 草稿占位块:选中态实心蓝,不参与 dimPast/月视图纯文字行。
+        // 草稿占位块:选中态实心蓝,不参与 dimPast/月视图纯文字行/表态样式。
         if (ev.id === DRAFT_ID) return { className: `wm-slot-draft${short}` }
-        return {
+        const className = [
           // wm-month-timed 只在月视图 CSS 里生效,周/日视图带着也无副作用。
-          ...(isMonthBar(ev) ? {} : { className: `wm-month-timed${short}` }),
+          isMonthBar(ev) ? '' : `wm-month-timed${short}`,
+          rsvpClassFor(ev.resource?.my_rsvp),
+        ]
+          .filter(Boolean)
+          .join(' ')
+        return {
+          ...(className ? { className } : {}),
           ...(dimPast && ev.end < new Date()
             ? { style: { opacity: 0.45 } }
             : {}),

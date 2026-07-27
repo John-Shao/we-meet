@@ -204,7 +204,16 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
                     <td className={cx(tdCls, ellipsisCls, centerCls)}>
                       {r.resource?.organizer?.full_name || '—'}
                     </td>
-                    <td className={cx(tdCls, ellipsisCls)}>{r.title}</td>
+                    {/* 已拒绝的日程加删除线转灰(对齐网格视图的表态样式)。
+                       套一层 span 而不是给 td 叠类:tdCls 自带 color,
+                       cx 叠加同属性按样式表顺序取胜(panda-cx-atomic-order-trap)。 */}
+                    <td className={cx(tdCls, ellipsisCls)}>
+                      {r.resource?.my_rsvp === 'declined' ? (
+                        <span className={declinedTitleCls}>{r.title}</span>
+                      ) : (
+                        r.title
+                      )}
+                    </td>
                   </tr>
                 )
               })}
@@ -423,6 +432,11 @@ const dateTdCls = css({
 const centerCls = css({ textAlign: 'center' })
 // th 浏览器默认居中,事件列需显式左对齐。
 const leftCls = css({ textAlign: 'left' })
+
+const declinedTitleCls = css({
+  textDecoration: 'line-through',
+  color: 'greyscale.500',
+})
 
 const ellipsisCls = css({
   maxWidth: 0,

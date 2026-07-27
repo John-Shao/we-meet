@@ -297,3 +297,92 @@
 [data-theme='dark'] .wm-month-timed-dot {
   background-color: #5c8dff;
 }
+
+/* ── 表态状态的块样式(对标飞书) ───────────────────────────────────────
+   接受 = 上面的默认样式(实心蓝竖条 + 浅蓝底 + 蓝字);
+   待定/未回复 = 竖条换斜纹,底色/文字不变 —— 「还没定」一眼可辨;
+   拒绝 = 整块转灰 + 标题/时间加删除线,退到背景里但仍占位。
+   刻意放在文件末尾:深色块的默认蓝规则([data-theme=dark] .rbc-event)与这里
+   同特异性,写在前面会把拒绝的灰底盖回蓝色。 */
+.rbc-event.wm-rsvp-tentative,
+.rbc-day-slot .rbc-event.wm-rsvp-tentative {
+  /* 竖条本体交给 background-image 画斜纹:border 画不出条纹,故留透明边框
+     占位,再把背景原点挪到 border-box,让 3px 的斜纹正好落在边框区。 */
+  border-left-color: transparent;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #3370ff 0 2px,
+    rgba(51, 112, 255, 0.3) 2px 4px
+  );
+  background-repeat: no-repeat;
+  background-size: 3px 100%;
+  background-position: left top;
+  background-origin: border-box;
+}
+.rbc-event.wm-rsvp-declined,
+.rbc-day-slot .rbc-event.wm-rsvp-declined {
+  background-color: var(--colors-greyscale-100);
+  border-left-color: var(--colors-greyscale-400);
+  color: var(--colors-greyscale-500);
+}
+/* 选中态:上面的 .rbc-selected 蓝底规则在本节之前,拒绝块会盖掉它,
+   补一档灰保证点击有反馈。 */
+.rbc-event.wm-rsvp-declined.rbc-selected,
+.rbc-day-slot .rbc-event.wm-rsvp-declined.rbc-selected {
+  background-color: var(--colors-greyscale-200);
+}
+/* 删除线打在内容/时间标签上(短日程的内联时间在 content 里,一并划掉)。 */
+.rbc-event.wm-rsvp-declined .rbc-event-content,
+.rbc-event.wm-rsvp-declined .rbc-event-label {
+  text-decoration: line-through;
+}
+
+/* 月视图限时日程是「点 + 时间 + 标题」纯文字行,没有竖条可换:
+   待定 → 空心点;拒绝 → 灰点 + 整行删除线。 */
+.rbc-month-view .rbc-event.wm-month-timed.wm-rsvp-tentative {
+  background-image: none;
+}
+.rbc-month-view
+  .rbc-event.wm-month-timed.wm-rsvp-tentative
+  .wm-month-timed-dot {
+  background-color: transparent;
+  border: 1.5px solid #3370ff;
+}
+.rbc-month-view .rbc-event.wm-month-timed.wm-rsvp-declined {
+  background-color: transparent;
+  color: var(--colors-greyscale-500);
+  text-decoration: line-through;
+}
+.rbc-month-view
+  .rbc-event.wm-month-timed.wm-rsvp-declined
+  .wm-month-timed-time {
+  color: var(--colors-greyscale-500);
+}
+.rbc-month-view .rbc-event.wm-month-timed.wm-rsvp-declined .wm-month-timed-dot {
+  background-color: var(--colors-greyscale-400);
+}
+
+/* 深色:斜纹用亮蓝(#5C8DFF,同深色竖条);拒绝态的灰走 greyscale 变量,
+   本就随主题翻转,无需另写。 */
+[data-theme='dark'] .rbc-event.wm-rsvp-tentative,
+[data-theme='dark'] .rbc-day-slot .rbc-event.wm-rsvp-tentative {
+  border-left-color: transparent;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #5c8dff 0 2px,
+    rgba(92, 141, 255, 0.35) 2px 4px
+  );
+}
+[data-theme='dark'] .rbc-event.wm-rsvp-declined,
+[data-theme='dark'] .rbc-day-slot .rbc-event.wm-rsvp-declined {
+  background-color: var(--colors-greyscale-100);
+  border-left-color: var(--colors-greyscale-400);
+  color: var(--colors-greyscale-500);
+}
+[data-theme='dark']
+  .rbc-month-view
+  .rbc-event.wm-month-timed.wm-rsvp-tentative
+  .wm-month-timed-dot {
+  background-color: transparent;
+  border-color: #5c8dff;
+}
