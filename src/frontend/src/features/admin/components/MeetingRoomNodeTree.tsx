@@ -174,14 +174,10 @@ const rowIdleCls = css({
 })
 const rowActiveCls = css({
   ...rowBase,
-  borderLeftColor: 'primary.500',
-  backgroundColor: 'primary.100',
-  // primary.* 是固定色阶,不随主题翻转。深色下不翻到 primaryDark 的话,
-  // 浅蓝底(#D6E4FF)配浅蓝字(#C0CFF3)对比度约 1.15:1,整行糊成一片。
-  _dark: {
-    borderLeftColor: 'primaryDark.500',
-    backgroundColor: 'primaryDark.100',
-  },
+  // selected.* 语义 token 自带深浅两套(见 panda.config)—— 不要退回手写
+  // primary.*,那个色阶不随主题翻转,漏一处 _dark 整行就糊了。
+  borderLeftColor: 'selected.accent',
+  backgroundColor: 'selected.bg',
   _hover: { '& [data-row-actions]': { opacity: 1 } },
 })
 const nodeLabelBase = {
@@ -201,10 +197,8 @@ const nodeLabelBase = {
 const nodeLabelCls = css({ ...nodeLabelBase, color: 'greyscale.800' })
 const nodeLabelActiveCls = css({
   ...nodeLabelBase,
-  color: 'primary.700',
+  color: 'selected.text',
   fontWeight: '600',
-  // 对 primaryDark.100 底:900(#DCE6FB) 约 11:1,比 800 更跳得出来。
-  _dark: { color: 'primaryDark.900' },
 })
 const countCls = css({ color: 'greyscale.400', fontWeight: 'normal' })
 const actionsCls = css({

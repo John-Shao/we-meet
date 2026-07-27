@@ -156,19 +156,14 @@ const navLinkIdle = css({
   _hover: { backgroundColor: 'greyscale.100' },
 })
 
+// selected.* 自带深浅两套,连 _hover 都不用再单独翻一遍 —— 之前正是漏了
+// `_dark` 里的 `_hover`,鼠标一放上去底色就跳回固定浅蓝、配浅蓝字看不见。
 const navLinkActive = css({
   ...navLinkBase,
-  color: 'primary.700',
+  color: 'selected.text',
   fontWeight: '600',
-  backgroundColor: 'primary.100',
-  _hover: { backgroundColor: 'primary.100' },
-  // primary.* 是固定色阶,不随主题翻转 —— 深色下必须整组翻到 primaryDark,
-  // **包括 _hover**,否则悬停时底色单独跳回浅蓝。
-  _dark: {
-    color: 'primaryDark.900',
-    backgroundColor: 'primaryDark.100',
-    _hover: { backgroundColor: 'primaryDark.100' },
-  },
+  backgroundColor: 'selected.bg',
+  _hover: { backgroundColor: 'selected.bg' },
 })
 
 const navLink = (active: boolean) => (active ? navLinkActive : navLinkIdle)

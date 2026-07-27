@@ -366,8 +366,9 @@ const navItemIdle = css({
   _hover: { backgroundColor: 'greyscale.100' },
 })
 const navItemActive = css({
-  backgroundColor: 'primary.100',
-  color: 'primary.600',
+  // 与 /admin 左栏、部门树、会议室层级树同一套选中态语义 token(深浅成对)。
+  backgroundColor: 'selected.bg',
+  color: 'selected.text',
   fontWeight: '500',
 })
 

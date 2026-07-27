@@ -335,6 +335,29 @@ const config: Config = {
             value: { base: '{colors.primary.700}', _dark: '{colors.primaryDark.700}' },
           },
         },
+        // 选中态(左栏导航项 / 树节点 / 列表选中行)。
+        //
+        // 存在的理由:primary.* 是**固定色阶,不随主题翻转**,手写
+        // `backgroundColor: 'primary.100'` + `color: 'primary.700'` 在深色下
+        // 是一条刺眼的浅蓝亮带;更糟的是文字那侧一旦翻到 primaryDark 而底色
+        // 忘了翻,两个浅蓝叠在一起对比度只剩 1.15:1,整行糊掉 —— 这个洞前后
+        // 栽了三次(select 弹窗、树选中行、悬停选中项),每次都是「翻了一半」。
+        // 用这组 token 就不会漏:一处定义,base/_dark 成对,处处正确。
+        //
+        // 对比度:深色 #DCE6FB on #1E2A47 ≈ 11.4:1,浅色 #1E4DB3 on #D6E4FF
+        // ≈ 6.0:1,两套都过 AA。
+        selected: {
+          bg: {
+            value: { base: '{colors.primary.100}', _dark: '{colors.primaryDark.100}' },
+          },
+          text: {
+            value: { base: '{colors.primary.700}', _dark: '{colors.primaryDark.900}' },
+          },
+          /** 左边条 / 下划线等「选中标记」——底色差异在深色下天然微弱,实色条不会。 */
+          accent: {
+            value: { base: '{colors.primary.500}', _dark: '{colors.primaryDark.500}' },
+          },
+        },
         box: {
           text: { value: '{colors.default.text}' },
           bg: { value: '{colors.greyscale.000}' },

@@ -77,22 +77,13 @@ export const DepartmentAdminTree = ({
               // 每行都留 3px 左边条,只有选中行上色,避免选中时内容横跳。
               borderLeftWidth: '3px',
               borderLeftStyle: 'solid',
-              borderLeftColor: active ? 'primary.500' : 'transparent',
-              backgroundColor: active ? 'primary.100' : 'transparent',
+              // selected.* 自带深浅两套(见 panda.config),不用再手写 _dark。
+              borderLeftColor: active ? 'selected.accent' : 'transparent',
+              backgroundColor: active ? 'selected.bg' : 'transparent',
               _hover: {
-                backgroundColor: active ? 'primary.100' : 'greyscale.100',
+                backgroundColor: active ? 'selected.bg' : 'greyscale.100',
                 '& [data-row-actions]': { opacity: 1 },
               },
-              // primary.* 固定色阶不随主题翻转 —— 深色下必须整组翻到
-              // primaryDark,**包括 _hover**:漏了它,鼠标放到选中行上背景就
-              // 单独跳回浅蓝,配浅蓝文字直接看不见。
-              _dark: active
-                ? {
-                    borderLeftColor: 'primaryDark.500',
-                    backgroundColor: 'primaryDark.100',
-                    _hover: { backgroundColor: 'primaryDark.100' },
-                  }
-                : {},
             })}
             style={{ paddingLeft: `${0.25 + depth * 0.85}rem` }}
           >
@@ -128,9 +119,8 @@ export const DepartmentAdminTree = ({
                 paddingRight: '0.5rem',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                color: active ? 'primary.700' : 'greyscale.800',
+                color: active ? 'selected.text' : 'greyscale.800',
                 fontWeight: active ? '600' : undefined,
-                _dark: active ? { color: 'primaryDark.900' } : {},
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
