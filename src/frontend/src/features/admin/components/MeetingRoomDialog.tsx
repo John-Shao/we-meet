@@ -248,14 +248,9 @@ const chipOffCls = css({
 })
 const chipOnCls = css({
   ...chipBase,
-  border: '1px solid token(colors.primary.500)',
-  backgroundColor: 'primary.100',
-  color: 'primary.700',
-  _dark: {
-    borderColor: 'primaryDark.500',
-    backgroundColor: 'primaryDark.100',
-    color: 'primaryDark.800',
-  },
+  border: '1px solid token(colors.selected.accent)',
+  backgroundColor: 'selected.bg',
+  color: 'selected.text',
 })
 const footerCls = css({
   display: 'flex',

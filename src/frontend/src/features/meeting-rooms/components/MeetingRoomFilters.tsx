@@ -154,14 +154,9 @@ const facilityChipOff = css({
 })
 const facilityChipOn = css({
   ...facilityChipBase,
-  border: '1px solid token(colors.primary.500)',
-  backgroundColor: 'primary.100',
-  color: 'primary.700',
-  _dark: {
-    borderColor: 'primaryDark.500',
-    backgroundColor: 'primaryDark.100',
-    color: 'primaryDark.800',
-  },
+  border: '1px solid token(colors.selected.accent)',
+  backgroundColor: 'selected.bg',
+  color: 'selected.text',
 })
 const resetCls = css({
   border: 'none',
