@@ -67,6 +67,7 @@
     "title": "Forward to",
     "searchPlaceholder": "Search conversations…",
     "send": "Send",
+    "loading": "Loading conversations…",
     "empty": "No conversations to forward to",
     "done": "Forwarded to \"{{name}}\"",
     "doneMany": "Forwarded to {{count}} conversations",

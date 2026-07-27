@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
+import { StateHint } from '@/components/StateHint'
 import { MemberAvatar } from '@/features/contacts'
 
 import { GroupAvatar, type GroupAvatarMember } from './GroupAvatar'
@@ -20,6 +21,10 @@ export interface ForwardConv {
 
 interface Props {
   conversations: ForwardConv[]
+  /** 会话还在拉取中 —— 区分「加载中」与「真的一个会话都没有」。分享类入口
+   * (日程/会议/云文档)是点开才挂载的,列表必然冷启动,不区分就会先闪一下
+   * 「没有可转发的会话」。 */
+  isLoading?: boolean
   /** One-line preview of the message being forwarded (shown at the top). */
   previewText: string
   /** Confirm forwarding to one or more target conversations (飞书式多选)。 */
@@ -36,6 +41,7 @@ interface Props {
  */
 export const ForwardDialog = ({
   conversations,
+  isLoading = false,
   previewText,
   onConfirm,
   onCreateGroupForward,
@@ -110,9 +116,9 @@ export const ForwardDialog = ({
 
       <div className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem' })}>
         {filtered.length === 0 ? (
-          <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-            {t('forward.empty')}
-          </p>
+          <StateHint loading={isLoading}>
+            {isLoading ? t('forward.loading') : t('forward.empty')}
+          </StateHint>
         ) : (
           filtered.map((c) => {
             const active = selected.has(c.cid)

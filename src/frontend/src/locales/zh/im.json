@@ -67,6 +67,7 @@
     "title": "转发到",
     "searchPlaceholder": "搜索会话…",
     "send": "发送",
+    "loading": "正在加载会话…",
     "empty": "没有可转发的会话",
     "done": "已转发到「{{name}}」",
     "doneMany": "已转发到 {{count}} 个会话",

@@ -67,6 +67,7 @@
     "title": "Doorsturen naar",
     "searchPlaceholder": "Gesprekken zoeken…",
     "send": "Versturen",
+    "loading": "Gesprekken laden…",
     "empty": "Geen gesprekken",
     "done": "Doorgestuurd naar '{{name}}'",
     "doneMany": "Doorgestuurd naar {{count}} gesprekken",

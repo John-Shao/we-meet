@@ -67,6 +67,7 @@
     "title": "Weiterleiten an",
     "searchPlaceholder": "Unterhaltungen suchen…",
     "send": "Senden",
+    "loading": "Unterhaltungen werden geladen…",
     "empty": "Keine Unterhaltungen",
     "done": "Weitergeleitet an „{{name}}“",
     "doneMany": "An {{count}} Unterhaltungen weitergeleitet",

@@ -1,12 +1,7 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useConfirm } from '@/components/ConfirmProvider'
-import { GroupPicker } from '@/features/im/components/GroupPicker'
-import { ForwardDialog } from '@/features/im/components/ForwardDialog'
+import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { buildMeetingCardBody } from '@/features/im/components/meetingCard'
-import { createGroupConversation } from '@/features/im/api/createGroupConversation'
-import { useForwardConversations } from '@/features/im/hooks/useForwardConversations'
 
 export interface ShareableMeeting {
   id: string
@@ -25,51 +20,23 @@ export const MeetingShareDialog = ({
   onClose: () => void
 }) => {
   const { t } = useTranslation('meetings')
-  const { alert } = useConfirm()
-  const { client, conversations } = useForwardConversations()
-  const [creatingGroup, setCreatingGroup] = useState(false)
-  const body = buildMeetingCardBody({
-    v: 1,
-    room_id: meeting.id,
-    slug: meeting.slug,
-    title: meeting.name || t('home.untitled'),
-    status: meeting.status,
-    scheduled_at: meeting.scheduledAt ?? null,
-  })
-
-  const send = async (cids: string[]) => {
-    try {
-      for (const cid of cids)
-        await client.sendText(cid, body, { contentType: 'meeting-card' })
-      onClose()
-    } catch {
-      void alert({ message: t('share.sendFailed', { defaultValue: '分享会议失败，请重试' }) })
-    }
-  }
-
-  if (creatingGroup)
-    return (
-      <GroupPicker
-        onClose={() => setCreatingGroup(false)}
-        onCreate={(memberUserIds, name) => {
-          void (async () => {
-            try {
-              const created = await createGroupConversation(memberUserIds, name)
-              await send([created.cid])
-            } catch {
-              void alert({ message: t('share.sendFailed', { defaultValue: '分享会议失败，请重试' }) })
-            }
-          })()
-        }}
-      />
-    )
+  const title = meeting.name || t('home.untitled')
 
   return (
-    <ForwardDialog
-      conversations={conversations}
-      previewText={meeting.name || t('home.untitled')}
-      onConfirm={(cids) => void send(cids)}
-      onCreateGroupForward={() => setCreatingGroup(true)}
+    <ShareToChatDialog
+      body={buildMeetingCardBody({
+        v: 1,
+        room_id: meeting.id,
+        slug: meeting.slug,
+        title,
+        status: meeting.status,
+        scheduled_at: meeting.scheduledAt ?? null,
+      })}
+      contentType="meeting-card"
+      previewText={title}
+      errorMessage={t('share.sendFailed', {
+        defaultValue: '分享会议失败，请重试',
+      })}
       onClose={onClose}
     />
   )

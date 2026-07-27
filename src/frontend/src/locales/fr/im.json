@@ -67,6 +67,7 @@
     "title": "Transférer vers",
     "searchPlaceholder": "Rechercher des conversations…",
     "send": "Envoyer",
+    "loading": "Chargement des conversations…",
     "empty": "Aucune conversation",
     "done": "Transféré vers « {{name}} »",
     "doneMany": "Transféré vers {{count}} conversations",

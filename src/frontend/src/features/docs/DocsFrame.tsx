@@ -4,12 +4,10 @@ import { useParams } from 'wouter'
 import { useSnapshot } from 'valtio'
 import { css } from '@/styled-system/css'
 import { useConfig } from '@/api/useConfig'
-import { useConfirm } from '@/components/ConfirmProvider'
 import { Screen } from '@/layout/Screen'
 import { resolveTheme, themeStore } from '@/stores/theme'
 import { buildDocCardBody } from '@/features/im/components/docCard'
-import { ForwardDialog } from '@/features/im/components/ForwardDialog'
-import { useForwardConversations } from '@/features/im/hooks/useForwardConversations'
+import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { grantDocAccess } from '@/features/im/api/grantDocAccess'
 
 /**
@@ -35,10 +33,10 @@ export const DocsRoute = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const { mode } = useSnapshot(themeStore)
   const colorScheme = resolveTheme(mode)
-  const { alert: showAlert } = useConfirm()
-  const { client, conversations } = useForwardConversations()
   // 分享云文档到聊天(入口 B):docs 里点「分享到聊天」→ postMessage 过来,
   // 弹会话选择器;选完直接用 IM SDK 单例发卡片,docs 侧全程不知道 IM 存在。
+  // 会话列表/IM 连接由 ShareToChatDialog 自己拉,所以只有真的要分享时才建连,
+  // 单纯逛文档不再顺带开一条 IM 连接。
   const [shareDoc, setShareDoc] = useState<{
     docId: string
     title: string
@@ -135,29 +133,19 @@ export const DocsRoute = () => {
         />
       )}
       {shareDoc && (
-        <ForwardDialog
-          conversations={conversations}
+        <ShareToChatDialog
+          body={buildDocCardBody({
+            id: shareDoc.docId,
+            title: shareDoc.title,
+            url: shareDoc.url,
+          })}
+          contentType="doc-card"
           previewText={shareDoc.title || tIm('preview.doc')}
+          errorMessage={tIm('docPicker.sendError')}
+          // 分享即精准授权:给收到卡片的会话成员授只读(best-effort)。
+          // 新建群转发时这里拿到的就是刚建出来的群 cid,同样授权。
+          onSent={(cids) => grantDocAccess(shareDoc.docId, cids)}
           onClose={() => setShareDoc(null)}
-          onConfirm={(cids) => {
-            const doc = shareDoc
-            setShareDoc(null)
-            void (async () => {
-              try {
-                for (const cid of cids) {
-                  await client.sendText(
-                    cid,
-                    buildDocCardBody({ id: doc.docId, title: doc.title, url: doc.url }),
-                    { contentType: 'doc-card' },
-                  )
-                }
-                // 分享即精准授权:给选中会话的成员授只读(best-effort)。
-                grantDocAccess(doc.docId, cids)
-              } catch {
-                void showAlert({ message: tIm('docPicker.error') })
-              }
-            })()
-          }}
         />
       )}
     </Screen>
