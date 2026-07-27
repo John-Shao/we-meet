@@ -50,6 +50,15 @@ export const DocsRoute = () => {
   // 语言驱动 docs(docs i18next 的 querystring 探测);?theme= 传初始深浅。去尾斜杠避免双斜杠。
   // 分享云文档到聊天:带 docId 时深链到具体文档(/docs/{docId}/),否则落文档列表首页。
   const docsBase = docsUrl?.replace(/\/+$/, '') ?? ''
+  // 会触发实际动作的双向消息(收分享请求 / 回发授权已变更)都锚在这个 origin 上,
+  // 不用 '*'。配置缺失或不是合法 URL 时为空字符串 → 相关消息通道直接不启用。
+  const docsOrigin = (() => {
+    try {
+      return docsBase ? new URL(docsBase).origin : ''
+    } catch {
+      return ''
+    }
+  })()
   const embedPath = docId ? `/docs/${docId}/` : '/'
   const embedTarget = docsBase
     ? `${docsBase}${embedPath}?embed=1&lang=${encodeURIComponent(
@@ -91,13 +100,7 @@ export const DocsRoute = () => {
   // 与上面的主题同步不同,这条消息会触发实际发消息动作,所以额外校验来源
   // origin 等于 docs 域(主题同步是纯展示,坏了也无所谓;这个不行)。
   useEffect(() => {
-    if (!docsBase) return
-    let docsOrigin: string
-    try {
-      docsOrigin = new URL(docsBase).origin
-    } catch {
-      return
-    }
+    if (!docsOrigin) return
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== docsOrigin) return
       const data = e.data as
@@ -112,7 +115,7 @@ export const DocsRoute = () => {
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
-  }, [docsBase])
+  }, [docsOrigin])
 
   return (
     <Screen header footer={false}>
@@ -144,7 +147,19 @@ export const DocsRoute = () => {
           errorMessage={tIm('docPicker.sendError')}
           // 分享即精准授权:给收到卡片的会话成员授只读(best-effort)。
           // 新建群转发时这里拿到的就是刚建出来的群 cid,同样授权。
-          onSent={(cids) => grantDocAccess(shareDoc.docId, cids)}
+          //
+          // 授权是在 docs **之外**发生的,docs 的成员列表缓存无从知晓 —— 授完
+          // 回发一条消息让分享弹窗刷新,否则用户回到「分享文档」框,「与 N 位
+          // 用户分享」还是分享前的旧值。
+          onSent={(cids) => {
+            void grantDocAccess(shareDoc.docId, cids).then((granted) => {
+              if (!granted || !docsOrigin) return
+              iframeRef.current?.contentWindow?.postMessage(
+                { type: 'wemeet-doc-access-updated', docId: shareDoc.docId },
+                docsOrigin,
+              )
+            })
+          }}
           onClose={() => setShareDoc(null)}
         />
       )}

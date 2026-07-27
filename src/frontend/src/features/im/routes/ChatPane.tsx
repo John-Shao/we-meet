@@ -502,7 +502,8 @@ export const ChatPane = ({
           contentType: 'doc-card',
         })
         // 分享即精准授权:让当前会话成员点开卡片能直接看(best-effort)。
-        grantDocAccess(doc.id, [cid])
+        // 这里不等结果——聊天里没有在看 docs 的成员列表,无需回刷。
+        void grantDocAccess(doc.id, [cid])
       }
     } catch {
       void showAlert({ message: t('docPicker.sendError') })
