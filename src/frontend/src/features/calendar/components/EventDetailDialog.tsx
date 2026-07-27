@@ -125,9 +125,15 @@ export const EventDetailDialog = ({
   const isToday =
     new Date(event.start_at).toDateString() === new Date().toDateString()
 
-  const acceptedCount = event.attendees.filter(
-    (a) => a.rsvp === 'accepted'
-  ).length
+  // 表态即时反映到参与人列表:日历页的 detailEvent 是点开时的快照,invalidate
+  // 只刷列表查询、不会回填这个 prop,不覆写的话自己那行会一直停在旧状态
+  // (IM 宿主虽会 refetch,也有一次往返的延迟)。
+  const attendees =
+    rsvp && user
+      ? event.attendees.map((a) => (a.id === user.id ? { ...a, rsvp } : a))
+      : event.attendees
+
+  const acceptedCount = attendees.filter((a) => a.rsvp === 'accepted').length
 
   const handle = (status: RSVPStatus) => {
     setRsvp(status)
@@ -293,10 +299,10 @@ export const EventDetailDialog = ({
         </InfoRow>
 
         {/* 参与人列表(对齐 App 端:RSVP 状态图标 + 名字 + 组织者标签)。 */}
-        {event.attendees.length > 0 && (
+        {attendees.length > 0 && (
           <InfoRow icon={RiGroupLine}>
             <div className={attendeeHeadCls}>
-              {t('detail.attendeeCount', { count: event.attendees.length })}
+              {t('detail.attendeeCount', { count: attendees.length })}
               {acceptedCount > 0 && (
                 <span className={mutedTextCls}>
                   {' · '}
@@ -305,7 +311,7 @@ export const EventDetailDialog = ({
               )}
             </div>
             <ul className={attendeeListCls}>
-              {event.attendees.map((a, i) => {
+              {attendees.map((a, i) => {
                 const StatusIcon =
                   a.rsvp === 'accepted'
                     ? RiCheckLine
