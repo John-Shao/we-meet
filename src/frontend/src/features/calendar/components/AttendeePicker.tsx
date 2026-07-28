@@ -30,9 +30,16 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  // 只有键盘移高亮才需要把它滚进可视区。鼠标滚动列表时指针下方的行会连着
+  // 触发 mouseenter → setActive,若那时也跟着 scrollIntoView,列表就会被拽
+  // 回高亮行 —— 表现为「滚不动、一松手就弹回」。
+  const keyNavRef = useRef(false)
 
   // 结果变了就把高亮拉回第一条,免得停在越界的下标上。
-  useEffect(() => setActive(0), [selectable])
+  // 依赖只能取 query:hook 里的 selectable 是每次渲染新建的数组(filter 的
+  // 返回值),拿它做依赖等于每渲染一次就把 active 打回 0 —— 悬停/滚动刚
+  // 改的高亮下一帧就被抹掉,配合下面的 scrollIntoView 就是那个「弹簧」。
+  useEffect(() => setActive(0), [query])
 
   // 浮层活在对话框的滚动容器里(overflowY:auto),字段靠底时会被裁掉半截 ——
   // 展开时把浮层本身滚进可视区。
@@ -42,7 +49,8 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
 
   // 键盘移动高亮时把它滚进可视区(浮层自身是滚动容器)。
   useEffect(() => {
-    if (!open) return
+    if (!open || !keyNavRef.current) return
+    keyNavRef.current = false
     const el = listRef.current?.children[active] as HTMLElement | undefined
     el?.scrollIntoView({ block: 'nearest' })
   }, [active, open])
@@ -64,10 +72,12 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
+      keyNavRef.current = true
       setOpen(true)
       setActive((i) => Math.min(i + 1, selectable.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
+      keyNavRef.current = true
       setActive((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
       const m = selectable[active]
