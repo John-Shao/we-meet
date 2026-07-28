@@ -5,6 +5,7 @@ import { css, cx } from '@/styled-system/css'
 import { selectChrome } from '@/primitives/selectChrome'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal } from '@/components/Modal'
+import { Switch } from '@/primitives/Switch'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useUser } from '@/features/auth'
 import { MeetingRoomField } from '@/features/meeting-rooms'
@@ -472,19 +473,16 @@ export const CreateEventDialog = ({
             属性。放在会议室之前:两者都是「在哪开」,线上先于线下。 */}
         {videoEditable && (
           <div data-testid="event-video-meeting">
-            <div className={videoRowCls}>
+            {/* 开/关是个布尔状态,用胶囊开关而不是「移除/添加」文字按钮 ——
+                与 App 端同款,也省掉「按钮上写的是当前态还是下一步动作」的歧义。 */}
+            <Switch
+              isSelected={withVideo}
+              onChange={setWithVideo}
+              data-testid="event-video-toggle"
+              className={videoSwitchCls}
+            >
               <span className={labelCls}>{t('form.videoMeeting')}</span>
-              <button
-                type="button"
-                className={ghostLinkCls}
-                onClick={() => setWithVideo((prev) => !prev)}
-                data-testid="event-video-toggle"
-              >
-                {withVideo
-                  ? t('form.videoMeetingRemove')
-                  : t('form.videoMeetingAdd')}
-              </button>
-            </div>
+            </Switch>
             <div className={videoHintCls}>
               {withVideo
                 ? t('form.videoMeetingOn')
@@ -574,19 +572,11 @@ const textareaCls = css({
   _focus: { borderColor: 'primary.500' },
 })
 
-const videoRowCls = css({
-  display: 'flex',
-  alignItems: 'center',
+// 标签在左、开关在右(Switch 默认滑块在前,故 row-reverse)。
+const videoSwitchCls = css({
+  width: '100%',
+  flexDirection: 'row-reverse',
   justifyContent: 'space-between',
-  gap: '0.5rem',
-})
-const ghostLinkCls = css({
-  border: 'none',
-  background: 'transparent',
-  color: 'primary.500',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-  _dark: { color: 'primaryDark.700' },
 })
 const videoHintCls = css({
   marginTop: '0.125rem',
