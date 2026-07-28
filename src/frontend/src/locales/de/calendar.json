@@ -48,8 +48,8 @@
     "videoMeetingAdd": "Hinzufügen",
     "videoMeetingOn": "Zu diesem Termin wird eine Videokonferenz erstellt",
     "videoMeetingOff": "Keine Videokonferenz — nur ein Kalendereintrag",
-    "bulkAdd": "Sammeln hinzufügen",
-    "bulkAddTitle": "Teilnehmende sammeln hinzufügen"
+    "bulkAdd": "Teilnehmende hinzufügen",
+    "bulkAddTitle": "Teilnehmende hinzufügen"
   },
   "card": {
     "organizer": "Organisator",

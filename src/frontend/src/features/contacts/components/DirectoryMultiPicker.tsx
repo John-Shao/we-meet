@@ -17,7 +17,8 @@ export interface DirectoryMultiPickerLabels {
 interface Props {
   /** 受控选择:id → 显示名(名字在勾选那刻捕获,换关键词后 chips 仍有名字)。 */
   selected: Map<string, string>
-  onToggle: (id: string, label: string) => void
+  /** 第三个参数是该成员的头像 URL(勾选那刻捕获);不需要的调用方可无视。 */
+  onToggle: (id: string, label: string, avatarUrl?: string) => void
   labels: DirectoryMultiPickerLabels
   /** 列表顶部的锁定行(如群主自己):恒勾选、不可取消。 */
   locked?: { label: string; sub?: string; avatarSrc?: string | null }
@@ -93,7 +94,7 @@ export const DirectoryMultiPicker = ({
                     .join(' · ')}
                   avatarSrc={m.avatar_url}
                   checked={selected.has(m.id)}
-                  onToggle={() => onToggle(m.id, label)}
+                  onToggle={() => onToggle(m.id, label, m.avatar_url)}
                 />
               )
             })

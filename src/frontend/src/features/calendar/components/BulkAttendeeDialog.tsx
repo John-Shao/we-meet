@@ -10,8 +10,11 @@ import { ghostBtn } from './formStyles'
 interface Props {
   /** 打开时的已选参与者(id → 名字);对话框内改的是副本。 */
   initial: Map<string, string>
-  /** 点「确定」时回传最终结果;取消则原样不动。 */
-  onConfirm: (selected: Map<string, string>) => void
+  /** 点「确定」时回传最终结果(附头像,给已选行渲染用);取消则原样不动。 */
+  onConfirm: (
+    selected: Map<string, string>,
+    avatars: Map<string, string>
+  ) => void
   onClose: () => void
 }
 
@@ -30,13 +33,18 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
   )
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const toggle = (id: string, label: string) =>
+  // 勾选那刻把头像记下来:回传给调用方渲染已选行,否则只能退成字母色块。
+  const avatarsRef = useRef(new Map<string, string>())
+
+  const toggle = (id: string, label: string, avatarUrl?: string) => {
+    if (avatarUrl) avatarsRef.current.set(id, avatarUrl)
     setDraft((prev) => {
       const next = new Map(prev)
       if (next.has(id)) next.delete(id)
       else next.set(id, label)
       return next
     })
+  }
 
   return (
     <Modal
@@ -78,7 +86,7 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
         </button>
         <button
           type="button"
-          onClick={() => onConfirm(draft)}
+          onClick={() => onConfirm(draft, avatarsRef.current)}
           data-testid="bulk-attendee-confirm"
           className={confirmBtnCls}
         >
