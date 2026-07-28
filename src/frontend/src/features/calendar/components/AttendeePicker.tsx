@@ -6,6 +6,7 @@ import { css } from '@/styled-system/css'
 import { MemberAvatar } from '@/features/contacts'
 
 import { fetchFreeBusy } from '../api/fetchCalendar'
+import { labelCls, linkBtnCls } from './formStyles'
 import { BulkAttendeeDialog } from './BulkAttendeeDialog'
 
 interface Props {
@@ -26,12 +27,13 @@ interface Props {
 /**
  * 参与者选取。
  *
- * 只有一条路径:「添加参与者」开 [BulkAttendeeDialog](复用 IM「新建群聊」
- * 的左搜索勾选 + 右已选面板),一次勾一串人再确定。原先并存的「行内搜索框 +
- * 候选浮层」已去掉 —— 两个入口做同一件事,行内那个还只能一次加一个人。
+ * 一行标题「参与者 (已选 N 人)」+ 右对齐的「添加」文字按钮(与视频会议
+ *「移除」、会议室「更换」同款),下面是已选的人:一人一行,头像 + 名字 +
+ * 忙/闲 + 行尾 × 移除。忙/闲取代了原先单独一块的忙闲时间条。
  *
- * 已选的人列在按钮下面,一人一行:头像 + 名字 + 忙/闲 + 行尾 × 移除。
- * 忙/闲取代了原先单独一块的忙闲时间条。
+ * 加人只有一条路径:「添加」开 [BulkAttendeeDialog](复用 IM「新建群聊」的
+ * 左搜索勾选 + 右已选面板)。原先并存的「行内搜索框 + 候选浮层」已去掉 ——
+ * 两个入口做同一件事,行内那个还只能一次加一个人。
  */
 export const AttendeePicker = ({
   selected,
@@ -94,17 +96,23 @@ export const AttendeePicker = ({
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setBulkOpen(true)}
-        data-testid="event-attendee-add"
-        className={addBtnCls}
-      >
-        + {t('form.bulkAdd')}
-      </button>
+      {/* 「参与者 (已选 N 人)」与「添加」同一行 —— 与视频会议「移除」、
+          会议室「更换」同一款右对齐文字按钮。 */}
+      <div className={headRowCls}>
+        <span className={labelCls}>
+          {t('form.attendees')} ({t('form.selected', { count: selected.size })})
+        </span>
+        <button
+          type="button"
+          onClick={() => setBulkOpen(true)}
+          data-testid="event-attendee-add"
+          className={linkBtnCls}
+        >
+          {t('form.bulkAdd')}
+        </button>
+      </div>
 
-      {/* 已选参与者:一人一行(对齐飞书的「参与者 (N)」列表),行内直接标
-          忙/闲。人数在外层的「已选 N 人」上已经有了,这里不重复标题。 */}
+      {/* 已选参与者:一人一行,行内直接标忙/闲(对齐飞书的参与者列表)。 */}
       {selected.size > 0 && (
         <ul className={pickedListCls} data-testid="attendee-picked">
           {[...selected.entries()].map(([id, label]) => {
@@ -170,26 +178,17 @@ export const AttendeePicker = ({
   )
 }
 
-const addBtnCls = css({
-  display: 'inline-flex',
+const headRowCls = css({
+  display: 'flex',
   alignItems: 'center',
-  gap: '0.25rem',
-  paddingX: '0.75rem',
-  paddingY: '0.375rem',
-  border: '1px dashed token(colors.greyscale.300)',
-  borderRadius: 8,
-  backgroundColor: 'greyscale.000',
-  color: 'primary.500',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.50', borderColor: 'primary.500' },
-  _dark: { color: 'primaryDark.700' },
+  justifyContent: 'space-between',
+  gap: '0.5rem',
 })
 
 // 已选列表:人多了自己滚,不把对话框顶长。
 const pickedListCls = css({
   listStyle: 'none',
-  margin: '0.5rem 0 0',
+  margin: '0.375rem 0 0',
   padding: 0,
   display: 'flex',
   flexDirection: 'column',

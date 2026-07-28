@@ -50,3 +50,13 @@ export const chipCls = css({
   fontSize: '0.8125rem',
   color: 'greyscale.800',
 })
+
+/** 字段右上角的文字按钮(视频会议「移除」/ 会议室「更换」/ 参与者「添加」)。 */
+export const linkBtnCls = css({
+  border: 'none',
+  background: 'transparent',
+  color: 'primary.500',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+  _dark: { color: 'primaryDark.700' },
+})

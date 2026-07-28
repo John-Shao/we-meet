@@ -455,23 +455,7 @@ export const CreateEventDialog = ({
         {/* Attendees — 创建态 + 非重复日程编辑态(P8 全量同步);重复日程编辑不展示。 */}
         {attendeesEditable && (
           <div>
-            <div
-              className={css({
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '0.375rem',
-              })}
-            >
-              <span className={labelCls}>{t('form.attendees')}</span>
-              <span
-                className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
-              >
-                {t('form.selected', { count: selected.size })}
-              </span>
-            </div>
-            {/* 选人区(对标飞书):搜索浮层 + 已选一人一行,行内标忙/闲。
-                原先单独一块的忙闲时间条已并进这个列表,不再另占一段。 */}
+            {/* 选人区:标题/计数/「添加」按钮与已选列表都由它自己渲染。 */}
             <AttendeePicker
               selected={selected}
               onToggle={toggle}
