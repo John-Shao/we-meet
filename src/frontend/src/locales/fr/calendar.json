@@ -122,7 +122,10 @@
   "freebusy": {
     "title": "Disponibilités du jour choisi",
     "me": "Moi",
-    "conflict": "{{count}} participant(s) occupé(s) sur le créneau choisi"
+    "conflict": "{{count}} participant(s) occupé(s) sur le créneau choisi",
+    "busy": "Occupé",
+    "free": "Libre",
+    "selfBusy": "Vous avez un autre événement à ce moment"
   },
   "settings": {
     "title": "Paramètres du calendrier",

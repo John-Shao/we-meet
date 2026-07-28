@@ -122,7 +122,10 @@
   "freebusy": {
     "title": "Beschikbaarheid op de gekozen dag",
     "me": "Ik",
-    "conflict": "{{count}} deelnemer(s) bezet in het gekozen tijdvak"
+    "conflict": "{{count}} deelnemer(s) bezet in het gekozen tijdvak",
+    "busy": "Bezet",
+    "free": "Vrij",
+    "selfBusy": "Je hebt op dit moment een andere afspraak"
   },
   "settings": {
     "title": "Agenda-instellingen",

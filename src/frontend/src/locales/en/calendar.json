@@ -122,7 +122,10 @@
   "freebusy": {
     "title": "Availability on the selected day",
     "me": "Me",
-    "conflict": "{{count}} attendee(s) busy during the selected time"
+    "conflict": "{{count}} attendee(s) busy during the selected time",
+    "busy": "Busy",
+    "free": "Free",
+    "selfBusy": "You have another event at this time"
   },
   "settings": {
     "title": "Calendar settings",

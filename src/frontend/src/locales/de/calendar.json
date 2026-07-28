@@ -122,7 +122,10 @@
   "freebusy": {
     "title": "Verfügbarkeit am gewählten Tag",
     "me": "Ich",
-    "conflict": "{{count}} Teilnehmer im gewählten Zeitraum beschäftigt"
+    "conflict": "{{count}} Teilnehmer im gewählten Zeitraum beschäftigt",
+    "busy": "Belegt",
+    "free": "Frei",
+    "selfBusy": "Sie haben zu dieser Zeit einen anderen Termin"
   },
   "settings": {
     "title": "Kalendereinstellungen",

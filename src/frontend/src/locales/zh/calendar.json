@@ -122,7 +122,10 @@
   "freebusy": {
     "title": "所选日期的忙闲",
     "me": "我",
-    "conflict": "{{count}} 人在所选时段忙碌"
+    "conflict": "{{count}} 人在所选时段忙碌",
+    "busy": "忙",
+    "free": "闲",
+    "selfBusy": "你在该时段有其他日程"
   },
   "settings": {
     "title": "日历设置",

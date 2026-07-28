@@ -17,7 +17,6 @@ import {
   useCalendarSettings,
 } from '../hooks/useCalendarSettings'
 import { AttendeePicker } from './AttendeePicker'
-import { FreeBusyBar } from './FreeBusyBar'
 import {
   fieldCls,
   ghostBtn,
@@ -137,6 +136,17 @@ export const CreateEventDialog = ({
     }
     return new Map(initialSelected ?? [])
   })
+  // 编辑态把现有参与者的头像带给选人组件 —— selected 只有 id→名字,
+  // 不给头像的话已选行会退成字母色块。
+  const initialAvatars = useMemo(
+    () =>
+      new Map(
+        (editEvent?.attendees ?? []).flatMap((a) =>
+          a.id && a.avatar_url ? [[a.id, a.avatar_url] as [string, string]] : []
+        )
+      ),
+    [editEvent]
+  )
   const [busy, setBusy] = useState(false)
   // 视频会议(对标飞书:可移除的一项,而非日程的固有属性)。创建默认开;
   // 编辑态按事件当前有没有房间预填。
@@ -460,34 +470,17 @@ export const CreateEventDialog = ({
                 {t('form.selected', { count: selected.size })}
               </span>
             </div>
-            {/* 选人区(对标飞书):chips 进输入框、候选列表走浮层。 */}
-            <AttendeePicker selected={selected} onToggle={toggle} />
-            {/* P2-M3 忙闲:选人后展示当天每人 busy 条(全天事件无具体时段,略)。
-                放在选人区之后 —— 忙闲是「选完之后再看」的核对信息。 */}
-            {selected.size > 0 && !allDay && start && end && (
-              <div className={css({ margin: '0.625rem 0 0' })}>
-                <FreeBusyBar
-                  people={[
-                    ...(user
-                      ? [
-                          {
-                            id: user.id,
-                            label: user.full_name || t('freebusy.me'),
-                          },
-                        ]
-                      : []),
-                    ...[...selected.entries()].map(([id, label]) => ({
-                      id,
-                      label,
-                    })),
-                  ]}
-                  slotStart={new Date(start)}
-                  slotEnd={new Date(end)}
-                  // P8 编辑态:剔除当前日程自身,原参与者不被它误报忙碌。
-                  excludeEventId={editEvent?.id}
-                />
-              </div>
-            )}
+            {/* 选人区(对标飞书):搜索浮层 + 已选一人一行,行内标忙/闲。
+                原先单独一块的忙闲时间条已并进这个列表,不再另占一段。 */}
+            <AttendeePicker
+              selected={selected}
+              onToggle={toggle}
+              initialAvatars={initialAvatars}
+              slotStart={!allDay && start ? new Date(start) : null}
+              slotEnd={!allDay && end ? new Date(end) : null}
+              excludeEventId={editEvent?.id}
+              selfId={user?.id}
+            />
           </div>
         )}
 
