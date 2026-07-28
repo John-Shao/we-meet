@@ -6,6 +6,7 @@ import { css } from '@/styled-system/css'
 import { useDirectoryMemberSearch, MemberAvatar } from '@/features/contacts'
 
 import { fetchFreeBusy } from '../api/fetchCalendar'
+import { BulkAttendeeDialog } from './BulkAttendeeDialog'
 
 interface Props {
   /** 已选参与者 id → 显示名(组织者不在其中)。 */
@@ -35,8 +36,9 @@ interface Props {
  *   忙闲时间条),行尾 × 移除;
  * - 键盘可用:↑/↓ 移高亮、Enter 添加、Esc 收浮层(只收浮层,不关对话框)。
  *
- * 飞书的「批量添加」大弹窗(组织架构树/外部联系人/邮箱三分类)不在此实现:
- * 我们目前只有单一组织通讯录一个来源,分类面板无内容可分。
+ * 右上「批量添加」开 [BulkAttendeeDialog] —— 复用 IM「新建群聊」那块左搜索
+ * 勾选 + 右已选面板,一次勾一串人。飞书那版还分组织架构树/外部联系人/邮箱
+ * 三类,我们目前只有单一组织通讯录一个来源,分类面板无内容可分,故不分。
  */
 export const AttendeePicker = ({
   selected,
@@ -50,6 +52,7 @@ export const AttendeePicker = ({
   const { t } = useTranslation('calendar')
   const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
   const [open, setOpen] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -189,61 +192,72 @@ export const AttendeePicker = ({
       }}
     >
       {/* 搜索框始终是干净的一行(对齐飞书):已选的人不塞进框里当 chips,
-          而是列在下面的参与者列表 —— 选到十几个人时框子不会涨成一大块。 */}
-      <input
-        ref={inputRef}
-        type="text"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value)
-          setOpen(true)
-        }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={onKeyDown}
-        placeholder={t('form.searchPlaceholder')}
-        data-testid="event-attendee-search"
-        className={showPopover ? inputFocusedCls : inputIdleCls}
-      />
-
-      {showPopover && (
-        <div
-          className={popoverCls}
-          ref={listRef}
-          data-testid="attendee-options"
+          而是列在下面的参与者列表 —— 选到十几个人时框子不会涨成一大块。
+          右侧「批量添加」开大面板,一次勾一串(复用 IM 新建群聊那块)。 */}
+      <div className={searchRowCls}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+          placeholder={t('form.searchPlaceholder')}
+          data-testid="event-attendee-search"
+          className={showPopover ? inputFocusedCls : inputIdleCls}
+        />
+        <button
+          type="button"
+          onClick={() => setBulkOpen(true)}
+          data-testid="event-attendee-bulk"
+          className={bulkLinkCls}
         >
-          {isFetching && options.length === 0 ? (
-            <p className={hintCls}>{t('form.loading')}</p>
-          ) : options.length === 0 ? (
-            <p className={hintCls}>{t('form.noResults')}</p>
-          ) : (
-            options.map((m, i) => {
-              const label = labelOf(m)
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  // 用 mousedown 提交,并阻止它把焦点从输入框上抢走 —— 否则
-                  // 点一下就 blur → 浮层先关闭,click 永远等不到。
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    pick(m.id, label)
-                  }}
-                  onMouseEnter={() => setActive(i)}
-                  data-testid={`event-attendee-${m.id}`}
-                  className={i === active ? optionActiveCls : optionCls}
-                >
-                  <MemberAvatar
-                    name={label}
-                    src={m.avatar_url}
-                    size="1.75rem"
-                  />
-                  <span className={optionLabelCls}>{label}</span>
-                </button>
-              )
-            })
-          )}
-        </div>
-      )}
+          + {t('form.bulkAdd')}
+        </button>
+
+        {showPopover && (
+          <div
+            className={popoverCls}
+            ref={listRef}
+            data-testid="attendee-options"
+          >
+            {isFetching && options.length === 0 ? (
+              <p className={hintCls}>{t('form.loading')}</p>
+            ) : options.length === 0 ? (
+              <p className={hintCls}>{t('form.noResults')}</p>
+            ) : (
+              options.map((m, i) => {
+                const label = labelOf(m)
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    // 用 mousedown 提交,并阻止它把焦点从输入框上抢走 —— 否则
+                    // 点一下就 blur → 浮层先关闭,click 永远等不到。
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      pick(m.id, label)
+                    }}
+                    onMouseEnter={() => setActive(i)}
+                    data-testid={`event-attendee-${m.id}`}
+                    className={i === active ? optionActiveCls : optionCls}
+                  >
+                    <MemberAvatar
+                      name={label}
+                      src={m.avatar_url}
+                      size="1.75rem"
+                    />
+                    <span className={optionLabelCls}>{label}</span>
+                  </button>
+                )
+              })
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 已选参与者:一人一行(对齐飞书的「参与者 (N)」列表),行内直接标
           忙/闲。人数在外层的「已选 N 人」上已经有了,这里不重复标题。 */}
@@ -289,11 +303,50 @@ export const AttendeePicker = ({
           {t('freebusy.selfBusy')}
         </p>
       )}
+
+      {bulkOpen && (
+        <BulkAttendeeDialog
+          initial={selected}
+          onClose={() => setBulkOpen(false)}
+          onConfirm={(next) => {
+            // 父组件只给了 toggle,这里按差集逐个开合。toggle 走函数式
+            // setState,同一个事件里连着调多次能正确累加。
+            selected.forEach((label, id) => {
+              if (!next.has(id)) onToggle(id, label)
+            })
+            next.forEach((label, id) => {
+              if (!selected.has(id)) onToggle(id, label)
+            })
+            setBulkOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }
 
 const wrapCls = css({ position: 'relative' })
+
+// 搜索行自己 relative:浮层锚在它上面。挂到外层 wrapCls 的话,top:100% 会
+// 算到「输入框 + 已选列表」的底部,浮层就掉到列表下面去了。
+const searchRowCls = css({
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+})
+
+const bulkLinkCls = css({
+  flexShrink: 0,
+  border: 'none',
+  background: 'transparent',
+  color: 'primary.500',
+  fontSize: '0.8125rem',
+  whiteSpace: 'nowrap',
+  cursor: 'pointer',
+  _hover: { textDecoration: 'underline' },
+  _dark: { color: 'primaryDark.700' },
+})
 
 const inputBase = {
   width: '100%',

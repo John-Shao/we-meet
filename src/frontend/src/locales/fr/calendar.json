@@ -47,7 +47,9 @@
     "videoMeetingRemove": "Retirer",
     "videoMeetingAdd": "Ajouter",
     "videoMeetingOn": "Une visioconférence sera créée avec cet événement",
-    "videoMeetingOff": "Pas de visioconférence — simple entrée d'agenda"
+    "videoMeetingOff": "Pas de visioconférence — simple entrée d'agenda",
+    "bulkAdd": "Ajout groupé",
+    "bulkAddTitle": "Ajouter des participants en masse"
   },
   "card": {
     "organizer": "Organisateur",

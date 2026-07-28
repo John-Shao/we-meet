@@ -47,7 +47,9 @@
     "videoMeetingRemove": "Verwijderen",
     "videoMeetingAdd": "Toevoegen",
     "videoMeetingOn": "Er wordt een videovergadering bij deze afspraak aangemaakt",
-    "videoMeetingOff": "Geen videovergadering — alleen een agenda-item"
+    "videoMeetingOff": "Geen videovergadering — alleen een agenda-item",
+    "bulkAdd": "Bulk toevoegen",
+    "bulkAddTitle": "Deelnemers in bulk toevoegen"
   },
   "card": {
     "organizer": "Organisator",

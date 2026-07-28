@@ -47,7 +47,9 @@
     "videoMeetingRemove": "Remove",
     "videoMeetingAdd": "Add",
     "videoMeetingOn": "A video meeting will be created with this event",
-    "videoMeetingOff": "No video meeting — this is just a calendar entry"
+    "videoMeetingOff": "No video meeting — this is just a calendar entry",
+    "bulkAdd": "Bulk add",
+    "bulkAddTitle": "Add attendees in bulk"
   },
   "card": {
     "organizer": "Organizer",
