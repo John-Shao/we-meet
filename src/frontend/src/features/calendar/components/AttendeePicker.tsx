@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
@@ -14,11 +14,13 @@ interface Props {
  * 参与者选取(对标飞书「添加联系人、群或邮箱」)。
  *
  * 取代原先「搜索框 + 常驻整份成员列表」的写法 —— 那份列表不论有没有在选人
- * 都占掉小半个对话框,把视频会议/会议室等字段挤到折叠线以下。改成:
- * - 已选的人做成 chips **排在输入框内**,输入框本身就是选人区;
- * - 候选列表改成聚焦时才出现的**浮层**,不参与布局、不撑高对话框;
- * - 键盘可用:↑/↓ 移高亮、Enter 选中/取消、Backspace 删最后一个、Esc 收起
- *   (Esc 只收浮层,不关整个对话框)。
+ * 都占掉小半个对话框,把视频会议/会议室等字段挤到折叠线以下。现在的结构:
+ * - 搜索框始终是干净的一行,已选的人**不**塞进框里当 chips;
+ * - 候选列表是聚焦时才出现的**浮层**,不参与布局、不撑高对话框;
+ * - 命中一次加一个人(单选,非勾选列表):选完清空输入并收起浮层,已加的人
+ *   从候选里去掉 —— 同一个人不会被重复呈现;
+ * - 已选的人列在搜索框下面,一人一行,行尾 × 移除;
+ * - 键盘可用:↑/↓ 移高亮、Enter 添加、Esc 收浮层(只收浮层,不关对话框)。
  *
  * 飞书的「批量添加」大弹窗(组织架构树/外部联系人/邮箱三分类)不在此实现:
  * 我们目前只有单一组织通讯录一个来源,分类面板无内容可分。
@@ -34,6 +36,12 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
   // 触发 mouseenter → setActive,若那时也跟着 scrollIntoView,列表就会被拽
   // 回高亮行 —— 表现为「滚不动、一松手就弹回」。
   const keyNavRef = useRef(false)
+
+  // 单选语义:已加进来的人不再出现在候选里(他就在下面的参与者列表中)。
+  const options = useMemo(
+    () => selectable.filter((m) => !selected.has(m.id)),
+    [selectable, selected]
+  )
 
   // 结果变了就把高亮拉回第一条,免得停在越界的下标上。
   // 依赖只能取 query:hook 里的 selectable 是每次渲染新建的数组(filter 的
@@ -55,10 +63,12 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
     el?.scrollIntoView({ block: 'nearest' })
   }, [active, open])
 
+  /** 单选:命中一次加一个人,清空输入并收起浮层,焦点留在输入框。 */
   const pick = (id: string, label: string) => {
+    if (selected.has(id)) return
     onToggle(id, label)
-    // 选完清空输入继续搜下一个(对齐飞书),焦点留在输入框。
     setQuery('')
+    setOpen(false)
     inputRef.current?.focus()
   }
 
@@ -74,13 +84,13 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
       e.preventDefault()
       keyNavRef.current = true
       setOpen(true)
-      setActive((i) => Math.min(i + 1, selectable.length - 1))
+      setActive((i) => Math.min(i + 1, options.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       keyNavRef.current = true
       setActive((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
-      const m = selectable[active]
+      const m = options[active]
       if (open && m) {
         e.preventDefault()
         pick(m.id, labelOf(m))
@@ -90,9 +100,6 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
       // (React 事件挂在根容器,stopPropagation 能截住往 document 的冒泡)。
       e.stopPropagation()
       setOpen(false)
-    } else if (e.key === 'Backspace' && !query && selected.size > 0) {
-      const [id, label] = [...selected.entries()][selected.size - 1]
-      onToggle(id, label)
     }
   }
 
@@ -106,40 +113,22 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
         }
       }}
     >
-      {/* 输入框 = chips + 内嵌 input。input 自身 flex:1 铺满 chips 右侧,
-          点「空白区」落到的就是它,不用再给容器挂取焦点的鼠标事件。 */}
-      <div className={open ? boxFocusedCls : boxCls}>
-        {[...selected.entries()].map(([id, label]) => (
-          <span key={id} className={chipCls}>
-            <MemberAvatar name={label} size="1.125rem" />
-            <span className={chipLabelCls}>{label}</span>
-            <button
-              type="button"
-              onClick={() => onToggle(id, label)}
-              aria-label={t('form.removeAttendee', { name: label })}
-              className={chipRemoveCls}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setOpen(true)
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={onKeyDown}
-          placeholder={
-            selected.size === 0 ? t('form.searchPlaceholder') : undefined
-          }
-          data-testid="event-attendee-search"
-          className={innerInputCls}
-        />
-      </div>
+      {/* 搜索框始终是干净的一行(对齐飞书):已选的人不塞进框里当 chips,
+          而是列在下面的参与者列表 —— 选到十几个人时框子不会涨成一大块。 */}
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={onKeyDown}
+        placeholder={t('form.searchPlaceholder')}
+        data-testid="event-attendee-search"
+        className={open ? inputFocusedCls : inputIdleCls}
+      />
 
       {open && (
         <div
@@ -147,14 +136,13 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
           ref={listRef}
           data-testid="attendee-options"
         >
-          {isFetching && selectable.length === 0 ? (
+          {isFetching && options.length === 0 ? (
             <p className={hintCls}>{t('form.loading')}</p>
-          ) : selectable.length === 0 ? (
+          ) : options.length === 0 ? (
             <p className={hintCls}>{t('form.noResults')}</p>
           ) : (
-            selectable.map((m, i) => {
+            options.map((m, i) => {
               const label = labelOf(m)
-              const checked = selected.has(m.id)
               return (
                 <button
                   key={m.id}
@@ -167,7 +155,6 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
                   }}
                   onMouseEnter={() => setActive(i)}
                   data-testid={`event-attendee-${m.id}`}
-                  aria-pressed={checked}
                   className={i === active ? optionActiveCls : optionCls}
                 >
                   <MemberAvatar
@@ -176,12 +163,32 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
                     size="1.75rem"
                   />
                   <span className={optionLabelCls}>{label}</span>
-                  {checked && <span className={optionCheckCls}>✓</span>}
                 </button>
               )
             })
           )}
         </div>
+      )}
+
+      {/* 已选参与者:一人一行(对齐飞书的「参与者 (N)」列表)。人数在外层的
+          「已选 N 人」上已经有了,这里不再重复标题。 */}
+      {selected.size > 0 && (
+        <ul className={pickedListCls} data-testid="attendee-picked">
+          {[...selected.entries()].map(([id, label]) => (
+            <li key={id} className={pickedRowCls}>
+              <MemberAvatar name={label} size="1.5rem" />
+              <span className={pickedNameCls}>{label}</span>
+              <button
+                type="button"
+                onClick={() => onToggle(id, label)}
+                aria-label={t('form.removeAttendee', { name: label })}
+                className={pickedRemoveCls}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )
@@ -189,70 +196,25 @@ export const AttendeePicker = ({ selected, onToggle }: Props) => {
 
 const wrapCls = css({ position: 'relative' })
 
-const boxBase = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  gap: '0.25rem',
-  minHeight: '2.25rem',
-  paddingX: '0.5rem',
-  paddingY: '0.25rem',
+const inputBase = {
+  width: '100%',
+  paddingX: '0.75rem',
+  paddingY: '0.5rem',
   borderRadius: '0.5rem',
   backgroundColor: 'greyscale.000',
-  cursor: 'text',
+  fontSize: '0.875rem',
+  color: 'greyscale.900',
+  outline: 'none',
 } as const
 
 // 聚焦态整类切换,不 cx 叠加同属性(panda-cx-atomic-order-trap)。
-const boxCls = css({
-  ...boxBase,
+const inputIdleCls = css({
+  ...inputBase,
   border: '1px solid token(colors.greyscale.300)',
 })
-const boxFocusedCls = css({
-  ...boxBase,
+const inputFocusedCls = css({
+  ...inputBase,
   border: '1px solid token(colors.primary.500)',
-})
-
-const innerInputCls = css({
-  flex: 1,
-  minWidth: '6rem',
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  paddingY: '0.25rem',
-  fontSize: '0.875rem',
-  color: 'greyscale.900',
-})
-
-const chipCls = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.25rem',
-  paddingLeft: '0.25rem',
-  paddingRight: '0.125rem',
-  paddingY: '0.125rem',
-  borderRadius: '0.375rem',
-  backgroundColor: 'greyscale.100',
-  fontSize: '0.8125rem',
-  color: 'greyscale.800',
-  maxWidth: '100%',
-})
-
-const chipLabelCls = css({
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-})
-
-const chipRemoveCls = css({
-  flexShrink: 0,
-  border: 'none',
-  background: 'transparent',
-  cursor: 'pointer',
-  paddingX: '0.125rem',
-  lineHeight: 1,
-  color: 'greyscale.500',
-  _hover: { color: 'danger.600' },
 })
 
 // 浮层:绝对定位盖在下方字段之上,不参与布局 —— 这是本次改造的要点,
@@ -297,16 +259,53 @@ const optionLabelCls = css({
   whiteSpace: 'nowrap',
 })
 
-const optionCheckCls = css({
-  flexShrink: 0,
-  fontSize: '0.875rem',
-  color: 'primary.600',
-  _dark: { color: 'primaryDark.700' },
-})
-
 const hintCls = css({
   padding: '0.625rem 0.75rem',
   margin: 0,
   color: 'greyscale.500',
   fontSize: '0.875rem',
+})
+
+// 已选列表:人多了自己滚,不把对话框顶长。
+const pickedListCls = css({
+  listStyle: 'none',
+  margin: '0.375rem 0 0',
+  padding: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+  maxHeight: '11rem',
+  overflowY: 'auto',
+})
+
+const pickedRowCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  paddingX: '0.5rem',
+  paddingY: '0.25rem',
+  borderRadius: '0.375rem',
+  backgroundColor: 'greyscale.50',
+})
+
+const pickedNameCls = css({
+  flex: 1,
+  minWidth: 0,
+  fontSize: '0.875rem',
+  color: 'greyscale.800',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+const pickedRemoveCls = css({
+  flexShrink: 0,
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  paddingX: '0.25rem',
+  fontSize: '1rem',
+  lineHeight: 1,
+  color: 'greyscale.500',
+  _hover: { color: 'danger.600' },
 })
