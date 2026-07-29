@@ -108,7 +108,7 @@
     "event": "Ereignis",
     "detailHint": "Wählen Sie ein Ereignis aus, um Details zu sehen",
     "noEvents": "Keine Ereignisse in diesem Zeitraum",
-    "draftTitle": "(Ohne Titel)",
+    "draftAdd": "Neuer Termin",
     "showMore": "+{{count}} weitere"
   },
   "sidebar": {

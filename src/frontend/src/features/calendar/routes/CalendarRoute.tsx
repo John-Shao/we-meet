@@ -16,6 +16,7 @@ import {
   fetchCalendarEvents,
   rsvpCalendarEvent,
   deleteCalendarEvent,
+  updateCalendarEvent,
 } from '../api/fetchCalendar'
 import type { CalendarEvent, EditScope, RSVPStatus } from '../api/ApiCalendar'
 import { openSystemSettings } from '@/stores/systemSettings'
@@ -92,6 +93,14 @@ const CalendarAuthenticated = () => {
     setCreating(true)
   }
 
+  // 切视图 / 翻页即作废预选框(它挂在具体时段上,换了窗口就不该留着)。
+  useEffect(() => {
+    setDraft((d) => (d && !creating ? null : d))
+    // creating 不进依赖:弹窗开着时的重渲染不该清掉正在编辑的草稿。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, view])
+
+
   const changeTab = (next: CalendarPageTab) => {
     setTab(next)
     const params = new URLSearchParams()
@@ -128,6 +137,37 @@ const CalendarAuthenticated = () => {
     // 会议室 Tab 不渲染网格,±1 月的事件窗口是纯浪费。
     enabled: tab === 'calendar',
   })
+
+  /**
+   * 整块拖动已建日程 = 改期:只 PATCH 起止(其余字段不动 —— 后端 partial
+   * 缺省即不改标题/参与者/会议室),乐观改本地缓存,失败回滚 + 提示。
+   * 仅「我组织的非重复日程」可拖(见 canMoveEvent)。
+   */
+  const moveEvent = async (event: CalendarEvent, start: Date, end: Date) => {
+    const key = ['calendar', 'window', monthWindow] as const
+    const before = qc.getQueryData<CalendarEvent[]>(key)
+    const times = { start_at: start.toISOString(), end_at: end.toISOString() }
+    qc.setQueryData<CalendarEvent[]>(key, (list) =>
+      (list ?? []).map((e) => (e.id === event.id ? { ...e, ...times } : e))
+    )
+    try {
+      await updateCalendarEvent(event.id, times)
+      await qc.invalidateQueries({ queryKey: EVENTS_KEY })
+    } catch (e) {
+      // 会议室被占(409)/无权限/网络:退回拖动前的时间。
+      if (before) qc.setQueryData(key, before)
+      void showAlert({
+        message: t('form.error', { message: apiErrorMessage(e) }),
+      })
+    }
+  }
+
+  /** 组织者本人 + 非重复日程才可拖动改期(与后端 PATCH 的放行口径一致)。 */
+  const canMoveEvent = (event: CalendarEvent) =>
+    !!user &&
+    event.organizer?.id === user.id &&
+    !event.recurrence &&
+    !event.recurrence_parent
 
   useEffect(() => {
     if (!pendingEventId || isLoading) return
@@ -319,8 +359,13 @@ const CalendarAuthenticated = () => {
               onNavigate={setDate}
               view={view}
               onViewChange={setView}
+              // 月视图点某天仍直接开弹窗;时间视图走两步式预选(下面两个)。
               onSelectSlot={openCreate}
-              slotDraft={creating ? draft : null}
+              slotDraft={draft}
+              onDraftChange={setDraft}
+              onDraftConfirm={() => setCreating(true)}
+              onEventMove={moveEvent}
+              canMoveEvent={canMoveEvent}
             />
           )}
         </div>

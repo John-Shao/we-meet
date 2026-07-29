@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Calendar, dateFnsLocalizer, type View } from 'react-big-calendar'
+import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { zhCN, enUS, fr, de, nl, type Locale } from 'date-fns/locale'
 
 import 'react-big-calendar/lib/css/react-big-calendar.css'
+import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
 import './calendarGridOverrides.css'
 
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
@@ -118,9 +120,14 @@ export interface SlotDraft {
   allDay: boolean
 }
 
-// 新建日程弹窗期间注入网格的占位草稿事件 id(对齐 Google Calendar:选中
-// 时段在弹窗打开时保持高亮)。
+// 预选时段注入网格的占位事件 id。对齐飞书/App:周/日视图点(或拖)空白先
+// 落这个「添加日程」预选框 —— 可整块拖动移位、可拖上下边界改时长,**再点
+// 一次**才打开新建弹窗;弹窗打开期间它继续高亮显示选中的时段。
 const DRAFT_ID = '__slot-draft__'
+
+// 拖拽移位/改时长走 rbc 官方 addon(withDragAndDrop)。模块级包一次,组件
+// 引用才稳定 —— 放进渲染函数里每次重建都会把整棵网格重挂。
+const DnDCalendar = withDragAndDrop<RbcEvent>(Calendar)
 
 // 「日程」视图换成自研平铺列表(AgendaListView,飞书式);模块级常量保证
 // 引用稳定避免视图重挂。类型上 rbc 的 Views 不含自定义组件签名,窄化断言。
@@ -144,10 +151,17 @@ interface Props {
   /** Controlled view(页头分段切换器驱动),同 date 模式,缺省走内部状态。 */
   view?: View
   onViewChange?: (view: View) => void
-  /** Click/drag an empty slot → 飞书式快捷创建,带预填时间。 */
+  /** 月视图点某天 → 直接开新建弹窗(全天草稿);时间视图走两步式预选。 */
   onSelectSlot?: (draft: SlotDraft) => void
-  /** 新建弹窗打开期间的草稿时段:渲染为「(无标题)」占位块保持选中态。 */
+  /** 当前预选时段:渲染成「添加日程」预选框(可拖动/可改时长)。 */
   slotDraft?: SlotDraft | null
+  /** 周/日视图点(或拖)空白 / 拖动预选框 → 更新预选时段(不开弹窗)。 */
+  onDraftChange?: (draft: SlotDraft) => void
+  /** 再次点击预选框 → 确认,调用方据此打开新建弹窗。 */
+  onDraftConfirm?: (draft: SlotDraft) => void
+  /** 整块拖动已建日程 → 改期(仅 [canMoveEvent] 为 true 的日程可拖)。 */
+  onEventMove?: (event: CalendarEvent, start: Date, end: Date) => void
+  canMoveEvent?: (event: CalendarEvent) => boolean
 }
 
 export const CalendarGrid = ({
@@ -159,9 +173,14 @@ export const CalendarGrid = ({
   onViewChange,
   onSelectSlot,
   slotDraft,
+  onDraftChange,
+  onDraftConfirm,
+  onEventMove,
+  canMoveEvent,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
-  const { weekStartsOn, dimPast, showWeekend } = useCalendarSettings()
+  const { weekStartsOn, dimPast, showWeekend, defaultDurationMin } =
+    useCalendarSettings()
   const localizer = useMemo(() => localizerFor(weekStartsOn), [weekStartsOn])
   const [viewState, setViewState] = useState<View>('week')
   const view = viewProp ?? viewState
@@ -191,7 +210,7 @@ export const CalendarGrid = ({
     if (slotDraft) {
       list.push({
         id: DRAFT_ID,
-        title: t('grid.draftTitle'),
+        title: t('grid.draftAdd'),
         start: slotDraft.start,
         end: slotDraft.end,
         allDay: slotDraft.allDay,
@@ -267,8 +286,26 @@ export const CalendarGrid = ({
     [t]
   )
 
+  // 只有「我组织的、非重复」的日程可整块拖动改期(后端 PATCH 也只放行组织者;
+  // 重复日程要走编辑弹窗的三选)。预选框恒可拖、且是唯一可改时长的块 ——
+  // 已建日程本轮只做移位,改时长仍走编辑弹窗。
+  const isDraft = (ev: RbcEvent) => ev.id === DRAFT_ID
+  const draggable = (ev: RbcEvent) =>
+    isDraft(ev) || (!!onEventMove && !!canMoveEvent?.(ev.resource))
+
+  /** rbc 回吐的落点 → SlotDraft(月视图/全天行的 isAllDay 透传)。 */
+  const asDraft = (
+    start: Date | string,
+    end: Date | string,
+    allDay?: boolean
+  ): SlotDraft => ({
+    start: new Date(start),
+    end: new Date(end),
+    allDay: !!allDay,
+  })
+
   return (
-    <Calendar<RbcEvent>
+    <DnDCalendar
       localizer={localizer}
       culture={cultureFor(i18n.language)}
       events={rbcEvents}
@@ -305,35 +342,60 @@ export const CalendarGrid = ({
             : {}),
         }
       }}
+      // 预选框可拖动移位(整块)+ 拖上下边界改时长;已建日程只开放移位。
+      draggableAccessor={draggable}
+      resizableAccessor={isDraft}
+      resizable
+      onEventDrop={({ event, start, end, isAllDay }) => {
+        if (isDraft(event)) {
+          onDraftChange?.(asDraft(start, end, isAllDay ?? event.allDay))
+          return
+        }
+        onEventMove?.(event.resource, new Date(start), new Date(end))
+      }}
+      onEventResize={({ event, start, end }) => {
+        if (isDraft(event)) onDraftChange?.(asDraft(start, end, event.allDay))
+      }}
       onSelectEvent={(ev) => {
-        if (ev.id !== DRAFT_ID) onSelectEvent(ev.resource)
+        // 再次点击预选框 = 确认建日程(对齐 App:第一次点空白只是预选)。
+        if (isDraft(ev)) {
+          if (slotDraft) onDraftConfirm?.(slotDraft)
+          return
+        }
+        onSelectEvent(ev.resource)
       }}
       onSelectSlot={(slot) => {
-        // Month: a day click → all-day draft pinned to that day. Time views:
-        // use the dragged/clicked range; a bare click gives a 30-min slot,
-        // fall back to +1h when the range is empty.
+        // 月视图点某天 = 直接开新建弹窗(全天草稿);月格子没有时间轴,
+        // 预选框在那儿既拖不出时段也读不出时刻,两步式没有意义。
         const start = slot.start
         if (view === 'month') {
           onSelectSlot?.({ start, end: start, allDay: true })
           return
         }
+        // 时间视图:落预选框(不开弹窗)。onDraftChange 缺省时(组件独立
+        // 使用)退回原来的立即创建。
+        const select = onDraftChange ?? onSelectSlot
         // 周/日视图顶部全天行:rbc 给「当天 00:00 → 次日 00:00(开区间)」,
-        // 直接透传会弹出 00:00 起止的时间草稿;视为全天日程(对齐月视图),
+        // 直接透传会得到 00:00 起止的时间草稿;视为全天日程(对齐月视图),
         // 结束日回退一天转成闭区间。
         const isMidnight = (d: Date) =>
           d.getHours() === 0 && d.getMinutes() === 0
         if (isMidnight(start) && isMidnight(slot.end) && slot.end > start) {
           const endDay = new Date(slot.end.getTime() - 86_400_000)
-          onSelectSlot?.({
+          select?.({
             start,
             end: endDay > start ? endDay : start,
             allDay: true,
           })
           return
         }
+        // 单击 = 按「日程默认时长」落框(对齐 App;rbc 单击只给一格 step);
+        // 拖选 = 用拖出来的区间。
         const end =
-          slot.end > start ? slot.end : new Date(start.getTime() + 3600_000)
-        onSelectSlot?.({ start, end, allDay: false })
+          slot.action === 'click' || slot.end <= start
+            ? new Date(start.getTime() + defaultDurationMin * 60_000)
+            : slot.end
+        select?.({ start, end, allDay: false })
       }}
       style={{ height: '100%' }}
     />

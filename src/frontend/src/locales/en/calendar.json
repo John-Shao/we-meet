@@ -108,7 +108,7 @@
     "event": "Event",
     "detailHint": "Select an event to see details",
     "noEvents": "No events in this range",
-    "draftTitle": "(No title)",
+    "draftAdd": "New event",
     "showMore": "+{{count}} more"
   },
   "sidebar": {

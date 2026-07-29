@@ -57,23 +57,40 @@
   white-space: nowrap;
 }
 
-/* ── 新建日程草稿占位块(对齐 Google Calendar):弹窗打开期间选中时段
-   保持高亮 —— 实心蓝 + 白字,盖过上面的浅蓝事件样式。 */
+/* ── 预选时段框(对齐飞书 / App 端):点空白先落这个框,可整块拖动移位、
+   可拖上下边界改时长,再点一次才开新建弹窗。视觉上要一眼看出「还不是
+   日程」—— 浅蓝底 + 主色描边 + 主色字,区别于实心的已建日程块。 */
 .rbc-event.wm-slot-draft,
 .rbc-day-slot .rbc-event.wm-slot-draft {
-  background-color: #3370ff;
-  border-left-color: #2860d9;
-  color: #fff;
-  cursor: default;
+  background-color: rgba(51, 112, 255, 0.14);
+  border: 1px solid #3370ff;
+  border-left-color: #3370ff;
+  color: #2860d9;
+  font-weight: 500;
+  cursor: move;
 }
 .rbc-event.wm-slot-draft .rbc-event-label {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(40, 96, 217, 0.85);
 }
 [data-theme='dark'] .rbc-event.wm-slot-draft,
 [data-theme='dark'] .rbc-day-slot .rbc-event.wm-slot-draft {
-  background-color: #5c8dff;
-  border-left-color: #3370ff;
-  color: #fff;
+  background-color: rgba(92, 141, 255, 0.22);
+  border-color: #5c8dff;
+  color: #cddcff;
+}
+[data-theme='dark'] .rbc-event.wm-slot-draft .rbc-event-label {
+  color: rgba(205, 220, 255, 0.85);
+}
+/* 上下边界手柄:rbc 的 dnd addon 默认是一条透明热区,这里给个可见的把手
+   (飞书样式的小横条),不然用户不知道能拖。 */
+.rbc-addons-dnd .rbc-event.wm-slot-draft .rbc-addons-dnd-resize-ns-icon {
+  border-top: 3px solid #3370ff;
+  width: 24px;
+  margin: 0 auto;
+}
+/* 可拖动的已建日程:悬停时给个「可以拖」的指针提示。 */
+.rbc-addons-dnd .rbc-event.rbc-addons-dnd-dragged-event {
+  opacity: 0.4;
 }
 
 /* ── 当前时间线:飞书红线 + 左端圆点(原蓝色) ─────────────────────────── */

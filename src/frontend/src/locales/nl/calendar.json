@@ -108,7 +108,7 @@
     "event": "Gebeurtenis",
     "detailHint": "Selecteer een gebeurtenis om details te bekijken",
     "noEvents": "Geen gebeurtenissen in dit bereik",
-    "draftTitle": "(Zonder titel)",
+    "draftAdd": "Nieuwe afspraak",
     "showMore": "+{{count}} meer"
   },
   "sidebar": {

@@ -108,7 +108,7 @@
     "event": "Événement",
     "detailHint": "Sélectionnez un événement pour voir les détails",
     "noEvents": "Aucun événement sur cette période",
-    "draftTitle": "(Sans titre)",
+    "draftAdd": "Nouvel événement",
     "showMore": "+{{count}} autres"
   },
   "sidebar": {
