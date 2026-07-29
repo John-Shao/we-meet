@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
@@ -92,6 +92,9 @@ const CalendarAuthenticated = () => {
     setDraft(slot)
     setCreating(true)
   }
+
+  // 网格容器:用来判断一次点击是落在日历表内还是表外(表外 = 清预选框)。
+  const gridRef = useRef<HTMLDivElement>(null)
 
   // 切视图 / 翻页即作废预选框(它挂在具体时段上,换了窗口就不该留着)。
   useEffect(() => {
@@ -237,7 +240,17 @@ const CalendarAuthenticated = () => {
   }
 
   return (
-    <div className={css({ display: 'flex', height: '100%' })}>
+    <div
+      className={css({ display: 'flex', height: '100%' })}
+      // 点到网格以外(侧栏 / 工具栏 / 页面空白)也算「点框外」→ 清除预选框。
+      // 网格**内**的点击不在这里处理:落框/清框由 rbc 的 onSelectSlot 与
+      // onSelectEvent 决定,两边都插手会打架。弹窗开着时草稿要留着。
+      onMouseDownCapture={(e) => {
+        if (!draft || creating) return
+        if (gridRef.current?.contains(e.target as Node)) return
+        setDraft(null)
+      }}
+    >
       {/* 二级导航栏:迷你日历 + 即将开始,与「视频会议」侧栏对齐。可拖拽改宽。 */}
       <ResizablePanel
         storageKey="we-meet:calendar-sidebar-width"
@@ -341,7 +354,7 @@ const CalendarAuthenticated = () => {
 
         {/* 月/周/日 网格(react-big-calendar);点事件开详情弹窗(RSVP/进会)。
            P9 会议室 Tab 走自研横向时间轴(资源 × 时间,不是 rbc 的事件流)。 */}
-        <div className={css({ flex: 1, minHeight: 0 })}>
+        <div ref={gridRef} className={css({ flex: 1, minHeight: 0 })}>
           {tab === 'meetingRooms' ? (
             <MeetingRoomsPane
               date={date}
@@ -359,11 +372,14 @@ const CalendarAuthenticated = () => {
               onNavigate={setDate}
               view={view}
               onViewChange={setView}
-              // 月视图点某天仍直接开弹窗;时间视图走两步式预选(下面两个)。
+              // 月视图点某天仍直接开弹窗;时间视图走两步式预选(下面几个)。
               onSelectSlot={openCreate}
               slotDraft={draft}
+              // 点空白:已有预选框 → 先清掉(点框外即取消);没有 → 落新框。
+              onDraftSelect={(slot) => setDraft((cur) => (cur ? null : slot))}
               onDraftChange={setDraft}
               onDraftConfirm={() => setCreating(true)}
+              onDraftDismiss={() => setDraft(null)}
               onEventMove={moveEvent}
               canMoveEvent={canMoveEvent}
             />

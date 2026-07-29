@@ -155,10 +155,15 @@ interface Props {
   onSelectSlot?: (draft: SlotDraft) => void
   /** 当前预选时段:渲染成「添加日程」预选框(可拖动/可改时长)。 */
   slotDraft?: SlotDraft | null
-  /** 周/日视图点(或拖)空白 / 拖动预选框 → 更新预选时段(不开弹窗)。 */
+  /** 周/日视图点(或拖选)空白 → 落预选框;已有框时调用方按「点框外」清除。 */
+  onDraftSelect?: (draft: SlotDraft) => void
+  /** 拖动预选框移位 / 拖边界改时长 → 更新预选时段(与上面分开:这条恒是
+   *  「改成这个值」,不参与点框外清除的判定)。 */
   onDraftChange?: (draft: SlotDraft) => void
   /** 再次点击预选框 → 确认,调用方据此打开新建弹窗。 */
   onDraftConfirm?: (draft: SlotDraft) => void
+  /** 点到预选框以外(已建日程 / 网格外)→ 清除预选框。 */
+  onDraftDismiss?: () => void
   /** 整块拖动已建日程 → 改期(仅 [canMoveEvent] 为 true 的日程可拖)。 */
   onEventMove?: (event: CalendarEvent, start: Date, end: Date) => void
   canMoveEvent?: (event: CalendarEvent) => boolean
@@ -173,8 +178,10 @@ export const CalendarGrid = ({
   onViewChange,
   onSelectSlot,
   slotDraft,
+  onDraftSelect,
   onDraftChange,
   onDraftConfirm,
+  onDraftDismiss,
   onEventMove,
   canMoveEvent,
 }: Props) => {
@@ -362,6 +369,8 @@ export const CalendarGrid = ({
           if (slotDraft) onDraftConfirm?.(slotDraft)
           return
         }
+        // 点已建日程 = 点在预选框以外 → 顺手清掉预选框。
+        onDraftDismiss?.()
         onSelectEvent(ev.resource)
       }}
       onSelectSlot={(slot) => {
@@ -372,9 +381,9 @@ export const CalendarGrid = ({
           onSelectSlot?.({ start, end: start, allDay: true })
           return
         }
-        // 时间视图:落预选框(不开弹窗)。onDraftChange 缺省时(组件独立
+        // 时间视图:落预选框(不开弹窗)。onDraftSelect 缺省时(组件独立
         // 使用)退回原来的立即创建。
-        const select = onDraftChange ?? onSelectSlot
+        const select = onDraftSelect ?? onSelectSlot
         // 周/日视图顶部全天行:rbc 给「当天 00:00 → 次日 00:00(开区间)」,
         // 直接透传会得到 00:00 起止的时间草稿;视为全天日程(对齐月视图),
         // 结束日回退一天转成闭区间。

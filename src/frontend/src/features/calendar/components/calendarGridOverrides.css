@@ -81,12 +81,56 @@
 [data-theme='dark'] .rbc-event.wm-slot-draft .rbc-event-label {
   color: rgba(205, 220, 255, 0.85);
 }
-/* 上下边界手柄:rbc 的 dnd addon 默认是一条透明热区,这里给个可见的把手
-   (飞书样式的小横条),不然用户不知道能拖。 */
+/* 上下边界手柄:与 App 端一致 —— 白心主色圈的小圆点,**骑在边界线上**
+   (右上 / 左下),而不是 rbc 默认那条藏在框内的小横条。小框时框内没地方
+   下手,骑在边上才好抓。 */
+.rbc-event.wm-slot-draft,
+.rbc-day-slot .rbc-event.wm-slot-draft {
+  /* 手柄要探出块外一半,day-slot 的 overflow:hidden 会把它剪掉。 */
+  overflow: visible;
+}
+.rbc-addons-dnd .rbc-event.wm-slot-draft .rbc-addons-dnd-resize-ns-anchor {
+  height: 0;
+}
 .rbc-addons-dnd .rbc-event.wm-slot-draft .rbc-addons-dnd-resize-ns-icon {
-  border-top: 3px solid #3370ff;
-  width: 24px;
-  margin: 0 auto;
+  /* 默认 display:none,只在 hover 时现身;预选框要常驻(触屏没有 hover)。 */
+  display: block;
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  border: 2px solid #3370ff;
+  border-radius: 50%;
+  background-color: #fff;
+  cursor: ns-resize;
+  z-index: 2;
+}
+/* 触摸/鼠标热区放大到 ~29px,圆点本身仍是 13px。 */
+.rbc-addons-dnd .rbc-event.wm-slot-draft .rbc-addons-dnd-resize-ns-icon::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+.rbc-addons-dnd
+  .rbc-event.wm-slot-draft
+  .rbc-addons-dnd-resize-ns-anchor:first-child
+  .rbc-addons-dnd-resize-ns-icon {
+  top: -7px;
+  right: 10px;
+}
+.rbc-addons-dnd
+  .rbc-event.wm-slot-draft
+  .rbc-addons-dnd-resize-ns-anchor:last-child
+  .rbc-addons-dnd-resize-ns-icon {
+  bottom: -7px;
+  left: 10px;
+}
+[data-theme='dark']
+  .rbc-addons-dnd
+  .rbc-event.wm-slot-draft
+  .rbc-addons-dnd-resize-ns-icon {
+  border-color: #5c8dff;
+  background-color: #1b1f2a;
 }
 /* 可拖动的已建日程:悬停时给个「可以拖」的指针提示。 */
 .rbc-addons-dnd .rbc-event.rbc-addons-dnd-dragged-event {
