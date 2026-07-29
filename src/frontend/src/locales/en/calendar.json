@@ -109,6 +109,7 @@
     "detailHint": "Select an event to see details",
     "noEvents": "No events in this range",
     "draftAdd": "New event",
+    "moveRoomConflict": "Meeting room is taken then — reschedule reverted",
     "showMore": "+{{count}} more"
   },
   "sidebar": {

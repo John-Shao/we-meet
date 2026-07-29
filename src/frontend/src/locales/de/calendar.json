@@ -109,6 +109,7 @@
     "detailHint": "Wählen Sie ein Ereignis aus, um Details zu sehen",
     "noEvents": "Keine Ereignisse in diesem Zeitraum",
     "draftAdd": "Neuer Termin",
+    "moveRoomConflict": "Besprechungsraum ist dann belegt — Verschieben zurückgenommen",
     "showMore": "+{{count}} weitere"
   },
   "sidebar": {

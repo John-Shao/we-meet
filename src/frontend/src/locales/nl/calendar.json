@@ -109,6 +109,7 @@
     "detailHint": "Selecteer een gebeurtenis om details te bekijken",
     "noEvents": "Geen gebeurtenissen in dit bereik",
     "draftAdd": "Nieuwe afspraak",
+    "moveRoomConflict": "Vergaderruimte is dan bezet — verplaatsing teruggedraaid",
     "showMore": "+{{count}} meer"
   },
   "sidebar": {

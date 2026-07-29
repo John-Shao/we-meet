@@ -109,6 +109,7 @@
     "detailHint": "选择日程查看详情",
     "noEvents": "本区间暂无日程",
     "draftAdd": "添加日程",
+    "moveRoomConflict": "该时段会议室已被占用，改期已还原",
     "showMore": "还有 {{count}} 项"
   },
   "sidebar": {

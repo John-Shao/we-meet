@@ -109,6 +109,7 @@
     "detailHint": "Sélectionnez un événement pour voir les détails",
     "noEvents": "Aucun événement sur cette période",
     "draftAdd": "Nouvel événement",
+    "moveRoomConflict": "Salle déjà réservée sur ce créneau — déplacement annulé",
     "showMore": "+{{count}} autres"
   },
   "sidebar": {

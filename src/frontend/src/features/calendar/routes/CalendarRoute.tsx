@@ -7,6 +7,7 @@ import { addMonths, addYears, endOfMonth, startOfDay, startOfMonth } from 'date-
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
+import { ApiError } from '@/api/ApiError'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useUser } from '@/features/auth'
 import { RequireAuth } from '@/components/RequireAuth'
@@ -36,6 +37,21 @@ import { EventDetailDialog } from '../components/EventDetailDialog'
 import { EventShareDialog } from '../components/EventShareDialog'
 
 const EVENTS_KEY = ['calendar'] as const
+
+/**
+ * 改期撞上会议室占用:core/api/calendar.py 的 handle_exception 把它转成 409
+ * + `code: meeting_room_unavailable`。日程接口没有别的 409 语义,但仍按 code
+ * 兜一层,免得将来加了别的 409 被误判成会议室冲突。
+ */
+const isRoomConflict = (error: unknown): boolean => {
+  if (!(error instanceof ApiError) || error.statusCode !== 409) return false
+  const body = error.body
+  if (body && typeof body === 'object') {
+    const code = (body as Record<string, unknown>).code
+    if (typeof code === 'string') return code === 'meeting_room_unavailable'
+  }
+  return true
+}
 
 export const CalendarRoute = () => (
   <RequireAuth>
@@ -157,10 +173,14 @@ const CalendarAuthenticated = () => {
       await updateCalendarEvent(event.id, times)
       await qc.invalidateQueries({ queryKey: EVENTS_KEY })
     } catch (e) {
-      // 会议室被占(409)/无权限/网络:退回拖动前的时间。
+      // 无权限/网络/会议室被占:一律退回拖动前的时间。
       if (before) qc.setQueryData(key, before)
+      // 会议室在新时段被占是最常见的一种,单独给文案 —— 后端只回
+      // 「meeting room unavailable」,直接透出来用户看不懂发生了什么。
       void showAlert({
-        message: t('form.error', { message: apiErrorMessage(e) }),
+        message: isRoomConflict(e)
+          ? t('grid.moveRoomConflict')
+          : t('form.error', { message: apiErrorMessage(e) }),
       })
     }
   }
@@ -247,8 +267,16 @@ const CalendarAuthenticated = () => {
       // onSelectEvent 决定,两边都插手会打架。弹窗开着时草稿要留着。
       onMouseDownCapture={(e) => {
         if (!draft || creating) return
-        if (gridRef.current?.contains(e.target as Node)) return
-        setDraft(null)
+        const el = e.target as HTMLElement
+        if (!gridRef.current?.contains(el)) {
+          setDraft(null)
+          return
+        }
+        // 网格内但落在左侧时刻栏 / 左上角空格:那儿不落框也不选日程,
+        // 和点网格外同义(rbc 不会为它们回调 onSelectSlot,得自己收)。
+        if (el.closest('.rbc-time-gutter, .rbc-time-header-gutter')) {
+          setDraft(null)
+        }
       }}
     >
       {/* 二级导航栏:迷你日历 + 即将开始,与「视频会议」侧栏对齐。可拖拽改宽。 */}
