@@ -293,11 +293,11 @@ export const CalendarGrid = ({
     [t]
   )
 
-  // 只有「我组织的、非重复」的日程可整块拖动改期(后端 PATCH 也只放行组织者;
-  // 重复日程要走编辑弹窗的三选)。预选框恒可拖、且是唯一可改时长的块 ——
-  // 已建日程本轮只做移位,改时长仍走编辑弹窗。
+  // 只有「我组织的、非重复」的日程可拖动改期(后端 PATCH 也只放行组织者;
+  // 重复日程要走编辑弹窗的三选)。预选框恒可拖。移位与改时长同一口径 ——
+  // 拖块本体 = 移位、拖上下手柄 = 改时长,两条路径都只是给出「新的起止」。
   const isDraft = (ev: RbcEvent) => ev.id === DRAFT_ID
-  const draggable = (ev: RbcEvent) =>
+  const editable = (ev: RbcEvent) =>
     isDraft(ev) || (!!onEventMove && !!canMoveEvent?.(ev.resource))
 
   /** rbc 回吐的落点 → SlotDraft(月视图/全天行的 isAllDay 透传)。 */
@@ -339,6 +339,8 @@ export const CalendarGrid = ({
           // wm-month-timed 只在月视图 CSS 里生效,周/日视图带着也无副作用。
           isMonthBar(ev) ? '' : `wm-month-timed${short}`,
           rsvpClassFor(ev.resource?.my_rsvp),
+          // wm-editable:我可改期的日程,hover 时出与预选框同款的圆抓手。
+          editable(ev) ? 'wm-editable' : '',
         ]
           .filter(Boolean)
           .join(' ')
@@ -349,9 +351,9 @@ export const CalendarGrid = ({
             : {}),
         }
       }}
-      // 预选框可拖动移位(整块)+ 拖上下边界改时长;已建日程只开放移位。
-      draggableAccessor={draggable}
-      resizableAccessor={isDraft}
+      // 预选框与「我可改的日程」都能拖动移位 + 拖上下手柄改时长。
+      draggableAccessor={editable}
+      resizableAccessor={editable}
       resizable
       onEventDrop={({ event, start, end, isAllDay }) => {
         if (isDraft(event)) {
@@ -361,7 +363,12 @@ export const CalendarGrid = ({
         onEventMove?.(event.resource, new Date(start), new Date(end))
       }}
       onEventResize={({ event, start, end }) => {
-        if (isDraft(event)) onDraftChange?.(asDraft(start, end, event.allDay))
+        if (isDraft(event)) {
+          onDraftChange?.(asDraft(start, end, event.allDay))
+          return
+        }
+        // 改时长与移位同一条落库路径(都只是新的起止)。
+        onEventMove?.(event.resource, new Date(start), new Date(end))
       }}
       onSelectEvent={(ev) => {
         // 再次点击预选框 = 确认建日程(对齐 App:第一次点空白只是预选)。
