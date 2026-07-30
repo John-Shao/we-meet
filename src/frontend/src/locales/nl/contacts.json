@@ -52,6 +52,6 @@
   },
   "specialAlert": {
     "toggle": "Speciale melding voor zijn berichten",
-    "toggleHint": "Zijn berichten melden ook tijdens stille uren en worden gemarkeerd in de chatlijst."
+    "toggleHint": "Zijn berichten melden ook tijdens stille uren."
   }
 }

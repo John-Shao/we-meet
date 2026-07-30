@@ -16,6 +16,7 @@ from core import factories, models
 pytestmark = pytest.mark.django_db
 
 STARRED_URL = "/api/v1.0/directory/starred/"
+SPECIAL_ALERT_URL = "/api/v1.0/directory/special-alert/"
 
 
 def _prefs_url(user_id) -> str:
@@ -208,6 +209,53 @@ def test_both_flags_ride_along_on_directory_and_department_member_cards():
 
     detail = client.get(f"{members_url}{starred.id}/").json()
     assert (detail["is_starred"], detail["special_alert"]) == (True, False)
+
+
+def test_the_two_flag_lists_do_not_bleed_into_each_other():
+    """星标名单 and 特别提醒名单 are separate projections of the same table.
+
+    Each returns renderable cards; a contact with only the *other* flag must not
+    show up. Both lists are what 通讯录 / 设置 › 通知 render.
+    """
+    org, me, client = _org_with_caller()
+    starred = factories.UserFactory(full_name="Starred One", email="s@acme.com")
+    alerted = factories.UserFactory(full_name="Alerted One", email="a@acme.com")
+    both = factories.UserFactory(full_name="Both Flags", email="b@acme.com")
+    for user in (starred, alerted, both):
+        _membership(org, user)
+    models.ContactPreference.objects.create(owner=me, target=starred, is_starred=True)
+    models.ContactPreference.objects.create(
+        owner=me, target=alerted, special_alert=True
+    )
+    models.ContactPreference.objects.create(
+        owner=me, target=both, is_starred=True, special_alert=True
+    )
+
+    assert {m["full_name"] for m in client.get(STARRED_URL).json()} == {
+        "Starred One",
+        "Both Flags",
+    }
+    assert {m["full_name"] for m in client.get(SPECIAL_ALERT_URL).json()} == {
+        "Alerted One",
+        "Both Flags",
+    }
+
+
+def test_special_alert_list_requires_authentication_and_drops_ex_members():
+    """Anonymous → 401; a target no longer in the org stops appearing."""
+    assert APIClient().get(SPECIAL_ALERT_URL).status_code == 401
+
+    org, me, client = _org_with_caller()
+    peer = factories.UserFactory(full_name="Alerted One", email="a@acme.com")
+    membership = _membership(org, peer)
+    models.ContactPreference.objects.create(owner=me, target=peer, special_alert=True)
+    assert len(client.get(SPECIAL_ALERT_URL).json()) == 1
+
+    membership.status = models.MembershipStatusChoices.LEFT
+    membership.save(update_fields=["status"])
+    assert client.get(SPECIAL_ALERT_URL).json() == []
+    # The row survives — only the card projection drops out.
+    assert models.ContactPreference.objects.filter(owner=me).count() == 1
 
 
 def test_prefs_list_returns_flags_only_for_client_side_sets():

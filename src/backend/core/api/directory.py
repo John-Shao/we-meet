@@ -339,27 +339,29 @@ def org_membership_of(caller, user_id):
     )
 
 
-class StarredContactViewSet(viewsets.GenericViewSet):
-    """The caller's own 星标联系人 list — ``GET /api/v1.0/directory/starred/``.
+class ContactFlagListViewSet(viewsets.GenericViewSet):
+    """Base for the two per-contact flag lists — renderable member cards.
 
-    Read-only. Setting either per-contact flag goes through
-    ``ContactPreferenceView`` (``directory/contact-prefs/{user_id}/``) — there is
-    no POST/DELETE here, because 星标 is only one of two independent flags and
-    one endpoint for both keeps the client from having to know that.
+    Subclasses set :attr:`flag_field` to the ``ContactPreference`` boolean they
+    project. Read-only: setting either flag goes through
+    ``ContactPreferenceViewSet`` (``directory/contact-prefs/{user_id}/``), so a
+    client toggling one never has to know there are two.
 
-    The list is projected through the target's *Membership* in the caller's
-    organization and reuses ``DirectoryMemberSerializer``, so a starred person
-    who left the org (or was never in it) simply stops appearing — no tombstone
-    rows to clean up. Bare array on purpose: a personal star list is short.
+    Lists are projected through the target's *Membership* in the caller's
+    organization and reuse ``DirectoryMemberSerializer``, so someone who left the
+    org (or was never in it) simply stops appearing — no tombstone rows to clean
+    up. Bare array on purpose: these personal lists are short.
     """
 
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = DirectoryMemberSerializer
     pagination_class = None
+    #: ``ContactPreference`` boolean field this list filters on.
+    flag_field: str = ""
 
     def get_queryset(self):
         return models.ContactPreference.objects.filter(
-            owner=self.request.user, is_starred=True
+            owner=self.request.user, **{self.flag_field: True}
         )
 
     def get_serializer_context(self):
@@ -369,7 +371,7 @@ class StarredContactViewSet(viewsets.GenericViewSet):
         return context
 
     def list(self, request):
-        """Starred members as directory cards, ordered like the directory itself."""
+        """Flagged members as directory cards, ordered like the directory itself."""
         target_ids = list(self.get_queryset().values_list("target_id", flat=True))
         organization = get_caller_organization(request.user)
         if organization is None or not target_ids:
@@ -387,6 +389,23 @@ class StarredContactViewSet(viewsets.GenericViewSet):
         )
         serializer = self.get_serializer(memberships, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class StarredContactViewSet(ContactFlagListViewSet):
+    """星标联系人 — ``GET /api/v1.0/directory/starred/``. Rendered by 通讯录."""
+
+    flag_field = "is_starred"
+
+
+class SpecialAlertContactViewSet(ContactFlagListViewSet):
+    """「他的消息特别提醒」名单 — ``GET /api/v1.0/directory/special-alert/``.
+
+    Rendered by the App's 设置 › 通知 › 消息特别提醒 page, which is where this
+    list is reviewed and pruned (the per-person switch itself lives on the
+    contact's detail page — same two-entry shape as 星标).
+    """
+
+    flag_field = "special_alert"
 
 
 class ContactPreferenceViewSet(viewsets.GenericViewSet):

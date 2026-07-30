@@ -52,6 +52,6 @@
   },
   "specialAlert": {
     "toggle": "Sonderhinweis für seine Nachrichten",
-    "toggleHint": "Seine Nachrichten benachrichtigen dich auch in den Ruhezeiten und werden in der Chatliste markiert."
+    "toggleHint": "Seine Nachrichten benachrichtigen dich auch in den Ruhezeiten."
   }
 }

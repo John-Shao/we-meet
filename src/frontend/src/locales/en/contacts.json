@@ -52,6 +52,6 @@
   },
   "specialAlert": {
     "toggle": "Special alerts for their messages",
-    "toggleHint": "Their messages notify you even during quiet hours, and are marked in the chat list."
+    "toggleHint": "Their messages notify you even during quiet hours."
   }
 }

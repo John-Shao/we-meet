@@ -26,6 +26,7 @@ from core.api.directory import (
     DepartmentViewSet,
     DirectoryMeView,
     DirectoryMemberViewSet,
+    SpecialAlertContactViewSet,
     StarredContactViewSet,
 )
 from core.api.im import ImViewSet
@@ -86,6 +87,12 @@ router.register(
 )
 router.register(
     "directory/starred", StarredContactViewSet, basename="directory_starred"
+)
+# 「他的消息特别提醒」名单(可渲染卡片),与 starred 并列;两者只差投影的 flag。
+router.register(
+    "directory/special-alert",
+    SpecialAlertContactViewSet,
+    basename="directory_special_alert",
 )
 # 逐联系人的两个独立 flag(星标 / 他的消息特别提醒):list 给端上缓存 flag 集合,
 # PUT {user_id} 设置。星标联系人页的可渲染卡片走上面的 directory/starred。

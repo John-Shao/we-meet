@@ -52,6 +52,6 @@
   },
   "specialAlert": {
     "toggle": "Alertes spéciales pour ses messages",
-    "toggleHint": "Ses messages vous notifient même pendant les heures calmes et sont signalés dans la liste des discussions."
+    "toggleHint": "Ses messages vous notifient même pendant les heures calmes."
   }
 }
