@@ -43,36 +43,51 @@ const MAX_PEOPLE = 50
 const CONFLICT_NAMES_SHOWN = 3
 
 /**
- * 忙闲块的外观。null(无权看内容)= 中性灰;有回复状态时按四档上色,与日历
- * 网格同一组色值。未回复 = 斜纹 + 虚线框(飞书同款「还没定」),一眼能和已
- * 接受的实心块分开 —— 这类冲突是软的。declined 不会来自 freebusy(后端按
- * rsvp≠declined 过滤),是从我自己的日程反推补上的,见 declinedBlocksOf。
+ * 忙闲块的外观:**左侧实心竖条 + 同色系浅底 + 同色深档文字** —— 与 App 的
+ * TimeGrid / 主日历网格(calendarGridOverrides.css 文件末尾那节)完全同一套
+ * 三件套,色值也是同一份(改色请三处同步:这里、那份 CSS、RsvpVisuals.kt)。
+ *
+ * 未回复额外加斜纹 + 虚线框(飞书同款「还没定」),一眼能和已接受的实心块分
+ * 开 —— 这类冲突是软的。declined 不会来自 freebusy(后端按 rsvp≠declined 过
+ * 滤),是从我自己的日程反推补上的,见 declinedBlocksOf。
+ * null(无权看内容)= 中性灰实心、**不挂竖条**:与 App 一致,没内容就别摆出
+ * 一副「有内容」的样子。
  */
 const busyBlockSkin = (rsvp: RSVPStatus | null): React.CSSProperties => {
   if (rsvp === 'declined') {
-    // 已拒绝:淡灰底 + 删除线,明确「这人不来」——和「压根没被邀请」的空白
-    // 区分开(组织者最关心逐人回复)。不占时间,所以比忙碌块更淡。
+    // 已拒绝:灰竖条 + 灰底 + 删除线,明确「这人不来」——和「压根没被邀请」
+    // 的空白区分开(组织者最关心逐人回复)。
     return {
-      backgroundColor: 'rgba(107,114,128,0.10)',
-      border: '1px solid rgba(107,114,128,0.35)',
+      backgroundColor: 'rgba(156,163,175,0.16)',
+      borderLeft: '3px solid #9ca3af',
       color: '#6b7280',
       textDecoration: 'line-through',
     }
   }
   if (rsvp === 'needs_action') {
     return {
-      backgroundColor: 'rgba(124,58,237,0.08)',
+      backgroundColor: 'rgba(139,92,246,0.12)',
       backgroundImage:
-        'repeating-linear-gradient(45deg, rgba(124,58,237,0.28) 0, rgba(124,58,237,0.28) 1.5px, transparent 1.5px, transparent 7px)',
-      border: '1px dashed rgba(124,58,237,0.75)',
-      color: '#6d28d9',
+        'repeating-linear-gradient(45deg, rgba(139,92,246,0.28) 0, rgba(139,92,246,0.28) 1.5px, transparent 1.5px, transparent 7px)',
+      // 虚线框先给四边,再让左边被 3px 实心竖条盖掉(顺序即优先级)。
+      border: '1px dashed rgba(139,92,246,0.75)',
+      borderLeft: '3px solid #8b5cf6',
+      color: '#5b21b6',
     }
   }
   if (rsvp === 'tentative') {
-    return { backgroundColor: 'rgba(217,119,6,0.16)', color: '#b45309' }
+    return {
+      backgroundColor: 'rgba(245,158,11,0.14)',
+      borderLeft: '3px solid #f59e0b',
+      color: '#92400e',
+    }
   }
   if (rsvp === 'accepted') {
-    return { backgroundColor: 'rgba(59,130,246,0.18)', color: '#1d4ed8' }
+    return {
+      backgroundColor: 'rgba(51,112,255,0.12)',
+      borderLeft: '3px solid #3370ff',
+      color: '#1e4db3',
+    }
   }
   // 无权看内容:中性灰 + 灰字时段(块够高时),内容一个字不给。
   return { backgroundColor: '#d1d5db', color: '#4b5563' }
@@ -83,7 +98,8 @@ const busyBlockClass = css({
   position: 'absolute',
   left: '2px',
   right: '2px',
-  borderRadius: '3px',
+  // 4px:与主日历网格的 .rbc-event / App 的 RoundedCornerShape(4.dp) 一致。
+  borderRadius: '4px',
   overflow: 'hidden',
   paddingX: '3px',
   fontSize: '0.625rem',
