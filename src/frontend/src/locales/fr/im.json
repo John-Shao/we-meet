@@ -194,6 +194,7 @@
     "pickHint": "Cliquez ou faites glisser un créneau libre",
     "allFree": "Tous les participants sont disponibles",
     "someBusy": "{{count}} occupé(s) sur ce créneau : {{names}}",
+    "someBusyMore": "{{count}} occupé(s) à ce créneau : {{names}} et autres",
     "unresolved": "{{count}} membre(s) sans disponibilité (hors organisation ou inactif)",
     "membersCapped": "Seuls les {{count}} premiers membres sont affichés",
     "suggestTitle": "Créneaux suggérés",

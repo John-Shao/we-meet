@@ -194,6 +194,7 @@
     "pickHint": "Klik of sleep een leeg tijdvak",
     "allFree": "Alle deelnemers zijn beschikbaar",
     "someBusy": "{{count}} bezet in dit tijdvak: {{names}}",
+    "someBusyMore": "{{count}} bezet op dit tijdstip: {{names}} e.a.",
     "unresolved": "{{count}} lid/leden zonder beschikbaarheid (buiten organisatie of inactief)",
     "membersCapped": "Alleen de eerste {{count}} leden worden getoond",
     "suggestTitle": "Voorgestelde tijden",

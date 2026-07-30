@@ -36,6 +36,8 @@ const RAIL_PX = 44
 const COL_MIN_PX = 72
 /** 群成员上限:attendee_ids 走 query string,资源与 URL 双重考虑截断。 */
 const MAX_PEOPLE = 50
+/** 冲突提示里最多列几个名字(超出补「等」;列头红点仍标出每一个人)。 */
+const CONFLICT_NAMES_SHOWN = 3
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const fmtMin = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`
@@ -821,10 +823,19 @@ export const ConversationCalendarPanel = ({
                 data-testid="freebusy-verdict"
               >
                 {busyIds.length > 0
-                  ? t('calendar.someBusy', {
-                      count: busyIds.length,
-                      names: busyNames.slice(0, 3).join('、'),
-                    })
+                  ? t(
+                      // 名字列不下就截断,但**必须带「等」** —— 只截名字不改
+                      // 文案的话,「6 人忙碌:三个名字」看着像漏了人。
+                      busyNames.length > CONFLICT_NAMES_SHOWN
+                        ? 'calendar.someBusyMore'
+                        : 'calendar.someBusy',
+                      {
+                        count: busyNames.length,
+                        names: busyNames
+                          .slice(0, CONFLICT_NAMES_SHOWN)
+                          .join('、'),
+                      }
+                    )
                   : t('calendar.allFree')}
               </span>
             </div>

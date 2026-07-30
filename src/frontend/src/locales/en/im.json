@@ -199,6 +199,7 @@
     "pickHint": "Click or drag an empty slot to pick a time",
     "allFree": "Everyone is available",
     "someBusy": "{{count}} busy at this time: {{names}}",
+    "someBusyMore": "{{count}} busy at this time: {{names}} and others",
     "unresolved": "{{count}} member(s) have no busy/free info (cross-org or inactive)",
     "membersCapped": "Showing the first {{count}} members only",
     "suggestTitle": "Suggested times",

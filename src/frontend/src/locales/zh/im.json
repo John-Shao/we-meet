@@ -194,6 +194,7 @@
     "pickHint": "点击或拖动空白时段选择时间",
     "allFree": "所有参与者都有空",
     "someBusy": "{{count}} 人该时段忙碌:{{names}}",
+    "someBusyMore": "{{count}} 人该时段忙碌:{{names}} 等",
     "unresolved": "另有 {{count}} 位成员无法获取忙闲(跨组织或未激活)",
     "membersCapped": "仅显示前 {{count}} 位成员",
     "suggestTitle": "推荐时段",

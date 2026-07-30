@@ -194,6 +194,7 @@
     "pickHint": "Freien Zeitraum anklicken oder ziehen",
     "allFree": "Alle Teilnehmer sind verfügbar",
     "someBusy": "{{count}} in diesem Zeitraum beschäftigt: {{names}}",
+    "someBusyMore": "{{count}} zu dieser Zeit beschäftigt: {{names}} u. a.",
     "unresolved": "{{count}} Mitglied(er) ohne Verfügbarkeit (organisationsfremd oder inaktiv)",
     "membersCapped": "Nur die ersten {{count}} Mitglieder werden angezeigt",
     "suggestTitle": "Vorgeschlagene Zeiten",
