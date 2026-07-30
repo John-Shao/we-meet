@@ -2703,15 +2703,11 @@ class PushPreference(BaseModel):
     quiet_enabled = models.BooleanField(_("quiet hours enabled"), default=False)
     quiet_start = models.TimeField(_("quiet start"), default=dt_time(22, 0))
     quiet_end = models.TimeField(_("quiet end"), default=dt_time(8, 0))
-    starred_bypass_quiet = models.BooleanField(
-        _("starred contacts bypass quiet hours"),
-        default=True,
-        help_text=_(
-            "Messages from a starred contact (see StarredContact) still push "
-            "during quiet hours. Default on: starring someone is already an "
-            "explicit act, so it should mean something without a second opt-in."
-        ),
-    )
+    # NB: there is deliberately no global "starred contacts bypass quiet hours"
+    # switch here. Bypassing is decided per contact by
+    # ``ContactPreference.special_alert`` — a switch the user flips on the
+    # person themselves. An extra global gate on top would just recreate 飞书's
+    # override-page structure, which is what we moved away from.
 
     class Meta:
         db_table = "meet_push_preference"
@@ -2723,52 +2719,83 @@ class PushPreference(BaseModel):
         return f"PushPreference({self.user_id}, quiet={state} {self.quiet_start}-{self.quiet_end})"
 
 
-class StarredContact(BaseModel):
-    """``owner`` marked ``target`` as a 星标联系人 (飞书对标).
+class ContactPreference(BaseModel):
+    """``owner``'s personal flags on one ``target`` contact (对标企业微信).
 
-    Purely personal state — the target is never told, and nothing about the
-    relationship is shared. Like ``ImLaterItem`` this lives entirely on the
-    we-meet side: it is a *directory* relation (not a conversation attribute),
-    and it feeds the offline-push decision, which is Django's job anyway
-    (``core.services.push_send``).
+    Two **independent** flags, deliberately not one:
 
-    Effects, all read-only derivations of this row:
+    - ``is_starred`` — 星标: pure filing. Puts the person in 通讯录's
+      「星标联系人」list and stamps a ⭐ next to them in the conversation list.
+      It changes **nothing** about notifications.
+    - ``special_alert`` — 他的消息特别提醒: pure notification behaviour. Their
+      messages bypass the owner's 免打扰时段 (see
+      ``core.services.push_send.special_alert_bypass_user_ids``) and the
+      conversation list marks them.
 
-    - 通讯录 has a「星标联系人」entry listing them;
-    - the conversation list stamps a ⭐ after a starred peer's name;
-    - their messages bypass the owner's quiet hours when
-      ``PushPreference.starred_bypass_quiet`` is on.
+    Why independent (this was 飞书-style coupled at first, and it was wrong):
+    starring someone is a filing gesture — "I want to find them quickly" — and
+    it must not silently change when the phone rings at 2am. 飞书 fuses the two
+    and then needs a settings page of override switches to undo the fusion;
+    企业微信 keeps them as two switches on the contact and needs no overrides.
+    A row may have either flag alone; both false means the row is deleted.
+
+    Purely personal state — the target is never told. Like ``ImLaterItem`` it
+    lives entirely on the we-meet side: it is a *directory* relation (not a
+    conversation attribute), and it feeds the offline-push decision, which is
+    Django's job anyway.
 
     Cross-org rows are impossible to create (the API only accepts same-org
-    active members) and would anyway drop out of the list, which is built from
-    the target's *Membership* in the caller's organization.
+    active members) and would anyway drop out of the starred list, which is
+    built from the target's *Membership* in the caller's organization.
     """
 
     owner = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="starred_contacts"
+        User, on_delete=models.CASCADE, related_name="contact_preferences"
     )
     target = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="starred_by"
+        User, on_delete=models.CASCADE, related_name="contact_preferred_by"
+    )
+    is_starred = models.BooleanField(
+        _("starred"),
+        default=False,
+        help_text=_(
+            "Filing only: listed under 星标联系人 and marked ⭐ in the "
+            "conversation list. Does not affect notifications."
+        ),
+    )
+    special_alert = models.BooleanField(
+        _("special alert"),
+        default=False,
+        help_text=_(
+            "Their messages push through the owner's quiet hours and are "
+            "marked in the conversation list. Independent of is_starred."
+        ),
     )
 
     class Meta:
-        db_table = "meet_starred_contact"
+        db_table = "meet_contact_preference"
         ordering = ("created_at",)
-        verbose_name = _("starred contact")
-        verbose_name_plural = _("starred contacts")
+        verbose_name = _("contact preference")
+        verbose_name_plural = _("contact preferences")
         constraints = [
             models.UniqueConstraint(
                 fields=["owner", "target"],
-                name="one_star_per_owner_target",
+                name="one_contact_pref_per_owner_target",
             ),
         ]
         indexes = [
-            # Push path: "did any of these quiet users star this sender?"
-            models.Index(fields=["target", "owner"], name="starred_target_owner_idx"),
+            # Push path: "did any of these quiet users special-alert this sender?"
+            models.Index(fields=["target", "owner"], name="contactpref_target_owner_idx"),
         ]
 
     def __str__(self):
-        return f"Starred({self.owner_id} → {self.target_id})"
+        flags = ",".join(
+            f for f in (
+                "starred" if self.is_starred else "",
+                "alert" if self.special_alert else "",
+            ) if f
+        ) or "none"
+        return f"ContactPreference({self.owner_id} → {self.target_id}: {flags})"
 
 
 class ImLaterItem(BaseModel):

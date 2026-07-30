@@ -354,5 +354,8 @@
   },
   "starred": {
     "marker": "星标联系人"
+  },
+  "specialAlert": {
+    "marker": "已开启特别提醒"
   }
 }

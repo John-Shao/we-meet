@@ -47,7 +47,11 @@
     "empty": "Nog geen favoriete contacten",
     "remove": "Uit favorieten",
     "toggle": "Als favoriet instellen",
-    "toggleHint": "Berichten van favoriete contacten melden ook tijdens je stille uren.",
+    "toggleHint": "Alleen voor indeling: verschijnt bij favoriete contacten en in de chatlijst. Wijzigt geen meldingen.",
     "error": "Favoriet bijwerken mislukt: {{message}}"
+  },
+  "specialAlert": {
+    "toggle": "Speciale melding voor zijn berichten",
+    "toggleHint": "Zijn berichten melden ook tijdens stille uren en worden gemarkeerd in de chatlijst."
   }
 }

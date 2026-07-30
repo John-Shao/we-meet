@@ -47,7 +47,11 @@
     "empty": "Noch keine markierten Kontakte",
     "remove": "Markierung entfernen",
     "toggle": "Kontakt markieren",
-    "toggleHint": "Nachrichten markierter Kontakte erreichen dich auch in den Ruhezeiten.",
+    "toggleHint": "Nur zur Ablage: erscheint unter markierten Kontakten und in der Chatliste. Ändert keine Benachrichtigungen.",
     "error": "Markierung konnte nicht geändert werden: {{message}}"
+  },
+  "specialAlert": {
+    "toggle": "Sonderhinweis für seine Nachrichten",
+    "toggleHint": "Seine Nachrichten benachrichtigen dich auch in den Ruhezeiten und werden in der Chatliste markiert."
   }
 }

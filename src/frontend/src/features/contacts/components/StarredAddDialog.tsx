@@ -6,7 +6,7 @@ import { Modal } from '@/components/Modal'
 import { Button } from '@/primitives'
 
 import { DirectoryMultiPicker } from './DirectoryMultiPicker'
-import { starContact } from '../api/setStarredContact'
+import { setContactPref } from '../api/setContactPref'
 
 interface Props {
   /** 已经是星标的人 —— 从候选里排掉,避免「添加」了个已有的。 */
@@ -54,7 +54,8 @@ export const StarredAddDialog = ({
     try {
       // 逐个 POST(名单短,且失败时能明确停在第一个错上,不留半个成功一半未知)。
       for (const id of draft.keys()) {
-        await starContact(id)
+        // 只发 is_starred:批量加星标不该顺手动别人的「特别提醒」。
+        await setContactPref(id, { is_starred: true })
       }
       onDone()
     } catch (e) {

@@ -10,15 +10,22 @@ import type { DirectoryMember } from '../api/ApiDirectory'
  * member row opens this card (avatar / name / org info) with a "发消息" action
  * that starts a direct IM conversation. Closing returns to the member list only.
  *
- * 星标开关就放在这张卡里(不另开设置子页):we-meet 没有飞书那页的备注/分享/
- * 举报,单为一个开关多跳一层不值。
+ * 两个开关就放在这张卡里(不另开设置子页):we-meet 没有飞书那页的备注/分享/
+ * 举报,单为两个开关多跳一层不值。
+ *
+ * 星标与「他的消息特别提醒」是**互不影响**的两件事(对标企业微信):星标只管
+ * 归类,要「这个人的消息别漏」得单独开特别提醒。所以这里是两行开关,而不是一行
+ * 加一句「其实还会影响通知」的小字。
  */
 
 interface Props {
   member: DirectoryMember
-  /** 是否已星标 —— 由调用方从统一的星标名单派生,不读 member.is_starred 快照。 */
+  /** 是否已星标 —— 由调用方从统一的名单派生,不读 member.is_starred 快照。 */
   starred: boolean
   onToggleStarred: (next: boolean) => void
+  /** 是否开了「他的消息特别提醒」。与 starred 独立,同样从统一名单派生。 */
+  specialAlert: boolean
+  onToggleSpecialAlert: (next: boolean) => void
   onMessage: (member: DirectoryMember) => void
   onClose: () => void
 }
@@ -27,6 +34,8 @@ export const MemberDetailPanel = ({
   member,
   starred,
   onToggleStarred,
+  specialAlert,
+  onToggleSpecialAlert,
   onMessage,
   onClose,
 }: Props) => {
@@ -161,31 +170,21 @@ export const MemberDetailPanel = ({
           })}
         >
           {/* 布尔设置用开关(与 IM 会话设置同一写法):整行可点,标签作子节点。 */}
-          <Switch
+          <SwitchRow
+            label={t('starred.toggle')}
+            hint={t('starred.toggleHint')}
             isSelected={starred}
             onChange={onToggleStarred}
-            data-testid={`member-detail-star-${member.id}`}
-            className={css({
-              width: '100%',
-              flexDirection: 'row-reverse',
-              justifyContent: 'space-between',
-            })}
-          >
-            <span
-              className={css({ fontSize: '0.875rem', color: 'greyscale.900' })}
-            >
-              {t('starred.toggle')}
-            </span>
-          </Switch>
-          <p
-            className={css({
-              margin: '0.375rem 0 0',
-              fontSize: '0.75rem',
-              color: 'greyscale.500',
-            })}
-          >
-            {t('starred.toggleHint')}
-          </p>
+            testId={`member-detail-star-${member.id}`}
+          />
+          <SwitchRow
+            label={t('specialAlert.toggle')}
+            hint={t('specialAlert.toggleHint')}
+            isSelected={specialAlert}
+            onChange={onToggleSpecialAlert}
+            testId={`member-detail-alert-${member.id}`}
+            spaced
+          />
         </div>
       )}
 
@@ -234,5 +233,48 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => (
     >
       {value}
     </dd>
+  </div>
+)
+
+/** 一行开关 + 下面一句说明(说明讲清这个开关到底会发生什么)。 */
+const SwitchRow = ({
+  label,
+  hint,
+  isSelected,
+  onChange,
+  testId,
+  spaced,
+}: {
+  label: string
+  hint: string
+  isSelected: boolean
+  onChange: (next: boolean) => void
+  testId: string
+  spaced?: boolean
+}) => (
+  <div className={css({ marginTop: spaced ? '0.875rem' : 0 })}>
+    <Switch
+      isSelected={isSelected}
+      onChange={onChange}
+      data-testid={testId}
+      className={css({
+        width: '100%',
+        flexDirection: 'row-reverse',
+        justifyContent: 'space-between',
+      })}
+    >
+      <span className={css({ fontSize: '0.875rem', color: 'greyscale.900' })}>
+        {label}
+      </span>
+    </Switch>
+    <p
+      className={css({
+        margin: '0.375rem 0 0',
+        fontSize: '0.75rem',
+        color: 'greyscale.500',
+      })}
+    >
+      {hint}
+    </p>
   </div>
 )

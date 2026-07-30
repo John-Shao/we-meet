@@ -47,7 +47,11 @@
     "empty": "Aucun contact favori",
     "remove": "Retirer des favoris",
     "toggle": "Mettre en favori",
-    "toggleHint": "Les messages des contacts favoris vous notifient même pendant les heures calmes.",
+    "toggleHint": "Classement uniquement : apparaît dans les contacts favoris et la liste des discussions. Ne change pas les notifications.",
     "error": "Échec de la mise à jour du favori : {{message}}"
+  },
+  "specialAlert": {
+    "toggle": "Alertes spéciales pour ses messages",
+    "toggleHint": "Ses messages vous notifient même pendant les heures calmes et sont signalés dans la liste des discussions."
   }
 }

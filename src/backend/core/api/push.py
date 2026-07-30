@@ -74,8 +74,9 @@ class PushPreferenceView(APIView):
     时间为「墙上钟」,按用户账号时区(``User.timezone``)解释;跨午夜区间
     (start > end)合法。仅抑制消息通知(notify_offline),来电不受影响。
 
-    ``starred_bypass_quiet``(默认开)让星标联系人的消息照旧推送 —— 打星标本身
-    就是显式动作,不该再要求进设置开第二次。见 ``StarredContact``。
+    ⚠️ 这里**没有**星标穿透开关。穿透是逐联系人的,由
+    ``ContactPreference.special_alert``(「他的消息特别提醒」)决定,开关就在那个人
+    的详情页上;这里再兜一个全局闸只会重建飞书那套 override 结构。
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -86,8 +87,6 @@ class PushPreferenceView(APIView):
             "quiet_enabled": pref.quiet_enabled,
             "quiet_start": pref.quiet_start.strftime("%H:%M"),
             "quiet_end": pref.quiet_end.strftime("%H:%M"),
-            # 星标联系人穿透静默时段(飞书「通知静音时,仍然通知我」对标)。
-            "starred_bypass_quiet": pref.starred_bypass_quiet,
             # 只读信息:App 端展示「按账号时区」用,改时区走既有用户资料接口。
             "timezone": str(pref.user.timezone),
         }
@@ -102,8 +101,6 @@ class PushPreferenceView(APIView):
 
         if "quiet_enabled" in data:
             pref.quiet_enabled = bool(data["quiet_enabled"])
-        if "starred_bypass_quiet" in data:
-            pref.starred_bypass_quiet = bool(data["starred_bypass_quiet"])
         for field in ("quiet_start", "quiet_end"):
             if field not in data:
                 continue

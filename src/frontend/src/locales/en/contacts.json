@@ -47,7 +47,11 @@
     "empty": "No starred contacts yet",
     "remove": "Unstar",
     "toggle": "Star this contact",
-    "toggleHint": "Messages from starred contacts still notify you during quiet hours.",
+    "toggleHint": "Filing only: listed under starred contacts and marked in the chat list. Does not change notifications.",
     "error": "Could not update the star: {{message}}"
+  },
+  "specialAlert": {
+    "toggle": "Special alerts for their messages",
+    "toggleHint": "Their messages notify you even during quiet hours, and are marked in the chat list."
   }
 }

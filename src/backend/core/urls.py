@@ -22,6 +22,7 @@ from core.api.admin_audit import AuditLogViewSet
 from core.api.admin_invitations import OrgInvitationViewSet
 from core.api.admin_stats import AdminStatsOverviewView
 from core.api.directory import (
+    ContactPreferenceViewSet,
     DepartmentViewSet,
     DirectoryMeView,
     DirectoryMemberViewSet,
@@ -85,6 +86,13 @@ router.register(
 )
 router.register(
     "directory/starred", StarredContactViewSet, basename="directory_starred"
+)
+# 逐联系人的两个独立 flag(星标 / 他的消息特别提醒):list 给端上缓存 flag 集合,
+# PUT {user_id} 设置。星标联系人页的可渲染卡片走上面的 directory/starred。
+router.register(
+    "directory/contact-prefs",
+    ContactPreferenceViewSet,
+    basename="directory_contact_prefs",
 )
 router.register(
     "admin/departments", DepartmentAdminViewSet, basename="admin_departments"

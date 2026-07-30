@@ -269,8 +269,8 @@ def test_push_preferences_get_defaults_then_update():
     assert data["quiet_enabled"] is False
     assert data["quiet_start"] == "22:00"
     assert data["quiet_end"] == "08:00"
-    # 星标穿透默认开 —— 打星标本身就是显式动作,不该再开第二次。
-    assert data["starred_bypass_quiet"] is True
+    # 这里没有星标穿透开关 —— 穿透是逐联系人的 ContactPreference.special_alert。
+    assert "starred_bypass_quiet" not in data
     assert data["timezone"]
 
     response = client.put(
@@ -283,15 +283,13 @@ def test_push_preferences_get_defaults_then_update():
     assert data["quiet_enabled"] is True
     assert data["quiet_start"] == "23:30"
     assert data["quiet_end"] == "07:15"
-    # 未传的字段不被顺手改掉(局部更新)。
-    assert data["starred_bypass_quiet"] is True
 
+    # 未传的字段不被顺手改掉(局部更新)。
     response = client.put(
-        "/api/v1.0/push/preferences/", {"starred_bypass_quiet": False}, format="json"
+        "/api/v1.0/push/preferences/", {"quiet_enabled": False}, format="json"
     )
     assert response.status_code == 200
-    assert response.json()["starred_bypass_quiet"] is False
-    assert models.PushPreference.objects.get(user=user).starred_bypass_quiet is False
+    assert response.json()["quiet_start"] == "23:30"
 
     response = client.put(
         "/api/v1.0/push/preferences/", {"quiet_start": "25:99"}, format="json"
@@ -428,45 +426,47 @@ def _post_message_from(client, sender, recipient):
     )
 
 
-def test_hook_offline_starred_sender_bypasses_quiet_hours():
-    """星标联系人的消息穿透全天免打扰(开关默认开)。"""
-    recipient, sender = _quiet_recipient_and_sender()
-    models.StarredContact.objects.create(owner=recipient, target=sender)
-
+def _push_attempts_for(sender, recipient) -> int:
+    """POST 一条 sender→recipient 的离线消息,返回实际推送次数。"""
     fake_client = mock.Mock()
     fake_client.push_to_cid.return_value = True
-
     client = APIClient()
     with mock.patch(
         "core.services.push_send._client_from_settings", return_value=fake_client
     ):
         response = _post_message_from(client, sender, recipient)
-
     assert response.status_code == 200
-    assert response.json()["pushed"] == 1
-    fake_client.push_to_cid.assert_called_once()
+    return response.json()["pushed"]
 
 
-def test_hook_offline_starred_sender_respects_bypass_switch_off():
-    """关掉 starred_bypass_quiet 后,星标联系人也照旧被静默。"""
+def test_hook_offline_special_alert_sender_bypasses_quiet_hours():
+    """开了「他的消息特别提醒」的联系人,消息穿透全天免打扰。"""
     recipient, sender = _quiet_recipient_and_sender()
-    models.StarredContact.objects.create(owner=recipient, target=sender)
-    models.PushPreference.objects.filter(user=recipient).update(
-        starred_bypass_quiet=False
+    models.ContactPreference.objects.create(
+        owner=recipient, target=sender, special_alert=True
     )
 
-    fake_client = mock.Mock()
-    fake_client.push_to_cid.return_value = True
+    assert _push_attempts_for(sender, recipient) == 1
 
-    client = APIClient()
-    with mock.patch(
-        "core.services.push_send._client_from_settings", return_value=fake_client
-    ):
-        response = _post_message_from(client, sender, recipient)
 
-    assert response.status_code == 200
-    assert response.json()["pushed"] == 0
-    fake_client.push_to_cid.assert_not_called()
+def test_hook_offline_starring_alone_does_not_bypass_quiet_hours():
+    """⭐ 只是归类:光打星标不改变通知行为(对标企业微信,别改回耦合)。"""
+    recipient, sender = _quiet_recipient_and_sender()
+    models.ContactPreference.objects.create(
+        owner=recipient, target=sender, is_starred=True, special_alert=False
+    )
+
+    assert _push_attempts_for(sender, recipient) == 0
+
+
+def test_hook_offline_special_alert_without_star_still_bypasses():
+    """反向也成立:不星标、只开特别提醒的人照旧穿透。"""
+    recipient, sender = _quiet_recipient_and_sender()
+    models.ContactPreference.objects.create(
+        owner=recipient, target=sender, is_starred=False, special_alert=True
+    )
+
+    assert _push_attempts_for(sender, recipient) == 1
 
 
 def test_hook_offline_unstarred_sender_stays_quiet():

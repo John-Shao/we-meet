@@ -20,7 +20,7 @@ import { fetchDepartments } from '../api/fetchDepartments'
 import { fetchDirectoryMembers } from '../api/fetchDirectoryMembers'
 import { fetchDirectoryMember } from '../api/fetchDirectoryMember'
 import { fetchStarredContacts } from '../api/fetchStarredContacts'
-import { setStarredContact } from '../api/setStarredContact'
+import { fetchContactPrefs, setContactPref } from '../api/setContactPref'
 import type { DirectoryMember } from '../api/ApiDirectory'
 
 /**
@@ -108,13 +108,29 @@ const ContactsAuthenticated = () => {
   })
   const starredIds = new Set(starred.map((m) => m.id))
 
-  const toggleStarred = async (member: DirectoryMember, next: boolean) => {
+  // 两个 flag 的紧凑清单:开关状态一律从这一份派生,不读卡片上的快照,免得同一
+  // 件事有两个说法。星标名单(上面那份)另外拉,因为它要的是可渲染的卡片。
+  const { data: prefs = [] } = useQuery({
+    queryKey: ['directory', 'contact-prefs'],
+    queryFn: () => fetchContactPrefs(),
+    staleTime: 30_000,
+  })
+  const alertIds = new Set(
+    prefs.filter((p) => p.special_alert).map((p) => p.user_id)
+  )
+
+  /**
+   * 拨一个 flag。只传自己在改的那个键 —— 服务端不动没传的键,所以打星标绝不会
+   * 顺手改掉「特别提醒」(两者独立,见 ContactPreference)。
+   */
+  const toggleContactPref = async (
+    member: DirectoryMember,
+    patch: { is_starred?: boolean; special_alert?: boolean }
+  ) => {
     try {
-      await setStarredContact(member.id, next)
-      // 星标状态处处都从 ['directory','starred'] 派生(会话列表的 ⭐ 也读它),
-      // 所以失效这一份就够 —— 不另外去改 selectedMember 上的 is_starred 快照,
-      // 免得同一件事有两个说法。
+      await setContactPref(member.id, patch)
       await qc.invalidateQueries({ queryKey: ['directory', 'starred'] })
+      await qc.invalidateQueries({ queryKey: ['directory', 'contact-prefs'] })
       await qc.invalidateQueries({ queryKey: ['directory', 'members'] })
     } catch (e) {
       void showAlert({
@@ -376,7 +392,9 @@ const ContactsAuthenticated = () => {
                         <Button
                           variant="secondaryText"
                           size="sm"
-                          onPress={() => void toggleStarred(member, false)}
+                          onPress={() =>
+                            void toggleContactPref(member, { is_starred: false })
+                          }
                           data-testid={`contacts-unstar-${member.id}`}
                         >
                           {t('starred.remove')}
@@ -417,7 +435,13 @@ const ContactsAuthenticated = () => {
         <MemberDetailPanel
           member={selectedMember}
           starred={starredIds.has(selectedMember.id)}
-          onToggleStarred={(next) => void toggleStarred(selectedMember, next)}
+          onToggleStarred={(next) =>
+            void toggleContactPref(selectedMember, { is_starred: next })
+          }
+          specialAlert={alertIds.has(selectedMember.id)}
+          onToggleSpecialAlert={(next) =>
+            void toggleContactPref(selectedMember, { special_alert: next })
+          }
           onMessage={handleMessage}
           onClose={() => setSelectedMember(null)}
         />

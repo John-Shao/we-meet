@@ -7,7 +7,8 @@ export { useDirectoryMemberSearch } from './hooks/useDirectoryMemberSearch'
 export { fetchDirectoryMembers } from './api/fetchDirectoryMembers'
 export { fetchDepartments } from './api/fetchDepartments'
 export { fetchStarredContacts } from './api/fetchStarredContacts'
-export { setStarredContact } from './api/setStarredContact'
+export { fetchContactPrefs, setContactPref } from './api/setContactPref'
+export type { ContactPref } from './api/setContactPref'
 export type {
   DirectoryMember,
   DirectoryDepartment,

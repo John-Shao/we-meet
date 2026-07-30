@@ -10,7 +10,7 @@ import { ResizablePanel } from '@/components/ResizablePanel'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
-import { ContactPicker, fetchStarredContacts } from '@/features/contacts'
+import { ContactPicker, fetchContactPrefs } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
 import type {
   ConversationSummary,
@@ -261,24 +261,39 @@ const ImAuthenticated = () => {
     staleTime: 60_000,
   })
 
-  // 星标联系人(对标飞书:私聊名字后跟 ⭐)。星标存的是 we-meet user id,而会话
-  // 只有 IM uid —— 用 peerNames 里已解析出的 `id` 做桥,不额外发请求。
-  const { data: starredMembers = [] } = useQuery({
-    queryKey: ['directory', 'starred'],
-    queryFn: () => fetchStarredContacts(),
+  // 逐联系人标记(私聊名字后跟 ⭐ / 🔔)。flag 存的是 we-meet user id,而会话只有
+  // IM uid —— 用 peerNames 里已解析出的 `id` 做桥,不额外发请求。
+  //
+  // 走 contact-prefs(flag 紧凑清单)而不是星标卡片列表:两个 flag 一次拿到,且
+  // 「只开特别提醒、没打星标」的人也在里面(星标列表里没有他)。
+  const { data: contactPrefs = [] } = useQuery({
+    queryKey: ['directory', 'contact-prefs'],
+    queryFn: () => fetchContactPrefs(),
     staleTime: 60_000,
   })
-  const starredUserIds = new Set(starredMembers.map((m) => m.id))
-  const starredCids = new Set(
-    conversations
-      .filter((c) => c.type === 'direct')
-      .filter((c) => {
-        const peer = c.members.find((u) => u !== currentUserUID)
-        const peerUserId = peer ? peerNames[peer]?.id : undefined
-        return !!peerUserId && starredUserIds.has(peerUserId)
-      })
-      .map((c) => c.cid)
+  const starredUserIds = new Set(
+    contactPrefs.filter((p) => p.is_starred).map((p) => p.user_id)
   )
+  const alertUserIds = new Set(
+    contactPrefs.filter((p) => p.special_alert).map((p) => p.user_id)
+  )
+  /** 私聊会话 → 对端 we-meet user id(解析不出来时 undefined)。 */
+  const peerUserIdOf = (c: ConversationSummary): string | undefined => {
+    if (c.type !== 'direct') return undefined
+    const peer = c.members.find((u) => u !== currentUserUID)
+    return peer ? peerNames[peer]?.id : undefined
+  }
+  const cidsWhere = (ids: Set<string>) =>
+    new Set(
+      conversations
+        .filter((c) => {
+          const peerUserId = peerUserIdOf(c)
+          return !!peerUserId && ids.has(peerUserId)
+        })
+        .map((c) => c.cid)
+    )
+  const starredCids = cidsWhere(starredUserIds)
+  const specialAlertCids = cidsWhere(alertUserIds)
 
   // group → meta.name(无名兜底);direct → 对端显示名(兜底「私聊」)。
   const nameOf = (c: ConversationSummary): string => {
@@ -757,6 +772,7 @@ const ImAuthenticated = () => {
               onDelete={handleDelete}
               mentionedCids={mentionedCids}
               starredCids={starredCids}
+              specialAlertCids={specialAlertCids}
               previewOf={previewOf}
             />
           </aside>

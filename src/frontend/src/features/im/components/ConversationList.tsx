@@ -24,6 +24,8 @@ interface Props {
   mentionedCids?: Set<string>
   /** cids whose direct peer is a 星标联系人 → show a ⭐ after the name. */
   starredCids?: Set<string>
+  /** cids whose direct peer has 他的消息特别提醒 on → 🔔 marker (独立于 ⭐)。 */
+  specialAlertCids?: Set<string>
   /**
    * Last-message preview line (P11): formatted text (group: "sender: body";
    * direct: body) + the message unix-ms timestamp. Null when there's nothing
@@ -61,6 +63,7 @@ export const ConversationList = ({
   onDelete,
   mentionedCids,
   starredCids,
+  specialAlertCids,
   previewOf,
 }: Props) => {
   const { t, i18n } = useTranslation('im')
@@ -190,7 +193,7 @@ export const ConversationList = ({
                     >
                       {nameOf(c)}
                     </span>
-                    {/* 星标联系人:名字后跟一颗 ⭐(对标飞书)。 */}
+                    {/* 星标联系人:名字后跟一颗 ⭐。 */}
                     {starredCids?.has(c.cid) && (
                       <span
                         aria-label={t('starred.marker')}
@@ -201,6 +204,20 @@ export const ConversationList = ({
                         })}
                       >
                         ⭐
+                      </span>
+                    )}
+                    {/* 「他的消息特别提醒」:一个铃铛。与 ⭐ 各自独立出现 ——
+                        两个开关本就独立,只开一个时只该看到一个标记。 */}
+                    {specialAlertCids?.has(c.cid) && (
+                      <span
+                        aria-label={t('specialAlert.marker')}
+                        title={t('specialAlert.marker')}
+                        className={css({
+                          flexShrink: 0,
+                          fontSize: '0.6875rem',
+                        })}
+                      >
+                        🔔
                       </span>
                     )}
                   </span>

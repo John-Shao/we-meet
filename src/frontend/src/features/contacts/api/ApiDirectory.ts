@@ -26,8 +26,16 @@ export interface DirectoryMember {
   org_role: string
   department: DirectoryDepartmentRef | null
   is_self: boolean
-  /** 调用方是否把这个人设成了星标联系人(每张成员卡片都带,免二次请求)。 */
+  /**
+   * 调用方是否把这个人设成了星标联系人(每张成员卡片都带,免二次请求)。
+   * **只表归类** —— 不影响通知,通知看 `special_alert`。
+   */
   is_starred: boolean
+  /**
+   * 调用方是否对这个人开了「他的消息特别提醒」(消息穿透免打扰时段)。
+   * 与 `is_starred` **相互独立**:可以只开一个。
+   */
+  special_alert: boolean
 }
 
 export interface DirectoryDepartmentHead {
