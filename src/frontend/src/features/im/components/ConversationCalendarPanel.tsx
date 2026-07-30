@@ -13,6 +13,7 @@ import {
   fetchFreeBusy,
   busyPeopleInRange,
   suggestCommonSlots,
+  useCalendarSettings,
   type SuggestedSlot,
 } from '@/features/calendar'
 
@@ -40,6 +41,9 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const fmtMin = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`
 const snapFloor = (min: number) => Math.floor(min / 30) * 30
 const snapCeil = (min: number) => Math.ceil(min / 30) * 30
+/** 选段微调粒度:与日历模块的抓手一致取 15min(初次拖选仍是 30min 格)。 */
+const SNAP_MIN = 15
+const snapStep = (min: number) => Math.round(min / SNAP_MIN) * SNAP_MIN
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v))
 
@@ -145,7 +149,9 @@ export const ConversationCalendarPanel = ({
     [activePeople, entries]
   )
 
-  // ── 时段选择(30min 吸附;拖动扩展,单击 = 30min) ──
+  // ── 时段选择(30min 吸附落段;单击用「日程默认时长」,拖动用拖出的区间;
+  // 选完可拖框移位 / 拖抓手改起止,15min 吸附) ──
+  const { defaultDurationMin } = useCalendarSettings()
   const [sel, setSel] = useState<{ startMin: number; endMin: number } | null>(
     null
   )
@@ -158,7 +164,12 @@ export const ConversationCalendarPanel = ({
     if (e.button !== 0) return
     const min = snapFloor(minutesOfEvent(e))
     dragAnchor.current = min
-    setSel({ startMin: min, endMin: Math.min(min + 30, 1440) })
+    // 单击 = 按「日程默认时长」落段(与日历模块 / App 端一致);拖动则以
+    // 拖出的区间为准(onGridMove 覆盖)。
+    setSel({
+      startMin: Math.min(min, 1440 - defaultDurationMin),
+      endMin: Math.min(min + defaultDurationMin, 1440),
+    })
     e.currentTarget.setPointerCapture(e.pointerId)
   }
   const onGridMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -173,6 +184,84 @@ export const ConversationCalendarPanel = ({
   const onGridUp = () => {
     dragAnchor.current = null
   }
+
+  /**
+   * 选段的整体移位 / 拖抓手改起止(对齐 App 端与日历模块:15min 吸附)。
+   * pointerdown 挂在选段与抓手上并 stopPropagation —— 否则会被下面网格的
+   * onGridDown 当成「重新拖选」;move/up 挂 window,免得手指滑出抓手就断。
+   */
+  const dragSel = useRef<
+    | { mode: 'move'; grabMin: number; duration: number }
+    | { mode: 'start' | 'end' }
+    | null
+  >(null)
+  const gridBodyRef = useRef<HTMLDivElement>(null)
+  // window 监听里要读最新选段,又不想每帧重绑监听 → 用 ref 兜住。
+  const selRef = useRef(sel)
+  selRef.current = sel
+  const minuteAtClientY = (clientY: number): number | null => {
+    const grid = gridBodyRef.current
+    if (!grid) return null
+    const rect = grid.getBoundingClientRect()
+    return clamp(((clientY - rect.top) / HOUR_PX) * 60, 0, 1440)
+  }
+  const onSelDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const cur = selRef.current
+    if (e.button !== 0 || !cur) return
+    e.stopPropagation()
+    const min = minuteAtClientY(e.clientY)
+    if (min === null) return
+    dragSel.current = {
+      mode: 'move',
+      grabMin: min - cur.startMin,
+      duration: cur.endMin - cur.startMin,
+    }
+  }
+  const onEdgeDown =
+    (mode: 'start' | 'end') => (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return
+      e.stopPropagation()
+      dragSel.current = { mode }
+    }
+  useEffect(() => {
+    const onMove = (ev: PointerEvent) => {
+      const drag = dragSel.current
+      const cur = selRef.current
+      if (!drag || !cur) return
+      const min = minuteAtClientY(ev.clientY)
+      if (min === null) return
+      if (drag.mode === 'move') {
+        const start = clamp(
+          snapStep(min - drag.grabMin),
+          0,
+          1440 - drag.duration
+        )
+        setSel({ startMin: start, endMin: start + drag.duration })
+        return
+      }
+      const snapped = snapStep(min)
+      if (drag.mode === 'start') {
+        setSel({
+          startMin: clamp(snapped, 0, cur.endMin - SNAP_MIN),
+          endMin: cur.endMin,
+        })
+      } else {
+        setSel({
+          startMin: cur.startMin,
+          endMin: clamp(snapped, cur.startMin + SNAP_MIN, 1440),
+        })
+      }
+    }
+    const onUp = () => {
+      dragSel.current = null
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [])
   // 切日期后清掉旧选择(时段是相对当日的)。
   useEffect(() => setSel(null), [dayKey])
 
@@ -190,10 +279,12 @@ export const ConversationCalendarPanel = ({
   const suggestions: SuggestedSlot[] = useMemo(
     () =>
       activePeople.length > 1 && entries.length > 0
-        ? suggestCommonSlots(peopleBusy, day)
+        ? suggestCommonSlots(peopleBusy, day, {
+            durationMin: defaultDurationMin,
+          })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [peopleBusy, dayKey]
+    [peopleBusy, dayKey, defaultDurationMin]
   )
   const pickSuggestion = (s: SuggestedSlot) =>
     setSel({
@@ -529,6 +620,7 @@ export const ConversationCalendarPanel = ({
               {/* 忙闲列区(拖/点选挂在这层) */}
               <div
                 data-testid="freebusy-grid"
+                ref={gridBodyRef}
                 onPointerDown={onGridDown}
                 onPointerMove={onGridMove}
                 onPointerUp={onGridUp}
@@ -613,27 +705,43 @@ export const ConversationCalendarPanel = ({
                   />
                 )}
 
-                {/* 选中时段横贯高亮 */}
+                {/* 选中时段横贯高亮:框本体可整体拖动移位,上右/左下两个圆抓手
+                    改起止(与日历模块的预选框同一套手势与长相)。 */}
                 {sel && (
                   <div
                     data-testid="freebusy-selection"
+                    onPointerDown={onSelDown}
                     className={css({
                       position: 'absolute',
                       left: 0,
                       right: 0,
                       border: '1.5px solid token(colors.primary.500)',
                       borderRadius: '4px',
-                      pointerEvents: 'none',
+                      cursor: 'move',
+                      touchAction: 'none',
                     })}
                     style={{
                       top: (sel.startMin / 60) * HOUR_PX,
                       height: ((sel.endMin - sel.startMin) / 60) * HOUR_PX,
+                      borderColor:
+                        busyIds.length > 0 ? '#dc2626' : undefined,
                       backgroundColor:
                         busyIds.length > 0
                           ? 'rgba(220,38,38,0.18)'
                           : 'rgba(59,130,246,0.18)',
                     }}
-                  />
+                  >
+                    <SelectionHandle
+                      edge="start"
+                      conflict={busyIds.length > 0}
+                      onPointerDown={onEdgeDown('start')}
+                    />
+                    <SelectionHandle
+                      edge="end"
+                      conflict={busyIds.length > 0}
+                      onPointerDown={onEdgeDown('end')}
+                    />
+                  </div>
                 )}
               </div>
             </div>
@@ -1012,3 +1120,48 @@ const workShade = css({
   backgroundColor: 'rgba(0,0,0,0.03)',
   pointerEvents: 'none',
 })
+
+/**
+ * 选段的上下边界抓手:白心主色圈的小圆点,骑在边界线上(上→右上、下→左下),
+ * 与日历模块 / App 端同一长相。外层 27px 透明方块只为放大热区。
+ */
+const SelectionHandle = ({
+  edge,
+  conflict,
+  onPointerDown,
+}: {
+  edge: 'start' | 'end'
+  conflict: boolean
+  onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void
+}) => (
+  <div
+    data-testid={`freebusy-handle-${edge}`}
+    onPointerDown={onPointerDown}
+    className={css({
+      position: 'absolute',
+      width: '27px',
+      height: '27px',
+      display: 'grid',
+      placeItems: 'center',
+      cursor: 'ns-resize',
+      touchAction: 'none',
+      zIndex: 2,
+    })}
+    style={
+      edge === 'start'
+        ? { top: '-13.5px', right: '4px' }
+        : { bottom: '-13.5px', left: '4px' }
+    }
+  >
+    <div
+      className={css({
+        width: '13px',
+        height: '13px',
+        borderRadius: '50%',
+        backgroundColor: 'white',
+        border: '2px solid token(colors.primary.500)',
+      })}
+      style={conflict ? { borderColor: '#dc2626' } : undefined}
+    />
+  </div>
+)

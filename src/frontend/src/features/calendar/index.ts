@@ -5,6 +5,7 @@ export type { CalendarEvent, EventAttendee } from './api/ApiCalendar'
 export { CreateEventDialog } from './components/CreateEventDialog'
 export { EventDetailHost } from './components/EventDetailHost'
 export { MiniCalendar } from './components/MiniCalendar'
+export { useCalendarSettings } from './hooks/useCalendarSettings'
 export {
   fetchFreeBusy,
   fetchCalendarEvent,
