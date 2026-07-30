@@ -26,7 +26,22 @@ const overlaps = (e: CalendarEvent, from: Date, to: Date): boolean => {
   return s < to.getTime() && en > from.getTime()
 }
 
-/** 取消的排除;窗口 = [今天 00:00, 后天 00:00)(本地)。 */
+/**
+ * 「这场会我还会去」—— 消息列表入口行与日程提醒页统一用这一条。
+ *
+ * 排除已取消(`list` 接口不替我们排,cancelled 是会回来的)和**我已拒绝**的。
+ * 提醒是「行动」面:拒了就是不去,提醒你去是纯噪音,横幅上那个「进入会议」
+ * 更是错的;而且 nearest 只取最早一条未结束的,一场拒掉的会会把真正要去的
+ * 那场顶下去。
+ *
+ * 日历模块那侧刻意不同口径:网格灰显 + 删除线、侧栏「即将开始」也照样列出
+ * (见 CalendarSidebar 的 barDeclinedCls) —— 那是「看全貌 / 我可以改主意」的
+ * 地方,把拒掉的藏起来反而丢信息。别把这条 filter 搬过去。
+ */
+export const shouldRemind = (e: CalendarEvent): boolean =>
+  e.status !== 'cancelled' && e.my_rsvp !== 'declined'
+
+/** 不去的排除(见 [shouldRemind]);窗口 = [今天 00:00, 后天 00:00)(本地)。 */
 export const bucketReminderWindow = (
   events: CalendarEvent[],
   now: Date
@@ -38,7 +53,7 @@ export const bucketReminderWindow = (
   after0.setDate(after0.getDate() + 2)
 
   const active = events
-    .filter((e) => e.status !== 'cancelled')
+    .filter(shouldRemind)
     .sort(
       (a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
     )
