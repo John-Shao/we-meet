@@ -204,6 +204,7 @@
     "membersCapped": "Showing the first {{count}} members only",
     "suggestTitle": "Suggested times",
     "rsvpPending": "Not replied",
+    "rsvpDeclined": "Declined",
     "untitled": "(No title)",
     "create": "Create event",
     "cardSendFailed": "Event created, but the card failed to send",

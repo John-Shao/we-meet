@@ -45,10 +45,20 @@ const CONFLICT_NAMES_SHOWN = 3
 /**
  * 忙闲块的外观。null(无权看内容)= 中性灰;有回复状态时按四档上色,与日历
  * 网格同一组色值。未回复 = 斜纹 + 虚线框(飞书同款「还没定」),一眼能和已
- * 接受的实心块分开 —— 这类冲突是软的。declined 不会出现:freebusy 查询本身
- * 就把拒绝的日程排除了。
+ * 接受的实心块分开 —— 这类冲突是软的。declined 不会来自 freebusy(后端按
+ * rsvp≠declined 过滤),是从我自己的日程反推补上的,见 declinedBlocksOf。
  */
 const busyBlockSkin = (rsvp: RSVPStatus | null): React.CSSProperties => {
+  if (rsvp === 'declined') {
+    // 已拒绝:淡灰底 + 删除线,明确「这人不来」——和「压根没被邀请」的空白
+    // 区分开(组织者最关心逐人回复)。不占时间,所以比忙碌块更淡。
+    return {
+      backgroundColor: 'rgba(107,114,128,0.10)',
+      border: '1px solid rgba(107,114,128,0.35)',
+      color: '#6b7280',
+      textDecoration: 'line-through',
+    }
+  }
   if (rsvp === 'needs_action') {
     return {
       backgroundColor: 'rgba(124,58,237,0.08)',
@@ -67,6 +77,19 @@ const busyBlockSkin = (rsvp: RSVPStatus | null): React.CSSProperties => {
   // 无权看内容:中性灰 + 灰字时段(块够高时),内容一个字不给。
   return { backgroundColor: '#d1d5db', color: '#4b5563' }
 }
+
+/** 忙碌块 / 已拒绝块共用的定位与排版(颜色交给 busyBlockSkin)。 */
+const busyBlockClass = css({
+  position: 'absolute',
+  left: '2px',
+  right: '2px',
+  borderRadius: '3px',
+  overflow: 'hidden',
+  paddingX: '3px',
+  fontSize: '0.625rem',
+  lineHeight: 1.4,
+  pointerEvents: 'none',
+})
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const fmtMin = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`
@@ -207,6 +230,37 @@ export const ConversationCalendarPanel = ({
     if (attendee) return attendee.rsvp
     return ev.organizer?.id === userId ? 'accepted' : null
   }
+
+  /**
+   * 「他拒了我这场会」的块。拒绝的日程**不在 freebusy 里**(后端按 rsvp≠declined
+   * 过滤 —— 拒了就不占他的时间,这是对的),所以只能从我自己的日程反推。不补的
+   * 话「已拒绝」和「新入群、压根没被邀请」在组织者眼里都是一片空白,分不开。
+   * 纯展示:不进 peopleBusy,不参与冲突判定,也不阻塞建议时段。
+   * 全天日程会铺满整列遮住忙闲、已取消的会「谁拒了」也没意义,两者都不画。
+   */
+  const declinedBlocksOf = (userId: string, isSelf: boolean) =>
+    myEvents
+      .filter((ev) => {
+        if (ev.all_day || ev.status?.toLowerCase() === 'cancelled') return false
+        return isSelf
+          ? ev.my_rsvp === 'declined'
+          : ev.attendees.find((a) => a.id === userId)?.rsvp === 'declined'
+      })
+      .map((ev) => ({
+        id: ev.id,
+        title: ev.title,
+        startMin: clamp(
+          (new Date(ev.start_at).getTime() - day.getTime()) / 60_000,
+          0,
+          1440
+        ),
+        endMin: clamp(
+          (new Date(ev.end_at).getTime() - day.getTime()) / 60_000,
+          0,
+          1440
+        ),
+      }))
+      .filter((b) => b.endMin > b.startMin)
 
   const busyOf = (id: string) =>
     entries.find((e) => e.user_id === id)?.busy ?? []
@@ -721,6 +775,41 @@ export const ConversationCalendarPanel = ({
                     })}
                     style={{ minWidth: COL_MIN_PX, width: COL_MIN_PX }}
                   >
+                    {/* 「已拒绝」块:先渲染 → 真忙碌的块叠在它上面(万一那个
+                        点他另有安排)。 */}
+                    {declinedBlocksOf(
+                      p.id,
+                      names[currentUserUID]?.id === p.id
+                    ).map((b) => {
+                      const time = `${fmtMin(Math.round(b.startMin))}–${fmtMin(
+                        Math.round(b.endMin)
+                      )}`
+                      // 他人列写状态(组织者要的就是「这人拒了」);自己列写标题
+                      // —— 自己拒过的会,认得标题比看到「已拒绝」有用。
+                      const text =
+                        names[currentUserUID]?.id === p.id
+                          ? b.title || t('calendar.untitled')
+                          : t('calendar.rsvpDeclined')
+                      return (
+                        <div
+                          key={`declined-${b.id}`}
+                          title={`${text} · ${time}`}
+                          className={busyBlockClass}
+                          style={{
+                            top: (b.startMin / 60) * HOUR_PX + 0.5,
+                            height: Math.max(
+                              ((b.endMin - b.startMin) / 60) * HOUR_PX - 1,
+                              3
+                            ),
+                            ...busyBlockSkin('declined'),
+                          }}
+                        >
+                          {(b.endMin - b.startMin) * (HOUR_PX / 60) >= 18
+                            ? text
+                            : null}
+                        </div>
+                      )
+                    })}
                     {busyOf(p.id).map((b, i) => {
                       const s = clamp(
                         (new Date(b.start).getTime() - day.getTime()) / 60_000,
@@ -751,17 +840,7 @@ export const ConversationCalendarPanel = ({
                         <div
                           key={i}
                           title={text ? `${text} · ${time}` : time}
-                          className={css({
-                            position: 'absolute',
-                            left: '2px',
-                            right: '2px',
-                            borderRadius: '3px',
-                            overflow: 'hidden',
-                            paddingX: '3px',
-                            fontSize: '0.625rem',
-                            lineHeight: 1.4,
-                            pointerEvents: 'none',
-                          })}
+                          className={busyBlockClass}
                           style={{
                             // 上下各让 0.5px:首尾相接的两个日程之间露出
                             // 1px 白缝,肉眼可辨是两块(后端已改为相接不合并)。

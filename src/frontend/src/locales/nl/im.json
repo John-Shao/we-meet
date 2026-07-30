@@ -199,6 +199,7 @@
     "membersCapped": "Alleen de eerste {{count}} leden worden getoond",
     "suggestTitle": "Voorgestelde tijden",
     "rsvpPending": "Niet gereageerd",
+    "rsvpDeclined": "Geweigerd",
     "untitled": "(Zonder titel)",
     "create": "Afspraak maken",
     "cardSendFailed": "Afspraak gemaakt, maar kaart verzenden mislukt",
