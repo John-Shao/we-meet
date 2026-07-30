@@ -8,19 +8,42 @@ import type {
   UpdateEventPayload,
 } from './ApiCalendar'
 
-/** GET /api/v1.0/calendar-events — events the caller organizes or is invited to.
- *  Optional ISO `range` narrows to events overlapping [start, end] (server-side),
- *  so month paging fetches only the visible window instead of the whole calendar. */
-export const fetchCalendarEvents = (range?: {
+/** 每页拉满(后端 max_page_size=100),再按 `next` 翻到底。 */
+const EVENTS_PAGE_SIZE = 100
+/** 翻页上限(≈1000 条)——纯粹是防御,正常窗口远到不了。 */
+const EVENTS_MAX_PAGES = 10
+
+/**
+ * GET /api/v1.0/calendar-events — events the caller organizes or is invited to.
+ * Optional ISO `range` narrows to events overlapping [start, end] (server-side),
+ * so month paging fetches only the visible window instead of the whole calendar.
+ *
+ * **必须翻页**:后端 DRF 默认 PAGE_SIZE=20 且按 start_at 升序,而日历窗口是
+ * ±1 月 —— 只取第一页时,窗口靠后的日程(比如本月下旬)会被前面二十来条挤掉,
+ * 网格里**静默消失**(排查过一次:侧栏「即将开始」窗口从今天起算所以有,主网格
+ * 窗口从上月 1 日起算所以没有)。App 端 CalendarViewModel 一直是翻页的。
+ */
+export const fetchCalendarEvents = async (range?: {
   start: string
   end: string
 }): Promise<CalendarEvent[]> => {
-  const qs = range
-    ? `?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}`
-    : ''
-  return fetchApi<Paginated<CalendarEvent>>(`/calendar-events/${qs}`).then(
-    (p) => p.results
-  )
+  const all: CalendarEvent[] = []
+  for (let page = 1; page <= EVENTS_MAX_PAGES; page += 1) {
+    const qs = new URLSearchParams({
+      page: String(page),
+      page_size: String(EVENTS_PAGE_SIZE),
+    })
+    if (range) {
+      qs.set('start', range.start)
+      qs.set('end', range.end)
+    }
+    const res = await fetchApi<Paginated<CalendarEvent>>(
+      `/calendar-events/?${qs.toString()}`
+    )
+    all.push(...res.results)
+    if (!res.next) break
+  }
+  return all
 }
 
 /** GET /api/v1.0/calendar-events/{id} — one event (P8:IM 日程卡片跳详情用)。 */

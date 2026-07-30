@@ -739,12 +739,14 @@ export const ConversationCalendarPanel = ({
                       const mine = myEventAt(Math.round(s), Math.round(e))
                       const rsvp = mine ? rsvpOf(mine, p.id) : null
                       const skin = busyBlockSkin(rsvp)
-                      const text =
-                        rsvp === 'needs_action'
+                      // 他人未回复 → 写「未回复」(我关心的是这冲突是软的);
+                      // 自己列照常写标题,未回复由斜纹表达就够。
+                      const isSelf = names[currentUserUID]?.id === p.id
+                      const text = !rsvp
+                        ? null
+                        : rsvp === 'needs_action' && !isSelf
                           ? t('calendar.rsvpPending')
-                          : rsvp
-                            ? mine?.title || t('calendar.untitled')
-                            : null
+                          : mine?.title || t('calendar.untitled')
                       return (
                         <div
                           key={i}
