@@ -2703,6 +2703,15 @@ class PushPreference(BaseModel):
     quiet_enabled = models.BooleanField(_("quiet hours enabled"), default=False)
     quiet_start = models.TimeField(_("quiet start"), default=dt_time(22, 0))
     quiet_end = models.TimeField(_("quiet end"), default=dt_time(8, 0))
+    starred_bypass_quiet = models.BooleanField(
+        _("starred contacts bypass quiet hours"),
+        default=True,
+        help_text=_(
+            "Messages from a starred contact (see StarredContact) still push "
+            "during quiet hours. Default on: starring someone is already an "
+            "explicit act, so it should mean something without a second opt-in."
+        ),
+    )
 
     class Meta:
         db_table = "meet_push_preference"
@@ -2712,6 +2721,54 @@ class PushPreference(BaseModel):
     def __str__(self):
         state = "on" if self.quiet_enabled else "off"
         return f"PushPreference({self.user_id}, quiet={state} {self.quiet_start}-{self.quiet_end})"
+
+
+class StarredContact(BaseModel):
+    """``owner`` marked ``target`` as a 星标联系人 (飞书对标).
+
+    Purely personal state — the target is never told, and nothing about the
+    relationship is shared. Like ``ImLaterItem`` this lives entirely on the
+    we-meet side: it is a *directory* relation (not a conversation attribute),
+    and it feeds the offline-push decision, which is Django's job anyway
+    (``core.services.push_send``).
+
+    Effects, all read-only derivations of this row:
+
+    - 通讯录 has a「星标联系人」entry listing them;
+    - the conversation list stamps a ⭐ after a starred peer's name;
+    - their messages bypass the owner's quiet hours when
+      ``PushPreference.starred_bypass_quiet`` is on.
+
+    Cross-org rows are impossible to create (the API only accepts same-org
+    active members) and would anyway drop out of the list, which is built from
+    the target's *Membership* in the caller's organization.
+    """
+
+    owner = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="starred_contacts"
+    )
+    target = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="starred_by"
+    )
+
+    class Meta:
+        db_table = "meet_starred_contact"
+        ordering = ("created_at",)
+        verbose_name = _("starred contact")
+        verbose_name_plural = _("starred contacts")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "target"],
+                name="one_star_per_owner_target",
+            ),
+        ]
+        indexes = [
+            # Push path: "did any of these quiet users star this sender?"
+            models.Index(fields=["target", "owner"], name="starred_target_owner_idx"),
+        ]
+
+    def __str__(self):
+        return f"Starred({self.owner_id} → {self.target_id})"
 
 
 class ImLaterItem(BaseModel):

@@ -36,5 +36,18 @@
     "title": "Title",
     "close": "Close",
     "none": "—"
+  },
+  "starred": {
+    "title": "Starred contacts",
+    "add": "Add",
+    "addTitle": "Add starred contacts",
+    "selected": "{{count}} selected",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "empty": "No starred contacts yet",
+    "remove": "Unstar",
+    "toggle": "Star this contact",
+    "notifyHintWeb": "Notification settings for starred contacts live in the mobile app, under Settings › Notifications.",
+    "error": "Could not update the star: {{message}}"
   }
 }

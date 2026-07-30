@@ -22,7 +22,7 @@ import requests
 from django.conf import settings
 from django.utils import timezone as django_timezone
 
-from core.models import DevicePushToken, PushPreference, User
+from core.models import DevicePushToken, PushPreference, StarredContact, User
 
 logger = logging.getLogger(__name__)
 
@@ -358,12 +358,41 @@ def quiet_user_ids(user_ids, now=None) -> set:
     return quiet
 
 
+def starred_bypass_user_ids(quiet_ids, sender_uid: str) -> set:
+    """星标穿透:``quiet_ids`` 里「把发送人设成星标联系人」且开了穿透的那部分。
+
+    按**人**而非按会话判断 —— 星标联系人在群里发的消息一样穿透(webhook payload
+    的 ``sender_uid`` 群/私聊都带)。
+
+    ``owner__push_preference__starred_bypass_quiet`` 这个 join 一定命中:
+    :func:`quiet_user_ids` 只会返回**有** ``PushPreference`` 行(且
+    ``quiet_enabled=True``)的用户。
+
+    ⚠️ 只穿透**静默时段**这一层。会话级 ``muted`` 由 jusi-light-im 在发 webhook
+    前就剔掉了成员(``internal/push/service.go``),Django 这里根本收不到,那层
+    穿透要改 jusi 才做得到 —— 本期不做。
+    """
+    if not quiet_ids or not sender_uid:
+        return set()
+    sender = User.objects.filter(im_uid=sender_uid).first()
+    if sender is None:
+        return set()
+    return set(
+        StarredContact.objects.filter(
+            owner_id__in=quiet_ids,
+            target=sender,
+            owner__push_preference__starred_bypass_quiet=True,
+        ).values_list("owner_id", flat=True)
+    )
+
+
 def notify_offline(payload: dict[str, Any], client: Optional[GetuiClient] = None) -> int:
     """Handle one p14 webhook payload: resolve offline uids → tokens → push.
 
     Returns the number of push attempts made (0 when Getui is unconfigured or
     nobody has a registered device). Never raises — every failure is logged.
-    P0-M3: 处于免打扰时段的用户被静默跳过(见 :func:`quiet_user_ids`)。
+    P0-M3: 处于免打扰时段的用户被静默跳过(见 :func:`quiet_user_ids`),除非发送人
+    是他的星标联系人(见 :func:`starred_bypass_user_ids`)。
     """
     offline_uids = [str(u) for u in (payload.get("offline_uids") or []) if u]
     if not offline_uids:
@@ -378,7 +407,18 @@ def notify_offline(payload: dict[str, Any], client: Optional[GetuiClient] = None
         return 0
 
     # P0-M3 免打扰:静默时段内的用户整机跳过(消息通知;来电不在此过滤)。
+    # 星标联系人发来的消息穿透静默时段(默认开,见 starred_bypass_user_ids)。
     quiet = quiet_user_ids({t.user_id for t in tokens})
+    if quiet:
+        bypass = starred_bypass_user_ids(
+            quiet, str(payload.get("sender_uid") or "").strip()
+        )
+        if bypass:
+            quiet -= bypass
+            logger.info(
+                "push-hook: %d starred-contact recipient(s) bypassed quiet hours",
+                len(bypass),
+            )
     if quiet:
         tokens = [t for t in tokens if t.user_id not in quiet]
         logger.info("push-hook: %d user(s) in quiet hours skipped", len(quiet))

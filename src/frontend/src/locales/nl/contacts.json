@@ -36,5 +36,18 @@
     "title": "Functie",
     "close": "Sluiten",
     "none": "—"
+  },
+  "starred": {
+    "title": "Favoriete contacten",
+    "add": "Toevoegen",
+    "addTitle": "Favoriete contacten toevoegen",
+    "selected": "{{count}} geselecteerd",
+    "confirm": "Bevestigen",
+    "cancel": "Annuleren",
+    "empty": "Nog geen favoriete contacten",
+    "remove": "Uit favorieten",
+    "toggle": "Als favoriet instellen",
+    "notifyHintWeb": "Meldingen voor favoriete contacten stel je in de mobiele app in, via Instellingen › Meldingen.",
+    "error": "Favoriet bijwerken mislukt: {{message}}"
   }
 }

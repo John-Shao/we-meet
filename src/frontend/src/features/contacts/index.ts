@@ -6,6 +6,8 @@ export { ContactsRoute } from './routes/ContactsRoute'
 export { useDirectoryMemberSearch } from './hooks/useDirectoryMemberSearch'
 export { fetchDirectoryMembers } from './api/fetchDirectoryMembers'
 export { fetchDepartments } from './api/fetchDepartments'
+export { fetchStarredContacts } from './api/fetchStarredContacts'
+export { setStarredContact } from './api/setStarredContact'
 export type {
   DirectoryMember,
   DirectoryDepartment,

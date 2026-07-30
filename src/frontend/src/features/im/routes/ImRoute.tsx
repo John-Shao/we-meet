@@ -10,7 +10,7 @@ import { ResizablePanel } from '@/components/ResizablePanel'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
-import { ContactPicker } from '@/features/contacts'
+import { ContactPicker, fetchStarredContacts } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
 import type {
   ConversationSummary,
@@ -260,6 +260,25 @@ const ImAuthenticated = () => {
     enabled: groupMemberUids.length > 0,
     staleTime: 60_000,
   })
+
+  // 星标联系人(对标飞书:私聊名字后跟 ⭐)。星标存的是 we-meet user id,而会话
+  // 只有 IM uid —— 用 peerNames 里已解析出的 `id` 做桥,不额外发请求。
+  const { data: starredMembers = [] } = useQuery({
+    queryKey: ['directory', 'starred'],
+    queryFn: () => fetchStarredContacts(),
+    staleTime: 60_000,
+  })
+  const starredUserIds = new Set(starredMembers.map((m) => m.id))
+  const starredCids = new Set(
+    conversations
+      .filter((c) => c.type === 'direct')
+      .filter((c) => {
+        const peer = c.members.find((u) => u !== currentUserUID)
+        const peerUserId = peer ? peerNames[peer]?.id : undefined
+        return !!peerUserId && starredUserIds.has(peerUserId)
+      })
+      .map((c) => c.cid)
+  )
 
   // group → meta.name(无名兜底);direct → 对端显示名(兜底「私聊」)。
   const nameOf = (c: ConversationSummary): string => {
@@ -737,6 +756,7 @@ const ImAuthenticated = () => {
               membersOf={membersOf}
               onDelete={handleDelete}
               mentionedCids={mentionedCids}
+              starredCids={starredCids}
               previewOf={previewOf}
             />
           </aside>

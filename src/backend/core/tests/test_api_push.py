@@ -269,6 +269,8 @@ def test_push_preferences_get_defaults_then_update():
     assert data["quiet_enabled"] is False
     assert data["quiet_start"] == "22:00"
     assert data["quiet_end"] == "08:00"
+    # 星标穿透默认开 —— 打星标本身就是显式动作,不该再开第二次。
+    assert data["starred_bypass_quiet"] is True
     assert data["timezone"]
 
     response = client.put(
@@ -281,6 +283,15 @@ def test_push_preferences_get_defaults_then_update():
     assert data["quiet_enabled"] is True
     assert data["quiet_start"] == "23:30"
     assert data["quiet_end"] == "07:15"
+    # 未传的字段不被顺手改掉(局部更新)。
+    assert data["starred_bypass_quiet"] is True
+
+    response = client.put(
+        "/api/v1.0/push/preferences/", {"starred_bypass_quiet": False}, format="json"
+    )
+    assert response.status_code == 200
+    assert response.json()["starred_bypass_quiet"] is False
+    assert models.PushPreference.objects.get(user=user).starred_bypass_quiet is False
 
     response = client.put(
         "/api/v1.0/push/preferences/", {"quiet_start": "25:99"}, format="json"
@@ -381,3 +392,96 @@ def test_hook_offline_skips_quiet_user_but_call_rings_through():
         assert response.status_code == 200
         assert response.json()["pushed"] == 1
         fake_client.push_call_to_cid.assert_called_once()
+
+
+# ---- 星标联系人穿透静默时段 ----
+
+
+def _quiet_recipient_and_sender():
+    """全天免打扰的收件人(带设备)+ 一个有 im_uid 的发送人。"""
+    recipient = UserFactory()
+    recipient.im_uid = "01900000-0000-7000-8000-0000000000ee"
+    recipient.save(update_fields=["im_uid"])
+    models.DevicePushToken.objects.create(user=recipient, cid="getui-cid-6")
+    models.PushPreference.objects.create(
+        user=recipient,
+        quiet_enabled=True,
+        quiet_start=dtime(0, 0),
+        quiet_end=dtime(0, 0),  # 全天,测试不依赖真实时刻
+    )
+    sender = UserFactory()
+    sender.im_uid = "01900000-0000-7000-8000-0000000000ef"
+    sender.save(update_fields=["im_uid"])
+    return recipient, sender
+
+
+def _post_message_from(client, sender, recipient):
+    return _post_hook(
+        client,
+        {
+            "cid": "conv-1",
+            "content_type": "text",
+            "body_snippet": "hi",
+            "sender_uid": sender.im_uid,
+            "offline_uids": [recipient.im_uid],
+        },
+    )
+
+
+def test_hook_offline_starred_sender_bypasses_quiet_hours():
+    """星标联系人的消息穿透全天免打扰(开关默认开)。"""
+    recipient, sender = _quiet_recipient_and_sender()
+    models.StarredContact.objects.create(owner=recipient, target=sender)
+
+    fake_client = mock.Mock()
+    fake_client.push_to_cid.return_value = True
+
+    client = APIClient()
+    with mock.patch(
+        "core.services.push_send._client_from_settings", return_value=fake_client
+    ):
+        response = _post_message_from(client, sender, recipient)
+
+    assert response.status_code == 200
+    assert response.json()["pushed"] == 1
+    fake_client.push_to_cid.assert_called_once()
+
+
+def test_hook_offline_starred_sender_respects_bypass_switch_off():
+    """关掉 starred_bypass_quiet 后,星标联系人也照旧被静默。"""
+    recipient, sender = _quiet_recipient_and_sender()
+    models.StarredContact.objects.create(owner=recipient, target=sender)
+    models.PushPreference.objects.filter(user=recipient).update(
+        starred_bypass_quiet=False
+    )
+
+    fake_client = mock.Mock()
+    fake_client.push_to_cid.return_value = True
+
+    client = APIClient()
+    with mock.patch(
+        "core.services.push_send._client_from_settings", return_value=fake_client
+    ):
+        response = _post_message_from(client, sender, recipient)
+
+    assert response.status_code == 200
+    assert response.json()["pushed"] == 0
+    fake_client.push_to_cid.assert_not_called()
+
+
+def test_hook_offline_unstarred_sender_stays_quiet():
+    """没打星标的人照旧静默 —— 穿透只对星标关系生效,不是全局开闸。"""
+    recipient, sender = _quiet_recipient_and_sender()
+
+    fake_client = mock.Mock()
+    fake_client.push_to_cid.return_value = True
+
+    client = APIClient()
+    with mock.patch(
+        "core.services.push_send._client_from_settings", return_value=fake_client
+    ):
+        response = _post_message_from(client, sender, recipient)
+
+    assert response.status_code == 200
+    assert response.json()["pushed"] == 0
+    fake_client.push_to_cid.assert_not_called()

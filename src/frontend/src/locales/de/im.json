@@ -351,5 +351,8 @@
   "phoneViewed": {
     "byMe": "Du hast die Telefonnummer angesehen",
     "byPeer": "Deine Telefonnummer wurde angesehen"
+  },
+  "starred": {
+    "marker": "Markierter Kontakt"
   }
 }

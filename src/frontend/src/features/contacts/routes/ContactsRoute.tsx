@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'wouter'
 
 import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -13,10 +14,13 @@ import { Screen } from '@/layout/Screen'
 
 import { DepartmentTree } from '../components/DepartmentTree'
 import { MemberDetailPanel } from '../components/MemberDetailPanel'
+import { StarredAddDialog } from '../components/StarredAddDialog'
 import { fetchDepartmentMembers } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
 import { fetchDirectoryMembers } from '../api/fetchDirectoryMembers'
 import { fetchDirectoryMember } from '../api/fetchDirectoryMember'
+import { fetchStarredContacts } from '../api/fetchStarredContacts'
+import { setStarredContact } from '../api/setStarredContact'
 import type { DirectoryMember } from '../api/ApiDirectory'
 
 /**
@@ -36,14 +40,25 @@ export const ContactsRoute = () => (
 const ContactsAuthenticated = () => {
   const { t } = useTranslation('contacts')
   const [, navigate] = useLocation()
+  const qc = useQueryClient()
   const { alert: showAlert } = useConfirm()
+  // 左栏三态:'starred'(星标联系人)/ null(全部成员)/ 部门 id。
+  const [view, setView] = useState<'starred' | null>(null)
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [selectedMember, setSelectedMember] = useState<DirectoryMember | null>(
     null
   )
+  const [addingStarred, setAddingStarred] = useState(false)
 
   const selectDept = (id: string | null) => {
+    setView(null)
     setSelectedDeptId(id)
+    setSelectedMember(null)
+  }
+
+  const selectStarred = () => {
+    setView('starred')
+    setSelectedDeptId(null)
     setSelectedMember(null)
   }
 
@@ -74,13 +89,41 @@ const ContactsAuthenticated = () => {
   // 通讯录只负责「浏览」组织:选部门列其直属成员,全部成员列整册。
   // 按姓名找人统一走顶栏全局搜索(飞书式单一搜索入口),这里不设搜索框。
   const { data: members = [], isFetching } = useQuery({
-    queryKey: ['directory', 'members', { dept: selectedDeptId }],
+    queryKey: ['directory', 'members', { dept: selectedDeptId, view }],
     queryFn: () =>
-      selectedDeptId
-        ? fetchDepartmentMembers(selectedDeptId)
-        : fetchDirectoryMembers(),
+      view === 'starred'
+        ? fetchStarredContacts()
+        : selectedDeptId
+          ? fetchDepartmentMembers(selectedDeptId)
+          : fetchDirectoryMembers(),
     staleTime: 30_000,
   })
+
+  // 星标名单单独拉一份:一是「添加」对话框要排掉已星标的人,二是任何列表/详情
+  // 里的星标状态都从这一份派生,切换视图不会看到两种说法。
+  const { data: starred = [] } = useQuery({
+    queryKey: ['directory', 'starred'],
+    queryFn: () => fetchStarredContacts(),
+    staleTime: 30_000,
+  })
+  const starredIds = new Set(starred.map((m) => m.id))
+
+  const toggleStarred = async (member: DirectoryMember, next: boolean) => {
+    try {
+      await setStarredContact(member.id, next)
+      // 星标状态处处都从 ['directory','starred'] 派生(会话列表的 ⭐ 也读它),
+      // 所以失效这一份就够 —— 不另外去改 selectedMember 上的 is_starred 快照,
+      // 免得同一件事有两个说法。
+      await qc.invalidateQueries({ queryKey: ['directory', 'starred'] })
+      await qc.invalidateQueries({ queryKey: ['directory', 'members'] })
+    } catch (e) {
+      void showAlert({
+        message: t('starred.error', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
+    }
+  }
 
   const handleMessage = async (member: DirectoryMember) => {
     try {
@@ -133,10 +176,19 @@ const ContactsAuthenticated = () => {
           </h2>
         </div>
         <div>
+          {/* 星标联系人:与部门并列的一个入口(对标飞书通讯录的独立分组)。 */}
+          <button
+            type="button"
+            onClick={selectStarred}
+            data-testid="contacts-starred-entry"
+            className={deptButton(view === 'starred')}
+          >
+            ⭐ {t('starred.title')}
+          </button>
           <button
             type="button"
             onClick={() => selectDept(null)}
-            className={deptButton(selectedDeptId === null)}
+            className={deptButton(view === null && selectedDeptId === null)}
           >
             {t('page.allMembers')}
           </button>
@@ -157,11 +209,44 @@ const ContactsAuthenticated = () => {
           overflow: 'hidden',
         })}
       >
+        {view === 'starred' && (
+          <div
+            className={css({
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingX: '1rem',
+              paddingY: '0.625rem',
+              borderBottom: '1px solid token(colors.greyscale.200)',
+            })}
+          >
+            <h2
+              className={css({
+                margin: 0,
+                fontSize: '0.9375rem',
+                fontWeight: 'bold',
+                color: 'greyscale.900',
+              })}
+            >
+              {t('starred.title')}
+            </h2>
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => setAddingStarred(true)}
+              data-testid="contacts-starred-add"
+            >
+              {t('starred.add')}
+            </Button>
+          </div>
+        )}
         <div className={css({ overflowY: 'auto', flex: 1 })}>
           {isFetching && members.length === 0 ? (
             <StateHint loading>{t('page.loading')}</StateHint>
           ) : members.length === 0 ? (
-            <StateHint>{t('page.empty')}</StateHint>
+            <StateHint>
+              {view === 'starred' ? t('starred.empty') : t('page.empty')}
+            </StateHint>
           ) : (
             <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
               {members.map((member) => {
@@ -247,6 +332,16 @@ const ContactsAuthenticated = () => {
                           })}
                         >
                           {label}
+                          {/* 星标标记(对标飞书:名字后跟一颗 ⭐)。 */}
+                          {starredIds.has(member.id) && (
+                            <span
+                              aria-label={t('starred.title')}
+                              title={t('starred.title')}
+                            >
+                              {' '}
+                              ⭐
+                            </span>
+                          )}
                           {member.is_self && (
                             <span className={css({ color: 'greyscale.400' })}>
                               {' '}
@@ -269,6 +364,25 @@ const ContactsAuthenticated = () => {
                         </span>
                       </span>
                     </button>
+                    {view === 'starred' && (
+                      <span
+                        className={css({
+                          flexShrink: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginRight: '0.5rem',
+                        })}
+                      >
+                        <Button
+                          variant="secondaryText"
+                          size="sm"
+                          onPress={() => void toggleStarred(member, false)}
+                          data-testid={`contacts-unstar-${member.id}`}
+                        >
+                          {t('starred.remove')}
+                        </Button>
+                      </span>
+                    )}
                     {!member.is_self && (
                       <button
                         type="button"
@@ -302,8 +416,25 @@ const ContactsAuthenticated = () => {
       {selectedMember && (
         <MemberDetailPanel
           member={selectedMember}
+          starred={starredIds.has(selectedMember.id)}
+          onToggleStarred={(next) => void toggleStarred(selectedMember, next)}
           onMessage={handleMessage}
           onClose={() => setSelectedMember(null)}
+        />
+      )}
+
+      {addingStarred && (
+        <StarredAddDialog
+          alreadyStarredIds={starredIds}
+          onDone={() => {
+            setAddingStarred(false)
+            void qc.invalidateQueries({ queryKey: ['directory', 'starred'] })
+            void qc.invalidateQueries({ queryKey: ['directory', 'members'] })
+          }}
+          onClose={() => setAddingStarred(false)}
+          onError={(message) =>
+            void showAlert({ message: t('starred.error', { message }) })
+          }
         />
       )}
     </div>

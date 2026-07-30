@@ -25,6 +25,7 @@ from core.api.directory import (
     DepartmentViewSet,
     DirectoryMeView,
     DirectoryMemberViewSet,
+    StarredContactViewSet,
 )
 from core.api.im import ImViewSet
 from core.api.meeting_rooms import (
@@ -81,6 +82,9 @@ router.register(
 )
 router.register(
     "directory/members", DirectoryMemberViewSet, basename="directory_members"
+)
+router.register(
+    "directory/starred", StarredContactViewSet, basename="directory_starred"
 )
 router.register(
     "admin/departments", DepartmentAdminViewSet, basename="admin_departments"

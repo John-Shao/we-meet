@@ -2,21 +2,34 @@ import { useTranslation } from 'react-i18next'
 import { RiCloseLine, RiMessage3Line } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
+import { Switch } from '@/primitives/Switch'
 import type { DirectoryMember } from '../api/ApiDirectory'
 
 /**
  * Feishu-style member detail panel — the right column of 通讯录. Clicking a
  * member row opens this card (avatar / name / org info) with a "发消息" action
  * that starts a direct IM conversation. Closing returns to the member list only.
+ *
+ * 星标开关就放在这张卡里(不另开设置子页):we-meet 没有飞书那页的备注/分享/
+ * 举报,单为一个开关多跳一层不值。
  */
 
 interface Props {
   member: DirectoryMember
+  /** 是否已星标 —— 由调用方从统一的星标名单派生,不读 member.is_starred 快照。 */
+  starred: boolean
+  onToggleStarred: (next: boolean) => void
   onMessage: (member: DirectoryMember) => void
   onClose: () => void
 }
 
-export const MemberDetailPanel = ({ member, onMessage, onClose }: Props) => {
+export const MemberDetailPanel = ({
+  member,
+  starred,
+  onToggleStarred,
+  onMessage,
+  onClose,
+}: Props) => {
   const { t } = useTranslation('contacts')
   const name = member.full_name || member.short_name || member.email || ''
   const initial = (name || '?').slice(0, 1).toUpperCase()
@@ -137,6 +150,44 @@ export const MemberDetailPanel = ({ member, onMessage, onClose }: Props) => {
         <InfoRow label={t('detail.title')} value={member.title || dash} />
         <InfoRow label={t('detail.email')} value={member.email || dash} />
       </dl>
+
+      {!member.is_self && (
+        <div
+          className={css({
+            marginTop: '1rem',
+            paddingX: '1.25rem',
+            paddingY: '0.75rem',
+            borderTop: '1px solid token(colors.greyscale.100)',
+          })}
+        >
+          {/* 布尔设置用开关(与 IM 会话设置同一写法):整行可点,标签作子节点。 */}
+          <Switch
+            isSelected={starred}
+            onChange={onToggleStarred}
+            data-testid={`member-detail-star-${member.id}`}
+            className={css({
+              width: '100%',
+              flexDirection: 'row-reverse',
+              justifyContent: 'space-between',
+            })}
+          >
+            <span
+              className={css({ fontSize: '0.875rem', color: 'greyscale.900' })}
+            >
+              {t('starred.toggle')}
+            </span>
+          </Switch>
+          <p
+            className={css({
+              margin: '0.375rem 0 0',
+              fontSize: '0.75rem',
+              color: 'greyscale.500',
+            })}
+          >
+            {t('starred.notifyHintWeb')}
+          </p>
+        </div>
+      )}
 
       {!member.is_self && (
         <div className={css({ marginTop: 'auto', padding: '1.25rem' })}>

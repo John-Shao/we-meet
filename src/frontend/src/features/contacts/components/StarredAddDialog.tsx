@@ -1,0 +1,151 @@
+import { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { css } from '@/styled-system/css'
+import { Modal } from '@/components/Modal'
+import { Button } from '@/primitives'
+
+import { DirectoryMultiPicker } from './DirectoryMultiPicker'
+import { starContact } from '../api/setStarredContact'
+
+interface Props {
+  /** 已经是星标的人 —— 从候选里排掉,避免「添加」了个已有的。 */
+  alreadyStarredIds: Set<string>
+  /** 至少成功打上一个星标后回调(调用方据此刷新列表并关窗)。 */
+  onDone: () => void
+  onClose: () => void
+  /** 出错时提示(调用方通常传 ConfirmProvider 的 alert)。 */
+  onError: (message: string) => void
+}
+
+/**
+ * 「添加星标联系人」(对标飞书星标列表页右上角的「添加」)。
+ *
+ * 复用通讯录那块左搜索勾选 + 右已选面板([DirectoryMultiPicker]),与日历
+ * 「批量添加参与者」同一套交互:一次勾一串人再确定。星标接口本身是幂等的,
+ * 所以重复提交不会造成脏数据。
+ */
+export const StarredAddDialog = ({
+  alreadyStarredIds,
+  onDone,
+  onClose,
+  onError,
+}: Props) => {
+  const { t } = useTranslation('contacts')
+  const [draft, setDraft] = useState<Map<string, string>>(() => new Map())
+  const [busy, setBusy] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  const toggle = (id: string, label: string) => {
+    setDraft((prev) => {
+      const next = new Map(prev)
+      if (next.has(id)) next.delete(id)
+      else next.set(id, label)
+      return next
+    })
+  }
+
+  const confirm = async () => {
+    if (draft.size === 0) {
+      onClose()
+      return
+    }
+    setBusy(true)
+    try {
+      // 逐个 POST(名单短,且失败时能明确停在第一个错上,不留半个成功一半未知)。
+      for (const id of draft.keys()) {
+        await starContact(id)
+      }
+      onDone()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      onClose={onClose}
+      ariaLabel={t('starred.addTitle')}
+      maxWidth="640px"
+      maxHeight="72vh"
+      initialFocusRef={searchRef}
+    >
+      <div className={headerCls}>
+        <h2 className={titleCls}>{t('starred.addTitle')}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t('starred.cancel')}
+          className={closeBtnCls}
+        >
+          ×
+        </button>
+      </div>
+
+      <DirectoryMultiPicker
+        selected={draft}
+        onToggle={toggle}
+        excludeIds={alreadyStarredIds}
+        labels={{
+          searchPlaceholder: t('picker.searchPlaceholder'),
+          selectedTitle: t('starred.selected', { count: draft.size }),
+          loading: t('picker.loading'),
+          empty: t('picker.empty'),
+        }}
+        searchRef={searchRef}
+        searchTestId="starred-add-search"
+        testIdPrefix="starred-add-item-"
+      />
+
+      <div className={footerCls}>
+        <Button variant="secondaryText" onPress={onClose} isDisabled={busy}>
+          {t('starred.cancel')}
+        </Button>
+        <Button
+          variant="primary"
+          onPress={confirm}
+          isDisabled={busy}
+          data-testid="starred-add-confirm"
+        >
+          {t('starred.confirm')}
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
+const headerCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingX: '1rem',
+  paddingY: '0.75rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+})
+
+const titleCls = css({
+  margin: 0,
+  fontSize: '1rem',
+  fontWeight: 'bold',
+  color: 'greyscale.900',
+})
+
+const closeBtnCls = css({
+  border: 'none',
+  background: 'transparent',
+  fontSize: '1.25rem',
+  lineHeight: 1,
+  cursor: 'pointer',
+  color: 'greyscale.600',
+})
+
+const footerCls = css({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: '0.5rem',
+  paddingX: '1rem',
+  paddingY: '0.75rem',
+  borderTop: '1px solid token(colors.greyscale.200)',
+})

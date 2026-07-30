@@ -36,5 +36,18 @@
     "title": "Position",
     "close": "Schließen",
     "none": "—"
+  },
+  "starred": {
+    "title": "Markierte Kontakte",
+    "add": "Hinzufügen",
+    "addTitle": "Markierte Kontakte hinzufügen",
+    "selected": "{{count}} ausgewählt",
+    "confirm": "Bestätigen",
+    "cancel": "Abbrechen",
+    "empty": "Noch keine markierten Kontakte",
+    "remove": "Markierung entfernen",
+    "toggle": "Kontakt markieren",
+    "notifyHintWeb": "Die Benachrichtigungen für markierte Kontakte werden in der mobilen App unter Einstellungen › Benachrichtigungen festgelegt.",
+    "error": "Markierung konnte nicht geändert werden: {{message}}"
   }
 }

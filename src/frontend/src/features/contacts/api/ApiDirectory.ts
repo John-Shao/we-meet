@@ -26,6 +26,8 @@ export interface DirectoryMember {
   org_role: string
   department: DirectoryDepartmentRef | null
   is_self: boolean
+  /** 调用方是否把这个人设成了星标联系人(每张成员卡片都带,免二次请求)。 */
+  is_starred: boolean
 }
 
 export interface DirectoryDepartmentHead {

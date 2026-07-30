@@ -351,5 +351,8 @@
   "phoneViewed": {
     "byMe": "你查看了对方的手机号码",
     "byPeer": "对方查看了你的手机号码"
+  },
+  "starred": {
+    "marker": "星标联系人"
   }
 }

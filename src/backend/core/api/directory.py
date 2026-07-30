@@ -12,6 +12,8 @@ one, even though MVP runs a single organization.
 """
 
 import logging
+import uuid
+from typing import Optional
 
 from django.db.models import Q
 
@@ -66,6 +68,20 @@ class DepartmentSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+def starred_target_ids(user) -> set:
+    """User ids the caller has starred (see ``StarredContact``).
+
+    One cheap query per request — starred lists are personal and short. Computed
+    once and passed through the serializer context so ``is_starred`` never turns
+    into an N+1 over a member page.
+    """
+    return set(
+        models.StarredContact.objects.filter(owner=user).values_list(
+            "target_id", flat=True
+        )
+    )
+
+
 def mask_phone(phone: str) -> str:
     """Mask a phone for display: keep first 3 + last 4, star the middle
     (138****1990). Numbers too short to keep both ends are fully starred.
@@ -98,6 +114,7 @@ class DirectoryMemberSerializer(serializers.Serializer):
     department = serializers.SerializerMethodField()
     is_self = serializers.SerializerMethodField()
     phone = serializers.SerializerMethodField()
+    is_starred = serializers.SerializerMethodField()
 
     def get_avatar_url(self, obj):
         """Short-lived presigned GET URL for the avatar, '' if unset."""
@@ -126,6 +143,16 @@ class DirectoryMemberSerializer(serializers.Serializer):
         if request and obj.user_id == request.user.id:
             return phone
         return mask_phone(phone)
+
+    def get_is_starred(self, obj):
+        """Whether the caller starred this person (see ``StarredContact``).
+
+        Reads the pre-computed set from the context (``starred_target_ids``) so a
+        member page costs one extra query, not one per row. Absent context (a
+        serializer used outside these viewsets) reads as not-starred.
+        """
+        starred = self.context.get("starred_ids")
+        return bool(starred) and obj.user_id in starred
 
 
 class DepartmentViewSet(
@@ -181,7 +208,12 @@ class DepartmentViewSet(
         paginator = Pagination()
         page = paginator.paginate_queryset(memberships, request, view=self)
         serializer = DirectoryMemberSerializer(
-            page, many=True, context={"request": request}
+            page,
+            many=True,
+            context={
+                "request": request,
+                "starred_ids": starred_target_ids(request.user),
+            },
         )
         return paginator.get_paginated_response(serializer.data)
 
@@ -230,6 +262,7 @@ class DirectoryMemberViewSet(
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context["request"] = self.request
+        context["starred_ids"] = starred_target_ids(self.request.user)
         return context
 
     @action(detail=True, methods=["post"], url_path="reveal-phone")
@@ -256,6 +289,126 @@ class DirectoryMemberViewSet(
                     exc_info=True,
                 )
         return Response({"phone": phone}, status=status.HTTP_200_OK)
+
+
+class StarredContactViewSet(viewsets.GenericViewSet):
+    """The caller's own 星标联系人 list — ``/api/v1.0/directory/starred/``.
+
+    Surface (mirrors ``im_later``'s narrow feature-endpoint style):
+
+        GET    /directory/starred/           → member cards, bare array
+        POST   /directory/starred/           {"user_id": …} → 201 / 200 (idempotent)
+        DELETE /directory/starred/{user_id}/ → 204 (idempotent)
+
+    The list is projected through the target's *Membership* in the caller's
+    organization and reuses ``DirectoryMemberSerializer``, so a starred person
+    who left the org (or was never in it) simply stops appearing — no tombstone
+    rows to clean up. Bare array on purpose: a personal star list is short.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = DirectoryMemberSerializer
+    pagination_class = None
+    lookup_field = "target_id"
+    lookup_url_kwarg = "user_id"
+
+    def get_queryset(self):
+        return models.StarredContact.objects.filter(owner=self.request.user)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["request"] = self.request
+        context["starred_ids"] = starred_target_ids(self.request.user)
+        return context
+
+    @staticmethod
+    def _parse_user_id(raw) -> Optional[uuid.UUID]:
+        """Coerce a client-supplied user id to UUID, ``None`` when malformed.
+        Keeps a garbage path segment a 400 instead of a queryset-level 500."""
+        try:
+            return uuid.UUID(str(raw or "").strip())
+        except (ValueError, AttributeError, TypeError):
+            return None
+
+    def _org_membership(self, user_id):
+        """The target's ACTIVE primary membership in the caller's org, or None.
+
+        Same org-scoping as ``DirectoryMemberViewSet``: starring is only allowed
+        for people the caller can already see in the directory.
+        """
+        organization = get_caller_organization(self.request.user)
+        if organization is None:
+            return None
+        return (
+            models.Membership.objects.filter(
+                organization=organization,
+                user_id=user_id,
+                status=models.MembershipStatusChoices.ACTIVE,
+                is_primary=True,
+                user__is_device=False,
+            )
+            .select_related("user", "department")
+            .first()
+        )
+
+    def list(self, request):
+        """Starred members as directory cards, ordered like the directory itself."""
+        target_ids = self.get_queryset().values_list("target_id", flat=True)
+        organization = get_caller_organization(request.user)
+        if organization is None or not target_ids:
+            return Response([], status=status.HTTP_200_OK)
+        memberships = (
+            models.Membership.objects.filter(
+                organization=organization,
+                user_id__in=list(target_ids),
+                status=models.MembershipStatusChoices.ACTIVE,
+                is_primary=True,
+                user__is_device=False,
+            )
+            .select_related("user", "department")
+            .order_by("user__full_name")
+        )
+        serializer = self.get_serializer(memberships, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def create(self, request):
+        """Star one person. Idempotent — re-starring returns 200 with the card."""
+        user_id = self._parse_user_id((request.data or {}).get("user_id"))
+        if user_id is None:
+            return Response(
+                {"user_id": "a valid user id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if user_id == request.user.id:
+            return Response(
+                {"user_id": "cannot star yourself"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        membership = self._org_membership(user_id)
+        if membership is None:
+            # Outside the caller's directory → indistinguishable from missing.
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        _, created = models.StarredContact.objects.get_or_create(
+            owner=request.user, target_id=user_id
+        )
+        # Serialize AFTER the write so `is_starred` on the returned card is true.
+        serializer = self.get_serializer(membership)
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    def destroy(self, request, user_id=None):
+        """Unstar. Idempotent — 204 whether or not a row existed."""
+        parsed = self._parse_user_id(user_id)
+        if parsed is None:
+            return Response(
+                {"user_id": "a valid user id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        self.get_queryset().filter(target_id=parsed).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class DirectoryMeView(APIView):

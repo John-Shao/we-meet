@@ -356,5 +356,8 @@
   "phoneViewed": {
     "byMe": "You viewed their phone number",
     "byPeer": "They viewed your phone number"
+  },
+  "starred": {
+    "marker": "Starred contact"
   }
 }

@@ -36,5 +36,18 @@
     "title": "职位",
     "close": "关闭",
     "none": "—"
+  },
+  "starred": {
+    "title": "星标联系人",
+    "add": "添加",
+    "addTitle": "添加星标联系人",
+    "selected": "已选 {{count}} 人",
+    "confirm": "确定",
+    "cancel": "取消",
+    "empty": "还没有星标联系人",
+    "remove": "取消星标",
+    "toggle": "设为星标联系人",
+    "notifyHintWeb": "星标联系人的消息通知方式在手机 App 的「设置 › 通知」里设置。",
+    "error": "星标操作失败：{{message}}"
   }
 }

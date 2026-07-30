@@ -351,5 +351,8 @@
   "phoneViewed": {
     "byMe": "Je hebt hun nummer bekeken",
     "byPeer": "Je nummer is bekeken"
+  },
+  "starred": {
+    "marker": "Favoriet contact"
   }
 }

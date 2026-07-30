@@ -22,6 +22,8 @@ interface Props {
   onDelete: (c: ConversationSummary) => void
   /** cids with an unread @-mention of the current user → show a red "@" marker. */
   mentionedCids?: Set<string>
+  /** cids whose direct peer is a 星标联系人 → show a ⭐ after the name. */
+  starredCids?: Set<string>
   /**
    * Last-message preview line (P11): formatted text (group: "sender: body";
    * direct: body) + the message unix-ms timestamp. Null when there's nothing
@@ -58,6 +60,7 @@ export const ConversationList = ({
   membersOf,
   onDelete,
   mentionedCids,
+  starredCids,
   previewOf,
 }: Props) => {
   const { t, i18n } = useTranslation('im')
@@ -187,6 +190,19 @@ export const ConversationList = ({
                     >
                       {nameOf(c)}
                     </span>
+                    {/* 星标联系人:名字后跟一颗 ⭐(对标飞书)。 */}
+                    {starredCids?.has(c.cid) && (
+                      <span
+                        aria-label={t('starred.marker')}
+                        title={t('starred.marker')}
+                        className={css({
+                          flexShrink: 0,
+                          fontSize: '0.6875rem',
+                        })}
+                      >
+                        ⭐
+                      </span>
+                    )}
                   </span>
                   {preview && (
                     <span

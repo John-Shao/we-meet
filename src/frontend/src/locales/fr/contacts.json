@@ -36,5 +36,18 @@
     "title": "Poste",
     "close": "Fermer",
     "none": "—"
+  },
+  "starred": {
+    "title": "Contacts favoris",
+    "add": "Ajouter",
+    "addTitle": "Ajouter des contacts favoris",
+    "selected": "{{count}} sélectionné(s)",
+    "confirm": "Confirmer",
+    "cancel": "Annuler",
+    "empty": "Aucun contact favori",
+    "remove": "Retirer des favoris",
+    "toggle": "Mettre en favori",
+    "notifyHintWeb": "Les notifications des contacts favoris se règlent dans l'application mobile, sous Paramètres › Notifications.",
+    "error": "Échec de la mise à jour du favori : {{message}}"
   }
 }
