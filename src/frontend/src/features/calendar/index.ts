@@ -1,5 +1,5 @@
 export { CalendarRoute } from './routes/CalendarRoute'
-export type { CalendarEvent, EventAttendee } from './api/ApiCalendar'
+export type { CalendarEvent, EventAttendee, RSVPStatus } from './api/ApiCalendar'
 
 // P8:IM 会话日历抽屉/日程卡片的跨 feature 正规入口(im → calendar)。
 export { CreateEventDialog } from './components/CreateEventDialog'

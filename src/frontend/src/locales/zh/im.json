@@ -198,6 +198,8 @@
     "unresolved": "另有 {{count}} 位成员无法获取忙闲(跨组织或未激活)",
     "membersCapped": "仅显示前 {{count}} 位成员",
     "suggestTitle": "推荐时段",
+    "rsvpPending": "未回复",
+    "untitled": "(无标题)",
     "create": "创建日程",
     "cardSendFailed": "日程已创建,但卡片发送失败",
     "deleteConfirm": "确定删除该日程?",

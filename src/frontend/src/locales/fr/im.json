@@ -198,6 +198,8 @@
     "unresolved": "{{count}} membre(s) sans disponibilité (hors organisation ou inactif)",
     "membersCapped": "Seuls les {{count}} premiers membres sont affichés",
     "suggestTitle": "Créneaux suggérés",
+    "rsvpPending": "Sans réponse",
+    "untitled": "(Sans titre)",
     "create": "Créer un événement",
     "cardSendFailed": "Événement créé, mais l'envoi de la carte a échoué",
     "deleteConfirm": "Supprimer cet événement ?",

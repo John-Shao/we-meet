@@ -203,6 +203,8 @@
     "unresolved": "{{count}} member(s) have no busy/free info (cross-org or inactive)",
     "membersCapped": "Showing the first {{count}} members only",
     "suggestTitle": "Suggested times",
+    "rsvpPending": "Not replied",
+    "untitled": "(No title)",
     "create": "Create event",
     "cardSendFailed": "Event created, but the card failed to send",
     "deleteConfirm": "Delete this event?",

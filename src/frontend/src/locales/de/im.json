@@ -198,6 +198,8 @@
     "unresolved": "{{count}} Mitglied(er) ohne Verfügbarkeit (organisationsfremd oder inaktiv)",
     "membersCapped": "Nur die ersten {{count}} Mitglieder werden angezeigt",
     "suggestTitle": "Vorgeschlagene Zeiten",
+    "rsvpPending": "Nicht geantwortet",
+    "untitled": "(Ohne Titel)",
     "create": "Termin erstellen",
     "cardSendFailed": "Termin erstellt, aber Karte konnte nicht gesendet werden",
     "deleteConfirm": "Diesen Termin löschen?",

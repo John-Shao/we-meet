@@ -198,6 +198,8 @@
     "unresolved": "{{count}} lid/leden zonder beschikbaarheid (buiten organisatie of inactief)",
     "membersCapped": "Alleen de eerste {{count}} leden worden getoond",
     "suggestTitle": "Voorgestelde tijden",
+    "rsvpPending": "Niet gereageerd",
+    "untitled": "(Zonder titel)",
     "create": "Afspraak maken",
     "cardSendFailed": "Afspraak gemaakt, maar kaart verzenden mislukt",
     "deleteConfirm": "Deze afspraak verwijderen?",

@@ -11,9 +11,12 @@ import {
   CreateEventDialog,
   MiniCalendar,
   fetchFreeBusy,
+  fetchCalendarEvents,
   busyPeopleInRange,
   suggestCommonSlots,
   useCalendarSettings,
+  type CalendarEvent,
+  type RSVPStatus,
   type SuggestedSlot,
 } from '@/features/calendar'
 
@@ -38,6 +41,32 @@ const COL_MIN_PX = 72
 const MAX_PEOPLE = 50
 /** 冲突提示里最多列几个名字(超出补「等」;列头红点仍标出每一个人)。 */
 const CONFLICT_NAMES_SHOWN = 3
+
+/**
+ * 忙闲块的外观。null(无权看内容)= 中性灰;有回复状态时按四档上色,与日历
+ * 网格同一组色值。未回复 = 斜纹 + 虚线框(飞书同款「还没定」),一眼能和已
+ * 接受的实心块分开 —— 这类冲突是软的。declined 不会出现:freebusy 查询本身
+ * 就把拒绝的日程排除了。
+ */
+const busyBlockSkin = (rsvp: RSVPStatus | null): React.CSSProperties => {
+  if (rsvp === 'needs_action') {
+    return {
+      backgroundColor: 'rgba(124,58,237,0.08)',
+      backgroundImage:
+        'repeating-linear-gradient(45deg, rgba(124,58,237,0.28) 0, rgba(124,58,237,0.28) 1.5px, transparent 1.5px, transparent 7px)',
+      border: '1px dashed rgba(124,58,237,0.75)',
+      color: '#6d28d9',
+    }
+  }
+  if (rsvp === 'tentative') {
+    return { backgroundColor: 'rgba(217,119,6,0.16)', color: '#b45309' }
+  }
+  if (rsvp === 'accepted') {
+    return { backgroundColor: 'rgba(59,130,246,0.18)', color: '#1d4ed8' }
+  }
+  // 无权看内容:中性灰 + 灰字时段(块够高时),内容一个字不给。
+  return { backgroundColor: '#d1d5db', color: '#4b5563' }
+}
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const fmtMin = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`
@@ -143,6 +172,42 @@ export const ConversationCalendarPanel = ({
     enabled: ids.length > 0,
     staleTime: 30_000,
   })
+  // ── 我当日的日程(我组织的 + 我参加的)。freebusy 只给区间不给标题(刻意
+  // 不泄露他人日程内容),但**我自己有权看到的这些**可以贴回去:自己列显示
+  // 标题,他人列显示「他对我这场会的回复状态」——后者在日程详情里本来就能
+  // 看到,不是新增泄露。拉失败退回纯灰块,不影响忙闲主流程。 ──
+  const { data: myEvents = [] } = useQuery({
+    queryKey: ['im', 'my-events', dayKey],
+    queryFn: () =>
+      fetchCalendarEvents({
+        start: day.toISOString(),
+        end: dayEnd.toISOString(),
+      }),
+    staleTime: 30_000,
+  })
+  /**
+   * 起止(当日分钟)完全一致才算同一场:后端的 busy 只合并重叠区间、首尾相接
+   * 保留边界,所以不重叠时对得上;真重叠了就对不上 → 退回灰块,宁可不显示也
+   * 不猜错。
+   */
+  const myEventAt = (startMin: number, endMin: number) =>
+    myEvents.find((ev) => {
+      const s = Math.round(
+        (new Date(ev.start_at).getTime() - day.getTime()) / 60_000
+      )
+      const e = Math.round(
+        (new Date(ev.end_at).getTime() - day.getTime()) / 60_000
+      )
+      return clamp(s, 0, 1440) === startMin && clamp(e, 0, 1440) === endMin
+    })
+  /** 这个人对这场会的回复状态;不在参与者(也非组织者)里 → null = 只画灰块。 */
+  const rsvpOf = (ev: CalendarEvent, userId: string): RSVPStatus | null => {
+    if (names[currentUserUID]?.id === userId) return ev.my_rsvp ?? 'accepted'
+    const attendee = ev.attendees.find((a) => a.id === userId)
+    if (attendee) return attendee.rsvp
+    return ev.organizer?.id === userId ? 'accepted' : null
+  }
+
   const busyOf = (id: string) =>
     entries.find((e) => e.user_id === id)?.busy ?? []
   const peopleBusy = useMemo(
@@ -668,16 +733,31 @@ export const ConversationCalendarPanel = ({
                         1440
                       )
                       if (e <= s) return null
+                      const time = `${fmtMin(Math.round(s))}–${fmtMin(Math.round(e))}`
+                      // 对得上「我的一场会」→ 贴标题 + 该人的回复状态;对不上
+                      // (他自己的别的日程)→ 保持纯灰块,只有 hover 时段提示。
+                      const mine = myEventAt(Math.round(s), Math.round(e))
+                      const rsvp = mine ? rsvpOf(mine, p.id) : null
+                      const skin = busyBlockSkin(rsvp)
+                      const text =
+                        rsvp === 'needs_action'
+                          ? t('calendar.rsvpPending')
+                          : rsvp
+                            ? mine?.title || t('calendar.untitled')
+                            : null
                       return (
                         <div
                           key={i}
-                          title={`${fmtMin(Math.round(s))}–${fmtMin(Math.round(e))}`}
+                          title={text ? `${text} · ${time}` : time}
                           className={css({
                             position: 'absolute',
                             left: '2px',
                             right: '2px',
                             borderRadius: '3px',
-                            backgroundColor: 'greyscale.300',
+                            overflow: 'hidden',
+                            paddingX: '3px',
+                            fontSize: '0.625rem',
+                            lineHeight: 1.4,
                             pointerEvents: 'none',
                           })}
                           style={{
@@ -685,8 +765,14 @@ export const ConversationCalendarPanel = ({
                             // 1px 白缝,肉眼可辨是两块(后端已改为相接不合并)。
                             top: (s / 60) * HOUR_PX + 0.5,
                             height: Math.max(((e - s) / 60) * HOUR_PX - 1, 3),
+                            ...skin,
                           }}
-                        />
+                        >
+                          {/* 块高不够就不塞字,免得半行字被裁 */}
+                          {(e - s) * (HOUR_PX / 60) >= 18
+                            ? (text ?? time)
+                            : null}
+                        </div>
                       )
                     })}
                   </div>
