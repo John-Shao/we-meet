@@ -184,7 +184,7 @@ export const MemberDetailPanel = ({
               color: 'greyscale.500',
             })}
           >
-            {t('starred.notifyHintWeb')}
+            {t('starred.toggleHint')}
           </p>
         </div>
       )}

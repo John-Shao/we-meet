@@ -47,7 +47,7 @@
     "empty": "Nog geen favoriete contacten",
     "remove": "Uit favorieten",
     "toggle": "Als favoriet instellen",
-    "notifyHintWeb": "Meldingen voor favoriete contacten stel je in de mobiele app in, via Instellingen › Meldingen.",
+    "toggleHint": "Berichten van favoriete contacten melden ook tijdens je stille uren.",
     "error": "Favoriet bijwerken mislukt: {{message}}"
   }
 }

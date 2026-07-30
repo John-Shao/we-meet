@@ -47,7 +47,7 @@
     "empty": "No starred contacts yet",
     "remove": "Unstar",
     "toggle": "Star this contact",
-    "notifyHintWeb": "Notification settings for starred contacts live in the mobile app, under Settings › Notifications.",
+    "toggleHint": "Messages from starred contacts still notify you during quiet hours.",
     "error": "Could not update the star: {{message}}"
   }
 }

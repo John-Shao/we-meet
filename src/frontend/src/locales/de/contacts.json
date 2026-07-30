@@ -47,7 +47,7 @@
     "empty": "Noch keine markierten Kontakte",
     "remove": "Markierung entfernen",
     "toggle": "Kontakt markieren",
-    "notifyHintWeb": "Die Benachrichtigungen für markierte Kontakte werden in der mobilen App unter Einstellungen › Benachrichtigungen festgelegt.",
+    "toggleHint": "Nachrichten markierter Kontakte erreichen dich auch in den Ruhezeiten.",
     "error": "Markierung konnte nicht geändert werden: {{message}}"
   }
 }
