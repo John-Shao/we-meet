@@ -16,6 +16,8 @@ import { zhCN, enUS, fr, de, nl } from 'date-fns/locale'
 import type { Locale } from 'date-fns'
 
 import { css, cx } from '@/styled-system/css'
+import { navGlyphCls } from '@/styles/controls'
+import { Button } from '@/primitives'
 import type { CalendarEvent } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
 
@@ -84,22 +86,24 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
           {format(viewMonth, 'yyyy.MM', { locale })}
         </span>
         <span className={css({ display: 'flex', gap: '0.25rem' })}>
-          <button
-            type="button"
+          <Button
+            variant="quaternaryText"
+            size="icon24"
+            className={navGlyphCls}
             aria-label="prev month"
-            onClick={() => setViewMonth((m) => addMonths(m, -1))}
-            className={navBtn}
+            onPress={() => setViewMonth((m) => addMonths(m, -1))}
           >
             ‹
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="quaternaryText"
+            size="icon24"
+            className={navGlyphCls}
             aria-label="next month"
-            onClick={() => setViewMonth((m) => addMonths(m, 1))}
-            className={navBtn}
+            onPress={() => setViewMonth((m) => addMonths(m, 1))}
           >
             ›
-          </button>
+          </Button>
         </span>
       </div>
 
@@ -165,21 +169,6 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
   )
 }
 
-const navBtn = css({
-  width: '24px',
-  height: '24px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  borderRadius: '6px',
-  background: 'transparent',
-  color: 'greyscale.700',
-  // ‹ › 字形本身偏小,统一走 1.25rem 档(同会话日历面板箭头)。
-  fontSize: '1.25rem',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100' },
-})
 
 const grid = css({
   display: 'grid',

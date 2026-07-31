@@ -9,6 +9,11 @@ import { type RecipeVariantProps, cva } from '@/styled-system/css'
  * - 字号:各 size 刻度**只管圆角和内边距,不设 font-size**(全站 600+ 处按钮都继承
  *   上下文,这是既有行为,别去改 default/sm/xs 的字号——会一次性动到全站)。唯一
  *   例外是 `dense`,专给列表内的小号动作按钮,自带 13px,见下面它的注释。
+ * - 图标钮:走 `icon24/icon28/icon32` 三档固定盒子 + `quaternaryText`
+ *   (删除类用 `quaternaryDanger`),按容器密度选档,别再手搓 width/height。
+ * - 行内文字链(齐边缘、无盒子的「更换」「复制」这类)**不属于本基元** ——
+ *   基元每档都带 paddingX 会把文字推离边缘,那类走 `@/styles/controls`
+ *   的 linkBtnCls。
  */
 export const buttonRecipe = cva({
   base: {
@@ -67,6 +72,32 @@ export const buttonRecipe = cva({
         fontSize: '0.8125rem',
         '--square-padding': '{spacing.0.375}',
       },
+      /**
+       * ── 图标钮的三档固定盒子(icon24 / icon28 / icon32)────────────────
+       *
+       * 与其他刻度不同,这三档给的是**固定 width/height**,不是内边距。图标钮
+       * 要的是可预测的方框:走 `square` 的内边距刻度时盒子大小取决于图标的
+       * size prop,两个调用点传 16 和 18 就会得到两个不一样的框。
+       *
+       * 三档按容器密度选,不要压成一个数 —— 尺寸差异在这里是有意义的:
+       *   icon24 树行 / 迷你日历格 / 忙闲面板翻页
+       *   icon28 表格行动作 / 对话框标题栏动作
+       *   icon32 面板头 / 日历工具栏
+       *
+       * 圆角一律 6px:见文件顶部标准(小控件 6px)。归位前散着 4px / 6px / 8px,
+       * 其中 4px 和 8px 都是漂移。
+       *
+       * 配色走 variant 而非各写一套:`quaternaryText`(透明底 + 灰图标 + hover
+       * 浅灰底)正是这一族该有的样子,删除类用 `quaternaryDanger`。
+       */
+      icon24: { borderRadius: 6, width: '1.5rem', height: '1.5rem', padding: 0 },
+      icon28: {
+        borderRadius: 6,
+        width: '1.75rem',
+        height: '1.75rem',
+        padding: 0,
+      },
+      icon32: { borderRadius: 6, width: '2rem', height: '2rem', padding: 0 },
     },
     square: {
       true: {
@@ -276,6 +307,27 @@ export const buttonRecipe = cva({
         '&[data-pressed]': {
           backgroundColor: 'greyscale.100',
           color: 'greyscale.700',
+        },
+        '&[data-disabled]': {
+          backgroundColor: 'transparent',
+          color: 'greyscale.300',
+        },
+      },
+      /**
+       * 删除类图标钮:平时同 quaternaryText 的中性灰,hover 才转红 —— 一排行尾
+       * 动作里只有它是不可逆的,但不该在静止状态就一直喊。
+       */
+      quaternaryDanger: {
+        backgroundColor: 'transparent',
+        fontWeight: 'medium !important',
+        color: 'greyscale.600',
+        '&[data-hovered]': {
+          backgroundColor: 'danger.50',
+          color: 'danger.600',
+        },
+        '&[data-pressed]': {
+          backgroundColor: 'danger.50',
+          color: 'danger.600',
         },
         '&[data-disabled]': {
           backgroundColor: 'transparent',

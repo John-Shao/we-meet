@@ -12,6 +12,8 @@ import {
 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
+import { linkBtnCls } from '@/styles/controls'
+import { Button } from '@/primitives'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useDeleteRoom } from '@/features/rooms/api/deleteRoom'
@@ -132,39 +134,40 @@ export const MeetingDetailPanel = ({
         })}
       >
         {selection.kind === 'scheduled' && (
-          <button
-            type="button"
-            onClick={() => setSharing(true)}
-            title={t('share.action', { defaultValue: '分享会议' })}
+          <Button
+            variant="quaternaryText"
+            size="icon32"
+            onPress={() => setSharing(true)}
+            tooltip={t('share.action', { defaultValue: '分享会议' })}
             aria-label={t('share.action', { defaultValue: '分享会议' })}
             data-testid="meeting-detail-share"
-            className={iconBtnCls}
           >
             <RiShareForwardLine size={18} />
-          </button>
+          </Button>
         )}
-        {/* 删除仅房主可见:参会者对别人的会没有删除权(后端 DELETE → is_owner)。 */}
+        {/* 删除仅房主可见:参会者对别人的会没有删除权(后端 DELETE → is_owner)。
+            与日程详情、部门/会议室树一致:静止态同为中性灰,hover 才转红。 */}
         {selection.canManage && (
-          <button
-            type="button"
-            onClick={handleDelete}
-            title={t('home.delete')}
+          <Button
+            variant="quaternaryDanger"
+            size="icon32"
+            onPress={handleDelete}
+            tooltip={t('home.delete')}
             aria-label={t('home.delete')}
             data-testid="meeting-detail-delete"
-            className={iconBtnCls}
           >
             <RiDeleteBinLine size={18} />
-          </button>
+          </Button>
         )}
-        <button
-          type="button"
-          onClick={onClose}
+        <Button
+          variant="quaternaryText"
+          size="icon32"
+          onPress={onClose}
           aria-label={t('detail.close')}
           data-testid="meeting-detail-close"
-          className={iconBtnCls}
         >
           <RiCloseLine size={18} />
-        </button>
+        </Button>
       </div>
 
       <div className={css({ padding: '0.25rem 1.25rem 1.25rem' })}>
@@ -206,7 +209,7 @@ export const MeetingDetailPanel = ({
               <button
                 type="button"
                 onClick={() => void copy('id', selection.slug!)}
-                className={copyBtnCls}
+                className={linkBtnCls}
               >
                 {copied === 'id' ? t('detail.copied') : t('detail.copy')}
               </button>
@@ -232,7 +235,7 @@ export const MeetingDetailPanel = ({
               <button
                 type="button"
                 onClick={() => void copy('link', link)}
-                className={copyBtnCls}
+                className={linkBtnCls}
               >
                 {copied === 'link' ? t('detail.copied') : t('detail.copy')}
               </button>
@@ -317,20 +320,6 @@ export const MeetingDetailPanel = ({
   )
 }
 
-const iconBtnCls = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '2rem',
-  height: '2rem',
-  border: 'none',
-  borderRadius: '0.5rem',
-  backgroundColor: 'transparent',
-  color: 'greyscale.600',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.900' },
-})
-
 const rowCls = css({
   display: 'flex',
   alignItems: 'center',
@@ -344,17 +333,4 @@ const rowTextCls = css({
   minWidth: 0,
   fontSize: '0.8125rem',
   color: 'greyscale.700',
-})
-
-const copyBtnCls = css({
-  flexShrink: 0,
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.375rem',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.700',
-  paddingX: '0.5rem',
-  paddingY: '0.1875rem',
-  fontSize: '0.75rem',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100' },
 })

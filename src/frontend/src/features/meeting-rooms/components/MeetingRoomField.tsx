@@ -3,11 +3,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import {
-  chipCls,
-  labelCls,
-  linkBtnCls,
-} from '@/features/calendar/components/formStyles'
+import { linkBtnCls } from '@/styles/controls'
+import { chipCls, labelCls } from '@/features/calendar/components/formStyles'
 
 import type { MeetingRoomBrief } from '../api/ApiMeetingRoom'
 import { fetchMeetingRoomAvailability } from '../api/fetchMeetingRooms'

@@ -2,11 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { keepPreviousData } from '@tanstack/react-query'
-import {
-  Menu as RACMenu,
-  MenuItem,
-  Button as RACButton,
-} from 'react-aria-components'
+import { Menu as RACMenu, MenuItem } from 'react-aria-components'
 import { RiMoreFill, RiSearchLine, RiUserAddLine } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
@@ -225,9 +221,14 @@ export const AdminMembers = () => {
                 fontSize: '0.875rem',
               })}
             />
-            <button type="submit" aria-label={t('members.search')} className={iconBtn}>
+            <Button
+              type="submit"
+              variant="quaternaryText"
+              size="icon28"
+              aria-label={t('members.search')}
+            >
               <RiSearchLine size={16} />
-            </button>
+            </Button>
           </form>
         </div>
         )}
@@ -293,9 +294,13 @@ export const AdminMembers = () => {
                   </td>
                   <td className={td}>
                     <Menu>
-                      <RACButton aria-label={t('members.rowActions')} className={iconBtn}>
+                      <Button
+                        variant="quaternaryText"
+                        size="icon28"
+                        aria-label={t('members.rowActions')}
+                      >
                         <RiMoreFill size={18} />
-                      </RACButton>
+                      </Button>
                       <RACMenu className={menuList}>
                         <MenuItem className={menuItem} onAction={() => setRoleTarget(m)}>
                           {t('members.changeRole')}
@@ -481,19 +486,6 @@ const tabBadge = css({
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-})
-const iconBtn = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '1.75rem',
-  height: '1.75rem',
-  border: 'none',
-  background: 'transparent',
-  cursor: 'pointer',
-  color: 'greyscale.600',
-  borderRadius: '4px',
-  _hover: { backgroundColor: 'greyscale.200' },
 })
 const menuList = css({ outline: 'none', minWidth: '9rem' })
 const menuItem = css({

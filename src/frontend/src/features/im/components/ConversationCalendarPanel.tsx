@@ -6,6 +6,7 @@ import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { navGlyphCls } from '@/styles/controls'
 import { Modal } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
 import {
@@ -545,14 +546,15 @@ export const ConversationCalendarPanel = ({
           borderBottom: '1px solid token(colors.greyscale.200)',
         })}
       >
-        <button
-          type="button"
-          onClick={() => shiftDay(-1)}
+        <Button
+          variant="quaternaryText"
+          size="icon24"
+          className={navGlyphCls}
+          onPress={() => shiftDay(-1)}
           aria-label={t('calendar.prevDay')}
-          className={navBtn}
         >
           ‹
-        </button>
+        </Button>
         <button
           type="button"
           onClick={() => {
@@ -574,14 +576,15 @@ export const ConversationCalendarPanel = ({
         >
           {t('calendar.today')}
         </button>
-        <button
-          type="button"
-          onClick={() => shiftDay(1)}
+        <Button
+          variant="quaternaryText"
+          size="icon24"
+          className={navGlyphCls}
+          onPress={() => shiftDay(1)}
           aria-label={t('calendar.nextDay')}
-          className={navBtn}
         >
           ›
-        </button>
+        </Button>
         <div className={css({ position: 'relative' })}>
           <button
             type="button"
@@ -1267,22 +1270,6 @@ const MemberPicker = ({
   )
 }
 
-const navBtn = css({
-  width: '1.5rem',
-  height: '1.5rem',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  borderRadius: '0.375rem',
-  background: 'transparent',
-  cursor: 'pointer',
-  color: 'greyscale.700',
-  // ‹ › 字形本身偏小,小字号下只剩几个像素;跟日历工具栏同档用大字号。
-  fontSize: '1.25rem',
-  lineHeight: 1,
-  _hover: { backgroundColor: 'greyscale.100' },
-})
 const hintCls = css({
   padding: '1rem',
   fontSize: '0.8125rem',

@@ -9,7 +9,7 @@ import {
 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
-import { treeIconBtn } from './treeStyles'
+import { Button } from '@/primitives'
 
 import type { AdminDepartment } from '../api/adminDepartments'
 
@@ -89,12 +89,12 @@ export const DepartmentAdminTree = ({
             style={{ paddingLeft: `${0.25 + depth * 0.85}rem` }}
           >
             {hasKids ? (
-              <button
-                type="button"
-                onClick={() => toggle(d.id)}
+              <Button
+                variant="quaternaryText"
+                size="icon24"
+                onPress={() => toggle(d.id)}
                 aria-label={isExpanded ? 'collapse' : 'expand'}
                 aria-expanded={isExpanded}
-                className={treeIconBtn}
               >
                 <RiArrowRightSLine
                   size={16}
@@ -103,7 +103,7 @@ export const DepartmentAdminTree = ({
                     transform: isExpanded ? 'rotate(90deg)' : 'none',
                   }}
                 />
-              </button>
+              </Button>
             ) : (
               <span className={css({ flexShrink: 0, width: '1.25rem' })} />
             )}
@@ -141,42 +141,43 @@ export const DepartmentAdminTree = ({
                 transition: 'opacity 0.12s',
               })}
             >
-              <button
-                type="button"
-                onClick={() => onAddChild(d)}
+              <Button
+                variant="quaternaryText"
+                size="icon24"
+                onPress={() => onAddChild(d)}
                 aria-label={t('org.newSubDepartment')}
-                title={t('org.newSubDepartment')}
-                className={treeIconBtn}
+                tooltip={t('org.newSubDepartment')}
               >
                 <RiAddLine size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => onRename(d)}
+              </Button>
+              <Button
+                variant="quaternaryText"
+                size="icon24"
+                onPress={() => onRename(d)}
                 aria-label={t('org.rename')}
-                title={t('org.rename')}
-                className={treeIconBtn}
+                tooltip={t('org.rename')}
               >
                 <RiEditLine size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => onMove(d)}
+              </Button>
+              <Button
+                variant="quaternaryText"
+                size="icon24"
+                onPress={() => onMove(d)}
                 aria-label={t('org.move')}
-                title={t('org.move')}
-                className={treeIconBtn}
+                tooltip={t('org.move')}
               >
                 <RiFolderTransferLine size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => onDelete(d)}
+              </Button>
+              {/* 删除是这排里唯一不可逆的动作:静止时同为中性灰,hover 才转红。 */}
+              <Button
+                variant="quaternaryDanger"
+                size="icon24"
+                onPress={() => onDelete(d)}
                 aria-label={t('actions.delete')}
-                title={t('actions.delete')}
-                className={treeIconBtn}
+                tooltip={t('actions.delete')}
               >
                 <RiDeleteBinLine size={16} />
-              </button>
+              </Button>
             </span>
           </div>
           {hasKids && isExpanded && renderNodes(d.id, depth + 1)}

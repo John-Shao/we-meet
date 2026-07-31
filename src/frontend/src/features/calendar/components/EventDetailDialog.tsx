@@ -19,6 +19,7 @@ import {
 } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
+import { linkBtnCls } from '@/styles/controls'
 import { Button } from '@/primitives'
 import { Modal } from '@/components/Modal'
 import { useUser } from '@/features/auth'
@@ -150,53 +151,53 @@ export const EventDetailDialog = ({
           <h2 className={titleCls}>{event.title}</h2>
           <div className={headerActionsCls}>
             {onShare && (
-              <button
-                type="button"
-                onClick={onShare}
+              <Button
+                variant="quaternaryText"
+                size="icon28"
+                onPress={onShare}
                 data-testid="detail-share"
-                title={t('detail.share')}
+                tooltip={t('detail.share')}
                 aria-label={t('detail.share')}
-                className={iconBtnCls}
               >
                 <RiShareForwardLine size={17} />
-              </button>
+              </Button>
             )}
             {canManage && (
               <>
-                <button
-                  type="button"
-                  onClick={onEdit}
+                <Button
+                  variant="quaternaryText"
+                  size="icon28"
+                  onPress={onEdit}
                   data-testid="detail-edit"
-                  title={t('detail.edit')}
+                  tooltip={t('detail.edit')}
                   aria-label={t('detail.edit')}
-                  className={iconBtnCls}
                 >
                   <RiPencilLine size={17} />
-                </button>
+                </Button>
                 {/* 删除与编辑/分享并排(对标飞书):删除本就走二次确认,
                     再套一层「更多」只是多一次点击。悬停转红做危险提示。 */}
-                <button
-                  type="button"
-                  onClick={onDelete}
+                <Button
+                  variant="quaternaryDanger"
+                  size="icon28"
+                  onPress={onDelete}
                   data-testid="detail-delete"
-                  title={t('detail.delete')}
+                  tooltip={t('detail.delete')}
                   aria-label={t('detail.delete')}
-                  className={iconBtnDangerCls}
                 >
                   <RiDeleteBinLine size={17} />
-                </button>
+                </Button>
               </>
             )}
-            <button
-              type="button"
-              onClick={onClose}
+            <Button
+              variant="quaternaryText"
+              size="icon28"
+              onPress={onClose}
               data-testid="detail-close"
-              title={t('detail.close')}
+              tooltip={t('detail.close')}
               aria-label={t('detail.close')}
-              className={iconBtnCls}
             >
               <RiCloseLine size={18} />
-            </button>
+            </Button>
           </div>
         </div>
         <p className={whenCls}>
@@ -240,7 +241,7 @@ export const EventDetailDialog = ({
                   type="button"
                   onClick={() => void copyMeeting('id', event.room_slug!)}
                   data-testid="detail-copy-no"
-                  className={meetingCopyCls}
+                  className={linkBtnCls}
                 >
                   {copied === 'id' ? t('detail.copied') : t('detail.copy')}
                 </button>
@@ -256,7 +257,7 @@ export const EventDetailDialog = ({
                   type="button"
                   onClick={() => void copyMeeting('link', meetingLink)}
                   data-testid="detail-copy-link"
-                  className={meetingCopyCls}
+                  className={linkBtnCls}
                 >
                   {copied === 'link' ? t('detail.copied') : t('detail.copy')}
                 </button>
@@ -503,36 +504,6 @@ const headerActionsCls = css({
 })
 
 // 图标钮走小控件圆角 6px(按钮视觉标准:常规 8 / 小控件 6)。
-const iconBtnCls = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '1.75rem',
-  height: '1.75rem',
-  border: 'none',
-  borderRadius: 6,
-  backgroundColor: 'transparent',
-  color: 'greyscale.600',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.900' },
-})
-
-// 删除:静默态与其余图标同灰,悬停才转红 —— 不用 cx 叠加同属性原子类
-// (顺序取胜会让 danger 色被基类盖掉),整份完整类。
-const iconBtnDangerCls = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '1.75rem',
-  height: '1.75rem',
-  border: 'none',
-  borderRadius: 6,
-  backgroundColor: 'transparent',
-  color: 'greyscale.600',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'danger.50', color: 'danger.600' },
-})
-
 // 时间是这个弹窗的第一信息,用主色 + 中号字重压过其余灰字。
 const whenCls = css({
   display: 'flex',
@@ -713,17 +684,6 @@ const meetingValueCls = css({
 })
 
 const meetingLinkCls = css({ color: 'greyscale.600' })
-
-const meetingCopyCls = css({
-  flexShrink: 0,
-  border: 'none',
-  background: 'transparent',
-  color: 'primary.600',
-  fontSize: '0.75rem',
-  cursor: 'pointer',
-  _hover: { textDecoration: 'underline' },
-  _dark: { color: 'primaryDark.700' },
-})
 
 /* ---------- summary ---------- */
 

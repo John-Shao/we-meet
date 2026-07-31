@@ -3,6 +3,8 @@ import type { ToolbarProps, View } from 'react-big-calendar'
 import { isToday } from 'date-fns'
 
 import { css, cx } from '@/styled-system/css'
+import { navGlyphCls } from '@/styles/controls'
+import { Button } from '@/primitives'
 
 /**
  * 飞书式日历工具栏,替换 react-big-calendar 默认 toolbar(P8 微调):
@@ -15,33 +17,11 @@ import { css, cx } from '@/styled-system/css'
 // 飞书分段控件顺序是 日|周|月,与 rbc 传入的 views 顺序无关,这里显式排序。
 const VIEW_ORDER: View[] = ['day', 'week', 'month', 'agenda']
 
-const todayBtn = css({
-  paddingX: '0.75rem',
-  paddingY: '0.3125rem',
-  border: 'none',
-  borderRadius: '0.5rem',
-  backgroundColor: 'transparent',
-  color: 'greyscale.800',
-  fontSize: '0.875rem',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100' },
-})
-
-const navBtn = css({
-  width: '2rem',
-  height: '2rem',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  borderRadius: '0.375rem',
-  backgroundColor: 'transparent',
-  color: 'greyscale.600',
-  fontSize: '1.375rem',
-  lineHeight: 1,
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.900' },
-})
+/**
+ * 「今天」是文字按钮而非图标钮:外观走基元 quaternaryText,这里只留 14px 字号
+ * ——它跟右侧日期标题(1rem)同排,继承上下文会偏大。
+ */
+const todayBtn = css({ fontSize: '0.875rem' })
 
 const segmentBase = css({
   paddingX: '1.25rem',
@@ -142,27 +122,33 @@ export function CalendarToolbar<
       <div
         className={css({ display: 'flex', alignItems: 'center', gap: '0.375rem' })}
       >
-        <button
-          type="button"
-          className={navBtn}
+        <Button
+          variant="quaternaryText"
+          size="icon32"
+          className={navGlyphCls}
           aria-label={t(prevKey)}
-          title={t(prevKey)}
-          onClick={() => onNavigate('PREV')}
+          tooltip={t(prevKey)}
+          onPress={() => onNavigate('PREV')}
         >
           ‹
-        </button>
-        <button type="button" className={todayBtn} onClick={() => onNavigate('TODAY')}>
+        </Button>
+        <Button
+          variant="quaternaryText"
+          className={todayBtn}
+          onPress={() => onNavigate('TODAY')}
+        >
           {t('grid.today')}
-        </button>
-        <button
-          type="button"
-          className={navBtn}
+        </Button>
+        <Button
+          variant="quaternaryText"
+          size="icon32"
+          className={navGlyphCls}
           aria-label={t(nextKey)}
-          title={t(nextKey)}
-          onClick={() => onNavigate('NEXT')}
+          tooltip={t(nextKey)}
+          onPress={() => onNavigate('NEXT')}
         >
           ›
-        </button>
+        </Button>
         <span
           className={css({
             marginLeft: '0.25rem',

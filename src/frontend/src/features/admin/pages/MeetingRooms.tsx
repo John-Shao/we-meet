@@ -2,11 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RiAddLine, RiMoreFill } from '@remixicon/react'
-import {
-  Button as RACButton,
-  Menu as RACMenu,
-  MenuItem,
-} from 'react-aria-components'
+import { Menu as RACMenu, MenuItem } from 'react-aria-components'
 
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
@@ -275,12 +271,13 @@ export const AdminMeetingRooms = () => {
                       </td>
                       <td className={tdCls}>
                         <Menu>
-                          <RACButton
+                          <Button
+                            variant="quaternaryText"
+                            size="icon28"
                             aria-label={t('meetingRooms.rowActions')}
-                            className={iconBtnCls}
                           >
                             <RiMoreFill size={18} />
-                          </RACButton>
+                          </Button>
                           <RACMenu className={menuListCls}>
                             <MenuItem
                               className={menuItemCls}
@@ -438,19 +435,6 @@ const badgeDisabledCls = css({
   ...badgeBase,
   backgroundColor: 'greyscale.100',
   color: 'greyscale.600',
-})
-const iconBtnCls = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '1.75rem',
-  height: '1.75rem',
-  border: 'none',
-  borderRadius: '0.375rem',
-  background: 'transparent',
-  color: 'greyscale.500',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.200', color: 'greyscale.800' },
 })
 const menuListCls = css({
   padding: '0.25rem',

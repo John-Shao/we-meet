@@ -8,7 +8,7 @@ import {
 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
-import { treeIconBtn } from './treeStyles'
+import { Button } from '@/primitives'
 
 import type { AdminMeetingRoomNode } from '../api/adminMeetingRooms'
 
@@ -72,12 +72,12 @@ export const MeetingRoomNodeTree = ({
             style={{ paddingLeft: `${0.25 + depth * 0.85}rem` }}
           >
             {kids.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => toggle(node.id)}
+              <Button
+                variant="quaternaryText"
+                size="icon24"
+                onPress={() => toggle(node.id)}
                 aria-label={isExpanded ? 'collapse' : 'expand'}
                 aria-expanded={isExpanded}
-                className={treeIconBtn}
               >
                 <RiArrowRightSLine
                   size={16}
@@ -86,7 +86,7 @@ export const MeetingRoomNodeTree = ({
                     transform: isExpanded ? 'rotate(90deg)' : 'none',
                   }}
                 />
-              </button>
+              </Button>
             ) : (
               <span className={css({ flexShrink: 0, width: '1.25rem' })} />
             )}
@@ -102,33 +102,34 @@ export const MeetingRoomNodeTree = ({
               )}
             </button>
             <span data-row-actions className={actionsCls}>
-              <button
-                type="button"
-                onClick={() => onAddChild(node)}
+              <Button
+                variant="quaternaryText"
+                size="icon24"
+                onPress={() => onAddChild(node)}
                 aria-label={t('meetingRooms.newSubLevel')}
-                title={t('meetingRooms.newSubLevel')}
-                className={treeIconBtn}
+                tooltip={t('meetingRooms.newSubLevel')}
               >
                 <RiAddLine size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => onEdit(node)}
+              </Button>
+              <Button
+                variant="quaternaryText"
+                size="icon24"
+                onPress={() => onEdit(node)}
                 aria-label={t('meetingRooms.editLevel')}
-                title={t('meetingRooms.editLevel')}
-                className={treeIconBtn}
+                tooltip={t('meetingRooms.editLevel')}
               >
                 <RiEditLine size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => onDelete(node)}
+              </Button>
+              {/* 同部门树:一排行尾动作里只有删除不可逆,hover 才转红。 */}
+              <Button
+                variant="quaternaryDanger"
+                size="icon24"
+                onPress={() => onDelete(node)}
                 aria-label={t('actions.delete')}
-                title={t('actions.delete')}
-                className={treeIconBtn}
+                tooltip={t('actions.delete')}
               >
                 <RiDeleteBinLine size={16} />
-              </button>
+              </Button>
             </span>
           </div>
           {kids.length > 0 && isExpanded && renderNodes(node.id, depth + 1)}

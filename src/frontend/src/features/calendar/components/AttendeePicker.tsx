@@ -6,7 +6,9 @@ import { css } from '@/styled-system/css'
 import { MemberAvatar } from '@/features/contacts'
 
 import { fetchFreeBusy } from '../api/fetchCalendar'
-import { labelCls, linkBtnCls } from './formStyles'
+import { linkBtnCls } from '@/styles/controls'
+
+import { labelCls } from './formStyles'
 import { BulkAttendeeDialog } from './BulkAttendeeDialog'
 
 interface Props {
