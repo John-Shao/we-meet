@@ -329,19 +329,35 @@ const config: Config = {
         // 下是白),白字压浅蓝底直接不可读 —— Layout/Screen/录制面板都栽在这里。
         // 反过来「文字翻了、底色忘了翻」则是两个浅蓝叠在一起,对比度只剩 1.15:1。
         //
-        // 规则:base = primary.N 原值(浅色一字不改、零回归),_dark = primaryDark.N
-        // (该色阶天生就是镜像序:50 最深 → 950 最浅,与 primary 同档位明暗相反)。
-        // 唯一例外是 50 档:深色取 primaryDark.75(#161E33)而非 .50(#0E1626),
-        // 后者比页面底 greyscale.000(#161616)还深,浅蓝卡片会翻成一个「洞」。
-        // scheduledCard.bg 当初就是这么定的,这里对齐。
+        // 规则分两类:
+        //
+        // ① **底面档(50 / 100)——深色用半透明,不用平行色阶**。
+        //    对标 Semi Design 的 `--semi-color-primary-light-*`:它深色下一律
+        //    `rgba(主色, .2/.3/.4)` 而不是切到另一套色阶。半透明色是**相对于身后
+        //    的表面合成**的,于是天然不可能比背景更深 —— 早先 50 档必须特判成
+        //    primaryDark.75 而非 .50(#0E1626 比页面底 #161616 还深,浅蓝卡片会翻成
+        //    一个「洞」),换成 alpha 后这个特判直接不存在了;卡片叠在页面底、
+        //    greyscale.50 面板、还是更高层的浮层上,都自动成立。
+        //    alpha 取值是回算出来的,刻意贴住换法前已验收的观感:
+        //      .12 → #1A2133(原 #161E33)   .20 → #1C2845(原 #1E2A47)
+        //    对比度不降:brand.700 压 50 档 8.1:1、压 100 档 7.4:1,均过 AAA。
+        //    ⚠️ rgb 分量是 primary.500(#3370FF)展开的字面量 —— CSS 无法对 hex
+        //    变量取 alpha,而 color-mix() 的支持线高于本项目的构建 target。
+        //    改品牌色时这两行要跟着改。
+        //
+        // ② 描边与文字档(200–900)——深色仍走 primaryDark.N 实色。
+        //    它们不存在「比背景还深」的问题(描边压在面上、文字要可预测的对比度),
+        //    实色更稳。
+        //
+        // 浅色一律 primary.N 原值,零回归。
         //
         // 用法:凡「浅蓝底 / 浅蓝描边 / 蓝字」的面,一律 brand.N 顶替 primary.N。
         // 不必换的两类:① 实心按钮(primary.500 底 + 白字),中调蓝两套主题都成立;
         // ② 会中 UI(features/rooms、room-ai、reactions),舞台底是恒定 primaryDark.50,
         // 那里的浅蓝是「深底上的强调色」,翻过去反而变成深蓝压深底。
         brand: {
-          50: { value: { base: '{colors.primary.50}', _dark: '{colors.primaryDark.75}' } },
-          100: { value: { base: '{colors.primary.100}', _dark: '{colors.primaryDark.100}' } },
+          50: { value: { base: '{colors.primary.50}', _dark: 'rgba(51, 112, 255, 0.12)' } },
+          100: { value: { base: '{colors.primary.100}', _dark: 'rgba(51, 112, 255, 0.2)' } },
           200: { value: { base: '{colors.primary.200}', _dark: '{colors.primaryDark.200}' } },
           300: { value: { base: '{colors.primary.300}', _dark: '{colors.primaryDark.300}' } },
           400: { value: { base: '{colors.primary.400}', _dark: '{colors.primaryDark.400}' } },
