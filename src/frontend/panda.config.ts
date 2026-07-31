@@ -402,22 +402,46 @@ const config: Config = {
           border: { value: '{colors.greyscale.500}' },
           subtle: { value: '{colors.greyscale.400}' },
         },
+        // 语义色的「浅底面」三件套:subtle(底) / subtle-text(字) / subtle-border(框)。
+        //
+        // 四组一律成对给 base/_dark,理由同上面的 brand.*:底色若钉死浅色,配上会
+        // 翻转的正文色在深色下就是浅字压浅底。base 全部保持原值,浅色零回归;
+        // _dark 取同色系的深底 + 浅字(950 底 / 200 字 / 800 框)。
+        //
+        // 状态色请一律用这三个键,别写 success.100 / danger.100 那种数字档 ——
+        // 那些来自 pandaPreset 的 green/red 原始色阶,**不随主题翻转**;
+        // 而 warning 组根本没有数字档(见下,刻意不 spread amber),写 warning.100
+        // 会静默产出一条非法声明,背景直接没了(IM 连接状态条「重连中」就栽过)。
         primary: {
           DEFAULT: { value: '{colors.primary.500}' },
           hover: { value: '{colors.primary.600}' },
           active: { value: '{colors.primary.700}' },
           text: { value: '{colors.white}' },
           warm: { value: '{colors.primary.300}' },
-          subtle: { value: '{colors.primary.100}' },
-          'subtle-text': { value: '{colors.primary.700}' },
+          subtle: {
+            value: { base: '{colors.primary.100}', _dark: '{colors.primaryDark.100}' },
+          },
+          'subtle-text': {
+            value: { base: '{colors.primary.700}', _dark: '{colors.primaryDark.700}' },
+          },
+          'subtle-border': {
+            value: { base: '{colors.primary.300}', _dark: '{colors.primaryDark.300}' },
+          },
         },
         danger: {
           DEFAULT: { value: '{colors.red.600}' },
           hover: { value: '{colors.red.700}' },
           active: { value: '{colors.red.800}' },
           text: { value: '{colors.white}' },
-          subtle: { value: '{colors.red.100}' },
-          'subtle-text': { value: '{colors.red.700}' },
+          subtle: { value: { base: '{colors.red.100}', _dark: '{colors.red.950}' } },
+          'subtle-text': {
+            value: { base: '{colors.red.700}', _dark: '{colors.red.200}' },
+          },
+          'subtle-border': {
+            value: { base: '{colors.red.300}', _dark: '{colors.red.800}' },
+          },
+          // 注意:这行 spread 把 red.50…950 原样搬进 danger.*,那批**不翻转**。
+          // 只在需要固定红(如实心按钮)时用,做浅底面请走上面的 subtle 三件套。
           ...pandaPreset.theme.tokens.colors.red,
         },
         alert: {
@@ -429,8 +453,14 @@ const config: Config = {
           hover: { value: '{colors.green.800}' },
           active: { value: '{colors.green.900}' },
           text: { value: '{colors.white}' },
-          subtle: { value: '{colors.green.100}' },
-          'subtle-text': { value: '{colors.green.800}' },
+          subtle: { value: { base: '{colors.green.100}', _dark: '{colors.green.950}' } },
+          'subtle-text': {
+            value: { base: '{colors.green.800}', _dark: '{colors.green.200}' },
+          },
+          'subtle-border': {
+            value: { base: '{colors.green.300}', _dark: '{colors.green.800}' },
+          },
+          // 同 danger:这批数字档不翻转,浅底面请走 subtle 三件套。
           ...pandaPreset.theme.tokens.colors.green,
         },
         warning: {
@@ -438,8 +468,15 @@ const config: Config = {
           hover: { value: '{colors.amber.800}' },
           active: { value: '{colors.amber.900}' },
           text: { value: '{colors.white}' },
-          subtle: { value: '{colors.amber.100}' },
-          'subtle-text': { value: '{colors.amber.700}' },
+          subtle: { value: { base: '{colors.amber.100}', _dark: '{colors.amber.950}' } },
+          'subtle-text': {
+            value: { base: '{colors.amber.700}', _dark: '{colors.amber.200}' },
+          },
+          'subtle-border': {
+            value: { base: '{colors.amber.300}', _dark: '{colors.amber.800}' },
+          },
+          // 刻意**不** spread amber:少一组不翻转的数字档,就少一个 warning.100 那样
+          // 的坑。要浅底面就用上面三个键。
         },
         focusRing: { value: 'rgb(74, 121, 199)' },
       },

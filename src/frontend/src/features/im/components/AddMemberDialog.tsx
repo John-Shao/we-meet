@@ -143,7 +143,11 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
                           height: '1.125rem',
                           borderRadius: '0.25rem',
                           border: '1px solid token(colors.greyscale.400)',
-                          backgroundColor: checked ? 'primary.500' : 'white',
+                          // 未选中走会翻转的 greyscale.000(浅色仍是纯白),
+                          // 裸 'white' 在深色下是一排刺眼白方块。
+                          backgroundColor: checked
+                            ? 'primary.500'
+                            : 'greyscale.000',
                           color: 'white',
                           fontSize: '0.75rem',
                           lineHeight: '1.125rem',

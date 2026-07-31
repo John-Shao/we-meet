@@ -54,12 +54,47 @@ const CARD_PALETTE = [
   '#EB2F96',
 ]
 
-const STATUS_STYLE: Record<ApprovalStatus, { color: string; bg: string }> = {
-  pending: { color: 'greyscale.700', bg: 'greyscale.100' },
-  approved: { color: 'brand.700', bg: 'brand.50' },
-  rejected: { color: 'danger.600', bg: 'danger.100' },
-  cancelled: { color: 'greyscale.500', bg: 'greyscale.100' },
-  needs_assignment: { color: 'danger.600', bg: 'danger.100' },
+const statusBadgeBase = {
+  flexShrink: 0,
+  paddingX: '0.5rem',
+  paddingY: '0.125rem',
+  borderRadius: '999px',
+  fontSize: '0.6875rem',
+} as const
+
+// 每个状态存一条**完整的 css() 类名**,不是 {color, bg} 字符串对。
+// panda 是静态提取:写成 `backgroundColor: badge.bg` 那种动态取值,它看不到
+// 字面量,一个原子类都不会生成 —— 之前徽章能显示纯属别的文件恰好用过同名
+// token,漏网的档位(如 IM 状态条的 warning.*)就直接没有底色。
+//
+// 配色一律走会翻转的语义 token(danger.subtle / brand.* / greyscale.*):
+// 文字用的 greyscale 会随主题翻转,底色钉死浅色就是浅字压浅底。
+const STATUS_CLS: Record<ApprovalStatus, string> = {
+  pending: css({
+    ...statusBadgeBase,
+    color: 'greyscale.700',
+    backgroundColor: 'greyscale.100',
+  }),
+  approved: css({
+    ...statusBadgeBase,
+    color: 'brand.700',
+    backgroundColor: 'brand.50',
+  }),
+  rejected: css({
+    ...statusBadgeBase,
+    color: 'danger.subtle-text',
+    backgroundColor: 'danger.subtle',
+  }),
+  cancelled: css({
+    ...statusBadgeBase,
+    color: 'greyscale.500',
+    backgroundColor: 'greyscale.100',
+  }),
+  needs_assignment: css({
+    ...statusBadgeBase,
+    color: 'danger.subtle-text',
+    backgroundColor: 'danger.subtle',
+  }),
 }
 
 export const ApprovalRoute = () => (
@@ -614,7 +649,7 @@ const InstanceCard = ({
 }) => {
   const { t } = useTranslation('approval')
   const [comment, setComment] = useState('')
-  const badge = STATUS_STYLE[inst.status] ?? STATUS_STYLE.pending
+  const badgeCls = STATUS_CLS[inst.status] ?? STATUS_CLS.pending
 
   return (
     <div
@@ -637,19 +672,7 @@ const InstanceCard = ({
         <span className={css({ fontWeight: 'bold', color: 'greyscale.900' })}>
           {inst.template_name}
         </span>
-        <span
-          className={css({
-            flexShrink: 0,
-            paddingX: '0.5rem',
-            paddingY: '0.125rem',
-            borderRadius: '999px',
-            fontSize: '0.6875rem',
-            color: badge.color,
-            backgroundColor: badge.bg,
-          })}
-        >
-          {t(`status.${inst.status}`)}
-        </span>
+        <span className={badgeCls}>{t(`status.${inst.status}`)}</span>
       </div>
       <div
         className={css({
@@ -669,9 +692,9 @@ const InstanceCard = ({
             marginTop: '0.5rem',
             padding: '0.5rem 0.625rem',
             borderRadius: '0.5rem',
-            backgroundColor: 'danger.100',
-            border: '1px solid token(colors.danger.300)',
-            color: 'danger.600',
+            backgroundColor: 'danger.subtle',
+            border: '1px solid token(colors.danger.subtle-border)',
+            color: 'danger.subtle-text',
             fontSize: '0.75rem',
             lineHeight: 1.5,
           })}
