@@ -401,27 +401,26 @@ const ContactsAuthenticated = () => {
                         </Button>
                       </span>
                     )}
-                    {!member.is_self && (
-                      <button
-                        type="button"
-                        onClick={() => handleMessage(member)}
-                        data-testid={`contacts-message-${member.id}`}
+                    {/* 星标名单里不放「发消息」:那一行已经有「取消星标」,再并一个
+                        按钮既挤又抢焦点,而点整行就能开详情卡、卡里就有发消息。 */}
+                    {view !== 'starred' && !member.is_self && (
+                      <span
                         className={css({
                           flexShrink: 0,
+                          display: 'flex',
+                          alignItems: 'center',
                           marginRight: '1rem',
-                          border: '1px solid token(colors.primary.300)',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'greyscale.000',
-                          paddingX: '0.75rem',
-                          paddingY: '0.375rem',
-                          fontSize: '0.8125rem',
-                          cursor: 'pointer',
-                          color: 'primary.600',
-                          _hover: { backgroundColor: 'primary.50' },
                         })}
                       >
-                        {t('page.message')}
-                      </button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onPress={() => handleMessage(member)}
+                          data-testid={`contacts-message-${member.id}`}
+                        >
+                          {t('page.message')}
+                        </Button>
+                      </span>
                     )}
                   </li>
                 )
