@@ -46,10 +46,11 @@ const LoginHint = () => {
         maxWidth: '350px',
         boxShadow: '0 2px 5px rgba(0 0 0 / 0.1)',
         borderRadius: '1rem',
-        backgroundColor: 'primary.200',
-        // 气泡底是固定浅蓝(primary.200 不翻转),文字须钉固定深色,
-        // 否则深色下继承 greyscale.1000(白)→ 白字压浅蓝底几乎不可读。
-        color: 'primary.900',
+        // 底与字都走会翻转的 brand.*:浅色 #B7D0FF 配深蓝字,深色 #2E4068
+        // 配亮蓝字(≈8.2:1)。原先钉死 primary.200/900 是为了防白字压浅蓝底,
+        // 代价是深色下一块突兀的亮蓝气泡;翻转后两个问题一起消掉。
+        backgroundColor: 'brand.200',
+        color: 'brand.900',
         display: 'none',
         xsm: {
           display: 'block',

@@ -427,7 +427,7 @@ const badgeBase = css({
 })
 const badgeByStatus: Record<string, string> = {
   active: css({ backgroundColor: 'success.subtle', color: 'success.subtle-text' }),
-  invited: css({ backgroundColor: 'primary.100', color: 'primary.700' }),
+  invited: css({ backgroundColor: 'brand.100', color: 'brand.700' }),
   suspended: css({ backgroundColor: 'error.200', color: 'error.900' }),
   left: css({ backgroundColor: 'greyscale.200', color: 'greyscale.700' }),
 }
@@ -480,8 +480,8 @@ const tabBadge = css({
   height: '1.125rem',
   paddingX: '0.25rem',
   borderRadius: '999px',
-  backgroundColor: 'primary.100',
-  color: 'primary.700',
+  backgroundColor: 'brand.100',
+  color: 'brand.700',
   fontSize: '0.6875rem',
   display: 'inline-flex',
   alignItems: 'center',

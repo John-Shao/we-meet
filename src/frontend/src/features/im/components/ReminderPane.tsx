@@ -290,18 +290,18 @@ const ReminderSection = ({
                 textAlign: 'left',
                 border: 'none',
                 borderRadius: '0.5rem',
-                backgroundColor: 'primary.50',
+                backgroundColor: 'brand.50',
                 paddingX: '0.75rem',
                 paddingY: '0.5rem',
                 cursor: 'pointer',
-                _hover: { backgroundColor: 'primary.100' },
+                _hover: { backgroundColor: 'brand.100' },
               })}
             >
               <span
                 className={css({
                   display: 'block',
                   fontSize: '0.875rem',
-                  color: 'primary.700',
+                  color: 'brand.700',
                   fontWeight: 'medium',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -311,7 +311,7 @@ const ReminderSection = ({
                 {e.title}
               </span>
               <span
-                className={css({ fontSize: '0.75rem', color: 'primary.600' })}
+                className={css({ fontSize: '0.75rem', color: 'brand.600' })}
               >
                 {e.all_day
                   ? t('calendar.card.allDay')

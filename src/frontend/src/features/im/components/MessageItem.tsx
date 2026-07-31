@@ -866,11 +866,13 @@ export const MessageItem = ({
                     fontSize: '0.75rem',
                     cursor: 'pointer',
                     border: '1px solid',
-                    borderColor: r.mine ? 'primary.300' : 'greyscale.200',
-                    backgroundColor: r.mine ? 'primary.50' : 'greyscale.50',
-                    color: r.mine ? 'primary.700' : 'greyscale.600',
+                    // 「我点过」的表态用蓝调 chip;走 brand.* 才会随主题翻转,
+                    // 否则深色消息流里是一颗固定亮蓝的小胶囊。
+                    borderColor: r.mine ? 'brand.300' : 'greyscale.200',
+                    backgroundColor: r.mine ? 'brand.50' : 'greyscale.50',
+                    color: r.mine ? 'brand.700' : 'greyscale.600',
                     _hover: {
-                      backgroundColor: r.mine ? 'primary.100' : 'greyscale.100',
+                      backgroundColor: r.mine ? 'brand.100' : 'greyscale.100',
                     },
                   })}
                 >

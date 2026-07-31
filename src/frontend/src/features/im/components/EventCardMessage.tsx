@@ -149,8 +149,8 @@ export const EventCardMessage = ({
                 flexShrink: 0,
                 fontSize: '0.6875rem',
                 fontWeight: 'normal',
-                color: cancelled ? 'greyscale.500' : 'primary.600',
-                backgroundColor: cancelled ? 'greyscale.100' : 'primary.50',
+                color: cancelled ? 'greyscale.500' : 'brand.600',
+                backgroundColor: cancelled ? 'greyscale.100' : 'brand.50',
                 borderRadius: '0.25rem',
                 paddingX: '0.25rem',
               })}

@@ -171,8 +171,8 @@ export const RecentMeetingsList = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     borderRadius: '8px',
-                    backgroundColor: 'primary.50',
-                    color: 'primary.500',
+                    backgroundColor: 'brand.50',
+                    color: 'brand.500',
                   })}
                 >
                   <RiVidiconLine size={20} />

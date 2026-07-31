@@ -716,9 +716,9 @@ export const GroupInfoPanel = ({
                         fontSize: '0.6875rem',
                         borderRadius: '0.25rem',
                         paddingX: '0.25rem',
-                        color: 'primary.600',
-                        backgroundColor: 'primary.50',
-                        border: '1px solid token(colors.primary.200)',
+                        color: 'brand.600',
+                        backgroundColor: 'brand.50',
+                        border: '1px solid token(colors.brand.200)',
                       })}
                     >
                       {t('manage.owner')}

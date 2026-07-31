@@ -57,13 +57,15 @@ export const MeetingCardMessage = ({
           minWidth: '240px',
           maxWidth: '320px',
           textAlign: 'left',
-          backgroundColor: 'primary.50',
-          border: '1px solid token(colors.primary.200)',
+          // 卡片内的标题/副标题走会翻转的 greyscale.900/700,底色必须一起翻,
+          // 否则深色下是浅灰字压固定浅蓝底 —— 整张卡读不出来。
+          backgroundColor: 'brand.50',
+          border: '1px solid token(colors.brand.200)',
           borderRadius: '0.75rem',
           paddingX: '0.875rem',
           paddingY: '0.625rem',
           cursor: 'pointer',
-          _hover: { backgroundColor: 'primary.100' },
+          _hover: { backgroundColor: 'brand.100' },
         })}
       >
         <span
@@ -75,7 +77,7 @@ export const MeetingCardMessage = ({
             color: 'greyscale.900',
           })}
         >
-          <RiVidiconLine size={17} className={css({ flexShrink: 0, color: 'primary.600' })} />
+          <RiVidiconLine size={17} className={css({ flexShrink: 0, color: 'brand.600' })} />
           <span
             className={css({
               minWidth: 0,
@@ -95,7 +97,7 @@ export const MeetingCardMessage = ({
         <span
           className={css({
             fontSize: '0.75rem',
-            color: 'primary.700',
+            color: 'brand.700',
             fontWeight: 'medium',
             textAlign: 'right',
           })}

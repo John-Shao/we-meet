@@ -59,13 +59,14 @@ export const PinnedBar = ({
           width: '100%',
           border: 'none',
           borderBottom: '1px solid token(colors.greyscale.200)',
-          backgroundColor: 'primary.50',
+          // 文字是会翻转的 greyscale.700,底色必须一起翻(否则深色下浅灰压浅蓝)。
+          backgroundColor: 'brand.50',
           padding: '0.375rem 1rem',
           fontSize: '0.8125rem',
           color: 'greyscale.700',
           cursor: 'pointer',
           textAlign: 'left',
-          _hover: { backgroundColor: 'primary.100' },
+          _hover: { backgroundColor: 'brand.100' },
         })}
       >
         <span aria-hidden="true">📌</span>

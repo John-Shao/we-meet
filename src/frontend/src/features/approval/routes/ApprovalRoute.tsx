@@ -56,7 +56,7 @@ const CARD_PALETTE = [
 
 const STATUS_STYLE: Record<ApprovalStatus, { color: string; bg: string }> = {
   pending: { color: 'greyscale.700', bg: 'greyscale.100' },
-  approved: { color: 'primary.700', bg: 'primary.50' },
+  approved: { color: 'brand.700', bg: 'brand.50' },
   rejected: { color: 'danger.600', bg: 'danger.100' },
   cancelled: { color: 'greyscale.500', bg: 'greyscale.100' },
   needs_assignment: { color: 'danger.600', bg: 'danger.100' },

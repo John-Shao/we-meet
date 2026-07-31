@@ -25,8 +25,10 @@ const BetaBadge = () => (
       display: 'block',
       letterSpacing: '-0.02rem',
       padding: '0 0.25rem',
-      backgroundColor: 'primary.100',
-      color: '#0063CB',
+      // 与设置页那颗 Beta 徽标(RowWrapper)统一:蓝底蓝字随主题翻转。
+      // 原先的 #0063CB 是遗留的硬编码 DSFR 蓝,深色下不会跟着走。
+      backgroundColor: 'brand.100',
+      color: 'brand.700',
       fontSize: '14px',
       fontWeight: 500,
       margin: '0 0.3125rem',

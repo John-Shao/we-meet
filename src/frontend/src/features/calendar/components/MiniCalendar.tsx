@@ -143,7 +143,7 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
                     : {
                         backgroundColor: 'transparent',
                         color: outside ? 'greyscale.400' : 'greyscale.800',
-                        _hover: { backgroundColor: 'primary.50' },
+                        _hover: { backgroundColor: 'brand.50' },
                       }),
                 })
               )}

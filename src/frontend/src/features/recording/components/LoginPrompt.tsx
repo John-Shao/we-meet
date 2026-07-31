@@ -12,10 +12,12 @@ export const LoginPrompt = ({ heading, body }: LoginPromptProps) => {
   return (
     <div
       className={css({
-        backgroundColor: 'primary.50',
+        // 内部 <H>/<Text> 继承 default.text(深色下为白),底色必须一起翻,
+        // 否则整块提示是白字压浅蓝。
+        backgroundColor: 'brand.50',
         borderRadius: '5px',
         border: '1px solid',
-        borderColor: 'primary.200',
+        borderColor: 'brand.200',
         paddingY: '1rem',
         paddingX: '1rem',
         marginTop: '1rem',

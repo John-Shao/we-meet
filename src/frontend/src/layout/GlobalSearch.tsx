@@ -457,11 +457,12 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
                 borderRadius: '999px',
                 fontSize: '0.8125rem',
                 cursor: 'pointer',
-                backgroundColor: active ? 'primary.100' : 'transparent',
-                color: active ? 'primary.700' : 'greyscale.600',
+                // 选中态走 selected.*(自带深浅两套),别退回裸 primary.*。
+                backgroundColor: active ? 'selected.bg' : 'transparent',
+                color: active ? 'selected.text' : 'greyscale.600',
                 fontWeight: active ? '600' : undefined,
                 _hover: {
-                  backgroundColor: active ? 'primary.100' : 'greyscale.100',
+                  backgroundColor: active ? 'selected.bg' : 'greyscale.100',
                 },
               })}
             >
@@ -506,13 +507,13 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
                   paddingY: '0.625rem',
                   border: 'none',
                   borderRadius: '8px',
-                  backgroundColor: 'primary.50',
-                  color: 'primary.700',
+                  backgroundColor: 'brand.50',
+                  color: 'brand.700',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
                   textAlign: 'left',
                   marginBottom: '0.375rem',
-                  _hover: { backgroundColor: 'primary.100' },
+                  _hover: { backgroundColor: 'brand.100' },
                 })}
               >
                 <RiSparklingLine size={18} />
@@ -837,10 +838,10 @@ const CitationChip = ({
           borderRadius: '999px',
           borderWidth: '1px',
           borderStyle: 'solid',
-          borderColor: highlighted ? 'primary.400' : 'greyscale.200',
-          backgroundColor: highlighted ? 'primary.50' : 'greyscale.000',
+          borderColor: highlighted ? 'brand.400' : 'greyscale.200',
+          backgroundColor: highlighted ? 'brand.50' : 'greyscale.000',
           fontSize: '0.75rem',
-          color: highlighted ? 'primary.700' : 'greyscale.700',
+          color: highlighted ? 'brand.700' : 'greyscale.700',
           cursor: 'pointer',
           _hover: { borderColor: 'primary.300' },
         })
@@ -940,7 +941,7 @@ const ResultRow = ({
       backgroundColor: 'transparent',
       cursor: 'pointer',
       textAlign: 'left',
-      _hover: { backgroundColor: 'primary.50' },
+      _hover: { backgroundColor: 'brand.50' },
     })}
   >
     {avatarSrc ? (
@@ -963,8 +964,8 @@ const ResultRow = ({
           width: '32px',
           height: '32px',
           borderRadius: '7px',
-          backgroundColor: 'primary.100',
-          color: 'primary.700',
+          backgroundColor: 'brand.100',
+          color: 'brand.700',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

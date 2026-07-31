@@ -200,7 +200,7 @@ export const CalendarSidebar = ({
                     display: 'flex',
                     gap: '0.5rem',
                     alignItems: 'stretch',
-                    _hover: { backgroundColor: 'primary.50' },
+                    _hover: { backgroundColor: 'brand.50' },
                   })}
                 >
                   <span className={barClsFor(e.my_rsvp)} />

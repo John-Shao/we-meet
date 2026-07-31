@@ -476,13 +476,14 @@ const deptButton = (active: boolean) =>
     textAlign: 'left',
     fontSize: '0.875rem',
     cursor: 'pointer',
-    // 选中:蓝底 primary.100(浅/深都为浅蓝)配深蓝字 primary.700(浅/深都深),
-    // 两种主题都可读;非选中用会翻转的 greyscale.800。
-    color: active ? 'primary.700' : 'greyscale.800',
+    // 选中态走 selected.*(自带深浅两套);非选中用会翻转的 greyscale.800。
+    color: active ? 'selected.text' : 'greyscale.800',
     fontWeight: active ? '600' : undefined,
-    backgroundColor: active ? 'primary.100' : 'transparent',
+    backgroundColor: active ? 'selected.bg' : 'transparent',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    _hover: { backgroundColor: 'greyscale.100' },
+    // hover 也要分选中/未选中:原先无条件盖 greyscale.100,鼠标一碰选中行
+    // 底色就退回中性灰,配 selected.text 的蓝字对比度掉下来(同 AdminShell 那个坑)。
+    _hover: { backgroundColor: active ? 'selected.bg' : 'greyscale.100' },
   })

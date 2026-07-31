@@ -61,7 +61,9 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           className={css({
             display: 'flex',
             height: '100%',
-            backgroundColor: 'primary.50',
+            // brand.* 会随主题翻转;裸 primary.50 在深色下是浅蓝底,而这里的
+            // default.text 已翻成白 —— 白字压浅蓝,整个应用外壳不可读。
+            backgroundColor: 'brand.50',
             color: 'default.text',
           })}
         >

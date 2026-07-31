@@ -54,8 +54,9 @@ export const DepartmentTree = ({ departments, selectedId, onSelect }: Props) => 
               display: 'flex',
               alignItems: 'center',
               borderBottom: '1px solid token(colors.greyscale.100)',
-              backgroundColor: active ? 'primary.100' : 'transparent',
-              _hover: { backgroundColor: active ? 'primary.100' : 'greyscale.100' },
+              // selected.* 自带深浅两套(见 panda.config),不要退回裸 primary.*。
+              backgroundColor: active ? 'selected.bg' : 'transparent',
+              _hover: { backgroundColor: active ? 'selected.bg' : 'greyscale.100' },
             })}
             style={{ paddingLeft: `${0.25 + depth * 0.85}rem` }}
           >
@@ -104,7 +105,7 @@ export const DepartmentTree = ({ departments, selectedId, onSelect }: Props) => 
                 paddingRight: '0.5rem',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
-                color: active ? 'primary.700' : 'greyscale.800',
+                color: active ? 'selected.text' : 'greyscale.800',
                 fontWeight: active ? '600' : undefined,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',

@@ -321,8 +321,39 @@ const config: Config = {
         },
         // 一级导航栏底色:浅色=飞书蓝 #DEE4F5,深色=暗navy(随主题翻转)。
         railBg: { value: { base: '#DEE4F5', _dark: '#1C2130' } },
+        // 品牌蓝「随主题翻转」色阶 —— 裸 primary.* 的替代品。
+        //
+        // 为什么需要:上面 tokens.colors.primary.* 是**固定色阶**,只在 :root 定义,
+        // 没有 [data-theme=dark] 覆盖。裸写 `backgroundColor: 'primary.50'` 在深色下
+        // 就是一条刺眼的浅蓝亮带;而只要配套的文字继承了会翻转的 default.text(深色
+        // 下是白),白字压浅蓝底直接不可读 —— Layout/Screen/录制面板都栽在这里。
+        // 反过来「文字翻了、底色忘了翻」则是两个浅蓝叠在一起,对比度只剩 1.15:1。
+        //
+        // 规则:base = primary.N 原值(浅色一字不改、零回归),_dark = primaryDark.N
+        // (该色阶天生就是镜像序:50 最深 → 950 最浅,与 primary 同档位明暗相反)。
+        // 唯一例外是 50 档:深色取 primaryDark.75(#161E33)而非 .50(#0E1626),
+        // 后者比页面底 greyscale.000(#161616)还深,浅蓝卡片会翻成一个「洞」。
+        // scheduledCard.bg 当初就是这么定的,这里对齐。
+        //
+        // 用法:凡「浅蓝底 / 浅蓝描边 / 蓝字」的面,一律 brand.N 顶替 primary.N。
+        // 不必换的两类:① 实心按钮(primary.500 底 + 白字),中调蓝两套主题都成立;
+        // ② 会中 UI(features/rooms、room-ai、reactions),舞台底是恒定 primaryDark.50,
+        // 那里的浅蓝是「深底上的强调色」,翻过去反而变成深蓝压深底。
+        brand: {
+          50: { value: { base: '{colors.primary.50}', _dark: '{colors.primaryDark.75}' } },
+          100: { value: { base: '{colors.primary.100}', _dark: '{colors.primaryDark.100}' } },
+          200: { value: { base: '{colors.primary.200}', _dark: '{colors.primaryDark.200}' } },
+          300: { value: { base: '{colors.primary.300}', _dark: '{colors.primaryDark.300}' } },
+          400: { value: { base: '{colors.primary.400}', _dark: '{colors.primaryDark.400}' } },
+          500: { value: { base: '{colors.primary.500}', _dark: '{colors.primaryDark.500}' } },
+          600: { value: { base: '{colors.primary.600}', _dark: '{colors.primaryDark.600}' } },
+          700: { value: { base: '{colors.primary.700}', _dark: '{colors.primaryDark.700}' } },
+          800: { value: { base: '{colors.primary.800}', _dark: '{colors.primaryDark.800}' } },
+          900: { value: { base: '{colors.primary.900}', _dark: '{colors.primaryDark.900}' } },
+        },
         // 预约会议卡片(蓝色调):浅色用 primary.50/200/100/700,深色翻到
         // primaryDark 色阶,保持蓝调的同时明暗互换、对比不倒。
+        // (等价于 brand.50/200/100/700,早于 brand 出现,保留不动。)
         scheduledCard: {
           bg: { value: { base: '{colors.primary.50}', _dark: '{colors.primaryDark.75}' } },
           border: {

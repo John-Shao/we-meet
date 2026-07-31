@@ -52,8 +52,10 @@ const bubbleBase = css({
 
 const userBubble = css({
   alignSelf: 'flex-end',
-  backgroundColor: 'primary.100',
-  color: 'primary.900',
+  // 对面的 assistantBubble 走 greyscale.50/box.text 会随主题翻转;
+  // 这颗若钉死 primary.* 就成了深色气泡流里唯一一块亮蓝。
+  backgroundColor: 'brand.100',
+  color: 'brand.900',
 })
 
 const assistantBubble = css({
@@ -89,11 +91,11 @@ const chipStyle = css({
   fontSize: '0.75rem',
   padding: '0.15rem 0.5rem',
   borderRadius: '999px',
-  backgroundColor: 'primary.50',
-  color: 'primary.700',
+  backgroundColor: 'brand.50',
+  color: 'brand.700',
   cursor: 'pointer',
   border: 'none',
-  _hover: { backgroundColor: 'primary.100' },
+  _hover: { backgroundColor: 'brand.100' },
 })
 
 const hintStyle = css({

@@ -41,7 +41,9 @@ export const Screen = ({
       {headerTitle && (
         <div
           className={css({
-            backgroundColor: 'primary.100',
+            // 标题条底色随主题翻转:内部 <H> 继承 default.text(深色下为白),
+            // 固定浅蓝底会让白标题不可读。
+            backgroundColor: 'brand.100',
             width: '100%',
           })}
         >

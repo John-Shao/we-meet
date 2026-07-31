@@ -706,9 +706,9 @@ const themeCardIdleCls = css({
   _hover: { borderColor: 'primary.400' },
 })
 const themeCardActiveCls = css({
-  borderColor: 'primary.500',
-  backgroundColor: 'primary.50',
-  color: 'primary.700',
+  borderColor: 'brand.500',
+  backgroundColor: 'brand.50',
+  color: 'brand.700',
 })
 const rowCls = css({
   display: 'flex',

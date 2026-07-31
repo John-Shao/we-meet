@@ -964,13 +964,13 @@ export const ConversationCalendarPanel = ({
               className={css({
                 paddingX: '0.5rem',
                 paddingY: '0.25rem',
-                border: '1px solid token(colors.primary.300)',
+                border: '1px solid token(colors.brand.300)',
                 borderRadius: '999px',
-                backgroundColor: 'primary.50',
-                color: 'primary.700',
+                backgroundColor: 'brand.50',
+                color: 'brand.700',
                 fontSize: '0.75rem',
                 cursor: 'pointer',
-                _hover: { backgroundColor: 'primary.100' },
+                _hover: { backgroundColor: 'brand.100' },
               })}
             >
               {`${fmtMin((s.start.getTime() - day.getTime()) / 60_000)}-${fmtMin((s.end.getTime() - day.getTime()) / 60_000)}`}

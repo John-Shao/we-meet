@@ -5,7 +5,9 @@ import { css } from '@/styled-system/css'
 
 const stateColors: Record<ConnectionState, string> = {
   disconnected: 'greyscale.200',
-  connecting: 'primary.100',
+  // brand.100 会随主题翻转;裸 primary.100 是固定浅蓝,而下方 color 用的
+  // greyscale.800 深色下已翻成浅灰 —— 浅灰压浅蓝直接读不出来。
+  connecting: 'brand.100',
   connected: 'success.100',
   reconnecting: 'warning.100',
   auth_failed: 'danger.100',
