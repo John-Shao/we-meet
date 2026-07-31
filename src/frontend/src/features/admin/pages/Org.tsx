@@ -230,23 +230,13 @@ export const AdminOrg = () => {
                     ? selectedDept.head.full_name || selectedDept.head.short_name
                     : t('org.noHead')}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setHeadTarget(selectedDept)}
-                  className={css({
-                    border: '1px solid token(colors.primary.300)',
-                    borderRadius: '0.375rem',
-                    backgroundColor: 'greyscale.000',
-                    color: 'primary.600',
-                    paddingX: '0.5rem',
-                    paddingY: '0.1875rem',
-                    fontSize: '0.8125rem',
-                    cursor: 'pointer',
-                    _hover: { backgroundColor: 'primary.50' },
-                  })}
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={() => setHeadTarget(selectedDept)}
                 >
                   {t('org.setHead')}
-                </button>
+                </Button>
               </div>
               {membersFetching && members.length === 0 ? (
                 <p className={css({ color: 'greyscale.500', fontSize: '0.875rem' })}>{t('org.loadingMembers')}</p>

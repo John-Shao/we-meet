@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
 import { addMonths, addYears, endOfMonth, startOfDay, startOfMonth } from 'date-fns'
 
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
@@ -334,24 +335,13 @@ const CalendarAuthenticated = () => {
               gap: '0.5rem',
             })}
           >
-            <button
-              type="button"
-              onClick={() => openCreate(null)}
+            <Button
+              variant="primary"
+              onPress={() => openCreate(null)}
               data-testid="calendar-create"
-              className={css({
-                paddingX: '1rem',
-                paddingY: '0.5rem',
-                border: 'none',
-                borderRadius: '0.5rem',
-                backgroundColor: 'primary.500',
-                color: 'white',
-                fontSize: '0.875rem',
-                fontWeight: 'medium',
-                cursor: 'pointer',
-              })}
             >
               ＋ {t('page.create')}
-            </button>
+            </Button>
             {/* P8 设置收敛:齿轮只是快捷入口,打开系统设置并定位「日历」节。
                无边框纯图标钮,置于「新建日程」右侧。 */}
             <button

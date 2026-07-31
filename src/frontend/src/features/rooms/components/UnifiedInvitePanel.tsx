@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RiCheckLine, RiFileCopyLine } from '@remixicon/react'
 
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { getRouteUrl } from '@/navigation/getRouteUrl'
 import { useUser } from '@/features/auth'
@@ -121,28 +122,18 @@ export const UnifiedInvitePanel = ({
                 {roomSlug}
               </b>
             </span>
-            <button
-              type="button"
-              onClick={copyLink}
+            <Button
+              variant="secondaryText"
+              size="dense"
+              onPress={copyLink}
               data-testid="unified-invite-copy-link"
               className={css({
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                border: 'none',
-                borderRadius: '0.375rem',
-                paddingX: '0.5rem',
-                paddingY: '0.25rem',
-                fontSize: '0.8125rem',
-                cursor: 'pointer',
                 color: copied ? 'success.600' : 'primary.500',
-                backgroundColor: 'transparent',
-                _hover: { backgroundColor: 'greyscale.100' },
               })}
             >
               {copied ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
               {copied ? tShare('copied') : tShare('copyUrl')}
-            </button>
+            </Button>
           </div>
           {showPin && (
             <span className={css({ fontSize: '0.75rem', color: 'greyscale.600' })}>

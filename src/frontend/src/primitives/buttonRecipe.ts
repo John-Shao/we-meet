@@ -6,6 +6,9 @@ import { type RecipeVariantProps, cva } from '@/styled-system/css'
  *   搜索框、筛选/建议 chip、头像,动作按钮一律不用胶囊。
  * - 填充分工:主操作=primary(实心蓝)、次操作=secondary(线框)、弱操作=
  *   secondaryText(纯文字)。新按钮优先走本基元,别再手搓 <button> + 裸圆角。
+ * - 字号:各 size 刻度**只管圆角和内边距,不设 font-size**(全站 600+ 处按钮都继承
+ *   上下文,这是既有行为,别去改 default/sm/xs 的字号——会一次性动到全站)。唯一
+ *   例外是 `dense`,专给列表内的小号动作按钮,自带 13px,见下面它的注释。
  */
 export const buttonRecipe = cva({
   base: {
@@ -43,6 +46,26 @@ export const buttonRecipe = cva({
         paddingX: '0.5',
         paddingY: '0.625',
         '--square-padding': '{spacing.0.625}',
+      },
+      /**
+       * 列表/面板内的小号动作按钮(「发消息」「同意」「催办」「呼叫」这类)。
+       *
+       * ⚠️ 唯一一个**自带 font-size** 的刻度,这是它存在的理由:其余刻度只管圆角和
+       * 内边距,字号继承上下文。正文容器是 16px,而这类按钮该是 13px —— 以前每个调用
+       * 点各自 `fontSize: '0.8125rem'` 手拍,同一行里就出现过一个继承 16px、一个
+       * 13px 的不一致(通讯录「添加」vs「发消息」)。字号收进这里,调用点不用再写。
+       *
+       * 尺寸刻意对齐原先手搓的那套(0.75rem / 0.375rem / 13px),所以旧按钮换过来
+       * 视觉几乎不变,只有圆角从裸 8px 归到小控件标准 6px。
+       *
+       * 对话框底部的主次按钮不要用这个 —— 那是「常规按钮」,走 default。
+       */
+      dense: {
+        borderRadius: 6,
+        paddingX: '0.75',
+        paddingY: '0.375',
+        fontSize: '0.8125rem',
+        '--square-padding': '{spacing.0.375}',
       },
     },
     square: {

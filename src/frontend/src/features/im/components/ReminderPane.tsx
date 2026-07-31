@@ -4,6 +4,7 @@ import { useLocation } from 'wouter'
 import { RiCalendarTodoFill } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { Switch } from '@/primitives/Switch'
 import {
   EventDetailHost,
@@ -173,24 +174,14 @@ export const ReminderPane = () => {
             </div>
             {banner.room_slug && (
               <div>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/${banner.room_slug}`)}
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={() => navigate(`/${banner.room_slug}`)}
                   data-testid="reminder-join"
-                  className={css({
-                    paddingX: '0.875rem',
-                    paddingY: '0.375rem',
-                    border: '1px solid token(colors.primary.500)',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'transparent',
-                    color: 'primary.600',
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                    _hover: { backgroundColor: 'primary.50' },
-                  })}
                 >
                   {t('reminder.join')}
-                </button>
+                </Button>
               </div>
             )}
           </div>

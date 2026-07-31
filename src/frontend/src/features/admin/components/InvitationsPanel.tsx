@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useConfirm } from '@/components/ConfirmProvider'
 
@@ -84,23 +85,18 @@ export const InvitationsPanel = () => {
               {formatDate(inv.created_at)}
             </td>
             <td className={td}>
-              <button
-                type="button"
-                onClick={() => revoke(inv)}
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => revoke(inv)}
                 className={css({
-                  border: '1px solid token(colors.greyscale.300)',
-                  borderRadius: '0.375rem',
-                  background: 'transparent',
                   color: 'error.700',
-                  paddingX: '0.5rem',
-                  paddingY: '0.1875rem',
-                  fontSize: '0.8125rem',
-                  cursor: 'pointer',
+                  borderColor: 'greyscale.300',
                   _hover: { backgroundColor: 'error.50' },
                 })}
               >
                 {t('invite.revoke')}
-              </button>
+              </Button>
             </td>
           </tr>
         ))}

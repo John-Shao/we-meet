@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { Modal } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
@@ -204,26 +205,14 @@ export const MeetInvitePicker = ({
           <span className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}>
             {t('group.selected', { count: selected.size })}
           </span>
-          <button
-            type="button"
-            disabled={selected.size === 0}
-            onClick={confirm}
+          <Button
+            variant="primary"
+            isDisabled={selected.size === 0}
+            onPress={confirm}
             data-testid="meet-invite-confirm"
-            className={css({
-              paddingX: '1rem',
-              paddingY: '0.5rem',
-              border: 'none',
-              borderRadius: '0.5rem',
-              backgroundColor:
-                selected.size > 0 ? 'primary.500' : 'greyscale.300',
-              color: 'white',
-              fontSize: '0.875rem',
-              fontWeight: 'medium',
-              cursor: selected.size > 0 ? 'pointer' : 'not-allowed',
-            })}
           >
             {t('call.invite.confirm')}
-          </button>
+          </Button>
         </div>
     </Modal>
   )

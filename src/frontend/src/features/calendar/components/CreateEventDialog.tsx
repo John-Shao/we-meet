@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/primitives'
 import { css, cx } from '@/styled-system/css'
 import { selectChrome } from '@/primitives/selectChrome'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
@@ -518,25 +519,14 @@ export const CreateEventDialog = ({
         <button type="button" onClick={onClose} className={ghostBtn}>
           {t('form.cancel')}
         </button>
-        <button
-          type="button"
-          disabled={!canCreate}
-          onClick={submit}
+        <Button
+          variant="primary"
+          isDisabled={!canCreate}
+          onPress={submit}
           data-testid="event-create"
-          className={css({
-            paddingX: '1rem',
-            paddingY: '0.5rem',
-            border: 'none',
-            borderRadius: '0.5rem',
-            backgroundColor: canCreate ? 'primary.500' : 'greyscale.300',
-            color: 'white',
-            fontSize: '0.875rem',
-            fontWeight: 'medium',
-            cursor: canCreate ? 'pointer' : 'not-allowed',
-          })}
         >
           {isEdit ? t('form.save') : t('form.create')}
-        </button>
+        </Button>
       </div>
     </Modal>
   )

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { Modal } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
@@ -177,25 +178,14 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
           <span className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}>
             {t('group.selected', { count: selected.size })}
           </span>
-          <button
-            type="button"
-            disabled={!canAdd}
-            onClick={confirm}
+          <Button
+            variant="primary"
+            isDisabled={!canAdd}
+            onPress={confirm}
             data-testid="add-member-confirm"
-            className={css({
-              paddingX: '1rem',
-              paddingY: '0.5rem',
-              border: 'none',
-              borderRadius: '0.5rem',
-              backgroundColor: canAdd ? 'primary.500' : 'greyscale.300',
-              color: 'white',
-              fontSize: '0.875rem',
-              fontWeight: 'medium',
-              cursor: canAdd ? 'pointer' : 'not-allowed',
-            })}
           >
             {busy ? t('input.sending') : t('manage.addMembers')}
-          </button>
+          </Button>
         </div>
     </Modal>
   )

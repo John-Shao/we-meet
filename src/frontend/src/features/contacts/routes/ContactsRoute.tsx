@@ -414,7 +414,7 @@ const ContactsAuthenticated = () => {
                       >
                         <Button
                           variant="secondary"
-                          size="sm"
+                          size="dense"
                           onPress={() => handleMessage(member)}
                           data-testid={`contacts-message-${member.id}`}
                         >

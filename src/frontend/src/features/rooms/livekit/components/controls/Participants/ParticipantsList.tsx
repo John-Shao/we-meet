@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
 import { RiUserAddLine } from '@remixicon/react'
 
-import { Div, H } from '@/primitives'
+import { Button, Div, H } from '@/primitives'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/auth'
 import { useRoomData } from '../../../hooks/useRoomData'
@@ -187,28 +187,15 @@ export const ParticipantsList = () => {
           })}
         />
         {roomSlug && (
-          <button
-            type="button"
-            onClick={() => setInviteOpen(true)}
+          <Button
+            variant="primary"
+            size="dense"
+            onPress={() => setInviteOpen(true)}
             data-testid="participants-invite-members"
-            className={css({
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.25rem',
-              paddingX: '0.625rem',
-              paddingY: '0.375rem',
-              border: 'none',
-              borderRadius: '0.5rem',
-              backgroundColor: 'primary.500',
-              color: 'white',
-              fontSize: '0.8125rem',
-              cursor: 'pointer',
-              _hover: { backgroundColor: 'primary.600' },
-            })}
           >
             <RiUserAddLine size={16} />
             {t('inviteAction')}
-          </button>
+          </Button>
         )}
       </div>
       {/* P5: 全部 / 建议参会 tabs — counts live-update (suggested excludes

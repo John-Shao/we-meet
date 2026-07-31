@@ -2,6 +2,7 @@ import { useSnapshot } from 'valtio'
 import { useTranslation } from 'react-i18next'
 import { RiCloseLine, RiPhoneLine } from '@remixicon/react'
 
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { MemberAvatar } from '@/features/contacts'
 import {
@@ -192,28 +193,15 @@ export const SuggestedParticipantsList = ({
                     {inviteStateText(tIm, invite)}
                   </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => call(person)}
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={() => call(person)}
                   data-testid={`suggested-call-${person.id}`}
-                  className={css({
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    border: '1px solid token(colors.primary.300)',
-                    borderRadius: '0.375rem',
-                    paddingX: '0.5rem',
-                    paddingY: '0.1875rem',
-                    fontSize: '0.75rem',
-                    color: 'primary.600',
-                    backgroundColor: 'transparent',
-                    cursor: 'pointer',
-                    _hover: { backgroundColor: 'primary.50' },
-                  })}
                 >
                   <RiPhoneLine size={14} />
                   {mineEnded ? t('callAgain') : t('call')}
-                </button>
+                </Button>
               </span>
             )}
           </li>

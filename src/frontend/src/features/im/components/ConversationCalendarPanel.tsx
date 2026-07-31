@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { RiUserFollowLine } from '@remixicon/react'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -1037,24 +1038,15 @@ export const ConversationCalendarPanel = ({
             {capped && ` ${t('calendar.membersCapped', { count: MAX_PEOPLE })}`}
           </div>
         )}
-        <button
-          type="button"
-          disabled={!sel}
-          onClick={() => setDialogOpen(true)}
+        <Button
+          variant="primary"
+          isDisabled={!sel}
+          onPress={() => setDialogOpen(true)}
           data-testid="freebusy-create"
-          className={css({
-            paddingY: '0.5rem',
-            border: 'none',
-            borderRadius: '0.5rem',
-            backgroundColor: sel ? 'primary.500' : 'greyscale.300',
-            color: 'white',
-            fontSize: '0.875rem',
-            fontWeight: 'medium',
-            cursor: sel ? 'pointer' : 'not-allowed',
-          })}
+          className={css({ width: '100%' })}
         >
           {t('calendar.create')}
-        </button>
+        </Button>
       </div>
 
       {pickerOpen && (
@@ -1263,24 +1255,13 @@ const MemberPicker = ({
         >
           {t('calendar.picker.selected', { count: temp.size })}
         </span>
-        <button
-          type="button"
-          onClick={() => onConfirm(temp)}
+        <Button
+          variant="primary"
+          onPress={() => onConfirm(temp)}
           data-testid="freebusy-picker-confirm"
-          className={css({
-            paddingX: '1rem',
-            paddingY: '0.5rem',
-            border: 'none',
-            borderRadius: '0.5rem',
-            backgroundColor: 'primary.500',
-            color: 'white',
-            fontSize: '0.875rem',
-            fontWeight: 'medium',
-            cursor: 'pointer',
-          })}
         >
           {t('calendar.picker.confirm')}
-        </button>
+        </Button>
       </div>
     </Modal>
   )

@@ -12,6 +12,7 @@ import {
   RiFileList3Line,
 } from '@remixicon/react'
 
+import { Button } from '@/primitives'
 import { css, cx } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -292,30 +293,23 @@ const ApprovalAuthenticated = () => {
                     />
                   ))}
                   {activeQ.hasNextPage && (
-                    <button
-                      type="button"
-                      onClick={() => void activeQ.fetchNextPage()}
-                      disabled={activeQ.isFetchingNextPage}
+                    <Button
+                      variant="secondary"
+                      size="dense"
+                      onPress={() => void activeQ.fetchNextPage()}
+                      isDisabled={activeQ.isFetchingNextPage}
                       data-testid="approval-load-more"
                       className={css({
                         alignSelf: 'center',
                         marginTop: '0.25rem',
-                        paddingX: '1rem',
-                        paddingY: '0.5rem',
-                        border: '1px solid token(colors.greyscale.300)',
-                        borderRadius: '0.5rem',
-                        backgroundColor: 'greyscale.000',
                         color: 'greyscale.700',
-                        fontSize: '0.8125rem',
-                        cursor: activeQ.isFetchingNextPage
-                          ? 'default'
-                          : 'pointer',
+                        borderColor: 'greyscale.300',
                       })}
                     >
                       {activeQ.isFetchingNextPage
                         ? t('page.loading')
                         : t('act.loadMore')}
-                    </button>
+                    </Button>
                   )}
                 </>
               )}
@@ -728,40 +722,23 @@ const InstanceCard = ({
             })}
           />
           <div className={css({ display: 'flex', gap: '0.5rem' })}>
-            <button
-              type="button"
-              onClick={() => onAct(inst.id, 'approved', comment)}
+            <Button
+              variant="primary"
+              size="dense"
+              onPress={() => onAct(inst.id, 'approved', comment)}
               data-testid={`approval-approve-${inst.id}`}
-              className={css({
-                paddingX: '0.875rem',
-                paddingY: '0.375rem',
-                border: 'none',
-                borderRadius: '0.5rem',
-                backgroundColor: 'primary.500',
-                color: 'white',
-                fontSize: '0.8125rem',
-                cursor: 'pointer',
-              })}
             >
               {t('act.approve')}
-            </button>
-            <button
-              type="button"
-              onClick={() => onAct(inst.id, 'rejected', comment)}
+            </Button>
+            <Button
+              variant="secondary"
+              size="dense"
+              onPress={() => onAct(inst.id, 'rejected', comment)}
               data-testid={`approval-reject-${inst.id}`}
-              className={css({
-                paddingX: '0.875rem',
-                paddingY: '0.375rem',
-                border: '1px solid token(colors.danger.300)',
-                borderRadius: '0.5rem',
-                backgroundColor: 'greyscale.000',
-                color: 'danger.600',
-                fontSize: '0.8125rem',
-                cursor: 'pointer',
-              })}
+              className={css({ color: 'danger.600', borderColor: 'danger.300' })}
             >
               {t('act.reject')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -774,40 +751,22 @@ const InstanceCard = ({
             gap: '0.5rem',
           })}
         >
-          <button
-            type="button"
-            onClick={() => onUrge(inst.id)}
+          <Button
+            variant="secondary"
+            size="dense"
+            onPress={() => onUrge(inst.id)}
             data-testid={`approval-urge-${inst.id}`}
-            className={css({
-              paddingX: '0.75rem',
-              paddingY: '0.3125rem',
-              border: '1px solid token(colors.primary.300)',
-              borderRadius: '0.5rem',
-              backgroundColor: 'greyscale.000',
-              color: 'primary.600',
-              fontSize: '0.8125rem',
-              cursor: 'pointer',
-              _hover: { backgroundColor: 'primary.50' },
-            })}
           >
             {t('act.urge')}
-          </button>
-          <button
-            type="button"
-            onClick={() => onCancel(inst.id)}
-            className={css({
-              paddingX: '0.75rem',
-              paddingY: '0.3125rem',
-              border: '1px solid token(colors.greyscale.300)',
-              borderRadius: '0.5rem',
-              backgroundColor: 'greyscale.000',
-              color: 'greyscale.700',
-              fontSize: '0.8125rem',
-              cursor: 'pointer',
-            })}
+          </Button>
+          <Button
+            variant="secondary"
+            size="dense"
+            onPress={() => onCancel(inst.id)}
+            className={css({ color: 'greyscale.700', borderColor: 'greyscale.300' })}
           >
             {t('act.cancel')}
-          </button>
+          </Button>
         </div>
       )}
     </div>

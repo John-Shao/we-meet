@@ -9,6 +9,7 @@ import {
   RiSendPlane2Fill,
 } from '@remixicon/react'
 
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 /** Quoted-message preview shown above the input while composing a reply. */
@@ -600,24 +601,14 @@ export const MessageInput = ({
         })}
         data-testid="im-msg-input"
       />
-      <button
+      <Button
         type="submit"
-        disabled={disabled || sending || !text.trim()}
-        className={css({
-          paddingX: '1rem',
-          paddingY: '0.5rem',
-          backgroundColor: 'primary.500',
-          color: 'white',
-          border: 'none',
-          borderRadius: '0.5rem',
-          cursor: 'pointer',
-          fontWeight: '500',
-          _disabled: { backgroundColor: 'greyscale.300', cursor: 'not-allowed' },
-        })}
+        variant="primary"
+        isDisabled={disabled || sending || !text.trim()}
         data-testid="im-msg-send"
       >
         {sending ? t('input.sending') : t('input.send')}
-      </button>
+      </Button>
         </>
       )}
       </div>

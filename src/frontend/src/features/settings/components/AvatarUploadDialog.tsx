@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { Modal } from '@/components/Modal'
 import { keys } from '@/api/queryKeys'
 import { uploadAvatar } from '@/features/auth/api/uploadAvatar'
@@ -292,41 +293,17 @@ export const AvatarUploadDialog = ({ onClose }: { onClose: () => void }) => {
             width: '100%',
           })}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            className={css({
-              paddingX: '1rem',
-              paddingY: '0.5rem',
-              borderRadius: '0.5rem',
-              border: '1px solid token(colors.greyscale.300)',
-              backgroundColor: 'greyscale.000',
-              fontSize: '0.875rem',
-              cursor: 'pointer',
-            })}
-          >
+          <Button variant="secondary" onPress={onClose}>
             {t('cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={!src || busy}
+          </Button>
+          <Button
+            variant="primary"
+            onPress={save}
+            isDisabled={!src || busy}
             data-testid="avatar-save"
-            className={css({
-              paddingX: '1rem',
-              paddingY: '0.5rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              backgroundColor: 'primary.500',
-              color: 'white',
-              fontSize: '0.875rem',
-              fontWeight: 'medium',
-              cursor: 'pointer',
-              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-            })}
           >
             {busy ? t('uploading') : t('save')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

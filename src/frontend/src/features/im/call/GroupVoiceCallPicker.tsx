@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { Modal } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { useUser } from '@/features/auth'
@@ -180,26 +181,14 @@ export const GroupVoiceCallPicker = ({
           <span className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}>
             {t('group.selected', { count: picked.length })}
           </span>
-          <button
-            type="button"
-            disabled={picked.length === 0}
-            onClick={confirm}
+          <Button
+            variant="primary"
+            isDisabled={picked.length === 0}
+            onPress={confirm}
             data-testid="group-call-confirm"
-            className={css({
-              paddingX: '1rem',
-              paddingY: '0.5rem',
-              border: 'none',
-              borderRadius: '0.5rem',
-              backgroundColor:
-                picked.length > 0 ? 'primary.500' : 'greyscale.300',
-              color: 'white',
-              fontSize: '0.875rem',
-              fontWeight: 'medium',
-              cursor: picked.length > 0 ? 'pointer' : 'not-allowed',
-            })}
           >
             {t('call.groupPicker.confirm')}
-          </button>
+          </Button>
         </div>
     </Modal>
   )

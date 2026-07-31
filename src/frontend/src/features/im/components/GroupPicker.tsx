@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css, cx } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { Modal } from '@/components/Modal'
 import { useUser } from '@/features/auth'
 import { DirectoryMultiPicker } from '@/features/contacts'
@@ -129,26 +130,15 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
           data-testid="group-picker-name"
           className={cx(inputCls, css({ flex: 1, minWidth: 0 }))}
         />
-        <button
-          type="button"
-          disabled={!canCreate}
-          onClick={() => onCreate([...selected.keys()], name.trim())}
+        <Button
+          variant="primary"
+          isDisabled={!canCreate}
+          onPress={() => onCreate([...selected.keys()], name.trim())}
           data-testid="group-picker-create"
-          className={css({
-            flexShrink: 0,
-            paddingX: '1rem',
-            paddingY: '0.5rem',
-            border: 'none',
-            borderRadius: '0.5rem',
-            backgroundColor: canCreate ? 'primary.500' : 'greyscale.300',
-            color: 'white',
-            fontSize: '0.875rem',
-            fontWeight: 'medium',
-            cursor: canCreate ? 'pointer' : 'not-allowed',
-          })}
+          className={css({ flexShrink: 0 })}
         >
           {t('group.create')}
-        </button>
+        </Button>
       </div>
     </Modal>
   )

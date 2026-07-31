@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { css, cx } from '@/styled-system/css'
 import { selectChrome } from '@/primitives/selectChrome'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
+import { Button } from '@/primitives'
 import { Modal } from '@/components/Modal'
 
 import { fetchApprovalTemplates, submitApproval } from '../api/fetchApproval'
@@ -179,41 +180,17 @@ export const SubmitApprovalDialog = ({
             marginTop: '0.5rem',
           })}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            className={css({
-              paddingX: '1rem',
-              paddingY: '0.5rem',
-              borderRadius: '0.5rem',
-              border: '1px solid token(colors.greyscale.300)',
-              backgroundColor: 'greyscale.000',
-              fontSize: '0.875rem',
-              cursor: 'pointer',
-            })}
-          >
+          <Button variant="secondary" onPress={onClose}>
             {t('form.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!templateId || missingRequired || submitting}
+          </Button>
+          <Button
+            variant="primary"
+            onPress={submit}
+            isDisabled={!templateId || missingRequired || submitting}
             data-testid="approval-submit"
-            className={css({
-              paddingX: '1rem',
-              paddingY: '0.5rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              backgroundColor: 'primary.500',
-              color: 'white',
-              fontSize: '0.875rem',
-              fontWeight: 'medium',
-              cursor: 'pointer',
-              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-            })}
           >
             {t('form.submit')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
