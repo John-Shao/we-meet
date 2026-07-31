@@ -354,5 +354,8 @@
   },
   "starred": {
     "marker": "Favoriet contact"
+  },
+  "specialAlert": {
+    "marker": "Speciale melding aan"
   }
 }

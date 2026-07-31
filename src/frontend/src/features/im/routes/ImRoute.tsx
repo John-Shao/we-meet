@@ -261,12 +261,8 @@ const ImAuthenticated = () => {
     staleTime: 60_000,
   })
 
-  // 星标联系人(私聊名字后跟 ⭐)。星标存的是 we-meet user id,而会话只有 IM uid
-  // —— 用 peerNames 里已解析出的 `id` 做桥,不额外发请求。
-  //
-  // ⚠️ 「他的消息特别提醒」刻意**不在**会话列表出标记:它只影响推送,而会话可能
-  // 自己开着免打扰,两个反向图标并排会让人不知道哪个生效(实测发现)。名单在
-  // App 的 设置 › 通知 › 消息特别提醒 里看。
+  // 逐联系人标记(私聊名字后跟 ⭐ / 🔔)。flag 存的是 we-meet user id,而会话只有
+  // IM uid —— 用 peerNames 里已解析出的 `id` 做桥,不额外发请求。
   const { data: contactPrefs = [] } = useQuery({
     queryKey: ['directory', 'contact-prefs'],
     queryFn: () => fetchContactPrefs(),
@@ -275,16 +271,32 @@ const ImAuthenticated = () => {
   const starredUserIds = new Set(
     contactPrefs.filter((p) => p.is_starred).map((p) => p.user_id)
   )
-  const starredCids = new Set(
-    conversations
-      .filter((c) => c.type === 'direct')
-      .filter((c) => {
-        const peer = c.members.find((u) => u !== currentUserUID)
-        const peerUserId = peer ? peerNames[peer]?.id : undefined
-        return !!peerUserId && starredUserIds.has(peerUserId)
-      })
-      .map((c) => c.cid)
+  const alertUserIds = new Set(
+    contactPrefs.filter((p) => p.special_alert).map((p) => p.user_id)
   )
+  /** 私聊会话 → 对端 we-meet user id(群聊/解析不出来时 undefined)。 */
+  const peerUserIdOf = (c: ConversationSummary): string | undefined => {
+    if (c.type !== 'direct') return undefined
+    const peer = c.members.find((u) => u !== currentUserUID)
+    return peer ? peerNames[peer]?.id : undefined
+  }
+  const cidsWhere = (
+    ids: Set<string>,
+    extra: (c: ConversationSummary) => boolean = () => true
+  ) =>
+    new Set(
+      conversations
+        .filter((c) => {
+          const peerUserId = peerUserIdOf(c)
+          return !!peerUserId && ids.has(peerUserId) && extra(c)
+        })
+        .map((c) => c.cid)
+    )
+  const starredCids = cidsWhere(starredUserIds)
+  // ⚠️ 🔔 排掉 muted 的会话:那里穿透不会发生(jusi 在发 webhook 前就把 muted
+  // 成员剔掉了),显示「会通知你」就是承诺一件不做的事。标记的缺席正好如实表达
+  // 「你的特别提醒在这个会话上被免打扰盖过了」。⭐ 无此问题 —— 它只声称归类。
+  const specialAlertCids = cidsWhere(alertUserIds, (c) => !c.muted)
 
   // group → meta.name(无名兜底);direct → 对端显示名(兜底「私聊」)。
   const nameOf = (c: ConversationSummary): string => {
@@ -763,6 +775,7 @@ const ImAuthenticated = () => {
               onDelete={handleDelete}
               mentionedCids={mentionedCids}
               starredCids={starredCids}
+              specialAlertCids={specialAlertCids}
               previewOf={previewOf}
             />
           </aside>

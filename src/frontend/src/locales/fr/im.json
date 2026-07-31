@@ -354,5 +354,8 @@
   },
   "starred": {
     "marker": "Contact favori"
+  },
+  "specialAlert": {
+    "marker": "Alertes spéciales activées"
   }
 }

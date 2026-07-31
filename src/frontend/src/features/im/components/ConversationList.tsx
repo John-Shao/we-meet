@@ -25,6 +25,14 @@ interface Props {
   /** cids whose direct peer is a 星标联系人 → show a ⭐ after the name. */
   starredCids?: Set<string>
   /**
+   * cids whose direct peer has 他的消息特别提醒 on → 🔔 marker.
+   *
+   * ⚠️ Callers must exclude muted conversations: there the bypass cannot happen
+   * (jusi drops muted members before the push webhook), so a "will notify you"
+   * icon next to the 免打扰 dot would be a promise we do not keep.
+   */
+  specialAlertCids?: Set<string>
+  /**
    * Last-message preview line (P11): formatted text (group: "sender: body";
    * direct: body) + the message unix-ms timestamp. Null when there's nothing
    * to preview (empty / fully-cleared conversation).
@@ -61,6 +69,7 @@ export const ConversationList = ({
   onDelete,
   mentionedCids,
   starredCids,
+  specialAlertCids,
   previewOf,
 }: Props) => {
   const { t, i18n } = useTranslation('im')
@@ -201,6 +210,20 @@ export const ConversationList = ({
                         })}
                       >
                         ⭐
+                      </span>
+                    )}
+                    {/* 「他的消息特别提醒」:一个铃铛。muted 的会话已在上游排除,
+                        所以它绝不会和免打扰的灰点并排自相矛盾。 */}
+                    {specialAlertCids?.has(c.cid) && (
+                      <span
+                        aria-label={t('specialAlert.marker')}
+                        title={t('specialAlert.marker')}
+                        className={css({
+                          flexShrink: 0,
+                          fontSize: '0.6875rem',
+                        })}
+                      >
+                        🔔
                       </span>
                     )}
                   </span>

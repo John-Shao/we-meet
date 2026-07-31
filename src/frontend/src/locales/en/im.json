@@ -359,5 +359,8 @@
   },
   "starred": {
     "marker": "Starred contact"
+  },
+  "specialAlert": {
+    "marker": "Special alerts on"
   }
 }
