@@ -246,9 +246,12 @@ const ContactsAuthenticated = () => {
             >
               {t('starred.title')}
             </h2>
+            {/* dense 而非 sm:sm 不带字号,会吃到浏览器默认 16px,比同页的
+                「发消息」大一号 —— 正是 buttonRecipe 里 dense 那档点名要收口的
+                「通讯录『添加』vs『发消息』」不一致。 */}
             <Button
               variant="secondary"
-              size="sm"
+              size="dense"
               onPress={() => setAddingStarred(true)}
               data-testid="contacts-starred-add"
             >
@@ -389,9 +392,11 @@ const ContactsAuthenticated = () => {
                           marginRight: '0.5rem',
                         })}
                       >
+                        {/* 与其它分组行尾的「发消息」同档(dense):它俩占同一个
+                            列位,尺寸必须一致,否则切分组时行高会跳。 */}
                         <Button
                           variant="secondaryText"
-                          size="sm"
+                          size="dense"
                           onPress={() =>
                             void toggleContactPref(member, { is_starred: false })
                           }
