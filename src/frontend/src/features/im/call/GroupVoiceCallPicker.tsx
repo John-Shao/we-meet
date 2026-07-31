@@ -176,6 +176,7 @@ export const GroupVoiceCallPicker = ({
           </span>
           <Button
             variant="primary"
+            size="action"
             isDisabled={picked.length === 0}
             onPress={confirm}
             data-testid="group-call-confirm"

@@ -293,11 +293,12 @@ export const AvatarUploadDialog = ({ onClose }: { onClose: () => void }) => {
             width: '100%',
           })}
         >
-          <Button variant="secondary" onPress={onClose}>
+          <Button variant="secondary" size="action" onPress={onClose}>
             {t('cancel')}
           </Button>
           <Button
             variant="primary"
+            size="action"
             onPress={save}
             isDisabled={!src || busy}
             data-testid="avatar-save"

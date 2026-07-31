@@ -94,11 +94,12 @@ export const StarredAddDialog = ({
       />
 
       <div className={footerCls}>
-        <Button variant="secondaryText" onPress={onClose} isDisabled={busy}>
+        <Button variant="secondaryText" size="action" onPress={onClose} isDisabled={busy}>
           {t('starred.cancel')}
         </Button>
         <Button
           variant="primary"
+          size="action"
           onPress={confirm}
           isDisabled={busy}
           data-testid="starred-add-confirm"

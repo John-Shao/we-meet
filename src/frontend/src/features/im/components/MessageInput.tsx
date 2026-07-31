@@ -604,6 +604,7 @@ export const MessageInput = ({
       <Button
         type="submit"
         variant="primary"
+        size="action"
         isDisabled={disabled || sending || !text.trim()}
         data-testid="im-msg-send"
       >

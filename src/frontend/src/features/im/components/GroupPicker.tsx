@@ -132,6 +132,7 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
         />
         <Button
           variant="primary"
+          size="action"
           isDisabled={!canCreate}
           onPress={() => onCreate([...selected.keys()], name.trim())}
           data-testid="group-picker-create"

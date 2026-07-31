@@ -200,6 +200,7 @@ export const MeetInvitePicker = ({
           </span>
           <Button
             variant="primary"
+            size="action"
             isDisabled={selected.size === 0}
             onPress={confirm}
             data-testid="meet-invite-confirm"

@@ -1043,6 +1043,7 @@ export const ConversationCalendarPanel = ({
         )}
         <Button
           variant="primary"
+          size="action"
           isDisabled={!sel}
           onPress={() => setDialogOpen(true)}
           data-testid="freebusy-create"
@@ -1260,6 +1261,7 @@ const MemberPicker = ({
         </span>
         <Button
           variant="primary"
+          size="action"
           onPress={() => onConfirm(temp)}
           data-testid="freebusy-picker-confirm"
         >

@@ -174,9 +174,11 @@ export const ReminderPane = () => {
             </div>
             {banner.room_slug && (
               <div>
+                {/* 提醒横幅里的主动作,不是列表内的小号动作 —— 走常规 14px
+                    的 action 档(原手搓也是 0.875rem),别退回 dense。 */}
                 <Button
                   variant="secondary"
-                  size="dense"
+                  size="action"
                   onPress={() => navigate(`/${banner.room_slug}`)}
                   data-testid="reminder-join"
                 >

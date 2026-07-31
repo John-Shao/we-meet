@@ -504,11 +504,12 @@ export const CreateEventDialog = ({
           borderTop: '1px solid token(colors.greyscale.200)',
         })}
       >
-        <Button variant="secondary" onPress={onClose}>
+        <Button variant="secondary" size="action" onPress={onClose}>
           {t('form.cancel')}
         </Button>
         <Button
           variant="primary"
+          size="action"
           isDisabled={!canCreate}
           onPress={submit}
           data-testid="event-create"

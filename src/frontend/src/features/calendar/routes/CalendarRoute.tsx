@@ -337,6 +337,7 @@ const CalendarAuthenticated = () => {
           >
             <Button
               variant="primary"
+              size="action"
               onPress={() => openCreate(null)}
               data-testid="calendar-create"
             >

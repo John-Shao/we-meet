@@ -336,6 +336,7 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
           {detail?.room_slug && (
             <Button
               variant="primary"
+              size="action"
               onPress={() => navigate(`/${detail.room_slug}`)}
               data-testid="agenda-join"
               className={joinBtnCls}

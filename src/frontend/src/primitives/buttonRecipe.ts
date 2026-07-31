@@ -6,9 +6,14 @@ import { type RecipeVariantProps, cva } from '@/styled-system/css'
  *   搜索框、筛选/建议 chip、头像,动作按钮一律不用胶囊。
  * - 填充分工:主操作=primary(实心蓝)、次操作=secondary(线框)、弱操作=
  *   secondaryText(纯文字)。新按钮优先走本基元,别再手搓 <button> + 裸圆角。
- * - 字号:各 size 刻度**只管圆角和内边距,不设 font-size**(全站 600+ 处按钮都继承
- *   上下文,这是既有行为,别去改 default/sm/xs 的字号——会一次性动到全站)。唯一
- *   例外是 `dense`,专给列表内的小号动作按钮,自带 13px,见下面它的注释。
+ * - 字号:`default`/`sm`/`xs`/`compact` **只管圆角和内边距,不设 font-size**,
+ *   渲染大小取决于外层容器(全站 600+ 处在用且依赖这个继承行为,别去补字号——
+ *   会一次性动到全站,其中落在小字号容器里的会被放大)。
+ *   **自带字号的只有两档,新代码优先用它们**:
+ *     `action` 14px —— 常规动作按钮(对话框「取消/确定」、页头「＋ 新建」)
+ *     `dense`  13px —— 列表/面板内的小号动作按钮(「发消息」「同意」「催办」)
+ *   踩过的坑:本仓库 html/body 没设 font-size,所以用 `default` 的按钮在对话框里
+ *   会吃到浏览器默认 16px,比同框 14px 的字段标签大一号。
  * - 图标钮:走 `icon24/icon28/icon32` 三档固定盒子 + `quaternaryText`
  *   (删除类用 `quaternaryDanger`),按容器密度选档,别再手搓 width/height。
  * - 行内文字链(齐边缘、无盒子的「更换」「复制」这类)**不属于本基元** ——
@@ -50,6 +55,29 @@ export const buttonRecipe = cva({
         borderRadius: 8,
         paddingX: '0.5',
         paddingY: '0.625',
+        '--square-padding': '{spacing.0.625}',
+      },
+      /**
+       * 常规动作按钮(对话框底部的「取消 / 确定」、页头的「＋ 新建日程」这类)。
+       * **新代码要的基本都是这一档,不是 `default`。**
+       *
+       * 几何与 `default` 完全相同,唯一区别是自带 14px 字号 —— 而这正是它存在的
+       * 理由:`default` 不设字号,渲染出来取决于外层容器,而本仓库 html/body 没设
+       * font-size,于是对话框里的按钮会吃到浏览器默认的 16px,比同框 14px 的字段
+       * 标签明显大一号(实测反馈:「新建日程」「创建」「取消」看上去不协调)。
+       *
+       * 14px 不是拍的:归位前这类按钮手搓时 12 个样本全都写着 0.875rem,本档只是
+       * 把这个既有规范收进基元,让调用点不必再各写一遍。
+       *
+       * 那为什么不直接给 `default` 补字号?——全站 600+ 处在用它、且依赖继承,
+       * 其中落在 13px 容器里的会被这一改**放大**,影响面无法逐个目视核对。
+       * 所以新增一档opt-in,`default` 留给既有调用点不动。
+       */
+      action: {
+        borderRadius: 8,
+        paddingX: '1',
+        paddingY: '0.625',
+        fontSize: '0.875rem',
         '--square-padding': '{spacing.0.625}',
       },
       /**

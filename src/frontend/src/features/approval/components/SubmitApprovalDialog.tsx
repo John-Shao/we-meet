@@ -180,11 +180,12 @@ export const SubmitApprovalDialog = ({
             marginTop: '0.5rem',
           })}
         >
-          <Button variant="secondary" onPress={onClose}>
+          <Button variant="secondary" size="action" onPress={onClose}>
             {t('form.cancel')}
           </Button>
           <Button
             variant="primary"
+            size="action"
             onPress={submit}
             isDisabled={!templateId || missingRequired || submitting}
             data-testid="approval-submit"

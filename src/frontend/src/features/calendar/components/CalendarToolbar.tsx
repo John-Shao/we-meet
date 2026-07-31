@@ -17,12 +17,6 @@ import { Button } from '@/primitives'
 // 飞书分段控件顺序是 日|周|月,与 rbc 传入的 views 顺序无关,这里显式排序。
 const VIEW_ORDER: View[] = ['day', 'week', 'month', 'agenda']
 
-/**
- * 「今天」是文字按钮而非图标钮:外观走基元 quaternaryText,这里只留 14px 字号
- * ——它跟右侧日期标题(1rem)同排,继承上下文会偏大。
- */
-const todayBtn = css({ fontSize: '0.875rem' })
-
 const segmentBase = css({
   paddingX: '1.25rem',
   paddingY: '0.4375rem',
@@ -134,7 +128,7 @@ export function CalendarToolbar<
         </Button>
         <Button
           variant="quaternaryText"
-          className={todayBtn}
+          size="action"
           onPress={() => onNavigate('TODAY')}
         >
           {t('grid.today')}

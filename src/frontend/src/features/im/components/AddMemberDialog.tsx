@@ -178,6 +178,7 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
           </span>
           <Button
             variant="primary"
+            size="action"
             isDisabled={!canAdd}
             onPress={confirm}
             data-testid="add-member-confirm"

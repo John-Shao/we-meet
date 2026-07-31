@@ -73,11 +73,12 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
       />
 
       <div className={footerCls}>
-        <Button variant="secondary" onPress={onClose}>
+        <Button variant="secondary" size="action" onPress={onClose}>
           {t('form.cancel')}
         </Button>
         <Button
           variant="primary"
+          size="action"
           onPress={() => onConfirm(draft, avatarsRef.current)}
           data-testid="bulk-attendee-confirm"
         >
