@@ -90,9 +90,11 @@ export const InvitationsPanel = () => {
                 size="dense"
                 onPress={() => revoke(inv)}
                 className={css({
-                  color: 'error.700',
+                  // 同 Members 的 menuItemDanger:error.50 不存在(hover 底色
+                  // 被丢弃),且 error 反向色阶下 error.700 是浅粉、压白底 2.35:1。
+                  color: 'danger.subtle-text',
                   borderColor: 'greyscale.300',
-                  _hover: { backgroundColor: 'error.50' },
+                  _hover: { backgroundColor: 'danger.subtle' },
                 })}
               >
                 {t('invite.revoke')}

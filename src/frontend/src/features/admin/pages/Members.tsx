@@ -501,6 +501,10 @@ const menuItemDanger = css({
   cursor: 'pointer',
   outline: 'none',
   fontSize: '0.875rem',
-  color: 'error.700',
-  _hover: { backgroundColor: 'error.50' },
+  // 两个坑一起修:① error.50 这个 token 不存在(error 色阶是 100–950),
+  // 产出的是非法字面量、hover 底色整条被丢弃;② error 是**反向色阶**
+  // (100 最暗、950 最亮),error.700=#F28D8A 是浅粉,压在白菜单上只有 2.35:1。
+  // 换成会翻转的 danger.subtle 配对:浅色 6.5:1、深色 12.7:1。
+  color: 'danger.subtle-text',
+  _hover: { backgroundColor: 'danger.subtle' },
 })
