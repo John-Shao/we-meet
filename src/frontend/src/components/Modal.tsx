@@ -118,3 +118,38 @@ export const Modal = ({
     </div>
   )
 }
+
+/**
+ * 对话框标题栏右上角的关闭 ✕。
+ *
+ * 原先 6 个对话框各自 `const closeBtn = css({...})` 配同一段 5 行 markup,
+ * 字节级完全相同(日程新建/批量加人/加群成员/群语音/会议邀请/星标添加),
+ * 唯一的变量是无障碍名 —— 各自命名空间下的「取消」。收成一个组件,新对话框
+ * 直接用,别再抄第七份。
+ *
+ * 样式与原先逐字一致(含「没有 hover 态」),这一步只做去重不改外观。
+ */
+export const ModalCloseButton = ({
+  onClose,
+  label,
+}: {
+  onClose: () => void
+  /** 无障碍名(✕ 字形本身读不出意思)。 */
+  label: string
+}) => (
+  <button
+    type="button"
+    onClick={onClose}
+    aria-label={label}
+    className={css({
+      border: 'none',
+      background: 'transparent',
+      fontSize: '1.25rem',
+      lineHeight: 1,
+      cursor: 'pointer',
+      color: 'greyscale.600',
+    })}
+  >
+    ×
+  </button>
+)

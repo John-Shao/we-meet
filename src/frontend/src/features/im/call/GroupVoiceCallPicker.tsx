@@ -5,7 +5,7 @@ import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalCloseButton } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
@@ -101,14 +101,7 @@ export const GroupVoiceCallPicker = ({
           >
             {title ?? t('call.groupPicker.title')}
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t('call.cancel')}
-            className={closeBtn}
-          >
-            ×
-          </button>
+          <ModalCloseButton onClose={onClose} label={t('call.cancel')} />
         </div>
         <div className={css({ overflowY: 'auto', flex: 1 })}>
           {isFetching && candidates.length === 0 ? (
@@ -209,12 +202,4 @@ const modalFoot = css({
   paddingX: '1rem',
   paddingY: '0.75rem',
   borderTop: '1px solid token(colors.greyscale.200)',
-})
-const closeBtn = css({
-  border: 'none',
-  background: 'transparent',
-  fontSize: '1.25rem',
-  lineHeight: 1,
-  cursor: 'pointer',
-  color: 'greyscale.600',
 })

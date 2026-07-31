@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalCloseButton } from '@/components/Modal'
 import { Button } from '@/primitives'
 
 import { DirectoryMultiPicker } from './DirectoryMultiPicker'
@@ -75,14 +75,7 @@ export const StarredAddDialog = ({
     >
       <div className={headerCls}>
         <h2 className={titleCls}>{t('starred.addTitle')}</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('starred.cancel')}
-          className={closeBtnCls}
-        >
-          ×
-        </button>
+        <ModalCloseButton onClose={onClose} label={t('starred.cancel')} />
       </div>
 
       <DirectoryMultiPicker
@@ -133,14 +126,6 @@ const titleCls = css({
   color: 'greyscale.900',
 })
 
-const closeBtnCls = css({
-  border: 'none',
-  background: 'transparent',
-  fontSize: '1.25rem',
-  lineHeight: 1,
-  cursor: 'pointer',
-  color: 'greyscale.600',
-})
 
 const footerCls = css({
   display: 'flex',

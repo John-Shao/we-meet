@@ -5,6 +5,7 @@ import { addDays, addYears, format } from 'date-fns'
 import { zhCN, enUS, fr, de, nl, type Locale } from 'date-fns/locale'
 
 import { css, cx } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { MemberAvatar } from '@/features/contacts'
 
@@ -333,14 +334,14 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
             )}
           </div>
           {detail?.room_slug && (
-            <button
-              type="button"
-              onClick={() => navigate(`/${detail.room_slug}`)}
+            <Button
+              variant="primary"
+              onPress={() => navigate(`/${detail.room_slug}`)}
               data-testid="agenda-join"
               className={joinBtnCls}
             >
               {t('card.join')}
-            </button>
+            </Button>
           )}
         </div>
       </ResizablePanel>
@@ -528,18 +529,8 @@ const personListCls = css({
 })
 
 /** 进入会议:样式对齐 EventDetailDialog 的 detail-join,沉底常驻。 */
-const joinBtnCls = css({
-  marginTop: '0.75rem',
-  paddingX: '1rem',
-  paddingY: '0.5rem',
-  border: 'none',
-  borderRadius: '0.5rem',
-  backgroundColor: 'primary.500',
-  color: 'white',
-  fontSize: '0.875rem',
-  fontWeight: 'medium',
-  cursor: 'pointer',
-})
+/** 只留定位:「进入会议」的外观全走基元 primary。 */
+const joinBtnCls = css({ marginTop: '0.75rem' })
 
 const detailRowCls = css({
   display: 'flex',

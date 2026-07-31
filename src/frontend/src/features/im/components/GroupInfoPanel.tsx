@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { Switch } from '@/primitives/Switch'
 import { useConfirm } from '@/components/ConfirmProvider'
 
@@ -425,15 +426,15 @@ export const GroupInfoPanel = ({
                 data-testid="group-rename-input"
                 className={inputCls}
               />
-              <button
-                type="button"
-                disabled={busy}
-                onClick={saveName}
+              <Button
+                variant="primary"
+                size="dense"
+                isDisabled={busy}
+                onPress={saveName}
                 data-testid="group-rename-save"
-                className={primaryBtn}
               >
                 {t('manage.save')}
-              </button>
+              </Button>
             </div>
           ) : (
             <div
@@ -525,22 +526,22 @@ export const GroupInfoPanel = ({
                 })}
               />
               <div className={editActions}>
-                <button
-                  type="button"
-                  onClick={() => setEditingDesc(false)}
-                  className={ghostBtn}
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={() => setEditingDesc(false)}
                 >
                   {t('manage.cancel')}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={saveDescription}
+                </Button>
+                <Button
+                  variant="primary"
+                  size="dense"
+                  isDisabled={busy}
+                  onPress={saveDescription}
                   data-testid="group-desc-save"
-                  className={primaryBtn}
                 >
                   {t('manage.save')}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -590,15 +591,15 @@ export const GroupInfoPanel = ({
                 data-testid="group-nick-input"
                 className={inputCls}
               />
-              <button
-                type="button"
-                disabled={busy}
-                onClick={saveNickname}
+              <Button
+                variant="primary"
+                size="dense"
+                isDisabled={busy}
+                onPress={saveNickname}
                 data-testid="group-nick-save"
-                className={primaryBtn}
               >
                 {t('manage.save')}
-              </button>
+              </Button>
             </div>
           ) : (
             <p
@@ -836,27 +837,6 @@ const inputCls = css({
   fontSize: '0.875rem',
   outline: 'none',
   _focus: { borderColor: 'primary.500' },
-})
-
-const primaryBtn = css({
-  paddingX: '0.75rem',
-  border: 'none',
-  borderRadius: '0.5rem',
-  backgroundColor: 'primary.500',
-  color: 'white',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-})
-
-const ghostBtn = css({
-  paddingX: '0.75rem',
-  paddingY: '0.25rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.700',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
 })
 
 const editBtn = css({

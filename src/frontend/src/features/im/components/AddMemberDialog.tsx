@@ -5,7 +5,7 @@ import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalCloseButton } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -88,9 +88,7 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
           <h2 className={css({ margin: 0, fontSize: '1rem', fontWeight: 'bold', color: 'greyscale.900' })}>
             {t('manage.addTitle')}
           </h2>
-          <button type="button" onClick={onClose} aria-label={t('manage.cancel')} className={closeBtn}>
-            ×
-          </button>
+          <ModalCloseButton onClose={onClose} label={t('manage.cancel')} />
         </div>
         <div className={css({ padding: '0.75rem 1rem' })}>
           <input
@@ -206,14 +204,6 @@ const modalFoot = css({
   paddingX: '1rem',
   paddingY: '0.75rem',
   borderTop: '1px solid token(colors.greyscale.200)',
-})
-const closeBtn = css({
-  border: 'none',
-  background: 'transparent',
-  fontSize: '1.25rem',
-  lineHeight: 1,
-  cursor: 'pointer',
-  color: 'greyscale.600',
 })
 const inputCls = css({
   width: '100%',

@@ -319,22 +319,22 @@ export const AdminMeetingRooms = () => {
               </table>
 
               <div className={pagerCls}>
-                <button
-                  type="button"
-                  className={pagerBtnCls}
-                  disabled={!rooms?.previous}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  isDisabled={!rooms?.previous}
+                  onPress={() => setPage((p) => Math.max(1, p - 1))}
                 >
                   {t('actions.previous')}
-                </button>
-                <button
-                  type="button"
-                  className={pagerBtnCls}
-                  disabled={!rooms?.next}
-                  onClick={() => setPage((p) => p + 1)}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  isDisabled={!rooms?.next}
+                  onPress={() => setPage((p) => p + 1)}
                 >
                   {t('actions.next')}
-                </button>
+                </Button>
               </div>
             </>
           )}
@@ -483,15 +483,4 @@ const pagerCls = css({
   justifyContent: 'flex-end',
   gap: '0.5rem',
   marginTop: '1rem',
-})
-const pagerBtnCls = css({
-  paddingX: '0.75rem',
-  paddingY: '0.375rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.375rem',
-  backgroundColor: 'greyscale.000',
-  fontSize: '0.8125rem',
-  color: 'greyscale.700',
-  cursor: 'pointer',
-  _disabled: { opacity: 0.4, cursor: 'not-allowed' },
 })

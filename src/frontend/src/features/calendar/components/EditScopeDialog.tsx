@@ -4,6 +4,7 @@ import { RadioGroup } from 'react-aria-components'
 
 import { css } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
+import { Button } from '@/primitives'
 import { Radio } from '@/primitives/Radio'
 
 import type { EditScope } from '../api/ApiCalendar'
@@ -77,56 +78,22 @@ export const EditScopeDialog = ({
             marginTop: '1.25rem',
           })}
         >
-          <button type="button" onClick={onClose} className={scopeBtn}>
+          <Button variant="secondary" size="dense" onPress={onClose}>
             {t('form.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(scope)}
+          </Button>
+          {/* 危险/常规走 variant 切换 —— 基元每个 variant 自己是一整套完整规则,
+              不存在手搓时那种「底色赢了、字色被基类盖掉」的原子类顺序问题
+              (panda-cx-atomic-order-trap),所以不用再抄两份完整类。 */}
+          <Button
+            variant={danger ? 'danger' : 'primary'}
+            size="dense"
+            onPress={() => onConfirm(scope)}
             data-testid="scope-confirm"
-            className={
-              // 完整类切换:cx 叠加同属性原子类按样式表顺序取胜,white 字
-              // 主色底可能被 scopeBtn 基类盖掉(panda-cx-atomic-order-trap)。
-              danger ? scopeConfirmDanger : scopeConfirmPrimary
-            }
           >
             {t('form.confirm')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
   )
 }
-
-const scopeBtn = css({
-  paddingX: '0.875rem',
-  paddingY: '0.4375rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.700',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-})
-
-const scopeConfirmPrimary = css({
-  paddingX: '0.875rem',
-  paddingY: '0.4375rem',
-  border: '1px solid token(colors.primary.500)',
-  borderRadius: '0.5rem',
-  backgroundColor: 'primary.500',
-  color: 'white',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-})
-
-const scopeConfirmDanger = css({
-  paddingX: '0.875rem',
-  paddingY: '0.4375rem',
-  border: '1px solid token(colors.danger.600)',
-  borderRadius: '0.5rem',
-  backgroundColor: 'danger.600',
-  color: 'white',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-})

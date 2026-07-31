@@ -19,6 +19,7 @@ import {
 } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { Modal } from '@/components/Modal'
 import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
@@ -221,14 +222,14 @@ export const EventDetailDialog = ({
             发给别人」的高频动作,原先只有底部一个「进入会议」按钮拿不到。 */}
         {event.room_slug && (
           <InfoRow icon={RiVidiconLine}>
-            <button
-              type="button"
-              onClick={onJoin}
+            <Button
+              variant="primary"
+              size="dense"
+              onPress={onJoin}
               data-testid="detail-join"
-              className={joinBtnCls}
             >
               {t('card.join')}
-            </button>
+            </Button>
             <div className={meetingBoxCls}>
               <div className={meetingRowCls}>
                 <span className={meetingLabelCls}>{t('detail.meetingNo')}</span>
@@ -410,19 +411,20 @@ export const EventDetailDialog = ({
         >
           {(['accepted', 'tentative', 'declined'] as RSVPStatus[]).map(
             (status) => (
-              <button
+              // 选中/未选走 variant 切换:基元的每个 variant 自身就是一整套
+              // 完整规则,不会出现手搓时那种「底色赢了、字色被基类盖掉」的原子类
+              // 顺序问题,所以不必再抄两份完整类。
+              <Button
                 key={status}
-                type="button"
-                onClick={() => handle(status)}
+                variant={rsvp === status ? 'primary' : 'secondary'}
+                size="dense"
+                onPress={() => handle(status)}
                 data-testid={`detail-rsvp-${status}`}
                 aria-pressed={rsvp === status}
-                // 选中/未选两个完整类整体切换 —— cx 叠加同属性原子类时按
-                // 样式表顺序取胜(非书写顺序),选中态的 white 字曾被基类的
-                // greyscale.700 盖掉,蓝底深灰字区分度差。
-                className={rsvp === status ? rsvpBtnActive : rsvpBtn}
+                className={rsvpFlexCls}
               >
                 {t(`rsvp.${status}`)}
-              </button>
+              </Button>
             )
           )}
         </div>
@@ -666,23 +668,6 @@ const statusPendingCls = css({ color: 'greyscale.400' })
 
 /* ---------- meeting ---------- */
 
-const joinBtnCls = css({
-  paddingX: '0.875rem',
-  paddingY: '0.375rem',
-  border: 'none',
-  borderRadius: 8,
-  backgroundColor: 'primary.500',
-  color: 'white',
-  fontSize: '0.8125rem',
-  fontWeight: 'medium',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'primary.600' },
-  _dark: {
-    backgroundColor: 'primaryDark.500',
-    _hover: { backgroundColor: 'primaryDark.700' },
-  },
-})
-
 /** 会议号按位数分组:8→4+4、9→3+3+3、6→3+3(与会议详情面板同口径)。 */
 const formatSlugDigits = (slug: string): string => {
   const digits = slug.replace(/\D/g, '')
@@ -795,30 +780,5 @@ const footerCls = css({
   borderTop: '1px solid token(colors.greyscale.100)',
 })
 
-const rsvpBtn = css({
-  flex: 1,
-  paddingY: '0.5rem',
-  borderRadius: 8,
-  border: '1px solid token(colors.greyscale.300)',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.700',
-  _hover: { backgroundColor: 'greyscale.100' },
-})
-
-const rsvpBtnActive = css({
-  flex: 1,
-  paddingY: '0.5rem',
-  borderRadius: 8,
-  border: '1px solid token(colors.primary.500)',
-  fontSize: '0.8125rem',
-  fontWeight: 'medium',
-  cursor: 'pointer',
-  backgroundColor: 'primary.500',
-  color: 'white',
-  _dark: {
-    backgroundColor: 'primaryDark.500',
-    borderColor: 'primaryDark.500',
-  },
-})
+/** 三个 RSVP 键平分底栏宽度;其余外观全交给基元的 primary / secondary。 */
+const rsvpFlexCls = css({ flex: 1 })

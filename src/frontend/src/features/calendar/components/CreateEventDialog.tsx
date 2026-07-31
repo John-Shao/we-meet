@@ -5,7 +5,7 @@ import { Button } from '@/primitives'
 import { css, cx } from '@/styled-system/css'
 import { selectChrome } from '@/primitives/selectChrome'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalCloseButton } from '@/components/Modal'
 import { Switch } from '@/primitives/Switch'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useUser } from '@/features/auth'
@@ -19,12 +19,7 @@ import {
   useCalendarSettings,
 } from '../hooks/useCalendarSettings'
 import { AttendeePicker } from './AttendeePicker'
-import {
-  fieldCls,
-  ghostBtn,
-  inputCls,
-  labelCls,
-} from './formStyles'
+import { fieldCls, inputCls, labelCls } from './formStyles'
 
 interface Props {
   onCreated: (event: CalendarEvent) => void
@@ -272,14 +267,7 @@ export const CreateEventDialog = ({
         >
           {isEdit ? t('form.editTitle') : t('form.title')}
         </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('form.cancel')}
-          className={closeBtn}
-        >
-          ×
-        </button>
+        <ModalCloseButton onClose={onClose} label={t('form.cancel')} />
       </div>
 
       <div
@@ -516,9 +504,9 @@ export const CreateEventDialog = ({
           borderTop: '1px solid token(colors.greyscale.200)',
         })}
       >
-        <button type="button" onClick={onClose} className={ghostBtn}>
+        <Button variant="secondary" onPress={onClose}>
           {t('form.cancel')}
-        </button>
+        </Button>
         <Button
           variant="primary"
           isDisabled={!canCreate}
@@ -539,14 +527,6 @@ const headerCls = css({
   paddingX: '1rem',
   paddingY: '0.75rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
-})
-const closeBtn = css({
-  border: 'none',
-  background: 'transparent',
-  fontSize: '1.25rem',
-  lineHeight: 1,
-  cursor: 'pointer',
-  color: 'greyscale.600',
 })
 const textareaCls = css({
   width: '100%',

@@ -3,7 +3,11 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { chipCls, labelCls } from '@/features/calendar/components/formStyles'
+import {
+  chipCls,
+  labelCls,
+  linkBtnCls,
+} from '@/features/calendar/components/formStyles'
 
 import type { MeetingRoomBrief } from '../api/ApiMeetingRoom'
 import { fetchMeetingRoomAvailability } from '../api/fetchMeetingRooms'
@@ -174,14 +178,6 @@ const headerCls = css({
   alignItems: 'center',
   justifyContent: 'space-between',
   marginBottom: '0.25rem',
-})
-const linkBtnCls = css({
-  border: 'none',
-  background: 'transparent',
-  color: 'primary.500',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-  _dark: { color: 'primaryDark.700' },
 })
 const selectedRowCls = css({
   display: 'flex',

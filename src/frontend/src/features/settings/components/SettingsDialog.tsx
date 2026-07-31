@@ -18,7 +18,7 @@ import type { RemixiconComponentType } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
 import { useLanguageLabels } from '@/i18n/useLanguageLabels'
-import { type DialogProps } from '@/primitives'
+import { Button, type DialogProps } from '@/primitives'
 import { Switch } from '@/primitives/Switch'
 import { selectChrome } from '@/primitives/selectChrome'
 import { useUser } from '@/features/auth'
@@ -535,23 +535,26 @@ const EditableRow = ({
             }}
             className={editInputCls}
           />
-          <button
-            type="button"
-            onClick={() => setEditing(false)}
-            className={ghostBtnCls}
+          {/* flexShrink:0 —— 同排的输入框是 flex:1,窄窗口下会把按钮压扁。 */}
+          <Button
+            variant="secondary"
+            size="dense"
+            onPress={() => setEditing(false)}
+            className={noShrinkCls}
           >
             {t('systemSettings.account.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={busy}
-            className={primaryBtnCls}
+          </Button>
+          <Button
+            variant="primary"
+            size="dense"
+            onPress={() => void submit()}
+            isDisabled={busy}
+            className={noShrinkCls}
           >
             {busy
               ? t('systemSettings.account.saving')
               : t('systemSettings.account.save')}
-          </button>
+          </Button>
         </div>
       </div>
       {error && <span className={editErrorCls}>{error}</span>}
@@ -791,31 +794,7 @@ const editInputCls = css({
   outline: 'none',
   _focus: { borderColor: 'primary.500' },
 })
-const ghostBtnCls = css({
-  paddingX: '0.875rem',
-  paddingY: '0.4375rem',
-  borderRadius: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.800',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-  flexShrink: 0,
-  _hover: { backgroundColor: 'greyscale.100' },
-})
-const primaryBtnCls = css({
-  paddingX: '0.875rem',
-  paddingY: '0.4375rem',
-  borderRadius: '0.5rem',
-  border: 'none',
-  backgroundColor: 'primary.500',
-  color: 'white',
-  fontSize: '0.8125rem',
-  fontWeight: 'medium',
-  cursor: 'pointer',
-  flexShrink: 0,
-  _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-})
+const noShrinkCls = css({ flexShrink: 0 })
 const editErrorCls = css({ fontSize: '0.8125rem', color: 'danger.600' })
 const avatarBtnCls = css({
   width: '2.5rem',

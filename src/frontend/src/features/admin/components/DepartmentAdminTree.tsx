@@ -9,6 +9,7 @@ import {
 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
+import { treeIconBtn } from './treeStyles'
 
 import type { AdminDepartment } from '../api/adminDepartments'
 
@@ -93,7 +94,7 @@ export const DepartmentAdminTree = ({
                 onClick={() => toggle(d.id)}
                 aria-label={isExpanded ? 'collapse' : 'expand'}
                 aria-expanded={isExpanded}
-                className={iconBtn}
+                className={treeIconBtn}
               >
                 <RiArrowRightSLine
                   size={16}
@@ -145,7 +146,7 @@ export const DepartmentAdminTree = ({
                 onClick={() => onAddChild(d)}
                 aria-label={t('org.newSubDepartment')}
                 title={t('org.newSubDepartment')}
-                className={iconBtn}
+                className={treeIconBtn}
               >
                 <RiAddLine size={16} />
               </button>
@@ -154,7 +155,7 @@ export const DepartmentAdminTree = ({
                 onClick={() => onRename(d)}
                 aria-label={t('org.rename')}
                 title={t('org.rename')}
-                className={iconBtn}
+                className={treeIconBtn}
               >
                 <RiEditLine size={16} />
               </button>
@@ -163,7 +164,7 @@ export const DepartmentAdminTree = ({
                 onClick={() => onMove(d)}
                 aria-label={t('org.move')}
                 title={t('org.move')}
-                className={iconBtn}
+                className={treeIconBtn}
               >
                 <RiFolderTransferLine size={16} />
               </button>
@@ -172,7 +173,7 @@ export const DepartmentAdminTree = ({
                 onClick={() => onDelete(d)}
                 aria-label={t('actions.delete')}
                 title={t('actions.delete')}
-                className={iconBtn}
+                className={treeIconBtn}
               >
                 <RiDeleteBinLine size={16} />
               </button>
@@ -187,17 +188,3 @@ export const DepartmentAdminTree = ({
   return <div>{renderNodes('', 0)}</div>
 }
 
-const iconBtn = css({
-  flexShrink: 0,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '1.5rem',
-  height: '1.75rem',
-  border: 'none',
-  background: 'transparent',
-  cursor: 'pointer',
-  color: 'greyscale.500',
-  borderRadius: '4px',
-  _hover: { backgroundColor: 'greyscale.200', color: 'greyscale.800' },
-})

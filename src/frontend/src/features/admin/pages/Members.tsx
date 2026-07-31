@@ -338,22 +338,22 @@ export const AdminMembers = () => {
         })}
       >
         <span>{t('members.total', { count: data?.count ?? 0 })}</span>
-        <button
-          type="button"
-          disabled={!data?.previous}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          className={pagerBtn}
+        <Button
+          variant="secondary"
+          size="dense"
+          isDisabled={!data?.previous}
+          onPress={() => setPage((p) => Math.max(1, p - 1))}
         >
           {t('members.prev')}
-        </button>
-        <button
-          type="button"
-          disabled={!data?.next}
-          onClick={() => setPage((p) => p + 1)}
-          className={pagerBtn}
+        </Button>
+        <Button
+          variant="secondary"
+          size="dense"
+          isDisabled={!data?.next}
+          onPress={() => setPage((p) => p + 1)}
         >
           {t('members.next')}
-        </button>
+        </Button>
       </div>
       )}
 
@@ -511,14 +511,4 @@ const menuItemDanger = css({
   fontSize: '0.875rem',
   color: 'error.700',
   _hover: { backgroundColor: 'error.50' },
-})
-const pagerBtn = css({
-  padding: '0.25rem 0.625rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '4px',
-  background: 'transparent',
-  cursor: 'pointer',
-  color: 'greyscale.700',
-  _hover: { backgroundColor: 'greyscale.100' },
-  _disabled: { opacity: 0.4, cursor: 'default' },
 })

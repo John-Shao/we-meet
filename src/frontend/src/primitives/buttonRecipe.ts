@@ -116,6 +116,14 @@ export const buttonRecipe = cva({
         '&[data-pressed]': {
           backgroundColor: 'greyscale.100',
         },
+        // 补齐禁用态:此前 secondary 只有 base 的 cursor:default,颜色不变 ——
+        // 禁用的线框按钮和可点的长得一模一样(分页「上一页」到首页时无从判断)。
+        // 与 secondaryText 的禁用色对齐,边框一起褪掉。
+        // 不需要 _dark:greyscale.* 本身随主题翻转(与固定色阶的 primary.* 不同)。
+        '&[data-disabled]': {
+          color: 'greyscale.400',
+          borderColor: 'greyscale.300',
+        },
       },
       secondaryText: {
         backgroundColor: 'transparent',

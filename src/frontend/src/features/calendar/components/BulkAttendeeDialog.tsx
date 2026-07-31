@@ -2,10 +2,9 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Button } from '@/primitives'
 import { DirectoryMultiPicker } from '@/features/contacts'
-
-import { ghostBtn } from './formStyles'
 
 interface Props {
   /** 打开时的已选参与者(id → 名字);对话框内改的是副本。 */
@@ -56,14 +55,7 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
     >
       <div className={headerCls}>
         <h2 className={titleCls}>{t('form.bulkAddTitle')}</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('form.cancel')}
-          className={closeBtnCls}
-        >
-          ×
-        </button>
+        <ModalCloseButton onClose={onClose} label={t('form.cancel')} />
       </div>
 
       <DirectoryMultiPicker
@@ -81,17 +73,16 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
       />
 
       <div className={footerCls}>
-        <button type="button" onClick={onClose} className={ghostBtn}>
+        <Button variant="secondary" onPress={onClose}>
           {t('form.cancel')}
-        </button>
-        <button
-          type="button"
-          onClick={() => onConfirm(draft, avatarsRef.current)}
+        </Button>
+        <Button
+          variant="primary"
+          onPress={() => onConfirm(draft, avatarsRef.current)}
           data-testid="bulk-attendee-confirm"
-          className={confirmBtnCls}
         >
           {t('form.confirm')}
-        </button>
+        </Button>
       </div>
     </Modal>
   )
@@ -113,15 +104,6 @@ const titleCls = css({
   color: 'greyscale.900',
 })
 
-const closeBtnCls = css({
-  border: 'none',
-  background: 'transparent',
-  fontSize: '1.25rem',
-  lineHeight: 1,
-  cursor: 'pointer',
-  color: 'greyscale.600',
-})
-
 const footerCls = css({
   display: 'flex',
   justifyContent: 'flex-end',
@@ -129,17 +111,4 @@ const footerCls = css({
   paddingX: '1rem',
   paddingY: '0.75rem',
   borderTop: '1px solid token(colors.greyscale.200)',
-})
-
-const confirmBtnCls = css({
-  paddingX: '1rem',
-  paddingY: '0.5rem',
-  border: 'none',
-  borderRadius: '0.5rem',
-  backgroundColor: 'primary.500',
-  color: 'white',
-  fontSize: '0.875rem',
-  fontWeight: 'medium',
-  cursor: 'pointer',
-  _dark: { backgroundColor: 'primaryDark.500' },
 })

@@ -8,6 +8,7 @@ import {
 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
+import { treeIconBtn } from './treeStyles'
 
 import type { AdminMeetingRoomNode } from '../api/adminMeetingRooms'
 
@@ -76,7 +77,7 @@ export const MeetingRoomNodeTree = ({
                 onClick={() => toggle(node.id)}
                 aria-label={isExpanded ? 'collapse' : 'expand'}
                 aria-expanded={isExpanded}
-                className={iconBtn}
+                className={treeIconBtn}
               >
                 <RiArrowRightSLine
                   size={16}
@@ -106,7 +107,7 @@ export const MeetingRoomNodeTree = ({
                 onClick={() => onAddChild(node)}
                 aria-label={t('meetingRooms.newSubLevel')}
                 title={t('meetingRooms.newSubLevel')}
-                className={iconBtn}
+                className={treeIconBtn}
               >
                 <RiAddLine size={16} />
               </button>
@@ -115,7 +116,7 @@ export const MeetingRoomNodeTree = ({
                 onClick={() => onEdit(node)}
                 aria-label={t('meetingRooms.editLevel')}
                 title={t('meetingRooms.editLevel')}
-                className={iconBtn}
+                className={treeIconBtn}
               >
                 <RiEditLine size={16} />
               </button>
@@ -124,7 +125,7 @@ export const MeetingRoomNodeTree = ({
                 onClick={() => onDelete(node)}
                 aria-label={t('actions.delete')}
                 title={t('actions.delete')}
-                className={iconBtn}
+                className={treeIconBtn}
               >
                 <RiDeleteBinLine size={16} />
               </button>
@@ -209,18 +210,4 @@ const actionsCls = css({
   paddingRight: '0.375rem',
   opacity: 0,
   transition: 'opacity 0.12s',
-})
-const iconBtn = css({
-  flexShrink: 0,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '1.5rem',
-  height: '1.75rem',
-  border: 'none',
-  background: 'transparent',
-  cursor: 'pointer',
-  color: 'greyscale.500',
-  borderRadius: '4px',
-  _hover: { backgroundColor: 'greyscale.200', color: 'greyscale.800' },
 })
