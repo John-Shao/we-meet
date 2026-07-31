@@ -97,7 +97,7 @@ export const UnifiedInvitePanel = ({
             display: 'flex',
             flexDirection: 'column',
             gap: '0.375rem',
-            backgroundColor: 'greyscale.050',
+            backgroundColor: 'greyscale.50',
           })}
         >
           <div

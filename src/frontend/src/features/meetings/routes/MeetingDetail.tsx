@@ -175,7 +175,7 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
             flexWrap: 'wrap',
             fontSize: '0.8125rem',
             color: 'greyscale.600',
-            backgroundColor: 'greyscale.050',
+            backgroundColor: 'greyscale.50',
             border: '1px solid token(colors.greyscale.200)',
             borderRadius: '0.5rem',
             padding: '0.5rem 0.75rem',
@@ -320,7 +320,7 @@ const ChaptersTab = ({
               borderRadius: '0.5rem',
               padding: '0.25rem 0.375rem',
               cursor: jumpable ? 'pointer' : 'default',
-              _hover: jumpable ? { backgroundColor: 'greyscale.050' } : {},
+              _hover: jumpable ? { backgroundColor: 'greyscale.50' } : {},
             })}
           >
             <span
