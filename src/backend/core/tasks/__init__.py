@@ -12,3 +12,4 @@ silently drops jobs.
 from core.tasks import file as _file  # noqa: F401
 from core.tasks import summary as _summary  # noqa: F401
 from core.tasks import embeddings as _embeddings  # noqa: F401
+from core.tasks import offboarding as _offboarding  # noqa: F401

@@ -28,6 +28,7 @@ from core import models, utils
 from core.api import permissions
 from core.api.directory import get_caller_organization, is_caller_org_admin
 from core.api.viewsets import Pagination
+from core.services import offboarding
 from core.services.audit import record_audit
 
 
@@ -104,6 +105,19 @@ class MembershipAdminSerializer(serializers.ModelSerializer):
             "org_role",
             "is_primary",
             "status",
+            # --- work profile (P10 M1) ---
+            "employee_no",
+            "employee_type",
+            "job_level",
+            "job_sequence",
+            "manager",
+            "dotted_manager",
+            "hire_date",
+            "work_country",
+            "work_city",
+            "alias",
+            "work_station",
+            "extension",
         ]
         read_only_fields = ["id"]
 
@@ -116,6 +130,42 @@ class MembershipAdminSerializer(serializers.ModelSerializer):
         if value is not None and value.organization_id != self._organization().id:
             raise serializers.ValidationError("department must be in your organization")
         return value
+
+    def _validate_dict_item(self, value, scope):
+        """A dictionary FK must belong to this org AND to the right dictionary."""
+        if value is None:
+            return value
+        if value.organization_id != self._organization().id:
+            raise serializers.ValidationError("must be in your organization")
+        if value.scope != scope:
+            raise serializers.ValidationError(
+                f"must be a '{scope}' option, got '{value.scope}'"
+            )
+        return value
+
+    def validate_employee_type(self, value):
+        return self._validate_dict_item(value, models.DictScopeChoices.EMPLOYEE_TYPE)
+
+    def validate_job_level(self, value):
+        return self._validate_dict_item(value, models.DictScopeChoices.JOB_LEVEL)
+
+    def validate_job_sequence(self, value):
+        return self._validate_dict_item(value, models.DictScopeChoices.JOB_SEQUENCE)
+
+    def _validate_manager(self, value, field):
+        if value is None:
+            return value
+        if value.organization_id != self._organization().id:
+            raise serializers.ValidationError("must be in your organization")
+        if self.instance is not None and value.pk == self.instance.pk:
+            raise serializers.ValidationError("a member cannot be their own manager")
+        return value
+
+    def validate_manager(self, value):
+        return self._validate_manager(value, "manager")
+
+    def validate_dotted_manager(self, value):
+        return self._validate_manager(value, "dotted_manager")
 
     def validate(self, attrs):
         """Guard against locking the organization out of administration.
@@ -193,6 +243,25 @@ class MembershipAdminReadSerializer(serializers.Serializer):
     is_primary = serializers.BooleanField(read_only=True)
     status = serializers.CharField(read_only=True)
     department = serializers.SerializerMethodField()
+    # --- work profile (P10 M1) ---
+    employee_no = serializers.CharField(read_only=True)
+    employee_type = serializers.SerializerMethodField()
+    job_level = serializers.SerializerMethodField()
+    job_sequence = serializers.SerializerMethodField()
+    hire_date = serializers.DateField(read_only=True)
+    work_country = serializers.CharField(read_only=True)
+    work_city = serializers.CharField(read_only=True)
+    alias = serializers.CharField(read_only=True)
+    work_station = serializers.CharField(read_only=True)
+    extension = serializers.CharField(read_only=True)
+    source = serializers.CharField(read_only=True)
+    manager = serializers.SerializerMethodField()
+    dotted_manager = serializers.SerializerMethodField()
+    # --- offboarding ---
+    left_at = serializers.DateTimeField(read_only=True)
+    left_reason = serializers.CharField(read_only=True)
+    left_snapshot = serializers.JSONField(read_only=True)
+    left_days = serializers.SerializerMethodField()
 
     def get_avatar_url(self, obj):
         """Short-lived presigned GET URL for the avatar, '' if unset."""
@@ -203,6 +272,86 @@ class MembershipAdminReadSerializer(serializers.Serializer):
         if obj.department_id:
             return {"id": str(obj.department_id), "name": obj.department.name}
         return None
+
+    @staticmethod
+    def _dict_item(item):
+        if item is None:
+            return None
+        return {"id": str(item.id), "code": item.code, "label": item.label}
+
+    def get_employee_type(self, obj):
+        return self._dict_item(obj.employee_type)
+
+    def get_job_level(self, obj):
+        return self._dict_item(obj.job_level)
+
+    def get_job_sequence(self, obj):
+        return self._dict_item(obj.job_sequence)
+
+    @staticmethod
+    def _manager_ref(membership):
+        if membership is None:
+            return None
+        user = membership.user
+        return {
+            "membership_id": str(membership.id),
+            "user_id": str(user.id),
+            "full_name": user.full_name or user.short_name or "",
+        }
+
+    def get_manager(self, obj):
+        return self._manager_ref(obj.manager)
+
+    def get_dotted_manager(self, obj):
+        return self._manager_ref(obj.dotted_manager)
+
+    def get_left_days(self, obj):
+        """Days since leaving — computed, never stored (it would change nightly)."""
+        if not obj.left_at:
+            return None
+        return max((timezone.now() - obj.left_at).days, 0)
+
+
+class _OrgScopedMembershipField(serializers.PrimaryKeyRelatedField):
+    """A membership picker constrained to the caller's own organization."""
+
+    def get_queryset(self):
+        organization = self.context.get("organization")
+        queryset = models.Membership.objects.filter(
+            status=models.MembershipStatusChoices.ACTIVE
+        )
+        return (
+            queryset.filter(organization=organization)
+            if organization
+            else queryset.none()
+        )
+
+
+class OffboardSerializer(serializers.Serializer):
+    """Request body for ``POST /admin/memberships/{id}/offboard/``."""
+
+    left_at = serializers.DateTimeField(required=False, allow_null=True)
+    reason = serializers.CharField(
+        required=False, allow_blank=True, max_length=64, default=""
+    )
+    # Departments this member heads must get a new head, or the caller must say
+    # explicitly that leaving them headless is intended.
+    transfer_head_to = _OrgScopedMembershipField(required=False, allow_null=True)
+    allow_orphan_head = serializers.BooleanField(required=False, default=False)
+    disable_login = serializers.BooleanField(required=False, default=True)
+
+
+class RehireSerializer(serializers.Serializer):
+    """Request body for ``POST /admin/memberships/{id}/rehire/``."""
+
+    department = serializers.PrimaryKeyRelatedField(
+        queryset=models.Department.objects.filter(deleted_at__isnull=True),
+        required=False,
+        allow_null=True,
+    )
+    org_role = serializers.ChoiceField(
+        choices=models.OrgRoleChoices.choices, required=False
+    )
 
 
 class _OrgScopedAdminViewSet(viewsets.GenericViewSet):
@@ -427,24 +576,70 @@ class MembershipAdminViewSet(
             return models.Membership.objects.none()
         queryset = models.Membership.objects.filter(
             organization=organization
-        ).select_related("user", "department")
+        ).select_related(
+            "user",
+            "department",
+            "employee_type",
+            "job_level",
+            "job_sequence",
+            "manager__user",
+            "dotted_manager__user",
+        )
 
         status = self.request.query_params.get("status")
         if status:
             queryset = queryset.filter(status=status)
         department = self.request.query_params.get("department")
         if department:
-            queryset = queryset.filter(department_id=department)
+            # ``?include_subtree=true`` mirrors 飞书's "仅展示部门直属成员" switch
+            # (inverted): off means the whole subtree, on means direct members.
+            if self.request.query_params.get("include_subtree") == "true":
+                node = models.Department.objects.filter(
+                    organization=organization, id=department
+                ).first()
+                queryset = (
+                    queryset.filter(department__path__startswith=node.path)
+                    if node
+                    else queryset.none()
+                )
+            else:
+                queryset = queryset.filter(department_id=department)
         org_role = self.request.query_params.get("org_role")
         if org_role:
             queryset = queryset.filter(org_role=org_role)
+        employee_type = self.request.query_params.get("employee_type")
+        if employee_type:
+            queryset = queryset.filter(employee_type_id=employee_type)
+        # Offboarded-list date range (飞书's 离职日期 filter).
+        left_after = self.request.query_params.get("left_after")
+        if left_after:
+            queryset = queryset.filter(left_at__gte=left_after)
+        left_before = self.request.query_params.get("left_before")
+        if left_before:
+            queryset = queryset.filter(left_at__lte=left_before)
         query = self.request.query_params.get("q", "").strip()
         if query:
             queryset = queryset.filter(
                 Q(user__full_name__icontains=query)
                 | Q(user__email__icontains=query)
+                | Q(employee_no__icontains=query)
+                | Q(title__icontains=query)
             )
-        return queryset.order_by("user__full_name")
+
+        ordering = self.request.query_params.get("ordering") or "user__full_name"
+        allowed = {
+            "user__full_name",
+            "-user__full_name",
+            "hire_date",
+            "-hire_date",
+            "left_at",
+            "-left_at",
+            "employee_no",
+            "-employee_no",
+        }
+        if ordering not in allowed:
+            ordering = "user__full_name"
+        return queryset.order_by(ordering)
 
     @staticmethod
     def _member_label(membership):
@@ -526,3 +721,87 @@ class MembershipAdminViewSet(
             target_id=target_id,
             target_label=label,
         )
+
+    # --- lifecycle (P10 M1) -------------------------------------------------
+
+    @action(detail=True, methods=["get"], url_path="owned-resources")
+    def owned_resources(self, request, *args, **kwargs):
+        """What this member would leave behind — shown before confirming offboard."""
+        return Response(offboarding.collect_owned_resources(self.get_object()))
+
+    @action(detail=True, methods=["post"])
+    def offboard(self, request, *args, **kwargs):
+        """Mark the member as having left.
+
+        Everything downstream (directory visibility, team-based resource access,
+        org-scoped API results) already keys on ``status=ACTIVE``, so this one
+        flag is what removes them — see ``core/services/offboarding``.
+        """
+        membership = self.get_object()
+        serializer = OffboardSerializer(
+            data=request.data, context={"organization": self.get_organization()}
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        report = offboarding.offboard_membership(
+            membership,
+            actor=request.user,
+            left_at=data.get("left_at"),
+            reason=data.get("reason", ""),
+            transfer_head_to=data.get("transfer_head_to"),
+            allow_orphan_head=data.get("allow_orphan_head", False),
+            disable_login=data.get("disable_login", True),
+        )
+        membership.refresh_from_db()
+        return Response(
+            {
+                **report,
+                "membership": MembershipAdminReadSerializer(membership).data,
+            }
+        )
+
+    @action(detail=True, methods=["post"])
+    def rehire(self, request, *args, **kwargs):
+        """Bring a departed member back, reusing the same membership row."""
+        membership = self.get_object()
+        serializer = RehireSerializer(
+            data=request.data, context={"organization": self.get_organization()}
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        offboarding.rehire_membership(
+            membership,
+            actor=request.user,
+            department=data.get("department"),
+            org_role=data.get("org_role"),
+        )
+        membership.refresh_from_db()
+        return Response(MembershipAdminReadSerializer(membership).data)
+
+    @action(detail=True, methods=["delete"])
+    def purge(self, request, *args, **kwargs):
+        """Delete a departed member's row for good (飞书's 清空列表).
+
+        Only reachable once they have left — this is a cleanup of the offboarded
+        list, not a second way to remove an active member.
+        """
+        membership = self.get_object()
+        if membership.status != models.MembershipStatusChoices.LEFT:
+            raise serializers.ValidationError(
+                {"detail": _("Only departed members can be purged.")}
+            )
+        label = self._member_label(membership)
+        organization = membership.organization
+        target_id = membership.id
+        membership.delete()
+        record_audit(
+            actor=request.user,
+            organization=organization,
+            action=models.AuditActionChoices.MEMBER_PURGE,
+            target_type="membership",
+            target_id=target_id,
+            target_label=label,
+        )
+        return Response(status=204)
