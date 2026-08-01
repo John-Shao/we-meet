@@ -4,10 +4,11 @@ import { type RecipeVariantProps, cva } from '@/styled-system/css'
  * Button 视觉标准(2026-07,全站按钮基准):
  * - 圆角:常规按钮 8px(radii.8)、小按钮/图标钮 6px(radii.6);胶囊(full)只留给
  *   搜索框、筛选/建议 chip、头像,动作按钮一律不用胶囊。
- * - 盒高:三档,与 `sizes.control` 对齐(Input / Select 走同一套)
- *     40px  `default` / `action`   常规按钮、对话框主次按钮
- *     32px  `sm` / `dense`         表单内联、列表行尾
- *     不定  `xs` / `compact` / 图标三档 / 带 width-height 的 variant
+ * - 盒高:两档,与 `sizes.control` 对齐(Input / Select 走同一套)
+ *     40px  `default` / `action` / `compact`  常规按钮、对话框主次按钮
+ *     32px  `sm` / `dense`                    表单内联、列表行尾
+ *   例外(刻意不钉):`xs`、图标三档 icon24/28/32、以及自带 width+height 的
+ *   variant(whiteCircle / bigSquare / errorCircle 56px、permission)。
  *   钉法一律是**行高 + 内边距**,不用 height/minHeight —— square/round 只有
  *   true 分支,定高会把方形图标钮拉成长方形。纯图标钮不受行高影响(flex 子项
  *   是 <svg>,line-height 对 flex item 不生效),所以会中控制栏那批仍是 46px。
@@ -83,10 +84,17 @@ export const buttonRecipe = cva({
         borderRadius: 6,
         '--square-padding': '0',
       },
+      /**
+       * = `default` 但横向内边距收一半(1rem → 0.5rem)。纵向几何与 default 完全
+       * 一致,所以同样钉到 40px —— 否则全站只剩它一个 46px 的孤儿档。
+       *
+       * 唯一调用点是录制面板的主操作按钮(fullWidth,横向内边距其实不起作用)。
+       */
       compact: {
         borderRadius: 8,
         paddingX: '0.5',
-        paddingY: '0.625',
+        paddingY: '0.5',
+        lineHeight: '22px',
         '--square-padding': '{spacing.0.625}',
       },
       /**
