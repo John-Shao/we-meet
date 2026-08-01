@@ -298,31 +298,51 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
 
 
 def get_resource_roles(resource: models.Model, user: User) -> List[str]:
-    """
-    Get all roles assigned to a user for a specific resource, including team-based roles.
+    """Roles a user holds on a resource, including team-based ones where they exist.
+
+    There are two access-control shapes in this codebase, and they are not the
+    same system despite the shared vocabulary:
+
+    - **Team-aware** — ``BaseAccess`` subclasses, whose manager is a
+      ``BaseAccessManager``. Today that is only ``RecordingAccess``. A grant may
+      name a user *or* a team key (``dept:<hex>``), so roles come from
+      ``filter_user`` (user OR team).
+    - **Plain** — ``ResourceAccess`` (rooms). It has no ``team`` column at all
+      and its ``user`` FK is non-null, so a user's roles are exactly their own
+      access rows.
+
+    This used to call ``filter_user`` unconditionally, which raised
+    ``AttributeError`` for anything of the second shape (the ``except`` clause
+    below never caught it). Nothing hit it because both call sites happen to
+    pass recordings — but the generic name and signature invited a caller to
+    pass a ``Room`` and get a 500. Dispatching on the manager makes the
+    behaviour match the name: rooms get user-only roles, which for rooms is the
+    complete answer rather than a partial one.
 
     Args:
-        resource: The resource to check permissions for
-        user: The user to get roles for
+        resource: A ``Resource``/``Room`` or ``Recording`` — anything with an
+            ``accesses`` related manager.
+        user: The user to resolve roles for.
 
     Returns:
-        List of role strings assigned to the user
+        Distinct role strings, empty when the user is anonymous or has none.
     """
-    if not user.is_authenticated:
+    if not user or not user.is_authenticated:
         return []
 
-    # Use pre-annotated roles if available from viewset optimization
-    if hasattr(resource, "user_roles"):
-        return resource.user_roles or []
-
-    try:
-        return list(
-            resource.accesses.filter_user(user)
-            .values_list("role", flat=True)
-            .distinct()
-        )
-    except (IndexError, models.ObjectDoesNotExist):
-        return []
+    accesses = resource.accesses
+    queryset = (
+        accesses.filter_user(user)
+        if hasattr(accesses, "filter_user")
+        else accesses.filter(user=user)
+    )
+    # ``order_by()`` before ``distinct()`` is load-bearing: the models order by
+    # ``-created_at``, and Django puts ORDER BY columns into the SELECT of a
+    # DISTINCT query — so it would deduplicate on (role, created_at) and hand
+    # back "member, member" for someone granted the same role directly and via
+    # their department. Harmless for today's callers (they use ``in`` or wrap in
+    # ``set()``), but the ``.distinct()`` was not doing what it claimed.
+    return list(queryset.order_by().values_list("role", flat=True).distinct())
 
 
 class Resource(BaseModel):
