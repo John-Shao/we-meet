@@ -19,10 +19,10 @@ import {
   updateDepartment,
 } from '../api/adminDepartments'
 import { describeApiError } from '../api/errors'
-import { DepartmentAdminTree } from '../components/DepartmentAdminTree'
-import { TextPromptDialog } from '../components/TextPromptDialog'
-import { DeleteDepartmentDialog } from '../components/DeleteDepartmentDialog'
-import { SelectDialog } from '../components/SelectDialog'
+import { DepartmentAdminTree } from './DepartmentAdminTree'
+import { TextPromptDialog } from './TextPromptDialog'
+import { DeleteDepartmentDialog } from './DeleteDepartmentDialog'
+import { SelectDialog } from './SelectDialog'
 
 type PromptState =
   | { mode: 'create'; parent: AdminDepartment | null }
@@ -31,7 +31,14 @@ type PromptState =
 
 const DEPARTMENTS_KEY = ['admin', 'departments']
 
-export const AdminOrg = () => {
+/**
+ * 「部门」tab —— 部门树的增删改移 + 负责人设置 + 直属成员预览。
+ *
+ * 原来是独立页 `/admin/org`。合并到「成员与部门」后它只是一个 tab,所以页头的
+ * 标题去掉了,「新建部门」按钮下沉到面板自己的工具条里 —— 页头的主操作归
+ * 「邀请成员」,一个页头不该按 tab 换主按钮换到第三个。
+ */
+export const DepartmentsPanel = () => {
   const { t } = useTranslation('admin')
   const { alert: showAlert } = useConfirm()
   const queryClient = useQueryClient()
@@ -145,21 +152,18 @@ export const AdminOrg = () => {
   const selectedDept = departments.find((d) => d.id === selectedId) ?? null
 
   return (
-    <div className={css({ display: 'flex', flexDirection: 'column', height: '100%' })}>
+    <div
+      className={css({ display: 'flex', flexDirection: 'column', height: '100%' })}
+    >
       <div
         className={css({
           flexShrink: 0,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           paddingX: '1.25rem',
-          paddingY: '0.875rem',
-          borderBottom: '1px solid token(colors.greyscale.200)',
+          paddingY: '0.625rem',
         })}
       >
-        <h1 className={css({ fontSize: '1.125rem', fontWeight: 'bold', color: 'greyscale.900' })}>
-          {t('org.title')}
-        </h1>
         <Button
           size="sm"
           variant="primary"
@@ -170,7 +174,14 @@ export const AdminOrg = () => {
         </Button>
       </div>
 
-      <div className={css({ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' })}>
+      <div
+        className={css({
+          flex: 1,
+          display: 'flex',
+          minHeight: 0,
+          overflow: 'hidden',
+        })}
+      >
         <ResizablePanel
           storageKey="we-meet:admin-org-tree-width"
           defaultWidth={300}
@@ -182,12 +193,19 @@ export const AdminOrg = () => {
               width: '100%',
               height: '100%',
               borderRight: '1px solid token(colors.greyscale.200)',
+              borderTop: '1px solid token(colors.greyscale.200)',
               overflowY: 'auto',
               backgroundColor: 'greyscale.50',
             })}
           >
             {departments.length === 0 ? (
-              <p className={css({ padding: '1rem', color: 'greyscale.500', fontSize: '0.875rem' })}>
+              <p
+                className={css({
+                  padding: '1rem',
+                  color: 'greyscale.500',
+                  fontSize: '0.875rem',
+                })}
+              >
                 {t('org.empty')}
               </p>
             ) : (
@@ -204,14 +222,34 @@ export const AdminOrg = () => {
           </aside>
         </ResizablePanel>
 
-        <main className={css({ flex: 1, minWidth: 0, overflowY: 'auto' })}>
+        <main
+          className={css({
+            flex: 1,
+            minWidth: 0,
+            overflowY: 'auto',
+            borderTop: '1px solid token(colors.greyscale.200)',
+          })}
+        >
           {selectedDept === null ? (
-            <p className={css({ padding: '1.5rem', color: 'greyscale.500', fontSize: '0.9375rem' })}>
+            <p
+              className={css({
+                padding: '1.5rem',
+                color: 'greyscale.500',
+                fontSize: '0.9375rem',
+              })}
+            >
               {t('org.selectDept')}
             </p>
           ) : (
             <div className={css({ padding: '1.25rem' })}>
-              <h2 className={css({ fontSize: '1rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'greyscale.900' })}>
+              <h2
+                className={css({
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  marginBottom: '0.5rem',
+                  color: 'greyscale.900',
+                })}
+              >
                 {selectedDept.name}
               </h2>
               <div
@@ -239,9 +277,23 @@ export const AdminOrg = () => {
                 </Button>
               </div>
               {membersFetching && members.length === 0 ? (
-                <p className={css({ color: 'greyscale.500', fontSize: '0.875rem' })}>{t('org.loadingMembers')}</p>
+                <p
+                  className={css({
+                    color: 'greyscale.500',
+                    fontSize: '0.875rem',
+                  })}
+                >
+                  {t('org.loadingMembers')}
+                </p>
               ) : members.length === 0 ? (
-                <p className={css({ color: 'greyscale.500', fontSize: '0.875rem' })}>{t('org.noMembers')}</p>
+                <p
+                  className={css({
+                    color: 'greyscale.500',
+                    fontSize: '0.875rem',
+                  })}
+                >
+                  {t('org.noMembers')}
+                </p>
               ) : (
                 <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
                   {members.map((m) => (
@@ -259,7 +311,12 @@ export const AdminOrg = () => {
                       <span className={css({ color: 'greyscale.900' })}>
                         {m.full_name || m.short_name || m.email}
                       </span>
-                      <span className={css({ color: 'greyscale.500', fontSize: '0.8125rem' })}>
+                      <span
+                        className={css({
+                          color: 'greyscale.500',
+                          fontSize: '0.8125rem',
+                        })}
+                      >
                         {m.title}
                       </span>
                     </li>
@@ -273,10 +330,14 @@ export const AdminOrg = () => {
 
       <TextPromptDialog
         isOpen={prompt !== null}
-        title={prompt?.mode === 'rename' ? t('org.renameTitle') : t('org.createTitle')}
+        title={
+          prompt?.mode === 'rename' ? t('org.renameTitle') : t('org.createTitle')
+        }
         label={t('org.namePlaceholder')}
         initialValue={prompt?.mode === 'rename' ? prompt.dept.name : ''}
-        confirmLabel={prompt?.mode === 'rename' ? t('actions.save') : t('actions.create')}
+        confirmLabel={
+          prompt?.mode === 'rename' ? t('actions.save') : t('actions.create')
+        }
         submitting={createMut.isPending || renameMut.isPending}
         onSubmit={submitPrompt}
         onClose={() => setPrompt(null)}

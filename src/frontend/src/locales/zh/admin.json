@@ -4,8 +4,7 @@
     "backToApp": "返回工作台",
     "nav": {
       "dashboard": "数据看板",
-      "org": "组织架构",
-      "members": "成员治理",
+      "org": "成员与部门",
       "audit": "审计日志",
       "meetingRooms": "会议室"
     }
@@ -81,7 +80,9 @@
   },
   "members": {
     "title": "成员治理",
+    "consoleTitle": "成员与部门",
     "tabMembers": "成员",
+    "tabDepartments": "部门",
     "tabInvitations": "待接受邀请",
     "filterAllStatus": "全部状态",
     "filterAllDepartments": "全部部门",

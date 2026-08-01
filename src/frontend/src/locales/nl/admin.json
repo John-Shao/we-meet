@@ -4,8 +4,6 @@
     "backToApp": "Terug naar werkruimte",
     "nav": {
       "dashboard": "Dashboard",
-      "org": "Organisatie",
-      "members": "Leden",
       "audit": "Auditlogboek",
       "meetingRooms": "Vergaderruimtes"
     }

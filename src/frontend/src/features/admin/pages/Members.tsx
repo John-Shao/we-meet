@@ -34,6 +34,7 @@ import { TextPromptDialog } from '../components/TextPromptDialog'
 import { InviteDialog } from '../components/InviteDialog'
 import { InvitationsPanel } from '../components/InvitationsPanel'
 import { DepartedPanel } from '../components/DepartedPanel'
+import { DepartmentsPanel } from '../components/DepartmentsPanel'
 import { MemberEditPanel } from '../components/MemberEditPanel'
 import { OffboardDialog } from '../components/OffboardDialog'
 
@@ -55,9 +56,12 @@ export const AdminMembers = () => {
   const [roleTarget, setRoleTarget] = useState<AdminMember | null>(null)
   const [deptTarget, setDeptTarget] = useState<AdminMember | null>(null)
   const [titleTarget, setTitleTarget] = useState<AdminMember | null>(null)
-  const [view, setView] = useState<'members' | 'departed' | 'invitations'>(
-    'members'
-  )
+  // 「部门」原是独立页 /admin/org,合并进来成为一个 tab —— 组织管理的四件事
+  // (谁在职 / 怎么分部门 / 谁走了 / 谁还没进来)本就是一个页面的四个视角,
+  // 分成两个左导航项只会让人在两页之间来回跳。
+  const [view, setView] = useState<
+    'members' | 'departments' | 'departed' | 'invitations'
+  >('members')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [employeeType, setEmployeeType] = useState('')
   const [editTarget, setEditTarget] = useState<AdminMember | null>(null)
@@ -312,20 +316,27 @@ export const AdminMembers = () => {
       >
         <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' })}>
           <h1 className={css({ fontSize: '1.125rem', fontWeight: 'bold', color: 'greyscale.900' })}>
-            {t('members.title')}
+            {t('members.consoleTitle')}
           </h1>
-          <Button
-            size="sm"
-            variant="primary"
-            icon={<RiUserAddLine size={16} />}
-            onPress={() => setInviteOpen(true)}
-          >
-            {t('invite.button')}
-          </Button>
+          {/* 「部门」tab 的主操作是「新建部门」,归它自己的工具条 —— 一个页头
+              不该按 tab 换主按钮,换到第三个就没人知道现在能点什么了。 */}
+          {view !== 'departments' && (
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<RiUserAddLine size={16} />}
+              onPress={() => setInviteOpen(true)}
+            >
+              {t('invite.button')}
+            </Button>
+          )}
         </div>
         <div className={css({ display: 'flex', gap: '1rem', marginBottom: '0.75rem', borderBottom: '1px solid token(colors.greyscale.200)' })}>
           <button type="button" onClick={() => setView('members')} className={tab(view === 'members')}>
             {t('members.tabMembers')}
+          </button>
+          <button type="button" onClick={() => setView('departments')} className={tab(view === 'departments')}>
+            {t('members.tabDepartments')}
           </button>
           <button type="button" onClick={() => setView('departed')} className={tab(view === 'departed')}>
             {t('members.tabDeparted')}
@@ -451,8 +462,18 @@ export const AdminMembers = () => {
         </div>
       )}
 
-      <div className={css({ flex: 1, overflowY: 'auto' })}>
-        {view === 'invitations' ? (
+      {/* 部门 tab 自带左右分栏并要占满高度,不能套在这个 overflowY 容器里 ——
+          否则树和详情各自滚一遍,外面再滚一遍。 */}
+      <div
+        className={css({
+          flex: 1,
+          minHeight: 0,
+          overflowY: view === 'departments' ? 'hidden' : 'auto',
+        })}
+      >
+        {view === 'departments' ? (
+          <DepartmentsPanel />
+        ) : view === 'invitations' ? (
           <InvitationsPanel />
         ) : view === 'departed' ? (
           <DepartedPanel />

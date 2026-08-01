@@ -4,7 +4,6 @@ import { Link, useLocation } from 'wouter'
 import {
   RiDashboardLine,
   RiGovernmentLine,
-  RiTeamLine,
   RiFileList3Line,
   RiBuilding2Line,
   RiArrowLeftLine,
@@ -24,8 +23,9 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/', labelKey: 'shell.nav.dashboard', Icon: RiDashboardLine },
+  // 成员与部门合成一项(页内四 tab):原来分成「组织架构」+「成员管理」两项,
+  // 而调岗、看部门有谁、给部门设负责人全都要在两页之间来回跳。
   { to: '/org', labelKey: 'shell.nav.org', Icon: RiGovernmentLine },
-  { to: '/members', labelKey: 'shell.nav.members', Icon: RiTeamLine },
   {
     to: '/meeting-rooms',
     labelKey: 'shell.nav.meetingRooms',

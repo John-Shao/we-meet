@@ -4,8 +4,6 @@
     "backToApp": "Zurück zum Arbeitsbereich",
     "nav": {
       "dashboard": "Dashboard",
-      "org": "Organisation",
-      "members": "Mitglieder",
       "audit": "Auditprotokoll",
       "meetingRooms": "Besprechungsräume"
     }

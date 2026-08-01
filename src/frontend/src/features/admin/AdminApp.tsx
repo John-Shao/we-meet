@@ -1,9 +1,8 @@
-import { Switch, Route } from 'wouter'
+import { Switch, Route, Redirect } from 'wouter'
 
 import { AdminGuard } from './AdminGuard'
 import { AdminShell } from './layout/AdminShell'
 import { AdminDashboard } from './pages/Dashboard'
-import { AdminOrg } from './pages/Org'
 import { AdminMembers } from './pages/Members'
 import { AdminMeetingRooms } from './pages/MeetingRooms'
 import { AdminAudit } from './pages/Audit'
@@ -21,11 +20,13 @@ const AdminApp = () => (
         <Route path="/">
           <AdminDashboard />
         </Route>
+        {/* 「成员与部门」—— 原 /org(部门树)与 /members(成员表)合并成一页
+            四 tab。/members 保留为跳转,只为不打断已有书签。 */}
         <Route path="/org">
-          <AdminOrg />
+          <AdminMembers />
         </Route>
         <Route path="/members">
-          <AdminMembers />
+          <Redirect to="/org" replace />
         </Route>
         <Route path="/meeting-rooms">
           <AdminMeetingRooms />

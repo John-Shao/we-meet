@@ -4,8 +4,6 @@
     "backToApp": "Retour à l'espace de travail",
     "nav": {
       "dashboard": "Tableau de bord",
-      "org": "Organisation",
-      "members": "Membres",
       "audit": "Journal d'audit",
       "meetingRooms": "Salles"
     }

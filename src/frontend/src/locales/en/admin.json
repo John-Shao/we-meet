@@ -4,8 +4,7 @@
     "backToApp": "Back to workspace",
     "nav": {
       "dashboard": "Dashboard",
-      "org": "Organization",
-      "members": "Members",
+      "org": "Members & departments",
       "audit": "Audit log",
       "meetingRooms": "Meeting rooms"
     }
@@ -81,7 +80,9 @@
   },
   "members": {
     "title": "Members",
+    "consoleTitle": "Members & departments",
     "tabMembers": "Members",
+    "tabDepartments": "Departments",
     "tabInvitations": "Pending invitations",
     "filterAllStatus": "All statuses",
     "filterAllDepartments": "All departments",
