@@ -4,6 +4,13 @@ import { type RecipeVariantProps, cva } from '@/styled-system/css'
  * Button 视觉标准(2026-07,全站按钮基准):
  * - 圆角:常规按钮 8px(radii.8)、小按钮/图标钮 6px(radii.6);胶囊(full)只留给
  *   搜索框、筛选/建议 chip、头像,动作按钮一律不用胶囊。
+ * - 盒高:三档,与 `sizes.control` 对齐(Input / Select 走同一套)
+ *     40px  `default` / `action`   常规按钮、对话框主次按钮
+ *     32px  `sm` / `dense`         表单内联、列表行尾
+ *     不定  `xs` / `compact` / 图标三档 / 带 width-height 的 variant
+ *   钉法一律是**行高 + 内边距**,不用 height/minHeight —— square/round 只有
+ *   true 分支,定高会把方形图标钮拉成长方形。纯图标钮不受行高影响(flex 子项
+ *   是 <svg>,line-height 对 flex item 不生效),所以会中控制栏那批仍是 46px。
  * - 填充分工:主操作=primary(实心蓝)、次操作=secondary(线框)、弱操作=
  *   secondaryText(纯文字)。新按钮优先走本基元,别再手搓 <button> + 裸圆角。
  * - 字号:`default`/`sm`/`xs`/`compact` **只管圆角和内边距,不设 font-size**,
@@ -35,10 +42,31 @@ export const buttonRecipe = cva({
   },
   variants: {
     size: {
+      /**
+       * 常规按钮盒高 40px(= sizes.control.lg),与 `action` 同几何、只差字号。
+       *
+       * ⚠️ 这一档**从来就不是定高**:它不设 font-size,盒高 = 继承行高 + 内边距,
+       * 于是同一个按钮在 16px 容器里 46px、14px 容器里 43px、13px 容器里 41.5px。
+       * 46px 那档最扎眼 —— 对话框里 32px 的输入框配 46px 的「取消/确定」,壮一圈。
+       *
+       * 收口手法与 `sm`/`action`/`dense` 一致:**钉行高、不碰字号**。
+       *   22(lineHeight) + 16(paddingY×2) + 2(border) = 40
+       * 字号仍然继承,所以顶部注释里那条红线依然成立 —— 198 处调用点的**文字大小
+       * 一个都没动**,只是盒子不再跟着字号飘。想要 14px 字仍然去用 `action`。
+       *
+       * 为什么不用 `height: 'control.lg'`:square/round 只有 true 分支,定高会把
+       * 方形图标钮拉成长方形(同 `sm` 那条注释)。
+       *
+       * `--square-padding` **刻意留在 0.625**:走 square 的是会中控制栏那批纯图标
+       * toggle(麦克风/摄像头/共享/聊天/举手…),它们的 flex 子项是 <svg>,
+       * line-height 对 flex item 不生效,盒高 = 图标 24 + 20 + 2 = 46px 原样不变。
+       * 那是触摸目标不是表单控件,46px 正合适,别顺手一起收。
+       */
       default: {
         borderRadius: 8,
         paddingX: '1',
-        paddingY: '0.625',
+        paddingY: '0.5',
+        lineHeight: '22px',
         '--square-padding': '{spacing.0.625}',
       },
       sm: {
