@@ -468,7 +468,7 @@ export const ConversationCalendarPanel = ({
         backgroundColor: 'greyscale.000',
         borderLeft: '1px solid token(colors.greyscale.200)',
         overflow: 'hidden',
-        animation: 'fade 150ms ease-out',
+        animation: 'fade token(durations.normal) ease-out',
       })}
     >
       {/* Header */}

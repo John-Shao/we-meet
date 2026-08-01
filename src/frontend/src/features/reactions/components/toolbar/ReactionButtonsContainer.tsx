@@ -29,7 +29,7 @@ const StyledContainer = styled('div', {
     transform: 'translateY(3.25rem)',
     transition: 'opacity, transform',
     transitionDuration: '0.5s',
-    transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
+    transitionTimingFunction: 'standard',
     pointerEvents: 'none',
   },
   variants: {

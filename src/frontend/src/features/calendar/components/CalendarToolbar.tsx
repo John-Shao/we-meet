@@ -28,7 +28,7 @@ const segmentBase = css({
   borderRadius: '0.375rem',
   fontSize: '0.875rem',
   cursor: 'pointer',
-  transition: 'background 150ms, color 150ms',
+  transition: 'background token(durations.normal), color token(durations.normal)',
 })
 
 // 选中/未选中用两个完整类切换,不 cx 叠加同属性原子类(样式表顺序陷阱)。

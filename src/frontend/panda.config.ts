@@ -50,6 +50,25 @@ const config: Config = {
       backgroundColor: 'greyscale.000',
       color: 'greyscale.1000',
     },
+    // 用户在系统里开了「减弱动态效果」时,全站动效统一压掉。
+    //
+    // 做成兜底规则而不是逐组件处理:动效散在 ~50 处 transition/animation 里,
+    // 还有 react-aria / LiveKit 这些第三方自带的进出场动画,逐个改既漏又难维护。
+    //
+    // ⚠️ 用 0.01ms 而不是 0 —— transitionend / animationend 仍会触发。react-aria
+    // 的 data-entering / data-exiting 靠动画结束事件决定卸载时机,真写 0 会让
+    // 弹层卡在退出态不消失。
+    //
+    // Spinner 不受影响:它自己已经做了处理(reduced-motion 下隐藏旋转 SVG、
+    // 换成静态沙漏图标),所以加载状态仍然表达得出来。
+    '@media (prefers-reduced-motion: reduce)': {
+      '*, *::before, *::after': {
+        animationDuration: '0.01ms !important',
+        animationIterationCount: '1 !important',
+        transitionDuration: '0.01ms !important',
+        scrollBehavior: 'auto !important',
+      },
+    },
   },
   theme: {
     ...pandaPreset.theme,
@@ -304,6 +323,30 @@ const config: Config = {
        * token:它们只在自己父级的堆叠上下文内比较,和全局层级无关,混用反而
        * 会让人误以为它们参与全局排序。
        */
+      /**
+       * 动效时长。取值沿用迁移前实际在用的档位,不是照抄 Semi ——
+       * 全站原本 200ms(20 处)/150ms(13 处)/120ms(5 处)三档占了绝大多数,
+       * 只是同一个值有两种写法(`0.2s` 和 `200ms`、`.15s` 和 `150ms`),
+       * 看起来像十几个档位,其实没那么乱。
+       *
+       * 用法:可以直接写在 transition 简写里 —— `transition: 'opacity token(durations.fast)'`。
+       * 无障碍:开了「减弱动态效果」时全站动效由 globalCss 里的兜底规则统一压掉,
+       * 不需要每个调用点各自处理(见 globalCss 的 prefers-reduced-motion 块)。
+       */
+      durations: {
+        fast: { value: '120ms' }, // 微交互:hover/焦点变色、小图标旋转
+        normal: { value: '150ms' }, // 退出动画、状态切换
+        slow: { value: '200ms' }, // 进入动画、面板展开收起
+      },
+      /**
+       * 缓动。只收 standard 一个 —— 它原本有三种写法(`0.4,0,0.2,1` 带空格 /
+       * 不带空格 / `.4,0,.2,1` 省略前导 0),是真正需要统一的那个。
+       * `ease-in` / `ease-out` 这类 CSS 关键字不包 token:包了只是加一层间接,
+       * 读的人还得回来查它等于什么。
+       */
+      easings: {
+        standard: { value: 'cubic-bezier(0.4, 0, 0.2, 1)' },
+      },
       zIndex: {
         handle: { value: 5 }, // 面板拖拽手柄
         docked: { value: 10 }, // 贴附于内容的小浮层(输入框上方弹层)

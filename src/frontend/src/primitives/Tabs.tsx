@@ -63,7 +63,7 @@ const StyledTab = styled(RACTab, {
       true: {
         borderRadius: 4,
         backgroundColor: 'colorPalette.active',
-        transition: 'background 200ms, color 200ms',
+        transition: 'background token(durations.slow), color token(durations.slow)',
         '&[data-hovered]': {
           backgroundColor: 'greyscale.100',
           color: 'box.text',

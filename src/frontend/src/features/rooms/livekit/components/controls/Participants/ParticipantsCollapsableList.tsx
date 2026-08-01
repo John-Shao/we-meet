@@ -14,7 +14,7 @@ const ToggleHeader = styled(ToggleButton, {
     justifyContent: 'space-between',
     width: '100%',
     alignItems: 'center',
-    transition: 'background 200ms',
+    transition: 'background token(durations.slow)',
     borderTopRadius: '7px',
     '&[data-hovered]': {
       backgroundColor: 'greyscale.50',
@@ -95,7 +95,7 @@ export function ParticipantsCollapsableList<T>({
           size={32}
           style={{
             transform: isOpen ? 'rotate(-180deg)' : undefined,
-            transition: 'transform 200ms',
+            transition: 'transform var(--durations-slow)',
           }}
         />
       </ToggleHeader>

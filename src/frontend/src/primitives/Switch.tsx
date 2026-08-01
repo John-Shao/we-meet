@@ -26,7 +26,7 @@ export const StyledSwitch = styled(RACSwitch, {
       borderRadius: 'full',
       // 关态:灰色实心轨道。
       background: 'greyscale.300',
-      transition: 'background-color 200ms',
+      transition: 'background-color token(durations.slow)',
       _before: {
         content: '""',
         display: 'block',
@@ -39,7 +39,7 @@ export const StyledSwitch = styled(RACSwitch, {
         background: 'white',
         boxShadow: '0 1px 2px rgba(0, 0, 0, 0.25)',
         transform: 'translateY(-50%)',
-        transition: 'transform 200ms',
+        transition: 'transform token(durations.slow)',
         willChange: 'transform',
       },
     },

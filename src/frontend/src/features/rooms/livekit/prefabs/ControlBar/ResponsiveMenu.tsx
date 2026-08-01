@@ -42,10 +42,10 @@ export function ResponsiveMenu({
           flexGrow: 1,
           padding: '1.5rem',
           '&[data-entering]': {
-            animation: 'slide-full 200ms',
+            animation: 'slide-full token(durations.slow)',
           },
           '&[data-exiting]': {
-            animation: 'slide-full 200ms reverse',
+            animation: 'slide-full token(durations.slow) reverse',
           },
         })}
       >

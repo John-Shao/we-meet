@@ -311,7 +311,7 @@ export const ConversationList = ({
                 lineHeight: 1,
                 cursor: 'pointer',
                 opacity: 0,
-                transition: 'opacity 0.15s, color 0.15s',
+                transition: 'opacity token(durations.normal), color token(durations.normal)',
                 _hover: { color: 'danger.600' },
               })}
             >

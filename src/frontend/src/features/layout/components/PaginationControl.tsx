@@ -53,7 +53,7 @@ export function PaginationControl({
         alignItems: 'stretch',
         backgroundColor: 'var(--lk-control-bg)',
         borderRadius: 'var(--lk-border-radius)',
-        transition: 'opacity ease-in-out .15s',
+        transition: 'opacity ease-in-out token(durations.normal)',
         display: 'none',
         border: '1px solid',
         borderColor: 'primaryDark.100',

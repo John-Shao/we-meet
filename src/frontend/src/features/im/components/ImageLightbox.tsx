@@ -175,7 +175,7 @@ export const ImageLightbox = ({
             className={css({
               display: 'block',
               objectFit: 'contain',
-              transition: 'transform 0.15s ease',
+              transition: 'transform token(durations.normal) ease',
             })}
             style={
               zoomed

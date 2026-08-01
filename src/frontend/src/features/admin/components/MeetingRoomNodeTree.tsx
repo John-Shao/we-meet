@@ -82,7 +82,7 @@ export const MeetingRoomNodeTree = ({
                 <RiArrowRightSLine
                   size={16}
                   style={{
-                    transition: 'transform 0.12s',
+                    transition: 'transform var(--durations-fast)',
                     transform: isExpanded ? 'rotate(90deg)' : 'none',
                   }}
                 />
@@ -210,5 +210,5 @@ const actionsCls = css({
   gap: '0.125rem',
   paddingRight: '0.375rem',
   opacity: 0,
-  transition: 'opacity 0.12s',
+  transition: 'opacity token(durations.fast)',
 })

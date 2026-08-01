@@ -193,7 +193,7 @@ export const ParticipantTileFocus = ({
         <div
           className={css({
             backgroundColor: 'primaryDark.50',
-            transition: 'opacity 200ms linear',
+            transition: 'opacity token(durations.slow) linear',
             zIndex: 1,
             borderRadius: '0.25rem',
             display: 'flex',

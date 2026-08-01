@@ -27,7 +27,7 @@ export const StyledCheckbox = styled(RACCheckbox, {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      transition: 'all 200ms',
+      transition: 'all token(durations.slow)',
     },
     '& svg': {
       stroke: 'primary.text',
@@ -38,7 +38,7 @@ export const StyledCheckbox = styled(RACCheckbox, {
       strokeWidth: '3px',
       strokeDasharray: '22px',
       strokeDashoffset: '66',
-      transition: 'all 200ms',
+      transition: 'all token(durations.slow)',
     },
     '&[data-pressed] .mt-Checkbox-checkbox': {
       borderColor: 'focusRing',

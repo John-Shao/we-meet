@@ -22,14 +22,14 @@ export const StyledRadio = styled(RACRadio, {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      transition: 'all 200ms',
+      transition: 'all token(durations.slow)',
     },
     '& .mt-Radio-check': {
       width: '0.5rem',
       height: '0.5rem',
       borderRadius: 'full',
       backgroundColor: 'transparent',
-      transition: 'all 200ms',
+      transition: 'all token(durations.slow)',
     },
     '&[data-pressed] .mt-Radio': {
       borderColor: 'primary.active',

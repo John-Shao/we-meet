@@ -13,10 +13,10 @@ export const StyledPopover = styled(RACPopover, {
   base: {
     minWidth: 'var(--trigger-width)',
     '&[data-entering]': {
-      animation: 'slide 200ms',
+      animation: 'slide token(durations.slow)',
     },
     '&[data-exiting]': {
-      animation: 'slide 200ms reverse ease-in',
+      animation: 'slide token(durations.slow) reverse ease-in',
     },
     '&[data-placement="bottom"]': {
       marginTop: 0.25,

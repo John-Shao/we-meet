@@ -33,8 +33,8 @@ const StyledRACDialog = styled(Dialog, {
     padding: '1.5rem',
     boxShadow: 'modal',
     backgroundColor: 'greyscale.000',
-    '&[data-entering]': { animation: 'fade 200ms' },
-    '&[data-exiting]': { animation: 'fade 150ms reverse ease-in' },
+    '&[data-entering]': { animation: 'fade token(durations.slow)' },
+    '&[data-exiting]': { animation: 'fade token(durations.normal) reverse ease-in' },
   },
 })
 

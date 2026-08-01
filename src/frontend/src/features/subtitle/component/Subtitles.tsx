@@ -231,7 +231,7 @@ const SubtitlesWrapper = styled(
     base: {
       width: '100%',
       paddingTop: 'var(--lk-grid-gap)',
-      transition: 'height .5s cubic-bezier(0.4,0,0.2,1) 5ms',
+      transition: 'height .5s token(easings.standard) 5ms',
     },
     variants: {
       areOpen: {

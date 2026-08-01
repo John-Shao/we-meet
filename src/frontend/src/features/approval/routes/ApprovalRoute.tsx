@@ -465,7 +465,7 @@ const TemplateCard = ({
       backgroundColor: 'greyscale.000',
       cursor: 'pointer',
       textAlign: 'left',
-      transition: 'border-color 0.15s, box-shadow 0.15s',
+      transition: 'border-color token(durations.normal), box-shadow token(durations.normal)',
       _hover: {
         borderColor: 'primary.300',
         boxShadow: '0 2px 8px rgba(51,112,255,0.12)',

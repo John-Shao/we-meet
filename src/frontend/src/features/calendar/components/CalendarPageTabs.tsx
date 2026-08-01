@@ -55,7 +55,7 @@ const tabBase = {
   backgroundColor: 'transparent',
   fontSize: '0.9375rem',
   cursor: 'pointer',
-  transition: 'color 150ms, border-color 150ms',
+  transition: 'color token(durations.normal), border-color token(durations.normal)',
 } as const
 const tabActive = css({
   ...tabBase,

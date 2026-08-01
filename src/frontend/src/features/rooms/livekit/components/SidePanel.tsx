@@ -63,7 +63,7 @@ const StyledSidePanel = ({
       right: 0,
       top: 0,
       width: 'var(--sizes-room-side-panel)',
-      transition: '.5s cubic-bezier(.4,0,.2,1) 5ms',
+      transition: '.5s token(easings.standard) 5ms',
     })}
     style={{
       transform: isClosed

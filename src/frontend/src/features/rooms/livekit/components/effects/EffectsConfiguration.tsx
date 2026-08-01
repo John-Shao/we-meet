@@ -755,7 +755,7 @@ export const EffectsConfiguration = ({
                                 position: 'absolute',
                                 top: '-8px',
                                 right: '-8px',
-                                transition: 'opacity 0.2s ease-in-out',
+                                transition: 'opacity token(durations.slow) ease-in-out',
                               })
                             }
                             size={'xs'}

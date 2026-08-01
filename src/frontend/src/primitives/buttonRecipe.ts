@@ -25,7 +25,7 @@ export const buttonRecipe = cva({
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    transition: 'background 200ms, outline 200ms, border-color 200ms',
+    transition: 'background token(durations.slow), outline token(durations.slow), border-color token(durations.slow)',
     cursor: 'pointer',
     border: '1px solid transparent',
     '&[data-disabled]': {
@@ -230,7 +230,7 @@ export const buttonRecipe = cva({
         '&[data-hovered]': {
           backgroundColor: 'greyscale.100',
         },
-        transition: 'box-shadow 0.2s ease-in-out',
+        transition: 'box-shadow token(durations.slow) ease-in-out',
         '&[data-selected]': {
           boxShadow:
             '0 0 0 3px token(colors.primary.600) inset, 0 0 0 5px white inset',

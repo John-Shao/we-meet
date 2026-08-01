@@ -83,7 +83,7 @@ export const DepartmentTree = ({ departments, selectedId, onSelect }: Props) => 
                 <RiArrowRightSLine
                   size={16}
                   style={{
-                    transition: 'transform 0.12s',
+                    transition: 'transform var(--durations-fast)',
                     transform: isExpanded ? 'rotate(90deg)' : 'none',
                   }}
                 />

@@ -15,7 +15,7 @@ const Hint = styled('div', {
     opacity: 0,
     visibility: 'hidden',
     pointerEvents: 'none',
-    transition: 'opacity 150ms ease',
+    transition: 'opacity token(durations.normal) ease',
     '.lk-grid-layout > *:first-child:focus-within &': {
       opacity: 1,
       visibility: 'visible',

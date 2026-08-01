@@ -47,7 +47,7 @@ const TrackAreaContainer = styled(
       position: 'relative',
       display: 'flex',
       width: '100%',
-      transition: 'height .5s cubic-bezier(0.4,0,0.2,1) 5ms',
+      transition: 'height .5s token(easings.standard) 5ms',
     },
     variants: {
       areSubtitlesOpen: {
