@@ -6,7 +6,14 @@
       "dashboard": "数据看板",
       "org": "成员与部门",
       "audit": "审计日志",
-      "meetingRooms": "会议室"
+      "meetingRooms": "会议室",
+      "groups": "用户组",
+      "roles": "角色与权限"
+    },
+    "navGroup": {
+      "org": "组织管理",
+      "workplace": "办公资源",
+      "governance": "安全与运营"
     }
   },
   "forbidden": {
@@ -54,8 +61,66 @@
     "reassignLabel": "成员转移至",
     "reassignToOrg": "组织(无部门)"
   },
+  "groups": {
+    "title": "用户组",
+    "newGroup": "新建用户组",
+    "createTitle": "新建用户组",
+    "renameTitle": "重命名用户组",
+    "namePlaceholder": "用户组名称",
+    "empty": "还没有用户组",
+    "selectGroup": "在左侧选择一个用户组",
+    "memberCount": "{{count}} 人",
+    "members": "组成员",
+    "noMembers": "这个组还没有成员",
+    "loadingMembers": "正在加载成员…",
+    "addMembers": "添加成员",
+    "addMembersTitle": "向「{{name}}」添加成员",
+    "removeMember": "移出用户组",
+    "searchPeople": "搜索同事",
+    "selectedCount": "已选 {{count}} 人",
+    "loadingPeople": "正在加载…",
+    "noPeople": "没有匹配的同事",
+    "addPartial": "已添加 {{added}} 人;{{skipped}} 人不是本组织在职成员,未添加。",
+    "grantKey": "授权标识",
+    "grantKeyHint": "共享资源给这个组时,授权记录里存的就是这串标识。它由系统生成且不可更改——改组名不会让已有的共享失效。",
+    "deleteConfirm": "删除用户组「{{name}}」？已建立的共享不会被撤销,但会因为解析不到成员而失效。"
+  },
+  "roles": {
+    "title": "角色与权限",
+    "newRole": "新建角色",
+    "createTitle": "新建角色",
+    "builtin": "内置",
+    "selectRole": "在左侧选择一个角色",
+    "holderCount": "{{count}} 人持有",
+    "permissions": "权限",
+    "holders": "持有人",
+    "noHolders": "还没有人持有这个角色",
+    "assign": "授予",
+    "assignTitle": "授予角色「{{name}}」",
+    "unassign": "取消授予",
+    "member": "成员",
+    "pickMember": "请选择",
+    "scope": "管理范围",
+    "scopeAll": "整个组织",
+    "scopeDepartments": "指定部门",
+    "scopeSubtreeHint": "范围按子树生效:勾选一个部门即包含它下面的所有层级。",
+    "nameLabel": "角色名称",
+    "codeLabel": "标识",
+    "codeHint": "创建后不可更改,只能用小写字母、数字、下划线和连字符。",
+    "codeInvalid": "标识需以小写字母开头,只含小写字母、数字、下划线或连字符。",
+    "deleteConfirm": "删除角色「{{name}}」？当前有 {{count}} 人持有,删除后他们会立即失去这组权限。",
+    "group": {
+      "structure": "组织与成员",
+      "sensitive": "敏感信息与字段",
+      "governance": "治理与洞察",
+      "operations": "批量与办公资源"
+    }
+  },
   "actions": {
     "cancel": "取消",
+    "add": "添加",
+    "rename": "重命名",
+    "loadMore": "加载更多",
     "save": "保存",
     "create": "创建",
     "delete": "删除",

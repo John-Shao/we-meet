@@ -6,7 +6,14 @@
       "dashboard": "Dashboard",
       "org": "Members & departments",
       "audit": "Audit log",
-      "meetingRooms": "Meeting rooms"
+      "meetingRooms": "Meeting rooms",
+      "groups": "User groups",
+      "roles": "Roles and permissions"
+    },
+    "navGroup": {
+      "org": "Organization",
+      "workplace": "Workplace",
+      "governance": "Governance"
     }
   },
   "forbidden": {
@@ -54,8 +61,66 @@
     "reassignLabel": "Move members to",
     "reassignToOrg": "Organization (no department)"
   },
+  "groups": {
+    "title": "User groups",
+    "newGroup": "New group",
+    "createTitle": "New user group",
+    "renameTitle": "Rename user group",
+    "namePlaceholder": "Group name",
+    "empty": "No user groups yet",
+    "selectGroup": "Pick a group on the left",
+    "memberCount": "{{count}} people",
+    "members": "Members",
+    "noMembers": "This group has no members yet",
+    "loadingMembers": "Loading members…",
+    "addMembers": "Add members",
+    "addMembersTitle": "Add members to “{{name}}”",
+    "removeMember": "Remove from group",
+    "searchPeople": "Search colleagues",
+    "selectedCount": "{{count}} selected",
+    "loadingPeople": "Loading…",
+    "noPeople": "No matching colleagues",
+    "addPartial": "Added {{added}}. {{skipped}} were not active members of this organization and were skipped.",
+    "grantKey": "Grant key",
+    "grantKeyHint": "This is the string stored in an access grant when you share a resource with this group. It is generated and immutable — renaming the group never invalidates existing shares.",
+    "deleteConfirm": "Delete the group “{{name}}”? Existing shares are not revoked, but they stop resolving to anyone."
+  },
+  "roles": {
+    "title": "Roles and permissions",
+    "newRole": "New role",
+    "createTitle": "New role",
+    "builtin": "Built-in",
+    "selectRole": "Pick a role on the left",
+    "holderCount": "{{count}} holders",
+    "permissions": "Permissions",
+    "holders": "Holders",
+    "noHolders": "Nobody holds this role yet",
+    "assign": "Assign",
+    "assignTitle": "Assign “{{name}}”",
+    "unassign": "Revoke",
+    "member": "Member",
+    "pickMember": "Select…",
+    "scope": "Scope",
+    "scopeAll": "Whole organization",
+    "scopeDepartments": "Selected departments",
+    "scopeSubtreeHint": "Scope covers the subtree: picking a department includes every level below it.",
+    "nameLabel": "Role name",
+    "codeLabel": "Code",
+    "codeHint": "Cannot be changed after creation. Lowercase letters, digits, underscore and hyphen only.",
+    "codeInvalid": "Must start with a lowercase letter and contain only lowercase letters, digits, underscore or hyphen.",
+    "deleteConfirm": "Delete the role “{{name}}”? {{count}} people hold it and will lose these permissions immediately.",
+    "group": {
+      "structure": "Organization and members",
+      "sensitive": "Sensitive data and fields",
+      "governance": "Governance and insight",
+      "operations": "Bulk operations and workplace"
+    }
+  },
   "actions": {
     "cancel": "Cancel",
+    "add": "Add",
+    "rename": "Rename",
+    "loadMore": "Load more",
     "save": "Save",
     "create": "Create",
     "delete": "Delete",

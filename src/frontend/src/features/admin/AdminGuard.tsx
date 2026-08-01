@@ -8,12 +8,17 @@ import { useAdminMe } from './hooks/useAdminMe'
 
 /**
  * Gate for the management console (M 端). `RequireAuth` handles the not-logged-in
- * case (→ login landing); this layer additionally requires the caller to be an
- * organization administrator/owner (`is_org_admin`, resolved server-side from
- * their `Membership.org_role`). Non-admins get a 403 screen, never the console.
+ * case (→ login landing); this layer additionally requires the caller to have
+ * *some* administrative standing in their organization.
  *
- * The UI check mirrors the backend `IsOrgAdmin` guard on every admin mutation —
- * it is convenience, not the security boundary.
+ * P10 M2 widened that from "is an owner/administrator" to "holds at least one
+ * permission". Keeping the old test would have made custom roles pointless: an
+ * HR-role holder has real permissions server-side but would be bounced at the
+ * door and never reach the pages those permissions unlock. Which page they can
+ * actually open is decided by the nav filter and by each endpoint.
+ *
+ * The UI check mirrors the backend guards on every admin endpoint — it is
+ * convenience, not the security boundary.
  */
 export const AdminGuard = ({ children }: { children: ReactNode }) => (
   <RequireAuth>
@@ -26,7 +31,10 @@ const AdminGuardInner = ({ children }: { children: ReactNode }) => {
 
   // Still resolving the caller's role — render nothing to avoid a 403 flash.
   if (isLoading) return null
-  if (!data?.is_org_admin) return <AdminForbidden />
+  // `is_org_admin` first so an old backend (no `permissions` field) still admits
+  // owners/administrators rather than locking everyone out of the console.
+  const admitted = data?.is_org_admin || (data?.permissions?.length ?? 0) > 0
+  if (!admitted) return <AdminForbidden />
   return <>{children}</>
 }
 

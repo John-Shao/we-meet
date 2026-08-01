@@ -11,7 +11,22 @@ import { fetchApi } from '@/api/fetchApi'
 export interface OrgContext {
   organization: { id: string; name: string } | null
   org_role: string | null
+  /**
+   * 组织自己的 owner/administrator。**保留原义**——M2 加了细粒度权限之后它仍然
+   * 只表「全权管理员」,老客户端不受影响。判断某个具体能力请读 `permissions`。
+   */
   is_org_admin: boolean
+  /**
+   * 调用者持有的管理权限点(P10 M2)。owner/administrator 是全集;其余人是其
+   * `AdminRole` 授权的并集。M 端导航按它过滤——只有 HR 角色的人看不到
+   * 「角色与权限」。老后端不返回该字段,`undefined` 按空处理。
+   */
+  permissions?: string[]
+  /**
+   * 管理范围。`departments` 时只能管这些部门**及其子树**;`all` 不受限。
+   * 注意「按部门授权但 department_ids 为空」在服务端就被拒了,不会出现。
+   */
+  admin_scope?: { type: 'all' | 'departments'; department_ids: string[] }
 }
 
 export const fetchOrgContext = (): Promise<OrgContext> =>
@@ -34,3 +49,16 @@ export const useOrgContext = () =>
     queryFn: fetchOrgContext,
     staleTime: 5 * 60_000,
   })
+
+/**
+ * 判定当前用户是否持有某个权限点。
+ *
+ * 未加载完成时一律返回 false —— 宁可短暂地少显示一个入口,也不要先渲染出来再
+ * 消失(那既晃眼又会让人点到一个马上会 403 的页面)。
+ */
+export const useHasPermission = () => {
+  const { data } = useOrgContext()
+  const granted = data?.permissions
+  return (permission: string): boolean =>
+    Array.isArray(granted) ? granted.includes(permission) : false
+}

@@ -292,7 +292,10 @@ export const Header = () => {
                       // 管理台是低频运维入口,所以挂在用户菜单里而不是 AppRail
                       // (AppRail 是高频业务导航,塞进去会稀释主导航)。在此之前
                       // 管理员只能手输 /admin 才进得去。
-                      ...(orgContext?.is_org_admin
+                      // P10 M2:自定义角色持有人(如 HR)也要看得到入口 ——
+                      // 只认 is_org_admin 的话他们有权限却找不到门。
+                      ...(orgContext?.is_org_admin ||
+                      (orgContext?.permissions?.length ?? 0) > 0
                         ? [{ value: 'admin', label: t('adminConsole') }]
                         : []),
                       { value: 'logout', label: t('logout') },
