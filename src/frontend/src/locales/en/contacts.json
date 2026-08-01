@@ -55,5 +55,12 @@
   "specialAlert": {
     "toggle": "Special alerts for their messages",
     "toggleHint": "Their messages notify you even during quiet hours."
+  },
+  "department": {
+    "memberCount": "Members",
+    "people": "{{count}}",
+    "head": "Head",
+    "noHead": "Not set",
+    "code": "Department ID"
   }
 }

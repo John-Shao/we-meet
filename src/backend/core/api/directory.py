@@ -15,7 +15,7 @@ import logging
 import uuid
 from typing import Optional
 
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import Http404
 
 from rest_framework import mixins, serializers, status, viewsets
@@ -100,6 +100,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
     """Serialize a department node (flat; the client builds the tree from path/parent)."""
 
     head = UserLightSerializer(read_only=True)
+    member_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = models.Department
@@ -111,6 +112,11 @@ class DepartmentSerializer(serializers.ModelSerializer):
             "depth",
             "sort_order",
             "head",
+            "code",
+            # Annotated in the queryset, never a SerializerMethodField — the
+            # department tree is returned whole and unpaginated, so a per-row
+            # count() would be an N+1 across the entire org chart.
+            "member_count",
         ]
         read_only_fields = fields
 
@@ -249,6 +255,16 @@ class DepartmentViewSet(
                 deleted_at__isnull=True,
             )
             .select_related("head")
+            .annotate(
+                member_count=Count(
+                    "memberships",
+                    filter=Q(
+                        memberships__status=models.MembershipStatusChoices.ACTIVE,
+                        memberships__user__is_device=False,
+                    ),
+                    distinct=True,
+                )
+            )
             .order_by("path", "sort_order", "name")
         )
         parent = self.request.query_params.get("parent")

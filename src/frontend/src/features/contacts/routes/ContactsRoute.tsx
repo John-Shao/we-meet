@@ -17,6 +17,7 @@ import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
 import { DepartmentTree } from '../components/DepartmentTree'
+import { DepartmentDetailPanel } from '../components/DepartmentDetailPanel'
 import { MemberDetailPanel } from '../components/MemberDetailPanel'
 import { StarredAddDialog } from '../components/StarredAddDialog'
 import { fetchDepartmentMembersPage } from '../api/fetchDepartmentMembers'
@@ -122,6 +123,24 @@ const ContactsAuthenticated = () => {
     () => (memberPages?.pages ?? []).flatMap((page) => page.results),
     [memberPages],
   )
+
+  const selectedDept = useMemo(
+    () => departments.find((d) => d.id === selectedDeptId) ?? null,
+    [departments, selectedDeptId],
+  )
+  // 祖先链从扁平列表里按 parent 上溯 —— 部门树本来就整棵返回,不必再请求一次。
+  const deptAncestors = useMemo(() => {
+    if (!selectedDept) return []
+    const byId = new Map(departments.map((d) => [d.id, d]))
+    const chain = []
+    let cursor = selectedDept.parent ? byId.get(selectedDept.parent) : undefined
+    // 上限防脏数据成环。
+    while (cursor && chain.length < 16) {
+      chain.unshift(cursor)
+      cursor = cursor.parent ? byId.get(cursor.parent) : undefined
+    }
+    return chain
+  }, [departments, selectedDept])
 
   // 星标名单单独拉一份:一是「添加」对话框要排掉已星标的人,二是任何列表/详情
   // 里的星标状态都从这一份派生,切换视图不会看到两种说法。
@@ -481,6 +500,20 @@ const ContactsAuthenticated = () => {
           )}
         </div>
       </main>
+
+      {/* 右栏三态:选了人 → 成员卡;只选了部门 → 部门卡(终于用上 head);
+          都没选 → 不渲染。 */}
+      {!selectedMember && selectedDept && (
+        <DepartmentDetailPanel
+          department={selectedDept}
+          ancestors={deptAncestors}
+          onOpenHead={(userId) => {
+            const inList = members.find((m) => m.id === userId)
+            if (inList) setSelectedMember(inList)
+            else void fetchDirectoryMember(userId).then(setSelectedMember)
+          }}
+        />
+      )}
 
       {selectedMember && (
         <MemberDetailPanel

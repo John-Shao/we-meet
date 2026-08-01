@@ -171,3 +171,50 @@ def test_stranger_still_404s():
 
     response = _client(me).get(f"/api/v1.0/directory/members/{stranger.id}/")
     assert response.status_code == 404
+
+
+# --- department detail fields (P10 M1-h) -------------------------------------
+
+
+def test_departments_carry_head_and_member_count():
+    """Both have existed in the DTO since P1 with no UI reading them."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _member(org, me)
+    head_user = factories.UserFactory(full_name="Team Lead")
+    department = models.Department.objects.create(
+        organization=org, name="研发部", head=head_user, code="D001"
+    )
+    _member(org, head_user, department=department, is_primary=False)
+    _member(org, factories.UserFactory(), department=department, is_primary=False)
+
+    rows = _client(me).get("/api/v1.0/directory/departments/").json()
+    row = next(r for r in rows if r["id"] == str(department.id))
+    assert row["head"]["full_name"] == "Team Lead"
+    assert row["member_count"] == 2
+    assert row["code"] == "D001"
+
+
+def test_member_count_excludes_departed_and_devices():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _member(org, me)
+    department = models.Department.objects.create(organization=org, name="Eng")
+    _member(org, factories.UserFactory(), department=department, is_primary=False)
+    _member(
+        org,
+        factories.UserFactory(),
+        department=department,
+        status=LEFT,
+        is_primary=False,
+    )
+    _member(
+        org,
+        factories.UserFactory(is_device=True),
+        department=department,
+        is_primary=False,
+    )
+
+    rows = _client(me).get("/api/v1.0/directory/departments/").json()
+    row = next(r for r in rows if r["id"] == str(department.id))
+    assert row["member_count"] == 1

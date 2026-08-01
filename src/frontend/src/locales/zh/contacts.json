@@ -55,5 +55,12 @@
   "specialAlert": {
     "toggle": "他的消息特别提醒",
     "toggleHint": "开启后，该联系人发来消息时即使在免打扰时段也会通知你。"
+  },
+  "department": {
+    "memberCount": "成员数",
+    "people": "{{count}} 人",
+    "head": "负责人",
+    "noHead": "未指定",
+    "code": "部门 ID"
   }
 }

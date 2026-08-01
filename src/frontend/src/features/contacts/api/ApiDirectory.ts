@@ -59,6 +59,10 @@ export interface DirectoryDepartment {
   depth: number
   head: DirectoryDepartmentHead | null
   sort_order: number
+  /** 客户可编辑的外部对接标识(飞书的「部门ID」),与不可变的 team_key 无关。 */
+  code: string
+  /** 在职直属成员数,服务端 annotate 而非逐行 count(部门树整棵返回)。 */
+  member_count: number
 }
 
 export type { Paginated } from '@/api/Paginated'
