@@ -21,6 +21,11 @@ export function useApplyTheme() {
       const theme = resolveTheme(mode)
       document.documentElement.dataset.theme = theme
       document.documentElement.style.colorScheme = theme
+      // Semi Design(仅运营管理台 /admin 在用)读的是 body 上的 theme-mode,
+      // 与我们挂在 html 上的 data-theme 是两套开关。在这里桥接,免得 admin
+      // 里的 Semi 组件在深色下仍是浅色。属性置空即浅色(Semi 只认 ="dark")。
+      if (theme === 'dark') document.body.setAttribute('theme-mode', 'dark')
+      else document.body.removeAttribute('theme-mode')
     }
     apply()
 

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
-import { addDays, addYears, format } from 'date-fns'
-import { zhCN, enUS, fr, de, nl, type Locale } from 'date-fns/locale'
+import { addDays, addYears, format, type Locale } from 'date-fns'
+import { zhCN, enUS, fr, de, nl } from 'date-fns/locale'
 
 import { css, cx } from '@/styled-system/css'
 import { Button } from '@/primitives'
