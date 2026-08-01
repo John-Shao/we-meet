@@ -165,17 +165,22 @@ export const AdminMembers = () => {
         </div>
       ),
     },
+    // 后三列给显式宽度:表格是 table-layout auto,不给宽度时浏览器按内容分配,
+    // 「成员」列(带邮箱,内容最长)会吃掉几乎所有剩余宽度,把这三列挤到最右边。
     {
       title: t('members.colDepartment'),
+      width: 160,
       render: (_: unknown, m: AdminMember) =>
         m.department?.name ?? t('members.orgLevel'),
     },
     {
       title: t('members.colRole'),
+      width: 140,
       render: (_: unknown, m: AdminMember) => roleLabel(m.org_role),
     },
     {
       title: t('members.colStatus'),
+      width: 120,
       render: (_: unknown, m: AdminMember) => (
         <StatusBadge status={m.status} label={statusLabel(m.status)} />
       ),
@@ -331,8 +336,9 @@ export const AdminMembers = () => {
               pageSize: MEMBERS_PAGE_SIZE,
               total: data?.count ?? 0,
               onPageChange: setPage,
-              showTotal: true,
-              // 总数文案沿用既有 i18n key,不新造。
+              // showTotal 会在右侧再渲染一个「总页数: N」,和左边的「共 N 人」
+              // 重复且信息量更低,关掉。总数只保留左侧这一处,沿用既有 i18n key。
+              showTotal: false,
               formatPageText: () => t('members.total', { count: data?.count ?? 0 }),
             }}
           />
