@@ -46,13 +46,31 @@ class OrgInvitationReadSerializer(serializers.ModelSerializer):
 class OrgInvitationCreateSerializer(serializers.ModelSerializer):
     """Create an invitation within the caller's organization."""
 
+    # Surfaced (not enforced) when the email's domain is not the organization's:
+    # inviting a contractor on their own domain is legitimate, so this is a
+    # "did you mean to?" signal for the console, not a rejection.
+    domain_warning = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = models.OrgInvitation
-        fields = ["id", "email", "department", "org_role", "title"]
-        read_only_fields = ["id"]
+        fields = ["id", "email", "department", "org_role", "title", "domain_warning"]
+        read_only_fields = ["id", "domain_warning"]
 
     def validate_email(self, value):
         return value.strip().lower()
+
+    def get_domain_warning(self, obj):
+        """True when the invitee's email domain differs from the org's primary one.
+
+        This is the first thing that reads ``Organization.primary_domain`` — the
+        column has existed since P1 with a help_text promising exactly this and
+        no code behind it.
+        """
+        primary_domain = (self._organization().primary_domain or "").strip().lower()
+        if not primary_domain:
+            return False
+        email = (getattr(obj, "email", "") or "").lower()
+        return not email.endswith(f"@{primary_domain}")
 
     def validate_department(self, value):
         if value is not None and value.organization_id != self._organization().id:

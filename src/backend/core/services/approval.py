@@ -391,18 +391,39 @@ def _cmp(actual, op, expected) -> bool:
 
 
 def _direct_manager(applicant, org):
-    """Head of the applicant's primary department; walks up parents if the head
-    is empty or is the applicant themselves. None if the chain has no other head."""
+    """The applicant's approver: explicit reporting line first, department head after.
+
+    An explicit ``Membership.manager`` wins when one is set — walking the
+    department tree gets the wrong person in matrix orgs and anywhere someone
+    reports across departments. When it is unset (the common case until an org
+    fills the field in), the behaviour is byte-for-byte the previous one: head
+    of the primary department, walking up parents past empty heads and past the
+    applicant themselves.
+
+    The dotted line is deliberately ignored — it exists for org charts, not for
+    routing approvals.
+    """
     membership = (
         applicant.memberships.filter(
             organization=org,
             status=MembershipStatusChoices.ACTIVE,
             is_primary=True,
         )
-        .select_related("department")
+        .select_related("department", "manager__user")
         .first()
     )
-    dept = membership.department if membership else None
+    if membership is None:
+        return None
+
+    manager = membership.manager
+    if (
+        manager is not None
+        and manager.status == MembershipStatusChoices.ACTIVE
+        and manager.user_id != applicant.id
+    ):
+        return manager.user
+
+    dept = membership.department
     seen = set()
     while dept is not None and dept.id not in seen:
         seen.add(dept.id)
