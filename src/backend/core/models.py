@@ -274,26 +274,39 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
     def get_teams(self):
         """Team keys granting this user team-based resource access.
 
-        Returns the ``team_key`` of each *direct*, active department membership.
-        Subtree expansion is intentionally NOT applied (a manager of a parent
-        department does not implicitly gain access to child-department
-        resources) — that stays an explicit, opt-in grant per roadmap P1.
+        Two kinds of subject, both opaque strings that go verbatim into
+        ``BaseAccess.team``:
+
+        - ``dept:<hex>`` — each *direct*, active department membership. Subtree
+          expansion is intentionally NOT applied (a manager of a parent
+          department does not implicitly gain access to child-department
+          resources); that stays an explicit, opt-in grant per roadmap P1.
+        - ``group:<hex>`` — each live user group the person is in (P10 M2).
 
         Memoized on the instance: ``BaseAccessManager.filter_user`` and the
         viewset querysets call this once per request on ``request.user``, so the
-        cache turns N access-row checks into a single query without needing a
+        cache turns N access-row checks into two queries without needing a
         cross-request cache.
+
+        No cross-request (Redis) cache on purpose. Two indexed reads per request
+        is already cheap, and a cached copy buys a "added to the group but still
+        can't see anything" staleness bug that is far more expensive to explain
+        than the queries are to run.
         """
         if not hasattr(self, "_teams_cache"):
-            self._teams_cache = list(
-                Membership.objects.filter(
-                    user=self,
-                    status=MembershipStatusChoices.ACTIVE,
-                    department__isnull=False,
-                    department__is_active=True,
-                    department__deleted_at__isnull=True,
-                ).values_list("department__team_key", flat=True)
-            )
+            dept_keys = Membership.objects.filter(
+                user=self,
+                status=MembershipStatusChoices.ACTIVE,
+                department__isnull=False,
+                department__is_active=True,
+                department__deleted_at__isnull=True,
+            ).values_list("department__team_key", flat=True)
+            group_keys = UserGroupMember.objects.filter(
+                user=self,
+                group__is_active=True,
+                group__deleted_at__isnull=True,
+            ).values_list("group__group_key", flat=True)
+            self._teams_cache = [*dept_keys, *group_keys]
         return self._teams_cache
 
 
@@ -1895,6 +1908,15 @@ class MeetingDoc(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+#: Prefixes for the opaque keys stored verbatim in ``BaseAccess.team``. Defined
+#: here so the set of grant subjects is enumerable in one place — a grant row
+#: carries only a string, so a typo'd prefix is a silently dead ACL entry rather
+#: than an error. The write path whitelists exactly these.
+TEAM_PREFIX_DEPT = "dept:"
+TEAM_PREFIX_GROUP = "group:"
+TEAM_PREFIXES = (TEAM_PREFIX_DEPT, TEAM_PREFIX_GROUP)
+
+
 class OrgRoleChoices(models.TextChoices):
     """Role of a user *within an organization* (distinct from per-resource RoleChoices).
 
@@ -2112,7 +2134,7 @@ class Department(BaseModel):
         admin console's job.
         """
         if not self.team_key:
-            self.team_key = f"dept:{self.id.hex}"
+            self.team_key = f"{TEAM_PREFIX_DEPT}{self.id.hex}"
         if self.parent_id:
             self.path = f"{self.parent.path}{self.id.hex}/"
             self.depth = self.parent.depth + 1
@@ -2331,6 +2353,111 @@ class Membership(BaseModel):
                 else ""
             ),
         }
+
+
+class UserGroup(BaseModel):
+    """A named set of people that can be granted access as a unit (P10 M2).
+
+    Deliberately reuses the existing team-grant plumbing rather than introducing
+    a second authorization model: the group exposes an opaque ``group_key``
+    (``group:<hex>``) that goes verbatim into ``BaseAccess.team``, exactly the
+    way a department's ``team_key`` does. ``User.get_teams()`` returns both, so
+    every team-aware queryset lights up with no viewset change.
+
+    ⚠️ Scope of that "for free": today the only concrete ``BaseAccess`` subclass
+    is ``RecordingAccess``. Rooms use ``ResourceAccess``, which is a plain
+    ``BaseModel`` with no ``team`` column — see ``get_resource_roles``. Granting
+    a *room* to a group needs its own table and is not covered here.
+
+    Membership is explicit rows, not a rule. Dynamic (rule-driven) groups are
+    deferred: static covers the common cases, and a rule engine wants to share
+    its evaluator with department-group membership rules, which do not exist yet.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="user_groups"
+    )
+    name = models.CharField(_("name"), max_length=128)
+    description = models.CharField(
+        _("description"), max_length=255, blank=True, default=""
+    )
+    # Opaque and immutable for the same reason as Department.team_key: historical
+    # grant rows carry the string verbatim, so a rename must never invalidate it.
+    group_key = models.CharField(
+        _("group key"), max_length=100, unique=True, editable=False
+    )
+    source = models.CharField(
+        max_length=16, choices=SourceChoices.choices, default=SourceChoices.MANUAL
+    )
+    is_active = models.BooleanField(_("active"), default=True)
+    deleted_at = models.DateTimeField(_("deleted at"), null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_user_group"
+        ordering = ("name",)
+        verbose_name = _("User group")
+        verbose_name_plural = _("User groups")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "name"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="user_group_unique_org_name",
+                violation_error_message=_(
+                    "This organization already has a group with this name."
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        # Before super(): BaseModel.save() runs full_clean() and group_key is
+        # non-blank. Mirrors Department.save().
+        if not self.group_key:
+            self.group_key = f"{TEAM_PREFIX_GROUP}{self.id.hex}"
+        super().save(*args, **kwargs)
+
+
+class UserGroupMember(BaseModel):
+    """One person's membership of a :class:`UserGroup`."""
+
+    group = models.ForeignKey(
+        UserGroup, on_delete=models.CASCADE, related_name="members"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="user_group_memberships",
+    )
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        db_table = "meet_user_group_member"
+        ordering = ("-created_at",)
+        verbose_name = _("User group member")
+        verbose_name_plural = _("User group members")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["group", "user"],
+                name="user_group_member_unique",
+                violation_error_message=_("This person is already in the group."),
+            ),
+        ]
+        indexes = [
+            # get_teams() reads by user on every authenticated request that
+            # touches a team-aware queryset — this index is that query's plan.
+            models.Index(fields=["user"], name="ugm_user_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.user} in {self.group}"
 
 
 # --- P2 日历 / 日程 ---
@@ -2744,6 +2871,13 @@ class AuditActionChoices(models.TextChoices):
     DICT_ITEM_CREATE = "dict_item.create", _("Dictionary option created")
     DICT_ITEM_UPDATE = "dict_item.update", _("Dictionary option updated")
     DICT_ITEM_DELETE = "dict_item.delete", _("Dictionary option deleted")
+    # P10 M2 — user groups. Membership changes are audited because a group key
+    # is an ACL subject: adding someone silently widens what they can reach.
+    GROUP_CREATE = "group.create", _("User group created")
+    GROUP_UPDATE = "group.update", _("User group updated")
+    GROUP_DELETE = "group.delete", _("User group deleted")
+    GROUP_MEMBER_ADD = "group.member_add", _("User group members added")
+    GROUP_MEMBER_REMOVE = "group.member_remove", _("User group member removed")
     # 纪要闭环 M2:纪要编辑(会议侧动作,同样入 M 端审计)。
     SUMMARY_EDIT = "summary.edit", _("Meeting summary edited")
     # P9 会议室(实体会议室,与 LiveKit Room 无关)。

@@ -16,7 +16,7 @@ membership (single-org MVP; ready for multi-org without query changes).
 """
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -420,6 +420,58 @@ class OrgDictItemSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data["organization"] = self.context["organization"]
         return super().create(validated_data)
+
+
+class UserGroupSerializer(serializers.ModelSerializer):
+    """A user group — a named ACL subject, not just a saved selection."""
+
+    # ``default`` matters on create: the annotation only exists on the list
+    # queryset, and without it DRF drops the key entirely from the 201 body —
+    # so the client has to special-case "just created" when rendering the row.
+    member_count = serializers.IntegerField(read_only=True, default=0)
+    # Surfaced read-only so the console can show what a grant row would carry;
+    # it is also what an admin pastes when wiring a share by hand.
+    group_key = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = models.UserGroup
+        fields = [
+            "id",
+            "name",
+            "description",
+            "group_key",
+            "source",
+            "is_active",
+            "member_count",
+        ]
+        read_only_fields = ["id", "group_key", "source"]
+
+    def create(self, validated_data):
+        validated_data["organization"] = self.context["organization"]
+        return super().create(validated_data)
+
+
+class UserGroupMemberSerializer(serializers.Serializer):
+    """One person inside a group, shaped like a directory card."""
+
+    id = serializers.UUIDField(source="user.id", read_only=True)
+    membership_row_id = serializers.UUIDField(source="id", read_only=True)
+    full_name = serializers.CharField(source="user.full_name", read_only=True)
+    short_name = serializers.CharField(source="user.short_name", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+    avatar_url = serializers.SerializerMethodField()
+    added_at = serializers.DateTimeField(source="created_at", read_only=True)
+
+    def get_avatar_url(self, obj):
+        return utils.generate_profile_image_get_url("avatar", obj.user.avatar_key)
+
+
+class GroupMemberWriteSerializer(serializers.Serializer):
+    """Add people to a group by we-meet user id."""
+
+    user_ids = serializers.ListField(
+        child=serializers.UUIDField(), allow_empty=False, max_length=BULK_LIMIT
+    )
 
 
 class _OrgScopedAdminViewSet(viewsets.GenericViewSet):
@@ -1061,3 +1113,155 @@ class OrgDictItemViewSet(
             )
         self._audit(instance, models.AuditActionChoices.DICT_ITEM_DELETE)
         instance.delete()
+
+
+class UserGroupViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    _OrgScopedAdminViewSet,
+):
+    """Manage user groups — named sets of people that can be granted access.
+
+    A group is an **ACL subject**: its ``group_key`` goes into ``BaseAccess.team``
+    exactly like a department's ``team_key``, so adding someone to a group
+    silently widens what they can reach. That is why every membership change is
+    audited, and why deletion is a soft delete — hard-deleting the row would
+    leave orphan grants pointing at a key nobody can resolve, and re-creating a
+    group with the same name would NOT revive them (the key is id-derived).
+    """
+
+    serializer_class = UserGroupSerializer
+    pagination_class = None  # a company has tens of groups, not thousands
+
+    def get_queryset(self):
+        organization = self.get_organization()
+        if organization is None:
+            return models.UserGroup.objects.none()
+        queryset = models.UserGroup.objects.filter(
+            organization=organization, deleted_at__isnull=True
+        ).annotate(member_count=Count("members"))
+        if self.request.query_params.get("include_inactive") != "true":
+            queryset = queryset.filter(is_active=True)
+        search = self.request.query_params.get("q")
+        if search:
+            queryset = queryset.filter(name__icontains=search.strip())
+        return queryset
+
+    def _audit(self, instance, action, **metadata):
+        record_audit(
+            actor=self.request.user,
+            organization=self.get_organization(),
+            action=action,
+            target_type="user_group",
+            target_id=instance.id,
+            target_label=instance.name,
+            metadata={"group_key": instance.group_key, **metadata},
+        )
+
+    def perform_create(self, serializer):
+        self._audit(serializer.save(), models.AuditActionChoices.GROUP_CREATE)
+
+    def perform_update(self, serializer):
+        self._audit(serializer.save(), models.AuditActionChoices.GROUP_UPDATE)
+
+    def perform_destroy(self, instance):
+        """Soft delete. See the class docstring for why it is never a hard one."""
+        grant_count = models.RecordingAccess.objects.filter(
+            team=instance.group_key
+        ).count()
+        instance.deleted_at = timezone.now()
+        instance.is_active = False
+        instance.save(update_fields=["deleted_at", "is_active", "updated_at"])
+        # Report the blast radius rather than silently revoking N shares: the
+        # grants stay in the table but stop resolving, because get_teams() skips
+        # deleted groups.
+        self._audit(
+            instance,
+            models.AuditActionChoices.GROUP_DELETE,
+            revoked_grants=grant_count,
+        )
+
+    @action(detail=True, methods=["get"], url_path="members")
+    def members(self, request, *args, **kwargs):
+        """List the group's people."""
+        group = self.get_object()
+        rows = (
+            models.UserGroupMember.objects.filter(group=group)
+            .select_related("user")
+            .order_by("user__full_name", "user__short_name")
+        )
+        return Response(UserGroupMemberSerializer(rows, many=True).data)
+
+    @action(detail=True, methods=["post"], url_path="add-members")
+    def add_members(self, request, *args, **kwargs):
+        """Add people to the group (idempotent; already-members are skipped)."""
+        group = self.get_object()
+        serializer = GroupMemberWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user_ids = serializer.validated_data["user_ids"]
+
+        organization = self.get_organization()
+        # Only people who actually work here. Without this an admin could paste
+        # any user id and hand an outsider a live grant key.
+        eligible = set(
+            models.Membership.objects.filter(
+                organization=organization,
+                user_id__in=user_ids,
+                status=models.MembershipStatusChoices.ACTIVE,
+            ).values_list("user_id", flat=True)
+        )
+        existing = set(
+            models.UserGroupMember.objects.filter(
+                group=group, user_id__in=user_ids
+            ).values_list("user_id", flat=True)
+        )
+        to_add = [uid for uid in eligible if uid not in existing]
+
+        with transaction.atomic():
+            models.UserGroupMember.objects.bulk_create(
+                [
+                    models.UserGroupMember(
+                        group=group, user_id=uid, added_by=request.user
+                    )
+                    for uid in to_add
+                ]
+            )
+        if to_add:
+            self._audit(
+                group,
+                models.AuditActionChoices.GROUP_MEMBER_ADD,
+                added=len(to_add),
+            )
+        return Response(
+            {
+                "added": len(to_add),
+                "already_member": len(existing),
+                # Anything neither added nor already in: not an active member of
+                # this organization. Reported rather than silently dropped.
+                "skipped": len(set(user_ids)) - len(eligible),
+            }
+        )
+
+    @action(detail=True, methods=["post"], url_path="remove-member")
+    def remove_member(self, request, *args, **kwargs):
+        """Remove one person from the group."""
+        group = self.get_object()
+        user_id = request.data.get("user_id")
+        if not user_id:
+            raise serializers.ValidationError({"user_id": _("This field is required.")})
+        deleted, _ignored = models.UserGroupMember.objects.filter(
+            group=group, user_id=user_id
+        ).delete()
+        if not deleted:
+            raise serializers.ValidationError(
+                {"detail": _("This person is not in the group.")}
+            )
+        self._audit(
+            group,
+            models.AuditActionChoices.GROUP_MEMBER_REMOVE,
+            user_id=str(user_id),
+        )
+        return Response({"removed": True})

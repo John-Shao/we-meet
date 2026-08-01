@@ -18,8 +18,10 @@ from core.api.admin_org import (
     DepartmentAdminViewSet,
     MembershipAdminViewSet,
     OrgDictItemViewSet,
+    UserGroupViewSet,
 )
 from core.api.agent_internal import IngestTranscriptView
+from core.api.recording_accesses import RecordingAccessViewSet
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.calendar import CalendarEventViewSet
 from core.api.admin_audit import AuditLogViewSet
@@ -32,6 +34,7 @@ from core.api.directory import (
     DirectoryMemberViewSet,
     SpecialAlertContactViewSet,
     StarredContactViewSet,
+    UserGroupDirectoryViewSet,
 )
 from core.api.im import ImViewSet
 from core.api.meeting_rooms import (
@@ -74,6 +77,11 @@ router.register(
     "resource-accesses", viewsets.ResourceAccessViewSet, basename="resource_accesses"
 )
 router.register(
+    "recording-accesses",
+    RecordingAccessViewSet,
+    basename="recording_accesses",
+)
+router.register(
     "addons/sessions",
     addons_viewsets.SessionViewSet,
     basename="addons_sessions",
@@ -82,6 +90,11 @@ router.register("im", ImViewSet, basename="im")
 router.register("im/later", ImLaterViewSet, basename="im_later")
 router.register(
     "calendar-events", CalendarEventViewSet, basename="calendar_events"
+)
+router.register(
+    "directory/user-groups",
+    UserGroupDirectoryViewSet,
+    basename="directory_user_groups",
 )
 router.register(
     "directory/departments", DepartmentViewSet, basename="directory_departments"
@@ -114,6 +127,7 @@ router.register(
 router.register(
     "admin/dictionaries", OrgDictItemViewSet, basename="admin_dictionaries"
 )
+router.register("admin/user-groups", UserGroupViewSet, basename="admin_user_groups")
 router.register(
     "admin/audit-logs", AuditLogViewSet, basename="admin_audit_logs"
 )

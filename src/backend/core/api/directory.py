@@ -235,6 +235,46 @@ class DirectoryMemberSerializer(serializers.Serializer):
         return bool(alerted) and obj.user_id in alerted
 
 
+class UserGroupDirectorySerializer(serializers.ModelSerializer):
+    """A user group as a *share target* — the C-side view of it.
+
+    Deliberately thin: name + the opaque key you would put in a grant, plus a
+    member count for the picker. Who is in the group is not exposed here; that
+    is an admin question, and a share picker does not need it.
+    """
+
+    member_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = models.UserGroup
+        fields = ["id", "name", "description", "group_key", "member_count"]
+
+
+class UserGroupDirectoryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """Groups in the caller's organization, for share pickers (read-only).
+
+    Visible to every member, not just admins: the point of a group is that
+    ordinary people can share *with* it. Membership of the group is not
+    returned — see the serializer.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserGroupDirectorySerializer
+    pagination_class = None  # tens of groups, not thousands
+
+    def get_queryset(self):
+        organization = get_caller_organization(self.request.user)
+        if organization is None:
+            return models.UserGroup.objects.none()
+        queryset = models.UserGroup.objects.filter(
+            organization=organization, is_active=True, deleted_at__isnull=True
+        ).annotate(member_count=Count("members", distinct=True))
+        search = self.request.query_params.get("q")
+        if search:
+            queryset = queryset.filter(name__icontains=search.strip())
+        return queryset
+
+
 class DepartmentViewSet(
     mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
 ):

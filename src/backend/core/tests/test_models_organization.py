@@ -169,14 +169,20 @@ def test_models_user_get_teams_excludes_inactive_membership_and_department():
 
 
 def test_models_user_get_teams_memoized(django_assert_num_queries):
-    """get_teams hits the DB once per instance, then serves from the cache."""
+    """get_teams hits the DB once per instance, then serves from the cache.
+
+    Two queries, not one, since P10 M2 added user groups as a second kind of
+    grant subject — departments and groups are separate tables. The number that
+    matters here is the *second* call costing nothing: this runs on every
+    authenticated request that touches a team-aware queryset.
+    """
     org = models.Organization.objects.create(name="Acme", slug="acme")
     dept = models.Department.objects.create(organization=org, name="Engineering")
     user = factories.UserFactory()
     models.Membership.objects.create(organization=org, user=user, department=dept)
 
     user = models.User.objects.get(pk=user.pk)
-    with django_assert_num_queries(1):
+    with django_assert_num_queries(2):
         assert user.get_teams() == [dept.team_key]
         assert user.get_teams() == [dept.team_key]
 
