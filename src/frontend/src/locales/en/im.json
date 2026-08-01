@@ -101,7 +101,8 @@
     "loading": "Loading…",
     "empty": "No members to add",
     "error": "Failed to create group: {{message}}",
-    "you": "You"
+    "you": "You",
+    "loadMore": "Load more"
   },
   "header": {
     "memberCount": "{{count}} members"

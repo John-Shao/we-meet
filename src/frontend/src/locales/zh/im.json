@@ -101,7 +101,8 @@
     "loading": "正在加载…",
     "empty": "没有可选成员",
     "error": "创建群聊失败:{{message}}",
-    "you": "我"
+    "you": "我",
+    "loadMore": "加载更多"
   },
   "header": {
     "memberCount": "{{count}} 人"

@@ -8,7 +8,8 @@
     "searchPlaceholder": "搜索姓名或邮箱…",
     "empty": "未找到联系人",
     "loading": "正在加载…",
-    "cancel": "取消"
+    "cancel": "取消",
+    "loadMore": "加载更多"
   },
   "page": {
     "authRequired": "请先登录后再查看通讯录。",
@@ -28,7 +29,8 @@
     "deleteDept": "删除部门",
     "deleteDeptConfirm": "确定删除部门「{{name}}」？该部门下的成员将变为「无部门」。",
     "deleteDeptError": "删除部门失败：{{message}}",
-    "selfTag": "(我)"
+    "selfTag": "(我)",
+    "loadMore": "加载更多"
   },
   "detail": {
     "email": "邮箱",

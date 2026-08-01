@@ -87,6 +87,7 @@ export const StarredAddDialog = ({
           selectedTitle: t('starred.selected', { count: draft.size }),
           loading: t('picker.loading'),
           empty: t('picker.empty'),
+          loadMore: t('picker.loadMore'),
         }}
         searchRef={searchRef}
         searchTestId="starred-add-search"

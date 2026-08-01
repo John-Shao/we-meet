@@ -36,6 +36,12 @@ export interface DirectoryMember {
    * 与 `is_starred` **相互独立**:可以只开一个。
    */
   special_alert: boolean
+  /**
+   * 该成员是否已离职。列表里永远是 false(列表只出在职的);为 true 的卡片只可能
+   * 来自 `GET /directory/members/{id}/` 的墓碑响应——历史消息里点头像深链过来的
+   * 那条路径。墓碑卡不带 `phone`/`email`(人走了联系方式不再由组织代为分发)。
+   */
+  left: boolean
 }
 
 export interface DirectoryDepartmentHead {

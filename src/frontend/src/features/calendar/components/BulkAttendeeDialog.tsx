@@ -66,6 +66,7 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
           selectedTitle: t('form.selected', { count: draft.size }),
           loading: t('form.loading'),
           empty: t('form.noResults'),
+          loadMore: t('form.loadMore'),
         }}
         searchRef={searchRef}
         searchTestId="bulk-attendee-search"

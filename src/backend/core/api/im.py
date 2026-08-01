@@ -41,6 +41,35 @@ from core.services.jusi_im import (
 logger = logging.getLogger(__name__)
 
 
+# Who may be resolved to a name in chat history. Deliberately wider than the
+# directory's ACTIVE-only rule: once someone leaves, every message they ever
+# sent would otherwise render as a raw uid. "Was a member of this organization"
+# is the right bar — cross-org resolution stays closed.
+RESOLVABLE_MEMBERSHIP_STATUSES = (
+    models.MembershipStatusChoices.ACTIVE,
+    models.MembershipStatusChoices.LEFT,
+    models.MembershipStatusChoices.SUSPENDED,
+)
+
+
+def _departed_user_ids(organization, user_ids) -> set:
+    """Of these users, which have no active membership left in the organization.
+
+    Drives the "(已离职)" suffix and greyed avatar in chat history. One query,
+    not one per user.
+    """
+    if organization is None or not user_ids:
+        return set()
+    still_active = set(
+        models.Membership.objects.filter(
+            organization=organization,
+            user_id__in=user_ids,
+            status=models.MembershipStatusChoices.ACTIVE,
+        ).values_list("user_id", flat=True)
+    )
+    return {uid for uid in user_ids if uid not in still_active}
+
+
 class JusiImUnreachableHTTPError(APIException):
     """502 — jusi-light-im is unreachable or returned 5xx."""
 
@@ -148,12 +177,13 @@ class ImViewSet(viewsets.ViewSet):
         if organization is not None:
             qs = qs.filter(
                 memberships__organization=organization,
-                memberships__status=models.MembershipStatusChoices.ACTIVE,
+                memberships__status__in=RESOLVABLE_MEMBERSHIP_STATUSES,
             ).distinct()
         else:
             # No org → only resolve self, never other users.
             qs = qs.filter(pk=request.user.pk)
 
+        left_ids = _departed_user_ids(organization, [u.id for u in qs])
         for u in qs:
             out[u.im_uid] = {
                 "id": str(u.id),
@@ -164,6 +194,7 @@ class ImViewSet(viewsets.ViewSet):
                 "avatar_url": utils.generate_profile_image_get_url(
                     "avatar", u.avatar_key
                 ),
+                "left": u.id in left_ids,
             }
         return Response(out, status=status.HTTP_200_OK)
 
@@ -199,11 +230,12 @@ class ImViewSet(viewsets.ViewSet):
         if organization is not None:
             qs = qs.filter(
                 memberships__organization=organization,
-                memberships__status=models.MembershipStatusChoices.ACTIVE,
+                memberships__status__in=RESOLVABLE_MEMBERSHIP_STATUSES,
             ).distinct()
         else:
             qs = qs.filter(pk=request.user.pk)
 
+        left_ids = _departed_user_ids(organization, [u.id for u in qs])
         for u in qs:
             out[str(u.sub)] = {
                 "id": str(u.id),
@@ -212,6 +244,7 @@ class ImViewSet(viewsets.ViewSet):
                 "avatar_url": utils.generate_profile_image_get_url(
                     "avatar", u.avatar_key
                 ),
+                "left": u.id in left_ids,
             }
         return Response(out, status=status.HTTP_200_OK)
 

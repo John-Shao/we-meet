@@ -8,7 +8,8 @@
     "searchPlaceholder": "Search by name or email…",
     "empty": "No contacts found",
     "loading": "Loading…",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "loadMore": "Load more"
   },
   "page": {
     "authRequired": "Please sign in to view the directory.",
@@ -28,7 +29,8 @@
     "deleteDept": "Delete department",
     "deleteDeptConfirm": "Delete department '{{name}}'? Its members will become 'no department'.",
     "deleteDeptError": "Failed to delete department: {{message}}",
-    "selfTag": "(you)"
+    "selfTag": "(you)",
+    "loadMore": "Load more"
   },
   "detail": {
     "email": "Email",

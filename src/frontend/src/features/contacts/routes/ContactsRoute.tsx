@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'wouter'
 
 import { css } from '@/styled-system/css'
@@ -15,9 +19,9 @@ import { Screen } from '@/layout/Screen'
 import { DepartmentTree } from '../components/DepartmentTree'
 import { MemberDetailPanel } from '../components/MemberDetailPanel'
 import { StarredAddDialog } from '../components/StarredAddDialog'
-import { fetchDepartmentMembers } from '../api/fetchDepartmentMembers'
+import { fetchDepartmentMembersPage } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
-import { fetchDirectoryMembers } from '../api/fetchDirectoryMembers'
+import { fetchDirectoryMembersPage } from '../api/fetchDirectoryMembers'
 import { fetchDirectoryMember } from '../api/fetchDirectoryMember'
 import { fetchStarredContacts } from '../api/fetchStarredContacts'
 import { fetchContactPrefs, setContactPref } from '../api/setContactPref'
@@ -88,16 +92,36 @@ const ContactsAuthenticated = () => {
 
   // 通讯录只负责「浏览」组织:选部门列其直属成员,全部成员列整册。
   // 按姓名找人统一走顶栏全局搜索(飞书式单一搜索入口),这里不设搜索框。
-  const { data: members = [], isFetching } = useQuery({
-    queryKey: ['directory', 'members', { dept: selectedDeptId, view }],
-    queryFn: () =>
+  //
+  // 分页而不是只取第一页:一个上百人的部门原来会在第 100 人处静默截断,页面上
+  // 没有任何迹象表明列表还没完。星标名单不分页(它本来就短)。
+  const {
+    data: memberPages,
+    isFetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['directory', 'members', 'page', { dept: selectedDeptId, view }],
+    queryFn: ({ pageParam }) =>
       view === 'starred'
-        ? fetchStarredContacts()
+        ? fetchStarredContacts().then((results) => ({
+            count: results.length,
+            next: null,
+            previous: null,
+            results,
+          }))
         : selectedDeptId
-          ? fetchDepartmentMembers(selectedDeptId)
-          : fetchDirectoryMembers(),
+          ? fetchDepartmentMembersPage(selectedDeptId, false, pageParam)
+          : fetchDirectoryMembersPage(undefined, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.next ?? undefined,
     staleTime: 30_000,
   })
+  const members = useMemo(
+    () => (memberPages?.pages ?? []).flatMap((page) => page.results),
+    [memberPages],
+  )
 
   // 星标名单单独拉一份:一是「添加」对话框要排掉已星标的人,二是任何列表/详情
   // 里的星标状态都从这一份派生,切换视图不会看到两种说法。
@@ -431,6 +455,29 @@ const ContactsAuthenticated = () => {
                 )
               })}
             </ul>
+          )}
+          {/* 只有真的还有下一页时才出现 —— 之前列表在第 100 人处静默截断,页面
+              上没有任何迹象说明「还没完」。 */}
+          {hasNextPage && (
+            <div
+              className={css({
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '0.75rem',
+              })}
+            >
+              <Button
+                variant="tertiaryText"
+                size="sm"
+                onPress={() => void fetchNextPage()}
+                isDisabled={isFetchingNextPage}
+                data-testid="contacts-load-more"
+              >
+                {isFetchingNextPage
+                  ? t('page.loading')
+                  : t('page.loadMore')}
+              </Button>
+            </div>
           )}
         </div>
       </main>

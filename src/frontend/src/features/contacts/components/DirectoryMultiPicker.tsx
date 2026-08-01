@@ -12,6 +12,8 @@ export interface DirectoryMultiPickerLabels {
   selectedTitle: string
   loading: string
   empty: string
+  /** 「加载更多」——超过一页(100 人)时才出现。 */
+  loadMore: string
 }
 
 interface Props {
@@ -48,7 +50,15 @@ export const DirectoryMultiPicker = ({
   searchRef,
   searchTestId,
 }: Props) => {
-  const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
+  const {
+    query,
+    setQuery,
+    selectable,
+    isFetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useDirectoryMemberSearch()
   const options = excludeIds
     ? selectable.filter((m) => !excludeIds.has(m.id))
     : selectable
@@ -99,6 +109,16 @@ export const DirectoryMultiPicker = ({
               )
             })
           )}
+          {hasNextPage && (
+            <button
+              type="button"
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+              className={loadMoreCls}
+            >
+              {isFetchingNextPage ? labels.loading : labels.loadMore}
+            </button>
+          )}
         </div>
       </div>
 
@@ -116,6 +136,16 @@ export const DirectoryMultiPicker = ({
 }
 
 const bodyCls = css({ display: 'flex', flex: 1, minHeight: 0 })
+
+const loadMoreCls = css({
+  width: '100%',
+  padding: '0.625rem 1rem',
+  textStyle: 'sm',
+  color: 'primary.500',
+  cursor: 'pointer',
+  _hover: { bg: 'greyscale.100' },
+  _disabled: { cursor: 'default', color: 'greyscale.500' },
+})
 
 const leftCls = css({
   display: 'flex',

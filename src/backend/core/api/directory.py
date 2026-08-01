@@ -16,6 +16,7 @@ import uuid
 from typing import Optional
 
 from django.db.models import Q
+from django.http import Http404
 
 from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
@@ -172,6 +173,13 @@ class DirectoryMemberSerializer(serializers.Serializer):
     phone = serializers.SerializerMethodField()
     is_starred = serializers.SerializerMethodField()
     special_alert = serializers.SerializerMethodField()
+    # Always False here (this serializer only ever sees active memberships); the
+    # field exists so clients get one card shape and can branch on it. Departed
+    # colleagues come back from the retrieve tombstone with ``left: true``.
+    left = serializers.SerializerMethodField()
+
+    def get_left(self, obj):
+        return obj.status != models.MembershipStatusChoices.ACTIVE
 
     def get_avatar_url(self, obj):
         """Short-lived presigned GET URL for the avatar, '' if unset."""
@@ -327,6 +335,71 @@ class DirectoryMemberViewSet(
         context["request"] = self.request
         context.update(contact_flag_context(self.request.user))
         return context
+
+    def retrieve(self, request, *args, **kwargs):
+        """One member's card, with a tombstone fallback for departed colleagues.
+
+        The list stays active-only, but a 404 here would white-screen the
+        ``/contacts?member=<id>`` deep link that every historical message links
+        to. Departed members get a reduced card instead: enough to render the
+        name in history, with contact details stripped — someone who left should
+        not keep handing out their phone number and email.
+        """
+        try:
+            return super().retrieve(request, *args, **kwargs)
+        except Http404:
+            tombstone = self._departed_card(kwargs.get(self.lookup_field))
+            if tombstone is None:
+                raise
+            return Response(tombstone, status=status.HTTP_200_OK)
+
+    def _departed_card(self, user_id) -> Optional[dict]:
+        """Reduced card for a former member of the caller's org, else ``None``."""
+        organization = get_caller_organization(self.request.user)
+        parsed = parse_user_id(user_id)
+        if organization is None or parsed is None:
+            return None
+
+        membership = (
+            models.Membership.objects.filter(
+                organization=organization,
+                user_id=parsed,
+                status__in=(
+                    models.MembershipStatusChoices.LEFT,
+                    models.MembershipStatusChoices.SUSPENDED,
+                ),
+                user__is_device=False,
+            )
+            .select_related("user")
+            .order_by("-left_at")
+            .first()
+        )
+        if membership is None:
+            return None
+
+        user = membership.user
+        snapshot = membership.left_snapshot or {}
+        return {
+            "id": str(user.id),
+            "membership_id": str(membership.id),
+            "sub": user.sub or "",
+            "full_name": user.full_name or user.short_name or "",
+            "short_name": user.short_name or "",
+            "avatar_url": utils.generate_profile_image_get_url(
+                "avatar", user.avatar_key
+            ),
+            # Contact details are deliberately omitted, not blanked: a departed
+            # colleague's phone and email stop being the organization's to share.
+            "title": snapshot.get("title", membership.title),
+            "department": (
+                {"id": snapshot.get("department_id"), "name": name}
+                if (name := snapshot.get("department_name"))
+                else None
+            ),
+            "org_role": snapshot.get("org_role", membership.org_role),
+            "is_self": user.id == self.request.user.id,
+            "left": True,
+        }
 
     @action(detail=True, methods=["post"], url_path="reveal-phone")
     def reveal_phone(self, request, user_id=None):

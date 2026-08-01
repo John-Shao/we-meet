@@ -101,6 +101,7 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
           selectedTitle: t('group.selected', { count: total }),
           loading: t('group.loading'),
           empty: t('group.empty'),
+          loadMore: t('group.loadMore'),
         }}
         locked={{
           label: selfLabel,
