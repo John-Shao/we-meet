@@ -148,7 +148,19 @@
       "member_department_change": "Department changed",
       "member_suspend": "Member suspended",
       "member_restore": "Member restored",
-      "member_remove": "Member removed"
+      "member_remove": "Member removed",
+      "dept_update": "Department updated",
+      "dept_move": "Department moved",
+      "member_invite": "Member invited",
+      "member_invite_revoke": "Invitation revoked",
+      "room_node_create": "Level created",
+      "room_node_update": "Level updated",
+      "room_node_delete": "Level deleted",
+      "room_node_move": "Level moved",
+      "meeting_room_create": "Room created",
+      "meeting_room_update": "Room updated",
+      "meeting_room_delete": "Room deleted",
+      "summary_edit": "Summary edited"
     }
   },
   "meetingRooms": {

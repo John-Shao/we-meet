@@ -148,7 +148,19 @@
       "member_department_change": "Service modifié",
       "member_suspend": "Membre suspendu",
       "member_restore": "Membre réactivé",
-      "member_remove": "Membre retiré"
+      "member_remove": "Membre retiré",
+      "dept_update": "Service mis à jour",
+      "dept_move": "Service déplacé",
+      "member_invite": "Membre invité",
+      "member_invite_revoke": "Invitation révoquée",
+      "room_node_create": "Niveau créé",
+      "room_node_update": "Niveau mis à jour",
+      "room_node_delete": "Niveau supprimé",
+      "room_node_move": "Niveau déplacé",
+      "meeting_room_create": "Salle créée",
+      "meeting_room_update": "Salle mise à jour",
+      "meeting_room_delete": "Salle supprimée",
+      "summary_edit": "Compte rendu modifié"
     }
   },
   "meetingRooms": {
