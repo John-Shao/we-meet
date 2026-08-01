@@ -113,6 +113,8 @@
   },
   "manage": {
     "addMembers": "添加成员",
+    "searchMembers": "搜索群成员",
+    "noMemberMatch": "没有匹配的成员",
     "addTitle": "添加群成员",
     "info": "群信息",
     "settings": "设置",

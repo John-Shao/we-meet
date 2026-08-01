@@ -125,6 +125,17 @@ export const GroupInfoPanel = ({
   // P10: a member's group nickname overrides their org-directory name.
   const nameOf = (uid: string) =>
     roster.find((m) => m.uid === uid)?.nickname || names[uid]?.full_name || uid
+
+  // 群成员搜索。搜的是**这个群里显示的那个名字** —— 群昵称优先、目录名兜底,
+  // 与名单上看到的一致;搜不到自己刚看见的名字比没有搜索还费解。
+  // 小群不出搜索框:三个人的名单上顶一个输入框纯属噪音。
+  const [memberQuery, setMemberQuery] = useState('')
+  const searchableRoster = roster.length > MEMBER_SEARCH_THRESHOLD
+  const visibleRoster = (() => {
+    const q = memberQuery.trim().toLowerCase()
+    if (!q || !searchableRoster) return roster
+    return roster.filter((m) => nameOf(m.uid).toLowerCase().includes(q))
+  })()
   const myNickname =
     roster.find((m) => m.uid === currentUserUID)?.nickname ?? ''
 
@@ -659,6 +670,19 @@ export const GroupInfoPanel = ({
             ＋
           </button>
         </div>
+        {searchableRoster && (
+          <div className={css({ paddingX: '1rem', paddingBottom: '0.5rem' })}>
+            <input
+              type="search"
+              value={memberQuery}
+              onChange={(e) => setMemberQuery(e.target.value)}
+              placeholder={t('manage.searchMembers')}
+              aria-label={t('manage.searchMembers')}
+              data-testid="group-member-search"
+              className={memberSearchCls}
+            />
+          </div>
+        )}
         <ul
           className={css({
             listStyle: 'none',
@@ -672,8 +696,14 @@ export const GroupInfoPanel = ({
             >
               {t('group.loading')}
             </li>
+          ) : visibleRoster.length === 0 ? (
+            <li
+              className={css({ padding: '0.5rem 1rem', color: 'greyscale.500' })}
+            >
+              {t('manage.noMemberMatch')}
+            </li>
           ) : (
-            roster.map((m) => {
+            visibleRoster.map((m) => {
               const label = nameOf(m.uid)
               const isSelf = m.uid === currentUserUID
               // Drive the badge off owner_uid (authoritative) rather than the
@@ -873,6 +903,19 @@ const editActions = css({
   display: 'flex',
   gap: '0.5rem',
   justifyContent: 'flex-end',
+})
+
+/** 成员数超过这个值才出搜索框 —— 少于一屏的名单上顶个输入框纯属噪音。 */
+const MEMBER_SEARCH_THRESHOLD = 10
+
+const memberSearchCls = css({
+  width: '100%',
+  padding: '0.375rem 0.5rem',
+  border: '1px solid token(colors.control.border)',
+  borderRadius: '6px',
+  backgroundColor: 'greyscale.000',
+  color: 'default.text',
+  fontSize: '0.8125rem',
 })
 
 // 离职标记。刻意用 greyscale 而非 error/warning:离职是常态事实不是异常,

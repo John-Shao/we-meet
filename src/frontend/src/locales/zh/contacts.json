@@ -39,6 +39,14 @@
     "close": "关闭",
     "none": "—"
   },
+  "groups": {
+    "title": "我的群组",
+    "unnamed": "未命名群聊",
+    "memberCount": "{{count}} 名成员",
+    "searchPlaceholder": "搜索群名称",
+    "empty": "你还没有加入任何群聊",
+    "noMatch": "没有匹配的群聊"
+  },
   "starred": {
     "title": "星标联系人",
     "add": "添加",

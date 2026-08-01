@@ -19,6 +19,7 @@ import { Screen } from '@/layout/Screen'
 import { DepartmentTree } from '../components/DepartmentTree'
 import { DepartmentDetailPanel } from '../components/DepartmentDetailPanel'
 import { MemberDetailPanel } from '../components/MemberDetailPanel'
+import { MyGroupsPanel } from '../components/MyGroupsPanel'
 import { StarredAddDialog } from '../components/StarredAddDialog'
 import { fetchDepartmentMembersPage } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
@@ -47,8 +48,8 @@ const ContactsAuthenticated = () => {
   const [, navigate] = useLocation()
   const qc = useQueryClient()
   const { alert: showAlert } = useConfirm()
-  // 左栏三态:'starred'(星标联系人)/ null(全部成员)/ 部门 id。
-  const [view, setView] = useState<'starred' | null>(null)
+  // 左栏四态:'starred'(星标联系人)/ 'groups'(我的群组)/ null(全部成员)/ 部门 id。
+  const [view, setView] = useState<'starred' | 'groups' | null>(null)
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [selectedMember, setSelectedMember] = useState<DirectoryMember | null>(
     null
@@ -63,6 +64,12 @@ const ContactsAuthenticated = () => {
 
   const selectStarred = () => {
     setView('starred')
+    setSelectedDeptId(null)
+    setSelectedMember(null)
+  }
+
+  const selectGroups = () => {
+    setView('groups')
     setSelectedDeptId(null)
     setSelectedMember(null)
   }
@@ -118,6 +125,8 @@ const ContactsAuthenticated = () => {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.next ?? undefined,
     staleTime: 30_000,
+    // 「我的群组」视图里根本不渲染成员名单,别白拉一整册人。
+    enabled: view !== 'groups',
   })
   const members = useMemo(
     () => (memberPages?.pages ?? []).flatMap((page) => page.results),
@@ -244,6 +253,16 @@ const ContactsAuthenticated = () => {
           >
             ⭐ {t('starred.title')}
           </button>
+          {/* 我的群组:零后端 —— 群清单就是 IM 会话列表里 type==='group' 的
+              那部分,复用会话列表已有的查询缓存。 */}
+          <button
+            type="button"
+            onClick={selectGroups}
+            data-testid="contacts-groups-entry"
+            className={deptButton(view === 'groups')}
+          >
+            👥 {t('groups.title')}
+          </button>
           <button
             type="button"
             onClick={() => selectDept(null)}
@@ -268,6 +287,10 @@ const ContactsAuthenticated = () => {
           overflow: 'hidden',
         })}
       >
+        {view === 'groups' ? (
+          <MyGroupsPanel />
+        ) : (
+          <>
         {view === 'starred' && (
           <div
             className={css({
@@ -499,6 +522,8 @@ const ContactsAuthenticated = () => {
             </div>
           )}
         </div>
+          </>
+        )}
       </main>
 
       {/* 右栏三态:选了人 → 成员卡;只选了部门 → 部门卡(终于用上 head);

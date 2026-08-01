@@ -113,6 +113,8 @@
   },
   "manage": {
     "addMembers": "Add members",
+    "searchMembers": "Search members",
+    "noMemberMatch": "No matching members",
     "addTitle": "Add group members",
     "info": "Group info",
     "settings": "Settings",

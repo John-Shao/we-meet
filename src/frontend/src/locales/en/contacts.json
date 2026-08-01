@@ -39,6 +39,15 @@
     "close": "Close",
     "none": "—"
   },
+  "groups": {
+    "title": "My groups",
+    "unnamed": "Unnamed group",
+    "memberCount": "{{count}} member",
+    "memberCount_other": "{{count}} members",
+    "searchPlaceholder": "Search group names",
+    "empty": "You have not joined any group yet",
+    "noMatch": "No matching groups"
+  },
   "starred": {
     "title": "Starred contacts",
     "add": "Add",
