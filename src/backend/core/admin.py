@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from core.recording.event import notification
+from core.services.org_dictionary import ensure_builtin_dict_items
 
 from . import models
 
@@ -578,6 +579,18 @@ class OrganizationAdmin(admin.ModelAdmin):
         # (it would CASCADE every department and membership).
         return False
 
+    def save_model(self, request, obj, form, change):
+        """Seed the built-in dictionary options for a brand-new organization.
+
+        Done explicitly here rather than via a ``post_save`` signal — this
+        codebase has none by design. Django admin is currently the only way an
+        organization gets created (there is no self-serve tenant signup), so
+        this plus migration 0070 covers every path.
+        """
+        super().save_model(request, obj, form, change)
+        if not change:
+            ensure_builtin_dict_items(obj)
+
     @admin.display(description=_("departments"))
     def _departments(self, obj):
         return obj.departments.filter(deleted_at__isnull=True).count()
@@ -753,6 +766,30 @@ class MembershipAdmin(admin.ModelAdmin):
                 deleted_at__isnull=True
             )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+@admin.register(models.OrgDictItem)
+class OrgDictItemAdmin(admin.ModelAdmin):
+    """Per-organization option lists (人员类型 / 职级 / 序列 …).
+
+    Built-in options may be renamed but not deleted — application code branches
+    on ``code``, and dropping one would orphan every membership pointing at it.
+    """
+
+    list_display = ("label", "organization", "scope", "code", "sort_order", "is_active")
+    list_filter = ("organization", "scope", "is_active", "is_builtin")
+    search_fields = ("label", "code")
+    list_editable = ("sort_order", "is_active")
+    readonly_fields = ("id", "created_at", "updated_at", "is_builtin")
+
+    def get_readonly_fields(self, request, obj=None):
+        # ``code`` is the stable identifier logic keys off; freeze it once set.
+        if obj:
+            return self.readonly_fields + ("scope", "code", "organization")
+        return self.readonly_fields
+
+    def has_delete_permission(self, request, obj=None):
+        return not (obj and obj.is_builtin)
 
 
 # --- P5 审批 / 工作流 ---

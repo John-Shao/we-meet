@@ -1898,6 +1898,80 @@ class MembershipStatusChoices(models.TextChoices):
     LEFT = "left", _("Left")
 
 
+class SourceChoices(models.TextChoices):
+    """How an org row got here — shared by Department / Membership / UserGroup.
+
+    Lets the console tell hand-made rows from imported ones (飞书 calls this
+    column 来源), which is what makes a bad bulk import reviewable instead of
+    indistinguishable from manual work.
+    """
+
+    MANUAL = "manual", _("Created manually")
+    IMPORT = "import", _("Bulk import")
+    API = "api", _("Open API")
+    SYNC = "sync", _("External sync")
+    INVITE = "invite", _("Created by invitation")
+
+
+class DictScopeChoices(models.TextChoices):
+    """Which per-organization option list an ``OrgDictItem`` belongs to."""
+
+    EMPLOYEE_TYPE = "employee_type", _("Employee type")
+    JOB_LEVEL = "job_level", _("Job level")
+    JOB_SEQUENCE = "job_sequence", _("Job sequence")
+    ONBOARD_TYPE = "onboard_type", _("Onboarding type")
+    PROBATION_STATUS = "probation_status", _("Probation status")
+    LEAVE_REASON = "leave_reason", _("Leave reason")
+
+
+class OrgDictItem(BaseModel):
+    """A customer-editable option in one of the organization's dictionaries.
+
+    Deliberately a table, not an enum: every customer renames these (职级1 vs
+    P5) and adds their own (返聘 / 兼职), and changing an enum means a release
+    plus a migration. Deliberately not a JSON list on ``Organization.settings``
+    either: ``Membership.employee_type`` and friends point at these rows, so
+    deleting 实习 must be answerable with "3 people still hold it" rather than
+    leaving dangling strings behind.
+
+    ``code`` is the stable identifier code branches on; ``label`` is what the
+    customer sees and may rename freely.
+    """
+
+    # String reference: this model is declared above ``Organization`` so the
+    # dictionary choices sit next to the other org enums.
+    organization = models.ForeignKey(
+        "Organization", on_delete=models.CASCADE, related_name="dict_items"
+    )
+    scope = models.CharField(max_length=32, choices=DictScopeChoices.choices)
+    code = models.CharField(max_length=64)
+    label = models.CharField(max_length=64)
+    sort_order = models.PositiveIntegerField(default=0)
+    is_builtin = models.BooleanField(
+        default=False,
+        help_text=_("Seeded option: the label may be renamed but it cannot be deleted."),
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "meet_org_dict_item"
+        ordering = ("scope", "sort_order", "code")
+        verbose_name = _("Organization dictionary item")
+        verbose_name_plural = _("Organization dictionary items")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "scope", "code"],
+                name="dict_item_unique_org_scope_code",
+                violation_error_message=_(
+                    "This organization already has an option with this code."
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_scope_display()}: {self.label}"
+
+
 class Organization(BaseModel):
     """An enterprise tenant.
 
@@ -1973,6 +2047,14 @@ class Department(BaseModel):
     team_key = models.CharField(
         _("team key"), max_length=100, unique=True, editable=False
     )
+    # Customer-facing external identifier (飞书's 部门ID) used to match rows when
+    # importing or syncing from an HR system. Distinct from ``team_key``, which
+    # must never change because historical BaseAccess rows carry it verbatim;
+    # ``code`` is free to be edited.
+    code = models.CharField(_("department code"), max_length=64, blank=True, default="")
+    source = models.CharField(
+        max_length=16, choices=SourceChoices.choices, default=SourceChoices.MANUAL
+    )
     is_active = models.BooleanField(_("active"), default=True)
     deleted_at = models.DateTimeField(_("deleted at"), null=True, blank=True)
 
@@ -1981,6 +2063,18 @@ class Department(BaseModel):
         ordering = ("path", "sort_order", "name")
         verbose_name = _("Department")
         verbose_name_plural = _("Departments")
+        constraints = [
+            # Partial: only non-blank codes are unique, and only among live rows
+            # (a soft-deleted department must not squat on its code forever).
+            models.UniqueConstraint(
+                fields=["organization", "code"],
+                condition=~models.Q(code="") & models.Q(deleted_at__isnull=True),
+                name="department_unique_org_code",
+                violation_error_message=_(
+                    "This organization already has a department with this code."
+                ),
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -2041,6 +2135,73 @@ class Membership(BaseModel):
     )
     joined_at = models.DateTimeField(null=True, blank=True)
 
+    # --- work profile (P10 M1) ---------------------------------------------
+    # These live on Membership, not User: every one of them describes the
+    # *employment relationship* inside one organization, so a future second
+    # tenant cannot cross-contaminate them.
+    employee_type = models.ForeignKey(
+        OrgDictItem,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+        blank=True,
+        limit_choices_to={"scope": DictScopeChoices.EMPLOYEE_TYPE},
+    )
+    job_level = models.ForeignKey(
+        OrgDictItem,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+        blank=True,
+        limit_choices_to={"scope": DictScopeChoices.JOB_LEVEL},
+    )
+    job_sequence = models.ForeignKey(
+        OrgDictItem,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+        blank=True,
+        limit_choices_to={"scope": DictScopeChoices.JOB_SEQUENCE},
+    )
+    # Reporting lines point at Membership, not User: "A reports to B" is a
+    # statement about two people *within one organization*. A User→User FK would
+    # silently follow someone into a second tenant where it is not true.
+    manager = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="direct_reports",
+        null=True,
+        blank=True,
+    )
+    dotted_manager = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="dotted_reports",
+        null=True,
+        blank=True,
+        help_text=_("Dotted-line manager. Never used for automatic approval routing."),
+    )
+    hire_date = models.DateField(null=True, blank=True)
+    work_country = models.CharField(
+        max_length=2, blank=True, default="", help_text=_("ISO 3166-1 alpha-2.")
+    )
+    work_city = models.CharField(max_length=64, blank=True, default="")
+    alias = models.CharField(max_length=64, blank=True, default="")
+    work_station = models.CharField(max_length=64, blank=True, default="")
+    extension = models.CharField(max_length=16, blank=True, default="")
+    source = models.CharField(
+        max_length=16, choices=SourceChoices.choices, default=SourceChoices.MANUAL
+    )
+
+    # --- offboarding (P10 M1) ----------------------------------------------
+    left_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    left_reason = models.CharField(max_length=64, blank=True, default="")
+    # Frozen copy of the org facts at offboard time. Departments get renamed and
+    # soft-deleted, so the console's "department before leaving" column cannot be
+    # a live JOIN. Days-since-leaving is computed from ``left_at`` and never
+    # stored — it would need rewriting every night.
+    left_snapshot = models.JSONField(default=dict, blank=True)
+
     class Meta:
         db_table = "meet_membership"
         ordering = ("-created_at",)
@@ -2062,11 +2223,94 @@ class Membership(BaseModel):
                     "A user can have only one primary department per organization."
                 ),
             ),
+            models.UniqueConstraint(
+                fields=["organization", "employee_no"],
+                condition=~models.Q(employee_no=""),
+                name="membership_unique_employee_no",
+                violation_error_message=_(
+                    "This employee number is already used in this organization."
+                ),
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(manager=models.F("id")),
+                name="membership_manager_not_self",
+                violation_error_message=_("A member cannot be their own manager."),
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status", "employee_type"]),
+            models.Index(fields=["organization", "status", "left_at"]),
+            models.Index(fields=["manager"]),
         ]
 
     def __str__(self):
         dept = self.department.name if self.department_id else "<org-level>"
         return f"{self.user} @ {dept} ({self.get_org_role_display()})"
+
+    # Bounds the manager walk. Deep enough for any real hierarchy, shallow
+    # enough that a cycle which somehow reached the database still terminates.
+    MAX_MANAGER_DEPTH = 32
+
+    def clean(self):
+        """Validate reporting lines: same organization, and no cycles.
+
+        The DB check constraint only catches self-reference; A→B→A needs a walk.
+        Only the solid line is validated — dotted lines are allowed to cross and
+        never drive automatic routing.
+        """
+        super().clean()
+        errors = {}
+
+        for field in ("manager", "dotted_manager"):
+            other = getattr(self, field, None)
+            if other is not None and other.organization_id != self.organization_id:
+                errors[field] = _("The manager must belong to the same organization.")
+
+        if self.manager_id and self.manager_id == self.pk:
+            errors["manager"] = _("A member cannot be their own manager.")
+        elif self.manager_id:
+            seen = {self.pk} if self.pk else set()
+            node_id, hops = self.manager_id, 0
+            while node_id is not None and hops < self.MAX_MANAGER_DEPTH:
+                if node_id in seen:
+                    errors["manager"] = _("This would create a reporting-line cycle.")
+                    break
+                seen.add(node_id)
+                node_id = (
+                    Membership.objects.filter(pk=node_id)
+                    .values_list("manager_id", flat=True)
+                    .first()
+                )
+                hops += 1
+
+        if errors:
+            raise ValidationError(errors)
+
+    def build_left_snapshot(self) -> dict:
+        """Freeze the org facts the offboarded list needs after live rows move on.
+
+        Departments get renamed and soft-deleted and managers get reassigned, so
+        "which department were they in when they left" cannot be a JOIN.
+        """
+        department = self.department
+        manager = self.manager
+        return {
+            "department_id": str(self.department_id) if self.department_id else None,
+            "department_name": department.name if department else "",
+            "department_path": department.path if department else "",
+            "title": self.title,
+            "org_role": self.org_role,
+            "employee_no": self.employee_no,
+            "employee_type_label": (
+                self.employee_type.label if self.employee_type_id else ""
+            ),
+            "manager_id": str(self.manager_id) if self.manager_id else None,
+            "manager_name": (
+                manager.user.full_name or manager.user.short_name or ""
+                if manager
+                else ""
+            ),
+        }
 
 
 # --- P2 日历 / 日程 ---
@@ -2472,6 +2716,14 @@ class AuditActionChoices(models.TextChoices):
     MEMBER_SUSPEND = "member.suspend", _("Member suspended")
     MEMBER_RESTORE = "member.restore", _("Member restored")
     MEMBER_REMOVE = "member.remove", _("Member removed")
+    # P10 M1 — member lifecycle.
+    MEMBER_OFFBOARD = "member.offboard", _("Member offboarded")
+    MEMBER_REHIRE = "member.rehire", _("Member rehired")
+    MEMBER_PURGE = "member.purge", _("Member record purged")
+    MEMBER_BULK_UPDATE = "member.bulk_update", _("Members updated in bulk")
+    DICT_ITEM_CREATE = "dict_item.create", _("Dictionary option created")
+    DICT_ITEM_UPDATE = "dict_item.update", _("Dictionary option updated")
+    DICT_ITEM_DELETE = "dict_item.delete", _("Dictionary option deleted")
     # 纪要闭环 M2:纪要编辑(会议侧动作,同样入 M 端审计)。
     SUMMARY_EDIT = "summary.edit", _("Meeting summary edited")
     # P9 会议室(实体会议室,与 LiveKit Room 无关)。
