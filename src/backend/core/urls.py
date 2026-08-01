@@ -20,6 +20,11 @@ from core.api.admin_org import (
     OrgDictItemViewSet,
     UserGroupViewSet,
 )
+from core.api.admin_roles import (
+    AdminRoleAssignmentViewSet,
+    AdminRoleViewSet,
+    PermissionCatalogueView,
+)
 from core.api.agent_internal import IngestTranscriptView
 from core.api.recording_accesses import RecordingAccessViewSet
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
@@ -128,6 +133,12 @@ router.register(
     "admin/dictionaries", OrgDictItemViewSet, basename="admin_dictionaries"
 )
 router.register("admin/user-groups", UserGroupViewSet, basename="admin_user_groups")
+router.register("admin/roles", AdminRoleViewSet, basename="admin_roles")
+router.register(
+    "admin/role-assignments",
+    AdminRoleAssignmentViewSet,
+    basename="admin_role_assignments",
+)
 router.register(
     "admin/audit-logs", AuditLogViewSet, basename="admin_audit_logs"
 )
@@ -190,6 +201,11 @@ urlpatterns = [
                 *router.urls,
                 *oidc_urls,
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),
+                path(
+                    "admin/permissions/",
+                    PermissionCatalogueView.as_view(),
+                    name="admin_permission_catalogue",
+                ),
                 # P0 离线推送:App 端注册/注销个推 cid。
                 path("push/tokens/", PushTokenView.as_view(), name="push_tokens"),
                 # P0-M3 免打扰时段偏好。

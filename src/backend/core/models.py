@@ -2460,6 +2460,133 @@ class UserGroupMember(BaseModel):
         return f"{self.user} in {self.group}"
 
 
+class AdminScopeChoices(models.TextChoices):
+    """How wide an admin-role assignment reaches."""
+
+    ALL = "all", _("Whole organization")
+    DEPARTMENTS = "departments", _("Selected departments")
+
+
+class AdminRole(BaseModel):
+    """A named bundle of administrative permissions (P10 M2).
+
+    Replaces the ``OrgRoleChoices.DEPT_ADMIN`` idea rather than reviving it.
+    That enum value has never been a permission check anywhere in the codebase;
+    resurrecting it would leave two sources of administrative truth (an enum on
+    the membership and a role table) which must eventually disagree. The enum
+    stays in ``choices`` so historical rows keep validating, but nothing reads
+    it for authorization.
+
+    ``permissions`` is a JSON list of codes from ``core.permissions_registry``.
+    Validated on write — an unknown code is worse than an error, because the
+    console would render it as a granted right that does nothing.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="admin_roles"
+    )
+    name = models.CharField(_("name"), max_length=64)
+    code = models.SlugField(_("code"), max_length=40)
+    description = models.CharField(
+        _("description"), max_length=255, blank=True, default=""
+    )
+    permissions = models.JSONField(_("permissions"), default=list, blank=True)
+    is_builtin = models.BooleanField(_("built-in"), default=False)
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        db_table = "meet_admin_role"
+        ordering = ("-is_builtin", "name")
+        verbose_name = _("Admin role")
+        verbose_name_plural = _("Admin roles")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "code"],
+                name="admin_role_unique_org_code",
+                violation_error_message=_(
+                    "This organization already has a role with this code."
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class AdminRoleAssignment(BaseModel):
+    """Grants one :class:`AdminRole` to one membership, optionally scoped.
+
+    Scope is stored as departments, and expanded to ``Department.path``
+    prefixes at check time — the subtree of a scoped department is in scope,
+    because "administers Engineering" that stops at its direct children would
+    be useless for any org with more than two levels.
+    """
+
+    role = models.ForeignKey(
+        AdminRole, on_delete=models.CASCADE, related_name="assignments"
+    )
+    membership = models.ForeignKey(
+        "Membership", on_delete=models.CASCADE, related_name="admin_role_assignments"
+    )
+    scope_type = models.CharField(
+        max_length=16,
+        choices=AdminScopeChoices.choices,
+        default=AdminScopeChoices.ALL,
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        db_table = "meet_admin_role_assignment"
+        ordering = ("-created_at",)
+        verbose_name = _("Admin role assignment")
+        verbose_name_plural = _("Admin role assignments")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["role", "membership"],
+                name="admin_role_assignment_unique",
+                violation_error_message=_("This person already holds this role."),
+            ),
+        ]
+        indexes = [
+            # Every permission check for a non-owner starts here.
+            models.Index(fields=["membership"], name="admin_role_asg_member_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.membership_id} as {self.role_id}"
+
+
+class AdminRoleScopeDepartment(BaseModel):
+    """One department in a ``scope_type='departments'`` assignment's scope."""
+
+    assignment = models.ForeignKey(
+        AdminRoleAssignment, on_delete=models.CASCADE, related_name="scope_departments"
+    )
+    department = models.ForeignKey(
+        "Department", on_delete=models.CASCADE, related_name="+"
+    )
+
+    class Meta:
+        db_table = "meet_admin_role_scope_department"
+        verbose_name = _("Admin role scope department")
+        verbose_name_plural = _("Admin role scope departments")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assignment", "department"],
+                name="admin_role_scope_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.assignment_id} → {self.department_id}"
+
+
 # --- P2 日历 / 日程 ---
 
 
@@ -2878,6 +3005,13 @@ class AuditActionChoices(models.TextChoices):
     GROUP_DELETE = "group.delete", _("User group deleted")
     GROUP_MEMBER_ADD = "group.member_add", _("User group members added")
     GROUP_MEMBER_REMOVE = "group.member_remove", _("User group member removed")
+    # P10 M2 — custom admin roles. Every one of these hands out or takes away
+    # administrative power, so none of them is allowed to be silent.
+    ROLE_CREATE = "role.create", _("Admin role created")
+    ROLE_UPDATE = "role.update", _("Admin role updated")
+    ROLE_DELETE = "role.delete", _("Admin role deleted")
+    ROLE_ASSIGN = "role.assign", _("Admin role assigned")
+    ROLE_UNASSIGN = "role.unassign", _("Admin role revoked")
     # 纪要闭环 M2:纪要编辑(会议侧动作,同样入 M 端审计)。
     SUMMARY_EDIT = "summary.edit", _("Meeting summary edited")
     # P9 会议室(实体会议室,与 LiveKit Room 无关)。

@@ -10,6 +10,7 @@ from django.utils.translation import gettext_lazy as _
 
 from core.recording.event import notification
 from core.services.org_dictionary import ensure_builtin_dict_items
+from core.services.org_roles import ensure_builtin_roles
 
 from . import models
 
@@ -580,16 +581,17 @@ class OrganizationAdmin(admin.ModelAdmin):
         return False
 
     def save_model(self, request, obj, form, change):
-        """Seed the built-in dictionary options for a brand-new organization.
+        """Seed a brand-new organization's built-in dictionaries and admin roles.
 
         Done explicitly here rather than via a ``post_save`` signal — this
         codebase has none by design. Django admin is currently the only way an
         organization gets created (there is no self-serve tenant signup), so
-        this plus migration 0070 covers every path.
+        this plus migrations 0070 / 0073 covers every path.
         """
         super().save_model(request, obj, form, change)
         if not change:
             ensure_builtin_dict_items(obj)
+            ensure_builtin_roles(obj)
 
     @admin.display(description=_("departments"))
     def _departments(self, obj):

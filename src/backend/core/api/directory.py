@@ -703,13 +703,37 @@ class DirectoryMeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
+        from core.services.org_permissions import get_admin_context
+
         membership = get_caller_membership(request.user)
         if membership is None:
             return Response(
-                {"organization": None, "org_role": None, "is_org_admin": False}
+                {
+                    "organization": None,
+                    "org_role": None,
+                    "is_org_admin": False,
+                    "permissions": [],
+                    "admin_scope": {"type": "all", "department_ids": []},
+                }
             )
         organization = membership.organization
         is_org_admin = is_caller_org_admin(request.user)
+        # P10 M2: the console renders its navigation from `permissions`, so
+        # someone holding only the HR role never sees "roles and permissions".
+        # `is_org_admin` stays for backwards compatibility — a client that only
+        # knows the old shape keeps working, it just cannot do finer filtering.
+        ctx = get_admin_context(request)
+        scope_department_ids = []
+        if ctx.is_scoped:
+            scope_department_ids = [
+                str(pk)
+                for pk in models.AdminRoleScopeDepartment.objects.filter(
+                    assignment__membership=membership
+                )
+                .order_by()
+                .values_list("department_id", flat=True)
+                .distinct()
+            ]
         return Response(
             {
                 "organization": {
@@ -718,5 +742,10 @@ class DirectoryMeView(APIView):
                 },
                 "org_role": membership.org_role,
                 "is_org_admin": is_org_admin,
+                "permissions": sorted(ctx.permissions),
+                "admin_scope": {
+                    "type": ctx.scope_type,
+                    "department_ids": scope_department_ids,
+                },
             }
         )
