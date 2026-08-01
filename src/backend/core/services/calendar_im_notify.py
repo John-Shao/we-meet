@@ -21,11 +21,14 @@ import logging
 
 from django.conf import settings
 
+from core.services import im_cards
 from core.services.jusi_im import JusiImAdminClient, JusiImServiceError
 
 logger = logging.getLogger(__name__)
 
-CONTENT_TYPE = "event-card"
+# Re-exported for the existing callers; the definition now lives in im_cards
+# alongside the other two card protocols (P10 M1-g).
+CONTENT_TYPE = im_cards.EVENT_CARD
 
 
 def _make_client() -> JusiImAdminClient | None:
@@ -62,26 +65,25 @@ def build_event_card(
     added_count: int = 0,
     removed_count: int = 0,
 ) -> dict:
-    """组协议 v1 卡片 dict。perform_destroy 在删除前调用留快照。"""
-    card = {
-        "v": 1,
-        "kind": kind,
-        "event_id": str(event.id),
-        "title": event.title,
-        "start": event.start_at.isoformat(),
-        "end": event.end_at.isoformat(),
-        "all_day": bool(event.all_day),
-        "attendee_count": event.attendees.count(),
-        "organizer_name": _organizer_name(event),
-    }
-    if kind == "time_changed" and old_start is not None and old_end is not None:
-        card["old_start"] = old_start.isoformat()
-        card["old_end"] = old_end.isoformat()
-    if kind == "attendees_changed" and added_count:
-        card["added_count"] = added_count
-    if kind == "attendees_changed" and removed_count:
-        card["removed_count"] = removed_count
-    return card
+    """组协议 v1 卡片 dict。perform_destroy 在删除前调用留快照。
+
+    模型 → 协议的映射留在这里,协议本身归 ``im_cards.build_event_card``(单一
+    定义点 + 金标准 fixture 契约测试守着)。
+    """
+    return im_cards.build_event_card(
+        event_id=str(event.id),
+        title=event.title,
+        start=event.start_at.isoformat(),
+        end=event.end_at.isoformat(),
+        kind=kind,
+        all_day=bool(event.all_day),
+        attendee_count=event.attendees.count(),
+        organizer_name=_organizer_name(event),
+        old_start=old_start.isoformat() if old_start is not None else None,
+        old_end=old_end.isoformat() if old_end is not None else None,
+        added_count=added_count,
+        removed_count=removed_count,
+    )
 
 
 def _organizer_sender_uid(client: JusiImAdminClient, organizer) -> str | None:

@@ -17,7 +17,9 @@ export interface EventCardBody {
   organizer_name?: string
   old_start?: string
   old_end?: string
+  /** 只随 kind=attendees_changed 出现,且为 0 时后端省略该键。 */
   added_count?: number
+  removed_count?: number
 }
 
 /** 创建成功后由客户端组卡(created 卡只由客户端发,变更卡只由后端发)。 */
@@ -63,6 +65,12 @@ export const parseEventCard = (raw: string): EventCardBody | null => {
         typeof o.organizer_name === 'string' ? o.organizer_name : undefined,
       old_start: typeof o.old_start === 'string' ? o.old_start : undefined,
       old_end: typeof o.old_end === 'string' ? o.old_end : undefined,
+      // 后端一直在发这两个键,而这里原本只声明了 added_count 且解析时漏拷,
+      // removed_count 连类型都没有 —— 金标准 fixture 契约测试跑第一次就抓到了。
+      added_count:
+        typeof o.added_count === 'number' ? o.added_count : undefined,
+      removed_count:
+        typeof o.removed_count === 'number' ? o.removed_count : undefined,
     }
   } catch {
     return null
