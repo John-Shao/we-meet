@@ -148,7 +148,19 @@
       "member_department_change": "调整成员部门",
       "member_suspend": "停用成员",
       "member_restore": "恢复成员",
-      "member_remove": "移出成员"
+      "member_remove": "移出成员",
+      "dept_update": "更新部门",
+      "dept_move": "移动部门",
+      "member_invite": "邀请成员",
+      "member_invite_revoke": "撤销邀请",
+      "room_node_create": "新建层级",
+      "room_node_update": "更新层级",
+      "room_node_delete": "删除层级",
+      "room_node_move": "移动层级",
+      "meeting_room_create": "新建会议室",
+      "meeting_room_update": "更新会议室",
+      "meeting_room_delete": "删除会议室",
+      "summary_edit": "编辑会议纪要"
     }
   },
   "meetingRooms": {

@@ -148,7 +148,19 @@
       "member_department_change": "Afdeling gewijzigd",
       "member_suspend": "Lid opgeschort",
       "member_restore": "Lid hersteld",
-      "member_remove": "Lid verwijderd"
+      "member_remove": "Lid verwijderd",
+      "dept_update": "Afdeling bijgewerkt",
+      "dept_move": "Afdeling verplaatst",
+      "member_invite": "Lid uitgenodigd",
+      "member_invite_revoke": "Uitnodiging ingetrokken",
+      "room_node_create": "Niveau aangemaakt",
+      "room_node_update": "Niveau bijgewerkt",
+      "room_node_delete": "Niveau verwijderd",
+      "room_node_move": "Niveau verplaatst",
+      "meeting_room_create": "Ruimte aangemaakt",
+      "meeting_room_update": "Ruimte bijgewerkt",
+      "meeting_room_delete": "Ruimte verwijderd",
+      "summary_edit": "Verslag bewerkt"
     }
   },
   "meetingRooms": {

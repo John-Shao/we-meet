@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { keepPreviousData } from '@tanstack/react-query'
 import { Menu as RACMenu, MenuItem } from 'react-aria-components'
 import { RiMoreFill, RiSearchLine, RiUserAddLine } from '@remixicon/react'
+import Table, { type ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 
 import { css, cx } from '@/styled-system/css'
 import { selectChrome } from '@/primitives/selectChrome'
@@ -28,6 +29,8 @@ import { InviteDialog } from '../components/InviteDialog'
 import { InvitationsPanel } from '../components/InvitationsPanel'
 
 const MEMBERS_KEY = ['admin', 'members']
+/** 与后端 REST_FRAMEWORK.PAGE_SIZE 一致(settings.py)。Semi 分页要显式给。 */
+const MEMBERS_PAGE_SIZE = 20
 
 export const AdminMembers = () => {
   const { t } = useTranslation('admin')
@@ -136,6 +139,89 @@ export const AdminMembers = () => {
     deleteMut.mutate(m.id)
   }
 
+  // 列定义。单元格内部仍用我们自己的 primitives(Button/Menu)与 panda token ——
+  // 试点只换「表格骨架 + 分页」这层,行内控件不动,免得一次改两套东西说不清
+  // 是谁的问题。
+  const columns: ColumnProps<AdminMember>[] = [
+    {
+      title: t('members.colMember'),
+      dataIndex: 'id',
+      width: 320,
+      render: (_: unknown, m: AdminMember) => (
+        <div className={memberCellCls}>
+          {m.avatar_url ? (
+            <img src={m.avatar_url} alt="" className={avatarCls} />
+          ) : (
+            <span className={avatarFallbackCls}>
+              {(displayName(m) || '?').slice(0, 1).toUpperCase()}
+            </span>
+          )}
+          <span className={css({ minWidth: 0 })}>
+            <span className={memberNameCls}>
+              {displayName(m)}
+              {m.title && <span className={memberTitleCls}> · {m.title}</span>}
+            </span>
+            <span className={memberEmailCls}>{m.email}</span>
+          </span>
+        </div>
+      ),
+    },
+    // ⚠️ 五列**都要**给宽度。只给部分列设宽度会更糟:Semi Table 一旦有列带
+    // width 就切到 table-layout: fixed,富余宽度全部灌给没设宽度的那一列 ——
+    // 实测「成员」列因此从 877px 涨到 1080px,比不设宽度还宽。
+    // 全部设上之后富余按各自宽度比例摊,五列才不会一头沉。
+    {
+      title: t('members.colDepartment'),
+      width: 150,
+      render: (_: unknown, m: AdminMember) =>
+        m.department?.name ?? t('members.orgLevel'),
+    },
+    {
+      title: t('members.colRole'),
+      width: 150,
+      render: (_: unknown, m: AdminMember) => roleLabel(m.org_role),
+    },
+    {
+      title: t('members.colStatus'),
+      width: 120,
+      render: (_: unknown, m: AdminMember) => (
+        <StatusBadge status={m.status} label={statusLabel(m.status)} />
+      ),
+    },
+    {
+      title: '',
+      width: 60,
+      render: (_: unknown, m: AdminMember) => (
+        <Menu>
+          <Button
+            variant="quaternaryText"
+            size="icon28"
+            aria-label={t('members.rowActions')}
+          >
+            <RiMoreFill size={18} />
+          </Button>
+          <RACMenu className={menuList}>
+            <MenuItem className={menuItem} onAction={() => setRoleTarget(m)}>
+              {t('members.changeRole')}
+            </MenuItem>
+            <MenuItem className={menuItem} onAction={() => setDeptTarget(m)}>
+              {t('members.changeDepartment')}
+            </MenuItem>
+            <MenuItem className={menuItem} onAction={() => setTitleTarget(m)}>
+              {t('members.changeTitle')}
+            </MenuItem>
+            <MenuItem className={menuItem} onAction={() => toggleSuspend(m)}>
+              {m.status === 'active' ? t('members.suspend') : t('members.restore')}
+            </MenuItem>
+            <MenuItem className={menuItemDanger} onAction={() => remove(m)}>
+              {t('members.remove')}
+            </MenuItem>
+          </RACMenu>
+        </Menu>
+      ),
+    },
+  ]
+
   return (
     <div className={css({ display: 'flex', flexDirection: 'column', height: '100%' })}>
       <div
@@ -237,130 +323,30 @@ export const AdminMembers = () => {
       <div className={css({ flex: 1, overflowY: 'auto' })}>
         {view === 'invitations' ? (
           <InvitationsPanel />
-        ) : isFetching && members.length === 0 ? (
-          <p className={emptyText}>{t('members.loading')}</p>
-        ) : members.length === 0 ? (
-          <p className={emptyText}>{t('members.noMembers')}</p>
         ) : (
-          <table className={css({ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' })}>
-            <thead>
-              <tr className={css({ textAlign: 'left', color: 'greyscale.500', borderBottom: '1px solid token(colors.greyscale.200)' })}>
-                <th className={th}>{t('members.colMember')}</th>
-                <th className={th}>{t('members.colDepartment')}</th>
-                <th className={th}>{t('members.colRole')}</th>
-                <th className={th}>{t('members.colStatus')}</th>
-                <th className={css({ ...thBase, width: '3rem' })} />
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => (
-                <tr
-                  key={m.id}
-                  className={css({
-                    borderBottom: '1px solid token(colors.greyscale.100)',
-                    _hover: { backgroundColor: 'greyscale.50' },
-                  })}
-                >
-                  <td className={td}>
-                    <div className={css({ display: 'flex', alignItems: 'center', gap: '0.625rem' })}>
-                      {m.avatar_url ? (
-                        <img
-                          src={m.avatar_url}
-                          alt=""
-                          className={css({ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 })}
-                        />
-                      ) : (
-                        <span className={css({ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'primary.500', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 })}>
-                          {(displayName(m) || '?').slice(0, 1).toUpperCase()}
-                        </span>
-                      )}
-                      <span className={css({ minWidth: 0 })}>
-                        <span className={css({ display: 'block', fontWeight: 'medium', color: 'greyscale.900' })}>
-                          {displayName(m)}
-                          {m.title && (
-                            <span className={css({ color: 'greyscale.400', fontWeight: 'normal' })}> · {m.title}</span>
-                          )}
-                        </span>
-                        <span className={css({ display: 'block', fontSize: '0.75rem', color: 'greyscale.500' })}>
-                          {m.email}
-                        </span>
-                      </span>
-                    </div>
-                  </td>
-                  <td className={td}>{m.department?.name ?? t('members.orgLevel')}</td>
-                  <td className={td}>{roleLabel(m.org_role)}</td>
-                  <td className={td}>
-                    <StatusBadge status={m.status} label={statusLabel(m.status)} />
-                  </td>
-                  <td className={td}>
-                    <Menu>
-                      <Button
-                        variant="quaternaryText"
-                        size="icon28"
-                        aria-label={t('members.rowActions')}
-                      >
-                        <RiMoreFill size={18} />
-                      </Button>
-                      <RACMenu className={menuList}>
-                        <MenuItem className={menuItem} onAction={() => setRoleTarget(m)}>
-                          {t('members.changeRole')}
-                        </MenuItem>
-                        <MenuItem className={menuItem} onAction={() => setDeptTarget(m)}>
-                          {t('members.changeDepartment')}
-                        </MenuItem>
-                        <MenuItem className={menuItem} onAction={() => setTitleTarget(m)}>
-                          {t('members.changeTitle')}
-                        </MenuItem>
-                        <MenuItem className={menuItem} onAction={() => toggleSuspend(m)}>
-                          {m.status === 'active' ? t('members.suspend') : t('members.restore')}
-                        </MenuItem>
-                        <MenuItem className={menuItemDanger} onAction={() => remove(m)}>
-                          {t('members.remove')}
-                        </MenuItem>
-                      </RACMenu>
-                    </Menu>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          /* Semi Table 试点(见 vite.config.ts 顶部说明):替掉原来的手搓
+             <table> + 手写 prev/next 页脚。分页、加载态、空态都由组件自带,
+             调用点只剩「列定义 + 数据」。 */
+          <Table<AdminMember>
+            columns={columns}
+            dataSource={members}
+            rowKey="id"
+            loading={isFetching && members.length === 0}
+            size="middle"
+            empty={t('members.noMembers')}
+            pagination={{
+              currentPage: page,
+              pageSize: MEMBERS_PAGE_SIZE,
+              total: data?.count ?? 0,
+              onPageChange: setPage,
+              // showTotal 会在右侧再渲染一个「总页数: N」,和左边的「共 N 人」
+              // 重复且信息量更低,关掉。总数只保留左侧这一处,沿用既有 i18n key。
+              showTotal: false,
+              formatPageText: () => t('members.total', { count: data?.count ?? 0 }),
+            }}
+          />
         )}
       </div>
-
-      {view === 'members' && (
-      <div
-        className={css({
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: '0.75rem',
-          paddingX: '1.25rem',
-          paddingY: '0.625rem',
-          borderTop: '1px solid token(colors.greyscale.200)',
-          fontSize: '0.8125rem',
-          color: 'greyscale.600',
-        })}
-      >
-        <span>{t('members.total', { count: data?.count ?? 0 })}</span>
-        <Button
-          variant="secondary"
-          size="dense"
-          isDisabled={!data?.previous}
-          onPress={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          {t('members.prev')}
-        </Button>
-        <Button
-          variant="secondary"
-          size="dense"
-          isDisabled={!data?.next}
-          onPress={() => setPage((p) => p + 1)}
-        >
-          {t('members.next')}
-        </Button>
-      </div>
-      )}
 
       <InviteDialog
         isOpen={inviteOpen}
@@ -438,14 +424,42 @@ const StatusBadge = ({ status, label }: { status: string; label: string }) => (
   </span>
 )
 
-const thBase = {
-  paddingX: '1rem',
-  paddingY: '0.625rem',
-  fontWeight: '600' as const,
-}
-const th = css(thBase)
-const td = css({ paddingX: '1rem', paddingY: '0.5rem', color: 'greyscale.800', verticalAlign: 'middle' })
-const emptyText = css({ padding: '1.5rem', color: 'greyscale.500', fontSize: '0.9375rem' })
+/* 表头/单元格/空态的样式已由 Semi Table 接管,原先的 thBase/th/td/emptyText
+   随手搓 <table> 一起删除。下面这几个是「成员」列内部的排版,仍归我们自己。 */
+const memberCellCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
+})
+const avatarCls = css({
+  width: '32px',
+  height: '32px',
+  borderRadius: '8px',
+  objectFit: 'cover',
+  flexShrink: 0,
+})
+const avatarFallbackCls = css({
+  width: '32px',
+  height: '32px',
+  borderRadius: '8px',
+  backgroundColor: 'primary.500',
+  color: 'white',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+})
+const memberNameCls = css({
+  display: 'block',
+  fontWeight: 'medium',
+  color: 'greyscale.900',
+})
+const memberTitleCls = css({ color: 'greyscale.400', fontWeight: 'normal' })
+const memberEmailCls = css({
+  display: 'block',
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+})
 const filterSelect = cx(
   css({
     padding: '0.375rem 0.5rem',

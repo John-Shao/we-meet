@@ -15,6 +15,7 @@
     "check": "prettier --check ./src"
   },
   "dependencies": {
+    "@douyinfe/semi-ui": "^2.102.0",
     "@fontsource-variable/atkinson-hyperlegible-next": "5.2.6",
     "@fontsource-variable/lexend": "5.2.11",
     "@fontsource-variable/material-symbols-outlined": "5.2.34",
@@ -54,6 +55,7 @@
     "wouter": "3.9.0"
   },
   "devDependencies": {
+    "@douyinfe/semi-vite-plugin": "^2.102.0",
     "@pandacss/dev": "1.11.1",
     "@tanstack/eslint-plugin-query": "5.91.4",
     "@tanstack/react-query-devtools": "5.91.3",
@@ -76,6 +78,7 @@
     "jsdom": "^26.1.0",
     "postcss": "8.5.14",
     "prettier": "3.8.1",
+    "sass": "^1.102.0",
     "typescript": "5.8.3",
     "vite": "7.3.2",
     "vite-tsconfig-paths": "6.1.1",
