@@ -110,7 +110,9 @@ export const Modal = ({
           backgroundColor: 'greyscale.000',
           borderRadius: '0.75rem',
           overflow: 'hidden',
-          boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)',
+          // modal 档在深色下带 1px 白色内描边:本体底色是 greyscale.000,
+          // 深色下与页面同为 #161616,只靠黑投影是分不出边界的。
+          boxShadow: 'modal',
         })}
       >
         {children}

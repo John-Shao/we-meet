@@ -14,7 +14,7 @@ const drawerStyle = css({
   height: { base: 'min(80vh, 36rem)', md: '36rem' },
   backgroundColor: 'greyscale.000',
   borderRadius: '12px',
-  boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
+  boxShadow: 'modal',
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',

@@ -330,7 +330,7 @@ export const MessageInput = ({
             backgroundColor: 'greyscale.000',
             border: '1px solid token(colors.greyscale.200)',
             borderRadius: '0.5rem',
-            boxShadow: '0 6px 24px rgba(0,0,0,0.15)',
+            boxShadow: 'overlay',
             zIndex: 10,
           })}
         >

@@ -99,7 +99,7 @@ export const PinnedBar = ({
             backgroundColor: 'greyscale.000',
             border: '1px solid token(colors.greyscale.200)',
             borderTop: 'none',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            boxShadow: 'overlay',
           })}
           data-testid="im-pinned-list"
         >

@@ -441,7 +441,7 @@ const menuListCls = css({
   borderRadius: '0.5rem',
   border: '1px solid token(colors.greyscale.200)',
   backgroundColor: 'greyscale.000',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+  boxShadow: 'overlay',
   outline: 'none',
 })
 const menuItemBase = {

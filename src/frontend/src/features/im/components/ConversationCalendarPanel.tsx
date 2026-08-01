@@ -640,7 +640,7 @@ export const ConversationCalendarPanel = ({
                   backgroundColor: 'greyscale.000',
                   border: '1px solid token(colors.greyscale.200)',
                   borderRadius: '0.5rem',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                  boxShadow: 'overlay',
                 })}
               >
                 <MiniCalendar

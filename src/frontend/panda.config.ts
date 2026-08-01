@@ -498,6 +498,30 @@ const config: Config = {
       },
       shadows: {
         box: { value: '{shadows.sm}' },
+        // 浮层层级。深色下黑色投影压在深底上等于不存在 —— 浮层与页面同为
+        // greyscale.000(#161616),没有投影就完全看不出边界。
+        //
+        // 解法照搬 Semi 的 --semi-shadow-elevated:深色改用 1px 白色**内**描边
+        // 勾边,再配更重的投影。内描边写在 shadow 值里,调用点零额外属性、
+        // 不占布局、不改盒模型(用 border 就得同时补 box-sizing 和几何)。
+        //
+        // 只给「脱离文档流、浮在内容之上」的面用(弹层/菜单/对话框/抽屉)。
+        // 贴附型元素不适用 —— sticky 页头、分段控件、表单控件要的是一条边框
+        // 而不是四周一圈环形,那是另一个问题,不在本组范围内。
+        overlay: {
+          value: {
+            base: '0 0 1px rgba(0, 0, 0, 0.16), 0 6px 20px rgba(0, 0, 0, 0.12)',
+            _dark:
+              'inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 20px rgba(0, 0, 0, 0.5)',
+          },
+        },
+        modal: {
+          value: {
+            base: '0 0 1px rgba(0, 0, 0, 0.16), 0 12px 40px rgba(0, 0, 0, 0.2)',
+            _dark:
+              'inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 12px 40px rgba(0, 0, 0, 0.6)',
+          },
+        },
       },
       spacing: {
         boxPadding: {

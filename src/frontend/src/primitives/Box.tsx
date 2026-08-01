@@ -22,7 +22,7 @@ const box = cva({
       popover: {
         padding: 'boxPadding.xs',
         minWidth: '10rem',
-        boxShadow: '0 8px 20px #0000001a',
+        boxShadow: 'overlay',
       },
       dialog: {
         width: '30rem',
