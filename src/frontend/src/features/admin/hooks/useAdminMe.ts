@@ -1,11 +1,12 @@
-import { useQuery } from '@tanstack/react-query'
-
-import { fetchAdminMe } from '../api/adminMe'
-
-/** The caller's org + role, cached for the console session. */
-export const useAdminMe = () =>
-  useQuery({
-    queryKey: ['admin', 'me'],
-    queryFn: fetchAdminMe,
-    staleTime: 60_000,
-  })
+/**
+ * The caller's org + role.
+ *
+ * Thin re-export of the app-level `useOrgContext` so the C 端 Header can read
+ * `is_org_admin` without importing this module (which would pull the whole
+ * console into the main bundle). Kept as a named alias because the console's
+ * own components read more naturally as "admin me".
+ */
+export {
+  useOrgContext as useAdminMe,
+  type OrgContext as AdminMe,
+} from '@/hooks/useOrgContext'

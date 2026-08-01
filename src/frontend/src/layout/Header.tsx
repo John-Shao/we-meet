@@ -15,6 +15,7 @@ import { useConfig } from '@/api/useConfig'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { useLoginHint } from '@/hooks/useLoginHint'
+import { useOrgContext } from '@/hooks/useOrgContext'
 
 const Logo = () => (
   <img
@@ -109,6 +110,7 @@ export const Header = () => {
   const isTermsOfService = useMatchesRoute('termsOfService')
   const isRoom = useMatchesRoute('room')
   const { user, isLoggedIn, logout } = useUser()
+  const { data: orgContext } = useOrgContext()
   const { confirm: askConfirm } = useConfirm()
   const [, navigate] = useLocation()
   const userLabel = user?.full_name || user?.email
@@ -286,8 +288,22 @@ export const Header = () => {
                   </Button>
                   <MenuList
                     variant={'light'}
-                    items={[{ value: 'logout', label: t('logout') }]}
+                    items={[
+                      // 管理台是低频运维入口,所以挂在用户菜单里而不是 AppRail
+                      // (AppRail 是高频业务导航,塞进去会稀释主导航)。在此之前
+                      // 管理员只能手输 /admin 才进得去。
+                      ...(orgContext?.is_org_admin
+                        ? [{ value: 'admin', label: t('adminConsole') }]
+                        : []),
+                      { value: 'logout', label: t('logout') },
+                    ]}
                     onAction={(value) => {
+                      if (value === 'admin') {
+                        // 整页跳转而非 wouter navigate:干净卸载 C 端 Layout 及其
+                        // 全部订阅,免得 AdminShell 与 Layout 短暂共存。
+                        window.location.href = '/admin'
+                        return
+                      }
                       if (value === 'logout') {
                         logout()
                       }
