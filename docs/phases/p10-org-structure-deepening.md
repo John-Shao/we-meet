@@ -44,7 +44,8 @@ P1 把组织架构从零建到了「能画一棵树」：部门树（邻接表 +
 |---|---|---|---|
 | F1 | **Django admin 已挪到 `/dj-admin/`**，helm ingress 也已改 | `src/backend/meet/urls.py:18`（注释已写明"front path is free for the management console (M 端) SPA"）、`src/helm/env.d/aliyun-prod/values.meet.yaml:297` | 路线图 `:290` 记的"`/admin` 路径冲突待腾"**已解决**。剩余仅部署核对项（见 §7.4），非代码工作量 |
 | F2 | **`BaseAccess.team` 无索引** | `core/models.py:586` — `team = models.CharField(max_length=100, blank=True)` | `filter_user` 的 `team__in` 今天就是全表扫，只是 IN 列表只有 1 个元素所以没人发现。用户组把它变成 ~10 个元素，放大 10 倍 → **迁移 0068 必须单独先行** |
-| F3 | **`ResourceAccessSerializer` 不暴露 `team`** | `core/api/serializers.py:126` — `fields = ["id", "user", "resource", "role"]` | 团队授权只通了**读**（`filter_user`），**写路径根本不存在**。"部门共享录制"至今只能从 Django admin 手工造行。用户组要真能用，M2 必须补这一半 |
+| **F3** | **⚠️ 团队授权只覆盖录制，不覆盖会议室/资源** —— **`ResourceAccess` 根本不继承 `BaseAccess`**：它是独立的 `BaseModel` 子类，用**默认 Manager**，**没有 `team` 字段**，`user` FK 还是**非空**。唯一带 `team` 的表是 `RecordingAccess`（`core/models.py:797`，确实继承 `BaseAccess`） | `core/models.py:383`（ResourceAccess 类体，字段仅 `resource/user/role`）· 实测：`ResourceAccess._default_manager` 是 `Manager` 且 `hasattr(mgr,'filter_user') == False` | **这条推翻了 D15 的规模估计。**「用户组复用 team 字符串 → 白拿按用户组共享**任意**资源」是错的，实际只有**录制**。P1 的验收项写的就是"部门共享的**录制**对成员可见"，P1 设计本身自洽；是本次规划初稿过度外推。要让用户组覆盖会议室（`Room` 继承 `Resource`），M2 必须额外做：给 `ResourceAccess` 加 `team` 列 + `user` 改可空 + 换 `BaseAccessManager` + 加唯一/互斥约束（照抄 `RecordingAccess` 的 `models.py:819-825`）。**这不是 ~10 行，是一次带数据迁移的表改造** |
+| **F3b** | **`get_resource_roles` 有可达的 `AttributeError`** —— `core/models.py:320` 调 `resource.accesses.filter_user(user)`，而 `ResourceAccess` 的 RelatedManager 没有这个方法；`except (IndexError, ObjectDoesNotExist)` 也接不住 `AttributeError` | 实测复现：对未预标注 `user_roles` 的 `Room` 调 `get_resource_roles()` → `AttributeError: 'RelatedManager' object has no attribute 'filter_user'` | **既存 bug，非 P10 引入**，被 `:315` 的 `hasattr(resource, "user_roles")` 短路掩盖（viewset 都预标注了）。任何不走 viewset 标注路径的调用方会 500。修它要先决定 ResourceAccess 是否加 `team`，故**并入 M2 的 F3 改造一起做**，M1 不动 |
 | F4 | `pg_trgm` 扩展已装且已在用 | `core/migrations/0002_create_pg_trgm_extension.py`、`core/api/viewsets.py:275` | 拼音 / 模糊搜索**不需要**新基础设施 |
 | F5 | Celery 有 `CELERY_ENABLED=False` 同步 fallback | `core/tasks/_task.py` | 批量导入走 Celery 时，dev 环境无 broker 也能跑通。项目仍**无 celery beat**（事件驱动），定时类需求走概率触发 |
 | F6 | **Web 通讯录只取第一页 ≤100** | `src/frontend/src/features/contacts/api/fetchDirectoryMembers.ts:18` — `.then((page) => page.results)`，docstring 自认"the picker doesn't paginate" | 影响面不止通讯录：`ContactPicker` / `DirectoryMultiPicker` 共用同一 hook → **建群、星标添加、日历邀请人在 >100 人组织里静默漏人**。Android 已做对分页 → 纯 Web 缺陷，也是双端体验不一致的最大来源。**bug 级，M1 第一优先** |
@@ -87,7 +88,7 @@ P1 把组织架构从零建到了「能画一棵树」：部门树（邻接表 +
 | **D12** | 字段裁剪在服务端 | 通讯录响应新增 **`fields[]` 有序数组**，服务端按 viewer 裁剪；**被裁字段是"不存在于数组"而非 `value: null`** | `{"employee_no": null}` 本身泄漏"这人没工号"。客户端按配置隐藏不是权限，是化妆——受限字段会实打实进 HTTP 响应，抓包一览无余 |
 | **D13** | manager FK 指向 | **`Membership.manager = FK("self")`** 而非 `FK(User)` | 上下级是"组织关系之间"的关系。`FK(User)` 在多组织下必串台（A 在甲公司是 B 的下属，在乙公司不是）；`FK(Membership)` 天然带 organization 一致性 |
 | **D14** | `_direct_manager` 演进 | **共存**：显式 manager 优先，未填则回退现有部门树上溯 `head`（逐字节保留） | 纯增量零 breaking，已有审批不 regress。M1 验收含"未填 manager 时全部现有审批测试保持绿" |
-| **D15** | 用户组复用 `team` 字符串 | `UserGroup.group_key = "group:<id.hex>"`，`get_teams()` 返回 `dept_keys + group_keys` | ~10 行核心代码换"按用户组共享任意资源"，全期 ROI 最高。**前提：F2 加索引 + F3 补写路径** |
+| **D15** | 用户组复用 `team` 字符串 | `UserGroup.group_key = "group:<id.hex>"`，`get_teams()` 返回 `dept_keys + group_keys` | 复用既有团队授权链路，不另造一套授权模型。**⚠️ 规模已按 F3 下修**：`get_teams()` 侧确实 ~10 行，但它今天**只对录制生效**；要覆盖会议室需连带把 `ResourceAccess` 改造成 `BaseAccess` 子类（加 `team` 列 + `user` 可空 + 换 manager + 约束 + 数据迁移）。**前提：F2 加索引 + F3 表改造 + 补写路径**。M2 排期须按"一次表改造"而非"一个小 patch"估 |
 | **D16** | `dept_admin` 死枚举 | **不复活为判定依据**，转为内置角色 `AdminRole`；枚举保留但标 deprecated（不删，避免 `CharField(choices)` 校验炸历史行） | 若 `dept_admin` 继续是判定依据，就有了两个权限语义源（枚举 + 角色表），必然分叉 |
 | **D17** | `IsOrgAdmin` 演进 | **保留原类行为不变**，旁挂 `HasOrgPermission(perm)` + `OrgAdminContext`（一次 JOIN 拉全，挂 `request`） | 现有 6 个 admin 模块零改动，新端点用新权限类，风险可控 |
 | **D18** | 部门群同步机制 | **显式 service 调用 + `DeptGroupSyncJob` outbox 表**，不用 signals | signals 会**静默漏掉**两条最关键的批量写路径：`admin_org.py:318` 删部门时的 `members.update(department=target)`、`move` 动作（`:333`）重写子树的 `.update()`——`QuerySet.update()` **完全不触发 signals**。且全仓零 signals，`transaction.on_commit` 是既定范式（`core/services/calendar_im_notify.py` 就是这么调的），不引入第二套隐式控制流 |
@@ -108,7 +109,7 @@ P1 把组织架构从零建到了「能画一棵树」：部门树（邻接表 +
 
 | 迁移 | 内容 | 期 |
 |---|---|---|
-| `0068_baseaccess_team_index` | `ResourceAccess.team` / `RecordingAccess.team` 加 `db_index=True`（改抽象基类一处，两张具体表各生成索引） | **M1，单独先行** |
+| `0068_baseaccess_team_index` | `BaseAccess.team` 加 `db_index=True`。**实际只生成一条 `AlterField(recordingaccess.team)`** —— `RecordingAccess` 是 `BaseAccess` 唯一的具体子类（见 F3） | **M1，单独先行** |
 | `0069_org_dictionary` | `OrgDictItem` + seed 5 个人员类型 | M1 |
 | `0070_membership_work_fields` | `Membership` 一等列 + `Department.code`/`source` + `SourceChoices` | M1 |
 | `0071_membership_offboard` | `left_at`/`left_reason`/`left_snapshot` + 5 个 `AuditActionChoices` | M1 |
@@ -683,7 +684,9 @@ GET  /admin/stats/activity/?days=30 · /admin/stats/ai-usage/ · GET/PUT /admin/
 
 ### M2（3–4 周）— 规模化与精细授权
 
-**范围**：`0072`–`0076` · 用户组 + **补 F3 `team` 写路径** + `GET /directory/user-groups/` + C 端共享选择器 · `permissions_registry.py` + `AdminRole` 全套 + `HasOrgPermission` + `OrgAdminContext` + scope mixin + **写路径双向校验** · `/directory/me/` 返回 permissions/scope · CSV 两阶段导入 + 导出 + 模板 · AI usage 埋点（只埋不展示）· 活跃度埋点（只埋不展示）· 给 `Room` 加 `organization` FK（见风险 R3）· M 端 `/groups` `/roles` + 导入向导 + 导航分组化。
+**范围**：`0072`–`0076` · **`ResourceAccess` 改造成 `BaseAccess` 子类**（加 `team` 列 + `user` 改可空 + 换 `BaseAccessManager` + 唯一/互斥约束 + 数据迁移；顺带修掉 F3b 的 `get_resource_roles` `AttributeError`）· 用户组 + **补 `team` 写路径**（两个 access serializer）+ `GET /directory/user-groups/` + C 端共享选择器 · `permissions_registry.py` + `AdminRole` 全套 + `HasOrgPermission` + `OrgAdminContext` + scope mixin + **写路径双向校验** · `/directory/me/` 返回 permissions/scope · CSV 两阶段导入 + 导出 + 模板 · AI usage 埋点（只埋不展示）· 活跃度埋点（只埋不展示）· 给 `Room` 加 `organization` FK（见风险 R3）· M 端 `/groups` `/roles` + 导入向导 + 导航分组化。
+
+> ⚠️ **排期提醒**：`ResourceAccess` 改造是本期最大的单点风险——它是会议室权限的核心表，`save()`/`delete()` 里有"至少保留一个 owner"的护栏（`models.py:420-441`），改 `user` 为可空后这两处逻辑必须同步处理 team 行。**先写测试再改表。**
 
 **依赖**：M1 的字典与字段列（导入要用）、M1 的 `get_caller_organization` 记忆化（权限 ctx 依赖）。
 
@@ -700,7 +703,7 @@ GET  /admin/stats/activity/?days=30 · /admin/stats/ai-usage/ · GET/PUT /admin/
 | # | 风险 | 后果 | 缓解 |
 |---|---|---|---|
 | R1 | **`BaseAccess.team` 无索引**（F2） | `filter_user` 的 `team__in` 今天就是全表扫；用户组把 IN 从 1 元素变 ~10，放大 10 倍。**最容易忽略、影响最大** | 迁移 `0068` **单独先行**。这是独立于本方案就该做的修复 |
-| R2 | **`team` 无写路径**（F3） | 用户组建好了却没有任何 API 能创建授权行，功能是死的 | M2 必做：serializer 补 `team` + `validate_team` |
+| R2 | **团队授权只覆盖录制 + 无写路径**（F3/F3b） | ①「按用户组共享会议室」需要一次 `ResourceAccess` 表改造，不是加个 serializer 字段；② 建好用户组却没有 API 能创建授权行，功能是死的；③ `get_resource_roles` 的 `AttributeError` 在改造后才好一并根治 | M2 三件一起做：`ResourceAccess` 转 `BaseAccess` 子类（含 owner 护栏对 team 行的处理）+ 两个 access serializer 补 `team` + `validate_team`（前缀白名单 / org 归属 / user·team 互斥）。**先补测试再动表** |
 | R3 | **org scoping 缺失**（`Room`/`Recording`/`Summary`/`File` 无 `organization` FK，`admin_stats.py:83` 已标注） | Dashboard 的会议数/纪要数是**平台级**，多租户时串数；离职"资源孤儿"无法按 org 盘点 | M2 给 `Room` 加 `organization` FK（null，按 creator 的 primary membership 回填）；`Recording`/`Summary` 通过 `room` 反查不加列。低成本一半解法，别等多租户上线才做 |
 | R4 | **字段权限泄漏（最高危）** | "薪资等级"自定义字段被误勾进"通讯录列表"→ 全组织可见 | ① `MemberFieldDefinition.visibility` 默认 `admin_only`；② 改 `all` 需强二次确认 + 审计；③ **`project()` 服务端按 viewer 过滤，绝不依赖前端 schema 做安全**；④ 堵死 §4.1 表列的 3 类绕过口；⑤ 架构测试逐 endpoint 断言 |
 | R5 | **"隐藏"必须是缺席不是 null** | `{"employee_no": null}` 泄漏"这人没工号" | 裁剪必须从 `fields[]` **移除该项**。写进 `project()` docstring + 单测 |

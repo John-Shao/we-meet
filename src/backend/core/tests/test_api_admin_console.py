@@ -85,6 +85,34 @@ def test_directory_me_non_member_is_empty():
     assert body["is_org_admin"] is False
 
 
+def test_directory_me_admin_on_secondary_membership_is_admin():
+    """A non-primary membership carrying the admin role still admits to the console.
+
+    ``IsOrgAdmin`` has always gated on *any* active membership with an
+    admin/owner role, but ``/directory/me/`` used to read the primary
+    membership's role only — so a user whose primary membership is a plain
+    ``member`` and whose department membership is ``administrator`` was refused
+    by the console guard while the admin API served them. Both now resolve
+    through ``is_caller_org_admin``.
+    """
+    org = factories.OrganizationFactory()
+    department = models.Department.objects.create(organization=org, name="Eng")
+    user = factories.UserFactory()
+    # Primary, org-level, plain member…
+    _member(org, user, org_role=MEMBER, is_primary=True)
+    # …plus a secondary department membership carrying the admin role.
+    _member(org, user, department=department, org_role=ADMIN, is_primary=False)
+
+    client = APIClient()
+    client.force_login(user)
+
+    body = client.get("/api/v1.0/directory/me/").json()
+    assert body["is_org_admin"] is True
+
+    # …and the admin API agrees (this was already true; it's the pairing that matters).
+    assert client.get("/api/v1.0/admin/memberships/").status_code == 200
+
+
 # --- membership list (all statuses) -----------------------------------------
 
 

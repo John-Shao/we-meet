@@ -26,29 +26,23 @@ from rest_framework.response import Response
 
 from core import models, utils
 from core.api import permissions
-from core.api.directory import get_caller_organization
+from core.api.directory import get_caller_organization, is_caller_org_admin
 from core.api.viewsets import Pagination
 from core.services.audit import record_audit
 
 
 class IsOrgAdmin(permissions.IsAuthenticated):
-    """Authenticated AND an administrator/owner of their own organization."""
+    """Authenticated AND an administrator/owner of their own organization.
+
+    Delegates to the memoized ``is_caller_org_admin`` so a request that also
+    hits ``get_caller_organization`` (every viewset here does, via
+    ``get_organization``) resolves the membership once instead of three times.
+    """
 
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
-        organization = get_caller_organization(request.user)
-        if organization is None:
-            return False
-        return models.Membership.objects.filter(
-            user=request.user,
-            organization=organization,
-            status=models.MembershipStatusChoices.ACTIVE,
-            org_role__in=[
-                models.OrgRoleChoices.ADMIN,
-                models.OrgRoleChoices.OWNER,
-            ],
-        ).exists()
+        return is_caller_org_admin(request.user)
 
 
 class DepartmentAdminSerializer(serializers.ModelSerializer):

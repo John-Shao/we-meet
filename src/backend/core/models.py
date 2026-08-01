@@ -583,7 +583,17 @@ class BaseAccess(BaseModel):
         null=True,
         blank=True,
     )
-    team = models.CharField(max_length=100, blank=True)
+    # Indexed because ``BaseAccessManager.filter_user`` does ``team__in=…`` on
+    # every access check. With one department key per user the missing index was
+    # invisible; ``get_teams()`` will soon also return user-group keys
+    # (``group:<hex>``), turning that into a ~10-element IN over a sequential
+    # scan. Index first, widen the IN list after.
+    #
+    # NB: ``RecordingAccess`` is currently the ONLY concrete subclass, so team
+    # grants reach recordings and nothing else — ``ResourceAccess`` (rooms) is a
+    # plain ``BaseModel`` with no team column. Extending team access to rooms is
+    # a table change, not a config flag. See P10 §0 F3.
+    team = models.CharField(max_length=100, blank=True, db_index=True)
     role = models.CharField(
         max_length=20, choices=RoleChoices.choices, default=RoleChoices.MEMBER
     )

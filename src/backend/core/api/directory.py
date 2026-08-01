@@ -31,6 +31,29 @@ from core.services.phone_reveal import send_phone_viewed_notice
 logger = logging.getLogger(__name__)
 
 
+def get_caller_membership(user):
+    """The caller's active membership (primary first), or ``None``.
+
+    Memoized on the user instance exactly like ``User.get_teams()``: a single
+    admin request otherwise resolves the same row three times — ``IsOrgAdmin``
+    looks up the org, then re-queries to check the role, then the viewset's
+    ``get_organization()`` looks it up again. One query per request instead.
+
+    The cache is per-instance and ``request.user`` is rebuilt each request, so
+    there is no cross-request staleness to reason about.
+    """
+    if not hasattr(user, "_org_membership_cache"):
+        user._org_membership_cache = (  # pylint: disable=protected-access
+            models.Membership.objects.filter(
+                user=user, status=models.MembershipStatusChoices.ACTIVE
+            )
+            .select_related("organization")
+            .order_by("-is_primary", "created_at")
+            .first()
+        )
+    return user._org_membership_cache  # pylint: disable=protected-access
+
+
 def get_caller_organization(user):
     """Resolve the caller's organization (MVP: the single org of their membership).
 
@@ -38,15 +61,38 @@ def get_caller_organization(user):
     membership (so their directory queries come back empty rather than leaking
     another organization's data).
     """
-    membership = (
-        models.Membership.objects.filter(
-            user=user, status=models.MembershipStatusChoices.ACTIVE
-        )
-        .select_related("organization")
-        .order_by("-is_primary", "created_at")
-        .first()
-    )
+    membership = get_caller_membership(user)
     return membership.organization if membership else None
+
+
+ORG_ADMIN_ROLES = (
+    models.OrgRoleChoices.ADMIN,
+    models.OrgRoleChoices.OWNER,
+)
+
+
+def is_caller_org_admin(user) -> bool:
+    """Whether the caller administers their organization. Memoized per request.
+
+    Checks **any** active membership in the org, not just the primary one — a
+    user whose primary membership is a plain ``member`` may still hold an
+    ``administrator`` membership on a department. ``IsOrgAdmin`` has always
+    gated on that broader rule; ``/directory/me/`` used to read the primary
+    membership's role only, so such a user was refused by the console guard
+    while the admin API happily served them. Single source of truth now.
+    """
+    if not hasattr(user, "_org_admin_cache"):
+        organization = get_caller_organization(user)
+        user._org_admin_cache = bool(  # pylint: disable=protected-access
+            organization
+            and models.Membership.objects.filter(
+                user=user,
+                organization=organization,
+                status=models.MembershipStatusChoices.ACTIVE,
+                org_role__in=ORG_ADMIN_ROLES,
+            ).exists()
+        )
+    return user._org_admin_cache  # pylint: disable=protected-access
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -528,24 +574,13 @@ class DirectoryMeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        membership = (
-            models.Membership.objects.filter(
-                user=request.user,
-                status=models.MembershipStatusChoices.ACTIVE,
-            )
-            .select_related("organization")
-            .order_by("-is_primary", "created_at")
-            .first()
-        )
+        membership = get_caller_membership(request.user)
         if membership is None:
             return Response(
                 {"organization": None, "org_role": None, "is_org_admin": False}
             )
         organization = membership.organization
-        is_org_admin = membership.org_role in (
-            models.OrgRoleChoices.ADMIN,
-            models.OrgRoleChoices.OWNER,
-        )
+        is_org_admin = is_caller_org_admin(request.user)
         return Response(
             {
                 "organization": {
