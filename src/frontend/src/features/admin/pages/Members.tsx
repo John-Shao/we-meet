@@ -14,12 +14,18 @@ import { useConfirm } from '@/components/ConfirmProvider'
 
 import {
   type AdminMember,
+  type OffboardInput,
+  BULK_LIMIT,
   MEMBER_STATUSES,
   ORG_ROLES,
+  bulkChangeDepartment,
+  bulkOffboard,
   deleteMembership,
   fetchAdminMembers,
+  offboardMember,
   updateMembership,
 } from '../api/adminMembers'
+import { fetchDictItems } from '../api/adminDictionaries'
 import { fetchAdminDepartments } from '../api/adminDepartments'
 import { createInvitation, fetchInvitations } from '../api/adminInvitations'
 import { describeApiError } from '../api/errors'
@@ -27,6 +33,9 @@ import { SelectDialog } from '../components/SelectDialog'
 import { TextPromptDialog } from '../components/TextPromptDialog'
 import { InviteDialog } from '../components/InviteDialog'
 import { InvitationsPanel } from '../components/InvitationsPanel'
+import { DepartedPanel } from '../components/DepartedPanel'
+import { MemberEditPanel } from '../components/MemberEditPanel'
+import { OffboardDialog } from '../components/OffboardDialog'
 
 const MEMBERS_KEY = ['admin', 'members']
 /** 与后端 REST_FRAMEWORK.PAGE_SIZE 一致(settings.py)。Semi 分页要显式给。 */
@@ -46,10 +55,26 @@ export const AdminMembers = () => {
   const [roleTarget, setRoleTarget] = useState<AdminMember | null>(null)
   const [deptTarget, setDeptTarget] = useState<AdminMember | null>(null)
   const [titleTarget, setTitleTarget] = useState<AdminMember | null>(null)
-  const [view, setView] = useState<'members' | 'invitations'>('members')
+  const [view, setView] = useState<'members' | 'departed' | 'invitations'>(
+    'members'
+  )
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [employeeType, setEmployeeType] = useState('')
+  const [editTarget, setEditTarget] = useState<AdminMember | null>(null)
+  const [offboardTarget, setOffboardTarget] = useState<AdminMember | null>(null)
+  const [selected, setSelected] = useState<string[]>([])
+  const [bulkDeptOpen, setBulkDeptOpen] = useState(false)
 
-  const filters = { status, department, q, page }
+  // 已离职是独立 tab,所以成员 tab 永远排掉 left —— 否则同一个人会在两个 tab
+  // 里各出现一次,而两处的操作集完全不同。
+  const filters = {
+    status: status || undefined,
+    exclude_status: status ? undefined : 'left',
+    department,
+    employee_type: employeeType,
+    q,
+    page,
+  }
 
   const { data, isFetching } = useQuery({
     queryKey: [...MEMBERS_KEY, filters],
@@ -62,6 +87,12 @@ export const AdminMembers = () => {
     queryKey: ['admin', 'departments'],
     queryFn: fetchAdminDepartments,
     staleTime: 30_000,
+  })
+
+  const { data: employeeTypes = [] } = useQuery({
+    queryKey: ['admin', 'dict', 'employee_type'],
+    queryFn: () => fetchDictItems('employee_type'),
+    staleTime: 5 * 60_000,
   })
 
   const invalidate = () =>
@@ -83,6 +114,44 @@ export const AdminMembers = () => {
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteMembership(id),
     onSuccess: invalidate,
+    onError,
+  })
+
+  const offboardMut = useMutation({
+    mutationFn: (vars: { id: string; input: OffboardInput }) =>
+      offboardMember(vars.id, vars.input),
+    onSuccess: () => {
+      invalidate()
+      setOffboardTarget(null)
+    },
+    onError,
+  })
+
+  /** Report what the batch could not do rather than claiming a clean sweep. */
+  const reportSkipped = (done: number, skipped: { label: string }[]) => {
+    invalidate()
+    setSelected([])
+    if (skipped.length) {
+      void showAlert({
+        message: t('members.bulkPartial', {
+          done,
+          skipped: skipped.length,
+          names: skipped.map((s) => s.label).join('、'),
+        }),
+      })
+    }
+  }
+
+  const bulkDeptMut = useMutation({
+    mutationFn: (vars: { ids: string[]; department: string | null }) =>
+      bulkChangeDepartment(vars.ids, vars.department),
+    onSuccess: (r) => reportSkipped(r.moved, r.skipped),
+    onError,
+  })
+
+  const bulkOffboardMut = useMutation({
+    mutationFn: (ids: string[]) => bulkOffboard(ids),
+    onSuccess: (r) => reportSkipped(r.offboarded, r.skipped),
     onError,
   })
 
@@ -201,6 +270,9 @@ export const AdminMembers = () => {
             <RiMoreFill size={18} />
           </Button>
           <RACMenu className={menuList}>
+            <MenuItem className={menuItem} onAction={() => setEditTarget(m)}>
+              {t('members.edit')}
+            </MenuItem>
             <MenuItem className={menuItem} onAction={() => setRoleTarget(m)}>
               {t('members.changeRole')}
             </MenuItem>
@@ -212,6 +284,12 @@ export const AdminMembers = () => {
             </MenuItem>
             <MenuItem className={menuItem} onAction={() => toggleSuspend(m)}>
               {m.status === 'active' ? t('members.suspend') : t('members.restore')}
+            </MenuItem>
+            <MenuItem
+              className={menuItemDanger}
+              onAction={() => setOffboardTarget(m)}
+            >
+              {t('members.offboard')}
             </MenuItem>
             <MenuItem className={menuItemDanger} onAction={() => remove(m)}>
               {t('members.remove')}
@@ -248,6 +326,9 @@ export const AdminMembers = () => {
         <div className={css({ display: 'flex', gap: '1rem', marginBottom: '0.75rem', borderBottom: '1px solid token(colors.greyscale.200)' })}>
           <button type="button" onClick={() => setView('members')} className={tab(view === 'members')}>
             {t('members.tabMembers')}
+          </button>
+          <button type="button" onClick={() => setView('departed')} className={tab(view === 'departed')}>
+            {t('members.tabDeparted')}
           </button>
           <button type="button" onClick={() => setView('invitations')} className={tab(view === 'invitations')}>
             {t('members.tabInvitations')}
@@ -286,6 +367,21 @@ export const AdminMembers = () => {
               </option>
             ))}
           </select>
+          <select
+            value={employeeType}
+            onChange={(e) => {
+              setEmployeeType(e.target.value)
+              setPage(1)
+            }}
+            className={filterSelect}
+          >
+            <option value="">{t('members.filterAllEmployeeTypes')}</option>
+            {employeeTypes.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
+            ))}
+          </select>
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -320,9 +416,46 @@ export const AdminMembers = () => {
         )}
       </div>
 
+      {view === 'members' && selected.length > 0 && (
+        <div className={bulkBarCls}>
+          <span className={css({ fontSize: '0.875rem', color: 'greyscale.700' })}>
+            {t('members.bulkSelected', { count: selected.length })}
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={bulkDeptMut.isPending}
+            onPress={() => setBulkDeptOpen(true)}
+          >
+            {t('members.bulkChangeDepartment')}
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            isDisabled={bulkOffboardMut.isPending}
+            onPress={async () => {
+              const ok = await confirm({
+                message: t('members.bulkOffboardConfirm', {
+                  count: selected.length,
+                }),
+                danger: true,
+              })
+              if (ok) bulkOffboardMut.mutate(selected)
+            }}
+          >
+            {t('members.bulkOffboard')}
+          </Button>
+          <Button size="sm" variant="tertiaryText" onPress={() => setSelected([])}>
+            {t('members.bulkClear')}
+          </Button>
+        </div>
+      )}
+
       <div className={css({ flex: 1, overflowY: 'auto' })}>
         {view === 'invitations' ? (
           <InvitationsPanel />
+        ) : view === 'departed' ? (
+          <DepartedPanel />
         ) : (
           /* Semi Table 试点(见 vite.config.ts 顶部说明):替掉原来的手搓
              <table> + 手写 prev/next 页脚。分页、加载态、空态都由组件自带,
@@ -334,6 +467,12 @@ export const AdminMembers = () => {
             loading={isFetching && members.length === 0}
             size="middle"
             empty={t('members.noMembers')}
+            rowSelection={{
+              selectedRowKeys: selected,
+              // 上限与服务端一致,免得攒够 201 个再吃一个 400。
+              onChange: (keys) =>
+                setSelected((keys ?? []).slice(0, BULK_LIMIT) as string[]),
+            }}
             pagination={{
               currentPage: page,
               pageSize: MEMBERS_PAGE_SIZE,
@@ -384,6 +523,39 @@ export const AdminMembers = () => {
           updateMut.mutate({ id: deptTarget.id, input: { department: value || null } })
         }
         onClose={() => setDeptTarget(null)}
+      />
+
+      <MemberEditPanel
+        member={editTarget}
+        departments={departments}
+        onClose={() => setEditTarget(null)}
+      />
+
+      <OffboardDialog
+        member={offboardTarget}
+        submitting={offboardMut.isPending}
+        onSubmit={(input) =>
+          offboardTarget &&
+          offboardMut.mutate({ id: offboardTarget.id, input })
+        }
+        onClose={() => setOffboardTarget(null)}
+      />
+
+      <SelectDialog
+        isOpen={bulkDeptOpen}
+        title={t('members.bulkChangeDepartmentTitle')}
+        options={[
+          { value: '', label: t('members.orgLevel') },
+          ...departments.map((d) => ({ value: d.id, label: d.name })),
+        ]}
+        initialValue=""
+        confirmLabel={t('actions.save')}
+        submitting={bulkDeptMut.isPending}
+        onSubmit={(value) => {
+          bulkDeptMut.mutate({ ids: selected, department: value || null })
+          setBulkDeptOpen(false)
+        }}
+        onClose={() => setBulkDeptOpen(false)}
       />
 
       <TextPromptDialog
@@ -500,6 +672,16 @@ const tabBadge = css({
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
+})
+const bulkBarCls = css({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
+  paddingX: '1.25rem',
+  paddingY: '0.625rem',
+  backgroundColor: 'brand.100',
+  borderBottom: '1px solid token(colors.greyscale.200)',
 })
 const menuList = css({ outline: 'none', minWidth: '9rem' })
 const menuItem = css({

@@ -371,3 +371,21 @@ def test_members_filterable_by_employee_type():
     ).json()["results"]
     assert len(rows) == 1
     assert rows[0]["employee_type"]["code"] == "formal"
+
+
+def test_exclude_status_keeps_leavers_out_of_the_member_tab():
+    """The console's member tab and departed tab must not both show a leaver."""
+    org = factories.OrganizationFactory()
+    client, _admin = _admin_client(org)
+    here = _member(org)
+    gone = _member(org, status=LEFT, is_primary=False)
+
+    still_here = client.get(
+        "/api/v1.0/admin/memberships/?exclude_status=left"
+    ).json()["results"]
+    ids = {row["id"] for row in still_here}
+    assert str(here.id) in ids
+    assert str(gone.id) not in ids
+
+    departed = client.get("/api/v1.0/admin/memberships/?status=left").json()["results"]
+    assert [row["id"] for row in departed] == [str(gone.id)]

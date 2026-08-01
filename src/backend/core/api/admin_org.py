@@ -657,6 +657,12 @@ class MembershipAdminViewSet(
         status = self.request.query_params.get("status")
         if status:
             queryset = queryset.filter(status=status)
+        # Lets the console's member tab mean "everyone still here" — departed
+        # members live in their own tab with a different set of actions, and
+        # showing them in both would double every leaver.
+        exclude_status = self.request.query_params.get("exclude_status")
+        if exclude_status:
+            queryset = queryset.exclude(status__in=exclude_status.split(","))
         department = self.request.query_params.get("department")
         if department:
             # ``?include_subtree=true`` mirrors 飞书's "仅展示部门直属成员" switch
