@@ -24,7 +24,7 @@ export function ResponsiveMenu({
       className={css({
         width: '100vw',
         height: 'var(--visual-viewport-height)',
-        zIndex: 100,
+        zIndex: 'sticky',
         justifyContent: 'center',
         alignItems: 'flex-end',
         display: 'flex',

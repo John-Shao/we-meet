@@ -95,7 +95,7 @@ const overlay = css({
   top: '0.75rem',
   left: '50%',
   transform: 'translateX(-50%)',
-  zIndex: 30,
+  zIndex: 'callBar',
   display: 'flex',
   flexWrap: 'wrap',
   justifyContent: 'center',

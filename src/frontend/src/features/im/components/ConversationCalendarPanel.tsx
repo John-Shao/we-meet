@@ -626,7 +626,7 @@ export const ConversationCalendarPanel = ({
             <>
               {/* 点击外部关闭 */}
               <div
-                className={css({ position: 'fixed', inset: 0, zIndex: 20 })}
+                className={css({ position: 'fixed', inset: 0, zIndex: 'panel' })}
                 onClick={() => setDatePickerOpen(false)}
               />
               <div
@@ -634,7 +634,7 @@ export const ConversationCalendarPanel = ({
                   position: 'absolute',
                   top: 'calc(100% + 4px)',
                   left: 0,
-                  zIndex: 21,
+                  zIndex: 'panelTop',
                   width: '16.5rem',
                   padding: '0.75rem',
                   backgroundColor: 'greyscale.000',

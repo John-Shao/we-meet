@@ -34,7 +34,7 @@ export function ControlBar({ onDeviceError }: ControlBarProps) {
       <div
         id="control-bar"
         className={css({
-          zIndex: 100,
+          zIndex: 'sticky',
         })}
       >
         {isMobile ? (

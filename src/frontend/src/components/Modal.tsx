@@ -89,7 +89,7 @@ export const Modal = ({
       className={css({
         position: 'fixed',
         inset: 0,
-        zIndex: 1000,
+        zIndex: 'modal',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

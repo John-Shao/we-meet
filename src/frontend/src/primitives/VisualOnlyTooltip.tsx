@@ -87,7 +87,7 @@ export const VisualOnlyTooltip = ({
               fontSize: 14,
               whiteSpace: 'nowrap',
               pointerEvents: 'none',
-              zIndex: 9999,
+              zIndex: 'tooltip',
               boxShadow: '0 8px 20px rgba(0 0 0 / 0.1)',
               '&::after': {
                 content: '""',

@@ -331,7 +331,7 @@ export const MessageInput = ({
             border: '1px solid token(colors.greyscale.200)',
             borderRadius: '0.5rem',
             boxShadow: 'overlay',
-            zIndex: 10,
+            zIndex: 'docked',
           })}
         >
           {suggestions.map((name) => (

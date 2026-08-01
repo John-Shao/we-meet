@@ -93,7 +93,7 @@ export const PinnedBar = ({
             top: '100%',
             left: 0,
             right: 0,
-            zIndex: 20,
+            zIndex: 'panel',
             maxHeight: '18rem',
             overflowY: 'auto',
             backgroundColor: 'greyscale.000',

@@ -88,7 +88,7 @@ export const MessageContextMenu = ({
       onContextMenu={(e) => e.preventDefault()}
       className={css({
         position: 'fixed',
-        zIndex: 1000,
+        zIndex: 'modal',
         minWidth: '140px',
         backgroundColor: 'greyscale.000',
         border: '1px solid token(colors.greyscale.200)',

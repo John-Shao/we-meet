@@ -24,7 +24,7 @@ const StyledModalOverlay = styled(ModalOverlay, {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
+    zIndex: 'modal',
     '&[data-entering]': { animation: 'fade 200ms' },
     '&[data-exiting]': { animation: 'fade 150ms reverse ease-in' },
   },

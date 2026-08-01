@@ -113,7 +113,7 @@ export const FullScreenShareWarning = ({
                 display: 'flex',
                 flexDirection: 'row',
                 gap: '1rem',
-                zIndex: '1000',
+                zIndex: 'modal',
               })}
             >
               <Button

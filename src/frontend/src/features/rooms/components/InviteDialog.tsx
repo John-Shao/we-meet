@@ -27,7 +27,7 @@ const StyledRACDialog = styled(Dialog, {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
+    zIndex: 'modal',
     width: '24.5rem',
     borderRadius: '8px',
     padding: '1.5rem',

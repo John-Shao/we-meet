@@ -107,7 +107,7 @@ const handleCls = css({
   width: '6px',
   height: '100%',
   cursor: 'col-resize',
-  zIndex: 5,
+  zIndex: 'handle',
   _hover: { '&::after': { backgroundColor: 'primary.500' } },
   '&::after': {
     content: '""',
@@ -130,7 +130,7 @@ const handleLeftCls = css({
   width: '6px',
   height: '100%',
   cursor: 'col-resize',
-  zIndex: 5,
+  zIndex: 'handle',
   _hover: { '&::after': { backgroundColor: 'primary.500' } },
   '&::after': {
     content: '""',

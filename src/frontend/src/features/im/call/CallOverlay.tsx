@@ -269,7 +269,7 @@ const endReasonText = (
 const overlayRoot = css({
   position: 'fixed',
   inset: 0,
-  zIndex: 2000,
+  zIndex: 'takeover',
   backgroundColor: 'greyscale.000',
   display: 'flex',
   flexDirection: 'column',

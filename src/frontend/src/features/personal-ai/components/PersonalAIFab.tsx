@@ -13,7 +13,7 @@ const fabStyle = css({
   position: 'fixed',
   bottom: '1.5rem',
   right: '1.5rem',
-  zIndex: 50,
+  zIndex: 'fab',
   width: '3.25rem',
   height: '3.25rem',
   borderRadius: '50%',

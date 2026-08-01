@@ -288,6 +288,35 @@ const config: Config = {
         'room-reaction-toolbar-height': { value: '42px' },
       },
       spacing,
+      /**
+       * 层级表。对标 Semi 的 z-index 分层,核心不是数值而是**顺序**:
+       * 贴附 < 面板浮层 < 全局吸顶 < 模态 < 全局接管 < 浮动提示 < 跳转链接。
+       *
+       * 引入前全站是 13 个各自拍脑袋的裸数字(1/2/3/5/10/20/21/30/50/100/
+       * 1000/2000/9999),没人说得清谁该压谁 —— 这类问题的典型症状是「某个
+       * 弹层偶尔被挡住」,极难查。
+       *
+       * 数值刻意沿用迁移前的原值,保证零视觉变化;唯一的例外是 tooltip 从
+       * 9999 降到 9000,让 skipLink 独占最顶 —— 跳转链接是无障碍入口,任何
+       * 情况下都必须可见可达。
+       *
+       * ⚠️ 组件内部的局部堆叠(sticky 列头、网格叠层那些 1/2/3)不要用这里的
+       * token:它们只在自己父级的堆叠上下文内比较,和全局层级无关,混用反而
+       * 会让人误以为它们参与全局排序。
+       */
+      zIndex: {
+        handle: { value: 5 }, // 面板拖拽手柄
+        docked: { value: 10 }, // 贴附于内容的小浮层(输入框上方弹层)
+        panel: { value: 20 }, // 面板级遮罩 / 展开层
+        panelTop: { value: 21 }, // 压在上述遮罩之上的内容
+        callBar: { value: 30 }, // 来电条
+        fab: { value: 50 }, // 悬浮操作按钮
+        sticky: { value: 100 }, // sticky 页头 / 会中控制栏
+        modal: { value: 1000 }, // 模态框、对话框、右键菜单
+        takeover: { value: 2000 }, // 全局接管层:来电浮层、图片灯箱
+        tooltip: { value: 9000 }, // 浮动提示
+        skipLink: { value: 9999 }, // 无障碍跳转链接,永远最顶
+      },
     }),
     semanticTokens: defineSemanticTokens({
       colors: {

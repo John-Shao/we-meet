@@ -40,7 +40,7 @@ const LoginHint = () => {
         position: 'absolute',
         top: '103px',
         right: '110px',
-        zIndex: '100',
+        zIndex: 'sticky',
         outline: 'none',
         padding: '1.25rem',
         maxWidth: '350px',
@@ -58,7 +58,7 @@ const LoginHint = () => {
         sm: {
           top: '131px',
           right: '100px',
-          zIndex: '100',
+          zIndex: 'sticky',
         },
         _after: {
           content: '""',
