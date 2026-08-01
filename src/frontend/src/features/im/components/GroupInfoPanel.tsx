@@ -724,6 +724,12 @@ export const GroupInfoPanel = ({
                       {t('manage.owner')}
                     </span>
                   )}
+                  {/* P10:人离职了群里不会自动少一个人 —— 群成员关系归 jusi,
+                      组织关系归 we-meet,两者本就不同步。名单上标出来,群主才
+                      知道该清谁。用中性灰,不是错误态。 */}
+                  {names[m.uid]?.left && (
+                    <span className={departedChipCls}>{t('departed.chip')}</span>
+                  )}
                   {canActOnRow && (
                     <>
                       <button
@@ -867,4 +873,17 @@ const editActions = css({
   display: 'flex',
   gap: '0.5rem',
   justifyContent: 'flex-end',
+})
+
+// 离职标记。刻意用 greyscale 而非 error/warning:离职是常态事实不是异常,
+// 而且 error 是反向色阶(100 最暗),照着 owner chip 抄一个 error.50 出来只会
+// 得到一个非法 token + 整条背景被丢弃(见 buttonRecipe 那次)。
+const departedChipCls = css({
+  flexShrink: 0,
+  fontSize: '0.6875rem',
+  borderRadius: '0.25rem',
+  paddingX: '0.25rem',
+  color: 'greyscale.600',
+  backgroundColor: 'greyscale.100',
+  border: '1px solid token(colors.greyscale.300)',
 })

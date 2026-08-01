@@ -360,6 +360,17 @@ export const ChatPane = ({
     () => (uid: string) => nickOf[uid] || names[uid]?.full_name || uid,
     [nickOf, names]
   )
+  // P10 离职标记。后端解析端点刻意不剔掉离职者(剔掉的话历史消息里的名字会退成
+  // 裸 uid,比标一下糟得多),由客户端决定怎么表达。
+  //
+  // ⚠️ 后缀只能加在**纯渲染**的位置。`nameOf` 本身必须保持干净:它同时喂给
+  // 引用条(`senderDisplay` → `replyTo.sender`)和合并转发快照(`sender_name`)
+  // ——那两处会被**写进消息体发到服务端**,一旦带上「(已离职)」就永久冻在历史
+  // 里,而且人复职了也改不回来。
+  const leftOf = (uid: string): boolean => names[uid]?.left === true
+  const nameWithDeparted = (uid: string): string =>
+    leftOf(uid) ? `${nameOf(uid)}${t('departed.suffix')}` : nameOf(uid)
+
   // For @-matching: a real resolved display only (no bare-uid fallback).
   const displayOf = (uid: string): string | undefined =>
     nickOf[uid] || names[uid]?.full_name
@@ -954,6 +965,8 @@ export const ChatPane = ({
   const peerUid = isGroup
     ? undefined
     : memberUids.find((u) => u !== currentUserUID)
+  /** 私聊对端已离职 —— 头部标题下方给一行提示,免得对着空账号发消息。 */
+  const peerLeft = !!peerUid && leftOf(peerUid)
   const lastOwnMid = useMemo(() => {
     for (let i = visibleMessages.length - 1; i >= 0; i--) {
       const m = visibleMessages[i]
@@ -1084,6 +1097,14 @@ export const ChatPane = ({
               })}
             >
               {title}
+            </div>
+          )}
+          {/* 私聊对端已离职:提示写在标题下方,与群聊的成员数同一行位。不把
+              「(已离职)」拼进 `title` —— title 会顺着 peerName / roomName 流进
+              通话与会议室命名,那些地方不该带这个后缀。 */}
+          {peerLeft && (
+            <div className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}>
+              {t('departed.hint')}
             </div>
           )}
           {isGroup && (
@@ -1320,7 +1341,7 @@ export const ChatPane = ({
                         senderName={
                           isOwnMsg
                             ? user?.full_name || selfName || currentUserUID
-                            : nameOf(m.sender_uid)
+                            : nameWithDeparted(m.sender_uid)
                         }
                         senderAvatarUrl={
                           isOwnMsg

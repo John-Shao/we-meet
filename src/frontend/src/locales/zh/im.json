@@ -358,5 +358,10 @@
   },
   "specialAlert": {
     "marker": "已开启特别提醒"
+  },
+  "departed": {
+    "suffix": "(已离职)",
+    "chip": "已离职",
+    "hint": "该成员已离职"
   }
 }

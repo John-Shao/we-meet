@@ -363,5 +363,10 @@
   },
   "specialAlert": {
     "marker": "Special alerts on"
+  },
+  "departed": {
+    "suffix": " (left)",
+    "chip": "Left",
+    "hint": "This person has left the organization"
   }
 }
