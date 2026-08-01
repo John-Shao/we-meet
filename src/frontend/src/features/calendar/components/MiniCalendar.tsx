@@ -78,7 +78,7 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
       >
         <span
           className={css({
-            fontSize: '0.9rem',
+            fontSize: '0.875rem',
             fontWeight: 600,
             color: 'greyscale.900',
           })}
@@ -113,7 +113,7 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
             key={i}
             className={css({
               textAlign: 'center',
-              fontSize: '0.7rem',
+              fontSize: '0.6875rem',
               color: 'greyscale.500',
               paddingY: '0.25rem',
             })}
@@ -184,6 +184,6 @@ const cell = css({
   justifyContent: 'center',
   border: 'none',
   borderRadius: '6px',
-  fontSize: '0.8rem',
+  fontSize: '0.8125rem',
   cursor: 'pointer',
 })

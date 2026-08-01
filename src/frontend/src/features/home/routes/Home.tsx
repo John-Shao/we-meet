@@ -152,7 +152,7 @@ const Heading = styled('h1', {
 const IntroText = styled('div', {
   base: {
     marginBottom: '3rem',
-    fontSize: '1.2rem',
+    fontSize: '1.25rem',
     lineHeight: '1.5rem',
     textWrap: 'balance',
     maxWidth: '32rem',

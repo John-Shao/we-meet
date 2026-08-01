@@ -29,7 +29,7 @@ const BetaBadge = () => (
       // 原先的 #0063CB 是遗留的硬编码 DSFR 蓝,深色下不会跟着走。
       backgroundColor: 'brand.100',
       color: 'brand.700',
-      fontSize: '14px',
+      fontSize: '0.875rem',
       fontWeight: 500,
       margin: '0 0.3125rem',
       lineHeight: '1rem',

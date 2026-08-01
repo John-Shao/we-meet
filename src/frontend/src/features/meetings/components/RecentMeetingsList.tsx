@@ -192,7 +192,7 @@ export const RecentMeetingsList = ({
                   {m.summary_updated_at && (
                     <Text
                       className={css({
-                        fontSize: '0.8rem',
+                        fontSize: '0.8125rem',
                         color: 'greyscale.600',
                         marginTop: '0.125rem',
                       })}
@@ -217,7 +217,7 @@ export const RecentMeetingsList = ({
             background: 'none',
             border: 'none',
             color: 'primary.700',
-            fontSize: '0.85rem',
+            fontSize: '0.875rem',
             cursor: 'pointer',
             _hover: { textDecoration: 'underline' },
           })}

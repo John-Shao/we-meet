@@ -30,7 +30,7 @@ const bubbleBase = css({
   maxWidth: '90%',
   padding: '0.5rem 0.75rem',
   borderRadius: '12px',
-  fontSize: '0.9rem',
+  fontSize: '0.875rem',
   lineHeight: 1.45,
   wordBreak: 'break-word',
 })
@@ -64,14 +64,14 @@ const markdownStyle = css({
 })
 
 const hintStyle = css({
-  fontSize: '0.8rem',
+  fontSize: '0.8125rem',
   color: 'gray.600',
   textAlign: 'center',
   padding: '2rem 1rem',
 })
 
 const errorStyle = css({
-  fontSize: '0.8rem',
+  fontSize: '0.8125rem',
   color: 'red.600',
   margin: '0.5rem 0',
 })
@@ -93,7 +93,7 @@ const textareaStyle = css({
   borderRadius: '6px',
   border: '1px solid',
   borderColor: 'box.border',
-  fontSize: '0.9rem',
+  fontSize: '0.875rem',
   fontFamily: 'inherit',
   resize: 'none',
   outline: 'none',

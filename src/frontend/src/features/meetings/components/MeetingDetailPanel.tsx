@@ -273,7 +273,7 @@ export const MeetingDetailPanel = ({
                 _hover: { backgroundColor: 'primary.600' },
               })}
             >
-              <RiVidiconLine size={17} />
+              <RiVidiconLine size={16} />
               {t('home.enterMeeting')}
             </button>
           )}
@@ -298,7 +298,7 @@ export const MeetingDetailPanel = ({
                 _hover: { backgroundColor: 'greyscale.100' },
               })}
             >
-              <RiFileList3Line size={17} />
+              <RiFileList3Line size={16} />
               {t('detail.viewSummary')}
             </button>
           )}

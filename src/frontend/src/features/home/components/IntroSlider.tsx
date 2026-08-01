@@ -10,7 +10,7 @@ const Heading = styled('h2', {
   base: {
     width: 'fit-content',
     marginBottom: 0,
-    fontSize: '1.3rem',
+    fontSize: '1.25rem',
     fontWeight: '700',
     marginTop: '0.75rem',
     lineHeight: '1.7rem',

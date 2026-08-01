@@ -69,7 +69,7 @@ const barClsFor = (rsvp: RSVPStatus | null): string => {
 
 const titleCls = css({
   display: 'block',
-  fontSize: '0.85rem',
+  fontSize: '0.875rem',
   fontWeight: 500,
   color: 'greyscale.900',
   overflow: 'hidden',
@@ -79,7 +79,7 @@ const titleCls = css({
 
 const titleDeclinedCls = css({
   display: 'block',
-  fontSize: '0.85rem',
+  fontSize: '0.875rem',
   fontWeight: 500,
   color: 'greyscale.500',
   textDecoration: 'line-through',
@@ -162,7 +162,7 @@ export const CalendarSidebar = ({
       <div className={css({ display: 'flex', flexDirection: 'column', gap: '0.5rem' })}>
         <h2
           className={css({
-            fontSize: '0.85rem',
+            fontSize: '0.875rem',
             fontWeight: 600,
             color: 'greyscale.700',
           })}
@@ -170,7 +170,7 @@ export const CalendarSidebar = ({
           {t('sidebar.upcoming')}
         </h2>
         {upcoming.length === 0 ? (
-          <p className={css({ fontSize: '0.8rem', color: 'greyscale.500' })}>
+          <p className={css({ fontSize: '0.8125rem', color: 'greyscale.500' })}>
             {t('page.empty')}
           </p>
         ) : (

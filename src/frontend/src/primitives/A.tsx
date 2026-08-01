@@ -37,7 +37,7 @@ const link = cva({
     },
     footer: {
       important: {
-        fontSize: '0.8rem',
+        fontSize: '0.8125rem',
         lineHeight: '1rem',
         fontWeight: '700',
         fontFamily: 'Marianne',

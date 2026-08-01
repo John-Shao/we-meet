@@ -206,7 +206,7 @@ export const ScheduledMeetingsList = ({
                   {m.scheduled_at && (
                     <Text
                       className={css({
-                        fontSize: '0.8rem',
+                        fontSize: '0.8125rem',
                         color: 'scheduledCard.text',
                         marginTop: '0.125rem',
                       })}
@@ -235,7 +235,7 @@ export const ScheduledMeetingsList = ({
             background: 'none',
             border: 'none',
             color: 'scheduledCard.text',
-            fontSize: '0.85rem',
+            fontSize: '0.875rem',
             cursor: 'pointer',
             _hover: { textDecoration: 'underline' },
           })}

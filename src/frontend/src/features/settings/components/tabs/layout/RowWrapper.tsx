@@ -20,7 +20,7 @@ const BetaBadge = () => (
       backgroundColor: 'primary.50',
       color: 'primary.700',
       _dark: { backgroundColor: 'primaryDark.100', color: 'primaryDark.700' },
-      fontSize: '12px',
+      fontSize: '0.75rem',
       fontWeight: 500,
       margin: '0 0 0.9375rem 0.3125rem',
       lineHeight: '1rem',

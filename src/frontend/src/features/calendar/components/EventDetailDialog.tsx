@@ -159,7 +159,7 @@ export const EventDetailDialog = ({
                 tooltip={t('detail.share')}
                 aria-label={t('detail.share')}
               >
-                <RiShareForwardLine size={17} />
+                <RiShareForwardLine size={16} />
               </Button>
             )}
             {canManage && (
@@ -172,7 +172,7 @@ export const EventDetailDialog = ({
                   tooltip={t('detail.edit')}
                   aria-label={t('detail.edit')}
                 >
-                  <RiPencilLine size={17} />
+                  <RiPencilLine size={16} />
                 </Button>
                 {/* 删除与编辑/分享并排(对标飞书):删除本就走二次确认,
                     再套一层「更多」只是多一次点击。悬停转红做危险提示。 */}
@@ -184,7 +184,7 @@ export const EventDetailDialog = ({
                   tooltip={t('detail.delete')}
                   aria-label={t('detail.delete')}
                 >
-                  <RiDeleteBinLine size={17} />
+                  <RiDeleteBinLine size={16} />
                 </Button>
               </>
             )}
@@ -336,7 +336,7 @@ export const EventDetailDialog = ({
                       </span>
                     )}
                     <StatusIcon
-                      size={15}
+                      size={16}
                       aria-label={a.rsvp ?? 'needs_action'}
                       className={cx(
                         statusIconCls,

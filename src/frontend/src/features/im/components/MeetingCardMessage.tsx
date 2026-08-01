@@ -77,7 +77,7 @@ export const MeetingCardMessage = ({
             color: 'greyscale.900',
           })}
         >
-          <RiVidiconLine size={17} className={css({ flexShrink: 0, color: 'brand.600' })} />
+          <RiVidiconLine size={16} className={css({ flexShrink: 0, color: 'brand.600' })} />
           <span
             className={css({
               minWidth: 0,

@@ -24,7 +24,7 @@ import {
 } from '../api/fetchMeeting'
 
 const markdownBodyStyle = css({
-  fontSize: '0.95rem',
+  fontSize: '0.9375rem',
   lineHeight: '1.7',
   '& > :first-child': { marginTop: 0 },
   '& h1, & h2, & h3, & h4': {
@@ -34,7 +34,7 @@ const markdownBodyStyle = css({
     lineHeight: '1.3',
   },
   '& h2': { fontSize: '1.35rem' },
-  '& h3': { fontSize: '1.15rem' },
+  '& h3': { fontSize: '1.125rem' },
   '& h4': { fontSize: '1rem' },
   '& p': { margin: '0.5rem 0' },
   '& ul, & ol': { margin: '0.25rem 0 0.5rem 1.5rem' },
@@ -391,7 +391,7 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
           </div>
           <div
             className={css({
-              fontSize: '0.85rem',
+              fontSize: '0.875rem',
               color: 'greyscale.700',
               display: 'flex',
               gap: '1rem',
@@ -505,7 +505,7 @@ const TranscriptTab = ({
                 className={css({
                   fontStyle: 'italic',
                   color: 'greyscale.700',
-                  fontSize: '0.9rem',
+                  fontSize: '0.875rem',
                   marginTop: '0.125rem',
                 })}
               >
@@ -535,12 +535,12 @@ const InfoRow = ({ label, children }: { label: string; children: ReactNode }) =>
         width: '5.5rem',
         flexShrink: 0,
         color: 'greyscale.600',
-        fontSize: '0.9rem',
+        fontSize: '0.875rem',
       })}
     >
       {label}
     </div>
-    <div className={css({ flex: 1, fontSize: '0.95rem', wordBreak: 'break-word' })}>
+    <div className={css({ flex: 1, fontSize: '0.9375rem', wordBreak: 'break-word' })}>
       {children}
     </div>
   </div>

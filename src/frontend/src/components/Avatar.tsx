@@ -19,13 +19,13 @@ const avatar = cva({
       subtitles: {
         width: '40px',
         height: '40px',
-        fontSize: '1.3rem',
+        fontSize: '1.25rem',
         lineHeight: '1rem',
       },
       list: {
         width: '32px',
         height: '32px',
-        fontSize: '1.3rem',
+        fontSize: '1.25rem',
         lineHeight: '1rem',
       },
       placeholder: {

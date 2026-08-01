@@ -494,7 +494,7 @@ export const buttonRecipe = cva({
         flexDirection: 'column',
         gap: '0.5rem',
         '& span': {
-          fontSize: '13px',
+          fontSize: '0.8125rem',
           textAlign: 'center',
         },
       },
