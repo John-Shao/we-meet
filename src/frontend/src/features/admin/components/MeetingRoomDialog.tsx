@@ -224,7 +224,20 @@ const fieldCls = css({
 })
 const rowCls = css({ display: 'flex', gap: '0.75rem', minWidth: '22rem' })
 const labelCls = css({ fontSize: '0.8125rem', color: 'greyscale.600' })
-const selectCls = css({ width: '100%', fontSize: '0.875rem' })
+// 与同框的 Input 基元同款外观(边框/圆角/左内边距/文字色)。原先只有 width +
+// fontSize —— appearance:none 把浏览器自带的边框也一并去掉了,于是白底无框的
+// 21px 下拉贴在 32px 的 Input 底下,基本看不见是个控件。
+// 高度不在这里给,由 selectChrome 统一钉 control.md;左内边距**必须写
+// paddingLeft** 不能写 paddingX,否则与 selectChrome 的箭头留位撞同属性。
+const selectCls = css({
+  width: '100%',
+  fontSize: '0.875rem',
+  paddingLeft: '0.5',
+  border: '1px solid',
+  borderColor: 'control.border',
+  color: 'control.text',
+  borderRadius: 4,
+})
 const checkRowCls = css({
   display: 'flex',
   alignItems: 'center',

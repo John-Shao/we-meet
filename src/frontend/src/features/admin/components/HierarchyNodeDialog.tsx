@@ -165,7 +165,18 @@ const fieldCls = css({
   minWidth: '20rem',
 })
 const labelCls = css({ fontSize: '0.8125rem', color: 'greyscale.600' })
-const selectCls = css({ width: '100%', fontSize: '0.875rem' })
+// 同 MeetingRoomDialog:补齐边框/圆角,appearance:none 会把浏览器自带边框一起
+// 去掉,原先是个白底无框的 21px 下拉。高度由 selectChrome 统一给;左内边距用
+// paddingLeft 而非 paddingX,避免与 selectChrome 的箭头留位撞同属性。
+const selectCls = css({
+  width: '100%',
+  fontSize: '0.875rem',
+  paddingLeft: '0.5',
+  border: '1px solid',
+  borderColor: 'control.border',
+  color: 'control.text',
+  borderRadius: 4,
+})
 const footerCls = css({
   display: 'flex',
   justifyContent: 'flex-end',
