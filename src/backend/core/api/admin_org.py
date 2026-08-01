@@ -354,6 +354,74 @@ class RehireSerializer(serializers.Serializer):
     )
 
 
+# Bulk operations are capped so one request can never quietly rewrite an entire
+# org chart. 200 covers "reorganize a department" without covering "reorganize
+# the company by accident".
+BULK_LIMIT = 200
+
+
+class BulkMembershipSerializer(serializers.Serializer):
+    """Shared body for the bulk member actions: a bounded list of membership ids."""
+
+    ids = serializers.ListField(
+        child=serializers.UUIDField(), allow_empty=False, max_length=BULK_LIMIT
+    )
+
+
+class BulkDepartmentSerializer(BulkMembershipSerializer):
+    """Move several members into one department (or to org level with null)."""
+
+    department = serializers.PrimaryKeyRelatedField(
+        queryset=models.Department.objects.filter(deleted_at__isnull=True),
+        allow_null=True,
+    )
+
+
+class BulkOffboardSerializer(BulkMembershipSerializer):
+    """Offboard several members at once."""
+
+    left_at = serializers.DateTimeField(required=False, allow_null=True)
+    reason = serializers.CharField(
+        required=False, allow_blank=True, max_length=64, default=""
+    )
+    # Bulk cannot pick a replacement head per person, so heading a department is
+    # the one thing that makes a member ineligible for the batch.
+    allow_orphan_head = serializers.BooleanField(required=False, default=False)
+
+
+class OrgDictItemSerializer(serializers.ModelSerializer):
+    """One option in an organization dictionary (人员类型 / 职级 / 序列 …)."""
+
+    class Meta:
+        model = models.OrgDictItem
+        fields = [
+            "id",
+            "scope",
+            "code",
+            "label",
+            "sort_order",
+            "is_builtin",
+            "is_active",
+        ]
+        read_only_fields = ["id", "is_builtin"]
+
+    def validate(self, attrs):
+        # ``code`` is what application logic branches on, and memberships point
+        # at these rows — freeze it (and the dictionary it belongs to) once the
+        # option exists.
+        if self.instance is not None:
+            for field in ("code", "scope"):
+                if field in attrs and attrs[field] != getattr(self.instance, field):
+                    raise serializers.ValidationError(
+                        {field: _("This field cannot be changed after creation.")}
+                    )
+        return attrs
+
+    def create(self, validated_data):
+        validated_data["organization"] = self.context["organization"]
+        return super().create(validated_data)
+
+
 class _OrgScopedAdminViewSet(viewsets.GenericViewSet):
     """Shared plumbing: org-admin permission + org in serializer context."""
 
@@ -805,3 +873,185 @@ class MembershipAdminViewSet(
             target_label=label,
         )
         return Response(status=204)
+
+    # --- bulk (P10 M1) ------------------------------------------------------
+
+    def _bulk_targets(self, ids):
+        """Resolve ids to memberships in the caller's org, preserving nothing else."""
+        return list(self.get_queryset().filter(id__in=ids))
+
+    @action(detail=False, methods=["post"], url_path="bulk-department")
+    def bulk_department(self, request):
+        """Move several members into one department (飞书's 批量变更部门)."""
+        serializer = BulkDepartmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        organization = self.get_organization()
+        department = serializer.validated_data["department"]
+        if department is not None and department.organization_id != organization.id:
+            raise serializers.ValidationError(
+                {"department": _("The department must be in your organization.")}
+            )
+
+        targets = self._bulk_targets(serializer.validated_data["ids"])
+        moved, skipped = [], []
+        with transaction.atomic():
+            for membership in targets:
+                # unique(user, department) — someone already sitting in the
+                # destination would collide; report them instead of 500ing the
+                # whole batch.
+                clashes = (
+                    models.Membership.objects.filter(
+                        user_id=membership.user_id, department=department
+                    )
+                    .exclude(id=membership.id)
+                    .exists()
+                )
+                if clashes:
+                    skipped.append(
+                        {
+                            "id": str(membership.id),
+                            "reason": "already_in_department",
+                            "label": self._member_label(membership),
+                        }
+                    )
+                    continue
+                membership.department = department
+                membership.save()
+                moved.append(str(membership.id))
+
+        # One summary row, not one per member: a 200-member move would otherwise
+        # bury every other action in the audit log.
+        record_audit(
+            actor=request.user,
+            organization=organization,
+            action=models.AuditActionChoices.MEMBER_BULK_UPDATE,
+            target_type="membership",
+            target_label=_("Bulk department change"),
+            metadata={
+                "operation": "department",
+                "department": str(department.id) if department else None,
+                "moved": moved,
+                "skipped": skipped,
+            },
+        )
+        return Response({"moved": len(moved), "skipped": skipped})
+
+    @action(detail=False, methods=["post"], url_path="bulk-offboard")
+    def bulk_offboard(self, request):
+        """Offboard several members at once (飞书's 批量操作离职)."""
+        serializer = BulkOffboardSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        organization = self.get_organization()
+
+        targets = self._bulk_targets(data["ids"])
+        done, skipped = [], []
+        for membership in targets:
+            try:
+                offboarding.offboard_membership(
+                    membership,
+                    actor=request.user,
+                    left_at=data.get("left_at"),
+                    reason=data.get("reason", ""),
+                    allow_orphan_head=data.get("allow_orphan_head", False),
+                )
+            except serializers.ValidationError as exc:
+                # Per-member guards (last owner, self, heads a department) must
+                # not abort the whole batch — report and continue.
+                skipped.append(
+                    {
+                        "id": str(membership.id),
+                        "label": self._member_label(membership),
+                        "reason": exc.detail,
+                    }
+                )
+                continue
+            done.append(str(membership.id))
+
+        record_audit(
+            actor=request.user,
+            organization=organization,
+            action=models.AuditActionChoices.MEMBER_BULK_UPDATE,
+            target_type="membership",
+            target_label=_("Bulk offboard"),
+            metadata={"operation": "offboard", "offboarded": done, "skipped": skipped},
+        )
+        return Response({"offboarded": len(done), "skipped": skipped})
+
+
+class OrgDictItemViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    _OrgScopedAdminViewSet,
+):
+    """Manage an organization's option lists (人员类型 / 职级 / 序列 …).
+
+    Filter with ``?scope=employee_type``. Built-in options can be renamed and
+    deactivated but never deleted: application logic branches on their ``code``
+    and memberships point at the rows.
+    """
+
+    serializer_class = OrgDictItemSerializer
+    pagination_class = None  # option lists are short by construction
+
+    def get_queryset(self):
+        organization = self.get_organization()
+        if organization is None:
+            return models.OrgDictItem.objects.none()
+        queryset = models.OrgDictItem.objects.filter(organization=organization)
+        scope = self.request.query_params.get("scope")
+        if scope:
+            queryset = queryset.filter(scope=scope)
+        if self.request.query_params.get("include_inactive") != "true":
+            queryset = queryset.filter(is_active=True)
+        return queryset
+
+    def _audit(self, instance, action):
+        record_audit(
+            actor=self.request.user,
+            organization=self.get_organization(),
+            action=action,
+            target_type="dict_item",
+            target_id=instance.id,
+            target_label=f"{instance.scope}:{instance.code}",
+            metadata={"label": instance.label},
+        )
+
+    def perform_create(self, serializer):
+        self._audit(
+            serializer.save(), models.AuditActionChoices.DICT_ITEM_CREATE
+        )
+
+    def perform_update(self, serializer):
+        self._audit(
+            serializer.save(), models.AuditActionChoices.DICT_ITEM_UPDATE
+        )
+
+    def perform_destroy(self, instance):
+        if instance.is_builtin:
+            raise serializers.ValidationError(
+                {
+                    "detail": _(
+                        "Built-in options cannot be deleted. Deactivate it instead."
+                    )
+                }
+            )
+        in_use = models.Membership.objects.filter(
+            Q(employee_type=instance)
+            | Q(job_level=instance)
+            | Q(job_sequence=instance)
+        ).count()
+        if in_use:
+            raise serializers.ValidationError(
+                {
+                    "detail": _(
+                        "%(count)d member(s) still use this option. "
+                        "Deactivate it instead of deleting."
+                    )
+                    % {"count": in_use}
+                }
+            )
+        self._audit(instance, models.AuditActionChoices.DICT_ITEM_DELETE)
+        instance.delete()

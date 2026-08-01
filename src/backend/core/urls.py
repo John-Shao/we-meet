@@ -14,7 +14,11 @@ from core.api.admin_meeting_rooms import (
     MeetingRoomFacilityAdminViewSet,
     MeetingRoomNodeAdminViewSet,
 )
-from core.api.admin_org import DepartmentAdminViewSet, MembershipAdminViewSet
+from core.api.admin_org import (
+    DepartmentAdminViewSet,
+    MembershipAdminViewSet,
+    OrgDictItemViewSet,
+)
 from core.api.agent_internal import IngestTranscriptView
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.calendar import CalendarEventViewSet
@@ -106,6 +110,9 @@ router.register(
 )
 router.register(
     "admin/memberships", MembershipAdminViewSet, basename="admin_memberships"
+)
+router.register(
+    "admin/dictionaries", OrgDictItemViewSet, basename="admin_dictionaries"
 )
 router.register(
     "admin/audit-logs", AuditLogViewSet, basename="admin_audit_logs"
