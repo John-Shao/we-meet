@@ -50,9 +50,16 @@ const box = cva({
         backgroundColor: 'box.bg',
         color: 'control.text',
       },
+      // 会中控制栏的深色浮层(Menu/Popover/Select 的 variant="dark")。
+      // 原先这里是 `borderColord`(拼错,非 CSS 属性,静默失效),且没有
+      // borderWidth/borderStyle —— 于是浮层与身后的舞台同为 primaryDark.50、
+      // 阴影 #0000001a 压在深底上又不可见,整块只能靠内容看出边界。
+      // 补齐三件套并把边框调到 primaryDark.200,给它一条看得见的边。
       dark: {
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: 'primaryDark.200',
         backgroundColor: 'primaryDark.50',
-        borderColord: 'primaryDark.50',
       },
     },
     size: {
