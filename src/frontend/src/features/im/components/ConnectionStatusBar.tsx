@@ -32,6 +32,13 @@ const fallbackBgCls = css({ backgroundColor: 'greyscale.100' })
 
 export const ConnectionStatusBar = ({ state }: { state: ConnectionState }) => {
   const { t } = useTranslation('im')
+  // 连上就不占位。这条是**异常提示**,不是状态指示器 —— 连接正常是常态,
+  // 常驻一条通栏说「已连接」既没信息量又白吃掉一行高度(飞书/企微/Slack
+  // 同样只在掉线时才出条)。用户判断「连上了」靠的是消息能收发,不靠它。
+  //
+  // 注:这条以前一直在渲染,只是 backgroundColor 动态取值 panda 生成不出类,
+  // 白底看着像页头细条;2a5b3d57 把底色修真了才显出一整条绿。
+  if (state === 'connected') return null
   return (
     <div
       // barCls 不设 background-color,与状态类无同属性冲突,cx 叠加安全。
