@@ -317,6 +317,28 @@ const config: Config = {
       },
       sizes: {
         ...spacing,
+        /**
+         * 表单控件高度三档(对标 Semi 的 $height-control-small/default/large)。
+         *
+         * 存在的理由:同一行里放 Select + Input + Button 原本是三个高度 ——
+         * Select 30 / Input 34 / Button sm 34 / dense 33.5 / action 39。
+         * 高度全靠 padding + 继承行高算出来,字号一变高度就跟着漂,
+         * 所以永远对不齐。钉死高度后,字号和内边距只影响密度、不影响对齐。
+         *
+         * 口径(border-box,padding 与 border 都算在内):
+         *   sm 24 —— 图标钮 icon24、极紧凑场景
+         *   md 32 —— **表单默认**:Input / Select / Button sm / dense / icon32
+         *   lg 40 —— 常规动作按钮(对话框底部的确定取消、页头新建)
+         *
+         * 不在此列:Button 的 default / compact 档(46px)。那 42 处全是首页 CTA、
+         * 登录按钮和会中控制栏,不是表单行控件,46 对落地页按钮是合理的 ——
+         * 硬套 lg 会平白把首页和会中控制栏矮 6px,没有对齐收益。
+         */
+        control: {
+          sm: { value: '24px' },
+          md: { value: '32px' },
+          lg: { value: '40px' },
+        },
         full: { value: '100%' },
         min: { value: 'min-content' },
         max: { value: 'max-content' },

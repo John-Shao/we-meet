@@ -45,6 +45,10 @@ export const buttonRecipe = cva({
         borderRadius: 6,
         paddingX: '0.5',
         paddingY: '0.25',
+        // 行高钉住盒高:22 + 8(padY) + 2(border) = 32 = sizes.control.md,
+        // 与 Input / Select 齐平。改行高而不是加 minHeight —— square/round
+        // 只有 true 分支,minHeight 会把方形图标钮拉成长方形。
+        lineHeight: '22px',
         '--square-padding': '{spacing.0.25}',
       },
       xs: {
@@ -82,6 +86,11 @@ export const buttonRecipe = cva({
         paddingX: '1',
         paddingY: '0.5',
         fontSize: '0.875rem',
+        // 22 + 16 + 2 = 40 = sizes.control.lg。原先靠继承行高(1.5→21px)
+        // 算出 39,差 1px 落不到档上。
+        // 行高取 22 而非字号配对表里的 20:按钮文字是 flex 居中的单行,
+        // 行高在这里纯粹是盒模型算术,不参与正文排版节奏。
+        lineHeight: '22px',
         '--square-padding': '{spacing.0.5}',
       },
       /**
@@ -102,6 +111,8 @@ export const buttonRecipe = cva({
         paddingX: '0.75',
         paddingY: '0.375',
         fontSize: '0.8125rem',
+        // 18 + 12 + 2 = 32 = sizes.control.md(与 13px 字号的配对行高一致)。
+        lineHeight: '18px',
         '--square-padding': '{spacing.0.375}',
       },
       /**
