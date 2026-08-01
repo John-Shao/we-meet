@@ -146,6 +146,7 @@ export const AdminMembers = () => {
     {
       title: t('members.colMember'),
       dataIndex: 'id',
+      width: 320,
       render: (_: unknown, m: AdminMember) => (
         <div className={memberCellCls}>
           {m.avatar_url ? (
@@ -165,17 +166,19 @@ export const AdminMembers = () => {
         </div>
       ),
     },
-    // 后三列给显式宽度:表格是 table-layout auto,不给宽度时浏览器按内容分配,
-    // 「成员」列(带邮箱,内容最长)会吃掉几乎所有剩余宽度,把这三列挤到最右边。
+    // ⚠️ 五列**都要**给宽度。只给部分列设宽度会更糟:Semi Table 一旦有列带
+    // width 就切到 table-layout: fixed,富余宽度全部灌给没设宽度的那一列 ——
+    // 实测「成员」列因此从 877px 涨到 1080px,比不设宽度还宽。
+    // 全部设上之后富余按各自宽度比例摊,五列才不会一头沉。
     {
       title: t('members.colDepartment'),
-      width: 160,
+      width: 150,
       render: (_: unknown, m: AdminMember) =>
         m.department?.name ?? t('members.orgLevel'),
     },
     {
       title: t('members.colRole'),
-      width: 140,
+      width: 150,
       render: (_: unknown, m: AdminMember) => roleLabel(m.org_role),
     },
     {
@@ -187,7 +190,7 @@ export const AdminMembers = () => {
     },
     {
       title: '',
-      width: 56,
+      width: 60,
       render: (_: unknown, m: AdminMember) => (
         <Menu>
           <Button
