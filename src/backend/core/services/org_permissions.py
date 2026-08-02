@@ -86,17 +86,21 @@ _EMPTY = OrgAdminContext(organization=None, membership=None)
 
 
 def _resolve(user) -> OrgAdminContext:
-    from core.api.directory import get_caller_membership  # circular at import time
+    # Circular at import time: directory imports models, models is imported here.
+    from core.api.directory import get_caller_membership, is_caller_org_admin
 
     membership = get_caller_membership(user)
     if membership is None:
         return _EMPTY
     organization = membership.organization
 
-    if membership.org_role in (
-        models.OrgRoleChoices.OWNER,
-        models.OrgRoleChoices.ADMIN,
-    ):
+    # Deliberately ``is_caller_org_admin`` and not ``membership.org_role``: the
+    # rule is "**any** active membership carries an admin role", because someone
+    # whose primary membership is a plain member may still administer via a
+    # second one. Reading only the primary here would silently narrow a gate
+    # that has always been the broader one — M1 unified the two definitions
+    # precisely so they could not drift again.
+    if is_caller_org_admin(user):
         # Owners and administrators are not modelled as role holders. Doing so
         # would mean an org could lock itself out by editing a seeded role.
         return OrgAdminContext(

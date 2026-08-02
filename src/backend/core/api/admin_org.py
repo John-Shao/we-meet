@@ -20,16 +20,18 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from rest_framework import mixins, serializers, viewsets
+from rest_framework import exceptions, mixins, serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from core import models, utils
 from core.api import permissions
+from core.api.admin_roles import HasOrgPermission
 from core.api.directory import get_caller_organization, is_caller_org_admin
 from core.api.viewsets import Pagination
 from core.services import offboarding
 from core.services.audit import record_audit
+from core.services.org_permissions import get_admin_context
 
 
 class IsOrgAdmin(permissions.IsAuthenticated):
@@ -488,25 +490,93 @@ class _OrgScopedAdminViewSet(viewsets.GenericViewSet):
         return context
 
 
+class DepartmentScopedMixin:
+    """Narrow an admin viewset to the caller's department scope (P10 M2).
+
+    Two halves, and the second is the one that is easy to miss:
+
+    1. **Reads** are filtered to the caller's subtree.
+    2. **Writes are checked in both directions** — the target must be in scope
+       *and still be in scope afterwards*. Without the second check a
+       department-scoped administrator can move somebody out of their scope,
+       which is functionally deleting a person from the only administrator who
+       was supposed to be able to see them.
+
+    An unscoped caller (owner / administrator / a role granted over the whole
+    organization) passes through untouched.
+    """
+
+    def admin_context(self):
+        return get_admin_context(self.request)
+
+    def assert_in_scope(self, department, message=None):
+        ctx = self.admin_context()
+        if not ctx.in_scope(department):
+            raise exceptions.PermissionDenied(
+                message or _("This department is outside your administration scope.")
+            )
+
+    def assert_move_allowed(self, current_department, target_department):
+        """Both ends of a move must be inside the scope. See the class docstring."""
+        ctx = self.admin_context()
+        if not ctx.is_scoped:
+            return
+        if not ctx.in_scope(current_department):
+            raise exceptions.PermissionDenied(
+                _("This member is outside your administration scope.")
+            )
+        if not ctx.in_scope(target_department):
+            raise exceptions.PermissionDenied(
+                _(
+                    "You cannot move a member out of your administration scope — "
+                    "pick a department you administer."
+                )
+            )
+
+
 class DepartmentAdminViewSet(
     mixins.CreateModelMixin,
     mixins.UpdateModelMixin,
     mixins.DestroyModelMixin,
+    DepartmentScopedMixin,
     _OrgScopedAdminViewSet,
 ):
-    """Create / update / soft-delete departments (org admins only)."""
+    """Create / update / soft-delete departments.
 
+    Permission-gated since P10 M2 so a custom role can hold it. A
+    department-scoped holder edits their own subtree and creates children inside
+    it — the queryset narrowing makes every detail route safe, and
+    ``perform_create`` checks the parent because a new node has no row to filter.
+    """
+
+    permission_classes = [HasOrgPermission]
     serializer_class = DepartmentAdminSerializer
+
+    def get_permissions(self):
+        self.required_permission = (
+            "org.department.read"
+            if self.request.method in ("GET", "HEAD", "OPTIONS")
+            else "org.department.write"
+        )
+        return super().get_permissions()
 
     def get_queryset(self):
         organization = self.get_organization()
         if organization is None:
             return models.Department.objects.none()
-        return models.Department.objects.filter(
+        queryset = models.Department.objects.filter(
             organization=organization, deleted_at__isnull=True
         )
+        return self.admin_context().filter_departments(queryset)
 
     def perform_create(self, serializer):
+        # A new node is not in any queryset yet, so the scope check has to look
+        # at where it is being hung. A root-level create (parent=None) is
+        # org-wide by definition and therefore closed to a scoped holder.
+        self.assert_in_scope(
+            serializer.validated_data.get("parent"),
+            _("You can only create departments inside the ones you administer."),
+        )
         instance = serializer.save()
         record_audit(
             actor=self.request.user,
@@ -672,17 +742,36 @@ class MembershipAdminViewSet(
     mixins.CreateModelMixin,
     mixins.UpdateModelMixin,
     mixins.DestroyModelMixin,
+    DepartmentScopedMixin,
     _OrgScopedAdminViewSet,
 ):
-    """List / add / update / remove memberships (org admins only).
+    """List / add / update / remove memberships.
 
     ``list`` returns members of every lifecycle status (active / invited /
     suspended), unlike the active-only directory, filterable by
     ``?status=`` / ``?department=`` / ``?org_role=`` / ``?q=`` (name or email).
+
+    Gated on permissions rather than ``org_role`` since P10 M2, so a custom role
+    (HR over two departments, say) can actually reach it. An owner /
+    administrator satisfies the same check unscoped, so nothing they could do
+    before changed.
     """
 
+    permission_classes = [HasOrgPermission]
     serializer_class = MembershipAdminSerializer
     pagination_class = Pagination
+
+    def get_permissions(self):
+        # Offboarding touches Keycloak and resource ownership, so it is a
+        # separate grant from ordinary member editing — an HR role can be given
+        # one without the other.
+        if self.action in ("offboard", "rehire", "purge", "bulk_offboard"):
+            self.required_permission = "org.member.offboard"
+        elif self.request.method in ("GET", "HEAD", "OPTIONS"):
+            self.required_permission = "org.member.read"
+        else:
+            self.required_permission = "org.member.write"
+        return super().get_permissions()
 
     def get_serializer_class(self):
         # Reads expose a rich member card; writes take the thin write serializer.
@@ -705,6 +794,11 @@ class MembershipAdminViewSet(
             "manager__user",
             "dotted_manager__user",
         )
+        # A department-scoped administrator sees their subtree and nothing else.
+        # This also makes every detail route (PATCH / DELETE / offboard) scope-safe
+        # for free: get_object() filters through the same queryset, so a target
+        # outside the scope is a 404 rather than an unguarded write.
+        queryset = self.admin_context().filter_memberships(queryset)
 
         status = self.request.query_params.get("status")
         if status:
@@ -813,6 +907,16 @@ class MembershipAdminViewSet(
         )
 
     def perform_update(self, serializer):
+        # The bidirectional scope check. get_queryset() already guarantees the
+        # target is in scope; what it cannot see is where the edit *sends* them.
+        # Without this a scoped administrator can move somebody out of their own
+        # scope, which is functionally deleting that person from the only admin
+        # who was supposed to see them.
+        if "department" in serializer.validated_data:
+            self.assert_move_allowed(
+                serializer.instance.department,
+                serializer.validated_data["department"],
+            )
         before = self._member_snapshot(serializer.instance)
         label = self._member_label(serializer.instance)
         instance = serializer.save()
@@ -949,6 +1053,16 @@ class MembershipAdminViewSet(
             raise serializers.ValidationError(
                 {"department": _("The department must be in your organization.")}
             )
+
+        # Same bidirectional rule as the single-member path — a bulk endpoint
+        # is exactly where a scope hole would be exploited at scale.
+        self.assert_in_scope(
+            department,
+            _(
+                "You cannot move members out of your administration scope — "
+                "pick a department you administer."
+            ),
+        )
 
         targets = self._bulk_targets(serializer.validated_data["ids"])
         moved, skipped = [], []
