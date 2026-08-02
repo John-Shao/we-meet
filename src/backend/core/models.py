@@ -2460,6 +2460,73 @@ class UserGroupMember(BaseModel):
         return f"{self.user} in {self.group}"
 
 
+class ImportJobStatusChoices(models.TextChoices):
+    """Lifecycle of a member-import job."""
+
+    PENDING = "pending", _("Queued for preflight")
+    PREVIEWING = "previewing", _("Checking the file")
+    PREVIEWED = "previewed", _("Checked — awaiting confirmation")
+    APPLYING = "applying", _("Applying")
+    DONE = "done", _("Applied")
+    PARTIAL = "partial", _("Applied with errors")
+    FAILED = "failed", _("Failed")
+
+
+class ImportJob(BaseModel):
+    """One bulk member import, in two explicit phases (P10 M2).
+
+    Preflight and apply are separate rows-states, not separate requests against
+    a stateless parser, because the admin must be able to *read the diff before
+    it happens*. A single-shot importer that reports what it did after the fact
+    is how a 400-person directory gets silently reshaped by a mis-mapped column.
+
+    ``rows`` holds the parsed preview: one entry per source line with its
+    resolved action (create / update / rehire / error) and messages. Kept as
+    JSON rather than a table because it is written once, read a handful of
+    times, and is meaningless outside its job.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="import_jobs"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    filename = models.CharField(_("file name"), max_length=255, blank=True, default="")
+    status = models.CharField(
+        max_length=16,
+        choices=ImportJobStatusChoices.choices,
+        default=ImportJobStatusChoices.PENDING,
+    )
+    #: Raw CSV text, kept until the job is applied so the apply phase parses the
+    #: exact bytes that were previewed — re-uploading between the two phases is
+    #: the obvious way to make a confirmed preview lie.
+    source = models.TextField(blank=True, default="")
+    #: Whether departments named in the file but absent from the tree should be
+    #: created instead of failing their rows.
+    create_missing_departments = models.BooleanField(default=False)
+    rows = models.JSONField(default=list, blank=True)
+    summary = models.JSONField(default=dict, blank=True)
+    error = models.CharField(max_length=500, blank=True, default="")
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_import_job"
+        ordering = ("-created_at",)
+        verbose_name = _("Import job")
+        verbose_name_plural = _("Import jobs")
+        indexes = [
+            models.Index(fields=["organization", "-created_at"], name="import_job_org_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.filename or 'import'} ({self.status})"
+
+
 class AdminScopeChoices(models.TextChoices):
     """How wide an admin-role assignment reaches."""
 
@@ -3012,6 +3079,10 @@ class AuditActionChoices(models.TextChoices):
     ROLE_DELETE = "role.delete", _("Admin role deleted")
     ROLE_ASSIGN = "role.assign", _("Admin role assigned")
     ROLE_UNASSIGN = "role.unassign", _("Admin role revoked")
+    # P10 M2 — bulk import/export. One summary row per job, never one per line:
+    # a 1000-row import would otherwise bury every other action in the log.
+    MEMBER_IMPORT = "member.import", _("Members imported")
+    MEMBER_EXPORT = "member.export", _("Members exported")
     # 纪要闭环 M2:纪要编辑(会议侧动作,同样入 M 端审计)。
     SUMMARY_EDIT = "summary.edit", _("Meeting summary edited")
     # P9 会议室(实体会议室,与 LiveKit Room 无关)。

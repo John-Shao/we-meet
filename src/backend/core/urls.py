@@ -25,6 +25,7 @@ from core.api.admin_roles import (
     AdminRoleViewSet,
     PermissionCatalogueView,
 )
+from core.api.admin_import import ImportJobViewSet, MemberExportView
 from core.api.agent_internal import IngestTranscriptView
 from core.api.recording_accesses import RecordingAccessViewSet
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
@@ -134,6 +135,10 @@ router.register(
 )
 router.register("admin/user-groups", UserGroupViewSet, basename="admin_user_groups")
 router.register("admin/roles", AdminRoleViewSet, basename="admin_roles")
+router.register("admin/import-jobs", ImportJobViewSet, basename="admin_import_jobs")
+router.register(
+    "admin/member-export", MemberExportView, basename="admin_member_export"
+)
 router.register(
     "admin/role-assignments",
     AdminRoleAssignmentViewSet,
