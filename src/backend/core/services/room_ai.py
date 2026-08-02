@@ -29,7 +29,9 @@ from typing import Iterator, Optional
 
 from django.conf import settings
 
+from core import models
 from core.models import Room, Transcript
+from core.services import ai_usage
 from core.services.llm_client import LLMClient, LLMUnavailable, sanitise_history
 
 logger = logging.getLogger(__name__)
@@ -82,6 +84,13 @@ class RoomAIService:
             return prep["empty_response"]
 
         answer = prep["client"].chat(
+            # 会中助手谁都能问,记在提问者头上会让「谁在烧钱」失真 —— 记会议。
+            usage_sink=ai_usage.make_sink(
+                organization=room.organization,
+                kind=models.AIUsageKindChoices.ROOM_AI,
+                ref_type="room",
+                ref_id=str(room.id),
+            ),
             system=prep["system"],
             user=question,
             temperature=0.3,

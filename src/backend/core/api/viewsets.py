@@ -766,6 +766,15 @@ class RoomViewSet(
             user=self.request.user,
             role=models.RoleChoices.OWNER,
         )
+        # P10 M2 — stamp the creator's organization so the console's meeting
+        # figures are per-tenant instead of platform-wide. Purely for reporting:
+        # access still comes from ResourceAccess, so a room whose creator has no
+        # membership is left unstamped rather than rejected.
+        from core.api.directory import get_caller_organization
+
+        organization = get_caller_organization(self.request.user)
+        if organization is not None:
+            models.Room.objects.filter(pk=room.pk).update(organization=organization)
 
         if callback_id := self.request.data.get("callback_id"):
             RoomCreation().persist_callback_state(callback_id, room)

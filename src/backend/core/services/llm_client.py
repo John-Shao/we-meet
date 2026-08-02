@@ -112,8 +112,16 @@ class LLMClient:
         temperature: float = 0.3,
         max_tokens: Optional[int] = None,
         response_format: Optional[dict] = None,
+        usage_sink=None,
     ) -> str:
-        """Single-turn chat completion. Returns the assistant message text."""
+        """Single-turn chat completion. Returns the assistant message text.
+
+        ``usage_sink`` (P10 M2) receives ``model_code`` / ``input_tokens`` /
+        ``output_tokens`` when the provider reports them. The client stays
+        ignorant of *who* is asking — attribution is the caller's context, and
+        threading a user through here would couple this wrapper to the org
+        model. See ``core/services/ai_usage.make_sink``.
+        """
         kwargs: dict = {
             "model": self._model,
             "messages": [
@@ -128,7 +136,24 @@ class LLMClient:
             kwargs["response_format"] = response_format
 
         resp = self._client.chat.completions.create(**kwargs)
+        self._report_usage(usage_sink, resp)
         return (resp.choices[0].message.content or "").strip()
+
+    def _report_usage(self, usage_sink, response):
+        """Hand the provider's ``usage`` block to the sink. Never raises.
+
+        Metering must not be able to turn a successful completion into an
+        error: the call already happened and already cost money, so losing the
+        record is bad but losing the answer is worse.
+        """
+        if usage_sink is None:
+            return
+        try:
+            from core.services.ai_usage import usage_from_response
+
+            usage_sink(model_code=self._model, **usage_from_response(response))
+        except Exception:  # noqa: BLE001
+            logger.exception("usage_sink failed for model %s", self._model)
 
     def chat_json(
         self,
@@ -136,6 +161,7 @@ class LLMClient:
         system: str,
         user: str,
         temperature: float = 0.2,
+        usage_sink=None,
     ) -> str:
         """Chat completion forcing ``response_format=json_object``.
 
@@ -149,6 +175,7 @@ class LLMClient:
             user=user,
             temperature=temperature,
             response_format={"type": "json_object"},
+            usage_sink=usage_sink,
         )
 
     def chat_stream(

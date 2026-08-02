@@ -39,6 +39,8 @@ from core.models import (
     Summary,
     TranscriptChunk,
 )
+from core import models
+from core.services import ai_usage
 from core.services.embedding_cache import cached_embed
 from core.services.embeddings import EmbeddingClient, EmbeddingUnavailable
 from core.services.hybrid_retrieval import (
@@ -172,6 +174,10 @@ class GlobalAskService:
             return {**base, "answer": "", "citations_used": [], "degraded": True}
         try:
             answer = prep["llm"].chat(
+                usage_sink=ai_usage.make_sink(
+                    user=user,
+                    kind=models.AIUsageKindChoices.GLOBAL_ASK,
+                ),
                 system=prep["system"],
                 user=prep["question"],
                 temperature=0.2,

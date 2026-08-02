@@ -24,6 +24,7 @@ from django.utils import timezone
 
 from core.models import (
     ActionItem,
+    AIUsageKindChoices,
     MeetingConversation,
     MeetingDoc,
     RoleChoices,
@@ -32,6 +33,7 @@ from core.models import (
     SummaryChapter,
     Transcript,
 )
+from core.services import ai_usage
 from core.services.llm_client import LLMClient, LLMUnavailable
 
 logger = logging.getLogger(__name__)
@@ -132,9 +134,22 @@ class MeetingSummaryService:
 
         formatted = self._format_transcripts(transcripts)
 
+        # P10 M2:纪要是最贵的一次 AI 调用(整场转写整个喂进去),三次调用都归到
+        # 同一场会议。**只记组织不记人**——纪要是会议的产物,记在点「生成」的那个
+        # 人头上会让「谁在烧钱」这张表彻底失真。
+        usage_sink = ai_usage.make_sink(
+            organization=room.organization,
+            kind=AIUsageKindChoices.SUMMARY,
+            ref_type="room",
+            ref_id=str(room.id),
+        )
+
         try:
             summary_text = client.chat(
-                system=_SUMMARY_SYSTEM, user=formatted, temperature=0.3
+                system=_SUMMARY_SYSTEM,
+                user=formatted,
+                temperature=0.3,
+                usage_sink=usage_sink,
             )
         except Exception as exc:
             logger.exception("LLM summary call failed for room %s", room.id)
@@ -144,7 +159,10 @@ class MeetingSummaryService:
 
         try:
             items_raw = client.chat_json(
-                system=_ACTION_ITEMS_SYSTEM, user=formatted, temperature=0.2
+                system=_ACTION_ITEMS_SYSTEM,
+                user=formatted,
+                temperature=0.2,
+                usage_sink=usage_sink,
             )
             items = self._parse_action_items(items_raw)
         except Exception as exc:
@@ -155,7 +173,10 @@ class MeetingSummaryService:
         # 不影响摘要/行动项落库。
         try:
             chapters_raw = client.chat_json(
-                system=_CHAPTERS_SYSTEM, user=formatted, temperature=0.2
+                system=_CHAPTERS_SYSTEM,
+                user=formatted,
+                temperature=0.2,
+                usage_sink=usage_sink,
             )
             chapters = self._parse_chapters(chapters_raw, transcripts)
         except Exception:  # noqa: BLE001

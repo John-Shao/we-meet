@@ -22,7 +22,9 @@ from typing import Iterator, Optional
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
+from core import models
 from core.models import Room, Summary, TranscriptChunk
+from core.services import ai_usage
 from core.services.embedding_cache import cached_embed
 from core.services.embeddings import EmbeddingClient, EmbeddingUnavailable
 from core.services.hybrid_retrieval import (
@@ -82,6 +84,10 @@ class PersonalAIService:
             return prep["empty_response"]
 
         answer = prep["llm"].chat(
+            usage_sink=ai_usage.make_sink(
+                user=user,
+                kind=models.AIUsageKindChoices.PERSONAL_AI,
+            ),
             system=prep["system"],
             user=prep["question"],
             temperature=0.3,

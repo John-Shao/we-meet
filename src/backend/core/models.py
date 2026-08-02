@@ -523,6 +523,22 @@ class Room(Resource):
             "intended start so participants know when to show up."
         ),
     )
+    # P10 M2 — org scoping. Without it the console's "meetings" figure is
+    # platform-wide, so two tenants on one deployment read each other's numbers.
+    # Nullable and never a filter for *access* (that stays with ResourceAccess):
+    # a room created before this column existed, or by someone with no
+    # membership, is still a perfectly valid room.
+    #
+    # Recording / Summary deliberately do NOT get their own column — they reach
+    # the organization through ``room``, and a second copy is a second thing to
+    # keep in sync.
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="rooms",
+    )
 
     class Meta:
         db_table = "meet_room"
@@ -1264,6 +1280,21 @@ class AIModel(BaseModel):
     )
     sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
     is_active = models.BooleanField(_("active"), default=True)
+    # --- pricing (P10 M2) ---
+    # In micro-CNY so cost arithmetic stays in integers: usage rows are summed
+    # by the thousand and float cents would drift. Configuration, not code —
+    # switching model or renegotiating a rate must not need a deploy.
+    price_input_per_mtok = models.PositiveIntegerField(
+        _("input price per million tokens (micro-CNY)"), default=0
+    )
+    price_output_per_mtok = models.PositiveIntegerField(
+        _("output price per million tokens (micro-CNY)"), default=0
+    )
+    price_per_minute = models.PositiveIntegerField(
+        _("audio price per minute (micro-CNY)"),
+        default=0,
+        help_text=_("Used by STT / TTS models, which are billed by duration."),
+    )
 
     class Meta:
         verbose_name = _("AI model")
@@ -2458,6 +2489,118 @@ class UserGroupMember(BaseModel):
 
     def __str__(self):
         return f"{self.user} in {self.group}"
+
+
+class AIUsageKindChoices(models.TextChoices):
+    """Which product surface spent the tokens."""
+
+    SUMMARY = "summary", _("Meeting summary")
+    GLOBAL_ASK = "global_ask", _("Ask across content")
+    PERSONAL_AI = "personal_ai", _("Personal assistant")
+    ROOM_AI = "room_ai", _("In-meeting assistant")
+    OTHER = "other", _("Other")
+
+
+class AIUsageRecord(BaseModel):
+    """One billable AI call (P10 M2).
+
+    we-meet's LLM/ASR/TTS spend is real money, not a virtual allowance — which
+    is exactly why this is worth doing properly: without per-call attribution
+    there is no way to tell a runaway prompt from ordinary growth until the
+    invoice arrives.
+
+    ``cost_micros`` is computed from :class:`AIModel`'s price columns at write
+    time and then frozen. Recomputing later from current prices would silently
+    rewrite history every time a rate is renegotiated.
+    """
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="ai_usage",
+        null=True,
+        blank=True,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    kind = models.CharField(
+        max_length=16,
+        choices=AIUsageKindChoices.choices,
+        default=AIUsageKindChoices.OTHER,
+    )
+    #: The provider's model string as sent on the wire, not an FK: the record
+    #: must stay readable after a model row is renamed or removed.
+    model_code = models.CharField(max_length=128, blank=True, default="")
+    ref_type = models.CharField(max_length=32, blank=True, default="")
+    ref_id = models.CharField(max_length=64, blank=True, default="")
+    input_tokens = models.PositiveIntegerField(default=0)
+    output_tokens = models.PositiveIntegerField(default=0)
+    audio_seconds = models.PositiveIntegerField(default=0)
+    cost_micros = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "meet_ai_usage_record"
+        ordering = ("-created_at",)
+        verbose_name = _("AI usage record")
+        verbose_name_plural = _("AI usage records")
+        indexes = [
+            models.Index(
+                fields=["organization", "-created_at"], name="ai_usage_org_time_idx"
+            ),
+            models.Index(fields=["user", "-created_at"], name="ai_usage_user_time_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.kind} {self.model_code} {self.cost_micros}µ"
+
+
+class UserDailyActivity(BaseModel):
+    """Per-person, per-day module activity counters (P10 M2).
+
+    Six integer columns rather than one JSONB ``modules`` map: ``F("im_count")
+    + 1`` is an atomic increment, whereas a JSONB map has to be read, modified
+    and written back — which races itself the moment two requests land in the
+    same second. Aggregating and indexing are also direct.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="daily_activity"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
+    )
+    date = models.DateField()
+    im_count = models.PositiveIntegerField(default=0)
+    meeting_count = models.PositiveIntegerField(default=0)
+    calendar_count = models.PositiveIntegerField(default=0)
+    docs_count = models.PositiveIntegerField(default=0)
+    approval_count = models.PositiveIntegerField(default=0)
+    ai_count = models.PositiveIntegerField(default=0)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_user_daily_activity"
+        ordering = ("-date",)
+        verbose_name = _("User daily activity")
+        verbose_name_plural = _("User daily activity")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "date"], name="user_daily_activity_unique"
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "-date"], name="activity_org_date_idx"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} {self.date}"
 
 
 class ImportJobStatusChoices(models.TextChoices):

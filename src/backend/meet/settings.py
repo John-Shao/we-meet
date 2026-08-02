@@ -366,6 +366,10 @@ class Base(Configuration):
         "django.contrib.auth.middleware.AuthenticationMiddleware",
         "django.contrib.messages.middleware.MessageMiddleware",
         "dockerflow.django.middleware.DockerflowMiddleware",
+        # Last on purpose: it reads request.user (needs AuthenticationMiddleware)
+        # and only looks at the finished response. It never touches the DB —
+        # see core/middleware/activity.py.
+        "core.middleware.activity.ActivityMiddleware",
     ]
 
     AUTHENTICATION_BACKENDS = [
