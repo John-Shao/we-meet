@@ -10,6 +10,7 @@ import {
   RiShieldKeyholeLine,
   RiArrowLeftLine,
   type RemixiconComponentType,
+  RiMailSendLine,
 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
@@ -71,6 +72,12 @@ const NAV: NavGroup[] = [
         labelKey: 'shell.nav.roles',
         Icon: RiShieldKeyholeLine,
         permission: 'org.role.read',
+      },
+      {
+        to: '/invites',
+        labelKey: 'shell.nav.invites',
+        Icon: RiMailSendLine,
+        permission: 'org.invitation.write',
       },
     ],
   },

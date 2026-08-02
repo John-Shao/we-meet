@@ -1,0 +1,16 @@
+{
+  "joinDepartment": "{{organization}} 邀请你加入「{{department}}」",
+  "joinOrganization": "{{organization}} 邀请你加入",
+  "signInHint": "登录后即可申请加入。没有账号也没关系,用手机号收个验证码就行。",
+  "signInAndJoin": "登录并加入",
+  "needsApproval": "提交后需要管理员审批通过,你会在这里看到进度。",
+  "noApproval": "提交后立即加入,无需等待审批。",
+  "apply": "申请加入",
+  "pendingBody": "已提交,等待管理员审批。",
+  "withdraw": "撤回申请",
+  "approvedBody": "已通过,你现在是该组织的成员了。",
+  "openWorkspace": "进入工作台",
+  "applyFailed": "提交失败,请稍后再试。",
+  "invalidTitle": "链接无效或已过期",
+  "invalidBody": "请向邀请你的人索取一条新的邀请链接。"
+}

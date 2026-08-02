@@ -16,6 +16,7 @@ import { ContactsRoute } from '@/features/contacts'
 import { CalendarRoute } from '@/features/calendar'
 import { ApprovalRoute } from '@/features/approval'
 import { DocsRoute } from '@/features/docs'
+import { InviteRoute } from '@/features/invite'
 
 const roomIdRegex = new RegExp(`^[/](?<roomId>${flexibleRoomIdPattern})$`)
 
@@ -38,7 +39,8 @@ export const routes: Record<
   | 'contacts'
   | 'calendar'
   | 'approval'
-  | 'docs',
+  | 'docs'
+  | 'invite',
   {
     name: RouteName
     path: RegExp | string
@@ -126,6 +128,14 @@ export const routes: Record<
     path: docIdRegex,
     to: (docId?: string) => (docId ? `/docs/${docId.trim()}` : '/docs'),
     Component: DocsRoute,
+  },
+  // 邀请落地页 —— 收到链接的人多半还没登录,所以这一页**必须匿名可开**。
+  // Layout 已按 isLoggedIn 分支处理匿名态,不要为它再造一套根树。
+  invite: {
+    name: 'invite',
+    path: '/invite/:code',
+    to: (code: string) => `/invite/${code.trim()}`,
+    Component: InviteRoute,
   },
 }
 

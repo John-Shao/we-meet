@@ -1,0 +1,16 @@
+{
+  "joinDepartment": "{{organization}} invites you to join {{department}}",
+  "joinOrganization": "{{organization}} invites you to join",
+  "signInHint": "Sign in to apply. No account needed in advance — a code sent to your phone is enough.",
+  "signInAndJoin": "Sign in and join",
+  "needsApproval": "An administrator reviews your application; you can follow it here.",
+  "noApproval": "You will join immediately — no review needed.",
+  "apply": "Apply to join",
+  "pendingBody": "Submitted. Waiting for an administrator to review it.",
+  "withdraw": "Withdraw",
+  "approvedBody": "Approved — you are now a member of this organization.",
+  "openWorkspace": "Open workspace",
+  "applyFailed": "Could not submit. Please try again.",
+  "invalidTitle": "This link is invalid or has expired",
+  "invalidBody": "Ask whoever invited you for a fresh link."
+}

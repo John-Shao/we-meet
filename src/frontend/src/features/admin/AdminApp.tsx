@@ -8,6 +8,7 @@ import { AdminDashboard } from './pages/Dashboard'
 import { AdminMembers } from './pages/Members'
 import { AdminUserGroups } from './pages/UserGroups'
 import { AdminRoles } from './pages/Roles'
+import { AdminInvites } from './pages/Invites'
 import { AdminMeetingRooms } from './pages/MeetingRooms'
 import { AdminAudit } from './pages/Audit'
 
@@ -37,6 +38,7 @@ const HOME_FALLBACKS: [string, string][] = [
   ['/org', 'org.member.read'],
   ['/groups', 'org.group.read'],
   ['/roles', 'org.role.read'],
+  ['/invites', 'org.invitation.write'],
   ['/meeting-rooms', 'org.meeting_room.write'],
   ['/audit', 'org.audit.read'],
 ]
@@ -61,6 +63,11 @@ const AdminApp = () => (
         </Route>
         <Route path="/roles">
           <AdminRoles />
+        </Route>
+        {/* 「邀请成员」独立一页:它跟「添加成员」是两套机制,发的是不指向
+            具体人的凭证,还带申请队列与审批。 */}
+        <Route path="/invites">
+          <AdminInvites />
         </Route>
         <Route path="/meeting-rooms">
           <AdminMeetingRooms />
