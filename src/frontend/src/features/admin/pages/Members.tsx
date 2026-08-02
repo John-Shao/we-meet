@@ -33,8 +33,10 @@ import { SelectDialog } from '../components/SelectDialog'
 import { TextPromptDialog } from '../components/TextPromptDialog'
 import { InviteDialog } from '../components/InviteDialog'
 import { InvitationsPanel } from '../components/InvitationsPanel'
+import { MEMBER_EXPORT_PATH } from '../api/adminImport'
 import { DepartedPanel } from '../components/DepartedPanel'
 import { DepartmentsPanel } from '../components/DepartmentsPanel'
+import { ImportWizard } from '../components/ImportWizard'
 import { MemberEditPanel } from '../components/MemberEditPanel'
 import { OffboardDialog } from '../components/OffboardDialog'
 
@@ -68,6 +70,7 @@ export const AdminMembers = () => {
   const [offboardTarget, setOffboardTarget] = useState<AdminMember | null>(null)
   const [selected, setSelected] = useState<string[]>([])
   const [bulkDeptOpen, setBulkDeptOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   // 已离职是独立 tab,所以成员 tab 永远排掉 left —— 否则同一个人会在两个 tab
   // 里各出现一次,而两处的操作集完全不同。
@@ -321,14 +324,28 @@ export const AdminMembers = () => {
           {/* 「部门」tab 的主操作是「新建部门」,归它自己的工具条 —— 一个页头
               不该按 tab 换主按钮,换到第三个就没人知道现在能点什么了。 */}
           {view !== 'departments' && (
-            <Button
-              size="sm"
-              variant="primary"
-              icon={<RiUserAddLine size={16} />}
-              onPress={() => setInviteOpen(true)}
-            >
-              {t('invite.button')}
-            </Button>
+            <div className={css({ display: 'flex', alignItems: 'center', gap: '0.5rem' })}>
+              {/* 导出走 <a download> 而不是 fetch:响应是文件流,拿 JS 接下来
+                  再造一个 blob 只是把浏览器已经做好的事重做一遍。 */}
+              <a href={MEMBER_EXPORT_PATH} download className={exportLinkCls}>
+                {t('import.export')}
+              </a>
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => setImportOpen(true)}
+              >
+                {t('import.button')}
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                icon={<RiUserAddLine size={16} />}
+                onPress={() => setInviteOpen(true)}
+              >
+                {t('invite.button')}
+              </Button>
+            </div>
           )}
         </div>
         <div className={css({ display: 'flex', gap: '1rem', marginBottom: '0.75rem', borderBottom: '1px solid token(colors.greyscale.200)' })}>
@@ -507,6 +524,15 @@ export const AdminMembers = () => {
           />
         )}
       </div>
+
+      <ImportWizard
+        isOpen={importOpen}
+        onDone={() => {
+          invalidate()
+          queryClient.invalidateQueries({ queryKey: ['admin', 'departments'] })
+        }}
+        onClose={() => setImportOpen(false)}
+      />
 
       <InviteDialog
         isOpen={inviteOpen}
@@ -703,6 +729,11 @@ const bulkBarCls = css({
   paddingY: '0.625rem',
   backgroundColor: 'brand.100',
   borderBottom: '1px solid token(colors.greyscale.200)',
+})
+const exportLinkCls = css({
+  fontSize: '0.8125rem',
+  color: 'primary.500',
+  textDecoration: 'underline',
 })
 const menuList = css({ outline: 'none', minWidth: '9rem' })
 const menuItem = css({

@@ -129,6 +129,26 @@
     "next": "Next",
     "close": "Close"
   },
+  "import": {
+    "title": "Import members",
+    "button": "Import",
+    "export": "Export",
+    "lead": "Upload a CSV, review what will happen, then confirm.",
+    "invitationNote": "People who cannot be matched become pending invitations — they appear in the directory after their first sign-in (we-meet accounts come from single sign-on, so someone who has never signed in has no account yet).",
+    "downloadTemplate": "Download the CSV template",
+    "createMissingDepartments": "Create departments named in the file that do not exist yet",
+    "checking": "Checking the file…",
+    "chooseAnother": "Choose another file",
+    "confirm": "Import {{count}} rows",
+    "statTotal": "Rows",
+    "statUpdate": "Update",
+    "statRehire": "Rehire",
+    "statInvite": "Invite",
+    "statError": "Errors",
+    "errorRowsSkipped": "Rows with errors are skipped; the rest import normally.",
+    "done": "Import finished.",
+    "donePartial": "Import finished with errors on some rows."
+  },
   "invite": {
     "button": "Invite member",
     "title": "Invite member",

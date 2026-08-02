@@ -44,9 +44,15 @@ export const attemptSilentRefresh = async (): Promise<string | null> => {
 const buildHeaders = (
   bearerToken: string | null,
   csrfToken: string | undefined,
-  override: HeadersInit | undefined
+  override: HeadersInit | undefined,
+  body: BodyInit | null | undefined
 ): HeadersInit => ({
-  'Content-Type': 'application/json',
+  // FormData 必须**不设** Content-Type:只有让浏览器自己写这个头,它才会带上
+  // multipart 的 boundary。手写 'application/json'(或哪怕手写 multipart)都会
+  // 让服务端解析不出任何字段 —— 表现是「文件没上传」而不是一个报错。
+  ...(!(body instanceof FormData) && {
+    'Content-Type': 'application/json',
+  }),
   ...(!!csrfToken && { 'X-CSRFToken': csrfToken }),
   ...(!!bearerToken && { Authorization: `Bearer ${bearerToken}` }),
   ...override,
@@ -68,7 +74,7 @@ export const fetchApi = async <T = Record<string, unknown>>(
   let response = await fetch(target, {
     credentials: 'include',
     ...options,
-    headers: buildHeaders(initialBearer, csrfToken, options?.headers),
+    headers: buildHeaders(initialBearer, csrfToken, options?.headers, options?.body),
   })
 
   // Bearer 401 → attempt one silent refresh, retry once with the new token.
@@ -80,7 +86,7 @@ export const fetchApi = async <T = Record<string, unknown>>(
       response = await fetch(target, {
         credentials: 'include',
         ...options,
-        headers: buildHeaders(newAccess, csrfToken, options?.headers),
+        headers: buildHeaders(newAccess, csrfToken, options?.headers, options?.body),
       })
     }
     // If the retry is also 401, or we never had a refresh token / it

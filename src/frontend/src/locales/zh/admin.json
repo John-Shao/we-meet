@@ -129,6 +129,26 @@
     "next": "下一页",
     "close": "关闭"
   },
+  "import": {
+    "title": "批量导入成员",
+    "button": "批量导入",
+    "export": "导出",
+    "lead": "上传 CSV,先看预检结果,确认后再落库。",
+    "invitationNote": "匹配不到的人会创建为「待接受邀请」——他首次登录后才会出现在通讯录里(we-meet 账号来自统一登录,没登录过就还没有账号)。",
+    "downloadTemplate": "下载模板 CSV",
+    "createMissingDepartments": "文件里不存在的部门自动创建",
+    "checking": "正在检查文件…",
+    "chooseAnother": "换个文件",
+    "confirm": "确认导入 {{count}} 行",
+    "statTotal": "总行数",
+    "statUpdate": "更新",
+    "statRehire": "复职",
+    "statInvite": "新建邀请",
+    "statError": "错误",
+    "errorRowsSkipped": "错误行会被跳过,其余照常导入。",
+    "done": "导入完成。",
+    "donePartial": "导入完成,部分行有错误。"
+  },
   "invite": {
     "button": "邀请成员",
     "title": "邀请成员",
