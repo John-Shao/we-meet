@@ -3226,6 +3226,13 @@ class AuditActionChoices(models.TextChoices):
     # a 1000-row import would otherwise bury every other action in the log.
     MEMBER_IMPORT = "member.import", _("Members imported")
     MEMBER_EXPORT = "member.export", _("Members exported")
+    # P10 M4 — invite links. The link rows are audited, the applications are
+    # not: an application is the applicant's own act and already has its own
+    # reviewable row; only the administrator's decisions belong in the log.
+    INVITE_LINK_CREATE = "invite_link.create", _("Invite link created")
+    INVITE_LINK_REVOKE = "invite_link.revoke", _("Invite link revoked")
+    JOIN_REQUEST_APPROVE = "join_request.approve", _("Join request approved")
+    JOIN_REQUEST_REJECT = "join_request.reject", _("Join request rejected")
     # 纪要闭环 M2:纪要编辑(会议侧动作,同样入 M 端审计)。
     SUMMARY_EDIT = "summary.edit", _("Meeting summary edited")
     # P9 会议室(实体会议室,与 LiveKit Room 无关)。
@@ -3431,6 +3438,231 @@ class OrgInvitation(BaseModel):
 
     def __str__(self):
         return f"{self.email or self.phone} → {self.organization_id} ({self.status})"
+
+
+#: Alphabet for invite codes: uppercase, minus the glyph pairs that get
+#: mis-transcribed (0/O, 1/I/L). An invite code has to survive being read aloud
+#: over a phone and copied off a whiteboard.
+INVITE_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+INVITE_CODE_LENGTH = 8
+
+
+def generate_invite_code() -> str:
+    """A fresh invite code. Collisions are handled by the unique constraint."""
+    return "".join(
+        secrets.choice(INVITE_CODE_ALPHABET) for _ in range(INVITE_CODE_LENGTH)
+    )
+
+
+class OrgInviteLink(BaseModel):
+    """A shareable credential that lets whoever holds it *apply* to join (P10 M4).
+
+    The counterpart of :class:`OrgInvitation`, and the difference is who names
+    the person: an invitation is an administrator saying "13800000001 joins
+    Engineering"; a link says "whoever has this may ask to join Engineering".
+    That is why a link needs an expiry, a usage cap and an approval step, and an
+    invitation needs none of them.
+
+    **Invite code, invite link and QR code are this one row seen three ways** —
+    the code is the last path segment of the link, and the QR is that link
+    rendered client-side. Modelling them separately would immediately raise
+    "if I change the expiry, do I change it in three places?".
+
+    ⚠️ Read `docs/phases/p10b-invitation-system.md` §三 before assuming approval
+    here gates entry to the product. It does not, yet: every authenticated user
+    is auto-joined to the default organization
+    (``authentication/backends.py::ensure_default_org_membership``), so what
+    this approves today is the **department and role**, not admission. The
+    organization-level ``auto_join_enabled`` switch is what turns it into real
+    admission control, and its consequences for the rest of the product are
+    deliberately out of scope for M4.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="invite_links"
+    )
+    #: Immutable once issued — it is printed, pasted into chats and turned into
+    #: QR codes the moment it exists.
+    code = models.CharField(
+        _("code"), max_length=16, unique=True, editable=False, db_index=True
+    )
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name="invite_links",
+        null=True,
+        blank=True,
+        help_text=_("Department applicants land in (null = organization level)."),
+    )
+    org_role = models.CharField(
+        max_length=20, choices=OrgRoleChoices.choices, default=OrgRoleChoices.MEMBER
+    )
+    title = models.CharField(_("title"), max_length=255, blank=True, default="")
+    #: Default on, and turning it off should feel like a decision: a link that
+    #: admits people unreviewed means whoever forwards the URL has added them to
+    #: a directory full of colleagues' phone numbers.
+    require_approval = models.BooleanField(_("require approval"), default=True)
+    #: Mandatory. A leaked link that never expires is a permanent back door, and
+    #: ``OrgInvitation`` not having this field is a gap, not a precedent.
+    expires_at = models.DateTimeField(_("expires at"))
+    max_uses = models.PositiveIntegerField(
+        _("max uses"),
+        null=True,
+        blank=True,
+        help_text=_("Null means unlimited."),
+    )
+    #: Incremented when an application is **approved**, not when it is filed —
+    #: otherwise a handful of rejected applicants exhaust the quota.
+    used_count = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(_("active"), default=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="created_invite_links",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "meet_org_invite_link"
+        ordering = ("-created_at",)
+        verbose_name = _("Organization invite link")
+        verbose_name_plural = _("Organization invite links")
+        indexes = [
+            models.Index(
+                fields=["organization", "is_active"], name="invite_link_org_active_idx"
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(max_uses__isnull=True) | models.Q(max_uses__gt=0),
+                name="invite_link_max_uses_positive",
+                violation_error_message=_("Max uses must be greater than zero."),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.code} → {self.organization_id}"
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = generate_invite_code()
+        super().save(*args, **kwargs)
+
+    @property
+    def is_exhausted(self) -> bool:
+        return self.max_uses is not None and self.used_count >= self.max_uses
+
+    def is_usable(self, now=None) -> bool:
+        """Whether the link may still take applications.
+
+        Callers must not tell the difference between the reasons — see
+        ``core/api/invite.py``: distinguishing "expired" from "never existed"
+        hands an enumeration oracle to anyone guessing codes.
+        """
+        now = now or timezone.now()
+        return (
+            self.is_active
+            and self.expires_at > now
+            and not self.is_exhausted
+            and self.organization.is_active
+        )
+
+
+class OrgJoinStatusChoices(models.TextChoices):
+    """Lifecycle of an application to join an organization."""
+
+    PENDING = "pending", _("Pending")
+    APPROVED = "approved", _("Approved")
+    REJECTED = "rejected", _("Rejected")
+    CANCELLED = "cancelled", _("Cancelled")
+    EXPIRED = "expired", _("Expired")
+
+
+class OrgJoinRequest(BaseModel):
+    """Somebody asking to join, off an invite link (P10 M4).
+
+    Deliberately **not** an :class:`ApprovalInstance`. Three reasons, and the
+    third is the one that would bite later:
+
+    1. ``ApprovalInstance.template`` is a non-null ``PROTECT`` FK and joining an
+       organization has no business template to point at;
+    2. the approver here is *computed* — whoever holds ``org.member.write`` with
+       a scope covering the target department — not a node configured in a flow;
+    3. the applicant is not a member of the organization at the moment they
+       apply, while every query around ``ApprovalInstance.applicant`` assumes
+       they are.
+
+    ``phone`` and ``full_name`` are **snapshots taken when the application was
+    filed**, not joins: the reviewer needs to see who applied, and a person who
+    changes their display name between applying and being reviewed should not
+    silently change what the reviewer is looking at.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="join_requests"
+    )
+    link = models.ForeignKey(
+        OrgInviteLink,
+        on_delete=models.SET_NULL,
+        related_name="join_requests",
+        null=True,
+        blank=True,
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="join_requests"
+    )
+    phone = models.CharField(_("phone"), max_length=32, blank=True, default="")
+    full_name = models.CharField(_("full name"), max_length=255, blank=True, default="")
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        related_name="join_requests",
+        null=True,
+        blank=True,
+    )
+    org_role = models.CharField(
+        max_length=20, choices=OrgRoleChoices.choices, default=OrgRoleChoices.MEMBER
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=OrgJoinStatusChoices.choices,
+        default=OrgJoinStatusChoices.PENDING,
+    )
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_join_requests",
+        null=True,
+        blank=True,
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reject_reason = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        db_table = "meet_org_join_request"
+        ordering = ("-created_at",)
+        verbose_name = _("Organization join request")
+        verbose_name_plural = _("Organization join requests")
+        indexes = [
+            models.Index(
+                fields=["organization", "status", "-created_at"],
+                name="join_request_org_status_idx",
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "user"],
+                condition=models.Q(status="pending"),
+                name="one_pending_join_request",
+                violation_error_message=_(
+                    "You already have a pending application for this organization."
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.full_name or self.phone} → {self.organization_id} ({self.status})"
 
 
 class DevicePushToken(BaseModel):

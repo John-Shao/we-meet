@@ -99,6 +99,20 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         organization = Organization.objects.filter(slug=slug, is_active=True).first()
         if organization is None:
             return
+        # P10 M4: an organization can turn auto-join off and admit people through
+        # invite links instead. Absent key = True, so nothing changes for anyone
+        # who has not opted in.
+        #
+        # ⚠️ Turning it off only stops the membership being *created*. It does
+        # not make the rest of the product behave sensibly for a signed-in
+        # person with no membership — org-scoped pages will simply come back
+        # empty rather than explaining themselves, and IM and meetings, which
+        # are not org-scoped, keep working. Designing that half-open state is
+        # explicitly out of M4's scope (see docs/phases/p10b-invitation-system.md
+        # §三); do not read the existence of this switch as "real admission
+        # control is supported".
+        if (organization.settings or {}).get("auto_join_enabled", True) is False:
+            return
         if Membership.objects.filter(user=user, organization=organization).exists():
             return
         Membership.objects.create(

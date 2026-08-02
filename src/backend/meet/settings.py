@@ -445,6 +445,16 @@ class Base(Configuration):
                 environ_name="CREATION_CALLBACK_THROTTLE_RATES",
                 environ_prefix=None,
             ),
+            # P10 M4 — anonymous invite-code resolution. A public endpoint
+            # keyed by IP: the ceiling that matters is enumeration, and 8 chars
+            # out of a 31-glyph alphabet at 20/min is ~10^6 years. Tunable
+            # without a rebuild because it is the one knob an operator under
+            # attack will want to turn.
+            "invite_code": values.Value(
+                default="20/minute",
+                environ_name="INVITE_CODE_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
             # Sprint 2.3 — room sidebar AI. Each LLM call is a few seconds
             # of latency and real money; 10/minute per LiveKit identity is
             # comfortable for normal use, hard cap for runaway clients.

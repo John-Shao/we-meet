@@ -28,6 +28,13 @@ from core.api.admin_roles import (
 from core.api.admin_import import ImportJobViewSet, MemberExportView
 from core.api.agent_internal import IngestTranscriptView
 from core.api.recording_accesses import RecordingAccessViewSet
+from core.api.admin_invite_links import InviteLinkViewSet, JoinRequestViewSet
+from core.api.invite import (
+    CancelJoinRequestView,
+    InviteApplyView,
+    InviteResolveView,
+    MyJoinRequestsView,
+)
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.calendar import CalendarEventViewSet
 from core.api.admin_audit import AuditLogViewSet
@@ -145,6 +152,12 @@ router.register(
     basename="admin_role_assignments",
 )
 router.register(
+    "admin/invite-links", InviteLinkViewSet, basename="admin_invite_links"
+)
+router.register(
+    "admin/join-requests", JoinRequestViewSet, basename="admin_join_requests"
+)
+router.register(
     "admin/audit-logs", AuditLogViewSet, basename="admin_audit_logs"
 )
 # P9 会议室 —— 实体会议室,与上面的 "rooms"(LiveKit 视频房间) 无关。
@@ -210,6 +223,28 @@ urlpatterns = [
                     "admin/permissions/",
                     PermissionCatalogueView.as_view(),
                     name="admin_permission_catalogue",
+                ),
+                # P10 M4 邀请链接。解析端点匿名可达(落地页要能在没登录时
+                # 显示是谁在邀请你),其余需登录。
+                path(
+                    "invite/<str:code>/",
+                    InviteResolveView.as_view(),
+                    name="invite_resolve",
+                ),
+                path(
+                    "invite/<str:code>/apply/",
+                    InviteApplyView.as_view(),
+                    name="invite_apply",
+                ),
+                path(
+                    "join-requests/mine/",
+                    MyJoinRequestsView.as_view(),
+                    name="join_requests_mine",
+                ),
+                path(
+                    "join-requests/<uuid:pk>/cancel/",
+                    CancelJoinRequestView.as_view(),
+                    name="join_requests_cancel",
                 ),
                 # P0 离线推送:App 端注册/注销个推 cid。
                 path("push/tokens/", PushTokenView.as_view(), name="push_tokens"),
