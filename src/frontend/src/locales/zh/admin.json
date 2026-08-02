@@ -156,12 +156,22 @@
     "department": "部门",
     "role": "角色",
     "jobTitle": "职位",
-    "hint": "被邀请人首次登录后,将按此部门/角色/职位自动加入组织。仅支持邮箱匹配。",
+    "hint": "被邀请人首次登录后,将按此部门/角色/职位自动加入组织。",
     "send": "发送邀请",
     "noPending": "暂无待接受的邀请。",
     "invitedAt": "邀请时间",
     "revoke": "撤销",
-    "revokeConfirm": "确定撤销对「{{email}}」的邀请?"
+    "revokeConfirm": "确定撤销对「{{name}}」的邀请?"
+  },
+  "addMember": {
+    "button": "添加成员",
+    "title": "添加成员",
+    "phone": "手机号",
+    "phoneInvalid": "请输入 11 位中国大陆手机号。",
+    "name": "姓名",
+    "email": "邮箱(选填)",
+    "submit": "确定",
+    "hint": "填手机号即可,不需要对方已注册。成员状态为「未加入」,他用该手机号首次登录后自动按此部门/角色/职位加入组织。"
   },
   "members": {
     "title": "成员治理",

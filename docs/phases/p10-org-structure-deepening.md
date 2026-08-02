@@ -563,7 +563,8 @@ GET  /admin/stats/activity/?days=30 · /admin/stats/ai-usage/ · GET/PUT /admin/
 - **只做 CSV**：依赖里没有 `openpyxl`/`pandas`；CSV + UTF-8 BOM 在 Excel 双击即正确打开，覆盖 95% 场景
 
 **成员导入关键规则**：
-- 匹配键优先级 `employee_no` → `email` → `phone`。命中 active → update；**命中 `status=left` → 走 rehire 而非 create**（否则撞 `unique(user, department)`，见风险 R7）；未命中 → 建 `OrgInvitation`
+- 匹配键优先级 `employee_no` → `email` → `phone`（三档均已实现，M2-g 补上 `phone`）。命中 active → update；**命中 `status=left` → 走 rehire 而非 create**（否则撞 `unique(user, department)`，见风险 R7）；未命中 → 建 `OrgInvitation`
+- 文件需要 `email` 或 `phone` 之一的列头；单行需要两者之一有值。手机号按大陆 11 位归一化后存，写错格式的号**整行报错而不是照单收下**——收下就等于造一个永远匹配不到自己登录的人
 - ⚠️ **必须在模板与 UI 文案里说清**：we-meet 用户必须走 OIDC 首登才有 `sub`，所以"批量导入成员"的语义是"批量创建邀请 + 预配置组织信息"，人真正出现在通讯录是在他首次登录之后（由 `core/services/invitation_provisioning.py::claim_pending_invitations` 兑现）。不说清会被投诉"导入了但通讯录里没人"
 - **两遍算法**：pass1 建/更新所有行（不处理 manager），pass2 解析 manager 列 + 环检测——上级可能在同一文件里且排在下级之后
 - `department` 列接受**部门 code** 或**完整路径**（`研发/后端组`）；不存在默认报错，勾选"自动创建缺失部门"则降级为 warning
@@ -595,7 +596,7 @@ GET  /admin/stats/activity/?days=30 · /admin/stats/ai-usage/ · GET/PUT /admin/
 
 ### 7.2 M 端页面关键交互
 
-**`/org` tab1「成员」** — 左 `Tree` 部门树 + 「仅显示直属成员」`Switch`；右 `Table`（勾选 / 姓名 / 账号状态 / 手机号掩码含行内 reveal（复用 `reveal-phone` 端点及其 `phone-viewed` 通知）/ 部门 / 人员类型 / 直属上级 / 操作）；顶栏搜索 + 状态筛选 + 人员类型筛选 + `[添加成员][邀请成员][批量导入][导出]`；勾选后浮批量条（批量变更部门 / 批量加入用户组 / 批量离职）；行操作开 `SideSheet` 三段 `Form.Section`，对齐飞书「添加成员」弹窗：
+**`/org` tab1「成员」** — 左 `Tree` 部门树 + 「仅显示直属成员」`Switch`；右 `Table`（勾选 / 姓名 / 账号状态 / 手机号掩码含行内 reveal（复用 `reveal-phone` 端点及其 `phone-viewed` 通知）/ 部门 / 人员类型 / 直属上级 / 操作）；顶栏搜索 + 状态筛选 + 人员类型筛选 + `[添加成员][批量导入][导出]`（M2-g 落地：「添加成员」按**手机号**定向录入，人以「待加入」内联显示在成员列表首页顶部而不是藏进另一个 tab；飞书那种**邀请码/邀请链接/二维码 + 申请列表 + 审批**是另一套机制，归 M4，不在这里）；勾选后浮批量条（批量变更部门 / 批量加入用户组 / 批量离职）；行操作开 `SideSheet` 三段 `Form.Section`，对齐飞书「添加成员」弹窗：
 - 基础信息：姓名(只读，来自 OIDC) / 部门(`TreeSelect`) / 手机号(只读) / 工作邮箱(只读)
 - 工作信息：人员类型* / 入职日期 / 工作国家 / 工作城市 / 直属上级 / 虚线上级 / 职务 / 职级 / 序列
 - 其他信息：别名 / 工位 / 分机号 / 工号 / 用户ID(只读可复制) + 自定义字段(M3) + 敏感信息折叠区(M3，默认不渲染)

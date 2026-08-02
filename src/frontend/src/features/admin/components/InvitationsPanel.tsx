@@ -45,7 +45,7 @@ export const InvitationsPanel = () => {
 
   const revoke = async (inv: OrgInvitation) => {
     const ok = await confirm({
-      message: t('invite.revokeConfirm', { email: inv.email }),
+      message: t('invite.revokeConfirm', { name: inv.full_name || inv.phone || inv.email }),
       danger: true,
     })
     if (ok) revokeMut.mutate(inv.id)
@@ -62,7 +62,7 @@ export const InvitationsPanel = () => {
     <table className={css({ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' })}>
       <thead>
         <tr className={css({ textAlign: 'left', color: 'greyscale.500', borderBottom: '1px solid token(colors.greyscale.200)' })}>
-          <th className={th}>{t('invite.email')}</th>
+          <th className={th}>{t('members.colMember')}</th>
           <th className={th}>{t('members.colDepartment')}</th>
           <th className={th}>{t('members.colRole')}</th>
           <th className={th}>{t('invite.invitedAt')}</th>
@@ -78,7 +78,15 @@ export const InvitationsPanel = () => {
               _hover: { backgroundColor: 'greyscale.50' },
             })}
           >
-            <td className={td}>{inv.email}</td>
+            <td className={td}>
+              {inv.full_name && (
+                <span className={css({ marginRight: '0.5rem' })}>{inv.full_name}</span>
+              )}
+              {/* 手机号在前:这才是 we-meet 的登录主键,邮箱多半是它合成出来的。 */}
+              <span className={css({ color: 'greyscale.600' })}>
+                {inv.phone || inv.email}
+              </span>
+            </td>
             <td className={td}>{inv.department?.name ?? t('members.orgLevel')}</td>
             <td className={td}>{roleLabel(inv.org_role)}</td>
             <td className={`${td} ${css({ color: 'greyscale.600', whiteSpace: 'nowrap' })}`}>

@@ -63,19 +63,26 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         email = claims["email"]
         if is_new_user and email and settings.SIGNUP_NEW_USER_TO_MARKETING_EMAIL:
             self.signup_to_marketing_email(email)
+        # P3: mirror Keycloak phoneNumber → User.phone (idempotent, self-healing
+        # on every login). Best-effort inside the service; never blocks sign-in.
+        #
+        # Ordering is load-bearing (P10 M2-g): this used to run last, which meant
+        # `user.phone` was still empty while invitations were being claimed. A
+        # phone invitation could therefore never match on a first login — the one
+        # login it exists for — and `ensure_default_org_membership` below would
+        # then hand out a plain membership that makes every later attempt skip it.
+        # Moving it up adds no round-trip; the same call already happened, later.
+        sync_user_phone(user)
         # Pre-provisioning: a pending invitation places the user into the invited
         # department / role before ensure_default_org_membership falls back to a
         # plain org-level membership. Best-effort — never break login over it.
         try:
-            claim_pending_invitations(user)
+            claim_pending_invitations(user, phone=claims.get("phone_number"))
         except Exception:  # noqa: BLE001 — provisioning must not block sign-in
             logger.exception(
                 "Failed to claim pending invitations for user %s", user.pk
             )
         self.ensure_default_org_membership(user)
-        # P3: mirror Keycloak phoneNumber → User.phone (idempotent, self-healing
-        # on every login). Best-effort inside the service; never blocks sign-in.
-        sync_user_phone(user)
 
     @staticmethod
     def ensure_default_org_membership(user):

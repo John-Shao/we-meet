@@ -28,12 +28,14 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from core import models
+from core.services.phone import normalize_cn_phone, phone_variants
 
 #: Column headers accepted in the CSV, mapped to what they set. Deliberately a
 #: closed set: a typo'd header must be reported, not silently ignored — silently
 #: ignoring it is how you import 300 people with no department.
 COLUMNS = {
     "email": "email",
+    "phone": "phone",
     "employee_no": "employee_no",
     "full_name": "full_name",
     "department": "department",
@@ -102,8 +104,10 @@ def parse_csv(source: str) -> tuple[list[str], list[dict]]:
         raise ImportError_(
             _("Unknown column(s): %(cols)s") % {"cols": ", ".join(unknown)}
         )
-    if "email" not in headers:
-        raise ImportError_(_("The 'email' column is required."))
+    if "email" not in headers and "phone" not in headers:
+        # Either identifies a person; requiring the address specifically would
+        # reject the file an HR system actually exports.
+        raise ImportError_(_("The file needs an 'email' or a 'phone' column."))
     rows = []
     for raw in reader:
         rows.append({(k or "").strip(): (v or "").strip() for k, v in raw.items()})
@@ -228,47 +232,71 @@ def preflight(organization, rows: list[dict], create_missing_departments: bool):
         )
     )
     by_email = {}
+    by_phone = {}
     by_employee_no = {}
     for membership in memberships:
         if membership.user.email:
             by_email.setdefault(membership.user.email.lower(), membership)
+        number = normalize_cn_phone(membership.user.phone)
+        if number:
+            by_phone.setdefault(number, membership)
         if membership.employee_no:
             by_employee_no.setdefault(membership.employee_no.lower(), membership)
-    pending_invites = {
-        invite.email.lower()
-        for invite in models.OrgInvitation.objects.filter(
-            organization=organization,
-            status=models.InvitationStatusChoices.PENDING,
-        )
-    }
+    pending_invites = set()
+    pending_invite_phones = set()
+    for invite in models.OrgInvitation.objects.filter(
+        organization=organization,
+        status=models.InvitationStatusChoices.PENDING,
+    ):
+        if invite.email:
+            pending_invites.add(invite.email.lower())
+        if invite.phone:
+            pending_invite_phones.add(invite.phone)
 
     seen_emails: set[str] = set()
+    seen_phones: set[str] = set()
 
     for index, raw in enumerate(rows, start=2):  # line 1 is the header
         result = RowResult(line=index)
         email = raw.get("email", "").strip().lower()
+        phone_raw = raw.get("phone", "").strip()
+        phone = normalize_cn_phone(phone_raw)
         employee_no = raw.get("employee_no", "").strip()
-        result.label = raw.get("full_name") or email or f"line {index}"
+        result.label = raw.get("full_name") or email or phone or f"line {index}"
 
-        if not email:
-            result.errors.append(_("Email is required."))
-            results.append(result)
-            continue
-        if email in seen_emails:
+        if phone_raw and not phone:
+            # Told, not silently dropped: a mistyped number that imports anyway
+            # produces a person who can never be matched to their sign-in.
+            result.errors.append(
+                _("'%(value)s' is not a valid mainland-China mobile number.")
+                % {"value": phone_raw}
+            )
+        if not email and not phone_raw:
+            result.errors.append(_("Email or phone is required."))
+        if email and email in seen_emails:
             # Two rows for one person is always a mistake, and applying both
             # means the second silently wins.
             result.errors.append(_("Duplicate email in this file."))
+        if phone and phone in seen_phones:
+            result.errors.append(_("Duplicate phone number in this file."))
+        if result.errors:
             results.append(result)
             continue
         seen_emails.add(email)
+        if phone:
+            seen_phones.add(phone)
 
-        # Match priority: employee_no beats email — an employee number is
-        # assigned by the customer and survives an address change.
+        # Match priority: employee_no beats email beats phone — an employee
+        # number is assigned by the customer and survives both an address and a
+        # handset change; an address is likelier than a number to be re-used
+        # (shared inbox, alias) but is also the one an org controls.
         membership = None
         if employee_no:
             membership = by_employee_no.get(employee_no.lower())
-        if membership is None:
+        if membership is None and email:
             membership = by_email.get(email)
+        if membership is None and phone:
+            membership = by_phone.get(phone)
 
         department = resolver.department(raw.get("department", ""), result)
         employee_type = resolver.dict_item(
@@ -288,6 +316,8 @@ def preflight(organization, rows: list[dict], create_missing_departments: bool):
 
         result.data = {
             "email": email,
+            "phone": phone,
+            "full_name": raw.get("full_name", "").strip(),
             "employee_no": employee_no,
             "membership_id": str(membership.id) if membership else None,
             "department": department,
@@ -315,7 +345,9 @@ def preflight(organization, rows: list[dict], create_missing_departments: bool):
         elif membership is None:
             # No membership: this becomes an invitation, redeemed at first login.
             result.action = ACTION_INVITE
-            if email in pending_invites:
+            if (email and email in pending_invites) or (
+                phone and phone in pending_invite_phones
+            ):
                 result.warnings.append(_("An invitation is already pending; it will be updated."))
         elif membership.status == models.MembershipStatusChoices.LEFT:
             # Rehire, never create: a second Membership for the same person would
@@ -329,13 +361,23 @@ def preflight(organization, rows: list[dict], create_missing_departments: bool):
     # Runs after every row is known, because a manager may appear *below* their
     # report in the file. A single pass would flag half the hierarchy unknown
     # purely because of row order.
-    known_emails = {r.data.get("email") for r in results if r.action != ACTION_ERROR}
+    known_keys = set()
+    for r in results:
+        if r.action == ACTION_ERROR:
+            continue
+        known_keys.update(k for k in (r.data.get("email"), r.data.get("phone")) if k)
     for result in results:
         manager = result.data.get("manager")
         if not manager or result.action == ACTION_ERROR:
             continue
         key = manager.lower()
-        if key in known_emails or key in by_email or key in by_employee_no:
+        # A manager may be named by any key their own row could be matched on.
+        if (
+            key in known_keys
+            or key in by_email
+            or key in by_employee_no
+            or normalize_cn_phone(manager) in by_phone
+        ):
             continue
         # Not fatal: the row still imports, the reporting line just stays unset.
         result.warnings.append(
@@ -368,7 +410,7 @@ def apply_rows(job, results: list[RowResult], actor) -> dict:
     resolver = _Resolver(organization, job.create_missing_departments)
     applied = {ACTION_UPDATE: 0, ACTION_REHIRE: 0, ACTION_INVITE: 0, ACTION_ERROR: 0}
 
-    membership_by_email: dict[str, object] = {}
+    membership_by_key: dict[str, object] = {}
 
     for result in results:
         if result.action == ACTION_ERROR:
@@ -380,16 +422,27 @@ def apply_rows(job, results: list[RowResult], actor) -> dict:
             with transaction.atomic():
                 membership = _apply_one(organization, resolver, result, actor)
             if membership is not None:
-                membership_by_email[result.data["email"]] = membership
+                membership_by_key[_row_key(result.data)] = membership
             applied[result.action] = applied.get(result.action, 0) + 1
         except Exception as exc:  # noqa: BLE001 — report, never abort the run
             result.action = ACTION_ERROR
             result.errors.append(str(exc)[:200])
             applied[ACTION_ERROR] += 1
 
-    _apply_managers(organization, results, membership_by_email)
+    _apply_managers(organization, results, membership_by_key)
 
     return applied
+
+
+def _row_key(data) -> str:
+    """The identifier a row is addressed by — email when present, else phone.
+
+    Rows used to be keyed by email alone. With phone-only rows that collapses
+    every one of them onto ``""``: the manager pass would then wire the whole
+    file's reporting lines to whichever phone-only row happened to be written
+    last.
+    """
+    return data.get("email") or data.get("phone") or ""
 
 
 def _apply_one(organization, resolver, result, actor):
@@ -418,11 +471,21 @@ def _apply_one(organization, resolver, result, actor):
         fields["org_role"] = data["org_role"]
 
     if result.action == ACTION_INVITE:
-        invite, _created = models.OrgInvitation.objects.update_or_create(
-            organization=organization,
-            email=data["email"],
-            status=models.InvitationStatusChoices.PENDING,
+        # Key on whichever identifier the row actually carried. Keying on email
+        # alone would make every phone-only row collide on ``email=""`` and
+        # overwrite one another — the partial unique constraints on the model
+        # would turn the second row of a phone-only file into a 500.
+        lookup = {"organization": organization, "status": models.InvitationStatusChoices.PENDING}
+        if data.get("email"):
+            lookup["email"] = data["email"]
+        else:
+            lookup["phone"] = data["phone"]
+        models.OrgInvitation.objects.update_or_create(
+            **lookup,
             defaults={
+                "email": data.get("email", ""),
+                "phone": data.get("phone", ""),
+                "full_name": data.get("full_name", ""),
                 "department": department,
                 "org_role": data.get("org_role") or models.OrgRoleChoices.MEMBER,
                 "title": data.get("title", ""),
@@ -446,16 +509,16 @@ def _apply_one(organization, resolver, result, actor):
     return membership
 
 
-def _apply_managers(organization, results, membership_by_email):
+def _apply_managers(organization, results, membership_by_key):
     """Second pass: wire reporting lines once everyone exists."""
     wanted = {
-        r.data["email"]: r.data["manager"]
+        _row_key(r.data): r.data["manager"]
         for r in results
         if r.action in (ACTION_UPDATE, ACTION_REHIRE) and r.data.get("manager")
     }
     if not wanted:
         return
-    lookup = dict(membership_by_email)
+    lookup = dict(membership_by_key)
     missing = [e for e in {*wanted, *wanted.values()} if e not in lookup]
     if missing:
         for membership in models.Membership.objects.filter(
@@ -466,10 +529,21 @@ def _apply_managers(organization, results, membership_by_email):
             organization=organization, employee_no__in=missing
         ):
             lookup.setdefault(membership.employee_no.lower(), membership)
+        # Managers named by phone number resolve through the same table.
+        numbers = [n for e in missing for n in phone_variants(e)]
+        if numbers:
+            for membership in models.Membership.objects.filter(
+                organization=organization, user__phone__in=numbers
+            ).select_related("user"):
+                lookup.setdefault(
+                    normalize_cn_phone(membership.user.phone), membership
+                )
 
-    for email, manager_key in wanted.items():
-        subordinate = lookup.get(email)
-        manager = lookup.get(manager_key.lower())
+    for row_key, manager_key in wanted.items():
+        subordinate = lookup.get(row_key)
+        manager = lookup.get(manager_key.lower()) or lookup.get(
+            normalize_cn_phone(manager_key)
+        )
         if subordinate is None or manager is None or manager.pk == subordinate.pk:
             continue
         subordinate.manager = manager
@@ -490,6 +564,7 @@ def build_template() -> str:
     writer.writerow(
         [
             "zhangsan@example.com",
+            "13800000001",
             "E1001",
             "张三",
             "研发/后端组",

@@ -3332,17 +3332,36 @@ class OrgInvitation(BaseModel):
     """A pre-provisioning invitation: places a person into a department / role
     before they first sign in.
 
-    Matched by email when the invitee logs in (OIDC claim hook), which then
-    creates their Membership with the invited department / role / title instead
-    of the plain org-level default. Deliberately email-only — the login claim
-    carries an email but no phone, so phone-OTP-only accounts can't be matched
-    (they fall back to the default membership).
+    Matched by **email or phone** when the invitee logs in (OIDC claim hook),
+    which then creates their Membership with the invited department / role /
+    title instead of the plain org-level default.
+
+    Phone was added in P10 M2-g and is the key that actually matters here.
+    we-meet signs people in with a mobile OTP: ``core/api/mobile_auth.py``
+    finds-or-creates the Keycloak account by its ``phoneNumber`` attribute, and
+    the email those accounts carry is synthesized from the number. An
+    administrator holds phone numbers, not mailboxes — an email-only invitation
+    asked them for a value they had no way to know, so the feature shipped
+    unusable.
+
+    Exactly one of ``email`` / ``phone`` is required; both are allowed. Each is
+    unique per organization among pending rows, so the same person cannot be
+    queued twice.
     """
 
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="invitations"
     )
-    email = models.EmailField(_("email"))
+    email = models.EmailField(_("email"), blank=True, default="")
+    #: Mainland-China mobile number, digits only (``1[3-9]`` + 9). Matched
+    #: against ``User.phone``, which mirrors Keycloak's ``phoneNumber``.
+    phone = models.CharField(_("phone"), max_length=32, blank=True, default="")
+    #: What to call this person before they have ever signed in. Display only:
+    #: ``User.full_name`` is recomputed from the OIDC claims on every login, so
+    #: writing to it here would be reverted at the next sign-in. Giving an
+    #: organization a name for someone that outranks the IdP's is a Membership
+    #: level concern (P10 M3 字段体系), not an invitation's.
+    full_name = models.CharField(_("full name"), max_length=255, blank=True, default="")
     department = models.ForeignKey(
         Department,
         on_delete=models.SET_NULL,
@@ -3384,16 +3403,34 @@ class OrgInvitation(BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["organization", "email"],
-                condition=models.Q(status="pending"),
+                # ``email != ""`` matters now that phone-only rows exist: without
+                # it every phone invitation would collide on the empty string and
+                # an organization could queue exactly one of them.
+                condition=models.Q(status="pending") & ~models.Q(email=""),
                 name="one_pending_invite_per_email_org",
                 violation_error_message=_(
                     "A pending invitation already exists for this email."
                 ),
             ),
+            models.UniqueConstraint(
+                fields=["organization", "phone"],
+                condition=models.Q(status="pending") & ~models.Q(phone=""),
+                name="one_pending_invite_per_phone_org",
+                violation_error_message=_(
+                    "A pending invitation already exists for this phone number."
+                ),
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(email="") | ~models.Q(phone=""),
+                name="invitation_has_email_or_phone",
+                violation_error_message=_(
+                    "An invitation needs an email address or a phone number."
+                ),
+            ),
         ]
 
     def __str__(self):
-        return f"{self.email} → {self.organization_id} ({self.status})"
+        return f"{self.email or self.phone} → {self.organization_id} ({self.status})"
 
 
 class DevicePushToken(BaseModel):

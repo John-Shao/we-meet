@@ -156,12 +156,22 @@
     "department": "Department",
     "role": "Role",
     "jobTitle": "Job title",
-    "hint": "On first sign-in the invitee joins the organization with this department / role / title. Email match only.",
+    "hint": "On first sign-in the invitee joins the organization with this department / role / title.",
     "send": "Send invite",
     "noPending": "No pending invitations.",
     "invitedAt": "Invited",
     "revoke": "Revoke",
-    "revokeConfirm": "Revoke the invitation for \"{{email}}\"?"
+    "revokeConfirm": "Revoke the invitation for \"{{name}}\"?"
+  },
+  "addMember": {
+    "button": "Add member",
+    "title": "Add member",
+    "phone": "Mobile number",
+    "phoneInvalid": "Enter an 11-digit mainland-China mobile number.",
+    "name": "Name",
+    "email": "Email (optional)",
+    "submit": "Add",
+    "hint": "A phone number is enough — they do not need an account yet. The member shows as \"Not joined\" until they sign in with that number, and then joins with this department / role / title."
   },
   "members": {
     "title": "Members",

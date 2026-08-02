@@ -479,3 +479,153 @@ def test_export_is_scoped_for_a_department_scoped_admin():
     body = b"".join(response.streaming_content).decode("utf-8")
     assert "in@x.com" in body
     assert "out@x.com" not in body
+
+
+# --- phone as a first-class key (P10 M2-g) ---------------------------------
+
+
+def test_a_row_with_only_a_phone_number_imports():
+    """The common case now: an admin exports from HR, which has numbers not mailboxes."""
+    organization, admin = _org_with_admin()
+    source = _csv("phone,full_name,department", "138 0000 0001,张三,")
+
+    upload = _upload(_client(admin), source)
+    assert upload.status_code == 201, upload.data
+    rows = upload.data["rows"]
+    assert [r["action"] for r in rows] == ["invite"]
+
+    apply_response = _client(admin).post(
+        f"/api/v1.0/admin/import-jobs/{upload.data['id']}/apply/",
+        {"expected_total": 1},
+        format="json",
+    )
+    assert apply_response.status_code == 200, apply_response.data
+
+    invitation = models.OrgInvitation.objects.get(organization=organization)
+    assert invitation.phone == "13800000001"  # normalized, not as typed
+    assert invitation.email == ""
+    assert invitation.full_name == "张三"
+
+
+def test_two_phone_only_rows_do_not_collide():
+    """Both would key on ``email=""`` if the invite lookup ignored phone."""
+    organization, admin = _org_with_admin()
+    source = _csv("phone,full_name", "13800000001,张三", "13900000002,李四")
+
+    upload = _upload(_client(admin), source)
+    _client(admin).post(
+        f"/api/v1.0/admin/import-jobs/{upload.data['id']}/apply/", {}, format="json"
+    )
+    assert models.OrgInvitation.objects.filter(organization=organization).count() == 2
+
+
+def test_a_row_with_neither_key_is_an_error():
+    """The columns are there; this row just filled in neither of them."""
+    organization, admin = _org_with_admin()
+    upload = _upload(_client(admin), _csv("email,phone,full_name", ",,无名氏"))
+    assert upload.data["rows"][0]["action"] == "error"
+
+
+def test_a_file_with_no_identifying_column_at_all_is_rejected_outright():
+    organization, admin = _org_with_admin()
+    upload = _upload(_client(admin), _csv("full_name,title", "无名氏,工程师"))
+    assert upload.data["status"] == "failed"
+    assert "phone" in upload.data["error"]
+
+
+def test_a_malformed_number_fails_its_row_rather_than_importing_unmatched():
+    """Importing it anyway produces someone who can never match their sign-in."""
+    organization, admin = _org_with_admin()
+    upload = _upload(_client(admin), _csv("phone,full_name", "1380000,张三"))
+    row = upload.data["rows"][0]
+    assert row["action"] == "error"
+    assert any("mobile" in e or "手机" in e for e in row["errors"]), row["errors"]
+
+
+def test_a_duplicate_number_in_the_file_is_caught():
+    organization, admin = _org_with_admin()
+    upload = _upload(
+        _client(admin),
+        _csv("phone,full_name", "13800000001,张三", "+8613800000001,张三again"),
+    )
+    assert [r["action"] for r in upload.data["rows"]] == ["invite", "error"]
+
+
+def test_phone_matches_an_existing_member_and_updates_them():
+    """Match priority's third tier — and the one an HR export actually carries."""
+    organization, admin = _org_with_admin()
+    existing = _member(organization, "zhangsan@x.com", title="工程师")
+    existing.user.phone = "+8613800000001"
+    existing.user.save(update_fields=["phone"])
+
+    upload = _upload(
+        _client(admin), _csv("phone,title", "13800000001,高级工程师")
+    )
+    assert [r["action"] for r in upload.data["rows"]] == ["update"]
+
+    _client(admin).post(
+        f"/api/v1.0/admin/import-jobs/{upload.data['id']}/apply/", {}, format="json"
+    )
+    existing.refresh_from_db()
+    assert existing.title == "高级工程师"
+    assert models.OrgInvitation.objects.count() == 0
+
+
+def test_email_still_beats_phone_when_both_are_present():
+    """Two people, one file, crossed keys — the address wins by documented rule."""
+    organization, admin = _org_with_admin()
+    by_email = _member(organization, "a@x.com", title="A")
+    by_phone = _member(organization, "b@x.com", title="B")
+    by_phone.user.phone = "13800000001"
+    by_phone.user.save(update_fields=["phone"])
+
+    upload = _upload(
+        _client(admin), _csv("email,phone,title", "a@x.com,13800000001,改了")
+    )
+    assert upload.data["rows"][0]["action"] == "update"
+    _client(admin).post(
+        f"/api/v1.0/admin/import-jobs/{upload.data['id']}/apply/", {}, format="json"
+    )
+    by_email.refresh_from_db()
+    by_phone.refresh_from_db()
+    assert by_email.title == "改了"
+    assert by_phone.title == "B"
+
+
+def test_a_manager_can_be_named_by_phone_number():
+    organization, admin = _org_with_admin()
+    boss = _member(organization, "boss@x.com")
+    boss.user.phone = "13900000009"
+    boss.user.save(update_fields=["phone"])
+    report = _member(organization, "report@x.com")
+
+    upload = _upload(
+        _client(admin), _csv("email,manager", "report@x.com,13900000009")
+    )
+    assert upload.data["rows"][0]["warnings"] == []
+    _client(admin).post(
+        f"/api/v1.0/admin/import-jobs/{upload.data['id']}/apply/", {}, format="json"
+    )
+    report.refresh_from_db()
+    assert report.manager_id == boss.id
+
+
+def test_the_template_and_the_export_agree_on_the_phone_column():
+    """They are positional lists; an insert in one and not the other shifts everything."""
+    organization, admin = _org_with_admin()
+    member = _member(organization, "zhangsan@x.com")
+    member.user.phone = "13800000001"
+    member.user.save(update_fields=["phone"])
+
+    # The template carries a BOM so Excel opens it as UTF-8.
+    template = member_import.build_template().lstrip("﻿")
+    assert template.splitlines()[0].split(",")[:2] == ["email", "phone"]
+
+    response = _client(admin).get("/api/v1.0/admin/member-export/")
+    body = b"".join(response.streaming_content).decode("utf-8").lstrip("﻿")
+    lines = body.splitlines()
+    header = lines[0].split(",")
+    # Not lines[1]: the export is ordered by name and the acting admin is in it too.
+    row = next(l.split(",") for l in lines[1:] if "13800000001" in l)
+    assert row[header.index("phone")] == "13800000001"
+    assert row[header.index("email")] == "zhangsan@x.com"

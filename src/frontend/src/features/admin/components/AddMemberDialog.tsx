@@ -17,11 +17,23 @@ interface Props {
   onClose: () => void
 }
 
+/** 11 digits, `1` then 3–9 — the same rule the backend enforces. */
+const CN_MOBILE = /^1[3-9]\d{9}$/
+const digitsOnly = (value: string) => value.replace(/[\s\-()（）.]/g, '').replace(/^\+?86/, '')
+
 /**
- * Invite (pre-provision) a person by email into a department / role / title.
- * The values are applied to their Membership when they first sign in.
+ * 添加成员 —— 定向录入一个人（手机号为主键），落成一条待接受的邀请。
+ *
+ * 这个弹窗此前只收邮箱（P10 M1），而生产上每个人的邮箱都是手机号合成的
+ * `<手机号>@phone.we-meet.online`,管理员根本不知道该填什么 —— 功能上线了
+ * 但没法用。手机号才是 we-meet 的登录主键（Keycloak 按 phoneNumber 属性
+ * 查号建号）,所以这里把它提为必填,邮箱降为可选补充。
+ *
+ * 与飞书一致:只校验格式与本企业内不重复,**不预先检测这个号有没有注册过**
+ * —— 从这里根本查不到（Keycloak 是首次 OTP 时才建号）,装作查得到只会是
+ * 一个带 loading 的谎。人真正进通讯录是在他首次登录之后。
  */
-export const InviteDialog = ({
+export const AddMemberDialog = ({
   isOpen,
   departments,
   submitting,
@@ -29,6 +41,8 @@ export const InviteDialog = ({
   onClose,
 }: Props) => {
   const { t } = useTranslation('admin')
+  const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [department, setDepartment] = useState('')
   const [orgRole, setOrgRole] = useState<string>('member')
@@ -36,6 +50,8 @@ export const InviteDialog = ({
 
   useEffect(() => {
     if (isOpen) {
+      setFullName('')
+      setPhone('')
       setEmail('')
       setDepartment('')
       setOrgRole('member')
@@ -43,11 +59,18 @@ export const InviteDialog = ({
     }
   }, [isOpen])
 
-  const trimmedEmail = email.trim()
+  const normalizedPhone = digitsOnly(phone)
+  // Only complain once there is something to complain about — a red field on
+  // an empty form that has not been touched is noise.
+  const phoneInvalid = normalizedPhone.length > 0 && !CN_MOBILE.test(normalizedPhone)
+  const canSubmit = CN_MOBILE.test(normalizedPhone) && !submitting
+
   const submit = () => {
-    if (!trimmedEmail || submitting) return
+    if (!canSubmit) return
     onSubmit({
-      email: trimmedEmail,
+      phone: normalizedPhone,
+      email: email.trim() || undefined,
+      full_name: fullName.trim(),
       department: department || null,
       org_role: orgRole,
       title: title.trim(),
@@ -57,7 +80,7 @@ export const InviteDialog = ({
   return (
     <Dialog
       isOpen={isOpen}
-      title={t('invite.title')}
+      title={t('addMember.title')}
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
@@ -67,15 +90,34 @@ export const InviteDialog = ({
           e.preventDefault()
           submit()
         }}
-        className={css({ display: 'flex', flexDirection: 'column', gap: '0.875rem', minWidth: '20rem' })}
+        className={css({ display: 'flex', flexDirection: 'column', gap: '0.875rem', minWidth: '22rem' })}
       >
         <label className={fieldLabel}>
-          <span>{t('invite.email')}</span>
+          <span>{t('addMember.phone')}</span>
+          <Input
+            type="tel"
+            inputMode="numeric"
+            value={phone}
+            autoFocus
+            required
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="13800000000"
+          />
+          {phoneInvalid && (
+            <span className={css({ fontSize: '0.75rem', color: 'danger.600' })}>
+              {t('addMember.phoneInvalid')}
+            </span>
+          )}
+        </label>
+        <label className={fieldLabel}>
+          <span>{t('addMember.name')}</span>
+          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        </label>
+        <label className={fieldLabel}>
+          <span>{t('addMember.email')}</span>
           <Input
             type="email"
             value={email}
-            autoFocus
-            required
             onChange={(e) => setEmail(e.target.value)}
             placeholder="name@example.com"
           />
@@ -106,7 +148,7 @@ export const InviteDialog = ({
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
         <p className={css({ fontSize: '0.75rem', color: 'greyscale.500', margin: 0 })}>
-          {t('invite.hint')}
+          {t('addMember.hint')}
         </p>
         <div className={css({ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' })}>
           <Button variant="secondary" size="sm" onPress={onClose}>
@@ -116,10 +158,10 @@ export const InviteDialog = ({
             type="submit"
             variant="primary"
             size="sm"
-            isDisabled={!trimmedEmail || submitting}
+            isDisabled={!canSubmit}
             loading={submitting}
           >
-            {t('invite.send')}
+            {t('addMember.submit')}
           </Button>
         </div>
       </form>

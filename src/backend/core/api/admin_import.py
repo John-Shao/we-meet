@@ -274,6 +274,7 @@ def _export_row(membership) -> list:
     manager = membership.manager
     return [
         user.email or "",
+        user.phone or "",
         membership.employee_no,
         user.full_name or user.short_name or "",
         department.name if department else "",
