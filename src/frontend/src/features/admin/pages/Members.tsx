@@ -27,12 +27,7 @@ import {
 } from '../api/adminMembers'
 import { fetchDictItems } from '../api/adminDictionaries'
 import { fetchAdminDepartments } from '../api/adminDepartments'
-import {
-  createInvitation,
-  fetchInvitations,
-  revokeInvitation,
-} from '../api/adminInvitations'
-import type { OrgInvitation } from '../api/adminInvitations'
+import { createInvitation, fetchInvitations } from '../api/adminInvitations'
 import { describeApiError } from '../api/errors'
 import { SelectDialog } from '../components/SelectDialog'
 import { TextPromptDialog } from '../components/TextPromptDialog'
@@ -48,52 +43,6 @@ import { OffboardDialog } from '../components/OffboardDialog'
 const MEMBERS_KEY = ['admin', 'members']
 /** 与后端 REST_FRAMEWORK.PAGE_SIZE 一致(settings.py)。Semi 分页要显式给。 */
 const MEMBERS_PAGE_SIZE = 20
-
-/**
- * A row in the member table: either a real Membership or a person who has been
- * added but has never signed in.
- *
- * 飞书把「未加入」的人直接排在成员列表里,而不是藏进另一个 tab —— 管理员
- * 添加完立刻看得见自己刚加的人,这是「添加」与「邀请」体感上最大的区别。
- * we-meet 这边这些人还没有 Membership 行(OIDC 首登才有 sub),所以用邀请
- * 记录合成一行,`__invitation` 标出它不是真成员:能撤销,不能批量操作。
- */
-type MemberRow = AdminMember & { __invitation?: OrgInvitation }
-
-const invitationRow = (invitation: OrgInvitation): MemberRow => ({
-  // Prefixed so it can never collide with a Membership id used as a row key.
-  id: `invitation:${invitation.id}`,
-  user_id: '',
-  sub: null,
-  full_name: invitation.full_name || null,
-  short_name: null,
-  // The phone is what an admin recognises the person by before they sign in.
-  email: invitation.email || invitation.phone,
-  avatar_url: '',
-  title: invitation.title,
-  org_role: invitation.org_role,
-  is_primary: false,
-  status: 'invited',
-  department: invitation.department,
-  employee_no: '',
-  employee_type: null,
-  job_level: null,
-  job_sequence: null,
-  hire_date: null,
-  work_country: '',
-  work_city: '',
-  alias: '',
-  work_station: '',
-  extension: '',
-  source: '',
-  manager: null,
-  dotted_manager: null,
-  left_at: null,
-  left_reason: '',
-  left_snapshot: {},
-  left_days: null,
-  __invitation: invitation,
-})
 
 export const AdminMembers = () => {
   const { t } = useTranslation('admin')
@@ -231,24 +180,7 @@ export const AdminMembers = () => {
     onError,
   })
 
-  const revokeMut = useMutation({
-    mutationFn: revokeInvitation,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'invitations'] })
-    },
-    onError,
-  })
-
   const members = data?.results ?? []
-  // 未加入的人只在第一页顶部出现:他们是待处理的那一批,排在最前是对的;
-  // 而搜索/筛选是服务端做的,把不受同一套条件约束的行混进结果里,会让
-  // 「筛部门」筛出一个不属于该部门的人。翻页同理 —— 第 5 页顶上挂着邀请
-  // 只会让人以为分页坏了。
-  const pendingRows =
-    page === 1 && !q && !department && !status && !employeeType
-      ? (inviteData?.results ?? []).map(invitationRow)
-      : []
-  const rows: MemberRow[] = [...pendingRows, ...members]
   const roleLabel = (r: string) => t(`role.${r}`, { defaultValue: r })
   const statusLabel = (s: string) => t(`status.${s}`, { defaultValue: s })
   const displayName = (m: AdminMember) =>
@@ -283,26 +215,15 @@ export const AdminMembers = () => {
     deleteMut.mutate(m.id)
   }
 
-  const revokeInvite = async (invitation: OrgInvitation) => {
-    const ok = await confirm({
-      message: t('invite.revokeConfirm', {
-        name: invitation.full_name || invitation.phone || invitation.email,
-      }),
-      danger: true,
-    })
-    if (!ok) return
-    revokeMut.mutate(invitation.id)
-  }
-
   // 列定义。单元格内部仍用我们自己的 primitives(Button/Menu)与 panda token ——
   // 试点只换「表格骨架 + 分页」这层,行内控件不动,免得一次改两套东西说不清
   // 是谁的问题。
-  const columns: ColumnProps<MemberRow>[] = [
+  const columns: ColumnProps<AdminMember>[] = [
     {
       title: t('members.colMember'),
       dataIndex: 'id',
       width: 320,
-      render: (_: unknown, m: MemberRow) => (
+      render: (_: unknown, m: AdminMember) => (
         <div className={memberCellCls}>
           {m.avatar_url ? (
             <img src={m.avatar_url} alt="" className={avatarCls} />
@@ -328,25 +249,25 @@ export const AdminMembers = () => {
     {
       title: t('members.colDepartment'),
       width: 150,
-      render: (_: unknown, m: MemberRow) =>
+      render: (_: unknown, m: AdminMember) =>
         m.department?.name ?? t('members.orgLevel'),
     },
     {
       title: t('members.colRole'),
       width: 150,
-      render: (_: unknown, m: MemberRow) => roleLabel(m.org_role),
+      render: (_: unknown, m: AdminMember) => roleLabel(m.org_role),
     },
     {
       title: t('members.colStatus'),
       width: 120,
-      render: (_: unknown, m: MemberRow) => (
+      render: (_: unknown, m: AdminMember) => (
         <StatusBadge status={m.status} label={statusLabel(m.status)} />
       ),
     },
     {
       title: '',
       width: 60,
-      render: (_: unknown, m: MemberRow) => (
+      render: (_: unknown, m: AdminMember) => (
         <Menu>
           <Button
             variant="quaternaryText"
@@ -355,18 +276,6 @@ export const AdminMembers = () => {
           >
             <RiMoreFill size={18} />
           </Button>
-          {/* 未加入的人没有 Membership 行,调岗/停用/离职全都无处可落 ——
-              只给「撤销」,而不是给一堆点了会 404 的菜单项。 */}
-          {m.__invitation ? (
-            <RACMenu className={menuList}>
-              <MenuItem
-                className={menuItemDanger}
-                onAction={() => revokeInvite(m.__invitation!)}
-              >
-                {t('invite.revoke')}
-              </MenuItem>
-            </RACMenu>
-          ) : (
           <RACMenu className={menuList}>
             <MenuItem className={menuItem} onAction={() => setEditTarget(m)}>
               {t('members.edit')}
@@ -393,7 +302,6 @@ export const AdminMembers = () => {
               {t('members.remove')}
             </MenuItem>
           </RACMenu>
-          )}
         </Menu>
       ),
     },
@@ -590,20 +498,15 @@ export const AdminMembers = () => {
           /* Semi Table 试点(见 vite.config.ts 顶部说明):替掉原来的手搓
              <table> + 手写 prev/next 页脚。分页、加载态、空态都由组件自带,
              调用点只剩「列定义 + 数据」。 */
-          <Table<MemberRow>
+          <Table<AdminMember>
             columns={columns}
-            dataSource={rows}
+            dataSource={members}
             rowKey="id"
-            loading={isFetching && rows.length === 0}
+            loading={isFetching && members.length === 0}
             size="middle"
             empty={t('members.noMembers')}
             rowSelection={{
               selectedRowKeys: selected,
-              // 批量操作全部打在 Membership id 上,合成行没有这个 id ——
-              // 让它可勾选就是让人攒一批必然失败的操作。
-              getCheckboxProps: (record?: MemberRow) => ({
-                disabled: Boolean(record?.__invitation),
-              }),
               // 上限与服务端一致,免得攒够 201 个再吃一个 400。
               onChange: (keys) =>
                 setSelected((keys ?? []).slice(0, BULK_LIMIT) as string[]),
