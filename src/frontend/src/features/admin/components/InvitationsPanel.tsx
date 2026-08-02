@@ -66,7 +66,7 @@ export const InvitationsPanel = () => {
           <th className={th}>{t('members.colDepartment')}</th>
           <th className={th}>{t('members.colRole')}</th>
           <th className={th}>{t('invite.invitedAt')}</th>
-          <th className={css({ ...thBase, width: '4rem' })} />
+          <th className={actionHead} />
         </tr>
       </thead>
       <tbody>
@@ -92,7 +92,7 @@ export const InvitationsPanel = () => {
             <td className={`${td} ${css({ color: 'greyscale.600', whiteSpace: 'nowrap' })}`}>
               {formatDate(inv.created_at)}
             </td>
-            <td className={td}>
+            <td className={`${td} ${actionCell}`}>
               <Button
                 variant="secondary"
                 size="dense"
@@ -119,3 +119,9 @@ const thBase = { paddingX: '1rem', paddingY: '0.625rem', fontWeight: '600' as co
 const th = css(thBase)
 const td = css({ paddingX: '1rem', paddingY: '0.5rem', color: 'greyscale.800', verticalAlign: 'middle' })
 const emptyText = css({ padding: '1.5rem', color: 'greyscale.500', fontSize: '0.9375rem' })
+/* 操作列:`width: 1%` + nowrap 是「收缩到内容宽度」的标准写法。原来钉死
+   4rem,而单元格自带左右各 1rem 内边距,留给按钮的只剩 ~32px ——「撤销」
+   两个字被挤成了竖排。钉一个固定值就得同时算进 padding 和按钮自己的
+   内边距,不如让内容说了算。 */
+const actionHead = css({ ...thBase, width: '1%', whiteSpace: 'nowrap' })
+const actionCell = css({ width: '1%', whiteSpace: 'nowrap', textAlign: 'right' })
