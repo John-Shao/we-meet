@@ -4,6 +4,7 @@
 **范围**：we-meet 后端 Django + 前端 React（C 端 + M 端）+ Android；部门群一节涉及 jusi-light-im（仅调用既有 admin API，不改 jusi）。
 **前置**：P1 组织地基（`Organization`/`Department`/`Membership`/`get_teams()`/通讯录只读 API/`IsOrgAdmin`）已上线；M 端 `/admin` 5 个页面已上线。
 **触发**：2026-08-01 对飞书管理后台「组织架构」逐屏调研（企业概览 / 成员与部门 / 角色管理 / 单位管理 / 用户组管理 / 字段配置 / 人事企业版）后的差距规划。
+**后续**：飞书的**邀请成员**（邀请码 / 链接 / 二维码 + 申请列表 + 审批）与本文的「添加成员」是两套机制，另见 [`p10b-invitation-system.md`](./p10b-invitation-system.md)（M4，设计待拍板）。
 
 ---
 
