@@ -8,9 +8,17 @@ import { css } from '@/styled-system/css'
  * **高度**钉在 control.md(32px),与 Input / Select 基元 / Button sm 同档。
  * 原生 select 的盒高本来 = 字号×行高 + 各处自己写的 padding + 边框,而这些各写
  * 各的,实测 12 个调用点散成 21 / 31.5 / 35 / 39 四个值(admin 弹窗那两个既没
- * padding 也没边框,21px 的白框贴在 32px 的 Input 下面)。钉死之后 paddingY
- * 只影响内容盒、不再影响对齐 —— 选中项的文字由浏览器在元素盒内垂直居中,
- * padding 8px 那几个内容盒只剩 14px 也照样居中(无头 Edge 截图实测)。
+ * padding 也没边框,21px 的白框贴在 32px 的 Input 下面)。
+ *
+ * ⚠️ 钉高之后**必须一起把 padding-block 清掉**(下面那个 `!important`),否则
+ * 调用方的 paddingY 会把内容盒挤扁,文字被上下**切掉**:32 −(8+8)− 边框 2 =
+ * 14px 内容盒,而 panda reset 给表单控件写了 `font: inherit`,行高随 html 继承
+ * 到 1.5 → 0.875rem 的行盒是 21px,21 塞进 14 就是两头各切 3.5px。汉字字面占满
+ * em 盒,切得最明显(日历「不重复」上下都缺一截);拉丁文只丢降部(p/g 的尾巴),
+ * 所以当初按拉丁文截图验收没看出来。清掉后内容盒 30px > 行盒 21px,浏览器
+ * 在元素盒内垂直居中,各调用点原本写多少 paddingY 都不再影响观感。
+ * 用 `!important` 而不是普通 `paddingBlock: 0`:这与调用方的 `paddingY` 是同一
+ * 属性,cx 叠加时谁赢取决于生成样式表的顺序(见下面 paddingX 那条注意)。
  *
  * ⚠️ 调用方要设左内边距请写 `paddingLeft`,**别写 `paddingX`** —— 那会生成
  * `padding-inline`,与这里的 `paddingRight`(箭头留位)是同属性叠加;cx 叠加同
@@ -35,6 +43,7 @@ export const selectChrome = css({
   backgroundRepeat: 'no-repeat',
   backgroundPosition: 'right 0.625rem center',
   backgroundColor: 'greyscale.000',
+  paddingBlock: '0 !important',
   paddingRight: '2rem',
   '& option': {
     backgroundColor: 'greyscale.000',
