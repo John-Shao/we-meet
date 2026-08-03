@@ -26,13 +26,20 @@ const labelCss = css({
   marginBottom: '0.25rem',
 })
 
-const fieldCss = css({
+// 模板下拉、单行输入、多行 textarea 共用同一套边框/圆角/字号,只在高度上分家:
+// 单行的钉 control.md(与 selectChrome 同档),多行的由 rows 决定高度。
+const fieldBase = {
   width: '100%',
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '0.5rem',
-  padding: '0.5rem 0.625rem',
+  paddingX: '0.625rem',
   fontSize: '0.875rem',
-})
+} as const
+
+// 钉了高就不能再有上下内边距 —— 会把内容盒挤到装不下 21px 的行盒(font: inherit
+// 让行高继承成 1.5),文字被上下切掉,详见 primitives/selectChrome 的注释。
+const fieldCss = css({ ...fieldBase, height: 'control.md' })
+const textareaCss = css({ ...fieldBase, paddingY: '0.5rem' })
 
 export const SubmitApprovalDialog = ({
   onClose,
@@ -140,7 +147,7 @@ export const SubmitApprovalDialog = ({
                 rows={3}
                 value={formData[field.key] ?? ''}
                 onChange={(e) => setField(field.key, e.target.value)}
-                className={fieldCss}
+                className={textareaCss}
               />
             ) : (
               <input

@@ -133,9 +133,12 @@ const labelCls = css({
   fontSize: '0.8125rem',
   color: 'greyscale.600',
 })
+// 与 admin 其它弹窗的单行输入同档(MemberEditPanel / OffboardDialog 已是
+// control.md);钉高必须同时去掉上下内边距,见 primitives/selectChrome 的注释。
 const inputCls = css({
   flex: 1,
-  padding: '0.375rem 0.5rem',
+  height: 'control.md',
+  paddingX: '0.5rem',
   border: '1px solid token(colors.control.border)',
   borderRadius: '6px',
   backgroundColor: 'greyscale.000',

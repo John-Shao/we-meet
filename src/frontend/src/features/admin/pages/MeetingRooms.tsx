@@ -590,9 +590,12 @@ const treeSearchCls = css({
   padding: '0.5rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
+// 高度与同页的筛选下拉(filterSelectCls → selectChrome)对齐到 control.md;
+// 钉高就得去掉上下内边距,否则文字被切,见 primitives/selectChrome 的注释。
 const treeSearchInputCls = css({
   width: '100%',
-  padding: '0.375rem 0.5rem',
+  height: 'control.md',
+  paddingX: '0.5rem',
   border: '1px solid token(colors.control.border)',
   borderRadius: '4px',
   backgroundColor: 'greyscale.000',
@@ -643,7 +646,8 @@ const searchFormCls = css({
 })
 const searchInputCls = css({
   width: '14rem',
-  padding: '0.375rem 0.5rem',
+  height: 'control.md',
+  paddingX: '0.5rem',
   border: '1px solid token(colors.control.border)',
   borderRadius: '4px',
   backgroundColor: 'greyscale.000',

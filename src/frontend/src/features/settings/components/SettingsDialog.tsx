@@ -781,11 +781,13 @@ const editControlsCls = css({
   flex: 1,
   justifyContent: 'flex-end',
 })
+// 与同一弹窗里的语言/时区下拉(selectCls → selectChrome)对齐到 control.md;
+// 钉高就得去掉上下内边距,否则文字被切,见 primitives/selectChrome 的注释。
 const editInputCls = css({
   flex: 1,
   maxWidth: '18rem',
+  height: 'control.md',
   paddingX: '0.75rem',
-  paddingY: '0.4375rem',
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '0.5rem',
   backgroundColor: 'greyscale.000',

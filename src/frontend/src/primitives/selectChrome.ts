@@ -18,11 +18,13 @@ import { css } from '@/styled-system/css'
  * 所以当初按拉丁文截图验收没看出来。清掉后内容盒 30px > 行盒 21px,浏览器
  * 在元素盒内垂直居中,各调用点原本写多少 paddingY 都不再影响观感。
  * 用 `!important` 而不是普通 `paddingBlock: 0`:这与调用方的 `paddingY` 是同一
- * 属性,cx 叠加时谁赢取决于生成样式表的顺序(见下面 paddingX 那条注意)。
+ * 属性,cx 叠加时谁赢取决于生成样式表的顺序而非书写顺序。
  *
- * ⚠️ 调用方要设左内边距请写 `paddingLeft`,**别写 `paddingX`** —— 那会生成
- * `padding-inline`,与这里的 `paddingRight`(箭头留位)是同属性叠加;cx 叠加同
- * 属性原子类时谁赢取决于生成样式表的顺序而非书写顺序,输掉就把箭头压到文字上。
+ * 右内边距(箭头留位)同理挂 `!important`。原先只是注释里叮嘱「调用方别写
+ * paddingX / padding 简写」,但这两种写法恰恰是最顺手的 —— 何况同一个类往往
+ * 既给 select 又给 input 用(Audit 的筛选行、会议室的搜索框),那边正需要
+ * paddingX。与其靠人记住,不如让 chrome 自己赢:箭头留位是这套外观的一部分,
+ * 输掉就是箭头压在文字上。
  *
  * **深色模式下的展开列表**:`appearance: none` 之后 Chromium 不再按
  * color-scheme 推导的系统配色画弹出列表,改用元素自身的 background-color;
@@ -44,7 +46,7 @@ export const selectChrome = css({
   backgroundPosition: 'right 0.625rem center',
   backgroundColor: 'greyscale.000',
   paddingBlock: '0 !important',
-  paddingRight: '2rem',
+  paddingRight: '2rem !important',
   '& option': {
     backgroundColor: 'greyscale.000',
     color: 'greyscale.900',

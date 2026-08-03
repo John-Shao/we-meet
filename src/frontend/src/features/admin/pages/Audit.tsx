@@ -187,8 +187,12 @@ export const AdminAudit = () => {
 const th = css({ paddingX: '1rem', paddingY: '0.625rem', fontWeight: '600' })
 const td = css({ paddingX: '1rem', paddingY: '0.5rem', color: 'greyscale.800', verticalAlign: 'top' })
 const emptyText = css({ padding: '1.5rem', color: 'greyscale.500', fontSize: '0.9375rem' })
+// 筛选行里的下拉与两个日期输入共用。高度钉在 control.md 与 selectChrome 同档,
+// 并去掉上下内边距 —— 留着会把内容盒挤到装不下 21px 的行盒(font: inherit 让
+// 行高继承成 1.5),文字被上下切掉,详见 primitives/selectChrome 的注释。
 const filterControl = css({
-  padding: '0.375rem 0.5rem',
+  height: 'control.md',
+  paddingX: '0.5rem',
   border: '1px solid token(colors.control.border)',
   borderRadius: '4px',
   backgroundColor: 'greyscale.000',

@@ -423,7 +423,10 @@ export const AdminMembers = () => {
               placeholder={t('members.searchPlaceholder')}
               className={css({
                 width: '14rem',
-                padding: '0.375rem 0.5rem',
+                // 与同排的筛选下拉(filterSelect)一样钉 control.md;钉高必须
+                // 同时去掉上下内边距,见 primitives/selectChrome 的注释。
+                height: 'control.md',
+                paddingX: '0.5rem',
                 border: '1px solid token(colors.control.border)',
                 borderRadius: '4px',
                 backgroundColor: 'greyscale.000',
