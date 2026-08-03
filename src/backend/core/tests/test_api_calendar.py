@@ -902,3 +902,79 @@ def test_toggling_video_meeting_is_idempotent():
     assert resp.status_code == 200
     # 本来就有会议 —— 不该换一个新房间(会议号会变,已发出去的链接就废了)。
     assert resp.json()["room"] == room_id
+
+
+# --- 会议室预定限制 (P9 M2 knobs, enforced at booking time) -----------------
+
+
+def _book(client, room, *, start=None, end=None, title="Sync"):
+    default_start, default_end = _times()
+    return client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": title,
+            "start_at": (start or default_start).isoformat(),
+            "end_at": (end or default_end).isoformat(),
+            "meeting_room_id": str(room.id),
+        },
+        format="json",
+    )
+
+
+def test_booking_longer_than_the_room_allows_is_rejected():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    room = _room(org, max_booking_minutes=60)
+    start, _ = _times()
+    client = APIClient()
+    client.force_login(me)
+
+    too_long = _book(client, room, start=start, end=start + timedelta(hours=2))
+    assert too_long.status_code == 400
+    assert models.MeetingRoomBooking.objects.count() == 0
+
+    # Exactly at the limit still goes through — the cap is inclusive.
+    assert _book(
+        client, room, start=start, end=start + timedelta(minutes=60)
+    ).status_code == 201
+
+
+def test_booking_further_ahead_than_the_room_allows_is_rejected():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    room = _room(org, advance_booking_days=7)
+    far = timezone.now() + timedelta(days=30)
+    client = APIClient()
+    client.force_login(me)
+
+    resp = _book(client, room, start=far, end=far + timedelta(hours=1))
+    assert resp.status_code == 400
+    assert models.MeetingRoomBooking.objects.count() == 0
+
+
+def test_department_scoped_room_is_bookable_from_a_sub_department():
+    """Granting 深圳总部 has to cover the teams inside it, not just its own members."""
+    org = factories.OrganizationFactory()
+    parent = factories.DepartmentFactory(organization=org)
+    child = factories.DepartmentFactory(organization=org, parent=parent)
+    insider = factories.UserFactory()
+    outsider = factories.UserFactory()
+    _membership(org, insider, department=child)
+    _membership(org, outsider, department=factories.DepartmentFactory(organization=org))
+
+    room = _room(org, booking_scope=models.MeetingRoomBookingScope.DEPARTMENTS)
+    room.bookable_departments.set([parent])
+
+    inside = APIClient()
+    inside.force_login(insider)
+    assert _book(inside, room).status_code == 201
+
+    outside = APIClient()
+    outside.force_login(outsider)
+    resp = _book(outside, room, title="Nope")
+    assert resp.status_code == 400
+    # Hidden from browse too, not just refused on submit.
+    listed = outside.get("/api/v1.0/meeting-rooms/").json()["results"]
+    assert [r["id"] for r in listed] == []

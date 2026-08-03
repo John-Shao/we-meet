@@ -11,6 +11,7 @@ that logic was first worked out.
 """
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from rest_framework import mixins, serializers, viewsets
@@ -19,9 +20,21 @@ from rest_framework.response import Response
 
 from core import models
 from core.api.admin_org import IsOrgAdmin, _OrgScopedAdminViewSet
-from core.api.meeting_rooms import node_path_label
+from core.api.meeting_rooms import (
+    facility_ids_from_params,
+    node_path_label,
+    parse_uuid,
+)
 from core.api.viewsets import Pagination
 from core.services.audit import record_audit
+
+
+def parse_int(raw):
+    """``None`` for anything not an integer — query params are user input."""
+    try:
+        return int(str(raw).strip())
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
 class MeetingRoomNodeAdminSerializer(serializers.ModelSerializer):
@@ -93,7 +106,19 @@ class MeetingRoomFacilityAdminSerializer(serializers.ModelSerializer):
 
 
 class MeetingRoomAdminSerializer(serializers.ModelSerializer):
-    """Create / update a bookable room."""
+    """Create / update a bookable room.
+
+    Carries 飞书's 「会议室预定限制」 block: who may book the room
+    (``booking_scope`` + ``bookable_departments``), how long one booking may run
+    (``max_booking_minutes``) and how far ahead it may be made
+    (``advance_booking_days``). All three are enforced by the calendar
+    serializer / the C-side room queryset — see ``core/api/calendar.py``.
+
+    ``requires_approval`` is deliberately **not** writable here. The column
+    exists (P9 M1 landed the M2 fields up front to avoid a second migration) but
+    nothing consumes it yet, and an admin switch that silently does nothing is
+    worse than no switch. It lands with the approval wiring.
+    """
 
     facility_ids = serializers.ListField(
         child=serializers.UUIDField(), write_only=True, required=False
@@ -101,6 +126,10 @@ class MeetingRoomAdminSerializer(serializers.ModelSerializer):
     facilities = serializers.SerializerMethodField()
     node_name = serializers.SerializerMethodField()
     path_label = serializers.SerializerMethodField()
+    bookable_departments = serializers.SerializerMethodField()
+    bookable_department_ids = serializers.ListField(
+        child=serializers.UUIDField(), write_only=True, required=False
+    )
 
     class Meta:
         model = models.MeetingRoom
@@ -118,15 +147,74 @@ class MeetingRoomAdminSerializer(serializers.ModelSerializer):
             "sort_order",
             "is_active",
             "disabled_reason",
+            "booking_scope",
+            "bookable_departments",
+            "bookable_department_ids",
+            "max_booking_minutes",
+            "advance_booking_days",
             "created_at",
         ]
-        read_only_fields = ["id", "facilities", "node_name", "path_label", "created_at"]
+        read_only_fields = [
+            "id",
+            "facilities",
+            "node_name",
+            "path_label",
+            "bookable_departments",
+            "created_at",
+        ]
 
     def get_facilities(self, obj):
         return [
             {"id": str(f.id), "name": f.name, "code": f.code}
             for f in obj.facilities.all()
         ]
+
+    def get_bookable_departments(self, obj):
+        return [
+            {"id": str(d.id), "name": d.name} for d in obj.bookable_departments.all()
+        ]
+
+    def validate_max_booking_minutes(self, value):
+        # 0 and null both mean "no limit"; normalize so the UI only has to
+        # render one empty state.
+        if value in (None, 0):
+            return None
+        if not 15 <= value <= 24 * 60:
+            raise serializers.ValidationError(
+                "must be between 15 minutes and 24 hours"
+            )
+        return value
+
+    def validate_advance_booking_days(self, value):
+        if value in (None, 0):
+            return None
+        if not 1 <= value <= 730:
+            raise serializers.ValidationError("must be between 1 and 730 days")
+        return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        scope = attrs.get(
+            "booking_scope",
+            getattr(self.instance, "booking_scope", models.MeetingRoomBookingScope.ORG),
+        )
+        if scope != models.MeetingRoomBookingScope.DEPARTMENTS:
+            return attrs
+        # Scoping to departments without naming one would hide the room from
+        # everybody — almost certainly a half-filled form, not the intent.
+        ids = attrs.get("bookable_department_ids")
+        if ids is None:
+            already = (
+                self.instance is not None
+                and self.instance.bookable_departments.exists()
+            )
+            if already:
+                return attrs
+        elif ids:
+            return attrs
+        raise serializers.ValidationError(
+            {"bookable_department_ids": "pick at least one department"}
+        )
 
     def get_node_name(self, obj):
         return obj.node.name if obj.node_id else ""
@@ -150,19 +238,38 @@ class MeetingRoomAdminSerializer(serializers.ModelSerializer):
             )
         )
 
-    def create(self, validated_data):
-        facility_ids = validated_data.pop("facility_ids", None)
-        validated_data["organization"] = self.context["organization"]
-        room = super().create(validated_data)
+    def _set_departments(self, room, department_ids):
+        organization = self.context["organization"]
+        room.bookable_departments.set(
+            models.Department.objects.filter(
+                id__in=department_ids, organization=organization
+            )
+        )
+
+    def _apply_m2m(self, room, facility_ids, department_ids):
         if facility_ids is not None:
             self._set_facilities(room, facility_ids)
+        if department_ids is not None:
+            self._set_departments(room, department_ids)
+        # Going back to org-wide leaves the old department list dangling, which
+        # would silently re-restrict the room the next time someone flips the
+        # scope back. Clear it with the scope.
+        if room.booking_scope == models.MeetingRoomBookingScope.ORG:
+            room.bookable_departments.clear()
+
+    def create(self, validated_data):
+        facility_ids = validated_data.pop("facility_ids", None)
+        department_ids = validated_data.pop("bookable_department_ids", None)
+        validated_data["organization"] = self.context["organization"]
+        room = super().create(validated_data)
+        self._apply_m2m(room, facility_ids, department_ids)
         return room
 
     def update(self, instance, validated_data):
         facility_ids = validated_data.pop("facility_ids", None)
+        department_ids = validated_data.pop("bookable_department_ids", None)
         room = super().update(instance, validated_data)
-        if facility_ids is not None:
-            self._set_facilities(room, facility_ids)
+        self._apply_m2m(room, facility_ids, department_ids)
         return room
 
 
@@ -307,12 +414,17 @@ class MeetingRoomNodeAdminViewSet(
 
 class MeetingRoomAdminViewSet(
     mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
     mixins.CreateModelMixin,
     mixins.UpdateModelMixin,
     mixins.DestroyModelMixin,
     _OrgScopedAdminViewSet,
 ):
-    """CRUD for bookable rooms (org admins only)."""
+    """CRUD for bookable rooms (org admins only).
+
+    ``retrieve`` backs the console's room detail view: deep-linking to one room
+    must not depend on having paged through the list to find it.
+    """
 
     serializer_class = MeetingRoomAdminSerializer
     pagination_class = Pagination
@@ -326,14 +438,19 @@ class MeetingRoomAdminViewSet(
                 organization=organization, deleted_at__isnull=True
             )
             .select_related("node")
-            .prefetch_related("facilities")
+            .prefetch_related("facilities", "bookable_departments")
         )
         params = self.request.query_params
-        node_id = params.get("node")
-        if node_id:
-            node = models.MeetingRoomNode.objects.filter(
-                id=node_id, organization=organization
-            ).first()
+        node_id = parse_uuid(params.get("node"))
+        if params.get("node"):
+            # A malformed id is an empty result, not a 500 from filter(id=...).
+            node = (
+                models.MeetingRoomNode.objects.filter(
+                    id=node_id, organization=organization
+                ).first()
+                if node_id is not None
+                else None
+            )
             queryset = (
                 queryset.filter(node__path__startswith=node.path)
                 if node
@@ -341,13 +458,24 @@ class MeetingRoomAdminViewSet(
             )
         query = str(params.get("q") or "").strip()
         if query:
-            queryset = queryset.filter(name__icontains=query)
+            # Admins search by room number at least as often as by name — the
+            # C-side browse endpoint already matches both.
+            queryset = queryset.filter(
+                Q(name__icontains=query) | Q(code__icontains=query)
+            )
         is_active = params.get("is_active")
         if is_active in ("0", "false", "False"):
             queryset = queryset.filter(is_active=False)
         elif is_active in ("1", "true", "True"):
             queryset = queryset.filter(is_active=True)
-        return queryset
+        capacity_min = parse_int(params.get("capacity_min"))
+        if capacity_min is not None:
+            queryset = queryset.filter(capacity__gte=capacity_min)
+        # AND semantics, same as the C side: 「有电视 *且* 有白板」.
+        facility_ids = facility_ids_from_params(params)
+        for facility_id in facility_ids:
+            queryset = queryset.filter(facilities__id=facility_id)
+        return queryset.distinct() if facility_ids else queryset
 
     def perform_create(self, serializer):
         instance = serializer.save()

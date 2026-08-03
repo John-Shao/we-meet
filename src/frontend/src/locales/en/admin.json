@@ -128,7 +128,8 @@
     "edit": "Edit",
     "previous": "Previous",
     "next": "Next",
-    "close": "Close"
+    "close": "Close",
+    "back": "Back"
   },
   "import": {
     "title": "Import members",
@@ -393,6 +394,46 @@
     "emptyLevels": "No levels yet — add a building or floor first",
     "emptyRooms": "No rooms in this level yet",
     "deleteRoomConfirm": "Delete room \"{{name}}\"? Existing bookings are kept.",
-    "deleteLevelConfirm": "Delete level \"{{name}}\"?"
+    "deleteLevelConfirm": "Delete level \"{{name}}\"?",
+    "quickEdit": "Quick edit",
+    "manageFacilities": "Facility types",
+    "searchLevels": "Search levels",
+    "noLevelMatch": "No matching level",
+    "searchPlaceholder": "Search by room name or number",
+    "search": "Search",
+    "filterAllStatus": "Any status",
+    "filterAnyCapacity": "Any capacity",
+    "filterCapacityAtLeast": "Seats {{count}}+",
+    "levelSummary": "{{rooms}} rooms (incl. sub-levels) · {{levels}} sub-levels",
+    "colBookingScope": "Who can book",
+    "remark": "Remark",
+    "disabledReason": "Reason for disabling",
+    "disabledReasonHint": "e.g. broken door lock",
+    "fullNamePreview": "Full name: {{label}}",
+    "sections": "Detail sections",
+    "section": {
+      "basic": "Basic information",
+      "status": "Room status",
+      "facilities": "Facilities",
+      "bookingLimits": "Booking limits"
+    },
+    "bookingScope": "Booking scope",
+    "bookingScopeHint": "Outside the scope, the room is neither visible nor bookable",
+    "scopeOrg": "Everyone",
+    "scopeDepartments": "Selected departments",
+    "bookableDepartments": "Departments",
+    "noDepartments": "No departments yet",
+    "maxBookingMinutes": "Max minutes per booking",
+    "advanceBookingDays": "Bookable this many days ahead",
+    "limitEmptyHint": "Empty means no limit",
+    "saved": "Saved",
+    "noFacilities": "No facility types yet",
+    "facilitiesHint": "Facility types are one org-wide dictionary; renaming one updates every room. Deleting a facility still used by rooms retires it instead of removing it.",
+    "facilityName": "Facility name",
+    "facilityCode": "Code",
+    "facilityCodeHint": "Code (optional, e.g. tv)",
+    "addFacility": "Add",
+    "retired": "Retired",
+    "deleteFacilityConfirm": "Delete facility \"{{name}}\"? It is retired instead while rooms still use it."
   }
 }

@@ -69,6 +69,11 @@ const AdminApp = () => (
         <Route path="/invites">
           <AdminInvites />
         </Route>
+        {/* 会议室详情是一条真路由而不是弹窗:一间房的配置(预定限制、设施、
+            禁用原因)是运营之间会互相甩链接的东西,刷新与前进后退都得成立。 */}
+        <Route path="/meeting-rooms/:roomId">
+          {(params) => <AdminMeetingRooms roomId={params.roomId} />}
+        </Route>
         <Route path="/meeting-rooms">
           <AdminMeetingRooms />
         </Route>

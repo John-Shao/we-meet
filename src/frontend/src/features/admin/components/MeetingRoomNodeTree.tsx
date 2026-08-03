@@ -14,6 +14,8 @@ import type { AdminMeetingRoomNode } from '../api/adminMeetingRooms'
 
 interface Props {
   nodes: AdminMeetingRoomNode[]
+  /** Name filter; matched nodes keep their ancestors so the tree stays a tree. */
+  query?: string
   /** null = the "all rooms" pseudo-root. */
   selectedId: string | null
   onSelect: (id: string | null) => void
@@ -31,6 +33,7 @@ interface Props {
  */
 export const MeetingRoomNodeTree = ({
   nodes,
+  query = '',
   selectedId,
   onSelect,
   onAddChild,
@@ -39,19 +42,39 @@ export const MeetingRoomNodeTree = ({
 }: Props) => {
   const { t } = useTranslation('admin')
 
+  // 搜索保留命中节点的**祖先**:只留命中行会把「深圳总部 / 万科大厦 / 4 楼」
+  // 压成三个没有上下文的孤立条目,而层级本身就是这棵树的信息。
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return nodes
+    const hits = nodes.filter((n) => n.name.toLowerCase().includes(needle))
+    const keep = new Set<string>()
+    for (const hit of hits) {
+      keep.add(hit.id)
+      for (const other of nodes) {
+        // `path` includes self and is a prefix of every descendant's — an
+        // ancestor is exactly a node whose path prefixes the hit's.
+        if (hit.path.startsWith(other.path)) keep.add(other.id)
+      }
+    }
+    return nodes.filter((n) => keep.has(n.id))
+  }, [nodes, query])
+
   const childrenOf = useMemo(() => {
-    const ids = new Set(nodes.map((n) => n.id))
+    const ids = new Set(visible.map((n) => n.id))
     const map = new Map<string, AdminMeetingRoomNode[]>()
-    for (const node of nodes) {
+    for (const node of visible) {
       const key = node.parent && ids.has(node.parent) ? node.parent : ''
       const arr = map.get(key) ?? []
       arr.push(node)
       map.set(key, arr)
     }
     return map
-  }, [nodes])
+  }, [visible])
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // 搜到的东西藏在折叠节点里等于没搜到 —— 有筛选词时整棵树展开。
+  const searching = query.trim().length > 0
   const toggle = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -63,7 +86,7 @@ export const MeetingRoomNodeTree = ({
   const renderNodes = (parentKey: string, depth: number): ReactNode =>
     (childrenOf.get(parentKey) ?? []).map((node) => {
       const kids = childrenOf.get(node.id) ?? []
-      const isExpanded = expanded.has(node.id)
+      const isExpanded = searching || expanded.has(node.id)
       const active = selectedId === node.id
       return (
         <div key={node.id}>
@@ -149,7 +172,11 @@ export const MeetingRoomNodeTree = ({
           {t('meetingRooms.allRooms')}
         </button>
       </div>
-      {renderNodes('', 0)}
+      {searching && visible.length === 0 ? (
+        <p className={noMatchCls}>{t('meetingRooms.noLevelMatch')}</p>
+      ) : (
+        renderNodes('', 0)
+      )}
     </div>
   )
 }
@@ -203,6 +230,11 @@ const nodeLabelActiveCls = css({
   fontWeight: '600',
 })
 const countCls = css({ color: 'greyscale.400', fontWeight: 'normal' })
+const noMatchCls = css({
+  padding: '0.75rem',
+  color: 'greyscale.500',
+  fontSize: '0.8125rem',
+})
 const actionsCls = css({
   flexShrink: 0,
   display: 'flex',

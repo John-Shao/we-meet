@@ -23,7 +23,7 @@ from rest_framework.response import Response
 from core import models, utils
 from core.api import permissions
 from core.api.directory import get_caller_organization
-from core.api.meeting_rooms import node_path_label
+from core.api.meeting_rooms import bookable_scope_filter, node_path_label
 from core.api.viewsets import Pagination
 from core.services import calendar_im_notify, calendar_recurrence, meeting_room_booking
 
@@ -189,14 +189,24 @@ class CalendarEventSerializer(serializers.ModelSerializer):
         organization = (
             get_caller_organization(request.user) if request is not None else None
         )
-        room = models.MeetingRoom.objects.filter(
+        base = models.MeetingRoom.objects.filter(
             id=room_uuid,
             organization=organization,
             is_active=True,
             deleted_at__isnull=True,
-        ).first()
+        )
+        room = base.first()
         if room is None:
             raise serializers.ValidationError("unknown or unavailable meeting room")
+        # 「预定范围限制」: a separate lookup rather than one filtered query, so
+        # "restricted to another department" does not masquerade as "no such
+        # room" — the two need different answers from support.
+        if request is not None and not base.filter(
+            bookable_scope_filter(request.user)
+        ).exists():
+            raise serializers.ValidationError(
+                "this meeting room is limited to selected departments"
+            )
         return room
 
     def validate(self, attrs):
@@ -210,7 +220,47 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"meeting_room_id": "all-day events cannot book a meeting room"}
             )
+        if room is not None:
+            self._validate_room_limits(room, attrs)
         return attrs
+
+    def _validate_room_limits(self, room, attrs):
+        """飞书「会议室预定限制」的两条数值规则:单次时长上限、最早可提前天数.
+
+        Enforced in the serializer rather than in ``meeting_room_booking``: the
+        service also runs during recurrence materialization, where re-checking
+        「最早可提前」 would fail every occurrence past the horizon and strand a
+        weekly series its owner cannot fix. The limits belong to *what the user
+        just asked for*, which is exactly what this serializer sees.
+        """
+        start = attrs.get("start_at", getattr(self.instance, "start_at", None))
+        end = attrs.get("end_at", getattr(self.instance, "end_at", None))
+        if start is None or end is None:
+            return
+        if room.max_booking_minutes:
+            minutes = (end - start).total_seconds() / 60
+            if minutes > room.max_booking_minutes:
+                raise serializers.ValidationError(
+                    {
+                        "meeting_room_id": (
+                            "this meeting room may be booked for at most "
+                            f"{room.max_booking_minutes} minutes at a time"
+                        )
+                    }
+                )
+        if room.advance_booking_days:
+            horizon = django_timezone.now() + timedelta(
+                days=room.advance_booking_days
+            )
+            if start > horizon:
+                raise serializers.ValidationError(
+                    {
+                        "meeting_room_id": (
+                            "this meeting room may be booked at most "
+                            f"{room.advance_booking_days} days in advance"
+                        )
+                    }
+                )
 
     def get_meeting_room(self, obj):
         booking = meeting_room_booking.pick_live_booking(obj.room_bookings.all())

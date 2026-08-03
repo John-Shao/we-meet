@@ -261,3 +261,153 @@ def test_writes_are_audited(admin_org):
     )
     assert models.AuditActionChoices.ROOM_NODE_CREATE in actions
     assert models.AuditActionChoices.MEETING_ROOM_CREATE in actions
+
+
+# --- list filters ----------------------------------------------------------
+
+
+def test_search_matches_room_number_as_well_as_name(admin_org):
+    org, admin = admin_org
+    node = factories.MeetingRoomNodeFactory(organization=org)
+    factories.MeetingRoomFactory(organization=org, node=node, name="Ada", code="FM-401")
+    factories.MeetingRoomFactory(organization=org, node=node, name="Grace", code="FM-902")
+
+    names = [
+        row["name"] for row in _client(admin).get(f"{ROOMS}?q=FM-401").json()["results"]
+    ]
+    assert names == ["Ada"]
+
+
+def test_capacity_and_facility_filters_are_and_ed(admin_org):
+    org, admin = admin_org
+    node = factories.MeetingRoomNodeFactory(organization=org)
+    tv = factories.MeetingRoomFacilityFactory(organization=org)
+    board = factories.MeetingRoomFacilityFactory(organization=org)
+
+    both = factories.MeetingRoomFactory(organization=org, node=node, capacity=20)
+    both.facilities.set([tv, board])
+    tv_only = factories.MeetingRoomFactory(organization=org, node=node, capacity=20)
+    tv_only.facilities.set([tv])
+    # Right facilities, too small.
+    small = factories.MeetingRoomFactory(organization=org, node=node, capacity=4)
+    small.facilities.set([tv, board])
+
+    resp = _client(admin).get(
+        f"{ROOMS}?capacity_min=10&facilities={tv.id},{board.id}"
+    )
+    assert [row["id"] for row in resp.json()["results"]] == [str(both.id)]
+
+
+def test_malformed_node_filter_is_empty_not_a_crash(admin_org):
+    _org, admin = admin_org
+
+    resp = _client(admin).get(f"{ROOMS}?node=not-a-uuid")
+    assert resp.status_code == 200
+    assert resp.json()["results"] == []
+
+
+def test_detail_is_retrievable_for_deep_links(admin_org):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org)
+
+    resp = _client(admin).get(f"{ROOMS}{room.id}/")
+    assert resp.status_code == 200
+    assert resp.json()["name"] == room.name
+
+
+# --- 会议室预定限制 --------------------------------------------------------
+
+
+def test_scope_to_departments_round_trips(admin_org):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org)
+    dept = factories.DepartmentFactory(organization=org)
+
+    resp = _client(admin).patch(
+        f"{ROOMS}{room.id}/",
+        {
+            "booking_scope": "departments",
+            "bookable_department_ids": [str(dept.id)],
+            "max_booking_minutes": 120,
+            "advance_booking_days": 30,
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [d["id"] for d in body["bookable_departments"]] == [str(dept.id)]
+    assert body["max_booking_minutes"] == 120
+    assert body["advance_booking_days"] == 30
+
+
+def test_scoping_to_departments_without_any_is_rejected(admin_org):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org)
+
+    resp = _client(admin).patch(
+        f"{ROOMS}{room.id}/",
+        {"booking_scope": "departments", "bookable_department_ids": []},
+        format="json",
+    )
+    assert resp.status_code == 400
+
+
+def test_going_back_to_org_wide_clears_the_department_list(admin_org):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org)
+    room.bookable_departments.set([factories.DepartmentFactory(organization=org)])
+    room.booking_scope = models.MeetingRoomBookingScope.DEPARTMENTS
+    room.save()
+
+    resp = _client(admin).patch(
+        f"{ROOMS}{room.id}/", {"booking_scope": "org"}, format="json"
+    )
+    assert resp.status_code == 200
+    # Left behind, the stale list would silently re-restrict the room the next
+    # time somebody flipped the scope back.
+    assert room.bookable_departments.count() == 0
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"max_booking_minutes": 5},
+        {"max_booking_minutes": 5000},
+        {"advance_booking_days": 5000},
+    ],
+)
+def test_out_of_range_limits_are_rejected(admin_org, payload):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org)
+
+    resp = _client(admin).patch(f"{ROOMS}{room.id}/", payload, format="json")
+    assert resp.status_code == 400
+
+
+def test_zero_limit_normalizes_to_no_limit(admin_org):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org, max_booking_minutes=60)
+
+    resp = _client(admin).patch(
+        f"{ROOMS}{room.id}/", {"max_booking_minutes": 0}, format="json"
+    )
+    assert resp.status_code == 200
+    assert resp.json()["max_booking_minutes"] is None
+
+
+def test_departments_from_another_organization_are_dropped(admin_org):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org)
+    ours = factories.DepartmentFactory(organization=org)
+    theirs = factories.DepartmentFactory()
+
+    resp = _client(admin).patch(
+        f"{ROOMS}{room.id}/",
+        {
+            "booking_scope": "departments",
+            "bookable_department_ids": [str(ours.id), str(theirs.id)],
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert [d["id"] for d in resp.json()["bookable_departments"]] == [str(ours.id)]

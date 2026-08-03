@@ -229,17 +229,66 @@ N 列资源轴、列头与网格共享横滚、24h 格线、`nowMinute` 红线�
 
 | 能力 | M1 已留的钩子 | M2 要补 |
 |---|---|---|
-| 会议室禁用 | `is_active`(M1 已过滤)+ `disabled_reason` | 禁用时对未来预订的处理策略(保留 / 释放并通知组织者) |
-| 可预订范围 | `booking_scope` + `bookable_departments` M2M | 预订前校验 + 列表按调用者部门过滤 |
-| 预订审批 | `requires_approval` + `approval_template`;`PENDING` 已参与排斥(暂扣槽位);`Booking.approval_instance` | 建 booking 时置 PENDING + 提交审批;终态回调改 CONFIRMED / CANCELLED |
+| 会议室禁用 | `is_active`(M1 已过滤)+ `disabled_reason` | 禁用时对未来预订的处理策略(保留 / 释放并通知组织者)。**禁用原因已可在 M 端填写**(见下节) |
+| ~~可预订范围~~ | `booking_scope` + `bookable_departments` M2M | **M2.1 已交付**,见下节 |
+| 预订审批 | `requires_approval` + `approval_template`;`PENDING` 已参与排斥(暂扣槽位);`Booking.approval_instance` | 建 booking 时置 PENDING + 提交审批;终态回调改 CONFIRMED / CANCELLED。**M2.1 刻意没做**:开关接出来而不接通审批流,等于给管理员一个不生效的按钮 |
 | 维护占用 / 手工占用 | `source` + `event=null` + `title` | `POST /admin/meeting-room-bookings/` |
-| 时长 / 提前天数限制 | `max_booking_minutes` / `advance_booking_days` | serializer 校验 |
+| ~~时长 / 提前天数限制~~ | `max_booking_minutes` / `advance_booking_days` | **M2.1 已交付**,见下节 |
 | 批量导入导出 | — | CSV 模板 + 校验 + 错误行回显 |
 | 全天日程订会议室 | — | 先定「按谁的时区」再做 |
 | 真跨时区时间轴 | 层级时区已存 | 按会议室层级时区渲染 |
 | ~~App 端时间轴~~ | **M1.5 已交付** | 见下节 |
 
-**明确不做:** 签到 / 无人自动释放。
+**明确不做:** 签到 / 无人自动释放。飞书后台的「签到二维码 / 投屏盒子 / 飞书传感器 /
+设备与运维(定时任务、运维模板、固件升级)」同理不做 —— 那几块依赖飞书自家的会议室
+硬件体系,我们没有对应的设备侧。
+
+## M2.1 — 运营台会议室管理对齐飞书
+
+M1 的 M 端只有「左树 + 右表格 + 两个弹窗」,而后端早就支持的能力没有接出来(`?q=`、
+`?is_active=`、`description`、`disabled_reason`、设施字典 CRUD 全在,前端一个入口都
+没有)。这一轮把它们接上,并顺手落地 M2 表里三行**能在不引入新子系统的前提下真正
+生效**的策略。
+
+**列表页**
+
+- 顶部筛选条:搜索(名称 **或**编号)、状态、容量下限、设施多选(AND)。表格换成运营台
+  其余页面统一的 Semi `Table`,拿到总数分页与空/载入态 —— 会议室页是最后一个还在
+  手写 `<table>` + 「上一页/下一页」的页面。
+- 会议室名下压一行完整路径(飞书同款):每层楼都有个 401,只有路径能分辨。
+- 左树加搜索框。命中节点**保留其祖先**并自动展开 —— 只留命中行会把层级压成一串
+  没有上下文的孤立条目,而层级本身就是这棵树的信息。
+- 「设施类型」字典管理弹窗。P9 选字典表而非 JSON 标签数组,图的就是可改名/可停用,
+  在此之前却只能进 Django admin 改。
+
+**会议室详情页**(`/admin/meeting-rooms/:roomId`,左锚点导航 + 分区)
+
+做成真路由而不是弹窗:一间房的配置是运营之间会互相甩链接的东西,刷新与前进后退
+都得成立。为此给 `MeetingRoomAdminViewSet` 补了 `RetrieveModelMixin`。
+分区为 基本信息 / 会议室状态 / 设施信息 / 会议室预定限制;创建弹窗仍只有三个必填
+字段,不把每间新房都变成一次策略决策。
+
+**三条真正生效的预订限制**
+
+| 规则 | 落点 | 语义 |
+|---|---|---|
+| 单次时长上限 | `CalendarEventSerializer.validate` | 超出 → 400。闭区间:正好等于上限可订 |
+| 最早可提前天数 | 同上 | 起始时刻超出 `now + N 天` → 400 |
+| 可预定范围 | `bookable_scope_filter()`,C 端 `get_queryset` + 预订校验 | `departments` 限定的房间,范围外成员**既看不到也订不了**;命中判据是「用户部门的 `path` 里出现了被授权的部门」,即**授权父部门自动覆盖其下级** |
+
+两个刻意的取舍:
+
+**① 限制校验放 serializer 而不是 `meeting_room_booking` 服务层。** 服务层在重复日程
+滚动物化时也会跑,在那里复查「最早可提前」会让 60 天窗口外的每一场都失败,把一个
+周会卡死成谁都改不动。限制约束的是**用户此刻提出的请求**,那正是 serializer 看到的
+东西。
+
+**② 范围限制没有管理员豁免。** 运营台是改规则的地方,不是坐在规则外面的地方。真要
+「会议室预定管理员」那种高权限角色,是独立一档权限模型,不该由 `IsOrgAdmin` 顺带。
+
+顺带修掉的:`?node=` 传非 uuid 会让 `filter(id=...)` 抛 500(现在是空结果);把
+`meeting_rooms.py` 里的 `_parse_uuid` / `_facility_ids` 转正为公开函数,管理端复用同
+一份解析而不是各写一遍。
 
 ## 已知风险
 

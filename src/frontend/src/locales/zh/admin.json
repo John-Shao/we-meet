@@ -128,7 +128,8 @@
     "edit": "编辑",
     "previous": "上一页",
     "next": "下一页",
-    "close": "关闭"
+    "close": "关闭",
+    "back": "返回"
   },
   "import": {
     "title": "批量导入成员",
@@ -393,6 +394,46 @@
     "emptyLevels": "还没有层级,先添加一个建筑或楼层",
     "emptyRooms": "该层级下还没有会议室",
     "deleteRoomConfirm": "确定删除会议室「{{name}}」吗?已有的预订不会被取消。",
-    "deleteLevelConfirm": "确定删除层级「{{name}}」吗?"
+    "deleteLevelConfirm": "确定删除层级「{{name}}」吗?",
+    "quickEdit": "快速编辑",
+    "manageFacilities": "设施类型",
+    "searchLevels": "搜索层级",
+    "noLevelMatch": "没有匹配的层级",
+    "searchPlaceholder": "搜索会议室名称或编号",
+    "search": "搜索",
+    "filterAllStatus": "全部状态",
+    "filterAnyCapacity": "不限容量",
+    "filterCapacityAtLeast": "可容纳 {{count}} 人以上",
+    "levelSummary": "共 {{rooms}} 个会议室(含子层级) · {{levels}} 个子层级",
+    "colBookingScope": "可预定范围",
+    "remark": "备注",
+    "disabledReason": "禁用原因",
+    "disabledReasonHint": "如:门锁损坏",
+    "fullNamePreview": "完整名称:{{label}}",
+    "sections": "详情分区",
+    "section": {
+      "basic": "基本信息",
+      "status": "会议室状态",
+      "facilities": "设施信息",
+      "bookingLimits": "会议室预定限制"
+    },
+    "bookingScope": "预定范围",
+    "bookingScopeHint": "限定后,范围外的成员看不到也订不了这间会议室",
+    "scopeOrg": "全部成员",
+    "scopeDepartments": "指定部门",
+    "bookableDepartments": "可预定部门",
+    "noDepartments": "还没有部门",
+    "maxBookingMinutes": "单次可预定时长上限(分钟)",
+    "advanceBookingDays": "最早可提前(天)",
+    "limitEmptyHint": "留空为不限",
+    "saved": "已保存",
+    "noFacilities": "还没有设施类型",
+    "facilitiesHint": "设施类型是全组织共用的字典,改名会同步到所有会议室。仍被会议室引用的设施删除后只会停用,不会消失。",
+    "facilityName": "设施名称",
+    "facilityCode": "设施标识",
+    "facilityCodeHint": "标识(选填,如 tv)",
+    "addFacility": "添加",
+    "retired": "已停用",
+    "deleteFacilityConfirm": "确定删除设施「{{name}}」吗?仍被会议室引用时将改为停用。"
   }
 }

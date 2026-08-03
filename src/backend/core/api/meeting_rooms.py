@@ -30,7 +30,7 @@ from rest_framework.response import Response
 
 from core import models, utils
 from core.api import permissions
-from core.api.directory import get_caller_organization
+from core.api.directory import get_caller_membership, get_caller_organization
 from core.api.viewsets import Pagination
 
 #: Availability windows are a picker aid, not a report.
@@ -86,20 +86,55 @@ def _parse_window(params, *, max_days, required=True):
     return start, end
 
 
-def _parse_uuid(raw):
+def parse_uuid(raw):
+    """``None`` for anything that is not a uuid — never raises.
+
+    Public because the admin console (``admin_meeting_rooms``) filters on the
+    same query params: handing a malformed id straight to ``filter(id=...)``
+    turns a typo in the URL into a 500.
+    """
     try:
         return uuid.UUID(str(raw).strip())
     except (ValueError, TypeError, AttributeError):
         return None
 
 
-def _facility_ids(params):
+def facility_ids_from_params(params):
+    """Parse ``?facilities=<uuid>,<uuid>`` — unparseable chunks are dropped."""
     ids = []
     for chunk in str(params.get("facilities") or "").split(","):
-        parsed = _parse_uuid(chunk)
+        parsed = parse_uuid(chunk)
         if parsed is not None:
             ids.append(parsed)
     return ids
+
+
+def path_ids(path):
+    """Uuids out of a materialized ``path`` (``"<root>/<child>/"``), self included."""
+    return [uuid.UUID(h) for h in str(path or "").strip("/").split("/") if h]
+
+
+def bookable_scope_filter(user):
+    """``Q`` restricting rooms to the ones ``user`` is allowed to book (P9 M2).
+
+    ``booking_scope=org`` is open to the whole organization. ``departments``
+    limits the room to the departments an admin picked **and everything under
+    them** — granting 深圳总部 has to mean the teams inside it, otherwise an
+    admin would have to re-tick the box every time a sub-team is created.
+
+    Deliberately no admin bypass: the console is where an admin changes the
+    rule, not a place to sit outside it. Applied in ``get_queryset`` so browse /
+    availability / timeline all hide the same rooms — surfacing a room the
+    caller cannot book only earns them a 400 later.
+    """
+    membership = get_caller_membership(user)
+    department = getattr(membership, "department", None) if membership else None
+    allowed = path_ids(department.path) if department is not None else []
+    scope = Q(booking_scope=models.MeetingRoomBookingScope.ORG)
+    if not allowed:
+        # No department → only org-wide rooms. Not an empty result set.
+        return scope
+    return scope | Q(bookable_departments__id__in=allowed)
 
 
 def serialize_room(room, *, label_cache=None):
@@ -217,6 +252,11 @@ class MeetingRoomViewSet(
                 deleted_at__isnull=True,
                 is_active=True,
             )
+            # M2M join in the scope filter can duplicate rows — distinct() here
+            # rather than at each call site, since availability / timeline read
+            # this queryset directly.
+            .filter(bookable_scope_filter(self.request.user))
+            .distinct()
             .select_related("node")
             .prefetch_related("facilities")
         )
@@ -224,7 +264,7 @@ class MeetingRoomViewSet(
     def _filtered_rooms(self, params):
         """Apply ``?node=&q=&capacity_min=&facilities=`` to the base queryset."""
         rooms = self.get_queryset()
-        node_id = _parse_uuid(params.get("node"))
+        node_id = parse_uuid(params.get("node"))
         if node_id is not None:
             node = models.MeetingRoomNode.objects.filter(
                 id=node_id, organization=self._organization()
@@ -245,7 +285,7 @@ class MeetingRoomViewSet(
             except (TypeError, ValueError):
                 pass
         # AND semantics: a room must have *every* requested facility.
-        for facility_id in _facility_ids(params):
+        for facility_id in facility_ids_from_params(params):
             rooms = rooms.filter(facilities__id=facility_id)
         return rooms.distinct()
 
@@ -293,7 +333,7 @@ class MeetingRoomViewSet(
             start_at__lt=end,
             end_at__gt=start,
         )
-        exclude_event_id = _parse_uuid(request.query_params.get("exclude_event_id"))
+        exclude_event_id = parse_uuid(request.query_params.get("exclude_event_id"))
         if exclude_event_id is not None:
             bookings = bookings.exclude(
                 Q(event_id=exclude_event_id)
@@ -350,7 +390,7 @@ class MeetingRoomViewSet(
         tz_label = None
         if start is None:
             day = parse_date(str(request.query_params.get("date") or ""))
-            node_id = _parse_uuid(request.query_params.get("node"))
+            node_id = parse_uuid(request.query_params.get("node"))
             if day is None:
                 raise exceptions.ValidationError(
                     {"detail": "either start+end or node+date is required"}
@@ -374,7 +414,7 @@ class MeetingRoomViewSet(
         if room_ids:
             wanted = {
                 parsed
-                for parsed in (_parse_uuid(c) for c in str(room_ids).split(","))
+                for parsed in (parse_uuid(c) for c in str(room_ids).split(","))
                 if parsed is not None
             }
             rooms = [room for room in rooms if room.id in wanted]

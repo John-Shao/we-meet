@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'wouter'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { RiAddLine, RiMoreFill } from '@remixicon/react'
+import { RiAddLine, RiMoreFill, RiSearchLine, RiToolsLine } from '@remixicon/react'
 import { Menu as RACMenu, MenuItem } from 'react-aria-components'
+import Table, { type ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { Menu } from '@/primitives/Menu'
+import { selectChrome } from '@/primitives/selectChrome'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
 
@@ -26,6 +29,8 @@ import {
 } from '../api/adminMeetingRooms'
 import { describeApiError } from '../api/errors'
 import { MeetingRoomNodeTree } from '../components/MeetingRoomNodeTree'
+import { MeetingRoomDetail } from '../components/MeetingRoomDetail'
+import { FacilityDictionaryDialog } from '../components/FacilityDictionaryDialog'
 import {
   HierarchyNodeDialog,
   type HierarchyNodeValues,
@@ -37,6 +42,11 @@ import {
 
 const NODES_KEY = ['admin', 'meetingRoomNodes']
 const ROOMS_KEY = ['admin', 'meetingRooms']
+const FACILITIES_KEY = ['admin', 'meetingRoomFacilities']
+/** 与后端 REST_FRAMEWORK.PAGE_SIZE 一致(settings.py)。Semi 分页要显式给。 */
+const ROOMS_PAGE_SIZE = 20
+/** 容量筛选的常用档位 —— 运营找「能坐下这场会的房间」,不是精确匹配人数。 */
+const CAPACITY_STEPS = [5, 10, 20, 50]
 
 type NodeDialogState =
   | { mode: 'create'; parent: AdminMeetingRoomNode | null }
@@ -54,16 +64,30 @@ type RoomDialogState =
  * Same shape as the department console so admins do not have to learn a second
  * layout; the differences are what hangs off a node (rooms, not people) and the
  * per-level timezone.
+ *
+ * `roomId` (from `/admin/meeting-rooms/:roomId`) swaps the right-hand pane for
+ * one room's detail. The tree stays put — same as 飞书, and it keeps "where am
+ * I in the building" answered while you edit.
  */
-export const AdminMeetingRooms = () => {
+export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
   const { t } = useTranslation('admin')
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const queryClient = useQueryClient()
+  const [, navigate] = useLocation()
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [nodeDialog, setNodeDialog] = useState<NodeDialogState>(null)
   const [roomDialog, setRoomDialog] = useState<RoomDialogState>(null)
+  const [facilityDialogOpen, setFacilityDialogOpen] = useState(false)
   const [page, setPage] = useState(1)
+
+  // 树搜索与表格搜索是两个框:一个在层级里找楼层,一个在结果里找房间。
+  const [treeQuery, setTreeQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [q, setQ] = useState('')
+  const [status, setStatus] = useState('')
+  const [capacityMin, setCapacityMin] = useState('')
+  const [facilityFilter, setFacilityFilter] = useState<string[]>([])
 
   const { data: nodes = [] } = useQuery({
     queryKey: NODES_KEY,
@@ -71,15 +95,27 @@ export const AdminMeetingRooms = () => {
     staleTime: 30_000,
   })
   const { data: facilities = [] } = useQuery({
-    queryKey: ['admin', 'meetingRoomFacilities'],
+    queryKey: FACILITIES_KEY,
     queryFn: fetchAdminFacilities,
     staleTime: 5 * 60_000,
   })
+
+  const filters = {
+    node: selectedNodeId,
+    q,
+    is_active: status,
+    facilities: facilityFilter,
+    capacity_min: capacityMin ? Number(capacityMin) : null,
+    page,
+  }
   const { data: rooms, isFetching: roomsFetching } = useQuery({
-    queryKey: [...ROOMS_KEY, selectedNodeId ?? '', page],
-    queryFn: () => fetchAdminMeetingRooms({ node: selectedNodeId, page }),
+    queryKey: [...ROOMS_KEY, filters],
+    queryFn: () => fetchAdminMeetingRooms(filters),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
+    // The detail view fetches its own room; paging the list underneath it would
+    // be work nobody can see.
+    enabled: !roomId,
   })
 
   const invalidate = () => {
@@ -159,15 +195,162 @@ export const AdminMeetingRooms = () => {
   const selectNode = (id: string | null) => {
     setSelectedNodeId(id)
     setPage(1)
+    // Picking a floor while a room is open means "show me that floor".
+    if (roomId) navigate('/meeting-rooms')
   }
 
-  const rows = rooms?.results ?? []
+  const resetPage = <T,>(set: (v: T) => void) => (value: T) => {
+    set(value)
+    setPage(1)
+  }
+
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null
+  const childLevels = useMemo(
+    () => nodes.filter((n) => (n.parent ?? null) === selectedNodeId).length,
+    [nodes, selectedNodeId]
+  )
+
+  // 停用的设施不再出现在筛选器里,但已经贴在某间房上的仍会在表格里显示 ——
+  // 「不能再选」和「历史记录消失」是两回事。
+  const activeFacilities = facilities.filter((f) => f.is_active)
+
+  const toggleFacilityFilter = (id: string) => {
+    setFacilityFilter((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+    )
+    setPage(1)
+  }
+
+  const columns: ColumnProps<AdminMeetingRoom>[] = [
+    {
+      title: t('meetingRooms.colName'),
+      dataIndex: 'id',
+      // ⚠️ 每一列都要给宽度:Semi Table 只要有一列带 width 就切到
+      // table-layout: fixed,富余宽度会全部灌给唯一没设宽度的那列。
+      width: 260,
+      render: (_: unknown, room: AdminMeetingRoom) => (
+        <button
+          type="button"
+          className={roomLinkCls}
+          onClick={() => navigate(`/meeting-rooms/${room.id}`)}
+          data-testid={`admin-mr-open-${room.id}`}
+        >
+          <span className={roomNameCls}>{room.name}</span>
+          {/* 飞书同款:名称下压一行完整路径,免得两个「401」分不清是哪栋楼的。 */}
+          <span className={roomPathCls}>{room.path_label}</span>
+        </button>
+      ),
+    },
+    {
+      title: t('meetingRooms.roomCode'),
+      width: 130,
+      render: (_: unknown, room: AdminMeetingRoom) => room.code || '—',
+    },
+    {
+      title: t('meetingRooms.colCapacity'),
+      width: 90,
+      render: (_: unknown, room: AdminMeetingRoom) =>
+        room.capacity > 0 ? room.capacity : '—',
+    },
+    {
+      title: t('meetingRooms.colStatus'),
+      width: 110,
+      render: (_: unknown, room: AdminMeetingRoom) => (
+        <span className={room.is_active ? badgeActiveCls : badgeDisabledCls}>
+          {room.is_active
+            ? t('meetingRooms.statusActive')
+            : t('meetingRooms.statusDisabled')}
+        </span>
+      ),
+    },
+    {
+      title: t('meetingRooms.colFacilities'),
+      width: 200,
+      render: (_: unknown, room: AdminMeetingRoom) =>
+        room.facilities.length === 0
+          ? '—'
+          : room.facilities
+              .slice(0, 3)
+              .map((f) => f.name)
+              .join('、') +
+            (room.facilities.length > 3
+              ? ` +${room.facilities.length - 3}`
+              : ''),
+    },
+    {
+      title: t('meetingRooms.colBookingScope'),
+      width: 150,
+      render: (_: unknown, room: AdminMeetingRoom) =>
+        room.booking_scope === 'departments'
+          ? room.bookable_departments.map((d) => d.name).join('、') ||
+            t('meetingRooms.scopeDepartments')
+          : t('meetingRooms.scopeOrg'),
+    },
+    {
+      title: '',
+      width: 110,
+      render: (_: unknown, room: AdminMeetingRoom) => (
+        <div className={rowActionsCls}>
+          <Button
+            variant="quaternaryText"
+            size="sm"
+            onPress={() => navigate(`/meeting-rooms/${room.id}`)}
+          >
+            {t('actions.edit')}
+          </Button>
+          <Menu>
+            <Button
+              variant="quaternaryText"
+              size="icon28"
+              aria-label={t('meetingRooms.rowActions')}
+            >
+              <RiMoreFill size={18} />
+            </Button>
+            <RACMenu className={menuListCls}>
+              <MenuItem
+                className={menuItemCls}
+                onAction={() => setRoomDialog({ mode: 'edit', room })}
+              >
+                {t('meetingRooms.quickEdit')}
+              </MenuItem>
+              <MenuItem
+                className={menuItemCls}
+                onAction={() =>
+                  updateMeetingRoom(room.id, { is_active: !room.is_active })
+                    .then(invalidate)
+                    .catch(onError)
+                }
+              >
+                {room.is_active
+                  ? t('meetingRooms.disable')
+                  : t('meetingRooms.enable')}
+              </MenuItem>
+              <MenuItem
+                className={menuItemDangerCls}
+                onAction={() => void confirmDeleteRoom(room)}
+              >
+                {t('actions.delete')}
+              </MenuItem>
+            </RACMenu>
+          </Menu>
+        </div>
+      ),
+    },
+  ]
 
   return (
     <div className={pageCls}>
       <div className={headerCls}>
         <h1 className={titleCls}>{t('meetingRooms.title')}</h1>
         <div className={css({ display: 'flex', gap: '0.5rem' })}>
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<RiToolsLine size={16} />}
+            onPress={() => setFacilityDialogOpen(true)}
+          >
+            {t('meetingRooms.manageFacilities')}
+          </Button>
           <Button
             size="sm"
             variant="secondary"
@@ -197,11 +380,23 @@ export const AdminMeetingRooms = () => {
           max={480}
         >
           <aside className={asideCls}>
+            <div className={treeSearchCls}>
+              <input
+                value={treeQuery}
+                onChange={(e) => setTreeQuery(e.target.value)}
+                placeholder={t('meetingRooms.searchLevels')}
+                aria-label={t('meetingRooms.searchLevels')}
+                className={treeSearchInputCls}
+              />
+            </div>
             {nodes.length === 0 ? (
-              <p className={hintCls}>{t('meetingRooms.emptyLevels')}</p>
+              <p className={css({ padding: '0.75rem', ...hintStyle })}>
+                {t('meetingRooms.emptyLevels')}
+              </p>
             ) : (
               <MeetingRoomNodeTree
                 nodes={nodes}
+                query={treeQuery}
                 selectedId={selectedNodeId}
                 onSelect={selectNode}
                 onAddChild={(parent) => setNodeDialog({ mode: 'create', parent })}
@@ -213,126 +408,115 @@ export const AdminMeetingRooms = () => {
         </ResizablePanel>
 
         <main className={mainCls}>
-          {roomsFetching && rows.length === 0 ? (
-            <p className={hintCls}>{t('meetingRooms.loading')}</p>
-          ) : rows.length === 0 ? (
-            <p className={hintCls}>{t('meetingRooms.emptyRooms')}</p>
+          {roomId ? (
+            <MeetingRoomDetail
+              roomId={roomId}
+              nodes={nodes}
+              facilities={facilities}
+              onBack={() => navigate('/meeting-rooms')}
+              onSaved={invalidate}
+            />
           ) : (
             <>
-              <table className={tableCls}>
-                <thead>
-                  <tr className={theadRowCls}>
-                    <th className={thCls}>{t('meetingRooms.colName')}</th>
-                    <th className={thCls}>{t('meetingRooms.colLevel')}</th>
-                    <th className={thCls}>{t('meetingRooms.colCapacity')}</th>
-                    <th className={thCls}>{t('meetingRooms.colFacilities')}</th>
-                    <th className={thCls}>{t('meetingRooms.colStatus')}</th>
-                    <th className={css({ width: '3rem' })} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((room) => (
-                    <tr
-                      key={room.id}
-                      className={trCls}
-                      data-testid={`admin-mr-row-${room.id}`}
-                    >
-                      <td className={tdCls}>
-                        <span className={roomNameCls}>{room.name}</span>
-                        {room.code && (
-                          <span className={roomCodeCls}> · {room.code}</span>
-                        )}
-                      </td>
-                      <td className={tdCls}>{room.path_label}</td>
-                      <td className={tdCls}>
-                        {room.capacity > 0 ? room.capacity : '—'}
-                      </td>
-                      <td className={tdCls}>
-                        {room.facilities.length === 0
-                          ? '—'
-                          : room.facilities
-                              .slice(0, 3)
-                              .map((f) => f.name)
-                              .join('、') +
-                            (room.facilities.length > 3
-                              ? ` +${room.facilities.length - 3}`
-                              : '')}
-                      </td>
-                      <td className={tdCls}>
-                        <span
-                          className={
-                            room.is_active ? badgeActiveCls : badgeDisabledCls
-                          }
-                        >
-                          {room.is_active
-                            ? t('meetingRooms.statusActive')
-                            : t('meetingRooms.statusDisabled')}
-                        </span>
-                      </td>
-                      <td className={tdCls}>
-                        <Menu>
-                          <Button
-                            variant="quaternaryText"
-                            size="icon28"
-                            aria-label={t('meetingRooms.rowActions')}
-                          >
-                            <RiMoreFill size={18} />
-                          </Button>
-                          <RACMenu className={menuListCls}>
-                            <MenuItem
-                              className={menuItemCls}
-                              onAction={() =>
-                                setRoomDialog({ mode: 'edit', room })
-                              }
-                            >
-                              {t('actions.edit')}
-                            </MenuItem>
-                            <MenuItem
-                              className={menuItemCls}
-                              onAction={() =>
-                                updateMeetingRoom(room.id, {
-                                  is_active: !room.is_active,
-                                })
-                                  .then(invalidate)
-                                  .catch(onError)
-                              }
-                            >
-                              {room.is_active
-                                ? t('meetingRooms.disable')
-                                : t('meetingRooms.enable')}
-                            </MenuItem>
-                            <MenuItem
-                              className={menuItemDangerCls}
-                              onAction={() => void confirmDeleteRoom(room)}
-                            >
-                              {t('actions.delete')}
-                            </MenuItem>
-                          </RACMenu>
-                        </Menu>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div className={pagerCls}>
-                <Button
-                  variant="secondary"
-                  size="dense"
-                  isDisabled={!rooms?.previous}
-                  onPress={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  {t('actions.previous')}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="dense"
-                  isDisabled={!rooms?.next}
-                  onPress={() => setPage((p) => p + 1)}
-                >
-                  {t('actions.next')}
-                </Button>
+              <div className={summaryCls}>
+                <h2 className={summaryTitleCls}>
+                  {selectedNode?.name ?? t('meetingRooms.allRooms')}
+                </h2>
+                <span className={summaryHintCls}>
+                  {t('meetingRooms.levelSummary', {
+                    rooms: rooms?.count ?? 0,
+                    levels: childLevels,
+                  })}
+                </span>
               </div>
+
+              <div className={toolbarCls}>
+                <select
+                  value={status}
+                  onChange={(e) => resetPage(setStatus)(e.target.value)}
+                  aria-label={t('meetingRooms.colStatus')}
+                  className={filterSelectCls}
+                >
+                  <option value="">{t('meetingRooms.filterAllStatus')}</option>
+                  <option value="1">{t('meetingRooms.statusActive')}</option>
+                  <option value="0">{t('meetingRooms.statusDisabled')}</option>
+                </select>
+                <select
+                  value={capacityMin}
+                  onChange={(e) => resetPage(setCapacityMin)(e.target.value)}
+                  aria-label={t('meetingRooms.capacity')}
+                  className={filterSelectCls}
+                >
+                  <option value="">{t('meetingRooms.filterAnyCapacity')}</option>
+                  {CAPACITY_STEPS.map((n) => (
+                    <option key={n} value={n}>
+                      {t('meetingRooms.filterCapacityAtLeast', { count: n })}
+                    </option>
+                  ))}
+                </select>
+                <form
+                  className={searchFormCls}
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    setQ(searchInput.trim())
+                    setPage(1)
+                  }}
+                >
+                  <input
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder={t('meetingRooms.searchPlaceholder')}
+                    aria-label={t('meetingRooms.searchPlaceholder')}
+                    className={searchInputCls}
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="secondary"
+                    aria-label={t('meetingRooms.search')}
+                  >
+                    <RiSearchLine size={16} />
+                  </Button>
+                </form>
+              </div>
+
+              {activeFacilities.length > 0 && (
+                <div className={facilityFilterCls}>
+                  <span className={facilityFilterLabelCls}>
+                    {t('meetingRooms.colFacilities')}
+                  </span>
+                  {activeFacilities.map((facility) => {
+                    const on = facilityFilter.includes(facility.id)
+                    return (
+                      <button
+                        key={facility.id}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => toggleFacilityFilter(facility.id)}
+                        className={on ? chipOnCls : chipOffCls}
+                      >
+                        {facility.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              <Table
+                columns={columns}
+                dataSource={rooms?.results ?? []}
+                rowKey="id"
+                size="middle"
+                loading={roomsFetching && !rooms}
+                empty={t('meetingRooms.emptyRooms')}
+                pagination={{
+                  currentPage: page,
+                  pageSize: ROOMS_PAGE_SIZE,
+                  total: rooms?.count ?? 0,
+                  onPageChange: setPage,
+                  showTotal: false,
+                }}
+              />
             </>
           )}
         </main>
@@ -356,6 +540,11 @@ export const AdminMeetingRooms = () => {
         submitting={roomMutation.isPending}
         onSubmit={(values) => roomMutation.mutate(values)}
         onClose={() => setRoomDialog(null)}
+      />
+      <FacilityDictionaryDialog
+        isOpen={facilityDialogOpen}
+        facilities={facilities}
+        onClose={() => setFacilityDialogOpen(false)}
       />
     </div>
   )
@@ -390,9 +579,25 @@ const bodyCls = css({
 const asideCls = css({
   width: '100%',
   height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
   borderRight: '1px solid token(colors.greyscale.200)',
   overflowY: 'auto',
   backgroundColor: 'greyscale.50',
+})
+const treeSearchCls = css({
+  flexShrink: 0,
+  padding: '0.5rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+})
+const treeSearchInputCls = css({
+  width: '100%',
+  padding: '0.375rem 0.5rem',
+  border: '1px solid token(colors.control.border)',
+  borderRadius: '4px',
+  backgroundColor: 'greyscale.000',
+  color: 'default.text',
+  fontSize: '0.8125rem',
 })
 const mainCls = css({
   flex: 1,
@@ -400,25 +605,113 @@ const mainCls = css({
   overflowY: 'auto',
   padding: '1.25rem',
 })
-const hintCls = css({ color: 'greyscale.500', fontSize: '0.875rem' })
-const tableCls = css({
-  width: '100%',
-  borderCollapse: 'collapse',
+const hintStyle = { color: 'greyscale.500', fontSize: '0.875rem' } as const
+const summaryCls = css({
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: '0.625rem',
+  marginBottom: '0.75rem',
+})
+const summaryTitleCls = css({
+  fontSize: '1rem',
+  fontWeight: '600',
+  color: 'greyscale.900',
+})
+const summaryHintCls = css(hintStyle)
+const toolbarCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
+  flexWrap: 'wrap',
+  marginBottom: '0.625rem',
+})
+const filterSelectCls = cx(
+  css({
+    padding: '0.375rem 0.5rem',
+    border: '1px solid token(colors.control.border)',
+    borderRadius: '4px',
+    backgroundColor: 'greyscale.000',
+    color: 'default.text',
+    fontSize: '0.875rem',
+  }),
+  selectChrome
+)
+const searchFormCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+})
+const searchInputCls = css({
+  width: '14rem',
+  padding: '0.375rem 0.5rem',
+  border: '1px solid token(colors.control.border)',
+  borderRadius: '4px',
+  backgroundColor: 'greyscale.000',
+  color: 'default.text',
   fontSize: '0.875rem',
 })
-const theadRowCls = css({
-  textAlign: 'left',
+const facilityFilterCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: '0.375rem',
+  marginBottom: '0.75rem',
+})
+const facilityFilterLabelCls = css({
+  fontSize: '0.8125rem',
   color: 'greyscale.500',
-  borderBottom: '1px solid token(colors.greyscale.200)',
+  marginRight: '0.125rem',
 })
-const thCls = css({ paddingY: '0.5rem', paddingRight: '0.75rem', fontWeight: 'medium' })
-const trCls = css({
-  borderBottom: '1px solid token(colors.greyscale.100)',
-  _hover: { backgroundColor: 'greyscale.50' },
+const chipBase = {
+  paddingX: '0.625rem',
+  paddingY: '0.25rem',
+  borderRadius: '999px',
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+} as const
+// Two complete classes rather than cx-layering the colours: atomic classes
+// resolve by stylesheet order, not by the order they are combined.
+const chipOffCls = css({
+  ...chipBase,
+  border: '1px solid token(colors.greyscale.300)',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.700',
 })
-const tdCls = css({ paddingY: '0.625rem', paddingRight: '0.75rem', color: 'greyscale.700' })
-const roomNameCls = css({ fontWeight: 'medium', color: 'greyscale.900' })
-const roomCodeCls = css({ color: 'greyscale.400' })
+const chipOnCls = css({
+  ...chipBase,
+  border: '1px solid token(colors.selected.accent)',
+  backgroundColor: 'selected.bg',
+  color: 'selected.text',
+})
+const roomLinkCls = css({
+  display: 'block',
+  width: '100%',
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  textAlign: 'left',
+  cursor: 'pointer',
+  minWidth: 0,
+})
+const roomNameCls = css({
+  display: 'block',
+  fontWeight: 'medium',
+  color: 'primary.700',
+  _dark: { color: 'primaryDark.800' },
+})
+const roomPathCls = css({
+  display: 'block',
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+const rowActionsCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.125rem',
+})
 const badgeBase = {
   paddingX: '0.5rem',
   paddingY: '0.125rem',
@@ -461,10 +754,4 @@ const menuItemDangerCls = css({
   ...menuItemBase,
   color: 'danger.600',
   _hover: { backgroundColor: 'danger.50' },
-})
-const pagerCls = css({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: '0.5rem',
-  marginTop: '1rem',
 })

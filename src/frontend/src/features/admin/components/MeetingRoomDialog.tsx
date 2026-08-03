@@ -5,6 +5,7 @@ import { Dialog } from '@/primitives/Dialog'
 import { Button, Input } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 import { css, cx } from '@/styled-system/css'
+import { pathLabelOf } from '@/features/meeting-rooms/utils/roomHierarchy'
 
 import type {
   AdminMeetingRoom,
@@ -18,6 +19,8 @@ export interface MeetingRoomValues {
   node: string
   capacity: number
   is_active: boolean
+  disabled_reason: string
+  description: string
   facility_ids: string[]
 }
 
@@ -55,6 +58,8 @@ export const MeetingRoomDialog = ({
   const [nodeId, setNodeId] = useState('')
   const [capacity, setCapacity] = useState('')
   const [active, setActive] = useState(true)
+  const [disabledReason, setDisabledReason] = useState('')
+  const [description, setDescription] = useState('')
   const [facilityIds, setFacilityIds] = useState<string[]>([])
 
   useEffect(() => {
@@ -64,6 +69,8 @@ export const MeetingRoomDialog = ({
     setNodeId(room?.node ?? defaultNodeId ?? nodes[0]?.id ?? '')
     setCapacity(room && room.capacity > 0 ? String(room.capacity) : '')
     setActive(room?.is_active ?? true)
+    setDisabledReason(room?.disabled_reason ?? '')
+    setDescription(room?.description ?? '')
     setFacilityIds(room?.facilities.map((f) => f.id) ?? [])
   }, [isOpen, room, defaultNodeId, nodes])
 
@@ -71,6 +78,12 @@ export const MeetingRoomDialog = ({
     setFacilityIds((prev) =>
       prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
     )
+
+  // 停用的设施不再可选,但这间房已经贴着的仍然列出并可摘除 —— 否则表格里显示
+  // 着「投影仪」,编辑框里却找不到它。
+  const offerableFacilities = facilities.filter(
+    (f) => f.is_active || facilityIds.includes(f.id)
+  )
 
   const trimmed = name.trim()
   const valid = !!trimmed && !!nodeId
@@ -82,9 +95,20 @@ export const MeetingRoomDialog = ({
       node: nodeId,
       capacity: Number(capacity) || 0,
       is_active: active,
+      // 启用中的会议室不留上一次的禁用原因,否则下次禁用时它会诈尸。
+      disabled_reason: active ? '' : disabledReason.trim(),
+      description: description.trim(),
       facility_ids: facilityIds,
     })
   }
+
+  // 飞书的「自动拼接会议室名称」:名字重复(每层楼都有 401)时,这行是唯一能
+  // 分辨的东西 —— 与其让人建完再去表格里核对,不如在提交前就显示出来。
+  // 复用 C 端那份带测试的路径拼接:`path` 里的 id 不带连字符,自己再写一遍
+  // 迟早会踩到那个坑。
+  const fullLabel = [nodeId ? pathLabelOf(nodes, nodeId) : '', trimmed]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <Dialog
@@ -112,6 +136,11 @@ export const MeetingRoomDialog = ({
             autoFocus
             onChange={(e) => setName(e.target.value)}
           />
+          {fullLabel && (
+            <span className={previewCls}>
+              {t('meetingRooms.fullNamePreview', { label: fullLabel })}
+            </span>
+          )}
         </div>
 
         <div className={fieldCls}>
@@ -171,11 +200,40 @@ export const MeetingRoomDialog = ({
           </label>
         </div>
 
-        {facilities.length > 0 && (
+        {!active && (
+          <div className={fieldCls}>
+            <label className={labelCls} htmlFor="mr-room-reason">
+              {t('meetingRooms.disabledReason')}
+            </label>
+            <Input
+              id="mr-room-reason"
+              aria-label={t('meetingRooms.disabledReason')}
+              placeholder={t('meetingRooms.disabledReasonHint')}
+              value={disabledReason}
+              onChange={(e) => setDisabledReason(e.target.value)}
+            />
+          </div>
+        )}
+
+        <div className={fieldCls}>
+          <label className={labelCls} htmlFor="mr-room-remark">
+            {t('meetingRooms.remark')}
+          </label>
+          <textarea
+            id="mr-room-remark"
+            aria-label={t('meetingRooms.remark')}
+            rows={2}
+            className={textareaCls}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+
+        {offerableFacilities.length > 0 && (
           <div className={fieldCls}>
             <span className={labelCls}>{t('meetingRooms.facilities')}</span>
             <div className={chipRowCls}>
-              {facilities.map((facility) => {
+              {offerableFacilities.map((facility) => {
                 const on = facilityIds.includes(facility.id)
                 return (
                   <button
@@ -237,6 +295,17 @@ const selectCls = css({
   borderColor: 'control.border',
   color: 'control.text',
   borderRadius: 4,
+})
+const previewCls = css({ fontSize: '0.6875rem', color: 'greyscale.400' })
+const textareaCls = css({
+  width: '100%',
+  padding: '0.375rem 0.5rem',
+  border: '1px solid token(colors.control.border)',
+  borderRadius: '4px',
+  backgroundColor: 'greyscale.000',
+  color: 'default.text',
+  fontSize: '0.875rem',
+  resize: 'vertical',
 })
 const checkRowCls = css({
   display: 'flex',
