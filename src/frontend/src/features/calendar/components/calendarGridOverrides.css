@@ -484,3 +484,63 @@
   .wm-month-timed-dot {
   background-color: #fbbf24;
 }
+
+/* ── 已结束日程(dimPast 开启时挂 .wm-past)─────────────────────────────
+   只压**填充和竖条**,不压文字。
+
+   原先是在 CalendarGrid 里内联 `opacity: 0.45`,而 opacity 作用在整个元素
+   上,标题跟着一起淡:
+
+     浅色  #1E4DB3 压在 #F4F7FF 上  2.05:1
+     深色  #A3B8EC 压在 #191F2D 上  2.58:1
+
+   都远低于 WCAG 1.4.3 的 4.5:1。「已结束」不等于「不用读」—— 开完的会叫
+   什么名字,仍然是用户要在网格上一眼扫到的信息。
+
+   这里的底色 = 原 alpha × 0.45,竖条 = 原色 45% 透明,**算出来和 opacity
+   方案完全同一个颜色**,所以块的观感一字不变;区别只是文字不再跟着淡,
+   对比度回到 7.08:1(浅)/ 8.33:1(深)。
+
+   拒绝档不列:它本来就是灰底灰字,已经退在背景里,再压一层没有意义。
+   App 端同一处改动见 TimeGrid.kt 的 fillDim —— 改这里请两端同步。 */
+.rbc-event.wm-past,
+.rbc-day-slot .rbc-event.wm-past {
+  background-color: rgba(51, 112, 255, 0.054);
+  border-left-color: rgba(51, 112, 255, 0.45);
+}
+.rbc-event.wm-past.wm-rsvp-needs,
+.rbc-day-slot .rbc-event.wm-past.wm-rsvp-needs {
+  background-color: rgba(139, 92, 246, 0.054);
+  border-left-color: rgba(139, 92, 246, 0.45);
+}
+.rbc-event.wm-past.wm-rsvp-tentative,
+.rbc-day-slot .rbc-event.wm-past.wm-rsvp-tentative {
+  background-color: rgba(245, 158, 11, 0.063);
+  border-left-color: rgba(245, 158, 11, 0.45);
+}
+[data-theme='dark'] .rbc-event.wm-past,
+[data-theme='dark'] .rbc-day-slot .rbc-event.wm-past {
+  background-color: rgba(51, 112, 255, 0.099);
+  border-left-color: rgba(92, 141, 255, 0.45);
+}
+[data-theme='dark'] .rbc-event.wm-past.wm-rsvp-needs,
+[data-theme='dark'] .rbc-day-slot .rbc-event.wm-past.wm-rsvp-needs {
+  background-color: rgba(139, 92, 246, 0.108);
+  border-left-color: rgba(167, 139, 250, 0.45);
+}
+[data-theme='dark'] .rbc-event.wm-past.wm-rsvp-tentative,
+[data-theme='dark'] .rbc-day-slot .rbc-event.wm-past.wm-rsvp-tentative {
+  background-color: rgba(245, 158, 11, 0.099);
+  border-left-color: rgba(251, 191, 36, 0.45);
+}
+
+/* 月视图的限时日程是「圆点 + 时间 + 标题」纯文字行(透明底、无竖条)——
+   上面那套压填充的做法对它无效,没有填充可压。这里改用降一档文字色:
+   标题从 greyscale.900 退到 600(同一行的时间本来就用 600),圆点压 45%。
+   两个 greyscale 变量都随主题翻转,不用另写深色规则。 */
+.rbc-month-view .rbc-event.wm-month-timed.wm-past {
+  color: var(--colors-greyscale-600);
+}
+.rbc-month-view .rbc-event.wm-month-timed.wm-past .wm-month-timed-dot {
+  opacity: 0.45;
+}

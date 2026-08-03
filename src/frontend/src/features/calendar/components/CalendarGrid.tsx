@@ -341,15 +341,15 @@ export const CalendarGrid = ({
           rsvpClassFor(ev.resource?.my_rsvp),
           // wm-editable:我可改期的日程,hover 时出与预选框同款的圆抓手。
           editable(ev) ? 'wm-editable' : '',
+          // 已结束:交给 CSS 只压底色。原先这里内联 opacity: .45,而 opacity
+          // 连文字一起压,标题对比度掉到 2.1:1(浅)/ 2.6:1(深)——「已结束」
+          // 不等于「不用读」。改后块的观感一模一样(底色算出来同一个值),
+          // 只是文字不再跟着淡。详见 calendarGridOverrides.css 的 wm-past 段。
+          dimPast && ev.end < new Date() ? 'wm-past' : '',
         ]
           .filter(Boolean)
           .join(' ')
-        return {
-          ...(className ? { className } : {}),
-          ...(dimPast && ev.end < new Date()
-            ? { style: { opacity: 0.45 } }
-            : {}),
-        }
+        return className ? { className } : {}
       }}
       // 预选框与「我可改的日程」都能拖动移位 + 拖上下手柄改时长。
       draggableAccessor={editable}
