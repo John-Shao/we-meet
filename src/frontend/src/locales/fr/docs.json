@@ -2,5 +2,11 @@
   "nav": {
     "title": "Docs",
     "ariaLabel": "Ouvrir Docs"
+  },
+  "blocked": {
+    "title": "Docs nécessite une nouvelle connexion",
+    "description": "Votre session actuelle ne permet pas d'ouvrir Docs. Reconnectez-vous pour rétablir l'accès ; le reste de l'application n'est pas affecté.",
+    "login": "Se reconnecter",
+    "retry": "Réessayer"
   }
 }

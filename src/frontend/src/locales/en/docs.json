@@ -2,5 +2,11 @@
   "nav": {
     "title": "Docs",
     "ariaLabel": "Open Docs"
+  },
+  "blocked": {
+    "title": "Docs needs you to sign in again",
+    "description": "Your current session can't open Docs. Signing in again restores it; the rest of the app is unaffected.",
+    "login": "Sign in again",
+    "retry": "Retry"
   }
 }

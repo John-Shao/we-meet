@@ -160,6 +160,26 @@ class DocsMyDocumentsRateThrottle(MonitoredUserRateThrottle):
         }
 
 
+class DocsSessionRateThrottle(MonitoredUserRateThrottle):
+    """Per-user throttle for the embedded-docs session bootstrap.
+
+    Every call mints a one-shot login ticket at Docs, so it is both a Docs
+    round-trip and (by design) a credential factory. Clients need it about once
+    per docs-tab mount; the ceiling only has to stop a loop from turning into a
+    ticket firehose.
+    """
+
+    scope = "docs_session"
+
+    def get_cache_key(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return None
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": str(request.user.pk),
+        }
+
+
 class PersonalAIRateThrottle(MonitoredUserRateThrottle):
     """Per-user throttle for the cross-meeting (personal) AI endpoint.
 

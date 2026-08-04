@@ -245,6 +245,67 @@ class DocsClient:
         granted = data.get("granted") if isinstance(data, dict) else None
         return int(granted) if isinstance(granted, int) else 0
 
+    SESSION_TICKET_PATH = "/api/v1.0/users/session-ticket/"
+
+    def create_session_ticket(
+        self,
+        *,
+        sub: str,
+        email: str = "",
+        full_name: str = "",
+        language: str = "",
+    ) -> str:
+        """换一张 Docs 一次性会话票据(内嵌云文档的登录态引导)。
+
+        Docs 侧签发,60 秒 / 单次使用;客户端拿它导航到
+        ``/api/v1.0/session-from-ticket/?ticket=…`` 即可换到 Docs 会话,全程不经
+        Keycloak 浏览器会话 —— 这正是内嵌场景的痛点:meet 双端的登录态是 Bearer
+        token,浏览器/WebView 里未必有 KC 会话 cookie,而 KC 登录页的
+        ``frame-ancestors 'self'`` 会把 iframe 挡死。见 Docs 侧
+        ``core/api/session_bootstrap.py``。
+
+        ``sub`` 必须来自调用者身份,绝不接受请求参数 —— 它就是"以谁的身份登录"。
+        """
+        if not sub:
+            raise ValueError("sub is required")
+
+        url = self._api_url + self.SESSION_TICKET_PATH
+        payload = {"sub": str(sub)}
+        if email:
+            payload["email"] = str(email)
+        if full_name:
+            payload["full_name"] = str(full_name)
+        if language:
+            payload["language"] = str(language)
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers={"Authorization": f"Bearer {self._token}"},
+                timeout=self._timeout,
+            )
+        except requests.RequestException as exc:
+            logger.exception("docs server unreachable: %s", url)
+            raise DocsUnreachableError(str(exc)) from exc
+
+        if response.status_code >= 500:
+            raise DocsUnreachableError(
+                f"docs returned {response.status_code} from {self.SESSION_TICKET_PATH}"
+            )
+        if response.status_code >= 400:
+            raise DocsBadResponseError(
+                f"docs returned {response.status_code} from "
+                f"{self.SESSION_TICKET_PATH}: {response.text[:200]}"
+            )
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise DocsBadResponseError("response was not JSON") from exc
+        ticket = data.get("ticket") if isinstance(data, dict) else None
+        if not ticket or not isinstance(ticket, str):
+            raise DocsBadResponseError(f"unexpected response shape: {data}")
+        return ticket
+
     LIST_FOR_USER_PATH = "/api/v1.0/documents/list-for-user/"
 
     def list_for_user(self, *, sub: str, query: str = "") -> list[DocsSearchHit]:

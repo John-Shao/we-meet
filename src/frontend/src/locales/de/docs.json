@@ -2,5 +2,11 @@
   "nav": {
     "title": "Dokumente",
     "ariaLabel": "Dokumente öffnen"
+  },
+  "blocked": {
+    "title": "Dokumente erfordern eine erneute Anmeldung",
+    "description": "Mit der aktuellen Sitzung lassen sich die Dokumente nicht öffnen. Eine erneute Anmeldung stellt den Zugriff wieder her; der Rest der App bleibt unberührt.",
+    "login": "Erneut anmelden",
+    "retry": "Erneut versuchen"
   }
 }

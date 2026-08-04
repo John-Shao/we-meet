@@ -61,6 +61,7 @@ from core.api.keycloak_sms import (
     KeycloakOtpVerifyView,
     KeycloakSmsGatewayView,
 )
+from core.api.docs_session import DocsSessionView
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.push import ImPushHookView, PushPreferenceView, PushTokenView
 from core.api.search import (
@@ -278,6 +279,13 @@ urlpatterns = [
                     "docs/my-documents/",
                     DocsMyDocumentsView.as_view(),
                     name="docs_my_documents",
+                ),
+                # 内嵌云文档的登录态引导:换一条带登录态的 Docs 进站 URL
+                # (不依赖浏览器里的 Keycloak 会话,见 core/api/docs_session.py)。
+                path(
+                    "docs/session/",
+                    DocsSessionView.as_view(),
+                    name="docs_session",
                 ),
             ]
         ),

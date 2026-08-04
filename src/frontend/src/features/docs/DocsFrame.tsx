@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'wouter'
 import { useSnapshot } from 'valtio'
 import { css } from '@/styled-system/css'
 import { useConfig } from '@/api/useConfig'
+import { Button } from '@/primitives'
 import { Screen } from '@/layout/Screen'
 import { resolveTheme, themeStore } from '@/stores/theme'
+import { authUrl } from '@/features/auth'
 import { buildDocCardBody } from '@/features/im/components/docCard'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { grantDocAccess } from '@/features/im/api/grantDocAccess'
+import { fetchDocsSessionUrl } from './api/docsSession'
 
 /**
  * 云文档:在 meet 导航框架内 iframe 嵌入 La Suite Docs(docs.<域名>),取代原来的
@@ -60,11 +63,12 @@ export const DocsRoute = () => {
     }
   })()
   const embedPath = docId ? `/docs/${docId}/` : '/'
-  const embedTarget = docsBase
-    ? `${docsBase}${embedPath}?embed=1&lang=${encodeURIComponent(
-        i18n.language,
-      )}&theme=${initialScheme}`
-    : ''
+  // Docs 站内相对落地路径(带 embed/lang/theme),两条进站方式共用:
+  // 票据引导把它当 next 透传(query 全程不丢),authenticate 兜底那条则拼成绝对 URL。
+  const embedRelative = `${embedPath}?embed=1&lang=${encodeURIComponent(
+    i18n.language,
+  )}&theme=${initialScheme}`
+  const embedTarget = docsBase ? `${docsBase}${embedRelative}` : ''
   // 与 App 端(we-meet-android DocsScreen.docsUrl)对齐:经 docs 的 OIDC
   // authenticate 入口进站,而非裸 `/`。无 docs 会话的浏览器(新浏览器/无痕窗)
   // 直接进 `/` 会被 docs 前端甩到 /home/ 英文营销页;authenticate 则拿已有
@@ -73,9 +77,64 @@ export const DocsRoute = () => {
   // ⚠️ 参数名必须是 `next`(docs authenticate 走 mozilla-django-oidc,认 `next`;
   // 前端 gotoSilentLogin 亦用 `next`)。曾误用 `returnTo` → 被忽略、一律落 `/`
   // (列表),深链打不开分享的文档 + embed/lang/theme query 全丢(靠 UA 兜底)。
+  //
+  // ⚠️ 但 authenticate 只是**兜底**:它赌浏览器里有 KC 会话 cookie,而 meet 的登录态
+  // 未必留下过这份 cookie(手机号 OTP / 扫码登录压根不建 KC 会话;走过 OIDC 的也只是
+  // 会话 cookie,关掉浏览器就没)。赌输时 iframe 会被甩到 KC 登录页,再被 KC 自己的
+  // `frame-ancestors 'self'` 挡死 —— 白屏 + 一条 CSP 报错,用户无从自救。首选进站方式
+  // 因此改成下面的票据引导(fetchDocsSessionUrl),这条只在票据拿不到时用。
   const embedSrc = embedTarget
     ? `${docsBase}/api/v1.0/authenticate/?next=${encodeURIComponent(embedTarget)}`
     : ''
+
+  // 首选进站:后端用调用者身份换一张 Docs 一次性票据,iframe 直接带票据进站 ——
+  // 云文档的登录态从此跟随 meet 自己的登录态,与浏览器里有没有 KC 会话无关。
+  // null = 还在换票;换不到(Docs 未接/不可达)则退回 embedSrc。
+  const [bootstrapSrc, setBootstrapSrc] = useState<string | null>(null)
+  // docs 就绪信号迟迟不来 = 进站被挡(最常见就是上面那条 KC 登录页 CSP)。
+  const [stalled, setStalled] = useState(false)
+  const [retryToken, setRetryToken] = useState(0)
+
+  useEffect(() => {
+    if (!embedTarget) return
+    let cancelled = false
+    setBootstrapSrc(null)
+    setStalled(false)
+    void fetchDocsSessionUrl(embedRelative).then((url) => {
+      if (cancelled) return
+      setBootstrapSrc(url ?? embedSrc)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [embedTarget, embedRelative, embedSrc, retryToken])
+
+  // 兜底:docs 在 iframe 里挂载后会 postMessage 一条 wemeet-theme-ready。整条进站
+  // (换票 + 加载)走完还等不到,就说明那一帧根本没跑起 docs —— 被 CSP 挡掉的 KC
+  // 登录页不会发任何消息,换票请求挂住也一样 —— 盖一层可操作的遮罩,别让用户对着
+  // 白屏。计时从挂载起算(而不是从 iframe 有了 src 起算),这样换票那步卡住也算数;
+  // 12s 给得足够宽,免得把"慢"误判成"挂"。
+  useEffect(() => {
+    if (!embedTarget || !docsOrigin) return
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== docsOrigin) return
+      if ((e.data as { type?: string } | null)?.type === 'wemeet-theme-ready') {
+        setStalled(false)
+        window.clearTimeout(timer)
+      }
+    }
+    const timer = window.setTimeout(() => setStalled(true), 12_000)
+    window.addEventListener('message', onMsg)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('message', onMsg)
+    }
+  }, [embedTarget, docsOrigin, retryToken])
+
+  const retry = useCallback(() => {
+    setStalled(false)
+    setRetryToken((n) => n + 1)
+  }, [])
 
   // 同域把当前深浅同步给 iframe 内 docs:主题变化即发;docs 挂载后会发
   // wemeet-theme-ready 请求补发(规避 iframe 尚未就绪的竞态)。
@@ -120,20 +179,34 @@ export const DocsRoute = () => {
   return (
     <Screen header footer={false}>
       {docsUrl && (
-        <iframe
-          ref={iframeRef}
-          src={embedSrc}
-          title={t('nav.title')}
-          // 内容区(Layout 的 <main>)是 flex 列;flex:1 + minHeight:0 让 iframe 铺满。
+        // 内容区(Layout 的 <main>)是 flex 列;flex:1 + minHeight:0 让这一格铺满,
+        // relative 则给进不去时的遮罩当定位参照(遮罩盖住 iframe 而不是替掉它 ——
+        // 万一只是加载慢,底下那帧还能自己长出来)。
+        <div
           className={css({
+            position: 'relative',
             flex: 1,
-            width: '100%',
             minHeight: 0,
-            border: 'none',
-            display: 'block',
+            display: 'flex',
           })}
-          allow="clipboard-read; clipboard-write; fullscreen"
-        />
+        >
+          {bootstrapSrc && (
+            <iframe
+              ref={iframeRef}
+              src={bootstrapSrc}
+              title={t('nav.title')}
+              className={css({
+                flex: 1,
+                width: '100%',
+                minHeight: 0,
+                border: 'none',
+                display: 'block',
+              })}
+              allow="clipboard-read; clipboard-write; fullscreen"
+            />
+          )}
+          {stalled && <DocsBlocked onRetry={retry} />}
+        </div>
       )}
       {shareDoc && (
         <ShareToChatDialog
@@ -164,5 +237,55 @@ export const DocsRoute = () => {
         />
       )}
     </Screen>
+  )
+}
+
+/**
+ * 云文档进不去时的兜底面板。
+ *
+ * 走到这里通常是:票据引导没成(Docs 未接 / 不可达)→ 退回 authenticate → 浏览器里
+ * 没有 Keycloak 会话 → KC 登录页被自己的 `frame-ancestors 'self'` 挡在 iframe 外。
+ * iframe 里的登录页是没救的(改 KC 的 CSP 等于给登录页开点击劫持),所以这里给的是
+ * **顶层**重新登录 —— 走 meet 自己的 OIDC 入口,顺带把 KC 会话重新建起来,回来后
+ * 云文档也就通了。
+ */
+const DocsBlocked = ({ onRetry }: { onRetry: () => void }) => {
+  const { t } = useTranslation('docs')
+  return (
+    <div
+      className={css({
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '1rem',
+        padding: '2rem',
+        textAlign: 'center',
+        backgroundColor: 'greyscale.000',
+        color: 'default.text',
+      })}
+    >
+      <h2 className={css({ fontSize: '1.125rem', fontWeight: 'bold' })}>
+        {t('blocked.title')}
+      </h2>
+      <p className={css({ color: 'greyscale.600', maxWidth: '28rem' })}>
+        {t('blocked.description')}
+      </p>
+      <div className={css({ display: 'flex', gap: '0.5rem' })}>
+        <Button
+          variant="primary"
+          onPress={() => {
+            window.location.href = authUrl({ returnTo: window.location.href })
+          }}
+        >
+          {t('blocked.login')}
+        </Button>
+        <Button variant="secondary" onPress={onRetry}>
+          {t('blocked.retry')}
+        </Button>
+      </div>
+    </div>
   )
 }

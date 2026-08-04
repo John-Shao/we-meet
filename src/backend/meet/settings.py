@@ -483,6 +483,13 @@ class Base(Configuration):
                 environ_name="DOCS_MY_DOCUMENTS_THROTTLE_RATES",
                 environ_prefix=None,
             ),
+            # 内嵌云文档的登录态引导(每次签发一张一次性 Docs 登录票据)。正常
+            # 用量是"进一次云文档一次",宽到重试/多标签页不误伤即可。
+            "docs_session": values.Value(
+                default="30/minute",
+                environ_name="DOCS_SESSION_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
         },
     }
     MONITORED_THROTTLE_FAILURE_CALLBACK = (

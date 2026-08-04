@@ -2,5 +2,11 @@
   "nav": {
     "title": "Documenten",
     "ariaLabel": "Documenten openen"
+  },
+  "blocked": {
+    "title": "Documenten vereisen opnieuw inloggen",
+    "description": "Met de huidige sessie kunnen Documenten niet worden geopend. Opnieuw inloggen herstelt de toegang; de rest van de app blijft ongewijzigd.",
+    "login": "Opnieuw inloggen",
+    "retry": "Opnieuw proberen"
   }
 }
