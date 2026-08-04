@@ -22,6 +22,7 @@ import { createDirectConversationByUserId } from '../api/createDirectConversatio
 import { createGroupConversation } from '../api/createGroupConversation'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { fetchImToken } from '../api/fetchImToken'
+import { richTextPreview } from '../components/richText'
 import { ChatPane } from './ChatPane'
 import { AddMemberDialog } from '../components/AddMemberDialog'
 import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
@@ -362,6 +363,9 @@ const ImAuthenticated = () => {
                         ? t('preview.event')
                         : ct === 'doc-card'
                           ? t('preview.doc')
+                          : ct === 'rich-text'
+                            ? richTextPreview(c.last_message ?? '') ||
+                              t('preview.richText')
                           : ct === 'quote'
                             ? parseQuoteText(c.last_message)
                             : (c.last_message ?? '')
@@ -464,6 +468,8 @@ const ImAuthenticated = () => {
     }
     if (m.content_type === 'merged') return t('preview.merged')
     if (m.content_type === 'doc-card') return t('preview.doc')
+    if (m.content_type === 'rich-text')
+      return richTextPreview(m.body) || t('preview.richText')
     if (m.content_type === 'quote') {
       try {
         return (JSON.parse(m.body)?.text as string) || ''
@@ -484,7 +490,9 @@ const ImAuthenticated = () => {
       m.content_type === 'merged' ||
       m.content_type === 'event-card' ||
       m.content_type === 'meeting-card' ||
-      m.content_type === 'doc-card'
+      m.content_type === 'doc-card' ||
+      // 富文本 body 自包含(单语言、无外部引用),原样转发即可。
+      m.content_type === 'rich-text'
     ) {
       await client.sendText(targetCid, m.body, { contentType: m.content_type })
     } else if (m.content_type === 'quote') {

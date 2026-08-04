@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
-import { Switch } from '@/primitives/Switch'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { Avatar } from './Avatar'
+import { SwitchRow } from './SettingRows'
 
 interface Props {
   client: Client
@@ -82,39 +81,6 @@ export const DirectSettingsPanel = ({
       setBusy(false)
     }
   }
-
-  const toggleRow = (
-    label: string,
-    checked: boolean,
-    onChange: () => void,
-    testid: string
-  ): ReactNode => (
-    <div
-      className={css({
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0.625rem 1rem',
-        borderBottom: '1px solid token(colors.greyscale.100)',
-      })}
-    >
-      {/* 布尔设置用开关(对标飞书):整行可点,标签作 Switch 子节点。 */}
-      <Switch
-        isSelected={checked}
-        isDisabled={busy}
-        onChange={onChange}
-        data-testid={testid}
-        className={css({
-          width: '100%',
-          flexDirection: 'row-reverse',
-          justifyContent: 'space-between',
-        })}
-      >
-        <span className={css({ fontSize: '0.875rem', color: 'greyscale.900' })}>
-          {label}
-        </span>
-      </Switch>
-    </div>
-  )
 
   return (
     <aside
@@ -218,18 +184,20 @@ export const DirectSettingsPanel = ({
         </button>
 
         {/* Private toggles (P10) */}
-        {toggleRow(
-          t('manage.pin'),
-          pinned,
-          () => toggle({ pinned: !pinned }),
-          'direct-pin-toggle'
-        )}
-        {toggleRow(
-          t('manage.mute'),
-          muted,
-          () => toggle({ muted: !muted }),
-          'direct-mute-toggle'
-        )}
+        <SwitchRow
+          label={t('manage.pin')}
+          checked={pinned}
+          onChange={() => toggle({ pinned: !pinned })}
+          disabled={busy}
+          testid="direct-pin-toggle"
+        />
+        <SwitchRow
+          label={t('manage.mute')}
+          checked={muted}
+          onChange={() => toggle({ muted: !muted })}
+          disabled={busy}
+          testid="direct-mute-toggle"
+        />
 
         {/* Clear history (per-member) */}
         <button

@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
-import { Switch } from '@/primitives/Switch'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { announceLeave } from '../api/announceLeave'
@@ -15,6 +13,11 @@ import { removeMember } from '../api/removeMember'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { GroupAvatar } from './GroupAvatar'
 import { Avatar } from './Avatar'
+import { PanelFrame } from './PanelFrame'
+import { SettingRow, SwitchRow } from './SettingRows'
+import { GroupBotsPage } from './bots/GroupBotsPage'
+import { GroupBotDetailPage } from './bots/GroupBotDetailPage'
+import { brandChipCls, neutralChipCls } from './chips'
 
 interface Props {
   client: Client
@@ -35,6 +38,12 @@ const readDescription = (meta: unknown): string => {
   }
   return ''
 }
+
+/** Root page, bot list, or one bot's detail. */
+type PanelView =
+  | { name: 'root' }
+  | { name: 'bots' }
+  | { name: 'bot'; botId: string }
 
 /**
  * 群聊信息 — the single group panel, merging what used to be the separate
@@ -76,13 +85,28 @@ export const GroupInfoPanel = ({
   const nickRef = useRef<HTMLInputElement>(null)
   const displayName = conversation.name || t('convName.groupFallback')
 
+  // Sub-pages are local state, matching how the rest of the app switches
+  // panels (ImRoute's rightPanel, ContactsRoute's view). `/im` is a flat route
+  // with no children, so a URL-driven version is not available anyway.
+  const [view, setView] = useState<PanelView>({ name: 'root' })
+  const back = () =>
+    setView(view.name === 'bot' ? { name: 'bots' } : { name: 'root' })
+
+  // Switching conversations swaps props without remounting, so without this
+  // you would open another group and still be looking at the previous one's
+  // bot list.
+  useEffect(() => setView({ name: 'root' }), [cid])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key !== 'Escape') return
+      // Esc closes the panel from the root page and steps back from a sub-page.
+      if (view.name === 'root') onClose()
+      else setView(view.name === 'bot' ? { name: 'bots' } : { name: 'root' })
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, view])
 
   useEffect(() => {
     if (editingName) nameRef.current?.focus()
@@ -326,95 +350,63 @@ export const GroupInfoPanel = ({
     }
   }
 
-  const toggleRow = (
-    label: string,
-    checked: boolean,
-    onChange: () => void,
-    testid: string
-  ): ReactNode => (
-    <div
-      className={css({
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0.625rem 1rem',
-        borderBottom: '1px solid token(colors.greyscale.100)',
-      })}
-    >
-      {/* 布尔设置用开关(对标飞书):整行可点,标签作 Switch 子节点。 */}
-      <Switch
-        isSelected={checked}
-        isDisabled={busy}
-        onChange={onChange}
-        data-testid={testid}
-        className={css({
-          width: '100%',
-          flexDirection: 'row-reverse',
-          justifyContent: 'space-between',
-        })}
+  if (view.name === 'bots')
+    return (
+      <PanelFrame
+        key="bots"
+        title={t('bots.title')}
+        onBack={back}
+        onClose={onClose}
       >
-        <span className={css({ fontSize: '0.875rem', color: 'greyscale.900' })}>
-          {label}
-        </span>
-      </Switch>
-    </div>
-  )
+        <GroupBotsPage
+          cid={cid}
+          isOwner={isOwner}
+          onOpenBot={(botId) => setView({ name: 'bot', botId })}
+        />
+      </PanelFrame>
+    )
+
+  if (view.name === 'bot')
+    return (
+      <PanelFrame
+        key={view.botId}
+        title={t('bots.title')}
+        onBack={back}
+        onClose={onClose}
+      >
+        <GroupBotDetailPage cid={cid} botId={view.botId} onRemoved={back} />
+      </PanelFrame>
+    )
 
   return (
-    <aside
-      aria-label={t('manage.info')}
-      className={css({
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        // P8-UX:宽度由外层 ResizablePanel(side=right)拖拽控制。
-        width: '100%',
-        height: '100%',
-        backgroundColor: 'greyscale.000',
-        borderLeft: '1px solid token(colors.greyscale.200)',
-        overflow: 'hidden',
-        animation: 'fade token(durations.normal) ease-out',
-      })}
-    >
-      {/* Header */}
-      <div
-        className={css({
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingX: '1rem',
-          paddingY: '0.75rem',
-          borderBottom: '1px solid token(colors.greyscale.200)',
-        })}
-      >
-        <h2
-          className={css({
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {t('manage.info')}
-        </h2>
+    <PanelFrame
+      key="root"
+      title={t('manage.info')}
+      onClose={onClose}
+      footer={
         <button
           type="button"
-          onClick={onClose}
-          aria-label={t('manage.cancel')}
+          disabled={busy}
+          onClick={leave}
+          data-testid="group-leave"
           className={css({
-            border: 'none',
-            background: 'transparent',
-            fontSize: '1.25rem',
-            lineHeight: 1,
+            width: '100%',
+            paddingY: '0.5rem',
+            border: '1px solid token(colors.greyscale.300)',
+            borderRadius: '0.5rem',
+            backgroundColor: 'greyscale.000',
+            color: 'error.500',
+            fontSize: '0.875rem',
+            fontWeight: 'medium',
             cursor: 'pointer',
-            color: 'greyscale.600',
+            _hover: { backgroundColor: 'greyscale.50' },
           })}
         >
-          ×
+          {t('manage.leave')}
         </button>
-      </div>
-
-      <div className={css({ flex: 1, overflowY: 'auto' })}>
-        {/* Group identity: avatar + name (owner can rename inline) */}
+      }
+    >
+      {/* Group identity: avatar + name (owner can rename inline) */}
         <div
           className={css({
             display: 'flex',
@@ -626,24 +618,36 @@ export const GroupInfoPanel = ({
         </div>
 
         {/* Private toggles (P10) */}
-        {toggleRow(
-          t('manage.pin'),
-          pinned,
-          () => toggle({ pinned: !pinned }),
-          'group-pin-toggle'
-        )}
-        {toggleRow(
-          t('manage.mute'),
-          muted,
-          () => toggle({ muted: !muted }),
-          'group-mute-toggle'
-        )}
-        {toggleRow(
-          t('manage.muteAtAll'),
-          muteAtAll,
-          () => toggle({ mute_at_all: !muteAtAll }),
-          'group-mute-all-toggle'
-        )}
+        <SwitchRow
+          label={t('manage.pin')}
+          checked={pinned}
+          onChange={() => toggle({ pinned: !pinned })}
+          disabled={busy}
+          testid="group-pin-toggle"
+        />
+        <SwitchRow
+          label={t('manage.mute')}
+          checked={muted}
+          onChange={() => toggle({ muted: !muted })}
+          disabled={busy}
+          testid="group-mute-toggle"
+        />
+        <SwitchRow
+          label={t('manage.muteAtAll')}
+          checked={muteAtAll}
+          onChange={() => toggle({ mute_at_all: !muteAtAll })}
+          disabled={busy}
+          testid="group-mute-all-toggle"
+        />
+
+        {/* 群机器人 —— a management entry (add / configure / read credentials),
+            so it opens a sub-page rather than sitting inline the way the roster
+            does (对标飞书). */}
+        <SettingRow
+          label={t('bots.entry')}
+          onClick={() => setView({ name: 'bots' })}
+          testid="group-bots-entry"
+        />
 
         {/* Members: count + add, then the roster (owner badge + transfer/kick) */}
         <div
@@ -740,25 +744,13 @@ export const GroupInfoPanel = ({
                     {label}
                   </span>
                   {isRowOwner && (
-                    <span
-                      className={css({
-                        flexShrink: 0,
-                        fontSize: '0.6875rem',
-                        borderRadius: '0.25rem',
-                        paddingX: '0.25rem',
-                        color: 'brand.600',
-                        backgroundColor: 'brand.50',
-                        border: '1px solid token(colors.brand.200)',
-                      })}
-                    >
-                      {t('manage.owner')}
-                    </span>
+                    <span className={brandChipCls}>{t('manage.owner')}</span>
                   )}
                   {/* P10:人离职了群里不会自动少一个人 —— 群成员关系归 jusi,
                       组织关系归 we-meet,两者本就不同步。名单上标出来,群主才
                       知道该清谁。用中性灰,不是错误态。 */}
                   {names[m.uid]?.left && (
-                    <span className={departedChipCls}>{t('departed.chip')}</span>
+                    <span className={neutralChipCls}>{t('departed.chip')}</span>
                   )}
                   {canActOnRow && (
                     <>
@@ -829,37 +821,7 @@ export const GroupInfoPanel = ({
         >
           {t('manage.clear')}
         </button>
-      </div>
-
-      {/* Footer: leave (every member) */}
-      <div
-        className={css({
-          padding: '0.75rem 1rem',
-          borderTop: '1px solid token(colors.greyscale.200)',
-        })}
-      >
-        <button
-          type="button"
-          disabled={busy}
-          onClick={leave}
-          data-testid="group-leave"
-          className={css({
-            width: '100%',
-            paddingY: '0.5rem',
-            border: '1px solid token(colors.greyscale.300)',
-            borderRadius: '0.5rem',
-            backgroundColor: 'greyscale.000',
-            color: 'error.500',
-            fontSize: '0.875rem',
-            fontWeight: 'medium',
-            cursor: 'pointer',
-            _hover: { backgroundColor: 'greyscale.50' },
-          })}
-        >
-          {t('manage.leave')}
-        </button>
-      </div>
-    </aside>
+    </PanelFrame>
   )
 }
 
@@ -916,17 +878,4 @@ const memberSearchCls = css({
   backgroundColor: 'greyscale.000',
   color: 'default.text',
   fontSize: '0.8125rem',
-})
-
-// 离职标记。刻意用 greyscale 而非 error/warning:离职是常态事实不是异常,
-// 而且 error 是反向色阶(100 最暗),照着 owner chip 抄一个 error.50 出来只会
-// 得到一个非法 token + 整条背景被丢弃(见 buttonRecipe 那次)。
-const departedChipCls = css({
-  flexShrink: 0,
-  fontSize: '0.6875rem',
-  borderRadius: '0.25rem',
-  paddingX: '0.25rem',
-  color: 'greyscale.600',
-  backgroundColor: 'greyscale.100',
-  border: '1px solid token(colors.greyscale.300)',
 })

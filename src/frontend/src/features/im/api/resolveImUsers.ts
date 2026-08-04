@@ -14,6 +14,14 @@ export interface ImUserInfo {
    * 老后端不返回该字段,`undefined` 即「没离职」。
    */
   left?: boolean
+  /**
+   * 该 uid 是群机器人(jusi role='bot')。机器人不是 User,后端在同一个解析
+   * 端点里额外查一遍机器人表 —— 于是气泡拿头像/名字/描述副标题不用多发请求。
+   * 老后端不返回该字段,`undefined` 即「不是机器人」。
+   */
+  is_bot?: boolean
+  /** 机器人的一行说明,挂在气泡的发送人名字后面。真人不返回。 */
+  description?: string
 }
 
 /**

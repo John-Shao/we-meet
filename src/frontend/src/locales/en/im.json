@@ -174,7 +174,8 @@
     "phoneViewed": "Phone number viewed",
     "event": "[Event]",
     "doc": "[Document]",
-    "meeting": "[Meeting]"
+    "meeting": "[Meeting]",
+    "richText": "[Rich text]"
   },
   "meetingCard": {
     "ongoing": "In progress",
@@ -370,5 +371,71 @@
     "suffix": " (left)",
     "chip": "Left",
     "hint": "This person has left the organization"
+  },
+  "bots": {
+    "entry": "Group bots",
+    "title": "Group bots",
+    "help": "How it works",
+    "add": "Add bot",
+    "addTitle": "Add a bot",
+    "empty": "No bots in this group yet",
+    "back": "Back",
+    "chip": "Bot",
+    "disabledChip": "Disabled",
+    "gone": "This bot no longer exists",
+    "edit": "Edit",
+    "enabled": "Active in this group",
+    "remove": "Remove bot",
+    "removeConfirm": "Remove “{{name}}” from this group? Its webhook URL stops working immediately.",
+    "ownerOnlyHint": "Only the group owner can add bots or view and change webhook settings.",
+    "builtinHint": "Built-in assistants ship with the product and cannot be removed; turning one off stops its notifications in this group.",
+    "error": "Failed: {{message}}",
+    "helpTitle": "Using group bots",
+    "helpIntro": "POST JSON to a bot's webhook URL and the message appears in this group under that bot's name. The request format matches 飞书 custom bots, so an existing script only needs a new URL.",
+    "helpText": "Plain text",
+    "helpPost": "Rich text",
+    "helpSign": "Signature verification (optional)",
+    "helpSignBody": "When enabled every request must carry timestamp and sign. The secret is the HMAC key and the signed data is empty — identical to 飞书.",
+    "helpLimits": "Limits",
+    "helpLimitsBody": "100 requests/minute and 5/second per bot; request bodies up to 20 KB. Send X-Request-Id on retries so the same id only posts once.",
+    "catalog": {
+      "search": "Search bots",
+      "custom": "Custom bot",
+      "customDesc": "Push messages from your own service into this group via webhook"
+    },
+    "form": {
+      "title": "Custom bot",
+      "avatar": "Bot avatar",
+      "colorOption": "Preset colour {{index}}",
+      "name": "Bot name",
+      "namePlaceholder": "Enter a name",
+      "desc": "Description",
+      "descPlaceholder": "One line about what this bot does",
+      "submit": "Add",
+      "save": "Save"
+    },
+    "webhook": {
+      "title": "Webhook URL",
+      "copy": "Copy",
+      "copied": "Copied",
+      "hint": "POST to this URL to send into this group. The URL is a credential — do not share it."
+    },
+    "security": {
+      "title": "Security",
+      "hint": "Turn on at least one — otherwise anyone with the URL can post here.",
+      "sign": "Verify signature",
+      "secret": "Secret",
+      "show": "Show secret",
+      "hide": "Hide secret",
+      "reset": "Rotate secret",
+      "resetConfirm": "Rotating invalidates the old secret immediately; services still using it will fail. Continue?",
+      "resetDone": "Secret rotated. Reveal the new value under “Secret” and update your service.",
+      "keywords": "Keywords",
+      "keywordPlaceholder": "Type and press Enter; click a keyword to remove it",
+      "keywordsHint": "A message must contain at least one keyword to be delivered. Leave empty for no restriction.",
+      "ipAllowlist": "IP allowlist",
+      "ipAllowlistHint": "One IP or CIDR per line. Leave empty for no restriction.",
+      "save": "Save"
+    }
   }
 }

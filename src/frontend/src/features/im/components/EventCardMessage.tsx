@@ -3,6 +3,8 @@ import { RiCalendarEventLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 
+import { SenderLabel } from './SenderLabel'
+
 import { Avatar } from './Avatar'
 import { parseEventCard, type EventCardBody } from './eventCard'
 
@@ -48,6 +50,7 @@ export const EventCardMessage = ({
   body,
   isOwn = false,
   senderName,
+  senderBot,
   senderAvatarUrl,
   showSender = false,
   system = false,
@@ -58,6 +61,8 @@ export const EventCardMessage = ({
   body: string
   isOwn?: boolean
   senderName?: string
+  /** Set when the sender is a group bot — chip + description. */
+  senderBot?: { description?: string }
   senderAvatarUrl?: string
   /** 群聊且非自己 → 气泡上方显示发送人名字。 */
   showSender?: boolean
@@ -257,16 +262,7 @@ export const EventCardMessage = ({
         })}
       >
         {!isOwn && showSender && (
-          <div
-            className={css({
-              fontSize: '0.75rem',
-              color: 'greyscale.600',
-              marginBottom: '0.25rem',
-              paddingX: '0.25rem',
-            })}
-          >
-            {name}
-          </div>
+          <SenderLabel name={name} bot={senderBot} />
         )}
         {cardEl}
       </div>

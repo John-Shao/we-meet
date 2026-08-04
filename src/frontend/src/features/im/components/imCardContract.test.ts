@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { parseDocCard } from './docCard'
 import { parseEventCard } from './eventCard'
 import { parseMeetingCard } from './meetingCard'
+import { parseRichText, richTextPlain } from './richText'
 
 /**
  * Contract test against the backend's golden card fixtures.
@@ -80,6 +81,43 @@ describe('IM card golden fixtures', () => {
       const card = parseMeetingCard(load('meeting_card_scheduled'))
       expect(card?.status).toBe('scheduled')
       expect(card?.scheduled_at).toBe('2026-08-10T02:00:00+00:00')
+    })
+  })
+
+  describe('rich-text', () => {
+    it('parses a single-paragraph body', () => {
+      const body = parseRichText(load('rich_text_simple'))
+      expect(body?.title).toBe('部署完成')
+      expect(body?.content).toHaveLength(1)
+      expect(body?.content[0][0]).toEqual({
+        tag: 'text',
+        text: '生产环境已更新到 v1.2.0',
+      })
+    })
+
+    it('parses every tag a bot can send', () => {
+      const body = parseRichText(load('rich_text_full'))
+      expect(body?.title).toBe('构建失败')
+      expect(body?.content[0][1]).toEqual({
+        tag: 'a',
+        text: '查看日志',
+        href: 'https://ci.example.com/runs/1',
+      })
+      expect(body?.content[1][0]).toEqual({
+        tag: 'at',
+        uid: 'all',
+        name: '所有人',
+      })
+      // Images degrade server-side; the client only ever sees the placeholder.
+      expect(body?.content[2][0]).toEqual({ tag: 'text', text: '[图片]' })
+    })
+
+    it('carries the server-derived plain projection', () => {
+      const body = parseRichText(load('rich_text_full'))
+      // Not rendered — it backs the conversation preview, full-text search and
+      // the substring-based "@我" check.
+      expect(body?.plain).toContain('@所有人')
+      expect(richTextPlain(body!)).toContain('构建失败')
     })
   })
 })

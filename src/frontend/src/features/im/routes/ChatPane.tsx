@@ -17,6 +17,7 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { EventDetailHost } from '@/features/calendar'
 
 import { resolveImUsers } from '../api/resolveImUsers'
+import { richTextPreview } from '../components/richText'
 import { IM_SYSTEM_UID } from '../components/eventCard'
 import { buildDocCardBody } from '../components/docCard'
 import { DocPickerDialog } from '../components/DocPickerDialog'
@@ -127,6 +128,10 @@ const snippetOf = (m: Message, t: (k: string) => string): string => {
   if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
   if (m.content_type === 'event-card') return t('preview.event')
   if (m.content_type === 'meeting-card') return t('preview.meeting')
+  // One branch here fixes three downstream users at once: the quote bar,
+  // the 稍后处理 snippet and the merged-forward snapshot.
+  if (m.content_type === 'rich-text')
+    return richTextPreview(m.body) || t('preview.richText')
   if (m.content_type === 'quote') {
     try {
       return (JSON.parse(m.body)?.text as string) || ''
@@ -334,6 +339,11 @@ export const ChatPane = ({
     () => ({ ...extraNames, ...memberNames }),
     [memberNames, extraNames]
   )
+  // 机器人在 jusi 里是 role='bot',**不在** conversation.members —— 所以它走的
+  // 是上面那条为「退群成员的历史消息」写的 extraSenderUids 分支,天然复用,
+  // 这里只负责把身份取出来给气泡。
+  const botOf = (uid: string): { description?: string } | undefined =>
+    names[uid]?.is_bot ? { description: names[uid]?.description } : undefined
   // P10 群昵称:the roster carries each member's per-group nickname, which
   // overrides their org-directory name within THIS conversation.
   const { data: roster = [] } = useQuery({
@@ -718,6 +728,8 @@ export const ChatPane = ({
     if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
     if (m.content_type === 'event-card') return t('preview.event')
     if (m.content_type === 'meeting-card') return t('preview.meeting')
+    if (m.content_type === 'rich-text')
+      return richTextPreview(m.body) || t('preview.richText')
     if (m.content_type === 'quote') {
       try {
         return (JSON.parse(m.body)?.text as string) || ''
@@ -801,7 +813,9 @@ export const ChatPane = ({
       m.body &&
       navigator.clipboard
     ) {
-      const copyText = m.content_type === 'quote' ? snippetOf(m, t) : m.body
+      const copyText = ['quote', 'rich-text'].includes(m.content_type)
+        ? snippetOf(m, t)
+        : m.body
       items.push({
         key: 'copy',
         label: t('actions.copy'),
@@ -1348,6 +1362,7 @@ export const ChatPane = ({
                             ? user?.avatar_url || undefined
                             : names[m.sender_uid]?.avatar_url
                         }
+                        senderBot={botOf(m.sender_uid)}
                         imageUrl={imageUrlOf(m)}
                         fileUrl={fileUrlOf(m)}
                         voiceUrl={voiceUrlOf(m)}

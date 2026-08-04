@@ -7,6 +7,7 @@ import { RiAddLine, RiCheckLine, RiFileCopyLine } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { useCopy } from '@/hooks/useCopy'
 
 import {
   type InviteLink,
@@ -43,11 +44,11 @@ const REQUESTS_KEY = ['admin', 'join-requests']
 export const AdminInvites = () => {
   const { t } = useTranslation('admin')
   const { confirm, alert: showAlert } = useConfirm()
+  const { copied, copy } = useCopy()
   const queryClient = useQueryClient()
 
   const [creating, setCreating] = useState(false)
   const [rejectTarget, setRejectTarget] = useState<JoinRequest | null>(null)
-  const [copied, setCopied] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('pending')
 
   const { data: linkPage } = useQuery({
@@ -107,18 +108,6 @@ export const AdminInvites = () => {
     },
     onError,
   })
-
-  const copy = async (key: string, value: string) => {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopied(key)
-      window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1600)
-    } catch {
-      // 剪贴板在非 https / 无权限时会拒绝。与其静默失败,不如把内容摊开
-      // 让人自己选中复制。
-      showAlert({ message: value })
-    }
-  }
 
   const revoke = async (link: InviteLink) => {
     const ok = await confirm({

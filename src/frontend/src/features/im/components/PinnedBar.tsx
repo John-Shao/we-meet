@@ -5,6 +5,16 @@ import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 
+import { richTextPreview } from './richText'
+
+/**
+ * Pinned rows render the raw body, which for a rich-text message would be a
+ * wall of JSON. Only that one type needs unpacking — everything else already
+ * reads as text here.
+ */
+const pinPreview = (m: { content_type?: string; body: string }): string =>
+  m.content_type === 'rich-text' ? richTextPreview(m.body) : m.body
+
 /**
  * 会话 Pin 栏(P17,飞书式):有 Pin 时显示在聊天头部下方的一条 📌 摘要,
  * 点击展开完整列表(解除按钮在列表项上;权限由服务端裁决,越权会收到
@@ -79,7 +89,7 @@ export const PinnedBar = ({
             whiteSpace: 'nowrap',
           })}
         >
-          {latest.message.body || t('pins.noPreview')}
+          {pinPreview(latest.message) || t('pins.noPreview')}
         </span>
         <span className={css({ flexShrink: 0, color: 'greyscale.500' })}>
           {t('pins.count', { count: pins.length })}
@@ -162,7 +172,7 @@ export const PinnedBar = ({
                     whiteSpace: 'nowrap',
                   })}
                 >
-                  {p.message.body || t('pins.noPreview')}
+                  {pinPreview(p.message) || t('pins.noPreview')}
                 </div>
               </div>
               <button

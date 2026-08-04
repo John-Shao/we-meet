@@ -174,7 +174,8 @@
     "call": "[通话]",
     "phoneViewed": "手机号码查看提醒",
     "event": "[日程]",
-    "doc": "[云文档]"
+    "doc": "[云文档]",
+    "richText": "[富文本]"
   },
   "docCard": {
     "view": "查看文档"
@@ -365,5 +366,71 @@
     "suffix": "(已离职)",
     "chip": "已离职",
     "hint": "该成员已离职"
+  },
+  "bots": {
+    "entry": "群机器人",
+    "title": "群机器人",
+    "help": "使用说明",
+    "add": "添加机器人",
+    "addTitle": "添加机器人",
+    "empty": "本群还没有机器人",
+    "back": "返回",
+    "chip": "机器人",
+    "disabledChip": "已停用",
+    "gone": "该机器人已不存在",
+    "edit": "编辑",
+    "enabled": "在本群启用",
+    "remove": "移除机器人",
+    "removeConfirm": "确定将「{{name}}」移出本群?该机器人的 webhook 地址会立即失效。",
+    "ownerOnlyHint": "只有群主可以添加机器人、查看和修改 webhook 配置。",
+    "builtinHint": "内置助手随产品提供,不能移除;关闭后它在本群不再发送通知。",
+    "error": "操作失败:{{message}}",
+    "helpTitle": "机器人使用说明",
+    "helpIntro": "向机器人的 webhook 地址 POST 一段 JSON,消息就会以这个机器人的身份发到本群。请求格式与飞书自定义机器人一致,原有脚本改一个地址即可。",
+    "helpText": "发纯文本",
+    "helpPost": "发富文本",
+    "helpSign": "签名校验(可选)",
+    "helpSignBody": "开启后,每次请求都要带 timestamp 与 sign。密钥是 HMAC 的 key,待签名数据为空串 —— 与飞书完全一致。",
+    "helpLimits": "限额",
+    "helpLimitsBody": "每个机器人 100 次/分钟、5 次/秒,请求体不超过 20 KB。重试请带上 X-Request-Id,同一个 id 只会发一条。",
+    "catalog": {
+      "search": "搜索机器人",
+      "custom": "自定义机器人",
+      "customDesc": "通过 webhook 将自定义服务的消息推送到群里"
+    },
+    "form": {
+      "title": "自定义机器人",
+      "avatar": "机器人头像",
+      "colorOption": "预设颜色 {{index}}",
+      "name": "机器人名称",
+      "namePlaceholder": "请输入机器人名称",
+      "desc": "描述",
+      "descPlaceholder": "一句话说明这个机器人是做什么的",
+      "submit": "添加",
+      "save": "保存"
+    },
+    "webhook": {
+      "title": "webhook 地址",
+      "copy": "复制",
+      "copied": "已复制",
+      "hint": "向该地址 POST 消息即可发到本群。地址等同于凭证,不要公开。"
+    },
+    "security": {
+      "title": "安全设置",
+      "hint": "至少开启一项,否则拿到地址的人都能往群里发消息。",
+      "sign": "签名校验",
+      "secret": "密钥",
+      "show": "显示密钥",
+      "hide": "隐藏密钥",
+      "reset": "重置密钥",
+      "resetConfirm": "重置后旧密钥立即失效,还在用旧密钥的服务会发送失败。确定重置?",
+      "resetDone": "密钥已重置,请到「密钥」处查看新值并更新你的服务。",
+      "keywords": "自定义关键词",
+      "keywordPlaceholder": "输入后回车添加,点击已有关键词可删除",
+      "keywordsHint": "消息需包含其中任意一个关键词,否则不会发送成功;留空表示不限制。",
+      "ipAllowlist": "IP 白名单",
+      "ipAllowlistHint": "一行一个 IP 或网段,留空表示不限制。",
+      "save": "保存"
+    }
   }
 }

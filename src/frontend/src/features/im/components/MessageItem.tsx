@@ -12,6 +12,9 @@ import type { Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 
+import { SenderLabel } from './SenderLabel'
+import { RichTextBody } from './RichTextBody'
+
 import { Avatar } from './Avatar'
 import { DocCardMessage } from './DocCardMessage'
 import { EventCardMessage } from './EventCardMessage'
@@ -36,6 +39,12 @@ interface Props {
   senderName?: string
   /** Uploaded avatar URL of the sender (presigned); '' / undefined → tinted initial. */
   senderAvatarUrl?: string
+  /**
+   * Set when the sender is a group bot: renders the 「机器人」chip and the
+   * description subtitle next to the name. A JSX marking, never a suffix on the
+   * name string — see SenderLabel.
+   */
+  senderBot?: { description?: string }
   /** Presigned URL for an image message (content_type='image'); undefined while resolving. */
   imageUrl?: string
   /** Presigned URL for a file message (content_type='file'); undefined while resolving. */
@@ -264,6 +273,7 @@ export const MessageItem = ({
   isOwn,
   senderName,
   senderAvatarUrl,
+  senderBot,
   imageUrl,
   fileUrl,
   voiceUrl,
@@ -539,6 +549,7 @@ export const MessageItem = ({
         body={message.body}
         isOwn={isOwn}
         senderName={name}
+        senderBot={senderBot}
         senderAvatarUrl={senderAvatarUrl}
         showSender={showSender}
         onAvatarClick={onAvatarClick}
@@ -549,6 +560,7 @@ export const MessageItem = ({
         body={message.body}
         isOwn={isOwn}
         senderName={name}
+        senderBot={senderBot}
         senderAvatarUrl={senderAvatarUrl}
         showSender={showSender}
         system={message.sender_uid === IM_SYSTEM_UID}
@@ -561,6 +573,7 @@ export const MessageItem = ({
         body={message.body}
         isOwn={isOwn}
         senderName={name}
+        senderBot={senderBot}
         senderAvatarUrl={senderAvatarUrl}
         showSender={showSender}
         onAvatarClick={onAvatarClick}
@@ -602,16 +615,7 @@ export const MessageItem = ({
           })}
         >
           {!isOwn && showSender && (
-            <div
-              className={css({
-                fontSize: '0.75rem',
-                color: 'greyscale.600',
-                marginBottom: '0.25rem',
-                paddingX: '0.25rem',
-              })}
-            >
-              {name}
-            </div>
+            <SenderLabel name={name} bot={senderBot} />
           )}
           <div
             title={new Date(message.ts).toLocaleString()}
@@ -829,6 +833,12 @@ export const MessageItem = ({
                   </>
                 )
               })()
+            ) : message.content_type === 'rich-text' ? (
+              <RichTextBody
+                raw={message.body}
+                isOwn={isOwn}
+                selfMentionNames={selfMentionNames}
+              />
             ) : (
               <div>
                 {renderBody(
