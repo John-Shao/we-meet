@@ -47,9 +47,7 @@ def test_docs_session_returns_ticket_url_with_caller_identity(settings):
         "core.services.docs_client.DocsClient.create_session_ticket",
         return_value="tick-123",
     ) as spy:
-        resp = client.post(
-            URL, {"next": "/docs/d1/?embed=1&theme=dark"}, format="json"
-        )
+        resp = client.post(URL, {"next": "/docs/d1/?embed=1&theme=dark"}, format="json")
 
     assert resp.status_code == 200
     assert resp.json()["url"] == (
@@ -108,7 +106,9 @@ def test_docs_client_create_session_ticket_posts_to_docs():
     """DocsClient 那一层:s2s 头 + 只传身份字段,响应形状不对就报错。"""
     from core.services.docs_client import DocsBadResponseError, DocsClient
 
-    client = DocsClient(api_url="https://docs.example.com", server_to_server_token="tok")
+    client = DocsClient(
+        api_url="https://docs.example.com", server_to_server_token="tok"
+    )
 
     with mock.patch("core.services.docs_client.requests.post") as post:
         post.return_value = mock.Mock(status_code=200, json=lambda: {"ticket": "t1"})
