@@ -12,9 +12,11 @@ export type WeekStartPref = 'mon' | 'sun'
 /** 新建日程默认时长可选值(分钟)。 */
 export const DURATION_OPTIONS = [30, 60, 90] as const
 
-/** 新建日程默认提醒提前量可选值(分钟,另有「不提醒」= null)。
- * 0 = 事件开始时、1440 = 提前 1 天(与 App 端提醒集对齐)。 */
-export const REMINDER_OPTIONS = [0, 5, 10, 15, 30, 60, 1440] as const
+/** 日程提醒的可选提前量(分钟,另有「不提醒」= null)。
+ * 0 = 日程开始时、60/120 = 提前 1/2 小时、1440/2880 = 提前 1/2 天。
+ * 与 App 端 `ui/calendar/CalendarReminderOptions.kt` 的 REMINDER_OPTIONS
+ * 同一份,改这里请一起改那边。 */
+export const REMINDER_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 1440, 2880] as const
 
 const readWeekStart = (): WeekStartPref =>
   localStorage.getItem(WEEK_KEY) === 'sun' ? 'sun' : 'mon'
@@ -38,21 +40,30 @@ const readDimPast = (): boolean => localStorage.getItem(DIM_PAST_KEY) !== '0'
 const readWeekend = (): boolean => localStorage.getItem(WEEKEND_KEY) !== '0'
 
 /**
- * 提醒提前量文案:0=事件开始时、60=提前 1 小时、1440=提前 1 天,其余按分钟
- * (口径对齐 App 端 CreateEventScreen 的 reminderLabel)。t 传入以复用调用方
- * 的 calendar 命名空间。
+ * 提醒提前量文案:0=日程开始时,整天/整小时走「天/小时」文案(1 与 n 分开,
+ * 英法等语言的单复数不能靠 {{count}} 糊过去),其余按分钟。口径对齐 App 端
+ * CalendarReminderOptions.kt 的 reminderLabel。t 传入以复用调用方的
+ * calendar 命名空间。
  */
 export const reminderOptionLabel = (
   t: (key: string, opts?: { count: number }) => string,
   min: number
-): string =>
-  min === 0
-    ? t('form.reminderAtTime')
-    : min === 60
+): string => {
+  if (min === 0) return t('form.reminderAtTime')
+  if (min % 1440 === 0) {
+    const days = min / 1440
+    return days === 1
+      ? t('form.reminderDay')
+      : t('form.reminderDays', { count: days })
+  }
+  if (min % 60 === 0) {
+    const hours = min / 60
+    return hours === 1
       ? t('form.reminderHour')
-      : min === 1440
-        ? t('form.reminderDay')
-        : t('form.reminderMinutes', { count: min })
+      : t('form.reminderHours', { count: hours })
+  }
+  return t('form.reminderMinutes', { count: min })
+}
 
 /**
  * 一场日程真正会响的那条提醒(分钟);无提醒 → null。

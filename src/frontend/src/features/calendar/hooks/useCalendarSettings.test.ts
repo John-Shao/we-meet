@@ -1,7 +1,11 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { reminderOptionLabel, useCalendarSettings } from './useCalendarSettings'
+import {
+  effectiveReminder,
+  reminderOptionLabel,
+  useCalendarSettings,
+} from './useCalendarSettings'
 
 const WEEKEND_KEY = 'calendar-show-weekend'
 
@@ -24,10 +28,34 @@ describe('reminderOptionLabel', () => {
     expect(reminderOptionLabel(t, 1440)).toBe('form.reminderDay')
   })
 
+  it('120 → 2 小时(不是「120 分钟前」)', () => {
+    expect(reminderOptionLabel(t, 120)).toBe('form.reminderHours:2')
+  })
+
+  it('2880 → 2 天(不是「48 小时前」,更不是分钟)', () => {
+    expect(reminderOptionLabel(t, 2880)).toBe('form.reminderDays:2')
+  })
+
   it('其余分钟 → reminderMinutes 带 count', () => {
     expect(reminderOptionLabel(t, 5)).toBe('form.reminderMinutes:5')
     expect(reminderOptionLabel(t, 15)).toBe('form.reminderMinutes:15')
     expect(reminderOptionLabel(t, 30)).toBe('form.reminderMinutes:30')
+  })
+})
+
+describe('effectiveReminder', () => {
+  it('多值取 max —— 后端 push_due_reminders 就是按 max 算触发点', () => {
+    expect(effectiveReminder([10, 60, 30])).toBe(60)
+  })
+
+  it('空/缺省 → null(不提醒)', () => {
+    expect(effectiveReminder([])).toBeNull()
+    expect(effectiveReminder(null)).toBeNull()
+    expect(effectiveReminder(undefined)).toBeNull()
+  })
+
+  it('0(日程开始时)是有效值,不能被当成「没有提醒」', () => {
+    expect(effectiveReminder([0])).toBe(0)
   })
 })
 
