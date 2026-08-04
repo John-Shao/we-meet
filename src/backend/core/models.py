@@ -3255,6 +3255,13 @@ class AuditActionChoices(models.TextChoices):
         "meeting_room_facility.delete",
         _("Meeting room facility deleted"),
     )
+    # 群机器人. BOT_WEBHOOK_VIEW is here because reading the address is itself a
+    # sensitive act — it is a live credential for posting into a group.
+    BOT_CREATE = "bot.create", _("Group bot created")
+    BOT_UPDATE = "bot.update", _("Group bot updated")
+    BOT_DELETE = "bot.delete", _("Group bot removed")
+    BOT_SECRET_RESET = "bot.secret_reset", _("Group bot credential rotated")
+    BOT_WEBHOOK_VIEW = "bot.webhook_view", _("Group bot webhook address viewed")
 
 
 class AuditLog(BaseModel):
@@ -3881,6 +3888,181 @@ class ImLaterItem(BaseModel):
     def __str__(self):
         state = "done" if self.done_at else "pending"
         return f"Later({self.user_id}, {self.cid}#{self.mid}, {state})"
+
+
+class ImBotKindChoices(models.TextChoices):
+    """What kind of thing is speaking."""
+
+    CUSTOM = "custom", _("Custom webhook bot")
+    BUILTIN = "builtin", _("Built-in assistant")
+
+
+class ImBot(BaseModel):
+    """A bot's **identity** — the avatar, name and one-line description that
+    render above its messages (对标飞书「群机器人」).
+
+    Split from :class:`ImBotInstallation` because the two have different
+    cardinalities: a custom webhook bot is one identity bound to one group,
+    while a built-in assistant (会议助手 / 日程助手 / 审批助手) is one identity
+    that speaks in every group it has something to say in.
+
+    Deliberately **not** a :class:`User` row. Bots have no sub, no membership,
+    no push tokens; and ``resolve_users`` filters people with
+    ``is_device=False``, so a bot-as-User would have to both hide behind that
+    flag and stay resolvable — a contradiction. Uniqueness against real people
+    is instead enforced where it matters, in jusi: ``users.external_id`` is
+    globally unique and a bot's is ``bot:<pk>``, which no Keycloak sub can
+    collide with.
+    """
+
+    kind = models.CharField(
+        _("kind"),
+        max_length=16,
+        choices=ImBotKindChoices.choices,
+        default=ImBotKindChoices.CUSTOM,
+    )
+    #: Stable handle for built-ins (``meeting-assistant`` …) so code can look one
+    #: up without hardcoding a pk. Empty for custom bots.
+    slug = models.SlugField(_("slug"), max_length=64, blank=True, default="")
+    name = models.CharField(_("name"), max_length=32)
+    description = models.CharField(
+        _("description"),
+        max_length=256,
+        blank=True,
+        default="",
+        help_text=_("Shown next to the name on every message this bot sends."),
+    )
+    #: Always populated: an uploaded image, or a swatch PNG the server renders
+    #: from ``avatar_color_index``. Keeping one path means Web, Android and the
+    #: push notification all just read ``avatar_url`` — no client reimplements
+    #: the palette.
+    avatar_key = models.CharField(
+        _("avatar object key"), max_length=500, blank=True, default=""
+    )
+    avatar_color_index = models.PositiveSmallIntegerField(
+        _("avatar colour"),
+        default=0,
+        help_text=_("Index into the shared bot palette; used to re-render the swatch."),
+    )
+    #: Minted lazily on first use, never in a migration — the migrate job runs
+    #: where jusi may be unreachable.
+    im_uid = models.CharField(
+        _("IM uid"),
+        max_length=36,
+        unique=True,
+        blank=True,
+        null=True,
+        editable=False,
+    )
+    #: Null = a global built-in, resolvable by everyone. Custom bots always
+    #: belong to the creator's organization.
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="im_bots",
+        null=True,
+        blank=True,
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="created_im_bots",
+        null=True,
+        blank=True,
+    )
+    is_active = models.BooleanField(_("active"), default=True)
+
+    class Meta:
+        db_table = "meet_im_bot"
+        ordering = ("created_at",)
+        verbose_name = _("IM bot")
+        verbose_name_plural = _("IM bots")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["slug"],
+                condition=models.Q(kind=ImBotKindChoices.BUILTIN),
+                name="one_bot_per_builtin_slug",
+            ),
+        ]
+        indexes = [
+            # resolve_users looks bots up by the uid on a message.
+            models.Index(fields=["im_uid"], name="im_bot_uid_idx"),
+        ]
+
+    def __str__(self):
+        return f"ImBot({self.kind}, {self.name})"
+
+
+class ImBotInstallation(BaseModel):
+    """A bot's presence in one conversation, plus its webhook credential and the
+    three security settings 飞书 offers (signature / keywords / IP allowlist).
+
+    Exists because P23 removes bots from the jusi roster: once
+    ``GET /v1/conversations/{cid}/members`` no longer returns them, "which bots
+    are in this group" can only be answered locally.
+    """
+
+    bot = models.ForeignKey(
+        ImBot, on_delete=models.CASCADE, related_name="installations"
+    )
+    cid = models.CharField(_("conversation id"), max_length=64, db_index=True)
+    #: The last path segment of the webhook URL, and the only credential needed
+    #: to post. Stored in the clear because 飞书 lets an owner re-read the
+    #: address at any time and we match that; the compensating controls are
+    #: owner-only reads, an audit entry per read, and one-click rotation.
+    #: Null for built-ins — they are pushed to from inside, not from outside.
+    webhook_token = models.CharField(
+        _("webhook token"),
+        max_length=64,
+        unique=True,
+        blank=True,
+        null=True,
+        editable=False,
+    )
+    signing_secret = models.CharField(
+        _("signing secret"), max_length=64, blank=True, default="", editable=False
+    )
+    sign_verify_enabled = models.BooleanField(_("verify signature"), default=False)
+    keywords = models.JSONField(
+        _("keywords"),
+        default=list,
+        blank=True,
+        help_text=_("Any one must appear in the message text. Empty = no keyword gate."),
+    )
+    ip_allowlist = models.JSONField(
+        _("IP allowlist"),
+        default=list,
+        blank=True,
+        help_text=_("IPs or CIDRs allowed to post. Empty = no IP gate."),
+    )
+    is_active = models.BooleanField(_("active"), default=True)
+    #: Set when we disable an installation ourselves, e.g. the group is gone.
+    disabled_reason = models.CharField(
+        _("disabled reason"), max_length=32, blank=True, default=""
+    )
+    last_used_at = models.DateTimeField(_("last used at"), null=True, blank=True)
+    message_count = models.PositiveIntegerField(_("messages sent"), default=0)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="created_im_bot_installations",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "meet_im_bot_installation"
+        ordering = ("created_at",)
+        verbose_name = _("IM bot installation")
+        verbose_name_plural = _("IM bot installations")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["bot", "cid"], name="one_installation_per_bot_conversation"
+            ),
+        ]
+
+    def __str__(self):
+        return f"ImBotInstallation({self.bot_id} in {self.cid})"
 
 
 class RoomInvitee(BaseModel):

@@ -1,0 +1,372 @@
+"""POST /api/bot/v1/hook/<token> — the public group-bot webhook."""
+
+# pylint: disable=redefined-outer-name,unused-argument
+
+import json
+import time
+from unittest import mock
+
+import pytest
+from django.core.cache import cache
+from rest_framework.test import APIClient
+
+from core import models
+from core.api.throttling import (
+    BotWebhookBurstThrottle,
+    BotWebhookIPThrottle,
+    BotWebhookTokenThrottle,
+)
+from core.services import bot_webhook as mapping
+from core.services.jusi_im import (
+    JusiImBadResponseError,
+    JusiImMessageResponse,
+    JusiImUnreachableError,
+)
+
+pytestmark = pytest.mark.django_db
+
+HOOK = "/api/bot/v1/hook/{token}"
+TEXT_BODY = {"msg_type": "text", "content": {"text": "构建完成"}}
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    """Throttle counters and dedupe entries both live in the cache."""
+    cache.clear()
+    yield
+    cache.clear()
+
+
+@pytest.fixture
+def bot():
+    return models.ImBot.objects.create(
+        kind=models.ImBotKindChoices.CUSTOM,
+        name="构建通知",
+        description="CI 构建结果推送",
+        im_uid="01900000-0000-7000-8000-0000000000b0",
+    )
+
+
+@pytest.fixture
+def install(bot):
+    return models.ImBotInstallation.objects.create(
+        bot=bot,
+        cid="11111111-1111-4111-8111-111111111111",
+        webhook_token="tok-happy-path",
+        signing_secret="s3cret-value",
+    )
+
+
+@pytest.fixture
+def poster():
+    """Stub the whole delivery path; assert on what it was asked to send."""
+    with mock.patch("core.api.bot_webhook.im_bots.make_admin_client") as factory, (
+        mock.patch("core.api.bot_webhook.im_bots.post_as")
+    ) as post_as:
+        factory.return_value = mock.Mock()
+        post_as.return_value = JusiImMessageResponse(
+            mid=42,
+            cid="11111111-1111-4111-8111-111111111111",
+            sender_uid="01900000-0000-7000-8000-0000000000b0",
+            seq=7,
+            ts=1781700000,
+        )
+        yield post_as
+
+
+def post(token, body, **extra):
+    return APIClient().post(
+        HOOK.format(token=token), json.dumps(body), content_type="application/json", **extra
+    )
+
+
+# ---- happy path --------------------------------------------------------------
+
+
+def test_text_lands_in_the_conversation(install, poster):
+    response = post("tok-happy-path", TEXT_BODY)
+    assert response.status_code == 200
+    assert response.json() == {
+        "code": 0,
+        "msg": "success",
+        "data": {"mid": 42, "seq": 7},
+    }
+    _, kwargs = poster.call_args[0], poster.call_args[1]
+    assert poster.call_args[0][2] == install.cid
+    assert poster.call_args[0][3] == "构建完成"
+    assert kwargs["content_type"] == "text"
+
+
+def test_post_is_delivered_as_rich_text(install, poster):
+    response = post(
+        "tok-happy-path",
+        {
+            "msg_type": "post",
+            "content": {
+                "post": {
+                    "zh_cn": {
+                        "title": "构建失败",
+                        "content": [[{"tag": "text", "text": "分支 main"}]],
+                    }
+                }
+            },
+        },
+    )
+    assert response.status_code == 200
+    assert poster.call_args[1]["content_type"] == "rich-text"
+    assert json.loads(poster.call_args[0][3])["title"] == "构建失败"
+
+
+def test_usage_counters_are_recorded(install, poster):
+    post("tok-happy-path", TEXT_BODY)
+    install.refresh_from_db()
+    assert install.message_count == 1
+    assert install.last_used_at is not None
+
+
+def test_trailing_slash_works_too(install, poster):
+    """APPEND_SLASH would 301 a POST and drop its body, so both are registered."""
+    response = APIClient().post(
+        "/api/bot/v1/hook/tok-happy-path/",
+        json.dumps(TEXT_BODY),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+
+
+# ---- token / state -----------------------------------------------------------
+
+
+def test_unknown_token_is_rejected():
+    response = post("no-such-token", TEXT_BODY)
+    assert response.status_code == 400
+    assert response.json()["code"] == mapping.CODE_BAD_TOKEN
+
+
+def test_disabled_installation_is_rejected(install, poster):
+    install.is_active = False
+    install.save()
+    response = post("tok-happy-path", TEXT_BODY)
+    assert response.json()["code"] == mapping.CODE_BOT_DISABLED
+    poster.assert_not_called()
+
+
+def test_disabled_bot_identity_is_rejected(install, bot, poster):
+    bot.is_active = False
+    bot.save()
+    assert post("tok-happy-path", TEXT_BODY).json()["code"] == mapping.CODE_BOT_DISABLED
+    poster.assert_not_called()
+
+
+# ---- body validation ---------------------------------------------------------
+
+
+def test_non_json_body_is_rejected(install, poster):
+    response = APIClient().post(
+        HOOK.format(token="tok-happy-path"), "not json", content_type="application/json"
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == mapping.CODE_BAD_BODY
+
+
+def test_oversized_body_is_rejected_before_parsing(install, poster):
+    response = post(
+        "tok-happy-path",
+        {"msg_type": "text", "content": {"text": "x" * (mapping.MAX_BODY_BYTES + 10)}},
+    )
+    assert response.status_code == 413
+    assert response.json()["code"] == mapping.CODE_BODY_TOO_LARGE
+    poster.assert_not_called()
+
+
+def test_unsupported_msg_type_is_reported_not_swallowed(install, poster):
+    response = post("tok-happy-path", {"msg_type": "interactive", "content": {}})
+    assert response.status_code == 400
+    assert response.json()["code"] == mapping.CODE_BAD_MSG_TYPE
+    poster.assert_not_called()
+
+
+# ---- signature gate ----------------------------------------------------------
+
+
+def test_signature_required_when_enabled(install, poster):
+    install.sign_verify_enabled = True
+    install.save()
+    response = post("tok-happy-path", TEXT_BODY)
+    assert response.json()["code"] == mapping.CODE_BAD_SIGN
+    poster.assert_not_called()
+
+
+def test_valid_signature_passes(install, poster):
+    install.sign_verify_enabled = True
+    install.save()
+    ts = str(int(time.time()))
+    body = dict(TEXT_BODY, timestamp=ts, sign=mapping.feishu_sign(ts, install.signing_secret))
+    assert post("tok-happy-path", body).json()["code"] == 0
+
+
+def test_stale_signature_is_rejected(install, poster):
+    install.sign_verify_enabled = True
+    install.save()
+    ts = str(int(time.time()) - mapping.SIGN_WINDOW_SECONDS - 60)
+    body = dict(TEXT_BODY, timestamp=ts, sign=mapping.feishu_sign(ts, install.signing_secret))
+    assert post("tok-happy-path", body).json()["code"] == mapping.CODE_BAD_SIGN
+
+
+def test_signature_gate_off_by_default(install, poster):
+    assert post("tok-happy-path", TEXT_BODY).json()["code"] == 0
+
+
+# ---- keyword gate ------------------------------------------------------------
+
+
+def test_keyword_must_appear(install, poster):
+    install.keywords = ["部署"]
+    install.save()
+    assert post("tok-happy-path", TEXT_BODY).json()["code"] == mapping.CODE_NO_KEYWORD
+    poster.assert_not_called()
+
+
+def test_matching_keyword_passes(install, poster):
+    install.keywords = ["构建", "部署"]
+    install.save()
+    assert post("tok-happy-path", TEXT_BODY).json()["code"] == 0
+
+
+def test_keywords_match_the_rendered_text_of_a_post(install, poster):
+    """Not the JSON we generate — a keyword should match what a human sees."""
+    install.keywords = ["构建失败"]
+    install.save()
+    response = post(
+        "tok-happy-path",
+        {
+            "msg_type": "post",
+            "content": {
+                "post": {"zh_cn": {"title": "构建失败", "content": [[{"tag": "text", "text": "x"}]]}}
+            },
+        },
+    )
+    assert response.json()["code"] == 0
+
+
+# ---- IP allowlist ------------------------------------------------------------
+
+
+def test_ip_outside_the_allowlist_is_rejected(install, poster):
+    install.ip_allowlist = ["10.0.0.0/8"]
+    install.save()
+    response = post("tok-happy-path", TEXT_BODY, HTTP_X_FORWARDED_FOR="203.0.113.9")
+    assert response.json()["code"] == mapping.CODE_IP_NOT_ALLOWED
+    poster.assert_not_called()
+
+
+def test_ip_inside_the_allowlist_passes(install, poster):
+    install.ip_allowlist = ["10.0.0.0/8"]
+    install.save()
+    response = post("tok-happy-path", TEXT_BODY, HTTP_X_FORWARDED_FOR="10.1.2.3")
+    assert response.json()["code"] == 0
+
+
+# ---- idempotency -------------------------------------------------------------
+
+
+def test_explicit_request_id_is_replayed_not_reposted(install, poster):
+    first = post("tok-happy-path", TEXT_BODY, HTTP_X_REQUEST_ID="req-1")
+    second = post("tok-happy-path", TEXT_BODY, HTTP_X_REQUEST_ID="req-1")
+    assert first.json() == second.json()
+    assert poster.call_count == 1
+
+
+def test_different_request_ids_post_twice(install, poster):
+    post("tok-happy-path", TEXT_BODY, HTTP_X_REQUEST_ID="req-1")
+    post("tok-happy-path", TEXT_BODY, HTTP_X_REQUEST_ID="req-2")
+    assert poster.call_count == 2
+
+
+def test_identical_body_within_the_window_is_deduped(install, poster):
+    post("tok-happy-path", TEXT_BODY)
+    post("tok-happy-path", TEXT_BODY)
+    assert poster.call_count == 1
+
+
+def test_identical_body_posts_again_once_the_window_lapses(install, poster, settings):
+    """A monitor sending the same "OK" every minute is legitimate traffic —
+    the body-hash window only exists to absorb HTTP retries."""
+    settings.BOT_CONFIGURATION = {**settings.BOT_CONFIGURATION, "dedupe_seconds": 0}
+    post("tok-happy-path", TEXT_BODY)
+    post("tok-happy-path", TEXT_BODY)
+    assert poster.call_count == 2
+
+
+# ---- delivery failures -------------------------------------------------------
+
+
+def test_missing_conversation_disables_the_installation(install):
+    with mock.patch("core.api.bot_webhook.im_bots.make_admin_client") as factory, (
+        mock.patch("core.api.bot_webhook.im_bots.post_as")
+    ) as post_as:
+        factory.return_value = mock.Mock()
+        post_as.side_effect = JusiImBadResponseError("404 conversation not found")
+        response = post("tok-happy-path", TEXT_BODY)
+    assert response.status_code == 404
+    assert response.json()["code"] == mapping.CODE_CONVERSATION_GONE
+    install.refresh_from_db()
+    assert install.is_active is False
+    assert install.disabled_reason == "conversation_gone"
+
+
+def test_unreachable_im_reports_502_and_keeps_the_installation(install):
+    with mock.patch("core.api.bot_webhook.im_bots.make_admin_client") as factory, (
+        mock.patch("core.api.bot_webhook.im_bots.post_as")
+    ) as post_as:
+        factory.return_value = mock.Mock()
+        post_as.side_effect = JusiImUnreachableError("connection refused")
+        response = post("tok-happy-path", TEXT_BODY)
+    assert response.status_code == 502
+    assert response.json()["code"] == mapping.CODE_IM_UNAVAILABLE
+    install.refresh_from_db()
+    assert install.is_active is True
+
+
+def test_unconfigured_im_reports_502(install):
+    with mock.patch("core.api.bot_webhook.im_bots.make_admin_client", return_value=None):
+        response = post("tok-happy-path", TEXT_BODY)
+    assert response.status_code == 502
+    assert response.json()["code"] == mapping.CODE_IM_UNAVAILABLE
+
+
+# ---- rate limiting -----------------------------------------------------------
+
+
+def test_throttling_answers_in_the_feishu_envelope(install, poster, monkeypatch):
+    """Handing a caller a different response shape exactly when it is being
+    rate-limited is when it can least afford to re-parse.
+
+    Rate patched on the class, not through ``REST_FRAMEWORK``: DRF binds
+    ``SimpleRateThrottle.THROTTLE_RATES`` at import time (same reasoning as
+    ``test_api_invite_links.test_resolution_is_throttled``).
+    """
+    monkeypatch.setattr(BotWebhookTokenThrottle, "rate", "1/minute", raising=False)
+    assert post("tok-happy-path", {**TEXT_BODY, "content": {"text": "一"}}).status_code == 200
+    limited = post("tok-happy-path", {**TEXT_BODY, "content": {"text": "二"}})
+    assert limited.status_code == 429
+    assert limited.json()["code"] == mapping.CODE_RATE_LIMITED
+
+
+def test_each_bot_gets_its_own_bucket(install, bot, poster, monkeypatch):
+    """One noisy webhook must not starve another group's bot."""
+    monkeypatch.setattr(BotWebhookTokenThrottle, "rate", "1/minute", raising=False)
+    other = models.ImBotInstallation.objects.create(
+        bot=bot, cid="22222222-2222-4222-8222-222222222222", webhook_token="tok-other"
+    )
+    assert post("tok-happy-path", TEXT_BODY).status_code == 200
+    assert post("tok-happy-path", TEXT_BODY).status_code == 429
+    assert post(other.webhook_token, TEXT_BODY).status_code == 200
+
+
+def test_the_throttles_have_their_own_scopes():
+    """Sharing AnonRateThrottle's default bucket would couple bots to every
+    other anonymous endpoint."""
+    assert BotWebhookTokenThrottle.scope == "bot_webhook"
+    assert BotWebhookBurstThrottle.scope == "bot_webhook_burst"
+    assert BotWebhookIPThrottle.scope == "bot_webhook_ip"

@@ -451,6 +451,7 @@ def notify_offline(payload: dict[str, Any], client: Optional[GetuiClient] = None
         "event-card": "[日程]",
         "doc-card": "[云文档]",
         "meeting-card": "[会议]",
+        "rich-text": "[富文本]",
     }
     if content_type in type_labels:
         snippet = type_labels[content_type]

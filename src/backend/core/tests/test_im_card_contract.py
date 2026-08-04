@@ -196,6 +196,58 @@ def test_unknown_status_falls_back_to_ongoing():
     ] == "ongoing"
 
 
+# --- rich-text ---------------------------------------------------------------
+
+
+def test_rich_text_simple():
+    _assert_golden(
+        "rich_text_simple",
+        im_cards.build_rich_text(
+            title="部署完成",
+            content=[[{"tag": "text", "text": "生产环境已更新到 v1.2.0"}]],
+            plain="部署完成 生产环境已更新到 v1.2.0",
+        ),
+    )
+
+
+def test_rich_text_full():
+    """Every tag a client must handle, in one fixture.
+
+    The ``[图片]`` paragraph is the deliberate image degradation: bots have no
+    upload channel, so an ``image_key`` would never resolve on our side.
+    """
+    _assert_golden(
+        "rich_text_full",
+        im_cards.build_rich_text(
+            title="构建失败",
+            content=[
+                [
+                    {"tag": "text", "text": "分支 main 构建失败 "},
+                    {
+                        "tag": "a",
+                        "text": "查看日志",
+                        "href": "https://ci.example.com/runs/1",
+                    },
+                ],
+                [
+                    {"tag": "at", "uid": "all", "name": "所有人"},
+                    {"tag": "text", "text": " 请处理"},
+                ],
+                [{"tag": "text", "text": "[图片]"}],
+            ],
+            plain="构建失败 分支 main 构建失败 查看日志 @所有人 请处理 [图片]",
+        ),
+    )
+
+
+def test_rich_text_omits_blank_plain_but_keeps_blank_title():
+    """``title`` is always present (clients read it unconditionally); ``plain`` is
+    a derived extra and follows the omit-rather-than-null rule."""
+    card = im_cards.build_rich_text(content=[[{"tag": "text", "text": "hi"}]])
+    assert card["title"] == ""
+    assert "plain" not in card
+
+
 # --- cross-cutting -----------------------------------------------------------
 
 
@@ -204,3 +256,7 @@ def test_content_types_are_kebab_case(content_type):
     """All three clients dispatch on these strings; casing drift breaks rendering."""
     assert content_type == content_type.lower()
     assert "_" not in content_type
+
+
+def test_rich_text_content_type_is_kebab_case():
+    assert im_cards.RICH_TEXT == "rich-text"

@@ -27,6 +27,21 @@ MEETING_CARD = "meeting-card"
 
 CARD_CONTENT_TYPES = (EVENT_CARD, DOC_CARD, MEETING_CARD)
 
+#: Multi-paragraph rich text — today only group bots produce it, from 飞书's
+#: ``msg_type=post``. Named for what it *is* rather than who sends it, so a
+#: non-bot sender later needs no second protocol.
+#:
+#: Not in ``CARD_CONTENT_TYPES``: the clients render this **inside** the normal
+#: bubble (inheriting reactions, read receipts, the context menu, quoting)
+#: rather than as a standalone card row.
+RICH_TEXT = "rich-text"
+
+# rich-text tags. Anything else is dropped by the sender, so a client only ever
+# has to know these three.
+RICH_TAG_TEXT = "text"
+RICH_TAG_LINK = "a"
+RICH_TAG_AT = "at"
+
 # event-card kinds. Unknown values render as "created" on both clients, so
 # adding one is backward compatible.
 EVENT_KIND_CREATED = "created"
@@ -126,4 +141,36 @@ def build_meeting_card(
     }
     if scheduled_at:
         card["scheduled_at"] = scheduled_at
+    return card
+
+
+def build_rich_text(
+    *,
+    content: list[list[dict[str, Any]]],
+    title: str = "",
+    plain: str = "",
+) -> dict[str, Any]:
+    """Multi-paragraph rich text (protocol v1).
+
+    ``content`` is a list of paragraphs, each a list of inline tags:
+
+        {"tag": "text", "text": "构建失败 "}
+        {"tag": "a",    "text": "查看日志", "href": "https://…"}
+        {"tag": "at",   "uid": "all" | "<im uid>", "name": "所有人"}
+
+    Deliberately **single-language**, unlike 飞书's ``post`` which carries a
+    ``{zh_cn: …, en_us: …}`` envelope. One IM message should not change shape
+    per reader, and honouring the envelope would mean three clients each
+    reimplementing locale selection. The webhook flattens on the way in.
+
+    ``plain`` is a derived projection that clients must never render. It exists
+    so that (a) the conversation-list preview, which shows the raw body when
+    nothing parses it, reads as prose rather than JSON; (b) jusi's full-text
+    search — which indexes the body verbatim — finds words instead of JSON keys;
+    and (c) the "@我" detection on both clients, which is a substring test
+    against the body, keeps working with no client change at all.
+    """
+    card: dict[str, Any] = {"v": 1, "title": title, "content": content}
+    if plain:
+        card["plain"] = plain
     return card

@@ -1,0 +1,35 @@
+{
+  "content": [
+    [
+      {
+        "tag": "text",
+        "text": "分支 main 构建失败 "
+      },
+      {
+        "href": "https://ci.example.com/runs/1",
+        "tag": "a",
+        "text": "查看日志"
+      }
+    ],
+    [
+      {
+        "name": "所有人",
+        "tag": "at",
+        "uid": "all"
+      },
+      {
+        "tag": "text",
+        "text": " 请处理"
+      }
+    ],
+    [
+      {
+        "tag": "text",
+        "text": "[图片]"
+      }
+    ]
+  ],
+  "plain": "构建失败 分支 main 构建失败 查看日志 @所有人 请处理 [图片]",
+  "title": "构建失败",
+  "v": 1
+}

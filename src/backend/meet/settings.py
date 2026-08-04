@@ -490,6 +490,27 @@ class Base(Configuration):
                 environ_name="DOCS_SESSION_THROTTLE_RATES",
                 environ_prefix=None,
             ),
+            # 群机器人 webhook — 三层,全部对齐飞书的自定义机器人限额,因为迁移
+            # 过来的脚本本来就是照那个节奏写的。
+            # 1) 每个 token 每分钟(飞书:100/分钟)
+            "bot_webhook": values.Value(
+                default="100/minute",
+                environ_name="BOT_WEBHOOK_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
+            # 2) 突发(飞书:5/秒)——挡住循环里忘了 sleep 的脚本
+            "bot_webhook_burst": values.Value(
+                default="5/second",
+                environ_name="BOT_WEBHOOK_BURST_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
+            # 3) 按 IP 兜底 —— 上面两层按 token 分桶,对"拿随机 token 猛试"零防护
+            #    (每个猜测都是一个新桶)。这层宽到不误伤同一出口的多个机器人。
+            "bot_webhook_ip": values.Value(
+                default="600/minute",
+                environ_name="BOT_WEBHOOK_IP_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
         },
     }
     MONITORED_THROTTLE_FAILURE_CALLBACK = (
@@ -850,6 +871,27 @@ class Base(Configuration):
         ),
         "request_timeout_seconds": values.FloatValue(
             5.0, environ_name="GETUI_TIMEOUT_S", environ_prefix=None
+        ),
+    }
+
+    # 群机器人 (custom webhook bots, 对标飞书).
+    BOT_CONFIGURATION = {
+        # Public origin the webhook URL is built from. Handed to third parties
+        # and pasted into CI configs, so it must be the externally reachable
+        # host — falls back to the app's own base URL when unset.
+        "webhook_base_url": values.Value(
+            "", environ_name="BOT_WEBHOOK_BASE_URL", environ_prefix=None
+        ),
+        # Custom bots per conversation. A group with dozens of webhooks is a
+        # configuration mistake, not a use case.
+        "max_bots_per_conversation": values.IntegerValue(
+            10, environ_name="BOT_MAX_PER_CONVERSATION", environ_prefix=None
+        ),
+        # Body-hash dedupe window. Must stay SHORT: a monitor posting the same
+        # "OK" every minute is legitimate, and a long window would swallow it.
+        # This only exists to absorb HTTP-level retries. 0 disables it.
+        "dedupe_seconds": values.IntegerValue(
+            10, environ_name="BOT_WEBHOOK_DEDUPE_S", environ_prefix=None
         ),
     }
 

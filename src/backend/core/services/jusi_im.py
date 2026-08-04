@@ -234,6 +234,22 @@ class JusiImAdminClient:
         data = self._signed_request("POST", path, payload)
         return self._parse_members_response("add_members", data)
 
+    def add_bots(self, cid: str, uids: list[str]) -> JusiImAddMembersResponse:
+        """Append bot uids to cid with jusi role='bot' (P23).
+
+        A bot must be a member or ``post_message`` silently rewrites its
+        ``sender_uid`` to the all-zero SYSTEM uid — 200 OK, no error, and the
+        bot's avatar and name are gone. But a bot is not a *person*: role='bot'
+        keeps it out of the roster, the member count, push scans and owner
+        succession. Idempotent, and an existing human member is never demoted.
+        """
+        if not cid:
+            raise ValueError("cid is required")
+        path = f"/admin/conversations/{cid}/members"
+        payload = {"add_bots": list(uids or [])}
+        data = self._signed_request("POST", path, payload)
+        return self._parse_members_response("add_bots", data)
+
     def remove_members(self, cid: str, uids: list[str]) -> JusiImAddMembersResponse:
         """Remove uids from cid (P9 踢人). jusi rejects removing the owner (4xx →
         JusiImBadResponseError). Idempotent for non-members (removed=0)."""

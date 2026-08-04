@@ -27,6 +27,7 @@ from core.api.admin_roles import (
 )
 from core.api.admin_import import ImportJobViewSet, MemberExportView
 from core.api.agent_internal import IngestTranscriptView
+from core.api.bot_webhook import BotWebhookView
 from core.api.recording_accesses import RecordingAccessViewSet
 from core.api.admin_invite_links import InviteLinkViewSet, JoinRequestViewSet
 from core.api.invite import (
@@ -346,6 +347,21 @@ urlpatterns = [
         "api/agent/push-hook/",
         ImPushHookView.as_view(),
         name="agent-push-hook",
+    ),
+    # 群机器人 webhook(公网可达,path 里的 token 即凭据;对标飞书自定义机器人)。
+    #
+    # 刻意不进 api/v1.0/ 版本命名空间:这个地址会被贴进第三方的 CI 配置,不该
+    # 随 API_VERSION 漂移。无尾斜杠与带尾斜杠都注册 —— APPEND_SLASH 对 POST
+    # 是 301,会让发送方丢掉 body。
+    path(
+        "api/bot/v1/hook/<str:token>",
+        BotWebhookView.as_view(),
+        name="bot-webhook",
+    ),
+    path(
+        "api/bot/v1/hook/<str:token>/",
+        BotWebhookView.as_view(),
+        name="bot-webhook-slash",
     ),
 ]
 

@@ -197,3 +197,37 @@ class PersonalAIRateThrottle(MonitoredUserRateThrottle):
             "scope": self.scope,
             "ident": str(request.user.pk),
         }
+
+
+class BotWebhookTokenThrottle(MonitoredAnonRateThrottle):
+    """Per-webhook-token ceiling for the group-bot endpoint (飞书 uses 100/min).
+
+    Keyed by the token in the URL so one noisy bot cannot starve another. The
+    token is a 256-bit secret, so it is a stable identity for a caller in a way
+    an IP behind NAT is not.
+    """
+
+    scope = "bot_webhook"
+
+    def get_cache_key(self, request, view):
+        token = (getattr(view, "kwargs", None) or {}).get("token")
+        if not token:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": token}
+
+
+class BotWebhookBurstThrottle(BotWebhookTokenThrottle):
+    """Short-window companion to the per-minute ceiling (飞书 allows 5/second)."""
+
+    scope = "bot_webhook_burst"
+
+
+class BotWebhookIPThrottle(MonitoredAnonRateThrottle):
+    """Per-IP backstop for the group-bot endpoint.
+
+    The token buckets above are useless against someone trying random tokens:
+    each guess is a fresh bucket. This one bounds that, and is deliberately
+    generous so a busy office behind one NAT with several bots is unaffected.
+    """
+
+    scope = "bot_webhook_ip"
