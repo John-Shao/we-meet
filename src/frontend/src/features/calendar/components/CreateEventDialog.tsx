@@ -82,9 +82,9 @@ export const CreateEventDialog = ({
   const [description, setDescription] = useState(editEvent?.description ?? '')
   const [start, setStart] = useState(toLocalInput(start0))
   const [end, setEnd] = useState(toLocalInput(end0))
-  const [allDay, setAllDay] = useState(
-    editEvent?.all_day ?? initialAllDay ?? false
-  )
+  // 全天由入口决定,表单里不再给开关:周/月视图的全天行点击创建时带
+  // initialAllDay 进来,编辑既有全天日程时沿用它自己的值(保存原样回传)。
+  const allDay = editEvent?.all_day ?? initialAllDay ?? false
   // 提醒是「一场日程一条」的单选(null = 不提醒),与 App 端 ReminderDropdown
   // 同口径。后端 push_due_reminders 本来就只按 max(reminders) 推一次,多选
   // 复选框是张空头支票 —— 勾两档也只会到最早那档才响,故收敛成单选。
@@ -325,60 +325,34 @@ export const CreateEventDialog = ({
           </label>
         </div>
 
+        {/* 提醒 —— 与下面的「重复」同构(标签 + 满宽 select)。原来它和「全天」
+            复选框挤在一行,select 一撑就把「全天」挤到下一行去,布局散架。 */}
         <div
           className={css({
             display: 'flex',
             alignItems: 'center',
-            gap: '1rem',
             flexWrap: 'wrap',
+            gap: '0.75rem',
+            fontSize: '0.875rem',
+            color: 'greyscale.800',
           })}
         >
-          <label
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.375rem',
-              fontSize: '0.875rem',
-              color: 'greyscale.800',
-              cursor: 'pointer',
-            })}
+          <span>{t('form.reminder')}</span>
+          <select
+            value={reminder == null ? '' : String(reminder)}
+            onChange={(e) =>
+              setReminder(e.target.value === '' ? null : Number(e.target.value))
+            }
+            data-testid="event-reminder"
+            className={cx(inputCls, selectChrome)}
           >
-            <input
-              type="checkbox"
-              checked={allDay}
-              onChange={(e) => setAllDay(e.target.checked)}
-            />
-            {t('form.allDay')}
-          </label>
-          <div
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '0.75rem',
-              fontSize: '0.875rem',
-              color: 'greyscale.800',
-            })}
-          >
-            <span>{t('form.reminder')}</span>
-            <select
-              value={reminder == null ? '' : String(reminder)}
-              onChange={(e) =>
-                setReminder(
-                  e.target.value === '' ? null : Number(e.target.value)
-                )
-              }
-              data-testid="event-reminder"
-              className={cx(inputCls, selectChrome)}
-            >
-              <option value="">{t('form.reminderNone')}</option>
-              {reminderOptions.map((m) => (
-                <option key={m} value={String(m)}>
-                  {reminderOptionLabel(t, m)}
-                </option>
-              ))}
-            </select>
-          </div>
+            <option value="">{t('form.reminderNone')}</option>
+            {reminderOptions.map((m) => (
+              <option key={m} value={String(m)}>
+                {reminderOptionLabel(t, m)}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* P2-M1 重复 — 创建时可选;编辑重复规则属 M2 三选语义,编辑态隐藏。 */}
