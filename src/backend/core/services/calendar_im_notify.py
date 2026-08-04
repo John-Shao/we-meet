@@ -21,7 +21,7 @@ import logging
 
 from django.conf import settings
 
-from core.services import im_cards
+from core.services import im_bots, im_cards
 from core.services.jusi_im import JusiImAdminClient, JusiImServiceError
 
 logger = logging.getLogger(__name__)
@@ -118,17 +118,32 @@ def _organizer_sender_uid(client: JusiImAdminClient, organizer) -> str | None:
 
 
 def push_card(cid: str, card: dict, *, organizer=None) -> None:
-    """Best-effort 注入卡片(sender = 组织者,解析失败退 SYSTEM);
-    jusi 不可达/报错仅 warning。"""
+    """Best-effort 注入卡片(sender = 组织者,解析不到退「日程助手」);
+    jusi 不可达/报错仅 warning。
+
+    主路径**刻意保持不变**:以组织者身份发卡片是 P8-UX 拍板的设计(见模块
+    docstring),客户端把它渲染成组织者的正常气泡。改动只在降级分支 —— 原来退
+    全零 SYSTEM(居中灰条,无头像无名字),现在退到内置的日程助手身份。
+    """
     if not cid:
         return
     client = _make_client()
     if client is None:
         return
+    body = json.dumps(card, ensure_ascii=False)
+    sender_uid = _organizer_sender_uid(client, organizer)
+    if not sender_uid:
+        posted = im_bots.post_as_builtin(
+            im_bots.BOT_CALENDAR_ASSISTANT, cid, body, content_type=CONTENT_TYPE
+        )
+        if posted is not None:
+            return
+        # 助手也发不出去(未 seed / IM 未配置)→ 落回原来的 SYSTEM 行为,
+        # 卡片本身仍然送达。
     try:
         client.post_message(
-            cid=cid, body=json.dumps(card, ensure_ascii=False),
-            sender_uid=_organizer_sender_uid(client, organizer),
+            cid=cid, body=body,
+            sender_uid=sender_uid,
             content_type=CONTENT_TYPE,
         )
     except JusiImServiceError:

@@ -497,11 +497,24 @@ def _notify_applicant_decision(instance) -> None:
 
 
 def _notify_user(user, body) -> None:
-    """SYSTEM→user IM direct-message. Strictly best-effort: never raises."""
+    """Assistant→user IM direct-message. Strictly best-effort: never raises.
+
+    Sent as 审批助手 when that assistant is seeded, otherwise as SYSTEM. The
+    difference is visible: a bot sender gives the conversation an avatar, a name
+    and a description instead of an anonymous all-zero uid.
+
+    ⚠️ The cid is derived from the two participants, so switching the sender
+    **changes it** — an existing SYSTEM conversation stays as read-only history
+    and a new 审批助手 conversation appears alongside it. That is the intended
+    end state (one assistant, one conversation, as in 飞书); adding the bot to
+    the old direct conversation instead would give it three members, which the
+    clients' "render the *other* member" logic cannot express.
+    """
     try:
         cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
         if not cfg or not cfg.get("api_url") or not cfg.get("admin_hmac_secret"):
             return
+        from core.services import im_bots
         from core.services.im_provisioning import resolve_uid
         from core.services.jusi_im import JusiImAdminClient
 
@@ -513,10 +526,22 @@ def _notify_user(user, body) -> None:
         uid = resolve_uid(client, user)
         if not uid or uid == SYSTEM_UID:
             return
-        lo, hi = sorted([SYSTEM_UID, uid])
+
+        assistant = im_bots.get_builtin(im_bots.BOT_APPROVAL_ASSISTANT)
+        sender_uid = SYSTEM_UID
+        if assistant is not None:
+            sender_uid = im_bots.resolve_bot_uid(client, assistant) or SYSTEM_UID
+        if sender_uid == uid:
+            # Would make a direct conversation with itself; fall back.
+            sender_uid = SYSTEM_UID
+
+        lo, hi = sorted([sender_uid, uid])
         cid = str(uuid.uuid5(uuid.NAMESPACE_OID, f"direct:{lo}:{hi}"))
-        client.create_direct(cid=cid, owner_uid=SYSTEM_UID, peer_uid=uid)
-        client.post_message(cid=cid, body=body)
+        client.create_direct(cid=cid, owner_uid=sender_uid, peer_uid=uid)
+        if sender_uid == SYSTEM_UID:
+            client.post_message(cid=cid, body=body)
+        else:
+            im_bots.post_as(client, assistant, cid, body)
     except Exception:  # noqa: BLE001 — approval notification is best-effort
         logger.warning(
             "approval notify failed for user %s",

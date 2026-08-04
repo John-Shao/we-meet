@@ -6,6 +6,7 @@ Utils functions used in the core app
 # ruff: noqa:S311, PLR0913
 
 import hashlib
+import io
 import json
 import logging
 import mimetypes
@@ -583,6 +584,97 @@ def generate_profile_image_get_url(kind: str, object_key: str) -> str:
         ExpiresIn=PROFILE_IMAGE_GET_URL_TTL_SECONDS,
         HttpMethod="GET",
     )
+
+
+# ---------------------------------------------------------------------------
+# Group bot avatars (群机器人). Same avatar bucket as people, under a "bot/"
+# prefix so the write path can tell whose key a client is claiming: a bot avatar
+# is uploaded *before* the bot exists, so it cannot be namespaced by owner id
+# the way a profile image is.
+
+BOT_AVATAR_PREFIX = "bot/"
+
+#: Rendered swatch size. Matches what the clients ask for at 2x on a 128pt row.
+BOT_AVATAR_SWATCH_PX = 256
+
+
+def build_bot_avatar_object_key(content_type: str) -> str:
+    """``bot/<short-uuid>.<ext>`` — see :data:`BOT_AVATAR_PREFIX`."""
+    extension = ALLOWED_PROFILE_IMAGE_MIME_TYPES[content_type]
+    return f"{BOT_AVATAR_PREFIX}{uuid4().hex[:16]}.{extension}"
+
+
+def generate_bot_avatar_upload_url(*, content_type: str, size: int) -> dict:
+    """Presigned PUT for a bot avatar. Caller MUST validate its arguments."""
+    bucket = get_profile_kind_bucket("avatar")
+    object_key = build_bot_avatar_object_key(content_type)
+    upload_url = _profile_s3_client().generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": bucket,
+            "Key": object_key,
+            "ContentType": content_type,
+            "ContentLength": size,
+        },
+        ExpiresIn=PROFILE_UPLOAD_URL_TTL_SECONDS,
+        HttpMethod="PUT",
+    )
+    return {
+        "upload_url": upload_url,
+        "object_key": object_key,
+        "expires_in": PROFILE_UPLOAD_URL_TTL_SECONDS,
+        "headers": {"Content-Type": content_type},
+    }
+
+
+def render_bot_avatar_swatch(*, color: str, label: str) -> str:
+    """Render a coloured initial avatar server-side and return its object key.
+
+    Why the server draws this rather than each client: a bot's colour is a
+    *choice the creator made*, not a hash of its name, so every client would
+    otherwise need the same palette, the same glyph rules and the same
+    fallbacks — and the push notification, which renders no UI at all, could
+    never have one. Producing a real image means all three just read
+    ``avatar_url`` and one code path exists.
+
+    Returns "" on any failure: a bot without a picture still works (clients fall
+    back to an initial), so this must never block creating one.
+    """
+    try:
+        # Imported lazily: Pillow is only needed on this one write path, and an
+        # import error here must not take down the whole module.
+        from PIL import Image, ImageDraw, ImageFont  # pylint: disable=import-outside-toplevel
+
+        size = BOT_AVATAR_SWATCH_PX
+        image = Image.new("RGB", (size, size), color)
+        glyph = (label or "").strip()[:1].upper() or "#"
+        draw = ImageDraw.Draw(image)
+        try:
+            font = ImageFont.load_default(size=int(size * 0.45))
+        except TypeError:  # Pillow < 9.2 has no size argument
+            font = ImageFont.load_default()
+        left, top, right, bottom = draw.textbbox((0, 0), glyph, font=font)
+        draw.text(
+            ((size - (right - left)) / 2 - left, (size - (bottom - top)) / 2 - top),
+            glyph,
+            fill="#FFFFFF",
+            font=font,
+        )
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        object_key = f"{BOT_AVATAR_PREFIX}{uuid4().hex[:16]}.png"
+        _profile_s3_client().put_object(
+            Bucket=get_profile_kind_bucket("avatar"),
+            Key=object_key,
+            Body=buffer.getvalue(),
+            ContentType="image/png",
+        )
+        return object_key
+    except Exception:  # pylint: disable=broad-except
+        logger.warning("bot avatar swatch render failed", exc_info=True)
+        return ""
 
 
 # ---------------------------------------------------------------------------

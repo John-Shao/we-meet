@@ -14,6 +14,7 @@ import uuid
 from typing import Any
 
 from django.conf import settings
+from django.db.models import Q
 
 from rest_framework import (
     permissions,
@@ -196,6 +197,38 @@ class ImViewSet(viewsets.ViewSet):
                 ),
                 "left": u.id in left_ids,
             }
+
+        # Group bots (群机器人). Resolved here rather than through a second
+        # endpoint because this is already the call every client makes for every
+        # uid it sees in a conversation — a bot bubble gets its avatar, name and
+        # description with no client-side change beyond reading two new keys.
+        # Bots are not Users (they have no sub, no membership, no push tokens),
+        # so they cannot come from the query above.
+        missing = [u for u in uids if u not in out]
+        if missing:
+            bots = models.ImBot.objects.filter(im_uid__in=missing, is_active=True)
+            if organization is not None:
+                # Built-in assistants are global (organization is null); custom
+                # bots stay scoped like people do.
+                bots = bots.filter(
+                    Q(organization=organization) | Q(organization__isnull=True)
+                )
+            else:
+                bots = bots.filter(organization__isnull=True)
+            for bot in bots:
+                out[bot.im_uid] = {
+                    "id": str(bot.id),
+                    "full_name": bot.name,
+                    "short_name": bot.name,
+                    "avatar_url": utils.generate_profile_image_get_url(
+                        "avatar", bot.avatar_key
+                    ),
+                    "left": False,
+                    # Older clients ignore unknown keys; newer ones render the
+                    # 「机器人」chip and the description subtitle from these.
+                    "is_bot": True,
+                    "description": bot.description,
+                }
         return Response(out, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["post"], url_path="users/resolve-subs")

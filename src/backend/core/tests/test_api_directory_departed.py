@@ -218,3 +218,112 @@ def test_member_count_excludes_departed_and_devices():
     rows = _client(me).get("/api/v1.0/directory/departments/").json()
     row = next(r for r in rows if r["id"] == str(department.id))
     assert row["member_count"] == 1
+
+
+# --- im/users/resolve: 群机器人 ------------------------------------------------
+#
+# Bots are not Users, so they can only be named through this same endpoint —
+# it is the one call every client already makes for every uid in a conversation.
+
+
+def test_resolve_names_a_custom_bot_in_my_organization():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _member(org, me)
+    models.ImBot.objects.create(
+        kind=models.ImBotKindChoices.CUSTOM,
+        name="构建通知",
+        description="CI 构建结果推送",
+        im_uid="uid-bot-1",
+        organization=org,
+    )
+
+    body = (
+        _client(me)
+        .post("/api/v1.0/im/users/resolve/", {"im_uids": ["uid-bot-1"]}, format="json")
+        .json()
+    )
+    assert body["uid-bot-1"]["full_name"] == "构建通知"
+    assert body["uid-bot-1"]["is_bot"] is True
+    assert body["uid-bot-1"]["description"] == "CI 构建结果推送"
+    assert body["uid-bot-1"]["left"] is False
+
+
+def test_resolve_hides_a_bot_from_another_organization():
+    """Same rule as people: a name is org-scoped."""
+    mine = factories.OrganizationFactory()
+    theirs = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _member(mine, me)
+    models.ImBot.objects.create(
+        kind=models.ImBotKindChoices.CUSTOM,
+        name="别家的机器人",
+        im_uid="uid-bot-other",
+        organization=theirs,
+    )
+
+    body = (
+        _client(me)
+        .post(
+            "/api/v1.0/im/users/resolve/", {"im_uids": ["uid-bot-other"]}, format="json"
+        )
+        .json()
+    )
+    assert "uid-bot-other" not in body
+
+
+def test_resolve_names_a_builtin_assistant_for_everyone():
+    """Built-ins carry nothing org-private, and every group has the same ones."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _member(org, me)
+    assistant = models.ImBot.objects.get(slug="meeting-assistant")
+    models.ImBot.objects.filter(pk=assistant.pk).update(im_uid="uid-meeting-assistant")
+
+    body = (
+        _client(me)
+        .post(
+            "/api/v1.0/im/users/resolve/",
+            {"im_uids": ["uid-meeting-assistant"]},
+            format="json",
+        )
+        .json()
+    )
+    assert body["uid-meeting-assistant"]["full_name"] == "会议助手"
+    assert body["uid-meeting-assistant"]["is_bot"] is True
+
+
+def test_resolve_skips_a_deactivated_bot():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _member(org, me)
+    models.ImBot.objects.create(
+        kind=models.ImBotKindChoices.CUSTOM,
+        name="停用的",
+        im_uid="uid-bot-off",
+        organization=org,
+        is_active=False,
+    )
+
+    body = (
+        _client(me)
+        .post("/api/v1.0/im/users/resolve/", {"im_uids": ["uid-bot-off"]}, format="json")
+        .json()
+    )
+    assert "uid-bot-off" not in body
+
+
+def test_resolve_marks_real_people_without_the_bot_flag():
+    """Clients branch on presence; a person must never look like a bot."""
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _member(org, me)
+    colleague = factories.UserFactory(full_name="张三", im_uid="uid-human")
+    _member(org, colleague, is_primary=False)
+
+    body = (
+        _client(me)
+        .post("/api/v1.0/im/users/resolve/", {"im_uids": ["uid-human"]}, format="json")
+        .json()
+    )
+    assert body["uid-human"].get("is_bot") is None

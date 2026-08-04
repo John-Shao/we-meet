@@ -28,6 +28,7 @@ from core.api.admin_roles import (
 from core.api.admin_import import ImportJobViewSet, MemberExportView
 from core.api.agent_internal import IngestTranscriptView
 from core.api.bot_webhook import BotWebhookView
+from core.api.im_bots import ImBotViewSet
 from core.api.recording_accesses import RecordingAccessViewSet
 from core.api.admin_invite_links import InviteLinkViewSet, JoinRequestViewSet
 from core.api.invite import (
@@ -103,6 +104,8 @@ router.register(
 )
 router.register("im", ImViewSet, basename="im")
 router.register("im/later", ImLaterViewSet, basename="im_later")
+# 群机器人:带 pk 的 CRUD 资源,双端都要标准 REST(见 core/api/im_bots.py)。
+router.register("im/bots", ImBotViewSet, basename="im_bots")
 router.register(
     "calendar-events", CalendarEventViewSet, basename="calendar_events"
 )

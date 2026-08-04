@@ -33,7 +33,7 @@ from core.models import (
     SummaryChapter,
     Transcript,
 )
-from core.services import ai_usage
+from core.services import ai_usage, im_bots
 from core.services.llm_client import LLMClient, LLMUnavailable
 
 logger = logging.getLogger(__name__)
@@ -396,8 +396,15 @@ class MeetingSummaryService:
             admin_hmac_secret=str(cfg["admin_hmac_secret"]),
             timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
         )
+        # Sent as 会议助手 rather than the all-zero SYSTEM uid: with no sender
+        # both clients render this as a centred grey bar, which is right for
+        # "张三 退出群聊" and wrong for a meeting's minutes.
+        assistant = im_bots.get_builtin(im_bots.BOT_MEETING_ASSISTANT)
         try:
-            client.post_message(cid=mc.cid, body=body)
+            if assistant is not None:
+                im_bots.post_as(client, assistant, mc.cid, body)
+            else:
+                client.post_message(cid=mc.cid, body=body)
         except (JusiImUnreachableError, JusiImBadResponseError) as exc:
             # P5 doesn't retry (see open-question #8). Log and move on; the next
             # successful summarisation for this room will retry naturally because
@@ -492,8 +499,13 @@ class MeetingSummaryService:
             admin_hmac_secret=str(cfg["admin_hmac_secret"]),
             timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
         )
+        body = f"📄 会议纪要文档已生成: {doc_url}"
+        assistant = im_bots.get_builtin(im_bots.BOT_MEETING_ASSISTANT)
         try:
-            client.post_message(cid=mc.cid, body=f"📄 会议纪要文档已生成: {doc_url}")
+            if assistant is not None:
+                im_bots.post_as(client, assistant, mc.cid, body)
+            else:
+                client.post_message(cid=mc.cid, body=body)
         except (JusiImUnreachableError, JusiImBadResponseError) as exc:
             logger.warning("P3 doc link IM push failed for room %s: %s", room.id, exc)
 

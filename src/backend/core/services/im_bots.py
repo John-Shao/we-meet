@@ -94,23 +94,38 @@ def make_admin_client() -> JusiImAdminClient | None:
     )
 
 
+#: jusi uids are UUIDs; the column is sized for one.
+_MAX_UID_LENGTH = 36
+
+
 def resolve_bot_uid(client, bot) -> str:
     """Return the bot's jusi uid, minting and backfilling it on first use.
 
     Not done in the seed migration on purpose: that runs in the helm pre-upgrade
     job, where jusi may not be reachable — and a migration that needs the network
     is a migration that fails a deploy.
+
+    Returns "" when jusi answers with something that is not a uid. The caller
+    then posts as SYSTEM, which is a worse-looking message but a delivered one —
+    better than a DataError from writing an oversized value into a 36-char
+    column halfway through someone's approval flow.
     """
     if bot.im_uid:
         return bot.im_uid
     resolved = client.issue_token(
         external_id=external_id_for(bot), ttl_seconds=_MINT_TTL_SECONDS
     )
-    bot.im_uid = resolved.uid
-    # update_fields + no full_clean: this is a cache backfill, not a user edit,
-    # and racing writers would both land the same value anyway.
-    models.ImBot.objects.filter(pk=bot.pk).update(im_uid=resolved.uid)
-    return resolved.uid
+    uid = getattr(resolved, "uid", None)
+    if not isinstance(uid, str) or not uid or len(uid) > _MAX_UID_LENGTH:
+        logger.warning(
+            "im_bots: jusi returned an unusable uid for bot %s: %r", bot.pk, uid
+        )
+        return ""
+    bot.im_uid = uid
+    # update() + no full_clean: this is a cache backfill, not a user edit, and
+    # racing writers would both land the same value anyway.
+    models.ImBot.objects.filter(pk=bot.pk).update(im_uid=uid)
+    return uid
 
 
 def _member_cache_key(cid: str, uid: str) -> str:
