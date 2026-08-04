@@ -15,6 +15,8 @@ import type { MeetingRoomBrief } from '@/features/meeting-rooms'
 import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
 import type { CalendarEvent, EditScope } from '../api/ApiCalendar'
 import {
+  REMINDER_OPTIONS,
+  effectiveReminder,
   reminderOptionLabel,
   useCalendarSettings,
 } from '../hooks/useCalendarSettings'
@@ -83,36 +85,24 @@ export const CreateEventDialog = ({
   const [allDay, setAllDay] = useState(
     editEvent?.all_day ?? initialAllDay ?? false
   )
-  // Reminders are a set of minutes-before (multi). Editing preserves ALL of the
-  // event's existing reminders instead of collapsing to the first one; creating
-  // seeds from the 日历设置 default (null = 不提醒 → empty set).
-  const [reminders, setReminders] = useState<Set<number>>(() =>
-    editEvent
-      ? new Set(editEvent.reminders ?? [])
-      : new Set(defaultReminderMin == null ? [] : [defaultReminderMin])
+  // 提醒是「一场日程一条」的单选(null = 不提醒),与 App 端 ReminderDropdown
+  // 同口径。后端 push_due_reminders 本来就只按 max(reminders) 推一次,多选
+  // 复选框是张空头支票 —— 勾两档也只会到最早那档才响,故收敛成单选。
+  // 编辑历史多值数据时取 effectiveReminder(= max),即真正会响的那一条。
+  const [reminder, setReminder] = useState<number | null>(() =>
+    editEvent ? effectiveReminder(editEvent.reminders) : defaultReminderMin
   )
-  // Preset choices + any non-preset value the event already carries or the
-  // settings default seeded (so a seeded 5/15min stays visible + toggleable,
-  // never silently dropped).
+  // 标准档位 + 历史数据里的非标准值(45 分钟这种),免得下拉选不中当前值。
   const reminderOptions = useMemo(() => {
-    const presets = [10, 30, 60]
+    const presets = REMINDER_OPTIONS as readonly number[]
     const seed = editEvent
-      ? (editEvent.reminders ?? [])
-      : defaultReminderMin == null
-        ? []
-        : [defaultReminderMin]
-    const extra = seed.filter((r) => !presets.includes(r))
-    return [...new Set([...presets, ...extra])].sort((a, b) => a - b)
+      ? effectiveReminder(editEvent.reminders)
+      : defaultReminderMin
+    const extra = seed != null && !presets.includes(seed) ? [seed] : []
+    return [...presets, ...extra].sort((a, b) => a - b)
     // defaultReminderMin 只作为初值种子,设置页改动不重排已打开的表单。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editEvent])
-  const toggleReminder = (minutes: number) =>
-    setReminders((prev) => {
-      const next = new Set(prev)
-      if (next.has(minutes)) next.delete(minutes)
-      else next.add(minutes)
-      return next
-    })
   // P2-M1 重复日程:创建时可选预设;编辑重复规则属 M2 三选语义,编辑态不展示。
   const [repeat, setRepeat] = useState('')
   const [repeatUntil, setRepeatUntil] = useState('')
@@ -213,7 +203,7 @@ export const CreateEventDialog = ({
         start_at: startDate.toISOString(),
         end_at: endDate.toISOString(),
         all_day: allDay,
-        reminders: [...reminders].sort((a, b) => a - b),
+        reminders: reminder == null ? [] : [reminder],
         // P9 会议室:'' = 不预订 / 清空既有预订。刻意用空串而不是 null,
         // 好让 Android(Moshi 不序列化 null)能表达同一个意思;后端两者都收。
         // 全天日程不带该字段 —— M1 不支持全天订会议室。
@@ -371,28 +361,23 @@ export const CreateEventDialog = ({
             })}
           >
             <span>{t('form.reminder')}</span>
-            {reminderOptions.map((m) => (
-              <label
-                key={m}
-                className={css({
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                })}
-              >
-                <input
-                  type="checkbox"
-                  checked={reminders.has(m)}
-                  onChange={() => toggleReminder(m)}
-                />
-                {reminderOptionLabel(t, m)}
-              </label>
-            ))}
-            {reminders.size === 0 && (
-              <span className={css({ color: 'greyscale.500' })}>
-                {t('form.reminderNone')}
-              </span>
-            )}
+            <select
+              value={reminder == null ? '' : String(reminder)}
+              onChange={(e) =>
+                setReminder(
+                  e.target.value === '' ? null : Number(e.target.value)
+                )
+              }
+              data-testid="event-reminder"
+              className={cx(inputCls, selectChrome)}
+            >
+              <option value="">{t('form.reminderNone')}</option>
+              {reminderOptions.map((m) => (
+                <option key={m} value={String(m)}>
+                  {reminderOptionLabel(t, m)}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -473,9 +458,7 @@ export const CreateEventDialog = ({
               <span className={labelCls}>{t('form.videoMeeting')}</span>
             </Switch>
             <div className={videoHintCls}>
-              {withVideo
-                ? t('form.videoMeetingOn')
-                : t('form.videoMeetingOff')}
+              {withVideo ? t('form.videoMeetingOn') : t('form.videoMeetingOff')}
             </div>
           </div>
         )}
@@ -485,7 +468,9 @@ export const CreateEventDialog = ({
         <MeetingRoomField
           value={meetingRoom}
           onChange={setMeetingRoom}
-          start={start ? new Date(allDay ? `${dateOnly(start)}T00:00` : start) : null}
+          start={
+            start ? new Date(allDay ? `${dateOnly(start)}T00:00` : start) : null
+          }
           end={end ? new Date(allDay ? `${dateOnly(end)}T00:00` : end) : null}
           allDay={allDay}
           attendeeCount={selected.size + 1}

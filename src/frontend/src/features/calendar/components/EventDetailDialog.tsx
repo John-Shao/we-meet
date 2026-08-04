@@ -28,6 +28,10 @@ import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingSummary } from '@/features/meetings/api/fetchMeeting'
 
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
+import {
+  effectiveReminder,
+  reminderOptionLabel,
+} from '../hooks/useCalendarSettings'
 
 interface Props {
   event: CalendarEvent
@@ -390,12 +394,13 @@ export const EventDetailDialog = ({
           </InfoRow>
         )}
 
-        {event.reminders && event.reminders.length > 0 && (
+        {/* 只显示真正会响的那一条(后端按 max 推一次),文案走统一口径 ——
+            原来把 reminders 全列出来会把 0 显示成「0 分钟前」、1440 显示成
+            「1440 分钟前」。 */}
+        {effectiveReminder(event.reminders) != null && (
           <InfoRow icon={RiNotification3Line}>
             <span className={mutedTextCls}>
-              {event.reminders
-                .map((m) => t('form.reminderMinutes', { count: m }))
-                .join('、')}
+              {reminderOptionLabel(t, effectiveReminder(event.reminders)!)}
             </span>
           </InfoRow>
         )}

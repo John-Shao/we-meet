@@ -55,6 +55,20 @@ export const reminderOptionLabel = (
         : t('form.reminderMinutes', { count: min })
 
 /**
+ * 一场日程真正会响的那条提醒(分钟);无提醒 → null。
+ *
+ * 后端 push_due_reminders 按 `max(reminders)` 算触发点并只推一次
+ * (reminder_pushed_at 挡住后续),所以历史多值数据里生效的是最大那条。
+ * 表单/详情都用它,免得展示一条实际不会响的提醒。
+ */
+export const effectiveReminder = (
+  reminders: number[] | null | undefined
+): number | null => {
+  const valid = (reminders ?? []).filter((r) => Number.isFinite(r))
+  return valid.length ? Math.max(...valid) : null
+}
+
+/**
  * 日历本地设置(P8 日历设置,对标飞书,纯客户端 localStorage):
  * - weekStart:每周的第一天(mon 默认 / sun),weekStartsOn 供 date-fns;
  * - defaultDurationMin:新建日程默认时长(分钟,默认 60,保持既有行为)。
