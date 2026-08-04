@@ -13,6 +13,19 @@ import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { grantDocAccess } from '@/features/im/api/grantDocAccess'
 import { fetchDocsSessionUrl } from './api/docsSession'
 
+/** 内嵌协议版本。docs 侧 useEmbedShell 发的 wemeet-embed-hello 带同名字段。 */
+const HOST_PROTOCOL = 1
+
+/**
+ * 宿主(meet web)向 docs 宣告的能力。docs 据此决定要不要收敛自带入口 ——
+ * 譬如只有宣告了 `global-search`,它才会隐藏自己的搜索按钮改把 Ctrl+K 转发过来。
+ * 改动需与 we-meet-docs `hooks/useEmbedShell.tsx` 的消费侧同步。
+ */
+const HOST_FEATURES = ['global-search', 'shell-nav', 'route-sync'] as const
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /**
  * 云文档:在 meet 导航框架内 iframe 嵌入 La Suite Docs(docs.<域名>),取代原来的
  * 新标签跳转,消除「割裂感」。
@@ -62,13 +75,19 @@ export const DocsRoute = () => {
       return ''
     }
   })()
-  const embedPath = docId ? `/docs/${docId}/` : '/'
+  // Docs 站内**当前**落地路径。iframe 的 src 只由它 + reloadKey 决定 —— 刻意**不**让
+  // meet 路由的 docId 直接进换票 effect 的依赖:下面「地址栏跟随 docs」会 replaceState,
+  // 而 wouter v3 monkey-patch 了 replaceState 并派发事件(use-browser-location.js:71)
+  // → useParams().docId 随之变化。docId 若还在依赖里,**每点开一篇子文档都会重新换票 +
+  // iframe 整页重载**,表现为「云文档闪一下白」。要重载时一律显式 setReloadKey。
+  const currentPathRef = useRef(docId ? `/docs/${docId}/` : '/')
   // Docs 站内相对落地路径(带 embed/lang/theme),两条进站方式共用:
   // 票据引导把它当 next 透传(query 全程不丢),authenticate 兜底那条则拼成绝对 URL。
-  const embedRelative = `${embedPath}?embed=1&lang=${encodeURIComponent(
-    i18n.language,
-  )}&theme=${initialScheme}`
-  const embedTarget = docsBase ? `${docsBase}${embedRelative}` : ''
+  const buildRelative = useCallback(
+    (path: string) =>
+      `${path}?embed=1&lang=${encodeURIComponent(i18n.language)}&theme=${initialScheme}`,
+    [i18n.language, initialScheme],
+  )
   // 与 App 端(we-meet-android DocsScreen.docsUrl)对齐:经 docs 的 OIDC
   // authenticate 入口进站,而非裸 `/`。无 docs 会话的浏览器(新浏览器/无痕窗)
   // 直接进 `/` 会被 docs 前端甩到 /home/ 英文营销页;authenticate 则拿已有
@@ -83,31 +102,60 @@ export const DocsRoute = () => {
   // 会话 cookie,关掉浏览器就没)。赌输时 iframe 会被甩到 KC 登录页,再被 KC 自己的
   // `frame-ancestors 'self'` 挡死 —— 白屏 + 一条 CSP 报错,用户无从自救。首选进站方式
   // 因此改成下面的票据引导(fetchDocsSessionUrl),这条只在票据拿不到时用。
-  const embedSrc = embedTarget
-    ? `${docsBase}/api/v1.0/authenticate/?next=${encodeURIComponent(embedTarget)}`
-    : ''
+  const buildFallbackSrc = useCallback(
+    (relative: string) =>
+      docsBase
+        ? `${docsBase}/api/v1.0/authenticate/?next=${encodeURIComponent(
+            `${docsBase}${relative}`,
+          )}`
+        : '',
+    [docsBase],
+  )
 
   // 首选进站:后端用调用者身份换一张 Docs 一次性票据,iframe 直接带票据进站 ——
   // 云文档的登录态从此跟随 meet 自己的登录态,与浏览器里有没有 KC 会话无关。
-  // null = 还在换票;换不到(Docs 未接/不可达)则退回 embedSrc。
+  // null = 还在换票;换不到(Docs 未接/不可达)则退回 authenticate 兜底。
   const [bootstrapSrc, setBootstrapSrc] = useState<string | null>(null)
   // docs 就绪信号迟迟不来 = 进站被挡(最常见就是上面那条 KC 登录页 CSP)。
   const [stalled, setStalled] = useState(false)
-  const [retryToken, setRetryToken] = useState(0)
+  // 需要**整页重载** iframe 时才 +1:重试、切界面语言、以及 docs 不支持软导航时的深链跳转。
+  const [reloadKey, setReloadKey] = useState(0)
+  // docs 是否宣告支持站内软导航(能力握手,见下)。老镜像不发 hello → 保持 false → 走整页重载。
+  const [docsRouteSync, setDocsRouteSync] = useState(false)
 
   useEffect(() => {
-    if (!embedTarget) return
+    if (!docsBase) return
     let cancelled = false
     setBootstrapSrc(null)
     setStalled(false)
-    void fetchDocsSessionUrl(embedRelative).then((url) => {
+    // 从 ref 读当前路径而不是从 props 算:换票只该由 reloadKey / 语言 / 配置驱动。
+    const relative = buildRelative(currentPathRef.current)
+    void fetchDocsSessionUrl(relative).then((url) => {
       if (cancelled) return
-      setBootstrapSrc(url ?? embedSrc)
+      setBootstrapSrc(url ?? buildFallbackSrc(relative))
     })
     return () => {
       cancelled = true
     }
-  }, [embedTarget, embedRelative, embedSrc, retryToken])
+  }, [docsBase, buildRelative, buildFallbackSrc, reloadKey])
+
+  // meet 侧路由变化(全局搜索命中、doc-card 深链、rail 点「云文档」)→ 让 iframe 跟上。
+  // docs 支持软导航就发 wemeet-navigate(不重载、不重新换票);否则退回整页重载。
+  //
+  // 守卫 target === currentPathRef:地址栏是被 docs 的 route-changed 用 replaceState
+  // 同步过来的,wouter 会把它回流成 docId 变化 —— 不拦就是「docs 通知 meet → meet 又
+  // 通知 docs」的回声循环。
+  useEffect(() => {
+    const target = docId ? `/docs/${docId}/` : '/'
+    if (target === currentPathRef.current) return
+    currentPathRef.current = target
+    const win = iframeRef.current?.contentWindow
+    if (docsRouteSync && win && docsOrigin) {
+      win.postMessage({ type: 'wemeet-navigate', path: target }, docsOrigin)
+      return
+    }
+    setReloadKey((n) => n + 1)
+  }, [docId, docsRouteSync, docsOrigin])
 
   // 兜底:docs 在 iframe 里挂载后会 postMessage 一条 wemeet-theme-ready。整条进站
   // (换票 + 加载)走完还等不到,就说明那一帧根本没跑起 docs —— 被 CSP 挡掉的 KC
@@ -115,7 +163,7 @@ export const DocsRoute = () => {
   // 白屏。计时从挂载起算(而不是从 iframe 有了 src 起算),这样换票那步卡住也算数;
   // 12s 给得足够宽,免得把"慢"误判成"挂"。
   useEffect(() => {
-    if (!embedTarget || !docsOrigin) return
+    if (!docsBase || !docsOrigin) return
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== docsOrigin) return
       if ((e.data as { type?: string } | null)?.type === 'wemeet-theme-ready') {
@@ -129,12 +177,67 @@ export const DocsRoute = () => {
       window.clearTimeout(timer)
       window.removeEventListener('message', onMsg)
     }
-  }, [embedTarget, docsOrigin, retryToken])
+  }, [docsBase, docsOrigin, reloadKey])
 
   const retry = useCallback(() => {
     setStalled(false)
-    setRetryToken((n) => n + 1)
+    setReloadKey((n) => n + 1)
   }, [])
+
+  // 能力握手:docs 挂载后发 wemeet-embed-hello 宣告自己支持哪些协议,宿主回
+  // wemeet-host-hello 宣告自己支持哪些。**能力驱动,不是版本驱动** —— 三端发布
+  // 速度差两个数量级(meet web 分钟级 / docs 镜像小时级 / App 周级),按版本猜对方
+  // 会不会某条协议,迟早撞上「docs 把自带入口收了、宿主却还不提供替代」的死角。
+  //
+  // 与既有的 wemeet-theme-ready **并行**,不替换它 —— 上面那条 12s 兜底依赖它。
+  useEffect(() => {
+    if (!docsOrigin) return
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== docsOrigin) return
+      const data = e.data as
+        | { type?: string; features?: unknown; docId?: unknown }
+        | null
+      if (data?.type !== 'wemeet-embed-hello') return
+      const features = Array.isArray(data.features) ? data.features : []
+      setDocsRouteSync(features.includes('route-sync'))
+      iframeRef.current?.contentWindow?.postMessage(
+        {
+          type: 'wemeet-host-hello',
+          protocol: HOST_PROTOCOL,
+          platform: 'web',
+          features: HOST_FEATURES,
+        },
+        docsOrigin,
+      )
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [docsOrigin])
+
+  // 地址栏跟随 docs 站内导航:用户在 docs 里点开子文档,meet 的 URL 也变成
+  // /docs/<id>,刷新/分享链接都能回到同一篇。
+  //
+  // 只用 replaceState 而不是 wouter 的 navigate:① 不该给浏览器历史堆一堆条目
+  // (docs 自己已经管着前进后退);② navigate 会走 pushState,同样被 wouter 监听,
+  // 与上面那条 docId effect 的守卫配合才不至于回声 —— 用 replaceState 语义更准。
+  useEffect(() => {
+    if (!docsOrigin) return
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== docsOrigin) return
+      const data = e.data as { type?: string; docId?: unknown } | null
+      if (data?.type !== 'wemeet-route-changed') return
+      // 只认 uuid;其余(列表页、回收站等)一律落回 /docs,不把 docs 的内部路径
+      // 原样写进 meet 的地址栏。
+      const id = typeof data.docId === 'string' && UUID_RE.test(data.docId) ? data.docId : null
+      currentPathRef.current = id ? `/docs/${id}/` : '/'
+      const shellPath = id ? `/docs/${id}` : '/docs'
+      if (window.location.pathname !== shellPath) {
+        window.history.replaceState(null, '', shellPath)
+      }
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [docsOrigin])
 
   // 同域把当前深浅同步给 iframe 内 docs:主题变化即发;docs 挂载后会发
   // wemeet-theme-ready 请求补发(规避 iframe 尚未就绪的竞态)。

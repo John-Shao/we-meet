@@ -352,9 +352,15 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
   }
   // 文档命中 → 新标签打开 Docs 深链(与 MeetingDoc 链接既有口径一致;
   // /docs iframe 内深链留待后续)。
+  // 壳内打开,不新开标签:云文档已经是 meet 框架内的一个模块(iframe/WebView 内嵌),
+  // 搜索命中却把人甩去一个裸标签页,等于把刚统一好的外壳又拆了。
+  //
+  // 只改路由、不直接碰 iframe:DocsRoute 监听到 docId 变化后自己决定怎么落地 ——
+  // 已在云文档页且 docs 宣告支持软导航就 postMessage 站内跳(不重载),否则整页重载;
+  // 人还在别的模块时则是正常的路由跳转。这套判断全在 DocsFrame 里,这里不该重复一份。
   const openDocHit = (hit: DocsSearchHit) => {
     close()
-    window.open(hit.url, '_blank', 'noopener')
+    navigateTo('docs', hit.id)
   }
   // P1-4 引用 chip 三类跳转(§D4):会议/纪要 → 详情;消息 → IM 定位;
   // 日程 → 日历按日定位(?d,CalendarRoute 新参数)。
