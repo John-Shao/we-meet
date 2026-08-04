@@ -23,6 +23,7 @@
     "aiError": "Verzoek mislukt. Probeer opnieuw.",
     "aiQuota": "Te veel verzoeken of daglimiet bereikt — probeer het later opnieuw.",
     "docs": "Documenten",
+    "docsMore": "Meer documenten laden",
     "aiImUnavailable": "Chatberichten zijn deze keer niet meegenomen."
   },
   "logout": "Afmelden",

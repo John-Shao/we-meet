@@ -11,6 +11,7 @@ import { authUrl } from '@/features/auth'
 import { buildDocCardBody } from '@/features/im/components/docCard'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { grantDocAccess } from '@/features/im/api/grantDocAccess'
+import { openGlobalSearch } from '@/layout/globalSearchBus'
 import { fetchDocsSessionUrl } from './api/docsSession'
 
 /** 内嵌协议版本。docs 侧 useEmbedShell 发的 wemeet-embed-hello 带同名字段。 */
@@ -225,6 +226,13 @@ export const DocsRoute = () => {
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== docsOrigin) return
       const data = e.data as { type?: string; docId?: unknown } | null
+      if (data?.type === 'wemeet-open-search') {
+        // docs 里点搜索 / 按 Ctrl+K —— 它的自带搜索已收敛,统一由这个面板承接,
+        // 并预选「文档」标签。快捷键归谁由焦点在哪决定:人在 iframe 里打字时,
+        // keydown 只到 iframe,外层监听不到,所以必须由 docs 转发过来。
+        openGlobalSearch('docs')
+        return
+      }
       if (data?.type !== 'wemeet-route-changed') return
       // 只认 uuid;其余(列表页、回收站等)一律落回 /docs,不把 docs 的内部路径
       // 原样写进 meet 的地址栏。

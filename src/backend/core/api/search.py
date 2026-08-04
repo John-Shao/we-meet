@@ -55,10 +55,14 @@ class GlobalAskView(APIView):
 class DocsSearchView(APIView):
     """P1-4 搜索入口统一 M1:按调用者可见范围搜 Docs 文档标题。
 
-    ``GET /api/v1.0/docs/search/?q=`` → 代理 Docs fork 的 s2s
+    ``GET /api/v1.0/docs/search/?q=&limit=&offset=`` → 代理 Docs fork 的 s2s
     ``search-for-user``(sub 服务端注入,绝不接受参数)。搜索面板的从源:
     Docs 未配置/不可达/无 sub 一律**空列表**而非 5xx——面板不该因从源挂掉
     而报错(与全局搜索「每源独立降级」同哲学)。
+
+    ``limit``/``offset`` 透传给 Docs,返回体带 ``has_more`` 供「加载更多」。
+    这是把云文档搜索收敛进全局搜索面板的配套:docs 自带的搜索弹窗是无限滚动的,
+    若这边钉死在 Docs 的默认 8 条,收敛就成了能力退化。
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -66,14 +70,14 @@ class DocsSearchView(APIView):
     def get(self, request):
         query = str(request.query_params.get("q") or "").strip()
         if len(query) < 2:
-            return Response({"results": []})
+            return Response({"results": [], "has_more": False})
 
         cfg = getattr(settings, "DOCS_CONFIGURATION", None) or {}
         api_url = cfg.get("api_url") or ""
         token = cfg.get("server_to_server_token") or ""
         sub = str(getattr(request.user, "sub", "") or "")
         if not api_url or not token or not sub:
-            return Response({"results": []})
+            return Response({"results": [], "has_more": False})
 
         from core.services.docs_client import DocsClient, DocsServiceError
 
@@ -83,10 +87,15 @@ class DocsSearchView(APIView):
             timeout_seconds=float(cfg.get("request_timeout_seconds") or 3),
         )
         try:
-            hits = client.search_for_user(sub=sub, query=query)
+            page = client.search_for_user(
+                sub=sub,
+                query=query,
+                limit=_optional_int(request.query_params.get("limit")),
+                offset=_optional_int(request.query_params.get("offset")),
+            )
         except DocsServiceError as exc:
             logger.warning("docs search degraded: %s", exc)
-            return Response({"results": []})
+            return Response({"results": [], "has_more": False})
         base = str(api_url).rstrip("/")
         return Response(
             {
@@ -97,10 +106,23 @@ class DocsSearchView(APIView):
                         "updated_at": hit.updated_at,
                         "url": f"{base}/docs/{hit.id}/",
                     }
-                    for hit in hits
-                ]
+                    for hit in page.hits
+                ],
+                "has_more": page.has_more,
             }
         )
+
+
+def _optional_int(raw):
+    """解析可选的整数查询参数;缺省或不合法一律返回 None(交给 Docs 用默认值)。
+
+    刻意不在这里夹上下界:Docs 侧已经夹过一次(``_clamped_int``),重复一份
+    只会多一个将来两边不一致的地方。
+    """
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 class DocsMyDocumentsView(APIView):

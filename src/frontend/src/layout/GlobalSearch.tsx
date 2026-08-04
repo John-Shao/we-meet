@@ -11,6 +11,10 @@ import { css } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
 import { fetchApi } from '@/api/fetchApi'
 import { navigateTo } from '@/navigation/navigateTo'
+import {
+  type SearchCategory,
+  subscribeGlobalSearchOpen,
+} from '@/layout/globalSearchBus'
 import { useConfig } from '@/api/useConfig'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useDirectoryMemberSearch } from '@/features/contacts'
@@ -44,16 +48,25 @@ interface TriggerProps {
 export const GlobalSearch = ({ collapsed }: TriggerProps) => {
   const { t } = useTranslation('shell')
   const [open, setOpen] = useState(false)
+  const [initialCategory, setInitialCategory] = useState<SearchCategory>('all')
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
+        setInitialCategory('all')
         setOpen((v) => !v)
       }
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    const unsubscribe = subscribeGlobalSearchOpen((detail) => {
+      setInitialCategory(detail.category ?? 'all')
+      setOpen(true)
+    })
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      unsubscribe()
+    }
   }, [])
 
   return (
@@ -118,7 +131,12 @@ export const GlobalSearch = ({ collapsed }: TriggerProps) => {
           </span>
         </button>
       )}
-      {open && <SearchPalette onClose={() => setOpen(false)} />}
+      {open && (
+        <SearchPalette
+          initialCategory={initialCategory}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </>
   )
 }
@@ -133,13 +151,8 @@ interface MeetingResult {
 // 分类标签(飞书式):缩小搜索范围。联系人 + 会议 + 消息(P1-M1,jusi p15
 // 服务端全文检索经 /im/search 代理)+ 文档(P1-4 搜索入口统一 M1,Docs s2s
 // 代理)+ AI 问答(P1-4,config flag 控显隐)。
-type SearchCategory =
-  | 'all'
-  | 'contacts'
-  | 'meetings'
-  | 'messages'
-  | 'docs'
-  | 'ai'
+// 类型定义在 globalSearchBus.ts —— 外部要按分类打开面板(云文档转发过来的搜索
+// 请求会预选「文档」),那边得能引用同一套档位。
 const BASE_CATEGORIES: SearchCategory[] = [
   'all',
   'contacts',
@@ -155,18 +168,37 @@ interface DocsSearchHit {
   updated_at: string
   url: string
 }
-const searchDocs = (q: string): Promise<DocsSearchHit[]> =>
-  fetchApi<{ results: DocsSearchHit[] }>(
-    `/docs/search/?q=${encodeURIComponent(q)}`
-  ).then((r) => r.results)
+interface DocsSearchPage {
+  results: DocsSearchHit[]
+  has_more: boolean
+}
+const searchDocs = (q: string, limit: number): Promise<DocsSearchPage> =>
+  fetchApi<DocsSearchPage>(
+    `/docs/search/?q=${encodeURIComponent(q)}&limit=${limit}`
+  ).then((r) => ({ results: r.results ?? [], has_more: !!r.has_more }))
 
-const SearchPalette = ({ onClose }: { onClose: () => void }) => {
+/**
+ * 「文档」标签每次多取的条数。
+ *
+ * 云文档自带的搜索弹窗是无限滚动的,而它在被 meet 内嵌时已被收敛掉(统一走这个
+ * 全局面板)。若这里还停在 Docs 的默认 8 条,收敛就成了能力退化 —— 所以这一档
+ * 必须能翻。
+ */
+const DOCS_PAGE_SIZE = 20
+
+const SearchPalette = ({
+  initialCategory = 'all',
+  onClose,
+}: {
+  initialCategory?: SearchCategory
+  onClose: () => void
+}) => {
   const { t } = useTranslation('shell')
   const [, navigate] = useLocation()
   const { alert: showAlert } = useConfirm()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const [category, setCategory] = useState<SearchCategory>('all')
+  const [category, setCategory] = useState<SearchCategory>(initialCategory)
   const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
   const { data: recent = [] } = useRecentMeetings(true)
   const { data: scheduled = [] } = useScheduledMeetings(true)
@@ -279,19 +311,28 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
       .slice(0, 8)
   }, [ql, showConvs, convList, convPeerNames, selfUid])
 
-  // 文档搜索(P1-4 M1):≥2 字触发;「全部」下取 4 条,「文档」标签取满 8。
+  // 文档搜索(P1-4 M1):≥2 字触发;「全部」下只露 4 条,「文档」标签可翻页。
   const docsSearchEnabled = showDocs && rawQ.length >= 2
-  const { data: docsData = [], isFetching: docsFetching } = useQuery({
-    queryKey: ['docs', 'search', rawQ],
-    queryFn: () => searchDocs(rawQ),
+  const [docsLimit, setDocsLimit] = useState(DOCS_PAGE_SIZE)
+  // 换关键词就从第一页重来,否则新词会沿用上一个词翻到的深度。
+  useEffect(() => setDocsLimit(DOCS_PAGE_SIZE), [rawQ])
+  // 「全部」下只露 4 条,没必要替它拉更多。
+  const docsFetchLimit = category === 'docs' ? docsLimit : 8
+  const { data: docsPage, isFetching: docsFetching } = useQuery({
+    queryKey: ['docs', 'search', rawQ, docsFetchLimit],
+    queryFn: () => searchDocs(rawQ, docsFetchLimit),
     enabled: docsSearchEnabled,
     staleTime: 15_000,
     retry: false,
+    // 翻页时保留上一页,免得列表整块闪空再长回来。
+    placeholderData: (prev) => prev,
   })
   const docsHits = useMemo<DocsSearchHit[]>(() => {
     if (!docsSearchEnabled) return []
-    return category === 'docs' ? docsData : docsData.slice(0, 4)
-  }, [docsSearchEnabled, docsData, category])
+    const rows = docsPage?.results ?? []
+    return category === 'docs' ? rows : rows.slice(0, 4)
+  }, [docsSearchEnabled, docsPage, category])
+  const docsHasMore = category === 'docs' && !!docsPage?.has_more
 
   const meetings = useMemo<MeetingResult[]>(() => {
     if (!ql || !showMeetings) return []
@@ -617,6 +658,28 @@ const SearchPalette = ({ onClose }: { onClose: () => void }) => {
                     }
                   />
                 ))}
+                {docsHasMore && (
+                  <button
+                    type="button"
+                    data-testid="global-search-docs-more"
+                    disabled={docsFetching}
+                    onClick={() => setDocsLimit((n) => n + DOCS_PAGE_SIZE)}
+                    className={css({
+                      width: '100%',
+                      paddingY: '0.5rem',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'brand.700',
+                      fontSize: '0.8125rem',
+                      cursor: 'pointer',
+                      borderRadius: '8px',
+                      _hover: { backgroundColor: 'greyscale.100' },
+                      _disabled: { cursor: 'default', opacity: 0.6 },
+                    })}
+                  >
+                    {t('search.docsMore')}
+                  </button>
+                )}
               </Group>
             )}
           </>

@@ -355,10 +355,11 @@ def test_docs_search_requires_auth_and_degrades_gracefully(settings):
     user = factories.UserFactory()
     client.force_login(user)
     # q 太短 → 空列表。
-    assert client.get("/api/v1.0/docs/search/?q=x").json() == {"results": []}
+    empty = {"results": [], "has_more": False}
+    assert client.get("/api/v1.0/docs/search/?q=x").json() == empty
     # Docs 未配置 → 空列表而非 5xx(搜索面板从源降级哲学)。
     settings.DOCS_CONFIGURATION = {}
-    assert client.get("/api/v1.0/docs/search/?q=预算").json() == {"results": []}
+    assert client.get("/api/v1.0/docs/search/?q=预算").json() == empty
 
 
 def test_docs_search_proxies_with_caller_sub(settings):
@@ -370,13 +371,18 @@ def test_docs_search_proxies_with_caller_sub(settings):
     client = APIClient()
     client.force_login(user)
 
-    from core.services.docs_client import DocsSearchHit
+    from core.services.docs_client import DocsSearchHit, DocsSearchPage
 
     with mock.patch(
         "core.services.docs_client.DocsClient.search_for_user",
-        return_value=[
-            DocsSearchHit(id="d1", title="季度预算方案", updated_at="2026-07-18T00:00:00Z")
-        ],
+        return_value=DocsSearchPage(
+            hits=[
+                DocsSearchHit(
+                    id="d1", title="季度预算方案", updated_at="2026-07-18T00:00:00Z"
+                )
+            ],
+            has_more=False,
+        ),
     ) as spy:
         resp = client.get("/api/v1.0/docs/search/?q=预算")
     assert resp.status_code == 200
@@ -385,6 +391,40 @@ def test_docs_search_proxies_with_caller_sub(settings):
     assert rows[0]["url"] == "https://docs.example.com/docs/d1/"
     # sub 服务端注入 = 调用者本人,绝不来自请求参数。
     assert spy.call_args.kwargs["sub"] == "sub-abc"
+    # 不传分页参数时不该替 Docs 拍板,让它用自己的默认值。
+    assert spy.call_args.kwargs["limit"] is None
+    assert spy.call_args.kwargs["offset"] is None
+
+
+def test_docs_search_passes_pagination_through(settings):
+    """收敛后云文档搜索只剩全局搜索面板一个入口,必须能翻过 Docs 的默认 8 条。"""
+    settings.DOCS_CONFIGURATION = {
+        "api_url": "https://docs.example.com",
+        "server_to_server_token": "tok",
+    }
+    user = factories.UserFactory(sub="sub-abc")
+    client = APIClient()
+    client.force_login(user)
+
+    from core.services.docs_client import DocsSearchPage
+
+    with mock.patch(
+        "core.services.docs_client.DocsClient.search_for_user",
+        return_value=DocsSearchPage(hits=[], has_more=True),
+    ) as spy:
+        resp = client.get("/api/v1.0/docs/search/?q=预算&limit=20&offset=20")
+    assert resp.status_code == 200
+    assert resp.json()["has_more"] is True
+    assert spy.call_args.kwargs["limit"] == 20
+    assert spy.call_args.kwargs["offset"] == 20
+
+    # 垃圾参数不该 400,交给 Docs 用默认值(那边还会再夹一次上下界)。
+    with mock.patch(
+        "core.services.docs_client.DocsClient.search_for_user",
+        return_value=DocsSearchPage(hits=[], has_more=False),
+    ) as spy:
+        client.get("/api/v1.0/docs/search/?q=预算&limit=abc")
+    assert spy.call_args.kwargs["limit"] is None
 
 
 def test_docs_search_unreachable_returns_empty(settings):
@@ -404,7 +444,7 @@ def test_docs_search_unreachable_returns_empty(settings):
     ):
         resp = client.get("/api/v1.0/docs/search/?q=预算")
     assert resp.status_code == 200
-    assert resp.json() == {"results": []}
+    assert resp.json() == {"results": [], "has_more": False}
 
 
 # ---- 分享云文档到聊天:入口 A 的"我的文档"列表代理 ----

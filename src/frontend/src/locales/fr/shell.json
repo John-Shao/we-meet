@@ -23,6 +23,7 @@
     "aiError": "Échec de la requête. Réessayez.",
     "aiQuota": "Trop de requêtes ou limite quotidienne atteinte — réessayez plus tard.",
     "docs": "Documents",
+    "docsMore": "Charger plus de documents",
     "aiImUnavailable": "Les messages de discussion n’ont pas été inclus cette fois."
   },
   "logout": "Se déconnecter",

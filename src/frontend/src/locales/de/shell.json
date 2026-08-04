@@ -23,6 +23,7 @@
     "aiError": "Anfrage fehlgeschlagen. Bitte erneut versuchen.",
     "aiQuota": "Zu viele Anfragen oder Tageslimit erreicht — bitte später erneut versuchen.",
     "docs": "Dokumente",
+    "docsMore": "Weitere Dokumente laden",
     "aiImUnavailable": "Chatnachrichten wurden diesmal nicht einbezogen."
   },
   "logout": "Abmelden",

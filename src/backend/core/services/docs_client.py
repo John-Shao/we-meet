@@ -39,6 +39,18 @@ class DocsSearchHit:
     updated_at: str
 
 
+@dataclass(frozen=True)
+class DocsSearchPage:
+    """一页搜索结果。
+
+    ``has_more`` 让调用方不必再问一次总数就能决定要不要给「加载更多」——
+    Docs 侧是多取一条判出来的,不走 COUNT。
+    """
+
+    hits: list[DocsSearchHit]
+    has_more: bool
+
+
 class DocsServiceError(Exception):
     """Base for failures talking to La Suite Docs."""
 
@@ -137,23 +149,38 @@ class DocsClient:
 
     SEARCH_FOR_USER_PATH = "/api/v1.0/documents/search-for-user/"
 
-    def search_for_user(self, *, sub: str, query: str) -> list[DocsSearchHit]:
+    def search_for_user(
+        self,
+        *,
+        sub: str,
+        query: str,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> DocsSearchPage:
         """按用户可见范围搜文档标题(P1-4 搜索入口统一 M1)。
 
         代理 Docs 的 s2s ``search-for-user`` 端点——可见性过滤在 Docs 侧
         (DocumentAccess ∪ 非受限 LinkTrace,与用户登录态完全同口径)。
         ``sub`` 必须来自调用者身份,绝不接受请求参数。
+
+        ``limit``/``offset`` 不传时用 Docs 侧默认(8 条),与加分页前完全一致。
         """
         if not sub:
             raise ValueError("sub is required")
         if not query or len(query.strip()) < 2:
-            return []
+            return DocsSearchPage(hits=[], has_more=False)
+
+        params: dict[str, Any] = {"sub": sub, "q": query.strip()}
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
 
         url = self._api_url + self.SEARCH_FOR_USER_PATH
         try:
             response = requests.get(
                 url,
-                params={"sub": sub, "q": query.strip()},
+                params=params,
                 headers={"Authorization": f"Bearer {self._token}"},
                 timeout=self._timeout,
             )
@@ -188,7 +215,9 @@ class DocsClient:
                     updated_at=str(row.get("updated_at") or ""),
                 )
             )
-        return hits
+        # ``has_more`` 是加分页时新增的字段。老 Docs 镜像不返回它 → 按"没有下一页"
+        # 处理,前端不显示「加载更多」,与加分页前的表现一致。
+        return DocsSearchPage(hits=hits, has_more=bool(data.get("has_more")))
 
     def user_can_access_document(self, *, sub: str, doc_id: str) -> bool:
         """Return whether Docs currently exposes ``doc_id`` to ``sub``.

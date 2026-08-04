@@ -23,6 +23,7 @@
     "aiError": "Request failed. Please try again.",
     "aiQuota": "Too many requests or daily limit reached — try again later.",
     "docs": "Docs",
+    "docsMore": "Load more documents",
     "aiImUnavailable": "Chat messages were not included this time."
   },
   "logout": "Sign out",
