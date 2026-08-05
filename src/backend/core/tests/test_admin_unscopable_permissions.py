@@ -142,15 +142,17 @@ def test_no_builtin_role_gets_the_credential_permission():
         assert "org.bot.secret.read" not in granted, code
 
 
-def test_no_builtin_role_has_the_bot_codes_until_the_page_exists():
-    """IT 管集成、机器人是集成,所以 it 最终会拿 read + write —— 但那要**和
-    M 端机器人页同一批**授出去。
+def test_it_manages_integrations_so_it_gets_read_and_write():
+    """机器人是集成,IT 管集成。这两个码是**和 M 端机器人页同一批**授出去的
+    —— 授一个还没有页面的权限,导航会给他显示一个点不开的入口。"""
+    _label, granted = permissions_registry.BUILTIN_ROLES["it"]
+    assert {"org.bot.read", "org.bot.write"} <= granted
 
-    授一个还没有页面的权限,导航会给他显示一个点不开的入口(或者什么都不显示
-    却告诉他有权限),读起来像产品坏了。`test_admin_nav_permission_alignment`
-    会在授出去而页面没登记时变红,这条是它的正面说明。
-    """
-    for code, (_label, granted) in permissions_registry.BUILTIN_ROLES.items():
+
+def test_hr_and_admin_office_do_not_get_bot_codes():
+    """治理机器人不在他们的职责里 —— 授了只会让两个看板多一个用不上的入口。"""
+    for code in ("hr", "admin_office"):
+        _label, granted = permissions_registry.BUILTIN_ROLES[code]
         assert not (granted & {"org.bot.read", "org.bot.write"}), code
 
 

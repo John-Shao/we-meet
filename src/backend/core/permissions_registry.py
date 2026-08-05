@@ -119,10 +119,11 @@ BUILTIN_ROLES: dict[str, tuple[object, frozenset[str]]] = {
                 "org.audit.read",
                 "org.stats.read",
                 "org.ai_quota.read",
-                # org.bot.read / org.bot.write 随 M 端机器人页一起授(线 B / B3)
-                # —— 授一个还没有页面的权限,正好是本文件开头说的「能看见的东西
-                # 是空的、读起来像产品坏了」。**不给 org.bot.secret.read**:
-                # 那是「给自己发消息的权力」,不是「看看有哪些机器人」。
+                # IT 管集成,机器人是集成。**不给 org.bot.secret.read** ——
+                # 那是「给自己发消息的权力」,不是「看看有哪些机器人」,而且
+                # 撤销权限收不回已经泄露的凭据。要它得 owner 明确勾选。
+                "org.bot.read",
+                "org.bot.write",
             }
         ),
     ),

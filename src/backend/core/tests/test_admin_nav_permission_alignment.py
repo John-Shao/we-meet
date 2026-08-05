@@ -45,6 +45,7 @@ NAV_CONTRACT: list[tuple[str, str]] = [
     ("org.meeting_room.write", "/api/v1.0/admin/meeting-room-facilities/"),
     ("org.meeting_room.write", "/api/v1.0/admin/meeting-room-bookings/"),
     ("org.audit.read", "/api/v1.0/admin/audit-logs/"),
+    ("org.bot.read", "/api/v1.0/admin/bots/"),
     ("org.department.read", "/api/v1.0/admin/departments/"),
 ]
 
@@ -131,6 +132,7 @@ ACTION_ONLY_PERMISSIONS = frozenset(
         "org.group.write",  # /groups 里改组
         "org.import.write",  # /org 里的批量导入
         "org.ai_quota.read",  # 配额面板,挂在别的页里
+        "org.bot.write",  # /bots 里的停用/启用按钮
     }
 )
 

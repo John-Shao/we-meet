@@ -3262,6 +3262,10 @@ class AuditActionChoices(models.TextChoices):
     BOT_DELETE = "bot.delete", _("Group bot removed")
     BOT_SECRET_RESET = "bot.secret_reset", _("Group bot credential rotated")
     BOT_WEBHOOK_VIEW = "bot.webhook_view", _("Group bot webhook address viewed")
+    # 线 B — M 端治理。**不复用 BOT_UPDATE**:「谁停了生产机器人」是这块唯一
+    # 真正要能被筛出来的事件,混进 bot.update(C 端改个名也是它)等于没做。
+    BOT_DISABLE = "bot.disable", _("Group bot disabled")
+    BOT_ENABLE = "bot.enable", _("Group bot enabled")
 
 
 class AuditLog(BaseModel):

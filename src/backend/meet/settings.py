@@ -470,6 +470,14 @@ class Base(Configuration):
                 environ_name="PERSONAL_AI_THROTTLE_RATES",
                 environ_prefix=None,
             ),
+            # 线 B — M 端逐个读机器人凭据。不是防管理员(有权限的人本来就该
+            # 能读),是让「把全组织凭据撸一遍」变慢、变可见 —— 配合每行一条
+            # 审计,批量导出就成了审计日志里很显眼的一件事。
+            "admin_bot_credential": values.Value(
+                default="30/hour",
+                environ_name="ADMIN_BOT_CREDENTIAL_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
             # P1-4 — 全局搜索 AI 问答(独立 scope,不与 personal_ai 抢额度)。
             "global_search_ai": values.Value(
                 default="10/minute",

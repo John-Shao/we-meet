@@ -231,3 +231,14 @@ class BotWebhookIPThrottle(MonitoredAnonRateThrottle):
     """
 
     scope = "bot_webhook_ip"
+
+
+class AdminBotCredentialThrottle(MonitoredUserRateThrottle):
+    """M 端逐个读机器人凭据的限流(线 B)。
+
+    **不是防管理员** —— 有 ``org.bot.secret.read`` 的人本来就该能读。它要做的
+    是让「把全组织的凭据撸一遍」这件事变慢、变可见:一次一行、每行一条审计,
+    再配一个每小时的上限,批量导出就成了一件在审计日志里很显眼的事。
+    """
+
+    scope = "admin_bot_credential"

@@ -41,6 +41,7 @@ from core.api.invite import (
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.calendar import CalendarEventViewSet
 from core.api.admin_audit import AuditLogViewSet
+from core.api.admin_bots import AdminBotViewSet
 from core.api.admin_invitations import OrgInvitationViewSet
 from core.api.admin_stats import AdminStatsOverviewView
 from core.api.directory import (
@@ -168,6 +169,7 @@ router.register(
 router.register(
     "admin/audit-logs", AuditLogViewSet, basename="admin_audit_logs"
 )
+router.register("admin/bots", AdminBotViewSet, basename="admin_bots")
 # P9 会议室 —— 实体会议室,与上面的 "rooms"(LiveKit 视频房间) 无关。
 router.register(
     "meeting-rooms", MeetingRoomViewSet, basename="meeting_rooms"
