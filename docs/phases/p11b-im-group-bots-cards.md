@@ -4,7 +4,7 @@
 >
 > 一期见 [`p11-im-group-bots.md`](./p11-im-group-bots.md)（含 R1–R12 运行时红线，本阶段所有改动的输入）。
 >
-> 进度：A0 ✅ · C4 ✅ · C2(a) ✅ · 其余待做。三条线并行，文件几乎不撞。
+> 进度：**线 A 全部完成**（A0 ✅ A1 ✅ A2 ✅ A3 ✅）· 线 C 全部完成（C1 ✅ C2 ✅ C3 ✅ C4 ✅）· **线 B 待做**。
 
 ---
 
@@ -223,9 +223,20 @@ def _is_blocked(addr):
 | 刀 | 内容 | 独立价值 |
 |---|---|---|
 | **A0** ✅ | jusi `card-state` 进非冒泡集合（`e3897a5`） | A2 上生产前必须落地 |
-| **A1** | 只读卡片，**无 migration**。`callback` 按钮此时被映射器丢弃 + warning（`install.callback_url` 字段还不存在 → `allow_callback=False` 恒真），`url` 按钮正常工作 | CI/告警/日报卡片化。**用户拿到完整体验，没有一个死按钮** |
-| **A2** | 点击状态机，**we-meet 内闭环不出站**。migration `ImCardMessage`+`ImCardAction`，本地 resolve（结果文案 = 按钮标签 + 点击人姓名） | 已经是可用产品：投票、接龙、值班确认、通知已读确认。且把 ws/叠加层/并发唯一约束这三块最易错的管道**在引入第三方依赖之前**先跑通 |
-| **A3** | 出站回调。migration 加 5 个 callback 字段、`outbound_http.py`、Celery task、群主 UI | |
+| **A1** ✅ | 只读卡片，**无 migration**（后端 `4c53ba53`、Web `bd7be5e9`）。`callback` 按钮此时被映射器丢弃 + warning（`install.callback_url` 字段还不存在 → `allow_callback=False` 恒真），`url` 按钮正常工作 | CI/告警/日报卡片化。**用户拿到完整体验，没有一个死按钮** |
+| **A2** ✅ | 点击状态机，**we-meet 内闭环不出站**（后端+Android `48fb6853`、Web `b786a8e1`）。migration `0081`，本地 resolve（结果文案 = 按钮标签 + 点击人姓名） | 已经是可用产品：投票、接龙、值班确认、通知已读确认。且把 ws/叠加层/并发唯一约束这三块最易错的管道**在引入第三方依赖之前**先跑通 |
+| **A3** ✅ | 出站回调。migration `0082`、`outbound_http.py`、Celery task（后端 `547f07fd`）；群主 UI（Web `f9c5b0ff`、App `799d39c`） | |
+
+> **A3 落地时补的一处**：群主要看的是「地址还通不通」，而 `callback_failure_count`
+> 只说了「几次」不说「为什么」。所以序列化器加了 `callback_last_error` ——
+> 四个**桶**（timeout / refused / unreachable / blocked），每档对应群主的一个
+> 不同动作。分桶在服务端（`services/bot_callback.FAILURE_BUCKETS`）不在客户端：
+> 桶是产品决策，且顺手把「绝不外露上游响应原文」收口成一处。
+>
+> 读的是**最近一次回调的结果**而不是「最近一次失败」，否则上一次已经成功了还
+> 挂着三天前的「超时」。`pending` 超 5 分钟读作 timeout —— 这正是当初决定
+> 惰性判定、不为一件事引入 beat schedule 的兑现点（Celery 停摆时那些行永远
+> 不会变成 failed）。
 
 **风险最高、建议单独 review 的两处**：`outbound_http.py` 的 IP 钉住实现（TOCTOU 很容易写成无效的）、`bot_cards.py` 里「value 不进 body」这条不变量（一次手滑就把 pipeline token 广播给全群）。
 
@@ -365,9 +376,9 @@ grep 已确认：`group-add-members`/`member-kick-*`/`member-transfer-*`/`group-
 
 ## 17. 落地顺序（三条线并行）
 
-- **线 A**：A0 ✅ → A1 只读卡片 → A2 点击状态机 → A3 出站回调
-- **线 B**：审计两个修复 → 权限码 + `UNSCOPABLE` + mixin → `ImConversation` + 4 处写入点（**比读取早落地一天，投影就多攒一天真实数据**）→ `admin_bots.py` → 前端页面
-- **线 C**：C4 ✅ → C2(a) ✅ → C3（本文 + `p11`）→ C1 Web（commit 1 纯搬运 + 刻画测试）→ C1 Android（commit 1 纯搬运，commit 2 转让口径）→ C2(b) 三仓同批（fixture 先落后端，另两仓的契约测试才有东西读）
+- **线 A** ✅：A0 ✅ → A1 ✅ → A2 ✅ → A3 ✅
+- **线 B**（唯一剩余）：审计两个修复 → 权限码 + `UNSCOPABLE` + mixin → `ImConversation` + 4 处写入点（**比读取早落地一天，投影就多攒一天真实数据**）→ `admin_bots.py` → 前端页面
+- **线 C** ✅：C4 ✅ → C2(a) ✅ → C3 ✅（`a33c1db9`）→ C1 Web ✅（`1c85ba53` + `0d2f8f24`）→ C1 Android ✅（`616b4e3` 纯搬运 + `19d23ee` 转让口径）→ C2(b) ✅（后端/Web `473879a8`、App `6117c91`）
 
 **唯一跨线依赖**：`botPalette.ts` 移动（线 B），做完通知线 A。
 
