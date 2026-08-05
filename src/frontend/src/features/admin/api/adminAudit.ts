@@ -44,19 +44,32 @@ export const fetchAuditLogs = (
   )
 }
 
-/** Action keys the backend emits (AuditActionChoices), for the filter dropdown. */
-export const AUDIT_ACTIONS = [
-  'dept.create',
-  'dept.rename',
-  'dept.delete',
-  'member.add',
-  'member.update',
-  'member.role_change',
-  'member.department_change',
-  'member.suspend',
-  'member.restore',
-  'member.remove',
-] as const
+/**
+ * One filterable action, as the backend describes it.
+ *
+ * `label` is the English enum label — a **fallback**, not the display string.
+ * Chinese names live in `zh/admin.json` under `audit.action.*` because the
+ * backend's `.po` has no translations for `AuditActionChoices` at all; taking
+ * the label as-is would swap the console's Chinese action names for English.
+ */
+export interface AuditActionOption {
+  value: string
+  label: string
+  group: string
+}
+
+/**
+ * The action catalogue, straight from `AuditActionChoices`.
+ *
+ * This used to be a hardcoded list of 10 here while the enum had 53 — so 43
+ * kinds of action, every bot action among them, could not be filtered for at
+ * all. Fetching it is what makes that drift impossible rather than merely
+ * fixed once.
+ */
+export const fetchAuditActions = (): Promise<AuditActionOption[]> =>
+  fetchApi<{ actions: AuditActionOption[] }>('/admin/audit-logs/actions/').then(
+    (r) => r.actions,
+  )
 
 /** i18n key for an action label (dots → underscores; i18next splits on dots). */
 export const actionI18nKey = (action: string) =>

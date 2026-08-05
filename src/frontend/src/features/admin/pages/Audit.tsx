@@ -7,11 +7,25 @@ import { Button } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 
 import {
+  type AuditActionOption,
   type AuditLogEntry,
-  AUDIT_ACTIONS,
   actionI18nKey,
+  fetchAuditActions,
   fetchAuditLogs,
 } from '../api/adminAudit'
+
+/** 保持后端给的顺序(枚举顺序),同组的聚在一起。`Map` 记住插入顺序。 */
+const groupByGroup = (
+  options: AuditActionOption[],
+): [string, AuditActionOption[]][] => {
+  const buckets = new Map<string, AuditActionOption[]>()
+  for (const option of options) {
+    const bucket = buckets.get(option.group)
+    if (bucket) bucket.push(option)
+    else buckets.set(option.group, [option])
+  }
+  return [...buckets.entries()]
+}
 
 const formatTime = (iso: string, locale: string) => {
   try {
@@ -46,8 +60,19 @@ export const AdminAudit = () => {
     staleTime: 15_000,
   })
 
+  // 动作目录是枚举的投影,一个会话里不会变 —— 拉一次就够。
+  const { data: actionOptions = [] } = useQuery({
+    queryKey: ['admin', 'audit-actions'],
+    queryFn: fetchAuditActions,
+    staleTime: Infinity,
+  })
+  const actionGroups = groupByGroup(actionOptions)
+
   const logs = data?.results ?? []
-  const actionLabel = (a: string) => t(actionI18nKey(a), { defaultValue: a })
+  const labelByValue = new Map(actionOptions.map((o) => [o.value, o.label]))
+  // 兜底顺序:中文 → 后端英文 label → 裸 key。最后一档只在目录还没拉到时出现。
+  const actionLabel = (a: string) =>
+    t(actionI18nKey(a), { defaultValue: labelByValue.get(a) ?? a })
   const actorLabel = (e: AuditLogEntry) =>
     e.actor ? e.actor.full_name || e.actor.short_name || '' : t('audit.systemActor')
 
@@ -76,10 +101,17 @@ export const AdminAudit = () => {
             className={cx(filterControl, selectChrome)}
           >
             <option value="">{t('audit.filterAllActions')}</option>
-            {AUDIT_ACTIONS.map((a) => (
-              <option key={a} value={a}>
-                {actionLabel(a)}
-              </option>
+            {actionGroups.map(([group, options]) => (
+              <optgroup
+                key={group}
+                label={t(`audit.group.${group}`, { defaultValue: group })}
+              >
+                {options.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {t(actionI18nKey(o.value), { defaultValue: o.label })}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <label className={dateLabel}>
