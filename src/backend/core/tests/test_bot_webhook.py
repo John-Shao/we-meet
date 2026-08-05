@@ -234,8 +234,11 @@ def test_degradations_are_reported_to_the_sender_but_not_to_the_group(install, p
     response = post("tok-happy-path", CARD_BODY)
     warnings = response.json()["data"]["warnings"]
     assert "block-dropped:img" in warnings
-    # A1 阶段还没有出站回调通道,所以带 value 的按钮被丢掉而不是变成死按钮。
-    assert "button-dropped:callback-not-configured" in warnings
+    # 二期 A2 起 callback 按钮**能点了**(本地闭环:结果在群里显示),所以不再
+    # 丢弃。但还没有出站通道,所以照样要告诉发送方 —— 否则它的流水线会一直
+    # 等一个不会来的回调。
+    assert "button-local-only:no-callback-url" in warnings
+    assert "button-dropped:callback-not-configured" not in warnings
 
     assert "warning" not in poster.call_args[0][3]
 

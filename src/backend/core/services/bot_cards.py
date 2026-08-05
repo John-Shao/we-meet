@@ -52,6 +52,9 @@ MAX_FIELDS_PER_BLOCK = 20
 
 WARN_BLOCK_DROPPED = "block-dropped:{tag}"
 WARN_BUTTON_CALLBACK_UNAVAILABLE = "button-dropped:callback-not-configured"
+#: 按钮能点、结果会在群里显示,但**不会回调你的服务**。A2 阶段(还没有出站
+#: 通道)恒发这条 —— 对方的 CI 日志里看得到,免得它一直等一个不会来的回调。
+WARN_BUTTON_LOCAL_ONLY = "button-local-only:no-callback-url"
 WARN_BUTTON_NO_ACTION = "button-dropped:no-url-or-value"
 WARN_BUTTONS_TRUNCATED = "buttons-truncated"
 WARN_BLOCKS_TRUNCATED = "blocks-truncated"
@@ -92,12 +95,18 @@ class MappedCard(NamedTuple):
 # ---- 入口 -------------------------------------------------------------------
 
 
-def map_card(payload: Any, *, allow_callback: bool) -> MappedCard:
+def map_card(
+    payload: Any, *, allow_callback: bool, callback_configured: bool = False
+) -> MappedCard:
     """``interactive`` 载荷 → rich-card。失败抛 :class:`BotPayloadError`。
 
-    ``allow_callback=False`` 时,只有 ``value`` 没有 ``url`` 的按钮会被**丢弃
-    并 warning**,而不是渲染成一个点了没反应的死按钮。A1 阶段恒为 False
-    (installation 上还没有 callback 通道),A3 起由群主是否配了回调地址决定。
+    两个开关是**两件事**,别合并:
+
+    * ``allow_callback`` —— 要不要渲染「点了要回调」的按钮。False 时它们被
+      **丢弃并 warning**,而不是变成一个点了没反应的死按钮。
+    * ``callback_configured`` —— 群主配没配出站地址。False 但仍 allow 时,
+      按钮能点、结果会在群里显示,只是**不会回调对方的服务** —— 这也要
+      warning,否则对方的流水线会一直等一个不会来的回调。
     """
     if not isinstance(payload, dict):
         raise BotPayloadError(CODE_BAD_BODY, "invalid request body")
@@ -141,6 +150,9 @@ def map_card(payload: Any, *, allow_callback: bool) -> MappedCard:
 
     if not blocks and not header:
         raise BotPayloadError(CODE_EMPTY_CONTENT, "empty content")
+
+    if values and not callback_configured:
+        _warn(warnings, WARN_BUTTON_LOCAL_ONLY)
 
     plain = card_plain(header, blocks)
     body = im_cards.build_rich_card(blocks=blocks, header=header, plain=plain)
@@ -449,3 +461,39 @@ def card_plain(header: dict[str, Any] | None, blocks: list[dict[str, Any]]) -> s
                 if piece:
                     lines.append(piece)
     return " ".join(lines).strip()
+
+
+# ---- 按钮定义的服务端投影 ----------------------------------------------------
+
+
+def card_button_defs(body: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """从已规范化的 body 派生 ``button_id`` → 定义,存进 ``ImCardMessage``。
+
+    从 body 派生而不是让 [map_card] 多返回一份:**一个来源**。body 是客户端
+    看到的东西,按钮定义就该是它的投影,不该有第二条真相。
+
+    ``block`` 是 actions 块的序号(``a0``/``a1``…),``once`` 的互斥范围是**块**
+    不是整张卡 —— 一张卡可以既有「同意/驳回」又有「重跑」,各管各的。
+    """
+    defs: dict[str, dict[str, Any]] = {}
+    block_index = 0
+    for block in body.get("blocks") or []:
+        if not isinstance(block, dict) or block.get("type") != im_cards.CARD_BLOCK_ACTIONS:
+            continue
+        key = f"a{block_index}"
+        block_index += 1
+        resolve = block.get("resolve") or im_cards.CARD_RESOLVE_ONCE
+        for button in block.get("buttons") or []:
+            if not isinstance(button, dict):
+                continue
+            button_id = button.get("id")
+            if not button_id:
+                continue
+            defs[str(button_id)] = {
+                "text": button.get("text") or "",
+                "style": button.get("style") or "default",
+                "action": button.get("action") or "",
+                "block": key,
+                "resolve": resolve,
+            }
+    return defs

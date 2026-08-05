@@ -29,6 +29,7 @@ from core.api.admin_import import ImportJobViewSet, MemberExportView
 from core.api.agent_internal import IngestTranscriptView
 from core.api.bot_webhook import BotWebhookView
 from core.api.im_bots import ImBotViewSet
+from core.api.im_cards import ImCardViewSet
 from core.api.recording_accesses import RecordingAccessViewSet
 from core.api.admin_invite_links import InviteLinkViewSet, JoinRequestViewSet
 from core.api.invite import (
@@ -106,6 +107,8 @@ router.register("im", ImViewSet, basename="im")
 router.register("im/later", ImLaterViewSet, basename="im_later")
 # 群机器人:带 pk 的 CRUD 资源,双端都要标准 REST(见 core/api/im_bots.py)。
 router.register("im/bots", ImBotViewSet, basename="im_bots")
+# 卡片按钮的点击与叠加层(二期 A2)。detail 的 pk 是 jusi 的 mid。
+router.register("im/cards", ImCardViewSet, basename="im_cards")
 router.register(
     "calendar-events", CalendarEventViewSet, basename="calendar_events"
 )

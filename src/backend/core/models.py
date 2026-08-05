@@ -4065,6 +4065,108 @@ class ImBotInstallation(BaseModel):
         return f"ImBotInstallation({self.bot_id} in {self.cid})"
 
 
+class ImCardMessage(BaseModel):
+    """一条已投递的 ``rich-card`` —— **服务端这一侧的权威记录**(二期 A2)。
+
+    jusi 改不了已发消息的 body(全仓唯一的 ``UPDATE messages`` 是撤回的
+    ``SET recalled_at``),所以按钮状态走**叠加层**:结果单独记在这里、单独
+    广播,客户端渲染时叠在卡片上。
+
+    这张表存在的三个理由,每一个都不能少:
+
+    1. **按钮定义的权威副本。** 点击接口按 ``mid`` 查这里拿 cid 和按钮定义
+       —— **不信客户端传的 cid,也不信 mid 属于哪个 cid**。
+    2. **顺带解决转发副本。** 转发产生新 mid、没有这张表的行 → 点击 404。
+       客户端本地剥 actions 只是不让用户看到死按钮,这里才是真正的兜底。
+    3. **``values`` 的家。** 发送方给按钮的私有载荷(可能是 pipeline token)
+       只住在这里,**永远不进 body**。见 ``services/bot_cards`` 文件头。
+    """
+
+    #: jusi 的消息 id。全局唯一 —— 一条消息只会有一张卡。
+    mid = models.BigIntegerField(_("jusi message id"), unique=True)
+    cid = models.CharField(_("conversation id"), max_length=64, db_index=True)
+    #: 发这张卡的安装。删掉机器人时卡片记录跟着走(消息本身留在 jusi 里,
+    #: 按钮从此点不动 —— 这比留一堆指向不存在机器人的活按钮诚实)。
+    installation = models.ForeignKey(
+        ImBotInstallation,
+        on_delete=models.CASCADE,
+        related_name="card_messages",
+        null=True,
+        blank=True,
+    )
+    #: ``button_id`` → ``{text, style, action, block, resolve}``。从 body 派生,
+    #: 但**存下来而不是每次重新解析**:body 在 jusi 那边,取一次要过网络。
+    buttons = models.JSONField(_("button definitions"), default=dict, blank=True)
+    #: ``button_id`` → 发送方给的 value。**永不下发**。
+    values = models.JSONField(_("button values"), default=dict, blank=True)
+    #: 过期后按钮置灰。一张六个月前的「同意上线」按钮是负债,不是功能。
+    expires_at = models.DateTimeField(_("expires at"), db_index=True)
+
+    class Meta:
+        db_table = "meet_im_card_message"
+        ordering = ("-created_at",)
+        verbose_name = _("IM card message")
+        verbose_name_plural = _("IM card messages")
+
+    def __str__(self):
+        return f"ImCardMessage(mid={self.mid})"
+
+
+class ImCardAction(BaseModel):
+    """一次卡片按钮点击(二期 A2)。
+
+    ``resolves`` 区分两种 actions 块:
+
+    * ``once`` —— 同意/驳回这类互斥选择。第一个人点完就定局,靠下面那条
+      **部分唯一约束**保证:并发时第二个人拿 409,而不是两条结果都写进去。
+      约束放在数据库而不是应用层,因为「先查再写」在两个 worker 之间必然漏。
+    * ``each`` —— 重跑这类。谁都能点,不 resolve、**也不广播** ——
+      一张卡被点 200 次不该在 jusi 里留 200 条控制消息。
+    """
+
+    card = models.ForeignKey(
+        ImCardMessage, on_delete=models.CASCADE, related_name="actions"
+    )
+    #: 这个按钮属于哪个 actions 块。``once`` 的互斥范围是**块**不是整张卡 ——
+    #: 一张卡可以有「同意/驳回」和「重跑」两块,各管各的。
+    block = models.CharField(_("actions block"), max_length=16)
+    button_id = models.CharField(_("button id"), max_length=32)
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="im_card_actions"
+    )
+    #: 是否是「定局」的那一次点击。见类注释。
+    resolves = models.BooleanField(_("resolves the block"), default=False)
+    #: 客户端幂等键。与入站 webhook 的 ``X-Request-Id`` 同一个幂等思路 ——
+    #: 这个代码库里只该有一种幂等观念。
+    click_id = models.CharField(_("client click id"), max_length=64, blank=True, default="")
+    #: 广播给群里的结果文案(A2 是本地生成的「谁 做了什么」;A3 起上游可覆盖)。
+    result_text = models.CharField(_("result text"), max_length=200, blank=True, default="")
+
+    class Meta:
+        db_table = "meet_im_card_action"
+        ordering = ("created_at",)
+        verbose_name = _("IM card action")
+        verbose_name_plural = _("IM card actions")
+        constraints = [
+            # once 块的互斥:一个块只允许一条定局记录。
+            models.UniqueConstraint(
+                fields=["card", "block"],
+                condition=models.Q(resolves=True),
+                name="one_resolution_per_actions_block",
+            ),
+            # 同一个人带同一个 click_id 只记一次 —— 重放返回上次的结果。
+            models.UniqueConstraint(
+                fields=["card", "user", "click_id"],
+                condition=~models.Q(click_id=""),
+                name="card_click_id_is_idempotent",
+            ),
+        ]
+        indexes = [models.Index(fields=["card", "block"])]
+
+    def __str__(self):
+        return f"ImCardAction({self.button_id} by {self.user_id})"
+
+
 class RoomInvitee(BaseModel):
     """One person on a room's「建议参会」(suggested-participants) list (P5).
 

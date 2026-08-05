@@ -247,3 +247,32 @@ def build_rich_card(
     if plain:
         card["plain"] = plain
     return card
+
+
+def build_card_state(
+    *,
+    target_mid: int,
+    block: str,
+    button_id: str,
+    text: str,
+) -> dict[str, Any]:
+    """卡片按钮的点击结果(协议 v1,``content_type: card-state``)。
+
+    这是一条**非冒泡控制消息**:照常持久化+广播,但不计未读、不顶会话、不进
+    全文搜索(jusi 的 ``IM_NONBUMPING_CONTENT_TYPES``,已于 ``e3897a5`` 落地)。
+    客户端把它叠在 ``target_mid`` 那张卡上渲染,**不自成一行**。
+
+    为什么不直接改原消息:jusi 改不了已发消息的 body。就算能改也不该改 ——
+    body 是机器人说的话,结果是我们记的账。把原话改写成「已同意」等于让审计
+    链条撒谎,jusi 的全文索引里会存在一条谁都没发过的 body。
+
+    只有 ``resolve: once`` 的块会广播这条。``each`` 块(重跑那类)点一百次也
+    不该在 jusi 里留一百条控制消息。
+    """
+    return {
+        "v": 1,
+        "target_mid": target_mid,
+        "block": block,
+        "button_id": button_id,
+        "text": text,
+    }

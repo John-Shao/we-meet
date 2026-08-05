@@ -31,8 +31,11 @@ from core.api.throttling import (
     BotWebhookIPThrottle,
     BotWebhookTokenThrottle,
 )
+from core.api import im_cards as api_im_cards
+from core.services import bot_cards
 from core.services import bot_webhook as mapping
 from core.services import im_bots
+from core.services import im_cards
 from core.services.jusi_im import (
     JusiImBadResponseError,
     JusiImServiceError,
@@ -136,7 +139,7 @@ class BotWebhookView(APIView):
             return Response(cached, status=status.HTTP_200_OK)
 
         try:
-            message = mapping.build_message(payload)
+            message = mapping.build_message(payload, allow_callback=True)
         except mapping.BotPayloadError as exc:
             return bot_response(exc.code, exc.message, exc.http_status)
 
@@ -240,6 +243,7 @@ class BotWebhookView(APIView):
         models.ImBotInstallation.objects.filter(pk=install.pk).update(
             last_used_at=timezone.now(), message_count=F("message_count") + 1
         )
+        self._remember_card(install, message, result)
         data: dict = {"mid": result.mid, "seq": result.seq}
         # 降级说明只回给发送方(它的 CI 日志里看得到),**不进消息 body** ——
         # 群成员不该看到「你的机器人少发了一张图」。消息照发,这是 200。
@@ -252,6 +256,39 @@ class BotWebhookView(APIView):
         }
         self._remember(install, request, raw, body)
         return Response(body, status=status.HTTP_200_OK)
+
+
+    @staticmethod
+    def _remember_card(install, message, result):
+        """卡片投递成功后落一条 ImCardMessage —— 点击接口的权威记录(A2)。
+
+        best-effort:落库失败不该把一条已经发出去的消息回滚成 500。代价是那
+        张卡的按钮点不动(点击接口 404),而不是发送方以为没发成功又重发一遍。
+        """
+        if message.content_type != im_cards.RICH_CARD:
+            return
+        try:
+            body = json.loads(message.body)
+            defs = bot_cards.card_button_defs(body)
+            if not defs:
+                # 没有按钮就不用记 —— 一张只读卡不需要服务端状态。
+                return
+            models.ImCardMessage.objects.create(
+                mid=result.mid,
+                cid=install.cid,
+                installation=install,
+                buttons=defs,
+                values=message.button_values or {},
+                expires_at=timezone.now() + api_im_cards.CARD_TTL,
+            )
+        except Exception:  # pylint: disable=broad-except
+            # 静默降级正是一期头像那次没人发现的原因 —— 这里用 error。
+            logger.error(
+                "bot webhook: failed to record card mid=%s install=%s",
+                getattr(result, "mid", None),
+                install.pk,
+                exc_info=True,
+            )
 
 
 class BotThrottled(Exception):

@@ -187,7 +187,9 @@ def check_keywords(text: str, keywords) -> bool:
 # ---- payload → message -------------------------------------------------------
 
 
-def build_message(payload: Any, *, allow_callback: bool = False) -> BotMessage:
+def build_message(
+    payload: Any, *, allow_callback: bool = False, callback_configured: bool = False
+) -> BotMessage:
     """Map a 飞书 webhook payload to a message. Raises :class:`BotPayloadError`.
 
     ``allow_callback`` 只对 ``interactive`` 有意义:群主还没配出站回调地址时,
@@ -202,7 +204,11 @@ def build_message(payload: Any, *, allow_callback: bool = False) -> BotMessage:
     if msg_type == "post":
         return _build_post(payload)
     if msg_type == "interactive":
-        return _build_interactive(payload, allow_callback=allow_callback)
+        return _build_interactive(
+            payload,
+            allow_callback=allow_callback,
+            callback_configured=callback_configured,
+        )
     if not msg_type:
         raise BotPayloadError(CODE_BAD_MSG_TYPE, "msg_type is required")
     raise BotPayloadError(
@@ -211,7 +217,9 @@ def build_message(payload: Any, *, allow_callback: bool = False) -> BotMessage:
     )
 
 
-def _build_interactive(payload: dict, *, allow_callback: bool) -> BotMessage:
+def _build_interactive(
+    payload: dict, *, allow_callback: bool, callback_configured: bool = False
+) -> BotMessage:
     """``msg_type=interactive`` → rich-card。映射本体在 ``bot_cards``。
 
     局部 import 是有意的:``bot_cards`` 要用本模块的 ``BotPayloadError`` 和那批
@@ -220,7 +228,11 @@ def _build_interactive(payload: dict, *, allow_callback: bool) -> BotMessage:
     """
     from core.services import bot_cards
 
-    mapped = bot_cards.map_card(payload, allow_callback=allow_callback)
+    mapped = bot_cards.map_card(
+        payload,
+        allow_callback=allow_callback,
+        callback_configured=callback_configured,
+    )
     plain = str(mapped.body.get("plain") or "")
     if len(plain) > MAX_TEXT_RUNES:
         raise BotPayloadError(
