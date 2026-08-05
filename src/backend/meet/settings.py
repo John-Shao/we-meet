@@ -893,6 +893,15 @@ class Base(Configuration):
         "dedupe_seconds": values.IntegerValue(
             10, environ_name="BOT_WEBHOOK_DEDUPE_S", environ_prefix=None
         ),
+        # Extra CIDRs the card-button callback may never connect to, comma
+        # separated. The gate already blocks everything `not is_global`, which
+        # covers RFC1918, RFC 6598 (100.64/10 — the Aliyun metadata range),
+        # link-local, loopback and multicast. This is the escape hatch for the
+        # one case that predicate cannot see: a deployment whose own network
+        # sits on globally-routable space. Leave empty unless that is you.
+        "callback_deny_cidrs": values.Value(
+            "", environ_name="BOT_CALLBACK_DENY_CIDRS", environ_prefix=None
+        ),
     }
 
     # Shared secret used by agent workers (multi_user_transcriber, etc.) to

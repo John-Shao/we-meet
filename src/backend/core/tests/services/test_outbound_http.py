@@ -266,3 +266,16 @@ def test_a_timeout_is_a_category_not_a_traceback():
         with pytest.raises(OutboundBlocked) as exc:
             outbound_http.post_json("https://ci.example.com/hook", {}, {})
     assert exc.value.category == "timeout"
+
+
+def test_the_denylist_setting_is_actually_wired_to_an_env_var():
+    """上面那条 override_settings 测试**证明不了这个** —— 它直接塞了一个
+    settings 字典,而生产里没有任何东西会去塞它。
+
+    这条护栏是有来由的:``callback_deny_cidrs`` 一度只活在 outbound_http 的
+    ``cfg.get()`` 里,settings.py 根本没有这个键,于是那个逃生口在生产上**永远
+    是空的**,而测试全绿。
+    """
+    from django.conf import settings  # noqa: PLC0415
+
+    assert "callback_deny_cidrs" in settings.BOT_CONFIGURATION
