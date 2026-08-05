@@ -186,6 +186,23 @@ backend:
     # ADMIN_HMAC_SECRET seeded on the jusi-light-im ECS — see
     # docs/runbooks/p6-deploy.md §3 in the jusi-light-im repo).
 
+    # ─── 群机器人 (自定义 webhook 机器人, 对标飞书) ───────────────────────
+    # webhook 地址由这个 origin + /api/bot/v1/hook/<token> 拼成。它会被贴进
+    # 第三方的 CI 配置, 所以必须是外部可达的域名 —— 不设会回退
+    # DJANGO_EMAIL_APP_BASE_URL(当前恰好同值), 但那是巧合不是约定, 显式写死。
+    #
+    # 无需 ingress 改动: 主 ingress 的 /api/ Prefix 已经转给 backend。
+    # 该端点无 DRF 鉴权, path 里的 token 即凭据; 每个机器人的 token / 签名密钥
+    # 在建的时候入库生成, 故这里不需要新 secret。
+    #
+    # ⚠️ 上线顺序: jusi-light-im 的 P23(members.role='bot') 必须先上, 否则
+    # add_bots 被老版本忽略 → 机器人不入群 → 消息 sender 被静默改写成全零
+    # SYSTEM(HTTP 仍 200, 无报错), 群里只会看到居中灰条。
+    BOT_WEBHOOK_BASE_URL: https://meet.we-meet.online
+    # 限流三档(bot_webhook 100/min、bot_webhook_burst 5/s、bot_webhook_ip
+    # 600/min)与每群机器人数上限(BOT_MAX_PER_CONVERSATION=10)都有默认值,
+    # 被刷时再用对应环境变量热调, 平时不用在这里写死。
+
     # ─── P3 协作文档 (La Suite Docs / 妙记落 Doc) ─────────────────────────
     # Summary SUCCESS → docs_client 建文档 → 存 MeetingDoc → doc 链接发进 IM。
     # 与 JUSI_IM 一样在 generate_meeting_summary 的 celery 里跑（envVars 合并进
