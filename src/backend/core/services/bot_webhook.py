@@ -60,9 +60,13 @@ MAX_BODY_BYTES = 20 * 1024
 MAX_TEXT_RUNES = 4000
 
 #: Literal that both clients' "@我" detection matches for a broadcast mention.
-#: It is a zh string on purpose: the check is ``body.includes('@' + t('mention.
-#: everyone'))``, so an ``Everyone`` locale will not light up. Known limitation —
-#: fixing it means making both clients match a locale-independent token.
+#:
+#: Deliberately **not** changed to something locale-neutral: this string is
+#: already frozen into every stored message, and users may have it in a bot's
+#: keyword gate. Locale independence was fixed on the *client* side instead —
+#: both clients match every alias in
+#: ``core/tests/fixtures/im_cards/mention_everyone_aliases.json`` (of which this
+#: literal is one; ``test_im_card_contract`` pins that).
 AT_EVERYONE = "@所有人"
 
 IMAGE_PLACEHOLDER = "[图片]"

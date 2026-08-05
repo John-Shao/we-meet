@@ -260,3 +260,43 @@ def test_content_types_are_kebab_case(content_type):
 
 def test_rich_text_content_type_is_kebab_case():
     assert im_cards.RICH_TEXT == "rich-text"
+
+
+# --- @所有人 别名(C2b) --------------------------------------------------------
+#
+# 与上面那些不同,这份 fixture 不是某个 builder 的产物,而是**三端共享的一张
+# 常量表**:客户端判「这条消息点了所有人吗」时不能只认自己 locale 的字面量,
+# 否则德语同事输的 @Alle 中文同事永远收不到提醒。后端在这里只负责两件事 ——
+# 守住这张表的形状,并钉住 AT_EVERYONE 确实是表里的一员。
+
+
+def _aliases() -> dict:
+    return json.loads(
+        (FIXTURE_DIR / "mention_everyone_aliases.json").read_text(encoding="utf-8")
+    )
+
+
+def test_at_everyone_is_one_of_the_aliases():
+    """后端写进 plain 的字面量必须在别名表里,否则客户端认不出自己发的消息。
+
+    ``AT_EVERYONE`` 刻意**不改**:它已经冻在存量消息里,也可能出现在用户
+    配好的机器人关键词闸门规则中。要做到 locale 无关,是让客户端多认几个,
+    而不是让服务端换一个。
+    """
+    from core.services.bot_webhook import AT_EVERYONE
+
+    assert AT_EVERYONE.startswith("@")
+    assert AT_EVERYONE.lstrip("@") in _aliases()["aliases"]
+
+
+def test_alias_list_is_the_flat_projection_of_by_locale():
+    """by_locale 是唯一真相,aliases 是它的扁平投影 —— 两边不能各自漂。"""
+    data = _aliases()
+    assert set(data["aliases"]) == set(data["by_locale"].values())
+    assert len(data["aliases"]) == len(set(data["aliases"])), "别名表里有重复项"
+    assert all(a.strip() == a and a for a in data["aliases"]), "别名不得带首尾空白或为空"
+
+
+def test_alias_table_covers_every_shipped_locale():
+    """漏一个语种 = 那个语种的用户被 @所有人 时不会亮 —— 静默,没人会报障。"""
+    assert set(_aliases()["by_locale"]) == {"zh", "en", "fr", "de", "nl"}

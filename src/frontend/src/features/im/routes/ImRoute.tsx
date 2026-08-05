@@ -23,6 +23,7 @@ import { createGroupConversation } from '../api/createGroupConversation'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { fetchImToken } from '../api/fetchImToken'
 import { richTextPreview } from '../components/richText'
+import { mentionScan } from '../mentions'
 import { ChatPane } from './ChatPane'
 import { AddMemberDialog } from '../components/AddMemberDialog'
 import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
@@ -156,23 +157,21 @@ const ImAuthenticated = () => {
   // 被 @ 提醒:收到他人消息且 @我自己 或 @所有人、且不在当前会话 → 列表标红「@」。
   // 免打扰(muted)整会话不亮;@所有人不提示(mute_at_all)只屏蔽纯 @所有人,
   // 单独 @我仍亮(P10)。
+  //
+  // 判定本身在 `../mentions`:@所有人 认全语种别名(德语同事发的 @Alle 中文
+  // 同事也要亮),且只扫真正承载人话的 content_type。
   const selfName = user?.full_name || ''
-  const everyone = t('mention.everyone')
   useEffect(() => {
     const off = client.onMessage((m) => {
       if (m.sender_uid === currentUserUID || m.cid === selectedCID) return
       const flags = muteFlagsRef.current.get(m.cid)
       if (flags?.muted) return // 消息免打扰:完全不亮
-      const body = m.body || ''
       // Others @ me by my group nickname (if set) — read it from the cached
       // roster; match either nickname or directory name (P10).
       const roster = qc.getQueryData<ConvMember[]>(['im', 'members', m.cid])
       const myNick = roster?.find((r) => r.uid === currentUserUID)?.nickname
-      const mentionsSelf =
-        (!!myNick && body.includes(`@${myNick}`)) ||
-        (!!selfName && body.includes(`@${selfName}`))
-      const mentionsAll = body.includes(`@${everyone}`)
-      const notify = mentionsSelf || (mentionsAll && !flags?.muteAtAll)
+      const hit = mentionScan(m.content_type, m.body || '', [myNick, selfName])
+      const notify = hit.self || (hit.everyone && !flags?.muteAtAll)
       if (notify) {
         setMentionedCids((prev) => {
           if (prev.has(m.cid)) return prev
@@ -183,7 +182,7 @@ const ImAuthenticated = () => {
       }
     })
     return off
-  }, [client, currentUserUID, selectedCID, selfName, everyone, qc])
+  }, [client, currentUserUID, selectedCID, selfName, qc])
 
   // Opening a conversation clears its @ marker.
   useEffect(() => {

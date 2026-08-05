@@ -1,0 +1,19 @@
+{
+  "_doc": "@所有人 的全语种别名。三端共读:客户端拿它判「这条消息点了所有人吗」,判定必须与消息发出时用的是哪个 locale 无关 —— 德语同事输 @Alle、中文同事只认 @所有人,今天就漏。生产代码各端硬编码同一份,契约测试断言 常量 == 本文件 == 各自 locale 资源。改这里要三仓同批。",
+  "_matching": "客户端按 `@` + 别名 做**大小写无关的子串**匹配,与既有实现同口径。已知局限:@Allen 会命中 @Alle(CJK 无词边界,三端统一加边界判定代价过高),这不是本次引入的。",
+  "_source_of_truth": "by_locale 是唯一真相;aliases 是它的扁平投影,生产代码匹配用的就是这一份,契约测试断言两者集合相等。",
+  "aliases": [
+    "所有人",
+    "Everyone",
+    "Alle",
+    "Tout le monde",
+    "Iedereen"
+  ],
+  "by_locale": {
+    "de": "Alle",
+    "en": "Everyone",
+    "fr": "Tout le monde",
+    "nl": "Iedereen",
+    "zh": "所有人"
+  }
+}
