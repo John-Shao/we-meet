@@ -9,7 +9,6 @@ import { StateHint } from '@/components/StateHint'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useCopy } from '@/hooks/useCopy'
 
-import { Avatar } from '../Avatar'
 import { SwitchRow } from '../SettingRows'
 import {
   deleteGroupBot,
@@ -17,6 +16,7 @@ import {
   resetBotSecret,
   updateGroupBot,
 } from '../../api/groupBots'
+import { BotAvatar } from './BotAvatar'
 import { BotSecretField } from './BotSecretField'
 import { CustomBotForm } from './CustomBotForm'
 import {
@@ -141,7 +141,12 @@ export const GroupBotDetailPage = ({
           borderBottom: '1px solid token(colors.greyscale.100)',
         })}
       >
-        <Avatar name={bot.name} src={bot.avatar_url} size="2.75rem" />
+        <BotAvatar
+          name={bot.name}
+          src={bot.avatar_url}
+          colorIndex={bot.avatar_color_index}
+          size="2.75rem"
+        />
         <div className={css({ flex: 1, minWidth: 0 })}>
           <div
             className={css({ fontSize: '0.9375rem', color: 'greyscale.900' })}

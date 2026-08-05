@@ -525,6 +525,12 @@ def _profile_s3_client():
         config=botocore.client.Config(
             signature_version=settings.AWS_S3_SIGNATURE_VERSION,
             s3={"addressing_style": "virtual"},
+            # boto3 ≥1.36 默认给每个 PUT 加 CRC32 校验头,阿里云 OSS 不认,直写
+            # 会失败。绝大多数调用只是 generate_presigned_url(签个 URL 让客户端
+            # 自己 PUT,boto3 从不碰 OSS)所以一直没暴露;render_bot_avatar_swatch
+            # 是本代码库第一处真正的 put_object,于是撞上了。
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
         ),
     )
 
@@ -627,42 +633,75 @@ def generate_bot_avatar_upload_url(*, content_type: str, size: int) -> dict:
     }
 
 
-def render_bot_avatar_swatch(*, color: str, label: str) -> str:
-    """Render a coloured initial avatar server-side and return its object key.
+def _draw_bot_glyph(draw, size: int, background: str) -> None:
+    """Draw a robot mark on a ``size``×``size`` canvas — vector, no font.
+
+    Deliberately not the bot's initial. Pillow's bundled font has no CJK
+    glyphs, so 「测试机器人」 rendered as a notdef box — and two different
+    Chinese names produced byte-identical images, which is how it was caught.
+    Bundling a CJK font would add megabytes to the image to draw one character;
+    a mark carries the same meaning in every language and matches what 飞书
+    shows for a bot with no picture.
+
+    ``background`` is the swatch colour: the eyes are punched back out in it so
+    the head reads as one solid shape rather than three.
+    """
+    unit = size / 32.0  # a 32×32 design grid, scaled to whatever we render at
+    white = "#FFFFFF"
+
+    def ellipse(cx, cy, rx, ry, fill):
+        draw.ellipse(
+            ((cx - rx) * unit, (cy - ry) * unit, (cx + rx) * unit, (cy + ry) * unit),
+            fill=fill,
+        )
+
+    # antenna
+    draw.rectangle((15.2 * unit, 6.5 * unit, 16.8 * unit, 10.0 * unit), fill=white)
+    ellipse(16.0, 5.6, 2.0, 2.0, white)
+    # head
+    draw.rounded_rectangle(
+        (7.0 * unit, 10.0 * unit, 25.0 * unit, 24.0 * unit),
+        radius=4.5 * unit,
+        fill=white,
+    )
+    # eyes
+    for cx in (12.5, 19.5):
+        ellipse(cx, 16.0, 1.7, 1.9, background)
+    # mouth
+    draw.rounded_rectangle(
+        (12.5 * unit, 20.0 * unit, 19.5 * unit, 21.4 * unit),
+        radius=0.7 * unit,
+        fill=background,
+    )
+
+
+def render_bot_avatar_swatch(*, color: str, label: str = "") -> str:
+    """Render a bot avatar (palette colour + robot mark) and return its key.
 
     Why the server draws this rather than each client: a bot's colour is a
     *choice the creator made*, not a hash of its name, so every client would
-    otherwise need the same palette, the same glyph rules and the same
-    fallbacks — and the push notification, which renders no UI at all, could
-    never have one. Producing a real image means all three just read
-    ``avatar_url`` and one code path exists.
+    otherwise need the same palette and the same fallback rules — and the push
+    notification, which renders no UI at all, could never have one. Producing a
+    real image means all three just read ``avatar_url``.
+
+    ``label`` is accepted and ignored; see :func:`_draw_bot_glyph`.
 
     Returns "" on any failure: a bot without a picture still works (clients fall
-    back to an initial), so this must never block creating one.
+    back to the palette colour), so this must never block creating one. The
+    failure is logged at *error* — it silently degrading is exactly how the
+    boto3/OSS checksum incompatibility went unnoticed on the first deploy.
     """
     try:
         # Imported lazily: Pillow is only needed on this one write path, and an
         # import error here must not take down the whole module.
-        from PIL import Image, ImageDraw, ImageFont  # pylint: disable=import-outside-toplevel
+        from PIL import Image, ImageDraw  # pylint: disable=import-outside-toplevel
 
         size = BOT_AVATAR_SWATCH_PX
         image = Image.new("RGB", (size, size), color)
-        glyph = (label or "").strip()[:1].upper() or "#"
-        draw = ImageDraw.Draw(image)
-        try:
-            font = ImageFont.load_default(size=int(size * 0.45))
-        except TypeError:  # Pillow < 9.2 has no size argument
-            font = ImageFont.load_default()
-        left, top, right, bottom = draw.textbbox((0, 0), glyph, font=font)
-        draw.text(
-            ((size - (right - left)) / 2 - left, (size - (bottom - top)) / 2 - top),
-            glyph,
-            fill="#FFFFFF",
-            font=font,
-        )
+        _draw_bot_glyph(ImageDraw.Draw(image), size, color)
+
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
-        buffer.seek(0)
 
         object_key = f"{BOT_AVATAR_PREFIX}{uuid4().hex[:16]}.png"
         _profile_s3_client().put_object(
@@ -673,7 +712,7 @@ def render_bot_avatar_swatch(*, color: str, label: str) -> str:
         )
         return object_key
     except Exception:  # pylint: disable=broad-except
-        logger.warning("bot avatar swatch render failed", exc_info=True)
+        logger.error("bot avatar swatch render failed", exc_info=True)
         return ""
 
 

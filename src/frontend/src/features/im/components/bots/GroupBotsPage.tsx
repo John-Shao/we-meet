@@ -7,7 +7,7 @@ import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 
-import { Avatar } from '../Avatar'
+import { BotAvatar } from './BotAvatar'
 import { neutralChipCls } from '../chips'
 import { listGroupBots } from '../../api/groupBots'
 import { AddBotDialog } from './AddBotDialog'
@@ -109,7 +109,12 @@ export const GroupBotsPage = ({
                   _hover: { backgroundColor: 'greyscale.50' },
                 })}
               >
-                <Avatar name={bot.name} src={bot.avatar_url} size="2rem" />
+                <BotAvatar
+                  name={bot.name}
+                  src={bot.avatar_url}
+                  colorIndex={bot.avatar_color_index}
+                  size="2rem"
+                />
                 <span className={css({ flex: 1, minWidth: 0 })}>
                   <span
                     className={css({

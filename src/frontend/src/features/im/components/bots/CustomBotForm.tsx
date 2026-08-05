@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { css, cx } from '@/styled-system/css'
 import { Button } from '@/primitives'
 
-import { Avatar } from '../Avatar'
-import { BOT_COLORS, botColorAt } from './botAvatar'
+import { BotAvatar } from './BotAvatar'
+import { BOT_COLORS, botColorAt } from './botPalette'
 import { inputCls, modalFoot } from './botStyles'
 
 const NAME_MAX = 32
@@ -97,9 +97,7 @@ export const CustomBotForm = ({
             flexWrap: 'wrap',
           })}
         >
-          <div style={{ borderRadius: '0.4rem', overflow: 'hidden' }}>
-            <Avatar name={name || '#'} size="2.5rem" />
-          </div>
+          <BotAvatar name={name || '#'} colorIndex={colorIndex} size="2.5rem" />
           {BOT_COLORS.map((hex, index) => (
             <button
               key={hex}

@@ -192,3 +192,43 @@ def test_an_out_of_range_palette_index_wraps_rather_than_raising():
     assert im_bots.palette_color(99) in im_bots.BOT_AVATAR_PALETTE
     assert im_bots.palette_color(None) == im_bots.BOT_AVATAR_PALETTE[0]
     assert im_bots.palette_color("nonsense") == im_bots.BOT_AVATAR_PALETTE[0]
+
+
+# ---- avatar swatch -----------------------------------------------------------
+
+
+def test_the_swatch_is_drawn_without_a_font():
+    """飞书-style robot mark, not the bot's initial.
+
+    Pillow's bundled font has no CJK glyphs: 「测试机器人」 and 「构建通知」
+    rendered byte-identical notdef boxes. Two differently-named bots must not
+    produce the same picture, and neither may look like a broken glyph.
+    """
+    from PIL import Image, ImageDraw  # pylint: disable=import-outside-toplevel
+
+    from core import utils  # pylint: disable=import-outside-toplevel
+
+    drawn = []
+    for color in ("#3370FF", "#DB2777"):
+        image = Image.new("RGB", (64, 64), color)
+        utils._draw_bot_glyph(ImageDraw.Draw(image), 64, color)  # noqa: SLF001
+        drawn.append(image.tobytes())
+        # The mark is white on the swatch colour, so both must be present.
+        colors = {c for _, c in image.getcolors(maxcolors=1 << 16)}
+        assert (255, 255, 255) in colors, "the robot mark did not render"
+
+    assert drawn[0] != drawn[1], "different palette colours produced the same image"
+
+
+def test_the_s3_client_disables_request_checksums():
+    """boto3 ≥1.36 adds a CRC32 header to every PUT; Aliyun OSS rejects it.
+
+    Every other caller only *signs* a URL for the client to PUT, so boto3 never
+    touches OSS and this never showed up — until the bot avatar became the first
+    real ``put_object`` and silently wrote nothing.
+    """
+    from core import utils  # pylint: disable=import-outside-toplevel
+
+    client = utils._profile_s3_client()  # noqa: SLF001
+    assert client.meta.config.request_checksum_calculation == "when_required"
+    assert client.meta.config.response_checksum_validation == "when_required"
