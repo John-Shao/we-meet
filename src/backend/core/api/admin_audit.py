@@ -9,7 +9,7 @@ server-side as a side effect of the actions they record.
 from rest_framework import mixins, serializers, viewsets
 
 from core import models
-from core.api.admin_org import IsOrgAdmin
+from core.api.admin_roles import HasOrgPermission
 from core.api.directory import get_caller_organization
 from core.api.serializers import UserLightSerializer
 from core.api.viewsets import Pagination
@@ -36,13 +36,19 @@ class AuditLogSerializer(serializers.ModelSerializer):
 
 
 class AuditLogViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
-    """List the caller organization's audit log (org admins only).
+    """List the caller organization's audit log.
 
     Filters: ``?action=`` / ``?actor=<user_id>`` / ``?since=`` / ``?until=``
     (ISO timestamps). Ordered newest-first by the model's default ordering.
+
+    Gated on the code the console's navigation gates on. Was ``IsOrgAdmin``,
+    which 403'd the built-in ``it`` role even though it is granted
+    ``org.audit.read`` and therefore sees the menu entry. Widening only —
+    owner/administrator hold ``ALL_PERMISSIONS``.
     """
 
-    permission_classes = [IsOrgAdmin]
+    permission_classes = [HasOrgPermission]
+    required_permission = "org.audit.read"
     serializer_class = AuditLogSerializer
     pagination_class = Pagination
 

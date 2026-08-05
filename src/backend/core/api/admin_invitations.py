@@ -20,7 +20,8 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import mixins, serializers, viewsets
 
 from core import models
-from core.api.admin_org import IsOrgAdmin, _OrgScopedAdminViewSet
+from core.api.admin_org import _OrgScopedAdminViewSet
+from core.api.admin_roles import HasOrgPermission
 from core.api.serializers import UserLightSerializer
 from core.api.viewsets import Pagination
 from core.services.audit import record_audit
@@ -203,12 +204,17 @@ class OrgInvitationViewSet(
     mixins.DestroyModelMixin,
     _OrgScopedAdminViewSet,
 ):
-    """List / create / revoke organization invitations (org admins only).
+    """List / create / revoke organization invitations.
 
     ``list`` defaults to pending invitations; pass ``?status=`` for others.
+
+    Gated on the code the console's navigation gates on. Was ``IsOrgAdmin``,
+    so hr and it — both granted ``org.invitation.write`` — saw the /invites
+    entry and got a 403 on half the page. Widening only.
     """
 
-    permission_classes = [IsOrgAdmin]
+    permission_classes = [HasOrgPermission]
+    required_permission = "org.invitation.write"
     pagination_class = Pagination
 
     def get_serializer_class(self):

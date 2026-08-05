@@ -1247,8 +1247,22 @@ class UserGroupViewSet(
     group with the same name would NOT revive them (the key is id-derived).
     """
 
+    # 与控制台导航同一套权限码。原先继承 _OrgScopedAdminViewSet 的 IsOrgAdmin,
+    # 于是内置 hr / it 两个角色被授了 org.group.read、导航给他们显示了「用户组」,
+    # 点进去却 403。**读写必须分开**:hr 只有 read,合并成一个码等于顺手给了他
+    # 改组的权力,而一个组就是一个 ACL 主体 —— 加个人进去会静默放宽他能看到的
+    # 东西。手法与同文件的 DepartmentAdminViewSet 一致。
+    permission_classes = [HasOrgPermission]
     serializer_class = UserGroupSerializer
     pagination_class = None  # a company has tens of groups, not thousands
+
+    def get_permissions(self):
+        self.required_permission = (
+            "org.group.read"
+            if self.request.method in ("GET", "HEAD", "OPTIONS")
+            else "org.group.write"
+        )
+        return super().get_permissions()
 
     def get_queryset(self):
         organization = self.get_organization()

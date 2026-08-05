@@ -21,7 +21,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core import models
-from core.api.admin_org import IsOrgAdmin
+from core.api.admin_roles import HasOrgPermission
 from core.api.directory import get_caller_organization
 
 CACHE_TTL_SECONDS = 60
@@ -29,9 +29,17 @@ TREND_DAYS = 14
 
 
 class AdminStatsOverviewView(APIView):
-    """Aggregate counts + a short activity trend for the console dashboard."""
+    """Aggregate counts + a short activity trend for the console dashboard.
 
-    permission_classes = [IsOrgAdmin]
+    Gated on the **same permission code the console's navigation gates on**
+    (``AdminShell.tsx``). It used to be ``IsOrgAdmin``, i.e. owner/administrator
+    membership — so hr / it / admin_office, all three of which are granted
+    ``org.stats.read``, saw the dashboard entry, clicked it, and got a 403.
+    Widening only: owner/administrator hold ``ALL_PERMISSIONS`` and still pass.
+    """
+
+    permission_classes = [HasOrgPermission]
+    required_permission = "org.stats.read"
 
     def get(self, request):
         organization = get_caller_organization(request.user)

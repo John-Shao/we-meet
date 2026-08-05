@@ -19,7 +19,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from core import models
-from core.api.admin_org import IsOrgAdmin, _OrgScopedAdminViewSet
+from core.api.admin_org import _OrgScopedAdminViewSet
+from core.api.admin_roles import HasOrgPermission
 from core.api.meeting_rooms import (
     facility_ids_from_params,
     node_path_label,
@@ -282,6 +283,11 @@ class MeetingRoomNodeAdminViewSet(
 ):
     """CRUD for the room hierarchy (org admins only)."""
 
+    # 与控制台导航同一个权限码(AdminShell.tsx)。原为 IsOrgAdmin —— 内置
+    # admin_office 角色被授了 org.meeting_room.write、因此看得到菜单,点进去
+    # 却 403。纯放宽:owner/administrator 持 ALL_PERMISSIONS 依然通过。
+    permission_classes = [HasOrgPermission]
+    required_permission = "org.meeting_room.write"
     serializer_class = MeetingRoomNodeAdminSerializer
     pagination_class = None
 
@@ -426,6 +432,11 @@ class MeetingRoomAdminViewSet(
     must not depend on having paged through the list to find it.
     """
 
+    # 与控制台导航同一个权限码(AdminShell.tsx)。原为 IsOrgAdmin —— 内置
+    # admin_office 角色被授了 org.meeting_room.write、因此看得到菜单,点进去
+    # 却 403。纯放宽:owner/administrator 持 ALL_PERMISSIONS 依然通过。
+    permission_classes = [HasOrgPermission]
+    required_permission = "org.meeting_room.write"
     serializer_class = MeetingRoomAdminSerializer
     pagination_class = Pagination
 
@@ -535,6 +546,11 @@ class MeetingRoomFacilityAdminViewSet(
 ):
     """CRUD for the facility dictionary (org admins only)."""
 
+    # 与控制台导航同一个权限码(AdminShell.tsx)。原为 IsOrgAdmin —— 内置
+    # admin_office 角色被授了 org.meeting_room.write、因此看得到菜单,点进去
+    # 却 403。纯放宽:owner/administrator 持 ALL_PERMISSIONS 依然通过。
+    permission_classes = [HasOrgPermission]
+    required_permission = "org.meeting_room.write"
     serializer_class = MeetingRoomFacilityAdminSerializer
     pagination_class = None
 
@@ -590,7 +606,11 @@ class MeetingRoomBookingAdminViewSet(mixins.ListModelMixin, _OrgScopedAdminViewS
     that flow is M2.
     """
 
-    permission_classes = [IsOrgAdmin]
+    # 与控制台导航同一个权限码(AdminShell.tsx)。原为 IsOrgAdmin —— 内置
+    # admin_office 角色被授了 org.meeting_room.write、因此看得到菜单,点进去
+    # 却 403。纯放宽:owner/administrator 持 ALL_PERMISSIONS 依然通过。
+    permission_classes = [HasOrgPermission]
+    required_permission = "org.meeting_room.write"
     pagination_class = Pagination
 
     def get_queryset(self):
