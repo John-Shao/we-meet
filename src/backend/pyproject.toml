@@ -50,6 +50,10 @@ dependencies = [
     "jsonschema==4.26.0",
     "markdown==3.10.2",
     "nested-multipart-parser==1.6.0",
+    # 群机器人的预设头像由服务端渲染成 PNG(core/utils.render_bot_avatar_swatch)。
+    # 之前只是 easy_thumbnails 的传递依赖 —— 直接用就该直接声明,否则哪天上游
+    # 换了依赖,机器人头像会静默退回无图(渲染包在 try 里),没人会立刻发现。
+    "Pillow==12.2.0",
     "psycopg[binary]==3.3.3",
     "pydantic==2.12.5",
     "PyJWT==2.12.1",
