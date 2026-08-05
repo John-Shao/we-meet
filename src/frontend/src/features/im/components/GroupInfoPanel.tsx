@@ -9,15 +9,15 @@ import { useConfirm } from '@/components/ConfirmProvider'
 
 import { announceLeave } from '../api/announceLeave'
 import { updateGroupMeta } from '../api/updateGroupMeta'
-import { removeMember } from '../api/removeMember'
 import { resolveImUsers } from '../api/resolveImUsers'
+import { useGroupRoster } from '../hooks/useGroupRoster'
 import { GroupAvatar } from './GroupAvatar'
-import { Avatar } from './Avatar'
+import { GroupMembersPage } from './GroupMembersPage'
 import { PanelFrame } from './PanelFrame'
 import { SettingRow, SwitchRow } from './SettingRows'
 import { GroupBotsPage } from './bots/GroupBotsPage'
 import { GroupBotDetailPage } from './bots/GroupBotDetailPage'
-import { brandChipCls, neutralChipCls } from './chips'
+import { editBtn, sectionLabel } from './panelStyles'
 
 interface Props {
   client: Client
@@ -39,9 +39,10 @@ const readDescription = (meta: unknown): string => {
   return ''
 }
 
-/** Root page, bot list, or one bot's detail. */
+/** Root page, member list, bot list, or one bot's detail. */
 type PanelView =
   | { name: 'root' }
+  | { name: 'members' }
   | { name: 'bots' }
   | { name: 'bot'; botId: string }
 
@@ -118,50 +119,10 @@ export const GroupInfoPanel = ({
     if (editingNick) nickRef.current?.focus()
   }, [editingNick])
 
-  // The roster is its own REST query; a conv lifecycle event for this group
-  // (someone joined / left / was removed) only refreshes the conversation list,
-  // not this query — so without invalidating here the open panel stays stale
-  // until reopened. Refetch the roster whenever this conversation changes.
-  useEffect(() => {
-    const off = client.onConversation((ev) => {
-      if (ev.cid === cid) {
-        void qc.invalidateQueries({ queryKey: ['im', 'members', cid] })
-      }
-    })
-    return off
-  }, [client, cid, qc])
-
-  const { data: roster = [], isLoading } = useQuery({
-    queryKey: ['im', 'members', cid],
-    queryFn: () => client.listMembers(cid),
-    staleTime: 30_000,
-    // Never retry: a 403 (you left / were removed) won't succeed on retry, and
-    // the default 3× backoff would freeze the UI ~5s after leaving the group.
-    retry: false,
-  })
-  const rosterUids = roster.map((m) => m.uid)
-  const { data: names = {} } = useQuery({
-    queryKey: ['im', 'member-names', rosterUids],
-    queryFn: () => resolveImUsers(rosterUids),
-    enabled: rosterUids.length > 0,
-    staleTime: 60_000,
-  })
-  // P10: a member's group nickname overrides their org-directory name.
-  const nameOf = (uid: string) =>
-    roster.find((m) => m.uid === uid)?.nickname || names[uid]?.full_name || uid
-
-  // 群成员搜索。搜的是**这个群里显示的那个名字** —— 群昵称优先、目录名兜底,
-  // 与名单上看到的一致;搜不到自己刚看见的名字比没有搜索还费解。
-  // 小群不出搜索框:三个人的名单上顶一个输入框纯属噪音。
-  const [memberQuery, setMemberQuery] = useState('')
-  const searchableRoster = roster.length > MEMBER_SEARCH_THRESHOLD
-  const visibleRoster = (() => {
-    const q = memberQuery.trim().toLowerCase()
-    if (!q || !searchableRoster) return roster
-    return roster.filter((m) => nameOf(m.uid).toLowerCase().includes(q))
-  })()
-  const myNickname =
-    roster.find((m) => m.uid === currentUserUID)?.nickname ?? ''
+  // 花名册整体搬去了成员二级页,但 root 仍要挂这个 hook ——「我的群昵称」
+  // 那一行没有第二个来源:`ConversationSummary` 里不含 caller 自己的 nickname。
+  // 两处同时挂是安全的(同 queryKey 去重),理由写在 useGroupRoster 的注释里。
+  const { myNickname } = useGroupRoster(client, cid, currentUserUID)
 
   // 群头像九宫格:解析前 9 名成员的头像/名字拼贴(同会话列表的群头像)。
   const tileUids = conversation.members.slice(0, 9)
@@ -182,11 +143,6 @@ export const GroupInfoPanel = ({
         message: e instanceof Error ? e.message : String(e),
       }),
     })
-
-  const refresh = async () => {
-    await qc.invalidateQueries({ queryKey: ['im', 'members', cid] })
-    await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
-  }
 
   const saveName = async () => {
     const next = nameDraft.trim()
@@ -266,47 +222,6 @@ export const GroupInfoPanel = ({
     }
   }
 
-  const kick = async (uid: string) => {
-    const userId = names[uid]?.id
-    if (!userId) return
-    if (
-      !(await askConfirm({
-        message: t('manage.removeConfirm', { name: nameOf(uid) }),
-        confirmLabel: t('manage.remove'),
-        danger: true,
-      }))
-    )
-      return
-    setBusy(true)
-    try {
-      await removeMember(cid, userId)
-      await refresh()
-    } catch (e) {
-      onError(e)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const transfer = async (uid: string) => {
-    if (
-      !(await askConfirm({
-        message: t('manage.transferConfirm', { name: nameOf(uid) }),
-        confirmLabel: t('manage.transfer'),
-      }))
-    )
-      return
-    setBusy(true)
-    try {
-      await client.transferOwner(cid, uid)
-      await refresh()
-    } catch (e) {
-      onError(e)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const clearHistory = async () => {
     if (
       !(await askConfirm({
@@ -349,6 +264,23 @@ export const GroupInfoPanel = ({
       setBusy(false)
     }
   }
+
+  if (view.name === 'members')
+    return (
+      <PanelFrame
+        key="members"
+        title={t('manage.membersTitle')}
+        onBack={back}
+        onClose={onClose}
+      >
+        <GroupMembersPage
+          client={client}
+          conversation={conversation}
+          currentUserUID={currentUserUID}
+          onAddMembers={onAddMembers}
+        />
+      </PanelFrame>
+    )
 
   if (view.name === 'bots')
     return (
@@ -640,6 +572,16 @@ export const GroupInfoPanel = ({
           testid="group-mute-all-toggle"
         />
 
+        {/* 群成员 —— 放在机器人**上面**:人优先于工具。计数用
+            `conversation.members` 而不是花名册,省掉 root 对 roster 长度的
+            依赖(jusi P23 已把机器人排除在 members 之外,与 listMembers 同值)。 */}
+        <SettingRow
+          label={t('manage.members')}
+          value={String(conversation.members.length)}
+          onClick={() => setView({ name: 'members' })}
+          testid="group-members-entry"
+        />
+
         {/* 群机器人 —— a management entry (add / configure / read credentials),
             so it opens a sub-page rather than sitting inline the way the roster
             does (对标飞书). */}
@@ -648,157 +590,6 @@ export const GroupInfoPanel = ({
           onClick={() => setView({ name: 'bots' })}
           testid="group-bots-entry"
         />
-
-        {/* Members: count + add, then the roster (owner badge + transfer/kick) */}
-        <div
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingX: '1rem',
-            paddingTop: '0.875rem',
-            paddingBottom: '0.375rem',
-          })}
-        >
-          <span className={sectionLabel}>
-            {t('manage.members')} ({roster.length})
-          </span>
-          <button
-            type="button"
-            onClick={onAddMembers}
-            title={t('manage.addMembers')}
-            aria-label={t('manage.addMembers')}
-            data-testid="group-add-members"
-            className={editBtn}
-          >
-            ＋
-          </button>
-        </div>
-        {searchableRoster && (
-          <div className={css({ paddingX: '1rem', paddingBottom: '0.5rem' })}>
-            <input
-              type="search"
-              value={memberQuery}
-              onChange={(e) => setMemberQuery(e.target.value)}
-              placeholder={t('manage.searchMembers')}
-              aria-label={t('manage.searchMembers')}
-              data-testid="group-member-search"
-              className={memberSearchCls}
-            />
-          </div>
-        )}
-        <ul
-          className={css({
-            listStyle: 'none',
-            margin: 0,
-            padding: '0 0 0.5rem',
-          })}
-        >
-          {isLoading ? (
-            <li
-              className={css({ padding: '0.5rem 1rem', color: 'greyscale.500' })}
-            >
-              {t('group.loading')}
-            </li>
-          ) : visibleRoster.length === 0 ? (
-            <li
-              className={css({ padding: '0.5rem 1rem', color: 'greyscale.500' })}
-            >
-              {t('manage.noMemberMatch')}
-            </li>
-          ) : (
-            visibleRoster.map((m) => {
-              const label = nameOf(m.uid)
-              const isSelf = m.uid === currentUserUID
-              // Drive the badge off owner_uid (authoritative) rather than the
-              // roster role, which can lag a transfer until the row re-syncs.
-              const isRowOwner = m.uid === conversation.owner_uid
-              const canActOnRow = isOwner && !isSelf && !isRowOwner
-              return (
-                <li
-                  key={m.uid}
-                  className={css({
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.625rem',
-                    paddingX: '1rem',
-                    paddingY: '0.375rem',
-                    _hover: { backgroundColor: 'greyscale.50' },
-                  })}
-                >
-                  <Avatar
-                    name={label}
-                    src={names[m.uid]?.avatar_url}
-                    size="2rem"
-                  />
-                  <span
-                    className={css({
-                      flex: 1,
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      color: 'greyscale.900',
-                    })}
-                  >
-                    {label}
-                  </span>
-                  {isRowOwner && (
-                    <span className={brandChipCls}>{t('manage.owner')}</span>
-                  )}
-                  {/* P10:人离职了群里不会自动少一个人 —— 群成员关系归 jusi,
-                      组织关系归 we-meet,两者本就不同步。名单上标出来,群主才
-                      知道该清谁。用中性灰,不是错误态。 */}
-                  {names[m.uid]?.left && (
-                    <span className={neutralChipCls}>{t('departed.chip')}</span>
-                  )}
-                  {canActOnRow && (
-                    <>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => transfer(m.uid)}
-                        title={t('manage.transfer')}
-                        aria-label={t('manage.transfer')}
-                        data-testid={`member-transfer-${m.uid}`}
-                        className={css({
-                          flexShrink: 0,
-                          border: 'none',
-                          background: 'transparent',
-                          cursor: 'pointer',
-                          color: 'greyscale.500',
-                          fontSize: '0.875rem',
-                          _hover: { color: 'primary.500' },
-                        })}
-                      >
-                        ♛
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy || !names[m.uid]?.id}
-                        onClick={() => kick(m.uid)}
-                        title={t('manage.remove')}
-                        aria-label={t('manage.remove')}
-                        data-testid={`member-kick-${m.uid}`}
-                        className={css({
-                          flexShrink: 0,
-                          border: 'none',
-                          background: 'transparent',
-                          cursor: 'pointer',
-                          color: 'greyscale.500',
-                          fontSize: '0.875rem',
-                          _hover: { color: 'error.500' },
-                        })}
-                      >
-                        ×
-                      </button>
-                    </>
-                  )}
-                </li>
-              )
-            })
-          )}
-        </ul>
 
         {/* Clear history (per-member) */}
         <button
@@ -837,16 +628,6 @@ const inputCls = css({
   _focus: { borderColor: 'primary.500' },
 })
 
-const editBtn = css({
-  flexShrink: 0,
-  border: 'none',
-  background: 'transparent',
-  cursor: 'pointer',
-  color: 'greyscale.500',
-  fontSize: '0.875rem',
-  _hover: { color: 'primary.500' },
-})
-
 const sectionCls = css({
   padding: '0.875rem 1rem',
   borderBottom: '1px solid token(colors.greyscale.100)',
@@ -859,23 +640,8 @@ const sectionHead = css({
   marginBottom: '0.375rem',
 })
 
-const sectionLabel = css({ fontSize: '0.8125rem', color: 'greyscale.600' })
-
 const editActions = css({
   display: 'flex',
   gap: '0.5rem',
   justifyContent: 'flex-end',
-})
-
-/** 成员数超过这个值才出搜索框 —— 少于一屏的名单上顶个输入框纯属噪音。 */
-const MEMBER_SEARCH_THRESHOLD = 10
-
-const memberSearchCls = css({
-  width: '100%',
-  padding: '0.375rem 0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '6px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.8125rem',
 })
