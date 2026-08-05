@@ -4,7 +4,10 @@
 >
 > 一期见 [`p11-im-group-bots.md`](./p11-im-group-bots.md)（含 R1–R12 运行时红线，本阶段所有改动的输入）。
 >
-> 进度：**线 A 全部完成**（A0 ✅ A1 ✅ A2 ✅ A3 ✅）· 线 C 全部完成（C1 ✅ C2 ✅ C3 ✅ C4 ✅）· **线 B 待做**。
+> 进度：**三条线全部完成**。线 A（A0 ✅ A1 ✅ A2 ✅ A3 ✅）· 线 B ✅ · 线 C（C1 ✅ C2 ✅ C3 ✅ C4 ✅）。
+>
+> 线 A + 线 C 已上生产（2026-08-05，jusi `0d5dac8` + 迁移 0081/0082），真机验收进行中。
+> 线 B 已完成待发布（迁移 0083/0084）。
 
 ---
 
@@ -377,10 +380,28 @@ grep 已确认：`group-add-members`/`member-kick-*`/`member-transfer-*`/`group-
 ## 17. 落地顺序（三条线并行）
 
 - **线 A** ✅：A0 ✅ → A1 ✅ → A2 ✅ → A3 ✅
-- **线 B**（唯一剩余）：审计两个修复 → 权限码 + `UNSCOPABLE` + mixin → `ImConversation` + 4 处写入点（**比读取早落地一天，投影就多攒一天真实数据**）→ `admin_bots.py` → 前端页面
+- **线 B** ✅：权限码不匹配 `5f621688` → 审计动作目录 `c176e864` → 权限码 + `UNSCOPABLE` + mixin `c82e5c80` → `ImConversation` + 4 处写入点 `c5f2abac` → `admin_bots.py` `1b1956ec` → 前端页面 `b3c38b76`
 - **线 C** ✅：C4 ✅ → C2(a) ✅ → C3 ✅（`a33c1db9`）→ C1 Web ✅（`1c85ba53` + `0d2f8f24`）→ C1 Android ✅（`616b4e3` 纯搬运 + `19d23ee` 转让口径）→ C2(b) ✅（后端/Web `473879a8`、App `6117c91`）
 
-**唯一跨线依赖**：`botPalette.ts` 移动（线 B），做完通知线 A。
+**唯一跨线依赖**：`botPalette.ts` 移动（线 B `b3c38b76`）→ `src/components/bot/botPalette.ts`，已改 2 处 import。线 A 的新文件没有引用旧路径。
+
+---
+
+## 线 B 落地时的三处修正
+
+1. **权限码不匹配是 5 处不是 4 处。** 方案里手工盘点漏了 `UserGroupViewSet`
+   （hr / it 都持有 `org.group.read`，导航显示「用户组」，点进去 403）。找出它的是
+   新写的 `test_admin_nav_permission_alignment.py` —— 它按**不变量**写而不是按清单写：
+   「一个内置角色只要持有某个导航码，对应端点就必须让他过」。新增页面加一行，
+   三个角色自动全测。
+
+2. **`it` 的机器人权限码推迟到 B3 才授。** B2 里顺手加进 `BUILTIN_ROLES` 时那条护栏
+   立刻变红 —— 页面还不存在。授一个没有页面的权限，正是 `permissions_registry`
+   开头警告的「能看见的东西是空的、读起来像产品坏了」。
+
+3. **`swagger.json` 是 gitignored 的**，方案里「记得提交否则 CI dirty tree」这条不成立：
+   那个测试是自比对（先重新生成再跟线上端点比），不是快照比对。而 `docs/openapi.yaml`
+   是**外部 API** 的手写规范，与内部端点无关。
 
 C1 的搬运是唯一有「搬错了看不出来」风险的，所以刻画测试要在**搬运之前**先写在旧 `GroupInfoPanel` 上跑绿。
 
