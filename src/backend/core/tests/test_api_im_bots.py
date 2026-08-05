@@ -2,6 +2,7 @@
 
 # pylint: disable=redefined-outer-name,unused-argument,protected-access
 
+import json
 from unittest import mock
 
 import pytest
@@ -413,3 +414,90 @@ def test_avatar_upload_url_is_scoped_to_the_bot_prefix(owner, jusi):
         )
     assert response.status_code == 200
     assert response.data["object_key"].startswith("bot/")
+
+
+# ---- 出站回调的配置(二期 A3)-------------------------------------------------
+
+
+def _install_for(owner) -> models.ImBotInstallation:
+    """建一个自定义机器人并取回它的安装 —— 与既有测试同一条路径。"""
+    create_bot(owner)
+    return models.ImBotInstallation.objects.filter(cid=CID).latest("created_at")
+
+
+def test_the_owner_can_set_a_callback_url_and_a_secret_is_minted(owner, jusi):
+    install = _install_for(owner)
+    """callback_secret 与 signing_secret 是**两把** —— 共用一把的话,任何能看到
+    入站密钥的人都能伪造我们的出站调用。所以它是我们自己生成的,群主没填过。"""
+    response = client_for(owner).patch(
+        f"/api/v1.0/im/bots/{install.pk}/",
+        {"callback_url": "https://ci.example.com/hook"},
+        format="json",
+    )
+    assert response.status_code == 200
+    install.refresh_from_db()
+    assert install.callback_url == "https://ci.example.com/hook"
+    assert install.callback_secret
+    assert install.callback_secret != install.signing_secret
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://ci.example.com/hook",          # 只允许 https
+        "https://169.254.169.254/latest/",     # 元数据(本部署实测可达)
+        "https://10.0.0.5/hook",               # 内网
+        "https://ci.example.com:22/hook",      # 端口白名单外
+        "ftp://ci.example.com/hook",
+    ],
+)
+def test_a_blocked_callback_url_is_rejected_at_write_time(owner, jusi, url):
+    install = _install_for(owner)
+    """写入时就校验,群主当场看到报错 —— 而不是配完之后每次点击都静默失败。"""
+    response = client_for(owner).patch(
+        f"/api/v1.0/im/bots/{install.pk}/", {"callback_url": url}, format="json"
+    )
+    assert response.status_code == 400
+    install.refresh_from_db()
+    assert install.callback_url == ""
+
+
+def test_changing_the_url_re_enables_a_self_disabled_callback(owner, jusi):
+    install = _install_for(owner)
+    """连续失败会自动停用。群主修好地址后必须能自己恢复,不然只能靠猜。"""
+    install.callback_url = "https://old.example.com/hook"
+    install.callback_enabled = False
+    install.callback_failure_count = 20
+    install.save()
+
+    client_for(owner).patch(
+        f"/api/v1.0/im/bots/{install.pk}/",
+        {"callback_url": "https://new.example.com/hook"},
+        format="json",
+    )
+    install.refresh_from_db()
+    assert install.callback_enabled is True
+    assert install.callback_failure_count == 0
+
+
+def test_the_callback_secret_is_never_serialized(owner, jusi):
+    install = _install_for(owner)
+    """与 signing_secret 同档:要看得走单独的凭据接口。"""
+    install.callback_url = "https://ci.example.com/hook"
+    install.callback_secret = "super-secret-callback-value"
+    install.save()
+    response = client_for(owner).get(f"/api/v1.0/im/bots/{install.pk}/")
+    assert "super-secret-callback-value" not in json.dumps(response.data)
+
+
+def test_sending_the_clickers_name_is_off_until_the_owner_turns_it_on(owner, jusi):
+    install = _install_for(owner)
+    """webhook 是群主配的,但点按钮的是每个成员。"""
+    assert install.callback_include_identity is False
+    client_for(owner).patch(
+        f"/api/v1.0/im/bots/{install.pk}/",
+        {"callback_include_identity": True},
+        format="json",
+    )
+    install.refresh_from_db()
+    assert install.callback_include_identity is True

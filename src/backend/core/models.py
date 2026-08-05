@@ -4050,6 +4050,34 @@ class ImBotInstallation(BaseModel):
         blank=True,
     )
 
+    # ---- 出站回调(二期 A3)----
+    #
+    # ⚠️ **回调地址长在安装上,不在按钮里。** 这是 SSRF 面最重要的一刀:按钮里
+    # 带 URL = 任何拿到 webhook token 的人都能把我们的服务器变成任意 HTTP 代理。
+    callback_url = models.URLField(
+        _("callback url"), max_length=500, blank=True, default=""
+    )
+    #: 出站签名用的密钥。**与 signing_secret 是两把** —— 共用一把的话,任何能
+    #: 看到入站密钥的人都能伪造我们的出站调用。也用来派生点击人的假名。
+    callback_secret = models.CharField(
+        _("callback secret"), max_length=64, blank=True, default=""
+    )
+    #: 把点击人的**姓名**发给外部服务。默认关:webhook 是群主配的,但点按钮的
+    #: 是每个成员 —— 默认外发他们的姓名,是群主替别人做的决定。
+    #: 关掉时仍发一个每安装独立的假名(见 services/bot_callback),外部服务照样
+    #: 能做幂等和限流,只是跨安装不可关联。
+    callback_include_identity = models.BooleanField(
+        _("send clicker name"), default=False
+    )
+    #: 连续失败计数。到阈值自动停用回调 —— 与「群没了自动停用安装」同一套路,
+    #: 自愈,不需要 cron。成功一次即清零。
+    callback_failure_count = models.PositiveIntegerField(
+        _("consecutive callback failures"), default=0
+    )
+    #: 自动停用的开关。刻意不清空 callback_url —— 群主要能看到「配过什么」
+    #: 才知道该修什么。
+    callback_enabled = models.BooleanField(_("callback enabled"), default=True)
+
     class Meta:
         db_table = "meet_im_bot_installation"
         ordering = ("created_at",)
@@ -4141,6 +4169,19 @@ class ImCardAction(BaseModel):
     click_id = models.CharField(_("client click id"), max_length=64, blank=True, default="")
     #: 广播给群里的结果文案(A2 是本地生成的「谁 做了什么」;A3 起上游可覆盖)。
     result_text = models.CharField(_("result text"), max_length=200, blank=True, default="")
+    #: 出站回调的状态(A3)。空 = 这次点击不触发回调(没配地址,或 each 块)。
+    #:
+    #: ``pending`` 是**惰性判超时**的:读取时发现 pending 且超过 5 分钟就读作
+    #: timeout。仓库里没有 beat schedule,不为这一件事引入一个 —— Celery 挂了
+    #: 的时候,一个也挂了的清理任务并不能救场。
+    callback_state = models.CharField(
+        _("callback state"), max_length=16, blank=True, default=""
+    )
+    #: 失败**分类**(timeout / refused / unreachable / address / redirect …)。
+    #: **绝不存上游响应原文** —— 那是 SSRF 的信息回传通道。
+    callback_error = models.CharField(
+        _("callback error category"), max_length=32, blank=True, default=""
+    )
 
     class Meta:
         db_table = "meet_im_card_action"

@@ -21,3 +21,4 @@ from core.tasks import embeddings as _embeddings  # noqa: F401
 from core.tasks import offboarding as _offboarding  # noqa: F401
 from core.tasks import activity as _activity  # noqa: F401
 from core.tasks import member_import as _member_import  # noqa: F401
+from core.tasks import bot_callback as _bot_callback  # noqa: F401

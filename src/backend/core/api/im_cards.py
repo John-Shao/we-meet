@@ -203,9 +203,31 @@ class ImCardViewSet(viewsets.ViewSet):
         if resolves:
             self._broadcast(card, block=block, button_id=button_id, text=result_text)
 
+        # 出站回调(A3):**异步**。点击接口必须立刻返回 —— 群成员的 UI 不该
+        # 等一个第三方服务。回调失败不影响群里已经发生的事(点击已定局、结果
+        # 条已广播),只让这次点击的 callback_state 变 failed。
+        self._schedule_callback(card, button_id)
+
         return Response({"replayed": False, "state": self._state_of(card)})
 
     # ---- internals ----
+
+    @staticmethod
+    def _schedule_callback(card: models.ImCardMessage, button_id: str) -> None:
+        install = card.installation
+        if install is None or not install.callback_url or not install.callback_enabled:
+            return
+        action = card.actions.order_by("-created_at").first()
+        if action is None:
+            return
+        models.ImCardAction.objects.filter(pk=action.pk).update(callback_state="pending")
+        try:
+            from core.tasks.bot_callback import deliver_card_callback  # noqa: PLC0415
+
+            deliver_card_callback.delay(str(action.pk))
+        except Exception:  # pylint: disable=broad-except
+            # 排不进队列不该把一次成功的点击变成 500。pending 会被惰性判超时。
+            logger.error("failed to queue card callback action=%s", action.pk, exc_info=True)
 
     @staticmethod
     def _result_text(user, definition: dict) -> str:

@@ -33,6 +33,7 @@ from core.api.im import (
     JusiImUnreachableHTTPError,
 )
 from core.services import im_bots
+from core.services import outbound_http
 from core.services.audit import record_audit
 from core.services.jusi_im import (
     JusiImBadResponseError,
@@ -132,6 +133,12 @@ class ImBotViewSet(viewsets.ViewSet):
                     "sign_verify_enabled": install.sign_verify_enabled,
                     "keywords": list(install.keywords or []),
                     "ip_allowlist": list(install.ip_allowlist or []),
+                    # 出站回调(A3)。**callback_secret 不回** —— 与
+                    # signing_secret 同档,要看得走单独的凭据接口。
+                    "callback_url": install.callback_url,
+                    "callback_include_identity": install.callback_include_identity,
+                    "callback_enabled": install.callback_enabled,
+                    "callback_failure_count": install.callback_failure_count,
                 }
             )
         else:
@@ -141,6 +148,10 @@ class ImBotViewSet(viewsets.ViewSet):
                     "sign_verify_enabled": None,
                     "keywords": None,
                     "ip_allowlist": None,
+                    "callback_url": None,
+                    "callback_include_identity": None,
+                    "callback_enabled": None,
+                    "callback_failure_count": None,
                 }
             )
         return data
@@ -413,6 +424,31 @@ class ImBotViewSet(viewsets.ViewSet):
         if allowlist is not None:
             install.ip_allowlist = allowlist
             install_fields.append("ip_allowlist")
+        if "callback_url" in data:
+            raw = str(data.get("callback_url") or "").strip()
+            if raw:
+                # 写入时就校验,群主当场看到报错。发送时还会再走一遍 ——
+                # DNS 会变,写入时合法不代表发送时合法。
+                try:
+                    outbound_http.validate_url(raw)
+                except outbound_http.OutboundBlocked as exc:
+                    raise ValidationError(
+                        {"callback_url": f"address not allowed ({exc.category})"}
+                    ) from exc
+                if not install.callback_secret:
+                    install.callback_secret = secrets.token_urlsafe(32)[:64]
+                    install_fields.append("callback_secret")
+            install.callback_url = raw
+            # 改地址视为「重新开始」:清零失败计数并重新启用,否则群主修好了
+            # 地址却还停在自动停用状态,只能靠猜。
+            install.callback_failure_count = 0
+            install.callback_enabled = True
+            install_fields.extend(
+                ["callback_url", "callback_failure_count", "callback_enabled"]
+            )
+        if "callback_include_identity" in data:
+            install.callback_include_identity = bool(data["callback_include_identity"])
+            install_fields.append("callback_include_identity")
         if "is_active" in data:
             # The supported way to silence a built-in assistant in one group.
             install.is_active = bool(data["is_active"])
