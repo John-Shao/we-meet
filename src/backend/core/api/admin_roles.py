@@ -190,6 +190,30 @@ class AdminRoleAssignmentSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"department_ids": _("Unknown department in your organization.")}
                 )
+
+        # 按部门授权 + 含 unscopable 码 = **一句兑现不了的承诺**。机器人装在
+        # 会话里、会话不属于任何部门,审计日志和看板同理 —— 这些资源上根本没有
+        # 部门这个维度。放行的话,这个人会在角色编辑器里被告知他能看机器人,
+        # 然后每次点进去都 403(端点侧由 OrgWideOnlyMixin 挡)。
+        #
+        # 堵在这里而不是只堵端点:错误配置越早说越好,而且这条消息能指名道姓
+        # 说是哪几个码,端点那一侧只知道「你被限了部门」。
+        if scope_type == models.AdminScopeChoices.DEPARTMENTS:
+            role = attrs.get("role") or getattr(self.instance, "role", None)
+            offenders = sorted(
+                set(getattr(role, "permissions", None) or [])
+                & permissions_registry.UNSCOPABLE
+            )
+            if offenders:
+                raise serializers.ValidationError(
+                    {
+                        "scope_type": _(
+                            "This role includes organization-wide permissions "
+                            "(%(codes)s), so it cannot be limited to departments."
+                        )
+                        % {"codes": ", ".join(offenders)}
+                    }
+                )
         return attrs
 
     @transaction.atomic

@@ -534,6 +534,32 @@ class DepartmentScopedMixin:
             )
 
 
+class OrgWideOnlyMixin:
+    """``DepartmentScopedMixin`` 的反面:这些资源**没有部门这个维度**。
+
+    机器人装在会话里,会话不属于任何部门。审计日志、看板同理。所以一个部门
+    作用域的调用者到这里**直接 403,而不是过滤成空**:
+
+    * 过滤成空读作「你们组织没有机器人」—— 一句假话
+    * 403 读作「这页不归你管」—— 真话
+
+    真正的堵源头在 ``AdminRoleAssignmentSerializer.validate()``:允许创建
+    「按部门授权 + 含 unscopable 码」的角色,等于承诺了一件做不到的事,那个人
+    会被告知他能看机器人、然后每次点进去都 403。这里是第二道 —— 存量的坏组合
+    在源头堵上之前就已经在库里了。
+    """
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if get_admin_context(request).is_scoped:
+            raise exceptions.PermissionDenied(
+                _(
+                    "This page covers the whole organization, so it cannot be "
+                    "administered with a department-scoped role."
+                )
+            )
+
+
 class DepartmentAdminViewSet(
     mixins.CreateModelMixin,
     mixins.UpdateModelMixin,

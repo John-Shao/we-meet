@@ -55,9 +55,35 @@ PERMISSIONS: dict[str, tuple[object, str]] = {
     "org.stats.read": (_("View the dashboard"), "governance"),
     "org.ai_quota.read": (_("View AI usage and quota"), "governance"),
     "org.ai_quota.write": (_("Manage AI quota"), "governance"),
+    # --- 群机器人治理(二期线 B)---
+    # 读凭据**不是「读」**:webhook 地址就是往那个群发消息的权限,而且撤销
+    # 权限收不回已经泄露的凭据。所以它必须能单独授予,归 sensitive 分组,
+    # 三个内置角色一个都不给 —— 要它就得 owner 明确勾选。
+    "org.bot.read": (_("View group bots"), "governance"),
+    "org.bot.write": (_("Enable and disable group bots"), "governance"),
+    "org.bot.secret.read": (_("Reveal group bot credentials"), "sensitive"),
 }
 
 ALL_PERMISSIONS = frozenset(PERMISSIONS)
+
+#: 主体上没有部门维度的权限 —— 按部门授予它们是**一句兑现不了的承诺**。
+#:
+#: 机器人装在会话里,会话不属于任何部门;审计日志、看板、角色目录同理。给一个
+#: 部门作用域的角色配上这些码,那个人会被告知他能看机器人,然后每次点进去都
+#: 403(见 `OrgWideOnlyMixin`)。所以在角色分配那一步就堵掉这个组合。
+#:
+#: 不放进 `OWNER_ONLY`:那条线是给提权原语的,这些码够不上 —— 它们只是**没有
+#: 部门这个维度**,不是不能授。
+UNSCOPABLE = frozenset(
+    {
+        "org.bot.read",
+        "org.bot.write",
+        "org.bot.secret.read",
+        "org.audit.read",
+        "org.stats.read",
+        "org.role.read",
+    }
+)
 
 #: Roles seeded into every organization. Deliberately three, not飞书's seven:
 #: we-meet has no finance or legal surface, so seeding those roles would create
@@ -93,6 +119,10 @@ BUILTIN_ROLES: dict[str, tuple[object, frozenset[str]]] = {
                 "org.audit.read",
                 "org.stats.read",
                 "org.ai_quota.read",
+                # org.bot.read / org.bot.write 随 M 端机器人页一起授(线 B / B3)
+                # —— 授一个还没有页面的权限,正好是本文件开头说的「能看见的东西
+                # 是空的、读起来像产品坏了」。**不给 org.bot.secret.read**:
+                # 那是「给自己发消息的权力」,不是「看看有哪些机器人」。
             }
         ),
     ),
