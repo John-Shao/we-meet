@@ -277,6 +277,9 @@
     "reconnecting": "正在重连…",
     "auth_failed": "鉴权失败,请刷新页面重试"
   },
+  "card": {
+    "clickFailed": "操作失败:{{message}}"
+  },
   "call": {
     "voice": "语音通话",
     "video": "视频通话",

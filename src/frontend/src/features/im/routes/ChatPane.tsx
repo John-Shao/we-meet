@@ -19,6 +19,8 @@ import { EventDetailHost } from '@/features/calendar'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { richTextPreview } from '../components/richText'
 import { richCardPreview } from '../components/richCard'
+import { useCardStates } from '../hooks/useCardStates'
+import { clickCardButton } from '../api/cardStates'
 import { IM_SYSTEM_UID } from '../components/eventCard'
 import { buildDocCardBody } from '../components/docCard'
 import { DocPickerDialog } from '../components/DocPickerDialog'
@@ -635,6 +637,28 @@ export const ChatPane = ({
         const label = names.length <= 5 ? names.join('、') : String(set.size)
         return { emoji, count: set.size, mine: set.has(currentUserUID), label }
       })
+  }
+
+  // 卡片按钮的叠加层(A2)。**它是唯一真相** —— ws 的 card-state 可能早于
+  // 点击接口的响应到达,所以这里不做本地乐观状态,点完等服务端。
+  const cardStateOf = useCardStates(messages)
+
+  const onCardButton = async (m: Message, buttonId: string) => {
+    // clickId 是幂等键:同一次点击重试带同一个值,服务端重放上次结果而不是
+    // 再记一笔(与入站 webhook 的 X-Request-Id 同一个思路)。
+    const clickId = `${m.mid}:${buttonId}:${crypto.randomUUID()}`
+    try {
+      await clickCardButton(m.mid, buttonId, clickId)
+    } catch (e) {
+      // 409 = 别人已经定局了。响应里带着当前状态,但我们这边统一靠下面这次
+      // 失效重取 —— 少一条「响应体和 ws 谁先到」的分支要想。
+      void showAlert({
+        message: t('card.clickFailed', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
+    }
+    void queryClient.invalidateQueries({ queryKey: ['im', 'card-states'] })
   }
 
   const onReact = async (m: Message, emoji: string) => {
@@ -1377,6 +1401,8 @@ export const ChatPane = ({
                         voiceUrl={voiceUrlOf(m)}
                         voiceDurationMs={voiceDurationOf(m)}
                         reactions={reactionsFor(m.mid)}
+                        cardState={cardStateOf(m.mid)}
+                        onCardButton={(buttonId) => void onCardButton(m, buttonId)}
                         onReact={(emoji) => void onReact(m, emoji)}
                         recalled={recalledMids.has(m.mid)}
                         onContextMenu={(e) => openMenu(e, m)}

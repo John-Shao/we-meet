@@ -274,6 +274,9 @@
     "reconnecting": "Neuverbindung…",
     "auth_failed": "Authentifizierung fehlgeschlagen — bitte aktualisieren"
   },
+  "card": {
+    "clickFailed": "Aktion fehlgeschlagen: {{message}}"
+  },
   "call": {
     "voice": "Sprachanruf",
     "video": "Videoanruf",

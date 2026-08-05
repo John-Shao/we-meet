@@ -244,3 +244,16 @@ export const stripActions = (raw: string): string => {
   if (body.plain) next.plain = body.plain
   return JSON.stringify(next)
 }
+
+/**
+ * 第几个 actions 块 → 服务端用的 block key(``a0``/``a1``…)。
+ *
+ * **这是一条三端契约**:服务端 ``bot_cards.card_button_defs`` 按同样的规则
+ * 编号,叠加层的 ``resolved`` 就是按这个 key 索引的。数错一位的后果是「点了
+ * 第二块,结果显示在第一块上」—— 不会报错,只会诡异。
+ *
+ * 注意计的是 **actions 块的序号**,不是块在数组里的下标 —— 中间夹着的
+ * text/fields/divider 不占号。
+ */
+export const actionsBlockKey = (blocks: CardBlock[], index: number): string =>
+  `a${blocks.slice(0, index).filter((b) => b.type === 'actions').length}`

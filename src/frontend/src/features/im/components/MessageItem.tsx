@@ -15,6 +15,7 @@ import { css } from '@/styled-system/css'
 import { SenderLabel } from './SenderLabel'
 import { RichTextBody } from './RichTextBody'
 import { RichCardMessage } from './RichCardMessage'
+import type { CardState } from '../api/cardStates'
 
 import { Avatar } from './Avatar'
 import { DocCardMessage } from './DocCardMessage'
@@ -86,6 +87,10 @@ interface Props {
   mentionNames?: string[]
   /** Subset of mentionNames that mean "you" (self name + 所有人) → stronger style. */
   selfMentionNames?: string[]
+  /** 卡片按钮的叠加层(A2)。只有 rich-card 用得上。 */
+  cardState?: CardState
+  /** 点一个 callback 按钮。缺省 = 按钮渲染成禁用态。 */
+  onCardButton?: (buttonId: string) => void
   /**
    * 已读回执(P13):仅对自己发的、当前会话最新一条消息传入。direct→已读/未读;
    * group→N 人已读(clickable=true 时可点开名单)。undefined→不显示。
@@ -295,6 +300,8 @@ export const MessageItem = ({
   showSender,
   mentionNames = [],
   selfMentionNames = [],
+  cardState,
+  onCardButton,
   readReceipt,
   onAvatarClick,
 }: Props) => {
@@ -841,7 +848,11 @@ export const MessageItem = ({
                 selfMentionNames={selfMentionNames}
               />
             ) : message.content_type === 'rich-card' ? (
-              <RichCardMessage raw={message.body} />
+              <RichCardMessage
+                raw={message.body}
+                state={cardState}
+                onClickButton={onCardButton}
+              />
             ) : (
               <div>
                 {renderBody(

@@ -1,6 +1,12 @@
 import { css } from '@/styled-system/css'
 
-import { parseRichCard, type CardSpan, type CardTheme } from './richCard'
+import type { CardState } from '../api/cardStates'
+import {
+  actionsBlockKey,
+  parseRichCard,
+  type CardSpan,
+  type CardTheme,
+} from './richCard'
 
 /**
  * `rich-card` 气泡内容(群机器人经 webhook 发来的块级卡片)。
@@ -123,6 +129,17 @@ const actionsCls = css({
   marginTop: '0.125rem',
 })
 
+/** 定局后原地替换按钮的结果条 —— 与「已同意」这类文案同一档灰。 */
+const resultCls = css({
+  paddingX: '0.625rem',
+  paddingY: '0.375rem',
+  borderRadius: '6px',
+  backgroundColor: 'greyscale.100',
+  color: 'greyscale.700',
+  fontSize: '0.8125rem',
+  lineHeight: '1.25rem',
+})
+
 const buttonBaseCls = css({
   paddingX: '0.75rem',
   paddingY: '0.375rem',
@@ -179,7 +196,20 @@ const Spans = ({ spans }: { spans: CardSpan[] }) => (
   </>
 )
 
-export const RichCardMessage = ({ raw }: { raw: string }) => {
+export const RichCardMessage = ({
+  raw,
+  state,
+  onClickButton,
+}: {
+  raw: string
+  /**
+   * 服务端的叠加层。**它是唯一真相** —— ws 的 card-state 可能早于点击接口的
+   * HTTP 响应到达,所以这里绝不做「时间戳新的赢」的本地合并(见 useCardStates)。
+   */
+  state?: CardState
+  /** 点一个 callback 按钮。缺省时按钮渲染成禁用态(比如引用/转发的场景)。 */
+  onClickButton?: (buttonId: string) => void
+}) => {
   const body = parseRichCard(raw)
   // 坏数据不能把气泡变空 —— 与卡片组件同一种降级。
   if (!body) return <>{raw}</>
@@ -232,6 +262,19 @@ export const RichCardMessage = ({ raw }: { raw: string }) => {
               </div>
             )
           }
+          // 定局之后**原地换成结果条**,而不是把按钮置灰留在那 —— 留着会让
+          // 人以为还能改。block key 的推导是三端契约,见 actionsBlockKey。
+          const blockKey = actionsBlockKey(body.blocks, bi)
+          const resolution = state?.resolved?.[blockKey]
+          if (resolution) {
+            return (
+              <div key={bi} className={actionsCls}>
+                <span className={resultCls} data-testid={`card-resolved-${blockKey}`}>
+                  {resolution.text}
+                </span>
+              </div>
+            )
+          }
           return (
             <div key={bi} className={actionsCls}>
               {block.buttons.map((button) =>
@@ -247,18 +290,20 @@ export const RichCardMessage = ({ raw }: { raw: string }) => {
                     {button.text}
                   </a>
                 ) : (
-                  // A2 之前不会有 callback 按钮到达客户端(映射器丢掉了它们),
-                  // 这个分支是给协议兼容留的:万一来了,渲染成禁用态而不是一个
-                  // 点了没反应的按钮。
+                  // callback 按钮:点了走服务端记账 + 广播(A2)。没有 onClick
+                  // 的场合(引用、转发预览)渲染成禁用态 —— 一个点了没反应的
+                  // 按钮比一个明摆着不能点的按钮更糟。
                   <button
                     key={button.id}
                     type="button"
-                    disabled
+                    disabled={!onClickButton || state?.expired}
+                    onClick={() => onClickButton?.(button.id)}
                     data-testid={`card-button-${button.id}`}
-                    className={`${buttonBaseCls} ${BUTTON_CLS[button.style]} ${css({
-                      opacity: 0.5,
-                      cursor: 'default',
-                    })}`}
+                    className={`${buttonBaseCls} ${BUTTON_CLS[button.style]} ${
+                      !onClickButton || state?.expired
+                        ? css({ opacity: 0.5, cursor: 'default' })
+                        : ''
+                    }`}
                   >
                     {button.text}
                   </button>

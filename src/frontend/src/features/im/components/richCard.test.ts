@@ -3,6 +3,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
+  actionsBlockKey,
   parseRichCard,
   richCardPlain,
   richCardPreview,
@@ -202,5 +203,31 @@ describe('stripActions', () => {
 
   it('坏数据原样返回,不吞消息', () => {
     expect(stripActions('{ not json')).toBe('{ not json')
+  })
+})
+
+describe('actionsBlockKey(三端契约)', () => {
+  it('金标准里那唯一一个 actions 块是 a0', () => {
+    // 服务端 bot_cards.card_button_defs 按同样规则编号,叠加层的 resolved
+    // 就是按这个 key 索引的。数错一位 = 点了第二块结果显示在第一块上。
+    const card = parseRichCard(load('rich_card_full'))!
+    const index = card.blocks.findIndex((b) => b.type === 'actions')
+    expect(actionsBlockKey(card.blocks, index)).toBe('a0')
+  })
+
+  it('计的是 actions 块的序号,中间夹的其它块不占号', () => {
+    const blocks = parseRichCard(
+      JSON.stringify({
+        v: 1,
+        blocks: [
+          { type: 'actions', resolve: 'once', buttons: [{ id: 'b0', text: 'x', style: 'default', action: 'callback' }] },
+          { type: 'divider' },
+          { type: 'text', spans: [{ tag: 'text', text: '中间' }] },
+          { type: 'actions', resolve: 'each', buttons: [{ id: 'b1', text: 'y', style: 'default', action: 'callback' }] },
+        ],
+      }),
+    )!.blocks
+    expect(actionsBlockKey(blocks, 0)).toBe('a0')
+    expect(actionsBlockKey(blocks, 3)).toBe('a1')
   })
 })

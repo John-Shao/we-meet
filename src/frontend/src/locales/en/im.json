@@ -282,6 +282,9 @@
     "reconnecting": "Reconnecting…",
     "auth_failed": "Authentication failed — please refresh and retry"
   },
+  "card": {
+    "clickFailed": "Action failed: {{message}}"
+  },
   "call": {
     "voice": "Voice call",
     "video": "Video call",
