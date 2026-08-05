@@ -3,9 +3,11 @@
 # pylint: disable=redefined-outer-name,unused-argument,protected-access
 
 import json
+from datetime import timedelta
 from unittest import mock
 
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from core import models
@@ -501,3 +503,103 @@ def test_sending_the_clickers_name_is_off_until_the_owner_turns_it_on(owner, jus
     )
     install.refresh_from_db()
     assert install.callback_include_identity is True
+
+
+# ---- 群主看得到的失败分类(二期 A3 UI)-----------------------------------------
+
+
+def _clicked(install, *, state: str, error: str = "", age_seconds: int = 0, mid: int):
+    """在这个安装下造一次带回调结果的点击。"""
+    card = models.ImCardMessage.objects.create(
+        mid=mid,
+        cid=CID,
+        installation=install,
+        buttons={"b0": {"text": "同意", "action": "callback", "block": "a0"}},
+        expires_at=timezone.now() + timedelta(days=30),
+    )
+    action = models.ImCardAction.objects.create(
+        card=card,
+        block="a0",
+        button_id="b0",
+        user=UserFactory(),
+        resolves=True,
+        callback_state=state,
+        callback_error=error,
+    )
+    if age_seconds:
+        # created_at 是 auto_now_add,只能事后改。
+        models.ImCardAction.objects.filter(pk=action.pk).update(
+            created_at=timezone.now() - timedelta(seconds=age_seconds)
+        )
+    return action
+
+
+def _with_callback(owner) -> models.ImBotInstallation:
+    install = _install_for(owner)
+    install.callback_url = "https://ci.example.com/hook"
+    install.save()
+    return install
+
+
+@pytest.mark.parametrize(
+    ("category", "bucket"),
+    [
+        ("timeout", "timeout"),
+        ("refused", "refused"),
+        ("upstream_error", "refused"),
+        ("too_large", "refused"),
+        ("unreachable", "unreachable"),
+        ("dns", "unreachable"),
+        ("address", "blocked"),
+        ("redirect", "blocked"),
+        ("scheme", "blocked"),
+        ("port", "blocked"),
+        # 认不出的分类也是失败,不能显示成正常。
+        ("something-new", "refused"),
+    ],
+)
+def test_the_owner_sees_a_bucket_not_the_raw_category(owner, jusi, category, bucket):
+    """群主看到的每一档都要对应一个不同的动作:等一会儿 / 找对方 / 查网络 /
+    改地址。而**绝不外露上游响应原文** —— 那是 SSRF 的信息回传通道。"""
+    install = _with_callback(owner)
+    _clicked(install, state="failed", error=category, mid=9001)
+    response = client_for(owner).get(f"{BASE}?cid={CID}")
+    assert response.data[0]["callback_last_error"] == bucket
+
+
+def test_a_later_success_clears_the_earlier_failure(owner, jusi):
+    """看的是**最近一次回调的结果**,不是「最近一次失败」 —— 否则上一次已经
+    成功了还挂着三天前的「超时」,群主会去改一个其实没坏的地址。"""
+    install = _with_callback(owner)
+    _clicked(install, state="failed", error="timeout", age_seconds=600, mid=9002)
+    _clicked(install, state="done", mid=9003)
+    response = client_for(owner).get(f"{BASE}?cid={CID}")
+    assert response.data[0]["callback_last_error"] == ""
+
+
+def test_a_pending_callback_that_never_came_back_reads_as_a_timeout(owner, jusi):
+    """Celery 停摆时那些行永远不会变成 failed。群主看到的必须是「超时」而不是
+    「一切正常」 —— 这就是惰性判定不引入 beat schedule 的兑现点。"""
+    install = _with_callback(owner)
+    _clicked(install, state="pending", age_seconds=600, mid=9004)
+    response = client_for(owner).get(f"{BASE}?cid={CID}")
+    assert response.data[0]["callback_last_error"] == "timeout"
+
+
+def test_a_callback_still_in_flight_is_not_a_failure(owner, jusi):
+    install = _with_callback(owner)
+    _clicked(install, state="pending", age_seconds=5, mid=9005)
+    response = client_for(owner).get(f"{BASE}?cid={CID}")
+    assert response.data[0]["callback_last_error"] == ""
+
+
+def test_members_get_null_for_the_callback_fields_like_every_other_credential(
+    owner, member, jusi
+):
+    """回调地址和失败分类都是配置,不是公共信息 —— 与 webhook_url 同档。"""
+    install = _with_callback(owner)
+    _clicked(install, state="failed", error="refused", mid=9006)
+    (row,) = client_for(member).get(f"{BASE}?cid={CID}").data
+    assert row["callback_url"] is None
+    assert row["callback_include_identity"] is None
+    assert row["callback_last_error"] is None

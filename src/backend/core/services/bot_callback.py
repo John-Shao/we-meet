@@ -29,6 +29,7 @@
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import hmac
 import json
@@ -124,3 +125,52 @@ def should_retry(*, category: str = "", status: int = 0) -> bool:
     if category:
         return category in RETRYABLE
     return status in RETRYABLE_STATUS
+
+
+#: ``pending`` 超过这么久就读作超时。
+STALE_PENDING_SECONDS = 300
+
+
+def is_stale_pending(state: str, created_at: datetime.datetime) -> bool:
+    """``pending`` 超过 5 分钟就读作超时。
+
+    **惰性判定,不靠定时任务**:仓库里没有 beat schedule,不为这一件事引入
+    一个。而且 Celery 挂了的时候,一个也挂了的清理任务并不能救场 —— 读取时
+    判反而永远有效。**这正是群主详情页要用它的原因**:Celery 停摆时那些行
+    永远停在 ``pending``,群主看到的必须是「超时」而不是「一切正常」。
+    """
+    if state != "pending":
+        return False
+    from django.utils import timezone  # noqa: PLC0415  (纯函数模块,不在导入期拉 Django)
+
+    return (timezone.now() - created_at).total_seconds() > STALE_PENDING_SECONDS
+
+
+#: 内部分类 → 展示给群主的**四个桶**。
+#:
+#: 分桶在服务端不在客户端:桶是产品决策(群主看到的每一档都对应一个不同的
+#: 动作 —— 等一会儿 / 找对方 / 查网络 / 改地址),而客户端只该负责翻译它。
+#: 顺带把「绝不外露上游响应原文」收口成一处。
+FAILURE_BUCKETS = {
+    # 等一会儿。
+    "timeout": "timeout",
+    # 对方明确回绝,或者回了我们处理不了的东西 —— 要找对方。
+    "refused": "refused",
+    "upstream_error": "refused",
+    "too_large": "refused",
+    # 连都连不上 —— 查网络/域名。
+    "unreachable": "unreachable",
+    "dns": "unreachable",
+    # 地址本身不被允许 —— 只能改地址。
+    "empty": "blocked",
+    "scheme": "blocked",
+    "host": "blocked",
+    "port": "blocked",
+    "address": "blocked",
+    "redirect": "blocked",
+}
+
+
+def failure_bucket(category: str) -> str:
+    """未知分类兜底成 ``refused`` —— 不认识的失败也是失败,不能显示成正常。"""
+    return FAILURE_BUCKETS.get(category or "", "refused")

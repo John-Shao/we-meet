@@ -52,6 +52,7 @@ export const GroupBotDetailPage = ({
   const [editing, setEditing] = useState(false)
   const [ipDraft, setIpDraft] = useState<string | null>(null)
   const [keywordDraft, setKeywordDraft] = useState('')
+  const [callbackDraft, setCallbackDraft] = useState<string | null>(null)
 
   const { data: bots = [], isLoading } = useQuery({
     queryKey: ['im', 'bots', cid],
@@ -341,6 +342,89 @@ export const GroupBotDetailPage = ({
               </div>
             )}
           </div>
+
+          {/*
+            出站回调 (A3). 地址挂在**机器人**上而不是按钮里 —— 按钮里带 URL
+            等于任何拿到 webhook token 的人都能把我们的服务器变成任意 HTTP
+            代理。这是整个 SSRF 面上最重要的一刀,别为了「灵活」挪回按钮。
+          */}
+          <div className={sectionCls}>
+            <div className={sectionLabelCls}>{t('bots.callback.title')}</div>
+            <input
+              value={callbackDraft ?? bot.callback_url ?? ''}
+              placeholder={t('bots.callback.urlPlaceholder')}
+              onChange={(e) => setCallbackDraft(e.target.value)}
+              className={inputCls}
+              data-testid="bot-callback-url"
+            />
+            <p className={hintCls}>{t('bots.callback.hint')}</p>
+            {callbackDraft !== null && (
+              <div className={css({ marginTop: '0.5rem' })}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  isDisabled={patch.isPending}
+                  onPress={() => {
+                    // 后端写入时就校验地址,失败会走 onError 弹出来 —— 群主
+                    // 当场看到报错,而不是配完之后每次点击都静默失败。
+                    patch.mutate({ callback_url: callbackDraft.trim() })
+                    setCallbackDraft(null)
+                  }}
+                >
+                  {t('bots.callback.save')}
+                </Button>
+              </div>
+            )}
+            {bot.callback_enabled === false && (
+              <p
+                className={css({
+                  fontSize: '0.75rem',
+                  lineHeight: 1.5,
+                  marginTop: '0.5rem',
+                  padding: '0.5rem',
+                  borderRadius: '0.375rem',
+                  backgroundColor: 'danger.subtle',
+                  color: 'danger.subtle-text',
+                })}
+                data-testid="bot-callback-disabled"
+              >
+                {t('bots.callback.disabled')}
+              </p>
+            )}
+            {!!bot.callback_last_error && (
+              <p
+                className={css({
+                  fontSize: '0.75rem',
+                  marginTop: '0.375rem',
+                  color: 'danger.subtle-text',
+                })}
+                data-testid="bot-callback-error"
+              >
+                {t('bots.callback.lastError', {
+                  reason: t(`bots.callback.reason.${bot.callback_last_error}`),
+                })}
+              </p>
+            )}
+          </div>
+
+          {!!bot.callback_url && (
+            <>
+              <SwitchRow
+                label={t('bots.callback.identity')}
+                checked={!!bot.callback_include_identity}
+                onChange={() =>
+                  patch.mutate({
+                    callback_include_identity: !bot.callback_include_identity,
+                  })
+                }
+                disabled={patch.isPending}
+                testid="bot-callback-identity-toggle"
+              />
+              <p className={cx(hintCls, css({ padding: '0 1rem 0.75rem' }))}>
+                {t('bots.callback.identityHint')}
+              </p>
+            </>
+          )}
 
           <div className={css({ padding: '0.875rem 1rem' })}>
             <button

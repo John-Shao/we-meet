@@ -424,6 +424,22 @@
       "copied": "Copied",
       "hint": "POST to this URL to send into this group. The URL is a credential — do not share it."
     },
+    "callback": {
+      "title": "Button callback",
+      "hint": "Notify this address when a member clicks a card button. https only; leave empty to turn it off.",
+      "urlPlaceholder": "https://ci.example.com/hook",
+      "save": "Save",
+      "identity": "Send the clicker's name",
+      "identityHint": "By default only an anonymous per-bot identifier is sent: the external service can tell whether it is the same person twice, but not who. Turning this on also sends the clicker's name.",
+      "disabled": "Turned off automatically after repeated failures. Save the address again to re-enable it.",
+      "lastError": "Last failure: {{reason}}",
+      "reason": {
+        "timeout": "The service did not answer in time",
+        "refused": "The service refused the request",
+        "unreachable": "The address could not be reached",
+        "blocked": "This address is not allowed"
+      }
+    },
     "security": {
       "title": "Security",
       "hint": "Turn on at least one — otherwise anyone with the URL can post here.",

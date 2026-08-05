@@ -79,7 +79,31 @@ export interface ImBot {
   sign_verify_enabled: boolean | null
   keywords: string[] | null
   ip_allowlist: string[] | null
+  /**
+   * 出站回调 (A3). Owner-only, like every other field above — members get null.
+   *
+   * `callback_secret` is deliberately absent: it is the key we sign outbound
+   * calls with, and it never leaves the server.
+   */
+  callback_url: string | null
+  callback_include_identity: boolean | null
+  /** Flips to false on its own after repeated failures; saving the URL re-arms it. */
+  callback_enabled: boolean | null
+  callback_failure_count: number | null
+  /**
+   * The **bucket** of the last callback's failure, `''` when the last one was
+   * fine. Never the upstream's own words — that would be an SSRF read channel.
+   */
+  callback_last_error: CallbackFailure | null
 }
+
+/** Mirrors `services/bot_callback.FAILURE_BUCKETS`; `''` means "nothing wrong". */
+export type CallbackFailure =
+  | ''
+  | 'timeout'
+  | 'refused'
+  | 'unreachable'
+  | 'blocked'
 
 /** Result of GET /im/bots/{id}/secret/ and POST /im/bots/{id}/reset-secret/. */
 export interface ImBotSecret {

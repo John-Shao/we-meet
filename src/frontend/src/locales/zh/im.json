@@ -419,6 +419,22 @@
       "copied": "已复制",
       "hint": "向该地址 POST 消息即可发到本群。地址等同于凭证,不要公开。"
     },
+    "callback": {
+      "title": "按钮回调",
+      "hint": "群成员点击卡片按钮时通知这个地址。只支持 https，留空表示关闭。",
+      "urlPlaceholder": "https://ci.example.com/hook",
+      "save": "保存",
+      "identity": "发送点击人姓名",
+      "identityHint": "默认只发送一个每个机器人独立的假名：外部服务能分辨是不是同一个人，但认不出是谁。开启后会把点击人的姓名一并发给外部服务。",
+      "disabled": "已因连续失败自动停用。重新保存地址即可恢复。",
+      "lastError": "最近一次失败：{{reason}}",
+      "reason": {
+        "timeout": "对方没有在规定时间内响应",
+        "refused": "对方拒绝了这次请求",
+        "unreachable": "连不上对方的地址",
+        "blocked": "这个地址不被允许"
+      }
+    },
     "security": {
       "title": "安全设置",
       "hint": "至少开启一项,否则拿到地址的人都能往群里发消息。",

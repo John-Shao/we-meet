@@ -38,6 +38,9 @@ export interface UpdateBotArgs {
   keywords?: string[]
   ip_allowlist?: string[]
   is_active?: boolean
+  /** Validated server-side at write time — a bad address 400s here, not later. */
+  callback_url?: string
+  callback_include_identity?: boolean
 }
 
 export const updateGroupBot = (

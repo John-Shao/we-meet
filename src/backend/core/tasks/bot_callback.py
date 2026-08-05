@@ -9,8 +9,6 @@
 
 import logging
 
-from django.utils import timezone
-
 from core import models
 from core.services import bot_callback as signing
 from core.services.outbound_http import OutboundBlocked, post_json
@@ -112,15 +110,3 @@ def _succeed(action, install, body: dict) -> None:
         models.ImBotInstallation.objects.filter(pk=install.pk).update(
             callback_failure_count=0
         )
-
-
-def is_stale_pending(action) -> bool:
-    """``pending`` 超过 5 分钟就读作超时。
-
-    **惰性判定,不靠定时任务**:仓库里没有 beat schedule,不为这一件事引入
-    一个。而且 Celery 挂了的时候,一个也挂了的清理任务并不能救场 —— 读取时
-    判反而永远有效。
-    """
-    if action.callback_state != "pending":
-        return False
-    return (timezone.now() - action.created_at).total_seconds() > 300

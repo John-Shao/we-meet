@@ -32,6 +32,7 @@ from core.api.im import (
     JusiImInvalidResponseHTTPError,
     JusiImUnreachableHTTPError,
 )
+from core.services import bot_callback
 from core.services import im_bots
 from core.services import outbound_http
 from core.services.audit import record_audit
@@ -104,7 +105,37 @@ class ImBotViewSet(viewsets.ViewSet):
             raise NotFound("bot not found")
         return install
 
-    def _serialize(self, install, *, is_owner: bool) -> dict:
+    @staticmethod
+    def _callback_failures(installs) -> dict:
+        """安装 pk → 最近一次回调失败的**桶**(没有失败就没有键)。
+
+        看的是**最近一次回调的结果**而不是「最近一次失败」:上一次成功了还挂着
+        三天前的「超时」,群主会去改一个其实没坏的地址。
+
+        一次查询,不是 N+1 —— ``DISTINCT ON`` 每个安装只取最新那行。
+        """
+        pks = [i.pk for i in installs if i.callback_url]
+        if not pks:
+            return {}
+        rows = (
+            models.ImCardAction.objects.filter(card__installation_id__in=pks)
+            .exclude(callback_state="")
+            .order_by("card__installation_id", "-created_at")
+            .distinct("card__installation_id")
+            .values_list(
+                "card__installation_id", "callback_state", "callback_error", "created_at"
+            )
+        )
+        out = {}
+        for install_pk, state, category, created_at in rows:
+            if state == "failed":
+                out[install_pk] = bot_callback.failure_bucket(category)
+            elif bot_callback.is_stale_pending(state, created_at):
+                # Celery 停摆时这些行永远不会变成 failed。见 is_stale_pending。
+                out[install_pk] = "timeout"
+        return out
+
+    def _serialize(self, install, *, is_owner: bool, failures: dict | None = None) -> dict:
         bot = install.bot
         data = {
             "id": str(install.pk),
@@ -127,6 +158,8 @@ class ImBotViewSet(viewsets.ViewSet):
         # Credentials and gates are configuration, not public information: a
         # member can see that a bot exists, not how to post as it.
         if is_owner:
+            if failures is None:
+                failures = self._callback_failures([install])
             data.update(
                 {
                     "webhook_url": webhook_url_for(install),
@@ -139,6 +172,9 @@ class ImBotViewSet(viewsets.ViewSet):
                     "callback_include_identity": install.callback_include_identity,
                     "callback_enabled": install.callback_enabled,
                     "callback_failure_count": install.callback_failure_count,
+                    # 只有**桶**,绝不外露上游响应原文 —— 那是 SSRF 的信息
+                    # 回传通道。分桶口径见 services/bot_callback.FAILURE_BUCKETS。
+                    "callback_last_error": failures.get(install.pk, ""),
                 }
             )
         else:
@@ -152,6 +188,7 @@ class ImBotViewSet(viewsets.ViewSet):
                     "callback_include_identity": None,
                     "callback_enabled": None,
                     "callback_failure_count": None,
+                    "callback_last_error": None,
                 }
             )
         return data
@@ -266,7 +303,10 @@ class ImBotViewSet(viewsets.ViewSet):
             .filter(cid=cid)
             .order_by("created_at")
         )
-        return Response([self._serialize(i, is_owner=is_owner) for i in installs])
+        failures = self._callback_failures(installs) if is_owner else {}
+        return Response(
+            [self._serialize(i, is_owner=is_owner, failures=failures) for i in installs]
+        )
 
     def retrieve(self, request, pk=None):
         """``GET /im/bots/{id}/`` — owner-only; the credential lives here."""
