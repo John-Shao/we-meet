@@ -23,6 +23,7 @@ import { createGroupConversation } from '../api/createGroupConversation'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { fetchImToken } from '../api/fetchImToken'
 import { richTextPreview } from '../components/richText'
+import { richCardPreview, stripActions } from '../components/richCard'
 import { mentionScan } from '../mentions'
 import { ChatPane } from './ChatPane'
 import { AddMemberDialog } from '../components/AddMemberDialog'
@@ -365,6 +366,9 @@ const ImAuthenticated = () => {
                           : ct === 'rich-text'
                             ? richTextPreview(c.last_message ?? '') ||
                               t('preview.richText')
+                          : ct === 'rich-card'
+                            ? richCardPreview(c.last_message ?? '') ||
+                              t('preview.richCard')
                           : ct === 'quote'
                             ? parseQuoteText(c.last_message)
                             : (c.last_message ?? '')
@@ -469,6 +473,8 @@ const ImAuthenticated = () => {
     if (m.content_type === 'doc-card') return t('preview.doc')
     if (m.content_type === 'rich-text')
       return richTextPreview(m.body) || t('preview.richText')
+    if (m.content_type === 'rich-card')
+      return richCardPreview(m.body) || t('preview.richCard')
     if (m.content_type === 'quote') {
       try {
         return (JSON.parse(m.body)?.text as string) || ''
@@ -494,6 +500,13 @@ const ImAuthenticated = () => {
       m.content_type === 'rich-text'
     ) {
       await client.sendText(targetCid, m.body, { contentType: m.content_type })
+    } else if (m.content_type === 'rich-card') {
+      // 卡片同样自包含,但**要先剥掉 actions 块**:转发产生新 mid、服务端
+      // 没有它的按钮记录,点了必然 404。服务端那个 404 是真正的兜底,这里是
+      // 不让用户看到一排点不动的按钮。别「顺手」把 actions 也转过去。
+      await client.sendText(targetCid, stripActions(m.body), {
+        contentType: m.content_type,
+      })
     } else if (m.content_type === 'quote') {
       let text = m.body
       try {

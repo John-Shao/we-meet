@@ -14,6 +14,7 @@ import { css } from '@/styled-system/css'
 
 import { SenderLabel } from './SenderLabel'
 import { RichTextBody } from './RichTextBody'
+import { RichCardMessage } from './RichCardMessage'
 
 import { Avatar } from './Avatar'
 import { DocCardMessage } from './DocCardMessage'
@@ -839,6 +840,8 @@ export const MessageItem = ({
                 isOwn={isOwn}
                 selfMentionNames={selfMentionNames}
               />
+            ) : message.content_type === 'rich-card' ? (
+              <RichCardMessage raw={message.body} />
             ) : (
               <div>
                 {renderBody(

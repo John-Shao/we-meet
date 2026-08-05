@@ -175,6 +175,7 @@
     "phoneViewed": "手机号码查看提醒",
     "event": "[日程]",
     "doc": "[云文档]",
+    "richCard": "[卡片]",
     "richText": "[富文本]"
   },
   "docCard": {

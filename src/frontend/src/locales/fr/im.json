@@ -172,6 +172,7 @@
     "phoneViewed": "Numéro consulté",
     "event": "[Événement]",
     "doc": "[Document]",
+    "richCard": "[Carte]",
     "richText": "[Rich text]"
   },
   "docCard": {

@@ -9,8 +9,12 @@ import type {
 
 const KEY = ['im', 'conversations'] as const
 
-// 不冒泡的控制消息(表情回复/撤回):不改活跃时间、不计未读、不顶会话(对齐 P12 服务端)。
-const NON_BUMPING = new Set(['reaction', 'recall'])
+// 不冒泡的控制消息(表情回复/撤回/卡片按钮状态):不改活跃时间、不计未读、
+// 不顶会话(对齐 P12 服务端的 IM_NONBUMPING_CONTENT_TYPES)。
+//
+// 本地这份是**兜底**不是主力:服务端漏配时降级成「会话冒泡」,而不是列表里
+// 直接出现一坨 JSON。两边都要有。
+const NON_BUMPING = new Set(['reaction', 'recall', 'card-state'])
 
 /**
  * 会话动态排序(飞书/微信式):置顶会话在上,每组内部按「最近活跃时间」

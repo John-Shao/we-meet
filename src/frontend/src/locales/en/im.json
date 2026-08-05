@@ -175,6 +175,7 @@
     "event": "[Event]",
     "doc": "[Document]",
     "meeting": "[Meeting]",
+    "richCard": "[Card]",
     "richText": "[Rich text]"
   },
   "meetingCard": {

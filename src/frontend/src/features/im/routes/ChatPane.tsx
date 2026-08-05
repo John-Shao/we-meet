@@ -18,6 +18,7 @@ import { EventDetailHost } from '@/features/calendar'
 
 import { resolveImUsers } from '../api/resolveImUsers'
 import { richTextPreview } from '../components/richText'
+import { richCardPreview } from '../components/richCard'
 import { IM_SYSTEM_UID } from '../components/eventCard'
 import { buildDocCardBody } from '../components/docCard'
 import { DocPickerDialog } from '../components/DocPickerDialog'
@@ -63,7 +64,9 @@ const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 
 // Control message types that never render as a chat bubble (filtered from the
 // stream; they drive recall / reaction aggregation instead).
-const CONTROL_TYPES = new Set(['recall', 'reaction'])
+// 控制消息:不进消息流、不出右键菜单、不计入转发选择。card-state 是卡片
+// 按钮的点击结果(叠加层),同样只该改渲染不该自成一行。
+const CONTROL_TYPES = new Set(['recall', 'reaction', 'card-state'])
 
 // 时间分隔条(飞书/微信式):相邻消息间隔超过该阈值时,在消息流中插一条居中时间。
 const TIME_DIVIDER_GAP_MS = 5 * 60 * 1000
@@ -132,6 +135,8 @@ const snippetOf = (m: Message, t: (k: string) => string): string => {
   // the 稍后处理 snippet and the merged-forward snapshot.
   if (m.content_type === 'rich-text')
     return richTextPreview(m.body) || t('preview.richText')
+  if (m.content_type === 'rich-card')
+    return richCardPreview(m.body) || t('preview.richCard')
   if (m.content_type === 'quote') {
     try {
       return (JSON.parse(m.body)?.text as string) || ''
@@ -730,6 +735,8 @@ export const ChatPane = ({
     if (m.content_type === 'meeting-card') return t('preview.meeting')
     if (m.content_type === 'rich-text')
       return richTextPreview(m.body) || t('preview.richText')
+    if (m.content_type === 'rich-card')
+      return richCardPreview(m.body) || t('preview.richCard')
     if (m.content_type === 'quote') {
       try {
         return (JSON.parse(m.body)?.text as string) || ''
@@ -813,7 +820,9 @@ export const ChatPane = ({
       m.body &&
       navigator.clipboard
     ) {
-      const copyText = ['quote', 'rich-text'].includes(m.content_type)
+      const copyText = ['quote', 'rich-text', 'rich-card'].includes(
+        m.content_type,
+      )
         ? snippetOf(m, t)
         : m.body
       items.push({

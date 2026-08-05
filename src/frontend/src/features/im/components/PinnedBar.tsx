@@ -6,14 +6,18 @@ import type { Client } from '@jusi/light-im-sdk'
 import { css } from '@/styled-system/css'
 
 import { richTextPreview } from './richText'
+import { richCardPreview } from './richCard'
 
 /**
- * Pinned rows render the raw body, which for a rich-text message would be a
- * wall of JSON. Only that one type needs unpacking — everything else already
- * reads as text here.
+ * Pinned rows render the raw body, which for a rich-text / rich-card message
+ * would be a wall of JSON. Only those two need unpacking — everything else
+ * already reads as text here.
  */
-const pinPreview = (m: { content_type?: string; body: string }): string =>
-  m.content_type === 'rich-text' ? richTextPreview(m.body) : m.body
+const pinPreview = (m: { content_type?: string; body: string }): string => {
+  if (m.content_type === 'rich-text') return richTextPreview(m.body)
+  if (m.content_type === 'rich-card') return richCardPreview(m.body)
+  return m.body
+}
 
 /**
  * 会话 Pin 栏(P17,飞书式):有 Pin 时显示在聊天头部下方的一条 📌 摘要,

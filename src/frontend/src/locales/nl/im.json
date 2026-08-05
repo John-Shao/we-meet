@@ -172,6 +172,7 @@
     "phoneViewed": "Telefoonnummer bekeken",
     "event": "[Afspraak]",
     "doc": "[Document]",
+    "richCard": "[Kaart]",
     "richText": "[Rich text]"
   },
   "docCard": {

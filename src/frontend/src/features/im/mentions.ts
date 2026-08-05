@@ -1,4 +1,5 @@
 import { parseRichText } from './components/richText'
+import { parseRichCard } from './components/richCard'
 
 /**
  * 「我被 @ 了吗」的判定 —— **哪些 content_type 会被扫、怎么扫,只有这里说了算**。
@@ -90,6 +91,22 @@ export const mentionScan = (
         para.some((tag) => tag.tag === 'at' && tag.uid === AT_EVERYONE_UID),
       )
       const byPlain = scanLiteral(rich.plain ?? '')
+      return { self: byPlain.self, everyone: byTag || byPlain.everyone }
+    }
+
+    case 'rich-card': {
+      // 与 rich-text 同一套判定:@所有人 走结构(span 词汇是共用的),
+      // 点名到人只走 plain。卡片的 spans 分散在各个块里,先摊平再判。
+      const card = parseRichCard(body)
+      if (!card) return NONE
+      const byTag = card.blocks.some(
+        (block) =>
+          block.type === 'text' &&
+          block.spans.some(
+            (span) => span.tag === 'at' && span.uid === AT_EVERYONE_UID,
+          ),
+      )
+      const byPlain = scanLiteral(card.plain ?? '')
       return { self: byPlain.self, everyone: byTag || byPlain.everyone }
     }
 
