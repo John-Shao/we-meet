@@ -204,12 +204,16 @@ def test_post_with_nothing_renderable_is_rejected_not_posted_empty():
 # ---- msg_type dispatch -------------------------------------------------------
 
 
-@pytest.mark.parametrize("msg_type", ["interactive", "image", "share_chat", "nonsense"])
+# ``interactive`` 一期在这份名单里,二期 A1 起支持了(见 test_bot_cards)。
+# 它当时被这条测试拦下过 —— 名单变短本来就是这条断言存在的意义。
+@pytest.mark.parametrize("msg_type", ["image", "share_chat", "file", "nonsense"])
 def test_unsupported_msg_types_say_so_instead_of_failing_silently(msg_type):
     with pytest.raises(mapping.BotPayloadError) as exc:
         mapping.build_message({"msg_type": msg_type, "content": {}})
     assert exc.value.code == mapping.CODE_BAD_MSG_TYPE
-    assert "text" in exc.value.message and "post" in exc.value.message
+    # 报错里要把支持的类型列全,对方才知道该改成什么。
+    for supported in ("text", "post", "interactive"):
+        assert supported in exc.value.message
 
 
 def test_missing_msg_type_is_rejected():

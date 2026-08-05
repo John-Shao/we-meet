@@ -300,3 +300,118 @@ def test_alias_list_is_the_flat_projection_of_by_locale():
 def test_alias_table_covers_every_shipped_locale():
     """漏一个语种 = 那个语种的用户被 @所有人 时不会亮 —— 静默,没人会报障。"""
     assert set(_aliases()["by_locale"]) == {"zh", "en", "fr", "de", "nl"}
+
+
+# --- rich-card(A1) -----------------------------------------------------------
+#
+# 这三张 golden 是**协议规格**,不是「A1 的映射器今天会吐什么」。所以 full 那张
+# 里带一个 callback 按钮:A1 的映射器不会产出它(installation 上还没有回调通道),
+# 但客户端必须现在就认得这个形状,否则 A2 一上线双端全炸。
+
+
+def test_rich_card_minimal():
+    """只有一个文本块,连 header 都没有 —— 客户端不能因此崩。"""
+    card = im_cards.build_rich_card(
+        blocks=[
+            {
+                "type": "text",
+                "spans": [{"tag": "text", "text": "部署完成"}],
+            }
+        ],
+        plain="部署完成",
+    )
+    _assert_golden("rich_card_minimal", card)
+    assert "header" not in card, "没有 header 时该省略键,不是给个 null"
+
+
+def test_rich_card_full():
+    """三端逐字段断言的那张:header + 三种 span + fields + divider + 三种按钮。"""
+    card = im_cards.build_rich_card(
+        header={"title": "生产构建失败", "theme": "danger"},
+        blocks=[
+            {
+                "type": "text",
+                "spans": [
+                    {"tag": "text", "text": "分支 "},
+                    {"tag": "text", "text": "main", "b": True},
+                    {"tag": "text", "text": " 于 "},
+                    {"tag": "text", "text": "02:14", "i": True},
+                    {"tag": "text", "text": " 失败,"},
+                    {"tag": "a", "text": "运行日志", "href": "https://ci.example.com/runs/1"},
+                    {"tag": "at", "uid": "all", "name": "所有人"},
+                ],
+            },
+            {
+                "type": "fields",
+                # 三项(奇数):客户端两列渲染时最后一项跨列,这条靠 fixture 钉住
+                # 「协议只保证顺序」——跨列是客户端的事,不进协议。
+                "items": [
+                    {"label": "环境", "value": "生产"},
+                    {"label": "耗时", "value": "4 分 12 秒"},
+                    {"label": "提交", "value": "a1b2c3d 修复登录态过期"},
+                ],
+            },
+            {"type": "divider"},
+            {
+                "type": "actions",
+                "resolve": "once",
+                "buttons": [
+                    {"id": "b0", "text": "同意上线", "style": "primary", "action": "callback"},
+                    {"id": "b1", "text": "驳回", "style": "danger", "action": "callback"},
+                    {
+                        "id": "b2",
+                        "text": "查看日志",
+                        "style": "default",
+                        "action": "url",
+                        "url": "https://ci.example.com/runs/1",
+                    },
+                ],
+            },
+        ],
+        plain="生产构建失败 分支 main 于 02:14 失败,运行日志@所有人 环境 生产 耗时 4 分 12 秒 提交 a1b2c3d 修复登录态过期",
+    )
+    _assert_golden("rich_card_full", card)
+
+
+def test_rich_card_degraded():
+    """输入里有 img/note 时的**输出**:块少了,顺序不乱,warnings 不在 body 里。"""
+    card = im_cards.build_rich_card(
+        header={"title": "日报", "theme": "info"},
+        blocks=[
+            {"type": "text", "spans": [{"tag": "text", "text": "前一段"}]},
+            {"type": "divider"},
+            {"type": "text", "spans": [{"tag": "text", "text": "后一段"}]},
+        ],
+        plain="日报 前一段 后一段",
+    )
+    _assert_golden("rich_card_degraded", card)
+
+
+def test_no_button_ever_carries_its_value():
+    """整个回调设计里最重要的一条不变量 —— 单独一条断言,不落 fixture。
+
+    body 是全群可读的。外部服务塞在 value 里的 pipeline token 一旦进了 body,
+    就永久冻在消息历史和 jusi 的全文索引里。
+    """
+    # 按**键名白名单**断言,而不是在整个 JSON 里 grep "value" —— fields 的
+    # {label, value} 是展示数据,本来就该叫这个名字,两者只是撞了字面量。
+    allowed = {"id", "text", "style", "action", "url"}
+    card = json.loads((FIXTURE_DIR / "rich_card_full.json").read_text(encoding="utf-8"))
+    seen = 0
+    for block in card["blocks"]:
+        for button in block.get("buttons", []):
+            extra = set(button) - allowed
+            assert not extra, f"button {button.get('id')} 把 {extra} 带进了 body"
+            seen += 1
+    assert seen >= 3, "fixture 里应当有按钮,否则这条断言在空转"
+
+
+def test_rich_card_always_carries_a_version():
+    """v 缺失时客户端没法分辨「老协议」和「坏 JSON」。"""
+    card = im_cards.build_rich_card(blocks=[{"type": "divider"}])
+    assert card["v"] == 1
+
+
+def test_rich_card_content_types_are_kebab_case():
+    assert im_cards.RICH_CARD == "rich-card"
+    assert im_cards.CARD_STATE == "card-state"

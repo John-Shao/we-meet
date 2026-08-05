@@ -1,0 +1,79 @@
+{
+  "card": {
+    "config": {
+      "wide_screen_mode": true
+    },
+    "elements": [
+      {
+        "tag": "div",
+        "text": {
+          "content": "分支 **main** 于 *02:14* 失败,[运行日志](https://ci.example.com/runs/1)<at id=all></at>",
+          "tag": "lark_md"
+        }
+      },
+      {
+        "fields": [
+          {
+            "is_short": true,
+            "text": {
+              "content": "**环境**\n生产",
+              "tag": "lark_md"
+            }
+          },
+          {
+            "is_short": true,
+            "text": {
+              "content": "**耗时**\n4 分 12 秒",
+              "tag": "lark_md"
+            }
+          },
+          {
+            "is_short": false,
+            "text": {
+              "content": "**提交**\na1b2c3d 修复登录态过期",
+              "tag": "lark_md"
+            }
+          }
+        ],
+        "tag": "div"
+      },
+      {
+        "tag": "hr"
+      },
+      {
+        "actions": [
+          {
+            "tag": "button",
+            "text": {
+              "content": "同意上线",
+              "tag": "plain_text"
+            },
+            "type": "primary",
+            "value": {
+              "action": "approve",
+              "token": "SECRET-PIPELINE-TOKEN"
+            }
+          },
+          {
+            "tag": "button",
+            "text": {
+              "content": "查看日志",
+              "tag": "plain_text"
+            },
+            "type": "default",
+            "url": "https://ci.example.com/runs/1"
+          }
+        ],
+        "tag": "action"
+      }
+    ],
+    "header": {
+      "template": "red",
+      "title": {
+        "content": "生产构建失败",
+        "tag": "plain_text"
+      }
+    }
+  },
+  "msg_type": "interactive"
+}

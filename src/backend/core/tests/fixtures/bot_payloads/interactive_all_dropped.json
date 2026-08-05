@@ -1,0 +1,20 @@
+{
+  "card": {
+    "elements": [
+      {
+        "img_key": "img_v2_041b28e3",
+        "tag": "img"
+      },
+      {
+        "elements": [
+          {
+            "content": "由 CI 自动发送",
+            "tag": "plain_text"
+          }
+        ],
+        "tag": "note"
+      }
+    ]
+  },
+  "msg_type": "interactive"
+}

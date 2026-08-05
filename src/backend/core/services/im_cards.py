@@ -42,6 +42,38 @@ RICH_TAG_TEXT = "text"
 RICH_TAG_LINK = "a"
 RICH_TAG_AT = "at"
 
+#: 块级卡片(飞书 ``msg_type=interactive`` 的规范化形态)。与 [RICH_TEXT] 一样
+#: 按「它*是什么*」命名而不是按谁发的 —— 将来内置助手要发同样形状的卡片时,
+#: 不需要第二套协议。
+#:
+#: 与 [CARD_CONTENT_TYPES] 里那三个的区别:那三个是 we-meet 自己的业务卡片
+#: (日程/文档/会议),形状由业务决定;rich-card 是**通用块级布局**,形状由
+#: 外部服务决定,我们只保证降级后的子集。
+RICH_CARD = "rich-card"
+
+#: 卡片按钮的点击结果(P12 非冒泡控制消息)。jusi 改不了已发消息的 body,
+#: 所以按钮状态走**叠加层**:结果单独广播,客户端渲染时叠在卡片上。
+#:
+#: ⚠️ 这个值必须同时出现在 jusi 的 ``IM_NONBUMPING_CONTENT_TYPES`` 里
+#: (已于 jusi ``e3897a5`` 落地)。漏配最贵的一处不是列表乱跳,是**每次有人
+#: 点按钮,全群离线成员各收一条推送**。
+CARD_STATE = "card-state"
+
+#: rich-card 的块类型。
+CARD_BLOCK_TEXT = "text"
+CARD_BLOCK_FIELDS = "fields"
+CARD_BLOCK_DIVIDER = "divider"
+CARD_BLOCK_ACTIONS = "actions"
+
+#: header 主题 —— **语义档,不是颜色**。协议里写 "red" 就逼三端各自拥有一个红;
+#: 写 "danger" 让每端取自己主题里**已经保证过深浅对比度**的那个 token。
+CARD_THEMES = ("info", "success", "warning", "danger", "neutral")
+
+#: 一个 actions 块的解析语义:``once`` = 同意/驳回这类互斥选择,第一个人点完
+#: 就定局;``each`` = 重跑这类,谁都能点、不 resolve、也不广播。
+CARD_RESOLVE_ONCE = "once"
+CARD_RESOLVE_EACH = "each"
+
 # event-card kinds. Unknown values render as "created" on both clients, so
 # adding one is backward compatible.
 EVENT_KIND_CREATED = "created"
@@ -171,6 +203,47 @@ def build_rich_text(
     against the body, keeps working with no client change at all.
     """
     card: dict[str, Any] = {"v": 1, "title": title, "content": content}
+    if plain:
+        card["plain"] = plain
+    return card
+
+
+def build_rich_card(
+    *,
+    blocks: list[dict[str, Any]],
+    header: dict[str, Any] | None = None,
+    plain: str = "",
+) -> dict[str, Any]:
+    """块级卡片(协议 v1)—— 飞书 ``msg_type=interactive`` 规范化后的形态。
+
+    ``header`` 形如 ``{"title": "生产构建失败", "theme": "danger"}``,``theme``
+    取 [CARD_THEMES] 之一(见常量处:语义档而非颜色)。缺省或认不出一律 neutral。
+
+    ``blocks`` 是有序块列表::
+
+        {"type": "text",    "spans": [ …内联 span,与 rich-text 同词汇… ]}
+        {"type": "fields",  "items": [{"label": "环境", "value": "生产"}, …]}
+        {"type": "divider"}
+        {"type": "actions", "resolve": "once", "buttons": [
+            {"id": "b0", "text": "同意上线", "style": "primary", "action": "callback"},
+            {"id": "b1", "text": "查看日志", "style": "default",
+             "action": "url", "url": "https://…"}]}
+
+    span 词汇**复用 rich-text 那三个 tag**,只多两个可选布尔 ``b``/``i``
+    (缺省省略键)——于是双端的内联渲染循环直接复用,rich-card 只新增块级布局。
+
+    ``fields`` 渲染成两列是**客户端**的事(奇数项最后一项跨列);协议只保证顺序。
+
+    ⚠️ **按钮的 ``value`` 永不进 body。** body 是全群可读的,外部服务塞在 value
+    里的 pipeline token 不能跟着走。客户端只拿 ``id``,服务端按 id 取 value。
+    这是整个回调设计里最重要的一条不变量,任何时候都不信客户端回传的 value。
+
+    ``plain`` 与 rich-text 同义:派生投影,客户端不得渲染,撑着会话预览、
+    jusi 全文搜索和 @我 检测三处。
+    """
+    card: dict[str, Any] = {"v": 1, "blocks": blocks}
+    if header:
+        card["header"] = header
     if plain:
         card["plain"] = plain
     return card

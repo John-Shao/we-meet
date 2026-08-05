@@ -1,0 +1,15 @@
+{
+  "blocks": [
+    {
+      "spans": [
+        {
+          "tag": "text",
+          "text": "部署完成"
+        }
+      ],
+      "type": "text"
+    }
+  ],
+  "plain": "部署完成",
+  "v": 1
+}

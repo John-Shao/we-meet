@@ -240,10 +240,15 @@ class BotWebhookView(APIView):
         models.ImBotInstallation.objects.filter(pk=install.pk).update(
             last_used_at=timezone.now(), message_count=F("message_count") + 1
         )
+        data: dict = {"mid": result.mid, "seq": result.seq}
+        # 降级说明只回给发送方(它的 CI 日志里看得到),**不进消息 body** ——
+        # 群成员不该看到「你的机器人少发了一张图」。消息照发,这是 200。
+        if message.warnings:
+            data["warnings"] = list(message.warnings)
         body = {
             "code": mapping.CODE_OK,
             "msg": "success",
-            "data": {"mid": result.mid, "seq": result.seq},
+            "data": data,
         }
         self._remember(install, request, raw, body)
         return Response(body, status=status.HTTP_200_OK)

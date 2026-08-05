@@ -43,6 +43,9 @@ CODE_BAD_MSG_TYPE = 11003
 CODE_EMPTY_CONTENT = 11004
 CODE_IM_UNAVAILABLE = 11005
 CODE_CONVERSATION_GONE = 11006
+#: 卡片搭建工具的 ``template_id`` 卡片。**硬报错,不降级成空卡** —— 模板内容
+#: 住在飞书那边,我们既取不到也渲染不了,静默发一张空卡比报错难查得多。
+CODE_TEMPLATE_UNSUPPORTED = 11007
 
 MSG_BAD_TOKEN = "param invalid: incoming webhook access token invalid"
 MSG_BAD_SIGN = (
@@ -90,6 +93,13 @@ class BotMessage(NamedTuple):
     body: str
     #: Rendered text, for keyword matching. Never sent as-is for rich-text.
     plain: str
+    #: 降级说明(卡片专用)。进 HTTP 响应的 ``data.warnings``,**绝不进 body**
+    #: —— 群成员不该看到「你的机器人少发了一张图」。默认是 tuple 不是 list:
+    #: NamedTuple 的默认值只求值一次,可变默认会被所有实例共享。
+    warnings: tuple[str, ...] = ()
+    #: ``button_id`` → 发送方给的 value。**只存服务端**,永不进 body。
+    #: 见 ``bot_cards`` 文件头那条不变量。
+    button_values: dict[str, Any] | None = None
 
 
 class BotPayloadError(Exception):
@@ -177,8 +187,13 @@ def check_keywords(text: str, keywords) -> bool:
 # ---- payload → message -------------------------------------------------------
 
 
-def build_message(payload: Any) -> BotMessage:
-    """Map a 飞书 webhook payload to a message. Raises :class:`BotPayloadError`."""
+def build_message(payload: Any, *, allow_callback: bool = False) -> BotMessage:
+    """Map a 飞书 webhook payload to a message. Raises :class:`BotPayloadError`.
+
+    ``allow_callback`` 只对 ``interactive`` 有意义:群主还没配出站回调地址时,
+    「点了要回调」的按钮会被**丢弃并 warning**,而不是渲染成一个点了没反应的
+    死按钮。A1 阶段调用方恒传 False。
+    """
     if not isinstance(payload, dict):
         raise BotPayloadError(CODE_BAD_BODY, "invalid request body")
     msg_type = str(payload.get("msg_type") or "").strip()
@@ -186,10 +201,37 @@ def build_message(payload: Any) -> BotMessage:
         return _build_text(payload)
     if msg_type == "post":
         return _build_post(payload)
+    if msg_type == "interactive":
+        return _build_interactive(payload, allow_callback=allow_callback)
     if not msg_type:
         raise BotPayloadError(CODE_BAD_MSG_TYPE, "msg_type is required")
     raise BotPayloadError(
-        CODE_BAD_MSG_TYPE, f"unsupported msg_type: {msg_type} (supported: text, post)"
+        CODE_BAD_MSG_TYPE,
+        f"unsupported msg_type: {msg_type} (supported: text, post, interactive)",
+    )
+
+
+def _build_interactive(payload: dict, *, allow_callback: bool) -> BotMessage:
+    """``msg_type=interactive`` → rich-card。映射本体在 ``bot_cards``。
+
+    局部 import 是有意的:``bot_cards`` 要用本模块的 ``BotPayloadError`` 和那批
+    错误码(错误词汇的归属地就在这里),模块级互相 import 会成环。依赖方向仍是
+    单向的 —— 本模块只在这一个分支里用到它。
+    """
+    from core.services import bot_cards
+
+    mapped = bot_cards.map_card(payload, allow_callback=allow_callback)
+    plain = str(mapped.body.get("plain") or "")
+    if len(plain) > MAX_TEXT_RUNES:
+        raise BotPayloadError(
+            CODE_BODY_TOO_LARGE, f"text exceeds {MAX_TEXT_RUNES} characters", 413
+        )
+    return BotMessage(
+        content_type=im_cards.RICH_CARD,
+        body=json.dumps(mapped.body, ensure_ascii=False),
+        plain=plain,
+        warnings=tuple(mapped.warnings),
+        button_values=mapped.button_values or None,
     )
 
 

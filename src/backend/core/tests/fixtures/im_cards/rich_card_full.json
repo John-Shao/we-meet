@@ -1,0 +1,92 @@
+{
+  "blocks": [
+    {
+      "spans": [
+        {
+          "tag": "text",
+          "text": "分支 "
+        },
+        {
+          "b": true,
+          "tag": "text",
+          "text": "main"
+        },
+        {
+          "tag": "text",
+          "text": " 于 "
+        },
+        {
+          "i": true,
+          "tag": "text",
+          "text": "02:14"
+        },
+        {
+          "tag": "text",
+          "text": " 失败,"
+        },
+        {
+          "href": "https://ci.example.com/runs/1",
+          "tag": "a",
+          "text": "运行日志"
+        },
+        {
+          "name": "所有人",
+          "tag": "at",
+          "uid": "all"
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "items": [
+        {
+          "label": "环境",
+          "value": "生产"
+        },
+        {
+          "label": "耗时",
+          "value": "4 分 12 秒"
+        },
+        {
+          "label": "提交",
+          "value": "a1b2c3d 修复登录态过期"
+        }
+      ],
+      "type": "fields"
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "buttons": [
+        {
+          "action": "callback",
+          "id": "b0",
+          "style": "primary",
+          "text": "同意上线"
+        },
+        {
+          "action": "callback",
+          "id": "b1",
+          "style": "danger",
+          "text": "驳回"
+        },
+        {
+          "action": "url",
+          "id": "b2",
+          "style": "default",
+          "text": "查看日志",
+          "url": "https://ci.example.com/runs/1"
+        }
+      ],
+      "resolve": "once",
+      "type": "actions"
+    }
+  ],
+  "header": {
+    "theme": "danger",
+    "title": "生产构建失败"
+  },
+  "plain": "生产构建失败 分支 main 于 02:14 失败,运行日志@所有人 环境 生产 耗时 4 分 12 秒 提交 a1b2c3d 修复登录态过期",
+  "v": 1
+}

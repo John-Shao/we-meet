@@ -180,10 +180,101 @@ def test_oversized_body_is_rejected_before_parsing(install, poster):
 
 
 def test_unsupported_msg_type_is_reported_not_swallowed(install, poster):
-    response = post("tok-happy-path", {"msg_type": "interactive", "content": {}})
+    # 用 image 而不是 interactive:后者二期 A1 起是支持的(见下面那组)。
+    response = post("tok-happy-path", {"msg_type": "image", "content": {}})
     assert response.status_code == 400
     assert response.json()["code"] == mapping.CODE_BAD_MSG_TYPE
     poster.assert_not_called()
+
+
+# ---- msg_type=interactive(二期 A1)--------------------------------------------
+
+
+CARD_BODY = {
+    "msg_type": "interactive",
+    "card": {
+        "header": {"title": {"content": "生产构建失败"}, "template": "red"},
+        "elements": [
+            {"tag": "div", "text": {"content": "分支 **main** 失败"}},
+            {"tag": "img", "img_key": "img_x"},
+            {
+                "tag": "action",
+                "actions": [
+                    {
+                        "tag": "button",
+                        "text": {"content": "查看日志"},
+                        "url": "https://ci.example.com/1",
+                    },
+                    {
+                        "tag": "button",
+                        "text": {"content": "同意上线"},
+                        "value": {"token": "SECRET-PIPELINE-TOKEN"},
+                    },
+                ],
+            },
+        ],
+    },
+}
+
+
+def test_interactive_card_is_delivered_as_rich_card(install, poster):
+    response = post("tok-happy-path", CARD_BODY)
+    assert response.status_code == 200
+    assert response.json()["code"] == mapping.CODE_OK
+    assert poster.call_args[1]["content_type"] == "rich-card"
+    body = json.loads(poster.call_args[0][3])
+    assert body["header"] == {"title": "生产构建失败", "theme": "danger"}
+
+
+def test_degradations_are_reported_to_the_sender_but_not_to_the_group(install, poster):
+    """warnings 进 HTTP 响应(对方的 CI 日志看得到),**不进 body**。
+
+    群成员不该看到「你的机器人少发了一张图」——那是发送方要修的事。
+    """
+    response = post("tok-happy-path", CARD_BODY)
+    warnings = response.json()["data"]["warnings"]
+    assert "block-dropped:img" in warnings
+    # A1 阶段还没有出站回调通道,所以带 value 的按钮被丢掉而不是变成死按钮。
+    assert "button-dropped:callback-not-configured" in warnings
+
+    assert "warning" not in poster.call_args[0][3]
+
+
+def test_a_pipeline_token_in_a_button_never_reaches_the_group(install, poster):
+    """最重要的一条不变量:body 是全群可读的,而且永久冻在 jusi 的全文索引里。"""
+    post("tok-happy-path", CARD_BODY)
+    assert "SECRET-PIPELINE-TOKEN" not in poster.call_args[0][3]
+
+
+def test_a_card_with_nothing_left_is_rejected_rather_than_posted_blank(install, poster):
+    response = post(
+        "tok-happy-path",
+        {"msg_type": "interactive", "card": {"elements": [{"tag": "img", "img_key": "k"}]}},
+    )
+    assert response.json()["code"] == mapping.CODE_EMPTY_CONTENT
+    poster.assert_not_called()
+
+
+def test_card_templates_are_rejected_with_their_own_code(install, poster):
+    response = post(
+        "tok-happy-path",
+        {"msg_type": "interactive", "card": {"type": "template", "data": {"template_id": "ctp_x"}}},
+    )
+    assert response.json()["code"] == mapping.CODE_TEMPLATE_UNSUPPORTED
+    poster.assert_not_called()
+
+
+def test_a_clean_card_reports_no_warnings_key_at_all(install, poster):
+    """没有降级时不要塞一个空数组 —— 对方的脚本会拿 `if warnings` 判断。"""
+    response = post(
+        "tok-happy-path",
+        {
+            "msg_type": "interactive",
+            "card": {"elements": [{"tag": "div", "text": {"content": "一切正常"}}]},
+        },
+    )
+    assert response.status_code == 200
+    assert "warnings" not in response.json()["data"]
 
 
 # ---- signature gate ----------------------------------------------------------

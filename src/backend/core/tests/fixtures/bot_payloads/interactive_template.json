@@ -1,0 +1,12 @@
+{
+  "card": {
+    "data": {
+      "template_id": "ctp_AA1234567890",
+      "template_variable": {
+        "name": "x"
+      }
+    },
+    "type": "template"
+  },
+  "msg_type": "interactive"
+}
