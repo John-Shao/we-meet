@@ -3993,6 +3993,59 @@ class ImBot(BaseModel):
         return f"ImBot({self.kind}, {self.name})"
 
 
+class ImConversation(BaseModel):
+    """we-meet 这一侧对 jusi 会话的**投影**,只存治理要用的字段(二期线 B)。
+
+    ## 为什么要有它
+
+    jusi **没有任何 admin 读接口** —— `POST /conversations` 是 create-or-get,
+    拿它来查一个群不但查不到,还会**建**一个。所以 M 端「这个机器人装在哪个群」
+    要显示群名,只能本地投影。
+
+    而 we-meet 恰好是群名的**唯一写入方**:jusi 侧改 meta 只有
+    `PATCH /admin/conversations/{cid}` 一条路,门是 admin HMAC。写路径顺手记
+    一份,天然是准的;读路径零外部依赖 —— **治理页最该可用的时刻,恰好可能是
+    IM 在抽风的时刻**。
+
+    ## 与 MeetingConversation 的区别
+
+    那张是「会议 ↔ 会话」的业务锚点(`cid` 由 room_id UUIDv5 派生,靠它做幂等);
+    这张是展示投影。**会议群的名字不存这里** —— 读的时候 join
+    `MeetingConversation` 取 `room.name`,房间改名立刻跟着改,不用同步。
+
+    ## organization / created_by 是「写一次」语义
+
+    只在为空时填。否则别组织的人改个群名就能把归属改走 —— 一个很安静的越权。
+    """
+
+    cid = models.CharField(_("conversation id"), max_length=64, unique=True)
+    #: 归属组织。为空 = 这个群在本表建立之前就存在且还没被任何写路径碰过。
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="im_conversations",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(_("group name"), max_length=120, blank=True, default="")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="created_im_conversations",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "meet_im_conversation"
+        ordering = ("-created_at",)
+        verbose_name = _("IM conversation")
+        verbose_name_plural = _("IM conversations")
+
+    def __str__(self):
+        return f"ImConversation({self.cid}, {self.name or '—'})"
+
+
 class ImBotInstallation(BaseModel):
     """A bot's presence in one conversation, plus its webhook credential and the
     three security settings 飞书 offers (signature / keywords / IP allowlist).
@@ -4087,6 +4140,19 @@ class ImBotInstallation(BaseModel):
             models.UniqueConstraint(
                 fields=["bot", "cid"], name="one_installation_per_bot_conversation"
             ),
+        ]
+        indexes = [
+            # M 端治理页的两种排序。目的是**排序**不是救火 —— `cid` 早就
+            # db_index=True 了,这两条只为 ORDER BY 不去扫全表。
+            #
+            # `-last_used_at` 是默认视角(「按最后活跃排」)。nulls_last 不能省:
+            # 不加的话 Postgres 把 NULL 排在 DESC 的最前面,治理页第一屏全是
+            # 从没用过的机器人 —— 正好是最不需要看的那批。
+            models.Index(
+                models.F("last_used_at").desc(nulls_last=True),
+                name="im_install_last_used_idx",
+            ),
+            models.Index(fields=["bot", "-created_at"], name="im_install_bot_idx"),
         ]
 
     def __str__(self):

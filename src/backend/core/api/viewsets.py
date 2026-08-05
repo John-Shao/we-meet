@@ -1874,7 +1874,9 @@ class RoomViewSet(
         Returns 502 if jusi-light-im is unreachable, 503 if it returned a malformed
         response.
         """
+        from core.api.directory import get_caller_organization
         from core.api.im import JusiImInvalidResponseHTTPError, JusiImUnreachableHTTPError
+        from core.services import im_conversations
         from core.services.im_provisioning import resolve_uid, resolve_uids
         from core.services.jusi_im import (
             JusiImAdminClient,
@@ -1943,6 +1945,14 @@ class RoomViewSet(
             raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
 
         models.MeetingConversation.objects.create(room=room, cid=cid)
+        # 治理页的投影。**名字不写** —— 会议群的名字读的时候 join
+        # MeetingConversation 取 room.name,房间改名立刻跟着改;在这里存一份
+        # 快照反而会过期。这里只是把组织归属钉下来。
+        im_conversations.project(
+            cid,
+            organization=get_caller_organization(request.user),
+            created_by=request.user,
+        )
         return drf_response.Response(
             {"cid": cid, "created": True},
             status=drf_status.HTTP_200_OK,

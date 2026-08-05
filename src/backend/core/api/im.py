@@ -33,6 +33,7 @@ from core.services.jusi_im import JusiImServiceError
 
 from core import models, utils
 from core.api.directory import get_caller_organization
+from core.services import im_conversations
 from core.services.jusi_im import (
     JusiImAdminClient,
     JusiImBadResponseError,
@@ -552,6 +553,14 @@ class ImViewSet(viewsets.ViewSet):
         except JusiImBadResponseError as exc:
             raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
 
+        # M 端治理页要显示群名,而 jusi 没有 admin 读接口 —— we-meet 是群名的
+        # 唯一写入方,写路径顺手记一份天然是准的。best-effort,见服务模块。
+        im_conversations.project(
+            result.cid,
+            name=name,
+            organization=get_caller_organization(request.user),
+            created_by=request.user,
+        )
         return Response(
             {
                 "cid": result.cid,
@@ -706,6 +715,14 @@ class ImViewSet(viewsets.ViewSet):
         else:
             self._post_system_message(client, cid, f'{actor} 将群名改为 "{name}"')
 
+        # 只在这次真的改了名字时才写投影 —— kind="description" 时 name 是
+        # 调用方带过来的原值,不代表改名。
+        if kind != "description":
+            im_conversations.project(
+                cid,
+                name=name,
+                organization=get_caller_organization(request.user),
+            )
         return Response(
             {"cid": cid, "name": name, "description": description},
             status=status.HTTP_200_OK,

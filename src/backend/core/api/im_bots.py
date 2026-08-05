@@ -34,6 +34,7 @@ from core.api.im import (
 )
 from core.services import bot_callback
 from core.services import im_bots
+from core.services import im_conversations
 from core.services import outbound_http
 from core.services.audit import record_audit
 from core.services.jusi_im import (
@@ -415,6 +416,14 @@ class ImBotViewSet(viewsets.ViewSet):
             keywords=self._clean_keywords(data.get("keywords")) or [],
             ip_allowlist=self._clean_ip_allowlist(data.get("ip_allowlist")) or [],
             created_by=request.user,
+        )
+
+        # 治理页投影的兜底写入点。**它保证「每个装了机器人的群一定有组织归属」**
+        # —— 群可能建在本表存在之前(建群那条路径当时还没记账),而机器人页正是
+        # 唯一需要认得这个群的地方。名字不写:这里没有权威的群名,写空串会把
+        # 一个真名字覆盖掉。
+        im_conversations.project(
+            cid, organization=get_caller_organization(request.user)
         )
 
         # Join now rather than on first message: the group should show the bot
