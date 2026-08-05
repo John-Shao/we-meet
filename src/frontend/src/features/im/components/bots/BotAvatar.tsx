@@ -1,7 +1,7 @@
 import { css } from '@/styled-system/css'
 
 import { Avatar } from '../Avatar'
-import { botColorAt } from './botPalette'
+import { botColorAt } from '@/components/bot/botPalette'
 
 /**
  * 机器人头像:有图走图,否则「预设色底 + 机器人图标」。

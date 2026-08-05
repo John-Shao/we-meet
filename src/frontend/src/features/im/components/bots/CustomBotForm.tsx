@@ -5,7 +5,7 @@ import { css, cx } from '@/styled-system/css'
 import { Button } from '@/primitives'
 
 import { BotAvatar } from './BotAvatar'
-import { BOT_COLORS, botColorAt } from './botPalette'
+import { BOT_COLORS, botColorAt } from '@/components/bot/botPalette'
 import { inputCls, modalFoot } from './botStyles'
 
 const NAME_MAX = 32

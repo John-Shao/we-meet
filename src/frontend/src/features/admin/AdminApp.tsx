@@ -11,6 +11,7 @@ import { AdminRoles } from './pages/Roles'
 import { AdminInvites } from './pages/Invites'
 import { AdminMeetingRooms } from './pages/MeetingRooms'
 import { AdminAudit } from './pages/Audit'
+import { AdminBots } from './pages/Bots'
 
 /**
  * Root of the management console (M 端). Mounted under `/admin` via wouter's
@@ -41,6 +42,7 @@ const HOME_FALLBACKS: [string, string][] = [
   ['/invites', 'org.invitation.write'],
   ['/meeting-rooms', 'org.meeting_room.write'],
   ['/audit', 'org.audit.read'],
+  ['/bots', 'org.bot.read'],
 ]
 
 const AdminApp = () => (
@@ -76,6 +78,9 @@ const AdminApp = () => (
         </Route>
         <Route path="/meeting-rooms">
           <AdminMeetingRooms />
+        </Route>
+        <Route path="/bots">
+          <AdminBots />
         </Route>
         <Route path="/audit">
           <AdminAudit />

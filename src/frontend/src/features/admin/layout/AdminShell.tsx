@@ -5,6 +5,7 @@ import {
   RiDashboardLine,
   RiGovernmentLine,
   RiFileList3Line,
+  RiRobot2Line,
   RiBuilding2Line,
   RiTeamLine,
   RiShieldKeyholeLine,
@@ -95,6 +96,12 @@ const NAV: NavGroup[] = [
   {
     labelKey: 'shell.navGroup.governance',
     items: [
+      {
+        to: '/bots',
+        labelKey: 'shell.nav.bots',
+        Icon: RiRobot2Line,
+        permission: 'org.bot.read',
+      },
       {
         to: '/audit',
         labelKey: 'shell.nav.audit',

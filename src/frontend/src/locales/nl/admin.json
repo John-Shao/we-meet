@@ -5,6 +5,7 @@
     "nav": {
       "dashboard": "Dashboard",
       "audit": "Auditlogboek",
+      "bots": "Group bots",
       "meetingRooms": "Vergaderruimtes"
     }
   },
@@ -120,6 +121,50 @@
     "invited": "Uitgenodigd",
     "suspended": "Opgeschort",
     "left": "Vertrokken"
+  },
+  "bots": {
+    "title": "Group bots",
+    "subtitle": "Custom bots and built-in assistants across the organization. Bots are installed by group owners; from here they can only be disabled.",
+    "searchPlaceholder": "Search by bot name or group ID",
+    "filterCustom": "Custom bots",
+    "filterCustomOnly": "Custom only",
+    "filterBuiltin": "Built-in only",
+    "filterAllStates": "All states",
+    "filterActive": "Enabled only",
+    "filterDisabled": "Disabled only",
+    "colBot": "Bot",
+    "colGroup": "Group",
+    "colCreatedBy": "Created by",
+    "colMessages": "Messages",
+    "colLastUsed": "Last active",
+    "colActions": "Actions",
+    "builtinChip": "Built-in",
+    "disabledChip": "Disabled",
+    "callbackChip": "Callback",
+    "unnamedGroup": "Unnamed group",
+    "viewCredential": "View credentials",
+    "disable": "Disable",
+    "enable": "Enable",
+    "disableConfirm": "Once {{name}} is disabled, pushes through its webhook fail immediately and the third-party system is given no notice at all. Disable it?",
+    "loading": "Loading…",
+    "empty": "No bots match these filters.",
+    "prev": "Previous",
+    "next": "Next",
+    "error": "Action failed: {{message}}",
+    "credential": {
+      "title": "Credentials for {{name}}",
+      "webhook": "Webhook URL",
+      "secret": "Signing secret",
+      "noWebhook": "Built-in assistants have no webhook URL",
+      "show": "Show secret",
+      "hide": "Hide secret",
+      "copy": "Copy",
+      "close": "Close",
+      "loading": "Loading…",
+      "failed": "Could not load — you may have hit the hourly view limit.",
+      "signOff": "Signature verification is off for this bot, so this secret is not in use.",
+      "auditNote": "Every view is recorded in the audit log."
+    }
   },
   "audit": {
     "title": "Auditlogboek",
