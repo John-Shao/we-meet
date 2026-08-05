@@ -59,6 +59,16 @@ export const deleteGroupBot = (botId: string): Promise<void> =>
 export const fetchBotSecret = (botId: string): Promise<ImBotSecret> =>
   fetchApi<ImBotSecret>(`/im/bots/${botId}/secret/`)
 
+/**
+ * The **outbound** callback key — a different secret behind a different door.
+ *
+ * Without it the receiving service cannot verify our `X-WeMeet-Signature` and
+ * has to fall back to "the URL is a secret", which is exactly what the
+ * signature was there to replace. 404s until a callback URL is configured.
+ */
+export const fetchBotCallbackSecret = (botId: string): Promise<ImBotSecret> =>
+  fetchApi<ImBotSecret>(`/im/bots/${botId}/callback-secret/`)
+
 export const resetBotSecret = (botId: string): Promise<ImBotSecret> =>
   fetchApi<ImBotSecret>(`/im/bots/${botId}/reset-secret/`, { method: 'POST' })
 

@@ -334,6 +334,35 @@ class ImBotViewSet(viewsets.ViewSet):
         )
         return Response({"secret": install.signing_secret})
 
+    @action(detail=True, methods=["get"], url_path="callback-secret")
+    def callback_secret(self, request, pk=None):
+        """``GET /im/bots/{id}/callback-secret/`` — 出站回调的验签密钥,审计。
+
+        **这个端点不是可选的**:我们给每次出站回调签了 ``X-WeMeet-Signature``,
+        而接收方拿不到密钥的话那个签名就只是装饰 —— 对方只能退回「URL 保密」
+        这一条,那正是签名本来要替换掉的东西。
+
+        与 :meth:`secret` 分开而不是合并成一个「凭据」接口:两把密钥用途不同、
+        泄露后果不同(入站密钥泄露 = 别人能冒充第三方往群里发;出站密钥泄露 =
+        别人能冒充我们去敲第三方),轮换节奏也该独立。合并会让它们**一起被
+        看到、一起被记一条审计**,而审计要回答的正是「谁看了哪一把」。
+        """
+        install = self._install_or_404(pk)
+        self._require_membership(install.cid, owner_only=True)
+        if not install.callback_secret:
+            # 没配回调地址时密钥还没铸出来。回 404 而不是空串 —— 空串会被
+            # 当成一把合法密钥抄进对方的配置里。
+            raise NotFound("callback is not configured")
+        record_audit(
+            actor=request.user,
+            organization=get_caller_organization(request.user),
+            action=models.AuditActionChoices.BOT_WEBHOOK_VIEW,
+            target_type="im_bot",
+            target_id=install.pk,
+            target_label=install.bot.name,
+        )
+        return Response({"secret": install.callback_secret})
+
     # ---- write ----
 
     def create(self, request):

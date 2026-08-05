@@ -11,7 +11,7 @@ import {
 import { css } from '@/styled-system/css'
 import { useCopy } from '@/hooks/useCopy'
 
-import { fetchBotSecret } from '../../api/groupBots'
+import { fetchBotCallbackSecret, fetchBotSecret } from '../../api/groupBots'
 
 const iconBtnCls = css({
   flexShrink: 0,
@@ -24,21 +24,34 @@ const iconBtnCls = css({
 })
 
 /**
- * The signing secret, masked until asked for.
+ * A bot secret, masked until asked for.
  *
  * Fetched lazily and with `gcTime: 0`: the list endpoint deliberately ships no
  * secrets, and once the eye is closed there is no reason for the value to stay
  * in the query cache.
+ *
+ * `kind` picks which of the two keys: `signing` verifies what a third party
+ * sends **in**, `callback` lets them verify what we send **out**. They are
+ * separate keys behind separate endpoints on purpose — leaking one does not
+ * imply leaking the other, and each read is audited on its own.
  */
-export const BotSecretField = ({ botId }: { botId: string }) => {
+export const BotSecretField = ({
+  botId,
+  kind = 'signing',
+}: {
+  botId: string
+  kind?: 'signing' | 'callback'
+}) => {
   const { t } = useTranslation('im')
   const [shown, setShown] = useState(false)
   const { copied, copy } = useCopy()
   const qc = useQueryClient()
 
+  const queryKey = ['im', `bot-${kind}-secret`, botId]
   const { data } = useQuery({
-    queryKey: ['im', 'bot-secret', botId],
-    queryFn: () => fetchBotSecret(botId),
+    queryKey,
+    queryFn: () =>
+      kind === 'callback' ? fetchBotCallbackSecret(botId) : fetchBotSecret(botId),
     enabled: shown,
     staleTime: Infinity,
     gcTime: 0,
@@ -55,7 +68,7 @@ export const BotSecretField = ({ botId }: { botId: string }) => {
       })}
     >
       <code
-        data-testid="bot-secret"
+        data-testid={kind === 'callback' ? 'bot-callback-secret' : 'bot-secret'}
         className={css({
           flex: 1,
           minWidth: 0,
@@ -74,7 +87,7 @@ export const BotSecretField = ({ botId }: { botId: string }) => {
       <button
         type="button"
         onClick={() => {
-          if (shown) qc.removeQueries({ queryKey: ['im', 'bot-secret', botId] })
+          if (shown) qc.removeQueries({ queryKey })
           setShown((v) => !v)
         }}
         aria-label={t(shown ? 'bots.security.hide' : 'bots.security.show')}

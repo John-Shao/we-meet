@@ -409,6 +409,17 @@ export const GroupBotDetailPage = ({
 
           {!!bot.callback_url && (
             <>
+              {/*
+                没有这个字段,出站签名就只是装饰 —— 接收方拿不到密钥就验不了,
+                只能退回「URL 保密」,而那正是签名本来要替换掉的东西。
+              */}
+              <div className={sectionCls}>
+                <div className={sectionLabelCls}>
+                  {t('bots.callback.secret')}
+                </div>
+                <BotSecretField botId={botId} kind="callback" />
+                <p className={hintCls}>{t('bots.callback.secretHint')}</p>
+              </div>
               <SwitchRow
                 label={t('bots.callback.identity')}
                 checked={!!bot.callback_include_identity}

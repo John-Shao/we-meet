@@ -593,6 +593,76 @@ def test_a_callback_still_in_flight_is_not_a_failure(owner, jusi):
     assert response.data[0]["callback_last_error"] == ""
 
 
+def test_the_owner_can_read_the_callback_secret_so_the_receiver_can_verify_us(
+    owner, jusi
+):
+    """**没有这条,出站签名就只是装饰。** 我们给每次回调签了
+    `X-WeMeet-Signature`,接收方拿不到密钥就验不了,只能退回「URL 保密」——
+    而那正是签名本来要替换掉的东西。"""
+    install = _install_for(owner)
+    client_for(owner).patch(
+        f"{BASE}{install.pk}/",
+        {"callback_url": "https://ci.example.com/hook"},
+        format="json",
+    )
+    install.refresh_from_db()
+    response = client_for(owner).get(f"{BASE}{install.pk}/callback-secret/")
+    assert response.status_code == 200
+    assert response.data["secret"] == install.callback_secret
+
+
+def test_the_two_secrets_are_different_and_read_through_different_doors(owner, jusi):
+    """入站密钥泄露 = 别人能冒充第三方往群里发;出站密钥泄露 = 别人能冒充我们
+    去敲第三方。合并成一个接口会让它们一起被看到、一起记一条审计,而审计要
+    回答的正是「谁看了哪一把」。"""
+    install = _install_for(owner)
+    client_for(owner).patch(
+        f"{BASE}{install.pk}/",
+        {"callback_url": "https://ci.example.com/hook"},
+        format="json",
+    )
+    inbound = client_for(owner).get(f"{BASE}{install.pk}/secret/").data["secret"]
+    outbound = client_for(owner).get(f"{BASE}{install.pk}/callback-secret/").data["secret"]
+    assert inbound != outbound
+
+
+def test_reading_the_callback_secret_before_configuring_one_is_a_404_not_an_empty_string(
+    owner, jusi
+):
+    """空串会被当成一把合法密钥抄进对方的配置里。"""
+    install = _install_for(owner)
+    assert client_for(owner).get(f"{BASE}{install.pk}/callback-secret/").status_code == 404
+
+
+def test_non_owner_cannot_read_the_callback_secret(owner, member, jusi):
+    install = _install_for(owner)
+    client_for(owner).patch(
+        f"{BASE}{install.pk}/",
+        {"callback_url": "https://ci.example.com/hook"},
+        format="json",
+    )
+    assert (
+        client_for(member).get(f"{BASE}{install.pk}/callback-secret/").status_code == 403
+    )
+
+
+def test_reading_the_callback_secret_is_audited(owner, jusi):
+    install = _install_for(owner)
+    client_for(owner).patch(
+        f"{BASE}{install.pk}/",
+        {"callback_url": "https://ci.example.com/hook"},
+        format="json",
+    )
+    before = models.AuditLog.objects.filter(
+        action=models.AuditActionChoices.BOT_WEBHOOK_VIEW
+    ).count()
+    client_for(owner).get(f"{BASE}{install.pk}/callback-secret/")
+    after = models.AuditLog.objects.filter(
+        action=models.AuditActionChoices.BOT_WEBHOOK_VIEW
+    ).count()
+    assert after == before + 1
+
+
 def test_members_get_null_for_the_callback_fields_like_every_other_credential(
     owner, member, jusi
 ):
