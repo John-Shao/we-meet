@@ -239,6 +239,12 @@ export const stripActions = (raw: string): string => {
   if (!body) return raw
   const blocks = body.blocks.filter((b) => b.type !== 'actions')
   if (blocks.length === body.blocks.length) return raw
+  // 按钮上面那条 divider 现在什么都不分隔了 —— 只掐**尾部**的,中间的还在
+  // 分隔内容。飞书的卡片几乎都是「…内容 / hr / 按钮」这个形状,所以不处理
+  // 的话每张转发过去的卡都会挂一条悬空的线。
+  while (blocks.length > 0 && blocks[blocks.length - 1].type === 'divider') {
+    blocks.pop()
+  }
   const next: Record<string, unknown> = { v: body.v, blocks }
   if (body.header) next.header = body.header
   if (body.plain) next.plain = body.plain

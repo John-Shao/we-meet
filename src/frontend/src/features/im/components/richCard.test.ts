@@ -183,17 +183,56 @@ describe('投影', () => {
 })
 
 describe('stripActions', () => {
-  it('转发副本剥掉按钮,其余原样', () => {
+  it('转发副本剥掉按钮,连同按钮上面那条已经什么都不分隔的线', () => {
     // 服务端对转发副本返回 404 是真正的兜底,这里是不让用户看到一排点不动
-    // 的按钮。
+    // 的按钮。金标准卡片是「text / fields / divider / actions」—— 飞书的卡
+    // 几乎都是这个形状,不掐尾部 divider 的话每张转发过去的卡都挂一条悬空线
+    // (真机上就是这么发现的)。
     const stripped = parseRichCard(stripActions(load('rich_card_full')))!
-    expect(stripped.blocks.map((b) => b.type)).toEqual([
-      'text',
-      'fields',
-      'divider',
-    ])
+    expect(stripped.blocks.map((b) => b.type)).toEqual(['text', 'fields'])
     expect(stripped.header).toEqual({ title: '生产构建失败', theme: 'danger' })
     expect(stripped.plain).toBeTruthy()
+  })
+
+  it('只掐尾部的 divider —— 夹在内容中间的还在干活', () => {
+    const raw = JSON.stringify({
+      v: 1,
+      blocks: [
+        { type: 'text', spans: [{ tag: 'text', text: '上' }] },
+        { type: 'divider' },
+        { type: 'text', spans: [{ tag: 'text', text: '下' }] },
+        { type: 'divider' },
+        {
+          type: 'actions',
+          resolve: 'once',
+          buttons: [{ id: 'b0', text: '同意', style: 'primary', action: 'callback' }],
+        },
+      ],
+    })
+    expect(parseRichCard(stripActions(raw))!.blocks.map((b) => b.type)).toEqual([
+      'text',
+      'divider',
+      'text',
+    ])
+  })
+
+  it('剥完只剩一堆线的卡片会整个化为 null,由调用方退回纯文本', () => {
+    // 一张「只有按钮 + 分隔线」的卡,转发过去本来就没有内容可看。掐完尾部
+    // divider 后 blocks 为空且没有 header —— parseRichCard 对这种返回 null,
+    // 气泡走纯文本兜底,而不是画一个空框。
+    const raw = JSON.stringify({
+      v: 1,
+      blocks: [
+        { type: 'divider' },
+        { type: 'divider' },
+        {
+          type: 'actions',
+          resolve: 'once',
+          buttons: [{ id: 'b0', text: '同意', style: 'primary', action: 'callback' }],
+        },
+      ],
+    })
+    expect(parseRichCard(stripActions(raw))).toBeNull()
   })
 
   it('没有 actions 时原样返回,不做无谓的重新序列化', () => {
