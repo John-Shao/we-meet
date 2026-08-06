@@ -163,6 +163,40 @@ def resolve_and_pin(host: str, port: int) -> str:
 # ---- 发送 -------------------------------------------------------------------
 
 
+class _PinnedHostAdapter(requests.adapters.HTTPAdapter):
+    """连已验证的 IP,但 TLS 仍然**按域名**握手和校验。
+
+    这是第 3 条能同时成立的关键。``Host`` 是一个 HTTP 头,**管不到 TLS** ——
+    requests/urllib3 的 SNI 和证书主机名校验都取自 URL 里的 host,而我们刻意
+    把它换成了 IP。所以必须显式告诉连接池:
+
+    * ``server_hostname`` —— 握手时发哪个 SNI
+    * ``assert_hostname`` —— 证书按哪个名字校验
+
+    少了这两个,对**任何**真实 HTTPS 主机都必然失败,而且是两种不同的死法:
+    带 SNI 分流的(Cloudflare 那类)直接 ``SSLV3_ALERT_HANDSHAKE_FAILURE``,
+    其余的握手过了但 ``CERTIFICATE_VERIFY_FAILED: IP address mismatch``。
+    两种都被归成 ``unreachable``,群主看到的是「连不上对方的地址」—— 一个
+    完全指错方向的提示。
+
+    ⚠️ **单测 mock 掉 ``session.post`` 就照不出这个**,因为它整段跳过了 TLS ——
+    这个 bug 上线时整份 ``test_outbound_http`` 是绿的。守着它的是
+    ``test_the_pinned_connection_still_speaks_tls_as_the_domain``:验的是「域名
+    有没有交到连接池」+「适配器挂的前缀够不够得到真正请求的 URL」,那是 mock
+    之下仅剩的证据。真正的验收只能打一次真实主机 —— ``https://www.example.com/``
+    通(405)且 ``https://wrong.host.badssl.com/`` 被证书拒,两条都要。
+    """
+
+    def __init__(self, hostname: str) -> None:
+        self._hostname = hostname
+        super().__init__()
+
+    def init_poolmanager(self, connections, maxsize, block=False, **kwargs):
+        kwargs["server_hostname"] = self._hostname
+        kwargs["assert_hostname"] = self._hostname
+        super().init_poolmanager(connections, maxsize, block=block, **kwargs)
+
+
 def post_json(url: str, payload: dict[str, Any], headers: dict[str, str]) -> OutboundResponse:
     """往一个**已校验**的地址 POST 一段 JSON。
 
@@ -180,6 +214,9 @@ def post_json(url: str, payload: dict[str, Any], headers: dict[str, str]) -> Out
     session = requests.Session()
     # 这一行没有的话,pod 里一个 HTTP_PROXY 就能让上面所有校验作废。
     session.trust_env = False
+    if scheme == "https":
+        # 只挂在这一个 IP:端口 上 —— 域名是随请求变的,适配器不能全局复用。
+        session.mount(f"https://{literal}:{port}", _PinnedHostAdapter(host))
     try:
         response = session.post(
             pinned,

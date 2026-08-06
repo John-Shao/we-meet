@@ -13,6 +13,7 @@ import socket
 from unittest import mock
 
 import pytest
+import requests
 from django.test import override_settings
 
 from core.services import outbound_http
@@ -173,8 +174,69 @@ def test_the_ip_is_pinned_so_a_dns_flip_between_check_and_connect_cannot_help():
 
     assert "93.184.216.34" in sent["url"], "连的必须是已验证的 IP,不是域名"
     assert "evil.test" not in sent["url"]
-    # Host 头保留域名 —— 钉的是路由不是身份,证书仍按域名校验。
+    # Host 头保留域名。**但这只管到 HTTP 那一层** —— TLS 那半在下面那条,
+    # 曾经因为这里写着「证书仍按域名校验」而被当成已经覆盖了。
     assert sent["host"] == "evil.test"
+
+
+def test_the_pinned_connection_still_speaks_tls_as_the_domain():
+    """钉住 IP 之后 **TLS 也得跟着走域名**,上面那条只验到 Host 头为止。
+
+    ``Host`` 是一个 HTTP 头,管不到 TLS。requests/urllib3 的 SNI 和证书主机名
+    校验都取自 **URL 里的 host**,而我们刻意把它换成了 IP。少了这一步,对任何
+    真实 HTTPS 主机都必然失败,而且是两种不同的死法:带 SNI 分流的(Cloudflare
+    那类)直接 ``SSLV3_ALERT_HANDSHAKE_FAILURE``,其余的握手过了但
+    ``CERTIFICATE_VERIFY_FAILED: IP address mismatch``。两种都归成
+    ``unreachable``,群主看到的是「连不上对方的地址」—— 完全指错方向。
+
+    这个 bug 真的发生过,而且**这份文件全绿** —— 因为每条测试都 mock 掉了
+    ``session.post``,整段跳过 TLS。mock 之下唯一还看得见的证据有两条,都得验:
+
+    1. 适配器把**域名**交给了连接池(``server_hostname`` / ``assert_hostname``);
+    2. 它挂载的前缀确实**匹配我们真正 POST 的那个 URL** —— 否则适配器建好了
+       却没人用,requests 会静静地退回默认适配器。
+    """
+    calls: list[dict] = []
+    mounted: list[str] = []
+    sent: dict = {}
+
+    class _Resp:
+        status_code = 200
+        headers = {"Content-Type": "application/json"}
+        raw = mock.Mock(read=mock.Mock(return_value=b"{}"))
+
+        def close(self):
+            pass
+
+    real_init = requests.adapters.HTTPAdapter.init_poolmanager
+    real_mount = requests.Session.mount
+
+    def _spy_init(self, connections, maxsize, block=False, **kwargs):
+        calls.append(kwargs)
+        return real_init(self, connections, maxsize, block=block, **kwargs)
+
+    def _spy_mount(self, prefix, adapter):
+        mounted.append(prefix)
+        return real_mount(self, prefix, adapter)
+
+    def _post(url, **kwargs):
+        sent["url"] = url
+        return _Resp()
+
+    with mock.patch("socket.getaddrinfo", return_value=_addrinfo("93.184.216.34")), \
+         mock.patch.object(requests.adapters.HTTPAdapter, "init_poolmanager", _spy_init), \
+         mock.patch.object(requests.Session, "mount", _spy_mount), \
+         mock.patch("requests.Session.post", side_effect=_post):
+        outbound_http.post_json("https://ci.example.com/hook", {}, {})
+
+    pinned = [c for c in calls if "server_hostname" in c]
+    assert pinned, "没有适配器把域名交给连接池 —— SNI 会退回成那个 IP"
+    assert pinned[-1]["server_hostname"] == "ci.example.com", "SNI 必须是域名"
+    assert pinned[-1]["assert_hostname"] == "ci.example.com", "证书按域名校验"
+
+    assert any(
+        sent["url"].lower().startswith(prefix.lower()) for prefix in mounted
+    ), f"适配器挂在 {mounted},够不到实际请求的 {sent['url']} —— 等于没挂"
 
 
 # ---- 发送时的其余闸门 ---------------------------------------------------------
