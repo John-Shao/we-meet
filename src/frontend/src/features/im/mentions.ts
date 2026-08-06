@@ -1,8 +1,19 @@
-import { parseRichText } from './components/richText'
-import { parseRichCard } from './components/richCard'
+import {
+  parseRichText,
+  richTextPlain,
+  type RichTextTag,
+} from './components/richText'
+import {
+  parseRichCard,
+  richCardPlain,
+  type CardBlock,
+  type CardSpan,
+} from './components/richCard'
 
 /**
- * 「我被 @ 了吗」的判定 —— **哪些 content_type 会被扫、怎么扫,只有这里说了算**。
+ * @ 的口径 —— **哪些 content_type 会被扫、怎么扫,只有这里说了算**;转发时怎么
+ * 把 @ 拆掉([defuseMentions])也在这里,两者必须同进同退:判定多认一条腿而拆
+ * 的时候漏了它,就是「转发一张卡把全群又 @ 一遍」。
  *
  * ## 为什么要有别名表
  *
@@ -126,4 +137,97 @@ export const mentionScan = (
     default:
       return NONE
   }
+}
+
+// ---- 转发时拆掉 @ ------------------------------------------------------------
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** `@所有人` → `所有人`。与 [mentionsEveryone] 同一张表、同样大小写无关。 */
+const EVERYONE_AT = new RegExp(
+  `@(${MENTION_EVERYONE_ALIASES.map(escapeRe).join('|')})`,
+  'gi',
+)
+
+/** 只摘 `@` 前缀,字一个不删 —— 预览里读作「…运行日志 所有人 环境 生产」。 */
+const unmark = (plain: string, atNames: readonly string[]): string => {
+  let out = plain.replace(EVERYONE_AT, '$1')
+  // 点名到人:只摘这条消息自己 `at` 标签里出现过的名字,不碰正文里别的 `@`。
+  for (const name of atNames) {
+    if (name) out = out.split(`@${name}`).join(name)
+  }
+  return out
+}
+
+const defuseCard = (raw: string): string => {
+  const body = parseRichCard(raw)
+  if (!body) return raw
+
+  const names: string[] = []
+  const blocks: CardBlock[] = body.blocks.map((block) => {
+    if (block.type !== 'text' || !block.spans.some((s) => s.tag === 'at')) {
+      return block
+    }
+    const spans: CardSpan[] = block.spans.map((s) => {
+      if (s.tag !== 'at') return s
+      names.push(s.name)
+      return { tag: 'text', text: `@${s.name}` }
+    })
+    return { type: 'text', spans }
+  })
+
+  // plain 从**原始** spans 推,推完一定要写回去 —— 不写的话对端拿不到 plain
+  // 会照降级后的正文重推一遍,`@所有人` 原样长回来。
+  const derived = body.plain || richCardPlain(body)
+  const plain = unmark(derived, names)
+  if (!names.length && plain === derived) return raw
+
+  const next: Record<string, unknown> = { v: body.v, blocks, plain }
+  if (body.header) next.header = body.header
+  return JSON.stringify(next)
+}
+
+const defuseRichText = (raw: string): string => {
+  const body = parseRichText(raw)
+  if (!body) return raw
+
+  const names: string[] = []
+  const content: RichTextTag[][] = body.content.map((para) =>
+    para.map((tag) => {
+      if (tag.tag !== 'at') return tag
+      names.push(tag.name)
+      return { tag: 'text', text: `@${tag.name}` }
+    }),
+  )
+
+  const derived = body.plain || richTextPlain(body)
+  const plain = unmark(derived, names)
+  if (!names.length && plain === derived) return raw
+  return JSON.stringify({ v: body.v, title: body.title, content, plain })
+}
+
+/**
+ * 把要**转发**出去的 body 里的 @ 拆掉,让它在目标会话里不再点亮任何人。
+ *
+ * 转发的人想 @ 全群,应该自己打 —— 而不是靠转发时夹带。飞书也是这个口径:
+ * 转发过去的 @ 退化成普通文字,不触发通知。
+ *
+ * ## 为什么正文保留 `@`、只把 `plain` 里的摘掉
+ *
+ * [mentionScan] 有两条腿:结构(`at` 标签)和 `plain` 里的字面量。**两条都得断**,
+ * 只断一条等于没断。但正文是「机器人当时说了什么」,读者该照原样看到 —— 所以
+ * 正文只把 `at` 标签降级成普通文字(渲染上从蓝色粗体变灰字,这正是「这个 @ 不
+ * 生效」的视觉信号),文字一个字不改;真正被改掉的是 `plain` 投影里那个 `@`。
+ * 这层刻意的不一致只在预览/搜索里看得见,换来的是正文不被篡改。
+ *
+ * ## 拆不掉的那一半(刻意不做)
+ *
+ * 纯 `text` 消息不碰:那是**人写的一句话**,body 就是正文、没有投影层可改,
+ * 动它等于替人改口。同理机器人在正文里手打的「@张三」—— 纯文本里的人名与普通
+ * 文字无从区分。所以转发一条纯文本的 `@所有人` 仍然会亮,这条是已知边界。
+ */
+export const defuseMentions = (contentType: string, raw: string): string => {
+  if (contentType === 'rich-card') return defuseCard(raw)
+  if (contentType === 'rich-text') return defuseRichText(raw)
+  return raw
 }

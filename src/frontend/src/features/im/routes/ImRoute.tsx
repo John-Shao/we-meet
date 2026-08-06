@@ -24,7 +24,7 @@ import { resolveImUsers } from '../api/resolveImUsers'
 import { fetchImToken } from '../api/fetchImToken'
 import { richTextPreview } from '../components/richText'
 import { richCardPreview, stripActions } from '../components/richCard'
-import { mentionScan } from '../mentions'
+import { defuseMentions, mentionScan } from '../mentions'
 import { ChatPane } from './ChatPane'
 import { AddMemberDialog } from '../components/AddMemberDialog'
 import { ConnectionStatusBar } from '../components/ConnectionStatusBar'
@@ -488,6 +488,10 @@ const ImAuthenticated = () => {
   // 把单条消息转发到目标会话:图片/文件/合并记录/日程卡片直接复用原 body
   // (OSS key 可跨会话 resolve;合并/卡片 body 已自包含);引用只转可见正文
   // 为纯文本;其余原样发。
+  //
+  // 带 `at` 结构的那两种(rich-text / rich-card)统一过一道 `defuseMentions`:
+  // 转发的人想 @ 全群应该自己打,不能靠转发夹带 —— 否则一张含 @所有人 的卡被
+  // 转进哪个群,哪个群就被再 @ 一次。对其余类型它是恒等函数。
   const forwardOne = async (targetCid: string, m: Message) => {
     if (
       m.content_type === 'image' ||
@@ -496,17 +500,21 @@ const ImAuthenticated = () => {
       m.content_type === 'event-card' ||
       m.content_type === 'meeting-card' ||
       m.content_type === 'doc-card' ||
-      // 富文本 body 自包含(单语言、无外部引用),原样转发即可。
+      // 富文本 body 自包含(单语言、无外部引用),除了拆 @ 不用动别的。
       m.content_type === 'rich-text'
     ) {
-      await client.sendText(targetCid, m.body, { contentType: m.content_type })
+      await client.sendText(targetCid, defuseMentions(m.content_type, m.body), {
+        contentType: m.content_type,
+      })
     } else if (m.content_type === 'rich-card') {
       // 卡片同样自包含,但**要先剥掉 actions 块**:转发产生新 mid、服务端
       // 没有它的按钮记录,点了必然 404。服务端那个 404 是真正的兜底,这里是
       // 不让用户看到一排点不动的按钮。别「顺手」把 actions 也转过去。
-      await client.sendText(targetCid, stripActions(m.body), {
-        contentType: m.content_type,
-      })
+      await client.sendText(
+        targetCid,
+        defuseMentions(m.content_type, stripActions(m.body)),
+        { contentType: m.content_type },
+      )
     } else if (m.content_type === 'quote') {
       let text = m.body
       try {
