@@ -202,9 +202,13 @@ def build_rich_text(
     and (c) the "@我" detection on both clients, which is a substring test
     against the body, keeps working with no client change at all.
     """
-    card: dict[str, Any] = {"v": 1, "title": title, "content": content}
+    # ``plain`` 排在**第一个键**,见 [build_rich_card] 同处的注释。
+    card: dict[str, Any] = {}
     if plain:
         card["plain"] = plain
+    card["v"] = 1
+    card["title"] = title
+    card["content"] = content
     return card
 
 
@@ -241,11 +245,22 @@ def build_rich_card(
     ``plain`` 与 rich-text 同义:派生投影,客户端不得渲染,撑着会话预览、
     jusi 全文搜索和 @我 检测三处。
     """
-    card: dict[str, Any] = {"v": 1, "blocks": blocks}
-    if header:
-        card["header"] = header
+    # ⚠️ **``plain`` 必须是第一个键。**
+    #
+    # 会话列表拿到的 ``last_message`` 是被 jusi 截断过的。``plain`` 排在最后时
+    # 它整段落在截断点之外 —— 客户端既解析不出 JSON,又抠不到 plain,预览只能
+    # 退回「[卡片]」。真机上每一张卡都是这样。金标准卡片压缩后 856 字节,而
+    # ``"plain"`` 从第 768 位才开始。
+    #
+    # 排到最前面之后,截断的 body **仍然不是合法 JSON**,所以双端还要在 parse
+    # **之前**从原始字符串里抠 plain(见各端的 ``rawPlain``)。两件事缺一不可。
+    card: dict[str, Any] = {}
     if plain:
         card["plain"] = plain
+    card["v"] = 1
+    card["blocks"] = blocks
+    if header:
+        card["header"] = header
     return card
 
 

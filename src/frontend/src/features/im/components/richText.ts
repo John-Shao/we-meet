@@ -38,6 +38,55 @@ export const isWebUrl = (href: unknown): href is string => {
   }
 }
 
+/**
+ * 从**原始字符串**里抠出 `plain`,不经过 `JSON.parse`。
+ *
+ * 会话列表的 `last_message` 被 jusi 截断过,截断的 JSON 解析不出来 —— 但截断的
+ * plain 仍然是人话。所以预览的短路必须在 parse **之前**;后端把 `plain` 序列化
+ * 成第一个键也是为了这个(排在最后的话它整段落在截断点之外,抠也抠不到)。
+ *
+ * 不这么做的后果是真机上验到的:会话列表里每一张卡都显示「[卡片]」。
+ *
+ * 手写扫描而不是正则:既要正确处理转义,又要能在字符串**中途被截断**时把已经
+ * 读到的部分交出来。正则做不到后者 —— 它要么匹配一个完整的字符串字面量,
+ * 截断了就整个不匹配。
+ */
+export const rawPlain = (raw: string): string => {
+  const at = raw.indexOf('"plain"')
+  if (at < 0) return ''
+  const colon = raw.indexOf(':', at + '"plain"'.length)
+  if (colon < 0) return ''
+  const open = raw.indexOf('"', colon + 1)
+  if (open < 0) return ''
+
+  let out = ''
+  for (let i = open + 1; i < raw.length; i += 1) {
+    const ch = raw[i]
+    if (ch !== '\\') {
+      if (ch === '"') break
+      out += ch
+      continue
+    }
+    const next = raw[i + 1]
+    if (next === undefined) break // 截断刚好落在转义符上
+    if (next === 'u') {
+      // 后端用 ensure_ascii=False,所以中文不会走这里;控制字符才会。
+      const code = parseInt(raw.slice(i + 2, i + 6), 16)
+      out += Number.isNaN(code) ? ' ' : String.fromCharCode(code)
+      i += 5
+      continue
+    }
+    // 换行/制表在一行预览里读作空格,其余(`\"` `\\` `\/`)取字符本身。
+    out += 'ntr'.includes(next) ? ' ' : next
+    i += 1
+  }
+  return out
+}
+
+/** 预览统一收口:压掉空白、截到一行放得下的长度。 */
+export const squeezePreview = (text: string): string =>
+  text.replace(/\s+/g, ' ').trim().slice(0, 60)
+
 const normalizeTag = (raw: unknown): RichTextTag | null => {
   if (!raw || typeof raw !== 'object') return null
   const o = raw as Record<string, unknown>
@@ -108,12 +157,15 @@ export const richTextPlain = (body: RichTextBody): string => {
 }
 
 /**
- * 直接吃原始 body 的预览版本(解析失败返回空串,调用方 `|| t('preview.richText')`)。
- * 优先用服务端给的 `plain`:会话列表的 last_message 会被 jusi 截到 200 字,
- * 截断的 JSON 解析不出来,但截断的 plain 仍然是人话。
+ * 直接吃原始 body 的预览版本(什么都拿不到时返回空串,调用方
+ * `|| t('preview.richText')`)。
+ *
+ * **短路在 parse 之前** —— 见 [rawPlain]。会话列表的 last_message 是截断的,
+ * 解析不出来但抠得到 plain。
  */
 export const richTextPreview = (raw: string): string => {
+  const short = rawPlain(raw)
+  if (short) return squeezePreview(short)
   const body = parseRichText(raw)
-  const text = body ? body.plain || richTextPlain(body) : ''
-  return text.replace(/\s+/g, ' ').slice(0, 60)
+  return body ? squeezePreview(body.plain || richTextPlain(body)) : ''
 }

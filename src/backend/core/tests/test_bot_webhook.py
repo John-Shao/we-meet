@@ -243,6 +243,23 @@ def test_degradations_are_reported_to_the_sender_but_not_to_the_group(install, p
     assert "warning" not in poster.call_args[0][3]
 
 
+def test_the_plain_projection_is_serialized_first(install, poster):
+    """会话列表拿到的 ``last_message`` 是被 jusi 截断的。
+
+    ``plain`` 排在最后时它整段落在截断点之外 —— 客户端既解析不出 JSON 又抠不到
+    plain,预览只能退回「[卡片]」。真机上**每一张卡**都是这样。金标准卡片压缩后
+    856 字节,而 ``"plain"`` 从第 768 位才开始。
+
+    排到最前之后,截断的 body 仍然不是合法 JSON,所以双端还要在 parse **之前**
+    抠 plain。两件事缺一不可 —— 这条只守后半件。
+    """
+    post("tok-happy-path", CARD_BODY)
+    body = poster.call_args[0][3]
+    assert body.startswith('{"plain":'), body[:60]
+    # 截断点落在哪里都无所谓的前提:开头就已经是人话。
+    assert "生产构建失败" in body[:80]
+
+
 def test_a_configured_callback_stops_claiming_the_buttons_are_local_only(
     install, poster
 ):

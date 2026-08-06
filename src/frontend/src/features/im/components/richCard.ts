@@ -1,4 +1,4 @@
-import { isWebUrl } from './richText'
+import { isWebUrl, rawPlain, squeezePreview } from './richText'
 
 /**
  * `rich-card` 协议 v1(`content_type: 'rich-card'`)—— 与后端 / Android 一致。
@@ -216,16 +216,19 @@ export const richCardPlain = (body: RichCardBody): string => {
 }
 
 /**
- * 直接吃原始 body 的预览版本(解析失败返回空串,调用方自己兜底文案)。
+ * 直接吃原始 body 的预览版本(什么都拿不到时返回空串,调用方自己兜底文案)。
  *
- * **优先用服务端给的 `plain`,而且必须在 parse 之前短路** —— 会话列表的
- * last_message 会被 jusi 截到 200 字,截断的 JSON 解析不出来,但截断的 plain
- * 仍然是人话。这条与 rich-text 同一个坑。
+ * **必须在 parse 之前短路到 `plain`** —— 会话列表的 last_message 是被 jusi
+ * 截断的,截断的 JSON 解析不出来,但截断的 plain 仍然是人话。
+ *
+ * 这条注释以前就在,但代码是先 parse 再取 plain —— 于是每一张卡在会话列表里
+ * 都显示成「[卡片]」。真机上验到了才发现。实现见 [rawPlain]。
  */
 export const richCardPreview = (raw: string): string => {
+  const short = rawPlain(raw)
+  if (short) return squeezePreview(short)
   const body = parseRichCard(raw)
-  const text = body ? body.plain || richCardPlain(body) : ''
-  return text.replace(/\s+/g, ' ').slice(0, 60)
+  return body ? squeezePreview(body.plain || richCardPlain(body)) : ''
 }
 
 /**

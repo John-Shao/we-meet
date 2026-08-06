@@ -180,6 +180,29 @@ describe('投影', () => {
   it('解析不出来时预览是空串,由调用方兜底文案', () => {
     expect(richCardPreview('{ truncated')).toBe('')
   })
+
+  it('截断到解析不出来时,预览仍然是人话而不是「[卡片]」', () => {
+    // 这才是会话列表拿到的东西:jusi 截断过的 last_message。以前这里先 parse
+    // 再取 plain,于是**每一张卡**在列表里都显示「[卡片]」—— 真机上发现的。
+    // 后端已把 plain 序列化到第一个键,所以截断点无论落在哪都还剩着人话。
+    const raw = JSON.stringify({
+      plain: '生产构建失败 分支 main 于 02:14 失败 环境 生产',
+      v: 1,
+      blocks: [{ type: 'text', spans: [{ tag: 'text', text: '分支 main' }] }],
+    })
+    const truncated = raw.slice(0, 30)
+    // 前提:它真的解析不出来。这条一垮,下面那条就是空转。
+    expect(() => JSON.parse(truncated)).toThrow()
+    expect(richCardPreview(truncated)).toContain('生产构建失败')
+  })
+
+  it('转义和「截在转义符上」都不会把预览弄丢', () => {
+    const raw = JSON.stringify({ plain: '他说"上线"\n然后 C:\\build 挂了', v: 1, blocks: [] })
+    expect(richCardPreview(raw)).toBe('他说"上线" 然后 C:\\build 挂了')
+    // 截断刚好落在一个反斜杠上:交出已经读到的部分,不抛。
+    const upToEscape = raw.slice(0, raw.indexOf('\\n') + 1)
+    expect(richCardPreview(upToEscape)).toContain('他说"上线"')
+  })
 })
 
 describe('stripActions', () => {
