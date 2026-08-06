@@ -39,6 +39,12 @@ from typing import Any
 SIGNATURE_HEADER = "X-WeMeet-Signature"
 TIMESTAMP_HEADER = "X-WeMeet-Timestamp"
 
+#: 出站 User-Agent。接收方普遍拿它做识别、过滤和日志分组,而默认的
+#: ``python-requests/x.y.z`` 既认不出是谁,还会在升级依赖时无声地变 —— 对方按
+#: UA 配的规则就那么失效了。版本号跟 payload 的 ``v`` 走,不跟我们的发布号走:
+#: 它标的是**协议**,不是构建。
+USER_AGENT = "WeMeet-Bot-Callback/1"
+
 #: 上游可以用自己的话覆盖群里的结果条,但只有这一个字段,而且当**不可信输入**
 #: 处理:截断 + 去掉换行,不解析 markdown、不允许链接。这是唯一会把上游内容
 #: 显示给用户的地方。
@@ -99,6 +105,7 @@ def build_request(install, payload: dict[str, Any]) -> tuple[str, dict[str, str]
     timestamp = str(payload.get("ts") or int(time.time()))
     return raw, {
         "Content-Type": "application/json",
+        "User-Agent": USER_AGENT,
         TIMESTAMP_HEADER: timestamp,
         SIGNATURE_HEADER: sign(install.callback_secret, timestamp, raw),
     }

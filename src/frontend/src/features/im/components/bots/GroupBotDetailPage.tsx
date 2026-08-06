@@ -16,6 +16,7 @@ import {
   deleteGroupBot,
   listGroupBots,
   resetBotSecret,
+  rotateBotCallbackSecret,
   updateGroupBot,
 } from '../../api/groupBots'
 import { BotAvatar } from './BotAvatar'
@@ -116,6 +117,17 @@ export const GroupBotDetailPage = ({
       // the operator what it became is just breaking their integration.
       qc.setQueryData(['im', 'bot-secret', botId], result)
       void showAlert({ message: t('bots.security.resetDone') })
+    },
+    onError,
+  })
+
+  const rotateCallback = useMutation({
+    mutationFn: () => rotateBotCallbackSecret(botId),
+    onSuccess: (result) => {
+      // queryKey 与 BotSecretField 的 `kind` 一致 —— 写错了不会报错,只会让
+      // 群主看着旧值以为轮换没生效。
+      qc.setQueryData(['im', 'bot-callback-secret', botId], result)
+      void showAlert({ message: t('bots.callback.rotateDone') })
     },
     onError,
   })
@@ -436,6 +448,24 @@ export const GroupBotDetailPage = ({
                 </div>
                 <BotSecretField botId={botId} kind="callback" />
                 <p className={hintCls}>{t('bots.callback.secretHint')}</p>
+                {/*
+                  这把密钥原先**只能铸一次**:它在第一次配回调地址时生成,之后
+                  没有任何路径能改它。而设计文档写着「轮换 = 断掉外部积累的行为
+                  画像」—— 承诺了一个做不到的动作。轮换同时换掉 actor 假名,
+                  所以确认文案必须点明,不能只说「旧签名会失效」。
+                */}
+                <button
+                  type="button"
+                  className={cx(linkBtnCls, css({ marginTop: '0.5rem' }))}
+                  onClick={async () => {
+                    const ok = await confirm({
+                      message: t('bots.callback.rotateConfirm'),
+                    })
+                    if (ok) rotateCallback.mutate()
+                  }}
+                >
+                  {t('bots.callback.rotate')}
+                </button>
               </div>
               <SwitchRow
                 label={t('bots.callback.identity')}

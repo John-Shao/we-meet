@@ -72,6 +72,20 @@ export const fetchBotCallbackSecret = (botId: string): Promise<ImBotSecret> =>
 export const resetBotSecret = (botId: string): Promise<ImBotSecret> =>
   fetchApi<ImBotSecret>(`/im/bots/${botId}/reset-secret/`, { method: 'POST' })
 
+/**
+ * Rotate the **outbound** callback key.
+ *
+ * Separate from `resetBotSecret` for the same reason the read endpoints are
+ * separate: the two keys point in opposite directions, so they rotate on
+ * independent schedules. Note this also changes every `actor.id` pseudonym
+ * (derived from this key) — deliberate, but the receiving service's per-actor
+ * idempotency and rate limiting start over.
+ */
+export const rotateBotCallbackSecret = (botId: string): Promise<ImBotSecret> =>
+  fetchApi<ImBotSecret>(`/im/bots/${botId}/rotate-callback-secret/`, {
+    method: 'POST',
+  })
+
 export const resetBotToken = (botId: string): Promise<{ webhook_url: string }> =>
   fetchApi<{ webhook_url: string }>(`/im/bots/${botId}/reset-token/`, {
     method: 'POST',

@@ -70,6 +70,28 @@ def test_the_signature_covers_the_exact_bytes_that_get_sent():
     assert json.loads(raw) == payload
 
 
+def test_we_say_who_we_are_rather_than_which_http_library_we_use():
+    """接收方拿 UA 做识别、过滤和日志分组。
+
+    默认的 ``python-requests/x.y.z`` 既认不出是谁,还会在升级依赖时无声地变 ——
+    对方按 UA 配的规则那天就失效了,而两边都不会有任何报错。
+    """
+    _, headers = bot_callback.build_request(_Install(), _payload())
+    assert headers["User-Agent"] == "WeMeet-Bot-Callback/1"
+    assert "requests" not in headers["User-Agent"]
+
+
+def test_the_headers_are_outside_the_signature_so_ua_changes_break_nothing():
+    """签名只覆盖 body。加一个头不该让对方的验签失败 —— 这条守着「以后还能往
+    headers 里加东西」这件事。"""
+    install = _Install()
+    raw, headers = bot_callback.build_request(install, _payload())
+    assert headers[bot_callback.SIGNATURE_HEADER] == bot_callback.sign(
+        install.callback_secret, headers[bot_callback.TIMESTAMP_HEADER], raw
+    )
+    assert "User-Agent" not in raw
+
+
 def test_changing_one_byte_changes_the_signature():
     install = _Install()
     raw, headers = bot_callback.build_request(install, _payload())

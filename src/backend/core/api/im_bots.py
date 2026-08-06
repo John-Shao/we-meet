@@ -617,6 +617,44 @@ class ImBotViewSet(viewsets.ViewSet):
         )
         return Response({"secret": secret})
 
+    @action(detail=True, methods=["post"], url_path="rotate-callback-secret")
+    def rotate_callback_secret(self, request, pk=None):
+        """轮换**出站**回调的验签密钥。
+
+        与 :meth:`reset_secret`(入站那把)分开的理由,和 :meth:`callback_secret`
+        读取端点分开是同一条:两把密钥用途相反、泄露后果相反,轮换节奏也该独立。
+
+        这条端点原先**不存在** —— 密钥只在第一次配回调地址时铸一次,之后没有
+        任何代码路径能改它。而设计文档里写着「密钥轮换后假名会变,这是特性:
+        轮换 = 断掉外部积累的行为画像」,等于承诺了一个做不到的动作。
+
+        ⚠️ **轮换会同时换掉 actor 假名**(它就是
+        ``hmac(callback_secret, user_pk)``)。对方按 ``actor.id`` 做的幂等和
+        限流会整体重来一遍 —— 这是特性,但 UI 上必须说清楚。
+        """
+        install = self._install_or_404(pk)
+        self._require_membership(install.cid, owner_only=True)
+        if not install.callback_url:
+            # 没配回调地址时这把密钥根本没铸出来,没有可轮换的东西。措辞与
+            # callback_secret 读取端点一致。
+            raise NotFound("callback is not configured")
+        secret = secrets.token_urlsafe(32)[:64]
+        models.ImBotInstallation.objects.filter(pk=install.pk).update(
+            callback_secret=secret
+        )
+        record_audit(
+            actor=request.user,
+            organization=get_caller_organization(request.user),
+            action=models.AuditActionChoices.BOT_SECRET_RESET,
+            target_type="im_bot",
+            target_id=install.pk,
+            target_label=install.bot.name,
+            # 复用 BOT_SECRET_RESET 而不是新增一个动作(那要迁移):「轮换的是
+            # 哪一把」读明细就能回答,不像「谁停了生产机器人」那样需要**筛**。
+            metadata={"credential": "callback"},
+        )
+        return Response({"secret": secret})
+
     @action(detail=True, methods=["post"], url_path="reset-token")
     def reset_token(self, request, pk=None):
         """Rotate the webhook token — the old URL 400s from the next call on."""

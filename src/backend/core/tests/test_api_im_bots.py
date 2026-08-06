@@ -500,6 +500,79 @@ def test_the_callback_secret_is_never_serialized(owner, jusi):
     assert "super-secret-callback-value" not in json.dumps(response.data)
 
 
+def test_the_callback_secret_can_actually_be_rotated(owner, jusi):
+    """这把密钥原先**只能铸一次** —— 第一次配回调地址时生成,之后没有任何代码
+    路径能改它。而设计文档里写着「轮换 = 断掉外部积累的行为画像」,等于承诺了
+    一个做不到的动作。泄露之后只能做数据库手术。
+    """
+    install = _install_for(owner)
+    install.callback_url = "https://ci.example.com/hook"
+    install.callback_secret = "the-leaked-one"
+    install.save()
+
+    response = client_for(owner).post(
+        f"/api/v1.0/im/bots/{install.pk}/rotate-callback-secret/"
+    )
+    assert response.status_code == 200
+    install.refresh_from_db()
+    assert install.callback_secret != "the-leaked-one"
+    # 新值当场回给群主 —— 轮换了却不告诉对方新值,等于直接弄坏他的集成。
+    assert response.data["secret"] == install.callback_secret
+    # 入站那把不该被顺手动了:两把用途相反,轮换节奏本来就该独立。
+    assert install.signing_secret
+
+
+def test_rotating_the_callback_secret_changes_every_pseudonym(owner, jusi):
+    """**这是特性,不是副作用**:假名派生自这把密钥,所以轮换 = 让外部服务已经
+    攒下的行为画像整体作废。代价是对方按 ``actor.id`` 做的去重和限流要重来 ——
+    所以确认文案必须说这件事,不能只说「旧签名会失效」。
+    """
+    from core.services import bot_callback  # noqa: PLC0415
+
+    install = _install_for(owner)
+    install.callback_url = "https://ci.example.com/hook"
+    install.callback_secret = "before"
+    install.save()
+    before = bot_callback.actor_pseudonym(install.callback_secret, owner.pk)
+
+    client_for(owner).post(f"/api/v1.0/im/bots/{install.pk}/rotate-callback-secret/")
+    install.refresh_from_db()
+    assert bot_callback.actor_pseudonym(install.callback_secret, owner.pk) != before
+
+
+def test_rotating_without_a_callback_configured_is_a_404_not_a_fresh_key(owner, jusi):
+    """没配地址时这把密钥根本没铸出来,没有可轮换的东西。
+
+    这里铸一把新的会更糟:群主会拿到一个看起来能用、实际上永远不会被用到的
+    密钥,并把它抄进对方的配置里。
+    """
+    install = _install_for(owner)
+    assert not install.callback_url
+    response = client_for(owner).post(
+        f"/api/v1.0/im/bots/{install.pk}/rotate-callback-secret/"
+    )
+    assert response.status_code == 404
+    install.refresh_from_db()
+    assert install.callback_secret == ""
+
+
+def test_rotating_writes_an_audit_row_saying_which_key(owner, jusi):
+    """复用 BOT_SECRET_RESET(新动作要迁移),用 metadata 记「哪一把」。"""
+    install = _install_for(owner)
+    install.callback_url = "https://ci.example.com/hook"
+    install.callback_secret = "before"
+    install.save()
+
+    client_for(owner).post(f"/api/v1.0/im/bots/{install.pk}/rotate-callback-secret/")
+    row = models.AuditLog.objects.filter(
+        action=models.AuditActionChoices.BOT_SECRET_RESET
+    ).latest("created_at")
+    assert row.metadata.get("credential") == "callback"
+    # 密钥本身绝不进审计行 —— 审计要回答「谁动了它」,不是「它变成了什么」。
+    install.refresh_from_db()
+    assert install.callback_secret not in json.dumps(row.metadata)
+
+
 def test_sending_the_clickers_name_is_off_until_the_owner_turns_it_on(owner, jusi):
     install = _install_for(owner)
     """webhook 是群主配的,但点按钮的是每个成员。"""
