@@ -243,6 +243,33 @@ def test_degradations_are_reported_to_the_sender_but_not_to_the_group(install, p
     assert "warning" not in poster.call_args[0][3]
 
 
+def test_a_configured_callback_stops_claiming_the_buttons_are_local_only(
+    install, poster
+):
+    """配好地址之后这条 warning 必须消失。
+
+    它只是一条 warning,但方向反了比没有更糟:对方的流水线读到
+    ``button-local-only`` 会认定回调不会来,于是走「自己轮询」那条降级分支 ——
+    而回调其实**发得好好的**。这条曾经恒真,因为 API 层压根没把配置传下来。
+    """
+    install.callback_url = "https://ci.example.com/hook"
+    install.callback_enabled = True
+    install.save()
+    warnings = post("tok-happy-path", CARD_BODY).json()["data"]["warnings"]
+    assert "button-local-only:no-callback-url" not in warnings
+    # 图片那条与回调无关,不该被顺手改掉。
+    assert "block-dropped:img" in warnings
+
+
+def test_a_self_disabled_callback_is_local_only_again(install, poster):
+    """连续失败自动停用后回调**确实**不会发,这时说 local-only 是真话。"""
+    install.callback_url = "https://ci.example.com/hook"
+    install.callback_enabled = False
+    install.save()
+    warnings = post("tok-happy-path", CARD_BODY).json()["data"]["warnings"]
+    assert "button-local-only:no-callback-url" in warnings
+
+
 def test_a_pipeline_token_in_a_button_never_reaches_the_group(install, poster):
     """最重要的一条不变量:body 是全群可读的,而且永久冻在 jusi 的全文索引里。"""
     post("tok-happy-path", CARD_BODY)

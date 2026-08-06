@@ -139,7 +139,18 @@ class BotWebhookView(APIView):
             return Response(cached, status=status.HTTP_200_OK)
 
         try:
-            message = mapping.build_message(payload, allow_callback=True)
+            message = mapping.build_message(
+                payload,
+                allow_callback=True,
+                # 这个参数只控制一条 warning,但不传就等于**永远说反**:群主明明
+                # 配好了地址,响应里还在告诉对方的流水线「回调不会来」。
+                #
+                # ``callback_enabled`` 也要算 —— 连续失败自动停用之后回调确实
+                # 不会发,那时这条 warning 是真话。
+                callback_configured=bool(
+                    install.callback_url and install.callback_enabled
+                ),
+            )
         except mapping.BotPayloadError as exc:
             return bot_response(exc.code, exc.message, exc.http_status)
 
