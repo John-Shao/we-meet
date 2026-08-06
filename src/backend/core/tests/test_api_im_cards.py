@@ -75,12 +75,14 @@ def _im(request):
     if "no_im_stub" in request.keywords:
         yield None
         return
+    # 广播住在 services/card_state 而不是 viewset 上 —— 因为**有两个触发点**:
+    # 点击那一刻,以及出站回调带回上游文案之后(见 tasks/bot_callback)。
     with mock.patch(
         "core.api.im_cards.ImCardViewSet._require_membership"
     ) as membership, mock.patch(
-        "core.api.im_cards.im_bots.make_admin_client"
+        "core.services.card_state.im_bots.make_admin_client"
     ) as factory, mock.patch(
-        "core.api.im_cards.im_bots.post_as"
+        "core.services.card_state.im_bots.post_as"
     ) as post_as:
         membership.return_value = mock.Mock()
         factory.return_value = mock.Mock()

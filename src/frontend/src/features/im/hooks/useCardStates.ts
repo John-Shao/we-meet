@@ -15,9 +15,12 @@ import { fetchCardStates, type CardState } from '../api/cardStates'
  * 2. **批量兜底** —— 往上翻到一张老卡时,它的 `card-state` 可能落在已加载
  *    窗口之外。对这一屏的卡片 mid 拉一次服务端状态补上。
  *
- * 合并规则是**谁有算谁**,不比时间戳。这不是偷懒:`once` 块的定局靠数据库上
- * 的部分唯一约束保证**每块只能有一条**,所以两个来源不可能给出不同答案 ——
- * 没有冲突可解,自然不需要「新的赢」。
+ * 合并规则是**流内后到的赢、流压过批量**。`once` 块靠数据库上的部分唯一约束
+ * 保证**每块只有一条**,但那一条的**文案可以被改写一次** —— 出站回调成功后
+ * 上游能用 `{"text": …}` 覆盖结果条,服务端会为此再播一条 `card-state`。所以
+ * 这里不能写成「谁有算谁、先到的说了算」:那样上游的覆盖永远显示不出来。
+ *
+ * 仍然不比时间戳 —— 消息流本身有序,后面那条就是新的。
  *
  * ## 时序陷阱
  *
@@ -83,7 +86,8 @@ export const useCardStates = (messages: Message[]) => {
         merged.set(mid, state)
         continue
       }
-      // 谁有算谁。同一个 block 两边都有时值必然相同(见文件头)。
+      // 流压过批量。两边都有同一个 block 时,批量那份可能是上游覆盖前的旧
+      // 文案(它 staleTime 60s),而流里那条已经是覆盖后的了。
       existing.resolved = { ...existing.resolved, ...state.resolved }
     }
     return (mid: number): CardState | undefined => merged.get(mid)

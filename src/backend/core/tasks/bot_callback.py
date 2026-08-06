@@ -11,6 +11,7 @@ import logging
 
 from core import models
 from core.services import bot_callback as signing
+from core.services import card_state
 from core.services.outbound_http import OutboundBlocked, post_json
 from core.tasks._task import task
 
@@ -103,9 +104,23 @@ def _succeed(action, install, body: dict) -> None:
     # 上游可以用自己的话覆盖群里的结果条。当**不可信输入**处理 —— 见
     # clean_upstream_text:只收字符串、压空白、截断,不解析 markdown。
     text = signing.clean_upstream_text(body.get("text"))
-    if text and action.resolves:
+    overrides = bool(text and action.resolves and text != action.result_text)
+    if overrides:
         updates["result_text"] = text
     models.ImCardAction.objects.filter(pk=action.pk).update(**updates)
+    if overrides:
+        # 群里那条结果条是**点击那一刻**广播出去的,写库改不动它。不补这一次
+        # 广播的话,上游的文案要等到下次重新拉叠加层才看得见 —— 一个要刷新
+        # 才生效的「实时覆盖」等于没有。
+        #
+        # 只在真的改了文案时才播:上游原样回一句「W009 同意上线」不该在 jusi
+        # 里多留一条控制消息。
+        card_state.broadcast(
+            action.card,
+            block=action.block,
+            button_id=action.button_id,
+            text=text,
+        )
     if install.callback_failure_count:
         models.ImBotInstallation.objects.filter(pk=install.pk).update(
             callback_failure_count=0

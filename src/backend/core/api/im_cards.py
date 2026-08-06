@@ -24,7 +24,6 @@ jusi 改不了已发消息的 body(全仓唯一的 ``UPDATE messages`` 是撤回
 叠加层、并发唯一约束这三块最易错的管道**在引入第三方依赖之前**先跑通。
 """
 
-import json
 import logging
 from datetime import timedelta
 
@@ -39,8 +38,7 @@ from rest_framework.response import Response
 
 from core import models
 from core.api.im import ImViewSet
-from core.services import im_bots, im_cards
-from core.services.jusi_im import JusiImServiceError
+from core.services import card_state, im_cards
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +199,9 @@ class ImCardViewSet(viewsets.ViewSet):
             )
 
         if resolves:
-            self._broadcast(card, block=block, button_id=button_id, text=result_text)
+            card_state.broadcast(
+                card, block=block, button_id=button_id, text=result_text
+            )
 
         # 出站回调(A3):**异步**。点击接口必须立刻返回 —— 群成员的 UI 不该
         # 等一个第三方服务。回调失败不影响群里已经发生的事(点击已定局、结果
@@ -240,36 +240,3 @@ class ImCardViewSet(viewsets.ViewSet):
         label = str(definition.get("text") or "").strip()
         return f"{who} {label}".strip()[:200]
 
-    @staticmethod
-    def _broadcast(card: models.ImCardMessage, *, block: str, button_id: str, text: str):
-        """把结果作为非冒泡控制消息广播回群里。
-
-        **只有 once 块走到这里** —— 「重跑」那类被点一百次不该在 jusi 里留
-        一百条控制消息。
-
-        失败只记日志不回滚:点击已经记账了,广播是通知不是事实来源。客户端
-        下次拉叠加层照样拿得到,少的只是一次实时刷新。
-        """
-        install = card.installation
-        if install is None or install.bot is None:
-            return
-        body = json.dumps(
-            im_cards.build_card_state(
-                target_mid=card.mid, block=block, button_id=button_id, text=text
-            ),
-            ensure_ascii=False,
-        )
-        try:
-            client = im_bots.make_admin_client()
-            if client is None:
-                return
-            # 用**发这张卡的那个机器人**的身份广播,不用 SYSTEM —— 结果条要
-            # 挂在卡片上,发送者不一致会让客户端的归属判断多一条特例。
-            im_bots.post_as(
-                client, install.bot, card.cid, body, content_type=im_cards.CARD_STATE
-            )
-        except JusiImServiceError:
-            logger.warning(
-                "card-state broadcast failed mid=%s cid=%s", card.mid, card.cid,
-                exc_info=True,
-            )
