@@ -435,6 +435,13 @@
       "identityHint": "By default only an anonymous per-bot identifier is sent: the external service can tell whether it is the same person twice, but not who. Turning this on also sends the clicker's name.",
       "disabled": "Turned off automatically after repeated failures. Save the address again to re-enable it.",
       "lastError": "Last failure: {{reason}}",
+      "urlError": {
+        "empty": "Enter a callback address.",
+        "scheme": "The callback address must use https.",
+        "host": "The callback address is missing a host name.",
+        "port": "That port is not allowed — only 443.",
+        "address": "That address is not allowed: private and reserved addresses cannot be callback targets."
+      },
       "reason": {
         "timeout": "The service did not answer in time",
         "refused": "The service refused the request",

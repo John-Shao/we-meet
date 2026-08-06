@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RiCheckLine, RiFileCopyLine } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
+import { ApiError } from '@/api/ApiError'
+import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Button } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -62,12 +64,27 @@ export const GroupBotDetailPage = ({
   })
   const bot = bots.find((b) => b.id === botId)
 
-  const onError = (e: unknown) =>
-    void showAlert({
-      message: t('bots.error', {
-        message: e instanceof Error ? e.message : String(e),
-      }),
-    })
+  /**
+   * `ApiError.message` 恒等于 `"Api error <code>"`,有用的正文在 `.body` 里。
+   * 直接用 `e.message` 的话群主只会看到「操作失败:Api error 400」—— 等于没说,
+   * 而这个面板每一条校验(关键词、IP 白名单、回调地址)都走这里。
+   *
+   * 回调地址被拒时后端还会额外带一个机器可读的 `code`(= `outbound_http` 的
+   * category),映射成中文;认不出的 code 退回后端原文,不至于变成一句空话。
+   */
+  const onError = (e: unknown) => {
+    const code =
+      e instanceof ApiError && !!e.body && typeof e.body === 'object'
+        ? (e.body as { code?: unknown }).code
+        : undefined
+    const message =
+      typeof code === 'string' && code
+        ? t(`bots.callback.urlError.${code}`, {
+            defaultValue: apiErrorMessage(e),
+          })
+        : apiErrorMessage(e)
+    void showAlert({ message: t('bots.error', { message }) })
+  }
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['im', 'bots', cid] })
 

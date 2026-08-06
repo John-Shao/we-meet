@@ -444,22 +444,30 @@ def test_the_owner_can_set_a_callback_url_and_a_secret_is_minted(owner, jusi):
 
 
 @pytest.mark.parametrize(
-    "url",
+    ("url", "code"),
     [
-        "http://ci.example.com/hook",          # 只允许 https
-        "https://169.254.169.254/latest/",     # 元数据(本部署实测可达)
-        "https://10.0.0.5/hook",               # 内网
-        "https://ci.example.com:22/hook",      # 端口白名单外
-        "ftp://ci.example.com/hook",
+        ("http://ci.example.com/hook", "scheme"),       # 只允许 https
+        ("https://169.254.169.254/latest/", "address"), # 元数据(本部署实测可达)
+        ("https://10.0.0.5/hook", "address"),           # 内网
+        ("https://ci.example.com:22/hook", "port"),     # 端口白名单外
+        ("ftp://ci.example.com/hook", "scheme"),
     ],
 )
-def test_a_blocked_callback_url_is_rejected_at_write_time(owner, jusi, url):
+def test_a_blocked_callback_url_is_rejected_at_write_time(owner, jusi, url, code):
     install = _install_for(owner)
-    """写入时就校验,群主当场看到报错 —— 而不是配完之后每次点击都静默失败。"""
+    """写入时就校验,群主当场看到报错 —— 而不是配完之后每次点击都静默失败。
+
+    ``code`` 是前端用来映射中文的机器可读分类(``bots.callback.urlError.*``)。
+    钉住它是因为「报错了」和「群主看得懂报的什么错」是两件事:少了它前端只能
+    显示后端那句英文,那正是这条测试要防的退化。
+    """
     response = client_for(owner).patch(
         f"/api/v1.0/im/bots/{install.pk}/", {"callback_url": url}, format="json"
     )
     assert response.status_code == 400
+    assert response.data["code"] == code
+    # 分类之外的东西一个字都不能回 —— 上游细节是 SSRF 的信息回传通道。
+    assert "callback_url" in response.data
     install.refresh_from_db()
     assert install.callback_url == ""
 

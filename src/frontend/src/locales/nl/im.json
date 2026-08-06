@@ -422,6 +422,13 @@
       "identityHint": "By default only an anonymous per-bot identifier is sent: the external service can tell whether it is the same person twice, but not who. Turning this on also sends the clicker's name.",
       "disabled": "Turned off automatically after repeated failures. Save the address again to re-enable it.",
       "lastError": "Last failure: {{reason}}",
+      "urlError": {
+        "empty": "Voer een callback-adres in.",
+        "scheme": "Het callback-adres moet https gebruiken.",
+        "host": "Het callback-adres mist een hostnaam.",
+        "port": "Die poort is niet toegestaan — alleen 443.",
+        "address": "Dit adres is niet toegestaan: privé- en gereserveerde adressen kunnen geen callback-doel zijn."
+      },
       "reason": {
         "timeout": "The service did not answer in time",
         "refused": "The service refused the request",

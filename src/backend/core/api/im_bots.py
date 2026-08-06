@@ -510,8 +510,18 @@ class ImBotViewSet(viewsets.ViewSet):
                 try:
                     outbound_http.validate_url(raw)
                 except outbound_http.OutboundBlocked as exc:
+                    # ``code`` 是**机器可读的分类**,前端拿它映射成中文 —— 群主
+                    # 该看到「回调地址只支持 https」,不是一句英文技术黑话。
+                    # 分类表见 services/outbound_http。
+                    #
+                    # **绝不放 exc.detail**:那里可能带上游的响应内容,而这条
+                    # 错误是回给用户的 —— 与 callback_last_error 只给桶不给原文
+                    # 是同一条红线。
                     raise ValidationError(
-                        {"callback_url": f"address not allowed ({exc.category})"}
+                        {
+                            "callback_url": f"address not allowed ({exc.category})",
+                            "code": exc.category,
+                        }
                     ) from exc
                 if not install.callback_secret:
                     install.callback_secret = secrets.token_urlsafe(32)[:64]

@@ -422,6 +422,13 @@
       "identityHint": "By default only an anonymous per-bot identifier is sent: the external service can tell whether it is the same person twice, but not who. Turning this on also sends the clicker's name.",
       "disabled": "Turned off automatically after repeated failures. Save the address again to re-enable it.",
       "lastError": "Last failure: {{reason}}",
+      "urlError": {
+        "empty": "Saisissez une adresse de rappel.",
+        "scheme": "L'adresse de rappel doit utiliser https.",
+        "host": "L'adresse de rappel n'a pas de nom d'hôte.",
+        "port": "Ce port n'est pas autorisé — uniquement 443.",
+        "address": "Cette adresse n'est pas autorisée : les adresses privées et réservées ne peuvent pas être des cibles de rappel."
+      },
       "reason": {
         "timeout": "The service did not answer in time",
         "refused": "The service refused the request",
