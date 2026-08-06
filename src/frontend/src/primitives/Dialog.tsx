@@ -80,6 +80,14 @@ export type DialogProps = RACDialogProps & {
    * after user interaction
    */
   onOpenChange?: (isOpen: boolean) => void
+  /**
+   * 外框宽度档位:
+   * - 不传   → 定宽 30rem(内容区 27rem),适合普通表单;
+   * - 'alert' → 定宽 24rem;
+   * - 'flex' → 宽度跟着内容走。**内容宽于 27rem 的对话框必须用这一档**,
+   *   否则超出的部分既不撑框也不裁剪,会整片露到白框外面(见管理台
+   *   「授予角色」的历史问题)。
+   */
   type?: 'flex' | 'alert'
   innerRef?: MutableRefObject<HTMLDivElement | null>
   size?: 'full' | 'large'
@@ -93,15 +101,14 @@ export const Dialog = ({
   onOpenChange,
   innerRef,
   size = 'full',
+  // 宽度档位是我们自己的 prop,不能跟着 spread 落到 RAC 的 <div> 上
+  // (会渲染出一个无意义的 type="flex" 属性)。
+  type,
   ...dialogProps
 }: DialogProps) => {
   const isAlert = dialogProps['role'] === 'alertdialog'
   const boxType =
-    dialogProps['type'] === 'alert'
-      ? 'alert'
-      : dialogProps['type'] !== 'flex'
-        ? 'dialog'
-        : undefined
+    type === 'alert' ? 'alert' : type !== 'flex' ? 'dialog' : undefined
   return (
     <StyledModalOverlay
       isKeyboardDismissDisabled={isAlert}

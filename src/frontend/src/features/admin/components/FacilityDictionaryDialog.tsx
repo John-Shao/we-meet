@@ -96,8 +96,10 @@ export const FacilityDictionaryDialog = ({
   }
 
   return (
+    // type="flex":默认 dialog 档定宽 30rem,内容区只剩 27rem,30rem 的列表会溢出。
     <Dialog
       isOpen={isOpen}
+      type="flex"
       title={t('meetingRooms.manageFacilities')}
       onOpenChange={(open) => {
         if (!open) onClose()
@@ -191,7 +193,7 @@ export const FacilityDictionaryDialog = ({
   )
 }
 
-const wrapCls = css({ minWidth: '30rem' })
+const wrapCls = css({ width: 'min(30rem, calc(100vw - 6rem))' })
 const hintCls = css({
   fontSize: '0.8125rem',
   color: 'greyscale.500',

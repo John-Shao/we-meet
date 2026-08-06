@@ -61,8 +61,14 @@ export const RoleCreateDialog = ({
   }
 
   return (
-    <Dialog isOpen={isOpen} onClose={onClose} title={t('roles.createTitle')}>
-      <div className={css({ width: 'min(36rem, 80vw)' })}>
+    // type="flex":默认 dialog 档定宽 30rem,36rem 的内容会整片溢到框外。
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      type="flex"
+      title={t('roles.createTitle')}
+    >
+      <div className={css({ width: 'min(36rem, calc(100vw - 6rem))' })}>
         <label className={fieldCls}>
           <span className={labelCls}>{t('roles.nameLabel')}</span>
           <input

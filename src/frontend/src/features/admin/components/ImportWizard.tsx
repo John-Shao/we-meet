@@ -70,8 +70,9 @@ export const ImportWizard = ({ isOpen, onDone, onClose }: Props) => {
   )
 
   return (
-    <Dialog isOpen={isOpen} onClose={close} title={t('import.title')}>
-      <div className={css({ width: 'min(46rem, 88vw)' })}>
+    // type="flex":默认 dialog 档定宽 30rem,46rem 的向导会整片溢到框外。
+    <Dialog isOpen={isOpen} onClose={close} type="flex" title={t('import.title')}>
+      <div className={css({ width: 'min(46rem, calc(100vw - 6rem))' })}>
         {job === null ? (
           <>
             <p className={leadCls}>{t('import.lead')}</p>

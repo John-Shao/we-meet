@@ -67,12 +67,14 @@ export const GroupMembersDialog = ({
   }
 
   return (
+    // type="flex":默认 dialog 档定宽 30rem,44rem 的选择器会整片溢到框外。
     <Dialog
       isOpen={group !== null}
       onClose={onClose}
+      type="flex"
       title={t('groups.addMembersTitle', { name: group?.name ?? '' })}
     >
-      <div className={css({ width: 'min(44rem, 80vw)' })}>
+      <div className={css({ width: 'min(44rem, calc(100vw - 6rem))' })}>
         <DirectoryMultiPicker
           selected={selected}
           onToggle={toggle}

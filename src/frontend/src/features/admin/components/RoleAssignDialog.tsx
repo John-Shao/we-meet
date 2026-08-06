@@ -84,12 +84,16 @@ export const RoleAssignDialog = ({ role, onDone, onClose }: Props) => {
   }
 
   return (
+    // type="flex" 让外框跟着内容宽走。默认的 dialog 档是**定宽 30rem**,内容一旦
+    // 比 30rem − 3rem 内边距宽,超出的部分不会撑框也不会裁剪,而是整片露到白框
+    // 外面(下拉框漂在遮罩上)。宽对话框都得走这一档。
     <Dialog
       isOpen={role !== null}
       onClose={onClose}
+      type="flex"
       title={t('roles.assignTitle', { name: role?.name ?? '' })}
     >
-      <div className={css({ width: 'min(32rem, 80vw)' })}>
+      <div className={css({ width: 'min(32rem, calc(100vw - 6rem))' })}>
         <label className={fieldCls}>
           <span className={labelCls}>{t('roles.member')}</span>
           <select
@@ -177,6 +181,8 @@ const labelCls = css({
 const selectCls = cx(
   css({
     flex: 1,
+    // 弹性子项默认 min-width:auto —— 姓名长的成员会把下拉撑出行外,再溢出白框。
+    minWidth: 0,
     padding: '0.375rem 0.5rem',
     border: '1px solid token(colors.control.border)',
     borderRadius: '6px',
