@@ -233,6 +233,80 @@ class BotWebhookIPThrottle(MonitoredAnonRateThrottle):
     scope = "bot_webhook_ip"
 
 
+class CardClickUserThrottle(MonitoredUserRateThrottle):
+    """卡片按钮点击 —— 按**点击人**分桶(线 A)。
+
+    挡的是一个人连点。``once`` 块点完就变结果条,按不动了;但 ``each`` 块
+    (「重跑」那类)**刻意不定局**,按钮一直在那儿 —— 一个人就能把它当成一个
+    「向第三方发请求」的按钮无限点下去。
+
+    宽到正常人碰不到:一分钟点几十次已经不是在用产品了。
+    """
+
+    scope = "card_click"
+
+    def get_cache_key(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return None
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": str(request.user.pk),
+        }
+
+
+class CardClickInstallationThrottle(MonitoredAnonRateThrottle):
+    """卡片按钮点击 —— 按**机器人安装**分桶。**三层里最要紧的一层。**
+
+    上面那层保护不了这个场景:200 人的群里每人点一次「重跑」,每个人都在自己
+    的额度内,而对方的服务器一口气吃 200 个请求 —— **我们等于替他们发起了一次
+    DoS**。所以必须有一层的分桶键是「打给谁」,不是「谁在打」。
+
+    按 installation 而不是按 bot:同一个机器人装在十个群里,十个群的流量本来
+    就分别打给十个 ``callback_url``(地址在 installation 上,不在 bot 上)。
+
+    继承 Anon 那支是因为**分桶键与请求者身份无关** —— 这里要的是「这个安装的
+    总量」,把已登录用户排除掉就正好丢掉了全部要计的数。
+    """
+
+    scope = "card_click_install"
+
+    def _installation_ident(self, request, view):
+        """``mid`` → 权威的 installation。**不信客户端**,与 viewset 同一条规矩。
+
+        查不到就不限流:那种请求马上会被 viewset 404 掉,没必要为它建一个桶
+        (否则拿随机 mid 猛试反而能把别人的桶占满)。
+        """
+        raw = (getattr(view, "kwargs", None) or {}).get("pk")
+        try:
+            mid = int(raw)
+        except (TypeError, ValueError):
+            return None
+        from core import models  # noqa: PLC0415  (循环 import:models 会拉起 api)
+
+        install_id = (
+            models.ImCardMessage.objects.filter(mid=mid)
+            .values_list("installation_id", flat=True)
+            .first()
+        )
+        return str(install_id) if install_id else None
+
+    def get_cache_key(self, request, view):
+        ident = self._installation_ident(request, view)
+        if not ident:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
+class CardClickInstallationBurstThrottle(CardClickInstallationThrottle):
+    """同上,短窗口的那半 —— 挡瞬时尖峰,不是持续量。
+
+    与入站 webhook 的 ``bot_webhook`` / ``bot_webhook_burst`` 是同一手法:
+    一分钟的总量和一秒钟的尖峰是两件事,只设前者的话「全群同一秒点」照样穿过去。
+    """
+
+    scope = "card_click_install_burst"
+
+
 class AdminBotCredentialThrottle(MonitoredUserRateThrottle):
     """M 端逐个读机器人凭据的限流(线 B)。
 

@@ -37,6 +37,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 
 from core import models
+from core.api import throttling
 from core.api.im import ImViewSet
 from core.services import card_state, im_cards
 
@@ -134,7 +135,21 @@ class ImCardViewSet(viewsets.ViewSet):
         )
         return Response({"states": [self._state_of(card) for card in cards]})
 
-    @action(detail=True, methods=["post"], url_path="click")
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="click",
+        # 三层限流。**限的不是用户体验,是我们打给第三方的量** —— 一次点击 =
+        # 一个 Celery 任务 = 一次打到对方服务器的 HTTPS 请求。按 installation
+        # 那两层最要紧,理由见 throttling.CardClickInstallationThrottle。
+        #
+        # 只挂在 click 上:`states` 是只读的批量拉取,不产生任何出站流量。
+        throttle_classes=[
+            throttling.CardClickUserThrottle,
+            throttling.CardClickInstallationThrottle,
+            throttling.CardClickInstallationBurstThrottle,
+        ],
+    )
     def click(self, request, pk=None):
         """点一个按钮。``pk`` 是 jusi 的 ``mid``。
 

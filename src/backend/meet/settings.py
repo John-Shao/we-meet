@@ -519,6 +519,27 @@ class Base(Configuration):
                 environ_name="BOT_WEBHOOK_IP_THROTTLE_RATES",
                 environ_prefix=None,
             ),
+            # 卡片按钮点击 — 三层。前两层限的是**我们打给第三方的量**,不是
+            # 用户体验:一次点击 = 一个 Celery 任务 = 一次打到对方服务器的请求。
+            # 1) 每个点击人 —— 挡一个人连点 each 块(它刻意不定局,按钮一直在)
+            "card_click": values.Value(
+                default="60/minute",
+                environ_name="CARD_CLICK_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
+            # 2) 每个机器人安装 —— **最要紧的一层**。200 人各点一次,每个人都在
+            #    自己额度内,对方却一口气吃 200 个请求。分桶键必须是「打给谁」。
+            "card_click_install": values.Value(
+                default="300/minute",
+                environ_name="CARD_CLICK_INSTALL_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
+            # 3) 同上的短窗口 —— 只设每分钟的话,「全群同一秒点」照样穿过去。
+            "card_click_install_burst": values.Value(
+                default="30/second",
+                environ_name="CARD_CLICK_INSTALL_BURST_THROTTLE_RATES",
+                environ_prefix=None,
+            ),
         },
     }
     MONITORED_THROTTLE_FAILURE_CALLBACK = (

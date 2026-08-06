@@ -11,9 +11,12 @@ from datetime import timedelta
 from unittest import mock
 
 import pytest
+from django.core.cache import cache
 from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework.test import APIClient
+
+from core.api import throttling
 
 from core import models
 from core.factories import UserFactory
@@ -275,3 +278,66 @@ def test_states_requires_a_list(card, member):
 
 def test_anonymous_callers_are_rejected(card):
     assert APIClient().post(f"/api/v1.0/im/cards/{MID}/click/", {"button_id": "b0"}).status_code in (401, 403)
+
+
+# ---- 限流:限的是我们打给第三方的量 ---------------------------------------------
+
+
+def test_the_bucket_is_who_we_are_calling_not_who_is_calling(card, member):
+    """**三层里最要紧的那层。**
+
+    按点击人分桶保护不了这个场景:200 人的群里每人点一次「重跑」,每个人都在
+    自己的额度内,而对方的服务器一口气吃 200 个请求 —— 我们等于替他们发起了
+    一次 DoS。所以必须有一层的分桶键是「打给谁」。
+
+    用 ``b2``(``each`` 块)是因为它**不定局** —— 换成 ``once`` 的话第二个人
+    会先撞 409,根本走不到限流。而 ``each`` 恰恰也是最容易被连点的那种。
+    """
+    cache.clear()
+    with mock.patch.object(
+        throttling.CardClickInstallationThrottle, "get_rate", return_value="1/minute"
+    ):
+        assert click(member, button_id="b2").status_code == 200
+        # 换一个人、同一张卡 —— 桶是同一个。
+        assert click(UserFactory(), button_id="b2").status_code == 429
+
+
+def test_one_persons_hammering_does_not_punish_the_next_person(card, member):
+    """按点击人那层反过来也要成立:额度是各人各的。"""
+    cache.clear()
+    with mock.patch.object(
+        throttling.CardClickUserThrottle, "get_rate", return_value="1/minute"
+    ):
+        assert click(member, button_id="b2").status_code == 200
+        assert click(member, button_id="b2").status_code == 429
+        assert click(UserFactory(), button_id="b2").status_code == 200
+
+
+def test_an_unknown_mid_gets_no_bucket_at_all(card):
+    """拿随机 mid 猛试不该能把别人的桶占满 —— 查不到就不建桶。
+
+    那种请求马上会被 viewset 404 掉,为它记账只会变成一个攻击面。
+    """
+    throttle = throttling.CardClickInstallationThrottle()
+
+    for pk in (str(MID + 999), "not-a-number", None):
+        view = mock.Mock(kwargs={"pk": pk})
+        assert throttle.get_cache_key(mock.Mock(), view) is None, pk
+
+    # 真卡片有桶,而且桶键里是 **installation**,不是 mid —— 同一个机器人的
+    # 两张卡必须共用一个桶,否则每发一张新卡就等于给对方开一次新额度。
+    key = throttle.get_cache_key(mock.Mock(), mock.Mock(kwargs={"pk": str(MID)}))
+    assert key and str(card.installation_id) in key
+    assert str(MID) not in key
+
+
+def test_only_click_is_throttled_states_is_not():
+    """``states`` 是只读批量拉取,不产生任何出站流量 —— 限它只会拖慢翻聊天记录。"""
+    from core.api.im_cards import ImCardViewSet  # noqa: PLC0415
+
+    assert set(ImCardViewSet.click.kwargs["throttle_classes"]) == {
+        throttling.CardClickUserThrottle,
+        throttling.CardClickInstallationThrottle,
+        throttling.CardClickInstallationBurstThrottle,
+    }
+    assert "throttle_classes" not in ImCardViewSet.states.kwargs
