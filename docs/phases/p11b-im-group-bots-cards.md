@@ -154,6 +154,150 @@ jusi 不能改消息 body（§2）。三条路里选 **(c) 状态存 we-meet、�
 - `actor.display_name` 由 `callback_include_identity` 控制，**默认关**，群主 UI 上写明「按钮点击时把点击人姓名发送给外部服务」。理由：webhook 是群主配的，但**点按钮的是每个成员**——默认把他们的姓名发给第三方，是群主替别人做的决定。
 - **永不外发**：消息 body、群成员名单、我们的内部 pk。
 
+### 接收方怎么验签（对外集成文档，可整段贴给第三方）
+
+> 权威实现：`core/services/bot_callback.py` 的 `sign()` / `build_request()`。下面每一条都能在那里对上号。
+
+#### 我们发出去的请求长什么样
+
+```http
+POST /your/hook HTTP/1.1
+Content-Type: application/json
+User-Agent: WeMeet-Bot-Callback/1
+X-WeMeet-Timestamp: 1786012345
+X-WeMeet-Signature: 3f9c1a…（64 位小写 hex）
+
+{"v":1,"type":"card.button.clicked","cid":"c_9f3a…","mid":757,"button":{"id":"approve","text":"同意上线","value":{"pipeline":"prod-2081"}},"actor":{"id":"e0e5bca7…","display_name":"W009"},"ts":1786012345}
+```
+
+- `X-WeMeet-Timestamp` 与 body 里的 `ts` **恒相等**（同一个值取两处），任取其一即可，但**签名里必须用 header 那个字符串原文**。
+- `button.value` 是发送方当初在飞书 payload 里自己塞的私有载荷，原样还给它；没塞过就是 `null`。
+- `actor.display_name` 只有群主开了「发送点击人姓名」才有这个键，**默认没有**。
+
+#### 算法（三行说完）
+
+```
+signature = HMAC_SHA256(key = callback_secret,
+                        msg = "v1:" + X-WeMeet-Timestamp + ":" + <请求体原始字节>)
+            .hexdigest()          # 小写 hex，64 字符
+```
+
+密钥是**回调验签密钥 `callback_secret`**（机器人详情页「轮换验签密钥」旁边那个），**不是**入站 webhook 的 `signing_secret`。两把密钥、两个算法、两组 header，共用一把的话任何能看到入站密钥的人都能伪造我们的出站调用。
+
+#### 五步
+
+1. 读**请求体的原始字节**——在任何 JSON 解析之前。
+2. 取 `X-WeMeet-Timestamp` 的**字符串原文**拼进 `v1:{ts}:{raw}`。
+3. 算 HMAC-SHA256，输出小写 hex。
+4. 与 `X-WeMeet-Signature` 做**常数时间比较**。
+5. 校验时间戳新鲜度（建议 ±5 分钟），过期即拒。
+
+验签通过之后才解析 body、才信里面任何一个字段。
+
+<details>
+<summary>Python / Flask</summary>
+
+```python
+SECRET = os.environ["WEMEET_CALLBACK_SECRET"].encode()
+
+@app.post("/hook")
+def hook():
+    ts, got = request.headers.get("X-WeMeet-Timestamp", ""), request.headers.get("X-WeMeet-Signature", "")
+    raw = request.get_data()                     # ← bytes；绝不能用 request.json
+    if not ts.isdigit() or abs(time.time() - int(ts)) > 300:
+        abort(401)
+    want = hmac.new(SECRET, b"v1:" + ts.encode() + b":" + raw, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(want, got):
+        abort(401)
+    payload = json.loads(raw)                    # ← 验完再解析
+    ...
+    return {"text": "已由 CI 接管"}
+```
+
+</details>
+
+<details>
+<summary>Node / Express</summary>
+
+```js
+app.use('/hook', express.raw({ type: 'application/json' }))   // ← 不是 express.json()
+
+app.post('/hook', (req, res) => {
+  const ts = req.get('X-WeMeet-Timestamp') || ''
+  const got = req.get('X-WeMeet-Signature') || ''
+  const raw = req.body                                         // Buffer
+  if (!/^\d+$/.test(ts) || Math.abs(Date.now() / 1000 - Number(ts)) > 300) return res.sendStatus(401)
+  const want = crypto.createHmac('sha256', SECRET).update(`v1:${ts}:`).update(raw).digest('hex')
+  const a = Buffer.from(want), b = Buffer.from(got)
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return res.sendStatus(401)
+  const payload = JSON.parse(raw.toString('utf8'))
+  ...
+})
+```
+
+</details>
+
+<details>
+<summary>Go</summary>
+
+```go
+raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+ts, got := r.Header.Get("X-WeMeet-Timestamp"), r.Header.Get("X-WeMeet-Signature")
+
+mac := hmac.New(sha256.New, secret)
+fmt.Fprintf(mac, "v1:%s:", ts)
+mac.Write(raw)                                   // ← 原始字节，不要 json.Marshal 回去
+if !hmac.Equal([]byte(hex.EncodeToString(mac.Sum(nil))), []byte(got)) {
+    http.Error(w, "", http.StatusUnauthorized)
+    return
+}
+```
+
+</details>
+
+#### 三个真会踩的坑
+
+1. **⚠️ 不要「解析成对象再序列化回去」签。** 签的是我们发出的那串字节，而我们用的是 `json.dumps(…, ensure_ascii=False, separators=(",", ":"))` —— 无空格、中文按 UTF-8 字面量。你那边的默认编码器几乎一定不一样：Python 的 `json.dumps` 默认在 `,` `:` 后面加空格、并把「同」转义成 `\u540c`；Go 的 `encoding/json` 默认把 `<` `>` `&` 转义成 `\u003c` 这类。**换一个字节，签名就全错**，而且是「大部分卡片正常、正文里恰好有个 `&` 的那张失败」这种最难查的形态。用框架的 raw body 接口：Flask `request.get_data()`、FastAPI `await request.body()`、Express `express.raw()`、Go `io.ReadAll(r.Body)`。
+2. **时间戳用 header 的字符串原文。** 别 `int()` 再 `str()` 绕一圈；今天数值等价，但拼进签名串的必须是我们发的那几个字符。
+3. **常数时间比较**（`hmac.compare_digest` / `crypto.timingSafeEqual` / `hmac.Equal`），别用 `==`。
+
+#### 重放与幂等
+
+时间戳窗口挡的是重放，但**同一次点击我们最多发三次**（超时 / 连不上 / 5xx / 429 最多重试两次，间隔 5s、10s）。重试会重新构造 payload，所以 **`ts` 和签名每次都不同** —— 靠签名去重没有用。
+
+**幂等键取 `(mid, button.id)`**。`resolve: "once"` 的按钮我们服务端已经保证全群只会解析一次，所以同一个 `(mid, button.id)` 到达多次一定是重试，不是第二个人点的。
+
+#### 你该回什么
+
+| | |
+|---|---|
+| 成功 | 任何 2xx。**5 秒内**必须回（读超时），真活儿请异步做 |
+| 想改群里那条结果条 | `Content-Type: application/json` + `{"text":"已由 CI 接管"}` |
+| 验签失败 / 拒绝 | 4xx（**我们不重试**，见下） |
+| 想让我们重试 | 5xx 或 429 |
+
+`text` 当**不可信输入**处理：压掉所有空白、截到 120 字、不解析 markdown、不允许链接（这是唯一会把上游内容显示给全群的地方）。
+
+另外三条容易被忽略的响应约束：
+
+- **响应体超过 8 KiB 直接判失败**（`too_large`，不重试），不是截断——所以别在 body 里回一整份构建日志。
+- `Content-Type` 不是 `application/json` 的话整个 body 被忽略，但**状态码仍算成功**（`; charset=utf-8` 这种后缀无所谓，我们只比分号前那截）。想覆盖结果条就必须带对 Content-Type。
+- **3xx 不跟随**，直接判失败——这是 SSRF 防线第 2 条，不是可以商量的重试策略。
+
+当前实现只读 `text` 一个键；`state` 收下但不解释（一期设计里写过，实现时发现它没有能改变的东西——点击是否 resolve 由卡片自己的 `resolve` 决定，不该由上游翻案）。
+
+#### 轮换密钥时（真会咬人的一段）
+
+**轮换是硬切换：立刻生效、不做双签、没有宽限期。** 所以零中断只能靠接收方：
+
+1. 先让你的服务**同时接受新旧两把**（任一验过即可）；
+2. 再到机器人详情页点「轮换验签密钥」，复制新密钥；
+3. 观察到用新密钥验过的请求之后，撤掉旧的。
+
+**验签失败的代价不是报警，是静默断掉。** 你回 401 → 我们归类 `refused` → **4xx 不重试**（对方的拒绝就是答案）→ `callback_failure_count` +1；**连续 20 次自动 `callback_enabled = False`**。也就是说轮换配错了不会有任何吵闹，只会在第 20 次点击之后彻底没声音，群主得进详情页才看得到「已停用」和失败分类。成功一次即清零。
+
+**`actor.id` 会跟着变。** 它是 `hmac_sha256(callback_secret, user_pk)[:32]` —— 轮换后同一个人换成一个新假名。**这是特性**：轮换 = 断掉外部积累的行为画像。所以别把 `actor.id` 当永久用户 id 落库，它只在「同一把密钥期内判是不是同一个人」这个尺度上有效。
+
 ### SSRF 八条，一条都不能省
 
 新建 `core/services/outbound_http.py`，只给 bot callback 用：
@@ -240,6 +384,14 @@ def _is_blocked(addr):
 > 挂着三天前的「超时」。`pending` 超 5 分钟读作 timeout —— 这正是当初决定
 > 惰性判定、不为一件事引入 beat schedule 的兑现点（Celery 停摆时那些行永远
 > 不会变成 failed）。
+
+> **A3 验收时补的第二处**：`callback_secret` 原来**只在为空时铸一次**，之后
+> 无论如何都换不掉 —— 而 D4 里「C 端群主已有轮换」和「密钥轮换后假名会变，
+> 这是特性」这两句话，都是把轮换当既有能力在用。补了
+> `POST /api/v1.0/im/bots/{id}/rotate-callback-secret/`（群主 only，写一条
+> `bot.secret_reset` + `metadata.credential="callback"` 审计）和详情页的
+> 「轮换验签密钥」按钮。**这是密钥一旦泄露时唯一的止血手段**，接收方侧怎么配合
+> 见 §5「接收方怎么验签 → 轮换密钥时」。
 
 **风险最高、建议单独 review 的两处**：`outbound_http.py` 的 IP 钉住实现（TOCTOU 很容易写成无效的）、`bot_cards.py` 里「value 不进 body」这条不变量（一次手滑就把 pipeline token 广播给全群）。
 
