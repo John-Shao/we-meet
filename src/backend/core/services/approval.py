@@ -541,7 +541,10 @@ def _notify_user(user, body) -> None:
         if sender_uid == SYSTEM_UID:
             client.post_message(cid=cid, body=body)
         else:
-            im_bots.post_as(client, assistant, cid, body)
+            # **这是全仓唯一不记安装的 post_as。** 这是一对一私信,而 M 端治理页
+            # 叫「群机器人」—— 一个人和助手的私聊不该进运营视野,而且那是
+            # (助手 × 每个人)的笛卡尔积,会把几十个真正要治理的自定义机器人冲没。
+            im_bots.post_as(client, assistant, cid, body, record_installation=False)
     except Exception:  # noqa: BLE001 — approval notification is best-effort
         logger.warning(
             "approval notify failed for user %s",

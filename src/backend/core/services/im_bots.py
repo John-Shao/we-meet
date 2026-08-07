@@ -150,11 +150,29 @@ def forget_membership(cid: str, bot_uid: str) -> None:
     cache.delete(_member_cache_key(cid, bot_uid))
 
 
-def post_as(client, bot, cid: str, body: str, *, content_type: str = "text"):
+def post_as(
+    client,
+    bot,
+    cid: str,
+    body: str,
+    *,
+    content_type: str = "text",
+    record_installation: bool = True,
+):
     """Post ``body`` into ``cid`` as ``bot``. Returns the jusi message response.
 
     Raises the usual ``JusiImServiceError`` subclasses; callers that must not
     fail (built-in notifications) should use :func:`post_as_builtin`.
+
+    ``record_installation`` **默认开** —— 记账长在这里而不是各个调用点,是因为
+    「忘了记」这件事真发生过:审批助手和会议助手都是直接调 ``post_as``,于是
+    发了几个月消息、一条安装记录都没有,C 端群机器人列表和 M 端治理页里它们
+    从来不存在。默认关的话,下一个内置助手还会掉进同一个坑。
+
+    **唯一该传 False 的是私信**(见 ``services/approval``):治理页叫「群机器人」,
+    一个人和助手的一对一会话不该进运营视野 —— 而且那是(助手 × 每个人)的笛卡尔
+    积,正是会把几十个真正要治理的自定义机器人冲没的东西。自定义机器人传什么
+    都无所谓:它们建的时候就有安装行了,这里是 get_or_create 的空转。
     """
     bot_uid = resolve_bot_uid(client, bot)
     ensure_member(client, cid, bot_uid)
@@ -174,6 +192,8 @@ def post_as(client, bot, cid: str, body: str, *, content_type: str = "text"):
             result.sender_uid,
         )
         forget_membership(cid, bot_uid)
+    if record_installation:
+        _touch_installation(bot, cid)
     return result
 
 
@@ -207,7 +227,8 @@ def post_as_builtin(slug: str, cid: str, body: str, *, content_type: str = "text
             "im_bots: built-in %s post failed for cid=%s", slug, cid, exc_info=True
         )
         return None
-    _touch_installation(bot, cid)
+    # 记账已经由 post_as 做掉了 —— 以前这一行是**唯一**记账的地方,于是走
+    # post_as 的那两个助手一条都不记。
     return result
 
 
@@ -217,6 +238,9 @@ def _touch_installation(bot, cid: str) -> None:
     Built-ins have no webhook token — the row exists so the group's 群机器人 list
     can show them (P23 removed bots from the jusi roster, so this is the only
     place that knows).
+
+    调用点在 :func:`post_as`(默认开),不在各个通知路径上 —— 这条注释以前声称的
+    不变量并不成立:审批助手和会议助手直接调 ``post_as``,两个列表里都看不到它们。
     """
     try:
         models.ImBotInstallation.objects.get_or_create(

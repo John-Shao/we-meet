@@ -114,6 +114,45 @@ def test_posting_sends_as_the_bot(bot, client):
     assert client.post_message.call_args[1]["sender_uid"] == BOT_UID
 
 
+def test_posting_records_the_installation_by_default(bot, client):
+    """记账长在 ``post_as`` 里,不在各个通知路径上。
+
+    以前它只长在 ``post_as_builtin`` 里,而审批助手和会议助手都是直接调
+    ``post_as`` —— 于是它们发了几个月消息、一条安装记录都没有,C 端的群机器人
+    列表和 M 端治理页里从来不存在。生产上 ``kind='builtin'`` 的安装数是 **0**,
+    就是这么来的。
+    """
+    im_bots.post_as(client, bot, CID, "hello")
+    assert models.ImBotInstallation.objects.filter(bot=bot, cid=CID).exists()
+
+
+def test_posting_twice_does_not_duplicate_the_installation(bot, client):
+    im_bots.post_as(client, bot, CID, "one")
+    im_bots.post_as(client, bot, CID, "two")
+    assert models.ImBotInstallation.objects.filter(bot=bot, cid=CID).count() == 1
+
+
+def test_a_private_message_is_not_recorded(bot, client):
+    """口径 A:治理页叫「群机器人」,一对一私信不进运营视野。
+
+    这是全仓唯一传 ``record_installation=False`` 的调用(审批助手的私信通知),
+    理由是(助手 × 每个人)的笛卡尔积会把几十个真正要治理的自定义机器人冲没。
+    """
+    im_bots.post_as(client, bot, CID, "你的申请已通过", record_installation=False)
+    assert not models.ImBotInstallation.objects.filter(cid=CID).exists()
+
+
+def test_bookkeeping_never_breaks_a_post(bot, client, caplog):
+    """记账挂了只该在日志里出现 —— 消息已经发出去了,不能因此抛。"""
+    with mock.patch(
+        "core.services.im_bots.models.ImBotInstallation.objects.get_or_create",
+        side_effect=RuntimeError("db is having a day"),
+    ), caplog.at_level(logging.WARNING):
+        result = im_bots.post_as(client, bot, CID, "hello")
+    assert result.mid == 1
+    assert "installation bookkeeping failed" in caplog.text
+
+
 def test_a_silent_downgrade_to_system_is_detected_and_logged(bot, client, caplog):
     """jusi rewrites a non-member sender to the all-zero uid and still returns
     200 — there is no exception to catch, so we compare what came back."""
@@ -150,14 +189,16 @@ def test_the_seed_pks_are_deterministic():
     assert assistant.pk == expected
 
 
-def test_posting_as_a_builtin_records_the_installation():
-    with mock.patch("core.services.im_bots.make_admin_client") as factory, mock.patch(
-        "core.services.im_bots.post_as"
-    ) as post_as:
-        factory.return_value = mock.Mock()
-        post_as.return_value = JusiImMessageResponse(
-            mid=1, cid=CID, sender_uid=BOT_UID, seq=1, ts=0
-        )
+def test_posting_as_a_builtin_records_the_installation(client):
+    """**刻意不 mock ``post_as``。**
+
+    以前这条 mock 掉了它 —— 而记账正是在 ``post_as`` 里,于是这个测试证明的
+    只是「``post_as_builtin`` 自己那一行记账还在」,照不出「走 ``post_as`` 的
+    另外两个助手一条都不记」。这跟 SNI 那次是同一个形状:mock 掉了唯一要紧的
+    那一层,测试全绿而生产上是坏的。
+    """
+    with mock.patch("core.services.im_bots.make_admin_client") as factory:
+        factory.return_value = client
         im_bots.post_as_builtin(im_bots.BOT_MEETING_ASSISTANT, CID, "纪要已生成")
 
     install = models.ImBotInstallation.objects.get(cid=CID)
@@ -177,6 +218,25 @@ def test_a_builtin_post_never_raises():
 
 def test_an_unseeded_builtin_is_skipped_not_crashed():
     assert im_bots.post_as_builtin("no-such-assistant", CID, "x") is None
+
+
+def test_only_the_private_message_path_opts_out_of_bookkeeping():
+    """``record_installation=False`` 全仓只该有一处。
+
+    默认开就是为了「忘了记」这件事不再发生,但这道保护只在**没人顺手关掉它**
+    时成立。关掉是一个产品决定(这条会话不进治理页),不该是某次调试的残留 ——
+    所以多出一处就红,让它必须经过 review。
+    """
+    import pathlib  # noqa: PLC0415
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    hits = [
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*.py")
+        if "tests" not in path.parts
+        and "record_installation=False" in path.read_text(encoding="utf-8")
+    ]
+    assert hits == ["services/approval.py"], hits
 
 
 # ---- palette -----------------------------------------------------------------
