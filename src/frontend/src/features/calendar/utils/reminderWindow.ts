@@ -70,7 +70,37 @@ export type ReminderCountdown =
   | { kind: 'soon'; minutes: number }
   | null
 
-/** 角标:进行中 →「现在」;1 小时内开始 →「N 分钟后」;其余无。全天不参与。 */
+/**
+ * 没有设提前量时的角标窗口(分钟)。
+ *
+ * 这**不是**「默认提醒时间」—— 是「这条日程没告诉我们什么时候该紧张,那就
+ * 快开始时提一下」。设了提前量的日程一律按它自己的来。
+ */
+export const DEFAULT_COUNTDOWN_WINDOW_MINUTES = 60
+
+/**
+ * 角标窗口 = 这条日程**自己设的**最大提前量,没设则退 60 分钟。
+ *
+ * ⚠️ 以前这里是写死的 60 分钟,和 `reminders` 毫无关系 —— 于是用户在日程上
+ * 选「提前 10 分钟」,列表入口该亮的时候不亮、不该亮的时候亮了 50 分钟。
+ * 真机上是这么发现的:一条设了提醒的日程到点什么都没有,查下去才发现**那个
+ * 开关在这条路径上什么都不驱动**(服务端那条 IM 提醒又因为房间没有会议群被
+ * 静默丢弃,见 `services/calendar_reminders`)。
+ *
+ * 取**最大**而不是最小:多个提前量意味着「从最早那次开始就该被看见」,
+ * 与服务端 `_lead_minutes` 同一口径 —— 两边不一致的话,IM 提醒到了而列表
+ * 角标还没亮,或者反过来。
+ */
+export const countdownWindowMinutes = (event: CalendarEvent): number => {
+  const leads = (event.reminders ?? [])
+    .map((raw) => Number(raw))
+    .filter((n) => Number.isFinite(n) && n > 0)
+  return leads.length
+    ? Math.max(...leads)
+    : DEFAULT_COUNTDOWN_WINDOW_MINUTES
+}
+
+/** 角标:进行中 →「现在」;进入本条日程的提醒窗口 →「N 分钟后」;其余无。全天不参与。 */
 export const reminderCountdown = (
   event: CalendarEvent,
   now: Date
@@ -81,7 +111,7 @@ export const reminderCountdown = (
   const t = now.getTime()
   if (s <= t && t < e) return { kind: 'now' }
   const diffMin = (s - t) / 60_000
-  if (diffMin > 0 && diffMin <= 60) {
+  if (diffMin > 0 && diffMin <= countdownWindowMinutes(event)) {
     return { kind: 'soon', minutes: Math.max(1, Math.ceil(diffMin)) }
   }
   return null
