@@ -58,7 +58,15 @@ def mock_admin_client():
         yield instance
 
 
-def _make_event(*, owner, start_at, reminders, status=EventStatusChoices.CONFIRMED, room=True):
+def _make_event(
+    *,
+    owner,
+    start_at,
+    reminders,
+    status=EventStatusChoices.CONFIRMED,
+    room=True,
+    source_conversation_id="",
+):
     org = OrganizationFactory()
     the_room = None
     if room:
@@ -75,6 +83,7 @@ def _make_event(*, owner, start_at, reminders, status=EventStatusChoices.CONFIRM
         status=status,
         reminders=reminders,
         room=the_room,
+        source_conversation_id=source_conversation_id,
     )
 
 
@@ -117,6 +126,116 @@ def test_no_conversation_marks_handled_without_push(jusi_settings, mock_admin_cl
     assert not MeetingConversation.objects.filter(room=event.room).exists()
     event.refresh_from_db()
     assert event.reminder_pushed_at is not None
+
+
+# ---- 「已处理」不等于「送达了」 ----
+#
+# 三条出口里有两条一条消息都不发,却和成功投递设同一个 reminder_pushed_at。
+# 真机上查一条「我设了提醒为什么什么都没有」时,库里只答得出「已提醒」——
+# 那次就是房间从没进过会、没有会议群。结果另存 reminder_outcome。
+
+
+def test_outcome_says_delivered_when_it_really_went_out(
+    jusi_settings, mock_admin_client
+):
+    now = timezone.now()
+    event = _make_event(
+        owner=UserFactory(), start_at=now + timedelta(minutes=5), reminders=[10]
+    )
+    _attach_group(event)
+
+    push_due_reminders(now=now)
+
+    event.refresh_from_db()
+    assert event.reminder_outcome == "delivered"
+
+
+def test_outcome_says_no_conversation_when_nothing_was_sent(
+    jusi_settings, mock_admin_client
+):
+    """**这条就是真机上那次。** 订了会议室但从没进过会 → 会议群还不存在
+    (它是入会那一刻才建的)→ 一条消息都没发,而 reminder_pushed_at 照样被设上。
+    没有这个字段的话,运营侧看到的是「已提醒」。"""
+    now = timezone.now()
+    event = _make_event(
+        owner=UserFactory(), start_at=now + timedelta(minutes=5), reminders=[10]
+    )
+
+    push_due_reminders(now=now)
+
+    mock_admin_client.post_message.assert_not_called()
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is not None
+    assert event.reminder_outcome == "no_conversation"
+
+
+def test_outcome_says_refused_when_the_source_group_is_gone(
+    jusi_settings, mock_admin_client
+):
+    """源群已解散(4xx)且没有房间可降级 —— 记 refused 而不是 no_conversation:
+    「对方拒绝」和「压根没有会话」要采取的动作完全不同。"""
+    now = timezone.now()
+    mock_admin_client.post_message.side_effect = JusiImBadResponseError("404")
+    event = _make_event(
+        owner=UserFactory(),
+        start_at=now + timedelta(minutes=5),
+        reminders=[10],
+        room=False,
+        source_conversation_id="dissolved-cid",
+    )
+
+    push_due_reminders(now=now)
+
+    event.refresh_from_db()
+    assert event.reminder_outcome == "refused"
+
+
+# ---- 候选查询:有源会话就该被扫到,不必有房间 ----
+
+
+def test_a_chat_created_event_without_a_room_is_still_reminded(
+    jusi_settings, mock_admin_client
+):
+    """候选查询原来是 ``room__isnull=False``。
+
+    后来加了「从聊天创建的日程直发源会话」那条分支,却没动这个过滤 —— 于是
+    「有源会话、没订会议室」的日程**永远走不到那条分支**,而模块开头第一句
+    就写着 the source conversation for chat-created events。
+    """
+    now = timezone.now()
+    event = _make_event(
+        owner=UserFactory(),
+        start_at=now + timedelta(minutes=5),
+        reminders=[10],
+        room=False,
+        source_conversation_id="chat-cid-1",
+    )
+
+    assert push_due_reminders(now=now) == 1
+
+    mock_admin_client.post_message.assert_called_once()
+    assert mock_admin_client.post_message.call_args.kwargs["cid"] == "chat-cid-1"
+    event.refresh_from_db()
+    assert event.reminder_outcome == "delivered"
+
+
+def test_an_event_with_neither_room_nor_conversation_is_not_scanned(
+    jusi_settings, mock_admin_client
+):
+    """两者都没有 = 无处可投,不必进候选集(放宽过滤时别把它一起放进来)。"""
+    now = timezone.now()
+    event = _make_event(
+        owner=UserFactory(),
+        start_at=now + timedelta(minutes=5),
+        reminders=[10],
+        room=False,
+    )
+
+    assert push_due_reminders(now=now) == 0
+
+    mock_admin_client.post_message.assert_not_called()
+    event.refresh_from_db()
+    assert event.reminder_pushed_at is None
 
 
 # ---- idempotency ----

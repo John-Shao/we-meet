@@ -2884,7 +2884,27 @@ class CalendarEvent(BaseModel):
         _("reminder pushed at"),
         null=True,
         blank=True,
-        help_text=_("Idempotency guard: set once the IM reminder has been sent."),
+        help_text=_(
+            "Idempotency guard: set once the reminder has been handled. "
+            "Handled is not the same as delivered — see reminder_outcome."
+        ),
+    )
+    #: 提醒**结果**。``reminder_pushed_at`` 只是幂等位,它对「投出去了」和
+    #: 「没有会话可投,放弃」设的是同一个值 —— 真机上查一条「为什么没收到提醒」
+    #: 时,库里只能告诉你「已提醒」,而实际上一条消息都没发。
+    #:
+    #: 分开存是为了让运营侧问得出这个问题。日志里本来就区分了两种情况
+    #: (``reminder pushed`` / ``marked handled without push``),但日志会滚掉,
+    #: 而这个问题总是**事后**才被问起。
+    reminder_outcome = models.CharField(
+        _("reminder outcome"),
+        max_length=24,
+        blank=True,
+        default="",
+        help_text=_(
+            "How the reminder ended: delivered / no_conversation / refused. "
+            "Empty for events handled before this field existed."
+        ),
     )
     recurrence = models.CharField(
         _("recurrence"),
