@@ -754,12 +754,16 @@ class ImViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=["post"], url_path="messages/delete")
     def messages_delete(self, request):
-        """Batch-delete messages from a conversation. Any member may delete messages.
+        """Legacy 「删除消息」 shim for already-shipped clients (P24 D2).
 
-        Body: ``{cid, mids: [<mid string>, ...]}``. Deletion is client-side only
-        for now — the mids are validated and membership is confirmed, but the
-        actual hiding happens in the frontend cache (jusi-light-im does not yet
-        expose a server-side delete endpoint).
+        Body: ``{cid, mids: [<mid string>, ...]}``. Membership is confirmed and
+        the mids validated, but nothing is persisted — old APKs pair this call
+        with a purely local hide, and that stays their behaviour.
+
+        Current clients do NOT come here: they send the jusi ``delete`` ws frame
+        and get server-side 仅对我删除 with multi-device sync (jusi P24). Keep
+        this endpoint until those old builds are out of the wild; do not add
+        behaviour to it.
         """
         data = request.data or {}
         cid = (data.get("cid") or "").strip()

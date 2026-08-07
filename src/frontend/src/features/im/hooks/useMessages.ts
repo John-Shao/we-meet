@@ -146,9 +146,20 @@ export const useMessages = (
         })
       )
     })
+    // P24 仅对我删除:服务端已经把这些行从历史里滤掉了,这个事件负责的是
+    // 「当前这一页已经渲染出来的」——可能是本设备刚删的回声,也可能是另一台
+    // 设备删的、或者重连补拉替我们补上的。幂等。
+    const offDeleted = client.onMessagesDeleted((e) => {
+      if (e.cid !== cid) return
+      const gone = new Set(e.mids)
+      qc.setQueryData<Message[]>(keyOf(cid), (prev) =>
+        prev?.filter((m) => !gone.has(m.mid))
+      )
+    })
     return () => {
       offRecalled()
       offReaction()
+      offDeleted()
     }
   }, [client, cid, qc])
 

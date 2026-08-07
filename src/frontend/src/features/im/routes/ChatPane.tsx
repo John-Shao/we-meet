@@ -30,7 +30,6 @@ import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
 import { uploadChatVoice, ChatVoiceError } from '../api/uploadChatVoice'
-import { deleteMessages } from '../api/deleteMessages'
 import { markLater } from '../api/markLater'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { PinnedBar } from '../components/PinnedBar'
@@ -238,17 +237,29 @@ export const ChatPane = ({
   const consumedLocateRef = useRef<string | null>(null)
   // Suppress the auto-scroll-to-bottom effect around top-pagination prepends.
   const skipAutoScrollRef = useRef(false)
-  // 「删除」= 仅本端删除(微信/飞书语义):不影响其他成员,但要在本设备持久化,
-  // 否则刷新/切会话就复现。按 cid 存 localStorage,进会话时载入。
+  // 「删除」= 仅对我删除(微信/飞书语义):不影响其他成员。P24 起服务端才是
+  // 真相(拉历史时已删的行根本不回来),这份本地集合只做两件事:服务端回声
+  // 到达前的乐观隐藏,以及 P24 之前的存量迁移。
   const [deletedMids, setDeletedMids] = useState<Set<number>>(new Set())
   useEffect(() => {
+    let pending: number[] = []
     try {
       const raw = localStorage.getItem(`im:deleted:${cid}`)
-      setDeletedMids(raw ? new Set(JSON.parse(raw) as number[]) : new Set())
+      pending = raw ? (JSON.parse(raw) as number[]) : []
     } catch {
-      setDeletedMids(new Set())
+      pending = []
     }
-  }, [cid])
+    setDeletedMids(new Set(pending))
+    if (!pending.length) return
+    // 一次性迁移:把本设备的存量补发到服务端,成功后清 key。不做这步,老用户
+    // 升级后历史删除会当场全部复活。失败就留着,下次进会话再试。
+    try {
+      client.deleteMessages(cid, pending)
+      localStorage.removeItem(`im:deleted:${cid}`)
+    } catch {
+      // 未连上 / 写入失败 —— 保留本地那份,下次进会话重试。
+    }
+  }, [cid, client])
   // 渲染流:剔除控制消息(撤回墓碑 / 表情回复),它们不占气泡也不算时间间隔基准。
   const visibleMessages = useMemo(
     () =>
@@ -701,19 +712,13 @@ export const ChatPane = ({
     setSelectedMids(new Set())
   }
 
-  // 删除的唯一落点:单条(右键菜单)与多选共用。服务端只校验成员与 mid,
-  // 真正的隐藏是本端的 —— 所以本地持久化必须和请求成对出现。
-  const applyDelete = async (mids: number[]) => {
-    await deleteMessages(cid, mids.map(String))
-    // Hide locally + persist per-cid so it survives refresh / conversation switch.
+  // 删除的唯一落点:单条(右键菜单)与多选共用,只差数组长度。
+  // P24:落到服务端(仅对我删除,多端同步),本地集合只是回声到达前的乐观隐藏。
+  const applyDelete = (mids: number[]) => {
+    client.deleteMessages(cid, mids)
     const next = new Set(deletedMids)
     for (const mid of mids) next.add(mid)
     setDeletedMids(next)
-    try {
-      localStorage.setItem(`im:deleted:${cid}`, JSON.stringify([...next]))
-    } catch {
-      /* storage full / disabled — deletion stays for this session only */
-    }
   }
 
   const handleDeleteSelected = async () => {
@@ -725,7 +730,7 @@ export const ChatPane = ({
     })
     if (!ok) return
     try {
-      await applyDelete([...selectedMids])
+      applyDelete([...selectedMids])
       exitSelect()
     } catch (e) {
       await showAlert({
@@ -740,7 +745,7 @@ export const ChatPane = ({
     if (!(await askConfirm({ message: t('actions.deleteMessageConfirm'), danger: true })))
       return
     try {
-      await applyDelete([m.mid])
+      applyDelete([m.mid])
     } catch (e) {
       await showAlert({
         message: t('select.deleteError', {
