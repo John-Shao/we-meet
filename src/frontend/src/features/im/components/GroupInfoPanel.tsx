@@ -8,6 +8,7 @@ import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { announceLeave } from '../api/announceLeave'
+import { listGroupBots } from '../api/groupBots'
 import { updateGroupMeta } from '../api/updateGroupMeta'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { useGroupRoster } from '../hooks/useGroupRoster'
@@ -136,6 +137,15 @@ export const GroupInfoPanel = ({
     name: tileInfo[uid]?.full_name || '',
     src: tileInfo[uid]?.avatar_url || undefined,
   }))
+
+  // 机器人计数(对标飞书:入口右侧带数字)。同 queryKey 与 GroupBotsPage 共享
+  // 缓存 —— 进二级页不会再请求一次,页内增删后的 invalidate 也会更新这里。
+  const { data: bots } = useQuery({
+    queryKey: ['im', 'bots', cid],
+    queryFn: () => listGroupBots(cid),
+    staleTime: 30_000,
+    retry: false,
+  })
 
   const onError = (e: unknown) =>
     void showAlert({
@@ -587,6 +597,8 @@ export const GroupInfoPanel = ({
             does (对标飞书). */}
         <SettingRow
           label={t('bots.entry')}
+          // 没拿到之前不显示 —— 先写 0 再跳成 2,看着像刚被人加了一个。
+          value={bots ? String(bots.length) : undefined}
           onClick={() => setView({ name: 'bots' })}
           testid="group-bots-entry"
         />
