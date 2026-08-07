@@ -115,6 +115,97 @@ def test_the_error_names_the_offending_codes(world):
     assert "org.member.read" not in str(response.data["scope_type"])
 
 
+# ---- 另一头:改角色的权限集 ----------------------------------------------------
+#
+# 上面那道守卫只管**授予**那一步,而角色的权限集是可以事后改的:先按部门授出去、
+# 再回来给角色勾上 org.bot.read,整条守卫就绕过去了 —— 而这正是真实部署里最容易
+# 走到的顺序(先建角色分下去,用起来才发现少个权限)。真机验收时发现的。
+
+
+def _patch_permissions(client, role, permissions):
+    return client.patch(
+        f"/api/v1.0/admin/roles/{role.pk}/",
+        {"permissions": permissions},
+        format="json",
+    )
+
+
+def test_a_department_scoped_role_cannot_be_handed_an_unscopable_code(world):
+    role = _role(world["organization"], "org.member.read")
+    client = _client(world["owner"])
+    assert (
+        _assign(client, role, world["membership"], world["department"]).status_code
+        == 201
+    )
+
+    response = _patch_permissions(client, role, ["org.member.read", "org.bot.read"])
+    assert response.status_code == 400, response.data
+    assert "org.bot.read" in str(response.data["permissions"])
+    role.refresh_from_db()
+    assert role.permissions == ["org.member.read"], "被拒了就不该写进去"
+
+
+def test_an_org_wide_holder_does_not_block_the_permission(world):
+    """拒的仍然是**组合**。整个组织作用域的持有人一点问题都没有。"""
+    role = _role(world["organization"], "org.member.read")
+    client = _client(world["owner"])
+    assert _assign(client, role, world["membership"]).status_code == 201
+
+    response = _patch_permissions(client, role, ["org.member.read", "org.bot.read"])
+    assert response.status_code == 200, response.data
+
+
+def test_a_role_nobody_holds_can_take_the_permission(world):
+    """没有部门作用域的持有人就没有承诺可以食言 —— 别把正常编辑也拦掉。"""
+    role = _role(world["organization"], "org.member.read")
+    response = _patch_permissions(
+        _client(world["owner"]), role, ["org.member.read", "org.bot.read"]
+    )
+    assert response.status_code == 200, response.data
+
+
+def test_removing_permissions_from_a_scoped_role_is_never_blocked(world):
+    """收窄权限永远该放行 —— 否则一个配坏了的角色就再也修不回来了。"""
+    role = _role(world["organization"], "org.member.read")
+    client = _client(world["owner"])
+    _assign(client, role, world["membership"], world["department"])
+    assert _patch_permissions(client, role, []).status_code == 200
+
+
+# ---- 两头的错误都带机器可读的 code --------------------------------------------
+
+
+def _flat(value):
+    """DRF 在 serializer 里抛的 ``ValidationError`` 会被 ``as_serializer_error``
+    把**每个值**都规整成列表 —— 包括我们挂上去的 ``code``/``count``。
+
+    在 viewset 方法里抛的则原样是标量(群机器人回调地址那条就是)。同一个后端
+    两种形状,所以前端 ``apiErrorCode`` 两种都认;这里跟着断言真实的线上形状,
+    别把它抹平成「我以为的样子」。
+    """
+    return [str(v) for v in value] if isinstance(value, list) else str(value)
+
+
+def test_both_ends_carry_a_machine_readable_code(world):
+    """后端 `.po` 里这两条都没有中文,真机上管理员看到的是一句英文,而管理台
+    其余部分全是中文。所以带一个 code 让前端映射 —— 与回调地址被拒时那条
+    (`outbound_http` 的 category)是同一套路。"""
+    client = _client(world["owner"])
+
+    scoped_role = _role(world["organization"], "org.bot.read", code="a")
+    assign = _assign(client, scoped_role, world["membership"], world["department"])
+    assert _flat(assign.data["code"]) == ["unscopable_scope"]
+    assert _flat(assign.data["codes"]) == ["org.bot.read"]
+
+    plain_role = _role(world["organization"], "org.member.read", code="b")
+    _assign(client, plain_role, world["membership"], world["department"])
+    patched = _patch_permissions(client, plain_role, ["org.bot.read"])
+    assert _flat(patched.data["code"]) == ["unscopable_assigned"]
+    assert _flat(patched.data["codes"]) == ["org.bot.read"]
+    # 插值用 —— 「已按部门授予给 1 人」比「已被授予」更能让人知道去改哪里。
+    assert _flat(patched.data["count"]) == ["1"]
+
+
 # ---- 注册表本身 ---------------------------------------------------------------
 
 

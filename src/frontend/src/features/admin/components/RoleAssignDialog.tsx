@@ -11,7 +11,7 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { type AdminRole, createRoleAssignment } from '../api/adminRoles'
 import { fetchAdminDepartments } from '../api/adminDepartments'
 import { fetchAdminMembers } from '../api/adminMembers'
-import { describeApiError } from '../api/errors'
+import { describeRoleError } from '../api/errors'
 
 interface Props {
   /** null = closed. */
@@ -65,7 +65,7 @@ export const RoleAssignDialog = ({ role, onDone, onClose }: Props) => {
         department_ids: scopeType === 'departments' ? [...departmentIds] : [],
       }),
     onSuccess: onDone,
-    onError: (e: unknown) => showAlert({ message: describeApiError(e) }),
+    onError: (e: unknown) => showAlert({ message: describeRoleError(t, e) }),
   })
 
   const members = memberPage?.results ?? []

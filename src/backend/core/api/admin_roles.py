@@ -100,6 +100,47 @@ class AdminRoleSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate(self, attrs):
+        """别从这一头把「按部门授权 + 组织级权限」那个组合造出来。
+
+        ``AdminRoleAssignmentSerializer.validate`` 堵的是**授予**那一步,但角色的
+        权限集是可以事后改的 —— 先按部门授出去,再回来给角色勾上 ``org.bot.read``,
+        整条守卫就绕过去了。这不是理论上的:它正是真实部署里最容易走到的顺序
+        (先建角色分下去,用起来才发现少个权限)。
+
+        绕过去的后果不是越权(端点侧 ``OrgWideOnlyMixin`` 仍然 403,fail closed),
+        而是那个人在角色编辑器里被告知他能看机器人、然后每次点进去都 403 —— 正是
+        这条守卫想避免的体验。所以两头都要堵。
+        """
+        permission_codes = attrs.get("permissions")
+        if self.instance is None or permission_codes is None:
+            return attrs
+        offenders = sorted(
+            set(permission_codes) & permissions_registry.UNSCOPABLE
+        )
+        if not offenders:
+            return attrs
+        scoped = models.AdminRoleAssignment.objects.filter(
+            role=self.instance, scope_type=models.AdminScopeChoices.DEPARTMENTS
+        ).count()
+        if scoped:
+            raise serializers.ValidationError(
+                {
+                    "permissions": _(
+                        "This role is assigned to %(count)s holder(s) over "
+                        "specific departments, so it cannot take "
+                        "organization-wide permissions (%(codes)s)."
+                    )
+                    % {"count": scoped, "codes": ", ".join(offenders)},
+                    # 机器可读的分类,前端映射成中文 —— 与回调地址被拒时那条
+                    # (`services/outbound_http` 的 category)是同一套路。
+                    "code": "unscopable_assigned",
+                    "codes": offenders,
+                    "count": scoped,
+                }
+            )
+        return attrs
+
     def create(self, validated_data):
         validated_data["organization"] = self.context["organization"]
         return super().create(validated_data)
@@ -211,7 +252,14 @@ class AdminRoleAssignmentSerializer(serializers.ModelSerializer):
                             "This role includes organization-wide permissions "
                             "(%(codes)s), so it cannot be limited to departments."
                         )
-                        % {"codes": ", ".join(offenders)}
+                        % {"codes": ", ".join(offenders)},
+                        # 机器可读的分类,前端映射成中文。后端 `.po` 里这条没有
+                        # 翻译,真机上管理员看到的是一句英文 —— 而 admin 其余
+                        # 部分全是中文。走 code 而不是补 `.po`:仓库里已经有这个
+                        # 先例(回调地址被拒),而且 DRF 校验错误一旦开始走 gettext
+                        # 就得管全套。
+                        "code": "unscopable_scope",
+                        "codes": offenders,
                     }
                 )
         return attrs

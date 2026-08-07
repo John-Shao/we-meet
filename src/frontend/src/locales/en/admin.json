@@ -116,6 +116,10 @@
       "sensitive": "Sensitive data and fields",
       "governance": "Governance and insight",
       "operations": "Bulk operations and workplace"
+    },
+    "error": {
+      "unscopable_scope": "This role holds organization-wide permissions ({{codes}}), so it cannot be limited to departments. Bots, audit logs and the dashboard have no department dimension — set the scope to the whole organization, or remove those permissions from the role.",
+      "unscopable_assigned": "This role is already assigned to {{count}} holder(s) over specific departments, so it cannot take organization-wide permissions ({{codes}}). Change those assignments to the whole organization first, or leave these permissions unchecked."
     }
   },
   "actions": {

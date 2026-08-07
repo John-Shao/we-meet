@@ -18,7 +18,7 @@ import {
   fetchRoleAssignments,
   updateAdminRole,
 } from '../api/adminRoles'
-import { describeApiError } from '../api/errors'
+import { describeRoleError } from '../api/errors'
 import { RoleCreateDialog } from '../components/RoleCreateDialog'
 import { RoleAssignDialog } from '../components/RoleAssignDialog'
 
@@ -66,7 +66,7 @@ export const AdminRoles = () => {
     queryClient.invalidateQueries({ queryKey: ROLES_KEY })
     queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY })
   }
-  const onError = (e: unknown) => showAlert({ message: describeApiError(e) })
+  const onError = (e: unknown) => showAlert({ message: describeRoleError(t, e) })
 
   const permissionMut = useMutation({
     mutationFn: (vars: { id: string; permissions: string[] }) =>
