@@ -1,13 +1,16 @@
 # P11b — 群机器人二期：消息卡片、按钮回调与 M 端治理
 
-> 状态：**设计已拍板，实施中（2026-08-05 开工）**。
+> 状态：**已交付并全量真机验收通过（2026-08-05 开工，2026-08-07 收口）**。
 >
 > 一期见 [`p11-im-group-bots.md`](./p11-im-group-bots.md)（含 R1–R12 运行时红线，本阶段所有改动的输入）。
 >
-> 进度：**三条线全部完成**。线 A（A0 ✅ A1 ✅ A2 ✅ A3 ✅）· 线 B ✅ · 线 C（C1 ✅ C2 ✅ C3 ✅ C4 ✅）。
+> 进度：**三条线全部完成并上生产**。线 A（A0 ✅ A1 ✅ A2 ✅ A3 ✅）· 线 B ✅ · 线 C（C1 ✅ C2 ✅ C3 ✅ C4 ✅）。
 >
-> 线 A + 线 C 已上生产（2026-08-05，jusi `0d5dac8` + 迁移 0081/0082），真机验收进行中。
-> 线 B 已完成待发布（迁移 0083/0084）。
+> - 线 A + 线 C：2026-08-05（jusi `0d5dac8` + 迁移 0081/0082），真机验收 15–26 全通过
+> - 线 B：2026-08-07（迁移 0083/0084），真机验收 27–42 全通过
+>
+> **验收挖出 5 个问题，见 §19** —— 那一节是本文档写完之后最值得读的部分：
+> 它们全都是「看代码和单测发现不了」的类型。
 
 ---
 
@@ -503,7 +506,7 @@ grep 已确认：`group-add-members`/`member-kick-*`/`member-transfer-*`/`group-
 
 **遗留**：`mentionScan` 目前没有直接测试（依赖 `Context` 取字符串）。没有现在就抽成纯函数，是因为 C2(b) 要把单个 label 换成别名集合，那时一次到位；现在抽等于建两遍同一个缝。
 
-### C2(b) locale 无关化（待做）
+### ✅ C2(b) locale 无关化已完成（后端/Web `473879a8`、App `6117c91`）
 
 新增跨仓契约文件 `fixtures/im_cards/mention_everyone_aliases.json`（五个语种），生产代码各端硬编码同一份常量，**契约测试断言 常量 == 文件 == 各自 locale 资源**——与色板下标、rich-text fixture 完全同一手法。Web 新建 `features/im/mentions.ts`，Android 新建 `model/MentionAliases.kt`（同时把 `mentionScan` 抽成纯函数补测）。后端 `AT_EVERYONE` **保持不变**（改它会让存量与新消息不一致，还会打断用户已配的关键词闸门规则），只改 docstring 措辞 + 加一条 `AT_EVERYONE.lstrip("@") in aliases.json` 的断言。
 
@@ -532,7 +535,7 @@ grep 已确认：`group-add-members`/`member-kick-*`/`member-transfer-*`/`group-
 ## 17. 落地顺序（三条线并行）
 
 - **线 A** ✅：A0 ✅ → A1 ✅ → A2 ✅ → A3 ✅
-- **线 B** ✅：权限码不匹配 `5f621688` → 审计动作目录 `c176e864` → 权限码 + `UNSCOPABLE` + mixin `c82e5c80` → `ImConversation` + 4 处写入点 `c5f2abac` → `admin_bots.py` `1b1956ec` → 前端页面 `b3c38b76`
+- **线 B** ✅：权限码不匹配 `5f621688` → 审计动作目录 `c176e864` → 权限码 + `UNSCOPABLE` + mixin `c82e5c80` → `ImConversation` + 4 处写入点 `c5f2abac` → `admin_bots.py` `1b1956ec` → 前端页面 `b3c38b76` → 验收修复 `a07a34bb` / `ba471b90` / `a9a1b897`（见 §19）
 - **线 C** ✅：C4 ✅ → C2(a) ✅ → C3 ✅（`a33c1db9`）→ C1 Web ✅（`1c85ba53` + `0d2f8f24`）→ C1 Android ✅（`616b4e3` 纯搬运 + `19d23ee` 转让口径）→ C2(b) ✅（后端/Web `473879a8`、App `6117c91`）
 
 **唯一跨线依赖**：`botPalette.ts` 移动（线 B `b3c38b76`）→ `src/components/bot/botPalette.ts`，已改 2 处 import。线 A 的新文件没有引用旧路径。
@@ -585,3 +588,54 @@ C1 的搬运是唯一有「搬错了看不出来」风险的，所以刻画测�
 5. M 端：非 owner 的 IT 角色能看列表能停用、**看不到凭据**；带部门 scope 的角色 → 403 不是空列表
 6. 停用后 webhook 打过去失败，群里没有任何提示（符合 D4：这就是为什么 M 端不给轮换）
 7. 德语用户在群里发 `@Alle` → 中文用户会话列表标红 @
+
+---
+
+## 19. 真机验收挖出来的（2026-08-06 ~ 08-07，42 条用例）
+
+**这一节是本文档最该留的部分。** 下面每一条都是「后端单测全绿、代码读起来也对」的状态下上了生产的，全部由真机验收发现。它们有一个共同形状 —— 见末尾。
+
+### 线 A（15–26）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| A-1 | **出站回调对任何真实 HTTPS 主机都必然失败。** IP 钉住把 URL 里的 host 换成了 IP，而 `Host` **是一个 HTTP 头、管不到 TLS** —— SNI 和证书主机名都取自 URL。带 SNI 分流的主机直接 `SSLV3_ALERT_HANDSHAKE_FAILURE`，其余的 `CERTIFICATE_VERIFY_FAILED: IP address mismatch`，两种都被归成 `unreachable`，群主看到「连不上对方的地址」——一个完全指错方向的提示 | `a8d416ac`（`_PinnedHostAdapter` 显式给连接池 `server_hostname` + `assert_hostname`） |
+| A-2 | **`button-local-only:no-callback-url` 警告恒为真。** `api/bot_webhook.py` 从没传过 `callback_configured` | `cd76324e` |
+| A-3 | **上游用 `text` 覆盖结果条时，群里看不到。** 结果条是点击那一刻广播出去的，写库改不动它 —— 一个要刷新才生效的「实时覆盖」等于没有 | `c06880c0`（抽 `services/card_state.broadcast`，只在文案真的变了时补播） |
+| A-4 | **卡片点击三层限流整个没做。** 按 installation 那层最要紧——它保护的是第三方：200 人群一起点「重跑」，我们等于替他们发起 DoS | `f3747326` |
+| A-5 | **`callback_secret` 只在为空时铸一次，之后换不掉** —— 而 D4「C 端群主已有轮换」和「轮换后假名会变是特性」两句都在把轮换当既有能力用 | `b30a915d`（`POST /im/bots/{id}/rotate-callback-secret/`） |
+| A-6 | **会话列表里每张卡都显示「[卡片]」。** 两个原因叠在一起：`plain` 序列化在最后一个键（jusi 截断后整段落在截断点之外），以及预览先 parse 再取 plain。**两处的注释都写着相反的话** | `a448fb5b` + App `030f0ac`（`plain` 排到第一个键 + 预览短路在 parse 之前从原始串抠） |
+
+### 线 B（27–42）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| B-1 | **`IsOrgAdmin` 与导航权限码不匹配是 5 处不是 4 处**（方案人工盘点漏了 `UserGroupViewSet`） | `5f621688`，详见〈线 B 落地时的三处修正〉 |
+| B-2 | **三个内置助手里有两个从不记安装记录。** 记账只长在 `post_as_builtin` 里，而审批助手和会议助手都直接调 `post_as` —— 生产上 `kind='builtin'` 的安装数是 **0**。后果：C 端群里的「群机器人」列表看不到它们，M 端 `?kind=builtin` 恒为空。而 `_touch_installation` 的注释正写着「the row exists so the group's 群机器人 list can show them」 | `a07a34bb`（记账挪进 `post_as` 并**默认开**；唯一例外是审批助手的私信，口径 A：治理页叫「群机器人」，一对一私聊不进运营视野，而且那是助手 × 每个人的笛卡尔积） |
+| B-3 | **「按部门授权 + 组织级权限」可以从另一头造出来。** `UNSCOPABLE` 全仓只在角色**分配**的 validate 里被引用一次，而角色的权限集可以事后改 —— 先按部门授出去、再回来勾上 `org.bot.read` 就绕过去了。这正是真实部署里最容易走到的顺序 | `ba471b90`（`AdminRoleSerializer.validate` 补对称校验；收窄权限永远放行，否则配坏的角色再也修不回来） |
+| B-4 | **拦截文案是英文**，而管理台其余部分全是中文（`locale/zh_CN` 那 124 条翻译基本都是 Django admin 的字段名） | `ba471b90`（走机器可读的 `code` 让前端映射，不补 `.po`——先例是回调地址被拒时的 `outbound_http` category，而 DRF 校验错误一旦开始走 gettext 就得管全套） |
+| B-5 | **`bot.disable` / `bot.enable` 没有中文标签。** 后端枚举 55 条，`zh/admin.json` 只补到 53 —— 而这两条恰恰是这块唯一真正要能被筛出来的事件（当初就是为此才没并进 `bot.update`） | `a9a1b897`（补标签 + 一条读后端 `models.py` 数枚举的双向护栏） |
+
+### B-2 留下的一个待观察
+
+修完之后**存量不回填** —— jusi 没有 admin 读接口，补不出「哪个助手在哪个群」；下一次发消息时自然记上。
+
+所以 **D6 那条口径到今天为止从没面对过真实数据**：它假设「内置助手是（助手 × 会话）的笛卡尔积，几千行会把真正要治理的几十个自定义 bot 冲没」，而生产上那个数一直是 0（正因为 B-2）。等纪要/日程通知跑过几轮、`?kind=builtin` 开始有行之后，看一眼实际量级再决定 D6 要不要调 —— 如果实际只有十几行，「默认只列自定义」挡的就是一个不存在的问题。
+
+### 修 B-4 时单测抓到的一处
+
+**同一个后端会吐出两种错误形状**：在 **viewset 方法**里抛的 `ValidationError` 原样是标量，在 **serializer 的 `validate()`** 里抛的会被 `as_serializer_error` 规整成**列表**。前端原来只认字符串——那样角色这两条永远拿不到 `code`、永远退回英文，而且**前端什么都不会报**，只是文案不对。两种都认，两边各配一条测试钉住。
+
+### 共同形状
+
+六条线 A 里有三条、五条线 B 里有两条，都是同一个东西：
+
+> **注释（或 docstring）声称了一条代码并不保证的不变量，而守着它的测试恰好 mock 掉了唯一要紧的那一层。**
+
+- A-1：测试只断言了 `Host` **头**，注释据此写「证书仍按域名校验」——而 `session.post` 被 mock 掉了，整段跳过 TLS。上线时 `test_outbound_http` 是全绿的。
+- A-6：两处注释都写着「预览短路在 parse 之前」，代码是反的。
+- B-2：`test_posting_as_a_builtin_records_the_installation` mock 掉了 `post_as`——而记账正在里面。它证明的只是「`post_as_builtin` 自己那行还在」。
+
+所以这一批的修复里，**每一条都配了一个「去掉修复就会红」的验证**，而不是只补一个断言：SNI 那条靠打真实主机（`example.com` 通、三个 badssl 被拒），其余靠 stash 掉源码跑基线对比（18 失败 − 7 条新测试 = 11 条分叉既有）。
+
+降级得**太温柔**是同一族的第二种形状：B-5 少一条标签不会报错，只会在一列中文里换一种语言显示。这类东西护栏要按**覆盖率**写（「每个枚举值都必须有」），不能按清单写。
