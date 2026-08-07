@@ -28,6 +28,8 @@
     "error": "Action failed: {{message}}",
     "recall": "Recall",
     "recallConfirm": "Recall this message?",
+    "deleteMessage": "Delete",
+    "deleteMessageConfirm": "Delete this message? It's removed from your view only — other members can still see it.",
     "copy": "Copy",
     "reply": "Reply",
     "forward": "Forward",

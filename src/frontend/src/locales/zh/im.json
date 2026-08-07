@@ -28,6 +28,8 @@
     "error": "操作失败:{{message}}",
     "recall": "撤回",
     "recallConfirm": "确定撤回这条消息?",
+    "deleteMessage": "删除",
+    "deleteMessageConfirm": "确定删除这条消息?仅从你的消息记录中移除,其他成员仍可见。",
     "copy": "复制",
     "reply": "回复",
     "forward": "转发",

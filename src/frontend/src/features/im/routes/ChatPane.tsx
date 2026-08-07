@@ -701,6 +701,21 @@ export const ChatPane = ({
     setSelectedMids(new Set())
   }
 
+  // 删除的唯一落点:单条(右键菜单)与多选共用。服务端只校验成员与 mid,
+  // 真正的隐藏是本端的 —— 所以本地持久化必须和请求成对出现。
+  const applyDelete = async (mids: number[]) => {
+    await deleteMessages(cid, mids.map(String))
+    // Hide locally + persist per-cid so it survives refresh / conversation switch.
+    const next = new Set(deletedMids)
+    for (const mid of mids) next.add(mid)
+    setDeletedMids(next)
+    try {
+      localStorage.setItem(`im:deleted:${cid}`, JSON.stringify([...next]))
+    } catch {
+      /* storage full / disabled — deletion stays for this session only */
+    }
+  }
+
   const handleDeleteSelected = async () => {
     const count = selectedMids.size
     if (count === 0) return
@@ -710,17 +725,22 @@ export const ChatPane = ({
     })
     if (!ok) return
     try {
-      await deleteMessages(cid, [...selectedMids].map(String))
-      // Hide locally + persist per-cid so it survives refresh / conversation switch.
-      const next = new Set(deletedMids)
-      for (const mid of selectedMids) next.add(mid)
-      setDeletedMids(next)
-      try {
-        localStorage.setItem(`im:deleted:${cid}`, JSON.stringify([...next]))
-      } catch {
-        /* storage full / disabled — deletion stays for this session only */
-      }
+      await applyDelete([...selectedMids])
       exitSelect()
+    } catch (e) {
+      await showAlert({
+        message: t('select.deleteError', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
+    }
+  }
+
+  const onDeleteOne = async (m: Message) => {
+    if (!(await askConfirm({ message: t('actions.deleteMessageConfirm'), danger: true })))
+      return
+    try {
+      await applyDelete([m.mid])
     } catch (e) {
       await showAlert({
         message: t('select.deleteError', {
@@ -907,6 +927,13 @@ export const ChatPane = ({
         onSelect: () => void onRecall(m),
       })
     }
+    // 删除(仅本端,不限发送者):和多选删除同一条路径,只是一次一条。
+    items.push({
+      key: 'delete',
+      label: t('actions.deleteMessage'),
+      danger: true,
+      onSelect: () => void onDeleteOne(m),
+    })
     return items
   }
 

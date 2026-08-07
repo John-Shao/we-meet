@@ -28,6 +28,8 @@
     "error": "Aktion fehlgeschlagen: {{message}}",
     "recall": "Zurückziehen",
     "recallConfirm": "Diese Nachricht zurückziehen?",
+    "deleteMessage": "Löschen",
+    "deleteMessageConfirm": "Diese Nachricht löschen? Sie wird nur aus deiner Ansicht entfernt; andere Mitglieder sehen sie weiterhin.",
     "copy": "Kopieren",
     "reply": "Antworten",
     "forward": "Weiterleiten",

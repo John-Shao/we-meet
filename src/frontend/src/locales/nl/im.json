@@ -28,6 +28,8 @@
     "error": "Actie mislukt: {{message}}",
     "recall": "Intrekken",
     "recallConfirm": "Dit bericht intrekken?",
+    "deleteMessage": "Verwijderen",
+    "deleteMessageConfirm": "Dit bericht verwijderen? Het wordt alleen uit jouw weergave verwijderd; andere leden zien het nog.",
     "copy": "Kopiëren",
     "reply": "Beantwoorden",
     "forward": "Doorsturen",

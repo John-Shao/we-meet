@@ -28,6 +28,8 @@
     "error": "Échec de l'action : {{message}}",
     "recall": "Annuler",
     "recallConfirm": "Annuler ce message ?",
+    "deleteMessage": "Supprimer",
+    "deleteMessageConfirm": "Supprimer ce message ? Il sera retiré de votre affichage uniquement ; les autres membres le voient toujours.",
     "copy": "Copier",
     "reply": "Répondre",
     "forward": "Transférer",
