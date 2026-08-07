@@ -430,6 +430,8 @@
       "bot_delete": "移除群机器人",
       "bot_secret_reset": "重置群机器人密钥",
       "bot_webhook_view": "查看群机器人凭据",
+      "bot_disable": "停用群机器人",
+      "bot_enable": "启用群机器人",
       "dept_create": "新建部门",
       "dept_rename": "重命名部门",
       "dept_delete": "删除部门",
