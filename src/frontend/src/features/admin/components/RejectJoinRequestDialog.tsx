@@ -70,7 +70,6 @@ export const RejectJoinRequestDialog = ({
           <span>{t('invites.rejectReason')}</span>
           <Input
             value={reason}
-            autoFocus
             maxLength={255}
             onChange={(e) => setReason(e.target.value)}
           />

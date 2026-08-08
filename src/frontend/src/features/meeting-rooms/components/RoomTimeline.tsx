@@ -65,6 +65,19 @@ export const RoomTimeline = ({
     onSelectSlot(roomId, start, addMinutes(start, 60))
   }
 
+  const handleTrackKeyDown = (
+    roomId: string,
+    event: React.KeyboardEvent<HTMLDivElement>
+  ) => {
+    if (!onSelectSlot || (event.key !== 'Enter' && event.key !== ' ')) return
+    event.preventDefault()
+    const baseMinute = isToday
+      ? Math.ceil(scale.minuteAt(scale.pct(now) / 100) / 30) * 30
+      : INITIAL_HOUR * 60
+    const start = addMinutes(dayStart, Math.min(baseMinute, 23 * 60))
+    onSelectSlot(roomId, start, addMinutes(start, 60))
+  }
+
   if (!isLoading && rooms.length === 0) {
     return <div className={emptyCls}>{t('pane.empty')}</div>
   }
@@ -114,6 +127,7 @@ export const RoomTimeline = ({
                 className={trackCls}
                 style={{ width: trackWidth }}
                 onClick={(e) => handleTrackClick(room.id, e)}
+                onKeyDown={(e) => handleTrackKeyDown(room.id, e)}
                 role={onSelectSlot ? 'button' : undefined}
                 tabIndex={onSelectSlot ? 0 : undefined}
                 aria-label={t('timeline.clickToBook', { room: room.name })}

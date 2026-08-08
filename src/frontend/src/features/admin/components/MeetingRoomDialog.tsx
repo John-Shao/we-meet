@@ -133,7 +133,6 @@ export const MeetingRoomDialog = ({
             id="mr-room-name"
             aria-label={t('meetingRooms.roomName')}
             value={name}
-            autoFocus
             onChange={(e) => setName(e.target.value)}
           />
           {fullLabel && (

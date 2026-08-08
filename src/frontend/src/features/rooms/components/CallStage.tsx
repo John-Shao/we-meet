@@ -390,6 +390,8 @@ const GridTile = ({
 )
 
 /** 终态邀请 → 展示文案(P4-M3 会议悬浮层复用,故导出)。 */
+// Shared by the compact invite overlay; intentionally colocated here.
+// eslint-disable-next-line react-refresh/only-export-components
 export const inviteStateText = (
   t: (k: string) => string,
   invite: Pick<MeetInvite, 'state'>

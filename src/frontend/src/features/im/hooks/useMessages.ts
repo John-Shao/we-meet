@@ -167,6 +167,9 @@ export const useMessages = (
     // Inline `cid` (not keyOf) so the query plugin sees it; matches keyOf(cid).
     // The anchor deliberately does NOT participate in the key — recall/reaction
     // patches and the live append all target keyOf(cid).
+    // The effect above explicitly invalidates this stable key when the anchor
+    // nonce changes; including the nonce would split realtime cache patches.
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['im', 'messages', cid ?? 'none'],
     queryFn: async () => {
       if (!cid) return [] as Message[]
@@ -255,6 +258,8 @@ export const useMessages = (
   }, [cid, client, qc, setCaught])
 
   return {
+    // Keeping the complete query result is this hook's public API.
+    // eslint-disable-next-line @tanstack/query/no-rest-destructuring
     ...query,
     caughtUp,
     hasMoreOlder,

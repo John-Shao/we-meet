@@ -26,6 +26,7 @@ from rest_framework.views import APIView
 from core import models, utils
 from core.api import permissions
 from core.api.serializers import UserLightSerializer
+from core.api.validation import parse_boolean
 from core.api.viewsets import Pagination
 from core.services.phone_reveal import send_phone_viewed_notice
 
@@ -664,9 +665,9 @@ class ContactPreferenceViewSet(viewsets.GenericViewSet):
         is_starred = bool(row.is_starred) if row else False
         special_alert = bool(row.special_alert) if row else False
         if "is_starred" in data:
-            is_starred = bool(data["is_starred"])
+            is_starred = parse_boolean(data["is_starred"])
         if "special_alert" in data:
-            special_alert = bool(data["special_alert"])
+            special_alert = parse_boolean(data["special_alert"])
 
         if not is_starred and not special_alert:
             if row is not None:

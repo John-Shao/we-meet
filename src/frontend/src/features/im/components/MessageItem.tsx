@@ -605,15 +605,21 @@ export const MessageItem = ({
         {/* 接收消息(一对一 + 群聊):左侧对方头像(对齐企业微信/微信;
           发送人名字仅群聊显示,见下方 showSender 分支) */}
         {!isOwn && (
-          <span
+          <button
+            type="button"
+            disabled={!onAvatarClick}
+            aria-label={name}
             onClick={onAvatarClick}
             className={css({
               cursor: onAvatarClick ? 'pointer' : 'default',
               flexShrink: 0,
+              padding: 0,
+              border: 0,
+              background: 'transparent',
             })}
           >
             <Avatar name={name} src={senderAvatarUrl} size="2rem" />
-          </span>
+          </button>
         )}
         <div
           className={css({
@@ -951,15 +957,21 @@ export const MessageItem = ({
         </div>
         {/* 自己发的消息(一对一 + 群聊):右侧自己头像,不显示名字 */}
         {isOwn && (
-          <span
+          <button
+            type="button"
+            disabled={!onAvatarClick}
+            aria-label={name}
             onClick={onAvatarClick}
             className={css({
               cursor: onAvatarClick ? 'pointer' : 'default',
               flexShrink: 0,
+              padding: 0,
+              border: 0,
+              background: 'transparent',
             })}
           >
             <Avatar name={name} src={senderAvatarUrl} size="2rem" />
-          </span>
+          </button>
         )}
       </div>
     )

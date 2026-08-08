@@ -20,6 +20,7 @@ import logging
 import secrets
 
 from django.conf import settings
+
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -32,10 +33,8 @@ from core.api.im import (
     JusiImInvalidResponseHTTPError,
     JusiImUnreachableHTTPError,
 )
-from core.services import bot_callback
-from core.services import im_bots
-from core.services import im_conversations
-from core.services import outbound_http
+from core.api.validation import parse_boolean
+from core.services import bot_callback, im_bots, im_conversations, outbound_http
 from core.services.audit import record_audit
 from core.services.jusi_im import (
     JusiImBadResponseError,
@@ -412,7 +411,11 @@ class ImBotViewSet(viewsets.ViewSet):
             cid=cid,
             webhook_token=secrets.token_urlsafe(32),
             signing_secret=secrets.token_urlsafe(24),
-            sign_verify_enabled=bool(data.get("sign_verify_enabled")),
+            sign_verify_enabled=(
+                parse_boolean(data["sign_verify_enabled"])
+                if "sign_verify_enabled" in data
+                else False
+            ),
             keywords=self._clean_keywords(data.get("keywords")) or [],
             ip_allowlist=self._clean_ip_allowlist(data.get("ip_allowlist")) or [],
             created_by=request.user,
@@ -492,7 +495,7 @@ class ImBotViewSet(viewsets.ViewSet):
 
         install_fields = []
         if "sign_verify_enabled" in data:
-            install.sign_verify_enabled = bool(data["sign_verify_enabled"])
+            install.sign_verify_enabled = parse_boolean(data["sign_verify_enabled"])
             install_fields.append("sign_verify_enabled")
         keywords = self._clean_keywords(data.get("keywords"))
         if keywords is not None:
@@ -535,11 +538,13 @@ class ImBotViewSet(viewsets.ViewSet):
                 ["callback_url", "callback_failure_count", "callback_enabled"]
             )
         if "callback_include_identity" in data:
-            install.callback_include_identity = bool(data["callback_include_identity"])
+            install.callback_include_identity = parse_boolean(
+                data["callback_include_identity"]
+            )
             install_fields.append("callback_include_identity")
         if "is_active" in data:
             # The supported way to silence a built-in assistant in one group.
-            install.is_active = bool(data["is_active"])
+            install.is_active = parse_boolean(data["is_active"])
             install.disabled_reason = "" if install.is_active else "disabled_by_owner"
             install_fields.extend(["is_active", "disabled_reason"])
         if install_fields:

@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 
+// Shared with the route parser; intentionally colocated with the component.
+// eslint-disable-next-line react-refresh/only-export-components
 export const PAGE_TABS = ['calendar', 'meetingRooms'] as const
 export type CalendarPageTab = (typeof PAGE_TABS)[number]
 

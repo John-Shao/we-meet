@@ -98,7 +98,6 @@ export const AddMemberDialog = ({
             type="tel"
             inputMode="numeric"
             value={phone}
-            autoFocus
             required
             onChange={(e) => setPhone(e.target.value)}
             placeholder="13800000000"

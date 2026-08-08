@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from core import models, utils
 from core.api.admin_org import IsOrgAdmin
 from core.api.directory import get_caller_organization
+from core.api.validation import parse_boolean
 
 
 class DraftSerializer(serializers.ModelSerializer):
@@ -242,7 +243,7 @@ class AdminImEmojiViewSet(viewsets.ViewSet):
         if "sort_order" in data:
             item.sort_order = max(0, int(data["sort_order"]))
         if "active" in data:
-            active = bool(data["active"])
+            active = parse_boolean(data["active"])
             if active and not item.is_active and models.OrganizationEmoji.objects.filter(
                 organization=item.organization, is_active=True
             ).count() >= 100:

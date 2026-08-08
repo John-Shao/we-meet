@@ -17,14 +17,18 @@ Keycloak prerequisites (see deploy/aliyun/keycloak/bootstrap-mobile.sh):
       view-users / query-users / manage-users / impersonation
 """
 
+import hashlib
 import json
 import logging
 import random
 import re
+import threading
+from contextlib import contextmanager
 
-import requests
 from django.conf import settings
 from django.core.cache import cache
+
+import requests
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -36,6 +40,9 @@ logger = logging.getLogger(__name__)
 
 PHONE_REGEX = re.compile(r"^1[3-9]\d{9}$")
 _OTP_CACHE_PREFIX = "mobile_otp:"
+_OTP_LOCK_PREFIX = "mobile_otp_lock:"
+_local_otp_locks: dict[str, threading.Lock] = {}
+_local_otp_locks_guard = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +231,29 @@ def _issue_otp(phone: str) -> bool:
     return True
 
 
+@contextmanager
+def _otp_lock(phone: str):
+    """Serialize OTP state transitions across workers when Redis is available."""
+    lock_name = f"{_OTP_LOCK_PREFIX}{phone}"
+    backend_lock = getattr(cache, "lock", None)
+    if callable(backend_lock):
+        lock = backend_lock(lock_name, timeout=5, blocking_timeout=2)
+        acquired = lock.acquire()
+        if not acquired:
+            raise TimeoutError("OTP state is busy")
+        try:
+            yield
+        finally:
+            lock.release()
+        return
+
+    # LocMemCache and simple test doubles do not expose distributed locks.
+    with _local_otp_locks_guard:
+        lock = _local_otp_locks.setdefault(phone, threading.Lock())
+    with lock:
+        yield
+
+
 def _validate_otp(phone: str, otp_input: str) -> tuple[bool, str | None, int | None]:
     """Validate OTP against cache (attempts/expiry/compare). Deletes on success.
 
@@ -236,23 +266,32 @@ def _validate_otp(phone: str, otp_input: str) -> tuple[bool, str | None, int | N
     Keycloak 按登录页语言渲染；mobile 侧用 `_otp_error_msg` 转中文。不 mint token。
     """
     cache_key = f"{_OTP_CACHE_PREFIX}{phone}"
-    cached = cache.get(cache_key)
-    if not cached:
-        return False, "expired", None
+    try:
+        with _otp_lock(phone):
+            cached = cache.get(cache_key)
+            if not cached:
+                return False, "expired", None
 
-    attempts = cached.get("attempts", 0)
-    max_attempts = settings.MOBILE_AUTH_OTP_MAX_ATTEMPTS
-    if attempts >= max_attempts:
-        cache.delete(cache_key)
-        return False, "locked", None
+            attempts = cached.get("attempts", 0)
+            max_attempts = settings.MOBILE_AUTH_OTP_MAX_ATTEMPTS
+            if attempts >= max_attempts:
+                cache.delete(cache_key)
+                return False, "locked", None
 
-    if cached["otp"] != otp_input:
-        cached["attempts"] = attempts + 1
-        cache.set(cache_key, cached, timeout=settings.MOBILE_AUTH_OTP_EXPIRY)
-        return False, "wrong", max_attempts - cached["attempts"]
+            if cached["otp"] != otp_input:
+                attempts += 1
+                if attempts >= max_attempts:
+                    cache.delete(cache_key)
+                    return False, "locked", None
+                cached["attempts"] = attempts
+                cache.set(cache_key, cached, timeout=settings.MOBILE_AUTH_OTP_EXPIRY)
+                return False, "wrong", max_attempts - attempts
 
-    cache.delete(cache_key)
-    return True, None, None
+            cache.delete(cache_key)
+            return True, None, None
+    except TimeoutError:
+        logger.warning("OTP validation lock timed out for %s", phone)
+        return False, "busy", None
 
 
 def _otp_error_msg(reason: str | None, remaining: int | None) -> str:
@@ -287,6 +326,20 @@ class MobileAuthThrottle(AnonRateThrottle):
     rate = "30/min"
 
 
+class MobileAuthPhoneThrottle(AnonRateThrottle):
+    """A per-phone backstop so rotating IPs cannot bypass OTP throttling."""
+
+    scope = "mobile_auth_phone"
+    rate = "10/min"
+
+    def get_cache_key(self, request, view):
+        phone = str((request.data or {}).get("phone") or "").strip()
+        if not PHONE_REGEX.fullmatch(phone):
+            return None
+        ident = hashlib.sha256(phone.encode("ascii")).hexdigest()
+        return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
 class SendOtpView(APIView):
     """Generate and send an OTP to the given phone number.
 
@@ -296,7 +349,7 @@ class SendOtpView(APIView):
     """
 
     permission_classes = [AllowAny]
-    throttle_classes = [MobileAuthThrottle]
+    throttle_classes = [MobileAuthThrottle, MobileAuthPhoneThrottle]
 
     def post(self, request):
         phone = (request.data.get("phone") or "").strip()
@@ -324,7 +377,7 @@ class VerifyOtpView(APIView):
     """
 
     permission_classes = [AllowAny]
-    throttle_classes = [MobileAuthThrottle]
+    throttle_classes = [MobileAuthThrottle, MobileAuthPhoneThrottle]
 
     def post(self, request):
         phone = (request.data.get("phone") or "").strip()

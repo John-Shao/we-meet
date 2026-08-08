@@ -61,7 +61,6 @@ export const TextPromptDialog = ({
         <Input
           aria-label={label ?? title}
           value={value}
-          autoFocus
           onChange={(e) => setValue(e.target.value)}
           className={css({ marginBottom: '1.25rem', minWidth: '18rem' })}
         />

@@ -114,7 +114,6 @@ export const HierarchyNodeDialog = ({
             id="mr-node-name"
             aria-label={t('meetingRooms.levelName')}
             value={name}
-            autoFocus
             onChange={(e) => setName(e.target.value)}
           />
         </div>

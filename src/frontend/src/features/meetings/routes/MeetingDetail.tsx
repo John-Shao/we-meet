@@ -307,22 +307,30 @@ const ChaptersTab = ({
       {chapters.map((chapter) => {
         const jumpable = !!onJump && !!chapter.started_at
         return (
-          <li
-            key={chapter.id}
-            onClick={
-              jumpable ? () => onJump!(chapter.started_at as string) : undefined
-            }
-            title={jumpable ? t('chapters.jumpHint') : undefined}
-            className={css({
+          <li key={chapter.id}>
+            <button
+              type="button"
+              disabled={!jumpable}
+              onClick={
+                jumpable
+                  ? () => onJump!(chapter.started_at as string)
+                  : undefined
+              }
+              title={jumpable ? t('chapters.jumpHint') : undefined}
+              className={css({
               display: 'flex',
+              width: '100%',
               gap: '0.75rem',
               alignItems: 'flex-start',
               borderRadius: '0.5rem',
+              border: 0,
+              background: 'transparent',
+              textAlign: 'left',
               padding: '0.25rem 0.375rem',
               cursor: jumpable ? 'pointer' : 'default',
               _hover: jumpable ? { backgroundColor: 'greyscale.50' } : {},
             })}
-          >
+            >
             <span
               className={css({
                 flexShrink: 0,
@@ -348,6 +356,7 @@ const ChaptersTab = ({
                 </Text>
               )}
             </div>
+            </button>
           </li>
         )
       })}

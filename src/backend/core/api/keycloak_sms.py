@@ -25,6 +25,7 @@ from rest_framework.views import APIView
 
 from core.api.mobile_auth import (
     PHONE_REGEX,
+    MobileAuthPhoneThrottle,
     MobileAuthThrottle,
     _issue_otp,
     _send_sms,
@@ -86,7 +87,7 @@ class KeycloakOtpSendView(APIView):
 
     authentication_classes = []
     permission_classes = [AllowAny]
-    throttle_classes = [MobileAuthThrottle]
+    throttle_classes = [MobileAuthThrottle, MobileAuthPhoneThrottle]
     # 收 form-urlencoded：让浏览器跨域用「简单请求」发码，免 CORS 预检
     # （项目 DRF 默认仅 JSON，会对 form 回 415）。也兼容 JSON。
     parser_classes = [FormParser, JSONParser]

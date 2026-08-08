@@ -625,7 +625,9 @@ export const ConversationCalendarPanel = ({
           {datePickerOpen && (
             <>
               {/* 点击外部关闭 */}
-              <div
+              <button
+                type="button"
+                aria-label={t('image.close')}
                 className={css({ position: 'fixed', inset: 0, zIndex: 'panel' })}
                 onClick={() => setDatePickerOpen(false)}
               />

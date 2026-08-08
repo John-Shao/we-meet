@@ -49,7 +49,6 @@ export const MeetingRoomField = ({
   const endIso = canQuery ? end.toISOString() : ''
 
   const { data: availability = [], isFetching } = useQuery({
-    /* eslint-disable @tanstack/query/exhaustive-deps */
     queryKey: [
       'meeting-rooms',
       'availability',
@@ -58,7 +57,6 @@ export const MeetingRoomField = ({
       endIso,
       excludeEventId ?? '',
     ],
-    /* eslint-enable @tanstack/query/exhaustive-deps */
     queryFn: () =>
       fetchMeetingRoomAvailability(startIso, endIso, {}, { excludeEventId }),
     enabled: canQuery && !!value,

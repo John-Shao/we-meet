@@ -21,6 +21,7 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.api.validation import parse_boolean
 from core.models import DevicePushToken, PushPreference
 from core.services.push_send import notify_webhook
 
@@ -100,7 +101,7 @@ class PushPreferenceView(APIView):
         pref, _ = PushPreference.objects.get_or_create(user=request.user)
 
         if "quiet_enabled" in data:
-            pref.quiet_enabled = bool(data["quiet_enabled"])
+            pref.quiet_enabled = parse_boolean(data["quiet_enabled"])
         for field in ("quiet_start", "quiet_end"):
             if field not in data:
                 continue
