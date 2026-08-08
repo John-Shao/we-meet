@@ -162,8 +162,8 @@
     "sending": "发送中…",
     "image": "发送图片",
     "file": "发送文件",
-    "voice": "语音",
-    "doc": "发送云文档"
+    "emoji": "发送表情",
+    "doc": "分享云文档（只读）"
   },
   "preview": {
     "meeting": "[会议]",
@@ -184,7 +184,7 @@
     "view": "查看文档"
   },
   "docPicker": {
-    "title": "发送云文档",
+    "title": "分享云文档（只读）",
     "search": "搜索文档",
     "selected": "已选 {{count}} 项",
     "send": "发送 ({{count}})",

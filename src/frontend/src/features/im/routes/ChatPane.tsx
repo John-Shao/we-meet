@@ -29,7 +29,6 @@ import type { MyDocumentHit } from '../api/fetchMyDocuments'
 import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
-import { uploadChatVoice, ChatVoiceError } from '../api/uploadChatVoice'
 import { markLater } from '../api/markLater'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { PinnedBar } from '../components/PinnedBar'
@@ -546,22 +545,6 @@ export const ChatPane = ({
       }
     } catch {
       void showAlert({ message: t('docPicker.sendError') })
-    }
-  }
-
-  // 发语音(P7-i):录音 blob 复用文件直传(audio 也是文件,file/ 前缀 resolve 通用),
-  // 发 content_type='voice'、body=JSON{key, duration}。
-  const onSendVoice = async (blob: Blob, durationMs: number) => {
-    try {
-      const key = await uploadChatVoice(blob)
-      await client.sendText(
-        cid,
-        JSON.stringify({ key, duration: durationMs }),
-        { contentType: 'voice' }
-      )
-    } catch (e) {
-      const code = e instanceof ChatVoiceError ? e.code : 'uploadError'
-      void showAlert({ message: t(`file.${code}`) })
     }
   }
 
@@ -1545,7 +1528,6 @@ export const ChatPane = ({
               onSendImage={onSendImage}
               onSendFile={onSendFile}
               onSendDoc={() => setShowDocPicker(true)}
-              onSendVoice={onSendVoice}
               reply={replyTo}
               onCancelReply={() => setReplyTo(null)}
               disabled={sendDisabled}

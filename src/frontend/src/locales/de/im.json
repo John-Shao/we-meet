@@ -159,8 +159,8 @@
     "sending": "Wird gesendet…",
     "image": "Bild senden",
     "file": "Datei senden",
-    "voice": "Sprache",
-    "doc": "Dokument senden"
+    "emoji": "Emoji senden",
+    "doc": "Dokument teilen (nur Lesen)"
   },
   "preview": {
     "meeting": "[Besprechung]",
@@ -181,7 +181,7 @@
     "view": "Dokument öffnen"
   },
   "docPicker": {
-    "title": "Dokument senden",
+    "title": "Dokument teilen (nur Lesen)",
     "search": "Dokumente durchsuchen",
     "selected": "Ausgewählt: {{count}}",
     "send": "Senden ({{count}})",

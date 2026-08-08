@@ -162,8 +162,8 @@
     "sending": "Sending…",
     "image": "Send image",
     "file": "Send file",
-    "voice": "Voice",
-    "doc": "Send document"
+    "emoji": "Send emoji",
+    "doc": "Share document (view only)"
   },
   "preview": {
     "image": "[Image]",
@@ -189,7 +189,7 @@
     "view": "View document"
   },
   "docPicker": {
-    "title": "Send document",
+    "title": "Share document (view only)",
     "search": "Search documents",
     "selected": "Selected: {{count}}",
     "send": "Send ({{count}})",

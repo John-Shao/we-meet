@@ -5,12 +5,12 @@ import {
   RiAttachment2,
   RiFileTextLine,
   RiCloseLine,
-  RiMicLine,
-  RiSendPlane2Fill,
+  RiEmotionHappyLine,
 } from '@remixicon/react'
 
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { EmojiPicker } from './EmojiPicker'
 
 /** Quoted-message preview shown above the input while composing a reply. */
 export interface ReplyPreview {
@@ -29,8 +29,6 @@ interface Props {
   onSendFile?: (file: File) => Promise<void> | void
   /** Open the "share document" picker. Omitted → no doc button. */
   onSendDoc?: () => void
-  /** Send a recorded voice clip (P7-i). Omitted → no mic button. */
-  onSendVoice?: (blob: Blob, durationMs: number) => Promise<void> | void
   /** Active reply context (P7-b); shows a quote bar above the input. */
   reply?: ReplyPreview | null
   onCancelReply?: () => void
@@ -56,7 +54,6 @@ export const MessageInput = ({
   onSendImage,
   onSendFile,
   onSendDoc,
-  onSendVoice,
   reply,
   onCancelReply,
 }: Props) => {
@@ -64,12 +61,12 @@ export const MessageInput = ({
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [recording, setRecording] = useState(false)
-  const [recSeconds, setRecSeconds] = useState(0)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [mention, setMention] = useState<{ at: number; query: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const attachRef = useRef<HTMLInputElement>(null)
+  const emojiRef = useRef<HTMLDivElement>(null)
 
   const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -98,113 +95,31 @@ export const MessageInput = ({
     }
   }
 
-  // ── 语音录制(P7-i)────────────────────────────────────────────────
-  const MAX_VOICE_SEC = 60
-  const recorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  const streamRef = useRef<MediaStream | null>(null)
-  const timerRef = useRef<number | null>(null)
-  const startRef = useRef<number>(0)
-  const cancelledRef = useRef(false)
-
-  const clearTimer = () => {
-    if (timerRef.current !== null) {
-      window.clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-  }
-  const stopStream = () => {
-    streamRef.current?.getTracks().forEach((tr) => tr.stop())
-    streamRef.current = null
-  }
-  const pickAudioMime = (): string => {
-    const cands = [
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/mp4',
-      'audio/ogg',
-    ]
-    if (typeof MediaRecorder === 'undefined') return ''
-    return cands.find((c) => MediaRecorder.isTypeSupported(c)) || ''
-  }
-
-  const stopRecorder = () => {
-    const rec = recorderRef.current
-    if (rec && rec.state !== 'inactive') rec.stop()
-  }
-  const finishRecording = () => {
-    cancelledRef.current = false
-    stopRecorder()
-  }
-  const cancelRecording = () => {
-    cancelledRef.current = true
-    stopRecorder()
-  }
-
-  const startRecording = async () => {
-    if (recording || disabled || uploading || !onSendVoice) return
-    if (!navigator.mediaDevices?.getUserMedia) {
-      void window.alert?.(t('voice.unsupported'))
-      return
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream
-      const mime = pickAudioMime()
-      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
-      recorderRef.current = rec
-      chunksRef.current = []
-      cancelledRef.current = false
-      rec.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-      rec.onstop = async () => {
-        clearTimer()
-        const durationMs = Date.now() - startRef.current
-        const wasCancelled = cancelledRef.current
-        const blob = new Blob(chunksRef.current, {
-          type: rec.mimeType || 'audio/webm',
-        })
-        chunksRef.current = []
-        stopStream()
-        setRecording(false)
-        // 太短(<0.8s)或取消或空 → 丢弃不发。
-        if (wasCancelled || durationMs < 800 || blob.size === 0) return
-        setUploading(true)
-        try {
-          await onSendVoice(blob, durationMs)
-        } finally {
-          setUploading(false)
-        }
-      }
-      startRef.current = Date.now()
-      setRecSeconds(0)
-      rec.start()
-      setRecording(true)
-      timerRef.current = window.setInterval(() => {
-        const s = Math.floor((Date.now() - startRef.current) / 1000)
-        setRecSeconds(s)
-        if (s >= MAX_VOICE_SEC) finishRecording()
-      }, 250)
-    } catch {
-      stopStream()
-      setRecording(false)
-      void window.alert?.(t('voice.micDenied'))
-    }
-  }
-
-  // 卸载时清理:停止计时器 + 释放麦克风。
+  // Close the composer emoji panel on outside click.
   useEffect(() => {
-    return () => {
-      clearTimer()
-      stopStream()
-      const rec = recorderRef.current
-      if (rec && rec.state !== 'inactive') {
-        cancelledRef.current = true
-        rec.stop()
+    if (!showEmojiPicker) return
+    const close = (event: MouseEvent) => {
+      if (!emojiRef.current?.contains(event.target as Node)) {
+        setShowEmojiPicker(false)
       }
     }
-  }, [])
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [showEmojiPicker])
+
+  const insertEmoji = (emoji: string) => {
+    const input = inputRef.current
+    const start = input?.selectionStart ?? text.length
+    const end = input?.selectionEnd ?? start
+    const next = text.slice(0, start) + emoji + text.slice(end)
+    setText(next)
+    setShowEmojiPicker(false)
+    requestAnimationFrame(() => {
+      const caret = start + emoji.length
+      input?.focus()
+      input?.setSelectionRange(caret, caret)
+    })
+  }
 
   const recomputeMention = (value: string, caret: number) => {
     if (mentionables.length === 0) {
@@ -365,87 +280,6 @@ export const MessageInput = ({
           ))}
         </ul>
       )}
-      {recording && (
-        <div
-          className={css({
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            paddingX: '0.75rem',
-            paddingY: '0.5rem',
-            border: '1px solid token(colors.danger.500)',
-            borderRadius: '0.5rem',
-            backgroundColor: 'greyscale.000',
-          })}
-          data-testid="im-voice-recording"
-        >
-          <button
-            type="button"
-            onClick={cancelRecording}
-            aria-label={t('voice.cancel')}
-            title={t('voice.cancel')}
-            className={css({
-              flexShrink: 0,
-              display: 'flex',
-              border: 'none',
-              background: 'transparent',
-              color: 'greyscale.500',
-              cursor: 'pointer',
-              _hover: { color: 'greyscale.800' },
-            })}
-          >
-            <RiCloseLine size={18} />
-          </button>
-          <span
-            aria-hidden="true"
-            className={css({
-              flexShrink: 0,
-              width: '0.5rem',
-              height: '0.5rem',
-              borderRadius: '999px',
-              backgroundColor: 'danger.500',
-              animation: 'pulse_background 1.2s ease-in-out infinite',
-            })}
-          />
-          <span className={css({ color: 'danger.500', fontSize: '0.875rem' })}>
-            {t('voice.recording')}
-          </span>
-          <span
-            className={css({
-              marginLeft: 'auto',
-              color: 'greyscale.600',
-              fontSize: '0.8125rem',
-              fontVariantNumeric: 'tabular-nums',
-            })}
-          >
-            {`0:${String(recSeconds).padStart(2, '0')}`} / {`0:${MAX_VOICE_SEC}`}
-          </span>
-          <button
-            type="button"
-            onClick={finishRecording}
-            aria-label={t('voice.send')}
-            title={t('voice.send')}
-            className={css({
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '2rem',
-              height: '2rem',
-              border: 'none',
-              borderRadius: '0.5rem',
-              backgroundColor: 'primary.500',
-              color: 'white',
-              cursor: 'pointer',
-            })}
-          >
-            <RiSendPlane2Fill size={16} />
-          </button>
-        </div>
-      )}
-      {!recording && (
-        <>
       {onSendImage && (
         <>
           <input
@@ -544,20 +378,21 @@ export const MessageInput = ({
           <RiFileTextLine size={18} />
         </button>
       )}
-      {onSendVoice && (
+      <div ref={emojiRef} className={css({ position: 'relative', flexShrink: 0 })}>
         <button
           type="button"
-          onClick={() => void startRecording()}
-          disabled={disabled || uploading}
-          aria-label={t('input.voice')}
-          title={t('input.voice')}
-          data-testid="im-voice-btn"
+          onClick={() => setShowEmojiPicker((open) => !open)}
+          disabled={disabled || sending}
+          aria-label={t('input.emoji')}
+          title={t('input.emoji')}
+          aria-expanded={showEmojiPicker}
+          data-testid="im-emoji-btn"
           className={css({
-            flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             width: '2.375rem',
+            height: '100%',
             border: '1px solid token(colors.greyscale.300)',
             borderRadius: '0.5rem',
             backgroundColor: 'greyscale.000',
@@ -567,9 +402,26 @@ export const MessageInput = ({
             _disabled: { opacity: 0.5, cursor: 'not-allowed' },
           })}
         >
-          <RiMicLine size={18} />
+          <RiEmotionHappyLine size={18} />
         </button>
-      )}
+        {showEmojiPicker && (
+          <div
+            className={css({
+              position: 'absolute',
+              bottom: 'calc(100% + 0.5rem)',
+              left: 0,
+              zIndex: 'popover',
+              padding: '0.25rem',
+              border: '1px solid token(colors.greyscale.200)',
+              borderRadius: '0.5rem',
+              backgroundColor: 'greyscale.000',
+              boxShadow: 'overlay',
+            })}
+          >
+            <EmojiPicker onPick={insertEmoji} />
+          </div>
+        )}
+      </div>
       <input
         ref={inputRef}
         type="text"
@@ -610,8 +462,6 @@ export const MessageInput = ({
       >
         {sending ? t('input.sending') : t('input.send')}
       </Button>
-        </>
-      )}
       </div>
     </form>
   )
