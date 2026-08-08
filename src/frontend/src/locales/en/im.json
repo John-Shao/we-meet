@@ -163,7 +163,8 @@
     "image": "Send image",
     "file": "Send file",
     "emoji": "Send emoji",
-    "doc": "Share document (view only)"
+    "doc": "Share document (view only)",
+    "dropHint": "Drop to send images or files"
   },
   "preview": {
     "image": "[Image]",

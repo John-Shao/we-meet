@@ -160,7 +160,8 @@
     "image": "Bild senden",
     "file": "Datei senden",
     "emoji": "Emoji senden",
-    "doc": "Dokument teilen (nur Lesen)"
+    "doc": "Dokument teilen (nur Lesen)",
+    "dropHint": "Loslassen, um Bilder oder Dateien zu senden"
   },
   "preview": {
     "meeting": "[Besprechung]",

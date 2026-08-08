@@ -11,6 +11,7 @@ import {
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { EmojiPicker } from './EmojiPicker'
+import { CHAT_IMAGE_ALLOWED_TYPES } from '../api/uploadChatImage'
 
 /** Quoted-message preview shown above the input while composing a reply. */
 export interface ReplyPreview {
@@ -37,7 +38,7 @@ interface Props {
 /** Find the active "@query" segment immediately before the caret, if any. */
 const activeMention = (
   text: string,
-  caret: number,
+  caret: number
 ): { at: number; query: string } | null => {
   let i = caret - 1
   while (i >= 0 && text[i] !== '@' && !/\s/.test(text[i])) i--
@@ -61,38 +62,48 @@ export const MessageInput = ({
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [mention, setMention] = useState<{ at: number; query: string } | null>(null)
+  const [mention, setMention] = useState<{ at: number; query: string } | null>(
+    null
+  )
   const inputRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const attachRef = useRef<HTMLInputElement>(null)
   const emojiRef = useRef<HTMLDivElement>(null)
+  const dragDepthRef = useRef(0)
 
-  const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    e.target.value = '' // allow re-picking the same file
-    if (files.length === 0 || !onSendImage || uploading) return
+  const sendFiles = async (files: File[]) => {
+    if (files.length === 0 || uploading) return
     setUploading(true)
     try {
-      // 多图:按选择顺序逐张发送(每张一条 image 消息)。
       for (const file of files) {
-        await onSendImage(file)
+        if (
+          CHAT_IMAGE_ALLOWED_TYPES.includes(file.type as never) &&
+          onSendImage
+        ) {
+          await onSendImage(file)
+        } else if (onSendFile) {
+          await onSendFile(file)
+        }
       }
     } finally {
       setUploading(false)
     }
   }
 
+  const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = '' // allow re-picking the same file
+    if (!onSendImage) return
+    await sendFiles(files)
+  }
+
   const onPickAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (!file || !onSendFile || uploading) return
-    setUploading(true)
-    try {
-      await onSendFile(file)
-    } finally {
-      setUploading(false)
-    }
+    if (!file || !onSendFile) return
+    await sendFiles([file])
   }
 
   // Close the composer emoji panel on outside click.
@@ -174,13 +185,68 @@ export const MessageInput = ({
         void submit()
       }}
       className={css({
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         gap: '0.5rem',
         padding: '0.75rem',
         borderTop: '1px solid token(colors.greyscale.200)',
       })}
+      onPaste={(event) => {
+        if (disabled || uploading || !onSendImage) return
+        const screenshots = Array.from(event.clipboardData.files).filter(
+          (file) => CHAT_IMAGE_ALLOWED_TYPES.includes(file.type as never)
+        )
+        if (screenshots.length === 0) return
+        event.preventDefault()
+        void sendFiles(screenshots)
+      }}
+      onDragEnter={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return
+        event.preventDefault()
+        dragDepthRef.current += 1
+        setDragging(true)
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+      }}
+      onDragLeave={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return
+        event.preventDefault()
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+        if (dragDepthRef.current === 0) setDragging(false)
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        dragDepthRef.current = 0
+        setDragging(false)
+        if (disabled || uploading) return
+        void sendFiles(Array.from(event.dataTransfer.files))
+      }}
     >
+      {dragging && (
+        <div
+          className={css({
+            position: 'absolute',
+            inset: 0,
+            zIndex: 'popover',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '2px dashed token(colors.primary.500)',
+            borderRadius: '0.5rem',
+            backgroundColor: 'greyscale.000',
+            color: 'primary.700',
+            fontWeight: '600',
+            pointerEvents: 'none',
+          })}
+          data-testid="im-drop-overlay"
+        >
+          {t('input.dropHint')}
+        </div>
+      )}
       {reply && (
         <div
           className={css({
@@ -228,240 +294,257 @@ export const MessageInput = ({
           </button>
         </div>
       )}
-      <div className={css({ position: 'relative', display: 'flex', gap: '0.5rem' })}>
-      {suggestions.length > 0 && (
-        <ul
-          className={css({
-            position: 'absolute',
-            bottom: '100%',
-            left: '0.75rem',
-            marginBottom: '0.25rem',
-            minWidth: '12rem',
-            maxHeight: '12rem',
-            overflowY: 'auto',
-            listStyle: 'none',
-            margin: 0,
-            padding: '0.25rem',
-            backgroundColor: 'greyscale.000',
-            border: '1px solid token(colors.greyscale.200)',
-            borderRadius: '0.5rem',
-            boxShadow: 'overlay',
-            zIndex: 'docked',
-          })}
-        >
-          {suggestions.map((name) => (
-            <li key={name}>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  // mousedown (not click) so the input doesn't blur first.
-                  e.preventDefault()
-                  pick(name)
-                }}
-                data-testid={`mention-opt-${name}`}
-                className={css({
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  paddingX: '0.5rem',
-                  paddingY: '0.375rem',
-                  border: 'none',
-                  background: 'transparent',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  color: 'greyscale.900',
-                  _hover: { backgroundColor: 'greyscale.100' },
-                })}
-              >
-                {name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {onSendImage && (
-        <>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            multiple
-            onChange={onPickImage}
-            className={css({ display: 'none' })}
-            data-testid="im-image-input"
-          />
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={disabled || uploading}
-            aria-label={t('input.image')}
-            title={t('input.image')}
-            data-testid="im-image-btn"
-            className={css({
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '2.375rem',
-              border: '1px solid token(colors.greyscale.300)',
-              borderRadius: '0.5rem',
-              backgroundColor: 'greyscale.000',
-              color: 'greyscale.600',
-              cursor: 'pointer',
-              _hover: { backgroundColor: 'greyscale.100' },
-              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-            })}
-          >
-            <RiImageLine size={18} />
-          </button>
-        </>
-      )}
-      {onSendFile && (
-        <>
-          <input
-            ref={attachRef}
-            type="file"
-            onChange={onPickAttachment}
-            className={css({ display: 'none' })}
-            data-testid="im-file-input"
-          />
-          <button
-            type="button"
-            onClick={() => attachRef.current?.click()}
-            disabled={disabled || uploading}
-            aria-label={t('input.file')}
-            title={t('input.file')}
-            data-testid="im-file-btn"
-            className={css({
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '2.375rem',
-              border: '1px solid token(colors.greyscale.300)',
-              borderRadius: '0.5rem',
-              backgroundColor: 'greyscale.000',
-              color: 'greyscale.600',
-              cursor: 'pointer',
-              _hover: { backgroundColor: 'greyscale.100' },
-              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-            })}
-          >
-            <RiAttachment2 size={18} />
-          </button>
-        </>
-      )}
-      {onSendDoc && (
-        <button
-          type="button"
-          onClick={onSendDoc}
-          disabled={disabled || uploading}
-          aria-label={t('input.doc')}
-          title={t('input.doc')}
-          data-testid="im-doc-btn"
-          className={css({
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '2.375rem',
-            border: '1px solid token(colors.greyscale.300)',
-            borderRadius: '0.5rem',
-            backgroundColor: 'greyscale.000',
-            color: 'greyscale.600',
-            cursor: 'pointer',
-            _hover: { backgroundColor: 'greyscale.100' },
-            _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-          })}
-        >
-          <RiFileTextLine size={18} />
-        </button>
-      )}
-      <div ref={emojiRef} className={css({ position: 'relative', flexShrink: 0 })}>
-        <button
-          type="button"
-          onClick={() => setShowEmojiPicker((open) => !open)}
-          disabled={disabled || sending}
-          aria-label={t('input.emoji')}
-          title={t('input.emoji')}
-          aria-expanded={showEmojiPicker}
-          data-testid="im-emoji-btn"
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '2.375rem',
-            height: '100%',
-            border: '1px solid token(colors.greyscale.300)',
-            borderRadius: '0.5rem',
-            backgroundColor: 'greyscale.000',
-            color: 'greyscale.600',
-            cursor: 'pointer',
-            _hover: { backgroundColor: 'greyscale.100' },
-            _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-          })}
-        >
-          <RiEmotionHappyLine size={18} />
-        </button>
-        {showEmojiPicker && (
-          <div
+      <div
+        className={css({
+          position: 'relative',
+          display: 'flex',
+          gap: '0.5rem',
+        })}
+      >
+        {suggestions.length > 0 && (
+          <ul
             className={css({
               position: 'absolute',
-              bottom: 'calc(100% + 0.5rem)',
-              left: 0,
-              zIndex: 'popover',
+              bottom: '100%',
+              left: '0.75rem',
+              marginBottom: '0.25rem',
+              minWidth: '12rem',
+              maxHeight: '12rem',
+              overflowY: 'auto',
+              listStyle: 'none',
+              margin: 0,
               padding: '0.25rem',
+              backgroundColor: 'greyscale.000',
               border: '1px solid token(colors.greyscale.200)',
               borderRadius: '0.5rem',
-              backgroundColor: 'greyscale.000',
               boxShadow: 'overlay',
+              zIndex: 'docked',
             })}
           >
-            <EmojiPicker onPick={insertEmoji} />
-          </div>
+            {suggestions.map((name) => (
+              <li key={name}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    // mousedown (not click) so the input doesn't blur first.
+                    e.preventDefault()
+                    pick(name)
+                  }}
+                  data-testid={`mention-opt-${name}`}
+                  className={css({
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    paddingX: '0.5rem',
+                    paddingY: '0.375rem',
+                    border: 'none',
+                    background: 'transparent',
+                    borderRadius: '0.375rem',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    color: 'greyscale.900',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                  })}
+                >
+                  {name}
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
-      </div>
-      <input
-        ref={inputRef}
-        type="text"
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value)
-          recomputeMention(e.target.value, e.target.selectionStart ?? e.target.value.length)
-        }}
-        onKeyUp={(e) => {
-          if (e.key === 'Escape') {
-            setMention(null)
-            return
+        {onSendImage && (
+          <>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
+              onChange={onPickImage}
+              className={css({ display: 'none' })}
+              data-testid="im-image-input"
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={disabled || uploading}
+              aria-label={t('input.image')}
+              title={t('input.image')}
+              data-testid="im-image-btn"
+              className={css({
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '2.375rem',
+                border: '1px solid token(colors.greyscale.300)',
+                borderRadius: '0.5rem',
+                backgroundColor: 'greyscale.000',
+                color: 'greyscale.600',
+                cursor: 'pointer',
+                _hover: { backgroundColor: 'greyscale.100' },
+                _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+              })}
+            >
+              <RiImageLine size={18} />
+            </button>
+          </>
+        )}
+        {onSendFile && (
+          <>
+            <input
+              ref={attachRef}
+              type="file"
+              onChange={onPickAttachment}
+              className={css({ display: 'none' })}
+              data-testid="im-file-input"
+            />
+            <button
+              type="button"
+              onClick={() => attachRef.current?.click()}
+              disabled={disabled || uploading}
+              aria-label={t('input.file')}
+              title={t('input.file')}
+              data-testid="im-file-btn"
+              className={css({
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '2.375rem',
+                border: '1px solid token(colors.greyscale.300)',
+                borderRadius: '0.5rem',
+                backgroundColor: 'greyscale.000',
+                color: 'greyscale.600',
+                cursor: 'pointer',
+                _hover: { backgroundColor: 'greyscale.100' },
+                _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+              })}
+            >
+              <RiAttachment2 size={18} />
+            </button>
+          </>
+        )}
+        {onSendDoc && (
+          <button
+            type="button"
+            onClick={onSendDoc}
+            disabled={disabled || uploading}
+            aria-label={t('input.doc')}
+            title={t('input.doc')}
+            data-testid="im-doc-btn"
+            className={css({
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '2.375rem',
+              border: '1px solid token(colors.greyscale.300)',
+              borderRadius: '0.5rem',
+              backgroundColor: 'greyscale.000',
+              color: 'greyscale.600',
+              cursor: 'pointer',
+              _hover: { backgroundColor: 'greyscale.100' },
+              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+            })}
+          >
+            <RiFileTextLine size={18} />
+          </button>
+        )}
+        <div
+          ref={emojiRef}
+          className={css({ position: 'relative', flexShrink: 0 })}
+        >
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker((open) => !open)}
+            disabled={disabled || sending}
+            aria-label={t('input.emoji')}
+            title={t('input.emoji')}
+            aria-expanded={showEmojiPicker}
+            data-testid="im-emoji-btn"
+            className={css({
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '2.375rem',
+              height: '100%',
+              border: '1px solid token(colors.greyscale.300)',
+              borderRadius: '0.5rem',
+              backgroundColor: 'greyscale.000',
+              color: 'greyscale.600',
+              cursor: 'pointer',
+              _hover: { backgroundColor: 'greyscale.100' },
+              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+            })}
+          >
+            <RiEmotionHappyLine size={18} />
+          </button>
+          {showEmojiPicker && (
+            <div
+              className={css({
+                position: 'absolute',
+                bottom: 'calc(100% + 0.5rem)',
+                left: 0,
+                zIndex: 'popover',
+                padding: '0.25rem',
+                border: '1px solid token(colors.greyscale.200)',
+                borderRadius: '0.5rem',
+                backgroundColor: 'greyscale.000',
+                boxShadow: 'overlay',
+              })}
+            >
+              <EmojiPicker onPick={insertEmoji} />
+            </div>
+          )}
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value)
+            recomputeMention(
+              e.target.value,
+              e.target.selectionStart ?? e.target.value.length
+            )
+          }}
+          onKeyUp={(e) => {
+            if (e.key === 'Escape') {
+              setMention(null)
+              return
+            }
+            const el = e.currentTarget
+            recomputeMention(el.value, el.selectionStart ?? el.value.length)
+          }}
+          onClick={(e) =>
+            recomputeMention(
+              e.currentTarget.value,
+              e.currentTarget.selectionStart ?? 0
+            )
           }
-          const el = e.currentTarget
-          recomputeMention(el.value, el.selectionStart ?? el.value.length)
-        }}
-        onClick={(e) => recomputeMention(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
-        onBlur={() => setMention(null)}
-        placeholder={t('input.placeholder')}
-        disabled={disabled || sending}
-        className={css({
-          flex: 1,
-          paddingX: '0.75rem',
-          paddingY: '0.5rem',
-          border: '1px solid token(colors.greyscale.300)',
-          borderRadius: '0.5rem',
-          fontSize: '0.9375rem',
-          _focus: { outline: 'none', borderColor: 'primary.500' },
-        })}
-        data-testid="im-msg-input"
-      />
-      <Button
-        type="submit"
-        variant="primary"
-        size="action"
-        isDisabled={disabled || sending || !text.trim()}
-        data-testid="im-msg-send"
-      >
-        {sending ? t('input.sending') : t('input.send')}
-      </Button>
+          onBlur={() => setMention(null)}
+          placeholder={t('input.placeholder')}
+          disabled={disabled || sending}
+          className={css({
+            flex: 1,
+            paddingX: '0.75rem',
+            paddingY: '0.5rem',
+            border: '1px solid token(colors.greyscale.300)',
+            borderRadius: '0.5rem',
+            fontSize: '0.9375rem',
+            _focus: { outline: 'none', borderColor: 'primary.500' },
+          })}
+          data-testid="im-msg-input"
+        />
+        <Button
+          type="submit"
+          variant="primary"
+          size="action"
+          isDisabled={disabled || sending || !text.trim()}
+          data-testid="im-msg-send"
+        >
+          {sending ? t('input.sending') : t('input.send')}
+        </Button>
       </div>
     </form>
   )
