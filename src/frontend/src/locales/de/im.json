@@ -121,7 +121,7 @@
     "description": "Gruppenankündigung",
     "descriptionPlaceholder": "Gruppenankündigung hinzufügen (optional)",
     "descriptionEmpty": "Noch keine Gruppenankündigung",
-    "apps": "Gruppen-Apps",
+    "apps": "Apps",
     "pin": "Oben anheften",
     "mute": "Benachrichtigungen stumm",
     "muteAtAll": "Bei @alle nicht benachrichtigen",
@@ -192,8 +192,8 @@
     "sendError": "Dokument konnte nicht gesendet werden, bitte erneut versuchen"
   },
   "calendar": {
-    "open": "Kalender ansehen",
-    "groupOpen": "Kalender der Mitglieder",
+    "open": "Kalender",
+    "groupOpen": "Kalender",
     "today": "Heute",
     "prevDay": "Vortag",
     "nextDay": "Nächster Tag",

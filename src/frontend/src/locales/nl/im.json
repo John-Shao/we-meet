@@ -121,7 +121,7 @@
     "description": "Groepsaankondiging",
     "descriptionPlaceholder": "Voeg een groepsaankondiging toe (optioneel)",
     "descriptionEmpty": "Nog geen aankondiging",
-    "apps": "Groepsapps",
+    "apps": "Apps",
     "pin": "Bovenaan vastzetten",
     "mute": "Niet storen",
     "muteAtAll": "Niet melden bij @iedereen",
@@ -191,8 +191,8 @@
     "sendError": "Document verzenden mislukt, probeer opnieuw"
   },
   "calendar": {
-    "open": "Agenda bekijken",
-    "groupOpen": "Agenda's van leden",
+    "open": "Agenda",
+    "groupOpen": "Agenda",
     "today": "Vandaag",
     "prevDay": "Vorige dag",
     "nextDay": "Volgende dag",

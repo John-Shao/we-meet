@@ -120,7 +120,7 @@ const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v))
 
 /**
- * P8 会话日历抽屉(私聊「查看日历」/ 群聊「群成员日历」,对标飞书):
+ * P8 会话日程抽屉（私聊与群聊共用）：
  * 纵向时间轴一人一列展示当日忙闲(freebusy,只有区间没有标题),拖/点空白
  * 时段直接预填创建日程,底部实时判定「所有参与者都有空」,并给出全员空闲
  * 的建议时段。创建成功后向本会话发送 event-card 日程卡片。
@@ -628,7 +628,11 @@ export const ConversationCalendarPanel = ({
               <button
                 type="button"
                 aria-label={t('image.close')}
-                className={css({ position: 'fixed', inset: 0, zIndex: 'panel' })}
+                className={css({
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 'panel',
+                })}
                 onClick={() => setDatePickerOpen(false)}
               />
               <div
@@ -914,8 +918,7 @@ export const ConversationCalendarPanel = ({
                     style={{
                       top: (sel.startMin / 60) * HOUR_PX,
                       height: ((sel.endMin - sel.startMin) / 60) * HOUR_PX,
-                      borderColor:
-                        busyIds.length > 0 ? '#dc2626' : undefined,
+                      borderColor: busyIds.length > 0 ? '#dc2626' : undefined,
                       backgroundColor:
                         busyIds.length > 0
                           ? 'rgba(220,38,38,0.18)'

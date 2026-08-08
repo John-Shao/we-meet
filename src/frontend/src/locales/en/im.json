@@ -124,7 +124,7 @@
     "description": "Group announcement",
     "descriptionPlaceholder": "Add a group announcement (optional)",
     "descriptionEmpty": "No announcement yet",
-    "apps": "Group apps",
+    "apps": "Apps",
     "pin": "Pin to top",
     "mute": "Mute notifications",
     "muteAtAll": "Don't notify for @everyone",
@@ -202,8 +202,8 @@
     "sendError": "Failed to send document, please retry"
   },
   "calendar": {
-    "open": "View calendar",
-    "groupOpen": "Members' calendars",
+    "open": "Calendar",
+    "groupOpen": "Calendar",
     "today": "Today",
     "prevDay": "Previous day",
     "nextDay": "Next day",

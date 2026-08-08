@@ -124,7 +124,7 @@
     "description": "群公告",
     "descriptionPlaceholder": "输入群公告(选填)",
     "descriptionEmpty": "暂无群公告",
-    "apps": "群应用",
+    "apps": "应用",
     "pin": "置顶会话",
     "mute": "消息免打扰",
     "muteAtAll": "@所有人的消息不提示",
@@ -197,8 +197,8 @@
     "sendError": "文档发送失败,请重试"
   },
   "calendar": {
-    "open": "查看日历",
-    "groupOpen": "群成员日历",
+    "open": "日程",
+    "groupOpen": "日程",
     "today": "今天",
     "prevDay": "前一天",
     "nextDay": "后一天",

@@ -563,7 +563,7 @@ export const GroupInfoPanel = ({
         )}
       </div>
 
-      {/* Group apps: keep the desktop entry in the same information hierarchy
+      {/* Apps: keep the desktop entry in the same information hierarchy
             as Android while opening the existing right-side calendar panel. */}
       <section
         className={css({

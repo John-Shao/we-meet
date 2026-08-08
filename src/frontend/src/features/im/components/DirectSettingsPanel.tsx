@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
+import { RiCalendarScheduleLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { Avatar } from './Avatar'
+import { sectionLabel } from './panelStyles'
 import { SwitchRow } from './SettingRows'
 
 interface Props {
@@ -186,27 +188,57 @@ export const DirectSettingsPanel = ({
           {t('group.button')}
         </button>
 
-        {/* Shared calendar/free-busy entry, matching Android chat settings. */}
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onOpenCalendar}
-          data-testid="direct-calendar-entry"
+        {/* Conversation apps use the same hierarchy in direct and group settings. */}
+        <section
           className={css({
-            width: '100%',
-            textAlign: 'left',
-            padding: '0.625rem 1rem',
-            border: 'none',
+            padding: '0.875rem 1rem',
             borderBottom: '1px solid token(colors.greyscale.100)',
-            backgroundColor: 'greyscale.000',
-            color: 'greyscale.900',
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-            _hover: { backgroundColor: 'greyscale.50' },
           })}
         >
-          {t('calendar.open')}
-        </button>
+          <div className={css({ marginBottom: '0.75rem' })}>
+            <span className={sectionLabel}>{t('manage.apps')}</span>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onOpenCalendar}
+            data-testid="direct-calendar-entry"
+            aria-label={t('calendar.open')}
+            className={css({
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.375rem',
+              width: '5rem',
+              padding: '0.625rem 0.375rem',
+              border: 'none',
+              borderRadius: '0.625rem',
+              backgroundColor: 'transparent',
+              color: 'greyscale.900',
+              fontSize: '0.8125rem',
+              cursor: 'pointer',
+              _hover: { backgroundColor: 'greyscale.50' },
+              _disabled: { cursor: 'not-allowed', opacity: 0.5 },
+            })}
+          >
+            <span
+              className={css({
+                display: 'grid',
+                placeItems: 'center',
+                width: '2.75rem',
+                height: '2.75rem',
+                borderRadius: '0.625rem',
+                backgroundColor: 'primary.100',
+                color: 'primary.600',
+              })}
+            >
+              <RiCalendarScheduleLine size={24} />
+            </span>
+            <span className={css({ whiteSpace: 'nowrap' })}>
+              {t('calendar.open')}
+            </span>
+          </button>
+        </section>
 
         {/* Private toggles (P10) */}
         <SwitchRow

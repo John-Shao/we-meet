@@ -165,7 +165,7 @@ interface Props {
   onOpenSettings?: () => void
   /** Open the add-members picker (group only). */
   onAddMembers?: () => void
-  /** P8:开合会话日历抽屉(私聊「查看日历」/群聊「群成员日历」,ImRoute 持有面板)。 */
+  /** P8：开合会话日程抽屉（ImRoute 持有面板）。 */
   onOpenCalendar?: () => void
   /** Forward a message to another conversation (picker lives in ImRoute). */
   onForward?: (m: Message) => void

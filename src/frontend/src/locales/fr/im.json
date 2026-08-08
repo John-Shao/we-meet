@@ -121,7 +121,7 @@
     "description": "Annonce du groupe",
     "descriptionPlaceholder": "Ajouter une annonce (facultatif)",
     "descriptionEmpty": "Aucune annonce",
-    "apps": "Applications du groupe",
+    "apps": "Applications",
     "pin": "Épingler en haut",
     "mute": "Ne pas déranger",
     "muteAtAll": "Ne pas notifier pour @tous",
@@ -191,8 +191,8 @@
     "sendError": "Échec de l'envoi du document, veuillez réessayer"
   },
   "calendar": {
-    "open": "Voir l'agenda",
-    "groupOpen": "Agendas des membres",
+    "open": "Agenda",
+    "groupOpen": "Agenda",
     "today": "Aujourd'hui",
     "prevDay": "Jour précédent",
     "nextDay": "Jour suivant",

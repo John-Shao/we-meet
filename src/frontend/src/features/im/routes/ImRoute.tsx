@@ -127,7 +127,7 @@ const ImAuthenticated = () => {
   })
   // Right-side panel below the chat header: 群聊信息(group)/ 会话设置(direct)
   // / 收起。A single toggle — 群成员与群属性已合并为一个 GroupInfoPanel(对齐 App)。
-  // P8:'calendar' = 会话日历抽屉(私聊查看日历/群成员日历),与 info 互斥。
+  // P8: 'calendar' = 会话日程抽屉，与 info 互斥。
   const [rightPanel, setRightPanel] = useState<'info' | 'calendar' | null>(null)
   // P8「在消息列表提醒日程」:置顶入口点开的日程提醒页(占中栏,与会话互斥)。
   const [reminderOpen, setReminderOpen] = useState(false)
