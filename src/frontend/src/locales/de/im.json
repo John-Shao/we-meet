@@ -342,12 +342,12 @@
     },
     "groupCallRoomName": "Sprachanruf {{name}}",
     "groupPicker": {
-      "title": "Sprachanruf starten",
+      "title": "Audiokonferenz",
       "confirm": "Anrufen",
       "videoTitle": "Videokonferenz starten"
     },
     "groupMeetingRoomName": "Meeting {{name}}",
-    "groupMeeting": "Meeting starten",
+    "groupMeeting": "Videokonferenz",
     "groupCard": {
       "title": "Sprachanruf",
       "ongoing": "Läuft",

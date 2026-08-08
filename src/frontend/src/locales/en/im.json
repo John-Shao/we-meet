@@ -352,12 +352,12 @@
     },
     "groupCallRoomName": "{{name}} voice call",
     "groupPicker": {
-      "title": "Start voice call",
+      "title": "Voice meeting",
       "confirm": "Call",
       "videoTitle": "Start video meeting"
     },
     "groupMeetingRoomName": "{{name}} meeting",
-    "groupMeeting": "Start meeting",
+    "groupMeeting": "Video meeting",
     "groupCard": {
       "title": "Voice call",
       "ongoing": "In progress",

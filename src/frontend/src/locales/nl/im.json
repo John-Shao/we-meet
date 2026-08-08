@@ -341,12 +341,12 @@
     },
     "groupCallRoomName": "Spraakoproep {{name}}",
     "groupPicker": {
-      "title": "Spraakoproep starten",
+      "title": "Audiovergadering",
       "confirm": "Bellen",
       "videoTitle": "Videovergadering starten"
     },
     "groupMeetingRoomName": "Vergadering {{name}}",
-    "groupMeeting": "Vergadering starten",
+    "groupMeeting": "Videovergadering",
     "groupCard": {
       "title": "Spraakoproep",
       "ongoing": "Bezig",

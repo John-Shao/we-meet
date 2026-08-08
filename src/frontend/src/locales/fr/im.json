@@ -341,12 +341,12 @@
     },
     "groupCallRoomName": "Appel vocal {{name}}",
     "groupPicker": {
-      "title": "Démarrer un appel vocal",
+      "title": "Réunion audio",
       "confirm": "Appeler",
       "videoTitle": "Démarrer une réunion vidéo"
     },
     "groupMeetingRoomName": "Réunion {{name}}",
-    "groupMeeting": "Démarrer la réunion",
+    "groupMeeting": "Réunion vidéo",
     "groupCard": {
       "title": "Appel vocal",
       "ongoing": "En cours",

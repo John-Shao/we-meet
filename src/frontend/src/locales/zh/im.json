@@ -347,12 +347,12 @@
     },
     "groupCallRoomName": "{{name}}的语音通话",
     "groupPicker": {
-      "title": "发起语音通话",
+      "title": "语音会议",
       "confirm": "呼叫",
       "videoTitle": "发起视频会议"
     },
     "groupMeetingRoomName": "{{name}}的视频会议",
-    "groupMeeting": "发起会议",
+    "groupMeeting": "视频会议",
     "groupCard": {
       "title": "语音通话",
       "ongoing": "通话中",
