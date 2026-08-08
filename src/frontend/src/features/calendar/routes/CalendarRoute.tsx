@@ -69,6 +69,9 @@ const CalendarAuthenticated = () => {
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const { user } = useUser()
   const [creating, setCreating] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('we-meet:calendar-sidebar-collapsed') === '1'
+  )
   const [draft, setDraft] = useState<SlotDraft | null>(null)
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
   // 分享日程到聊天:与详情弹窗并列(而非嵌套),避免弹窗套弹窗。
@@ -109,6 +112,20 @@ const CalendarAuthenticated = () => {
     setDraft(slot)
     setCreating(true)
   }
+
+  const toggleSidebar = () =>
+    setSidebarCollapsed((current) => {
+      const next = !current
+      try {
+        localStorage.setItem(
+          'we-meet:calendar-sidebar-collapsed',
+          next ? '1' : '0'
+        )
+      } catch {
+        /* Persistence is optional in private mode. */
+      }
+      return next
+    })
 
   // 网格容器:用来判断一次点击是落在日历表内还是表外(表外 = 清预选框)。
   const gridRef = useRef<HTMLDivElement>(null)
@@ -281,20 +298,22 @@ const CalendarAuthenticated = () => {
       }}
     >
       {/* 二级导航栏:迷你日历 + 即将开始,与「视频会议」侧栏对齐。可拖拽改宽。 */}
-      <ResizablePanel
-        storageKey="we-meet:calendar-sidebar-width"
-        defaultWidth={260}
-        min={220}
-        max={460}
-      >
-        <CalendarSidebar
-          date={date}
-          onDateChange={setDate}
-          events={events}
-          upcomingEvents={upcomingEvents}
-          onSelectEvent={setDetailEvent}
-        />
-      </ResizablePanel>
+      {!sidebarCollapsed && (
+        <ResizablePanel
+          storageKey="we-meet:calendar-sidebar-width"
+          defaultWidth={260}
+          min={220}
+          max={460}
+        >
+          <CalendarSidebar
+            date={date}
+            onDateChange={setDate}
+            events={events}
+            upcomingEvents={upcomingEvents}
+            onSelectEvent={setDetailEvent}
+          />
+        </ResizablePanel>
+      )}
 
       <div
         className={css({
@@ -323,6 +342,32 @@ const CalendarAuthenticated = () => {
               gap: '0.75rem',
             })}
           >
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              title={t(
+                sidebarCollapsed ? 'shell:expand' : 'shell:collapse'
+              )}
+              aria-label={t(
+                sidebarCollapsed ? 'shell:expand' : 'shell:collapse'
+              )}
+              data-testid="calendar-sidebar-toggle"
+              className={css({
+                width: '2rem',
+                height: '2rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: 'none',
+                borderRadius: '0.375rem',
+                backgroundColor: 'transparent',
+                color: 'greyscale.700',
+                cursor: 'pointer',
+                _hover: { backgroundColor: 'greyscale.100' },
+              })}
+            >
+              {sidebarCollapsed ? '\u00bb' : '\u00ab'}
+            </button>
             <CalendarPageTabs tab={tab} onTab={changeTab} />
             {tab === 'calendar' && (
               <CalendarViewSwitcher view={view} onView={setView} />

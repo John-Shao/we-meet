@@ -205,6 +205,13 @@ export const CalendarGrid = ({
     onNavigate?.(d)
   }
 
+  const scrollToTime = useMemo(() => {
+    const now = new Date()
+    const sameDay = now.toDateString() === date.toDateString()
+    const hour = sameDay && now.getHours() >= 8 ? now.getHours() : 8
+    return new Date(1970, 0, 1, Math.min(hour, 20), 0)
+  }, [date])
+
   const rbcEvents = useMemo<RbcEvent[]>(() => {
     const list: RbcEvent[] = events.map((e) => ({
       id: e.id,
@@ -328,6 +335,7 @@ export const CalendarGrid = ({
       selectable
       formats={formats}
       messages={messages}
+      scrollToTime={scrollToTime}
       // P8「降低已结束日程的亮度」(对标飞书,日历设置可关):渲染时判断,
       // 不设 tick——交互/取数触发的重渲染足以让新跨过结束时刻的块变淡。
       eventPropGetter={(ev) => {

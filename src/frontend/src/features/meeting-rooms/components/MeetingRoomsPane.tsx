@@ -77,7 +77,7 @@ const paneCls = css({
   height: '100%',
   minHeight: 0,
   padding: '0.75rem',
-  overflowY: 'auto',
+  overflow: 'hidden',
 })
 const errorCls = css({
   display: 'flex',

@@ -183,6 +183,18 @@
 .rbc-calendar {
   color: var(--colors-greyscale-900);
 }
+/* Keep navigation context visible while the time body scrolls. */
+.rbc-time-view .rbc-time-header {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+.rbc-time-view .rbc-time-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background-color: var(--colors-greyscale-000);
+}
 .rbc-month-view,
 .rbc-time-view,
 .rbc-time-header,

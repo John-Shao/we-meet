@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
@@ -11,7 +11,8 @@ import { addMinutes, makeScale } from '../utils/timelineScale'
 const HOUR_WIDTH = 64
 /** Where the track scrolls to on mount — nobody books at 3am. */
 const INITIAL_HOUR = 8
-const LABEL_WIDTH = '11rem'
+const LABEL_WIDTH_PX = 176
+const LABEL_WIDTH = `${LABEL_WIDTH_PX}px`
 
 const timeLabel = (value: string) =>
   new Date(value).toLocaleTimeString([], {
@@ -42,11 +43,31 @@ export const RoomTimeline = ({
 }) => {
   const { t } = useTranslation('meeting-rooms')
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [viewportWidth, setViewportWidth] = useState(0)
 
   const isToday = new Date().toDateString() === dayStart.toDateString()
   const now = useNowTick(isToday)
   const scale = makeScale(dayStart, dayEnd)
-  const trackWidth = HOUR_WIDTH * 24
+  // Keep 64px as the readable minimum, but distribute a wide viewport across
+  // the full 24-hour axis instead of leaving an empty strip on the right.
+  const trackWidth = Math.max(
+    HOUR_WIDTH * 24,
+    viewportWidth - LABEL_WIDTH_PX
+  )
+
+  useLayoutEffect(() => {
+    const node = scrollRef.current
+    if (!node) return
+    const update = () => setViewportWidth(node.clientWidth)
+    update()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update)
+      return () => window.removeEventListener('resize', update)
+    }
+    const observer = new ResizeObserver(update)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -165,6 +186,10 @@ export const RoomTimeline = ({
 }
 
 const scrollCls = css({
+  flex: 1,
+  minHeight: 0,
+  height: '100%',
+  overflowY: 'auto',
   overflowX: 'auto',
   border: '1px solid token(colors.greyscale.200)',
   borderRadius: '0.5rem',
