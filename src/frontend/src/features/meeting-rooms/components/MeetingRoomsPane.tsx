@@ -22,10 +22,12 @@ export const MeetingRoomsPane = ({
   date,
   selectedSlot,
   onSelectSlot,
+  onSlotChange,
 }: {
   date: Date
   selectedSlot?: { roomId: string; start: Date; end: Date } | null
   onSelectSlot?: (room: MeetingRoomBrief, start: Date, end: Date) => void
+  onSlotChange?: (room: MeetingRoomBrief, start: Date, end: Date) => void
 }) => {
   const { t } = useTranslation('meeting-rooms')
   const [filters, setFilters] = useState<RoomFilters>({})
@@ -72,6 +74,7 @@ export const MeetingRoomsPane = ({
           isLoading={isFetching}
           selectedSlot={selectedSlot}
           onSelectSlot={onSelectSlot}
+          onSlotChange={onSlotChange}
         />
       )}
     </div>

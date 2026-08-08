@@ -463,6 +463,18 @@ const CalendarAuthenticated = () => {
                 })
                 if (confirmed) setCreating(true)
               }}
+              onSlotChange={(room, slotStart, slotEnd) => {
+                setMeetingRoomDraft({
+                  room,
+                  start: slotStart,
+                  end: slotEnd,
+                })
+                setDraft({
+                  start: slotStart,
+                  end: slotEnd,
+                  allDay: false,
+                })
+              }}
             />
           ) : isLoading ? (
             <StateHint loading>{t('page.loading')}</StateHint>

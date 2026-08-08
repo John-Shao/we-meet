@@ -34,6 +34,7 @@ export const RoomTimeline = ({
   isLoading,
   selectedSlot,
   onSelectSlot,
+  onSlotChange,
 }: {
   rooms: RoomTimelineEntry[]
   dayStart: Date
@@ -42,9 +43,12 @@ export const RoomTimeline = ({
   selectedSlot?: { roomId: string; start: Date; end: Date } | null
   /** Click an empty stretch → prefill a new event in that room and slot. */
   onSelectSlot?: (room: MeetingRoomBrief, start: Date, end: Date) => void
+  /** Move or resize the selected slot without opening the create dialog. */
+  onSlotChange?: (room: MeetingRoomBrief, start: Date, end: Date) => void
 }) => {
   const { t } = useTranslation('meeting-rooms')
   const scrollRef = useRef<HTMLDivElement>(null)
+  const suppressClickRef = useRef(false)
   const [viewportWidth, setViewportWidth] = useState(0)
 
   const isToday = new Date().toDateString() === dayStart.toDateString()
@@ -79,10 +83,98 @@ export const RoomTimeline = ({
     event: React.MouseEvent<HTMLDivElement>
   ) => {
     if (!onSelectSlot) return
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
     const bounds = event.currentTarget.getBoundingClientRect()
     const ratio = (event.clientX - bounds.left) / bounds.width
     const start = addMinutes(dayStart, scale.snap(scale.minuteAt(ratio)))
     onSelectSlot(room, start, addMinutes(start, 60))
+  }
+
+  const beginDraftDrag = (
+    mode: 'move' | 'start' | 'end',
+    event: React.PointerEvent<HTMLDivElement>
+  ) => {
+    if (!selectedSlot || !onSlotChange) return
+    event.preventDefault()
+    event.stopPropagation()
+
+    const originX = event.clientX
+    const originY = event.clientY
+    const originStart = scale.minuteAt(scale.pct(selectedSlot.start) / 100)
+    const originEnd = scale.minuteAt(scale.pct(selectedSlot.end) / 100)
+    const totalMinutes = scale.minuteAt(1)
+    const duration = originEnd - originStart
+    let moved = false
+
+    const roomAt = (clientY: number) => {
+      if (mode !== 'move') {
+        return rooms.find((room) => room.id === selectedSlot.roomId)
+      }
+      return rooms.find((room) => {
+        const row = scrollRef.current?.querySelector<HTMLElement>(
+          `[data-room-row="${CSS.escape(room.id)}"]`
+        )
+        if (!row) return false
+        const bounds = row.getBoundingClientRect()
+        return clientY >= bounds.top && clientY <= bounds.bottom
+      })
+    }
+
+    const onMove = (pointer: PointerEvent) => {
+      const dx = pointer.clientX - originX
+      const dy = pointer.clientY - originY
+      if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return
+      moved = true
+
+      const rawDelta = (dx / trackWidth) * totalMinutes
+      const delta = Math.round(rawDelta / 30) * 30
+      let startMinute = originStart
+      let endMinute = originEnd
+
+      if (mode === 'move') {
+        startMinute = Math.max(
+          0,
+          Math.min(originStart + delta, totalMinutes - duration)
+        )
+        endMinute = startMinute + duration
+      } else if (mode === 'start') {
+        startMinute = Math.max(0, Math.min(originStart + delta, originEnd - 30))
+      } else {
+        endMinute = Math.min(
+          totalMinutes,
+          Math.max(originEnd + delta, originStart + 30)
+        )
+      }
+
+      const room = roomAt(pointer.clientY)
+      if (!room) return
+      onSlotChange(
+        room,
+        addMinutes(dayStart, startMinute),
+        addMinutes(dayStart, endMinute)
+      )
+    }
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      if (moved) {
+        suppressClickRef.current = true
+        window.setTimeout(() => {
+          suppressClickRef.current = false
+        }, 0)
+      }
+    }
+
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = mode === 'move' ? 'move' : 'ew-resize'
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
   }
 
   const handleTrackKeyDown = (
@@ -96,6 +188,58 @@ export const RoomTimeline = ({
       : INITIAL_HOUR * 60
     const start = addMinutes(dayStart, Math.min(baseMinute, 23 * 60))
     onSelectSlot(room, start, addMinutes(start, 60))
+  }
+
+  const handleDraftKeyDown = (
+    room: RoomTimelineEntry,
+    event: React.KeyboardEvent<HTMLDivElement>
+  ) => {
+    if (!selectedSlot) return
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onSelectSlot?.(room, selectedSlot.start, selectedSlot.end)
+      return
+    }
+    if (
+      !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
+    ) {
+      return
+    }
+    event.preventDefault()
+    if (!onSlotChange) return
+
+    const roomIndex = rooms.findIndex((candidate) => candidate.id === room.id)
+    const targetRoom =
+      event.key === 'ArrowUp'
+        ? rooms[Math.max(0, roomIndex - 1)]
+        : event.key === 'ArrowDown'
+          ? rooms[Math.min(rooms.length - 1, roomIndex + 1)]
+          : room
+    const totalMinutes = scale.minuteAt(1)
+    let startMinute = scale.minuteAt(scale.pct(selectedSlot.start) / 100)
+    let endMinute = scale.minuteAt(scale.pct(selectedSlot.end) / 100)
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      const delta = event.key === 'ArrowLeft' ? -30 : 30
+      if (event.shiftKey) {
+        endMinute = Math.max(
+          startMinute + 30,
+          Math.min(totalMinutes, endMinute + delta)
+        )
+      } else {
+        const duration = endMinute - startMinute
+        startMinute = Math.max(
+          0,
+          Math.min(totalMinutes - duration, startMinute + delta)
+        )
+        endMinute = startMinute + duration
+      }
+    }
+    onSlotChange(
+      targetRoom,
+      addMinutes(dayStart, startMinute),
+      addMinutes(dayStart, endMinute)
+    )
   }
 
   if (!isLoading && rooms.length === 0) {
@@ -137,6 +281,7 @@ export const RoomTimeline = ({
             <div
               key={room.id}
               className={rowCls}
+              data-room-row={room.id}
               data-testid={`mr-timeline-row-${room.id}`}
             >
               <div className={labelCellCls} style={{ width: LABEL_WIDTH }}>
@@ -167,6 +312,20 @@ export const RoomTimeline = ({
                   <div
                     data-testid="mr-timeline-draft"
                     className={draftBlockCls}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={t('timeline.clickToBook', { room: room.name })}
+                    onPointerDown={(event) => beginDraftDrag('move', event)}
+                    onKeyDown={(event) => handleDraftKeyDown(room, event)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      if (event.target !== event.currentTarget) return
+                      if (suppressClickRef.current) {
+                        suppressClickRef.current = false
+                        return
+                      }
+                      onSelectSlot?.(room, selectedSlot.start, selectedSlot.end)
+                    }}
                     style={{
                       left: `${scale.pct(selectedSlot.start)}%`,
                       width: `${scale.widthPct(
@@ -175,7 +334,19 @@ export const RoomTimeline = ({
                       )}%`,
                     }}
                   >
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      className={draftHandleStartCls}
+                      onPointerDown={(event) => beginDraftDrag('start', event)}
+                    />
                     {t('timeline.clickToBook', { room: room.name })}
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      className={draftHandleEndCls}
+                      onPointerDown={(event) => beginDraftDrag('end', event)}
+                    />
                   </div>
                 )}
                 {room.bookings.map((booking) => (
@@ -318,13 +489,40 @@ const draftBlockCls = css({
   backgroundColor: 'primary.100',
   color: 'primary.700',
   border: '1px solid token(colors.primary.500)',
-  pointerEvents: 'none',
+  cursor: 'move',
+  userSelect: 'none',
+  overflow: 'visible',
   zIndex: 1,
   _dark: {
     backgroundColor: 'primaryDark.100',
     color: 'primaryDark.800',
     borderColor: 'primaryDark.500',
   },
+})
+const draftHandleBase = {
+  position: 'absolute',
+  top: '50%',
+  width: '0.75rem',
+  height: '0.75rem',
+  border: '2px solid token(colors.primary.500)',
+  borderRadius: '50%',
+  backgroundColor: 'greyscale.000',
+  cursor: 'ew-resize',
+  transform: 'translateY(-50%)',
+  zIndex: 2,
+  _after: {
+    content: '""',
+    position: 'absolute',
+    inset: '-0.5rem',
+  },
+} as const
+const draftHandleStartCls = css({
+  ...draftHandleBase,
+  left: '-0.4375rem',
+})
+const draftHandleEndCls = css({
+  ...draftHandleBase,
+  right: '-0.4375rem',
 })
 const nowLineCls = css({
   position: 'absolute',
