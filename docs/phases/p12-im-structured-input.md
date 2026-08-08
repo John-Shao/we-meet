@@ -148,8 +148,8 @@ POST                  /api/v1.0/admin/im-emojis/upload-url/
 
 ## 8. 验证
 
-- 后端：新增代码 Ruff 与 Python 编译通过，删除草稿表迁移已加入；数据库 API
-  测试需在 PostgreSQL 可用的环境执行；
+- 后端：新增代码 Ruff、Python 编译和迁移一致性检查通过；IM 输入相关数据库 API
+  测试 3 项通过；
 - Web：生产 Build 通过；Vitest 17 个测试文件、173 项测试通过；
 - Android：`:app:compileDebugKotlin` 与 `:feature-im:testDebugUnitTest` 通过；
 - 联调重点：两端分别验证本地草稿恢复、账号隔离、回复上下文、发送成功清除、失败保留，
