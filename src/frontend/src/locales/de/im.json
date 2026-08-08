@@ -160,7 +160,7 @@
     "image": "Bild senden",
     "file": "Datei senden",
     "emoji": "Emoji senden",
-    "doc": "Dokument teilen (nur Lesen)",
+    "doc": "Dokument teilen",
     "dropHint": "Loslassen, um Bilder oder Dateien zu senden"
   },
   "preview": {
@@ -182,7 +182,7 @@
     "view": "Dokument öffnen"
   },
   "docPicker": {
-    "title": "Dokument teilen (nur Lesen)",
+    "title": "Dokument teilen",
     "search": "Dokumente durchsuchen",
     "selected": "Ausgewählt: {{count}}",
     "send": "Senden ({{count}})",
