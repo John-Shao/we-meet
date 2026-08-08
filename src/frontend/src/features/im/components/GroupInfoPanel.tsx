@@ -327,7 +327,7 @@ export const GroupInfoPanel = ({
   return (
     <PanelFrame
       key="root"
-      title={t('manage.info')}
+      title={t('manage.settings')}
       onClose={onClose}
       footer={
         <button
