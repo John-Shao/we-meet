@@ -406,9 +406,11 @@ export const MessageInput = ({
                   >
                     <Icon size={18} />
                     <span>
-                      {i18n.language.startsWith('zh')
-                        ? command.names.zh
-                        : command.names.en}
+                      {command.names[
+                        i18n.language.split(
+                          '-'
+                        )[0] as keyof typeof command.names
+                      ] ?? command.names.en}
                     </span>
                     <span
                       className={css({

@@ -130,9 +130,7 @@ interface ReactionState {
 /** A short, single-line preview of a message for quoting / list preview. */
 const snippetOf = (m: Message, t: (k: string) => string): string => {
   if (m.content_type === 'image')
-    return m.body.startsWith('emoji/')
-      ? t('preview.emoji')
-      : t('preview.image')
+    return m.body.startsWith('emoji/') ? t('preview.emoji') : t('preview.image')
   if (m.content_type === 'file') return t('preview.file')
   if (m.content_type === 'voice') return t('preview.voice')
   if (m.content_type === 'merged') return t('preview.merged')
@@ -248,7 +246,8 @@ export const ChatPane = ({
     if (inputPreferences) setRecentEmojis(inputPreferences.recent_emojis)
   }, [inputPreferences])
   const rememberEmoji = (emoji: RecentEmoji) => {
-    const identity = emoji.kind === 'unicode' ? `u:${emoji.value}` : `c:${emoji.id}`
+    const identity =
+      emoji.kind === 'unicode' ? `u:${emoji.value}` : `c:${emoji.id}`
     setRecentEmojis((previous) => {
       const next = [
         emoji,
@@ -720,7 +719,11 @@ export const ChatPane = ({
     replyRef.current = nextReply
     setDraftText(nextText)
     const snapshot = nextReply
-      ? { mid: nextReply.mid, sender: nextReply.sender, summary: nextReply.snippet }
+      ? {
+          mid: nextReply.mid,
+          sender: nextReply.sender,
+          summary: nextReply.snippet,
+        }
       : null
     writeLocalDraft(currentUserUID, cid, nextText, snapshot)
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
@@ -735,25 +738,40 @@ export const ChatPane = ({
       draftTextRef.current = local.text
       setDraftText(local.text)
       const restored = local.reply
-        ? { mid: local.reply.mid, sender: local.reply.sender, snippet: local.reply.summary }
+        ? {
+            mid: local.reply.mid,
+            sender: local.reply.sender,
+            snippet: local.reply.summary,
+          }
         : null
       replyRef.current = restored
       setReplyTo(restored)
     }
     const refresh = () => {
-      void fetchDrafts().then((drafts) => {
-        const cloud = drafts.find((item) => item.cid === cid)
-        const current = readLocalDrafts(currentUserUID)[cid]
-        if (!cloud || (current && Date.parse(current.updated_at) > Date.parse(cloud.updated_at))) return
-        writeLocalDraft(currentUserUID, cid, cloud.text, cloud.reply)
-        draftTextRef.current = cloud.text
-        setDraftText(cloud.text)
-        const restored = cloud.reply
-          ? { mid: cloud.reply.mid, sender: cloud.reply.sender, snippet: cloud.reply.summary }
-          : null
-        replyRef.current = restored
-        setReplyTo(restored)
-      }).catch(() => undefined)
+      void fetchDrafts()
+        .then((drafts) => {
+          const cloud = drafts.find((item) => item.cid === cid)
+          const current = readLocalDrafts(currentUserUID)[cid]
+          if (
+            !cloud ||
+            (current &&
+              Date.parse(current.updated_at) > Date.parse(cloud.updated_at))
+          )
+            return
+          writeLocalDraft(currentUserUID, cid, cloud.text, cloud.reply)
+          draftTextRef.current = cloud.text
+          setDraftText(cloud.text)
+          const restored = cloud.reply
+            ? {
+                mid: cloud.reply.mid,
+                sender: cloud.reply.sender,
+                snippet: cloud.reply.summary,
+              }
+            : null
+          replyRef.current = restored
+          setReplyTo(restored)
+        })
+        .catch(() => undefined)
     }
     refresh()
     const onFocus = () => refresh()
@@ -762,10 +780,16 @@ export const ChatPane = ({
       window.removeEventListener('focus', onFocus)
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
       const snapshot = replyRef.current
-        ? { mid: replyRef.current.mid, sender: replyRef.current.sender, summary: replyRef.current.snippet }
+        ? {
+            mid: replyRef.current.mid,
+            sender: replyRef.current.sender,
+            summary: replyRef.current.snippet,
+          }
         : null
       if (draftTextRef.current || snapshot) {
-        void saveDraft(cid, draftTextRef.current, snapshot).catch(() => undefined)
+        void saveDraft(cid, draftTextRef.current, snapshot).catch(
+          () => undefined
+        )
       }
     }
   }, [cid, currentUserUID])
@@ -776,7 +800,11 @@ export const ChatPane = ({
         ? nameOf(m.sender_uid)
         : title
   const onReply = (m: Message) => {
-    const reply = { mid: String(m.mid), sender: senderDisplay(m), snippet: snippetOf(m, t) }
+    const reply = {
+      mid: String(m.mid),
+      sender: senderDisplay(m),
+      snippet: snippetOf(m, t),
+    }
     setReplyTo(reply)
     persistDraft(draftTextRef.current, reply)
   }
@@ -825,7 +853,12 @@ export const ChatPane = ({
   }
 
   const onDeleteOne = async (m: Message) => {
-    if (!(await askConfirm({ message: t('actions.deleteMessageConfirm'), danger: true })))
+    if (
+      !(await askConfirm({
+        message: t('actions.deleteMessageConfirm'),
+        danger: true,
+      }))
+    )
       return
     try {
       applyDelete([m.mid])
@@ -953,7 +986,7 @@ export const ChatPane = ({
       navigator.clipboard
     ) {
       const copyText = ['quote', 'rich-text', 'rich-card'].includes(
-        m.content_type,
+        m.content_type
       )
         ? snippetOf(m, t)
         : m.body
@@ -1269,7 +1302,9 @@ export const ChatPane = ({
               「(已离职)」拼进 `title` —— title 会顺着 peerName / roomName 流进
               通话与会议室命名,那些地方不该带这个后缀。 */}
           {peerLeft && (
-            <div className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}>
+            <div
+              className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
+            >
               {t('departed.hint')}
             </div>
           )}
@@ -1495,7 +1530,9 @@ export const ChatPane = ({
                         voiceDurationMs={voiceDurationOf(m)}
                         reactions={reactionsFor(m.mid)}
                         cardState={cardStateOf(m.mid)}
-                        onCardButton={(buttonId) => void onCardButton(m, buttonId)}
+                        onCardButton={(buttonId) =>
+                          void onCardButton(m, buttonId)
+                        }
                         onReact={(emoji) => void onReact(m, emoji)}
                         recalled={recalledMids.has(m.mid)}
                         onContextMenu={(e) => openMenu(e, m)}
@@ -1626,7 +1663,18 @@ export const ChatPane = ({
               onCommand={(command) => {
                 if (command === 'schedule') onOpenCalendar?.()
                 else if (command === 'document') setShowDocPicker(true)
-                else if (isGroup) setGroupCallMedia('video')
+                else if (command === 'voice-meeting') setGroupCallMedia('audio')
+                else if (command === 'voice-call' && peerUid) {
+                  void startCall({
+                    cid,
+                    peerUid,
+                    peerName: title,
+                    peerAvatar: names[peerUid]?.avatar_url,
+                    media: 'audio',
+                    roomName: t('call.roomName', { name: title }),
+                    username: user?.full_name ?? '',
+                  })
+                } else if (isGroup) setGroupCallMedia('video')
                 else if (peerUid) {
                   void startCall({
                     cid,

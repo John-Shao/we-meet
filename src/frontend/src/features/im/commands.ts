@@ -1,14 +1,20 @@
 import {
   RiCalendarScheduleLine,
   RiFileTextLine,
+  RiPhoneLine,
   RiVidiconLine,
 } from '@remixicon/react'
 
-export type ImCommandId = 'schedule' | 'document' | 'meeting'
+export type ImCommandId =
+  | 'schedule'
+  | 'document'
+  | 'voice-call'
+  | 'voice-meeting'
+  | 'meeting'
 
 export interface ImCommand {
   id: ImCommandId
-  names: { zh: string; en: string }
+  names: { zh: string; en: string; de?: string; fr?: string; nl?: string }
   aliases: string[]
   icon: typeof RiCalendarScheduleLine
   conversations: Array<'direct' | 'group'>
@@ -36,6 +42,50 @@ export const IM_COMMANDS: ImCommand[] = [
     visibleAt: ['more', 'slash'],
   },
   {
+    id: 'voice-call',
+    names: {
+      zh: '语音通话',
+      en: 'Voice call',
+      de: 'Sprachanruf',
+      fr: 'Appel vocal',
+      nl: 'Spraakoproep',
+    },
+    aliases: [
+      '语音通话',
+      'voice',
+      'call',
+      'Sprachanruf',
+      'Appel vocal',
+      'Spraakoproep',
+    ],
+    icon: RiPhoneLine,
+    conversations: ['direct'],
+    action: 'voice-call',
+    visibleAt: ['header', 'slash'],
+  },
+  {
+    id: 'voice-meeting',
+    names: {
+      zh: '语音会议',
+      en: 'Voice meeting',
+      de: 'Audiokonferenz',
+      fr: 'Réunion audio',
+      nl: 'Audiovergadering',
+    },
+    aliases: [
+      '语音会议',
+      'voice',
+      'call',
+      'Audiokonferenz',
+      'Réunion audio',
+      'Audiovergadering',
+    ],
+    icon: RiPhoneLine,
+    conversations: ['group'],
+    action: 'voice-meeting',
+    visibleAt: ['header', 'slash'],
+  },
+  {
     id: 'meeting',
     names: { zh: '会议', en: 'Meeting' },
     aliases: ['会议', 'meeting'],
@@ -52,6 +102,8 @@ export const matchCommands = (text: string, type: 'direct' | 'group') => {
   return IM_COMMANDS.filter(
     (command) =>
       command.conversations.includes(type) &&
-      command.aliases.some((alias) => alias.toLocaleLowerCase().startsWith(query))
+      command.aliases.some((alias) =>
+        alias.toLocaleLowerCase().startsWith(query)
+      )
   )
 }
