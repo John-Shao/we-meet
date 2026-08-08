@@ -164,7 +164,7 @@
     "image": "发送图片",
     "file": "发送文件",
     "emoji": "发送表情",
-    "doc": "分享云文档（只读）",
+    "doc": "分享云文档",
     "dropHint": "松开发送图片或文件"
   },
   "preview": {
@@ -187,7 +187,7 @@
     "view": "查看文档"
   },
   "docPicker": {
-    "title": "分享云文档（只读）",
+    "title": "分享云文档",
     "search": "搜索文档",
     "selected": "已选 {{count}} 项",
     "send": "发送 ({{count}})",

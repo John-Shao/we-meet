@@ -164,7 +164,7 @@
     "image": "Send image",
     "file": "Send file",
     "emoji": "Send emoji",
-    "doc": "Share document (view only)",
+    "doc": "Share document",
     "dropHint": "Drop to send images or files"
   },
   "preview": {
@@ -192,7 +192,7 @@
     "view": "View document"
   },
   "docPicker": {
-    "title": "Share document (view only)",
+    "title": "Share document",
     "search": "Search documents",
     "selected": "Selected: {{count}}",
     "send": "Send ({{count}})",
