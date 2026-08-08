@@ -22,6 +22,7 @@ import { createDirectConversationByUserId } from '../api/createDirectConversatio
 import { createGroupConversation } from '../api/createGroupConversation'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { fetchImToken } from '../api/fetchImToken'
+import { fetchDrafts, readLocalDrafts, writeLocalDraft } from '../api/inputSync'
 import { richTextPreview } from '../components/richText'
 import { richCardPreview, stripActions } from '../components/richCard'
 import { defuseMentions, mentionScan } from '../mentions'
@@ -69,6 +70,29 @@ const ImAuthenticated = () => {
     staleTime: 60_000,
   })
   const currentUserUID = tokenData?.uid ?? ''
+  const [draftVersion, setDraftVersion] = useState(0)
+  useEffect(() => {
+    if (!currentUserUID) return
+    const refresh = () => {
+      void fetchDrafts().then((drafts) => {
+        const local = readLocalDrafts(currentUserUID)
+        for (const draft of drafts) {
+          if (!local[draft.cid] || Date.parse(draft.updated_at) >= Date.parse(local[draft.cid].updated_at)) {
+            writeLocalDraft(currentUserUID, draft.cid, draft.text, draft.reply)
+          }
+        }
+        setDraftVersion((value) => value + 1)
+      }).catch(() => undefined)
+    }
+    const changed = () => setDraftVersion((value) => value + 1)
+    refresh()
+    window.addEventListener('focus', refresh)
+    window.addEventListener('im-draft-changed', changed)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('im-draft-changed', changed)
+    }
+  }, [currentUserUID])
   const { confirm: askConfirm, alert: showAlert } = useConfirm()
   const [groupSeed, setGroupSeed] = useState<
     Array<{ id: string; label: string }>
@@ -328,6 +352,15 @@ const ImAuthenticated = () => {
   const previewOf = (
     c: ConversationSummary
   ): { text: string; ts: number } | null => {
+    void draftVersion
+    const draft = readLocalDrafts(currentUserUID)[c.cid]
+    if (draft && (draft.text || draft.reply)) {
+      const summary = draft.text.trim() || draft.reply?.summary || ''
+      return {
+        text: `[${t('draft.label', { defaultValue: '草稿' })}] ${summary}`,
+        ts: Math.floor(Date.parse(draft.updated_at) / 1000),
+      }
+    }
     if (!c.last_message_ts) return null
     // 非文本消息用占位/解析文案(正文是 object_key / JSON,不该直接显示):
     // 图片 → [图片]、文件 → [文件]、表情 → [表情]、撤回 → 撤回了一条消息、
@@ -342,7 +375,9 @@ const ImAuthenticated = () => {
     const ct = c.last_content_type
     const body =
       ct === 'image'
-        ? t('preview.image')
+        ? (c.last_message ?? '').startsWith('emoji/')
+          ? t('preview.emoji', { defaultValue: '[表情]' })
+          : t('preview.image')
         : ct === 'file'
           ? t('preview.file')
           : ct === 'voice'

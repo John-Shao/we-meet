@@ -307,6 +307,7 @@ export const MessageItem = ({
 }: Props) => {
   const { t } = useTranslation('im')
   const isImage = message.content_type === 'image'
+  const isCustomEmoji = isImage && message.body.startsWith('emoji/')
   const isFile = message.content_type === 'file'
   const isVoice = message.content_type === 'voice'
   const isQuote = message.content_type === 'quote'
@@ -657,12 +658,12 @@ export const MessageItem = ({
                 >
                   <img
                     src={imageUrl}
-                    alt={t('image.alt')}
+                    alt={isCustomEmoji ? t('preview.emoji', { defaultValue: '表情' }) : t('image.alt')}
                     className={css({
                       display: 'block',
-                      maxWidth: '15rem',
-                      maxHeight: '20rem',
-                      borderRadius: '0.75rem',
+                      maxWidth: isCustomEmoji ? '6rem' : '15rem',
+                      maxHeight: isCustomEmoji ? '6rem' : '20rem',
+                      borderRadius: isCustomEmoji ? '0.25rem' : '0.75rem',
                       objectFit: 'contain',
                     })}
                   />

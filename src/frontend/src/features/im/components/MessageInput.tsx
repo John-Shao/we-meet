@@ -6,15 +6,20 @@ import {
   RiFileTextLine,
   RiCloseLine,
   RiEmotionHappyLine,
+  RiAddLine,
+  RiCalendarScheduleLine,
 } from '@remixicon/react'
 
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { EmojiPicker } from './EmojiPicker'
 import { CHAT_IMAGE_ALLOWED_TYPES } from '../api/uploadChatImage'
+import type { CustomEmoji, RecentEmoji } from '../api/inputSync'
+import { matchCommands, type ImCommandId } from '../commands'
 
 /** Quoted-message preview shown above the input while composing a reply. */
 export interface ReplyPreview {
+  mid: string
   sender: string
   snippet: string
 }
@@ -33,6 +38,14 @@ interface Props {
   /** Active reply context (P7-b); shows a quote bar above the input. */
   reply?: ReplyPreview | null
   onCancelReply?: () => void
+  initialText?: string
+  onDraftChange?: (text: string) => void
+  recentEmojis?: RecentEmoji[]
+  customEmojis?: CustomEmoji[]
+  onRecentEmoji?: (emoji: RecentEmoji) => void
+  onSendCustomEmoji?: (emoji: CustomEmoji) => Promise<void> | void
+  conversationType?: 'direct' | 'group'
+  onCommand?: (command: ImCommandId) => void
 }
 
 /** Find the active "@query" segment immediately before the caret, if any. */
@@ -57,13 +70,23 @@ export const MessageInput = ({
   onSendDoc,
   reply,
   onCancelReply,
+  initialText = '',
+  onDraftChange,
+  recentEmojis = [],
+  customEmojis = [],
+  onRecentEmoji,
+  onSendCustomEmoji,
+  conversationType = 'direct',
+  onCommand,
 }: Props) => {
-  const { t } = useTranslation('im')
-  const [text, setText] = useState('')
+  const { t, i18n } = useTranslation('im')
+  const [text, setText] = useState(initialText)
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showMore, setShowMore] = useState(false)
+  const [commandIndex, setCommandIndex] = useState(0)
   const [mention, setMention] = useState<{ at: number; query: string } | null>(
     null
   )
@@ -72,6 +95,10 @@ export const MessageInput = ({
   const attachRef = useRef<HTMLInputElement>(null)
   const emojiRef = useRef<HTMLDivElement>(null)
   const dragDepthRef = useRef(0)
+
+  useEffect(() => {
+    setText(initialText)
+  }, [initialText])
 
   const sendFiles = async (files: File[]) => {
     if (files.length === 0 || uploading) return
@@ -124,12 +151,22 @@ export const MessageInput = ({
     const end = input?.selectionEnd ?? start
     const next = text.slice(0, start) + emoji + text.slice(end)
     setText(next)
+    onDraftChange?.(next)
+    onRecentEmoji?.({ kind: 'unicode', value: emoji })
     setShowEmojiPicker(false)
     requestAnimationFrame(() => {
       const caret = start + emoji.length
       input?.focus()
       input?.setSelectionRange(caret, caret)
     })
+  }
+
+  const commands = matchCommands(text, conversationType)
+  const executeCommand = (id: ImCommandId) => {
+    setText('')
+    onDraftChange?.('')
+    setCommandIndex(0)
+    onCommand?.(id)
   }
 
   const recomputeMention = (value: string, caret: number) => {
@@ -170,13 +207,14 @@ export const MessageInput = ({
     try {
       await onSend(trimmed)
       setText('')
+      onDraftChange?.('')
       setMention(null)
     } catch {
       // sendText already surfaces transport errors; keep the draft so the user can retry.
     } finally {
       setSending(false)
     }
-  }, [text, sending, disabled, onSend])
+  }, [text, sending, disabled, onSend, onDraftChange])
 
   return (
     <form
@@ -301,6 +339,42 @@ export const MessageInput = ({
           gap: '0.5rem',
         })}
       >
+        {commands.length > 0 && (
+          <ul
+            className={css({
+              position: 'absolute', bottom: '100%', left: '0.75rem',
+              marginBottom: '0.25rem', minWidth: '14rem', listStyle: 'none',
+              margin: 0, padding: '0.25rem', backgroundColor: 'greyscale.000',
+              border: '1px solid token(colors.greyscale.200)', borderRadius: '0.5rem',
+              boxShadow: 'overlay', zIndex: 'docked',
+            })}
+            data-testid="im-command-menu"
+          >
+            {commands.map((command, index) => {
+              const Icon = command.icon
+              return (
+                <li key={command.id}>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => { event.preventDefault(); executeCommand(command.id) }}
+                    className={css({
+                      display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%',
+                      padding: '0.5rem', border: 'none', borderRadius: '0.375rem',
+                      backgroundColor: index === commandIndex ? 'greyscale.100' : 'transparent',
+                      cursor: 'pointer', textAlign: 'left',
+                    })}
+                  >
+                    <Icon size={18} />
+                    <span>{i18n.language.startsWith('zh') ? command.names.zh : command.names.en}</span>
+                    <span className={css({ marginLeft: 'auto', color: 'greyscale.500', fontSize: '0.75rem' })}>
+                      /{command.aliases[command.aliases.length - 1]}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
         {suggestions.length > 0 && (
           <ul
             className={css({
@@ -352,6 +426,27 @@ export const MessageInput = ({
             ))}
           </ul>
         )}
+        <div className={css({ position: 'relative', flexShrink: 0 })}>
+          <button
+            type="button"
+            onClick={() => setShowMore((open) => !open)}
+            aria-label={t('input.more', { defaultValue: '更多' })}
+            data-testid="im-more-btn"
+            className={css({
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '2.375rem', height: '100%', border: '1px solid token(colors.greyscale.300)',
+              borderRadius: '0.5rem', backgroundColor: 'greyscale.000', color: 'primary.600', cursor: 'pointer',
+            })}
+          >
+            <RiAddLine size={20} />
+          </button>
+          {showMore && (
+            <div className={css({
+              position: 'absolute', bottom: 'calc(100% + 0.5rem)', left: 0,
+              display: 'flex', gap: '0.5rem', padding: '0.5rem', zIndex: 'popover',
+              border: '1px solid token(colors.greyscale.200)', borderRadius: '0.5rem',
+              backgroundColor: 'greyscale.000', boxShadow: 'overlay',
+            })}>
         {onSendImage && (
           <>
             <input
@@ -450,6 +545,22 @@ export const MessageInput = ({
             <RiFileTextLine size={18} />
           </button>
         )}
+              <button
+                type="button"
+                onClick={() => { setShowMore(false); executeCommand('schedule') }}
+                aria-label={t('calendar.open')}
+                title={t('calendar.open')}
+                className={css({
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2.375rem',
+                  border: '1px solid token(colors.greyscale.300)', borderRadius: '0.5rem',
+                  backgroundColor: 'greyscale.000', color: 'greyscale.600', cursor: 'pointer',
+                })}
+              >
+                <RiCalendarScheduleLine size={18} />
+              </button>
+            </div>
+          )}
+        </div>
         <div
           ref={emojiRef}
           className={css({ position: 'relative', flexShrink: 0 })}
@@ -493,7 +604,16 @@ export const MessageInput = ({
                 boxShadow: 'overlay',
               })}
             >
-              <EmojiPicker onPick={insertEmoji} />
+              <EmojiPicker
+                onPick={insertEmoji}
+                recent={recentEmojis}
+                custom={customEmojis}
+                onPickCustom={async (emoji) => {
+                  setShowEmojiPicker(false)
+                  onRecentEmoji?.({ kind: 'custom', id: emoji.id, key: emoji.key, name: emoji.name })
+                  await onSendCustomEmoji?.(emoji)
+                }}
+              />
             </div>
           )}
         </div>
@@ -503,10 +623,29 @@ export const MessageInput = ({
           value={text}
           onChange={(e) => {
             setText(e.target.value)
+            onDraftChange?.(e.target.value)
+            setCommandIndex(0)
             recomputeMention(
               e.target.value,
               e.target.selectionStart ?? e.target.value.length
             )
+          }}
+          onKeyDown={(e) => {
+            if (commands.length === 0) return
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setCommandIndex((value) => (value + 1) % commands.length)
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setCommandIndex((value) => (value - 1 + commands.length) % commands.length)
+            } else if (e.key === 'Enter') {
+              e.preventDefault()
+              executeCommand(commands[Math.min(commandIndex, commands.length - 1)].id)
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              setText(text.slice(1))
+              onDraftChange?.(text.slice(1))
+            }
           }}
           onKeyUp={(e) => {
             if (e.key === 'Escape') {

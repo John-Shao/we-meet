@@ -29,6 +29,17 @@ import type { MyDocumentHit } from '../api/fetchMyDocuments'
 import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
+import {
+  deleteDraft,
+  fetchCustomEmojis,
+  fetchDrafts,
+  fetchInputPreferences,
+  readLocalDrafts,
+  saveDraft,
+  saveRecentEmojis,
+  writeLocalDraft,
+  type RecentEmoji,
+} from '../api/inputSync'
 import { markLater } from '../api/markLater'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { PinnedBar } from '../components/PinnedBar'
@@ -122,7 +133,10 @@ interface ReactionState {
 
 /** A short, single-line preview of a message for quoting / list preview. */
 const snippetOf = (m: Message, t: (k: string) => string): string => {
-  if (m.content_type === 'image') return t('preview.image')
+  if (m.content_type === 'image')
+    return m.body.startsWith('emoji/')
+      ? t('preview.emoji')
+      : t('preview.image')
   if (m.content_type === 'file') return t('preview.file')
   if (m.content_type === 'voice') return t('preview.voice')
   if (m.content_type === 'merged') return t('preview.merged')
@@ -223,6 +237,35 @@ export const ChatPane = ({
   const [viewEventId, setViewEventId] = useState<string | null>(null)
   // 分享云文档到聊天(入口 A):输入框「文档」按钮 → 选择器。
   const [showDocPicker, setShowDocPicker] = useState(false)
+  const { data: inputPreferences } = useQuery({
+    queryKey: ['im', 'input-preferences'],
+    queryFn: fetchInputPreferences,
+    staleTime: 30_000,
+  })
+  const { data: customEmojis = [] } = useQuery({
+    queryKey: ['im', 'custom-emojis'],
+    queryFn: fetchCustomEmojis,
+    staleTime: 60_000,
+  })
+  const [recentEmojis, setRecentEmojis] = useState<RecentEmoji[]>([])
+  useEffect(() => {
+    if (inputPreferences) setRecentEmojis(inputPreferences.recent_emojis)
+  }, [inputPreferences])
+  const rememberEmoji = (emoji: RecentEmoji) => {
+    const identity = emoji.kind === 'unicode' ? `u:${emoji.value}` : `c:${emoji.id}`
+    setRecentEmojis((previous) => {
+      const next = [
+        emoji,
+        ...previous.filter((item) =>
+          item.kind === 'unicode'
+            ? `u:${item.value}` !== identity
+            : `c:${item.id}` !== identity
+        ),
+      ].slice(0, 24)
+      void saveRecentEmojis(next).catch(() => undefined)
+      return next
+    })
+  }
   const {
     data: messages = [],
     isLoading,
@@ -671,6 +714,65 @@ export const ChatPane = ({
   // 引用回复(P7-b):选中一条消息 → 输入区上方显示引用条 → 发送时包成
   // content_type='quote'、body={reply_to:{sender,snippet}, text}。
   const [replyTo, setReplyTo] = useState<ReplyPreview | null>(null)
+  const [draftText, setDraftText] = useState('')
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draftTextRef = useRef('')
+  const replyRef = useRef<ReplyPreview | null>(null)
+
+  const persistDraft = (nextText: string, nextReply = replyRef.current) => {
+    draftTextRef.current = nextText
+    replyRef.current = nextReply
+    setDraftText(nextText)
+    const snapshot = nextReply
+      ? { mid: nextReply.mid, sender: nextReply.sender, summary: nextReply.snippet }
+      : null
+    writeLocalDraft(currentUserUID, cid, nextText, snapshot)
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
+    draftTimerRef.current = setTimeout(() => {
+      void saveDraft(cid, nextText, snapshot).catch(() => undefined)
+    }, 800)
+  }
+
+  useEffect(() => {
+    const local = readLocalDrafts(currentUserUID)[cid]
+    if (local) {
+      draftTextRef.current = local.text
+      setDraftText(local.text)
+      const restored = local.reply
+        ? { mid: local.reply.mid, sender: local.reply.sender, snippet: local.reply.summary }
+        : null
+      replyRef.current = restored
+      setReplyTo(restored)
+    }
+    const refresh = () => {
+      void fetchDrafts().then((drafts) => {
+        const cloud = drafts.find((item) => item.cid === cid)
+        const current = readLocalDrafts(currentUserUID)[cid]
+        if (!cloud || (current && Date.parse(current.updated_at) > Date.parse(cloud.updated_at))) return
+        writeLocalDraft(currentUserUID, cid, cloud.text, cloud.reply)
+        draftTextRef.current = cloud.text
+        setDraftText(cloud.text)
+        const restored = cloud.reply
+          ? { mid: cloud.reply.mid, sender: cloud.reply.sender, snippet: cloud.reply.summary }
+          : null
+        replyRef.current = restored
+        setReplyTo(restored)
+      }).catch(() => undefined)
+    }
+    refresh()
+    const onFocus = () => refresh()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
+      const snapshot = replyRef.current
+        ? { mid: replyRef.current.mid, sender: replyRef.current.sender, summary: replyRef.current.snippet }
+        : null
+      if (draftTextRef.current || snapshot) {
+        void saveDraft(cid, draftTextRef.current, snapshot).catch(() => undefined)
+      }
+    }
+  }, [cid, currentUserUID])
   const senderDisplay = (m: Message): string =>
     m.sender_uid === currentUserUID
       ? t('group.you')
@@ -678,7 +780,9 @@ export const ChatPane = ({
         ? nameOf(m.sender_uid)
         : title
   const onReply = (m: Message) => {
-    setReplyTo({ sender: senderDisplay(m), snippet: snippetOf(m, t) })
+    const reply = { mid: String(m.mid), sender: senderDisplay(m), snippet: snippetOf(m, t) }
+    setReplyTo(reply)
+    persistDraft(draftTextRef.current, reply)
   }
 
   // 多选合并转发(P7-f):右键「多选」进入选择模式 → 勾选多条 → 底部条选
@@ -1100,6 +1204,10 @@ export const ChatPane = ({
     } else {
       await client.sendText(cid, text)
     }
+    writeLocalDraft(currentUserUID, cid, '', null)
+    draftTextRef.current = ''
+    setDraftText('')
+    void deleteDraft(cid).catch(() => undefined)
   }
 
   return (
@@ -1524,14 +1632,43 @@ export const ChatPane = ({
             </div>
           ) : (
             <MessageInput
+              key={cid}
               onSend={onSend}
               onSendImage={onSendImage}
               onSendFile={onSendFile}
               onSendDoc={() => setShowDocPicker(true)}
               reply={replyTo}
-              onCancelReply={() => setReplyTo(null)}
+              onCancelReply={() => {
+                setReplyTo(null)
+                persistDraft(draftTextRef.current, null)
+              }}
               disabled={sendDisabled}
               mentionables={mentionables}
+              initialText={draftText}
+              onDraftChange={(value) => persistDraft(value)}
+              recentEmojis={recentEmojis}
+              customEmojis={customEmojis}
+              onRecentEmoji={rememberEmoji}
+              onSendCustomEmoji={async (emoji) => {
+                await client.sendText(cid, emoji.key, { contentType: 'image' })
+              }}
+              conversationType={isGroup ? 'group' : 'direct'}
+              onCommand={(command) => {
+                if (command === 'schedule') onOpenCalendar?.()
+                else if (command === 'document') setShowDocPicker(true)
+                else if (isGroup) setGroupCallMedia('video')
+                else if (peerUid) {
+                  void startCall({
+                    cid,
+                    peerUid,
+                    peerName: title,
+                    peerAvatar: names[peerUid]?.avatar_url,
+                    media: 'video',
+                    roomName: t('call.roomName', { name: title }),
+                    username: user?.full_name ?? '',
+                  })
+                }
+              }}
             />
           )}
         </div>

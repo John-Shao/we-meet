@@ -156,6 +156,7 @@
     "pickPrompt": "Pick a conversation on the left to start chatting",
     "jumpToLatest": "Jump to latest"
   },
+  "draft": { "label": "Draft" },
   "input": {
     "placeholder": "Type a message…",
     "send": "Send",
@@ -167,6 +168,7 @@
     "dropHint": "Drop to send images or files"
   },
   "preview": {
+    "emoji": "[Emoji]",
     "image": "[Image]",
     "file": "[File]",
     "voice": "[Voice]",

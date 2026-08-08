@@ -12,6 +12,7 @@ import {
   RiArrowLeftLine,
   type RemixiconComponentType,
   RiMailSendLine,
+  RiEmotionHappyLine,
 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
@@ -100,6 +101,12 @@ const NAV: NavGroup[] = [
         to: '/bots',
         labelKey: 'shell.nav.bots',
         Icon: RiRobot2Line,
+        permission: 'org.bot.read',
+      },
+      {
+        to: '/emojis',
+        labelKey: 'shell.nav.emojis',
+        Icon: RiEmotionHappyLine,
         permission: 'org.bot.read',
       },
       {

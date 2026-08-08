@@ -4070,6 +4070,80 @@ class ImConversation(BaseModel):
         return f"ImConversation({self.cid}, {self.name or '—'})"
 
 
+class ImDraft(BaseModel):
+    """A user-scoped conversation draft shared by all signed-in clients."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="im_drafts")
+    cid = models.CharField(_("conversation id"), max_length=64)
+    text = models.TextField(_("text"), blank=True, default="", max_length=4000)
+    reply = models.JSONField(_("reply snapshot"), null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_im_draft"
+        ordering = ("-updated_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "cid"], name="one_im_draft_per_user_conversation"
+            )
+        ]
+
+    def __str__(self):
+        return f"ImDraft({self.user_id}, {self.cid})"
+
+
+class ImUserPreference(BaseModel):
+    """Small IM preferences that should follow a user across devices."""
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="im_preference"
+    )
+    recent_emojis = models.JSONField(_("recent emojis"), default=list, blank=True)
+
+    class Meta:
+        db_table = "meet_im_user_preference"
+
+    def __str__(self):
+        return f"ImUserPreference({self.user_id})"
+
+
+class OrganizationEmoji(BaseModel):
+    """Organization-managed emoji stored in the private chat image bucket."""
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="custom_emojis"
+    )
+    name = models.CharField(_("name"), max_length=32)
+    object_key = models.CharField(_("object key"), max_length=500, unique=True)
+    content_type = models.CharField(_("content type"), max_length=32)
+    byte_size = models.PositiveIntegerField(_("byte size"))
+    width = models.PositiveSmallIntegerField(_("width"))
+    height = models.PositiveSmallIntegerField(_("height"))
+    is_animated = models.BooleanField(_("animated"), default=False)
+    sort_order = models.PositiveIntegerField(_("sort order"), default=0)
+    is_active = models.BooleanField(_("active"), default=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="created_organization_emojis",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "meet_organization_emoji"
+        ordering = ("sort_order", "created_at")
+        constraints = [
+            models.UniqueConstraint(
+                models.functions.Lower("name"),
+                "organization",
+                name="organization_emoji_name_ci_unique",
+            )
+        ]
+
+    def __str__(self):
+        return f"OrganizationEmoji({self.organization_id}, {self.name})"
+
+
 class ImBotInstallation(BaseModel):
     """A bot's presence in one conversation, plus its webhook credential and the
     three security settings 飞书 offers (signature / keywords / IP allowlist).

@@ -23,6 +23,7 @@ import aiohttp
 import boto3
 import botocore
 import magic
+from PIL import Image
 from asgiref.sync import async_to_sync
 from livekit.api import (  # pylint: disable=E0611
     AccessToken,
@@ -736,6 +737,9 @@ ALLOWED_CHAT_IMAGE_MIME_TYPES = {
 
 # Every chat-image key starts with this prefix; resolve only signs these.
 CHAT_IMAGE_KEY_PREFIX = "chat/"
+CUSTOM_EMOJI_KEY_PREFIX = "emoji/"
+MAX_CUSTOM_EMOJI_SIZE = 2 * 1024 * 1024
+MAX_CUSTOM_EMOJI_DIMENSION = 512
 
 
 def build_chat_image_object_key(user_id, content_type: str) -> str:
@@ -774,6 +778,61 @@ def generate_chat_image_upload_url(*, user, content_type: str, size: int) -> dic
     }
 
 
+def generate_custom_emoji_upload_url(
+    *, organization_id, content_type: str, size: int
+) -> dict:
+    """Issue a presigned PUT for ``emoji/<org>/<uuid>.<ext>``."""
+    extension = ALLOWED_CHAT_IMAGE_MIME_TYPES[content_type]
+    object_key = f"{CUSTOM_EMOJI_KEY_PREFIX}{organization_id}/{uuid4().hex}.{extension}"
+    upload_url = _profile_s3_client().generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE,
+            "Key": object_key,
+            "ContentType": content_type,
+            "ContentLength": size,
+        },
+        ExpiresIn=PROFILE_UPLOAD_URL_TTL_SECONDS,
+        HttpMethod="PUT",
+    )
+    return {
+        "upload_url": upload_url,
+        "object_key": object_key,
+        "expires_in": PROFILE_UPLOAD_URL_TTL_SECONDS,
+        "headers": {"Content-Type": content_type},
+    }
+
+
+def inspect_custom_emoji_object(object_key: str) -> dict | None:
+    """Verify an uploaded emoji's actual format, dimensions and GIF state."""
+    try:
+        response = _profile_s3_client().get_object(
+            Bucket=settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE, Key=object_key
+        )
+        data = response["Body"].read(MAX_CUSTOM_EMOJI_SIZE + 1)
+        if not data or len(data) > MAX_CUSTOM_EMOJI_SIZE:
+            return None
+        image = Image.open(io.BytesIO(data))
+        image.verify()
+        image = Image.open(io.BytesIO(data))
+        actual_type = Image.MIME.get(image.format or "", "")
+        if actual_type not in ALLOWED_CHAT_IMAGE_MIME_TYPES:
+            return None
+        width, height = image.size
+        if width > MAX_CUSTOM_EMOJI_DIMENSION or height > MAX_CUSTOM_EMOJI_DIMENSION:
+            return None
+        return {
+            "content_type": actual_type,
+            "byte_size": len(data),
+            "width": width,
+            "height": height,
+            "is_animated": bool(getattr(image, "is_animated", False)),
+        }
+    except (botocore.exceptions.ClientError, OSError, ValueError, KeyError):
+        logger.info("custom emoji inspection failed for %s", object_key, exc_info=True)
+        return None
+
+
 # Chat file attachments live in their own bucket under this key prefix; the
 # prefix is how the resolve endpoint routes a key to the right bucket.
 CHAT_FILE_KEY_PREFIX = "file/"
@@ -786,6 +845,8 @@ CHAT_AUDIO_KEY_PREFIX = "audio/"
 def _chat_bucket_for_key(object_key: str) -> str | None:
     """Pick the storage bucket for a chat object key by its prefix, or None."""
     if object_key.startswith(CHAT_IMAGE_KEY_PREFIX):
+        return settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE
+    if object_key.startswith(CUSTOM_EMOJI_KEY_PREFIX):
         return settings.AWS_STORAGE_BUCKET_NAME_CHAT_IMAGE
     if object_key.startswith(CHAT_FILE_KEY_PREFIX):
         return settings.AWS_STORAGE_BUCKET_NAME_CHAT_FILE

@@ -156,6 +156,7 @@
     "pickPrompt": "从左侧选择一个会话开始聊天",
     "jumpToLatest": "跳至最新"
   },
+  "draft": { "label": "草稿" },
   "input": {
     "placeholder": "输入消息…",
     "send": "发送",
@@ -167,6 +168,7 @@
     "dropHint": "松开发送图片或文件"
   },
   "preview": {
+    "emoji": "[表情]",
     "meeting": "[会议]",
     "image": "[图片]",
     "file": "[文件]",
