@@ -419,7 +419,7 @@ export const MessageInput = ({
                         fontSize: '0.75rem',
                       })}
                     >
-                      /{command.aliases[command.aliases.length - 1]}
+                      /{command.shortcut}
                     </span>
                   </button>
                 </li>

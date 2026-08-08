@@ -10,12 +10,14 @@ export type ImCommandId =
   | 'document'
   | 'voice-call'
   | 'voice-meeting'
-  | 'meeting'
+  | 'video-call'
+  | 'video-meeting'
 
 export interface ImCommand {
   id: ImCommandId
   names: { zh: string; en: string; de?: string; fr?: string; nl?: string }
   aliases: string[]
+  shortcut: string
   icon: typeof RiCalendarScheduleLine
   conversations: Array<'direct' | 'group'>
   action: ImCommandId
@@ -27,6 +29,7 @@ export const IM_COMMANDS: ImCommand[] = [
     id: 'schedule',
     names: { zh: '日程', en: 'Schedule' },
     aliases: ['日程', 'schedule'],
+    shortcut: 'schedule',
     icon: RiCalendarScheduleLine,
     conversations: ['direct', 'group'],
     action: 'schedule',
@@ -36,6 +39,7 @@ export const IM_COMMANDS: ImCommand[] = [
     id: 'document',
     names: { zh: '文档', en: 'Document' },
     aliases: ['文档', 'doc'],
+    shortcut: 'doc',
     icon: RiFileTextLine,
     conversations: ['direct', 'group'],
     action: 'document',
@@ -52,12 +56,13 @@ export const IM_COMMANDS: ImCommand[] = [
     },
     aliases: [
       '语音通话',
-      'voice',
-      'call',
       'Sprachanruf',
       'Appel vocal',
       'Spraakoproep',
+      'call',
+      'voice',
     ],
+    shortcut: 'voice',
     icon: RiPhoneLine,
     conversations: ['direct'],
     action: 'voice-call',
@@ -74,24 +79,62 @@ export const IM_COMMANDS: ImCommand[] = [
     },
     aliases: [
       '语音会议',
-      'voice',
-      'call',
       'Audiokonferenz',
       'Réunion audio',
       'Audiovergadering',
+      'call',
+      'voice',
     ],
+    shortcut: 'voice',
     icon: RiPhoneLine,
     conversations: ['group'],
     action: 'voice-meeting',
     visibleAt: ['header', 'slash'],
   },
   {
-    id: 'meeting',
-    names: { zh: '会议', en: 'Meeting' },
-    aliases: ['会议', 'meeting'],
+    id: 'video-call',
+    names: {
+      zh: '视频通话',
+      en: 'Video call',
+      de: 'Videoanruf',
+      fr: 'Appel vidéo',
+      nl: 'Video-oproep',
+    },
+    aliases: [
+      '视频通话',
+      '会议',
+      'Videoanruf',
+      'Appel vidéo',
+      'Video-oproep',
+      'meeting',
+    ],
+    shortcut: 'meeting',
     icon: RiVidiconLine,
-    conversations: ['direct', 'group'],
-    action: 'meeting',
+    conversations: ['direct'],
+    action: 'video-call',
+    visibleAt: ['header', 'slash'],
+  },
+  {
+    id: 'video-meeting',
+    names: {
+      zh: '视频会议',
+      en: 'Video meeting',
+      de: 'Videokonferenz',
+      fr: 'Réunion vidéo',
+      nl: 'Videovergadering',
+    },
+    aliases: [
+      '视频会议',
+      '会议',
+      'Videokonferenz',
+      'Réunion vidéo',
+      'Videovergadering',
+      'meeting',
+    ],
+    shortcut: 'meeting',
+    icon: RiVidiconLine,
+    conversations: ['group'],
+    action: 'video-meeting',
     visibleAt: ['header', 'slash'],
   },
 ]

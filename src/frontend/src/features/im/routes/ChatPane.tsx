@@ -1674,8 +1674,9 @@ export const ChatPane = ({
                     roomName: t('call.roomName', { name: title }),
                     username: user?.full_name ?? '',
                   })
-                } else if (isGroup) setGroupCallMedia('video')
-                else if (peerUid) {
+                } else if (command === 'video-meeting')
+                  setGroupCallMedia('video')
+                else if (command === 'video-call' && peerUid) {
                   void startCall({
                     cid,
                     peerUid,
