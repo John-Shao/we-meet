@@ -1,4 +1,4 @@
-"""Cross-device IM drafts, emoji preferences and organization emoji APIs."""
+"""IM emoji preferences and organization emoji APIs."""
 
 from __future__ import annotations
 
@@ -12,65 +12,6 @@ from core import models, utils
 from core.api.admin_org import IsOrgAdmin
 from core.api.directory import get_caller_organization
 from core.api.validation import parse_boolean
-
-
-class DraftSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = models.ImDraft
-        fields = ("cid", "text", "reply", "updated_at")
-        read_only_fields = ("cid", "updated_at")
-
-    def validate_text(self, value):
-        if len(value) > 4000:
-            raise serializers.ValidationError("max 4000 Unicode characters")
-        return value
-
-    def validate_reply(self, value):
-        if value is None:
-            return None
-        if not isinstance(value, dict):
-            raise serializers.ValidationError("must be an object or null")
-        allowed = {"mid", "sender", "summary"}
-        if set(value) - allowed or not str(value.get("mid") or "").strip():
-            raise serializers.ValidationError("mid is required; only sender/summary are allowed")
-        return {
-            "mid": str(value["mid"])[:64],
-            "sender": str(value.get("sender") or "")[:128],
-            "summary": str(value.get("summary") or "")[:256],
-        }
-
-
-class ImDraftViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    lookup_value_regex = r"[^/]+"
-
-    def list(self, request):
-        drafts = models.ImDraft.objects.filter(user=request.user).exclude(
-            text="", reply__isnull=True
-        )
-        return Response(DraftSerializer(drafts, many=True).data)
-
-    def update(self, request, pk=None):
-        cid = str(pk or "").strip()
-        if not cid or len(cid) > 64:
-            raise ValidationError({"cid": "invalid conversation id"})
-        draft = models.ImDraft.objects.filter(user=request.user, cid=cid).first()
-        serializer = DraftSerializer(draft, data=request.data or {})
-        serializer.is_valid(raise_exception=True)
-        text = serializer.validated_data.get("text", "")
-        reply = serializer.validated_data.get("reply")
-        if not text and reply is None:
-            if draft:
-                draft.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        draft, _ = models.ImDraft.objects.update_or_create(
-            user=request.user, cid=cid, defaults={"text": text, "reply": reply}
-        )
-        return Response(DraftSerializer(draft).data)
-
-    def destroy(self, request, pk=None):
-        models.ImDraft.objects.filter(user=request.user, cid=pk).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def _serialize_emoji(item: models.OrganizationEmoji) -> dict:

@@ -57,7 +57,6 @@ from core.api.im import ImViewSet
 from core.api.im_input import (
     AdminImEmojiViewSet,
     ImCustomEmojiViewSet,
-    ImDraftViewSet,
     ImPreferenceView,
 )
 from core.api.meeting_rooms import (
@@ -111,7 +110,6 @@ router.register(
     basename="addons_sessions",
 )
 router.register("im", ImViewSet, basename="im")
-router.register("im/drafts", ImDraftViewSet, basename="im_drafts")
 router.register("im/custom-emojis", ImCustomEmojiViewSet, basename="im_custom_emojis")
 router.register("admin/im-emojis", AdminImEmojiViewSet, basename="admin_im_emojis")
 router.register("im/later", ImLaterViewSet, basename="im_later")

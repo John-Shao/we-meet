@@ -26,12 +26,9 @@ import { resolveChatImages } from '../api/resolveChatImages'
 import { uploadChatImage, ChatImageError } from '../api/uploadChatImage'
 import { uploadChatFile, ChatFileError } from '../api/uploadChatFile'
 import {
-  deleteDraft,
   fetchCustomEmojis,
-  fetchDrafts,
   fetchInputPreferences,
   readLocalDrafts,
-  saveDraft,
   saveRecentEmojis,
   writeLocalDraft,
   type RecentEmoji,
@@ -710,7 +707,6 @@ export const ChatPane = ({
   // content_type='quote'、body={reply_to:{sender,snippet}, text}。
   const [replyTo, setReplyTo] = useState<ReplyPreview | null>(null)
   const [draftText, setDraftText] = useState('')
-  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const draftTextRef = useRef('')
   const replyRef = useRef<ReplyPreview | null>(null)
 
@@ -726,72 +722,22 @@ export const ChatPane = ({
         }
       : null
     writeLocalDraft(currentUserUID, cid, nextText, snapshot)
-    if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
-    draftTimerRef.current = setTimeout(() => {
-      void saveDraft(cid, nextText, snapshot).catch(() => undefined)
-    }, 800)
   }
 
   useEffect(() => {
     const local = readLocalDrafts(currentUserUID)[cid]
-    if (local) {
-      draftTextRef.current = local.text
-      setDraftText(local.text)
-      const restored = local.reply
-        ? {
-            mid: local.reply.mid,
-            sender: local.reply.sender,
-            snippet: local.reply.summary,
-          }
-        : null
-      replyRef.current = restored
-      setReplyTo(restored)
-    }
-    const refresh = () => {
-      void fetchDrafts()
-        .then((drafts) => {
-          const cloud = drafts.find((item) => item.cid === cid)
-          const current = readLocalDrafts(currentUserUID)[cid]
-          if (
-            !cloud ||
-            (current &&
-              Date.parse(current.updated_at) > Date.parse(cloud.updated_at))
-          )
-            return
-          writeLocalDraft(currentUserUID, cid, cloud.text, cloud.reply)
-          draftTextRef.current = cloud.text
-          setDraftText(cloud.text)
-          const restored = cloud.reply
-            ? {
-                mid: cloud.reply.mid,
-                sender: cloud.reply.sender,
-                snippet: cloud.reply.summary,
-              }
-            : null
-          replyRef.current = restored
-          setReplyTo(restored)
-        })
-        .catch(() => undefined)
-    }
-    refresh()
-    const onFocus = () => refresh()
-    window.addEventListener('focus', onFocus)
-    return () => {
-      window.removeEventListener('focus', onFocus)
-      if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
-      const snapshot = replyRef.current
-        ? {
-            mid: replyRef.current.mid,
-            sender: replyRef.current.sender,
-            summary: replyRef.current.snippet,
-          }
-        : null
-      if (draftTextRef.current || snapshot) {
-        void saveDraft(cid, draftTextRef.current, snapshot).catch(
-          () => undefined
-        )
-      }
-    }
+    const text = local?.text ?? ''
+    draftTextRef.current = text
+    setDraftText(text)
+    const restored = local?.reply
+      ? {
+          mid: local.reply.mid,
+          sender: local.reply.sender,
+          snippet: local.reply.summary,
+        }
+      : null
+    replyRef.current = restored
+    setReplyTo(restored)
   }, [cid, currentUserUID])
   const senderDisplay = (m: Message): string =>
     m.sender_uid === currentUserUID
@@ -1236,7 +1182,6 @@ export const ChatPane = ({
     writeLocalDraft(currentUserUID, cid, '', null)
     draftTextRef.current = ''
     setDraftText('')
-    void deleteDraft(cid).catch(() => undefined)
   }
 
   return (

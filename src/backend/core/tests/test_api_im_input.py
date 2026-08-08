@@ -20,36 +20,6 @@ def _client(role=models.OrgRoleChoices.MEMBER):
     return client, user, organization
 
 
-def test_draft_crud_is_user_scoped():
-    client, user, _ = _client()
-    saved = client.put(
-        "/api/v1.0/im/drafts/c-1/",
-        {
-            "text": "跨端草稿",
-            "reply": {"mid": "9", "sender": "小李", "summary": "原消息"},
-        },
-        format="json",
-    )
-    assert saved.status_code == 200, saved.content
-    assert saved.json()["cid"] == "c-1"
-    assert models.ImDraft.objects.get(user=user, cid="c-1").text == "跨端草稿"
-
-    listed = client.get("/api/v1.0/im/drafts/")
-    assert listed.status_code == 200
-    assert [item["cid"] for item in listed.json()] == ["c-1"]
-
-    assert client.delete("/api/v1.0/im/drafts/c-1/").status_code == 204
-    assert not models.ImDraft.objects.filter(user=user).exists()
-
-
-def test_draft_rejects_over_4000_unicode_characters():
-    client, _, _ = _client()
-    response = client.put(
-        "/api/v1.0/im/drafts/c-1/", {"text": "好" * 4001, "reply": None}, format="json"
-    )
-    assert response.status_code == 400
-
-
 def test_recent_emoji_deduplicates_caps_and_filters_disabled_custom():
     client, user, organization = _client()
     active = models.OrganizationEmoji.objects.create(

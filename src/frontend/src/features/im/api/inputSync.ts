@@ -6,7 +6,7 @@ export interface DraftReply {
   summary: string
 }
 
-export interface ImDraft {
+export interface LocalDraft {
   cid: string
   text: string
   reply: DraftReply | null
@@ -31,7 +31,9 @@ export interface CustomEmoji {
 
 const storageKey = (userKey: string) => `im-input-v2:${userKey}`
 
-export const readLocalDrafts = (userKey: string): Record<string, ImDraft> => {
+export const readLocalDrafts = (
+  userKey: string
+): Record<string, LocalDraft> => {
   if (!userKey) return {}
   try {
     return JSON.parse(localStorage.getItem(storageKey(userKey)) || '{}')
@@ -52,17 +54,6 @@ export const writeLocalDraft = (
   localStorage.setItem(storageKey(userKey), JSON.stringify(all))
   window.dispatchEvent(new CustomEvent('im-draft-changed', { detail: { cid } }))
 }
-
-export const fetchDrafts = () => fetchApi<ImDraft[]>('/im/drafts/')
-
-export const saveDraft = (cid: string, text: string, reply: DraftReply | null) =>
-  fetchApi<ImDraft>(`/im/drafts/${encodeURIComponent(cid)}/`, {
-    method: 'PUT',
-    body: JSON.stringify({ text, reply }),
-  })
-
-export const deleteDraft = (cid: string) =>
-  fetchApi<void>(`/im/drafts/${encodeURIComponent(cid)}/`, { method: 'DELETE' })
 
 export const fetchInputPreferences = () =>
   fetchApi<{ recent_emojis: RecentEmoji[] }>('/im/preferences/')

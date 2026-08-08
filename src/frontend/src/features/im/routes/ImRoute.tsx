@@ -22,7 +22,7 @@ import { createDirectConversationByUserId } from '../api/createDirectConversatio
 import { createGroupConversation } from '../api/createGroupConversation'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { fetchImToken } from '../api/fetchImToken'
-import { fetchDrafts, readLocalDrafts, writeLocalDraft } from '../api/inputSync'
+import { readLocalDrafts } from '../api/inputSync'
 import { richTextPreview } from '../components/richText'
 import { richCardPreview, stripActions } from '../components/richCard'
 import { defuseMentions, mentionScan } from '../mentions'
@@ -73,34 +73,9 @@ const ImAuthenticated = () => {
   const [draftVersion, setDraftVersion] = useState(0)
   useEffect(() => {
     if (!currentUserUID) return
-    const refresh = () => {
-      void fetchDrafts()
-        .then((drafts) => {
-          const local = readLocalDrafts(currentUserUID)
-          for (const draft of drafts) {
-            if (
-              !local[draft.cid] ||
-              Date.parse(draft.updated_at) >=
-                Date.parse(local[draft.cid].updated_at)
-            ) {
-              writeLocalDraft(
-                currentUserUID,
-                draft.cid,
-                draft.text,
-                draft.reply
-              )
-            }
-          }
-          setDraftVersion((value) => value + 1)
-        })
-        .catch(() => undefined)
-    }
     const changed = () => setDraftVersion((value) => value + 1)
-    refresh()
-    window.addEventListener('focus', refresh)
     window.addEventListener('im-draft-changed', changed)
     return () => {
-      window.removeEventListener('focus', refresh)
       window.removeEventListener('im-draft-changed', changed)
     }
   }, [currentUserUID])

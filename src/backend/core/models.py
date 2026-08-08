@@ -4070,27 +4070,6 @@ class ImConversation(BaseModel):
         return f"ImConversation({self.cid}, {self.name or '—'})"
 
 
-class ImDraft(BaseModel):
-    """A user-scoped conversation draft shared by all signed-in clients."""
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="im_drafts")
-    cid = models.CharField(_("conversation id"), max_length=64)
-    text = models.TextField(_("text"), blank=True, default="", max_length=4000)
-    reply = models.JSONField(_("reply snapshot"), null=True, blank=True)
-
-    class Meta:
-        db_table = "meet_im_draft"
-        ordering = ("-updated_at",)
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "cid"], name="one_im_draft_per_user_conversation"
-            )
-        ]
-
-    def __str__(self):
-        return f"ImDraft({self.user_id}, {self.cid})"
-
-
 class ImUserPreference(BaseModel):
     """Small IM preferences that should follow a user across devices."""
 
