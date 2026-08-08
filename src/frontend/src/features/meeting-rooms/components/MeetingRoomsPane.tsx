@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 
 import type { RoomFilters } from '../api/ApiMeetingRoom'
+import type { MeetingRoomBrief } from '../api/ApiMeetingRoom'
 import { fetchMeetingRoomTimeline } from '../api/fetchMeetingRooms'
 import { dayWindow } from '../utils/timelineScale'
 import { MeetingRoomFilters } from './MeetingRoomFilters'
@@ -19,10 +20,12 @@ import { RoomTimeline } from './RoomTimeline'
  */
 export const MeetingRoomsPane = ({
   date,
+  selectedSlot,
   onSelectSlot,
 }: {
   date: Date
-  onSelectSlot?: (roomId: string, start: Date, end: Date) => void
+  selectedSlot?: { roomId: string; start: Date; end: Date } | null
+  onSelectSlot?: (room: MeetingRoomBrief, start: Date, end: Date) => void
 }) => {
   const { t } = useTranslation('meeting-rooms')
   const [filters, setFilters] = useState<RoomFilters>({})
@@ -53,7 +56,11 @@ export const MeetingRoomsPane = ({
       {isError ? (
         <div className={errorCls}>
           {t('pane.loadError')}
-          <button type="button" className={retryCls} onClick={() => void refetch()}>
+          <button
+            type="button"
+            className={retryCls}
+            onClick={() => void refetch()}
+          >
             {t('pane.retry')}
           </button>
         </div>
@@ -63,6 +70,7 @@ export const MeetingRoomsPane = ({
           dayStart={dayStart}
           dayEnd={dayEnd}
           isLoading={isFetching}
+          selectedSlot={selectedSlot}
           onSelectSlot={onSelectSlot}
         />
       )}

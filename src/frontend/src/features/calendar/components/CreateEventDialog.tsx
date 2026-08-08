@@ -31,6 +31,8 @@ interface Props {
   initialStart?: Date
   initialEnd?: Date
   initialAllDay?: boolean
+  /** Physical meeting room selected from the room timeline. */
+  initialMeetingRoom?: MeetingRoomBrief | null
   /** P8:预选参与者 id→label(IM 会话日历抽屉把会话成员带进来);仅创建态。 */
   initialSelected?: Map<string, string>
   /** P8:来源会话 cid —— 随创建落库,变更/取消时后端向该会话推卡片。 */
@@ -62,6 +64,7 @@ export const CreateEventDialog = ({
   initialStart,
   initialEnd,
   initialAllDay,
+  initialMeetingRoom,
   initialSelected,
   sourceConversationId,
   editEvent,
@@ -145,7 +148,7 @@ export const CreateEventDialog = ({
   // P9 会议室:编辑态从事件预填;`roomConflicted` 是客户端预判(服务端 409
   // 才是权威),用来提前禁用提交并就地解释原因。
   const [meetingRoom, setMeetingRoom] = useState<MeetingRoomBrief | null>(
-    editEvent?.meeting_room ?? null
+    editEvent?.meeting_room ?? initialMeetingRoom ?? null
   )
   const [roomConflicted, setRoomConflicted] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)

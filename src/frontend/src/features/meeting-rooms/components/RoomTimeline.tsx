@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 
-import type { RoomTimelineEntry } from '../api/ApiMeetingRoom'
+import type { MeetingRoomBrief, RoomTimelineEntry } from '../api/ApiMeetingRoom'
 import { useNowTick } from '../hooks/useNowTick'
 import { addMinutes, makeScale } from '../utils/timelineScale'
 
-/** Track pixels per hour. 24h × 64px = 1536px, so a day always scrolls. */
-const HOUR_WIDTH = 64
+/** Readable minimum; wider viewports distribute the 24 columns with 1fr. */
+const HOUR_WIDTH = 48
 /** Where the track scrolls to on mount — nobody books at 3am. */
 const INITIAL_HOUR = 8
 const LABEL_WIDTH_PX = 176
@@ -32,14 +32,16 @@ export const RoomTimeline = ({
   dayStart,
   dayEnd,
   isLoading,
+  selectedSlot,
   onSelectSlot,
 }: {
   rooms: RoomTimelineEntry[]
   dayStart: Date
   dayEnd: Date
   isLoading?: boolean
+  selectedSlot?: { roomId: string; start: Date; end: Date } | null
   /** Click an empty stretch → prefill a new event in that room and slot. */
-  onSelectSlot?: (roomId: string, start: Date, end: Date) => void
+  onSelectSlot?: (room: MeetingRoomBrief, start: Date, end: Date) => void
 }) => {
   const { t } = useTranslation('meeting-rooms')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -48,12 +50,9 @@ export const RoomTimeline = ({
   const isToday = new Date().toDateString() === dayStart.toDateString()
   const now = useNowTick(isToday)
   const scale = makeScale(dayStart, dayEnd)
-  // Keep 64px as the readable minimum, but distribute a wide viewport across
+  // Keep 48px as the readable minimum, but distribute a wide viewport across
   // the full 24-hour axis instead of leaving an empty strip on the right.
-  const trackWidth = Math.max(
-    HOUR_WIDTH * 24,
-    viewportWidth - LABEL_WIDTH_PX
-  )
+  const trackWidth = Math.max(HOUR_WIDTH * 24, viewportWidth - LABEL_WIDTH_PX)
 
   useLayoutEffect(() => {
     const node = scrollRef.current
@@ -76,18 +75,18 @@ export const RoomTimeline = ({
   }, [dayStart])
 
   const handleTrackClick = (
-    roomId: string,
+    room: RoomTimelineEntry,
     event: React.MouseEvent<HTMLDivElement>
   ) => {
     if (!onSelectSlot) return
     const bounds = event.currentTarget.getBoundingClientRect()
     const ratio = (event.clientX - bounds.left) / bounds.width
     const start = addMinutes(dayStart, scale.snap(scale.minuteAt(ratio)))
-    onSelectSlot(roomId, start, addMinutes(start, 60))
+    onSelectSlot(room, start, addMinutes(start, 60))
   }
 
   const handleTrackKeyDown = (
-    roomId: string,
+    room: RoomTimelineEntry,
     event: React.KeyboardEvent<HTMLDivElement>
   ) => {
     if (!onSelectSlot || (event.key !== 'Enter' && event.key !== ' ')) return
@@ -96,7 +95,7 @@ export const RoomTimeline = ({
       ? Math.ceil(scale.minuteAt(scale.pct(now) / 100) / 30) * 30
       : INITIAL_HOUR * 60
     const start = addMinutes(dayStart, Math.min(baseMinute, 23 * 60))
-    onSelectSlot(roomId, start, addMinutes(start, 60))
+    onSelectSlot(room, start, addMinutes(start, 60))
   }
 
   if (!isLoading && rooms.length === 0) {
@@ -116,7 +115,7 @@ export const RoomTimeline = ({
               <div
                 key={hour}
                 className={tickCls}
-                style={{ width: HOUR_WIDTH }}
+                style={{ width: `${100 / 24}%` }}
               >
                 {String(hour).padStart(2, '0')}:00
               </div>
@@ -135,7 +134,11 @@ export const RoomTimeline = ({
             />
           )}
           {rooms.map((room) => (
-            <div key={room.id} className={rowCls} data-testid={`mr-timeline-row-${room.id}`}>
+            <div
+              key={room.id}
+              className={rowCls}
+              data-testid={`mr-timeline-row-${room.id}`}
+            >
               <div className={labelCellCls} style={{ width: LABEL_WIDTH }}>
                 <span className={roomNameCls}>{room.name}</span>
                 <span className={roomMetaCls}>
@@ -147,8 +150,8 @@ export const RoomTimeline = ({
               <div
                 className={trackCls}
                 style={{ width: trackWidth }}
-                onClick={(e) => handleTrackClick(room.id, e)}
-                onKeyDown={(e) => handleTrackKeyDown(room.id, e)}
+                onClick={(e) => handleTrackClick(room, e)}
+                onKeyDown={(e) => handleTrackKeyDown(room, e)}
                 role={onSelectSlot ? 'button' : undefined}
                 tabIndex={onSelectSlot ? 0 : undefined}
                 aria-label={t('timeline.clickToBook', { room: room.name })}
@@ -157,9 +160,24 @@ export const RoomTimeline = ({
                   <div
                     key={hour}
                     className={gridLineCls}
-                    style={{ left: hour * HOUR_WIDTH }}
+                    style={{ left: `${(hour / 24) * 100}%` }}
                   />
                 ))}
+                {selectedSlot?.roomId === room.id && (
+                  <div
+                    data-testid="mr-timeline-draft"
+                    className={draftBlockCls}
+                    style={{
+                      left: `${scale.pct(selectedSlot.start)}%`,
+                      width: `${scale.widthPct(
+                        selectedSlot.start,
+                        selectedSlot.end
+                      )}%`,
+                    }}
+                  >
+                    {t('timeline.clickToBook', { room: room.name })}
+                  </div>
+                )}
                 {room.bookings.map((booking) => (
                   <div
                     key={booking.id}
@@ -294,6 +312,19 @@ const blockMineCls = css({
   backgroundColor: 'primary.500',
   color: 'white',
   _dark: { backgroundColor: 'primaryDark.500', color: 'greyscale.1000' },
+})
+const draftBlockCls = css({
+  ...blockBase,
+  backgroundColor: 'primary.100',
+  color: 'primary.700',
+  border: '1px solid token(colors.primary.500)',
+  pointerEvents: 'none',
+  zIndex: 1,
+  _dark: {
+    backgroundColor: 'primaryDark.100',
+    color: 'primaryDark.800',
+    borderColor: 'primaryDark.500',
+  },
 })
 const nowLineCls = css({
   position: 'absolute',

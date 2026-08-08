@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
-import { addMonths, addYears, endOfMonth, startOfDay, startOfMonth } from 'date-fns'
+import {
+  addMonths,
+  addYears,
+  endOfMonth,
+  startOfDay,
+  startOfMonth,
+} from 'date-fns'
 
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -31,6 +37,7 @@ import {
   type CalendarPageTab,
 } from '../components/CalendarPageTabs'
 import { MeetingRoomsPane } from '@/features/meeting-rooms'
+import type { MeetingRoomBrief } from '@/features/meeting-rooms'
 import type { View } from 'react-big-calendar'
 import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EditScopeDialog } from '../components/EditScopeDialog'
@@ -73,6 +80,11 @@ const CalendarAuthenticated = () => {
     () => localStorage.getItem('we-meet:calendar-sidebar-collapsed') === '1'
   )
   const [draft, setDraft] = useState<SlotDraft | null>(null)
+  const [meetingRoomDraft, setMeetingRoomDraft] = useState<{
+    room: MeetingRoomBrief
+    start: Date
+    end: Date
+  } | null>(null)
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
   // 分享日程到聊天:与详情弹窗并列(而非嵌套),避免弹窗套弹窗。
   const [sharingEvent, setSharingEvent] = useState<CalendarEvent | null>(null)
@@ -109,6 +121,7 @@ const CalendarAuthenticated = () => {
   )
 
   const openCreate = (slot: SlotDraft | null) => {
+    if (!slot) setMeetingRoomDraft(null)
     setDraft(slot)
     setCreating(true)
   }
@@ -137,6 +150,9 @@ const CalendarAuthenticated = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, view])
 
+  useEffect(() => {
+    setMeetingRoomDraft(null)
+  }, [date, tab])
 
   const changeTab = (next: CalendarPageTab) => {
     setTab(next)
@@ -149,6 +165,7 @@ const CalendarAuthenticated = () => {
   const closeCreate = () => {
     setCreating(false)
     setDraft(null)
+    setMeetingRoomDraft(null)
   }
 
   // 网格 + 迷你历:聚焦月份 ±1 个月窗口(覆盖月视图 6 周 + 迷你历翻页缓冲);
@@ -345,9 +362,7 @@ const CalendarAuthenticated = () => {
             <button
               type="button"
               onClick={toggleSidebar}
-              title={t(
-                sidebarCollapsed ? 'shell:expand' : 'shell:collapse'
-              )}
+              title={t(sidebarCollapsed ? 'shell:expand' : 'shell:collapse')}
               aria-label={t(
                 sidebarCollapsed ? 'shell:expand' : 'shell:collapse'
               )}
@@ -422,9 +437,32 @@ const CalendarAuthenticated = () => {
           {tab === 'meetingRooms' ? (
             <MeetingRoomsPane
               date={date}
-              onSelectSlot={(_roomId, slotStart, slotEnd) =>
-                openCreate({ start: slotStart, end: slotEnd, allDay: false })
+              selectedSlot={
+                meetingRoomDraft
+                  ? {
+                      roomId: meetingRoomDraft.room.id,
+                      start: meetingRoomDraft.start,
+                      end: meetingRoomDraft.end,
+                    }
+                  : null
               }
+              onSelectSlot={(room, slotStart, slotEnd) => {
+                const confirmed =
+                  meetingRoomDraft?.room.id === room.id &&
+                  slotStart >= meetingRoomDraft.start &&
+                  slotStart < meetingRoomDraft.end
+                setMeetingRoomDraft({
+                  room,
+                  start: slotStart,
+                  end: slotEnd,
+                })
+                setDraft({
+                  start: slotStart,
+                  end: slotEnd,
+                  allDay: false,
+                })
+                if (confirmed) setCreating(true)
+              }}
             />
           ) : isLoading ? (
             <StateHint loading>{t('page.loading')}</StateHint>
@@ -494,6 +532,7 @@ const CalendarAuthenticated = () => {
           initialStart={draft?.start}
           initialEnd={draft?.end}
           initialAllDay={draft?.allDay}
+          initialMeetingRoom={meetingRoomDraft?.room}
           onClose={closeCreate}
           onCreated={() => {
             closeCreate()
