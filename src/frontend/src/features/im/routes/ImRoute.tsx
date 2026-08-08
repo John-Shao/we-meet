@@ -74,15 +74,26 @@ const ImAuthenticated = () => {
   useEffect(() => {
     if (!currentUserUID) return
     const refresh = () => {
-      void fetchDrafts().then((drafts) => {
-        const local = readLocalDrafts(currentUserUID)
-        for (const draft of drafts) {
-          if (!local[draft.cid] || Date.parse(draft.updated_at) >= Date.parse(local[draft.cid].updated_at)) {
-            writeLocalDraft(currentUserUID, draft.cid, draft.text, draft.reply)
+      void fetchDrafts()
+        .then((drafts) => {
+          const local = readLocalDrafts(currentUserUID)
+          for (const draft of drafts) {
+            if (
+              !local[draft.cid] ||
+              Date.parse(draft.updated_at) >=
+                Date.parse(local[draft.cid].updated_at)
+            ) {
+              writeLocalDraft(
+                currentUserUID,
+                draft.cid,
+                draft.text,
+                draft.reply
+              )
+            }
           }
-        }
-        setDraftVersion((value) => value + 1)
-      }).catch(() => undefined)
+          setDraftVersion((value) => value + 1)
+        })
+        .catch(() => undefined)
     }
     const changed = () => setDraftVersion((value) => value + 1)
     refresh()
@@ -394,19 +405,19 @@ const ImAuthenticated = () => {
                       ? t('preview.phoneViewed')
                       : ct === 'meeting-card'
                         ? t('preview.meeting')
-                      : ct === 'event-card'
-                        ? t('preview.event')
-                        : ct === 'doc-card'
-                          ? t('preview.doc')
-                          : ct === 'rich-text'
-                            ? richTextPreview(c.last_message ?? '') ||
-                              t('preview.richText')
-                          : ct === 'rich-card'
-                            ? richCardPreview(c.last_message ?? '') ||
-                              t('preview.richCard')
-                          : ct === 'quote'
-                            ? parseQuoteText(c.last_message)
-                            : (c.last_message ?? '')
+                        : ct === 'event-card'
+                          ? t('preview.event')
+                          : ct === 'doc-card'
+                            ? t('preview.doc')
+                            : ct === 'rich-text'
+                              ? richTextPreview(c.last_message ?? '') ||
+                                t('preview.richText')
+                              : ct === 'rich-card'
+                                ? richCardPreview(c.last_message ?? '') ||
+                                  t('preview.richCard')
+                                : ct === 'quote'
+                                  ? parseQuoteText(c.last_message)
+                                  : (c.last_message ?? '')
     const ts = c.last_message_ts
     if (c.type !== 'group' || c.last_content_type === 'system') {
       return { text: body, ts }
@@ -548,7 +559,7 @@ const ImAuthenticated = () => {
       await client.sendText(
         targetCid,
         defuseMentions(m.content_type, stripActions(m.body)),
-        { contentType: m.content_type },
+        { contentType: m.content_type }
       )
     } else if (m.content_type === 'quote') {
       let text = m.body
@@ -916,6 +927,7 @@ const ImAuthenticated = () => {
                           setRightPanel(null)
                           setSelectedCID(null)
                         }}
+                        onOpenCalendar={() => setRightPanel('calendar')}
                         onClose={() => setRightPanel(null)}
                       />
                     ) : (

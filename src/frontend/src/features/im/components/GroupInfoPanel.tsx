@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
+import { RiCalendarScheduleLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
@@ -28,6 +29,8 @@ interface Props {
   onAddMembers: () => void
   /** Called after the caller leaves the group (clears the open conversation). */
   onLeft: () => void
+  /** Opens the existing group members' calendar panel. */
+  onOpenCalendar: () => void
   onClose: () => void
 }
 
@@ -62,6 +65,7 @@ export const GroupInfoPanel = ({
   currentUserUID,
   onAddMembers,
   onLeft,
+  onOpenCalendar,
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
@@ -349,281 +353,332 @@ export const GroupInfoPanel = ({
       }
     >
       {/* Group identity: avatar + name (owner can rename inline) */}
-        <div
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            padding: '1rem',
-            borderBottom: '1px solid token(colors.greyscale.100)',
-          })}
-        >
-          <GroupAvatar members={avatarTiles} size="2.75rem" />
-          {editingName ? (
-            <div className={css({ display: 'flex', flex: 1, gap: '0.5rem' })}>
-              <input
-                ref={nameRef}
-                type="text"
-                value={nameDraft}
-                maxLength={60}
-                onChange={(e) => setNameDraft(e.target.value)}
-                placeholder={t('manage.renamePlaceholder')}
-                data-testid="group-rename-input"
-                className={inputCls}
-              />
-              <Button
-                variant="primary"
-                size="dense"
-                isDisabled={busy}
-                onPress={saveName}
-                data-testid="group-rename-save"
-              >
-                {t('manage.save')}
-              </Button>
-            </div>
-          ) : (
-            <div
+      <div
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          padding: '1rem',
+          borderBottom: '1px solid token(colors.greyscale.100)',
+        })}
+      >
+        <GroupAvatar members={avatarTiles} size="2.75rem" />
+        {editingName ? (
+          <div className={css({ display: 'flex', flex: 1, gap: '0.5rem' })}>
+            <input
+              ref={nameRef}
+              type="text"
+              value={nameDraft}
+              maxLength={60}
+              onChange={(e) => setNameDraft(e.target.value)}
+              placeholder={t('manage.renamePlaceholder')}
+              data-testid="group-rename-input"
+              className={inputCls}
+            />
+            <Button
+              variant="primary"
+              size="dense"
+              isDisabled={busy}
+              onPress={saveName}
+              data-testid="group-rename-save"
+            >
+              {t('manage.save')}
+            </Button>
+          </div>
+        ) : (
+          <div
+            className={css({
+              display: 'flex',
+              flex: 1,
+              minWidth: 0,
+              alignItems: 'center',
+              gap: '0.5rem',
+            })}
+          >
+            <span
               className={css({
-                display: 'flex',
                 flex: 1,
                 minWidth: 0,
-                alignItems: 'center',
-                gap: '0.5rem',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontWeight: 'medium',
+                color: 'greyscale.900',
               })}
             >
-              <span
-                className={css({
-                  flex: 1,
-                  minWidth: 0,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  fontWeight: 'medium',
-                  color: 'greyscale.900',
-                })}
-              >
-                {displayName}
-              </span>
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNameDraft(conversation.name || '')
-                    setEditingName(true)
-                  }}
-                  title={t('manage.rename')}
-                  aria-label={t('manage.rename')}
-                  data-testid="group-rename"
-                  className={editBtn}
-                >
-                  ✎
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Group description (owner edits; everyone reads) */}
-        <div className={sectionCls}>
-          <div className={sectionHead}>
-            <span className={sectionLabel}>{t('manage.description')}</span>
-            {isOwner && !editingDesc && (
+              {displayName}
+            </span>
+            {isOwner && (
               <button
                 type="button"
                 onClick={() => {
-                  setDescDraft(description)
-                  setEditingDesc(true)
+                  setNameDraft(conversation.name || '')
+                  setEditingName(true)
                 }}
-                aria-label={t('manage.description')}
-                data-testid="group-desc-edit"
+                title={t('manage.rename')}
+                aria-label={t('manage.rename')}
+                data-testid="group-rename"
                 className={editBtn}
               >
                 ✎
               </button>
             )}
           </div>
-          {editingDesc ? (
-            <div
-              className={css({
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-              })}
+        )}
+      </div>
+
+      {/* Group announcement (stored in the shared description field). */}
+      <div className={sectionCls}>
+        <div className={sectionHead}>
+          <span className={sectionLabel}>{t('manage.description')}</span>
+          {isOwner && !editingDesc && (
+            <button
+              type="button"
+              onClick={() => {
+                setDescDraft(description)
+                setEditingDesc(true)
+              }}
+              aria-label={t('manage.description')}
+              data-testid="group-desc-edit"
+              className={editBtn}
             >
-              <textarea
-                ref={descRef}
-                value={descDraft}
-                maxLength={200}
-                rows={3}
-                onChange={(e) => setDescDraft(e.target.value)}
-                placeholder={t('manage.descriptionPlaceholder')}
-                data-testid="group-desc-input"
-                className={css({
-                  width: '100%',
-                  resize: 'none',
-                  paddingX: '0.625rem',
-                  paddingY: '0.375rem',
-                  border: '1px solid token(colors.greyscale.300)',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem',
-                  outline: 'none',
-                  _focus: { borderColor: 'primary.500' },
-                })}
-              />
-              <div className={editActions}>
-                <Button
-                  variant="secondary"
-                  size="dense"
-                  onPress={() => setEditingDesc(false)}
-                >
-                  {t('manage.cancel')}
-                </Button>
-                <Button
-                  variant="primary"
-                  size="dense"
-                  isDisabled={busy}
-                  onPress={saveDescription}
-                  data-testid="group-desc-save"
-                >
-                  {t('manage.save')}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <p
+              ✎
+            </button>
+          )}
+        </div>
+        {editingDesc ? (
+          <div
+            className={css({
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+            })}
+          >
+            <textarea
+              ref={descRef}
+              value={descDraft}
+              maxLength={200}
+              rows={3}
+              onChange={(e) => setDescDraft(e.target.value)}
+              placeholder={t('manage.descriptionPlaceholder')}
+              data-testid="group-desc-input"
               className={css({
-                margin: 0,
+                width: '100%',
+                resize: 'none',
+                paddingX: '0.625rem',
+                paddingY: '0.375rem',
+                border: '1px solid token(colors.greyscale.300)',
+                borderRadius: '0.5rem',
                 fontSize: '0.875rem',
-                lineHeight: 1.5,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                color: description ? 'greyscale.800' : 'greyscale.400',
+                outline: 'none',
+                _focus: { borderColor: 'primary.500' },
               })}
-            >
-              {description || t('manage.descriptionEmpty')}
-            </p>
-          )}
-        </div>
-
-        {/* My group nickname (every member edits their own) */}
-        <div className={sectionCls}>
-          <div className={sectionHead}>
-            <span className={sectionLabel}>{t('manage.nickname')}</span>
-            {!editingNick && (
-              <button
-                type="button"
-                onClick={() => {
-                  setNickDraft(myNickname)
-                  setEditingNick(true)
-                }}
-                aria-label={t('manage.nickname')}
-                data-testid="group-nick-edit"
-                className={editBtn}
+            />
+            <div className={editActions}>
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => setEditingDesc(false)}
               >
-                ✎
-              </button>
-            )}
-          </div>
-          {editingNick ? (
-            <div className={css({ display: 'flex', gap: '0.5rem' })}>
-              <input
-                ref={nickRef}
-                type="text"
-                value={nickDraft}
-                maxLength={60}
-                onChange={(e) => setNickDraft(e.target.value)}
-                placeholder={t('manage.nicknamePlaceholder')}
-                data-testid="group-nick-input"
-                className={inputCls}
-              />
+                {t('manage.cancel')}
+              </Button>
               <Button
                 variant="primary"
                 size="dense"
                 isDisabled={busy}
-                onPress={saveNickname}
-                data-testid="group-nick-save"
+                onPress={saveDescription}
+                data-testid="group-desc-save"
               >
                 {t('manage.save')}
               </Button>
             </div>
-          ) : (
-            <p
-              className={css({
-                margin: 0,
-                fontSize: '0.875rem',
-                color: myNickname ? 'greyscale.800' : 'greyscale.400',
-              })}
+          </div>
+        ) : (
+          <p
+            className={css({
+              margin: 0,
+              fontSize: '0.875rem',
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              color: description ? 'greyscale.800' : 'greyscale.400',
+            })}
+          >
+            {description || t('manage.descriptionEmpty')}
+          </p>
+        )}
+      </div>
+
+      {/* My group nickname (every member edits their own) */}
+      <div className={sectionCls}>
+        <div className={sectionHead}>
+          <span className={sectionLabel}>{t('manage.nickname')}</span>
+          {!editingNick && (
+            <button
+              type="button"
+              onClick={() => {
+                setNickDraft(myNickname)
+                setEditingNick(true)
+              }}
+              aria-label={t('manage.nickname')}
+              data-testid="group-nick-edit"
+              className={editBtn}
             >
-              {myNickname || t('manage.nicknameEmpty')}
-            </p>
+              ✎
+            </button>
           )}
         </div>
+        {editingNick ? (
+          <div className={css({ display: 'flex', gap: '0.5rem' })}>
+            <input
+              ref={nickRef}
+              type="text"
+              value={nickDraft}
+              maxLength={60}
+              onChange={(e) => setNickDraft(e.target.value)}
+              placeholder={t('manage.nicknamePlaceholder')}
+              data-testid="group-nick-input"
+              className={inputCls}
+            />
+            <Button
+              variant="primary"
+              size="dense"
+              isDisabled={busy}
+              onPress={saveNickname}
+              data-testid="group-nick-save"
+            >
+              {t('manage.save')}
+            </Button>
+          </div>
+        ) : (
+          <p
+            className={css({
+              margin: 0,
+              fontSize: '0.875rem',
+              color: myNickname ? 'greyscale.800' : 'greyscale.400',
+            })}
+          >
+            {myNickname || t('manage.nicknameEmpty')}
+          </p>
+        )}
+      </div>
 
-        {/* Private toggles (P10) */}
-        <SwitchRow
-          label={t('manage.pin')}
-          checked={pinned}
-          onChange={() => toggle({ pinned: !pinned })}
-          disabled={busy}
-          testid="group-pin-toggle"
-        />
-        <SwitchRow
-          label={t('manage.mute')}
-          checked={muted}
-          onChange={() => toggle({ muted: !muted })}
-          disabled={busy}
-          testid="group-mute-toggle"
-        />
-        <SwitchRow
-          label={t('manage.muteAtAll')}
-          checked={muteAtAll}
-          onChange={() => toggle({ mute_at_all: !muteAtAll })}
-          disabled={busy}
-          testid="group-mute-all-toggle"
-        />
-
-        {/* 群成员 —— 放在机器人**上面**:人优先于工具。计数用
-            `conversation.members` 而不是花名册,省掉 root 对 roster 长度的
-            依赖(jusi P23 已把机器人排除在 members 之外,与 listMembers 同值)。 */}
-        <SettingRow
-          label={t('manage.members')}
-          value={String(conversation.members.length)}
-          onClick={() => setView({ name: 'members' })}
-          testid="group-members-entry"
-        />
-
-        {/* 群机器人 —— a management entry (add / configure / read credentials),
-            so it opens a sub-page rather than sitting inline the way the roster
-            does (对标飞书). */}
-        <SettingRow
-          label={t('bots.entry')}
-          // 没拿到之前不显示 —— 先写 0 再跳成 2,看着像刚被人加了一个。
-          value={bots ? String(bots.length) : undefined}
-          onClick={() => setView({ name: 'bots' })}
-          testid="group-bots-entry"
-        />
-
-        {/* Clear history (per-member) */}
+      {/* Group apps: keep the desktop entry in the same information hierarchy
+            as Android while opening the existing right-side calendar panel. */}
+      <section
+        className={css({
+          padding: '0.875rem 1rem',
+          borderBottom: '1px solid token(colors.greyscale.100)',
+        })}
+      >
+        <div className={css({ marginBottom: '0.75rem' })}>
+          <span className={sectionLabel}>{t('manage.apps')}</span>
+        </div>
         <button
           type="button"
-          disabled={busy}
-          onClick={clearHistory}
-          data-testid="group-clear"
+          onClick={onOpenCalendar}
+          data-testid="group-calendar-entry"
+          aria-label={t('calendar.groupOpen')}
           className={css({
-            width: '100%',
-            textAlign: 'left',
-            padding: '0.625rem 1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.375rem',
+            width: '5rem',
+            padding: '0.625rem 0.375rem',
             border: 'none',
-            borderTop: '1px solid token(colors.greyscale.100)',
-            backgroundColor: 'greyscale.000',
+            borderRadius: '0.625rem',
+            backgroundColor: 'transparent',
             color: 'greyscale.900',
-            fontSize: '0.875rem',
+            fontSize: '0.8125rem',
             cursor: 'pointer',
             _hover: { backgroundColor: 'greyscale.50' },
           })}
         >
-          {t('manage.clear')}
+          <span
+            className={css({
+              display: 'grid',
+              placeItems: 'center',
+              width: '2.75rem',
+              height: '2.75rem',
+              borderRadius: '0.625rem',
+              backgroundColor: 'primary.100',
+              color: 'primary.600',
+            })}
+          >
+            <RiCalendarScheduleLine size={24} />
+          </span>
+          <span className={css({ whiteSpace: 'nowrap' })}>
+            {t('calendar.groupOpen')}
+          </span>
         </button>
+      </section>
+
+      {/* 群成员 —— 放在机器人**上面**:人优先于工具。计数用
+            `conversation.members` 而不是花名册,省掉 root 对 roster 长度的
+            依赖(jusi P23 已把机器人排除在 members 之外,与 listMembers 同值)。 */}
+      <SettingRow
+        label={t('manage.members')}
+        value={String(conversation.members.length)}
+        onClick={() => setView({ name: 'members' })}
+        testid="group-members-entry"
+      />
+
+      {/* 群机器人 —— a management entry (add / configure / read credentials),
+            so it opens a sub-page rather than sitting inline the way the roster
+            does (对标飞书). */}
+      <SettingRow
+        label={t('bots.entry')}
+        // 没拿到之前不显示 —— 先写 0 再跳成 2,看着像刚被人加了一个。
+        value={bots ? String(bots.length) : undefined}
+        onClick={() => setView({ name: 'bots' })}
+        testid="group-bots-entry"
+      />
+
+      {/* Private notification settings (P10). */}
+      <SwitchRow
+        label={t('manage.pin')}
+        checked={pinned}
+        onChange={() => toggle({ pinned: !pinned })}
+        disabled={busy}
+        testid="group-pin-toggle"
+      />
+      <SwitchRow
+        label={t('manage.mute')}
+        checked={muted}
+        onChange={() => toggle({ muted: !muted })}
+        disabled={busy}
+        testid="group-mute-toggle"
+      />
+      <SwitchRow
+        label={t('manage.muteAtAll')}
+        checked={muteAtAll}
+        onChange={() => toggle({ mute_at_all: !muteAtAll })}
+        disabled={busy}
+        testid="group-mute-all-toggle"
+      />
+
+      {/* Clear history (per-member) */}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={clearHistory}
+        data-testid="group-clear"
+        className={css({
+          width: '100%',
+          textAlign: 'left',
+          padding: '0.625rem 1rem',
+          border: 'none',
+          borderTop: '1px solid token(colors.greyscale.100)',
+          backgroundColor: 'greyscale.000',
+          color: 'greyscale.900',
+          fontSize: '0.875rem',
+          cursor: 'pointer',
+          _hover: { backgroundColor: 'greyscale.50' },
+        })}
+      >
+        {t('manage.clear')}
+      </button>
     </PanelFrame>
   )
 }
