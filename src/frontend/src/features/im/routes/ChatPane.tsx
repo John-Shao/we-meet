@@ -3,11 +3,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
-import {
-  RiCalendarScheduleLine,
-  RiPhoneLine,
-  RiVidiconLine,
-} from '@remixicon/react'
+import { RiPhoneLine, RiVidiconLine } from '@remixicon/react'
 import type { Client, ConversationSummary, Message } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
@@ -1314,19 +1310,6 @@ export const ChatPane = ({
             <RiVidiconLine size={16} />
           </button>
         )}
-        {/* P8 群成员日历:侧边抽屉看全员忙闲 + 拖时段建日程。 */}
-        {isGroup && onOpenCalendar && (
-          <button
-            type="button"
-            onClick={onOpenCalendar}
-            title={t('calendar.groupOpen')}
-            aria-label={t('calendar.groupOpen')}
-            data-testid="chat-calendar"
-            className={headerBtn}
-          >
-            <RiCalendarScheduleLine size={16} />
-          </button>
-        )}
         {isGroup && onAddMembers && (
           <button
             type="button"
@@ -1400,19 +1383,6 @@ export const ChatPane = ({
               <RiVidiconLine size={16} />
             </button>
           </>
-        )}
-        {/* P8 查看日历:双方忙闲对比 + 拖时段建日程(对标飞书)。 */}
-        {!isGroup && onOpenCalendar && (
-          <button
-            type="button"
-            onClick={onOpenCalendar}
-            title={t('calendar.open')}
-            aria-label={t('calendar.open')}
-            data-testid="chat-calendar"
-            className={headerBtn}
-          >
-            <RiCalendarScheduleLine size={16} />
-          </button>
         )}
         {!isGroup && onOpenSettings && (
           <button
