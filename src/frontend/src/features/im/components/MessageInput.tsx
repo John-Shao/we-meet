@@ -94,6 +94,7 @@ export const MessageInput = ({
   const fileRef = useRef<HTMLInputElement>(null)
   const attachRef = useRef<HTMLInputElement>(null)
   const emojiRef = useRef<HTMLDivElement>(null)
+  const moreRef = useRef<HTMLDivElement>(null)
   const dragDepthRef = useRef(0)
 
   useEffect(() => {
@@ -145,6 +146,24 @@ export const MessageInput = ({
     return () => window.removeEventListener('mousedown', close)
   }, [showEmojiPicker])
 
+  // The desktop "+" menu behaves like a popover: outside click and Escape
+  // both dismiss it, while interactions inside (including file inputs) remain intact.
+  useEffect(() => {
+    if (!showMore) return
+    const closeOnOutside = (event: MouseEvent) => {
+      if (!moreRef.current?.contains(event.target as Node)) setShowMore(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowMore(false)
+    }
+    window.addEventListener('mousedown', closeOnOutside)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      window.removeEventListener('mousedown', closeOnOutside)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [showMore])
+
   const insertEmoji = (emoji: string) => {
     const input = inputRef.current
     const start = input?.selectionStart ?? text.length
@@ -163,6 +182,7 @@ export const MessageInput = ({
 
   const commands = matchCommands(text, conversationType)
   const executeCommand = (id: ImCommandId) => {
+    setShowMore(false)
     setText('')
     onDraftChange?.('')
     setCommandIndex(0)
@@ -342,11 +362,19 @@ export const MessageInput = ({
         {commands.length > 0 && (
           <ul
             className={css({
-              position: 'absolute', bottom: '100%', left: '0.75rem',
-              marginBottom: '0.25rem', minWidth: '14rem', listStyle: 'none',
-              margin: 0, padding: '0.25rem', backgroundColor: 'greyscale.000',
-              border: '1px solid token(colors.greyscale.200)', borderRadius: '0.5rem',
-              boxShadow: 'overlay', zIndex: 'docked',
+              position: 'absolute',
+              bottom: '100%',
+              left: '0.75rem',
+              marginBottom: '0.25rem',
+              minWidth: '14rem',
+              listStyle: 'none',
+              margin: 0,
+              padding: '0.25rem',
+              backgroundColor: 'greyscale.000',
+              border: '1px solid token(colors.greyscale.200)',
+              borderRadius: '0.5rem',
+              boxShadow: 'overlay',
+              zIndex: 'docked',
             })}
             data-testid="im-command-menu"
           >
@@ -356,17 +384,39 @@ export const MessageInput = ({
                 <li key={command.id}>
                   <button
                     type="button"
-                    onMouseDown={(event) => { event.preventDefault(); executeCommand(command.id) }}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      executeCommand(command.id)
+                    }}
                     className={css({
-                      display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%',
-                      padding: '0.5rem', border: 'none', borderRadius: '0.375rem',
-                      backgroundColor: index === commandIndex ? 'greyscale.100' : 'transparent',
-                      cursor: 'pointer', textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: 'none',
+                      borderRadius: '0.375rem',
+                      backgroundColor:
+                        index === commandIndex
+                          ? 'greyscale.100'
+                          : 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
                     })}
                   >
                     <Icon size={18} />
-                    <span>{i18n.language.startsWith('zh') ? command.names.zh : command.names.en}</span>
-                    <span className={css({ marginLeft: 'auto', color: 'greyscale.500', fontSize: '0.75rem' })}>
+                    <span>
+                      {i18n.language.startsWith('zh')
+                        ? command.names.zh
+                        : command.names.en}
+                    </span>
+                    <span
+                      className={css({
+                        marginLeft: 'auto',
+                        color: 'greyscale.500',
+                        fontSize: '0.75rem',
+                      })}
+                    >
                       /{command.aliases[command.aliases.length - 1]}
                     </span>
                   </button>
@@ -426,137 +476,197 @@ export const MessageInput = ({
             ))}
           </ul>
         )}
-        <div className={css({ position: 'relative', flexShrink: 0 })}>
+        {onSendImage && (
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            multiple
+            onChange={onPickImage}
+            className={css({ display: 'none' })}
+            data-testid="im-image-input"
+          />
+        )}
+        {onSendFile && (
+          <input
+            ref={attachRef}
+            type="file"
+            onChange={onPickAttachment}
+            className={css({ display: 'none' })}
+            data-testid="im-file-input"
+          />
+        )}
+        <div
+          ref={moreRef}
+          className={css({ position: 'relative', flexShrink: 0 })}
+        >
           <button
             type="button"
-            onClick={() => setShowMore((open) => !open)}
+            onClick={() => {
+              setShowEmojiPicker(false)
+              setShowMore((open) => !open)
+            }}
             aria-label={t('input.more', { defaultValue: '更多' })}
+            aria-expanded={showMore}
+            aria-haspopup="menu"
             data-testid="im-more-btn"
             className={css({
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '2.375rem', height: '100%', border: '1px solid token(colors.greyscale.300)',
-              borderRadius: '0.5rem', backgroundColor: 'greyscale.000', color: 'primary.600', cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '2.375rem',
+              height: '100%',
+              border: '1px solid token(colors.greyscale.300)',
+              borderRadius: '0.5rem',
+              backgroundColor: 'greyscale.000',
+              color: 'primary.600',
+              cursor: 'pointer',
             })}
           >
             <RiAddLine size={20} />
           </button>
           {showMore && (
-            <div className={css({
-              position: 'absolute', bottom: 'calc(100% + 0.5rem)', left: 0,
-              display: 'flex', gap: '0.5rem', padding: '0.5rem', zIndex: 'popover',
-              border: '1px solid token(colors.greyscale.200)', borderRadius: '0.5rem',
-              backgroundColor: 'greyscale.000', boxShadow: 'overlay',
-            })}>
-        {onSendImage && (
-          <>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              multiple
-              onChange={onPickImage}
-              className={css({ display: 'none' })}
-              data-testid="im-image-input"
-            />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={disabled || uploading}
-              aria-label={t('input.image')}
-              title={t('input.image')}
-              data-testid="im-image-btn"
+            <div
+              role="menu"
+              aria-label={t('input.more', { defaultValue: '更多' })}
+              data-testid="im-more-menu"
               className={css({
-                flexShrink: 0,
+                position: 'absolute',
+                bottom: 'calc(100% + 0.5rem)',
+                left: 0,
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '2.375rem',
-                border: '1px solid token(colors.greyscale.300)',
-                borderRadius: '0.5rem',
+                flexDirection: 'column',
+                minWidth: '11rem',
+                padding: '0.375rem',
+                zIndex: 'popover',
+                border: '1px solid token(colors.greyscale.200)',
+                borderRadius: '0.625rem',
                 backgroundColor: 'greyscale.000',
-                color: 'greyscale.600',
-                cursor: 'pointer',
-                _hover: { backgroundColor: 'greyscale.100' },
-                _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+                boxShadow: 'overlay',
               })}
             >
-              <RiImageLine size={18} />
-            </button>
-          </>
-        )}
-        {onSendFile && (
-          <>
-            <input
-              ref={attachRef}
-              type="file"
-              onChange={onPickAttachment}
-              className={css({ display: 'none' })}
-              data-testid="im-file-input"
-            />
-            <button
-              type="button"
-              onClick={() => attachRef.current?.click()}
-              disabled={disabled || uploading}
-              aria-label={t('input.file')}
-              title={t('input.file')}
-              data-testid="im-file-btn"
-              className={css({
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '2.375rem',
-                border: '1px solid token(colors.greyscale.300)',
-                borderRadius: '0.5rem',
-                backgroundColor: 'greyscale.000',
-                color: 'greyscale.600',
-                cursor: 'pointer',
-                _hover: { backgroundColor: 'greyscale.100' },
-                _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-              })}
-            >
-              <RiAttachment2 size={18} />
-            </button>
-          </>
-        )}
-        {onSendDoc && (
-          <button
-            type="button"
-            onClick={onSendDoc}
-            disabled={disabled || uploading}
-            aria-label={t('input.doc')}
-            title={t('input.doc')}
-            data-testid="im-doc-btn"
-            className={css({
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '2.375rem',
-              border: '1px solid token(colors.greyscale.300)',
-              borderRadius: '0.5rem',
-              backgroundColor: 'greyscale.000',
-              color: 'greyscale.600',
-              cursor: 'pointer',
-              _hover: { backgroundColor: 'greyscale.100' },
-              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-            })}
-          >
-            <RiFileTextLine size={18} />
-          </button>
-        )}
+              {onSendImage && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setShowMore(false)
+                    fileRef.current?.click()
+                  }}
+                  disabled={disabled || uploading}
+                  aria-label={t('input.image')}
+                  title={t('input.image')}
+                  data-testid="im-image-btn"
+                  className={css({
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    width: '100%',
+                    paddingX: '0.75rem',
+                    paddingY: '0.625rem',
+                    border: 'none',
+                    borderRadius: '0.375rem',
+                    backgroundColor: 'transparent',
+                    color: 'greyscale.600',
+                    cursor: 'pointer',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                    _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+                  })}
+                >
+                  <RiImageLine size={18} />
+                  <span>{t('input.image')}</span>
+                </button>
+              )}
+              {onSendFile && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setShowMore(false)
+                    attachRef.current?.click()
+                  }}
+                  disabled={disabled || uploading}
+                  aria-label={t('input.file')}
+                  title={t('input.file')}
+                  data-testid="im-file-btn"
+                  className={css({
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    width: '100%',
+                    paddingX: '0.75rem',
+                    paddingY: '0.625rem',
+                    border: 'none',
+                    borderRadius: '0.375rem',
+                    backgroundColor: 'transparent',
+                    color: 'greyscale.600',
+                    cursor: 'pointer',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                    _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+                  })}
+                >
+                  <RiAttachment2 size={18} />
+                  <span>{t('input.file')}</span>
+                </button>
+              )}
+              {onSendDoc && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setShowMore(false)
+                    onSendDoc()
+                  }}
+                  disabled={disabled || uploading}
+                  aria-label={t('input.doc')}
+                  title={t('input.doc')}
+                  data-testid="im-doc-btn"
+                  className={css({
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    width: '100%',
+                    paddingX: '0.75rem',
+                    paddingY: '0.625rem',
+                    border: 'none',
+                    borderRadius: '0.375rem',
+                    backgroundColor: 'transparent',
+                    color: 'greyscale.600',
+                    cursor: 'pointer',
+                    _hover: { backgroundColor: 'greyscale.100' },
+                    _disabled: { opacity: 0.5, cursor: 'not-allowed' },
+                  })}
+                >
+                  <RiFileTextLine size={18} />
+                  <span>{t('input.doc')}</span>
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => { setShowMore(false); executeCommand('schedule') }}
+                role="menuitem"
+                onClick={() => {
+                  setShowMore(false)
+                  executeCommand('schedule')
+                }}
                 aria-label={t('calendar.open')}
                 title={t('calendar.open')}
                 className={css({
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2.375rem',
-                  border: '1px solid token(colors.greyscale.300)', borderRadius: '0.5rem',
-                  backgroundColor: 'greyscale.000', color: 'greyscale.600', cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  width: '100%',
+                  paddingX: '0.75rem',
+                  paddingY: '0.625rem',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  backgroundColor: 'transparent',
+                  color: 'greyscale.600',
+                  cursor: 'pointer',
+                  _hover: { backgroundColor: 'greyscale.100' },
                 })}
               >
                 <RiCalendarScheduleLine size={18} />
+                <span>{t('calendar.open')}</span>
               </button>
             </div>
           )}
@@ -567,7 +677,10 @@ export const MessageInput = ({
         >
           <button
             type="button"
-            onClick={() => setShowEmojiPicker((open) => !open)}
+            onClick={() => {
+              setShowMore(false)
+              setShowEmojiPicker((open) => !open)
+            }}
             disabled={disabled || sending}
             aria-label={t('input.emoji')}
             title={t('input.emoji')}
@@ -610,7 +723,12 @@ export const MessageInput = ({
                 custom={customEmojis}
                 onPickCustom={async (emoji) => {
                   setShowEmojiPicker(false)
-                  onRecentEmoji?.({ kind: 'custom', id: emoji.id, key: emoji.key, name: emoji.name })
+                  onRecentEmoji?.({
+                    kind: 'custom',
+                    id: emoji.id,
+                    key: emoji.key,
+                    name: emoji.name,
+                  })
                   await onSendCustomEmoji?.(emoji)
                 }}
               />
@@ -637,10 +755,14 @@ export const MessageInput = ({
               setCommandIndex((value) => (value + 1) % commands.length)
             } else if (e.key === 'ArrowUp') {
               e.preventDefault()
-              setCommandIndex((value) => (value - 1 + commands.length) % commands.length)
+              setCommandIndex(
+                (value) => (value - 1 + commands.length) % commands.length
+              )
             } else if (e.key === 'Enter') {
               e.preventDefault()
-              executeCommand(commands[Math.min(commandIndex, commands.length - 1)].id)
+              executeCommand(
+                commands[Math.min(commandIndex, commands.length - 1)].id
+              )
             } else if (e.key === 'Escape') {
               e.preventDefault()
               setText(text.slice(1))
