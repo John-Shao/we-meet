@@ -77,6 +77,10 @@ class JusiImBadResponseError(JusiImServiceError):
     """HTTP returned but the response was malformed or 4xx."""
 
 
+class JusiImSenderNotMemberError(JusiImBadResponseError):
+    """Strict admin post rejected because the requested sender left the chat."""
+
+
 class JusiImAdminClient:
     """Thin HMAC-signing wrapper around the jusi-light-im admin endpoints we use."""
 
@@ -324,6 +328,8 @@ class JusiImAdminClient:
         body: str,
         sender_uid: str | None = None,
         content_type: str = "text",
+        *,
+        require_sender_membership: bool = False,
     ) -> JusiImMessageResponse:
         """Inject a server-side message into cid. Bypasses WS and client identity.
 
@@ -337,6 +343,8 @@ class JusiImAdminClient:
         payload: dict[str, Any] = {"cid": cid, "body": body, "content_type": content_type}
         if sender_uid:
             payload["sender_uid"] = sender_uid
+        if require_sender_membership:
+            payload["require_sender_membership"] = True
         data = self._signed_request("POST", "/admin/messages", payload)
         try:
             return JusiImMessageResponse(
@@ -405,6 +413,18 @@ class JusiImAdminClient:
             raise JusiImUnreachableError(
                 f"jusi-im returned {response.status_code} from {path}"
             )
+        if response.status_code == 409:
+            try:
+                error_data = response.json()
+            except ValueError:
+                error_data = None
+            if (
+                isinstance(error_data, dict)
+                and error_data.get("code") == "sender_not_member"
+            ):
+                raise JusiImSenderNotMemberError(
+                    "sender is not a conversation member"
+                )
         if response.status_code >= 400:
             raise JusiImBadResponseError(
                 f"jusi-im returned {response.status_code} from {path}: "

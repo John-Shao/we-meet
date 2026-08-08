@@ -9,6 +9,8 @@
 >
 > 上游设计文档：[`jusi-light-im/docs/phases/p23-bot-member-role.md`](https://github.com/John-Shao/jusi-light-im/blob/main/docs/phases/p23-bot-member-role.md)。
 > 二期见 [`p11b-im-group-bots-cards.md`](./p11b-im-group-bots-cards.md)。
+> 日程助手代理退群组织者见
+> [`p11c-calendar-assistant-proxy.md`](./p11c-calendar-assistant-proxy.md)。
 
 **这份文档补写于交付之后。** 主要理由是第 4 节：一期有 12 条运行时红线，此前只活在 commit body 里——那是个只有考古才找得到的地方，而其中至少三条（R3 发布顺序、R4 投递后断言、R10 下游触点）踩中的后果是**静默的**：不报错、不抛异常、HTTP 200，只是行为悄悄退化。
 
@@ -80,7 +82,11 @@
 
 ### R2 — 日程助手只接管**降级分支**
 
-日程卡片的主路径仍以**组织者身份**发送，那是 P8-UX 拍板的设计（见 [`p8-im-calendar-integration.md`](./p8-im-calendar-integration.md)）。只有拿不到组织者身份的降级分支才落到日程助手。**把主路径也改成助手是回归，不是统一。**
+> P11c 收窄了这条降级的产品语义：组织者明确已退出来源群时由日程助手代理；
+> UID 解析失败等无法确认的技术异常仍走 SYSTEM。详见
+> [`p11c-calendar-assistant-proxy.md`](./p11c-calendar-assistant-proxy.md)。
+
+日程卡片的主路径仍以**组织者身份**发送，那是 P8-UX 拍板的设计（见 [`p8-im-calendar-integration.md`](./p8-im-calendar-integration.md)）。只有 jusi 明确判定组织者已经退出来源群时才落到日程助手；拿不到 UID 等技术异常走 SYSTEM。**把主路径也改成助手是回归，不是统一。**
 
 ### R3 — 发布顺序：jusi 先升，we-meet 后升
 

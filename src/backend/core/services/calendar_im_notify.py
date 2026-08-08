@@ -22,7 +22,11 @@ import logging
 from django.conf import settings
 
 from core.services import im_bots, im_cards
-from core.services.jusi_im import JusiImAdminClient, JusiImServiceError
+from core.services.jusi_im import (
+    JusiImAdminClient,
+    JusiImSenderNotMemberError,
+    JusiImServiceError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,12 +122,13 @@ def _organizer_sender_uid(client: JusiImAdminClient, organizer) -> str | None:
 
 
 def push_card(cid: str, card: dict, *, organizer=None) -> None:
-    """Best-effort 注入卡片(sender = 组织者,解析不到退「日程助手」);
+    """Best-effort 注入卡片(sender = 组织者,退群后由「日程助手」代理);
     jusi 不可达/报错仅 warning。
 
     主路径**刻意保持不变**:以组织者身份发卡片是 P8-UX 拍板的设计(见模块
-    docstring),客户端把它渲染成组织者的正常气泡。改动只在降级分支 —— 原来退
-    全零 SYSTEM(居中灰条,无头像无名字),现在退到内置的日程助手身份。
+    docstring),客户端把它渲染成组织者的正常气泡。P11c 只在 jusi 明确确认
+    组织者已经不是来源群成员时改由日程助手代理。UID 解析失败等无法确认的
+    技术异常仍走 SYSTEM,不让助手掩盖故障。
     """
     if not cid:
         return
@@ -132,18 +137,64 @@ def push_card(cid: str, card: dict, *, organizer=None) -> None:
         return
     body = json.dumps(card, ensure_ascii=False)
     sender_uid = _organizer_sender_uid(client, organizer)
-    if not sender_uid:
-        posted = im_bots.post_as_builtin(
-            im_bots.BOT_CALENDAR_ASSISTANT, cid, body, content_type=CONTENT_TYPE
-        )
-        if posted is not None:
+    if sender_uid:
+        try:
+            client.post_message(
+                cid=cid,
+                body=body,
+                sender_uid=sender_uid,
+                content_type=CONTENT_TYPE,
+                require_sender_membership=True,
+            )
+            logger.info(
+                "calendar_im_notify: organizer posted strict cid=%s event=%s",
+                cid,
+                card.get("event_id"),
+            )
             return
-        # 助手也发不出去(未 seed / IM 未配置)→ 落回原来的 SYSTEM 行为,
-        # 卡片本身仍然送达。
+        except JusiImSenderNotMemberError:
+            logger.info(
+                "calendar_im_notify: organizer left cid=%s; "
+                "using calendar assistant event=%s",
+                cid,
+                card.get("event_id"),
+            )
+            posted = im_bots.post_as_builtin(
+                im_bots.BOT_CALENDAR_ASSISTANT,
+                cid,
+                body,
+                content_type=CONTENT_TYPE,
+            )
+            if posted is not None:
+                return
+            logger.warning(
+                "calendar_im_notify: calendar assistant failed; "
+                "using SYSTEM cid=%s event=%s",
+                cid,
+                card.get("event_id"),
+            )
+        except JusiImServiceError:
+            logger.warning(
+                "calendar_im_notify: strict organizer push failed for cid=%s event=%s",
+                cid,
+                card.get("event_id"),
+                exc_info=True,
+            )
+            return
+    else:
+        logger.warning(
+            "calendar_im_notify: organizer uid unavailable; "
+            "using SYSTEM cid=%s event=%s",
+            cid,
+            card.get("event_id"),
+        )
+
+    # 无法解析组织者 UID,或确认退群后助手也发不出去 → 最终 SYSTEM。
     try:
         client.post_message(
-            cid=cid, body=body,
-            sender_uid=sender_uid,
+            cid=cid,
+            body=body,
+            sender_uid=None,
             content_type=CONTENT_TYPE,
         )
     except JusiImServiceError:

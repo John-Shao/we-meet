@@ -13,6 +13,7 @@ import requests
 from ...services.jusi_im import (
     JusiImAdminClient,
     JusiImBadResponseError,
+    JusiImSenderNotMemberError,
     JusiImTokenResponse,
     JusiImUnreachableError,
 )
@@ -183,3 +184,68 @@ def test_issue_token_strips_trailing_slash_on_api_url(monkeypatch):
     client.issue_token("uid", 3600)
     # No double slash before /admin.
     assert captured["url"] == f"{API_URL}/admin/tokens/issue"
+
+
+def test_post_message_sends_strict_membership_flag(monkeypatch):
+    captured = {}
+
+    def fake_request(
+        method, url, data, headers, timeout
+    ):  # pylint: disable=unused-argument
+        captured["payload"] = json.loads(data)
+        resp = mock.Mock()
+        resp.status_code = 200
+        resp.json.return_value = {
+            "mid": 1,
+            "cid": "cid-1",
+            "sender_uid": "organizer-1",
+            "seq": 1,
+            "ts": 1,
+        }
+        return resp
+
+    monkeypatch.setattr(requests, "request", fake_request)
+    client = JusiImAdminClient(api_url=API_URL, admin_hmac_secret=SECRET)
+    client.post_message(
+        "cid-1",
+        "{}",
+        sender_uid="organizer-1",
+        content_type="event-card",
+        require_sender_membership=True,
+    )
+
+    assert captured["payload"]["require_sender_membership"] is True
+
+
+def test_post_message_maps_only_stable_409_code_to_sender_not_member(monkeypatch):
+    def fake_request(*_a, **_kw):
+        resp = mock.Mock()
+        resp.status_code = 409
+        resp.text = '{"code":"sender_not_member"}'
+        resp.json.return_value = {
+            "code": "sender_not_member",
+            "message": "sender is not a conversation member",
+        }
+        return resp
+
+    monkeypatch.setattr(requests, "request", fake_request)
+    client = JusiImAdminClient(api_url=API_URL, admin_hmac_secret=SECRET)
+    with pytest.raises(JusiImSenderNotMemberError):
+        client.post_message(
+            "cid-1", "{}", sender_uid="gone", require_sender_membership=True
+        )
+
+
+def test_post_message_does_not_misclassify_other_409(monkeypatch):
+    def fake_request(*_a, **_kw):
+        resp = mock.Mock()
+        resp.status_code = 409
+        resp.text = '{"code":"some_other_conflict"}'
+        resp.json.return_value = {"code": "some_other_conflict"}
+        return resp
+
+    monkeypatch.setattr(requests, "request", fake_request)
+    client = JusiImAdminClient(api_url=API_URL, admin_hmac_secret=SECRET)
+    with pytest.raises(JusiImBadResponseError) as exc_info:
+        client.post_message("cid-1", "{}", sender_uid="organizer-1")
+    assert not isinstance(exc_info.value, JusiImSenderNotMemberError)

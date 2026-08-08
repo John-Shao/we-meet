@@ -1,5 +1,6 @@
 """P8 变更推送测试:值差分防噪 + on_commit 触发 + 取消快照 + cid 写入不回读。"""
 
+import json
 from datetime import timedelta
 from unittest import mock
 
@@ -190,12 +191,13 @@ def test_event_without_cid_never_pushes(django_capture_on_commit_callbacks):
 
 
 def test_push_card_sender_is_organizer_with_system_fallback():
-    """P8-UX:sender_uid 优先 User.im_uid 缓存;解析失败退 None(SYSTEM)。"""
+    """P11c:留群严格发送;UID 解析失败直接退 SYSTEM。"""
     organizer = factories.UserFactory(email="cached@acme.com", im_uid="uid-cached")
     fake = mock.Mock()
     with mock.patch.object(calendar_im_notify, "_make_client", return_value=fake):
         calendar_im_notify.push_card("cid-1", {"kind": "cancelled"}, organizer=organizer)
     assert fake.post_message.call_args.kwargs["sender_uid"] == "uid-cached"
+    assert fake.post_message.call_args.kwargs["require_sender_membership"] is True
     fake.issue_token.assert_not_called()
 
     # 无缓存 + issue_token 失败 → SYSTEM(None)兜底,不炸。
@@ -205,6 +207,73 @@ def test_push_card_sender_is_organizer_with_system_fallback():
     with mock.patch.object(calendar_im_notify, "_make_client", return_value=fake2):
         calendar_im_notify.push_card("cid-1", {"kind": "cancelled"}, organizer=stranger)
     assert fake2.post_message.call_args.kwargs["sender_uid"] is None
+
+
+def test_push_card_organizer_left_uses_calendar_assistant_once():
+    organizer = factories.UserFactory(email="left@acme.com", im_uid="uid-left")
+    fake = mock.Mock()
+    fake.post_message.side_effect = calendar_im_notify.JusiImSenderNotMemberError(
+        "sender is not a conversation member"
+    )
+    assistant_result = mock.Mock(sender_uid="uid-calendar-assistant")
+
+    with mock.patch.object(
+        calendar_im_notify, "_make_client", return_value=fake
+    ), mock.patch.object(
+        calendar_im_notify.im_bots,
+        "post_as_builtin",
+        return_value=assistant_result,
+    ) as post_as_builtin:
+        calendar_im_notify.push_card(
+            "cid-1",
+            {"kind": "cancelled", "organizer_name": "张三"},
+            organizer=organizer,
+        )
+
+    post_as_builtin.assert_called_once_with(
+        calendar_im_notify.im_bots.BOT_CALENDAR_ASSISTANT,
+        "cid-1",
+        mock.ANY,
+        content_type=calendar_im_notify.CONTENT_TYPE,
+    )
+    assert fake.post_message.call_count == 1, "助手成功后不能再落一条 SYSTEM"
+    assert json.loads(post_as_builtin.call_args.args[2])["organizer_name"] == "张三"
+
+
+def test_push_card_calendar_assistant_failure_falls_back_to_system():
+    organizer = factories.UserFactory(email="left2@acme.com", im_uid="uid-left2")
+    fake = mock.Mock()
+    fake.post_message.side_effect = [
+        calendar_im_notify.JusiImSenderNotMemberError("left"),
+        mock.DEFAULT,
+    ]
+
+    with mock.patch.object(
+        calendar_im_notify, "_make_client", return_value=fake
+    ), mock.patch.object(
+        calendar_im_notify.im_bots, "post_as_builtin", return_value=None
+    ):
+        calendar_im_notify.push_card(
+            "cid-1", {"kind": "cancelled"}, organizer=organizer
+        )
+
+    assert fake.post_message.call_count == 2
+    assert fake.post_message.call_args.kwargs["sender_uid"] is None
+
+
+def test_push_card_other_jusi_error_does_not_impersonate_calendar_assistant():
+    organizer = factories.UserFactory(email="error@acme.com", im_uid="uid-error")
+    fake = mock.Mock()
+    fake.post_message.side_effect = calendar_im_notify.JusiImServiceError("down")
+
+    with mock.patch.object(
+        calendar_im_notify, "_make_client", return_value=fake
+    ), mock.patch.object(calendar_im_notify.im_bots, "post_as_builtin") as assistant:
+        calendar_im_notify.push_card(
+            "cid-1", {"kind": "cancelled"}, organizer=organizer
+        )
+
+    assistant.assert_not_called()
 
 
 def test_notify_event_change_skips_missing_event():

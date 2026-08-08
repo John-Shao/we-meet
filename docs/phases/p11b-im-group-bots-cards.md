@@ -3,6 +3,8 @@
 > 状态：**已交付并全量真机验收通过（2026-08-05 开工，2026-08-07 收口）**。
 >
 > 一期见 [`p11-im-group-bots.md`](./p11-im-group-bots.md)（含 R1–R12 运行时红线，本阶段所有改动的输入）。
+> 日程助手代理退群组织者的严格发送协议见
+> [`p11c-calendar-assistant-proxy.md`](./p11c-calendar-assistant-proxy.md)。
 >
 > 进度：**三条线全部完成并上生产**。线 A（A0 ✅ A1 ✅ A2 ✅ A3 ✅）· 线 B ✅ · 线 C（C1 ✅ C2 ✅ C3 ✅ C4 ✅）。
 >
