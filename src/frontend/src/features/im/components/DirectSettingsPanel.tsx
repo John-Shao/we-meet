@@ -18,6 +18,8 @@ interface Props {
   peerAvatarUrl?: string
   /** Open group creation seeded with this peer (对标飞书「创建群组」). */
   onCreateGroup: () => void
+  /** Opens the existing shared calendar/free-busy panel for this peer. */
+  onOpenCalendar: () => void
   onClose: () => void
 }
 
@@ -32,6 +34,7 @@ export const DirectSettingsPanel = ({
   peerName,
   peerAvatarUrl,
   onCreateGroup,
+  onOpenCalendar,
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
@@ -181,6 +184,28 @@ export const DirectSettingsPanel = ({
           })}
         >
           {t('group.button')}
+        </button>
+
+        {/* Shared calendar/free-busy entry, matching Android chat settings. */}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onOpenCalendar}
+          data-testid="direct-calendar-entry"
+          className={css({
+            width: '100%',
+            textAlign: 'left',
+            padding: '0.625rem 1rem',
+            border: 'none',
+            borderBottom: '1px solid token(colors.greyscale.100)',
+            backgroundColor: 'greyscale.000',
+            color: 'greyscale.900',
+            fontSize: '0.875rem',
+            cursor: 'pointer',
+            _hover: { backgroundColor: 'greyscale.50' },
+          })}
+        >
+          {t('calendar.open')}
         </button>
 
         {/* Private toggles (P10) */}

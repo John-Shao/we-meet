@@ -937,6 +937,7 @@ const ImAuthenticated = () => {
                         peerName={nameOf(selectedConv)}
                         peerAvatarUrl={avatarOf(selectedConv)}
                         onCreateGroup={() => void handleCreateGroupFromDirect()}
+                        onOpenCalendar={() => setRightPanel('calendar')}
                         onClose={() => setRightPanel(null)}
                       />
                     )}
