@@ -650,8 +650,8 @@ export const MessageInput = ({
                   setShowMore(false)
                   executeCommand('schedule')
                 }}
-                aria-label={t('calendar.open')}
-                title={t('calendar.open')}
+                aria-label={t('input.schedule')}
+                title={t('input.schedule')}
                 className={css({
                   display: 'flex',
                   alignItems: 'center',
@@ -668,7 +668,7 @@ export const MessageInput = ({
                 })}
               >
                 <RiCalendarScheduleLine size={18} />
-                <span>{t('calendar.open')}</span>
+                <span>{t('input.schedule')}</span>
               </button>
             </div>
           )}

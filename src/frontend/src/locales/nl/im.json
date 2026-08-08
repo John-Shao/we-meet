@@ -157,10 +157,11 @@
     "placeholder": "Typ een bericht…",
     "send": "Verzenden",
     "sending": "Verzenden…",
-    "image": "Afbeelding sturen",
-    "file": "Bestand sturen",
+    "image": "Afbeelding",
+    "file": "Lokaal bestand",
     "voice": "Spraak",
-    "doc": "Document sturen"
+    "doc": "Clouddocument",
+    "schedule": "Agenda"
   },
   "preview": {
     "meeting": "[Vergadering]",

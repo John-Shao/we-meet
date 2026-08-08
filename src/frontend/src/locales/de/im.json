@@ -157,10 +157,11 @@
     "placeholder": "Nachricht eingeben…",
     "send": "Senden",
     "sending": "Wird gesendet…",
-    "image": "Bild senden",
-    "file": "Datei senden",
+    "image": "Bild",
+    "file": "Lokale Datei",
     "emoji": "Emoji senden",
-    "doc": "Dokument teilen",
+    "doc": "Cloud-Dokument",
+    "schedule": "Termin",
     "dropHint": "Loslassen, um Bilder oder Dateien zu senden"
   },
   "preview": {

@@ -157,10 +157,11 @@
     "placeholder": "Écrivez un message…",
     "send": "Envoyer",
     "sending": "Envoi en cours…",
-    "image": "Envoyer une image",
-    "file": "Envoyer un fichier",
+    "image": "Image",
+    "file": "Fichier local",
     "voice": "Vocal",
-    "doc": "Envoyer un document"
+    "doc": "Document cloud",
+    "schedule": "Agenda"
   },
   "preview": {
     "meeting": "[Réunion]",

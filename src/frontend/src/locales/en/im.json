@@ -161,10 +161,11 @@
     "placeholder": "Type a message…",
     "send": "Send",
     "sending": "Sending…",
-    "image": "Send image",
-    "file": "Send file",
+    "image": "Image",
+    "file": "Local file",
     "emoji": "Send emoji",
-    "doc": "Share document",
+    "doc": "Cloud document",
+    "schedule": "Schedule",
     "dropHint": "Drop to send images or files"
   },
   "preview": {
