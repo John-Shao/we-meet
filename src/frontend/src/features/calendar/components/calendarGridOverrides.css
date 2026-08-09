@@ -234,6 +234,22 @@
 .rbc-off-range {
   color: var(--colors-greyscale-400);
 }
+/* Date semantics shared with MiniCalendar: focused day, today, and weekends
+   remain distinguishable even when two states overlap. */
+.rbc-day-bg.wm-weekend,
+.rbc-month-view .rbc-day-bg.wm-weekend {
+  background-color: var(--colors-greyscale-50);
+}
+.rbc-day-bg.wm-selected-day {
+  box-shadow: inset 0 0 0 1px rgba(51, 112, 255, 0.28);
+  background-color: rgba(51, 112, 255, 0.035);
+}
+.rbc-day-bg.wm-selected-day.wm-weekend {
+  background-color: rgba(51, 112, 255, 0.055);
+}
+.wm-month-header-weekend {
+  color: var(--colors-greyscale-500);
+}
 .rbc-show-more {
   background-color: transparent;
   color: var(--colors-primary-600);
@@ -290,12 +306,17 @@
   line-height: 1;
   color: var(--colors-greyscale-600);
 }
+.wm-week-header-weekend .wm-week-header-weekday,
+.wm-week-header-weekend .wm-week-header-date {
+  color: var(--colors-greyscale-500);
+}
 .wm-week-header-date {
   font-size: 1.25rem;
   font-weight: 600;
   line-height: 1.2;
 }
-.rbc-time-view .rbc-header.rbc-today .wm-week-header-weekday {
+.rbc-time-view .rbc-header.rbc-today .wm-week-header-weekday,
+.rbc-time-view .rbc-header.rbc-today .wm-week-header-date {
   color: inherit;
 }
 

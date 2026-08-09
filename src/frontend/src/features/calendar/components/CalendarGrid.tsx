@@ -2,7 +2,15 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Calendar, dateFnsLocalizer, type View } from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
-import { format, parse, startOfWeek, getDay, type Locale } from 'date-fns'
+import {
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  isSameDay,
+  isWeekend,
+  type Locale,
+} from 'date-fns'
 import { zhCN, enUS, fr, de, nl } from 'date-fns/locale'
 
 import 'react-big-calendar/lib/css/react-big-calendar.css'
@@ -62,7 +70,9 @@ function MonthEvent({ event }: { event: RbcEvent }) {
   return (
     <span className="wm-month-timed-inner">
       <span className="wm-month-timed-dot" />
-      <span className="wm-month-timed-time">{format(event.start, 'HH:mm')}</span>
+      <span className="wm-month-timed-time">
+        {format(event.start, 'HH:mm')}
+      </span>
       <span className="wm-month-timed-title">{event.title}</span>
     </span>
   )
@@ -94,12 +104,25 @@ const timeEventFor = (zh: boolean) =>
 const weekHeaderFor = (locale: Locale) =>
   function WeekHeader({ date }: { date: Date }) {
     return (
-      <div className="wm-week-header">
+      <div
+        className={`wm-week-header${
+          isWeekend(date) ? ' wm-week-header-weekend' : ''
+        }`}
+      >
         <span className="wm-week-header-weekday">
           {format(date, 'EEE', { locale })}
         </span>
         <span className="wm-week-header-date">{format(date, 'd')}</span>
       </div>
+    )
+  }
+
+const monthHeaderFor = (locale: Locale) =>
+  function MonthHeader({ date }: { date: Date }) {
+    return (
+      <span className={isWeekend(date) ? 'wm-month-header-weekend' : undefined}>
+        {format(date, 'EEEEEE', { locale })}
+      </span>
     )
   }
 
@@ -253,7 +276,11 @@ export const CalendarGrid = ({
             const zhRange = ({ start, end }: { start: Date; end: Date }) => {
               const sameYear = start.getFullYear() === end.getFullYear()
               const sameMonth = sameYear && start.getMonth() === end.getMonth()
-              const endFmt = sameMonth ? 'd日' : sameYear ? 'M月d日' : 'yyyy年M月d日'
+              const endFmt = sameMonth
+                ? 'd日'
+                : sameYear
+                  ? 'M月d日'
+                  : 'yyyy年M月d日'
               return `${format(start, 'yyyy年M月d日')} - ${format(end, endFmt)}`
             }
             return {
@@ -271,14 +298,16 @@ export const CalendarGrid = ({
   // 仅语言切换时重建(周表头星期文案随语言)。
   const rbcComponents = useMemo(() => {
     const TimeEvent = timeEventFor(i18n.language.startsWith('zh'))
-    const weekHeader = weekHeaderFor(localeFor(i18n.language))
+    const locale = localeFor(i18n.language)
+    const weekHeader = weekHeaderFor(locale)
+    const monthHeader = monthHeaderFor(locale)
     return {
       toolbar: CalendarToolbar,
       week: { header: weekHeader, event: TimeEvent },
       // work_week 复用周视图的表头/事件组件(仅列数收敛为 5)。
       work_week: { header: weekHeader, event: TimeEvent },
       day: { event: TimeEvent },
-      month: { event: MonthEvent },
+      month: { event: MonthEvent, header: monthHeader },
     }
   }, [i18n.language])
 
@@ -336,6 +365,14 @@ export const CalendarGrid = ({
       formats={formats}
       messages={messages}
       scrollToTime={scrollToTime}
+      dayPropGetter={(day) => ({
+        className: [
+          isSameDay(day, date) ? 'wm-selected-day' : '',
+          isWeekend(day) ? 'wm-weekend' : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      })}
       // P8「降低已结束日程的亮度」(对标飞书,日历设置可关):渲染时判断,
       // 不设 tick——交互/取数触发的重渲染足以让新跨过结束时刻的块变淡。
       eventPropGetter={(ev) => {

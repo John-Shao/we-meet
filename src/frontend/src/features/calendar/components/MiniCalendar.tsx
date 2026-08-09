@@ -9,6 +9,7 @@ import {
   isSameDay,
   isSameMonth,
   isToday,
+  isWeekend,
   startOfMonth,
   startOfWeek,
 } from 'date-fns'
@@ -114,7 +115,7 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
             className={css({
               textAlign: 'center',
               fontSize: '0.6875rem',
-              color: 'greyscale.500',
+              color: isWeekend(weeks[0][i]) ? 'greyscale.600' : 'greyscale.500',
               paddingY: '0.25rem',
             })}
           >
@@ -125,12 +126,15 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
           const selected = isSameDay(day, value)
           const outside = !isSameMonth(day, viewMonth)
           const today = isToday(day)
+          const weekend = isWeekend(day)
           const hasEvent = eventDays.has(format(day, 'yyyy-MM-dd'))
           return (
             <button
               key={day.toISOString()}
               type="button"
               onClick={() => onChange(day)}
+              aria-pressed={selected}
+              aria-current={today ? 'date' : undefined}
               className={cx(
                 cell,
                 // 背景两分支都显式给值:cell 里的 background 简写与这里的
@@ -139,10 +143,25 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
                 css({
                   fontWeight: today ? 700 : 400,
                   ...(selected
-                    ? { backgroundColor: 'primary.500', color: 'white' }
+                    ? {
+                        backgroundColor: 'primary.500',
+                        color: 'white',
+                        borderColor: 'primary.500',
+                        ...(today
+                          ? { boxShadow: 'inset 0 0 0 1px white' }
+                          : {}),
+                      }
                     : {
-                        backgroundColor: 'transparent',
-                        color: outside ? 'greyscale.400' : 'greyscale.800',
+                        backgroundColor:
+                          weekend && !outside ? 'greyscale.50' : 'transparent',
+                        color: outside
+                          ? 'greyscale.400'
+                          : today
+                            ? 'primary.600'
+                            : weekend
+                              ? 'greyscale.600'
+                              : 'greyscale.800',
+                        borderColor: today ? 'primary.500' : 'transparent',
                         _hover: { backgroundColor: 'brand.50' },
                       }),
                 })
@@ -169,7 +188,6 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
   )
 }
 
-
 const grid = css({
   display: 'grid',
   gridTemplateColumns: 'repeat(7, 1fr)',
@@ -182,7 +200,8 @@ const cell = css({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  border: 'none',
+  borderWidth: '1px',
+  borderStyle: 'solid',
   borderRadius: '6px',
   fontSize: '0.8125rem',
   cursor: 'pointer',
