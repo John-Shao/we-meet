@@ -14,10 +14,11 @@ const INITIAL_HOUR = 8
 const LABEL_WIDTH_PX = 176
 const LABEL_WIDTH = `${LABEL_WIDTH_PX}px`
 
-const timeLabel = (value: string) =>
-  new Date(value).toLocaleTimeString([], {
+const timeLabel = (value: string | Date) =>
+  (value instanceof Date ? value : new Date(value)).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
+    hourCycle: 'h23',
   })
 
 /**
@@ -48,7 +49,7 @@ export const RoomTimeline = ({
   /** Move or resize the selected slot without opening the create dialog. */
   onSlotChange?: (room: MeetingRoomBrief, start: Date, end: Date) => void
 }) => {
-  const { t } = useTranslation('meeting-rooms')
+  const { t } = useTranslation(['meeting-rooms', 'calendar'])
   const scrollRef = useRef<HTMLDivElement>(null)
   const suppressClickRef = useRef(false)
   const [viewportWidth, setViewportWidth] = useState(0)
@@ -356,7 +357,11 @@ export const RoomTimeline = ({
                       className={draftHandleStartCls}
                       onPointerDown={(event) => beginDraftDrag('start', event)}
                     />
-                    {t('timeline.clickToBook', { room: room.name })}
+                    <span className={draftTextCls}>
+                      {timeLabel(selectedSlot.start)}–
+                      {timeLabel(selectedSlot.end)}{' '}
+                      {t('calendar:grid.draftAdd')}
+                    </span>
                     <div
                       role="separator"
                       aria-orientation="vertical"
@@ -521,6 +526,14 @@ const draftBlockCls = css({
     color: 'primaryDark.800',
     borderColor: 'primaryDark.500',
   },
+})
+const draftTextCls = css({
+  display: 'block',
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  pointerEvents: 'none',
 })
 const draftHandleBase = {
   position: 'absolute',
