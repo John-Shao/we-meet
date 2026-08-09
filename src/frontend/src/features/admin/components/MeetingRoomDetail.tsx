@@ -7,6 +7,7 @@ import { css, cx } from '@/styled-system/css'
 import { Button, Input } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { pathLabelOf } from '@/features/meeting-rooms/utils/roomHierarchy'
 
 import {
   type AdminMeetingRoom,
@@ -21,12 +22,7 @@ import { fetchAdminDepartments } from '../api/adminDepartments'
 import { describeApiError } from '../api/errors'
 
 /** Anchor rail entries, in the order 飞书 stacks them. */
-const SECTIONS = [
-  'basic',
-  'status',
-  'facilities',
-  'bookingLimits',
-] as const
+const SECTIONS = ['basic', 'status', 'facilities', 'bookingLimits'] as const
 type SectionKey = (typeof SECTIONS)[number]
 
 interface Draft {
@@ -88,7 +84,9 @@ export const MeetingRoomDetail = ({
   const [draft, setDraft] = useState<Draft | null>(null)
   const [facilityIds, setFacilityIds] = useState<string[]>([])
   const [active, setActive] = useState<SectionKey>('basic')
-  const sectionRefs = useRef<Partial<Record<SectionKey, HTMLElement | null>>>({})
+  const sectionRefs = useRef<Partial<Record<SectionKey, HTMLElement | null>>>(
+    {}
+  )
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const {
@@ -121,6 +119,9 @@ export const MeetingRoomDetail = ({
   })
 
   const node = nodes.find((n) => n.id === draft?.node) ?? null
+  const floorNodes = nodes.filter(
+    (candidate) => candidate.level_type === 'floor'
+  )
   // 设施停用后不再可选,但已经贴在这间房上的仍然列出并可摘除 —— 否则管理员
   // 看着表格里有「投影仪」却在编辑页找不到它。
   const offerableFacilities = useMemo(
@@ -144,7 +145,10 @@ export const MeetingRoomDetail = ({
 
   const scrollTo = (key: SectionKey) => {
     setActive(key)
-    sectionRefs.current[key]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    sectionRefs.current[key]?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
   }
 
   // 滚动时反向点亮锚点。取「已经越过容器顶部的最后一个 section」,而不是最接近
@@ -254,9 +258,9 @@ export const MeetingRoomDetail = ({
                 className={cx(selectChrome, selectCls)}
                 onChange={(e) => set('node', e.target.value)}
               >
-                {nodes.map((n) => (
+                {floorNodes.map((n) => (
                   <option key={n.id} value={n.id}>
-                    {`${'  '.repeat(n.depth)}${n.name}`}
+                    {pathLabelOf(nodes, n.id)}
                   </option>
                 ))}
               </select>
@@ -370,7 +374,9 @@ export const MeetingRoomDetail = ({
               <Row label={t('meetingRooms.bookableDepartments')}>
                 <div className={deptBoxCls}>
                   {departments.length === 0 ? (
-                    <span className={hintCls}>{t('meetingRooms.noDepartments')}</span>
+                    <span className={hintCls}>
+                      {t('meetingRooms.noDepartments')}
+                    </span>
                   ) : (
                     departments.map((d) => (
                       <label key={d.id} className={deptRowCls}>
@@ -499,7 +505,12 @@ const roomTitleCls = css({
   color: 'greyscale.900',
 })
 const roomSubtitleCls = css({ fontSize: '0.8125rem', color: 'greyscale.500' })
-const columnsCls = css({ flex: 1, display: 'flex', gap: '1.5rem', minHeight: 0 })
+const columnsCls = css({
+  flex: 1,
+  display: 'flex',
+  gap: '1.5rem',
+  minHeight: 0,
+})
 const railCls = css({
   flexShrink: 0,
   width: '9rem',
@@ -530,7 +541,12 @@ const railItemActiveCls = css({
   backgroundColor: 'selected.bg',
   fontWeight: '600',
 })
-const scrollCls = css({ flex: 1, minWidth: 0, overflowY: 'auto', paddingRight: '0.5rem' })
+const scrollCls = css({
+  flex: 1,
+  minWidth: 0,
+  overflowY: 'auto',
+  paddingRight: '0.5rem',
+})
 const sectionCls = css({ marginBottom: '1.5rem', scrollMarginTop: '0.5rem' })
 const sectionTitleCls = css({
   fontSize: '0.875rem',

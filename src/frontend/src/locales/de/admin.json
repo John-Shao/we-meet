@@ -207,6 +207,20 @@
     }
   },
   "meetingRooms": {
+    "levelTypes": {
+      "country_region": "Land/Region",
+      "city": "Stadt",
+      "campus": "Campus",
+      "building": "Gebäude",
+      "floor": "Etage"
+    },
+    "addLevelType": "{{level}} hinzufügen",
+    "newTypedLevel": "{{level}} hinzufügen",
+    "editTypedLevel": "{{level}} bearbeiten",
+    "cityTimezone": "Zeitzone der Stadt",
+    "selectTimezone": "Zeitzone auswählen",
+    "emptyFixedHierarchy": "Noch keine Standorte. Beginnen Sie mit einem Land oder einer Region",
+    "selectFloorToAddRoom": "Wählen Sie links zuerst eine Etage der Ebene 5 aus",
     "title": "Besprechungsräume",
     "allRooms": "Alle Räume",
     "newLevel": "Ebene hinzufügen",

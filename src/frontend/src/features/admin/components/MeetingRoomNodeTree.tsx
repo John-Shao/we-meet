@@ -125,15 +125,17 @@ export const MeetingRoomNodeTree = ({
               )}
             </button>
             <span data-row-actions className={actionsCls}>
-              <Button
-                variant="quaternaryText"
-                size="icon24"
-                onPress={() => onAddChild(node)}
-                aria-label={t('meetingRooms.newSubLevel')}
-                tooltip={t('meetingRooms.newSubLevel')}
-              >
-                <RiAddLine size={16} />
-              </Button>
+              {node.level_type !== 'floor' && (
+                <Button
+                  variant="quaternaryText"
+                  size="icon24"
+                  onPress={() => onAddChild(node)}
+                  aria-label={t('meetingRooms.newSubLevel')}
+                  tooltip={t('meetingRooms.newSubLevel')}
+                >
+                  <RiAddLine size={16} />
+                </Button>
+              )}
               <Button
                 variant="quaternaryText"
                 size="icon24"

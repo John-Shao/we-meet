@@ -22,6 +22,10 @@ const node = (
   parent,
   path,
   depth,
+  level_number: (depth + 1) as 1 | 2 | 3 | 4 | 5,
+  level_type: ['country_region', 'city', 'campus', 'building', 'floor'][
+    depth
+  ] as 'country_region' | 'city' | 'campus' | 'building' | 'floor',
   sort_order: 0,
   timezone: null,
   effective_timezone: 'Asia/Shanghai',

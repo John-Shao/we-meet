@@ -196,6 +196,8 @@ class MeetingRoomNodeViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
                     "parent": str(node.parent_id) if node.parent_id else None,
                     "path": node.path,
                     "depth": node.depth,
+                    "level_number": node.level_number,
+                    "level_type": node.level_type,
                     "sort_order": node.sort_order,
                     "timezone": str(node.timezone) if node.timezone else None,
                     "effective_timezone": str(node.resolve_timezone()),

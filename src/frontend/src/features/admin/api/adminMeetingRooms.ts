@@ -15,6 +15,8 @@ export interface AdminMeetingRoomNode {
   parent: string | null
   path: string
   depth: number
+  level_number: 1 | 2 | 3 | 4 | 5
+  level_type: MeetingRoomLevelType
   sort_order: number
   /** null = inherit from the nearest ancestor that sets one. */
   timezone: string | null
@@ -23,6 +25,21 @@ export interface AdminMeetingRoomNode {
   room_count: number
   created_at: string
 }
+
+export type MeetingRoomLevelType =
+  | 'country_region'
+  | 'city'
+  | 'campus'
+  | 'building'
+  | 'floor'
+
+export const MEETING_ROOM_LEVEL_TYPES: MeetingRoomLevelType[] = [
+  'country_region',
+  'city',
+  'campus',
+  'building',
+  'floor',
+]
 
 export interface AdminMeetingRoomFacility {
   id: string
@@ -127,7 +144,8 @@ export const fetchAdminMeetingRooms = (
   if (params.is_active) search.set('is_active', params.is_active)
   if (params.facilities?.length)
     search.set('facilities', params.facilities.join(','))
-  if (params.capacity_min) search.set('capacity_min', String(params.capacity_min))
+  if (params.capacity_min)
+    search.set('capacity_min', String(params.capacity_min))
   if (params.page && params.page > 1) search.set('page', String(params.page))
   const qs = search.toString()
   return fetchApi<Paginated<AdminMeetingRoom>>(

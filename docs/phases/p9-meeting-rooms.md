@@ -32,7 +32,7 @@ DTO 定义处都带了「与 LiveKit room 无关」的注释 —— 两个 room 
 
 | 模型 | 表 | 说明 |
 |---|---|---|
-| `MeetingRoomNode` | `meet_meeting_room_node` | 任意层级树(地区→建筑→楼层),`parent` + 物化路径 `path` + `depth`,与 `Department` 同款。额外带**层级时区**(空 = 继承最近有值的祖先,兜底 `settings.TIME_ZONE`)。 |
+| `MeetingRoomNode` | `meet_meeting_room_node` | 固定五级树（国家/地区→城市→园区→楼栋→楼层），保留 `parent` + 物化路径 `path` + `depth`。城市时区必填，其余层级继承城市时区；会议室只能挂在第 5 级楼层。 |
 | `MeetingRoomFacility` | `meet_meeting_room_facility` | 设施字典(电视/投影仪/白板…)。 |
 | `MeetingRoom` | `meet_meeting_room` | 会议室本体:层级、名称、编号、容量、设施 M2M、启停用。 |
 | `MeetingRoomBooking` | `meet_meeting_room_booking` | **占用表**,一场次一行。 |

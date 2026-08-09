@@ -4446,6 +4446,17 @@ ACTIVE_BOOKING_STATUSES = (
 )
 
 
+# Fixed product vocabulary layered on top of the existing zero-based ``depth``.
+MEETING_ROOM_LEVEL_TYPES = (
+    "country_region",
+    "city",
+    "campus",
+    "building",
+    "floor",
+)
+MEETING_ROOM_FLOOR_DEPTH = len(MEETING_ROOM_LEVEL_TYPES) - 1
+
+
 class TsTzRange(models.Func):
     """``tstzrange(start, end, bounds)`` — used by the no-overlap constraint.
 
@@ -4513,6 +4524,58 @@ class MeetingRoomNode(BaseModel):
         # Must run BEFORE super().save(): BaseModel.save() calls full_clean().
         self._refresh_tree_fields()
         super().save(*args, **kwargs)
+
+    @property
+    def level_number(self):
+        """One-based product level, or ``None`` for retired legacy data."""
+        if 0 <= self.depth < len(MEETING_ROOM_LEVEL_TYPES):
+            return self.depth + 1
+        return None
+
+    @property
+    def level_type(self):
+        """Stable API name for this node's semantic level."""
+        if self.level_number is None:
+            return None
+        return MEETING_ROOM_LEVEL_TYPES[self.depth]
+
+    @property
+    def is_floor(self):
+        return self.depth == MEETING_ROOM_FLOOR_DEPTH
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        expected_depth = self.parent.depth + 1 if self.parent_id else 0
+
+        if self.parent_id:
+            if self.parent.organization_id != self.organization_id:
+                errors["parent"] = _("Parent must be in the same organization.")
+            elif self.parent.deleted_at is not None or not self.parent.is_active:
+                errors["parent"] = _("Parent must be active.")
+
+        if expected_depth > MEETING_ROOM_FLOOR_DEPTH:
+            errors["parent"] = _("A floor cannot contain another level.")
+
+        # A reparent may change ancestry, never the node's semantic level.
+        if not self._state.adding:
+            original_depth = (
+                type(self)
+                .objects.filter(pk=self.pk)
+                .values_list("depth", flat=True)
+                .first()
+            )
+            if original_depth is not None and expected_depth != original_depth:
+                errors["parent"] = _("Moving a node cannot change its level type.")
+
+        if expected_depth == 1:
+            if not self.timezone:
+                errors["timezone"] = _("City timezone is required.")
+        elif self.timezone:
+            errors["timezone"] = _("Timezone can only be configured on a city.")
+
+        if errors:
+            raise ValidationError(errors)
 
     def _refresh_tree_fields(self):
         """Derive path / depth from this row's id and its parent (self only)."""
@@ -4670,6 +4733,21 @@ class MeetingRoom(BaseModel):
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.node_id:
+            if self.node.organization_id != self.organization_id:
+                errors["node"] = _(
+                    "Meeting room floor must be in the same organization."
+                )
+            elif self.node.deleted_at is not None or not self.node.is_active:
+                errors["node"] = _("Meeting room floor must be active.")
+            elif not self.node.is_floor:
+                errors["node"] = _("Meeting rooms can only be added to a floor.")
+        if errors:
+            raise ValidationError(errors)
 
 
 class MeetingRoomBooking(BaseModel):

@@ -247,6 +247,13 @@ class MeetingRoomNodeFactory(factory.django.DjangoModelFactory):
 
     organization = factory.SubFactory(OrganizationFactory)
     name = factory.Sequence(lambda n: f"Level {n!s}")
+    parent = None
+    # Cities own the timezone; all other levels inherit it.
+    timezone = factory.LazyAttribute(
+        lambda node: "UTC"
+        if node.parent is not None and node.parent.depth == 0
+        else None
+    )
 
 
 class MeetingRoomFacilityFactory(factory.django.DjangoModelFactory):
@@ -260,6 +267,24 @@ class MeetingRoomFacilityFactory(factory.django.DjangoModelFactory):
     code = factory.Sequence(lambda n: f"facility-{n!s}")
 
 
+def MeetingRoomFloorFactory(organization=None, city_timezone="UTC", **kwargs):
+    """Create one complete country -> city -> campus -> building -> floor path."""
+    organization = organization or OrganizationFactory()
+    country = MeetingRoomNodeFactory(organization=organization)
+    city = MeetingRoomNodeFactory(
+        organization=organization,
+        parent=country,
+        timezone=city_timezone,
+    )
+    campus = MeetingRoomNodeFactory(organization=organization, parent=city)
+    building = MeetingRoomNodeFactory(organization=organization, parent=campus)
+    return MeetingRoomNodeFactory(
+        organization=organization,
+        parent=building,
+        **kwargs,
+    )
+
+
 class MeetingRoomFactory(factory.django.DjangoModelFactory):
     """Create fake meeting rooms for testing.
 
@@ -271,9 +296,9 @@ class MeetingRoomFactory(factory.django.DjangoModelFactory):
         model = models.MeetingRoom
 
     organization = factory.SubFactory(OrganizationFactory)
-    node = factory.SubFactory(
-        MeetingRoomNodeFactory, organization=factory.SelfAttribute("..organization")
-    )
+    @factory.lazy_attribute
+    def node(self):
+        return MeetingRoomFloorFactory(organization=self.organization)
     name = factory.Sequence(lambda n: f"Meeting room {n!s}")
     capacity = 10
 

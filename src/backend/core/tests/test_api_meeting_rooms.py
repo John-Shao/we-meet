@@ -3,8 +3,8 @@
 from datetime import timedelta
 from urllib.parse import urlencode
 
-import pytest
 from django.utils import timezone
+import pytest
 from rest_framework.test import APIClient
 
 from core import factories, models
@@ -86,15 +86,20 @@ def test_other_organizations_rooms_are_invisible(org_user):
 
 def test_nodes_expose_tree_shape_and_inherited_timezone(org_user):
     org, user = org_user
-    region = factories.MeetingRoomNodeFactory(
-        organization=org, name="China", timezone="Asia/Shanghai"
+    country = factories.MeetingRoomNodeFactory(organization=org, name="China")
+    city = factories.MeetingRoomNodeFactory(
+        organization=org,
+        name="Shenzhen",
+        parent=country,
+        timezone="Asia/Shanghai",
+    )
+    campus = factories.MeetingRoomNodeFactory(
+        organization=org, name="Campus", parent=city
     )
     building = factories.MeetingRoomNodeFactory(
-        organization=org, name="Tower A", parent=region
+        organization=org, name="Tower A", parent=campus
     )
-    floor = factories.MeetingRoomNodeFactory(
-        organization=org, name="3F", parent=building
-    )
+    floor = factories.MeetingRoomNodeFactory(organization=org, name="3F", parent=building)
     factories.MeetingRoomFactory(organization=org, node=floor)
 
     rows = {row["name"]: row for row in _client(user).get(
@@ -102,9 +107,11 @@ def test_nodes_expose_tree_shape_and_inherited_timezone(org_user):
     ).json()}
 
     assert rows["3F"]["parent"] == str(building.id)
-    assert rows["3F"]["depth"] == 2
-    assert rows["3F"]["path"].startswith(region.id.hex)
-    # Only the region sets a timezone; the rest inherit it.
+    assert rows["3F"]["depth"] == 4
+    assert rows["3F"]["level_number"] == 5
+    assert rows["3F"]["level_type"] == "floor"
+    assert rows["3F"]["path"].startswith(country.id.hex)
+    # Only the city sets a timezone; the rest inherit it.
     assert rows["Tower A"]["timezone"] is None
     assert rows["3F"]["effective_timezone"] == "Asia/Shanghai"
     assert rows["3F"]["room_count"] == 1
@@ -113,10 +120,8 @@ def test_nodes_expose_tree_shape_and_inherited_timezone(org_user):
 
 def test_filtering_by_node_includes_the_whole_subtree(org_user):
     org, user = org_user
-    building = factories.MeetingRoomNodeFactory(organization=org, name="Tower A")
-    floor = factories.MeetingRoomNodeFactory(
-        organization=org, name="3F", parent=building
-    )
+    floor = factories.MeetingRoomFloorFactory(organization=org, name="3F")
+    building = floor.parent
     factories.MeetingRoomFactory(organization=org, node=floor, name="3F-01")
     factories.MeetingRoomFactory(organization=org, name="Elsewhere")
 
@@ -380,8 +385,8 @@ def test_timeline_shows_private_titles_to_the_organizer(org_user):
 
 def test_timeline_by_node_and_date_uses_the_node_timezone(org_user):
     org, user = org_user
-    node = factories.MeetingRoomNodeFactory(
-        organization=org, timezone="Asia/Shanghai"
+    node = factories.MeetingRoomFloorFactory(
+        organization=org, city_timezone="Asia/Shanghai"
     )
     factories.MeetingRoomFactory(organization=org, node=node)
 

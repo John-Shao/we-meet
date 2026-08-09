@@ -22,6 +22,8 @@ export interface MeetingRoomNode {
   /** Materialized ancestor path; a subtree is everything with this prefix. */
   path: string
   depth: number
+  level_number: 1 | 2 | 3 | 4 | 5
+  level_type: 'country_region' | 'city' | 'campus' | 'building' | 'floor'
   sort_order: number
   /** null = inherit from the nearest ancestor that sets one. */
   timezone: string | null

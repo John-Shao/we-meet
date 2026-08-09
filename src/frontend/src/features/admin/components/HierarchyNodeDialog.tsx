@@ -7,7 +7,10 @@ import { selectChrome } from '@/primitives/selectChrome'
 import { css, cx } from '@/styled-system/css'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
-import type { AdminMeetingRoomNode } from '../api/adminMeetingRooms'
+import {
+  MEETING_ROOM_LEVEL_TYPES,
+  type AdminMeetingRoomNode,
+} from '../api/adminMeetingRooms'
 
 export interface HierarchyNodeValues {
   name: string
@@ -62,20 +65,26 @@ export const HierarchyNodeDialog = ({
     setParentId(node ? (node.parent ?? '') : (parent?.id ?? ''))
   }, [isOpen, node, parent])
 
-  const candidates = node
-    ? nodes.filter((n) => !n.path.startsWith(node.path))
-    : nodes
+  const levelType =
+    node?.level_type ?? MEETING_ROOM_LEVEL_TYPES[(parent?.depth ?? -1) + 1]
+  const candidates = node ? nodes.filter((n) => n.depth === node.depth - 1) : []
 
   const trimmed = name.trim()
+  const valid = !!trimmed && (levelType !== 'city' || !!timezone)
   const submit = () => {
-    if (!trimmed || submitting) return
+    if (!valid || submitting) return
     onSubmit({ name: trimmed, timezone, parent: parentId || null })
   }
 
   return (
     <Dialog
       isOpen={isOpen}
-      title={node ? t('meetingRooms.editLevel') : t('meetingRooms.newLevel')}
+      title={t(
+        node ? 'meetingRooms.editTypedLevel' : 'meetingRooms.newTypedLevel',
+        {
+          level: t(`meetingRooms.levelTypes.${levelType}`),
+        }
+      )}
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
@@ -91,19 +100,25 @@ export const HierarchyNodeDialog = ({
           <label className={labelCls} htmlFor="mr-node-parent">
             {t('meetingRooms.parentLevel')}
           </label>
-          <select
-            id="mr-node-parent"
-            className={cx(selectChrome, selectCls)}
-            value={parentId}
-            onChange={(e) => setParentId(e.target.value)}
-          >
-            <option value="">{t('meetingRooms.topLevel')}</option>
-            {candidates.map((n) => (
-              <option key={n.id} value={n.id}>
-                {`${'  '.repeat(n.depth)}${n.name}`}
-              </option>
-            ))}
-          </select>
+          {node && node.depth > 0 ? (
+            <select
+              id="mr-node-parent"
+              className={cx(selectChrome, selectCls)}
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              required
+            >
+              {candidates.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div id="mr-node-parent" className={readOnlyCls}>
+              {parent?.name ?? t('meetingRooms.topLevel')}
+            </div>
+          )}
         </div>
 
         <div className={fieldCls}>
@@ -118,24 +133,27 @@ export const HierarchyNodeDialog = ({
           />
         </div>
 
-        <div className={fieldCls}>
-          <label className={labelCls} htmlFor="mr-node-tz">
-            {t('meetingRooms.levelTimezone')}
-          </label>
-          <select
-            id="mr-node-tz"
-            className={cx(selectChrome, selectCls)}
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
-          >
-            <option value="">{t('meetingRooms.timezoneInherit')}</option>
-            {zones.map(({ zone, label }) => (
-              <option key={zone} value={zone}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
+        {levelType === 'city' && (
+          <div className={fieldCls}>
+            <label className={labelCls} htmlFor="mr-node-tz">
+              {t('meetingRooms.cityTimezone')}
+            </label>
+            <select
+              id="mr-node-tz"
+              className={cx(selectChrome, selectCls)}
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              required
+            >
+              <option value="">{t('meetingRooms.selectTimezone')}</option>
+              {zones.map(({ zone, label }) => (
+                <option key={zone} value={zone}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className={footerCls}>
           <Button variant="secondary" size="sm" onPress={onClose}>
@@ -145,7 +163,7 @@ export const HierarchyNodeDialog = ({
             type="submit"
             variant="primary"
             size="sm"
-            isDisabled={!trimmed || submitting}
+            isDisabled={!valid || submitting}
             loading={submitting}
           >
             {t('actions.save')}
@@ -164,6 +182,16 @@ const fieldCls = css({
   minWidth: '20rem',
 })
 const labelCls = css({ fontSize: '0.8125rem', color: 'greyscale.600' })
+const readOnlyCls = css({
+  minHeight: '2.25rem',
+  display: 'flex',
+  alignItems: 'center',
+  paddingX: '0.625rem',
+  borderRadius: 4,
+  backgroundColor: 'greyscale.100',
+  color: 'greyscale.700',
+  fontSize: '0.875rem',
+})
 // 同 MeetingRoomDialog:补齐边框/圆角,appearance:none 会把浏览器自带边框一起
 // 去掉,原先是个白底无框的 21px 下拉。高度由 selectChrome 统一给;左内边距用
 // paddingLeft 而非 paddingX,避免与 selectChrome 的箭头留位撞同属性。

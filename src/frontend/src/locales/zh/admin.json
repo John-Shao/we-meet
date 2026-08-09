@@ -458,6 +458,20 @@
     }
   },
   "meetingRooms": {
+    "levelTypes": {
+      "country_region": "国家/地区",
+      "city": "城市",
+      "campus": "园区",
+      "building": "楼栋",
+      "floor": "楼层"
+    },
+    "addLevelType": "添加{{level}}",
+    "newTypedLevel": "添加{{level}}",
+    "editTypedLevel": "编辑{{level}}",
+    "cityTimezone": "城市时区",
+    "selectTimezone": "请选择城市时区",
+    "emptyFixedHierarchy": "还没有会议室位置，请从国家/地区开始逐级创建",
+    "selectFloorToAddRoom": "请先在左侧选择第 5 级楼层",
     "title": "会议室",
     "allRooms": "全部会议室",
     "newLevel": "添加层级",

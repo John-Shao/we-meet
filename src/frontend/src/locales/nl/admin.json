@@ -207,6 +207,20 @@
     }
   },
   "meetingRooms": {
+    "levelTypes": {
+      "country_region": "Land/regio",
+      "city": "Stad",
+      "campus": "Campus",
+      "building": "Gebouw",
+      "floor": "Verdieping"
+    },
+    "addLevelType": "{{level}} toevoegen",
+    "newTypedLevel": "{{level}} toevoegen",
+    "editTypedLevel": "{{level}} bewerken",
+    "cityTimezone": "Tijdzone van de stad",
+    "selectTimezone": "Selecteer een tijdzone",
+    "emptyFixedHierarchy": "Nog geen locaties. Begin met een land of regio",
+    "selectFloorToAddRoom": "Selecteer eerst links een verdieping van niveau 5",
     "title": "Vergaderruimtes",
     "allRooms": "Alle ruimtes",
     "newLevel": "Niveau toevoegen",

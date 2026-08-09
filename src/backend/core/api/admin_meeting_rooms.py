@@ -10,6 +10,8 @@ materialized paths — same algorithm as the department console, which is where
 that logic was first worked out.
 """
 
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -43,6 +45,8 @@ class MeetingRoomNodeAdminSerializer(serializers.ModelSerializer):
 
     effective_timezone = serializers.SerializerMethodField()
     room_count = serializers.SerializerMethodField()
+    level_number = serializers.IntegerField(read_only=True)
+    level_type = serializers.CharField(read_only=True)
     timezone = serializers.CharField(
         required=False, allow_blank=True, allow_null=True
     )
@@ -55,6 +59,8 @@ class MeetingRoomNodeAdminSerializer(serializers.ModelSerializer):
             "parent",
             "path",
             "depth",
+            "level_number",
+            "level_type",
             "sort_order",
             "timezone",
             "effective_timezone",
@@ -62,7 +68,15 @@ class MeetingRoomNodeAdminSerializer(serializers.ModelSerializer):
             "room_count",
             "created_at",
         ]
-        read_only_fields = ["id", "path", "depth", "effective_timezone", "created_at"]
+        read_only_fields = [
+            "id",
+            "path",
+            "depth",
+            "level_number",
+            "level_type",
+            "effective_timezone",
+            "created_at",
+        ]
 
     def get_effective_timezone(self, obj):
         return str(obj.resolve_timezone())
@@ -76,11 +90,38 @@ class MeetingRoomNodeAdminSerializer(serializers.ModelSerializer):
         organization = self.context.get("organization")
         if value.organization_id != getattr(organization, "id", None):
             raise serializers.ValidationError("parent must be in your organization")
+        if value.deleted_at is not None or not value.is_active:
+            raise serializers.ValidationError("parent must be active")
+        if value.is_floor:
+            raise serializers.ValidationError("a floor cannot contain another level")
         return value
 
     def validate_timezone(self, value):
         """Empty means "inherit from ancestors" — store NULL, not ''."""
-        return (value or "").strip() or None
+        normalized = (value or "").strip() or None
+        if normalized is not None:
+            try:
+                ZoneInfo(normalized)
+            except (ZoneInfoNotFoundError, ValueError) as exc:
+                raise serializers.ValidationError("invalid IANA timezone") from exc
+        return normalized
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        parent = attrs.get("parent") if self.instance is None else self.instance.parent
+        depth = parent.depth + 1 if parent is not None else 0
+        timezone_value = attrs.get(
+            "timezone", getattr(self.instance, "timezone", None)
+        )
+        if depth == 1 and not timezone_value:
+            raise serializers.ValidationError(
+                {"timezone": "city timezone is required"}
+            )
+        if depth != 1 and timezone_value:
+            raise serializers.ValidationError(
+                {"timezone": "timezone can only be configured on a city"}
+            )
+        return attrs
 
     def update(self, instance, validated_data):
         # Reparenting has to rewrite descendant paths, so it goes through the
@@ -229,6 +270,12 @@ class MeetingRoomAdminSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("node must be in your organization")
         if value.deleted_at is not None:
             raise serializers.ValidationError("node has been deleted")
+        if not value.is_active:
+            raise serializers.ValidationError("node is inactive")
+        if not value.is_floor:
+            raise serializers.ValidationError(
+                "meeting rooms can only be added to a floor"
+            )
         return value
 
     def _set_facilities(self, room, facility_ids):
@@ -366,7 +413,10 @@ class MeetingRoomNodeAdminViewSet(
         new_parent = None
         if parent_id:
             new_parent = models.MeetingRoomNode.objects.filter(
-                id=parent_id, organization=organization, deleted_at__isnull=True
+                id=parent_id,
+                organization=organization,
+                deleted_at__isnull=True,
+                is_active=True,
             ).first()
             if new_parent is None:
                 raise serializers.ValidationError({"parent": "invalid target parent"})
@@ -375,6 +425,16 @@ class MeetingRoomNodeAdminViewSet(
                 raise serializers.ValidationError(
                     {"parent": "cannot move a level under itself or its descendant"}
                 )
+
+        if node.depth == 0:
+            if new_parent is not None:
+                raise serializers.ValidationError(
+                    {"parent": "a country/region must remain at the top level"}
+                )
+        elif new_parent is None or new_parent.depth != node.depth - 1:
+            raise serializers.ValidationError(
+                {"parent": "moving a level cannot change its level type"}
+            )
 
         new_parent_id = new_parent.id if new_parent else None
         if node.parent_id == new_parent_id:

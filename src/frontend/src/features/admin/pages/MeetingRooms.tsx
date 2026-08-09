@@ -1,8 +1,18 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { RiAddLine, RiMoreFill, RiSearchLine, RiToolsLine } from '@remixicon/react'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import {
+  RiAddLine,
+  RiMoreFill,
+  RiSearchLine,
+  RiToolsLine,
+} from '@remixicon/react'
 import { Menu as RACMenu, MenuItem } from 'react-aria-components'
 import Table, { type ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 
@@ -16,6 +26,7 @@ import { ResizablePanel } from '@/components/ResizablePanel'
 import {
   type AdminMeetingRoom,
   type AdminMeetingRoomNode,
+  MEETING_ROOM_LEVEL_TYPES,
   createMeetingRoom,
   createRoomNode,
   deleteMeetingRoom,
@@ -124,7 +135,8 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
     // The C side reads the same hierarchy — keep the picker honest.
     void queryClient.invalidateQueries({ queryKey: ['meeting-rooms'] })
   }
-  const onError = (e: unknown) => void showAlert({ message: describeApiError(e) })
+  const onError = (e: unknown) =>
+    void showAlert({ message: describeApiError(e) })
 
   const nodeMutation = useMutation({
     mutationFn: async (values: HierarchyNodeValues) => {
@@ -199,12 +211,18 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
     if (roomId) navigate('/meeting-rooms')
   }
 
-  const resetPage = <T,>(set: (v: T) => void) => (value: T) => {
-    set(value)
-    setPage(1)
-  }
+  const resetPage =
+    <T,>(set: (v: T) => void) =>
+    (value: T) => {
+      set(value)
+      setPage(1)
+    }
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null
+  const selectedFloor =
+    selectedNode?.level_type === 'floor' ? selectedNode : null
+  const nextLevelType =
+    MEETING_ROOM_LEVEL_TYPES[(selectedNode?.depth ?? -1) + 1]
   const childLevels = useMemo(
     () => nodes.filter((n) => (n.parent ?? null) === selectedNodeId).length,
     [nodes, selectedNodeId]
@@ -355,15 +373,25 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
             size="sm"
             variant="secondary"
             icon={<RiAddLine size={16} />}
-            onPress={() => setNodeDialog({ mode: 'create', parent: null })}
+            isDisabled={!nextLevelType}
+            onPress={() =>
+              setNodeDialog({ mode: 'create', parent: selectedNode })
+            }
           >
-            {t('meetingRooms.newLevel')}
+            {nextLevelType
+              ? t('meetingRooms.addLevelType', {
+                  level: t(`meetingRooms.levelTypes.${nextLevelType}`),
+                })
+              : t('meetingRooms.newLevel')}
           </Button>
           <Button
             size="sm"
             variant="primary"
             icon={<RiAddLine size={16} />}
-            isDisabled={nodes.length === 0}
+            isDisabled={!selectedFloor}
+            tooltip={
+              selectedFloor ? undefined : t('meetingRooms.selectFloorToAddRoom')
+            }
             onPress={() => setRoomDialog({ mode: 'create' })}
             data-testid="admin-mr-add"
           >
@@ -391,7 +419,7 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
             </div>
             {nodes.length === 0 ? (
               <p className={css({ padding: '0.75rem', ...hintStyle })}>
-                {t('meetingRooms.emptyLevels')}
+                {t('meetingRooms.emptyFixedHierarchy')}
               </p>
             ) : (
               <MeetingRoomNodeTree
@@ -399,7 +427,9 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
                 query={treeQuery}
                 selectedId={selectedNodeId}
                 onSelect={selectNode}
-                onAddChild={(parent) => setNodeDialog({ mode: 'create', parent })}
+                onAddChild={(parent) =>
+                  setNodeDialog({ mode: 'create', parent })
+                }
                 onEdit={(node) => setNodeDialog({ mode: 'edit', node })}
                 onDelete={(node) => void confirmDeleteNode(node)}
               />
@@ -447,7 +477,9 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
                   aria-label={t('meetingRooms.capacity')}
                   className={filterSelectCls}
                 >
-                  <option value="">{t('meetingRooms.filterAnyCapacity')}</option>
+                  <option value="">
+                    {t('meetingRooms.filterAnyCapacity')}
+                  </option>
                   {CAPACITY_STEPS.map((n) => (
                     <option key={n} value={n}>
                       {t('meetingRooms.filterCapacityAtLeast', { count: n })}
@@ -534,7 +566,7 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
       <MeetingRoomDialog
         isOpen={roomDialog !== null}
         room={roomDialog?.mode === 'edit' ? roomDialog.room : null}
-        defaultNodeId={selectedNodeId}
+        defaultNodeId={selectedFloor?.id ?? null}
         nodes={nodes}
         facilities={facilities}
         submitting={roomMutation.isPending}

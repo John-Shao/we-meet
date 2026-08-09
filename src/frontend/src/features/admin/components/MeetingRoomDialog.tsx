@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/primitives/Dialog'
@@ -66,13 +66,18 @@ export const MeetingRoomDialog = ({
     if (!isOpen) return
     setName(room?.name ?? '')
     setCode(room?.code ?? '')
-    setNodeId(room?.node ?? defaultNodeId ?? nodes[0]?.id ?? '')
+    setNodeId(room?.node ?? defaultNodeId ?? '')
     setCapacity(room && room.capacity > 0 ? String(room.capacity) : '')
     setActive(room?.is_active ?? true)
     setDisabledReason(room?.disabled_reason ?? '')
     setDescription(room?.description ?? '')
     setFacilityIds(room?.facilities.map((f) => f.id) ?? [])
   }, [isOpen, room, defaultNodeId, nodes])
+
+  const floorNodes = useMemo(
+    () => nodes.filter((node) => node.level_type === 'floor'),
+    [nodes]
+  )
 
   const toggleFacility = (id: string) =>
     setFacilityIds((prev) =>
@@ -86,7 +91,7 @@ export const MeetingRoomDialog = ({
   )
 
   const trimmed = name.trim()
-  const valid = !!trimmed && !!nodeId
+  const valid = !!trimmed && floorNodes.some((floor) => floor.id === nodeId)
   const submit = () => {
     if (!valid || submitting) return
     onSubmit({
@@ -146,18 +151,25 @@ export const MeetingRoomDialog = ({
           <label className={labelCls} htmlFor="mr-room-node">
             {t('meetingRooms.parentLevel')}
           </label>
-          <select
-            id="mr-room-node"
-            className={cx(selectChrome, selectCls)}
-            value={nodeId}
-            onChange={(e) => setNodeId(e.target.value)}
-          >
-            {nodes.map((n) => (
-              <option key={n.id} value={n.id}>
-                {`${'  '.repeat(n.depth)}${n.name}`}
-              </option>
-            ))}
-          </select>
+          {room ? (
+            <select
+              id="mr-room-node"
+              className={cx(selectChrome, selectCls)}
+              value={nodeId}
+              onChange={(e) => setNodeId(e.target.value)}
+              required
+            >
+              {floorNodes.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {pathLabelOf(nodes, n.id)}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div id="mr-room-node" className={readOnlyCls}>
+              {nodeId ? pathLabelOf(nodes, nodeId) : ''}
+            </div>
+          )}
         </div>
 
         <div className={rowCls}>
@@ -281,6 +293,16 @@ const fieldCls = css({
 })
 const rowCls = css({ display: 'flex', gap: '0.75rem', minWidth: '22rem' })
 const labelCls = css({ fontSize: '0.8125rem', color: 'greyscale.600' })
+const readOnlyCls = css({
+  minHeight: '2.25rem',
+  display: 'flex',
+  alignItems: 'center',
+  paddingX: '0.625rem',
+  borderRadius: 4,
+  backgroundColor: 'greyscale.100',
+  color: 'greyscale.700',
+  fontSize: '0.875rem',
+})
 // 与同框的 Input 基元同款外观(边框/圆角/左内边距/文字色)。原先只有 width +
 // fontSize —— appearance:none 把浏览器自带的边框也一并去掉了,于是白底无框的
 // 21px 下拉贴在 32px 的 Input 底下,基本看不见是个控件。

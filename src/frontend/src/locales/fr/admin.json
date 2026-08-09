@@ -207,6 +207,20 @@
     }
   },
   "meetingRooms": {
+    "levelTypes": {
+      "country_region": "Pays/région",
+      "city": "Ville",
+      "campus": "Campus",
+      "building": "Bâtiment",
+      "floor": "Étage"
+    },
+    "addLevelType": "Ajouter : {{level}}",
+    "newTypedLevel": "Ajouter : {{level}}",
+    "editTypedLevel": "Modifier : {{level}}",
+    "cityTimezone": "Fuseau horaire de la ville",
+    "selectTimezone": "Sélectionnez un fuseau horaire",
+    "emptyFixedHierarchy": "Aucun emplacement. Commencez par ajouter un pays ou une région",
+    "selectFloorToAddRoom": "Sélectionnez d’abord un étage de niveau 5 à gauche",
     "title": "Salles de réunion",
     "allRooms": "Toutes les salles",
     "newLevel": "Ajouter un niveau",

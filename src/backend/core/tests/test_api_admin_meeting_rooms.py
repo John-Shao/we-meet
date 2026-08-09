@@ -1,5 +1,8 @@
 """API tests for the meeting-room admin console endpoints (P9, M side)."""
 
+import importlib
+
+from django.apps import apps
 import pytest
 from rest_framework.test import APIClient
 
@@ -66,19 +69,65 @@ def test_create_node_derives_path_and_depth(admin_org):
     org, admin = admin_org
     client = _client(admin)
 
-    region = client.post(
-        NODES, {"name": "China", "timezone": "Asia/Shanghai"}, format="json"
+    country = client.post(
+        NODES, {"name": "China"}, format="json"
     ).json()
-    floor = client.post(
-        NODES, {"name": "3F", "parent": region["id"]}, format="json"
+    city = client.post(
+        NODES,
+        {
+            "name": "Shenzhen",
+            "parent": country["id"],
+            "timezone": "Asia/Shanghai",
+        },
+        format="json",
+    ).json()
+    campus = client.post(
+        NODES, {"name": "Campus", "parent": city["id"]}, format="json"
     ).json()
 
-    assert region["depth"] == 0
-    assert floor["depth"] == 1
-    assert floor["path"].startswith(region["path"])
-    # Blank timezone means "inherit", not "UTC".
-    assert floor["timezone"] is None
-    assert floor["effective_timezone"] == "Asia/Shanghai"
+    assert country["depth"] == 0
+    assert country["level_number"] == 1
+    assert country["level_type"] == "country_region"
+    assert city["level_type"] == "city"
+    assert campus["level_type"] == "campus"
+    assert campus["path"].startswith(country["path"])
+    assert campus["timezone"] is None
+    assert campus["effective_timezone"] == "Asia/Shanghai"
+
+
+def test_city_timezone_is_required_and_forbidden_on_other_levels(admin_org):
+    _org, admin = admin_org
+    client = _client(admin)
+    country = client.post(NODES, {"name": "China"}, format="json").json()
+
+    missing = client.post(
+        NODES, {"name": "Shenzhen", "parent": country["id"]}, format="json"
+    )
+    assert missing.status_code == 400
+    invalid_country = client.post(
+        NODES, {"name": "US", "timezone": "America/Los_Angeles"}, format="json"
+    )
+    assert invalid_country.status_code == 400
+    invalid_city = client.post(
+        NODES,
+        {
+            "name": "Nowhere",
+            "parent": country["id"],
+            "timezone": "Mars/Olympus_Mons",
+        },
+        format="json",
+    )
+    assert invalid_city.status_code == 400
+
+
+def test_floor_cannot_have_a_child(admin_org):
+    org, admin = admin_org
+    floor = factories.MeetingRoomFloorFactory(organization=org)
+
+    resp = _client(admin).post(
+        NODES, {"name": "Too deep", "parent": str(floor.id)}, format="json"
+    )
+    assert resp.status_code == 400
 
 
 def test_patch_cannot_reparent_a_node(admin_org):
@@ -130,6 +179,17 @@ def test_move_rejects_a_cycle(admin_org):
     assert resp.status_code == 400
 
 
+def test_move_rejects_changing_a_nodes_level_type(admin_org):
+    org, admin = admin_org
+    floor = factories.MeetingRoomFloorFactory(organization=org)
+    country = floor.parent.parent.parent.parent
+
+    resp = _client(admin).post(
+        f"{NODES}{floor.id}/move/", {"parent": str(country.id)}, format="json"
+    )
+    assert resp.status_code == 400
+
+
 def test_cannot_delete_a_node_that_still_has_children_or_rooms(admin_org):
     org, admin = admin_org
     client = _client(admin)
@@ -138,8 +198,8 @@ def test_cannot_delete_a_node_that_still_has_children_or_rooms(admin_org):
 
     assert client.delete(f"{NODES}{parent.id}/").status_code == 400
 
-    factories.MeetingRoomFactory(organization=org, node=child)
-    assert client.delete(f"{NODES}{child.id}/").status_code == 400
+    room = factories.MeetingRoomFactory(organization=org)
+    assert client.delete(f"{NODES}{room.node_id}/").status_code == 400
 
 
 def test_deleting_an_empty_node_soft_deletes_and_hides_it(admin_org):
@@ -161,7 +221,7 @@ def test_deleting_an_empty_node_soft_deletes_and_hides_it(admin_org):
 
 def test_create_room_with_facilities(admin_org):
     org, admin = admin_org
-    node = factories.MeetingRoomNodeFactory(organization=org, name="3F")
+    node = factories.MeetingRoomFloorFactory(organization=org, name="3F")
     tv = factories.MeetingRoomFacilityFactory(organization=org, name="TV")
 
     resp = _client(admin).post(
@@ -178,7 +238,7 @@ def test_create_room_with_facilities(admin_org):
     body = resp.json()
     assert body["capacity"] == 12
     assert [f["name"] for f in body["facilities"]] == ["TV"]
-    assert body["path_label"] == "3F"
+    assert body["path_label"].endswith("3F")
 
 
 def test_room_node_must_belong_to_the_callers_organization(admin_org):
@@ -187,6 +247,16 @@ def test_room_node_must_belong_to_the_callers_organization(admin_org):
 
     resp = _client(admin).post(
         ROOMS, {"name": "Sneaky", "node": str(foreign_node.id)}, format="json"
+    )
+    assert resp.status_code == 400
+
+
+def test_room_can_only_be_created_on_a_floor(admin_org):
+    org, admin = admin_org
+    country = factories.MeetingRoomNodeFactory(organization=org)
+
+    resp = _client(admin).post(
+        ROOMS, {"name": "Wrong level", "node": str(country.id)}, format="json"
     )
     assert resp.status_code == 400
 
@@ -210,10 +280,39 @@ def test_deleting_a_room_is_soft_and_keeps_existing_bookings(admin_org):
     assert models.MeetingRoomBooking.objects.filter(id=booking.id).exists()
 
 
+def test_legacy_hierarchy_migration_retires_without_deleting_bookings(admin_org):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org)
+    event = factories.CalendarEventFactory(organization=org, organizer=admin)
+    booking = models.MeetingRoomBooking.objects.create(
+        organization=org,
+        room=room,
+        event=event,
+        start_at=event.start_at,
+        end_at=event.end_at,
+    )
+    migration = importlib.import_module(
+        "core.migrations.0088_retire_legacy_meeting_room_hierarchy"
+    )
+
+    migration.retire_legacy_hierarchy(apps, None)
+
+    room.refresh_from_db()
+    room.node.refresh_from_db()
+    assert room.deleted_at is not None
+    assert room.is_active is False
+    assert room.node.deleted_at is not None
+    assert models.MeetingRoomBooking.objects.filter(id=booking.id).exists()
+    historical = _client(admin).get(f"/api/v1.0/calendar-events/{event.id}/")
+    assert historical.status_code == 200
+    assert historical.json()["meeting_room"]["name"] == room.name
+    assert historical.json()["meeting_room"]["path_label"]
+
+
 def test_room_list_filters_by_node_subtree(admin_org):
     org, admin = admin_org
-    building = factories.MeetingRoomNodeFactory(organization=org)
-    floor = factories.MeetingRoomNodeFactory(organization=org, parent=building)
+    floor = factories.MeetingRoomFloorFactory(organization=org)
+    building = floor.parent
     factories.MeetingRoomFactory(organization=org, node=floor, name="Inside")
     factories.MeetingRoomFactory(organization=org, name="Outside")
 
@@ -249,9 +348,10 @@ def test_facility_in_use_is_retired_rather_than_deleted(admin_org):
 def test_writes_are_audited(admin_org):
     org, admin = admin_org
     client = _client(admin)
-    node = client.post(NODES, {"name": "China"}, format="json").json()
+    client.post(NODES, {"name": "China"}, format="json")
+    floor = factories.MeetingRoomFloorFactory(organization=org)
     client.post(
-        ROOMS, {"name": "3F-01", "node": node["id"]}, format="json"
+        ROOMS, {"name": "3F-01", "node": str(floor.id)}, format="json"
     )
 
     actions = set(
@@ -268,7 +368,7 @@ def test_writes_are_audited(admin_org):
 
 def test_search_matches_room_number_as_well_as_name(admin_org):
     org, admin = admin_org
-    node = factories.MeetingRoomNodeFactory(organization=org)
+    node = factories.MeetingRoomFloorFactory(organization=org)
     factories.MeetingRoomFactory(organization=org, node=node, name="Ada", code="FM-401")
     factories.MeetingRoomFactory(organization=org, node=node, name="Grace", code="FM-902")
 
@@ -280,7 +380,7 @@ def test_search_matches_room_number_as_well_as_name(admin_org):
 
 def test_capacity_and_facility_filters_are_and_ed(admin_org):
     org, admin = admin_org
-    node = factories.MeetingRoomNodeFactory(organization=org)
+    node = factories.MeetingRoomFloorFactory(organization=org)
     tv = factories.MeetingRoomFacilityFactory(organization=org)
     board = factories.MeetingRoomFacilityFactory(organization=org)
 
