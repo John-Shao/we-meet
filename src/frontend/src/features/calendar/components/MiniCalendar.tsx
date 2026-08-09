@@ -152,8 +152,7 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
                           : {}),
                       }
                     : {
-                        backgroundColor:
-                          weekend && !outside ? 'greyscale.50' : 'transparent',
+                        backgroundColor: 'transparent',
                         color: outside
                           ? 'greyscale.400'
                           : today
