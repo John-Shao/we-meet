@@ -240,31 +240,24 @@ export function CalendarToolbar<
         })}
       >
         {(view === 'day' || view === 'week' || view === 'work_week') &&
-          timeRangeMode &&
-          onTimeRangeModeChange && (
-            <>
-              {timeRangeMode === 'work' && outsideEventCount > 0 && (
-                <button
-                  type="button"
-                  className={css({
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'primary.600',
-                    fontSize: '0.75rem',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    _dark: { color: 'primaryDark.700' },
-                  })}
-                  onClick={() => onTimeRangeModeChange('full')}
-                >
-                  {t('grid.outsideEvents', { count: outsideEventCount })}
-                </button>
-              )}
-              <TimeRangeSwitcher
-                value={timeRangeMode}
-                onChange={onTimeRangeModeChange}
-              />
-            </>
+          timeRangeMode === 'work' &&
+          onTimeRangeModeChange &&
+          outsideEventCount > 0 && (
+            <button
+              type="button"
+              className={css({
+                border: 'none',
+                background: 'transparent',
+                color: 'primary.600',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                _dark: { color: 'primaryDark.700' },
+              })}
+              onClick={() => onTimeRangeModeChange('full')}
+            >
+              {t('grid.outsideEvents', { count: outsideEventCount })}
+            </button>
           )}
         <CalendarViewSwitcher
           view={view === ('work_week' as View) ? 'week' : view}

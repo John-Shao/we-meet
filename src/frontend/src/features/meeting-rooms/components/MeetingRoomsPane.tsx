@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 import { useCalendarSettings } from '@/features/calendar/hooks/useCalendarSettings'
-import { TimeRangeSwitcher } from '@/features/calendar/components/CalendarToolbar'
 import {
   isOutsideWorkingHours,
   workingWindowForDate,
@@ -144,10 +143,6 @@ export const MeetingRoomsPane = ({
               {t('timeline.outsideBookings', { count: outsideBookingCount })}
             </button>
           )}
-          <TimeRangeSwitcher
-            value={meetingRoomsTimeRangeMode}
-            onChange={setMeetingRoomsTimeRangeMode}
-          />
           <span className={countCls}>
             {t('filters.roomCount', {
               visible: visibleRooms.length,

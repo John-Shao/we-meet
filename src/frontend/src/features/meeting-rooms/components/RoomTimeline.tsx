@@ -13,10 +13,11 @@ import {
 
 import type { MeetingRoomBrief, RoomTimelineEntry } from '../api/ApiMeetingRoom'
 import { useNowTick } from '../hooks/useNowTick'
-import { addMinutes, makeScale } from '../utils/timelineScale'
-
-/** Readable hourly minimum; wider viewports distribute the visible range. */
-const HOUR_WIDTH = 48
+import {
+  addMinutes,
+  makeScale,
+  timelineTrackWidth,
+} from '../utils/timelineScale'
 /** Where the track scrolls to on mount — nobody books at 3am. */
 const INITIAL_HOUR = 8
 const LABEL_WIDTH_PX = 176
@@ -71,10 +72,11 @@ export const RoomTimeline = ({
   const scale = makeScale(dayStart, dayEnd)
   const totalMinutes = scale.minuteAt(1)
   const halfHourCount = Math.ceil(totalMinutes / 30)
-  // Keep 48px/hour as the readable minimum, but distribute a wide viewport
-  // across the selected range instead of leaving an empty strip on the right.
-  const trackWidth = Math.max(
-    HOUR_WIDTH * (totalMinutes / 60),
+  // Keep every half-hour cell readable. Short work ranges still stretch to
+  // fill a wide viewport; a 24-hour range intentionally overflows and uses the
+  // timeline's native horizontal scroller.
+  const trackWidth = timelineTrackWidth(
+    totalMinutes,
     viewportWidth - LABEL_WIDTH_PX
   )
   const workWindow = workingWindowForDate(dayStart, workingHours)

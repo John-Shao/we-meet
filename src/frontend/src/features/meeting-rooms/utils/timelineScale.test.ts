@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { addMinutes, dayWindow, makeScale } from './timelineScale'
+import {
+  addMinutes,
+  dayWindow,
+  makeScale,
+  timelineTrackWidth,
+} from './timelineScale'
 
 const day = (h: number, m = 0) => new Date(2026, 6, 25, h, m, 0, 0)
 
@@ -62,5 +67,15 @@ describe('addMinutes', () => {
     const base = day(9)
     expect(addMinutes(base, 90).getHours()).toBe(10)
     expect(base.getHours()).toBe(9)
+  })
+})
+
+describe('timelineTrackWidth', () => {
+  it('全天视图保持每半小时 64px，并允许超出一屏横向滚动', () => {
+    expect(timelineTrackWidth(24 * 60, 1400)).toBe(3072)
+  })
+
+  it('工作时间较短且屏幕更宽时仍弹性铺满可用空间', () => {
+    expect(timelineTrackWidth(9 * 60, 1400)).toBe(1400)
   })
 })

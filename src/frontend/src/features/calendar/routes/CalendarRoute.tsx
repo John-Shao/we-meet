@@ -31,6 +31,8 @@ import { openSystemSettings } from '@/stores/systemSettings'
 import { CreateEventDialog } from '../components/CreateEventDialog'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
+import { TimeRangeSwitcher } from '../components/CalendarToolbar'
+import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import {
   CalendarPageTabs,
   type CalendarPageTab,
@@ -74,6 +76,12 @@ const CalendarAuthenticated = () => {
   const [, navigate] = useLocation()
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const { user } = useUser()
+  const {
+    calendarTimeRangeMode,
+    meetingRoomsTimeRangeMode,
+    setCalendarTimeRangeMode,
+    setMeetingRoomsTimeRangeMode,
+  } = useCalendarSettings()
   const [creating, setCreating] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('we-meet:calendar-sidebar-collapsed') === '1'
@@ -392,6 +400,20 @@ const CalendarAuthenticated = () => {
               gap: '0.5rem',
             })}
           >
+            {(tab === 'meetingRooms' || view === 'day' || view === 'week') && (
+              <TimeRangeSwitcher
+                value={
+                  tab === 'meetingRooms'
+                    ? meetingRoomsTimeRangeMode
+                    : calendarTimeRangeMode
+                }
+                onChange={
+                  tab === 'meetingRooms'
+                    ? setMeetingRoomsTimeRangeMode
+                    : setCalendarTimeRangeMode
+                }
+              />
+            )}
             <Button
               variant="primary"
               size="action"

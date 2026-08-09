@@ -19,6 +19,18 @@ export interface TimelineScale {
   end: Date
 }
 
+export const TIMELINE_HALF_HOUR_MIN_WIDTH = 64
+
+/** Preserve readable half-hour cells while still filling a wider viewport. */
+export const timelineTrackWidth = (
+  totalMinutes: number,
+  availableWidth: number
+): number =>
+  Math.max(
+    TIMELINE_HALF_HOUR_MIN_WIDTH * Math.ceil(totalMinutes / 30),
+    availableWidth
+  )
+
 const toMs = (value: Date | string | number): number => {
   if (value instanceof Date) return value.getTime()
   if (typeof value === 'number') return value
