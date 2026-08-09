@@ -52,6 +52,18 @@ export const MeetingRoomFilters = ({
 
   return (
     <div className={rowCls}>
+      {!compact && (
+        <input
+          type="search"
+          className={cx(selectChrome, searchCls)}
+          value={value.q ?? ''}
+          onChange={(event) => onChange({ ...value, q: event.target.value })}
+          placeholder={t('picker.searchPlaceholder')}
+          aria-label={t('picker.searchPlaceholder')}
+          data-testid="mr-filter-search"
+        />
+      )}
+
       <select
         className={cx(selectChrome, selectCls)}
         value={value.node ?? ''}
@@ -110,15 +122,19 @@ export const MeetingRoomFilters = ({
         </div>
       )}
 
-      {!compact && (selectedFacilities.length > 0 || value.node || value.capacityMin) && (
-        <button
-          type="button"
-          className={resetCls}
-          onClick={() => onChange({ q: value.q })}
-        >
-          {t('filters.reset')}
-        </button>
-      )}
+      {!compact &&
+        (selectedFacilities.length > 0 ||
+          value.node ||
+          value.capacityMin ||
+          value.q) && (
+          <button
+            type="button"
+            className={resetCls}
+            onClick={() => onChange({})}
+          >
+            {t('filters.reset')}
+          </button>
+        )}
     </div>
   )
 }
@@ -133,6 +149,11 @@ const selectCls = css({
   fontSize: '0.8125rem',
   paddingY: '0.375rem',
   minWidth: '8rem',
+})
+const searchCls = css({
+  minWidth: '13rem',
+  fontSize: '0.8125rem',
+  paddingY: '0.375rem',
 })
 const facilityRowCls = css({
   display: 'flex',

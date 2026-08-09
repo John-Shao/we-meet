@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
@@ -31,6 +31,7 @@ export const MeetingRoomsPane = ({
 }) => {
   const { t } = useTranslation('meeting-rooms')
   const [filters, setFilters] = useState<RoomFilters>({})
+  const [onlyAvailable, setOnlyAvailable] = useState(false)
 
   const { start: dayStart, end: dayEnd } = dayWindow(date)
   const startIso = dayStart.toISOString()
@@ -43,6 +44,7 @@ export const MeetingRoomsPane = ({
       'timeline',
       startIso,
       filters.node ?? '',
+      filters.q?.trim() ?? '',
       filters.capacityMin ?? 0,
       (filters.facilityIds ?? []).slice().sort().join(','),
     ],
@@ -52,9 +54,49 @@ export const MeetingRoomsPane = ({
     placeholderData: keepPreviousData,
   })
 
+  const visibleRooms = useMemo(() => {
+    const rooms = data?.results ?? []
+    if (!onlyAvailable) return rooms
+
+    const slotStart =
+      selectedSlot?.start ??
+      (() => {
+        const now = new Date()
+        const anchor = new Date(date)
+        anchor.setHours(now.getHours(), now.getMinutes() < 30 ? 0 : 30, 0, 0)
+        return anchor
+      })()
+    const slotEnd =
+      selectedSlot?.end ?? new Date(slotStart.getTime() + 30 * 60_000)
+    return rooms.filter((room) =>
+      room.bookings.every(
+        (booking) =>
+          !['confirmed', 'pending'].includes(booking.status) ||
+          new Date(booking.start) >= slotEnd ||
+          new Date(booking.end) <= slotStart
+      )
+    )
+  }, [data?.results, date, onlyAvailable, selectedSlot])
+
   return (
     <div className={paneCls}>
-      <MeetingRoomFilters value={filters} onChange={setFilters} />
+      <div className={filterBarCls}>
+        <MeetingRoomFilters value={filters} onChange={setFilters} />
+        <button
+          type="button"
+          aria-pressed={onlyAvailable}
+          className={onlyAvailable ? availabilityOnCls : availabilityOffCls}
+          onClick={() => setOnlyAvailable((value) => !value)}
+        >
+          {t('filters.onlyAvailable')}
+        </button>
+        <span className={countCls}>
+          {t('filters.roomCount', {
+            visible: visibleRooms.length,
+            total: data?.results.length ?? 0,
+          })}
+        </span>
+      </div>
       {isError ? (
         <div className={errorCls}>
           {t('pane.loadError')}
@@ -68,10 +110,11 @@ export const MeetingRoomsPane = ({
         </div>
       ) : (
         <RoomTimeline
-          rooms={data?.results ?? []}
+          rooms={visibleRooms}
           dayStart={dayStart}
           dayEnd={dayEnd}
           isLoading={isFetching}
+          emptyMessage={onlyAvailable ? t('picker.emptyAvailable') : undefined}
           selectedSlot={selectedSlot}
           onSelectSlot={onSelectSlot}
           onSlotChange={onSlotChange}
@@ -89,6 +132,37 @@ const paneCls = css({
   minHeight: 0,
   padding: '0.75rem',
   overflow: 'hidden',
+})
+const filterBarCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: '0.5rem',
+})
+const availabilityBase = {
+  flexShrink: 0,
+  paddingX: '0.625rem',
+  paddingY: '0.375rem',
+  borderRadius: '999px',
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+} as const
+const availabilityOffCls = css({
+  ...availabilityBase,
+  border: '1px solid token(colors.greyscale.300)',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.700',
+})
+const availabilityOnCls = css({
+  ...availabilityBase,
+  border: '1px solid token(colors.selected.accent)',
+  backgroundColor: 'selected.bg',
+  color: 'selected.text',
+})
+const countCls = css({
+  marginLeft: 'auto',
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
 })
 const errorCls = css({
   display: 'flex',

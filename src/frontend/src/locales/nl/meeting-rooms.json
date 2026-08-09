@@ -21,6 +21,8 @@
     "capacityAny": "Alle capaciteiten",
     "capacityAtLeast": "Minstens {{count}}",
     "facilities": "Voorzieningen",
+    "onlyAvailable": "Beschikbaar in dit tijdvak",
+    "roomCount": "{{visible}} / {{total}} weergegeven",
     "reset": "Filters wissen"
   },
   "picker": {

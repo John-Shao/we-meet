@@ -21,6 +21,8 @@
     "capacityAny": "Beliebige Kapazität",
     "capacityAtLeast": "Mindestens {{count}}",
     "facilities": "Ausstattung",
+    "onlyAvailable": "In diesem Zeitraum verfügbar",
+    "roomCount": "{{visible}} / {{total}} angezeigt",
     "reset": "Filter zurücksetzen"
   },
   "picker": {

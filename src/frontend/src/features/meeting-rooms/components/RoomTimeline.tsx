@@ -32,6 +32,7 @@ export const RoomTimeline = ({
   dayStart,
   dayEnd,
   isLoading,
+  emptyMessage,
   selectedSlot,
   onSelectSlot,
   onSlotChange,
@@ -40,6 +41,7 @@ export const RoomTimeline = ({
   dayStart: Date
   dayEnd: Date
   isLoading?: boolean
+  emptyMessage?: string
   selectedSlot?: { roomId: string; start: Date; end: Date } | null
   /** Click an empty stretch → prefill a new event in that room and slot. */
   onSelectSlot?: (room: MeetingRoomBrief, start: Date, end: Date) => void
@@ -243,7 +245,7 @@ export const RoomTimeline = ({
   }
 
   if (!isLoading && rooms.length === 0) {
-    return <div className={emptyCls}>{t('pane.empty')}</div>
+    return <div className={emptyCls}>{emptyMessage ?? t('pane.empty')}</div>
   }
 
   return (
@@ -285,11 +287,25 @@ export const RoomTimeline = ({
               data-testid={`mr-timeline-row-${room.id}`}
             >
               <div className={labelCellCls} style={{ width: LABEL_WIDTH }}>
-                <span className={roomNameCls}>{room.name}</span>
-                <span className={roomMetaCls}>
+                <span className={roomNameCls} title={room.name}>
+                  {room.name}
+                </span>
+                <span className={roomMetaCls} title={room.path_label}>
                   {room.path_label}
+                </span>
+                <span
+                  className={roomResourceCls}
+                  title={room.facilities
+                    .map((facility) => facility.name)
+                    .join(' · ')}
+                >
                   {room.capacity > 0 &&
-                    ` · ${t('unit.people', { count: room.capacity })}`}
+                    t('unit.people', { count: room.capacity })}
+                  {room.capacity > 0 && room.facilities.length > 0 && ' · '}
+                  {room.facilities
+                    .slice(0, 2)
+                    .map((facility) => facility.name)
+                    .join(' · ')}
                 </span>
               </div>
               <div
@@ -446,10 +462,17 @@ const roomMetaCls = css({
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 })
+const roomResourceCls = css({
+  fontSize: '0.6875rem',
+  color: 'greyscale.600',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
 const trackCls = css({
   position: 'relative',
   flexShrink: 0,
-  height: '2.75rem',
+  height: '3.5rem',
   cursor: 'pointer',
 })
 const gridLineCls = css({

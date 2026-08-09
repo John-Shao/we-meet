@@ -21,6 +21,8 @@
     "capacityAny": "不限人数",
     "capacityAtLeast": "至少 {{count}} 人",
     "facilities": "设施",
+    "onlyAvailable": "仅看当前时段可用",
+    "roomCount": "显示 {{visible}} / {{total}} 间",
     "reset": "重置筛选"
   },
   "picker": {

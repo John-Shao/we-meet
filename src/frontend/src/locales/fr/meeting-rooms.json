@@ -21,6 +21,8 @@
     "capacityAny": "Toute capacité",
     "capacityAtLeast": "Au moins {{count}}",
     "facilities": "Équipements",
+    "onlyAvailable": "Disponibles sur ce créneau",
+    "roomCount": "{{visible}} / {{total}} affichées",
     "reset": "Réinitialiser"
   },
   "picker": {

@@ -21,6 +21,8 @@
     "capacityAny": "Any capacity",
     "capacityAtLeast": "At least {{count}}",
     "facilities": "Facilities",
+    "onlyAvailable": "Available for this slot",
+    "roomCount": "Showing {{visible}} / {{total}}",
     "reset": "Reset filters"
   },
   "picker": {
