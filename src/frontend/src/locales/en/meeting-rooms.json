@@ -16,6 +16,14 @@
     "clickToBook": "Click a free slot to book {{room}}"
   },
   "filters": {
+    "levelTypes": {
+      "country_region": "Countries/regions",
+      "city": "Cities",
+      "campus": "Campuses",
+      "building": "Buildings",
+      "floor": "Floors"
+    },
+    "levelAllOf": "All {{level}}",
     "level": "Level",
     "levelAll": "All levels",
     "capacity": "Capacity",

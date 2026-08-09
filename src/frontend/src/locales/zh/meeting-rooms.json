@@ -16,6 +16,14 @@
     "clickToBook": "点击空档预订「{{room}}」"
   },
   "filters": {
+    "levelTypes": {
+      "country_region": "国家/地区",
+      "city": "城市",
+      "campus": "园区",
+      "building": "楼栋",
+      "floor": "楼层"
+    },
+    "levelAllOf": "全部{{level}}",
     "level": "所属层级",
     "levelAll": "全部层级",
     "capacity": "容纳人数",

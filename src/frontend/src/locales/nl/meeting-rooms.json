@@ -16,6 +16,14 @@
     "clickToBook": "Klik op een vrij blok om {{room}} te reserveren"
   },
   "filters": {
+    "levelTypes": {
+      "country_region": "Landen/regio's",
+      "city": "Steden",
+      "campus": "Campussen",
+      "building": "Gebouwen",
+      "floor": "Verdiepingen"
+    },
+    "levelAllOf": "Alle {{level}}",
     "level": "Niveau",
     "levelAll": "Alle niveaus",
     "capacity": "Capaciteit",

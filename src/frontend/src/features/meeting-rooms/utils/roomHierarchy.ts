@@ -7,7 +7,30 @@
  * rather than silently vanishing.
  */
 
-import type { MeetingRoomNode } from '../api/ApiMeetingRoom'
+import type {
+  MeetingRoomLevelType,
+  MeetingRoomNode,
+} from '../api/ApiMeetingRoom'
+
+type LevelSelection = Partial<Record<MeetingRoomLevelType, string>>
+
+/** Resolve one selected node into its root-to-leaf cascade values. */
+export const selectionByLevel = (
+  nodes: MeetingRoomNode[],
+  selectedNodeId?: string | null
+): LevelSelection => {
+  const byId = new Map(nodes.map((node) => [node.id, node]))
+  const selection: LevelSelection = {}
+  let current = selectedNodeId ? byId.get(selectedNodeId) : undefined
+  const seen = new Set<string>()
+
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id)
+    selection[current.level_type] = current.id
+    current = current.parent ? byId.get(current.parent) : undefined
+  }
+  return selection
+}
 
 /** Children keyed by parent id; roots (and orphans) live under `''`. */
 export const childrenOf = (

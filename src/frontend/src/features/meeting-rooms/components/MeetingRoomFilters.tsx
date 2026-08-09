@@ -10,6 +10,7 @@ import {
   fetchMeetingRoomNodes,
 } from '../api/fetchMeetingRooms'
 import { flattenTree } from '../utils/roomHierarchy'
+import { MeetingRoomLevelFilters } from './MeetingRoomLevelFilters'
 
 /** Capacity buckets offered in the dropdown ("至少 N 人"). */
 const CAPACITY_STEPS = [2, 4, 6, 10, 20, 50]
@@ -64,20 +65,28 @@ export const MeetingRoomFilters = ({
         />
       )}
 
-      <select
-        className={cx(selectChrome, selectCls)}
-        value={value.node ?? ''}
-        onChange={(e) => onChange({ ...value, node: e.target.value || null })}
-        aria-label={t('filters.level')}
-        data-testid="mr-filter-level"
-      >
-        <option value="">{t('filters.levelAll')}</option>
-        {flattenTree(nodes).map(({ node, indent }) => (
-          <option key={node.id} value={node.id}>
-            {`${indent}${node.name}`}
-          </option>
-        ))}
-      </select>
+      {compact ? (
+        <select
+          className={cx(selectChrome, selectCls)}
+          value={value.node ?? ''}
+          onChange={(e) => onChange({ ...value, node: e.target.value || null })}
+          aria-label={t('filters.level')}
+          data-testid="mr-filter-level"
+        >
+          <option value="">{t('filters.levelAll')}</option>
+          {flattenTree(nodes).map(({ node, indent }) => (
+            <option key={node.id} value={node.id}>
+              {`${indent}${node.name}`}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <MeetingRoomLevelFilters
+          nodes={nodes}
+          selectedNodeId={value.node}
+          onChange={(node) => onChange({ ...value, node })}
+        />
+      )}
 
       <select
         className={cx(selectChrome, selectCls)}

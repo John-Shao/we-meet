@@ -15,6 +15,21 @@ export interface MeetingRoomFacility {
   sort_order?: number
 }
 
+export type MeetingRoomLevelType =
+  | 'country_region'
+  | 'city'
+  | 'campus'
+  | 'building'
+  | 'floor'
+
+export const MEETING_ROOM_LEVEL_TYPES: MeetingRoomLevelType[] = [
+  'country_region',
+  'city',
+  'campus',
+  'building',
+  'floor',
+]
+
 export interface MeetingRoomNode {
   id: string
   name: string
@@ -23,7 +38,7 @@ export interface MeetingRoomNode {
   path: string
   depth: number
   level_number: 1 | 2 | 3 | 4 | 5
-  level_type: 'country_region' | 'city' | 'campus' | 'building' | 'floor'
+  level_type: MeetingRoomLevelType
   sort_order: number
   /** null = inherit from the nearest ancestor that sets one. */
   timezone: string | null

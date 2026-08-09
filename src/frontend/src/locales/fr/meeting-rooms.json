@@ -16,6 +16,14 @@
     "clickToBook": "Cliquez sur un créneau libre pour réserver {{room}}"
   },
   "filters": {
+    "levelTypes": {
+      "country_region": "Pays/régions",
+      "city": "Villes",
+      "campus": "Campus",
+      "building": "Bâtiments",
+      "floor": "Étages"
+    },
+    "levelAllOf": "Tous : {{level}}",
     "level": "Niveau",
     "levelAll": "Tous les niveaux",
     "capacity": "Capacité",

@@ -16,6 +16,14 @@
     "clickToBook": "Freien Slot anklicken, um {{room}} zu buchen"
   },
   "filters": {
+    "levelTypes": {
+      "country_region": "Länder/Regionen",
+      "city": "Städte",
+      "campus": "Campus",
+      "building": "Gebäude",
+      "floor": "Etagen"
+    },
+    "levelAllOf": "Alle {{level}}",
     "level": "Ebene",
     "levelAll": "Alle Ebenen",
     "capacity": "Kapazität",
