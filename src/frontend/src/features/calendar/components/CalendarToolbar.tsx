@@ -8,9 +8,9 @@ import { Button } from '@/primitives'
 
 /**
  * 飞书式日历工具栏,替换 react-big-calendar 默认 toolbar(P8 微调):
- * 网格上方只留「今天 + ‹ › + 日期标题」;「日/周/月/日程」分段切换器单独
- * 导出(CalendarViewSwitcher),由路由页头渲染(原「日历」标题位),view
- * 状态提升到路由层受控。文案沿用 calendar:grid.*;日视图看今天时标题后缀
+ * 网格上方左侧为「‹ / 今天 / › + 日期标题」,右侧为「日/周/月/列表」
+ * 视图切换。页面级「日历/会议室」留在上层,避免两种层级的切换器混在一起。
+ * view 状态由路由层受控。文案沿用 calendar:grid.*;日视图看今天时标题后缀
  * 蓝色「今天」,对齐飞书。翻页箭头与 MiniCalendar 同用 ‹ › 字形。
  */
 
@@ -28,7 +28,8 @@ const segmentBase = css({
   borderRadius: '0.375rem',
   fontSize: '0.875rem',
   cursor: 'pointer',
-  transition: 'background token(durations.normal), color token(durations.normal)',
+  transition:
+    'background token(durations.normal), color token(durations.normal)',
 })
 
 // 选中/未选中用两个完整类切换,不 cx 叠加同属性原子类(样式表顺序陷阱)。
@@ -47,7 +48,7 @@ const segmentIdle = css({
   _hover: { color: 'greyscale.900' },
 })
 
-/** 「日/周/月/日程」分段切换器,由路由页头渲染(占原「日历」标题位)。 */
+/** 「日/周/月/列表」分段切换器,由日历内部工具栏右侧渲染。 */
 export const CalendarViewSwitcher = ({
   view,
   onView,
@@ -97,7 +98,7 @@ const NAV_TIP_KEYS: Partial<Record<View, [string, string]>> = {
 export function CalendarToolbar<
   TEvent extends object,
   TResource extends object,
->({ label, date, view, onNavigate }: ToolbarProps<TEvent, TResource>) {
+>({ label, date, view, onNavigate, onView }: ToolbarProps<TEvent, TResource>) {
   const { t } = useTranslation('calendar')
   const [prevKey, nextKey] = NAV_TIP_KEYS[view] ?? [
     'grid.previous',
@@ -109,12 +110,17 @@ export function CalendarToolbar<
       className={css({
         display: 'flex',
         alignItems: 'center',
-        gap: '0.75rem',
+        justifyContent: 'space-between',
+        gap: '1rem',
         marginBottom: '0.75rem',
       })}
     >
       <div
-        className={css({ display: 'flex', alignItems: 'center', gap: '0.375rem' })}
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.375rem',
+        })}
       >
         <Button
           variant="quaternaryText"
@@ -165,6 +171,10 @@ export function CalendarToolbar<
           </span>
         )}
       </div>
+      <CalendarViewSwitcher
+        view={view === ('work_week' as View) ? 'week' : view}
+        onView={onView}
+      />
     </div>
   )
 }

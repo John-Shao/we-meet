@@ -31,7 +31,6 @@ import { openSystemSettings } from '@/stores/systemSettings'
 import { CreateEventDialog } from '../components/CreateEventDialog'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
-import { CalendarViewSwitcher } from '../components/CalendarToolbar'
 import {
   CalendarPageTabs,
   type CalendarPageTab,
@@ -385,9 +384,6 @@ const CalendarAuthenticated = () => {
               {sidebarCollapsed ? '\u00bb' : '\u00ab'}
             </button>
             <CalendarPageTabs tab={tab} onTab={changeTab} />
-            {tab === 'calendar' && (
-              <CalendarViewSwitcher view={view} onView={setView} />
-            )}
           </div>
           <div
             className={css({
