@@ -110,6 +110,7 @@
     "event": "Ereignis",
     "detailHint": "Wählen Sie ein Ereignis aus, um Details zu sehen",
     "noEvents": "Keine Ereignisse in diesem Zeitraum",
+    "emptyHint": "Klicken oder ziehen Sie in einem freien Zeitraum, um einen Termin zu erstellen",
     "draftAdd": "Neuer Termin",
     "moveRoomConflict": "Besprechungsraum ist dann belegt — Verschieben zurückgenommen",
     "showMore": "+{{count}} weitere"

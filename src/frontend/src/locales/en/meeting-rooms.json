@@ -12,6 +12,7 @@
   "timeline": {
     "roomColumn": "Room",
     "booked": "Booked",
+    "guide": "Click a free slot to select it; drag to adjust, or click again to create the event",
     "clickToBook": "Click a free slot to book {{room}}"
   },
   "filters": {

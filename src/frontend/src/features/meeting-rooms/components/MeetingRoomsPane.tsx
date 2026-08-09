@@ -97,6 +97,7 @@ export const MeetingRoomsPane = ({
           })}
         </span>
       </div>
+      <div className={guideCls}>{t('timeline.guide')}</div>
       {isError ? (
         <div className={errorCls}>
           {t('pane.loadError')}
@@ -161,6 +162,10 @@ const availabilityOnCls = css({
 })
 const countCls = css({
   marginLeft: 'auto',
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+})
+const guideCls = css({
   fontSize: '0.75rem',
   color: 'greyscale.500',
 })

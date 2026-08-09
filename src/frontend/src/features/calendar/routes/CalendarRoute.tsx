@@ -328,6 +328,7 @@ const CalendarAuthenticated = () => {
             events={events}
             upcomingEvents={upcomingEvents}
             onSelectEvent={setDetailEvent}
+            onCreate={() => openCreate(null)}
           />
         </ResizablePanel>
       )}
@@ -433,7 +434,10 @@ const CalendarAuthenticated = () => {
 
         {/* 月/周/日 网格(react-big-calendar);点事件开详情弹窗(RSVP/进会)。
            P9 会议室 Tab 走自研横向时间轴(资源 × 时间,不是 rbc 的事件流)。 */}
-        <div ref={gridRef} className={css({ flex: 1, minHeight: 0 })}>
+        <div
+          ref={gridRef}
+          className={css({ flex: 1, minHeight: 0, position: 'relative' })}
+        >
           {tab === 'meetingRooms' ? (
             <MeetingRoomsPane
               date={date}
@@ -479,24 +483,48 @@ const CalendarAuthenticated = () => {
           ) : isLoading ? (
             <StateHint loading>{t('page.loading')}</StateHint>
           ) : (
-            <CalendarGrid
-              events={events}
-              onSelectEvent={setDetailEvent}
-              date={date}
-              onNavigate={setDate}
-              view={view}
-              onViewChange={setView}
-              // 月视图点某天仍直接开弹窗;时间视图走两步式预选(下面几个)。
-              onSelectSlot={openCreate}
-              slotDraft={draft}
-              // 点空白:已有预选框 → 先清掉(点框外即取消);没有 → 落新框。
-              onDraftSelect={(slot) => setDraft((cur) => (cur ? null : slot))}
-              onDraftChange={setDraft}
-              onDraftConfirm={() => setCreating(true)}
-              onDraftDismiss={() => setDraft(null)}
-              onEventMove={moveEvent}
-              canMoveEvent={canMoveEvent}
-            />
+            <>
+              <CalendarGrid
+                events={events}
+                onSelectEvent={setDetailEvent}
+                date={date}
+                onNavigate={setDate}
+                view={view}
+                onViewChange={setView}
+                // 月视图点某天仍直接开弹窗;时间视图走两步式预选(下面几个)。
+                onSelectSlot={openCreate}
+                slotDraft={draft}
+                // 点空白:已有预选框 → 先清掉(点框外即取消);没有 → 落新框。
+                onDraftSelect={(slot) => setDraft((cur) => (cur ? null : slot))}
+                onDraftChange={setDraft}
+                onDraftConfirm={() => setCreating(true)}
+                onDraftDismiss={() => setDraft(null)}
+                onEventMove={moveEvent}
+                canMoveEvent={canMoveEvent}
+              />
+              {events.length === 0 && view !== 'agenda' && (
+                <div
+                  className={css({
+                    position: 'absolute',
+                    top: '5rem',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 3,
+                    paddingX: '0.75rem',
+                    paddingY: '0.375rem',
+                    borderRadius: '999px',
+                    backgroundColor: 'greyscale.000',
+                    border: '1px solid token(colors.greyscale.200)',
+                    boxShadow: 'sm',
+                    color: 'greyscale.600',
+                    fontSize: '0.75rem',
+                    pointerEvents: 'none',
+                  })}
+                >
+                  {t('grid.emptyHint')}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

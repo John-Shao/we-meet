@@ -110,6 +110,7 @@
     "event": "Gebeurtenis",
     "detailHint": "Selecteer een gebeurtenis om details te bekijken",
     "noEvents": "Geen gebeurtenissen in dit bereik",
+    "emptyHint": "Klik of sleep in een leeg tijdvak om een afspraak te maken",
     "draftAdd": "Nieuwe afspraak",
     "moveRoomConflict": "Vergaderruimte is dan bezet — verplaatsing teruggedraaid",
     "showMore": "+{{count}} meer"

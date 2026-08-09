@@ -111,6 +111,7 @@
     "event": "Event",
     "detailHint": "Select an event to see details",
     "noEvents": "No events in this range",
+    "emptyHint": "Click or drag an empty time slot to create an event",
     "draftAdd": "New event",
     "moveRoomConflict": "Meeting room is taken then — reschedule reverted",
     "showMore": "+{{count}} more"

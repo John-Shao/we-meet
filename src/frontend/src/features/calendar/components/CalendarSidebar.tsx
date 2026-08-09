@@ -110,6 +110,7 @@ interface Props {
    * focused month, so it stays correct when the grid is paged to a far month). */
   upcomingEvents: CalendarEvent[]
   onSelectEvent: (event: CalendarEvent) => void
+  onCreate: () => void
 }
 
 export const CalendarSidebar = ({
@@ -118,6 +119,7 @@ export const CalendarSidebar = ({
   events,
   upcomingEvents,
   onSelectEvent,
+  onCreate,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
 
@@ -159,7 +161,13 @@ export const CalendarSidebar = ({
 
       <MiniCalendar value={date} onChange={onDateChange} events={events} />
 
-      <div className={css({ display: 'flex', flexDirection: 'column', gap: '0.5rem' })}>
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+        })}
+      >
         <h2
           className={css({
             fontSize: '0.875rem',
@@ -170,9 +178,16 @@ export const CalendarSidebar = ({
           {t('sidebar.upcoming')}
         </h2>
         {upcoming.length === 0 ? (
-          <p className={css({ fontSize: '0.8125rem', color: 'greyscale.500' })}>
-            {t('page.empty')}
-          </p>
+          <div className={emptyUpcomingCls}>
+            <p
+              className={css({ fontSize: '0.8125rem', color: 'greyscale.500' })}
+            >
+              {t('page.empty')}
+            </p>
+            <button type="button" className={emptyCreateCls} onClick={onCreate}>
+              + {t('page.create')}
+            </button>
+          </div>
         ) : (
           <ul
             className={css({
@@ -229,3 +244,21 @@ export const CalendarSidebar = ({
     </aside>
   )
 }
+
+const emptyUpcomingCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: '0.375rem',
+  padding: '0.5rem',
+  borderRadius: '0.375rem',
+  backgroundColor: 'greyscale.50',
+})
+const emptyCreateCls = css({
+  border: 'none',
+  backgroundColor: 'transparent',
+  color: 'primary.500',
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+  _dark: { color: 'primaryDark.700' },
+})

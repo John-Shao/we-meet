@@ -110,6 +110,7 @@
     "event": "Événement",
     "detailHint": "Sélectionnez un événement pour voir les détails",
     "noEvents": "Aucun événement sur cette période",
+    "emptyHint": "Cliquez ou faites glisser un créneau libre pour créer un événement",
     "draftAdd": "Nouvel événement",
     "moveRoomConflict": "Salle déjà réservée sur ce créneau — déplacement annulé",
     "showMore": "+{{count}} autres"
