@@ -2,12 +2,20 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
+import type {
+  TimeRangeMode,
+  WorkingHours,
+} from '@/features/calendar/utils/workingHours'
+import {
+  clipRangeToWindow,
+  workingWindowForDate,
+} from '@/features/calendar/utils/workingHours'
 
 import type { MeetingRoomBrief, RoomTimelineEntry } from '../api/ApiMeetingRoom'
 import { useNowTick } from '../hooks/useNowTick'
 import { addMinutes, makeScale } from '../utils/timelineScale'
 
-/** Readable minimum; wider viewports distribute the 24 columns with 1fr. */
+/** Readable hourly minimum; wider viewports distribute the visible range. */
 const HOUR_WIDTH = 48
 /** Where the track scrolls to on mount — nobody books at 3am. */
 const INITIAL_HOUR = 8
@@ -32,6 +40,8 @@ export const RoomTimeline = ({
   rooms,
   dayStart,
   dayEnd,
+  workingHours,
+  timeRangeMode,
   isLoading,
   emptyMessage,
   selectedSlot,
@@ -41,6 +51,8 @@ export const RoomTimeline = ({
   rooms: RoomTimelineEntry[]
   dayStart: Date
   dayEnd: Date
+  workingHours: WorkingHours
+  timeRangeMode: TimeRangeMode
   isLoading?: boolean
   emptyMessage?: string
   selectedSlot?: { roomId: string; start: Date; end: Date } | null
@@ -57,9 +69,19 @@ export const RoomTimeline = ({
   const isToday = new Date().toDateString() === dayStart.toDateString()
   const now = useNowTick(isToday)
   const scale = makeScale(dayStart, dayEnd)
-  // Keep 48px as the readable minimum, but distribute a wide viewport across
-  // the full 24-hour axis instead of leaving an empty strip on the right.
-  const trackWidth = Math.max(HOUR_WIDTH * 24, viewportWidth - LABEL_WIDTH_PX)
+  const totalMinutes = scale.minuteAt(1)
+  const halfHourCount = Math.ceil(totalMinutes / 30)
+  // Keep 48px/hour as the readable minimum, but distribute a wide viewport
+  // across the selected range instead of leaving an empty strip on the right.
+  const trackWidth = Math.max(
+    HOUR_WIDTH * (totalMinutes / 60),
+    viewportWidth - LABEL_WIDTH_PX
+  )
+  const workWindow = workingWindowForDate(dayStart, workingHours)
+  const axisTicks = Array.from({ length: halfHourCount }, (_, index) => {
+    const minute = index * 30
+    return { minute, value: addMinutes(dayStart, minute) }
+  })
 
   useLayoutEffect(() => {
     const node = scrollRef.current
@@ -77,9 +99,10 @@ export const RoomTimeline = ({
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollLeft = HOUR_WIDTH * INITIAL_HOUR
+      const targetMinute = timeRangeMode === 'full' ? workingHours.startMin : 0
+      scrollRef.current.scrollLeft = (targetMinute / totalMinutes) * trackWidth
     }
-  }, [dayStart])
+  }, [dayStart, timeRangeMode, totalMinutes, trackWidth, workingHours.startMin])
 
   const handleTrackClick = (
     room: RoomTimelineEntry,
@@ -92,8 +115,16 @@ export const RoomTimeline = ({
     }
     const bounds = event.currentTarget.getBoundingClientRect()
     const ratio = (event.clientX - bounds.left) / bounds.width
-    const start = addMinutes(dayStart, scale.snap(scale.minuteAt(ratio)))
-    onSelectSlot(room, start, addMinutes(start, 60))
+    const startMinute = Math.min(
+      scale.snap(scale.minuteAt(ratio)),
+      Math.max(0, totalMinutes - 30)
+    )
+    const start = addMinutes(dayStart, startMinute)
+    onSelectSlot(
+      room,
+      start,
+      addMinutes(start, Math.min(60, totalMinutes - startMinute))
+    )
   }
 
   const beginDraftDrag = (
@@ -108,7 +139,6 @@ export const RoomTimeline = ({
     const originY = event.clientY
     const originStart = scale.minuteAt(scale.pct(selectedSlot.start) / 100)
     const originEnd = scale.minuteAt(scale.pct(selectedSlot.end) / 100)
-    const totalMinutes = scale.minuteAt(1)
     const duration = originEnd - originStart
     let moved = false
 
@@ -186,11 +216,15 @@ export const RoomTimeline = ({
   ) => {
     if (!onSelectSlot || (event.key !== 'Enter' && event.key !== ' ')) return
     event.preventDefault()
-    const baseMinute = isToday
-      ? Math.ceil(scale.minuteAt(scale.pct(now) / 100) / 30) * 30
-      : INITIAL_HOUR * 60
-    const start = addMinutes(dayStart, Math.min(baseMinute, 23 * 60))
-    onSelectSlot(room, start, addMinutes(start, 60))
+    const nowMinute = (now.getTime() - dayStart.getTime()) / 60_000
+    const fallbackMinute = timeRangeMode === 'full' ? INITIAL_HOUR * 60 : 0
+    const baseMinute =
+      isToday && nowMinute >= 0 && nowMinute < totalMinutes
+        ? Math.ceil(nowMinute / 30) * 30
+        : fallbackMinute
+    const startMinute = Math.min(baseMinute, Math.max(0, totalMinutes - 60))
+    const start = addMinutes(dayStart, startMinute)
+    onSelectSlot(room, start, addMinutes(start, Math.min(60, totalMinutes)))
   }
 
   const handleDraftKeyDown = (
@@ -218,7 +252,6 @@ export const RoomTimeline = ({
         : event.key === 'ArrowDown'
           ? rooms[Math.min(rooms.length - 1, roomIndex + 1)]
           : room
-    const totalMinutes = scale.minuteAt(1)
     let startMinute = scale.minuteAt(scale.pct(selectedSlot.start) / 100)
     let endMinute = scale.minuteAt(scale.pct(selectedSlot.end) / 100)
 
@@ -258,20 +291,22 @@ export const RoomTimeline = ({
             {t('timeline.roomColumn')}
           </div>
           <div className={rulerTrackCls} style={{ width: trackWidth }}>
-            {Array.from({ length: 24 }, (_, hour) => (
+            {axisTicks.map(({ minute, value }) => (
               <div
-                key={hour}
+                key={minute}
                 className={tickCls}
-                style={{ width: `${100 / 24}%` }}
+                style={{ width: `${(30 / totalMinutes) * 100}%` }}
               >
-                {String(hour).padStart(2, '0')}:00
+                {minute === 0 || value.getMinutes() === 0
+                  ? timeLabel(value)
+                  : null}
               </div>
             ))}
           </div>
         </div>
 
         <div className={bodyCls}>
-          {isToday && (
+          {isToday && now >= dayStart && now < dayEnd && (
             <div
               className={nowLineCls}
               data-testid="mr-now-line"
@@ -318,11 +353,29 @@ export const RoomTimeline = ({
                 tabIndex={onSelectSlot ? 0 : undefined}
                 aria-label={t('timeline.clickToBook', { room: room.name })}
               >
-                {Array.from({ length: 24 }, (_, hour) => (
+                {timeRangeMode === 'full' && (
+                  <>
+                    <div
+                      className={nonWorkingShadeCls}
+                      style={{
+                        left: 0,
+                        width: `${scale.pct(workWindow.start)}%`,
+                      }}
+                    />
+                    <div
+                      className={nonWorkingShadeCls}
+                      style={{
+                        left: `${scale.pct(workWindow.end)}%`,
+                        right: 0,
+                      }}
+                    />
+                  </>
+                )}
+                {axisTicks.map(({ minute }) => (
                   <div
-                    key={hour}
+                    key={minute}
                     className={gridLineCls}
-                    style={{ left: `${(hour / 24) * 100}%` }}
+                    style={{ left: `${(minute / totalMinutes) * 100}%` }}
                   />
                 ))}
                 {selectedSlot?.roomId === room.id && (
@@ -370,22 +423,33 @@ export const RoomTimeline = ({
                     />
                   </div>
                 )}
-                {room.bookings.map((booking) => (
-                  <div
-                    key={booking.id}
-                    data-testid={`mr-timeline-block-${booking.id}`}
-                    title={`${timeLabel(booking.start)}–${timeLabel(booking.end)}${
-                      booking.title ? ` · ${booking.title}` : ''
-                    }`}
-                    className={booking.is_mine ? blockMineCls : blockCls}
-                    style={{
-                      left: `${scale.pct(booking.start)}%`,
-                      width: `${scale.widthPct(booking.start, booking.end)}%`,
-                    }}
-                  >
-                    {booking.title ?? t('timeline.booked')}
-                  </div>
-                ))}
+                {room.bookings.map((booking) => {
+                  const bookingStart = new Date(booking.start)
+                  const bookingEnd = new Date(booking.end)
+                  const clipped = clipRangeToWindow(
+                    bookingStart,
+                    bookingEnd,
+                    dayStart,
+                    dayEnd
+                  )
+                  if (!clipped) return null
+                  return (
+                    <div
+                      key={booking.id}
+                      data-testid={`mr-timeline-block-${booking.id}`}
+                      title={`${timeLabel(booking.start)}–${timeLabel(booking.end)}${
+                        booking.title ? ` · ${booking.title}` : ''
+                      }`}
+                      className={booking.is_mine ? blockMineCls : blockCls}
+                      style={{
+                        left: `${scale.pct(clipped.start)}%`,
+                        width: `${scale.widthPct(clipped.start, clipped.end)}%`,
+                      }}
+                    >
+                      {booking.title ?? t('timeline.booked')}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           ))}
@@ -486,6 +550,13 @@ const gridLineCls = css({
   bottom: 0,
   width: '1px',
   backgroundColor: 'greyscale.100',
+})
+const nonWorkingShadeCls = css({
+  position: 'absolute',
+  top: 0,
+  bottom: 0,
+  backgroundColor: 'greyscale.50',
+  pointerEvents: 'none',
 })
 const blockBase = {
   position: 'absolute',

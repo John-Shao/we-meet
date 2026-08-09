@@ -5,6 +5,7 @@ import { isToday } from 'date-fns'
 import { css, cx } from '@/styled-system/css'
 import { navGlyphCls } from '@/styles/controls'
 import { Button } from '@/primitives'
+import type { TimeRangeMode } from '../utils/workingHours'
 
 /**
  * 飞书式日历工具栏,替换 react-big-calendar 默认 toolbar(P8 微调):
@@ -84,6 +85,51 @@ export const CalendarViewSwitcher = ({
   )
 }
 
+export const TimeRangeSwitcher = ({
+  value,
+  onChange,
+}: {
+  value: TimeRangeMode
+  onChange: (value: TimeRangeMode) => void
+}) => {
+  const { t } = useTranslation('calendar')
+  return (
+    <div
+      className={css({
+        display: 'inline-flex',
+        gap: '2px',
+        padding: '2px',
+        borderRadius: '0.5rem',
+        backgroundColor: 'greyscale.100',
+      })}
+      aria-label={t('settings.workingHours')}
+    >
+      {(['work', 'full'] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          aria-pressed={value === mode}
+          className={cx(
+            css({
+              minWidth: '4.75rem',
+              paddingX: '0.75rem',
+              paddingY: '0.4375rem',
+              border: 'none',
+              borderRadius: '0.375rem',
+              fontSize: '0.8125rem',
+              cursor: 'pointer',
+            }),
+            value === mode ? segmentActive : segmentIdle
+          )}
+          onClick={() => onChange(mode)}
+        >
+          {t(mode === 'work' ? 'grid.workTime' : 'grid.fullDay')}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // 翻页箭头 tooltip 按视图区分:日=前一天/后一天、周=上周/下周、
 // 月=上个月/下个月;日程视图锚点按天调整,同「前一天/后一天」。
 const NAV_TIP_KEYS: Partial<Record<View, [string, string]>> = {
@@ -98,7 +144,20 @@ const NAV_TIP_KEYS: Partial<Record<View, [string, string]>> = {
 export function CalendarToolbar<
   TEvent extends object,
   TResource extends object,
->({ label, date, view, onNavigate, onView }: ToolbarProps<TEvent, TResource>) {
+>({
+  label,
+  date,
+  view,
+  onNavigate,
+  onView,
+  timeRangeMode,
+  onTimeRangeModeChange,
+  outsideEventCount = 0,
+}: ToolbarProps<TEvent, TResource> & {
+  timeRangeMode?: TimeRangeMode
+  onTimeRangeModeChange?: (value: TimeRangeMode) => void
+  outsideEventCount?: number
+}) {
   const { t } = useTranslation('calendar')
   const [prevKey, nextKey] = NAV_TIP_KEYS[view] ?? [
     'grid.previous',
@@ -171,10 +230,47 @@ export function CalendarToolbar<
           </span>
         )}
       </div>
-      <CalendarViewSwitcher
-        view={view === ('work_week' as View) ? 'week' : view}
-        onView={onView}
-      />
+      <div
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: '0.5rem',
+          minWidth: 0,
+        })}
+      >
+        {(view === 'day' || view === 'week' || view === 'work_week') &&
+          timeRangeMode &&
+          onTimeRangeModeChange && (
+            <>
+              {timeRangeMode === 'work' && outsideEventCount > 0 && (
+                <button
+                  type="button"
+                  className={css({
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'primary.600',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    _dark: { color: 'primaryDark.700' },
+                  })}
+                  onClick={() => onTimeRangeModeChange('full')}
+                >
+                  {t('grid.outsideEvents', { count: outsideEventCount })}
+                </button>
+              )}
+              <TimeRangeSwitcher
+                value={timeRangeMode}
+                onChange={onTimeRangeModeChange}
+              />
+            </>
+          )}
+        <CalendarViewSwitcher
+          view={view === ('work_week' as View) ? 'week' : view}
+          onView={onView}
+        />
+      </div>
     </div>
   )
 }

@@ -97,3 +97,61 @@ describe('useCalendarSettings — showWeekend', () => {
     expect(b.result.current.showWeekend).toBe(true)
   })
 })
+
+describe('useCalendarSettings — working hours', () => {
+  it('空存储时使用 09:00–18:00，两个时间范围视图默认工作时间', () => {
+    const { result } = renderHook(() => useCalendarSettings())
+    expect(result.current.workingHours).toEqual({
+      startMin: 9 * 60,
+      endMin: 18 * 60,
+    })
+    expect(result.current.calendarTimeRangeMode).toBe('work')
+    expect(result.current.meetingRoomsTimeRangeMode).toBe('work')
+  })
+
+  it('保存合法半小时区间并在同页其他实例即时同步', () => {
+    const a = renderHook(() => useCalendarSettings())
+    const b = renderHook(() => useCalendarSettings())
+
+    act(() => a.result.current.setWorkingHours(8 * 60 + 30, 17 * 60))
+    expect(a.result.current.workingHours).toEqual({
+      startMin: 510,
+      endMin: 1020,
+    })
+    expect(b.result.current.workingHours).toEqual({
+      startMin: 510,
+      endMin: 1020,
+    })
+    expect(localStorage.getItem('calendar-work-start')).toBe('510')
+    expect(localStorage.getItem('calendar-work-end')).toBe('1020')
+  })
+
+  it('拒绝非法设置，并将非法存储回退到默认值', () => {
+    const { result, unmount } = renderHook(() => useCalendarSettings())
+    act(() => result.current.setWorkingHours(9 * 60, 14 * 60))
+    expect(result.current.workingHours).toEqual({
+      startMin: 540,
+      endMin: 1080,
+    })
+    unmount()
+
+    localStorage.setItem('calendar-work-start', '555')
+    localStorage.setItem('calendar-work-end', '1080')
+    const invalid = renderHook(() => useCalendarSettings())
+    expect(invalid.result.current.workingHours).toEqual({
+      startMin: 540,
+      endMin: 1080,
+    })
+  })
+
+  it('分别持久化日历与会议室的时间范围视图', () => {
+    const { result } = renderHook(() => useCalendarSettings())
+    act(() => result.current.setCalendarTimeRangeMode('full'))
+    expect(result.current.calendarTimeRangeMode).toBe('full')
+    expect(result.current.meetingRoomsTimeRangeMode).toBe('work')
+    act(() => result.current.setMeetingRoomsTimeRangeMode('full'))
+    expect(result.current.meetingRoomsTimeRangeMode).toBe('full')
+    expect(localStorage.getItem('calendar-time-range')).toBe('full')
+    expect(localStorage.getItem('meeting-rooms-time-range')).toBe('full')
+  })
+})

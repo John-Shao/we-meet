@@ -1,6 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Calendar, dateFnsLocalizer, type View } from 'react-big-calendar'
+import {
+  Calendar,
+  dateFnsLocalizer,
+  type ToolbarProps,
+  type View,
+} from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import {
   format,
@@ -20,6 +25,7 @@ import './calendarGridOverrides.css'
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import { resolveRbcView } from '../utils/rbcView'
+import { isOutsideWorkingHours } from '../utils/workingHours'
 import { CalendarToolbar } from './CalendarToolbar'
 import { AgendaListView } from './AgendaListView'
 
@@ -209,8 +215,15 @@ export const CalendarGrid = ({
   canMoveEvent,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
-  const { weekStartsOn, dimPast, showWeekend, defaultDurationMin } =
-    useCalendarSettings()
+  const {
+    weekStartsOn,
+    dimPast,
+    showWeekend,
+    defaultDurationMin,
+    workingHours,
+    calendarTimeRangeMode,
+    setCalendarTimeRangeMode,
+  } = useCalendarSettings()
   const localizer = useMemo(() => localizerFor(weekStartsOn), [weekStartsOn])
   const [viewState, setViewState] = useState<View>('week')
   const view = viewProp ?? viewState
@@ -229,11 +242,59 @@ export const CalendarGrid = ({
   }
 
   const scrollToTime = useMemo(() => {
+    if (calendarTimeRangeMode === 'work') {
+      const value = new Date(1970, 0, 1)
+      value.setMinutes(workingHours.startMin)
+      return value
+    }
     const now = new Date()
     const sameDay = now.toDateString() === date.toDateString()
     const hour = sameDay && now.getHours() >= 8 ? now.getHours() : 8
     return new Date(1970, 0, 1, Math.min(hour, 20), 0)
-  }, [date])
+  }, [calendarTimeRangeMode, date, workingHours.startMin])
+
+  const visibleTimeBounds = useMemo(() => {
+    const base = new Date(1970, 0, 1)
+    const min = new Date(base)
+    const max = new Date(base)
+    if (calendarTimeRangeMode === 'work') {
+      min.setMinutes(workingHours.startMin)
+      max.setMinutes(workingHours.endMin)
+    } else {
+      min.setHours(0, 0, 0, 0)
+      max.setHours(23, 59, 59, 999)
+    }
+    return { min, max }
+  }, [calendarTimeRangeMode, workingHours])
+
+  useEffect(() => {
+    if (
+      calendarTimeRangeMode === 'work' &&
+      slotDraft &&
+      !slotDraft.allDay &&
+      isOutsideWorkingHours(slotDraft.start, slotDraft.end, workingHours)
+    ) {
+      onDraftDismiss?.()
+    }
+  }, [calendarTimeRangeMode, onDraftDismiss, slotDraft, workingHours])
+
+  const outsideEventCount = useMemo(() => {
+    if (view !== 'day' && view !== 'week') return 0
+    const rangeStart =
+      view === 'week'
+        ? startOfWeek(date, { weekStartsOn })
+        : new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    const rangeEnd = new Date(rangeStart)
+    rangeEnd.setDate(rangeEnd.getDate() + (view === 'week' ? 7 : 1))
+    return events.filter((event) => {
+      if (event.all_day) return false
+      const start = new Date(event.start_at)
+      const end = new Date(event.end_at)
+      if (end <= rangeStart || start >= rangeEnd) return false
+      if (!showWeekend && (isWeekend(start) || isWeekend(end))) return false
+      return isOutsideWorkingHours(start, end, workingHours)
+    }).length
+  }, [date, events, showWeekend, view, weekStartsOn, workingHours])
 
   const rbcEvents = useMemo<RbcEvent[]>(() => {
     const list: RbcEvent[] = events.map((e) => ({
@@ -301,15 +362,28 @@ export const CalendarGrid = ({
     const locale = localeFor(i18n.language)
     const weekHeader = weekHeaderFor(locale)
     const monthHeader = monthHeaderFor(locale)
+    const Toolbar = (props: ToolbarProps<RbcEvent, object>) => (
+      <CalendarToolbar
+        {...props}
+        timeRangeMode={calendarTimeRangeMode}
+        onTimeRangeModeChange={setCalendarTimeRangeMode}
+        outsideEventCount={outsideEventCount}
+      />
+    )
     return {
-      toolbar: CalendarToolbar,
+      toolbar: Toolbar,
       week: { header: weekHeader, event: TimeEvent },
       // work_week 复用周视图的表头/事件组件(仅列数收敛为 5)。
       work_week: { header: weekHeader, event: TimeEvent },
       day: { event: TimeEvent },
       month: { event: MonthEvent, header: monthHeader },
     }
-  }, [i18n.language])
+  }, [
+    calendarTimeRangeMode,
+    i18n.language,
+    outsideEventCount,
+    setCalendarTimeRangeMode,
+  ])
 
   const messages = useMemo(
     () => ({
@@ -365,6 +439,17 @@ export const CalendarGrid = ({
       formats={formats}
       messages={messages}
       scrollToTime={scrollToTime}
+      min={visibleTimeBounds.min}
+      max={visibleTimeBounds.max}
+      step={30}
+      timeslots={2}
+      slotPropGetter={(slot) => {
+        if (calendarTimeRangeMode !== 'full') return {}
+        const minute = slot.getHours() * 60 + slot.getMinutes()
+        return minute < workingHours.startMin || minute >= workingHours.endMin
+          ? { className: 'wm-nonworking-slot' }
+          : {}
+      }}
       dayPropGetter={(day) => ({
         className: [
           isSameDay(day, date) ? 'wm-selected-day' : '',
@@ -452,10 +537,16 @@ export const CalendarGrid = ({
         }
         // 单击 = 按「日程默认时长」落框(对齐 App;rbc 单击只给一格 step);
         // 拖选 = 用拖出来的区间。
-        const end =
+        let end =
           slot.action === 'click' || slot.end <= start
             ? new Date(start.getTime() + defaultDurationMin * 60_000)
             : slot.end
+        if (calendarTimeRangeMode === 'work') {
+          const workEnd = new Date(start)
+          workEnd.setHours(0, 0, 0, 0)
+          workEnd.setMinutes(workingHours.endMin)
+          if (end > workEnd) end = workEnd
+        }
         select?.({ start, end, allDay: false })
       }}
       style={{ height: '100%' }}

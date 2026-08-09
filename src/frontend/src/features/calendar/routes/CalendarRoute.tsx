@@ -437,6 +437,10 @@ const CalendarAuthenticated = () => {
           {tab === 'meetingRooms' ? (
             <MeetingRoomsPane
               date={date}
+              onClearSlot={() => {
+                setMeetingRoomDraft(null)
+                setDraft(null)
+              }}
               selectedSlot={
                 meetingRoomDraft
                   ? {

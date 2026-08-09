@@ -38,6 +38,13 @@ import {
   useCalendarSettings,
   type WeekStartPref,
 } from '@/features/calendar/hooks/useCalendarSettings'
+import {
+  MAX_WORKING_DURATION_MIN,
+  MIN_WORKING_DURATION_MIN,
+  WORKING_TIME_OPTIONS,
+  formatMinutes,
+  isValidWorkingHours,
+} from '@/features/calendar/utils/workingHours'
 import { useReminderEntryEnabled } from '@/features/im/hooks/useReminderEntry'
 import { AvatarUploadDialog } from './AvatarUploadDialog'
 
@@ -279,12 +286,27 @@ const CalendarPanel = () => {
     defaultReminderMin,
     dimPast,
     showWeekend,
+    workingHours,
     setWeekStart,
     setDefaultDuration,
     setDefaultReminder,
     setDimPast,
     setShowWeekend,
+    setWorkingHours,
   } = useCalendarSettings()
+
+  const changeWorkStart = (startMin: number) => {
+    const currentDuration = workingHours.endMin - workingHours.startMin
+    const endMin = Math.min(
+      24 * 60,
+      startMin +
+        Math.min(
+          MAX_WORKING_DURATION_MIN,
+          Math.max(MIN_WORKING_DURATION_MIN, currentDuration)
+        )
+    )
+    setWorkingHours(startMin, endMin)
+  }
 
   return (
     <div>
@@ -310,6 +332,69 @@ const CalendarPanel = () => {
           <span className={infoKeyCls}>{t('settings.dimPast')}</span>
         </Switch>
       </div>
+      <div className={infoRowCls}>
+        <span className={infoKeyCls}>{t('settings.workingHours')}</span>
+        <div
+          className={css({
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          })}
+        >
+          <select
+            value={workingHours.startMin}
+            onChange={(e) => changeWorkStart(Number(e.target.value))}
+            aria-label={t('settings.workStart')}
+            data-testid="calendar-settings-work-start"
+            className={selectCls}
+          >
+            {WORKING_TIME_OPTIONS.slice(0, -1).map((min) => (
+              <option
+                key={min}
+                value={min}
+                disabled={min > 24 * 60 - MIN_WORKING_DURATION_MIN}
+              >
+                {formatMinutes(min)}
+              </option>
+            ))}
+          </select>
+          <span className={css({ color: 'greyscale.500' })}>–</span>
+          <select
+            value={workingHours.endMin}
+            onChange={(e) =>
+              setWorkingHours(workingHours.startMin, Number(e.target.value))
+            }
+            aria-label={t('settings.workEnd')}
+            data-testid="calendar-settings-work-end"
+            className={selectCls}
+          >
+            {WORKING_TIME_OPTIONS.slice(1).map((min) => (
+              <option
+                key={min}
+                value={min}
+                disabled={
+                  !isValidWorkingHours({
+                    startMin: workingHours.startMin,
+                    endMin: min,
+                  })
+                }
+              >
+                {formatMinutes(min)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p
+        className={css({
+          marginTop: '-0.25rem',
+          marginBottom: '0.75rem',
+          fontSize: '0.75rem',
+          color: 'greyscale.500',
+        })}
+      >
+        {t('settings.workingHoursHint')}
+      </p>
       <div className={infoRowCls}>
         <span className={infoKeyCls}>{t('settings.weekStart')}</span>
         <select

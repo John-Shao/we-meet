@@ -13,7 +13,8 @@
     "roomColumn": "Raum",
     "booked": "Gebucht",
     "guide": "Freien Zeitraum auswählen, durch Ziehen anpassen und erneut klicken, um den Termin zu erstellen",
-    "clickToBook": "Freien Slot anklicken, um {{room}} zu buchen"
+    "clickToBook": "Freien Slot anklicken, um {{room}} zu buchen",
+    "outsideBookings": "{{count}} Buchung außerhalb der Arbeitszeit"
   },
   "filters": {
     "levelTypes": {

@@ -1,8 +1,14 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
+import { useCalendarSettings } from '@/features/calendar/hooks/useCalendarSettings'
+import { TimeRangeSwitcher } from '@/features/calendar/components/CalendarToolbar'
+import {
+  isOutsideWorkingHours,
+  workingWindowForDate,
+} from '@/features/calendar/utils/workingHours'
 
 import type { RoomFilters } from '../api/ApiMeetingRoom'
 import type { MeetingRoomBrief } from '../api/ApiMeetingRoom'
@@ -23,17 +29,28 @@ export const MeetingRoomsPane = ({
   selectedSlot,
   onSelectSlot,
   onSlotChange,
+  onClearSlot,
 }: {
   date: Date
   selectedSlot?: { roomId: string; start: Date; end: Date } | null
   onSelectSlot?: (room: MeetingRoomBrief, start: Date, end: Date) => void
   onSlotChange?: (room: MeetingRoomBrief, start: Date, end: Date) => void
+  onClearSlot?: () => void
 }) => {
   const { t } = useTranslation('meeting-rooms')
   const [filters, setFilters] = useState<RoomFilters>({})
   const [onlyAvailable, setOnlyAvailable] = useState(false)
+  const {
+    workingHours,
+    meetingRoomsTimeRangeMode,
+    setMeetingRoomsTimeRangeMode,
+  } = useCalendarSettings()
 
   const { start: dayStart, end: dayEnd } = dayWindow(date)
+  const visibleWindow =
+    meetingRoomsTimeRangeMode === 'work'
+      ? workingWindowForDate(date, workingHours)
+      : { start: dayStart, end: dayEnd }
   const startIso = dayStart.toISOString()
   const endIso = dayEnd.toISOString()
 
@@ -78,6 +95,33 @@ export const MeetingRoomsPane = ({
     )
   }, [data?.results, date, onlyAvailable, selectedSlot])
 
+  const outsideBookingCount = useMemo(
+    () =>
+      visibleRooms.reduce(
+        (count, room) =>
+          count +
+          room.bookings.filter((booking) =>
+            isOutsideWorkingHours(
+              new Date(booking.start),
+              new Date(booking.end),
+              workingHours
+            )
+          ).length,
+        0
+      ),
+    [visibleRooms, workingHours]
+  )
+
+  useEffect(() => {
+    if (
+      meetingRoomsTimeRangeMode === 'work' &&
+      selectedSlot &&
+      isOutsideWorkingHours(selectedSlot.start, selectedSlot.end, workingHours)
+    ) {
+      onClearSlot?.()
+    }
+  }, [meetingRoomsTimeRangeMode, onClearSlot, selectedSlot, workingHours])
+
   return (
     <div className={paneCls}>
       <div className={filterBarCls}>
@@ -90,12 +134,27 @@ export const MeetingRoomsPane = ({
         >
           {t('filters.onlyAvailable')}
         </button>
-        <span className={countCls}>
-          {t('filters.roomCount', {
-            visible: visibleRooms.length,
-            total: data?.results.length ?? 0,
-          })}
-        </span>
+        <div className={rangeActionsCls}>
+          {meetingRoomsTimeRangeMode === 'work' && outsideBookingCount > 0 && (
+            <button
+              type="button"
+              className={outsideButtonCls}
+              onClick={() => setMeetingRoomsTimeRangeMode('full')}
+            >
+              {t('timeline.outsideBookings', { count: outsideBookingCount })}
+            </button>
+          )}
+          <TimeRangeSwitcher
+            value={meetingRoomsTimeRangeMode}
+            onChange={setMeetingRoomsTimeRangeMode}
+          />
+          <span className={countCls}>
+            {t('filters.roomCount', {
+              visible: visibleRooms.length,
+              total: data?.results.length ?? 0,
+            })}
+          </span>
+        </div>
       </div>
       <div className={guideCls}>{t('timeline.guide')}</div>
       {isError ? (
@@ -112,8 +171,10 @@ export const MeetingRoomsPane = ({
       ) : (
         <RoomTimeline
           rooms={visibleRooms}
-          dayStart={dayStart}
-          dayEnd={dayEnd}
+          dayStart={visibleWindow.start}
+          dayEnd={visibleWindow.end}
+          workingHours={workingHours}
+          timeRangeMode={meetingRoomsTimeRangeMode}
           isLoading={isFetching}
           emptyMessage={onlyAvailable ? t('picker.emptyAvailable') : undefined}
           selectedSlot={selectedSlot}
@@ -161,9 +222,23 @@ const availabilityOnCls = css({
   color: 'selected.text',
 })
 const countCls = css({
-  marginLeft: 'auto',
   fontSize: '0.75rem',
   color: 'greyscale.500',
+})
+const rangeActionsCls = css({
+  marginLeft: 'auto',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+})
+const outsideButtonCls = css({
+  border: 'none',
+  background: 'transparent',
+  color: 'primary.600',
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  _dark: { color: 'primaryDark.700' },
 })
 const guideCls = css({
   fontSize: '0.75rem',

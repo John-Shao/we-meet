@@ -13,7 +13,8 @@
     "roomColumn": "Salle",
     "booked": "Réservée",
     "guide": "Cliquez sur un créneau libre, faites glisser pour l’ajuster, puis cliquez à nouveau pour créer",
-    "clickToBook": "Cliquez sur un créneau libre pour réserver {{room}}"
+    "clickToBook": "Cliquez sur un créneau libre pour réserver {{room}}",
+    "outsideBookings": "{{count}} réservation hors horaires de travail"
   },
   "filters": {
     "levelTypes": {

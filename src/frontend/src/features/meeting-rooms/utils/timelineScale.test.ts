@@ -38,6 +38,14 @@ describe('makeScale', () => {
     const short = makeScale(day(0), new Date(2026, 6, 25, 23, 0, 0, 0))
     expect(short.pct(day(12))).toBeGreaterThan(50)
   })
+
+  it('半点工作时间窗口仍从 0% 均匀映射到 100%', () => {
+    const work = makeScale(day(9, 30), day(17, 30))
+    expect(work.pct(day(9, 30))).toBe(0)
+    expect(work.pct(day(13, 30))).toBe(50)
+    expect(work.pct(day(17, 30))).toBe(100)
+    expect(work.minuteAt(1)).toBe(8 * 60)
+  })
 })
 
 describe('dayWindow', () => {

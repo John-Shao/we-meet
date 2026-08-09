@@ -1,11 +1,26 @@
 export { CalendarRoute } from './routes/CalendarRoute'
-export type { CalendarEvent, EventAttendee, RSVPStatus } from './api/ApiCalendar'
+export type {
+  CalendarEvent,
+  EventAttendee,
+  RSVPStatus,
+} from './api/ApiCalendar'
 
 // P8:IM 会话日历抽屉/日程卡片的跨 feature 正规入口(im → calendar)。
 export { CreateEventDialog } from './components/CreateEventDialog'
 export { EventDetailHost } from './components/EventDetailHost'
 export { MiniCalendar } from './components/MiniCalendar'
 export { useCalendarSettings } from './hooks/useCalendarSettings'
+export {
+  DEFAULT_WORKING_HOURS,
+  WORKING_TIME_OPTIONS,
+  clipRangeToWindow,
+  formatMinutes,
+  isOutsideWorkingHours,
+  isValidWorkingHours,
+  workingWindowForDate,
+  type TimeRangeMode,
+  type WorkingHours,
+} from './utils/workingHours'
 export {
   fetchFreeBusy,
   fetchCalendarEvent,

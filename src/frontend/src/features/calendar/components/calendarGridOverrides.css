@@ -174,6 +174,11 @@
   background-color: #f54a45;
 }
 
+/* 全天时间视图中弱化非工作时间；事件块、预选框和当前时间线位于其上层。 */
+.rbc-day-slot .rbc-time-slot.wm-nonworking-slot {
+  background-color: var(--colors-greyscale-50);
+}
+
 /* ── Theme-aware structural colors ──────────────────────────────────────
    react-big-calendar ships a light theme (white bg, dark text, light borders).
    Re-express its structural colors with panda greyscale CSS vars so they flip

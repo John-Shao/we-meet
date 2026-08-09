@@ -290,7 +290,7 @@ export const ConversationCalendarPanel = ({
 
   // ── 时段选择(30min 吸附落段;单击用「日程默认时长」,拖动用拖出的区间;
   // 选完可拖框移位 / 拖抓手改起止,15min 吸附) ──
-  const { defaultDurationMin } = useCalendarSettings()
+  const { defaultDurationMin, workingHours } = useCalendarSettings()
   const [sel, setSel] = useState<{ startMin: number; endMin: number } | null>(
     null
   )
@@ -431,11 +431,13 @@ export const ConversationCalendarPanel = ({
       endMin: (s.end.getTime() - day.getTime()) / 60_000,
     })
 
-  // 初次打开滚动到 09:00(工作时间开头)。
+  // 初次打开及设置变化后滚动到工作时间开头。
   const vscrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    vscrollRef.current?.scrollTo({ top: 9 * HOUR_PX - 8 })
-  }, [])
+    vscrollRef.current?.scrollTo({
+      top: (workingHours.startMin / 60) * HOUR_PX - 8,
+    })
+  }, [workingHours.startMin])
 
   // ── 创建日程 ──
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -785,11 +787,17 @@ export const ConversationCalendarPanel = ({
                 {/* 工作时间以外置灰 */}
                 <div
                   className={workShade}
-                  style={{ top: 0, height: 9 * HOUR_PX }}
+                  style={{
+                    top: 0,
+                    height: (workingHours.startMin / 60) * HOUR_PX,
+                  }}
                 />
                 <div
                   className={workShade}
-                  style={{ top: 18 * HOUR_PX, height: 6 * HOUR_PX }}
+                  style={{
+                    top: (workingHours.endMin / 60) * HOUR_PX,
+                    height: ((24 * 60 - workingHours.endMin) / 60) * HOUR_PX,
+                  }}
                 />
                 {activePeople.map((p) => (
                   <div

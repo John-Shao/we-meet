@@ -1,10 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+
+import {
+  DEFAULT_WORKING_HOURS,
+  isValidWorkingHours,
+  type TimeRangeMode,
+  type WorkingHours,
+} from '../utils/workingHours'
 
 const WEEK_KEY = 'calendar-week-start'
 const DURATION_KEY = 'calendar-default-duration'
 const REMINDER_KEY = 'calendar-default-reminder'
 const DIM_PAST_KEY = 'calendar-dim-past'
 const WEEKEND_KEY = 'calendar-show-weekend'
+const WORK_START_KEY = 'calendar-work-start'
+const WORK_END_KEY = 'calendar-work-end'
+const CALENDAR_RANGE_KEY = 'calendar-time-range'
+const ROOMS_RANGE_KEY = 'meeting-rooms-time-range'
 const EVT = 'calendar-settings-changed'
 
 export type WeekStartPref = 'mon' | 'sun'
@@ -38,6 +49,17 @@ const readDimPast = (): boolean => localStorage.getItem(DIM_PAST_KEY) !== '0'
 // 周视图是否显示周末列。Web 大屏默认开(显示整周);显式存 '0' 才收敛成
 // 周一~周五工作周。App 端小屏默认关,刻意按端差异化(见 SettingsStore)。
 const readWeekend = (): boolean => localStorage.getItem(WEEKEND_KEY) !== '0'
+
+const readWorkingHours = (): WorkingHours => {
+  const value = {
+    startMin: Number(localStorage.getItem(WORK_START_KEY)),
+    endMin: Number(localStorage.getItem(WORK_END_KEY)),
+  }
+  return isValidWorkingHours(value) ? value : DEFAULT_WORKING_HOURS
+}
+
+const readRangeMode = (key: string): TimeRangeMode =>
+  localStorage.getItem(key) === 'full' ? 'full' : 'work'
 
 /**
  * 提醒提前量文案:0=日程开始时,整天/整小时走「天/小时」文案(1 与 n 分开,
@@ -94,6 +116,12 @@ export const useCalendarSettings = () => {
   )
   const [dimPast, setDimPastState] = useState<boolean>(readDimPast)
   const [showWeekend, setShowWeekendState] = useState<boolean>(readWeekend)
+  const [workingHours, setWorkingHoursState] =
+    useState<WorkingHours>(readWorkingHours)
+  const [calendarTimeRangeMode, setCalendarTimeRangeModeState] =
+    useState<TimeRangeMode>(() => readRangeMode(CALENDAR_RANGE_KEY))
+  const [meetingRoomsTimeRangeMode, setMeetingRoomsTimeRangeModeState] =
+    useState<TimeRangeMode>(() => readRangeMode(ROOMS_RANGE_KEY))
 
   useEffect(() => {
     const sync = () => {
@@ -102,6 +130,9 @@ export const useCalendarSettings = () => {
       setReminderState(readReminder())
       setDimPastState(readDimPast())
       setShowWeekendState(readWeekend())
+      setWorkingHoursState(readWorkingHours())
+      setCalendarTimeRangeModeState(readRangeMode(CALENDAR_RANGE_KEY))
+      setMeetingRoomsTimeRangeModeState(readRangeMode(ROOMS_RANGE_KEY))
     }
     window.addEventListener('storage', sync)
     window.addEventListener(EVT, sync)
@@ -111,39 +142,92 @@ export const useCalendarSettings = () => {
     }
   }, [])
 
-  const write = (key: string, value: string) => {
+  const write = useCallback((key: string, value: string) => {
     try {
       localStorage.setItem(key, value)
     } catch {
       /* 隐私模式等:仅本次会话生效 */
     }
     window.dispatchEvent(new Event(EVT))
-  }
+  }, [])
 
-  const setWeekStart = (v: WeekStartPref) => {
-    setWeekStartState(v)
-    write(WEEK_KEY, v)
-  }
+  const writeMany = useCallback((entries: Array<[string, string]>) => {
+    try {
+      entries.forEach(([key, value]) => localStorage.setItem(key, value))
+    } catch {
+      /* 隐私模式等:仅本次会话生效 */
+    }
+    window.dispatchEvent(new Event(EVT))
+  }, [])
 
-  const setDefaultDuration = (min: number) => {
-    setDurationState(min)
-    write(DURATION_KEY, String(min))
-  }
+  const setWeekStart = useCallback(
+    (v: WeekStartPref) => {
+      setWeekStartState(v)
+      write(WEEK_KEY, v)
+    },
+    [write]
+  )
 
-  const setDefaultReminder = (min: number | null) => {
-    setReminderState(min)
-    write(REMINDER_KEY, min == null ? 'none' : String(min))
-  }
+  const setDefaultDuration = useCallback(
+    (min: number) => {
+      setDurationState(min)
+      write(DURATION_KEY, String(min))
+    },
+    [write]
+  )
 
-  const setDimPast = (v: boolean) => {
-    setDimPastState(v)
-    write(DIM_PAST_KEY, v ? '1' : '0')
-  }
+  const setDefaultReminder = useCallback(
+    (min: number | null) => {
+      setReminderState(min)
+      write(REMINDER_KEY, min == null ? 'none' : String(min))
+    },
+    [write]
+  )
 
-  const setShowWeekend = (v: boolean) => {
-    setShowWeekendState(v)
-    write(WEEKEND_KEY, v ? '1' : '0')
-  }
+  const setDimPast = useCallback(
+    (v: boolean) => {
+      setDimPastState(v)
+      write(DIM_PAST_KEY, v ? '1' : '0')
+    },
+    [write]
+  )
+
+  const setShowWeekend = useCallback(
+    (v: boolean) => {
+      setShowWeekendState(v)
+      write(WEEKEND_KEY, v ? '1' : '0')
+    },
+    [write]
+  )
+
+  const setWorkingHours = useCallback(
+    (startMin: number, endMin: number) => {
+      const value = { startMin, endMin }
+      if (!isValidWorkingHours(value)) return
+      setWorkingHoursState(value)
+      writeMany([
+        [WORK_START_KEY, String(startMin)],
+        [WORK_END_KEY, String(endMin)],
+      ])
+    },
+    [writeMany]
+  )
+
+  const setCalendarTimeRangeMode = useCallback(
+    (mode: TimeRangeMode) => {
+      setCalendarTimeRangeModeState(mode)
+      write(CALENDAR_RANGE_KEY, mode)
+    },
+    [write]
+  )
+
+  const setMeetingRoomsTimeRangeMode = useCallback(
+    (mode: TimeRangeMode) => {
+      setMeetingRoomsTimeRangeModeState(mode)
+      write(ROOMS_RANGE_KEY, mode)
+    },
+    [write]
+  )
 
   return {
     weekStart,
@@ -156,10 +240,16 @@ export const useCalendarSettings = () => {
     dimPast,
     /** 周视图是否显示周末列(Web 默认开显示整周,关则只显工作周 5 列;App 默认关)。 */
     showWeekend,
+    workingHours,
+    calendarTimeRangeMode,
+    meetingRoomsTimeRangeMode,
     setWeekStart,
     setDefaultDuration,
     setDefaultReminder,
     setDimPast,
     setShowWeekend,
+    setWorkingHours,
+    setCalendarTimeRangeMode,
+    setMeetingRoomsTimeRangeMode,
   }
 }
