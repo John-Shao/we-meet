@@ -12,7 +12,7 @@ export interface TimelineScale {
   widthPct(from: Date | string | number, to: Date | string | number): number
   /** Inverse of `pct`: a 0–1 ratio back to minutes from the window start. */
   minuteAt(ratio: number): number
-  /** Round minutes down to a slot boundary (default: half-hour). */
+  /** Round minutes down to a meeting-room interaction boundary. */
   snap(minute: number, step?: number): number
   /** Window bounds, handy for callers building Dates from `minuteAt`. */
   start: Date
@@ -20,6 +20,8 @@ export interface TimelineScale {
 }
 
 export const TIMELINE_HALF_HOUR_MIN_WIDTH = 64
+/** Click, drag, resize and keyboard adjustments all share this precision. */
+export const ROOM_TIMELINE_SNAP_MIN = 15
 
 /** Preserve readable half-hour cells while still filling a wider viewport. */
 export const timelineTrackWidth = (
@@ -59,7 +61,8 @@ export const makeScale = (start: Date, end: Date): TimelineScale => {
       const clamped = Math.min(1, Math.max(0, ratio))
       return Math.round((total * clamped) / 60_000)
     },
-    snap: (minute, step = 30) => Math.floor(minute / step) * step,
+    snap: (minute, step = ROOM_TIMELINE_SNAP_MIN) =>
+      Math.floor(minute / step) * step,
   }
 }
 

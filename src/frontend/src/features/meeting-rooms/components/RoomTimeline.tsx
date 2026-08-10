@@ -16,6 +16,7 @@ import { useNowTick } from '../hooks/useNowTick'
 import {
   addMinutes,
   makeScale,
+  ROOM_TIMELINE_SNAP_MIN,
   timelineGridTicks,
   timelineTrackWidth,
 } from '../utils/timelineScale'
@@ -175,7 +176,7 @@ export const RoomTimeline = ({
     const ratio = (event.clientX - bounds.left) / bounds.width
     const startMinute = Math.min(
       scale.snap(scale.minuteAt(ratio)),
-      Math.max(0, totalMinutes - 30)
+      Math.max(0, totalMinutes - ROOM_TIMELINE_SNAP_MIN)
     )
     const start = addMinutes(dayStart, startMinute)
     onSelectSlot(
@@ -221,7 +222,8 @@ export const RoomTimeline = ({
       moved = true
 
       const rawDelta = (dx / trackWidth) * totalMinutes
-      const delta = Math.round(rawDelta / 30) * 30
+      const delta =
+        Math.round(rawDelta / ROOM_TIMELINE_SNAP_MIN) * ROOM_TIMELINE_SNAP_MIN
       let startMinute = originStart
       let endMinute = originEnd
 
@@ -232,11 +234,14 @@ export const RoomTimeline = ({
         )
         endMinute = startMinute + duration
       } else if (mode === 'start') {
-        startMinute = Math.max(0, Math.min(originStart + delta, originEnd - 30))
+        startMinute = Math.max(
+          0,
+          Math.min(originStart + delta, originEnd - ROOM_TIMELINE_SNAP_MIN)
+        )
       } else {
         endMinute = Math.min(
           totalMinutes,
-          Math.max(originEnd + delta, originStart + 30)
+          Math.max(originEnd + delta, originStart + ROOM_TIMELINE_SNAP_MIN)
         )
       }
 
@@ -278,7 +283,7 @@ export const RoomTimeline = ({
     const fallbackMinute = timeRangeMode === 'full' ? INITIAL_HOUR * 60 : 0
     const baseMinute =
       isToday && nowMinute >= 0 && nowMinute < totalMinutes
-        ? Math.ceil(nowMinute / 30) * 30
+        ? Math.ceil(nowMinute / ROOM_TIMELINE_SNAP_MIN) * ROOM_TIMELINE_SNAP_MIN
         : fallbackMinute
     const startMinute = Math.min(baseMinute, Math.max(0, totalMinutes - 60))
     const start = addMinutes(dayStart, startMinute)
@@ -314,10 +319,13 @@ export const RoomTimeline = ({
     let endMinute = scale.minuteAt(scale.pct(selectedSlot.end) / 100)
 
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      const delta = event.key === 'ArrowLeft' ? -30 : 30
+      const delta =
+        event.key === 'ArrowLeft'
+          ? -ROOM_TIMELINE_SNAP_MIN
+          : ROOM_TIMELINE_SNAP_MIN
       if (event.shiftKey) {
         endMinute = Math.max(
-          startMinute + 30,
+          startMinute + ROOM_TIMELINE_SNAP_MIN,
           Math.min(totalMinutes, endMinute + delta)
         )
       } else {

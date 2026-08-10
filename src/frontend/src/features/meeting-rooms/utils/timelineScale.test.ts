@@ -34,9 +34,11 @@ describe('makeScale', () => {
     expect(Math.abs(minutes - 14 * 60 - 30)).toBeLessThan(1)
   })
 
-  it('snap 把 07:12 吸附到 07:00、07:38 吸附到 07:30', () => {
+  it('snap 默认按 15 分钟吸附', () => {
     expect(scale.snap(7 * 60 + 12)).toBe(7 * 60)
+    expect(scale.snap(7 * 60 + 23)).toBe(7 * 60 + 15)
     expect(scale.snap(7 * 60 + 38)).toBe(7 * 60 + 30)
+    expect(scale.snap(7 * 60 + 53)).toBe(7 * 60 + 45)
   })
 
   it('窗口总长按实测毫秒差算,不假设一天恒为 24 小时(DST)', () => {
