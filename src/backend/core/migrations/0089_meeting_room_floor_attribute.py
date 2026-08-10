@@ -14,6 +14,11 @@ def reset_meeting_room_locations(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    # PostgreSQL cannot ALTER the room table while the preceding deletes still
+    # have deferred foreign-key trigger events in the same transaction. Keep
+    # the data reset and schema change on separate autocommit boundaries.
+    atomic = False
+
     dependencies = [("core", "0088_retire_legacy_meeting_room_hierarchy")]
 
     operations = [
