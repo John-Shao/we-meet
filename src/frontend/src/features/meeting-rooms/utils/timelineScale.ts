@@ -75,3 +75,30 @@ export const dayWindow = (date: Date): { start: Date; end: Date } => {
 /** `start` plus `minutes`, as a new Date. */
 export const addMinutes = (start: Date, minutes: number): Date =>
   new Date(start.getTime() + minutes * 60_000)
+
+export interface TimelineGridTick {
+  minute: number
+  value: Date
+  offsetPx: number
+  isHour: boolean
+  showLabel: boolean
+}
+
+/** Shared, pixel-aligned grid coordinates for the ruler and timeline body. */
+export const timelineGridTicks = (
+  start: Date,
+  totalMinutes: number,
+  trackWidth: number
+): TimelineGridTick[] =>
+  Array.from({ length: Math.ceil(totalMinutes / 30) }, (_, index) => {
+    const minute = index * 30
+    const value = addMinutes(start, minute)
+    const isHour = value.getMinutes() === 0
+    return {
+      minute,
+      value,
+      offsetPx: Math.round((minute / totalMinutes) * trackWidth),
+      isHour,
+      showLabel: minute === 0 || isHour,
+    }
+  })

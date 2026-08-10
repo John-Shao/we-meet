@@ -4,6 +4,7 @@ import {
   addMinutes,
   dayWindow,
   makeScale,
+  timelineGridTicks,
   timelineTrackWidth,
 } from './timelineScale'
 
@@ -77,5 +78,23 @@ describe('timelineTrackWidth', () => {
 
   it('工作时间较短且屏幕更宽时仍弹性铺满可用空间', () => {
     expect(timelineTrackWidth(9 * 60, 1400)).toBe(1400)
+  })
+})
+
+describe('timelineGridTicks', () => {
+  it('uses stable integer pixel coordinates for the ruler and body grid', () => {
+    const ticks = timelineGridTicks(day(0), 24 * 60, 3072)
+
+    expect(ticks[1].offsetPx).toBe(64)
+    expect(ticks[2].offsetPx).toBe(128)
+    expect(ticks.every(({ offsetPx }) => Number.isInteger(offsetPx))).toBe(true)
+  })
+
+  it('classifies full hours by clock time when the range starts at a half hour', () => {
+    const ticks = timelineGridTicks(day(9, 30), 8 * 60, 1401)
+
+    expect(ticks[0]).toMatchObject({ isHour: false, showLabel: true })
+    expect(ticks[1]).toMatchObject({ isHour: true, showLabel: true })
+    expect(ticks[2]).toMatchObject({ isHour: false, showLabel: false })
   })
 })

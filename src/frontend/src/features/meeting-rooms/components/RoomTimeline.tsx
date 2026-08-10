@@ -16,6 +16,7 @@ import { useNowTick } from '../hooks/useNowTick'
 import {
   addMinutes,
   makeScale,
+  timelineGridTicks,
   timelineTrackWidth,
 } from '../utils/timelineScale'
 import { compactRoomPathLabel } from '../utils/roomHierarchy'
@@ -85,7 +86,6 @@ export const RoomTimeline = ({
   const now = useNowTick(isToday)
   const scale = makeScale(dayStart, dayEnd)
   const totalMinutes = scale.minuteAt(1)
-  const halfHourCount = Math.ceil(totalMinutes / 30)
   // Keep every half-hour cell readable. Short work ranges still stretch to
   // fill a wide viewport; a 24-hour range intentionally overflows and uses the
   // timeline's native horizontal scroller.
@@ -94,10 +94,7 @@ export const RoomTimeline = ({
     viewportWidth - labelWidth
   )
   const workWindow = workingWindowForDate(dayStart, workingHours)
-  const axisTicks = Array.from({ length: halfHourCount }, (_, index) => {
-    const minute = index * 30
-    return { minute, value: addMinutes(dayStart, minute) }
-  })
+  const gridTicks = timelineGridTicks(dayStart, totalMinutes, trackWidth)
 
   useLayoutEffect(() => {
     const node = scrollRef.current
@@ -365,21 +362,37 @@ export const RoomTimeline = ({
             />
           </div>
           <div className={rulerTrackCls} style={{ width: trackWidth }}>
-            {axisTicks.map(({ minute, value }) => (
+            {gridTicks.map(({ minute, offsetPx, isHour }) => (
               <div
                 key={minute}
-                className={tickCls}
-                style={{ width: `${(30 / totalMinutes) * 100}%` }}
-              >
-                {minute === 0 || value.getMinutes() === 0
-                  ? timeLabel(value)
-                  : null}
-              </div>
+                className={isHour ? hourGridLineCls : halfHourGridLineCls}
+                style={{ left: offsetPx }}
+              />
             ))}
+            {gridTicks
+              .filter(({ showLabel }) => showLabel)
+              .map(({ minute, value, offsetPx }) => (
+                <span
+                  key={minute}
+                  className={tickLabelCls}
+                  style={{ left: offsetPx }}
+                >
+                  {timeLabel(value)}
+                </span>
+              ))}
           </div>
         </div>
 
         <div className={bodyCls}>
+          <div className={bodyGridCls} aria-hidden="true">
+            {gridTicks.map(({ minute, offsetPx, isHour }) => (
+              <div
+                key={minute}
+                className={isHour ? hourGridLineCls : halfHourGridLineCls}
+                style={{ left: labelWidth + offsetPx }}
+              />
+            ))}
+          </div>
           {isToday && now >= dayStart && now < dayEnd && (
             <div
               className={nowLineCls}
@@ -448,13 +461,6 @@ export const RoomTimeline = ({
                     />
                   </>
                 )}
-                {axisTicks.map(({ minute }) => (
-                  <div
-                    key={minute}
-                    className={gridLineCls}
-                    style={{ left: `${(minute / totalMinutes) * 100}%` }}
-                  />
-                ))}
                 {selectedSlot?.roomId === room.id && (
                   <div
                     data-testid="mr-timeline-draft"
@@ -591,16 +597,22 @@ const labelResizeHandleCls = css({
   _hover: { _after: { backgroundColor: 'primary.500' } },
   _focusVisible: { _after: { backgroundColor: 'primary.500' } },
 })
-const rulerTrackCls = css({ display: 'flex', flexShrink: 0 })
-const tickCls = css({
-  flexShrink: 0,
-  paddingY: '0.5rem',
+const rulerTrackCls = css({ position: 'relative', flexShrink: 0 })
+const tickLabelCls = css({
+  position: 'absolute',
+  top: '0.5rem',
   paddingLeft: '0.25rem',
   fontSize: '0.6875rem',
   color: 'greyscale.500',
-  borderLeft: '1px solid token(colors.greyscale.100)',
+  whiteSpace: 'nowrap',
 })
 const bodyCls = css({ position: 'relative' })
+const bodyGridCls = css({
+  position: 'absolute',
+  inset: 0,
+  zIndex: 1,
+  pointerEvents: 'none',
+})
 const rowCls = css({
   display: 'flex',
   borderBottom: '1px solid token(colors.greyscale.100)',
@@ -646,12 +658,20 @@ const trackCls = css({
   height: '3.5rem',
   cursor: 'pointer',
 })
-const gridLineCls = css({
+const gridLineBase = {
   position: 'absolute',
   top: 0,
   bottom: 0,
   width: '1px',
+  pointerEvents: 'none',
+} as const
+const halfHourGridLineCls = css({
+  ...gridLineBase,
   backgroundColor: 'greyscale.100',
+})
+const hourGridLineCls = css({
+  ...gridLineBase,
+  backgroundColor: 'greyscale.200',
 })
 const nonWorkingShadeCls = css({
   position: 'absolute',
@@ -671,6 +691,7 @@ const blockBase = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+  zIndex: 2,
 } as const
 // Two complete classes instead of cx-layering: atomic classes resolve by
 // stylesheet order, so conditionally stacking colour utilities is a coin flip.
@@ -739,7 +760,7 @@ const nowLineCls = css({
   bottom: 0,
   width: '2px',
   backgroundColor: 'danger.500',
-  zIndex: 1,
+  zIndex: 3,
   pointerEvents: 'none',
 })
 const emptyCls = css({
