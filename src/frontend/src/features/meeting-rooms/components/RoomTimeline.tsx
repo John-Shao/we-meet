@@ -671,6 +671,7 @@ const halfHourGridLineCls = css({
 })
 const hourGridLineCls = css({
   ...gridLineBase,
+  width: '2px',
   backgroundColor: 'greyscale.200',
 })
 const nonWorkingShadeCls = css({
