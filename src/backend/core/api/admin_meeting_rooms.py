@@ -25,8 +25,8 @@ from core.api.admin_org import _OrgScopedAdminViewSet
 from core.api.admin_roles import HasOrgPermission
 from core.api.meeting_rooms import (
     facility_ids_from_params,
-    node_path_label,
     parse_uuid,
+    room_path_label,
 )
 from core.api.viewsets import Pagination
 from core.services.audit import record_audit
@@ -47,9 +47,7 @@ class MeetingRoomNodeAdminSerializer(serializers.ModelSerializer):
     room_count = serializers.SerializerMethodField()
     level_number = serializers.IntegerField(read_only=True)
     level_type = serializers.CharField(read_only=True)
-    timezone = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True
-    )
+    timezone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = models.MeetingRoomNode
@@ -92,8 +90,8 @@ class MeetingRoomNodeAdminSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("parent must be in your organization")
         if value.deleted_at is not None or not value.is_active:
             raise serializers.ValidationError("parent must be active")
-        if value.is_floor:
-            raise serializers.ValidationError("a floor cannot contain another level")
+        if value.is_building:
+            raise serializers.ValidationError("a building cannot contain another level")
         return value
 
     def validate_timezone(self, value):
@@ -110,13 +108,9 @@ class MeetingRoomNodeAdminSerializer(serializers.ModelSerializer):
         attrs = super().validate(attrs)
         parent = attrs.get("parent") if self.instance is None else self.instance.parent
         depth = parent.depth + 1 if parent is not None else 0
-        timezone_value = attrs.get(
-            "timezone", getattr(self.instance, "timezone", None)
-        )
+        timezone_value = attrs.get("timezone", getattr(self.instance, "timezone", None))
         if depth == 1 and not timezone_value:
-            raise serializers.ValidationError(
-                {"timezone": "city timezone is required"}
-            )
+            raise serializers.ValidationError({"timezone": "city timezone is required"})
         if depth != 1 and timezone_value:
             raise serializers.ValidationError(
                 {"timezone": "timezone can only be configured on a city"}
@@ -179,6 +173,7 @@ class MeetingRoomAdminSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "code",
+            "floor",
             "node",
             "node_name",
             "path_label",
@@ -222,9 +217,7 @@ class MeetingRoomAdminSerializer(serializers.ModelSerializer):
         if value in (None, 0):
             return None
         if not 15 <= value <= 24 * 60:
-            raise serializers.ValidationError(
-                "must be between 15 minutes and 24 hours"
-            )
+            raise serializers.ValidationError("must be between 15 minutes and 24 hours")
         return value
 
     def validate_advance_booking_days(self, value):
@@ -262,7 +255,13 @@ class MeetingRoomAdminSerializer(serializers.ModelSerializer):
         return obj.node.name if obj.node_id else ""
 
     def get_path_label(self, obj):
-        return node_path_label(obj.node, self.context.setdefault("_labels", {}))
+        return room_path_label(obj, self.context.setdefault("_labels", {}))
+
+    def validate_floor(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("floor is required")
+        return normalized
 
     def validate_node(self, value):
         organization = self.context.get("organization")
@@ -272,9 +271,9 @@ class MeetingRoomAdminSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("node has been deleted")
         if not value.is_active:
             raise serializers.ValidationError("node is inactive")
-        if not value.is_floor:
+        if not value.is_building:
             raise serializers.ValidationError(
-                "meeting rooms can only be added to a floor"
+                "meeting rooms can only be added to a building"
             )
         return value
 
@@ -369,7 +368,9 @@ class MeetingRoomNodeAdminViewSet(
             target_type="meeting_room_node",
             target_id=instance.id,
             target_label=instance.name,
-            metadata={"timezone": str(instance.timezone) if instance.timezone else None},
+            metadata={
+                "timezone": str(instance.timezone) if instance.timezone else None
+            },
         )
 
     def perform_destroy(self, instance):
@@ -461,7 +462,7 @@ class MeetingRoomNodeAdminViewSet(
             )
             for child in descendants:
                 models.MeetingRoomNode.objects.filter(id=child.id).update(
-                    path=new_path + child.path[len(old_path):],
+                    path=new_path + child.path[len(old_path) :],
                     depth=child.depth + depth_delta,
                 )
 
@@ -532,7 +533,9 @@ class MeetingRoomAdminViewSet(
             # Admins search by room number at least as often as by name — the
             # C-side browse endpoint already matches both.
             queryset = queryset.filter(
-                Q(name__icontains=query) | Q(code__icontains=query)
+                Q(name__icontains=query)
+                | Q(code__icontains=query)
+                | Q(floor__icontains=query)
             )
         is_active = params.get("is_active")
         if is_active in ("0", "false", "False"):

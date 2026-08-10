@@ -211,8 +211,7 @@
       "country_region": "Pays/région",
       "city": "Ville",
       "campus": "Campus",
-      "building": "Bâtiment",
-      "floor": "Étage"
+      "building": "Bâtiment"
     },
     "addLevelType": "Ajouter : {{level}}",
     "newTypedLevel": "Ajouter : {{level}}",
@@ -220,7 +219,7 @@
     "cityTimezone": "Fuseau horaire de la ville",
     "selectTimezone": "Sélectionnez un fuseau horaire",
     "emptyFixedHierarchy": "Aucun emplacement. Commencez par ajouter un pays ou une région",
-    "selectFloorToAddRoom": "Sélectionnez d’abord un étage de niveau 5 à gauche",
+    "selectBuildingToAddRoom": "Sélectionnez d’abord un bâtiment à gauche",
     "title": "Salles de réunion",
     "allRooms": "Toutes les salles",
     "newLevel": "Ajouter un niveau",
@@ -235,6 +234,7 @@
     "editRoom": "Modifier la salle",
     "roomName": "Nom de la salle",
     "roomCode": "Code de la salle",
+    "floor": "Étage",
     "capacity": "Capacité",
     "facilities": "Équipements",
     "colName": "Salle",
@@ -248,7 +248,7 @@
     "enable": "Activer",
     "rowActions": "Autres actions",
     "loading": "Chargement…",
-    "emptyLevels": "Aucun niveau — ajoutez d'abord un bâtiment ou un étage",
+    "emptyLevels": "Aucun emplacement — ajoutez d'abord un bâtiment",
     "emptyRooms": "Aucune salle dans ce niveau",
     "deleteRoomConfirm": "Supprimer la salle « {{name}} » ? Les réservations existantes sont conservées.",
     "deleteLevelConfirm": "Supprimer le niveau « {{name}} » ?"

@@ -24,6 +24,7 @@ const briefOf = (room: MeetingRoom): MeetingRoomBrief => ({
   id: room.id,
   name: room.name,
   code: room.code,
+  floor: room.floor,
   capacity: room.capacity,
   node: room.node,
   path_label: room.path_label,

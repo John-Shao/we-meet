@@ -22,8 +22,7 @@
       "country_region": "国家/地区",
       "city": "城市",
       "campus": "园区",
-      "building": "楼栋",
-      "floor": "楼层"
+      "building": "楼栋"
     },
     "levelAllOf": "全部{{level}}",
     "level": "所属层级",

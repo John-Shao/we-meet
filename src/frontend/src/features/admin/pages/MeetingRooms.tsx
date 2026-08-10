@@ -70,7 +70,7 @@ type RoomDialogState =
   | null
 
 /**
- * 会议室管理 (P9, M 端) — left: the building / floor tree, right: its rooms.
+ * 会议室管理 (P9, M 端) — left: the location tree, right: its rooms.
  *
  * Same shape as the department console so admins do not have to learn a second
  * layout; the differences are what hangs off a node (rooms, not people) and the
@@ -207,7 +207,7 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
   const selectNode = (id: string | null) => {
     setSelectedNodeId(id)
     setPage(1)
-    // Picking a floor while a room is open means "show me that floor".
+    // Picking a building while a room is open means "show me that building".
     if (roomId) navigate('/meeting-rooms')
   }
 
@@ -219,8 +219,8 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
     }
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null
-  const selectedFloor =
-    selectedNode?.level_type === 'floor' ? selectedNode : null
+  const selectedBuilding =
+    selectedNode?.level_type === 'building' ? selectedNode : null
   const nextLevelType =
     MEETING_ROOM_LEVEL_TYPES[(selectedNode?.depth ?? -1) + 1]
   const childLevels = useMemo(
@@ -388,9 +388,11 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
             size="sm"
             variant="primary"
             icon={<RiAddLine size={16} />}
-            isDisabled={!selectedFloor}
+            isDisabled={!selectedBuilding}
             tooltip={
-              selectedFloor ? undefined : t('meetingRooms.selectFloorToAddRoom')
+              selectedBuilding
+                ? undefined
+                : t('meetingRooms.selectBuildingToAddRoom')
             }
             onPress={() => setRoomDialog({ mode: 'create' })}
             data-testid="admin-mr-add"
@@ -566,7 +568,7 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
       <MeetingRoomDialog
         isOpen={roomDialog !== null}
         room={roomDialog?.mode === 'edit' ? roomDialog.room : null}
-        defaultNodeId={selectedFloor?.id ?? null}
+        defaultNodeId={selectedBuilding?.id ?? null}
         nodes={nodes}
         facilities={facilities}
         submitting={roomMutation.isPending}

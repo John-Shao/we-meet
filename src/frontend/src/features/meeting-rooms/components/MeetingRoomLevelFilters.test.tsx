@@ -24,7 +24,7 @@ const makeNode = (
   id,
   name,
   level_type: levelType,
-  level_number: (depth + 1) as 1 | 2 | 3 | 4 | 5,
+  level_number: (depth + 1) as 1 | 2 | 3 | 4,
   parent,
   path: `${id}/`,
   depth,
@@ -41,17 +41,15 @@ const nodes = [
   makeNode('sf', 'San Francisco', 'city', 'us', 1),
   makeNode('campus', 'Industry Park', 'campus', 'sz', 2),
   makeNode('building', 'Building 1', 'building', 'campus', 3),
-  makeNode('floor', 'Floor 2', 'floor', 'building', 4),
 ]
 
 describe('MeetingRoomLevelFilters', () => {
-  it('resolves a selected floor into all five cascade values', () => {
-    expect(selectionByLevel(nodes, 'floor')).toEqual({
+  it('resolves a selected building into all four cascade values', () => {
+    expect(selectionByLevel(nodes, 'building')).toEqual({
       country_region: 'cn',
       city: 'sz',
       campus: 'campus',
       building: 'building',
-      floor: 'floor',
     })
   })
 

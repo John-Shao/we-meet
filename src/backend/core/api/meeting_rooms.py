@@ -5,7 +5,7 @@ Three shapes of question, three endpoints:
 - *what rooms exist?* — ``/meeting-room-nodes/`` + ``/meeting-rooms/``
 - *which are free between X and Y?* — ``/meeting-rooms/availability/``, the
   picker behind 「添加会议室」
-- *who has this floor booked today?* — ``/meeting-rooms/timeline/``, the
+- *who has this room booked today?* — ``/meeting-rooms/timeline/``, the
   horizontal timeline tab
 
 Booking happens through the calendar API (a room is a field on an event), not
@@ -18,7 +18,8 @@ names the organizer, but hides the title of private events from outsiders.
 """
 
 import uuid
-from datetime import datetime, time as dt_time, timedelta
+from datetime import datetime, timedelta
+from datetime import time as dt_time
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -41,7 +42,7 @@ MAX_TIMELINE_ROOMS = 200
 
 
 def node_path_label(node, cache=None):
-    """``北京 · A 座 · 3F`` — the node's ancestors and itself, root first.
+    """``中国 · 深圳 · 新一代产业园 · 2 栋`` — ancestors and self, root first.
 
     ``cache`` is an optional dict reused across calls in one request so a list
     of events sharing a handful of rooms costs a handful of queries, not one
@@ -65,6 +66,12 @@ def node_path_label(node, cache=None):
     label = " · ".join(names + [node.name])
     cache[node.id] = label
     return label
+
+
+def room_path_label(room, cache=None):
+    """Full room location: hierarchy through building, followed by its floor."""
+    parts = [node_path_label(room.node, cache), room.floor]
+    return " · ".join(part for part in parts if part)
 
 
 def _parse_window(params, *, max_days, required=True):
@@ -143,10 +150,11 @@ def serialize_room(room, *, label_cache=None):
         "id": str(room.id),
         "name": room.name,
         "code": room.code,
+        "floor": room.floor,
         "capacity": room.capacity,
         "description": room.description,
         "node": {"id": str(room.node_id), "name": room.node.name},
-        "path_label": node_path_label(room.node, label_cache),
+        "path_label": room_path_label(room, label_cache),
         "timezone": str(room.node.resolve_timezone()),
         "facilities": [
             {"id": str(f.id), "name": f.name, "code": f.code}
@@ -180,12 +188,9 @@ class MeetingRoomNodeViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         nodes = list(self.get_queryset())
         counts = {}
         if nodes:
-            rows = (
-                models.MeetingRoom.objects.filter(
-                    node__in=nodes, deleted_at__isnull=True, is_active=True
-                )
-                .values_list("node_id", flat=True)
-            )
+            rows = models.MeetingRoom.objects.filter(
+                node__in=nodes, deleted_at__isnull=True, is_active=True
+            ).values_list("node_id", flat=True)
             for node_id in rows:
                 counts[node_id] = counts.get(node_id, 0) + 1
         return Response(
@@ -278,7 +283,9 @@ class MeetingRoomViewSet(
         query = str(params.get("q") or "").strip()
         if query:
             rooms = rooms.filter(
-                Q(name__icontains=query) | Q(code__icontains=query)
+                Q(name__icontains=query)
+                | Q(code__icontains=query)
+                | Q(floor__icontains=query)
             )
         capacity_min = params.get("capacity_min")
         if capacity_min:
@@ -324,9 +331,7 @@ class MeetingRoomViewSet(
         organization = self._organization()
         if organization is None:
             return Response({"results": []})
-        start, end = _parse_window(
-            request.query_params, max_days=MAX_AVAILABILITY_DAYS
-        )
+        start, end = _parse_window(request.query_params, max_days=MAX_AVAILABILITY_DAYS)
         rooms = list(self._filtered_rooms(request.query_params))
 
         bookings = models.MeetingRoomBooking.objects.filter(
@@ -379,7 +384,7 @@ class MeetingRoomViewSet(
         node's local midnight-to-midnight, using its effective timezone).
 
         Unlike availability this *does* name the organizer: the whole point of
-        staring at a floor's timeline is to find who to ask about that 2pm
+        staring at a room timeline is to find who to ask about that 2pm
         block. Titles of private events are withheld from non-participants.
         """
         organization = self._organization()
@@ -404,9 +409,7 @@ class MeetingRoomViewSet(
                 if node_id
                 else None
             )
-            tzinfo = (
-                node.resolve_timezone() if node else ZoneInfo(settings.TIME_ZONE)
-            )
+            tzinfo = node.resolve_timezone() if node else ZoneInfo(settings.TIME_ZONE)
             start = datetime.combine(day, dt_time.min, tzinfo=tzinfo)
             end = start + timedelta(days=1)
             tz_label = str(tzinfo)

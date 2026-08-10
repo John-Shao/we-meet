@@ -22,8 +22,7 @@
       "country_region": "Pays/régions",
       "city": "Villes",
       "campus": "Campus",
-      "building": "Bâtiments",
-      "floor": "Étages"
+      "building": "Bâtiments"
     },
     "levelAllOf": "Tous : {{level}}",
     "level": "Niveau",

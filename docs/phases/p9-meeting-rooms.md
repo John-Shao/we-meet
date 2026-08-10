@@ -32,9 +32,9 @@ DTO 定义处都带了「与 LiveKit room 无关」的注释 —— 两个 room 
 
 | 模型 | 表 | 说明 |
 |---|---|---|
-| `MeetingRoomNode` | `meet_meeting_room_node` | 固定五级树（国家/地区→城市→园区→楼栋→楼层），保留 `parent` + 物化路径 `path` + `depth`。城市时区必填，其余层级继承城市时区；会议室只能挂在第 5 级楼层。 |
+| `MeetingRoomNode` | `meet_meeting_room_node` | 固定四级树（国家/地区→城市→园区→楼栋），保留 `parent` + 物化路径 `path` + `depth`。城市时区必填，其余层级继承城市时区；会议室只能挂在第 4 级楼栋。 |
 | `MeetingRoomFacility` | `meet_meeting_room_facility` | 设施字典(电视/投影仪/白板…)。 |
-| `MeetingRoom` | `meet_meeting_room` | 会议室本体:层级、名称、编号、容量、设施 M2M、启停用。 |
+| `MeetingRoom` | `meet_meeting_room` | 会议室本体:楼栋、必填楼层属性、名称、编号、容量、设施 M2M、启停用。 |
 | `MeetingRoomBooking` | `meet_meeting_room_booking` | **占用表**,一场次一行。 |
 
 三处刻意的取舍:
@@ -162,7 +162,7 @@ C 端(`IsAuthenticated` + 组织过滤):
   view:rbc 自定义视图要接 `{date, events}` 契约,而会议室视图的数据轴是「资源 × 时间」
   而非事件流,筛选栏也塞不进 `components.toolbar`。
 - `RoomTimeline`:单一 `overflow-x` 容器包住刻度尺与所有行 + 左列 `position: sticky`,
-  **不做 JS 滚动同步**,列头永远不会与网格错位。点空档按 30 分钟吸附建日程。
+  **不做 JS 滚动同步**,列头永远不会与网格错位。点空档按 15 分钟吸附建日程。
 - `/admin` 新增「会议室」页,沿用部门控制台同一套布局(左树 + 右表格分页 + 弹窗)。
 - 纯函数抽到 `utils/` 并配 vitest(32 例):时间↔坐标换算、半开区间冲突判定、树构建。
 

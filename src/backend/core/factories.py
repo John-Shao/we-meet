@@ -250,9 +250,9 @@ class MeetingRoomNodeFactory(factory.django.DjangoModelFactory):
     parent = None
     # Cities own the timezone; all other levels inherit it.
     timezone = factory.LazyAttribute(
-        lambda node: "UTC"
-        if node.parent is not None and node.parent.depth == 0
-        else None
+        lambda node: (
+            "UTC" if node.parent is not None and node.parent.depth == 0 else None
+        )
     )
 
 
@@ -267,8 +267,8 @@ class MeetingRoomFacilityFactory(factory.django.DjangoModelFactory):
     code = factory.Sequence(lambda n: f"facility-{n!s}")
 
 
-def MeetingRoomFloorFactory(organization=None, city_timezone="UTC", **kwargs):
-    """Create one complete country -> city -> campus -> building -> floor path."""
+def MeetingRoomBuildingFactory(organization=None, city_timezone="UTC", **kwargs):
+    """Create one complete country -> city -> campus -> building path."""
     organization = organization or OrganizationFactory()
     country = MeetingRoomNodeFactory(organization=organization)
     city = MeetingRoomNodeFactory(
@@ -277,12 +277,7 @@ def MeetingRoomFloorFactory(organization=None, city_timezone="UTC", **kwargs):
         timezone=city_timezone,
     )
     campus = MeetingRoomNodeFactory(organization=organization, parent=city)
-    building = MeetingRoomNodeFactory(organization=organization, parent=campus)
-    return MeetingRoomNodeFactory(
-        organization=organization,
-        parent=building,
-        **kwargs,
-    )
+    return MeetingRoomNodeFactory(organization=organization, parent=campus, **kwargs)
 
 
 class MeetingRoomFactory(factory.django.DjangoModelFactory):
@@ -296,10 +291,13 @@ class MeetingRoomFactory(factory.django.DjangoModelFactory):
         model = models.MeetingRoom
 
     organization = factory.SubFactory(OrganizationFactory)
+
     @factory.lazy_attribute
     def node(self):
-        return MeetingRoomFloorFactory(organization=self.organization)
+        return MeetingRoomBuildingFactory(organization=self.organization)
+
     name = factory.Sequence(lambda n: f"Meeting room {n!s}")
+    floor = "6F"
     capacity = 10
 
 
@@ -312,7 +310,5 @@ class CalendarEventFactory(factory.django.DjangoModelFactory):
     organization = factory.SubFactory(OrganizationFactory)
     organizer = factory.SubFactory(UserFactory)
     title = factory.Sequence(lambda n: f"Event {n!s}")
-    start_at = factory.LazyFunction(
-        lambda: django_timezone.now() + timedelta(days=1)
-    )
+    start_at = factory.LazyFunction(lambda: django_timezone.now() + timedelta(days=1))
     end_at = factory.LazyAttribute(lambda o: o.start_at + timedelta(hours=1))

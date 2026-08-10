@@ -11,8 +11,8 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-const names = ['China', 'Shenzhen', 'Campus', 'Building 1', 'Floor 2']
-const types = ['country_region', 'city', 'campus', 'building', 'floor'] as const
+const names = ['China', 'Shenzhen', 'Campus', 'Building 1']
+const types = ['country_region', 'city', 'campus', 'building'] as const
 const nodes: AdminMeetingRoomNode[] = names.map((name, depth) => ({
   id: `node${depth}`,
   name,
@@ -21,7 +21,7 @@ const nodes: AdminMeetingRoomNode[] = names.map((name, depth) => ({
     Array.from({ length: depth + 1 }, (_, index) => `node${index}`).join('/') +
     '/',
   depth,
-  level_number: (depth + 1) as 1 | 2 | 3 | 4 | 5,
+  level_number: (depth + 1) as 1 | 2 | 3 | 4,
   level_type: types[depth],
   sort_order: 0,
   timezone: depth === 1 ? 'Asia/Shanghai' : null,
@@ -32,11 +32,11 @@ const nodes: AdminMeetingRoomNode[] = names.map((name, depth) => ({
 }))
 
 describe('fixed meeting-room hierarchy controls', () => {
-  it('does not offer an add-child action on a floor', () => {
+  it('does not offer an add-child action on a building', () => {
     render(
       <MeetingRoomNodeTree
         nodes={nodes}
-        query="Floor 2"
+        query="Building 1"
         selectedId={null}
         onSelect={vi.fn()}
         onAddChild={vi.fn()}
@@ -45,15 +45,15 @@ describe('fixed meeting-room hierarchy controls', () => {
       />
     )
 
-    expect(screen.getAllByLabelText('meetingRooms.newSubLevel')).toHaveLength(4)
+    expect(screen.getAllByLabelText('meetingRooms.newSubLevel')).toHaveLength(3)
   })
 
-  it('locks a new room to the selected floor', () => {
+  it('locks a new room to the selected building', () => {
     render(
       <MeetingRoomDialog
         isOpen
         room={null}
-        defaultNodeId="node4"
+        defaultNodeId="node3"
         nodes={nodes}
         facilities={[]}
         onSubmit={vi.fn()}
@@ -64,5 +64,6 @@ describe('fixed meeting-room hierarchy controls', () => {
     const location = document.getElementById('mr-room-node')
     expect(location?.tagName).toBe('DIV')
     for (const name of names) expect(location).toHaveTextContent(name)
+    expect(screen.getByLabelText('meetingRooms.floor')).toBeRequired()
   })
 })

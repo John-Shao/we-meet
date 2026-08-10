@@ -4,6 +4,7 @@ from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.utils import timezone
+
 import pytest
 from rest_framework.test import APIClient
 
@@ -99,34 +100,47 @@ def test_nodes_expose_tree_shape_and_inherited_timezone(org_user):
     building = factories.MeetingRoomNodeFactory(
         organization=org, name="Tower A", parent=campus
     )
-    floor = factories.MeetingRoomNodeFactory(organization=org, name="3F", parent=building)
-    factories.MeetingRoomFactory(organization=org, node=floor)
+    factories.MeetingRoomFactory(organization=org, node=building, floor="3F")
 
-    rows = {row["name"]: row for row in _client(user).get(
-        "/api/v1.0/meeting-room-nodes/"
-    ).json()}
+    rows = {
+        row["name"]: row
+        for row in _client(user).get("/api/v1.0/meeting-room-nodes/").json()
+    }
 
-    assert rows["3F"]["parent"] == str(building.id)
-    assert rows["3F"]["depth"] == 4
-    assert rows["3F"]["level_number"] == 5
-    assert rows["3F"]["level_type"] == "floor"
-    assert rows["3F"]["path"].startswith(country.id.hex)
+    assert rows["Tower A"]["parent"] == str(campus.id)
+    assert rows["Tower A"]["depth"] == 3
+    assert rows["Tower A"]["level_number"] == 4
+    assert rows["Tower A"]["level_type"] == "building"
+    assert rows["Tower A"]["path"].startswith(country.id.hex)
     # Only the city sets a timezone; the rest inherit it.
     assert rows["Tower A"]["timezone"] is None
-    assert rows["3F"]["effective_timezone"] == "Asia/Shanghai"
-    assert rows["3F"]["room_count"] == 1
+    assert rows["Tower A"]["effective_timezone"] == "Asia/Shanghai"
+    assert rows["Tower A"]["room_count"] == 1
     assert rows["China"]["room_count"] == 0
 
 
 def test_filtering_by_node_includes_the_whole_subtree(org_user):
     org, user = org_user
-    floor = factories.MeetingRoomFloorFactory(organization=org, name="3F")
-    building = floor.parent
-    factories.MeetingRoomFactory(organization=org, node=floor, name="3F-01")
+    building = factories.MeetingRoomBuildingFactory(organization=org, name="Tower A")
+    factories.MeetingRoomFactory(
+        organization=org, node=building, name="3F-01", floor="3F"
+    )
     factories.MeetingRoomFactory(organization=org, name="Elsewhere")
 
     resp = _client(user).get(f"/api/v1.0/meeting-rooms/?node={building.id}")
     assert [r["name"] for r in resp.json()["results"]] == ["3F-01"]
+
+
+def test_room_serializes_required_floor_in_the_compact_location(org_user):
+    org, user = org_user
+    building = factories.MeetingRoomBuildingFactory(organization=org, name="Tower A")
+    factories.MeetingRoomFactory(
+        organization=org, node=building, name="Boardroom", floor="B1"
+    )
+
+    room = _client(user).get("/api/v1.0/meeting-rooms/").json()["results"][0]
+    assert room["floor"] == "B1"
+    assert room["path_label"].endswith("Tower A · B1")
 
 
 # --- filters ---------------------------------------------------------------
@@ -150,9 +164,7 @@ def test_facility_filter_is_and_not_or(org_user):
     partial = factories.MeetingRoomFactory(organization=org, name="TV only")
     partial.facilities.set([tv])
 
-    resp = _client(user).get(
-        f"/api/v1.0/meeting-rooms/?facilities={tv.id},{board.id}"
-    )
+    resp = _client(user).get(f"/api/v1.0/meeting-rooms/?facilities={tv.id},{board.id}")
     assert [r["name"] for r in resp.json()["results"]] == ["Both"]
 
 
@@ -385,7 +397,7 @@ def test_timeline_shows_private_titles_to_the_organizer(org_user):
 
 def test_timeline_by_node_and_date_uses_the_node_timezone(org_user):
     org, user = org_user
-    node = factories.MeetingRoomFloorFactory(
+    node = factories.MeetingRoomBuildingFactory(
         organization=org, city_timezone="Asia/Shanghai"
     )
     factories.MeetingRoomFactory(organization=org, node=node)

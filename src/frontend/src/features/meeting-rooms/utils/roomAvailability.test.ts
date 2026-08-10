@@ -10,17 +10,14 @@ import {
   selectionConflicts,
 } from './roomAvailability'
 
-const at = (h: number, m = 0) =>
-  new Date(2026, 6, 25, h, m, 0, 0).toISOString()
+const at = (h: number, m = 0) => new Date(2026, 6, 25, h, m, 0, 0).toISOString()
 const date = (h: number, m = 0) => new Date(2026, 6, 25, h, m, 0, 0)
 
-const room = (
-  id: string,
-  isAvailable: boolean
-): MeetingRoomAvailability => ({
+const room = (id: string, isAvailable: boolean): MeetingRoomAvailability => ({
   id,
   name: id,
   code: '',
+  floor: '3F',
   capacity: 10,
   description: '',
   node: { id: 'n', name: 'n' },

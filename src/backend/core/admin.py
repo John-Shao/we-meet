@@ -927,7 +927,7 @@ class ApprovalDelegationAdmin(admin.ModelAdmin):
 
 @admin.register(models.MeetingRoomNode)
 class MeetingRoomNodeAdmin(admin.ModelAdmin):
-    """A level in the meeting-room hierarchy (region / building / floor).
+    """A level in the meeting-room hierarchy (country through building).
 
     ``path`` / ``depth`` are derived in ``save()`` and rewritten as a subtree by
     the console's move action, so they are read-only here — hand-editing one
@@ -957,7 +957,15 @@ class MeetingRoomFacilityAdmin(admin.ModelAdmin):
 class MeetingRoomAdmin(admin.ModelAdmin):
     """A bookable physical room. Occupancy lives in MeetingRoomBooking."""
 
-    list_display = ("name", "code", "node", "capacity", "is_active", "organization")
+    list_display = (
+        "name",
+        "code",
+        "node",
+        "floor",
+        "capacity",
+        "is_active",
+        "organization",
+    )
     list_filter = ("organization", "is_active", "requires_approval")
     search_fields = ("=id", "name", "code")
     autocomplete_fields = ("organization", "node", "approval_template")

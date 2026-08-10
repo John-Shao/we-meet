@@ -211,8 +211,7 @@
       "country_region": "Land/Region",
       "city": "Stadt",
       "campus": "Campus",
-      "building": "Gebäude",
-      "floor": "Etage"
+      "building": "Gebäude"
     },
     "addLevelType": "{{level}} hinzufügen",
     "newTypedLevel": "{{level}} hinzufügen",
@@ -220,7 +219,7 @@
     "cityTimezone": "Zeitzone der Stadt",
     "selectTimezone": "Zeitzone auswählen",
     "emptyFixedHierarchy": "Noch keine Standorte. Beginnen Sie mit einem Land oder einer Region",
-    "selectFloorToAddRoom": "Wählen Sie links zuerst eine Etage der Ebene 5 aus",
+    "selectBuildingToAddRoom": "Wählen Sie links zuerst ein Gebäude aus",
     "title": "Besprechungsräume",
     "allRooms": "Alle Räume",
     "newLevel": "Ebene hinzufügen",
@@ -235,6 +234,7 @@
     "editRoom": "Raum bearbeiten",
     "roomName": "Raumname",
     "roomCode": "Raumnummer",
+    "floor": "Etage",
     "capacity": "Kapazität",
     "facilities": "Ausstattung",
     "colName": "Raum",
@@ -248,7 +248,7 @@
     "enable": "Aktivieren",
     "rowActions": "Weitere Aktionen",
     "loading": "Wird geladen…",
-    "emptyLevels": "Noch keine Ebenen — zuerst ein Gebäude oder Stockwerk anlegen",
+    "emptyLevels": "Noch keine Standorte — zuerst ein Gebäude anlegen",
     "emptyRooms": "Noch keine Räume auf dieser Ebene",
     "deleteRoomConfirm": "Raum \"{{name}}\" löschen? Bestehende Buchungen bleiben erhalten.",
     "deleteLevelConfirm": "Ebene \"{{name}}\" löschen?"

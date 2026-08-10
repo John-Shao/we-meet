@@ -23,10 +23,9 @@ from rest_framework.response import Response
 from core import models, utils
 from core.api import permissions
 from core.api.directory import get_caller_organization
-from core.api.meeting_rooms import bookable_scope_filter, node_path_label
+from core.api.meeting_rooms import bookable_scope_filter, room_path_label
 from core.api.viewsets import Pagination
 from core.services import calendar_im_notify, calendar_recurrence, meeting_room_booking
-
 
 #: "the client did not mention this field at all" — distinct from an explicit
 #: ``false``. Only meaningful for fields whose absence and whose ``false`` must
@@ -201,9 +200,10 @@ class CalendarEventSerializer(serializers.ModelSerializer):
         # 「预定范围限制」: a separate lookup rather than one filtered query, so
         # "restricted to another department" does not masquerade as "no such
         # room" — the two need different answers from support.
-        if request is not None and not base.filter(
-            bookable_scope_filter(request.user)
-        ).exists():
+        if (
+            request is not None
+            and not base.filter(bookable_scope_filter(request.user)).exists()
+        ):
             raise serializers.ValidationError(
                 "this meeting room is limited to selected departments"
             )
@@ -213,9 +213,7 @@ class CalendarEventSerializer(serializers.ModelSerializer):
         """All-day events cannot hold a room (M1) — see docs/phases/p9."""
         attrs = super().validate(attrs)
         room = attrs.get("meeting_room_id")
-        all_day = attrs.get(
-            "all_day", getattr(self.instance, "all_day", False)
-        )
+        all_day = attrs.get("all_day", getattr(self.instance, "all_day", False))
         if room is not None and all_day:
             raise serializers.ValidationError(
                 {"meeting_room_id": "all-day events cannot book a meeting room"}
@@ -249,9 +247,7 @@ class CalendarEventSerializer(serializers.ModelSerializer):
                     }
                 )
         if room.advance_booking_days:
-            horizon = django_timezone.now() + timedelta(
-                days=room.advance_booking_days
-            )
+            horizon = django_timezone.now() + timedelta(days=room.advance_booking_days)
             if start > horizon:
                 raise serializers.ValidationError(
                     {
@@ -275,9 +271,10 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "id": str(room.id),
             "name": room.name,
             "code": room.code,
+            "floor": room.floor,
             "capacity": room.capacity,
             "node": {"id": str(room.node_id), "name": room.node.name},
-            "path_label": node_path_label(room.node, self._node_label_cache),
+            "path_label": room_path_label(room, self._node_label_cache),
             "timezone": str(room.node.resolve_timezone()),
             "booking_status": booking.status,
         }
@@ -453,9 +450,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         Used both when an event is created with a video meeting and when one is
         added back to an event that had none.
         """
-        room = models.Room.objects.create(
-            name=event.title, scheduled_at=event.start_at
-        )
+        room = models.Room.objects.create(name=event.title, scheduled_at=event.start_at)
         models.ResourceAccess.objects.create(
             resource=room, user=organizer, role=models.RoleChoices.OWNER
         )
@@ -482,9 +477,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             attendees = models.User.objects.filter(
                 event_attendances__event=event
             ).exclude(id=event.organizer_id)
-            event.room = self._provision_video_room(
-                event, event.organizer, attendees
-            )
+            event.room = self._provision_video_room(event, event.organizer, attendees)
         else:
             event.room = None
         event.save(update_fields=["room", "updated_at"])
@@ -511,9 +504,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             policy=meeting_room_booking.SKIP,
             booked_by=self.request.user,
         )
-        for child in parent.occurrences.filter(
-            start_at__gte=django_timezone.now()
-        ):
+        for child in parent.occurrences.filter(start_at__gte=django_timezone.now()):
             meeting_room_booking.resync_event_booking(
                 child,
                 room=meeting_room,
@@ -559,9 +550,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 {"edit_scope": "expected one | following | all"}
             )
 
-        serializer = self.get_serializer(
-            instance, data=request.data, partial=partial
-        )
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
 
         parent = instance.recurrence_parent
@@ -621,9 +610,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 if key not in exdates:
                     exdates.append(key)
                     parent.recurrence_exdates = exdates
-                    parent.save(
-                        update_fields=["recurrence_exdates", "updated_at"]
-                    )
+                    parent.save(update_fields=["recurrence_exdates", "updated_at"])
         except IntegrityError as exc:
             # 撞 (recurrence_parent, start_at) 唯一索引 = 移到了别的场次槽位。
             raise exceptions.ValidationError(
@@ -696,9 +683,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                         )
                 # 全量同步的删除侧:不在目标列表的非组织者参与者移除,并同步
                 # 移出 room 成员(OWNER=组织者,保险起见永不删)。
-                removed_ids = (
-                    old_attendees - target_ids - {event.organizer_id}
-                )
+                removed_ids = old_attendees - target_ids - {event.organizer_id}
                 if removed_ids:
                     event.attendees.filter(user_id__in=removed_ids).delete()
                     if room is not None:
@@ -707,9 +692,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                         ).exclude(role=models.RoleChoices.OWNER).delete()
 
             if event.source_conversation_id:
-                new_attendees = set(
-                    event.attendees.values_list("user_id", flat=True)
-                )
+                new_attendees = set(event.attendees.values_list("user_id", flat=True))
                 kind = None
                 if (event.start_at, event.end_at) != (old_start, old_end):
                     kind = "time_changed"
@@ -775,9 +758,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 if key not in exdates:
                     exdates.append(key)
                     parent.recurrence_exdates = exdates
-                    parent.save(
-                        update_fields=["recurrence_exdates", "updated_at"]
-                    )
+                    parent.save(update_fields=["recurrence_exdates", "updated_at"])
             elif instance.recurrence:
                 instance.occurrences.filter(
                     start_at__gte=django_timezone.now()

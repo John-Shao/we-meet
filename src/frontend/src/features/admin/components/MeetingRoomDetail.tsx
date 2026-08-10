@@ -28,6 +28,7 @@ type SectionKey = (typeof SECTIONS)[number]
 interface Draft {
   name: string
   code: string
+  floor: string
   node: string
   capacity: string
   description: string
@@ -42,6 +43,7 @@ interface Draft {
 const toDraft = (room: AdminMeetingRoom): Draft => ({
   name: room.name,
   code: room.code,
+  floor: room.floor,
   node: room.node,
   capacity: room.capacity > 0 ? String(room.capacity) : '',
   description: room.description,
@@ -119,8 +121,8 @@ export const MeetingRoomDetail = ({
   })
 
   const node = nodes.find((n) => n.id === draft?.node) ?? null
-  const floorNodes = nodes.filter(
-    (candidate) => candidate.level_type === 'floor'
+  const buildingNodes = nodes.filter(
+    (candidate) => candidate.level_type === 'building'
   )
   // 设施停用后不再可选,但已经贴在这间房上的仍然列出并可摘除 —— 否则管理员
   // 看着表格里有「投影仪」却在编辑页找不到它。
@@ -177,10 +179,11 @@ export const MeetingRoomDetail = ({
     )
 
   const submit = () => {
-    if (!draft.name.trim()) return
+    if (!draft.name.trim() || !draft.floor.trim()) return
     save.mutate({
       name: draft.name.trim(),
       code: draft.code.trim(),
+      floor: draft.floor.trim(),
       node: draft.node,
       capacity: Number(draft.capacity) || 0,
       description: draft.description,
@@ -251,6 +254,14 @@ export const MeetingRoomDetail = ({
                 onChange={(e) => set('code', e.target.value)}
               />
             </Row>
+            <Row label={t('meetingRooms.floor')}>
+              <Input
+                required
+                value={draft.floor}
+                aria-label={t('meetingRooms.floor')}
+                onChange={(e) => set('floor', e.target.value)}
+              />
+            </Row>
             <Row label={t('meetingRooms.parentLevel')}>
               <select
                 value={draft.node}
@@ -258,7 +269,7 @@ export const MeetingRoomDetail = ({
                 className={cx(selectChrome, selectCls)}
                 onChange={(e) => set('node', e.target.value)}
               >
-                {floorNodes.map((n) => (
+                {buildingNodes.map((n) => (
                   <option key={n.id} value={n.id}>
                     {pathLabelOf(nodes, n.id)}
                   </option>
@@ -441,7 +452,9 @@ export const MeetingRoomDetail = ({
         <Button
           variant="primary"
           size="sm"
-          isDisabled={!draft.name.trim() || save.isPending}
+          isDisabled={
+            !draft.name.trim() || !draft.floor.trim() || save.isPending
+          }
           loading={save.isPending}
           onPress={submit}
           data-testid="admin-mr-detail-save"

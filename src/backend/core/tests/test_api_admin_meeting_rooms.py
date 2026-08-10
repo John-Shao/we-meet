@@ -3,6 +3,7 @@
 import importlib
 
 from django.apps import apps
+
 import pytest
 from rest_framework.test import APIClient
 
@@ -69,9 +70,7 @@ def test_create_node_derives_path_and_depth(admin_org):
     org, admin = admin_org
     client = _client(admin)
 
-    country = client.post(
-        NODES, {"name": "China"}, format="json"
-    ).json()
+    country = client.post(NODES, {"name": "China"}, format="json").json()
     city = client.post(
         NODES,
         {
@@ -120,12 +119,12 @@ def test_city_timezone_is_required_and_forbidden_on_other_levels(admin_org):
     assert invalid_city.status_code == 400
 
 
-def test_floor_cannot_have_a_child(admin_org):
+def test_building_cannot_have_a_child(admin_org):
     org, admin = admin_org
-    floor = factories.MeetingRoomFloorFactory(organization=org)
+    building = factories.MeetingRoomBuildingFactory(organization=org)
 
     resp = _client(admin).post(
-        NODES, {"name": "Too deep", "parent": str(floor.id)}, format="json"
+        NODES, {"name": "Too deep", "parent": str(building.id)}, format="json"
     )
     assert resp.status_code == 400
 
@@ -136,9 +135,7 @@ def test_patch_cannot_reparent_a_node(admin_org):
     a = factories.MeetingRoomNodeFactory(organization=org, name="A")
     b = factories.MeetingRoomNodeFactory(organization=org, name="B")
 
-    resp = _client(admin).patch(
-        f"{NODES}{b.id}/", {"parent": str(a.id)}, format="json"
-    )
+    resp = _client(admin).patch(f"{NODES}{b.id}/", {"parent": str(a.id)}, format="json")
     assert resp.status_code == 200
     b.refresh_from_db()
     assert b.parent_id is None
@@ -181,11 +178,11 @@ def test_move_rejects_a_cycle(admin_org):
 
 def test_move_rejects_changing_a_nodes_level_type(admin_org):
     org, admin = admin_org
-    floor = factories.MeetingRoomFloorFactory(organization=org)
-    country = floor.parent.parent.parent.parent
+    building = factories.MeetingRoomBuildingFactory(organization=org)
+    country = building.parent.parent.parent
 
     resp = _client(admin).post(
-        f"{NODES}{floor.id}/move/", {"parent": str(country.id)}, format="json"
+        f"{NODES}{building.id}/move/", {"parent": str(country.id)}, format="json"
     )
     assert resp.status_code == 400
 
@@ -221,7 +218,7 @@ def test_deleting_an_empty_node_soft_deletes_and_hides_it(admin_org):
 
 def test_create_room_with_facilities(admin_org):
     org, admin = admin_org
-    node = factories.MeetingRoomFloorFactory(organization=org, name="3F")
+    node = factories.MeetingRoomBuildingFactory(organization=org, name="Tower A")
     tv = factories.MeetingRoomFacilityFactory(organization=org, name="TV")
 
     resp = _client(admin).post(
@@ -229,6 +226,7 @@ def test_create_room_with_facilities(admin_org):
         {
             "name": "3F-01",
             "node": str(node.id),
+            "floor": "3F",
             "capacity": 12,
             "facility_ids": [str(tv.id)],
         },
@@ -236,6 +234,7 @@ def test_create_room_with_facilities(admin_org):
     )
     assert resp.status_code == 201, resp.content
     body = resp.json()
+    assert body["floor"] == "3F"
     assert body["capacity"] == 12
     assert [f["name"] for f in body["facilities"]] == ["TV"]
     assert body["path_label"].endswith("3F")
@@ -251,14 +250,29 @@ def test_room_node_must_belong_to_the_callers_organization(admin_org):
     assert resp.status_code == 400
 
 
-def test_room_can_only_be_created_on_a_floor(admin_org):
+def test_room_requires_a_floor_attribute_and_a_building_node(admin_org):
     org, admin = admin_org
     country = factories.MeetingRoomNodeFactory(organization=org)
 
     resp = _client(admin).post(
-        ROOMS, {"name": "Wrong level", "node": str(country.id)}, format="json"
+        ROOMS,
+        {"name": "Wrong level", "node": str(country.id), "floor": "3F"},
+        format="json",
     )
     assert resp.status_code == 400
+
+    building = factories.MeetingRoomBuildingFactory(organization=org)
+    missing = _client(admin).post(
+        ROOMS, {"name": "Missing floor", "node": str(building.id)}, format="json"
+    )
+    assert missing.status_code == 400
+
+    blank = _client(admin).post(
+        ROOMS,
+        {"name": "Blank floor", "node": str(building.id), "floor": "   "},
+        format="json",
+    )
+    assert blank.status_code == 400
 
 
 def test_deleting_a_room_is_soft_and_keeps_existing_bookings(admin_org):
@@ -309,11 +323,33 @@ def test_legacy_hierarchy_migration_retires_without_deleting_bookings(admin_org)
     assert historical.json()["meeting_room"]["path_label"]
 
 
+def test_floor_attribute_migration_drops_development_room_data(admin_org):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org)
+    event = factories.CalendarEventFactory(organization=org, organizer=admin)
+    booking = models.MeetingRoomBooking.objects.create(
+        organization=org,
+        room=room,
+        event=event,
+        start_at=event.start_at,
+        end_at=event.end_at,
+    )
+    migration = importlib.import_module(
+        "core.migrations.0089_meeting_room_floor_attribute"
+    )
+
+    migration.reset_meeting_room_locations(apps, None)
+
+    assert not models.MeetingRoom.objects.filter(id=room.id).exists()
+    assert not models.MeetingRoomBooking.objects.filter(id=booking.id).exists()
+    assert not models.MeetingRoomNode.objects.filter(organization=org).exists()
+    assert models.CalendarEvent.objects.filter(id=event.id).exists()
+
+
 def test_room_list_filters_by_node_subtree(admin_org):
     org, admin = admin_org
-    floor = factories.MeetingRoomFloorFactory(organization=org)
-    building = floor.parent
-    factories.MeetingRoomFactory(organization=org, node=floor, name="Inside")
+    building = factories.MeetingRoomBuildingFactory(organization=org)
+    factories.MeetingRoomFactory(organization=org, node=building, name="Inside")
     factories.MeetingRoomFactory(organization=org, name="Outside")
 
     resp = _client(admin).get(f"{ROOMS}?node={building.id}")
@@ -349,9 +385,11 @@ def test_writes_are_audited(admin_org):
     org, admin = admin_org
     client = _client(admin)
     client.post(NODES, {"name": "China"}, format="json")
-    floor = factories.MeetingRoomFloorFactory(organization=org)
+    building = factories.MeetingRoomBuildingFactory(organization=org)
     client.post(
-        ROOMS, {"name": "3F-01", "node": str(floor.id)}, format="json"
+        ROOMS,
+        {"name": "3F-01", "node": str(building.id), "floor": "3F"},
+        format="json",
     )
 
     actions = set(
@@ -368,9 +406,11 @@ def test_writes_are_audited(admin_org):
 
 def test_search_matches_room_number_as_well_as_name(admin_org):
     org, admin = admin_org
-    node = factories.MeetingRoomFloorFactory(organization=org)
+    node = factories.MeetingRoomBuildingFactory(organization=org)
     factories.MeetingRoomFactory(organization=org, node=node, name="Ada", code="FM-401")
-    factories.MeetingRoomFactory(organization=org, node=node, name="Grace", code="FM-902")
+    factories.MeetingRoomFactory(
+        organization=org, node=node, name="Grace", code="FM-902"
+    )
 
     names = [
         row["name"] for row in _client(admin).get(f"{ROOMS}?q=FM-401").json()["results"]
@@ -380,7 +420,7 @@ def test_search_matches_room_number_as_well_as_name(admin_org):
 
 def test_capacity_and_facility_filters_are_and_ed(admin_org):
     org, admin = admin_org
-    node = factories.MeetingRoomFloorFactory(organization=org)
+    node = factories.MeetingRoomBuildingFactory(organization=org)
     tv = factories.MeetingRoomFacilityFactory(organization=org)
     board = factories.MeetingRoomFacilityFactory(organization=org)
 
@@ -392,9 +432,7 @@ def test_capacity_and_facility_filters_are_and_ed(admin_org):
     small = factories.MeetingRoomFactory(organization=org, node=node, capacity=4)
     small.facilities.set([tv, board])
 
-    resp = _client(admin).get(
-        f"{ROOMS}?capacity_min=10&facilities={tv.id},{board.id}"
-    )
+    resp = _client(admin).get(f"{ROOMS}?capacity_min=10&facilities={tv.id},{board.id}")
     assert [row["id"] for row in resp.json()["results"]] == [str(both.id)]
 
 

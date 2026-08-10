@@ -16,6 +16,7 @@ import type {
 export interface MeetingRoomValues {
   name: string
   code: string
+  floor: string
   node: string
   capacity: number
   is_active: boolean
@@ -55,6 +56,7 @@ export const MeetingRoomDialog = ({
   const { t } = useTranslation('admin')
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
+  const [floor, setFloor] = useState('')
   const [nodeId, setNodeId] = useState('')
   const [capacity, setCapacity] = useState('')
   const [active, setActive] = useState(true)
@@ -66,6 +68,7 @@ export const MeetingRoomDialog = ({
     if (!isOpen) return
     setName(room?.name ?? '')
     setCode(room?.code ?? '')
+    setFloor(room?.floor ?? '')
     setNodeId(room?.node ?? defaultNodeId ?? '')
     setCapacity(room && room.capacity > 0 ? String(room.capacity) : '')
     setActive(room?.is_active ?? true)
@@ -74,8 +77,8 @@ export const MeetingRoomDialog = ({
     setFacilityIds(room?.facilities.map((f) => f.id) ?? [])
   }, [isOpen, room, defaultNodeId, nodes])
 
-  const floorNodes = useMemo(
-    () => nodes.filter((node) => node.level_type === 'floor'),
+  const buildingNodes = useMemo(
+    () => nodes.filter((node) => node.level_type === 'building'),
     [nodes]
   )
 
@@ -91,12 +94,17 @@ export const MeetingRoomDialog = ({
   )
 
   const trimmed = name.trim()
-  const valid = !!trimmed && floorNodes.some((floor) => floor.id === nodeId)
+  const trimmedFloor = floor.trim()
+  const valid =
+    !!trimmed &&
+    !!trimmedFloor &&
+    buildingNodes.some((building) => building.id === nodeId)
   const submit = () => {
     if (!valid || submitting) return
     onSubmit({
       name: trimmed,
       code: code.trim(),
+      floor: trimmedFloor,
       node: nodeId,
       capacity: Number(capacity) || 0,
       is_active: active,
@@ -111,7 +119,11 @@ export const MeetingRoomDialog = ({
   // 分辨的东西 —— 与其让人建完再去表格里核对,不如在提交前就显示出来。
   // 复用 C 端那份带测试的路径拼接:`path` 里的 id 不带连字符,自己再写一遍
   // 迟早会踩到那个坑。
-  const fullLabel = [nodeId ? pathLabelOf(nodes, nodeId) : '', trimmed]
+  const fullLabel = [
+    nodeId ? pathLabelOf(nodes, nodeId) : '',
+    trimmedFloor,
+    trimmed,
+  ]
     .filter(Boolean)
     .join(' · ')
 
@@ -159,7 +171,7 @@ export const MeetingRoomDialog = ({
               onChange={(e) => setNodeId(e.target.value)}
               required
             >
-              {floorNodes.map((n) => (
+              {buildingNodes.map((n) => (
                 <option key={n.id} value={n.id}>
                   {pathLabelOf(nodes, n.id)}
                 </option>
@@ -170,6 +182,19 @@ export const MeetingRoomDialog = ({
               {nodeId ? pathLabelOf(nodes, nodeId) : ''}
             </div>
           )}
+        </div>
+
+        <div className={fieldCls}>
+          <label className={labelCls} htmlFor="mr-room-floor">
+            {t('meetingRooms.floor')}
+          </label>
+          <Input
+            id="mr-room-floor"
+            required
+            aria-label={t('meetingRooms.floor')}
+            value={floor}
+            onChange={(e) => setFloor(e.target.value)}
+          />
         </div>
 
         <div className={rowCls}>

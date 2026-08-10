@@ -15,7 +15,7 @@ export interface AdminMeetingRoomNode {
   parent: string | null
   path: string
   depth: number
-  level_number: 1 | 2 | 3 | 4 | 5
+  level_number: 1 | 2 | 3 | 4
   level_type: MeetingRoomLevelType
   sort_order: number
   /** null = inherit from the nearest ancestor that sets one. */
@@ -31,14 +31,12 @@ export type MeetingRoomLevelType =
   | 'city'
   | 'campus'
   | 'building'
-  | 'floor'
 
 export const MEETING_ROOM_LEVEL_TYPES: MeetingRoomLevelType[] = [
   'country_region',
   'city',
   'campus',
   'building',
-  'floor',
 ]
 
 export interface AdminMeetingRoomFacility {
@@ -56,6 +54,7 @@ export interface AdminMeetingRoom {
   id: string
   name: string
   code: string
+  floor: string
   node: string
   node_name: string
   path_label: string
@@ -160,6 +159,7 @@ export const fetchAdminMeetingRoom = (id: string): Promise<AdminMeetingRoom> =>
 export interface MeetingRoomInput {
   name?: string
   code?: string
+  floor?: string
   node?: string
   capacity?: number
   description?: string

@@ -211,8 +211,7 @@
       "country_region": "Land/regio",
       "city": "Stad",
       "campus": "Campus",
-      "building": "Gebouw",
-      "floor": "Verdieping"
+      "building": "Gebouw"
     },
     "addLevelType": "{{level}} toevoegen",
     "newTypedLevel": "{{level}} toevoegen",
@@ -220,7 +219,7 @@
     "cityTimezone": "Tijdzone van de stad",
     "selectTimezone": "Selecteer een tijdzone",
     "emptyFixedHierarchy": "Nog geen locaties. Begin met een land of regio",
-    "selectFloorToAddRoom": "Selecteer eerst links een verdieping van niveau 5",
+    "selectBuildingToAddRoom": "Selecteer eerst links een gebouw",
     "title": "Vergaderruimtes",
     "allRooms": "Alle ruimtes",
     "newLevel": "Niveau toevoegen",
@@ -235,6 +234,7 @@
     "editRoom": "Ruimte bewerken",
     "roomName": "Naam van ruimte",
     "roomCode": "Ruimtecode",
+    "floor": "Verdieping",
     "capacity": "Capaciteit",
     "facilities": "Voorzieningen",
     "colName": "Ruimte",
@@ -248,7 +248,7 @@
     "enable": "Inschakelen",
     "rowActions": "Meer acties",
     "loading": "Laden…",
-    "emptyLevels": "Nog geen niveaus — voeg eerst een gebouw of verdieping toe",
+    "emptyLevels": "Nog geen locaties — voeg eerst een gebouw toe",
     "emptyRooms": "Nog geen ruimtes op dit niveau",
     "deleteRoomConfirm": "Ruimte \"{{name}}\" verwijderen? Bestaande reserveringen blijven staan.",
     "deleteLevelConfirm": "Niveau \"{{name}}\" verwijderen?"

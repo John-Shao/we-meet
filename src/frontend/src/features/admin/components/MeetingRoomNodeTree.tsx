@@ -25,7 +25,7 @@ interface Props {
 }
 
 /**
- * The building / floor hierarchy for the console (P9), with per-node actions.
+ * The fixed country/region → city → campus → building hierarchy.
  *
  * Same client-side tree build as the department console, including the rule
  * that a node whose parent was filtered out falls back to the root list rather
@@ -125,7 +125,7 @@ export const MeetingRoomNodeTree = ({
               )}
             </button>
             <span data-row-actions className={actionsCls}>
-              {node.level_type !== 'floor' && (
+              {node.level_type !== 'building' && (
                 <Button
                   variant="quaternaryText"
                   size="icon24"

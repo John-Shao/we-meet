@@ -22,8 +22,7 @@
       "country_region": "Länder/Regionen",
       "city": "Städte",
       "campus": "Campus",
-      "building": "Gebäude",
-      "floor": "Etagen"
+      "building": "Gebäude"
     },
     "levelAllOf": "Alle {{level}}",
     "level": "Ebene",

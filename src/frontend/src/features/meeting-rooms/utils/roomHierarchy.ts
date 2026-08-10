@@ -14,7 +14,7 @@ import type {
 
 type LevelSelection = Partial<Record<MeetingRoomLevelType, string>>
 
-/** Keep only campus → building → floor from a server-composed five-level path. */
+/** Keep only campus → building → floor from the server-composed room location. */
 export const compactRoomPathLabel = (
   pathLabel: string,
   separator = ' · '

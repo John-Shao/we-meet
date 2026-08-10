@@ -22,8 +22,7 @@
       "country_region": "Landen/regio's",
       "city": "Steden",
       "campus": "Campussen",
-      "building": "Gebouwen",
-      "floor": "Verdiepingen"
+      "building": "Gebouwen"
     },
     "levelAllOf": "Alle {{level}}",
     "level": "Niveau",

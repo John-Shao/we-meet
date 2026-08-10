@@ -20,14 +20,12 @@ export type MeetingRoomLevelType =
   | 'city'
   | 'campus'
   | 'building'
-  | 'floor'
 
 export const MEETING_ROOM_LEVEL_TYPES: MeetingRoomLevelType[] = [
   'country_region',
   'city',
   'campus',
   'building',
-  'floor',
 ]
 
 export interface MeetingRoomNode {
@@ -37,7 +35,7 @@ export interface MeetingRoomNode {
   /** Materialized ancestor path; a subtree is everything with this prefix. */
   path: string
   depth: number
-  level_number: 1 | 2 | 3 | 4 | 5
+  level_number: 1 | 2 | 3 | 4
   level_type: MeetingRoomLevelType
   sort_order: number
   /** null = inherit from the nearest ancestor that sets one. */
@@ -51,6 +49,7 @@ export interface MeetingRoomBrief {
   id: string
   name: string
   code: string
+  floor: string
   capacity: number
   node: { id: string; name: string }
   /** 「北京 · A 座 · 3F」— server-composed so clients need no tree loaded. */
@@ -64,6 +63,7 @@ export interface MeetingRoom {
   id: string
   name: string
   code: string
+  floor: string
   capacity: number
   description: string
   node: { id: string; name: string }

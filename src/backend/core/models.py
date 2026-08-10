@@ -6,7 +6,8 @@ Declare and configure the models for the Meet core application
 
 import secrets
 import uuid
-from datetime import datetime, time as dt_time, timedelta
+from datetime import datetime, timedelta
+from datetime import time as dt_time
 from logging import getLogger
 from os.path import splitext
 from typing import List, Optional
@@ -16,7 +17,12 @@ from django.conf import settings
 from django.contrib.auth import models as auth_models
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.postgres.constraints import ExclusionConstraint
-from django.contrib.postgres.fields import ArrayField, DateTimeRangeField, RangeBoundary, RangeOperators
+from django.contrib.postgres.fields import (
+    ArrayField,
+    DateTimeRangeField,
+    RangeBoundary,
+    RangeOperators,
+)
 from django.core import mail, validators
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models, transaction
@@ -1876,9 +1882,7 @@ class MeetingConversation(BaseModel):
     @staticmethod
     def cid_for_room(room_id) -> str:
         """Deterministic cid for a room. Stable across processes / restarts."""
-        return str(
-            uuid.uuid5(uuid.NAMESPACE_OID, f"jusi-light-im:room:{room_id}")
-        )
+        return str(uuid.uuid5(uuid.NAMESPACE_OID, f"jusi-light-im:room:{room_id}"))
 
     def __str__(self) -> str:
         room_repr = str(self.room_id) if self.room_id else "<orphan>"
@@ -2022,7 +2026,9 @@ class OrgDictItem(BaseModel):
     sort_order = models.PositiveIntegerField(default=0)
     is_builtin = models.BooleanField(
         default=False,
-        help_text=_("Seeded option: the label may be renamed but it cannot be deleted."),
+        help_text=_(
+            "Seeded option: the label may be renamed but it cannot be deleted."
+        ),
     )
     is_active = models.BooleanField(default=True)
 
@@ -2180,9 +2186,7 @@ class Membership(BaseModel):
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="memberships"
     )
-    user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="memberships"
-    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="memberships")
     department = models.ForeignKey(
         Department,
         on_delete=models.SET_NULL,
@@ -2663,7 +2667,9 @@ class ImportJob(BaseModel):
         verbose_name = _("Import job")
         verbose_name_plural = _("Import jobs")
         indexes = [
-            models.Index(fields=["organization", "-created_at"], name="import_job_org_idx"),
+            models.Index(
+                fields=["organization", "-created_at"], name="import_job_org_idx"
+            ),
         ]
 
     def __str__(self):
@@ -2865,8 +2871,10 @@ class CalendarEvent(BaseModel):
         related_name="calendar_events",
         null=True,
         blank=True,
-        help_text=_("The video room to join (created with the event); SET_NULL "
-                    "so the room + IM group outlive the event."),
+        help_text=_(
+            "The video room to join (created with the event); SET_NULL "
+            "so the room + IM group outlive the event."
+        ),
     )
     status = models.CharField(
         max_length=20,
@@ -3216,7 +3224,10 @@ class AuditActionChoices(models.TextChoices):
     MEMBER_INVITE_REVOKE = "member.invite_revoke", _("Member invitation revoked")
     MEMBER_UPDATE = "member.update", _("Member updated")
     MEMBER_ROLE_CHANGE = "member.role_change", _("Member role changed")
-    MEMBER_DEPARTMENT_CHANGE = "member.department_change", _("Member department changed")
+    MEMBER_DEPARTMENT_CHANGE = (
+        "member.department_change",
+        _("Member department changed"),
+    )
     MEMBER_SUSPEND = "member.suspend", _("Member suspended")
     MEMBER_RESTORE = "member.restore", _("Member restored")
     MEMBER_REMOVE = "member.remove", _("Member removed")
@@ -3693,7 +3704,9 @@ class OrgJoinRequest(BaseModel):
         ]
 
     def __str__(self):
-        return f"{self.full_name or self.phone} → {self.organization_id} ({self.status})"
+        return (
+            f"{self.full_name or self.phone} → {self.organization_id} ({self.status})"
+        )
 
 
 class DevicePushToken(BaseModel):
@@ -3709,9 +3722,7 @@ class DevicePushToken(BaseModel):
     class Provider(models.TextChoices):
         GETUI = "getui", _("Getui")
 
-    user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="push_tokens"
-    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="push_tokens")
     provider = models.CharField(
         _("provider"),
         max_length=16,
@@ -3719,12 +3730,8 @@ class DevicePushToken(BaseModel):
         default=Provider.GETUI,
     )
     cid = models.CharField(_("push client id"), max_length=128)
-    device_id = models.CharField(
-        _("device id"), max_length=128, blank=True, default=""
-    )
-    platform = models.CharField(
-        _("platform"), max_length=16, blank=True, default=""
-    )
+    device_id = models.CharField(_("device id"), max_length=128, blank=True, default="")
+    platform = models.CharField(_("platform"), max_length=16, blank=True, default="")
     app_version = models.CharField(
         _("app version"), max_length=32, blank=True, default=""
     )
@@ -3849,16 +3856,23 @@ class ContactPreference(BaseModel):
         ]
         indexes = [
             # Push path: "did any of these quiet users special-alert this sender?"
-            models.Index(fields=["target", "owner"], name="contactpref_target_owner_idx"),
+            models.Index(
+                fields=["target", "owner"], name="contactpref_target_owner_idx"
+            ),
         ]
 
     def __str__(self):
-        flags = ",".join(
-            f for f in (
-                "starred" if self.is_starred else "",
-                "alert" if self.special_alert else "",
-            ) if f
-        ) or "none"
+        flags = (
+            ",".join(
+                f
+                for f in (
+                    "starred" if self.is_starred else "",
+                    "alert" if self.special_alert else "",
+                )
+                if f
+            )
+            or "none"
+        )
         return f"ContactPreference({self.owner_id} → {self.target_id}: {flags})"
 
 
@@ -4157,7 +4171,9 @@ class ImBotInstallation(BaseModel):
         _("keywords"),
         default=list,
         blank=True,
-        help_text=_("Any one must appear in the message text. Empty = no keyword gate."),
+        help_text=_(
+            "Any one must appear in the message text. Empty = no keyword gate."
+        ),
     )
     ip_allowlist = models.JSONField(
         _("IP allowlist"),
@@ -4309,9 +4325,13 @@ class ImCardAction(BaseModel):
     resolves = models.BooleanField(_("resolves the block"), default=False)
     #: 客户端幂等键。与入站 webhook 的 ``X-Request-Id`` 同一个幂等思路 ——
     #: 这个代码库里只该有一种幂等观念。
-    click_id = models.CharField(_("client click id"), max_length=64, blank=True, default="")
+    click_id = models.CharField(
+        _("client click id"), max_length=64, blank=True, default=""
+    )
     #: 广播给群里的结果文案(A2 是本地生成的「谁 做了什么」;A3 起上游可覆盖)。
-    result_text = models.CharField(_("result text"), max_length=200, blank=True, default="")
+    result_text = models.CharField(
+        _("result text"), max_length=200, blank=True, default=""
+    )
     #: 出站回调的状态(A3)。空 = 这次点击不触发回调(没配地址,或 each 块)。
     #:
     #: ``pending`` 是**惰性判超时**的:读取时发现 pending 且超过 5 分钟就读作
@@ -4366,9 +4386,7 @@ class RoomInvitee(BaseModel):
     invitee's own room list is not polluted.
     """
 
-    room = models.ForeignKey(
-        Room, on_delete=models.CASCADE, related_name="invitees"
-    )
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="invitees")
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="room_invites"
     )
@@ -4452,9 +4470,8 @@ MEETING_ROOM_LEVEL_TYPES = (
     "city",
     "campus",
     "building",
-    "floor",
 )
-MEETING_ROOM_FLOOR_DEPTH = len(MEETING_ROOM_LEVEL_TYPES) - 1
+MEETING_ROOM_BUILDING_DEPTH = len(MEETING_ROOM_LEVEL_TYPES) - 1
 
 
 class TsTzRange(models.Func):
@@ -4468,7 +4485,7 @@ class TsTzRange(models.Func):
 
 
 class MeetingRoomNode(BaseModel):
-    """A node in the meeting-room hierarchy (region / building / floor / ...).
+    """A node in the fixed meeting-room location hierarchy.
 
     Same shape as :class:`Department`: adjacency list (``parent``) plus a
     materialized ``path`` of ancestor ids, so a subtree is a single
@@ -4540,8 +4557,8 @@ class MeetingRoomNode(BaseModel):
         return MEETING_ROOM_LEVEL_TYPES[self.depth]
 
     @property
-    def is_floor(self):
-        return self.depth == MEETING_ROOM_FLOOR_DEPTH
+    def is_building(self):
+        return self.depth == MEETING_ROOM_BUILDING_DEPTH
 
     def clean(self):
         super().clean()
@@ -4554,8 +4571,8 @@ class MeetingRoomNode(BaseModel):
             elif self.parent.deleted_at is not None or not self.parent.is_active:
                 errors["parent"] = _("Parent must be active.")
 
-        if expected_depth > MEETING_ROOM_FLOOR_DEPTH:
-            errors["parent"] = _("A floor cannot contain another level.")
+        if expected_depth > MEETING_ROOM_BUILDING_DEPTH:
+            errors["parent"] = _("A building cannot contain another level.")
 
         # A reparent may change ancestry, never the node's semantic level.
         if not self._state.adding:
@@ -4653,8 +4670,9 @@ class MeetingRoomFacility(BaseModel):
 class MeetingRoom(BaseModel):
     """A physical, bookable meeting room.
 
-    Attached to a :class:`MeetingRoomNode` (its floor / building). Occupancy
-    lives in :class:`MeetingRoomBooking`, never on this row.
+    Attached to a building :class:`MeetingRoomNode`; ``floor`` is a required
+    room attribute rather than another location-tree level. Occupancy lives in
+    :class:`MeetingRoomBooking`, never on this row.
 
     The ``booking_scope`` / ``requires_approval`` / ``max_booking_minutes`` /
     ``advance_booking_days`` fields are M2 policy knobs landed up front so
@@ -4670,6 +4688,7 @@ class MeetingRoom(BaseModel):
     )
     name = models.CharField(_("name"), max_length=255)
     code = models.CharField(_("code"), max_length=64, blank=True, default="")
+    floor = models.CharField(_("floor"), max_length=32)
     capacity = models.PositiveIntegerField(
         _("capacity"), default=0, help_text=_("0 means unspecified.")
     )
@@ -4737,15 +4756,18 @@ class MeetingRoom(BaseModel):
     def clean(self):
         super().clean()
         errors = {}
+        self.floor = (self.floor or "").strip()
+        if not self.floor:
+            errors["floor"] = _("Floor is required.")
         if self.node_id:
             if self.node.organization_id != self.organization_id:
                 errors["node"] = _(
-                    "Meeting room floor must be in the same organization."
+                    "Meeting room building must be in the same organization."
                 )
             elif self.node.deleted_at is not None or not self.node.is_active:
-                errors["node"] = _("Meeting room floor must be active.")
-            elif not self.node.is_floor:
-                errors["node"] = _("Meeting rooms can only be added to a floor.")
+                errors["node"] = _("Meeting room building must be active.")
+            elif not self.node.is_building:
+                errors["node"] = _("Meeting rooms can only be added to a building.")
         if errors:
             raise ValidationError(errors)
 
@@ -4804,7 +4826,9 @@ class MeetingRoomBooking(BaseModel):
         max_length=255,
         blank=True,
         default="",
-        help_text=_("Label for manual / maintenance holds; event holds read the event."),
+        help_text=_(
+            "Label for manual / maintenance holds; event holds read the event."
+        ),
     )
     approval_instance = models.ForeignKey(
         "ApprovalInstance",
