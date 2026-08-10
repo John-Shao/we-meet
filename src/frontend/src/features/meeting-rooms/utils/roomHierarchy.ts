@@ -14,6 +14,18 @@ import type {
 
 type LevelSelection = Partial<Record<MeetingRoomLevelType, string>>
 
+/** Keep only campus → building → floor from a server-composed five-level path. */
+export const compactRoomPathLabel = (
+  pathLabel: string,
+  separator = ' · '
+): string =>
+  pathLabel
+    .split('·')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(-3)
+    .join(separator)
+
 /** Resolve one selected node into its root-to-leaf cascade values. */
 export const selectionByLevel = (
   nodes: MeetingRoomNode[],

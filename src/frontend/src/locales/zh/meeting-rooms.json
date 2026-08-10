@@ -11,6 +11,7 @@
   },
   "timeline": {
     "roomColumn": "会议室",
+    "resizeRoomColumn": "调整会议室列宽",
     "booked": "已预订",
     "guide": "点击空档选定时段；可拖动调整，或再次点击打开新建日程",
     "clickToBook": "点击空档预订「{{room}}」",

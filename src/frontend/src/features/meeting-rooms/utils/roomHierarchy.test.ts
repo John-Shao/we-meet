@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { MeetingRoomNode } from '../api/ApiMeetingRoom'
 import {
   childrenOf,
+  compactRoomPathLabel,
   descendantIds,
   flattenTree,
   pathLabelOf,
@@ -47,6 +48,18 @@ describe('childrenOf', () => {
   it('parent 指向已被过滤掉的节点时回退为根节点,不丢行', () => {
     const map = childrenOf([towerA, floor3])
     expect(map.get('')).toEqual([towerA])
+  })
+})
+
+describe('compactRoomPathLabel', () => {
+  it('五级路径只展示园区、楼栋和楼层', () => {
+    expect(compactRoomPathLabel('中国 · 深圳 · 新一代产业园 · A 栋 · 3F')).toBe(
+      '新一代产业园 · A 栋 · 3F'
+    )
+  })
+
+  it('不足三级的旧路径保持原样', () => {
+    expect(compactRoomPathLabel('A 栋 · 3F')).toBe('A 栋 · 3F')
   })
 })
 

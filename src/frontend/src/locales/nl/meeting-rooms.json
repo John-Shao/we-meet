@@ -11,6 +11,7 @@
   },
   "timeline": {
     "roomColumn": "Ruimte",
+    "resizeRoomColumn": "Breedte van ruimtekolom aanpassen",
     "booked": "Gereserveerd",
     "guide": "Klik op een vrij tijdvak, sleep om aan te passen en klik opnieuw om de afspraak te maken",
     "clickToBook": "Klik op een vrij blok om {{room}} te reserveren",

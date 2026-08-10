@@ -18,10 +18,23 @@ import {
   makeScale,
   timelineTrackWidth,
 } from '../utils/timelineScale'
+import { compactRoomPathLabel } from '../utils/roomHierarchy'
 /** Where the track scrolls to on mount — nobody books at 3am. */
 const INITIAL_HOUR = 8
-const LABEL_WIDTH_PX = 176
-const LABEL_WIDTH = `${LABEL_WIDTH_PX}px`
+const DEFAULT_LABEL_WIDTH = 220
+const MIN_LABEL_WIDTH = 180
+const MAX_LABEL_WIDTH = 360
+const LABEL_WIDTH_KEY = 'meeting-rooms-label-width'
+
+const clampLabelWidth = (value: number) =>
+  Math.min(MAX_LABEL_WIDTH, Math.max(MIN_LABEL_WIDTH, value))
+
+const readLabelWidth = () => {
+  const stored = Number(localStorage.getItem(LABEL_WIDTH_KEY))
+  return Number.isFinite(stored) && stored > 0
+    ? clampLabelWidth(stored)
+    : DEFAULT_LABEL_WIDTH
+}
 
 const timeLabel = (value: string | Date) =>
   (value instanceof Date ? value : new Date(value)).toLocaleTimeString([], {
@@ -66,6 +79,7 @@ export const RoomTimeline = ({
   const scrollRef = useRef<HTMLDivElement>(null)
   const suppressClickRef = useRef(false)
   const [viewportWidth, setViewportWidth] = useState(0)
+  const [labelWidth, setLabelWidth] = useState(readLabelWidth)
 
   const isToday = new Date().toDateString() === dayStart.toDateString()
   const now = useNowTick(isToday)
@@ -77,7 +91,7 @@ export const RoomTimeline = ({
   // timeline's native horizontal scroller.
   const trackWidth = timelineTrackWidth(
     totalMinutes,
-    viewportWidth - LABEL_WIDTH_PX
+    viewportWidth - labelWidth
   )
   const workWindow = workingWindowForDate(dayStart, workingHours)
   const axisTicks = Array.from({ length: halfHourCount }, (_, index) => {
@@ -105,6 +119,51 @@ export const RoomTimeline = ({
       scrollRef.current.scrollLeft = (targetMinute / totalMinutes) * trackWidth
     }
   }, [dayStart, timeRangeMode, totalMinutes, trackWidth, workingHours.startMin])
+
+  const persistLabelWidth = (value: number) => {
+    try {
+      localStorage.setItem(LABEL_WIDTH_KEY, String(value))
+    } catch {
+      /* 隐私模式等只保留本次会话宽度。 */
+    }
+  }
+
+  const beginLabelResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const originX = event.clientX
+    const originWidth = labelWidth
+    let nextWidth = originWidth
+
+    const onMove = (pointer: PointerEvent) => {
+      nextWidth = clampLabelWidth(originWidth + pointer.clientX - originX)
+      setLabelWidth(nextWidth)
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      persistLabelWidth(nextWidth)
+    }
+
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
+  const handleLabelResizeKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>
+  ) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    const nextWidth = clampLabelWidth(
+      labelWidth + (event.key === 'ArrowLeft' ? -16 : 16)
+    )
+    setLabelWidth(nextWidth)
+    persistLabelWidth(nextWidth)
+  }
 
   const handleTrackClick = (
     room: RoomTimelineEntry,
@@ -286,11 +345,24 @@ export const RoomTimeline = ({
 
   return (
     <div className={scrollCls} ref={scrollRef} data-testid="mr-timeline">
-      <div style={{ width: `calc(${LABEL_WIDTH} + ${trackWidth}px)` }}>
+      <div style={{ width: labelWidth + trackWidth }}>
         {/* Ruler */}
         <div className={rulerCls}>
-          <div className={labelHeadCls} style={{ width: LABEL_WIDTH }}>
+          <div className={labelHeadCls} style={{ width: labelWidth }}>
             {t('timeline.roomColumn')}
+            <button
+              type="button"
+              role="slider"
+              aria-orientation="vertical"
+              aria-label={t('timeline.resizeRoomColumn')}
+              aria-valuemin={MIN_LABEL_WIDTH}
+              aria-valuemax={MAX_LABEL_WIDTH}
+              aria-valuenow={labelWidth}
+              tabIndex={0}
+              className={labelResizeHandleCls}
+              onPointerDown={beginLabelResize}
+              onKeyDown={handleLabelResizeKeyDown}
+            />
           </div>
           <div className={rulerTrackCls} style={{ width: trackWidth }}>
             {axisTicks.map(({ minute, value }) => (
@@ -313,7 +385,7 @@ export const RoomTimeline = ({
               className={nowLineCls}
               data-testid="mr-now-line"
               style={{
-                left: `calc(${LABEL_WIDTH} + ${(scale.pct(now) / 100) * trackWidth}px)`,
+                left: labelWidth + (scale.pct(now) / 100) * trackWidth,
               }}
             />
           )}
@@ -324,12 +396,15 @@ export const RoomTimeline = ({
               data-room-row={room.id}
               data-testid={`mr-timeline-row-${room.id}`}
             >
-              <div className={labelCellCls} style={{ width: LABEL_WIDTH }}>
+              <div className={labelCellCls} style={{ width: labelWidth }}>
                 <span className={roomNameCls} title={room.name}>
                   {room.name}
                 </span>
-                <span className={roomMetaCls} title={room.path_label}>
-                  {room.path_label}
+                <span
+                  className={roomMetaCls}
+                  title={compactRoomPathLabel(room.path_label)}
+                >
+                  {compactRoomPathLabel(room.path_label)}
                 </span>
                 <span
                   className={roomResourceCls}
@@ -490,6 +565,31 @@ const labelHeadCls = css({
   color: 'greyscale.600',
   backgroundColor: 'greyscale.50',
   borderRight: '1px solid token(colors.greyscale.200)',
+})
+const labelResizeHandleCls = css({
+  position: 'absolute',
+  top: 0,
+  right: '-0.3125rem',
+  bottom: 0,
+  zIndex: 4,
+  width: '0.625rem',
+  padding: 0,
+  border: 0,
+  backgroundColor: 'transparent',
+  cursor: 'col-resize',
+  touchAction: 'none',
+  outline: 'none',
+  _after: {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 'calc(50% - 0.5px)',
+    width: '1px',
+    backgroundColor: 'transparent',
+  },
+  _hover: { _after: { backgroundColor: 'primary.500' } },
+  _focusVisible: { _after: { backgroundColor: 'primary.500' } },
 })
 const rulerTrackCls = css({ display: 'flex', flexShrink: 0 })
 const tickCls = css({

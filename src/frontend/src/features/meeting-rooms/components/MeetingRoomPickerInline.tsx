@@ -15,6 +15,7 @@ import {
   fetchMeetingRooms,
 } from '../api/fetchMeetingRooms'
 import { availableIdSet } from '../utils/roomAvailability'
+import { compactRoomPathLabel } from '../utils/roomHierarchy'
 import { MeetingRoomFilters } from './MeetingRoomFilters'
 
 type Tab = 'available' | 'all'
@@ -62,27 +63,29 @@ export const MeetingRoomPickerInline = ({
   const startIso = start.toISOString()
   const endIso = end.toISOString()
 
-  const { data: availability = [], isFetching: loadingAvailability } = useQuery({
-    /* eslint-disable @tanstack/query/exhaustive-deps */
-    queryKey: [
-      'meeting-rooms',
-      'availability',
-      startIso,
-      endIso,
-      filters.node ?? '',
-      filters.capacityMin ?? 0,
-      facilityKey(filters.facilityIds),
-      query,
-      excludeEventId ?? '',
-    ],
-    /* eslint-enable @tanstack/query/exhaustive-deps */
-    queryFn: () =>
-      fetchMeetingRoomAvailability(startIso, endIso, effective, {
-        excludeEventId,
-      }),
-    staleTime: 15_000,
-    placeholderData: keepPreviousData,
-  })
+  const { data: availability = [], isFetching: loadingAvailability } = useQuery(
+    {
+      /* eslint-disable @tanstack/query/exhaustive-deps */
+      queryKey: [
+        'meeting-rooms',
+        'availability',
+        startIso,
+        endIso,
+        filters.node ?? '',
+        filters.capacityMin ?? 0,
+        facilityKey(filters.facilityIds),
+        query,
+        excludeEventId ?? '',
+      ],
+      /* eslint-enable @tanstack/query/exhaustive-deps */
+      queryFn: () =>
+        fetchMeetingRoomAvailability(startIso, endIso, effective, {
+          excludeEventId,
+        }),
+      staleTime: 15_000,
+      placeholderData: keepPreviousData,
+    }
+  )
 
   const { data: allRooms, isFetching: loadingAll } = useQuery({
     /* eslint-disable @tanstack/query/exhaustive-deps */
@@ -119,7 +122,9 @@ export const MeetingRoomPickerInline = ({
             data-testid={`mr-picker-tab-${key}`}
             className={tab === key ? tabActiveCls : tabIdleCls}
           >
-            {key === 'available' ? t('picker.tabAvailable') : t('picker.tabAll')}
+            {key === 'available'
+              ? t('picker.tabAvailable')
+              : t('picker.tabAll')}
           </button>
         ))}
       </div>
@@ -167,7 +172,7 @@ export const MeetingRoomPickerInline = ({
               >
                 <span className={nameCls}>{room.name}</span>
                 <span className={metaCls}>
-                  {room.path_label}
+                  {compactRoomPathLabel(room.path_label)}
                   {room.capacity > 0 &&
                     ` · ${t('unit.people', { count: room.capacity })}`}
                   {busy && ` · ${t('picker.unavailable')}`}

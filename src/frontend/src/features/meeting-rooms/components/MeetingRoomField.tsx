@@ -9,6 +9,7 @@ import { chipCls, labelCls } from '@/features/calendar/components/formStyles'
 import type { MeetingRoomBrief } from '../api/ApiMeetingRoom'
 import { fetchMeetingRoomAvailability } from '../api/fetchMeetingRooms'
 import { selectionConflicts } from '../utils/roomAvailability'
+import { compactRoomPathLabel } from '../utils/roomHierarchy'
 import { MeetingRoomPickerInline } from './MeetingRoomPickerInline'
 
 /**
@@ -111,7 +112,9 @@ export const MeetingRoomField = ({
         <div className={selectedRowCls} data-testid="mr-selected-chip">
           <span className={chipCls}>
             {value.name}
-            {value.path_label ? ` · ${value.path_label}` : ''}
+            {value.path_label
+              ? ` · ${compactRoomPathLabel(value.path_label)}`
+              : ''}
             {value.capacity > 0
               ? ` · ${t('unit.people', { count: value.capacity })}`
               : ''}
