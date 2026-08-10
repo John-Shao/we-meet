@@ -44,6 +44,7 @@ import {
   WORKING_TIME_OPTIONS,
   formatMinutes,
   isValidWorkingHours,
+  type TimeRangeMode,
 } from '@/features/calendar/utils/workingHours'
 import { useReminderEntryEnabled } from '@/features/im/hooks/useReminderEntry'
 import { AvatarUploadDialog } from './AvatarUploadDialog'
@@ -287,12 +288,16 @@ const CalendarPanel = () => {
     dimPast,
     showWeekend,
     workingHours,
+    calendarTimeRangeMode,
+    meetingRoomsTimeRangeMode,
     setWeekStart,
     setDefaultDuration,
     setDefaultReminder,
     setDimPast,
     setShowWeekend,
     setWorkingHours,
+    setCalendarTimeRangeMode,
+    setMeetingRoomsTimeRangeMode,
   } = useCalendarSettings()
 
   const changeWorkStart = (startMin: number) => {
@@ -332,7 +337,12 @@ const CalendarPanel = () => {
           <span className={infoKeyCls}>{t('settings.dimPast')}</span>
         </Switch>
       </div>
-      <div className={infoRowCls}>
+      <div
+        className={cx(
+          infoRowCls,
+          css({ borderBottom: 'none', paddingBottom: '0.375rem' })
+        )}
+      >
         <span className={infoKeyCls}>{t('settings.workingHours')}</span>
         <div
           className={css({
@@ -387,14 +397,47 @@ const CalendarPanel = () => {
       </div>
       <p
         className={css({
-          marginTop: '-0.25rem',
-          marginBottom: '0.75rem',
+          margin: 0,
+          paddingBottom: '0.75rem',
+          borderBottom: '1px solid token(colors.greyscale.100)',
           fontSize: '0.75rem',
           color: 'greyscale.500',
         })}
       >
         {t('settings.workingHoursHint')}
       </p>
+      <div className={infoRowCls}>
+        <span className={infoKeyCls}>{t('settings.calendarTimeRange')}</span>
+        <select
+          value={calendarTimeRangeMode}
+          onChange={(e) =>
+            setCalendarTimeRangeMode(e.target.value as TimeRangeMode)
+          }
+          aria-label={t('settings.calendarTimeRange')}
+          data-testid="calendar-settings-calendar-time-range"
+          className={selectCls}
+        >
+          <option value="work">{t('grid.workTime')}</option>
+          <option value="full">{t('grid.fullDay')}</option>
+        </select>
+      </div>
+      <div className={infoRowCls}>
+        <span className={infoKeyCls}>
+          {t('settings.meetingRoomsTimeRange')}
+        </span>
+        <select
+          value={meetingRoomsTimeRangeMode}
+          onChange={(e) =>
+            setMeetingRoomsTimeRangeMode(e.target.value as TimeRangeMode)
+          }
+          aria-label={t('settings.meetingRoomsTimeRange')}
+          data-testid="calendar-settings-meeting-rooms-time-range"
+          className={selectCls}
+        >
+          <option value="work">{t('grid.workTime')}</option>
+          <option value="full">{t('grid.fullDay')}</option>
+        </select>
+      </div>
       <div className={infoRowCls}>
         <span className={infoKeyCls}>{t('settings.weekStart')}</span>
         <select

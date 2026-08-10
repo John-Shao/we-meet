@@ -144,6 +144,8 @@
     "workStart": "Arbeitsbeginn",
     "workEnd": "Arbeitsende",
     "workingHoursHint": "In 30-Minuten-Schritten; Gesamtdauer 6–12 Stunden",
+    "calendarTimeRange": "Kalenderzeitraum",
+    "meetingRoomsTimeRange": "Besprechungsraum-Zeitraum",
     "showWeekend": "Wochenende anzeigen",
     "weekStart": "Erster Tag der Woche",
     "weekStartMon": "Montag",

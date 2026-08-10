@@ -144,6 +144,8 @@
     "workStart": "Début de la journée",
     "workEnd": "Fin de la journée",
     "workingHoursHint": "Réglage par pas de 30 minutes, pour une durée totale de 6 à 12 heures",
+    "calendarTimeRange": "Plage horaire du calendrier",
+    "meetingRoomsTimeRange": "Plage horaire des salles de réunion",
     "showWeekend": "Afficher le week-end",
     "weekStart": "Premier jour de la semaine",
     "weekStartMon": "Lundi",

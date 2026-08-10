@@ -145,6 +145,8 @@
     "workStart": "Workday starts",
     "workEnd": "Workday ends",
     "workingHoursHint": "Adjust in 30-minute steps; total duration must be 6–12 hours",
+    "calendarTimeRange": "Calendar time range",
+    "meetingRoomsTimeRange": "Meeting room time range",
     "showWeekend": "Show weekends",
     "weekStart": "First day of week",
     "weekStartMon": "Monday",

@@ -85,51 +85,6 @@ export const CalendarViewSwitcher = ({
   )
 }
 
-export const TimeRangeSwitcher = ({
-  value,
-  onChange,
-}: {
-  value: TimeRangeMode
-  onChange: (value: TimeRangeMode) => void
-}) => {
-  const { t } = useTranslation('calendar')
-  return (
-    <div
-      className={css({
-        display: 'inline-flex',
-        gap: '2px',
-        padding: '2px',
-        borderRadius: '0.5rem',
-        backgroundColor: 'greyscale.100',
-      })}
-      aria-label={t('settings.workingHours')}
-    >
-      {(['work', 'full'] as const).map((mode) => (
-        <button
-          key={mode}
-          type="button"
-          aria-pressed={value === mode}
-          className={cx(
-            css({
-              minWidth: '4.75rem',
-              paddingX: '0.75rem',
-              paddingY: '0.4375rem',
-              border: 'none',
-              borderRadius: '0.375rem',
-              fontSize: '0.8125rem',
-              cursor: 'pointer',
-            }),
-            value === mode ? segmentActive : segmentIdle
-          )}
-          onClick={() => onChange(mode)}
-        >
-          {t(mode === 'work' ? 'grid.workTime' : 'grid.fullDay')}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 // 翻页箭头 tooltip 按视图区分:日=前一天/后一天、周=上周/下周、
 // 月=上个月/下个月;日程视图锚点按天调整,同「前一天/后一天」。
 const NAV_TIP_KEYS: Partial<Record<View, [string, string]>> = {

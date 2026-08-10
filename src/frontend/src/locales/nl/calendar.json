@@ -144,6 +144,8 @@
     "workStart": "Werkdag begint",
     "workEnd": "Werkdag eindigt",
     "workingHoursHint": "Aanpassen per 30 minuten; totale duur moet 6–12 uur zijn",
+    "calendarTimeRange": "Tijdbereik kalender",
+    "meetingRoomsTimeRange": "Tijdbereik vergaderruimtes",
     "showWeekend": "Weekend tonen",
     "weekStart": "Eerste dag van de week",
     "weekStartMon": "Maandag",
