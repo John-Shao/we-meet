@@ -494,8 +494,8 @@ const CalendarAuthenticated = () => {
                 // 月视图点某天仍直接开弹窗;时间视图走两步式预选(下面几个)。
                 onSelectSlot={openCreate}
                 slotDraft={draft}
-                // 点空白:已有预选框 → 先清掉(点框外即取消);没有 → 落新框。
-                onDraftSelect={(slot) => setDraft((cur) => (cur ? null : slot))}
+                // 点其他空白位置直接移动预选框；再次点击预选框本身才确认新建。
+                onDraftSelect={setDraft}
                 onDraftChange={setDraft}
                 onDraftConfirm={() => setCreating(true)}
                 onDraftDismiss={() => setDraft(null)}
