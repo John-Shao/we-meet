@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
+import { RiSettings3Line } from '@remixicon/react'
 import {
   addMonths,
   addYears,
@@ -440,12 +441,11 @@ const CalendarAuthenticated = () => {
                 borderRadius: '0.375rem',
                 backgroundColor: 'transparent',
                 color: 'greyscale.700',
-                fontSize: '1.0625rem',
                 cursor: 'pointer',
                 _hover: { backgroundColor: 'greyscale.100' },
               })}
             >
-              ⚙
+              <RiSettings3Line size={16} />
             </button>
           </div>
         </div>
