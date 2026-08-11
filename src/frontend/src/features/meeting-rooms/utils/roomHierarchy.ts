@@ -14,10 +14,10 @@ import type {
 
 type LevelSelection = Partial<Record<MeetingRoomLevelType, string>>
 
-/** Keep only campus → building → floor from the server-composed room location. */
+/** Keep only campus → building → floor, joined as one address hierarchy. */
 export const compactRoomPathLabel = (
   pathLabel: string,
-  separator = ' · '
+  separator = '-'
 ): string =>
   pathLabel
     .split('·')
@@ -71,11 +71,11 @@ export const descendantIds = (
   return nodes.filter((n) => n.path.startsWith(root.path)).map((n) => n.id)
 }
 
-/** 「北京 · A 座 · 3F」 built from the flat list, for client-side labels. */
+/** 「北京-A 座-3F」 built from the flat list, for client-side labels. */
 export const pathLabelOf = (
   nodes: MeetingRoomNode[],
   nodeId: string,
-  separator = ' · '
+  separator = '-'
 ): string => {
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const node = byId.get(nodeId)

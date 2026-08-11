@@ -56,12 +56,12 @@ describe('childrenOf', () => {
 describe('compactRoomPathLabel', () => {
   it('五级路径只展示园区、楼栋和楼层', () => {
     expect(compactRoomPathLabel('中国 · 深圳 · 新一代产业园 · A 栋 · 3F')).toBe(
-      '新一代产业园 · A 栋 · 3F'
+      '新一代产业园-A 栋-3F'
     )
   })
 
   it('不足三级的旧路径保持原样', () => {
-    expect(compactRoomPathLabel('A 栋 · 3F')).toBe('A 栋 · 3F')
+    expect(compactRoomPathLabel('A 栋 · 3F')).toBe('A 栋-3F')
   })
 })
 
@@ -80,8 +80,8 @@ describe('descendantIds', () => {
 })
 
 describe('pathLabelOf', () => {
-  it('按 path 顺序拼出「北京 · A 座 · 3F」', () => {
-    expect(pathLabelOf(tree, 'cccc')).toBe('北京 · A 座 · 3F')
+  it('按 path 顺序拼出「北京-A 座-3F」', () => {
+    expect(pathLabelOf(tree, 'cccc')).toBe('北京-A 座-3F')
   })
 
   it('根节点只有自己一段', () => {
