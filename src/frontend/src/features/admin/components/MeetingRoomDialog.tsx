@@ -117,7 +117,7 @@ export const MeetingRoomDialog = ({
     })
   }
 
-  // 提交前预览完整会议室标识，避免不同楼栋的同号会议室混淆。
+  // 提交前预览完整会议室标识，避免不同建筑的同号会议室混淆。
   // 复用 C 端带测试的路径拼接，避免重复解析不带连字符的 path id。
   const fullLabel = [
     nodeId ? pathLabelOf(nodes, nodeId) : '',

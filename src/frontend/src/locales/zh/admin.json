@@ -462,7 +462,7 @@
       "country_region": "国家/地区",
       "city": "城市",
       "campus": "园区",
-      "building": "楼栋"
+      "building": "建筑"
     },
     "addLevelType": "添加{{level}}",
     "newTypedLevel": "添加{{level}}",
@@ -470,7 +470,7 @@
     "cityTimezone": "城市时区",
     "selectTimezone": "请选择城市时区",
     "emptyFixedHierarchy": "还没有会议室位置，请从国家/地区开始逐级创建",
-    "selectBuildingToAddRoom": "请先在左侧选择楼栋",
+    "selectBuildingToAddRoom": "请先在左侧选择建筑",
     "title": "会议室",
     "allRooms": "全部会议室",
     "newLevel": "添加层级",
@@ -498,7 +498,7 @@
     "enable": "启用",
     "rowActions": "更多操作",
     "loading": "加载中…",
-    "emptyLevels": "还没有位置层级，请先添加楼栋",
+    "emptyLevels": "还没有位置层级，请先添加建筑",
     "emptyRooms": "该层级下还没有会议室",
     "deleteRoomConfirm": "确定删除会议室「{{name}}」吗?已有的预订不会被取消。",
     "deleteLevelConfirm": "确定删除层级「{{name}}」吗?",

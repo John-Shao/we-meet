@@ -26,7 +26,7 @@ import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingSummary } from '@/features/meetings/api/fetchMeeting'
-import { roomBuildingIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
+import { roomScheduleLabel } from '@/features/meeting-rooms/utils/roomLabel'
 
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import {
@@ -276,14 +276,13 @@ export const EventDetailDialog = ({
         {event.meeting_room && (
           <InfoRow icon={RiBuilding2Line} testId="detail-meeting-room">
             <span className={bodyTextCls}>
-              {roomBuildingIdentifier(
+              {roomScheduleLabel(
                 event.meeting_room.node.name,
-                event.meeting_room
-              )}{' '}
-              ·{' '}
-              {t('meeting-rooms:unit.people', {
-                count: event.meeting_room.capacity,
-              })}
+                event.meeting_room,
+                t('meeting-rooms:unit.people', {
+                  count: event.meeting_room.capacity,
+                })
+              )}
               {event.meeting_room.booking_status === 'conflict' && (
                 <span className={css({ color: 'danger.600' })}>
                   {' '}

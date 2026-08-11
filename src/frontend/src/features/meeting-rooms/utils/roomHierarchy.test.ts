@@ -54,7 +54,7 @@ describe('childrenOf', () => {
 })
 
 describe('compactRoomPathLabel', () => {
-  it('五级路径只展示园区、楼栋和楼层', () => {
+  it('五级路径只展示园区、建筑和楼层', () => {
     expect(compactRoomPathLabel('中国 · 深圳 · 新一代产业园 · A 栋 · 3F')).toBe(
       '新一代产业园-A 栋-3F'
     )

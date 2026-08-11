@@ -9,8 +9,7 @@ import { chipCls, labelCls } from '@/features/calendar/components/formStyles'
 import type { MeetingRoomBrief } from '../api/ApiMeetingRoom'
 import { fetchMeetingRoomAvailability } from '../api/fetchMeetingRooms'
 import { selectionConflicts } from '../utils/roomAvailability'
-import { compactRoomPathLabel } from '../utils/roomHierarchy'
-import { roomIdentifier } from '../utils/roomLabel'
+import { roomIdentifier, roomScheduleLabel } from '../utils/roomLabel'
 import { MeetingRoomPickerInline } from './MeetingRoomPickerInline'
 
 /**
@@ -112,13 +111,11 @@ export const MeetingRoomField = ({
       {value ? (
         <div className={selectedRowCls} data-testid="mr-selected-chip">
           <span className={chipCls}>
-            {roomIdentifier(value)}
-            {value.path_label
-              ? ` · ${compactRoomPathLabel(value.path_label)}`
-              : ''}
-            {value.capacity > 0
-              ? ` · ${t('unit.people', { count: value.capacity })}`
-              : ''}
+            {roomScheduleLabel(
+              value.node.name,
+              value,
+              t('unit.people', { count: value.capacity })
+            )}
           </span>
           <button
             type="button"

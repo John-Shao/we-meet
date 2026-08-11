@@ -257,7 +257,7 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
           data-testid={`admin-mr-open-${room.id}`}
         >
           <span className={roomIdentifierCls}>{roomIdentifier(room)}</span>
-          {/* 编号下方补充完整路径，避免不同楼栋的同号会议室混淆。 */}
+          {/* 编号下方补充完整路径，避免不同建筑的同号会议室混淆。 */}
           <span className={roomPathCls}>{room.path_label}</span>
         </button>
       ),

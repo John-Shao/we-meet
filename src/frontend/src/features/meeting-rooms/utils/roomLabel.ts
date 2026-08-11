@@ -21,3 +21,13 @@ export const roomBuildingIdentifier = (
   const identifier = roomIdentifier(room)
   return [normalizedBuilding, identifier].filter(Boolean).join('-')
 }
+
+/** Calendar forms and details use one compact room summary on every viewport. */
+export const roomScheduleLabel = (
+  building: string,
+  room: RoomIdentity,
+  capacityLabel: string
+): string =>
+  [roomBuildingIdentifier(building, room), capacityLabel.trim()]
+    .filter(Boolean)
+    .join(' · ')
