@@ -87,13 +87,14 @@
   "attendee_count": 5,            // 以后端返回体 attendees 数为准(跨组织 id 会被静默丢弃)
   "organizer_name": "彭伟",
   "old_start": "…", "old_end": "…",       // 仅 time_changed
-  "added_count": 2                        // 仅 attendees_changed
+  "added_count": 2,                       // 仅 attendees_changed
+  "recurrence_scope": "following"        // 可选:one | following | all
 }
 ```
 
 容错约定:JSON 解析失败 → Web 灰气泡「[日程]」/ App 落 Unsupported;`kind` 未知按 created 渲染;时间字段非法只显标题。
 
-**职责边界:created 卡只由客户端创建成功后发;变更/取消卡只由后端发(M3)** —— 天然无双卡。
+**职责边界:created 卡只由客户端创建成功后发;变更/取消卡只由后端发(M3)** —— 天然无双卡。重复日程一次用户操作只发一张卡，`recurrence_scope` 标明仅此场次、此次及以后或所有场次；旧客户端忽略该加法字段，仍按普通卡显示。
 
 **发送者身份规则(P8-UX)**:
 1. 组织者仍在会话内 → 提醒、变更和取消卡以**组织者 IM 身份**严格发送;
@@ -157,12 +158,13 @@ i18n:`locales/{de,en,fr,nl,zh}/im.json`。
 
 - `CalendarEvent.source_conversation_id`(CharField 64, blank, default "")→ **迁移 0062**；serializer write_only。仅创建时可写，创建前用调用者自己的短期 IM token 拉取 roster 验证成员身份；非成员/会话不存在返回 403，无法验证返回 503，且不落库。
 - `core/services/calendar_im_notify.py`:提醒/变更/取消共用组织者 → 日程助手 → SYSTEM 的发送策略；变更与取消仍在 on_commit 后 best-effort 推送，提醒对瞬时错误保留重试状态。
-- 触发点收敛 `perform_update`/`perform_destroy`(不用 signal:重复日程物化=推送风暴;不进 serializer:拿不到请求语义):save 前快照 start/end + attendee 集合 → 值差分 → `transaction.on_commit`。
+- 触发点收敛到 ViewSet 用户操作路径(不用 signal，避免重复日程物化产生推送风暴):save/delete 前快照 → 值差分 → `transaction.on_commit`。重复日程 `one/following/all` 改期或取消每次操作只推一张带范围字段的卡，时间展示发起操作的场次。
 - 防噪:改标题/描述/提醒不推;幂等 PATCH 不推;时间+人同变只发一张 time_changed(携 added_count);RSVP 不经此路径天然不推;destroy 用删除前快照推 cancelled。
+- 重复系列不可范围化修改参与人；双端隐藏入口，API 显式提交 `attendee_ids` 返回 400。
 
 ## 7. 已知限制(设计内)
 
-- 重复日程系列编辑(split/all/following)**不推送**变更卡;物化子场次不复制 source_conversation_id。
+- 重复规则、系列视频会议与范围化参与人编辑仍不在本期；重复场次来源继承、按场次提醒和范围化变更/取消卡已经闭环。
 - 跨组织会话成员:忙闲列置灰「不可见」,不参与「都有空」判定,不预选为参会人。
 - 共同工作时间按浏览器/设备本地时区 09:00-18:00,跨时区团队不在本期。
 - 未升级客户端对 event-card 显示 JSON 原文(内部工具,双端同波发版收敛;必要时 M3 可降级发 system 纯文本)。
@@ -173,7 +175,7 @@ i18n:`locales/{de,en,fr,nl,zh}/im.json`。
 - M1 Web 会话日历抽屉+日程卡片 —— we-meet `14368971`(tsc -b + eslint 通过;freeSlots 算法 esbuild+node 断言验证,前端无测试基建)。
 - M2 Android 四视图+忙闲对比+IM 集成 —— we-meet-android `6fc0b23`(assembleDebug 通过,APK 已出)。
 - M3 变更推送 —— we-meet `0e62e5a0` + we-meet-android `f2a40e3`(后端日历全范围 38 测试绿;core 全量套件中 rooms/recording 等 80 个失败为分叉既有,与 P8 无关,已用 HEAD 对照确认)。
-- ⚠️ M3 上线必须应用迁移 **0062**(步骤见 §9;只换镜像不迁移会 relation does not exist 500)。
+- ⚠️ 最新版本上线必须应用迁移 **0091**：为存量物化子场次补来源，并静默标记已过触发点，避免升级后集中补发迟到提醒。
 
 ## 9. 部署步骤(阿里云,沿用「latest 标签 + 手动 rollout」模型)
 

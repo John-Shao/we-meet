@@ -223,6 +223,11 @@
       "timeChanged": "已改期",
       "attendeesChanged": "参会人变更",
       "cancelled": "已取消",
+      "recurrenceScope": {
+        "one": "仅此场次",
+        "following": "此场次及以后",
+        "all": "所有场次"
+      },
       "gone": "该日程已取消或你不可见"
     },
     "picker": {

@@ -1,6 +1,6 @@
 # P2 — 日历 / 日程（Calendar / Scheduling）
 
-**状态**：📝 设计待拍板（2026-06-27）。这是 we-meet（非 jusi）阶段——后端 Django + 前端 React,**不涉及 jusi/SDK**(IM 群复用既有 admin bridge)。拍板后再开干。
+**状态**：✅ 已实现并持续收敛（更新至 2026-08-11）。后端、Web、Android 已覆盖重复日程、忙闲、来源会话提醒及范围化编辑/取消。
 **工作量**：后端 ~1.5d(模型+API+提醒) + 前端 ~1d + 部署 1 项(定时器)
 **前置**：P1 组织架构(通讯录选人/org-scope)、会议核心(Room/ResourceAccess/scheduled_at)、IM bridge(ensure-group / post_message)、会议纪要 IM 推送 pattern
 **触发**：路线图第二支柱。当前只有「预约会议」= `Room.scheduled_at`(信息性),没有真正的日程:邀人、RSVP、会前提醒、agenda 视图、与 IM 群联动。
@@ -44,7 +44,7 @@
 | **D4** | RSVP | `EventAttendee.rsvp ∈ {needs_action, accepted, declined, tentative}`;`role ∈ {organizer, required, optional}`;`user` FK(内部)或 `email`(外部,MVP 可只支持内部)。RSVP 端点 `POST /calendar-events/{id}/rsvp {status}`。 |
 | **D5** | 提醒投递 | 有来源会话的日程回原会话发送，身份顺序为组织者 → 日程助手 → SYSTEM；无来源日程只在客户端消息列表聚合，不建群、不接设备直推。幂等使用 event 级 `reminder_pushed_at`。 |
 | **D6** | 提醒调度基建 | **k8s CronJob 跑 management command**(`python manage.py send_due_reminders`，每分钟扫描到期且未处理的来源会话日程)，**不新立 celery-beat**：k8s 已是部署底座、CronJob 自带单实例语义、比 beat + 单实例锁更简单。 |
-| **D7** | 周期重复 | MVP **仅单次**。`recurrence`(RRULE 字符串)+ `recurrence_parent` 字段先建好但不展开。周期+例外留后续。 |
+| **D7** | 周期重复 | 主事件保存 RRULE，滚动物化 `recurrence_parent` 子场次；子场次继承来源会话并逐场提醒。编辑/删除支持 `one / following / all`，系列参与人和重复规则编辑仍不开放。 |
 | **D8** | Free/busy | MVP **跳过**(或仅本人)。跨人忙闲后续。 |
 | **D9** | Agenda 前端 | 新增 `features/calendar`:建日程表单(复用 ContactPicker 多选邀人)、**agenda 列表**(我的日程,按日/即将)、RSVP 操作、详情。Header 加「日历」入口 + `/calendar` 路由。`ScheduledMeetingsList`(legacy 预约会议)暂保留,后续收敛。 |
 | **D10** | 时区 | `start_at`/`end_at` 存 UTC(tz-aware);展示按 `user.timezone` 转换。`timezone` 字段存事件原始时区(跨时区显示用)。 |
@@ -54,7 +54,7 @@
 
 ## 数据模型（草案,继承 BaseModel,db_table = meet_*)
 
-**CalendarEvent**:`organization` FK、`organizer` FK(User)、`title`、`description`、`start_at`/`end_at`(DateTimeField)、`timezone`(CharField/TZ)、`all_day`(bool)、`room` FK(Room, SET_NULL)、`status`(confirmed/cancelled)、`visibility`(default/private)、`reminders`(JSON,提前量分钟数组,如 `[10]`)、`reminder_pushed_at`(幂等)、`recurrence`(空=单次)、`recurrence_parent` self-FK。
+**CalendarEvent**:`organization` FK、`organizer` FK(User)、`title`、`description`、`start_at`/`end_at`(DateTimeField)、`timezone`(CharField/TZ)、`all_day`(bool)、`room` FK(Room, SET_NULL)、`status`、`visibility`、`reminders`(空或单个 0–2880 分钟整数)、`reminder_pushed_at/outcome`(幂等结果)、`recurrence`(空=单次)、`recurrence_parent` self-FK、不可重绑的 `source_conversation_id`。
 
 **EventAttendee**:`event` FK、`user` FK(null)/`email`(外部)、`rsvp`(needs_action/accepted/declined/tentative)、`role`(organizer/required/optional)。约束 unique(event, user)。
 
@@ -78,6 +78,7 @@
 - `core/management/commands/send_due_reminders.py`:调上面。
 - 部署:**k8s CronJob**(默认每分钟)跑该 command(D6)。
 - (备选 celery-beat:`beat_schedule` + celery-beat 服务,若你选 D6 备选。)
+- 迁移 `0091_calendar_recurrence_source_backfill`:只回填来源为空且父来源非空的子场次；未来触发点保持待发送，已过且未处理的触发点静默置幂等时间且 outcome 留空。
 
 ### P2-d 前端（`features/calendar`,新建）
 - 建日程表单:title/start/end/all_day + 邀人(包 `ContactPicker` 多选 → `attendee_user_ids`)+ 提醒提前量。
@@ -89,7 +90,7 @@
 
 ## 不在 P2 / 后续
 
-- 周期事件(RRULE)+ 例外;跨人 free/busy;周/月网格视图;CalDAV/Exchange 同步。
+- 重复规则编辑、范围化参与人/视频会议、跨时区工作时间;CalDAV/Exchange 同步。
 - 与「预约会议」(Room.scheduled_at)的完全收敛。
 - 会议纪要也落 Doc(那是 P3)。
 - FCM/离线推送(提醒完整通道待 [[project-fcm-deferred]] 解除)。

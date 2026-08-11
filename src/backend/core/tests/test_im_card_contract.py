@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from core.services import im_cards
+from core.services.bot_webhook import AT_EVERYONE
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "im_cards"
 WRITE = os.environ.get("WRITE_IM_CARD_FIXTURES") == "1"
@@ -111,6 +112,40 @@ def test_event_card_cancelled():
     )
 
 
+def test_recurring_event_card_time_changed():
+    _assert_golden(
+        "event_card_recurrence_time_changed",
+        im_cards.build_event_card(
+            event_id="11111111-1111-4111-8111-111111111111",
+            title="季度评审",
+            start="2026-08-11T02:00:00+00:00",
+            end="2026-08-11T03:00:00+00:00",
+            kind=im_cards.EVENT_KIND_TIME_CHANGED,
+            attendee_count=4,
+            organizer_name="张三",
+            old_start="2026-08-10T02:00:00+00:00",
+            old_end="2026-08-10T03:00:00+00:00",
+            recurrence_scope="following",
+        ),
+    )
+
+
+def test_recurring_event_card_cancelled():
+    _assert_golden(
+        "event_card_recurrence_cancelled",
+        im_cards.build_event_card(
+            event_id="11111111-1111-4111-8111-111111111111",
+            title="季度评审",
+            start="2026-08-10T02:00:00+00:00",
+            end="2026-08-10T03:00:00+00:00",
+            kind=im_cards.EVENT_KIND_CANCELLED,
+            attendee_count=4,
+            organizer_name="张三",
+            recurrence_scope="all",
+        ),
+    )
+
+
 def test_optional_keys_are_absent_not_null():
     """Clients branch on presence — a null would read as 'changed to nothing'."""
     card = im_cards.build_event_card(
@@ -119,7 +154,13 @@ def test_optional_keys_are_absent_not_null():
         start="2026-08-10T02:00:00+00:00",
         end="2026-08-10T03:00:00+00:00",
     )
-    for key in ("old_start", "old_end", "added_count", "removed_count"):
+    for key in (
+        "old_start",
+        "old_end",
+        "added_count",
+        "removed_count",
+        "recurrence_scope",
+    ):
         assert key not in card
 
 
@@ -134,6 +175,17 @@ def test_old_window_only_travels_with_time_changed():
         old_end="2026-08-09T03:00:00+00:00",
     )
     assert "old_start" not in card
+
+
+def test_unknown_recurrence_scope_is_omitted():
+    card = im_cards.build_event_card(
+        event_id="e",
+        title="t",
+        start="2026-08-10T02:00:00+00:00",
+        end="2026-08-10T03:00:00+00:00",
+        recurrence_scope="bogus",
+    )
+    assert "recurrence_scope" not in card
 
 
 # --- doc-card ----------------------------------------------------------------
@@ -151,9 +203,7 @@ def test_doc_card():
 
 
 def test_doc_card_omits_blank_shared_by():
-    assert "shared_by" not in im_cards.build_doc_card(
-        doc_id="d", title="t", url="u"
-    )
+    assert "shared_by" not in im_cards.build_doc_card(doc_id="d", title="t", url="u")
 
 
 # --- meeting-card ------------------------------------------------------------
@@ -191,9 +241,10 @@ def test_meeting_card_from_the_app_has_no_room_id():
 
 
 def test_unknown_status_falls_back_to_ongoing():
-    assert im_cards.build_meeting_card(slug="s", title="t", status="???")[
-        "status"
-    ] == "ongoing"
+    assert (
+        im_cards.build_meeting_card(slug="s", title="t", status="???")["status"]
+        == "ongoing"
+    )
 
 
 # --- rich-text ---------------------------------------------------------------
@@ -283,8 +334,6 @@ def test_at_everyone_is_one_of_the_aliases():
     配好的机器人关键词闸门规则中。要做到 locale 无关,是让客户端多认几个,
     而不是让服务端换一个。
     """
-    from core.services.bot_webhook import AT_EVERYONE
-
     assert AT_EVERYONE.startswith("@")
     assert AT_EVERYONE.lstrip("@") in _aliases()["aliases"]
 
@@ -294,7 +343,9 @@ def test_alias_list_is_the_flat_projection_of_by_locale():
     data = _aliases()
     assert set(data["aliases"]) == set(data["by_locale"].values())
     assert len(data["aliases"]) == len(set(data["aliases"])), "别名表里有重复项"
-    assert all(a.strip() == a and a for a in data["aliases"]), "别名不得带首尾空白或为空"
+    assert all(a.strip() == a and a for a in data["aliases"]), (
+        "别名不得带首尾空白或为空"
+    )
 
 
 def test_alias_table_covers_every_shipped_locale():
@@ -337,7 +388,11 @@ def test_rich_card_full():
                     {"tag": "text", "text": " 于 "},
                     {"tag": "text", "text": "02:14", "i": True},
                     {"tag": "text", "text": " 失败,"},
-                    {"tag": "a", "text": "运行日志", "href": "https://ci.example.com/runs/1"},
+                    {
+                        "tag": "a",
+                        "text": "运行日志",
+                        "href": "https://ci.example.com/runs/1",
+                    },
                     {"tag": "at", "uid": "all", "name": "所有人"},
                 ],
             },
@@ -356,8 +411,18 @@ def test_rich_card_full():
                 "type": "actions",
                 "resolve": "once",
                 "buttons": [
-                    {"id": "b0", "text": "同意上线", "style": "primary", "action": "callback"},
-                    {"id": "b1", "text": "驳回", "style": "danger", "action": "callback"},
+                    {
+                        "id": "b0",
+                        "text": "同意上线",
+                        "style": "primary",
+                        "action": "callback",
+                    },
+                    {
+                        "id": "b1",
+                        "text": "驳回",
+                        "style": "danger",
+                        "action": "callback",
+                    },
                     {
                         "id": "b2",
                         "text": "查看日志",

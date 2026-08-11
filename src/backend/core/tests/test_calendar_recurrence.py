@@ -1,13 +1,16 @@
 """P2-M1 重复日程:物化服务 + RRULE 校验 + 「仅此次」/系列删除语义。"""
 
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from zoneinfo import ZoneInfo
 
-import pytest
 from django.utils import timezone
+
+import pytest
 from rest_framework.test import APIClient
 
 from core import factories, models
+from core.services import calendar_recurrence
 from core.services.calendar_recurrence import materialize_recurrences
 
 pytestmark = pytest.mark.django_db
@@ -75,15 +78,35 @@ def test_materialize_daily_creates_children_and_is_idempotent():
     assert children[0].reminders == [10]
     assert children[0].recurrence == ""
     # attendee 复制:组织者保持 accepted,受邀人重置为 needs_action。
-    child_att = {
-        a.user_id: a.rsvp for a in children[0].attendees.all()
-    }
+    child_att = {a.user_id: a.rsvp for a in children[0].attendees.all()}
     assert child_att[me.id] == models.EventRSVPChoices.ACCEPTED
     assert child_att[peer.id] == models.EventRSVPChoices.NEEDS_ACTION
 
     # 幂等:再跑一轮零新建。
     assert materialize_recurrences(now=NOW) == 0
     assert parent.occurrences.count() == 4
+
+
+def test_materialized_children_inherit_only_a_nonempty_source_conversation():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    sourced = _make_parent(
+        org,
+        me,
+        rrule="FREQ=DAILY;COUNT=3",
+        source_conversation_id="source-cid",
+    )
+    unsourced = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=3")
+
+    materialize_recurrences(now=NOW)
+
+    assert set(
+        sourced.occurrences.values_list("source_conversation_id", flat=True)
+    ) == {"source-cid"}
+    assert set(
+        unsourced.occurrences.values_list("source_conversation_id", flat=True)
+    ) == {""}
 
 
 def test_materialize_weekly_keeps_local_wall_clock():
@@ -202,7 +225,12 @@ def test_edit_following_splits_series():
     _membership(org, me)
     peer = factories.UserFactory()
     _membership(org, peer)
-    parent = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=6")
+    parent = _make_parent(
+        org,
+        me,
+        rrule="FREQ=DAILY;COUNT=6",
+        source_conversation_id="source-cid",
+    )
     models.EventAttendee.objects.create(event=parent, user=peer, rsvp="accepted")
     materialize_recurrences(now=NOW)
     # 场次:7/20(主)…7/25;取第 3 场(7/22)为分界。
@@ -237,10 +265,12 @@ def test_edit_following_splits_series():
     assert new_parent.start_at == new_start
     # 6 场流逝 2 场(7/20,7/21)→ 新系列 COUNT=4。
     assert "COUNT=4" in new_parent.recurrence
+    assert new_parent.source_conversation_id == "source-cid"
     # 新系列即时物化:主行 + 3 子行,间隔 24h 保持平移后的时刻。
     kids = list(new_parent.occurrences.order_by("start_at"))
     assert len(kids) == 3
     assert kids[0].start_at == new_start + timedelta(days=1)
+    assert {kid.source_conversation_id for kid in kids} == {"source-cid"}
     # 名册复制:组织者 accepted,受邀人重置。
     rsvps = {a.user_id: a.rsvp for a in new_parent.attendees.all()}
     assert rsvps[me.id] == models.EventRSVPChoices.ACCEPTED
@@ -295,9 +325,152 @@ def test_edit_all_shifts_series_and_preserves_rsvp():
     assert preserved.rsvp == models.EventRSVPChoices.ACCEPTED
     # 其它场次仍是待应答。
     assert (
-        fresh[0].attendees.get(user=peer).rsvp
-        == models.EventRSVPChoices.NEEDS_ACTION
+        fresh[0].attendees.get(user=peer).rsvp == models.EventRSVPChoices.NEEDS_ACTION
     )
+
+
+def test_edit_all_preserves_handled_reminders_when_schedule_is_unchanged():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    parent = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=4")
+    materialize_recurrences(now=NOW)
+    handled_at = timezone.now()
+    old_states = {}
+    for child in parent.occurrences.all():
+        child.reminder_pushed_at = handled_at
+        child.reminder_outcome = "delivered"
+        child.save(update_fields=["reminder_pushed_at", "reminder_outcome"])
+        old_states[child.start_at] = handled_at
+
+    pivot = parent.occurrences.order_by("start_at").first()
+    client = APIClient()
+    client.force_login(me)
+    response = client.patch(
+        f"/api/v1.0/calendar-events/{pivot.id}/",
+        {"title": "Renamed", "edit_scope": "all"},
+        format="json",
+    )
+
+    assert response.status_code == 200, response.content
+    for child in parent.occurrences.all():
+        assert child.reminder_pushed_at == old_states[child.start_at]
+        assert child.reminder_outcome == "delivered"
+
+
+def test_edit_all_rearms_handled_occurrences_only_for_future_triggers():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    parent = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=4")
+    materialize_recurrences(now=NOW)
+    pivot = parent.occurrences.order_by("start_at").first()
+    handled_at = NOW - timedelta(minutes=1)
+    pivot.reminder_pushed_at = handled_at
+    pivot.reminder_outcome = "delivered"
+    pivot.save(update_fields=["reminder_pushed_at", "reminder_outcome"])
+
+    # Moving the selected occurrence to five minutes after NOW leaves its
+    # ten-minute reminder trigger in the past, so its handled state survives.
+    new_start = NOW + timedelta(minutes=5)
+    calendar_recurrence.edit_series_all(
+        parent,
+        pivot.start_at,
+        {
+            "start_at": new_start,
+            "end_at": new_start + timedelta(hours=1),
+        },
+        now=NOW,
+        schedule_changed=True,
+    )
+    moved = parent.occurrences.get(start_at=new_start)
+    assert moved.reminder_pushed_at == handled_at
+    assert moved.reminder_outcome == "delivered"
+
+    # Move the same occurrence back to a future trigger: handled state clears.
+    future_start = NOW + timedelta(hours=2)
+    calendar_recurrence.edit_series_all(
+        parent,
+        moved.start_at,
+        {
+            "start_at": future_start,
+            "end_at": future_start + timedelta(hours=1),
+        },
+        now=NOW,
+        schedule_changed=True,
+    )
+    moved = parent.occurrences.get(start_at=future_start)
+    assert moved.reminder_pushed_at is None
+    assert moved.reminder_outcome == ""
+
+
+def test_edit_following_preserves_reminder_states_without_schedule_change():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    parent = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=5")
+    materialize_recurrences(now=NOW)
+    pivot = parent.occurrences.order_by("start_at")[1]
+    handled_at = timezone.now()
+    affected = list(parent.occurrences.filter(start_at__gte=pivot.start_at))
+    for child in affected:
+        child.reminder_pushed_at = handled_at
+        child.reminder_outcome = "delivered"
+        child.save(update_fields=["reminder_pushed_at", "reminder_outcome"])
+
+    new_parent = calendar_recurrence.split_series(
+        pivot,
+        {"title": "New tail"},
+        now=NOW,
+    )
+
+    assert new_parent.reminder_pushed_at == handled_at
+    assert new_parent.reminder_outcome == "delivered"
+    assert new_parent.occurrences.count() == len(affected) - 1
+    assert all(
+        child.reminder_pushed_at == handled_at and child.reminder_outcome == "delivered"
+        for child in new_parent.occurrences.all()
+    )
+
+
+@pytest.mark.parametrize(
+    ("new_start", "expected_pushed"),
+    [
+        (NOW + timedelta(minutes=5), True),
+        (NOW + timedelta(hours=2), False),
+    ],
+)
+def test_edit_following_rearms_only_future_reminder_triggers(
+    new_start,
+    expected_pushed,
+):
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    parent = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=5")
+    materialize_recurrences(now=NOW)
+    pivot = parent.occurrences.order_by("start_at").first()
+    handled_at = NOW - timedelta(minutes=1)
+    pivot.reminder_pushed_at = handled_at
+    pivot.reminder_outcome = "delivered"
+    pivot.save(update_fields=["reminder_pushed_at", "reminder_outcome"])
+
+    new_parent = calendar_recurrence.split_series(
+        pivot,
+        {
+            "start_at": new_start,
+            "end_at": new_start + timedelta(hours=1),
+        },
+        schedule_changed=True,
+        now=NOW,
+    )
+
+    if expected_pushed:
+        assert new_parent.reminder_pushed_at == handled_at
+        assert new_parent.reminder_outcome == "delivered"
+    else:
+        assert new_parent.reminder_pushed_at is None
+        assert new_parent.reminder_outcome == ""
 
 
 def test_delete_following_truncates_series():
@@ -312,9 +485,7 @@ def test_delete_following_truncates_series():
 
     client = APIClient()
     client.force_login(me)
-    resp = client.delete(
-        f"/api/v1.0/calendar-events/{pivot_child.id}/?scope=following"
-    )
+    resp = client.delete(f"/api/v1.0/calendar-events/{pivot_child.id}/?scope=following")
     assert resp.status_code == 204, resp.content
 
     parent.refresh_from_db()
@@ -323,6 +494,72 @@ def test_delete_following_truncates_series():
     assert len(remaining) == 1
     assert remaining[0].start_at < pivot_child.start_at
     assert materialize_recurrences(now=NOW) == 0
+
+
+def test_delete_all_from_a_child_removes_the_whole_future_series():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    parent = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=5")
+    materialize_recurrences(now=NOW)
+    child = parent.occurrences.order_by("start_at").first()
+
+    client = APIClient()
+    client.force_login(me)
+    response = client.delete(f"/api/v1.0/calendar-events/{child.id}/?scope=all")
+
+    assert response.status_code == 204, response.content
+    assert not models.CalendarEvent.objects.filter(title="站会").exists()
+
+
+@pytest.mark.parametrize("scope", ["bogus", "following", "all"])
+def test_delete_rejects_invalid_or_inapplicable_scope(scope):
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    event = _make_parent(org, me, rrule="")
+    client = APIClient()
+    client.force_login(me)
+
+    response = client.delete(f"/api/v1.0/calendar-events/{event.id}/?scope={scope}")
+
+    assert response.status_code == 400
+    assert models.CalendarEvent.objects.filter(pk=event.pk).exists()
+
+
+@pytest.mark.parametrize("scope", ["one", "following"])
+def test_delete_parent_rejects_non_all_scope(scope):
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    parent = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=3")
+    client = APIClient()
+    client.force_login(me)
+
+    response = client.delete(f"/api/v1.0/calendar-events/{parent.id}/?scope={scope}")
+
+    assert response.status_code == 400
+    assert models.CalendarEvent.objects.filter(pk=parent.pk).exists()
+
+
+def test_recurring_event_rejects_explicit_attendee_changes():
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    peer = factories.UserFactory()
+    _membership(org, me)
+    _membership(org, peer)
+    parent = _make_parent(org, me, rrule="FREQ=DAILY;COUNT=3")
+    client = APIClient()
+    client.force_login(me)
+
+    response = client.patch(
+        f"/api/v1.0/calendar-events/{parent.id}/",
+        {"attendee_ids": [str(peer.id)]},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "attendee_ids" in response.json()
 
 
 def test_edit_all_from_parent_propagates_to_whole_series():
@@ -454,11 +691,11 @@ def test_freebusy_returns_merged_intervals_without_details():
         models.EventAttendee.objects.create(event=ev, user=attendee, rsvp=rsvp)
         return ev
 
-    _event("秘密评审", 2, 4, peer)            # 02-04
-    _event("重叠会", 3, 5, peer)              # 03-05 → 与上合并为 02-05
+    _event("秘密评审", 2, 4, peer)  # 02-04
+    _event("重叠会", 3, 5, peer)  # 03-05 → 与上合并为 02-05
     # P8-UX:首尾相接的两个日程不合并(否则群成员日历画成一个色块)。
-    _event("紧邻会A", 6, 7, peer)             # 06-07
-    _event("紧邻会B", 7, 8, peer)             # 07-08 → 保留边界,不并入上块
+    _event("紧邻会A", 6, 7, peer)  # 06-07
+    _event("紧邻会B", 7, 8, peer)  # 07-08 → 保留边界,不并入上块
     _event("已拒绝", 8, 9, peer, rsvp="declined")  # 不算忙
     _event("我的会", 10, 11, me)
 

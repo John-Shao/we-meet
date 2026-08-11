@@ -11,6 +11,7 @@ from rest_framework.test import APIClient
 
 from core import factories, models
 from core.services import calendar_im_notify
+from core.services.calendar_recurrence import materialize_recurrences
 
 pytestmark = pytest.mark.django_db
 
@@ -189,6 +190,101 @@ def test_event_without_cid_never_pushes(django_capture_on_commit_callbacks):
                 format="json",
             )
             client.delete(f"/api/v1.0/calendar-events/{body['id']}/")
+    push.assert_not_called()
+
+
+def _recurring_child(client, *, cid=CID):
+    body = _create(
+        client,
+        cid=cid,
+        recurrence="FREQ=DAILY;COUNT=4",
+        reminders=[10],
+    )
+    parent = models.CalendarEvent.objects.get(pk=body["id"])
+    materialize_recurrences(now=timezone.now())
+    return parent, parent.occurrences.order_by("start_at").first()
+
+
+@pytest.mark.parametrize("scope", ["one", "following", "all"])
+def test_recurring_time_change_pushes_one_range_aware_card(
+    scope,
+    django_capture_on_commit_callbacks,
+):
+    _, _, _, client = _setup()
+    _parent, child = _recurring_child(client)
+    old_start, old_end = child.start_at, child.end_at
+    new_start = old_start + timedelta(hours=2)
+    with mock.patch.object(calendar_im_notify, "push_card") as push:
+        with django_capture_on_commit_callbacks(execute=True):
+            response = client.patch(
+                f"/api/v1.0/calendar-events/{child.id}/",
+                {
+                    "start_at": new_start.isoformat(),
+                    "end_at": (new_start + timedelta(hours=1)).isoformat(),
+                    "edit_scope": scope,
+                },
+                format="json",
+            )
+
+    assert response.status_code == 200, response.content
+    assert push.call_count == 1
+    cid, card = push.call_args.args
+    assert cid == CID
+    assert card["kind"] == "time_changed"
+    assert card["recurrence_scope"] == scope
+    assert card["old_start"] == old_start.isoformat()
+    assert card["old_end"] == old_end.isoformat()
+    assert card["start"] == new_start.isoformat()
+
+
+@pytest.mark.parametrize("scope", ["one", "following", "all"])
+def test_recurring_delete_pushes_one_range_aware_card(
+    scope,
+    django_capture_on_commit_callbacks,
+):
+    _, _, _, client = _setup()
+    _parent, child = _recurring_child(client)
+    with mock.patch.object(calendar_im_notify, "push_card") as push:
+        with django_capture_on_commit_callbacks(execute=True):
+            response = client.delete(
+                f"/api/v1.0/calendar-events/{child.id}/?scope={scope}"
+            )
+
+    assert response.status_code == 204, response.content
+    assert push.call_count == 1
+    cid, card = push.call_args.args
+    assert cid == CID
+    assert card["kind"] == "cancelled"
+    assert card["recurrence_scope"] == scope
+    assert card["event_id"] == str(child.id)
+
+
+def test_recurring_title_change_and_unsourced_series_do_not_push(
+    django_capture_on_commit_callbacks,
+):
+    _, _, _, client = _setup()
+    _parent, sourced = _recurring_child(client)
+    _parent, unsourced = _recurring_child(client, cid=None)
+    with mock.patch.object(calendar_im_notify, "push_card") as push:
+        with django_capture_on_commit_callbacks(execute=True):
+            renamed = client.patch(
+                f"/api/v1.0/calendar-events/{sourced.id}/",
+                {"title": "Quiet rename", "edit_scope": "all"},
+                format="json",
+            )
+            moved_start = unsourced.start_at + timedelta(hours=1)
+            moved = client.patch(
+                f"/api/v1.0/calendar-events/{unsourced.id}/",
+                {
+                    "start_at": moved_start.isoformat(),
+                    "end_at": (moved_start + timedelta(hours=1)).isoformat(),
+                    "edit_scope": "one",
+                },
+                format="json",
+            )
+
+    assert renamed.status_code == 200, renamed.content
+    assert moved.status_code == 200, moved.content
     push.assert_not_called()
 
 

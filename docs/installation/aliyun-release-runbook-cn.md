@@ -67,6 +67,15 @@ kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input
 ```
 > 手动兜底要在**新后端 pod 就绪后**(pod 里已是含该迁移的新代码)执行 —— 所以兜底命令放在 rollout 之后。切勿在 `helm upgrade` 前用旧 pod 跑 migrate(旧代码没有该迁移文件)。
 
+### 日历 P1（迁移 0091）部署顺序
+
+按 **backend + `0091_calendar_recurrence_source_backfill` → frontend → Android** 发布。0091 只给来源为空、父事件来源非空的物化子场次补值，不覆盖非空来源；同时把已过触发点且未处理的提醒静默标记为已处理（outcome 留空），未来提醒保持待发送，因此迁移完成后不会集中补发迟到提醒。
+
+```bash
+kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | grep 0091
+# 期望: [X] 0091_calendar_recurrence_source_backfill
+```
+
 ---
 
 ## 已归档的实例:2026-07-02「假完成坑」三项(commit 29634218)

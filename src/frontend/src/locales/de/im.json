@@ -218,6 +218,11 @@
       "timeChanged": "Verschoben",
       "attendeesChanged": "Teilnehmer geändert",
       "cancelled": "Abgesagt",
+      "recurrenceScope": {
+        "one": "Nur dieser Termin",
+        "following": "Dieser und alle folgenden Termine",
+        "all": "Alle Termine"
+      },
       "gone": "Dieser Termin wurde abgesagt oder ist für dich nicht sichtbar"
     },
     "picker": {

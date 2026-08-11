@@ -2843,8 +2843,8 @@ class CalendarEvent(BaseModel):
     Distinct from Room: an event owns the schedule + attendees + RSVP +
     reminders, and *optionally* links a Room (the "join meeting" target, created
     alongside the event). ``room`` is SET_NULL so the room + its IM group outlive
-    the event. MVP is single-occurrence; ``recurrence`` / ``recurrence_parent``
-    are present but not yet expanded.
+    the event. Recurring parents store an RRULE and are expanded into
+    ``recurrence_parent`` child occurrences for per-occurrence RSVP/reminders.
     """
 
     organization = models.ForeignKey(
@@ -2933,9 +2933,9 @@ class CalendarEvent(BaseModel):
     recurrence_exdates = models.JSONField(
         _("recurrence exdates"), blank=True, default=list
     )
-    # P8:从 IM 会话日历抽屉创建时记录来源会话 cid;改时间/增删参会人/取消时
-    # 由 calendar_im_notify 向该会话推变更卡片。空 = 非会话来源,不推送。
-    # 刻意不校验有效性(建日程不依赖 jusi 可达);物化子场次不复制该字段。
+    # 从 IM 会话创建时记录经 roster 鉴权的来源 cid，之后不可重绑。重复
+    # 子场次及 following 拆分系列继承它；提醒和范围化变更/取消卡回到该会话。
+    # 空 = 非会话来源，只走客户端消息列表提醒，不发送 IM 消息。
     source_conversation_id = models.CharField(
         _("source conversation id"),
         max_length=64,

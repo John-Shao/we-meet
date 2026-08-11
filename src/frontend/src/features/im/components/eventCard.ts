@@ -17,6 +17,7 @@ export interface EventCardBody {
   organizer_name?: string
   old_start?: string
   old_end?: string
+  recurrence_scope?: 'one' | 'following' | 'all'
   /** 只随 kind=attendees_changed 出现,且为 0 时后端省略该键。 */
   added_count?: number
   removed_count?: number
@@ -43,6 +44,7 @@ const KINDS = new Set([
   'attendees_changed',
   'cancelled',
 ])
+const RECURRENCE_SCOPES = new Set(['one', 'following', 'all'])
 
 /** 宽容解析:缺 event_id → 不可点;kind 未知 → 按 created;整体坏 → null。 */
 export const parseEventCard = (raw: string): EventCardBody | null => {
@@ -65,6 +67,9 @@ export const parseEventCard = (raw: string): EventCardBody | null => {
         typeof o.organizer_name === 'string' ? o.organizer_name : undefined,
       old_start: typeof o.old_start === 'string' ? o.old_start : undefined,
       old_end: typeof o.old_end === 'string' ? o.old_end : undefined,
+      recurrence_scope: RECURRENCE_SCOPES.has(o.recurrence_scope as string)
+        ? (o.recurrence_scope as EventCardBody['recurrence_scope'])
+        : undefined,
       // 后端一直在发这两个键,而这里原本只声明了 added_count 且解析时漏拷,
       // removed_count 连类型都没有 —— 金标准 fixture 契约测试跑第一次就抓到了。
       added_count:

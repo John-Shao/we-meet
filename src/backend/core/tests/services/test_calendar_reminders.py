@@ -10,6 +10,7 @@ import pytest
 from core.factories import OrganizationFactory, RoomFactory, UserFactory
 from core.models import CalendarEvent, EventStatusChoices, MeetingConversation
 from core.services import calendar_im_notify
+from core.services.calendar_recurrence import materialize_parent
 from core.services.calendar_reminders import push_due_reminders
 from core.services.jusi_im import (
     JusiImBadResponseError,
@@ -243,3 +244,30 @@ def test_idempotency_and_window_gates(jusi_settings, mock_admin_client):
     assert mock_admin_client.post_message.call_count == 1
     due.refresh_from_db()
     assert due.reminder_pushed_at is not None
+
+
+def test_materialized_recurrence_occurrences_each_remind_once(
+    jusi_settings,
+    mock_admin_client,
+):
+    now = timezone.now()
+    parent = _make_event(start_at=now + timedelta(minutes=5), reminders=[10])
+    parent.recurrence = "FREQ=DAILY;COUNT=3"
+    parent.save(update_fields=["recurrence", "updated_at"])
+    materialize_parent(parent, now=now)
+    assert parent.occurrences.count() == 2
+    first_child = parent.occurrences.order_by("start_at").first()
+    assert first_child.source_conversation_id == parent.source_conversation_id
+
+    assert push_due_reminders(now=now) == 1
+    assert push_due_reminders(now=now) == 0
+
+    next_day = now + timedelta(days=1)
+    assert push_due_reminders(now=next_day) == 1
+    assert push_due_reminders(now=next_day) == 0
+    assert mock_admin_client.post_message.call_count == 2
+
+    parent.refresh_from_db()
+    first_child.refresh_from_db()
+    assert parent.reminder_outcome == "delivered"
+    assert first_child.reminder_outcome == "delivered"

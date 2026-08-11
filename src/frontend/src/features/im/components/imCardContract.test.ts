@@ -18,7 +18,7 @@ import { parseRichText, richTextPlain } from './richText'
  */
 const FIXTURE_DIR = path.resolve(
   __dirname,
-  '../../../../../backend/core/tests/fixtures/im_cards',
+  '../../../../../backend/core/tests/fixtures/im_cards'
 )
 
 const load = (name: string): string =>
@@ -55,8 +55,30 @@ describe('IM card golden fixtures', () => {
 
     it('parses a cancelled card', () => {
       expect(parseEventCard(load('event_card_cancelled'))?.kind).toBe(
-        'cancelled',
+        'cancelled'
       )
+    })
+
+    it('parses recurrence scopes from series change fixtures', () => {
+      expect(
+        parseEventCard(load('event_card_recurrence_time_changed'))
+          ?.recurrence_scope
+      ).toBe('following')
+      expect(
+        parseEventCard(load('event_card_recurrence_cancelled'))
+          ?.recurrence_scope
+      ).toBe('all')
+    })
+
+    it('ignores an unknown recurrence scope', () => {
+      expect(
+        parseEventCard(
+          JSON.stringify({
+            title: 'Series',
+            recurrence_scope: 'future-client-value',
+          })
+        )?.recurrence_scope
+      ).toBeUndefined()
     })
   })
 

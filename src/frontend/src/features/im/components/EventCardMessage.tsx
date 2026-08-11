@@ -97,6 +97,9 @@ export const EventCardMessage = ({
             t('calendar.card.allDay')
           )
         : null
+    const recurrenceScope = card.recurrence_scope
+      ? t(`calendar.card.recurrenceScope.${card.recurrence_scope}`)
+      : null
     const clickable = !!card.event_id && !!onOpen
 
     cardEl = (
@@ -164,6 +167,21 @@ export const EventCardMessage = ({
             </span>
           )}
         </span>
+        {recurrenceScope && (
+          <span
+            data-testid="im-msg-event-card-recurrence-scope"
+            className={css({
+              alignSelf: 'flex-start',
+              fontSize: '0.6875rem',
+              color: 'greyscale.600',
+              backgroundColor: 'greyscale.100',
+              borderRadius: '0.25rem',
+              paddingX: '0.375rem',
+            })}
+          >
+            {recurrenceScope}
+          </span>
+        )}
         {oldWhen && (
           <span
             className={css({
@@ -261,9 +279,7 @@ export const EventCardMessage = ({
           alignItems: isOwn ? 'flex-end' : 'flex-start',
         })}
       >
-        {!isOwn && showSender && (
-          <SenderLabel name={name} bot={senderBot} />
-        )}
+        {!isOwn && showSender && <SenderLabel name={name} bot={senderBot} />}
         {cardEl}
       </div>
       {/* 自己发的消息:右侧自己头像(与 MessageItem 常规气泡一致)。 */}

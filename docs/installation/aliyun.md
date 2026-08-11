@@ -458,7 +458,7 @@ kubectl -n meet get certificate
 
 ### 7.5 （可选）启用会前提醒 CronJob（P2 日历）
 
-P2 日历的**日程提醒**靠一个 k8s CronJob 每分钟扫描到期日程。仅带来源会话的日程会回到原会话发送：组织者仍在会话时以组织者身份发送，组织者退出后由「日程助手」补位；无来源会话的日程只出现在客户端消息列表的「日程提醒」入口，不建群、不直推。**默认关**（chart `backend.reminders.enabled: false`）——没用到日历的部署不会平白多起一个 CronJob。需要时打开（命令与 install-meet.sh 的 meet release 一致，多一个 `--set`）：
+P2 日历的**日程提醒**靠一个 k8s CronJob 每分钟扫描到期日程。仅带来源会话的日程（包括继承来源的重复子场次）会回到原会话发送：组织者仍在会话时以组织者身份发送，组织者退出后由「日程助手」补位；无来源会话的日程只出现在客户端消息列表的「日程提醒」入口，不建群、不直推。升级到重复提醒闭环前先应用 `0091_calendar_recurrence_source_backfill`；它会抑制已过触发点，避免迁移后集中补发。**默认关**（chart `backend.reminders.enabled: false`）——没用到日历的部署不会平白多起一个 CronJob。需要时打开（命令与 install-meet.sh 的 meet release 一致，多一个 `--set`）：
 
 ```bash
 helm upgrade --install meet ./src/helm/meet -n meet \

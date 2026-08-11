@@ -217,6 +217,11 @@
       "timeChanged": "Verzet",
       "attendeesChanged": "Deelnemers gewijzigd",
       "cancelled": "Geannuleerd",
+      "recurrenceScope": {
+        "one": "Alleen deze keer",
+        "following": "Deze en volgende keren",
+        "all": "Alle keren"
+      },
       "gone": "Deze afspraak is geannuleerd of niet zichtbaar voor jou"
     },
     "picker": {

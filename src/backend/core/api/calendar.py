@@ -1,11 +1,10 @@
 """Calendar / scheduling API (P2 — 日历/日程).
 
 CalendarEvent CRUD + RSVP, scoped to the caller's organization. Creating an
-event also provisions its join target — a Room owned by the organizer with the
+event can provision its join target — a Room owned by the organizer with the
 invitees as members, with ``scheduled_at`` set — and records EventAttendee rows.
-The room's IM group is left lazy (provisioned by ``/rooms/{id}/im/ensure-group``
-on first need / by the reminder job in P2-c), so event creation never depends on
-jusi-light-im being reachable.
+An optional source conversation is verified at create time, remains immutable,
+and is the only IM destination for reminders and change cards.
 """
 
 import uuid
@@ -596,7 +595,35 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             update_fields=["reminder_pushed_at", "reminder_outcome", "updated_at"]
         )
 
-    def update(self, request, *args, **kwargs):
+    @staticmethod
+    def _queue_recurring_time_change(  # noqa: PLR0913 - card window is explicit
+        event,
+        *,
+        recurrence_scope: str,
+        old_start,
+        old_end,
+        display_start,
+        display_end,
+    ) -> None:
+        """Emit one range-aware card for one recurring edit operation."""
+        if not event.source_conversation_id:
+            return
+        if (old_start, old_end) == (display_start, display_end):
+            return
+        event_id = event.id
+        transaction.on_commit(
+            lambda: calendar_im_notify.notify_event_change(
+                event_id,
+                "time_changed",
+                old_start=old_start,
+                old_end=old_end,
+                recurrence_scope=recurrence_scope,
+                display_start=display_start,
+                display_end=display_end,
+            )
+        )
+
+    def update(self, request, *args, **kwargs):  # noqa: PLR0915 - scope branches
         """PATCH/PUT;P2-M2 重复日程三选语义(body 里的 ``edit_scope``):
 
         - 子场次 + ``one``(缺省):只改该行,并在主事件记原时刻 exdate——
@@ -626,7 +653,19 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             self.perform_update(serializer)
             return Response(serializer.data)
 
+        if "attendee_ids" in (request.data or {}):
+            raise exceptions.ValidationError(
+                {"attendee_ids": ("attendees cannot be changed on recurring events")}
+            )
+
         data = dict(serializer.validated_data)
+        old_start, old_end = instance.start_at, instance.end_at
+        duration = old_end - old_start
+        display_start = data.get("start_at", old_start)
+        display_end = data.get(
+            "end_at",
+            display_start + duration if "start_at" in data else old_end,
+        )
         reminder_schedule_changed = "start_at" in data or "reminders" in data
         # 会议室在三选分支里单独处理:series 级用 skip(一场冲突不该让用户
         # 彻底改不动系列),单场 one 用调用方给的 policy(默认 strict)。
@@ -639,34 +678,68 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             data.pop(excluded, None)
 
         if parent is not None and scope == "following":
-            new_parent = calendar_recurrence.split_series(instance, data)
+            new_parent = calendar_recurrence.split_series(
+                instance,
+                data,
+                schedule_changed=reminder_schedule_changed,
+            )
             self._maybe_rearm_reminder(
                 new_parent, schedule_changed=reminder_schedule_changed
             )
             self._resync_series_room(new_parent, meeting_room)
+            self._queue_recurring_time_change(
+                new_parent,
+                recurrence_scope="following",
+                old_start=old_start,
+                old_end=old_end,
+                display_start=display_start,
+                display_end=display_end,
+            )
             return Response(self.get_serializer(new_parent).data)
 
         if parent is not None and scope == "all":
             updated = calendar_recurrence.edit_series_all(
-                parent, instance.start_at, data
+                parent,
+                instance.start_at,
+                data,
+                schedule_changed=reminder_schedule_changed,
             )
             self._maybe_rearm_reminder(
                 updated, schedule_changed=reminder_schedule_changed
             )
             self._sync_room(updated)
             self._resync_series_room(updated, meeting_room)
+            self._queue_recurring_time_change(
+                updated,
+                recurrence_scope="all",
+                old_start=old_start,
+                old_end=old_end,
+                display_start=display_start,
+                display_end=display_end,
+            )
             return Response(self.get_serializer(updated).data)
 
         if parent is None:
             # 主事件 = 系列锚点:任何 scope 都按「全部」处理。
             updated = calendar_recurrence.edit_series_all(
-                instance, instance.start_at, data
+                instance,
+                instance.start_at,
+                data,
+                schedule_changed=reminder_schedule_changed,
             )
             self._maybe_rearm_reminder(
                 updated, schedule_changed=reminder_schedule_changed
             )
             self._sync_room(updated)
             self._resync_series_room(updated, meeting_room)
+            self._queue_recurring_time_change(
+                updated,
+                recurrence_scope="all",
+                old_start=old_start,
+                old_end=old_end,
+                display_start=display_start,
+                display_end=display_end,
+            )
             return Response(self.get_serializer(updated).data)
 
         # 子场次缺省 / one:改行 + 主事件记原时刻 exdate。
@@ -691,6 +764,14 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     exdates.append(key)
                     parent.recurrence_exdates = exdates
                     parent.save(update_fields=["recurrence_exdates", "updated_at"])
+                self._queue_recurring_time_change(
+                    event,
+                    recurrence_scope="one",
+                    old_start=old_start,
+                    old_end=old_end,
+                    display_start=event.start_at,
+                    display_end=event.end_at,
+                )
         except IntegrityError as exc:
             # 撞 (recurrence_parent, start_at) 唯一索引 = 移到了别的场次槽位。
             raise exceptions.ValidationError(
@@ -704,8 +785,8 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
 
         参与者(P8 编辑增删):``attendee_ids`` 缺省(None)= 不动;传列表 =
         **全量同步** —— 列表内新面孔补建 attendee + room member,不在列表的
-        既有参与者删行并移出 room(组织者恒保留,不受列表影响)。重复日程的
-        三选路径在 update() 里已剔除 attendee_ids,不经此逻辑。
+        既有参与者删行并移出 room(组织者恒保留,不受列表影响)。重复日程
+        显式提交 attendee_ids 会在 update() 中返回 400,不经此逻辑。
 
         P8 变更推送(仅非重复日程走此路径):save 前快照 start/end + attendee
         集合 → 值差分 → ``transaction.on_commit`` 推 event-card。防噪规则:
@@ -797,40 +878,106 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     )
 
     def destroy(self, request, *args, **kwargs):
-        """DELETE;P2-M2 扩展 ``?scope=following``(仅子场次):系列在该场次
-        截断,该场次及之后全部删除。缺省走 M1 语义(perform_destroy)。"""
+        """Delete one occurrence, following occurrences, or the whole series."""
         instance = self.get_object()
-        if (
-            str(request.query_params.get("scope") or "") == "following"
-            and instance.recurrence_parent_id
-        ):
-            self._require_organizer(instance)
-            calendar_recurrence.delete_following(instance)
+        self._require_organizer(instance)
+        scope = str(request.query_params.get("scope") or "").strip()
+        if scope not in ("", "one", "following", "all"):
+            raise exceptions.ValidationError(
+                {"scope": "expected one | following | all"}
+            )
+
+        parent = instance.recurrence_parent
+        if parent is not None:
+            scope = scope or "one"
+            if scope == "following":
+                self._delete_following_with_notification(instance)
+            elif scope == "all":
+                self._delete_with_notification(
+                    parent,
+                    notification_event=instance,
+                    recurrence_scope="all",
+                )
+            else:
+                self._delete_with_notification(
+                    instance,
+                    recurrence_scope="one",
+                )
             return Response(status=drf_status.HTTP_204_NO_CONTENT)
-        return super().destroy(request, *args, **kwargs)
+
+        if instance.recurrence:
+            if scope not in ("", "all"):
+                raise exceptions.ValidationError(
+                    {"scope": "a recurring parent can only be deleted with all"}
+                )
+            self._delete_with_notification(instance, recurrence_scope="all")
+            return Response(status=drf_status.HTTP_204_NO_CONTENT)
+
+        if scope not in ("", "one"):
+            raise exceptions.ValidationError(
+                {"scope": "following and all require a recurring event"}
+            )
+        self._delete_with_notification(instance)
+        return Response(status=drf_status.HTTP_204_NO_CONTENT)
 
     def perform_destroy(self, instance):
-        """Organizer-only delete. The Room survives (FK is SET_NULL) so a
-        recording / in-progress call isn't yanked out from under attendees.
-
-        P2-M1 重复日程语义:
-        - 删**子场次**(recurrence_parent 非空)=「仅此次」:先在主事件
-          ``recurrence_exdates`` 记下该场次时刻(ISO-8601 UTC),防止下轮
-          物化重建,再删行。
-        - 删**主事件**(带 RRULE)= 删除整个系列:未来子场次(start_at 在
-          当前之后)一并删除;历史场次保留作记录。三选编辑语义是 M2 范畴。
-        """
+        """DRF hook retained for internal callers; HTTP DELETE uses destroy()."""
         self._require_organizer(instance)
-        # P8:取消卡快照必须在删除前组好(行与 attendees 马上级联消失);
-        # 子场次不携带 source_conversation_id(物化不复制)→ 天然不推。
-        # 组织者一并快照 —— 卡片以其 IM 身份发出(P8-UX 组织者气泡)。
-        cancel_cid = instance.source_conversation_id
+        recurrence_scope = (
+            "one"
+            if instance.recurrence_parent_id
+            else "all"
+            if instance.recurrence
+            else ""
+        )
+        self._delete_with_notification(
+            instance,
+            recurrence_scope=recurrence_scope,
+        )
+
+    @staticmethod
+    def _cancel_snapshot(event, recurrence_scope: str):
+        """Freeze a cancellation card before its event rows are deleted."""
+        cancel_cid = event.source_conversation_id
         cancel_card = (
-            calendar_im_notify.build_event_card(instance, "cancelled")
+            calendar_im_notify.build_event_card(
+                event,
+                "cancelled",
+                recurrence_scope=recurrence_scope,
+            )
             if cancel_cid
             else None
         )
-        cancel_organizer = instance.organizer if cancel_cid else None
+        cancel_organizer = event.organizer if cancel_cid else None
+        return cancel_cid, cancel_card, cancel_organizer
+
+    def _delete_following_with_notification(self, instance) -> None:
+        cancel_cid, cancel_card, cancel_organizer = self._cancel_snapshot(
+            instance, "following"
+        )
+        with transaction.atomic():
+            calendar_recurrence.delete_following(instance)
+            if cancel_card is not None:
+                transaction.on_commit(
+                    lambda: calendar_im_notify.push_card(
+                        cancel_cid,
+                        cancel_card,
+                        organizer=cancel_organizer,
+                    )
+                )
+
+    def _delete_with_notification(
+        self,
+        instance,
+        *,
+        recurrence_scope: str = "",
+        notification_event=None,
+    ) -> None:
+        """Delete with existing recurrence semantics and emit one card."""
+        card_event = notification_event or instance
+        cancel_cid, cancel_card, cancel_organizer = self._cancel_snapshot(
+            card_event, recurrence_scope
+        )
 
         with transaction.atomic():
             parent = instance.recurrence_parent

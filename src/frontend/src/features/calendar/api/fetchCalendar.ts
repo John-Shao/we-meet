@@ -74,7 +74,7 @@ export const updateCalendarEvent = (
  *  M1 语义(子场次仅此次 / 主事件删系列 / 单次直接删)。 */
 export const deleteCalendarEvent = (
   id: string,
-  scope?: 'following'
+  scope?: 'one' | 'following' | 'all'
 ): Promise<void> =>
   fetchApi(
     `/calendar-events/${encodeURIComponent(id)}/${scope ? `?scope=${scope}` : ''}`,

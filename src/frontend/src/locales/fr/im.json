@@ -217,6 +217,11 @@
       "timeChanged": "Reprogrammé",
       "attendeesChanged": "Participants modifiés",
       "cancelled": "Annulé",
+      "recurrenceScope": {
+        "one": "Uniquement cette occurrence",
+        "following": "Cette occurrence et les suivantes",
+        "all": "Toutes les occurrences"
+      },
       "gone": "Cet événement a été annulé ou ne vous est pas visible"
     },
     "picker": {

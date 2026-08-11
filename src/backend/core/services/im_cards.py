@@ -88,8 +88,10 @@ EVENT_KINDS = (
     EVENT_KIND_CANCELLED,
 )
 
+EVENT_RECURRENCE_SCOPES = ("one", "following", "all")
 
-def build_event_card(
+
+def build_event_card(  # noqa: PLR0913 - stable cross-client wire protocol
     *,
     event_id: str,
     title: str,
@@ -103,6 +105,7 @@ def build_event_card(
     old_end: str | None = None,
     added_count: int = 0,
     removed_count: int = 0,
+    recurrence_scope: str = "",
 ) -> dict[str, Any]:
     """Calendar event card (protocol v1).
 
@@ -122,13 +125,19 @@ def build_event_card(
     }
     # Optional keys are omitted rather than nulled: the clients branch on
     # presence, and a null would read as "changed to nothing".
-    if kind == EVENT_KIND_TIME_CHANGED and old_start is not None and old_end is not None:
+    if (
+        kind == EVENT_KIND_TIME_CHANGED
+        and old_start is not None
+        and old_end is not None
+    ):
         card["old_start"] = old_start
         card["old_end"] = old_end
     if kind == EVENT_KIND_ATTENDEES_CHANGED and added_count:
         card["added_count"] = added_count
     if kind == EVENT_KIND_ATTENDEES_CHANGED and removed_count:
         card["removed_count"] = removed_count
+    if recurrence_scope in EVENT_RECURRENCE_SCOPES:
+        card["recurrence_scope"] = recurrence_scope
     return card
 
 

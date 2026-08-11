@@ -2,17 +2,17 @@
 
 协议 v1(与 Web `eventCard.ts` / Android `MessageContent.EventCard` 一致):
 ``{v, kind, event_id, title, start, end, all_day, attendee_count,
-organizer_name, old_start?, old_end?, added_count?, removed_count?}``,
+organizer_name, old_start?, old_end?, added_count?, removed_count?,
+recurrence_scope?}``,
 content_type 固定 ``event-card``。
 
-P8-UX:卡片以**组织者身份**注入(sender_uid = 组织者 IM uid,优先
-``User.im_uid`` 缓存,缺则 issue_token 惰性注册并回填)——双端据 sender
-渲染成组织者的正常消息气泡;uid 解析失败退 SYSTEM(客户端渲染居中通知,
-降级可接受)。
+P8-UX:先以**组织者身份**严格发送；仅 ``sender_not_member`` 允许日程助手
+补位，助手失败再退 SYSTEM。网络/5xx 不冒充退群。双端从可选
+``recurrence_scope`` 渲染 one/following/all 范围标签。
 
 契约:**best-effort** —— 推送失败只记 warning,绝不影响日程操作本身
 (镜像 im.py `_post_system_message`);创建卡由客户端发,这里只发变更/取消。
-触发点收敛在 CalendarEventViewSet.perform_update / perform_destroy,经
+触发点收敛在 CalendarEventViewSet 的用户更新/删除路径,经
 ``transaction.on_commit`` 调用(事务回滚不推、不拖长 DB 事务)。
 """
 
@@ -78,6 +78,9 @@ def build_event_card(  # noqa: PLR0913 - mirrors the stable card protocol
     old_end=None,
     added_count: int = 0,
     removed_count: int = 0,
+    recurrence_scope: str = "",
+    display_start=None,
+    display_end=None,
 ) -> dict:
     """组协议 v1 卡片 dict。perform_destroy 在删除前调用留快照。
 
@@ -87,8 +90,8 @@ def build_event_card(  # noqa: PLR0913 - mirrors the stable card protocol
     return im_cards.build_event_card(
         event_id=str(event.id),
         title=event.title,
-        start=event.start_at.isoformat(),
-        end=event.end_at.isoformat(),
+        start=(display_start or event.start_at).isoformat(),
+        end=(display_end or event.end_at).isoformat(),
         kind=kind,
         all_day=bool(event.all_day),
         attendee_count=event.attendees.count(),
@@ -97,6 +100,7 @@ def build_event_card(  # noqa: PLR0913 - mirrors the stable card protocol
         old_end=old_end.isoformat() if old_end is not None else None,
         added_count=added_count,
         removed_count=removed_count,
+        recurrence_scope=recurrence_scope,
     )
 
 
@@ -260,6 +264,9 @@ def notify_event_change(  # noqa: PLR0913 - explicit event-card change fields
     old_end=None,
     added_count: int = 0,
     removed_count: int = 0,
+    recurrence_scope: str = "",
+    display_start=None,
+    display_end=None,
 ) -> None:
     """on_commit 后重取 event(闭包持旧对象会读到过期值)并推送。
 
@@ -283,6 +290,9 @@ def notify_event_change(  # noqa: PLR0913 - explicit event-card change fields
             old_end=old_end,
             added_count=added_count,
             removed_count=removed_count,
+            recurrence_scope=recurrence_scope,
+            display_start=display_start,
+            display_end=display_end,
         ),
         organizer=event.organizer,
     )

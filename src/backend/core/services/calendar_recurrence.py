@@ -3,8 +3,9 @@ docs/features/foundation_p0_p3.md §P2-D1).
 
 主事件行存 RRULE;本任务把未来 ``HORIZON_DAYS`` 天窗口内的发生(occurrence)
 物化为子事件行(``recurrence_parent`` 指回主事件,复制 title/attendees/
-reminders/room 关联)。收益:提醒扫描、RSVP、详情、IM 推送、前端渲染全部
-现有逻辑零改动,天然逐次生效。
+reminders/room/source_conversation_id 关联)。收益:提醒扫描、RSVP、详情、
+IM 推送、前端渲染全部按场次生效。系列重物化会按原槽位/平移后槽位恢复
+提醒幂等状态，只有仍在未来的新触发点才重新布置。
 
 展开按事件**创作时区**(``CalendarEvent.timezone``)的墙上钟进行,再换算回
 UTC 存储——跨 DST 的地区维持「每周三 10:00」语义(中国无 DST,不受影响)。
@@ -17,7 +18,8 @@ UTC 存储——跨 DST 的地区维持「每周三 10:00」语义(中国无 DST
 
 import logging
 import re
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -31,7 +33,7 @@ from core.models import (
     EventRSVPChoices,
     EventStatusChoices,
 )
-from core.services import meeting_room_booking
+from core.services import calendar_reminders, meeting_room_booking
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +63,7 @@ def materialize_recurrences(now=None, horizon_days: int = HORIZON_DAYS) -> int:
     for parent in parents:
         try:
             created_total += _materialize_one(parent, now, horizon)
-        except Exception:  # noqa: BLE001 — 单条坏 RRULE 不拖垮整批
+        except Exception:  # 单条坏 RRULE 不拖垮整批
             logger.exception(
                 "recurrence materialize failed for event %s (rrule=%r)",
                 parent.id,
@@ -106,7 +108,10 @@ def _materialize_one(parent, now, horizon) -> int:
             )
             break
         start_at = occ.replace(tzinfo=tz)  # ZoneInfo attach(fold 规则生效)
-        if start_at == parent.start_at:
+        # dateutil RRULE drops DTSTART microseconds. Compare at the protocol's
+        # second precision or a parent created with fractional seconds would
+        # be materialized again as a duplicate first occurrence.
+        if start_at.replace(microsecond=0) == parent.start_at.replace(microsecond=0):
             continue  # 主事件行本身就是首个发生
         if start_at.isoformat() in exdates or _iso_utc(start_at) in exdates:
             continue  # 「仅此次」删除过,永不重建
@@ -129,6 +134,7 @@ def _materialize_one(parent, now, horizon) -> int:
                     reminders=list(parent.reminders or []),
                     recurrence="",
                     recurrence_parent=parent,
+                    source_conversation_id=parent.source_conversation_id,
                 )
                 EventAttendee.objects.bulk_create(
                     [
@@ -244,7 +250,42 @@ def _shift_exdates(exdates, delta) -> list:
     return shifted
 
 
-def split_series(child, new_values) -> CalendarEvent:
+def _reminder_state(event):
+    """The reminder fields that must survive occurrence re-materialization."""
+    return event.reminder_pushed_at, event.reminder_outcome
+
+
+def _restore_reminder_state(
+    event,
+    state,
+    *,
+    schedule_changed: bool,
+    now,
+) -> None:
+    """Restore an occurrence's idempotency state under the P0 re-arm rule."""
+    if state is None:
+        return
+    pushed_at, outcome = state
+    if pushed_at is not None and schedule_changed:
+        trigger_at = calendar_reminders.reminder_trigger_at(
+            event.start_at, event.reminders
+        )
+        if trigger_at is not None and trigger_at > now:
+            pushed_at, outcome = None, ""
+    if event.reminder_pushed_at == pushed_at and event.reminder_outcome == outcome:
+        return
+    event.reminder_pushed_at = pushed_at
+    event.reminder_outcome = outcome
+    event.save(update_fields=["reminder_pushed_at", "reminder_outcome", "updated_at"])
+
+
+def split_series(
+    child,
+    new_values,
+    *,
+    schedule_changed: bool = False,
+    now=None,
+) -> CalendarEvent:
     """「此次及以后」:老主事件截断到该场次之前,新主事件从该场次接管后续。
 
     - 分界点 = 该子场次的**原**时刻;新主事件 start = 编辑后的时刻(整段后续
@@ -253,6 +294,7 @@ def split_series(child, new_values) -> CalendarEvent:
       分家,迁移侧随 delta 平移。参与人名册复制,RSVP 重置(组织者除外)。
     Returns the new parent.
     """
+    now = now or timezone.now()
     parent = child.recurrence_parent
     tz = parent.timezone
     pivot = child.start_at
@@ -266,6 +308,10 @@ def split_series(child, new_values) -> CalendarEvent:
     # 会议室随系列迁移到新主事件(读在删除之前,否则拿不到)。
     old_booking = meeting_room_booking.active_booking_for(parent)
     series_room = old_booking.room if old_booking is not None else None
+    reminder_snapshot = {
+        occurrence.start_at: _reminder_state(occurrence)
+        for occurrence in parent.occurrences.filter(start_at__gte=pivot)
+    }
 
     with transaction.atomic():
         keep, moved = [], []
@@ -280,9 +326,7 @@ def split_series(child, new_values) -> CalendarEvent:
 
         parent.recurrence = truncate_rrule_before(parent.recurrence, pivot_local)
         parent.recurrence_exdates = keep
-        parent.save(
-            update_fields=["recurrence", "recurrence_exdates", "updated_at"]
-        )
+        parent.save(update_fields=["recurrence", "recurrence_exdates", "updated_at"])
 
         new_parent = CalendarEvent.objects.create(
             organization=parent.organization,
@@ -299,6 +343,7 @@ def split_series(child, new_values) -> CalendarEvent:
             reminders=list(new_values.get("reminders", parent.reminders or [])),
             recurrence=new_rrule,
             recurrence_exdates=_shift_exdates(moved, delta),
+            source_conversation_id=parent.source_conversation_id,
         )
         _copy_attendees(parent, new_parent)
         parent.occurrences.filter(start_at__gte=pivot).delete()
@@ -311,11 +356,31 @@ def split_series(child, new_values) -> CalendarEvent:
                 policy=meeting_room_booking.SKIP,
                 booked_by=parent.organizer,
             )
-        materialize_parent(new_parent)
+        materialize_parent(new_parent, now=now)
+        _restore_reminder_state(
+            new_parent,
+            reminder_snapshot.get(pivot),
+            schedule_changed=schedule_changed,
+            now=now,
+        )
+        for occurrence in new_parent.occurrences.all():
+            _restore_reminder_state(
+                occurrence,
+                reminder_snapshot.get(occurrence.start_at - delta),
+                schedule_changed=schedule_changed,
+                now=now,
+            )
     return new_parent
 
 
-def edit_series_all(parent, pivot_old_start, new_values, now=None) -> CalendarEvent:
+def edit_series_all(
+    parent,
+    pivot_old_start,
+    new_values,
+    now=None,
+    *,
+    schedule_changed: bool = False,
+) -> CalendarEvent:
     """「全部」:标量字段传播全系列;时间按「该场次新旧时刻之差」平移整个系列。
 
     - 主事件 dtstart/exdates 随 delta 平移;未来窗口重物化,已 RSVP 状态按
@@ -342,20 +407,16 @@ def edit_series_all(parent, pivot_old_start, new_values, now=None) -> CalendarEv
             parent.reminders = list(new_values["reminders"] or [])
         parent.start_at = parent.start_at + delta
         parent.end_at = parent.start_at + duration
-        parent.recurrence_exdates = _shift_exdates(
-            parent.recurrence_exdates, delta
-        )
+        parent.recurrence_exdates = _shift_exdates(parent.recurrence_exdates, delta)
         parent.save()
 
         future = list(
-            parent.occurrences.filter(start_at__gte=now).prefetch_related(
-                "attendees"
-            )
+            parent.occurrences.filter(start_at__gte=now).prefetch_related("attendees")
         )
         snapshot = {
-            c.start_at: {a.user_id: a.rsvp for a in c.attendees.all()}
-            for c in future
+            c.start_at: {a.user_id: a.rsvp for a in c.attendees.all()} for c in future
         }
+        reminder_snapshot = {c.start_at: _reminder_state(c) for c in future}
         parent.occurrences.filter(start_at__gte=now).delete()
         # P9 会议室:未来子场次的 booking 刚随删除释放,主事件此刻才能安全平移
         # 到新时段;子场次的 booking 由下面的 materialize_parent 重建。
@@ -364,9 +425,7 @@ def edit_series_all(parent, pivot_old_start, new_values, now=None) -> CalendarEv
             parent, policy=meeting_room_booking.SKIP
         )
 
-        past_updates = {
-            f: new_values[f] for f in SCALAR_FIELDS if f in new_values
-        }
+        past_updates = {f: new_values[f] for f in SCALAR_FIELDS if f in new_values}
         if "reminders" in new_values:
             past_updates["reminders"] = list(new_values["reminders"] or [])
         if past_updates:
@@ -375,19 +434,26 @@ def edit_series_all(parent, pivot_old_start, new_values, now=None) -> CalendarEv
             parent.occurrences.update(updated_at=now, **past_updates)
 
         materialize_parent(parent, now=now)
-        if snapshot:
-            fresh = parent.occurrences.filter(
-                start_at__gte=now
-            ).prefetch_related("attendees")
+        if snapshot or reminder_snapshot:
+            fresh = list(
+                parent.occurrences.filter(start_at__gte=now).prefetch_related(
+                    "attendees"
+                )
+            )
             for child in fresh:
                 old_rsvps = snapshot.get(child.start_at - delta)
-                if not old_rsvps:
-                    continue
-                for att in child.attendees.all():
-                    want = old_rsvps.get(att.user_id)
-                    if want and want != att.rsvp:
-                        att.rsvp = want
-                        att.save(update_fields=["rsvp", "updated_at"])
+                if old_rsvps:
+                    for att in child.attendees.all():
+                        want = old_rsvps.get(att.user_id)
+                        if want and want != att.rsvp:
+                            att.rsvp = want
+                            att.save(update_fields=["rsvp", "updated_at"])
+                _restore_reminder_state(
+                    child,
+                    reminder_snapshot.get(child.start_at - delta),
+                    schedule_changed=schedule_changed,
+                    now=now,
+                )
     return parent
 
 
@@ -408,7 +474,5 @@ def delete_following(child) -> None:
         parent.recurrence_exdates = [
             s for s in (parent.recurrence_exdates or []) if _before_pivot(s)
         ]
-        parent.save(
-            update_fields=["recurrence", "recurrence_exdates", "updated_at"]
-        )
+        parent.save(update_fields=["recurrence", "recurrence_exdates", "updated_at"])
         parent.occurrences.filter(start_at__gte=pivot).delete()

@@ -332,10 +332,7 @@ const CalendarAuthenticated = () => {
   // 该场次及之后截断)。三选弹窗本身即确认,不再二次 confirm。
   const removeScoped = async (event: CalendarEvent, scope: EditScope) => {
     try {
-      await deleteCalendarEvent(
-        event.id,
-        scope === 'following' ? 'following' : undefined
-      )
+      await deleteCalendarEvent(event.id, scope)
       await invalidateCalendarData()
     } catch (e) {
       void showAlert({
@@ -659,7 +656,7 @@ const CalendarAuthenticated = () => {
           options={
             scopeAsk.mode === 'edit'
               ? ['one', 'following', 'all']
-              : ['one', 'following']
+              : ['one', 'following', 'all']
           }
           danger={scopeAsk.mode === 'delete'}
           onClose={() => setScopeAsk(null)}

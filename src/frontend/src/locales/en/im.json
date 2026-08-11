@@ -228,6 +228,11 @@
       "timeChanged": "Rescheduled",
       "attendeesChanged": "Attendees changed",
       "cancelled": "Cancelled",
+      "recurrenceScope": {
+        "one": "This occurrence only",
+        "following": "This and following occurrences",
+        "all": "All occurrences"
+      },
       "gone": "This event was cancelled or is not visible to you"
     },
     "picker": {
