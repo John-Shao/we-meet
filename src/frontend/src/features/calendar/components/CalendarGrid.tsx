@@ -25,6 +25,7 @@ import './calendarGridOverrides.css'
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import { resolveRbcView } from '../utils/rbcView'
+import { localGmtOffsetLabel } from '../utils/timeZone'
 import { isOutsideWorkingHours } from '../utils/workingHours'
 import { CalendarToolbar } from './CalendarToolbar'
 import { AgendaListView } from './AgendaListView'
@@ -236,6 +237,7 @@ export const CalendarGrid = ({
   }
   const [dateState, setDateState] = useState<Date>(() => new Date())
   const date = dateProp ?? dateState
+  const timeZoneLabel = useMemo(() => localGmtOffsetLabel(date), [date])
   const setDate = (d: Date) => {
     setDateState(d)
     onNavigate?.(d)
@@ -370,8 +372,12 @@ export const CalendarGrid = ({
         outsideEventCount={outsideEventCount}
       />
     )
+    const TimeGutterHeader = () => (
+      <span className="wm-time-zone-label">{timeZoneLabel}</span>
+    )
     return {
       toolbar: Toolbar,
+      timeGutterHeader: TimeGutterHeader,
       week: { header: weekHeader, event: TimeEvent },
       // work_week 复用周视图的表头/事件组件(仅列数收敛为 5)。
       work_week: { header: weekHeader, event: TimeEvent },
@@ -383,6 +389,7 @@ export const CalendarGrid = ({
     i18n.language,
     outsideEventCount,
     setCalendarTimeRangeMode,
+    timeZoneLabel,
   ])
 
   const messages = useMemo(
