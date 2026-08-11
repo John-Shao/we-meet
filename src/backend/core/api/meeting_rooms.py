@@ -473,6 +473,8 @@ class MeetingRoomViewSet(
         event = row.event
         organizer = event.organizer if event and event.organizer_id else row.booked_by
         is_private = False
+        can_manage = False
+        can_move = False
         title = row.title
         if event is not None:
             is_mine = event.organizer_id == user.id or event.id in visible_event_ids
@@ -480,12 +482,21 @@ class MeetingRoomViewSet(
                 event.visibility == models.EventVisibilityChoices.PRIVATE
                 and not is_mine
             )
+            can_manage = event.organizer_id == user.id
+            can_move = (
+                can_manage
+                and not event.recurrence
+                and event.recurrence_parent_id is None
+            )
             title = None if is_private else event.title
         else:
             is_mine = False
         return {
             "id": str(row.id),
-            "event_id": str(row.event_id) if row.event_id else None,
+            # A private outsider only gets an anonymous busy interval. Exposing
+            # the id would let the new clickable block bypass that privacy via
+            # the share-style calendar retrieve endpoint.
+            "event_id": str(row.event_id) if row.event_id and not is_private else None,
             "start": row.start_at.isoformat(),
             "end": row.end_at.isoformat(),
             "status": row.status,
@@ -493,6 +504,8 @@ class MeetingRoomViewSet(
             "title": title,
             "is_private": is_private,
             "is_mine": is_mine,
+            "can_manage": can_manage,
+            "can_move": can_move,
             "organizer": {
                 "id": str(organizer.id),
                 "full_name": organizer.full_name,

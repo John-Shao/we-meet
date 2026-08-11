@@ -95,6 +95,10 @@ export interface RoomBooking {
   title: string | null
   is_private: boolean
   is_mine: boolean
+  /** The caller organizes this event and may edit or delete it. */
+  can_manage: boolean
+  /** The caller may move/resize this non-recurring event. */
+  can_move: boolean
   organizer: {
     id: string
     full_name: string | null

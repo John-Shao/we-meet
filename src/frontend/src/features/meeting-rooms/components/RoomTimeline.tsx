@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
 import type {
   TimeRangeMode,
   WorkingHours,
@@ -11,7 +11,11 @@ import {
   workingWindowForDate,
 } from '@/features/calendar/utils/workingHours'
 
-import type { MeetingRoomBrief, RoomTimelineEntry } from '../api/ApiMeetingRoom'
+import type {
+  MeetingRoomBrief,
+  RoomBooking,
+  RoomTimelineEntry,
+} from '../api/ApiMeetingRoom'
 import { useNowTick } from '../hooks/useNowTick'
 import {
   addMinutes,
@@ -27,6 +31,13 @@ const DEFAULT_LABEL_WIDTH = 220
 const MIN_LABEL_WIDTH = 180
 const MAX_LABEL_WIDTH = 360
 const LABEL_WIDTH_KEY = 'meeting-rooms-label-width'
+
+type BookingPreview = {
+  booking: RoomBooking
+  roomId: string
+  start: Date
+  end: Date
+}
 
 const clampLabelWidth = (value: number) =>
   Math.min(MAX_LABEL_WIDTH, Math.max(MIN_LABEL_WIDTH, value))
@@ -63,6 +74,9 @@ export const RoomTimeline = ({
   selectedSlot,
   onSelectSlot,
   onSlotChange,
+  onClearSlot,
+  onOpenBooking,
+  onBookingChange,
 }: {
   rooms: RoomTimelineEntry[]
   dayStart: Date
@@ -76,12 +90,25 @@ export const RoomTimeline = ({
   onSelectSlot?: (room: MeetingRoomBrief, start: Date, end: Date) => void
   /** Move or resize the selected slot without opening the create dialog. */
   onSlotChange?: (room: MeetingRoomBrief, start: Date, end: Date) => void
+  onClearSlot?: () => void
+  /** Open the same event detail flow used by the calendar grid. */
+  onOpenBooking?: (booking: RoomBooking) => void
+  /** Persist a move, room change, or resize of an existing booking. */
+  onBookingChange?: (
+    booking: RoomBooking,
+    room: MeetingRoomBrief,
+    start: Date,
+    end: Date
+  ) => Promise<void>
 }) => {
   const { t } = useTranslation(['meeting-rooms', 'calendar'])
   const scrollRef = useRef<HTMLDivElement>(null)
   const suppressClickRef = useRef(false)
   const [viewportWidth, setViewportWidth] = useState(0)
   const [labelWidth, setLabelWidth] = useState(readLabelWidth)
+  const [bookingPreview, setBookingPreview] = useState<BookingPreview | null>(
+    null
+  )
 
   const isToday = new Date().toDateString() === dayStart.toDateString()
   const now = useNowTick(isToday)
@@ -273,6 +300,202 @@ export const RoomTimeline = ({
     window.addEventListener('pointerup', onUp)
   }
 
+  const commitBookingChange = async (
+    booking: RoomBooking,
+    room: MeetingRoomBrief,
+    start: Date,
+    end: Date
+  ) => {
+    if (!onBookingChange) return
+    setBookingPreview({ booking, roomId: room.id, start, end })
+    try {
+      await onBookingChange(booking, room, start, end)
+    } catch {
+      // The route owns error messaging. Clearing the preview restores the
+      // server-backed position after a conflict or network failure.
+    } finally {
+      setBookingPreview((current) =>
+        current?.booking.id === booking.id ? null : current
+      )
+    }
+  }
+
+  const beginBookingDrag = (
+    mode: 'move' | 'start' | 'end',
+    booking: RoomBooking,
+    sourceRoom: RoomTimelineEntry,
+    event: React.PointerEvent<HTMLDivElement>
+  ) => {
+    if (!booking.can_move || !onBookingChange || bookingPreview) return
+    event.preventDefault()
+    event.stopPropagation()
+    onClearSlot?.()
+
+    const originX = event.clientX
+    const originY = event.clientY
+    const originStart =
+      (new Date(booking.start).getTime() - dayStart.getTime()) / 60_000
+    const originEnd =
+      (new Date(booking.end).getTime() - dayStart.getTime()) / 60_000
+    const duration = originEnd - originStart
+    let moved = false
+    let targetRoom: MeetingRoomBrief = sourceRoom
+    let targetStart = originStart
+    let targetEnd = originEnd
+
+    const roomAt = (clientY: number) => {
+      if (mode !== 'move') return sourceRoom
+      return (
+        rooms.find((room) => {
+          const row = scrollRef.current?.querySelector<HTMLElement>(
+            `[data-room-row="${CSS.escape(room.id)}"]`
+          )
+          if (!row) return false
+          const bounds = row.getBoundingClientRect()
+          return clientY >= bounds.top && clientY <= bounds.bottom
+        }) ?? targetRoom
+      )
+    }
+
+    const onMove = (pointer: PointerEvent) => {
+      const dx = pointer.clientX - originX
+      const dy = pointer.clientY - originY
+      if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return
+      moved = true
+
+      const rawDelta = (dx / trackWidth) * totalMinutes
+      const delta =
+        Math.round(rawDelta / ROOM_TIMELINE_SNAP_MIN) * ROOM_TIMELINE_SNAP_MIN
+      targetStart = originStart
+      targetEnd = originEnd
+
+      if (mode === 'move') {
+        targetStart = Math.max(
+          0,
+          Math.min(originStart + delta, totalMinutes - duration)
+        )
+        targetEnd = targetStart + duration
+      } else if (mode === 'start') {
+        targetStart = Math.max(
+          0,
+          Math.min(originStart + delta, originEnd - ROOM_TIMELINE_SNAP_MIN)
+        )
+      } else {
+        targetEnd = Math.min(
+          totalMinutes,
+          Math.max(originEnd + delta, originStart + ROOM_TIMELINE_SNAP_MIN)
+        )
+      }
+
+      targetRoom = roomAt(pointer.clientY)
+      setBookingPreview({
+        booking,
+        roomId: targetRoom.id,
+        start: addMinutes(dayStart, targetStart),
+        end: addMinutes(dayStart, targetEnd),
+      })
+    }
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+
+      const changed =
+        targetRoom.id !== sourceRoom.id ||
+        targetStart !== originStart ||
+        targetEnd !== originEnd
+      if (moved) {
+        suppressClickRef.current = true
+        window.setTimeout(() => {
+          suppressClickRef.current = false
+        }, 0)
+      }
+      if (changed) {
+        void commitBookingChange(
+          booking,
+          targetRoom,
+          addMinutes(dayStart, targetStart),
+          addMinutes(dayStart, targetEnd)
+        )
+      } else {
+        setBookingPreview(null)
+      }
+    }
+
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = mode === 'move' ? 'move' : 'ew-resize'
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }
+
+  const handleBookingKeyDown = (
+    booking: RoomBooking,
+    room: RoomTimelineEntry,
+    canMove: boolean,
+    event: React.KeyboardEvent<HTMLDivElement>
+  ) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      if (!booking.event_id) return
+      event.preventDefault()
+      event.stopPropagation()
+      onClearSlot?.()
+      onOpenBooking?.(booking)
+      return
+    }
+    if (
+      !canMove ||
+      bookingPreview ||
+      !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
+    ) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    onClearSlot?.()
+
+    const roomIndex = rooms.findIndex((candidate) => candidate.id === room.id)
+    const targetRoom =
+      event.key === 'ArrowUp'
+        ? rooms[Math.max(0, roomIndex - 1)]
+        : event.key === 'ArrowDown'
+          ? rooms[Math.min(rooms.length - 1, roomIndex + 1)]
+          : room
+    let startMinute =
+      (new Date(booking.start).getTime() - dayStart.getTime()) / 60_000
+    let endMinute =
+      (new Date(booking.end).getTime() - dayStart.getTime()) / 60_000
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      const delta =
+        event.key === 'ArrowLeft'
+          ? -ROOM_TIMELINE_SNAP_MIN
+          : ROOM_TIMELINE_SNAP_MIN
+      if (event.shiftKey) {
+        endMinute = Math.max(
+          startMinute + ROOM_TIMELINE_SNAP_MIN,
+          Math.min(totalMinutes, endMinute + delta)
+        )
+      } else {
+        const duration = endMinute - startMinute
+        startMinute = Math.max(
+          0,
+          Math.min(totalMinutes - duration, startMinute + delta)
+        )
+        endMinute = startMinute + duration
+      }
+    }
+    void commitBookingChange(
+      booking,
+      targetRoom,
+      addMinutes(dayStart, startMinute),
+      addMinutes(dayStart, endMinute)
+    )
+  }
+
   const handleTrackKeyDown = (
     room: RoomTimelineEntry,
     event: React.KeyboardEvent<HTMLDivElement>
@@ -342,6 +565,24 @@ export const RoomTimeline = ({
       addMinutes(dayStart, startMinute),
       addMinutes(dayStart, endMinute)
     )
+  }
+
+  const bookingsForRoom = (room: RoomTimelineEntry): RoomBooking[] => {
+    if (!bookingPreview) return room.bookings
+    return [
+      ...room.bookings.filter(
+        (booking) => booking.id !== bookingPreview.booking.id
+      ),
+      ...(bookingPreview.roomId === room.id
+        ? [
+            {
+              ...bookingPreview.booking,
+              start: bookingPreview.start.toISOString(),
+              end: bookingPreview.end.toISOString(),
+            },
+          ]
+        : []),
+    ]
   }
 
   if (!isLoading && rooms.length === 0) {
@@ -515,9 +756,15 @@ export const RoomTimeline = ({
                     />
                   </div>
                 )}
-                {room.bookings.map((booking) => {
+                {bookingsForRoom(room).map((booking) => {
                   const bookingStart = new Date(booking.start)
                   const bookingEnd = new Date(booking.end)
+                  const canMove =
+                    booking.can_move &&
+                    !!onBookingChange &&
+                    !bookingPreview &&
+                    bookingStart >= dayStart &&
+                    bookingEnd <= dayEnd
                   const clipped = clipRangeToWindow(
                     bookingStart,
                     bookingEnd,
@@ -532,18 +779,68 @@ export const RoomTimeline = ({
                       title={`${timeLabel(booking.start)}–${timeLabel(booking.end)}${
                         booking.title ? ` · ${booking.title}` : ''
                       }`}
-                      className={booking.title ? eventBlockCls : busyBlockCls}
+                      className={cx(
+                        booking.title ? eventBlockCls : busyBlockCls,
+                        booking.event_id ? interactiveBlockCls : '',
+                        canMove ? movableBlockCls : ''
+                      )}
+                      role={booking.event_id ? 'button' : undefined}
+                      tabIndex={booking.event_id ? 0 : undefined}
+                      aria-label={
+                        booking.event_id
+                          ? `${booking.title ?? t('timeline.booked')}, ${timeLabel(booking.start)} - ${timeLabel(booking.end)}`
+                          : undefined
+                      }
+                      onPointerDown={
+                        canMove
+                          ? (event) =>
+                              beginBookingDrag('move', booking, room, event)
+                          : undefined
+                      }
+                      onKeyDown={(event) =>
+                        handleBookingKeyDown(booking, room, canMove, event)
+                      }
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        if (suppressClickRef.current) {
+                          suppressClickRef.current = false
+                          return
+                        }
+                        if (!booking.event_id) return
+                        onClearSlot?.()
+                        onOpenBooking?.(booking)
+                      }}
                       style={{
                         left: `${scale.pct(clipped.start)}%`,
                         width: `${scale.widthPct(clipped.start, clipped.end)}%`,
                       }}
                     >
+                      {canMove && (
+                        <div
+                          data-booking-handle
+                          aria-hidden="true"
+                          className={bookingHandleStartCls}
+                          onPointerDown={(event) =>
+                            beginBookingDrag('start', booking, room, event)
+                          }
+                        />
+                      )}
                       <span className={blockTimeCls}>
                         {timeLabel(booking.start)} – {timeLabel(booking.end)}
                       </span>
                       <span className={blockTitleCls}>
                         {booking.title ?? t('timeline.booked')}
                       </span>
+                      {canMove && (
+                        <div
+                          data-booking-handle
+                          aria-hidden="true"
+                          className={bookingHandleEndCls}
+                          onPointerDown={(event) =>
+                            beginBookingDrag('end', booking, room, event)
+                          }
+                        />
+                      )}
                     </div>
                   )
                 })}
@@ -721,6 +1018,20 @@ const eventBlockCls = css({
     color: 'primaryDark.700',
   },
 })
+const interactiveBlockCls = css({
+  cursor: 'pointer',
+  _focusVisible: {
+    outline: '2px solid token(colors.primary.500)',
+    outlineOffset: '1px',
+  },
+})
+const movableBlockCls = css({
+  cursor: 'move',
+  userSelect: 'none',
+  overflow: 'visible',
+  _hover: { '& [data-booking-handle]': { opacity: 1 } },
+  _focusVisible: { '& [data-booking-handle]': { opacity: 1 } },
+})
 const blockTimeCls = css({
   width: '100%',
   fontSize: '0.625rem',
@@ -784,6 +1095,19 @@ const draftHandleStartCls = css({
 })
 const draftHandleEndCls = css({
   ...draftHandleBase,
+  right: '-0.4375rem',
+})
+const bookingHandleBase = {
+  ...draftHandleBase,
+  opacity: 0,
+  transition: 'opacity 120ms ease',
+} as const
+const bookingHandleStartCls = css({
+  ...bookingHandleBase,
+  left: '-0.4375rem',
+})
+const bookingHandleEndCls = css({
+  ...bookingHandleBase,
   right: '-0.4375rem',
 })
 const nowLineCls = css({

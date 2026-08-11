@@ -338,6 +338,9 @@ def test_timeline_returns_bookings_with_organizer(org_user):
     # You always get to see who to go ask about that slot.
     assert booking["organizer"]["full_name"] == "Alice"
     assert booking["is_private"] is False
+    assert booking["event_id"] is not None
+    assert booking["can_manage"] is False
+    assert booking["can_move"] is False
 
 
 def test_timeline_hides_private_titles_from_outsiders(org_user):
@@ -365,6 +368,9 @@ def test_timeline_hides_private_titles_from_outsiders(org_user):
     booking = resp.json()["results"][0]["bookings"][0]
     assert booking["title"] is None
     assert booking["is_private"] is True
+    assert booking["event_id"] is None
+    assert booking["can_manage"] is False
+    assert booking["can_move"] is False
     # The slot and its owner stay visible — that is the point of the board.
     assert booking["organizer"]["full_name"] == "Alice"
     assert "Performance review" not in resp.content.decode()
@@ -393,6 +399,65 @@ def test_timeline_shows_private_titles_to_the_organizer(org_user):
     booking = resp.json()["results"][0]["bookings"][0]
     assert booking["title"] == "My private block"
     assert booking["is_mine"] is True
+    assert booking["event_id"] is not None
+    assert booking["can_manage"] is True
+    assert booking["can_move"] is True
+
+
+def test_timeline_keeps_private_events_openable_for_attendees(org_user):
+    org, user = org_user
+    room = factories.MeetingRoomFactory(organization=org)
+    organizer = factories.UserFactory(full_name="Alice")
+    _membership(org, organizer)
+    event = _hold(
+        org,
+        room,
+        organizer,
+        _at(10),
+        _at(11),
+        title="Invited review",
+        visibility=models.EventVisibilityChoices.PRIVATE,
+    )
+    models.EventAttendee.objects.create(event=event, user=user)
+
+    resp = _client(user).get(
+        _url(
+            "/api/v1.0/meeting-rooms/timeline/",
+            start=_at(0).isoformat(),
+            end=_at(0, days=2).isoformat(),
+        )
+    )
+    booking = resp.json()["results"][0]["bookings"][0]
+    assert booking["title"] == "Invited review"
+    assert booking["event_id"] == str(event.id)
+    assert booking["is_mine"] is True
+    assert booking["can_manage"] is False
+    assert booking["can_move"] is False
+
+
+def test_timeline_does_not_offer_direct_move_for_recurring_events(org_user):
+    org, user = org_user
+    room = factories.MeetingRoomFactory(organization=org)
+    _hold(
+        org,
+        room,
+        user,
+        _at(10),
+        _at(11),
+        title="Daily sync",
+        recurrence="FREQ=DAILY",
+    )
+
+    resp = _client(user).get(
+        _url(
+            "/api/v1.0/meeting-rooms/timeline/",
+            start=_at(0).isoformat(),
+            end=_at(0, days=2).isoformat(),
+        )
+    )
+    booking = resp.json()["results"][0]["bookings"][0]
+    assert booking["can_manage"] is True
+    assert booking["can_move"] is False
 
 
 def test_timeline_by_node_and_date_uses_the_node_timezone(org_user):

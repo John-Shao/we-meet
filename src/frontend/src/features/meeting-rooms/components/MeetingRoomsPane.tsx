@@ -9,8 +9,11 @@ import {
   workingWindowForDate,
 } from '@/features/calendar/utils/workingHours'
 
-import type { RoomFilters } from '../api/ApiMeetingRoom'
-import type { MeetingRoomBrief } from '../api/ApiMeetingRoom'
+import type {
+  MeetingRoomBrief,
+  RoomBooking,
+  RoomFilters,
+} from '../api/ApiMeetingRoom'
 import { fetchMeetingRoomTimeline } from '../api/fetchMeetingRooms'
 import { dayWindow } from '../utils/timelineScale'
 import { MeetingRoomFilters } from './MeetingRoomFilters'
@@ -29,12 +32,21 @@ export const MeetingRoomsPane = ({
   onSelectSlot,
   onSlotChange,
   onClearSlot,
+  onOpenBooking,
+  onBookingChange,
 }: {
   date: Date
   selectedSlot?: { roomId: string; start: Date; end: Date } | null
   onSelectSlot?: (room: MeetingRoomBrief, start: Date, end: Date) => void
   onSlotChange?: (room: MeetingRoomBrief, start: Date, end: Date) => void
   onClearSlot?: () => void
+  onOpenBooking?: (booking: RoomBooking) => void
+  onBookingChange?: (
+    booking: RoomBooking,
+    room: MeetingRoomBrief,
+    start: Date,
+    end: Date
+  ) => Promise<void>
 }) => {
   const { t } = useTranslation('meeting-rooms')
   const [filters, setFilters] = useState<RoomFilters>({})
@@ -175,6 +187,9 @@ export const MeetingRoomsPane = ({
           selectedSlot={selectedSlot}
           onSelectSlot={onSelectSlot}
           onSlotChange={onSlotChange}
+          onClearSlot={onClearSlot}
+          onOpenBooking={onOpenBooking}
+          onBookingChange={onBookingChange}
         />
       )}
     </div>

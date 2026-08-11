@@ -26,8 +26,7 @@ import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingSummary } from '@/features/meetings/api/fetchMeeting'
-import { compactRoomPathLabel } from '@/features/meeting-rooms/utils/roomHierarchy'
-import { roomIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
+import { roomBuildingIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
 
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import {
@@ -71,7 +70,7 @@ export const EventDetailDialog = ({
   onDelete,
   onShare,
 }: Props) => {
-  const { t, i18n } = useTranslation('calendar')
+  const { t, i18n } = useTranslation(['calendar', 'meeting-rooms'])
   const { user } = useUser()
   const [rsvp, setRsvp] = useState<RSVPStatus | null>(event.my_rsvp ?? null)
   // 会议号/链接的「已复制」瞬时态。
@@ -277,10 +276,14 @@ export const EventDetailDialog = ({
         {event.meeting_room && (
           <InfoRow icon={RiBuilding2Line} testId="detail-meeting-room">
             <span className={bodyTextCls}>
-              {roomIdentifier(event.meeting_room)}
-              {event.meeting_room.path_label
-                ? ` · ${compactRoomPathLabel(event.meeting_room.path_label)}`
-                : ''}
+              {roomBuildingIdentifier(
+                event.meeting_room.node.name,
+                event.meeting_room
+              )}{' '}
+              ·{' '}
+              {t('meeting-rooms:unit.people', {
+                count: event.meeting_room.capacity,
+              })}
               {event.meeting_room.booking_status === 'conflict' && (
                 <span className={css({ color: 'danger.600' })}>
                   {' '}

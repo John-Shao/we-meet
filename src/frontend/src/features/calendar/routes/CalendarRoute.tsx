@@ -22,6 +22,7 @@ import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
 import {
+  fetchCalendarEvent,
   fetchCalendarEvents,
   rsvpCalendarEvent,
   deleteCalendarEvent,
@@ -37,7 +38,7 @@ import {
   type CalendarPageTab,
 } from '../components/CalendarPageTabs'
 import { MeetingRoomsPane } from '@/features/meeting-rooms'
-import type { MeetingRoomBrief } from '@/features/meeting-rooms'
+import type { MeetingRoomBrief, RoomBooking } from '@/features/meeting-rooms'
 import type { View } from 'react-big-calendar'
 import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EditScopeDialog } from '../components/EditScopeDialog'
@@ -192,6 +193,12 @@ const CalendarAuthenticated = () => {
     enabled: tab === 'calendar',
   })
 
+  const invalidateCalendarData = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: EVENTS_KEY }),
+      qc.invalidateQueries({ queryKey: ['meeting-rooms'] }),
+    ])
+
   /**
    * 整块拖动已建日程 = 改期:只 PATCH 起止(其余字段不动 —— 后端 partial
    * 缺省即不改标题/参与者/会议室),乐观改本地缓存,失败回滚 + 提示。
@@ -206,7 +213,7 @@ const CalendarAuthenticated = () => {
     )
     try {
       await updateCalendarEvent(event.id, times)
-      await qc.invalidateQueries({ queryKey: EVENTS_KEY })
+      await invalidateCalendarData()
     } catch (e) {
       // 无权限/网络/会议室被占:一律退回拖动前的时间。
       if (before) qc.setQueryData(key, before)
@@ -226,6 +233,49 @@ const CalendarAuthenticated = () => {
     event.organizer?.id === user.id &&
     !event.recurrence &&
     !event.recurrence_parent
+
+  const openMeetingRoomBooking = async (booking: RoomBooking) => {
+    const eventId = booking.event_id
+    if (!eventId) return
+    setMeetingRoomDraft(null)
+    setDraft(null)
+    try {
+      const event = await qc.fetchQuery({
+        queryKey: ['calendar', 'event', eventId],
+        queryFn: () => fetchCalendarEvent(eventId),
+        staleTime: 15_000,
+      })
+      setDetailEvent(event)
+    } catch (e) {
+      void showAlert({
+        message: t('form.error', { message: apiErrorMessage(e) }),
+      })
+    }
+  }
+
+  const moveMeetingRoomBooking = async (
+    booking: RoomBooking,
+    room: MeetingRoomBrief,
+    start: Date,
+    end: Date
+  ) => {
+    if (!booking.event_id) return
+    try {
+      await updateCalendarEvent(booking.event_id, {
+        start_at: start.toISOString(),
+        end_at: end.toISOString(),
+        meeting_room_id: room.id,
+      })
+      await invalidateCalendarData()
+    } catch (e) {
+      void showAlert({
+        message: isRoomConflict(e)
+          ? t('grid.moveRoomConflict')
+          : t('form.error', { message: apiErrorMessage(e) }),
+      })
+      throw e
+    }
+  }
 
   useEffect(() => {
     if (!pendingEventId || isLoading) return
@@ -252,7 +302,7 @@ const CalendarAuthenticated = () => {
   const setRsvp = async (event: CalendarEvent, status: RSVPStatus) => {
     try {
       await rsvpCalendarEvent(event.id, status)
-      await qc.invalidateQueries({ queryKey: EVENTS_KEY })
+      await invalidateCalendarData()
     } catch (e) {
       void showAlert({
         message: t('form.error', { message: apiErrorMessage(e) }),
@@ -270,7 +320,7 @@ const CalendarAuthenticated = () => {
     try {
       await deleteCalendarEvent(event.id)
       setDetailEvent(null)
-      await qc.invalidateQueries({ queryKey: EVENTS_KEY })
+      await invalidateCalendarData()
     } catch (e) {
       void showAlert({
         message: t('form.error', { message: apiErrorMessage(e) }),
@@ -286,7 +336,7 @@ const CalendarAuthenticated = () => {
         event.id,
         scope === 'following' ? 'following' : undefined
       )
-      await qc.invalidateQueries({ queryKey: EVENTS_KEY })
+      await invalidateCalendarData()
     } catch (e) {
       void showAlert({
         message: t('form.error', { message: apiErrorMessage(e) }),
@@ -479,6 +529,10 @@ const CalendarAuthenticated = () => {
                   allDay: false,
                 })
               }}
+              onOpenBooking={(booking) => {
+                void openMeetingRoomBooking(booking)
+              }}
+              onBookingChange={moveMeetingRoomBooking}
             />
           ) : isLoading ? (
             <StateHint loading>{t('page.loading')}</StateHint>
@@ -576,7 +630,7 @@ const CalendarAuthenticated = () => {
           onClose={closeCreate}
           onCreated={() => {
             closeCreate()
-            void qc.invalidateQueries({ queryKey: EVENTS_KEY })
+            void invalidateCalendarData()
           }}
         />
       )}
@@ -592,7 +646,7 @@ const CalendarAuthenticated = () => {
           onCreated={() => {
             setEditEvent(null)
             setEditScope(undefined)
-            void qc.invalidateQueries({ queryKey: EVENTS_KEY })
+            void invalidateCalendarData()
           }}
         />
       )}
