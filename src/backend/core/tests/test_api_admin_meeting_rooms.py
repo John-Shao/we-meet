@@ -14,6 +14,7 @@ pytestmark = pytest.mark.django_db
 NODES = "/api/v1.0/admin/meeting-room-nodes/"
 ROOMS = "/api/v1.0/admin/meeting-rooms/"
 FACILITIES = "/api/v1.0/admin/meeting-room-facilities/"
+BOOKINGS = "/api/v1.0/admin/meeting-room-bookings/"
 
 
 def _membership(org, user, role=models.OrgRoleChoices.MEMBER):
@@ -343,6 +344,28 @@ def test_deleting_a_room_is_soft_and_keeps_existing_bookings(admin_org):
     assert room.deleted_at is not None
     # The meeting on someone's calendar is not yanked out from under them.
     assert models.MeetingRoomBooking.objects.filter(id=booking.id).exists()
+
+
+def test_booking_ledger_returns_room_code_when_name_is_empty(admin_org):
+    org, admin = admin_org
+    room = factories.MeetingRoomFactory(organization=org, code="R1208", name="")
+    event = factories.CalendarEventFactory(organization=org, organizer=admin)
+    models.MeetingRoomBooking.objects.create(
+        organization=org,
+        room=room,
+        event=event,
+        start_at=event.start_at,
+        end_at=event.end_at,
+    )
+
+    response = _client(admin).get(BOOKINGS)
+
+    assert response.status_code == 200
+    assert response.json()["results"][0]["room"] == {
+        "id": str(room.id),
+        "code": "R1208",
+        "name": "",
+    }
 
 
 def test_legacy_hierarchy_migration_retires_without_deleting_bookings(admin_org):

@@ -3,28 +3,38 @@
 from django.db import migrations, models
 
 
+def unique_room_code(existing_code, name, room_id, used_codes):
+    base = (existing_code or "").strip() or (name or "").strip()
+    if not base:
+        base = f"ROOM-{str(room_id)[:8].upper()}"
+    base = base[:64]
+
+    candidate = base
+    suffix_number = 2
+    while candidate in used_codes:
+        suffix = f"-{suffix_number}"
+        candidate = f"{base[: 64 - len(suffix)]}{suffix}"
+        suffix_number += 1
+    return candidate
+
+
 def fill_missing_room_codes(apps, schema_editor):
     MeetingRoom = apps.get_model("core", "MeetingRoom")
     used_codes_by_node = {}
 
-    for room in MeetingRoom.objects.order_by("node_id", "created_at", "id"):
-        used_codes = used_codes_by_node.setdefault(room.node_id, set())
-        existing_code = (room.code or "").strip()
-        base = existing_code or (room.name or "").strip()
-        if not base:
-            base = f"ROOM-{str(room.id)[:8].upper()}"
-        base = base[:64]
-
-        candidate = base
-        suffix_number = 2
-        while candidate in used_codes:
-            suffix = f"-{suffix_number}"
-            candidate = f"{base[: 64 - len(suffix)]}{suffix}"
-            suffix_number += 1
-
-        used_codes.add(candidate)
-        if room.code != candidate:
-            MeetingRoom.objects.filter(pk=room.pk).update(code=candidate)
+    # Preserve active-room identifiers first. Deleted rows still need a non-blank
+    # code for the new check constraint, but must never force an active room to
+    # acquire a synthetic suffix merely because an old deleted row used it.
+    for deleted in (False, True):
+        rooms = MeetingRoom.objects.filter(deleted_at__isnull=not deleted).order_by(
+            "node_id", "created_at", "id"
+        )
+        for room in rooms:
+            used_codes = used_codes_by_node.setdefault(room.node_id, set())
+            candidate = unique_room_code(room.code, room.name, room.id, used_codes)
+            used_codes.add(candidate)
+            if room.code != candidate:
+                MeetingRoom.objects.filter(pk=room.pk).update(code=candidate)
 
 
 class Migration(migrations.Migration):

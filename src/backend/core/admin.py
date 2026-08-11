@@ -984,7 +984,7 @@ class MeetingRoomBookingAdmin(admin.ModelAdmin):
 
     list_display = ("room", "start_at", "end_at", "status", "source", "booked_by")
     list_filter = ("status", "source", "organization")
-    search_fields = ("=id", "room__name", "title")
+    search_fields = ("=id", "room__code", "room__name", "title")
     date_hierarchy = "start_at"
     readonly_fields = (
         "id",

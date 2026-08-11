@@ -724,7 +724,11 @@ class MeetingRoomBookingAdminViewSet(mixins.ListModelMixin, _OrgScopedAdminViewS
         data = [
             {
                 "id": str(row.id),
-                "room": {"id": str(row.room_id), "name": row.room.name},
+                "room": {
+                    "id": str(row.room_id),
+                    "code": row.room.code,
+                    "name": row.room.name,
+                },
                 "event_id": str(row.event_id) if row.event_id else None,
                 "title": row.event.title if row.event_id else row.title,
                 "start": row.start_at.isoformat(),

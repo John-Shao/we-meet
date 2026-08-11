@@ -26,6 +26,7 @@ import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingSummary } from '@/features/meetings/api/fetchMeeting'
+import { compactRoomPathLabel } from '@/features/meeting-rooms/utils/roomHierarchy'
 import { roomIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
 
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
@@ -278,7 +279,7 @@ export const EventDetailDialog = ({
             <span className={bodyTextCls}>
               {roomIdentifier(event.meeting_room)}
               {event.meeting_room.path_label
-                ? ` · ${event.meeting_room.path_label}`
+                ? ` · ${compactRoomPathLabel(event.meeting_room.path_label)}`
                 : ''}
               {event.meeting_room.booking_status === 'conflict' && (
                 <span className={css({ color: 'danger.600' })}>

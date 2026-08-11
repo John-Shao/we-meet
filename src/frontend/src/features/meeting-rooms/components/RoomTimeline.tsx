@@ -419,7 +419,10 @@ export const RoomTimeline = ({
               data-testid={`mr-timeline-row-${room.id}`}
             >
               <div className={labelCellCls} style={{ width: labelWidth }}>
-                <span className={roomNameCls} title={roomIdentifier(room)}>
+                <span
+                  className={roomIdentifierCls}
+                  title={roomIdentifier(room)}
+                >
                   {roomIdentifier(room)}
                 </span>
                 <span
@@ -644,7 +647,7 @@ const labelCellCls = css({
   backgroundColor: 'greyscale.000',
   borderRight: '1px solid token(colors.greyscale.200)',
 })
-const roomNameCls = css({
+const roomIdentifierCls = css({
   fontSize: '0.8125rem',
   color: 'greyscale.900',
   overflow: 'hidden',

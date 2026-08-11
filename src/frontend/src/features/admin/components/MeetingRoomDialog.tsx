@@ -117,10 +117,8 @@ export const MeetingRoomDialog = ({
     })
   }
 
-  // 飞书的「自动拼接会议室名称」:名字重复(每层楼都有 401)时,这行是唯一能
-  // 分辨的东西 —— 与其让人建完再去表格里核对,不如在提交前就显示出来。
-  // 复用 C 端那份带测试的路径拼接:`path` 里的 id 不带连字符,自己再写一遍
-  // 迟早会踩到那个坑。
+  // 提交前预览完整会议室标识，避免不同楼栋的同号会议室混淆。
+  // 复用 C 端带测试的路径拼接，避免重复解析不带连字符的 path id。
   const fullLabel = [
     nodeId ? pathLabelOf(nodes, nodeId) : '',
     trimmedFloor,

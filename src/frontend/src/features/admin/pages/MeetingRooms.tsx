@@ -256,8 +256,8 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
           onClick={() => navigate(`/meeting-rooms/${room.id}`)}
           data-testid={`admin-mr-open-${room.id}`}
         >
-          <span className={roomNameCls}>{roomIdentifier(room)}</span>
-          {/* 飞书同款:名称下压一行完整路径,免得两个「401」分不清是哪栋楼的。 */}
+          <span className={roomIdentifierCls}>{roomIdentifier(room)}</span>
+          {/* 编号下方补充完整路径，避免不同楼栋的同号会议室混淆。 */}
           <span className={roomPathCls}>{room.path_label}</span>
         </button>
       ),
@@ -729,7 +729,7 @@ const roomLinkCls = css({
   cursor: 'pointer',
   minWidth: 0,
 })
-const roomNameCls = css({
+const roomIdentifierCls = css({
   display: 'block',
   fontWeight: 'medium',
   color: 'primary.700',
