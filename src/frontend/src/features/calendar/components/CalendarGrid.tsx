@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Calendar,
@@ -26,7 +26,7 @@ import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import { resolveRbcView } from '../utils/rbcView'
 import { localGmtOffsetLabel } from '../utils/timeZone'
-import { isOutsideWorkingHours } from '../utils/workingHours'
+import { formatMinutes, isOutsideWorkingHours } from '../utils/workingHours'
 import { CalendarToolbar } from './CalendarToolbar'
 import { AgendaListView } from './AgendaListView'
 
@@ -268,6 +268,9 @@ export const CalendarGrid = ({
     }
     return { min, max }
   }, [calendarTimeRangeMode, workingHours])
+  const timeRangeEndLabel = formatMinutes(
+    calendarTimeRangeMode === 'work' ? workingHours.endMin : 24 * 60
+  )
 
   useEffect(() => {
     if (
@@ -327,12 +330,7 @@ export const CalendarGrid = ({
     () => ({
       // 日视图标题对齐飞书:「2026年7月22日 星期三」(PPP 随 culture 本地化)。
       dayHeaderFormat: 'PPP EEEE',
-      // Place hour labels on their grid line; midnight sits against the clipped top edge,
-      // so omit only 00:00 while retaining other visible range starts.
-      timeGutterFormat: (value: Date) =>
-        value.getHours() === 0 && value.getMinutes() === 0
-          ? ''
-          : format(value, 'HH:mm'),
+      timeGutterFormat: 'HH:mm',
       selectRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
         `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
       eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
@@ -561,7 +559,12 @@ export const CalendarGrid = ({
         }
         select?.({ start, end, allDay: false })
       }}
-      style={{ height: '100%' }}
+      style={
+        {
+          height: '100%',
+          '--wm-time-range-end-label': `"${timeRangeEndLabel}"`,
+        } as CSSProperties
+      }
     />
   )
 }

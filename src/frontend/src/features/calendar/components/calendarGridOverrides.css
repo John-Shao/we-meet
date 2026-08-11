@@ -407,22 +407,53 @@
 .rbc-timeslot-group {
   border-bottom-color: var(--colors-greyscale-100);
 }
+.rbc-time-gutter .rbc-timeslot-group {
+  border-bottom: none;
+}
+.rbc-time-view .rbc-time-content {
+  border-top: none;
+  padding-block: 0.3125rem;
+}
+.rbc-time-view .rbc-time-content > .rbc-day-slot {
+  border-top: 1px solid var(--colors-greyscale-100);
+}
 .rbc-day-slot .rbc-time-slot,
 .rbc-time-gutter .rbc-time-slot {
   border-top: none;
 }
-.rbc-time-view .rbc-time-gutter .rbc-label {
+.rbc-time-view .rbc-time-gutter .rbc-time-slot:first-child {
   position: relative;
+  overflow: visible;
+}
+.rbc-time-view .rbc-time-gutter .rbc-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
   z-index: 1;
-  display: inline-block;
+  display: block;
   line-height: 1;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
   background-color: var(--colors-greyscale-000);
   font-size: 0.625rem;
   color: var(--colors-greyscale-500);
+  white-space: nowrap;
 }
 .rbc-time-view .rbc-time-gutter .rbc-label:empty {
   display: none;
+}
+.rbc-time-view .rbc-time-gutter::after {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  z-index: 1;
+  display: block;
+  color: var(--colors-greyscale-500);
+  background-color: var(--colors-greyscale-000);
+  font-size: 0.625rem;
+  line-height: 1;
+  white-space: nowrap;
+  content: var(--wm-time-range-end-label);
+  transform: translate(-50%, 50%);
 }
 
 /* ── 深色:事件块配色翻转 ───────────────────────────────────────────────

@@ -10,6 +10,10 @@ import {
 } from './workingHours'
 
 describe('workingHours', () => {
+  it('formats the full-day end boundary as 24:00', () => {
+    expect(formatMinutes(24 * 60)).toBe('24:00')
+  })
+
   it('默认工作时间为 09:00–18:00', () => {
     expect(DEFAULT_WORKING_HOURS).toEqual({ startMin: 540, endMin: 1080 })
   })
