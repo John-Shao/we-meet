@@ -26,6 +26,7 @@ import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingSummary } from '@/features/meetings/api/fetchMeeting'
+import { roomIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
 
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import {
@@ -275,7 +276,7 @@ export const EventDetailDialog = ({
         {event.meeting_room && (
           <InfoRow icon={RiBuilding2Line} testId="detail-meeting-room">
             <span className={bodyTextCls}>
-              {event.meeting_room.name}
+              {roomIdentifier(event.meeting_room)}
               {event.meeting_room.path_label
                 ? ` · ${event.meeting_room.path_label}`
                 : ''}

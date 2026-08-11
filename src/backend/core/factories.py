@@ -297,6 +297,7 @@ class MeetingRoomFactory(factory.django.DjangoModelFactory):
         return MeetingRoomBuildingFactory(organization=self.organization)
 
     name = factory.Sequence(lambda n: f"Meeting room {n!s}")
+    code = factory.Sequence(lambda n: f"R{n + 1:04d}")
     floor = "6F"
     capacity = 10
 

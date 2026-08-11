@@ -64,6 +64,10 @@ describe('fixed meeting-room hierarchy controls', () => {
     const location = document.getElementById('mr-room-node')
     expect(location?.tagName).toBe('DIV')
     for (const name of names) expect(location).toHaveTextContent(name)
+    expect(screen.getByLabelText('meetingRooms.roomCode')).toBeRequired()
+    expect(
+      screen.getByLabelText('meetingRooms.roomNameOptional')
+    ).not.toBeRequired()
     expect(screen.getByLabelText('meetingRooms.floor')).toBeRequired()
   })
 })

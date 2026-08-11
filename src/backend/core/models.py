@@ -4686,8 +4686,8 @@ class MeetingRoom(BaseModel):
     node = models.ForeignKey(
         MeetingRoomNode, on_delete=models.PROTECT, related_name="rooms"
     )
-    name = models.CharField(_("name"), max_length=255)
-    code = models.CharField(_("code"), max_length=64, blank=True, default="")
+    name = models.CharField(_("name"), max_length=255, blank=True, default="")
+    code = models.CharField(_("code"), max_length=64)
     floor = models.CharField(_("floor"), max_length=32)
     capacity = models.PositiveIntegerField(
         _("capacity"), default=0, help_text=_("0 means unspecified.")
@@ -4733,7 +4733,7 @@ class MeetingRoom(BaseModel):
 
     class Meta:
         db_table = "meet_meeting_room"
-        ordering = ("sort_order", "name")
+        ordering = ("sort_order", "code", "name")
         verbose_name = _("Meeting room")
         verbose_name_plural = _("Meeting rooms")
         indexes = [
@@ -4743,20 +4743,29 @@ class MeetingRoom(BaseModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["organization", "code"],
-                condition=models.Q(deleted_at__isnull=True) & ~models.Q(code=""),
-                name="mroom_uniq_org_code",
+                fields=["node", "code"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="mroom_uniq_node_code",
                 violation_error_message=_("A room with this code already exists."),
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(code=""),
+                name="mroom_code_not_blank",
+                violation_error_message=_("Room code is required."),
             ),
         ]
 
     def __str__(self):
-        return self.name
+        return f"{self.code} ({self.name})" if self.name else self.code
 
     def clean(self):
         super().clean()
         errors = {}
+        self.name = (self.name or "").strip()
+        self.code = (self.code or "").strip()
         self.floor = (self.floor or "").strip()
+        if not self.code:
+            errors["code"] = _("Room code is required.")
         if not self.floor:
             errors["floor"] = _("Floor is required.")
         if self.node_id:

@@ -224,7 +224,8 @@ def test_create_room_with_facilities(admin_org):
     resp = _client(admin).post(
         ROOMS,
         {
-            "name": "3F-01",
+            "name": "Focus",
+            "code": "3F-01",
             "node": str(node.id),
             "floor": "3F",
             "capacity": 12,
@@ -234,6 +235,8 @@ def test_create_room_with_facilities(admin_org):
     )
     assert resp.status_code == 201, resp.content
     body = resp.json()
+    assert body["name"] == "Focus"
+    assert body["code"] == "3F-01"
     assert body["floor"] == "3F"
     assert body["capacity"] == 12
     assert [f["name"] for f in body["facilities"]] == ["TV"]
@@ -245,7 +248,9 @@ def test_room_node_must_belong_to_the_callers_organization(admin_org):
     foreign_node = factories.MeetingRoomNodeFactory()
 
     resp = _client(admin).post(
-        ROOMS, {"name": "Sneaky", "node": str(foreign_node.id)}, format="json"
+        ROOMS,
+        {"code": "3F-01", "node": str(foreign_node.id), "floor": "3F"},
+        format="json",
     )
     assert resp.status_code == 400
 
@@ -256,23 +261,69 @@ def test_room_requires_a_floor_attribute_and_a_building_node(admin_org):
 
     resp = _client(admin).post(
         ROOMS,
-        {"name": "Wrong level", "node": str(country.id), "floor": "3F"},
+        {"code": "3F-01", "node": str(country.id), "floor": "3F"},
         format="json",
     )
     assert resp.status_code == 400
 
     building = factories.MeetingRoomBuildingFactory(organization=org)
     missing = _client(admin).post(
-        ROOMS, {"name": "Missing floor", "node": str(building.id)}, format="json"
+        ROOMS, {"code": "3F-01", "node": str(building.id)}, format="json"
     )
     assert missing.status_code == 400
 
     blank = _client(admin).post(
         ROOMS,
-        {"name": "Blank floor", "node": str(building.id), "floor": "   "},
+        {"code": "3F-01", "node": str(building.id), "floor": "   "},
         format="json",
     )
     assert blank.status_code == 400
+
+
+def test_room_code_is_required_and_name_is_optional(admin_org):
+    org, admin = admin_org
+    building = factories.MeetingRoomBuildingFactory(organization=org)
+    client = _client(admin)
+
+    missing_code = client.post(
+        ROOMS,
+        {"name": "Focus", "node": str(building.id), "floor": "3F"},
+        format="json",
+    )
+    assert missing_code.status_code == 400
+    assert "code" in missing_code.json()
+
+    created = client.post(
+        ROOMS,
+        {"code": "3F-01", "node": str(building.id), "floor": "3F"},
+        format="json",
+    )
+    assert created.status_code == 201, created.content
+    assert created.json()["name"] == ""
+    assert created.json()["code"] == "3F-01"
+
+
+def test_room_code_is_unique_within_a_building(admin_org):
+    org, admin = admin_org
+    building = factories.MeetingRoomBuildingFactory(organization=org)
+    other_building = factories.MeetingRoomBuildingFactory(organization=org)
+    factories.MeetingRoomFactory(organization=org, node=building, code="3F-01")
+    client = _client(admin)
+
+    duplicate = client.post(
+        ROOMS,
+        {"code": "3F-01", "node": str(building.id), "floor": "3F"},
+        format="json",
+    )
+    assert duplicate.status_code == 400
+    assert "code" in duplicate.json()
+
+    allowed = client.post(
+        ROOMS,
+        {"code": "3F-01", "node": str(other_building.id), "floor": "3F"},
+        format="json",
+    )
+    assert allowed.status_code == 201, allowed.content
 
 
 def test_deleting_a_room_is_soft_and_keeps_existing_bookings(admin_org):
@@ -388,7 +439,7 @@ def test_writes_are_audited(admin_org):
     building = factories.MeetingRoomBuildingFactory(organization=org)
     client.post(
         ROOMS,
-        {"name": "3F-01", "node": str(building.id), "floor": "3F"},
+        {"code": "3F-01", "node": str(building.id), "floor": "3F"},
         format="json",
     )
 

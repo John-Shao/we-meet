@@ -22,6 +22,7 @@ import { Menu } from '@/primitives/Menu'
 import { selectChrome } from '@/primitives/selectChrome'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { roomIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
 
 import {
   type AdminMeetingRoom,
@@ -190,7 +191,9 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
 
   const confirmDeleteRoom = async (room: AdminMeetingRoom) => {
     const ok = await askConfirm({
-      message: t('meetingRooms.deleteRoomConfirm', { name: room.name }),
+      message: t('meetingRooms.deleteRoomConfirm', {
+        name: roomIdentifier(room),
+      }),
       danger: true,
     })
     if (ok) deleteRoomMutation.mutate(room.id)
@@ -241,11 +244,11 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
 
   const columns: ColumnProps<AdminMeetingRoom>[] = [
     {
-      title: t('meetingRooms.colName'),
+      title: t('meetingRooms.roomCode'),
       dataIndex: 'id',
       // ⚠️ 每一列都要给宽度:Semi Table 只要有一列带 width 就切到
       // table-layout: fixed,富余宽度会全部灌给唯一没设宽度的那列。
-      width: 260,
+      width: 320,
       render: (_: unknown, room: AdminMeetingRoom) => (
         <button
           type="button"
@@ -253,16 +256,11 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
           onClick={() => navigate(`/meeting-rooms/${room.id}`)}
           data-testid={`admin-mr-open-${room.id}`}
         >
-          <span className={roomNameCls}>{room.name}</span>
+          <span className={roomNameCls}>{roomIdentifier(room)}</span>
           {/* 飞书同款:名称下压一行完整路径,免得两个「401」分不清是哪栋楼的。 */}
           <span className={roomPathCls}>{room.path_label}</span>
         </button>
       ),
-    },
-    {
-      title: t('meetingRooms.roomCode'),
-      width: 130,
-      render: (_: unknown, room: AdminMeetingRoom) => room.code || '—',
     },
     {
       title: t('meetingRooms.colCapacity'),

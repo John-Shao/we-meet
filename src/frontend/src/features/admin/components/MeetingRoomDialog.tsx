@@ -6,6 +6,7 @@ import { Button, Input } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 import { css, cx } from '@/styled-system/css'
 import { pathLabelOf } from '@/features/meeting-rooms/utils/roomHierarchy'
+import { roomIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
 
 import type {
   AdminMeetingRoom,
@@ -93,17 +94,18 @@ export const MeetingRoomDialog = ({
     (f) => f.is_active || facilityIds.includes(f.id)
   )
 
-  const trimmed = name.trim()
+  const trimmedName = name.trim()
+  const trimmedCode = code.trim()
   const trimmedFloor = floor.trim()
   const valid =
-    !!trimmed &&
+    !!trimmedCode &&
     !!trimmedFloor &&
     buildingNodes.some((building) => building.id === nodeId)
   const submit = () => {
     if (!valid || submitting) return
     onSubmit({
-      name: trimmed,
-      code: code.trim(),
+      name: trimmedName,
+      code: trimmedCode,
       floor: trimmedFloor,
       node: nodeId,
       capacity: Number(capacity) || 0,
@@ -122,7 +124,7 @@ export const MeetingRoomDialog = ({
   const fullLabel = [
     nodeId ? pathLabelOf(nodes, nodeId) : '',
     trimmedFloor,
-    trimmed,
+    roomIdentifier({ code: trimmedCode, name: trimmedName }),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -143,20 +145,33 @@ export const MeetingRoomDialog = ({
         data-testid="admin-mr-dialog"
       >
         <div className={fieldCls}>
-          <label className={labelCls} htmlFor="mr-room-name">
-            {t('meetingRooms.roomName')}
+          <label className={labelCls} htmlFor="mr-room-code">
+            {t('meetingRooms.roomCode')}
           </label>
           <Input
-            id="mr-room-name"
-            aria-label={t('meetingRooms.roomName')}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            id="mr-room-code"
+            required
+            aria-label={t('meetingRooms.roomCode')}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
           />
           {fullLabel && (
             <span className={previewCls}>
               {t('meetingRooms.fullNamePreview', { label: fullLabel })}
             </span>
           )}
+        </div>
+
+        <div className={fieldCls}>
+          <label className={labelCls} htmlFor="mr-room-name">
+            {t('meetingRooms.roomNameOptional')}
+          </label>
+          <Input
+            id="mr-room-name"
+            aria-label={t('meetingRooms.roomNameOptional')}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
 
         <div className={fieldCls}>
@@ -197,31 +212,18 @@ export const MeetingRoomDialog = ({
           />
         </div>
 
-        <div className={rowCls}>
-          <div className={fieldCls}>
-            <label className={labelCls} htmlFor="mr-room-capacity">
-              {t('meetingRooms.capacity')}
-            </label>
-            <Input
-              id="mr-room-capacity"
-              type="number"
-              min={0}
-              aria-label={t('meetingRooms.capacity')}
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value)}
-            />
-          </div>
-          <div className={fieldCls}>
-            <label className={labelCls} htmlFor="mr-room-code">
-              {t('meetingRooms.roomCode')}
-            </label>
-            <Input
-              id="mr-room-code"
-              aria-label={t('meetingRooms.roomCode')}
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-            />
-          </div>
+        <div className={fieldCls}>
+          <label className={labelCls} htmlFor="mr-room-capacity">
+            {t('meetingRooms.capacity')}
+          </label>
+          <Input
+            id="mr-room-capacity"
+            type="number"
+            min={0}
+            aria-label={t('meetingRooms.capacity')}
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+          />
         </div>
 
         <div className={fieldCls}>
@@ -316,7 +318,6 @@ const fieldCls = css({
   flex: 1,
   minWidth: '10rem',
 })
-const rowCls = css({ display: 'flex', gap: '0.75rem', minWidth: '22rem' })
 const labelCls = css({ fontSize: '0.8125rem', color: 'greyscale.600' })
 const readOnlyCls = css({
   minHeight: '2.25rem',

@@ -958,8 +958,8 @@ class MeetingRoomAdmin(admin.ModelAdmin):
     """A bookable physical room. Occupancy lives in MeetingRoomBooking."""
 
     list_display = (
-        "name",
         "code",
+        "name",
         "node",
         "floor",
         "capacity",

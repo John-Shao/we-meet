@@ -16,6 +16,7 @@ import {
 } from '../api/fetchMeetingRooms'
 import { availableIdSet } from '../utils/roomAvailability'
 import { compactRoomPathLabel } from '../utils/roomHierarchy'
+import { roomIdentifier } from '../utils/roomLabel'
 import { MeetingRoomFilters } from './MeetingRoomFilters'
 
 type Tab = 'available' | 'all'
@@ -171,7 +172,7 @@ export const MeetingRoomPickerInline = ({
                 data-testid={`mr-picker-item-${room.id}`}
                 className={busy ? rowBusyCls : rowCls}
               >
-                <span className={nameCls}>{room.name}</span>
+                <span className={nameCls}>{roomIdentifier(room)}</span>
                 <span className={metaCls}>
                   {compactRoomPathLabel(room.path_label)}
                   {room.capacity > 0 &&

@@ -21,6 +21,7 @@ import {
   timelineTrackWidth,
 } from '../utils/timelineScale'
 import { compactRoomPathLabel } from '../utils/roomHierarchy'
+import { roomIdentifier } from '../utils/roomLabel'
 /** Where the track scrolls to on mount — nobody books at 3am. */
 const INITIAL_HOUR = 8
 const DEFAULT_LABEL_WIDTH = 220
@@ -418,8 +419,8 @@ export const RoomTimeline = ({
               data-testid={`mr-timeline-row-${room.id}`}
             >
               <div className={labelCellCls} style={{ width: labelWidth }}>
-                <span className={roomNameCls} title={room.name}>
-                  {room.name}
+                <span className={roomNameCls} title={roomIdentifier(room)}>
+                  {roomIdentifier(room)}
                 </span>
                 <span
                   className={roomMetaCls}
@@ -449,7 +450,9 @@ export const RoomTimeline = ({
                 onKeyDown={(e) => handleTrackKeyDown(room, e)}
                 role={onSelectSlot ? 'button' : undefined}
                 tabIndex={onSelectSlot ? 0 : undefined}
-                aria-label={t('timeline.clickToBook', { room: room.name })}
+                aria-label={t('timeline.clickToBook', {
+                  room: roomIdentifier(room),
+                })}
               >
                 {timeRangeMode === 'full' && (
                   <>
@@ -475,7 +478,9 @@ export const RoomTimeline = ({
                     className={draftBlockCls}
                     role="button"
                     tabIndex={0}
-                    aria-label={t('timeline.clickToBook', { room: room.name })}
+                    aria-label={t('timeline.clickToBook', {
+                      room: roomIdentifier(room),
+                    })}
                     onPointerDown={(event) => beginDraftDrag('move', event)}
                     onKeyDown={(event) => handleDraftKeyDown(room, event)}
                     onClick={(event) => {

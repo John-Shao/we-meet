@@ -233,6 +233,7 @@
     "newRoom": "Raum hinzufügen",
     "editRoom": "Raum bearbeiten",
     "roomName": "Raumname",
+    "roomNameOptional": "Raumname (optional)",
     "roomCode": "Raumnummer",
     "floor": "Etage",
     "capacity": "Kapazität",

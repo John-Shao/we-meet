@@ -10,6 +10,7 @@ import type { MeetingRoomBrief } from '../api/ApiMeetingRoom'
 import { fetchMeetingRoomAvailability } from '../api/fetchMeetingRooms'
 import { selectionConflicts } from '../utils/roomAvailability'
 import { compactRoomPathLabel } from '../utils/roomHierarchy'
+import { roomIdentifier } from '../utils/roomLabel'
 import { MeetingRoomPickerInline } from './MeetingRoomPickerInline'
 
 /**
@@ -111,7 +112,7 @@ export const MeetingRoomField = ({
       {value ? (
         <div className={selectedRowCls} data-testid="mr-selected-chip">
           <span className={chipCls}>
-            {value.name}
+            {roomIdentifier(value)}
             {value.path_label
               ? ` · ${compactRoomPathLabel(value.path_label)}`
               : ''}
@@ -135,7 +136,7 @@ export const MeetingRoomField = ({
 
       {conflicted && value && (
         <div className={conflictCls} data-testid="mr-conflict-warning">
-          {t('conflict.inline', { name: value.name })}
+          {t('conflict.inline', { name: roomIdentifier(value) })}
           <button
             type="button"
             className={conflictActionCls}

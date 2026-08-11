@@ -229,6 +229,20 @@ class MeetingRoomAdminSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        node = attrs.get("node", getattr(self.instance, "node", None))
+        code = attrs.get("code", getattr(self.instance, "code", ""))
+        if node is not None and code:
+            duplicate = models.MeetingRoom.objects.filter(
+                node=node,
+                code=code,
+                deleted_at__isnull=True,
+            )
+            if self.instance is not None:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                raise serializers.ValidationError(
+                    {"code": "a room with this code already exists in this building"}
+                )
         scope = attrs.get(
             "booking_scope",
             getattr(self.instance, "booking_scope", models.MeetingRoomBookingScope.ORG),
@@ -261,6 +275,15 @@ class MeetingRoomAdminSerializer(serializers.ModelSerializer):
         normalized = value.strip()
         if not normalized:
             raise serializers.ValidationError("floor is required")
+        return normalized
+
+    def validate_name(self, value):
+        return value.strip()
+
+    def validate_code(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("room code is required")
         return normalized
 
     def validate_node(self, value):
@@ -559,7 +582,7 @@ class MeetingRoomAdminViewSet(
             action=models.AuditActionChoices.MEETING_ROOM_CREATE,
             target_type="meeting_room",
             target_id=instance.id,
-            target_label=instance.name,
+            target_label=str(instance),
             metadata={"node": str(instance.node_id), "capacity": instance.capacity},
         )
 
@@ -572,7 +595,7 @@ class MeetingRoomAdminViewSet(
             action=models.AuditActionChoices.MEETING_ROOM_UPDATE,
             target_type="meeting_room",
             target_id=instance.id,
-            target_label=instance.name,
+            target_label=str(instance),
             metadata={
                 "is_active": {"from": before_active, "to": instance.is_active}
                 if before_active != instance.is_active
@@ -596,7 +619,7 @@ class MeetingRoomAdminViewSet(
             action=models.AuditActionChoices.MEETING_ROOM_DELETE,
             target_type="meeting_room",
             target_id=instance.id,
-            target_label=instance.name,
+            target_label=str(instance),
         )
 
 

@@ -233,6 +233,7 @@
     "newRoom": "Ajouter une salle",
     "editRoom": "Modifier la salle",
     "roomName": "Nom de la salle",
+    "roomNameOptional": "Nom de la salle (facultatif)",
     "roomCode": "Code de la salle",
     "floor": "Étage",
     "capacity": "Capacité",

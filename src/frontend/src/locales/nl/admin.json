@@ -233,6 +233,7 @@
     "newRoom": "Ruimte toevoegen",
     "editRoom": "Ruimte bewerken",
     "roomName": "Naam van ruimte",
+    "roomNameOptional": "Naam van ruimte (optioneel)",
     "roomCode": "Ruimtecode",
     "floor": "Verdieping",
     "capacity": "Capaciteit",

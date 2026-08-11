@@ -8,6 +8,7 @@ import { Button, Input } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { pathLabelOf } from '@/features/meeting-rooms/utils/roomHierarchy'
+import { roomIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
 
 import {
   type AdminMeetingRoom,
@@ -179,7 +180,7 @@ export const MeetingRoomDetail = ({
     )
 
   const submit = () => {
-    if (!draft.name.trim() || !draft.floor.trim()) return
+    if (!draft.code.trim() || !draft.floor.trim()) return
     save.mutate({
       name: draft.name.trim(),
       code: draft.code.trim(),
@@ -213,11 +214,8 @@ export const MeetingRoomDetail = ({
           {t('actions.back')}
         </Button>
         <div className={css({ minWidth: 0 })}>
-          <div className={roomTitleCls}>{room.name}</div>
-          <div className={roomSubtitleCls}>
-            {room.path_label}
-            {room.code && ` · ${room.code}`}
-          </div>
+          <div className={roomTitleCls}>{roomIdentifier(room)}</div>
+          <div className={roomSubtitleCls}>{room.path_label}</div>
         </div>
       </header>
 
@@ -240,18 +238,19 @@ export const MeetingRoomDetail = ({
             title={t('meetingRooms.section.basic')}
             innerRef={(el) => (sectionRefs.current.basic = el)}
           >
-            <Row label={t('meetingRooms.roomName')}>
-              <Input
-                value={draft.name}
-                aria-label={t('meetingRooms.roomName')}
-                onChange={(e) => set('name', e.target.value)}
-              />
-            </Row>
             <Row label={t('meetingRooms.roomCode')}>
               <Input
+                required
                 value={draft.code}
                 aria-label={t('meetingRooms.roomCode')}
                 onChange={(e) => set('code', e.target.value)}
+              />
+            </Row>
+            <Row label={t('meetingRooms.roomNameOptional')}>
+              <Input
+                value={draft.name}
+                aria-label={t('meetingRooms.roomNameOptional')}
+                onChange={(e) => set('name', e.target.value)}
               />
             </Row>
             <Row label={t('meetingRooms.floor')}>
@@ -453,7 +452,7 @@ export const MeetingRoomDetail = ({
           variant="primary"
           size="sm"
           isDisabled={
-            !draft.name.trim() || !draft.floor.trim() || save.isPending
+            !draft.code.trim() || !draft.floor.trim() || save.isPending
           }
           loading={save.isPending}
           onPress={submit}
