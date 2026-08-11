@@ -20,8 +20,7 @@ import {
   timelineGridTicks,
   timelineTrackWidth,
 } from '../utils/timelineScale'
-import { compactRoomPathLabel } from '../utils/roomHierarchy'
-import { roomIdentifier } from '../utils/roomLabel'
+import { roomBuildingIdentifier, roomIdentifier } from '../utils/roomLabel'
 /** Where the track scrolls to on mount — nobody books at 3am. */
 const INITIAL_HOUR = 8
 const DEFAULT_LABEL_WIDTH = 220
@@ -421,15 +420,9 @@ export const RoomTimeline = ({
               <div className={labelCellCls} style={{ width: labelWidth }}>
                 <span
                   className={roomIdentifierCls}
-                  title={roomIdentifier(room)}
+                  title={roomBuildingIdentifier(room.node.name, room)}
                 >
-                  {roomIdentifier(room)}
-                </span>
-                <span
-                  className={roomMetaCls}
-                  title={compactRoomPathLabel(room.path_label)}
-                >
-                  {compactRoomPathLabel(room.path_label)}
+                  {roomBuildingIdentifier(room.node.name, room)}
                 </span>
                 <span
                   className={roomResourceCls}
@@ -650,13 +643,6 @@ const labelCellCls = css({
 const roomIdentifierCls = css({
   fontSize: '0.8125rem',
   color: 'greyscale.900',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-})
-const roomMetaCls = css({
-  fontSize: '0.6875rem',
-  color: 'greyscale.500',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',

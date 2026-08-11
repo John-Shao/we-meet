@@ -11,3 +11,13 @@ export const roomIdentifier = ({ code, name }: RoomIdentity): string => {
   if (!normalizedCode) return normalizedName
   return `${normalizedCode} (${normalizedName})`
 }
+
+/** Match the app's compact timeline label: building-room number (alias). */
+export const roomBuildingIdentifier = (
+  building: string,
+  room: RoomIdentity
+): string => {
+  const normalizedBuilding = building.trim()
+  const identifier = roomIdentifier(room)
+  return [normalizedBuilding, identifier].filter(Boolean).join('-')
+}
