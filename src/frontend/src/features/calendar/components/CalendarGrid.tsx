@@ -327,7 +327,12 @@ export const CalendarGrid = ({
     () => ({
       // 日视图标题对齐飞书:「2026年7月22日 星期三」(PPP 随 culture 本地化)。
       dayHeaderFormat: 'PPP EEEE',
-      timeGutterFormat: 'HH:mm',
+      // Place hour labels on their grid line; midnight sits against the clipped top edge,
+      // so omit only 00:00 while retaining other visible range starts.
+      timeGutterFormat: (value: Date) =>
+        value.getHours() === 0 && value.getMinutes() === 0
+          ? ''
+          : format(value, 'HH:mm'),
       selectRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
         `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`,
       eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>

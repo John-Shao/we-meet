@@ -412,8 +412,17 @@
   border-top: none;
 }
 .rbc-time-view .rbc-time-gutter .rbc-label {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  line-height: 1;
+  transform: translateY(-50%);
+  background-color: var(--colors-greyscale-000);
   font-size: 0.625rem;
   color: var(--colors-greyscale-500);
+}
+.rbc-time-view .rbc-time-gutter .rbc-label:empty {
+  display: none;
 }
 
 /* ── 深色:事件块配色翻转 ───────────────────────────────────────────────
