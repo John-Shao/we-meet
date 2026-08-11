@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Calendar,
@@ -159,6 +166,103 @@ const DRAFT_ID = '__slot-draft__'
 // 引用才稳定 —— 放进渲染函数里每次重建都会把整棵网格重挂。
 const DnDCalendar = withDragAndDrop<RbcEvent>(Calendar)
 
+/**
+ * rbc uses an integer scrollbar measurement to size the time header. At
+ * fractional display scales (notably Windows 125%), the body's actual content
+ * width can differ by a fraction of a CSS pixel. Distributing those two widths
+ * independently makes one or more day dividers land on adjacent device pixels.
+ * Use the rendered body columns as the source of truth for the header width.
+ */
+const useAlignedTimeGridHeader = (calendarRootId: string) => {
+  useLayoutEffect(() => {
+    const root = document.getElementById(calendarRootId)
+    if (!root) return
+
+    let animationFrame: number | undefined
+    let alignedHeader: HTMLElement | null = null
+    let observedTimeContent: HTMLElement | null = null
+
+    const align = () => {
+      const timeView = root.querySelector<HTMLElement>(
+        '.rbc-time-view:not(.rbc-time-view-resources)'
+      )
+      const header = timeView?.querySelector<HTMLElement>(
+        '.rbc-time-header-content'
+      )
+      const timeContent =
+        timeView?.querySelector<HTMLElement>('.rbc-time-content') ?? null
+      const dayColumns = timeContent
+        ? Array.from(timeContent.children).filter(
+            (node): node is HTMLElement =>
+              node instanceof HTMLElement &&
+              node.classList.contains('rbc-day-slot')
+          )
+        : []
+
+      if (!header || dayColumns.length === 0) {
+        alignedHeader?.style.removeProperty('flex')
+        alignedHeader = null
+        return
+      }
+
+      if (alignedHeader && alignedHeader !== header) {
+        alignedHeader.style.removeProperty('flex')
+      }
+      alignedHeader = header
+
+      const firstRect = dayColumns[0].getBoundingClientRect()
+      const lastRect = dayColumns[dayColumns.length - 1].getBoundingClientRect()
+      const bodyColumnsWidth = lastRect.right - firstRect.left
+      if (bodyColumnsWidth > 0) {
+        header.style.flex = `0 0 ${bodyColumnsWidth}px`
+      }
+    }
+
+    const scheduleAlign = () => {
+      if (animationFrame !== undefined) {
+        window.cancelAnimationFrame(animationFrame)
+      }
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = undefined
+        align()
+      })
+    }
+
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(scheduleAlign)
+
+    const observeTimeContent = () => {
+      const next = root.querySelector<HTMLElement>('.rbc-time-content')
+      if (!resizeObserver || next === observedTimeContent) return
+      if (observedTimeContent) resizeObserver.unobserve(observedTimeContent)
+      observedTimeContent = next
+      if (observedTimeContent) resizeObserver.observe(observedTimeContent)
+    }
+
+    resizeObserver?.observe(root)
+    observeTimeContent()
+    const mutationObserver = new MutationObserver(() => {
+      observeTimeContent()
+      scheduleAlign()
+    })
+    mutationObserver.observe(root, { childList: true, subtree: true })
+    window.addEventListener('resize', scheduleAlign)
+    align()
+
+    return () => {
+      if (animationFrame !== undefined) {
+        window.cancelAnimationFrame(animationFrame)
+      }
+      window.removeEventListener('resize', scheduleAlign)
+      mutationObserver.disconnect()
+      resizeObserver?.disconnect()
+      alignedHeader?.style.removeProperty('flex')
+    }
+  }, [calendarRootId])
+}
+
 // 「日程」视图换成自研平铺列表(AgendaListView,飞书式);模块级常量保证
 // 引用稳定避免视图重挂。类型上 rbc 的 Views 不含自定义组件签名,窄化断言。
 const RBC_VIEWS = {
@@ -215,6 +319,8 @@ export const CalendarGrid = ({
   onEventMove,
   canMoveEvent,
 }: Props) => {
+  const calendarRootId = `wm-calendar-grid-${useId()}`
+  useAlignedTimeGridHeader(calendarRootId)
   const { t, i18n } = useTranslation('calendar')
   const {
     weekStartsOn,
@@ -433,6 +539,7 @@ export const CalendarGrid = ({
 
   return (
     <DnDCalendar
+      elementProps={{ id: calendarRootId }}
       localizer={localizer}
       culture={cultureFor(i18n.language)}
       events={rbcEvents}
