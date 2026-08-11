@@ -22,6 +22,7 @@ import {
 } from '../hooks/useCalendarSettings'
 import { AttendeePicker } from './AttendeePicker'
 import { fieldCls, inputCls, labelCls } from './formStyles'
+import { allDayApiRange, inclusiveAllDayEnd } from '../utils/allDayRange'
 
 interface Props {
   onCreated: (event: CalendarEvent) => void
@@ -74,11 +75,14 @@ export const CreateEventDialog = ({
   // P8 日历设置:新建态的默认时长/默认提醒从本地设置读(编辑态用事件自身值)。
   const { defaultDurationMin, defaultReminderMin } = useCalendarSettings()
   const isEdit = !!editEvent
+  const allDay = editEvent?.all_day ?? initialAllDay ?? false
   const start0 = editEvent
     ? new Date(editEvent.start_at)
     : (initialStart ?? defaultStart())
   const end0 = editEvent
-    ? new Date(editEvent.end_at)
+    ? allDay
+      ? inclusiveAllDayEnd(start0, new Date(editEvent.end_at))
+      : new Date(editEvent.end_at)
     : (initialEnd ?? new Date(start0.getTime() + defaultDurationMin * 60_000))
 
   const [title, setTitle] = useState(editEvent?.title ?? '')
@@ -87,7 +91,6 @@ export const CreateEventDialog = ({
   const [end, setEnd] = useState(toLocalInput(end0))
   // 全天由入口决定,表单里不再给开关:周/月视图的全天行点击创建时带
   // initialAllDay 进来,编辑既有全天日程时沿用它自己的值(保存原样回传)。
-  const allDay = editEvent?.all_day ?? initialAllDay ?? false
   // 提醒是「一场日程一条」的单选(null = 不提醒),与 App 端 ReminderDropdown
   // 同口径。后端 push_due_reminders 本来就只按 max(reminders) 推一次,多选
   // 复选框是张空头支票 —— 勾两档也只会到最早那档才响,故收敛成单选。
@@ -187,9 +190,9 @@ export const CreateEventDialog = ({
       // All-day: pin to local midnight and make the end the exclusive
       // next-midnight of the chosen end day, so a single-day all-day event
       // still spans a full 24h instead of the arbitrary picker time-of-day.
-      startDate = new Date(`${dateOnly(start)}T00:00`)
-      endDate = new Date(`${dateOnly(end)}T00:00`)
-      endDate.setDate(endDate.getDate() + 1)
+      const range = allDayApiRange(dateOnly(start), dateOnly(end))
+      startDate = range.start
+      endDate = range.end
     } else {
       startDate = new Date(start)
       endDate = new Date(end)

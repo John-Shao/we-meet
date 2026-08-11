@@ -24,8 +24,10 @@ from django.conf import settings
 from core.services import im_bots, im_cards
 from core.services.jusi_im import (
     JusiImAdminClient,
+    JusiImConversationAccessDeniedError,
     JusiImSenderNotMemberError,
     JusiImServiceError,
+    JusiImUnreachableError,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,10 +37,18 @@ logger = logging.getLogger(__name__)
 CONTENT_TYPE = im_cards.EVENT_CARD
 
 
+class SourceConversationAccessDenied(Exception):
+    """The calendar creator cannot bind the requested conversation."""
+
+
+class SourceConversationVerificationUnavailable(Exception):
+    """IM could not provide a trustworthy membership answer."""
+
+
 def _make_client() -> JusiImAdminClient | None:
     """Settings → admin client;未配置返回 None(推送直接跳过)。"""
     cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
-    if not cfg:
+    if not cfg or not cfg.get("api_url") or not cfg.get("admin_hmac_secret"):
         logger.warning("calendar_im_notify: JUSI_IM_CONFIGURATION missing, skip push")
         return None
     return JusiImAdminClient(
@@ -60,7 +70,7 @@ def _organizer_name(event) -> str:
     )
 
 
-def build_event_card(
+def build_event_card(  # noqa: PLR0913 - mirrors the stable card protocol
     event,
     kind: str,
     *,
@@ -102,10 +112,16 @@ def _organizer_sender_uid(client: JusiImAdminClient, organizer) -> str | None:
     external_id = str(getattr(organizer, "sub", None) or organizer.pk)
     try:
         resolved = client.issue_token(external_id=external_id, ttl_seconds=60)
+    except JusiImUnreachableError:
+        # A network/5xx failure is not evidence that the organizer cannot send.
+        # Let reminder delivery remain retryable; best-effort event cards catch
+        # the same exception at their outer boundary.
+        raise
     except JusiImServiceError:
         logger.warning(
             "calendar_im_notify: organizer uid resolve failed for user %s",
-            organizer.pk, exc_info=True,
+            organizer.pk,
+            exc_info=True,
         )
         return None
     uid = getattr(resolved, "uid", None)
@@ -116,26 +132,63 @@ def _organizer_sender_uid(client: JusiImAdminClient, organizer) -> str | None:
         except Exception:  # noqa: BLE001 — 缓存回填失败不致命
             logger.warning(
                 "calendar_im_notify: im_uid backfill failed for user %s",
-                organizer.pk, exc_info=True,
+                organizer.pk,
+                exc_info=True,
             )
     return uid
 
 
-def push_card(cid: str, card: dict, *, organizer=None) -> None:
-    """Best-effort 注入卡片(sender = 组织者,退群后由「日程助手」代理);
-    jusi 不可达/报错仅 warning。
-
-    主路径**刻意保持不变**:以组织者身份发卡片是 P8-UX 拍板的设计(见模块
-    docstring),客户端把它渲染成组织者的正常气泡。P11c 只在 jusi 明确确认
-    组织者已经不是来源群成员时改由日程助手代理。UID 解析失败等无法确认的
-    技术异常仍走 SYSTEM,不让助手掩盖故障。
-    """
-    if not cid:
-        return
+def verify_source_membership(user, cid: str) -> None:
+    """Prove that ``user`` belongs to ``cid`` before storing the source cid."""
     client = _make_client()
     if client is None:
-        return
-    body = json.dumps(card, ensure_ascii=False)
+        raise SourceConversationVerificationUnavailable("IM is not configured")
+
+    external_id = str(getattr(user, "sub", None) or user.pk)
+    try:
+        resolved = client.issue_token(external_id=external_id, ttl_seconds=60)
+        roster = client.get_members(cid, resolved.token)
+    except JusiImConversationAccessDeniedError as exc:
+        raise SourceConversationAccessDenied(
+            "not a member of this conversation"
+        ) from exc
+    except JusiImServiceError as exc:
+        raise SourceConversationVerificationUnavailable(str(exc)) from exc
+
+    # A successful roster response should contain the authenticated user. If
+    # jusi violates that contract, fail closed as unavailable instead of making
+    # an authorization guess.
+    if not any(member.get("uid") == resolved.uid for member in roster):
+        raise SourceConversationVerificationUnavailable(
+            "IM roster did not contain the authenticated user"
+        )
+
+    if getattr(user, "im_uid", None) != resolved.uid:
+        try:
+            user.im_uid = resolved.uid
+            user.save(update_fields=["im_uid"])
+        except Exception:  # noqa: BLE001 - cache backfill must not reject creation
+            logger.warning(
+                "calendar_im_notify: im_uid backfill failed for user %s",
+                user.pk,
+                exc_info=True,
+            )
+
+
+def post_with_organizer_fallback(
+    client: JusiImAdminClient,
+    cid: str,
+    body: str,
+    *,
+    organizer=None,
+    content_type: str = "text",
+) -> str:
+    """Post as organizer, assistant after departure, then SYSTEM.
+
+    Only ``sender_not_member`` proves that the organizer left. Other service
+    errors propagate so reminder jobs can retry transient failures and mark
+    permanently invalid source conversations accurately.
+    """
     sender_uid = _organizer_sender_uid(client, organizer)
     if sender_uid:
         try:
@@ -143,68 +196,63 @@ def push_card(cid: str, card: dict, *, organizer=None) -> None:
                 cid=cid,
                 body=body,
                 sender_uid=sender_uid,
-                content_type=CONTENT_TYPE,
+                content_type=content_type,
                 require_sender_membership=True,
             )
-            logger.info(
-                "calendar_im_notify: organizer posted strict cid=%s event=%s",
-                cid,
-                card.get("event_id"),
-            )
-            return
+            return "organizer"
         except JusiImSenderNotMemberError:
             logger.info(
-                "calendar_im_notify: organizer left cid=%s; "
-                "using calendar assistant event=%s",
+                "calendar_im_notify: organizer left cid=%s; using calendar assistant",
                 cid,
-                card.get("event_id"),
             )
             posted = im_bots.post_as_builtin(
                 im_bots.BOT_CALENDAR_ASSISTANT,
                 cid,
                 body,
-                content_type=CONTENT_TYPE,
+                content_type=content_type,
             )
             if posted is not None:
-                return
+                return "assistant"
             logger.warning(
-                "calendar_im_notify: calendar assistant failed; "
-                "using SYSTEM cid=%s event=%s",
+                "calendar_im_notify: calendar assistant failed; using SYSTEM cid=%s",
                 cid,
-                card.get("event_id"),
             )
-        except JusiImServiceError:
-            logger.warning(
-                "calendar_im_notify: strict organizer push failed for cid=%s event=%s",
-                cid,
-                card.get("event_id"),
-                exc_info=True,
-            )
-            return
-    else:
-        logger.warning(
-            "calendar_im_notify: organizer uid unavailable; "
-            "using SYSTEM cid=%s event=%s",
-            cid,
-            card.get("event_id"),
-        )
 
-    # 无法解析组织者 UID,或确认退群后助手也发不出去 → 最终 SYSTEM。
+    client.post_message(
+        cid=cid,
+        body=body,
+        sender_uid=None,
+        content_type=content_type,
+    )
+    return "system"
+
+
+def push_card(cid: str, card: dict, *, organizer=None) -> None:
+    """Best-effort event-card delivery using the shared sender policy."""
+    if not cid:
+        return
+    client = _make_client()
+    if client is None:
+        return
     try:
-        client.post_message(
-            cid=cid,
-            body=body,
-            sender_uid=None,
+        post_with_organizer_fallback(
+            client,
+            cid,
+            json.dumps(card, ensure_ascii=False),
+            organizer=organizer,
             content_type=CONTENT_TYPE,
         )
     except JusiImServiceError:
         logger.warning(
             "calendar_im_notify: push %s failed for cid=%s event=%s",
-            card.get("kind"), cid, card.get("event_id"), exc_info=True,
+            card.get("kind"),
+            cid,
+            card.get("event_id"),
+            exc_info=True,
         )
 
 
-def notify_event_change(
+def notify_event_change(  # noqa: PLR0913 - explicit event-card change fields
     event_id,
     kind: str,
     *,
@@ -217,7 +265,7 @@ def notify_event_change(
 
     行已不在 / 无来源会话 → 静默返回。
     """
-    from core import models  # 延迟导入防循环
+    from core import models  # noqa: PLC0415 - delayed to avoid model/service cycle
 
     event = (
         models.CalendarEvent.objects.select_related("organizer")
@@ -229,9 +277,12 @@ def notify_event_change(
     push_card(
         event.source_conversation_id,
         build_event_card(
-            event, kind,
-            old_start=old_start, old_end=old_end,
-            added_count=added_count, removed_count=removed_count,
+            event,
+            kind,
+            old_start=old_start,
+            old_end=old_end,
+            added_count=added_count,
+            removed_count=removed_count,
         ),
         organizer=event.organizer,
     )

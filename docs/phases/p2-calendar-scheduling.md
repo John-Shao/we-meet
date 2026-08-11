@@ -42,8 +42,8 @@
 | **D2** | RBAC / 参与者 | **不**让 CalendarEvent 继承 Resource。用 `organizer` FK(User)+ **`EventAttendee`** 行表参与者/RSVP。可见性靠 `organization` org-scope + organizer/attendee 过滤(MVP:能看到=我是 organizer 或 attendee)。 |
 | **D3** | 联动会议室 | 建日程时**同时建 Room**(server 端 `Room.objects.create` + `ResourceAccess(owner=organizer)`),`Room.scheduled_at = event.start_at`,并调既有 `ensure-group` 预建 IM 群。`CalendarEvent.room` FK **SET_NULL**(房间/群比日程长寿)。"一键进会"= 跳该 room。可选:`all_day` 或纯日程不建 Room。 |
 | **D4** | RSVP | `EventAttendee.rsvp ∈ {needs_action, accepted, declined, tentative}`;`role ∈ {organizer, required, optional}`;`user` FK(内部)或 `email`(外部,MVP 可只支持内部)。RSVP 端点 `POST /calendar-events/{id}/rsvp {status}`。 |
-| **D5** | 提醒投递 | **走 IM 推送**(复用 `_push_summary_to_im` pattern → `_push_reminder_to_im`:`JusiImAdminClient.post_message(cid=event.room 的 MeetingConversation.cid, body)`),幂等用 `EventAttendee.reminder_pushed_at` 或 event 级 `reminder_pushed_at`。**不接 FCM**([[project-fcm-deferred]])。 |
-| **D6** | 提醒调度基建 | 倾向 **k8s CronJob 跑 management command**(`python manage.py send_due_reminders`,每 ~5min 扫 `start_at` 在窗口内且未推的),**而非新立 celery-beat**:k8s 已是部署底座、CronJob 自带单实例语义、比 beat + 单实例锁更简单。备选=celery-beat(plan 原拟)。**这条最值得你定**。 |
+| **D5** | 提醒投递 | 有来源会话的日程回原会话发送，身份顺序为组织者 → 日程助手 → SYSTEM；无来源日程只在客户端消息列表聚合，不建群、不接设备直推。幂等使用 event 级 `reminder_pushed_at`。 |
+| **D6** | 提醒调度基建 | **k8s CronJob 跑 management command**(`python manage.py send_due_reminders`，每分钟扫描到期且未处理的来源会话日程)，**不新立 celery-beat**：k8s 已是部署底座、CronJob 自带单实例语义、比 beat + 单实例锁更简单。 |
 | **D7** | 周期重复 | MVP **仅单次**。`recurrence`(RRULE 字符串)+ `recurrence_parent` 字段先建好但不展开。周期+例外留后续。 |
 | **D8** | Free/busy | MVP **跳过**(或仅本人)。跨人忙闲后续。 |
 | **D9** | Agenda 前端 | 新增 `features/calendar`:建日程表单(复用 ContactPicker 多选邀人)、**agenda 列表**(我的日程,按日/即将)、RSVP 操作、详情。Header 加「日历」入口 + `/calendar` 路由。`ScheduledMeetingsList`(legacy 预约会议)暂保留,后续收敛。 |
@@ -74,9 +74,9 @@
 - `core/urls.py` 注册 `calendar-events`。
 
 ### P2-c 提醒（IM 推送 + 定时）
-- `core/services/calendar_reminders.py`:`push_due_reminders()` 扫 `start_at ∈ [now, now+窗口]` 且 `reminder_pushed_at IS NULL` 的事件 → 对每个 attendee 推 IM(复用 JusiImAdminClient,经 event.room 的 MeetingConversation.cid)→ 置 `reminder_pushed_at`。best-effort + 幂等。
+- `core/services/calendar_reminders.py`:`push_due_reminders()` 扫两天提前量窗口与开始后 5 分钟宽限内、带 `source_conversation_id` 且 `reminder_pushed_at IS NULL` 的事件 → 回来源会话发送 → 成功或永久拒绝后置幂等位，瞬时失败留待下轮重试。
 - `core/management/commands/send_due_reminders.py`:调上面。
-- 部署:**k8s CronJob**(每 5min)跑该 command(D6)。
+- 部署:**k8s CronJob**(默认每分钟)跑该 command(D6)。
 - (备选 celery-beat:`beat_schedule` + celery-beat 服务,若你选 D6 备选。)
 
 ### P2-d 前端（`features/calendar`,新建）

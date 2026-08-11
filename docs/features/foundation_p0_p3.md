@@ -38,7 +38,7 @@
 - 服务 `core/services/push.py`:个推 REST API v2(appId/appKey/masterSecret 进 settings/环境变量),单推 + 批量,失败仅告警不重试(courtesy nudge 语义,与纪要推 IM 一致)。
 
 **触发源(三个,分期接入)**
-1. **日历提醒**(M1,纯 we-meet 侧):`core/services/calendar_reminders.py` 的 `_push_one` 在推 IM 之外追加离线推送(新增方法,不改现有函数);幂等沿用 `reminder_pushed_at`。
+1. **日历提醒**(M1,纯 we-meet 侧):`core/services/calendar_reminders.py` 仅把来源会话日程回推原会话；无来源日程只走消息列表聚合入口，不追加设备直推；幂等沿用 `reminder_pushed_at`。
    - ⚠️ 订正(2026-07-18 盘点):**此直连方案已过时,勿实现**。M2 上线后提醒已被离线链路天然覆盖——`_push_one` 经 jusi admin `POST /admin/messages` 注入的提醒文本,与普通消息走同一条 `MessagePublished`(p14)→ 离线成员 → push-hook → `notify_offline` → 个推链路(admin 注入不在 NonBumpingContentTypes 过滤名单)。再直连个推 = 同一提醒**双推**。M1 的增量收敛为零代码,仅验证链路。
 2. **IM 离线消息**(M2,依赖 jusi):jusi-light-im 投递时发现接收方无活跃连接 → 回调 we-meet 内部端点 `POST /api/agent/push-hook/`(HMAC 内部鉴权,参照 `core/api/agent_internal.py` 的 X-Agent-Token 模式)→ Django 查 token 发个推。
    - 节流:同一 (user, cid) 在 N 秒窗口内聚合为一条「你有 x 条新消息」;@提及 与 DING 级消息(如未来有)绕过聚合。
@@ -47,7 +47,7 @@
 3. **会议事件**(M3):被邀入会/会议开始等,复用同一 PushService。
 
 ### 验收与分期
-- M1:token 注册 + 日历提醒离线可达(杀进程后仍收到)。✅ 已完成(2026-07-18 盘点确认:零代码——token 注册随 M2 上线;提醒经 jusi admin 注入即触发 p14 离线推送,与 IM 消息同链路,见上方触发源 1 订正。链路各环核实:prod reminders CronJob enabled */5、admin post 调 MessagePublished、text 不被过滤、cid 为 UUID 深链安全)
+- M1:token 注册 + 来源会话日历提醒可达。✅ 已完成(2026-08-11 收敛:提醒只回原来源会话，不为无来源日程建群或直推；组织者留群时以组织者发送，退群后由日程助手补位；reminders CronJob 启用后默认每分钟运行。)
 - M2:IM 离线消息推送 + 聚合节流 + deep link 直达会话(jusi 侧先出 pN 设计)。✅ 已完成(jusi p14 + 个推通知路径真机实测通过;三坑见 §排障)
 - M3:会议事件 + 通知设置(免打扰时段,存 we-meet 侧用户偏好)。✅ 已完成(会议事件:「被邀入会」随 P4/p19 走 notify_call 上线,会议开始提醒即日历提醒链路。免打扰时段 2026-07-18 上线:`PushPreference`(OneToOne,墙上钟按 `User.timezone` 解释,跨午夜合法,start==end=全天)+ `GET/PUT push/preferences/` + `notify_offline` 发送前过滤;**来电有意穿透**(实时呼叫错过成本高,飞书「电话穿透」同款默认);App 设置页「消息免打扰」开关+起止时间。含迁移 0057,部署需 migrate)
 - 端到端验收:A 给 B 发消息,B 杀进程 → B 锁屏收到通知 → 点击直达该会话。

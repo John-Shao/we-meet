@@ -458,7 +458,7 @@ kubectl -n meet get certificate
 
 ### 7.5 （可选）启用会前提醒 CronJob（P2 日历）
 
-P2 日历的**会前提醒**靠一个 k8s CronJob 周期性扫描即将开始的日程，把「🔔 …即将开始」推进对应会议的 IM 群（首次推送时惰性建群）。**默认关**（chart `backend.reminders.enabled: false`）——没用到日历的部署不会平白多起一个 CronJob。需要时打开（命令与 install-meet.sh 的 meet release 一致，多一个 `--set`）：
+P2 日历的**日程提醒**靠一个 k8s CronJob 每分钟扫描到期日程。仅带来源会话的日程会回到原会话发送：组织者仍在会话时以组织者身份发送，组织者退出后由「日程助手」补位；无来源会话的日程只出现在客户端消息列表的「日程提醒」入口，不建群、不直推。**默认关**（chart `backend.reminders.enabled: false`）——没用到日历的部署不会平白多起一个 CronJob。需要时打开（命令与 install-meet.sh 的 meet release 一致，多一个 `--set`）：
 
 ```bash
 helm upgrade --install meet ./src/helm/meet -n meet \
@@ -478,15 +478,15 @@ helm upgrade --install meet ./src/helm/meet -n meet \
 > git checkout origin/main -- src/helm/meet
 > ```
 
-验证 + 立即手动触发一次（不等下一个 5 分钟整点）：
+验证 + 立即手动触发一次（不等下一个分钟整点）：
 
 ```bash
-kubectl -n meet get cronjob          # 应有 meet-backend-reminders   */5 * * * *
+kubectl -n meet get cronjob          # 应有 meet-backend-reminders   * * * * *
 kubectl -n meet create job --from=cronjob/meet-backend-reminders reminders-manual-1
 kubectl -n meet logs job/reminders-manual-1     # "reminders pushed: N"（无到期日程则 0，正常）
 ```
 
-调度默认每 5 分钟（`backend.reminders.schedule`，可 `--set` 覆盖）；命令默认 `python manage.py send_due_reminders`，幂等（`CalendarEvent.reminder_pushed_at` 守卫），重复跑安全。**关闭**：去掉 `--set`（或设 `=false`）再 `helm upgrade`，CronJob 随 release 移除。
+调度默认每分钟（`backend.reminders.schedule`，可 `--set` 覆盖）；命令默认 `python manage.py send_due_reminders`，幂等（`CalendarEvent.reminder_pushed_at` 守卫），重复跑安全。**关闭**：去掉 `--set`（或设 `=false`）再 `helm upgrade`，CronJob 随 release 移除。
 
 ---
 

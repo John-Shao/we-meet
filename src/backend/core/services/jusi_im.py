@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import logging
+import secrets
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -75,6 +77,10 @@ class JusiImUnreachableError(JusiImServiceError):
 
 class JusiImBadResponseError(JusiImServiceError):
     """HTTP returned but the response was malformed or 4xx."""
+
+
+class JusiImConversationAccessDeniedError(JusiImBadResponseError):
+    """The requested conversation does not exist or the caller is not a member."""
 
 
 class JusiImSenderNotMemberError(JusiImBadResponseError):
@@ -294,6 +300,11 @@ class JusiImAdminClient:
             raise JusiImUnreachableError(
                 f"jusi-im returned {response.status_code} from {url}"
             )
+        if response.status_code in (403, 404):
+            raise JusiImConversationAccessDeniedError(
+                f"jusi-im returned {response.status_code} from members: "
+                f"{response.text[:200]}"
+            )
         if response.status_code >= 400:
             raise JusiImBadResponseError(
                 f"jusi-im returned {response.status_code} from members: "
@@ -340,7 +351,11 @@ class JusiImAdminClient:
             raise ValueError("cid is required")
         if not body:
             raise ValueError("body is required")
-        payload: dict[str, Any] = {"cid": cid, "body": body, "content_type": content_type}
+        payload: dict[str, Any] = {
+            "cid": cid,
+            "body": body,
+            "content_type": content_type,
+        }
         if sender_uid:
             payload["sender_uid"] = sender_uid
         if require_sender_membership:
@@ -387,7 +402,9 @@ class JusiImAdminClient:
 
     # ---- helpers ----
 
-    def _signed_request(self, method: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def _signed_request(
+        self, method: str, path: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
         """Sign + POST + parse JSON. Shared by every admin call.
 
         Surfaces:
@@ -422,9 +439,7 @@ class JusiImAdminClient:
                 isinstance(error_data, dict)
                 and error_data.get("code") == "sender_not_member"
             ):
-                raise JusiImSenderNotMemberError(
-                    "sender is not a conversation member"
-                )
+                raise JusiImSenderNotMemberError("sender is not a conversation member")
         if response.status_code >= 400:
             raise JusiImBadResponseError(
                 f"jusi-im returned {response.status_code} from {path}: "
@@ -463,9 +478,6 @@ class JusiImAdminClient:
         # admin auth treats a repeated signature as a replay and rejects it with
         # 401 — surfacing as intermittent 503s when the client bursts token/ calls.
         # jusi ignores unknown body fields, so the nonce is inert to its logic.
-        import json
-        import secrets
-
         body = dict(payload)
         body.setdefault("_nonce", secrets.token_hex(8))
         return json.dumps(body, separators=(",", ":"), ensure_ascii=False).encode(

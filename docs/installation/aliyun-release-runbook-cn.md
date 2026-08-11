@@ -83,7 +83,7 @@ kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input
 验证:
 ```bash
 # 提醒 CronJob 已创建
-kubectl -n meet get cronjob | grep reminders     # 期望 meet-backend-reminders  */5 * * * *
+kubectl -n meet get cronjob | grep reminders     # 期望 meet-backend-reminders  * * * * *
 
 # 手动触发一次验证命令可跑(不必等 5 分钟)
 kubectl -n meet create job --from=cronjob/meet-backend-reminders reminders-manual-1

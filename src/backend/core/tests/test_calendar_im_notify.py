@@ -4,8 +4,9 @@ import json
 from datetime import timedelta
 from unittest import mock
 
-import pytest
 from django.utils import timezone
+
+import pytest
 from rest_framework.test import APIClient
 
 from core import factories, models
@@ -43,7 +44,8 @@ def _create(client, *, cid=CID, **extra):
     if cid:
         payload["source_conversation_id"] = cid
     payload.update(extra)
-    resp = client.post("/api/v1.0/calendar-events/", payload, format="json")
+    with mock.patch.object(calendar_im_notify, "verify_source_membership"):
+        resp = client.post("/api/v1.0/calendar-events/", payload, format="json")
     assert resp.status_code == 201, resp.content
     return resp.json()
 
@@ -195,7 +197,9 @@ def test_push_card_sender_is_organizer_with_system_fallback():
     organizer = factories.UserFactory(email="cached@acme.com", im_uid="uid-cached")
     fake = mock.Mock()
     with mock.patch.object(calendar_im_notify, "_make_client", return_value=fake):
-        calendar_im_notify.push_card("cid-1", {"kind": "cancelled"}, organizer=organizer)
+        calendar_im_notify.push_card(
+            "cid-1", {"kind": "cancelled"}, organizer=organizer
+        )
     assert fake.post_message.call_args.kwargs["sender_uid"] == "uid-cached"
     assert fake.post_message.call_args.kwargs["require_sender_membership"] is True
     fake.issue_token.assert_not_called()
@@ -217,13 +221,14 @@ def test_push_card_organizer_left_uses_calendar_assistant_once():
     )
     assistant_result = mock.Mock(sender_uid="uid-calendar-assistant")
 
-    with mock.patch.object(
-        calendar_im_notify, "_make_client", return_value=fake
-    ), mock.patch.object(
-        calendar_im_notify.im_bots,
-        "post_as_builtin",
-        return_value=assistant_result,
-    ) as post_as_builtin:
+    with (
+        mock.patch.object(calendar_im_notify, "_make_client", return_value=fake),
+        mock.patch.object(
+            calendar_im_notify.im_bots,
+            "post_as_builtin",
+            return_value=assistant_result,
+        ) as post_as_builtin,
+    ):
         calendar_im_notify.push_card(
             "cid-1",
             {"kind": "cancelled", "organizer_name": "张三"},
@@ -248,10 +253,11 @@ def test_push_card_calendar_assistant_failure_falls_back_to_system():
         mock.DEFAULT,
     ]
 
-    with mock.patch.object(
-        calendar_im_notify, "_make_client", return_value=fake
-    ), mock.patch.object(
-        calendar_im_notify.im_bots, "post_as_builtin", return_value=None
+    with (
+        mock.patch.object(calendar_im_notify, "_make_client", return_value=fake),
+        mock.patch.object(
+            calendar_im_notify.im_bots, "post_as_builtin", return_value=None
+        ),
     ):
         calendar_im_notify.push_card(
             "cid-1", {"kind": "cancelled"}, organizer=organizer
@@ -266,9 +272,10 @@ def test_push_card_other_jusi_error_does_not_impersonate_calendar_assistant():
     fake = mock.Mock()
     fake.post_message.side_effect = calendar_im_notify.JusiImServiceError("down")
 
-    with mock.patch.object(
-        calendar_im_notify, "_make_client", return_value=fake
-    ), mock.patch.object(calendar_im_notify.im_bots, "post_as_builtin") as assistant:
+    with (
+        mock.patch.object(calendar_im_notify, "_make_client", return_value=fake),
+        mock.patch.object(calendar_im_notify.im_bots, "post_as_builtin") as assistant,
+    ):
         calendar_im_notify.push_card(
             "cid-1", {"kind": "cancelled"}, organizer=organizer
         )
@@ -283,3 +290,43 @@ def test_notify_event_change_skips_missing_event():
             "00000000-0000-0000-0000-000000000000", "time_changed"
         )
     push.assert_not_called()
+
+
+def test_verify_source_membership_uses_the_callers_roster_token():
+    user = factories.UserFactory(im_uid="")
+    fake = mock.Mock()
+    fake.issue_token.return_value = mock.Mock(uid="uid-me", token="member-token")
+    fake.get_members.return_value = [{"uid": "uid-me", "role": "member"}]
+
+    with mock.patch.object(calendar_im_notify, "_make_client", return_value=fake):
+        calendar_im_notify.verify_source_membership(user, "source-cid")
+
+    fake.get_members.assert_called_once_with("source-cid", "member-token")
+    user.refresh_from_db()
+    assert user.im_uid == "uid-me"
+
+
+def test_verify_source_membership_maps_nonmember_to_access_denied():
+    user = factories.UserFactory()
+    fake = mock.Mock()
+    fake.issue_token.return_value = mock.Mock(uid="uid-me", token="member-token")
+    fake.get_members.side_effect = (
+        calendar_im_notify.JusiImConversationAccessDeniedError("403")
+    )
+
+    with mock.patch.object(calendar_im_notify, "_make_client", return_value=fake):
+        with pytest.raises(calendar_im_notify.SourceConversationAccessDenied):
+            calendar_im_notify.verify_source_membership(user, "source-cid")
+
+
+def test_verify_source_membership_fails_closed_on_unexpected_roster():
+    user = factories.UserFactory()
+    fake = mock.Mock()
+    fake.issue_token.return_value = mock.Mock(uid="uid-me", token="member-token")
+    fake.get_members.return_value = [{"uid": "someone-else", "role": "owner"}]
+
+    with mock.patch.object(calendar_im_notify, "_make_client", return_value=fake):
+        with pytest.raises(
+            calendar_im_notify.SourceConversationVerificationUnavailable
+        ):
+            calendar_im_notify.verify_source_membership(user, "source-cid")

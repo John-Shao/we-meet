@@ -9,13 +9,14 @@ jusi-light-im being reachable.
 """
 
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone as django_timezone
 from django.utils.dateparse import parse_datetime
 
+from dateutil.rrule import rrulestr
 from rest_framework import decorators, exceptions, serializers, viewsets
 from rest_framework import status as drf_status
 from rest_framework.response import Response
@@ -25,7 +26,12 @@ from core.api import permissions
 from core.api.directory import get_caller_organization
 from core.api.meeting_rooms import bookable_scope_filter, room_path_label
 from core.api.viewsets import Pagination
-from core.services import calendar_im_notify, calendar_recurrence, meeting_room_booking
+from core.services import (
+    calendar_im_notify,
+    calendar_recurrence,
+    calendar_reminders,
+    meeting_room_booking,
+)
 
 #: "the client did not mention this field at all" — distinct from an explicit
 #: ``false``. Only meaningful for fields whose absence and whose ``false`` must
@@ -39,6 +45,14 @@ class MeetingRoomUnavailableError(exceptions.APIException):
     status_code = drf_status.HTTP_409_CONFLICT
     default_code = "meeting_room_unavailable"
     default_detail = "The meeting room is already booked for this time."
+
+
+class SourceConversationVerificationError(exceptions.APIException):
+    """503 - IM could not verify source-conversation membership."""
+
+    status_code = drf_status.HTTP_503_SERVICE_UNAVAILABLE
+    default_code = "source_conversation_verification_unavailable"
+    default_detail = "Unable to verify source conversation membership."
 
 
 class CalendarEventSerializer(serializers.ModelSerializer):
@@ -128,15 +142,35 @@ class CalendarEventSerializer(serializers.ModelSerializer):
         value = (value or "").strip()
         if not value:
             return ""
-        from datetime import datetime
-
-        from dateutil.rrule import rrulestr
-
         try:
             rrulestr(value, dtstart=datetime(2026, 1, 1, 9, 0))
         except (ValueError, TypeError) as exc:
             raise serializers.ValidationError(f"invalid RRULE: {exc}") from exc
         return value
+
+    def validate_reminders(self, value):
+        """Accept no reminder or one integer lead between 0 and 2880 minutes."""
+        if not isinstance(value, list):
+            raise serializers.ValidationError("expected an array")
+        if len(value) > 1:
+            raise serializers.ValidationError("at most one reminder is allowed")
+        if value:
+            lead = value[0]
+            if type(lead) is not int:  # bool is an int subclass; reject it too.
+                raise serializers.ValidationError("reminder must be an integer")
+            if not 0 <= lead <= 2880:
+                raise serializers.ValidationError(
+                    "reminder must be between 0 and 2880 minutes"
+                )
+        return value
+
+    def validate_source_conversation_id(self, value):
+        """A source conversation is create-only and cannot be rebound later."""
+        if self.instance is not None:
+            raise serializers.ValidationError(
+                "source conversation cannot be changed after creation"
+            )
+        return value.strip()
 
     def get_organizer(self, obj):
         if not obj.organizer_id:
@@ -212,6 +246,12 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         """All-day events cannot hold a room (M1) — see docs/phases/p9."""
         attrs = super().validate(attrs)
+        start = attrs.get("start_at", getattr(self.instance, "start_at", None))
+        end = attrs.get("end_at", getattr(self.instance, "end_at", None))
+        if start is not None and end is not None and end <= start:
+            raise serializers.ValidationError(
+                {"end_at": "end_at must be later than start_at"}
+            )
         room = attrs.get("meeting_room_id")
         all_day = attrs.get("all_day", getattr(self.instance, "all_day", False))
         if room is not None and all_day:
@@ -387,6 +427,17 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         # 缺省 = 开(老客户端不传该字段,行为保持不变)。
         with_video = bool(data.pop("with_video_meeting", True))
 
+        source_cid = data.get("source_conversation_id", "")
+        if source_cid:
+            try:
+                calendar_im_notify.verify_source_membership(user, source_cid)
+            except calendar_im_notify.SourceConversationAccessDenied as exc:
+                raise exceptions.PermissionDenied(
+                    "Not a member of the source conversation."
+                ) from exc
+            except calendar_im_notify.SourceConversationVerificationUnavailable as exc:
+                raise SourceConversationVerificationError(detail=str(exc)) from exc
+
         with transaction.atomic():
             room = None
             if with_video:
@@ -529,6 +580,22 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             update_fields.append("updated_at")
             room.save(update_fields=update_fields)
 
+    @staticmethod
+    def _maybe_rearm_reminder(event, *, schedule_changed: bool) -> None:
+        """Clear a handled reminder only when its new trigger is still future."""
+        if not schedule_changed or event.reminder_pushed_at is None:
+            return
+        trigger_at = calendar_reminders.reminder_trigger_at(
+            event.start_at, event.reminders
+        )
+        if trigger_at is None or trigger_at <= django_timezone.now():
+            return
+        event.reminder_pushed_at = None
+        event.reminder_outcome = ""
+        event.save(
+            update_fields=["reminder_pushed_at", "reminder_outcome", "updated_at"]
+        )
+
     def update(self, request, *args, **kwargs):
         """PATCH/PUT;P2-M2 重复日程三选语义(body 里的 ``edit_scope``):
 
@@ -560,6 +627,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
 
         data = dict(serializer.validated_data)
+        reminder_schedule_changed = "start_at" in data or "reminders" in data
         # 会议室在三选分支里单独处理:series 级用 skip(一场冲突不该让用户
         # 彻底改不动系列),单场 one 用调用方给的 policy(默认 strict)。
         meeting_room, booking_policy = self._pop_room_args(data)
@@ -572,12 +640,18 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
 
         if parent is not None and scope == "following":
             new_parent = calendar_recurrence.split_series(instance, data)
+            self._maybe_rearm_reminder(
+                new_parent, schedule_changed=reminder_schedule_changed
+            )
             self._resync_series_room(new_parent, meeting_room)
             return Response(self.get_serializer(new_parent).data)
 
         if parent is not None and scope == "all":
             updated = calendar_recurrence.edit_series_all(
                 parent, instance.start_at, data
+            )
+            self._maybe_rearm_reminder(
+                updated, schedule_changed=reminder_schedule_changed
             )
             self._sync_room(updated)
             self._resync_series_room(updated, meeting_room)
@@ -588,6 +662,9 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             updated = calendar_recurrence.edit_series_all(
                 instance, instance.start_at, data
             )
+            self._maybe_rearm_reminder(
+                updated, schedule_changed=reminder_schedule_changed
+            )
             self._sync_room(updated)
             self._resync_series_room(updated, meeting_room)
             return Response(self.get_serializer(updated).data)
@@ -597,6 +674,9 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 event = serializer.save()
+                self._maybe_rearm_reminder(
+                    event, schedule_changed=reminder_schedule_changed
+                )
                 self._apply_video_meeting(event, with_video)
                 meeting_room_booking.resync_event_booking(
                     event,
@@ -637,12 +717,16 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         old_start, old_end = instance.start_at, instance.end_at
         old_attendees = set(instance.attendees.values_list("user_id", flat=True))
         data = serializer.validated_data
+        reminder_schedule_changed = "start_at" in data or "reminders" in data
         attendee_ids = data.pop("attendee_ids", None)
         meeting_room, booking_policy = self._pop_room_args(data)
         # 编辑时缺省 = 不动(见字段注释),所以哨兵不是 True/False 而是 ABSENT。
         with_video = data.pop("with_video_meeting", ABSENT)
         with transaction.atomic():
             event = serializer.save()
+            self._maybe_rearm_reminder(
+                event, schedule_changed=reminder_schedule_changed
+            )
             self._apply_video_meeting(event, with_video)
             self._sync_room(event)
             # P9 会议室:单次日程用 strict —— 用户明确改了这一场,订不上就该
@@ -737,8 +821,6 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
           当前之后)一并删除;历史场次保留作记录。三选编辑语义是 M2 范畴。
         """
         self._require_organizer(instance)
-        from django.utils import timezone as django_timezone
-
         # P8:取消卡快照必须在删除前组好(行与 attendees 马上级联消失);
         # 子场次不携带 source_conversation_id(物化不复制)→ 天然不推。
         # 组织者一并快照 —— 卡片以其 IM 身份发出(P8-UX 组织者气泡)。
@@ -772,7 +854,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 )
 
     @decorators.action(detail=False, methods=["get"], url_path="freebusy")
-    def freebusy(self, request):
+    def freebusy(self, request):  # noqa: PLR0912 - validation and merge branches
         """P2-M3 忙闲视图:`?attendee_ids=a,b&start=ISO&end=ISO` → 每人 busy 区间。
 
         只返回区间,**不泄露标题/详情**(private 事件同样只出区间)。busy 口径:
@@ -791,8 +873,8 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             return Response({"results": []})
 
         raw_ids = []
-        for chunk in str(request.query_params.get("attendee_ids") or "").split(","):
-            chunk = chunk.strip()
+        for raw_chunk in str(request.query_params.get("attendee_ids") or "").split(","):
+            chunk = raw_chunk.strip()
             if not chunk:
                 continue
             try:

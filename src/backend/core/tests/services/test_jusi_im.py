@@ -13,6 +13,7 @@ import requests
 from ...services.jusi_im import (
     JusiImAdminClient,
     JusiImBadResponseError,
+    JusiImConversationAccessDeniedError,
     JusiImSenderNotMemberError,
     JusiImTokenResponse,
     JusiImUnreachableError,
@@ -42,6 +43,18 @@ def test_constructor_validates_secret_length():
 def test_constructor_validates_api_url():
     with pytest.raises(ValueError):
         JusiImAdminClient(api_url="", admin_hmac_secret=SECRET)
+
+
+@pytest.mark.parametrize("status_code", [403, 404])
+def test_get_members_classifies_nonmember_or_missing_conversation(
+    monkeypatch, status_code
+):
+    response = mock.Mock(status_code=status_code, text="denied")
+    monkeypatch.setattr(requests, "get", lambda *_args, **_kwargs: response)
+    client = JusiImAdminClient(api_url=API_URL, admin_hmac_secret=SECRET)
+
+    with pytest.raises(JusiImConversationAccessDeniedError):
+        client.get_members("source-cid", "user-token")
 
 
 def test_issue_token_signs_method_path_ts_body(monkeypatch):
@@ -189,9 +202,7 @@ def test_issue_token_strips_trailing_slash_on_api_url(monkeypatch):
 def test_post_message_sends_strict_membership_flag(monkeypatch):
     captured = {}
 
-    def fake_request(
-        method, url, data, headers, timeout
-    ):  # pylint: disable=unused-argument
+    def fake_request(method, url, data, headers, timeout):  # pylint: disable=unused-argument
         captured["payload"] = json.loads(data)
         resp = mock.Mock()
         resp.status_code = 200

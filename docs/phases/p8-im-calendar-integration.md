@@ -95,27 +95,19 @@
 
 **职责边界:created 卡只由客户端创建成功后发;变更/取消卡只由后端发(M3)** —— 天然无双卡。
 
-**发送者身份规则(P8-UX,we-meet `7e48ac48` + jusi `52440b1`)**:
-1. 组织者仍在会话内 → 变更/取消卡以**组织者 IM 身份**发出(后端解析 `User.im_uid`,双端渲染成组织者气泡);
-2. 组织者已退群(或 uid 解析失败)→ 落回 **SYSTEM**,客户端按全零 uid 渲染居中系统通知 —— 成员校验在 jusi `/admin/messages` 服务端权威执行,非成员 sender 一律落 SYSTEM。
-   历史消息(升级前发出的 SYSTEM 卡)保持居中,属预期。
+**发送者身份规则(P8-UX)**:
+1. 组织者仍在会话内 → 提醒、变更和取消卡以**组织者 IM 身份**严格发送;
+2. jusi 明确返回 `sender_not_member` → 由内置「日程助手」加入来源会话并补位发送;
+3. 日程助手失败或组织者 UID 无法解析 → 最终以 **SYSTEM** 发送。普通网络/5xx 不当作退群，不冒充日程助手；提醒保留未处理状态供下轮重试。
 
-**提醒投递收敛(P8-UX)**:「即将开始」提醒对**会话来源日程**直发 `source_conversation_id`
-(SYSTEM 系统消息),不再为每个日程的 Room 懒建一次性提醒群(会话列表刷屏根因);
-源会话投递失败降级回 Room 群路径;日历页创建的日程保持 Room 群提醒现状。
-已存在的一次性提醒群无法回收,手动删除会话即可。
+**提醒投递收敛(P8-UX)**:提醒任务只扫描带 `source_conversation_id` 的日程并回原会话发送，
+不再创建一次性提醒群，也不降级到 Room 会议群。无来源日程完全交给双端消息列表的
+「日程提醒」入口。已存在的一次性提醒群不自动回收，手动删除会话即可。
 
-### ⚠️ 提醒的两条已知行为(2026-08-07 真机查出来,写下来免得再查一遍)
+### 提醒行为(2026-08-11 收敛)
 
-**① 没有可投的会话时,IM 提醒静默不发。** 这是「绝不为发提醒建群」的直接代价,
-但代价此前从没被写下来 —— 而它命中的是一类很常见的日程:**订了会议室、但还没
-有人进过会**。会议群是**入会那一刻**才建的,所以这类日程到点时
-`MeetingConversation` 还不存在,`_push_one` 走 `no_conversation` 分支,一条消息都
-不发。用户侧的观感是「我设了提醒,到点什么都没有」。
-
-此时唯一的面是双端消息列表的「日程提醒」入口。**这是刻意的**(重开建群那条路
-等于把会话列表刷屏的老问题原样请回来),但它必须是一个**写下来的**限制,而不是
-一个静默丢弃。
+**① 无来源会话的日程不发送 IM 消息。** 它们只进入双端消息列表的「日程提醒」入口；
+即使已有 Room 会议群也不投递，避免把会议群和日程来源混为一谈。
 
 **② 「提前 N 分钟」以前不驱动那个入口。** 列表入口的倒计时角标窗口曾经是写死的
 60 分钟,与日程的 `reminders` 字段毫无关系 —— 于是对上面①那类日程,用户设的
@@ -123,14 +115,13 @@
 已修:双端角标改读日程自己的最大提前量(`countdownWindowMinutes`),口径与服务端
 `_lead_minutes` 对齐,没设则退 60 分钟兜底(那是兜底窗口,不是「默认提醒时间」)。
 
-**③ `reminder_pushed_at` 曾经答不出「到底发没发」。** 三条出口里有两条一条消息都
-不发(无会话 / 对方永久拒绝),却和成功投递设同一个字段。现在结果另存
+**③ `reminder_pushed_at` 曾经答不出「到底发没发」。** 结果另存
 `CalendarEvent.reminder_outcome`(`delivered` / `no_conversation` / `refused`)——
-查「为什么没收到提醒」时,这是第一个该看的字段。迁移前的存量行该字段为空串。
+新任务只写 `delivered` / `refused`；`no_conversation` 仅为历史数据保留。瞬时失败不写
+完成时间。查「为什么没收到提醒」时，这是第一个该看的字段。
 
-> **排查口诀**:`reminder_outcome` 是 `no_conversation` → 房间没进过会,符合①,
-> 提醒只在「日程提醒」入口里;是 `delivered` → 群里有一条**居中灰色**的
-> 「🔔「…」即将开始」,不是任何助手发的(三个内置助手都不管提醒)。
+> **排查口诀**：`no_conversation` 是升级前的历史处理结果；`delivered` 表示组织者、
+> 日程助手或 SYSTEM 至少有一个成功投递；`refused` 表示来源会话永久失效。
 
 ## 4. M1 — Web 会话日历抽屉 + 日程卡片(后端零改动)
 
@@ -164,8 +155,8 @@ i18n:`locales/{de,en,fr,nl,zh}/im.json`。
 
 ## 6. M3 — 变更推送(后端)
 
-- `CalendarEvent.source_conversation_id`(CharField 64, blank, default "")→ **迁移 0062**;serializer write_only(不回读防 cid 泄露);创建不校验 cid(保持「建日程不依赖 jusi 可达」契约,roster 校验留扩展点)。
-- 新 `core/services/calendar_im_notify.py`:on_commit 后重取 event → 组 v1 卡 → jusi admin `post_message(cid, body, 'event-card')` SYSTEM 身份;try/except 仅 warning(best-effort,镜像 _post_system_message)。
+- `CalendarEvent.source_conversation_id`(CharField 64, blank, default "")→ **迁移 0062**；serializer write_only。仅创建时可写，创建前用调用者自己的短期 IM token 拉取 roster 验证成员身份；非成员/会话不存在返回 403，无法验证返回 503，且不落库。
+- `core/services/calendar_im_notify.py`:提醒/变更/取消共用组织者 → 日程助手 → SYSTEM 的发送策略；变更与取消仍在 on_commit 后 best-effort 推送，提醒对瞬时错误保留重试状态。
 - 触发点收敛 `perform_update`/`perform_destroy`(不用 signal:重复日程物化=推送风暴;不进 serializer:拿不到请求语义):save 前快照 start/end + attendee 集合 → 值差分 → `transaction.on_commit`。
 - 防噪:改标题/描述/提醒不推;幂等 PATCH 不推;时间+人同变只发一张 time_changed(携 added_count);RSVP 不经此路径天然不推;destroy 用删除前快照推 cancelled。
 

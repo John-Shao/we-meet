@@ -286,7 +286,7 @@ backend:
   ## @param backend.reminders.command Override the reminder command
   reminders:
     enabled: false
-    schedule: "*/5 * * * *"
+    schedule: "* * * * *"
     command:
       - "python"
       - "manage.py"
