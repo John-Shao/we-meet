@@ -532,13 +532,18 @@ export const RoomTimeline = ({
                       title={`${timeLabel(booking.start)}–${timeLabel(booking.end)}${
                         booking.title ? ` · ${booking.title}` : ''
                       }`}
-                      className={booking.is_mine ? blockMineCls : blockCls}
+                      className={booking.title ? eventBlockCls : busyBlockCls}
                       style={{
                         left: `${scale.pct(clipped.start)}%`,
                         width: `${scale.widthPct(clipped.start, clipped.end)}%`,
                       }}
                     >
-                      {booking.title ?? t('timeline.booked')}
+                      <span className={blockTimeCls}>
+                        {timeLabel(booking.start)} – {timeLabel(booking.end)}
+                      </span>
+                      <span className={blockTitleCls}>
+                        {booking.title ?? t('timeline.booked')}
+                      </span>
                     </div>
                   )
                 })}
@@ -688,26 +693,50 @@ const blockBase = {
   top: '0.375rem',
   bottom: '0.375rem',
   paddingX: '0.375rem',
+  paddingY: '0.25rem',
   borderRadius: '0.25rem',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: '0.0625rem',
   fontSize: '0.6875rem',
-  lineHeight: '1.6rem',
   overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
   zIndex: 2,
 } as const
-// Two complete classes instead of cx-layering: atomic classes resolve by
-// stylesheet order, so conditionally stacking colour utilities is a coin flip.
-const blockCls = css({
+// Anonymous/private occupancy remains neutral. A booking whose title is
+// visible uses the same calendar-event skin as the day/week grid.
+const busyBlockCls = css({
   ...blockBase,
   backgroundColor: 'greyscale.300',
   color: 'greyscale.800',
 })
-const blockMineCls = css({
+const eventBlockCls = css({
   ...blockBase,
-  backgroundColor: 'primary.500',
-  color: 'white',
-  _dark: { backgroundColor: 'primaryDark.500', color: 'greyscale.1000' },
+  backgroundColor: 'rgba(51, 112, 255, 0.12)',
+  borderLeft: '3px solid token(colors.primary.500)',
+  color: 'primary.700',
+  _dark: {
+    backgroundColor: 'rgba(51, 112, 255, 0.22)',
+    borderLeftColor: 'primary.400',
+    color: 'primaryDark.700',
+  },
+})
+const blockTimeCls = css({
+  width: '100%',
+  fontSize: '0.625rem',
+  lineHeight: 1.15,
+  opacity: 0.85,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+const blockTitleCls = css({
+  width: '100%',
+  fontWeight: 'medium',
+  lineHeight: 1.2,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 })
 const draftBlockCls = css({
   ...blockBase,
