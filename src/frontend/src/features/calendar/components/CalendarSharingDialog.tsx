@@ -130,129 +130,131 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
         <ModalCloseButton onClose={onClose} label={t('form.cancel')} />
       </div>
       <div className={bodyCls}>
-        <div className={defaultRowCls}>
-          <label className={labelCls} htmlFor="calendar-default-access">
-            {t('sharing.organizationDefault')}
-          </label>
-          <select
-            id="calendar-default-access"
-            value={mine?.organization_default_access ?? 'free_busy'}
-            onChange={(event) =>
-              void changeDefault(event.target.value as CalendarPermission)
-            }
-            disabled={!mine || busy}
-            className={cx(inputCls, selectChrome)}
-          >
-            <option value="none">{t('sharing.none')}</option>
-            <option value="free_busy">{t('sharing.freeBusy')}</option>
-            <option value="details">{t('sharing.details')}</option>
-          </select>
-        </div>
-
-        <div className={tabsCls}>
-          {(['share', 'subscribe'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => {
-                setMode(value)
-                setSelected(new Map())
-                setError('')
-              }}
-              className={mode === value ? activeTabCls : tabCls}
-            >
-              {t(`sharing.${value}`)}
-            </button>
-          ))}
-          {mode === 'share' && (
+        <div className={bodyStackCls}>
+          <div className={defaultRowCls}>
+            <label className={labelCls} htmlFor="calendar-default-access">
+              {t('sharing.organizationDefault')}
+            </label>
             <select
-              value={permission}
+              id="calendar-default-access"
+              value={mine?.organization_default_access ?? 'free_busy'}
               onChange={(event) =>
-                setPermission(event.target.value as 'free_busy' | 'details')
+                void changeDefault(event.target.value as CalendarPermission)
               }
+              disabled={!mine || busy}
               className={cx(inputCls, selectChrome)}
             >
+              <option value="none">{t('sharing.none')}</option>
               <option value="free_busy">{t('sharing.freeBusy')}</option>
               <option value="details">{t('sharing.details')}</option>
             </select>
-          )}
-        </div>
+          </div>
 
-        <div className={pickerCls}>
-          <DirectoryMultiPicker
-            selected={selected}
-            onToggle={toggle}
-            includeExternal
-            externalLabel={t('form.externalContact')}
-            labels={{
-              searchPlaceholder: t('form.searchPlaceholder'),
-              selectedTitle: t('form.selected', { count: selected.size }),
-              loading: t('form.loading'),
-              empty: t('form.noResults'),
-              loadMore: t('form.loadMore'),
-            }}
-          />
-        </div>
-        {error && <p className={errorCls}>{error}</p>}
+          <div className={tabsCls}>
+            {(['share', 'subscribe'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setMode(value)
+                  setSelected(new Map())
+                  setError('')
+                }}
+                className={mode === value ? activeTabCls : tabCls}
+              >
+                {t(`sharing.${value}`)}
+              </button>
+            ))}
+            {mode === 'share' && (
+              <select
+                value={permission}
+                onChange={(event) =>
+                  setPermission(event.target.value as 'free_busy' | 'details')
+                }
+                className={cx(inputCls, selectChrome)}
+              >
+                <option value="free_busy">{t('sharing.freeBusy')}</option>
+                <option value="details">{t('sharing.details')}</option>
+              </select>
+            )}
+          </div>
 
-        <section className={summaryCls}>
-          <h3 className={summaryTitleCls}>{t('sharing.sharedWith')}</h3>
-          {grants.length === 0 ? (
-            <span className={mutedCls}>{t('sharing.empty')}</span>
-          ) : (
-            grants.map((grant) => (
-              <div key={grant.id} className={summaryRowCls}>
-                <span>
-                  {grant.grantee.full_name || grant.grantee.short_name}
-                  {grant.external ? ` · ${t('form.externalContact')}` : ''}
-                </span>
-                <span className={mutedCls}>
-                  {t(
-                    `sharing.${grant.permission === 'details' ? 'details' : 'freeBusy'}`
-                  )}
-                </span>
-                <button
-                  type="button"
-                  className={removeCls}
-                  disabled={busy}
-                  onClick={() =>
-                    void remove(() => deleteCalendarGrant(grant.id))
-                  }
-                >
-                  {t('sharing.remove')}
-                </button>
-              </div>
-            ))
-          )}
-          <h3 className={summaryTitleCls}>{t('sharing.subscribed')}</h3>
-          {subscriptions.length === 0 ? (
-            <span className={mutedCls}>{t('sharing.empty')}</span>
-          ) : (
-            subscriptions.map((subscription) => (
-              <div key={subscription.id} className={summaryRowCls}>
-                <span>
-                  {subscription.owner.full_name ||
-                    subscription.owner.short_name}
-                </span>
-                <span className={mutedCls}>
-                  {t(
-                    `sharing.${subscription.permission === 'details' ? 'details' : 'freeBusy'}`
-                  )}
-                </span>
-                <button
-                  type="button"
-                  className={removeCls}
-                  disabled={busy}
-                  onClick={() =>
-                    void remove(() => unsubscribeCalendar(subscription.id))
-                  }
-                >
-                  {t('sharing.unsubscribe')}
-                </button>
-              </div>
-            ))
-          )}
-        </section>
+          <div className={pickerCls}>
+            <DirectoryMultiPicker
+              selected={selected}
+              onToggle={toggle}
+              includeExternal
+              externalLabel={t('form.externalContact')}
+              labels={{
+                searchPlaceholder: t('form.searchPlaceholder'),
+                selectedTitle: t('form.selected', { count: selected.size }),
+                loading: t('form.loading'),
+                empty: t('form.noResults'),
+                loadMore: t('form.loadMore'),
+              }}
+            />
+          </div>
+          {error && <p className={errorCls}>{error}</p>}
+
+          <section className={summaryCls}>
+            <h3 className={summaryTitleCls}>{t('sharing.sharedWith')}</h3>
+            {grants.length === 0 ? (
+              <span className={mutedCls}>{t('sharing.empty')}</span>
+            ) : (
+              grants.map((grant) => (
+                <div key={grant.id} className={summaryRowCls}>
+                  <span>
+                    {grant.grantee.full_name || grant.grantee.short_name}
+                    {grant.external ? ` · ${t('form.externalContact')}` : ''}
+                  </span>
+                  <span className={mutedCls}>
+                    {t(
+                      `sharing.${grant.permission === 'details' ? 'details' : 'freeBusy'}`
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className={removeCls}
+                    disabled={busy}
+                    onClick={() =>
+                      void remove(() => deleteCalendarGrant(grant.id))
+                    }
+                  >
+                    {t('sharing.remove')}
+                  </button>
+                </div>
+              ))
+            )}
+            <h3 className={summaryTitleCls}>{t('sharing.subscribed')}</h3>
+            {subscriptions.length === 0 ? (
+              <span className={mutedCls}>{t('sharing.empty')}</span>
+            ) : (
+              subscriptions.map((subscription) => (
+                <div key={subscription.id} className={summaryRowCls}>
+                  <span>
+                    {subscription.owner.full_name ||
+                      subscription.owner.short_name}
+                  </span>
+                  <span className={mutedCls}>
+                    {t(
+                      `sharing.${subscription.permission === 'details' ? 'details' : 'freeBusy'}`
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className={removeCls}
+                    disabled={busy}
+                    onClick={() =>
+                      void remove(() => unsubscribeCalendar(subscription.id))
+                    }
+                  >
+                    {t('sharing.unsubscribe')}
+                  </button>
+                </div>
+              ))
+            )}
+          </section>
+        </div>
       </div>
       <div className={footerCls}>
         <Button variant="secondary" size="action" onPress={onClose}>
@@ -275,6 +277,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
 
 const headerCls = css({
   display: 'flex',
+  flexShrink: 0,
   justifyContent: 'space-between',
   alignItems: 'center',
   padding: '1rem',
@@ -282,11 +285,15 @@ const headerCls = css({
 })
 const titleCls = css({ margin: 0, fontSize: '1rem', fontWeight: 700 })
 const bodyCls = css({
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+})
+const bodyStackCls = css({
   padding: '1rem',
   display: 'flex',
   flexDirection: 'column',
   gap: '0.875rem',
-  overflowY: 'auto',
 })
 const defaultRowCls = css({
   display: 'grid',
@@ -345,6 +352,7 @@ const removeCls = css({
 })
 const footerCls = css({
   display: 'flex',
+  flexShrink: 0,
   justifyContent: 'flex-end',
   gap: '0.5rem',
   padding: '0.75rem 1rem',

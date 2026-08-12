@@ -348,126 +348,89 @@ export const CreateEventDialog = ({
         <ModalCloseButton onClose={onClose} label={t('form.cancel')} />
       </div>
 
-      <div
-        className={css({
-          overflowY: 'auto',
-          padding: '1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.875rem',
-        })}
-      >
-        <input
-          ref={titleRef}
-          type="text"
-          value={title}
-          maxLength={255}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={t('form.titlePlaceholder')}
-          data-testid="event-title"
-          className={inputCls}
-        />
+      <div className={scrollBodyCls}>
+        <div className={formStackCls}>
+          <input
+            ref={titleRef}
+            type="text"
+            value={title}
+            maxLength={255}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={t('form.titlePlaceholder')}
+            data-testid="event-title"
+            className={inputCls}
+          />
 
-        <textarea
-          value={description}
-          maxLength={2000}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder={t('form.descriptionPlaceholder')}
-          rows={3}
-          data-testid="event-description"
-          className={textareaCls}
-        />
+          <textarea
+            value={description}
+            maxLength={2000}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={t('form.descriptionPlaceholder')}
+            rows={3}
+            data-testid="event-description"
+            className={textareaCls}
+          />
 
-        <div
-          className={css({
-            display: 'flex',
-            gap: '0.75rem',
-            flexWrap: 'wrap',
-          })}
-        >
-          <label className={fieldCls}>
-            <span className={labelCls}>{t('form.start')}</span>
-            <input
-              type={allDay ? 'date' : 'datetime-local'}
-              value={allDay ? dateOnly(start) : start}
-              onChange={(e) => {
-                const v = e.target.value
-                setStart(allDay ? (v ? `${v}T00:00` : '') : v)
-              }}
-              data-testid="event-start"
-              className={inputCls}
-            />
-          </label>
-          <label className={fieldCls}>
-            <span className={labelCls}>{t('form.end')}</span>
-            <input
-              type={allDay ? 'date' : 'datetime-local'}
-              value={allDay ? dateOnly(end) : end}
-              onChange={(e) => {
-                const v = e.target.value
-                setEnd(allDay ? (v ? `${v}T00:00` : '') : v)
-              }}
-              data-testid="event-end"
-              className={inputCls}
-            />
-          </label>
-        </div>
-
-        <label className={fieldCls} htmlFor="event-timezone">
-          <span className={labelCls}>{t('form.timezone')}</span>
-          <select
-            id="event-timezone"
-            value={eventTimezone}
-            onChange={(event) => setEventTimezone(event.target.value)}
-            data-testid="event-timezone"
-            className={cx(inputCls, selectChrome)}
+          <div
+            className={css({
+              display: 'flex',
+              gap: '0.75rem',
+              flexWrap: 'wrap',
+            })}
           >
-            {!timezoneOptions.some(
-              (option) => option.zone === eventTimezone
-            ) && <option value={eventTimezone}>{eventTimezone}</option>}
-            {timezoneOptions.map((option) => (
-              <option key={option.zone} value={option.zone}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {allDay && (
-            <div className={videoHintCls}>{t('form.allDayTimezoneHint')}</div>
-          )}
-        </label>
+            <label className={fieldCls}>
+              <span className={labelCls}>{t('form.start')}</span>
+              <input
+                type={allDay ? 'date' : 'datetime-local'}
+                value={allDay ? dateOnly(start) : start}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setStart(allDay ? (v ? `${v}T00:00` : '') : v)
+                }}
+                data-testid="event-start"
+                className={inputCls}
+              />
+            </label>
+            <label className={fieldCls}>
+              <span className={labelCls}>{t('form.end')}</span>
+              <input
+                type={allDay ? 'date' : 'datetime-local'}
+                value={allDay ? dateOnly(end) : end}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setEnd(allDay ? (v ? `${v}T00:00` : '') : v)
+                }}
+                data-testid="event-end"
+                className={inputCls}
+              />
+            </label>
+          </div>
 
-        {/* 提醒 —— 与下面的「重复」同构(标签 + 满宽 select)。原来它和「全天」
+          <label className={fieldCls} htmlFor="event-timezone">
+            <span className={labelCls}>{t('form.timezone')}</span>
+            <select
+              id="event-timezone"
+              value={eventTimezone}
+              onChange={(event) => setEventTimezone(event.target.value)}
+              data-testid="event-timezone"
+              className={cx(inputCls, selectChrome)}
+            >
+              {!timezoneOptions.some(
+                (option) => option.zone === eventTimezone
+              ) && <option value={eventTimezone}>{eventTimezone}</option>}
+              {timezoneOptions.map((option) => (
+                <option key={option.zone} value={option.zone}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {allDay && (
+              <div className={videoHintCls}>{t('form.allDayTimezoneHint')}</div>
+            )}
+          </label>
+
+          {/* 提醒 —— 与下面的「重复」同构(标签 + 满宽 select)。原来它和「全天」
             复选框挤在一行,select 一撑就把「全天」挤到下一行去,布局散架。 */}
-        <div
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '0.75rem',
-            fontSize: '0.875rem',
-            color: 'greyscale.800',
-          })}
-        >
-          <span>{t('form.reminder')}</span>
-          <select
-            value={reminder == null ? '' : String(reminder)}
-            onChange={(e) =>
-              setReminder(e.target.value === '' ? null : Number(e.target.value))
-            }
-            data-testid="event-reminder"
-            className={cx(inputCls, selectChrome)}
-          >
-            <option value="">{t('form.reminderNone')}</option>
-            {reminderOptions.map((m) => (
-              <option key={m} value={String(m)}>
-                {reminderOptionLabel(t, m)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* P2-M1 重复 — 创建时可选;编辑重复规则属 M2 三选语义,编辑态隐藏。 */}
-        {!isEdit && (
           <div
             className={css({
               display: 'flex',
@@ -478,120 +441,156 @@ export const CreateEventDialog = ({
               color: 'greyscale.800',
             })}
           >
-            <span>{t('form.repeat')}</span>
+            <span>{t('form.reminder')}</span>
             <select
-              value={repeat}
-              onChange={(e) => setRepeat(e.target.value)}
-              data-testid="event-repeat"
+              value={reminder == null ? '' : String(reminder)}
+              onChange={(e) =>
+                setReminder(
+                  e.target.value === '' ? null : Number(e.target.value)
+                )
+              }
+              data-testid="event-reminder"
               className={cx(inputCls, selectChrome)}
             >
-              <option value="">{t('form.repeatNone')}</option>
-              <option value="DAILY">{t('form.repeatDaily')}</option>
-              <option value="WEEKDAYS">{t('form.repeatWeekdays')}</option>
-              <option value="WEEKLY">{t('form.repeatWeekly')}</option>
-              <option value="MONTHLY">{t('form.repeatMonthly')}</option>
+              <option value="">{t('form.reminderNone')}</option>
+              {reminderOptions.map((m) => (
+                <option key={m} value={String(m)}>
+                  {reminderOptionLabel(t, m)}
+                </option>
+              ))}
             </select>
-            {repeat && (
-              <label
-                className={css({
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.375rem',
-                })}
-              >
-                {t('form.repeatUntil')}
-                <input
-                  type="date"
-                  value={repeatUntil}
-                  onChange={(e) => setRepeatUntil(e.target.value)}
-                  data-testid="event-repeat-until"
-                  className={inputCls}
-                />
-              </label>
-            )}
           </div>
-        )}
 
-        <div className={fieldCls}>
-          <label className={labelCls} htmlFor="event-visibility">
-            {t('visibility.label')}
-          </label>
-          <select
-            id="event-visibility"
-            value={visibility}
-            onChange={(event) =>
-              setVisibility(event.target.value as EventVisibility)
-            }
-            data-testid="event-visibility"
-            className={cx(inputCls, selectChrome)}
-          >
-            <option value="default">{t('visibility.default')}</option>
-            <option value="public">{t('visibility.public')}</option>
-            <option value="private">{t('visibility.private')}</option>
-          </select>
-          <div className={videoHintCls}>
-            {t(`visibility.hint.${visibility}`)}
-          </div>
-        </div>
-
-        {/* Attendees — 创建态 + 非重复日程编辑态(P8 全量同步);重复日程编辑不展示。 */}
-        {attendeesEditable && (
-          <div>
-            {/* 选人区:标题/计数/「添加」按钮与已选列表都由它自己渲染。 */}
-            <AttendeePicker
-              selected={selected}
-              onToggle={toggle}
-              roles={attendeeRoles}
-              onRoleChange={(id, role) =>
-                setAttendeeRoles((prev) => new Map(prev).set(id, role))
-              }
-              initialAvatars={initialAvatars}
-              slotStart={validTimedStart}
-              slotEnd={validTimedEnd}
-              slotTimezone={eventTimezone}
-              excludeEventId={editEvent?.id}
-              selfId={user?.id}
-            />
-          </div>
-        )}
-
-        {/* 视频会议 —— 对标飞书,是一项「可以移除」的东西而不是日程的固有
-            属性。放在会议室之前:两者都是「在哪开」,线上先于线下。 */}
-        {videoEditable && (
-          <div data-testid="event-video-meeting">
-            {/* 开/关是个布尔状态,用胶囊开关而不是「移除/添加」文字按钮 ——
-                与 App 端同款,也省掉「按钮上写的是当前态还是下一步动作」的歧义。 */}
-            <Switch
-              isSelected={withVideo}
-              onChange={setWithVideo}
-              data-testid="event-video-toggle"
-              className={videoSwitchCls}
+          {/* P2-M1 重复 — 创建时可选;编辑重复规则属 M2 三选语义,编辑态隐藏。 */}
+          {!isEdit && (
+            <div
+              className={css({
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+                fontSize: '0.875rem',
+                color: 'greyscale.800',
+              })}
             >
-              <span className={labelCls}>{t('form.videoMeeting')}</span>
-            </Switch>
+              <span>{t('form.repeat')}</span>
+              <select
+                value={repeat}
+                onChange={(e) => setRepeat(e.target.value)}
+                data-testid="event-repeat"
+                className={cx(inputCls, selectChrome)}
+              >
+                <option value="">{t('form.repeatNone')}</option>
+                <option value="DAILY">{t('form.repeatDaily')}</option>
+                <option value="WEEKDAYS">{t('form.repeatWeekdays')}</option>
+                <option value="WEEKLY">{t('form.repeatWeekly')}</option>
+                <option value="MONTHLY">{t('form.repeatMonthly')}</option>
+              </select>
+              {repeat && (
+                <label
+                  className={css({
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.375rem',
+                  })}
+                >
+                  {t('form.repeatUntil')}
+                  <input
+                    type="date"
+                    value={repeatUntil}
+                    onChange={(e) => setRepeatUntil(e.target.value)}
+                    data-testid="event-repeat-until"
+                    className={inputCls}
+                  />
+                </label>
+              )}
+            </div>
+          )}
+
+          <div className={fieldCls}>
+            <label className={labelCls} htmlFor="event-visibility">
+              {t('visibility.label')}
+            </label>
+            <select
+              id="event-visibility"
+              value={visibility}
+              onChange={(event) =>
+                setVisibility(event.target.value as EventVisibility)
+              }
+              data-testid="event-visibility"
+              className={cx(inputCls, selectChrome)}
+            >
+              <option value="default">{t('visibility.default')}</option>
+              <option value="public">{t('visibility.public')}</option>
+              <option value="private">{t('visibility.private')}</option>
+            </select>
             <div className={videoHintCls}>
-              {withVideo ? t('form.videoMeetingOn') : t('form.videoMeetingOff')}
+              {t(`visibility.hint.${visibility}`)}
             </div>
           </div>
-        )}
 
-        {/* P9 会议室 —— 放在参与者之后:容量筛选按已选人数起算,可用性依赖
+          {/* Attendees — 创建态 + 非重复日程编辑态(P8 全量同步);重复日程编辑不展示。 */}
+          {attendeesEditable && (
+            <div>
+              {/* 选人区:标题/计数/「添加」按钮与已选列表都由它自己渲染。 */}
+              <AttendeePicker
+                selected={selected}
+                onToggle={toggle}
+                roles={attendeeRoles}
+                onRoleChange={(id, role) =>
+                  setAttendeeRoles((prev) => new Map(prev).set(id, role))
+                }
+                initialAvatars={initialAvatars}
+                slotStart={validTimedStart}
+                slotEnd={validTimedEnd}
+                slotTimezone={eventTimezone}
+                excludeEventId={editEvent?.id}
+                selfId={user?.id}
+              />
+            </div>
+          )}
+
+          {/* 视频会议 —— 对标飞书,是一项「可以移除」的东西而不是日程的固有
+            属性。放在会议室之前:两者都是「在哪开」,线上先于线下。 */}
+          {videoEditable && (
+            <div data-testid="event-video-meeting">
+              {/* 开/关是个布尔状态,用胶囊开关而不是「移除/添加」文字按钮 ——
+                与 App 端同款,也省掉「按钮上写的是当前态还是下一步动作」的歧义。 */}
+              <Switch
+                isSelected={withVideo}
+                onChange={setWithVideo}
+                data-testid="event-video-toggle"
+                className={videoSwitchCls}
+              >
+                <span className={labelCls}>{t('form.videoMeeting')}</span>
+              </Switch>
+              <div className={videoHintCls}>
+                {withVideo
+                  ? t('form.videoMeetingOn')
+                  : t('form.videoMeetingOff')}
+              </div>
+            </div>
+          )}
+
+          {/* P9 会议室 —— 放在参与者之后:容量筛选按已选人数起算,可用性依赖
             上方选好的时段,冲突提示条也就正好压在提交按钮上方。 */}
-        <MeetingRoomField
-          value={meetingRoom}
-          onChange={setMeetingRoom}
-          start={validTimedStart}
-          end={validTimedEnd}
-          allDay={allDay}
-          attendeeCount={selected.size + 1}
-          excludeEventId={editEvent?.id}
-          onConflictChange={setRoomConflicted}
-        />
+          <MeetingRoomField
+            value={meetingRoom}
+            onChange={setMeetingRoom}
+            start={validTimedStart}
+            end={validTimedEnd}
+            allDay={allDay}
+            attendeeCount={selected.size + 1}
+            excludeEventId={editEvent?.id}
+            onConflictChange={setRoomConflicted}
+          />
+        </div>
       </div>
 
       <div
         className={css({
           display: 'flex',
+          flexShrink: 0,
           justifyContent: 'flex-end',
           gap: '0.5rem',
           paddingX: '1rem',
@@ -618,11 +617,23 @@ export const CreateEventDialog = ({
 
 const headerCls = css({
   display: 'flex',
+  flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'space-between',
   paddingX: '1rem',
   paddingY: '0.75rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
+})
+const scrollBodyCls = css({
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+})
+const formStackCls = css({
+  padding: '1rem',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.875rem',
 })
 const textareaCls = css({
   width: '100%',

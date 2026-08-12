@@ -41,6 +41,7 @@ import { css } from '@/styled-system/css'
 export const selectChrome = css({
   appearance: 'none',
   height: 'control.md',
+  minHeight: 'control.md',
   backgroundImage: `url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237C7C7C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>")`,
   backgroundRepeat: 'no-repeat',
   backgroundPosition: 'right 0.625rem center',

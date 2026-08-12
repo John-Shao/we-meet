@@ -25,6 +25,7 @@ const StyledButton = styled(Button, {
     // 与 Input / Button sm 对齐(见 panda.config 的 sizes.control)。
     // 原先 30px,是这批控件里最矮的一个。内容由上面的 flex 居中。
     height: 'control.md',
+    minHeight: 'control.md',
     paddingY: 0.125,
     paddingX: 0.25,
     border: '1px solid',

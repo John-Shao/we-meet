@@ -25,6 +25,7 @@ import { css } from '@/styled-system/css'
 export const inputCls = css({
   width: '100%',
   height: 'control.md',
+  minHeight: 'control.md',
   paddingX: '0.75rem',
   paddingBlock: 0,
   border: '1px solid token(colors.greyscale.300)',
