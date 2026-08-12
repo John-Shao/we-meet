@@ -8,6 +8,7 @@ import {
   RiFileList2Line,
   RiFileTextLine,
   RiGroupLine,
+  RiLockLine,
   RiNotification3Line,
   RiPencilLine,
   RiQuestionLine,
@@ -101,12 +102,15 @@ export const EventDetailDialog = ({
     .trim()
     .slice(0, 90)
 
-  // 详情可被非参与人打开(分享到群后凭 id 只读),但表态仍限参与人/组织者 ——
-  // 后端 rsvp 走受限 queryset,非参与人点了必失败,故直接不渲染 RSVP 区。
+  // 详情可被非参与人打开(分享到群后凭 id 只读),但表态只限受邀参与人。
+  // 组织者恒为 accepted；非参与人和组织者都不渲染 RSVP 区。
   const canRsvp =
     !!user &&
-    (event.organizer?.id === user.id ||
-      event.attendees.some((a) => a.id === user.id))
+    event.organizer?.id !== user.id &&
+    event.attendees.some((a) => a.id === user.id)
+  const displayTitle = event.details_redacted
+    ? t('detail.privateEvent')
+    : event.title
 
   const fmtDate = (iso: string, tz?: string) =>
     new Date(iso).toLocaleDateString(i18n.language, {
@@ -148,14 +152,14 @@ export const EventDetailDialog = ({
   }
 
   return (
-    <Modal onClose={onClose} ariaLabel={event.title} maxWidth="440px">
+    <Modal onClose={onClose} ariaLabel={displayTitle} maxWidth="440px">
       {/* 头部:标题 + 右上角图标操作 + 时间 —— 固定不随信息区滚动 */}
       <div className={headerCls}>
         <div className={headerTopCls}>
           <span className={dotCls} aria-hidden="true" />
-          <h2 className={titleCls}>{event.title}</h2>
+          <h2 className={titleCls}>{displayTitle}</h2>
           <div className={headerActionsCls}>
-            {onShare && (
+            {onShare && event.visibility !== 'private' && (
               <Button
                 variant="quaternaryText"
                 size="icon28"
@@ -213,6 +217,11 @@ export const EventDetailDialog = ({
 
       {/* 信息区:一行一条「图标 + 内容」,超长时只滚这一段 */}
       <div className={bodyCls}>
+        {event.details_redacted && (
+          <InfoRow icon={RiLockLine} testId="detail-private-redacted">
+            <span className={mutedTextCls}>{t('detail.privateEventHint')}</span>
+          </InfoRow>
+        )}
         {/* P2-M1 重复标识:主事件按 FREQ 显示预设名;子场次显示「重复日程的一次」。 */}
         {(event.recurrence || event.recurrence_parent) && (
           <InfoRow icon={RiRepeatLine}>
@@ -294,19 +303,21 @@ export const EventDetailDialog = ({
         )}
 
         {/* 组织者:头像 + 名字 + 标签,与参与人列表同一套人物呈现 */}
-        <InfoRow icon={RiUserLine}>
-          <span className={personCls}>
-            <MemberAvatar
-              name={event.organizer?.full_name || '?'}
-              src={event.organizer?.avatar_url}
-              size="1.375rem"
-            />
-            <span className={personNameCls}>
-              {event.organizer?.full_name || '—'}
+        {!event.details_redacted && (
+          <InfoRow icon={RiUserLine}>
+            <span className={personCls}>
+              <MemberAvatar
+                name={event.organizer?.full_name || '?'}
+                src={event.organizer?.avatar_url}
+                size="1.375rem"
+              />
+              <span className={personNameCls}>
+                {event.organizer?.full_name || '—'}
+              </span>
+              <span className={organizerTagCls}>{t('card.organizer')}</span>
             </span>
-            <span className={organizerTagCls}>{t('card.organizer')}</span>
-          </span>
-        </InfoRow>
+          </InfoRow>
+        )}
 
         {/* 参与人列表(对齐 App 端:RSVP 状态图标 + 名字 + 组织者标签)。 */}
         {attendees.length > 0 && (
@@ -341,6 +352,11 @@ export const EventDetailDialog = ({
                     {a.role === 'organizer' && (
                       <span className={organizerTagCls}>
                         {t('card.organizer')}
+                      </span>
+                    )}
+                    {a.role === 'optional' && (
+                      <span className={organizerTagCls}>
+                        {t('detail.optionalAttendee')}
                       </span>
                     )}
                     <StatusIcon
@@ -410,8 +426,8 @@ export const EventDetailDialog = ({
         )}
       </div>
 
-      {/* 底栏 RSVP —— 三档等分整行(对标飞书);仅参与人/组织者可见,
-          非参与人是「被分享者」,只读,连底栏一起不渲染。 */}
+      {/* 底栏 RSVP —— 三档等分整行(对标飞书);仅受邀参与人可见。
+          组织者恒为接受；被分享者只读，二者均不渲染底栏。 */}
       {canRsvp && (
         <div
           className={footerCls}

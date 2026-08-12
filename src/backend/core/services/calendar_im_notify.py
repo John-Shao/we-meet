@@ -3,8 +3,11 @@
 协议 v1(与 Web `eventCard.ts` / Android `MessageContent.EventCard` 一致):
 ``{v, kind, event_id, title, start, end, all_day, attendee_count,
 organizer_name, old_start?, old_end?, added_count?, removed_count?,
-recurrence_scope?, responder_name?, rsvp_status?}``,
+recurrence_scope?, responder_name?, rsvp_status?, visibility?}``,
 content_type 固定 ``event-card``。
+
+``visibility=private`` 的来源会话卡片只携带时间窗和「私密日程」标记；
+标题、组织者和参与人数置空。发给真实参与人的日程助手私聊仍保留完整详情。
 
 P8-UX:先以**组织者身份**严格发送；仅 ``sender_not_member`` 允许日程助手
 补位，助手失败再退 SYSTEM。网络/5xx 不冒充退群。双端从可选
@@ -108,7 +111,27 @@ def build_event_card(  # noqa: PLR0913 - mirrors the stable card protocol
         recurrence_scope=recurrence_scope,
         responder_name=responder_name,
         rsvp_status=rsvp_status,
+        visibility=event.visibility,
     )
+
+
+def redact_private_source_card(card: dict) -> dict:
+    """Hide private details in a conversation that may include outsiders."""
+    if card.get("visibility") != "private":
+        return card
+    return {
+        **card,
+        "title": "",
+        "attendee_count": 0,
+        "organizer_name": "",
+    }
+
+
+def private_personal_card(card: dict) -> dict:
+    """Keep attendee delivery complete; ``private`` marks redacted wire cards."""
+    if card.get("visibility") != "private":
+        return card
+    return {key: value for key, value in card.items() if key != "visibility"}
 
 
 def _organizer_sender_uid(client: JusiImAdminClient, organizer) -> str | None:
@@ -339,11 +362,11 @@ def notify_event_created(event_id) -> None:
     )
     if event is None:
         return
-    card = build_event_card(event, im_cards.EVENT_KIND_INVITED)
+    card = private_personal_card(build_event_card(event, im_cards.EVENT_KIND_INVITED))
     push_user_cards(
         (attendance.user, card)
         for attendance in event.attendees.all()
-        if attendance.user_id != event.organizer_id
+        if attendance.user_id is not None and attendance.user_id != event.organizer_id
     )
 
 
@@ -388,20 +411,23 @@ def prepare_event_change(  # noqa: PLR0913 - explicit event-card change fields
         display_start=display_start,
         display_end=display_end,
     )
+    personal_card = private_personal_card(card)
     added_user_ids = set(added_user_ids)
     removed_user_ids = set(removed_user_ids)
     deliveries = []
     for attendance in event.attendees.select_related("user"):
-        if attendance.user_id == event.organizer_id:
+        if attendance.user_id is None or attendance.user_id == event.organizer_id:
             continue
         attendee_card = (
-            build_event_card(event, im_cards.EVENT_KIND_INVITED)
+            private_personal_card(build_event_card(event, im_cards.EVENT_KIND_INVITED))
             if attendance.user_id in added_user_ids
-            else card
+            else personal_card
         )
         deliveries.append((attendance.user, attendee_card))
     if removed_user_ids:
-        removed_card = build_event_card(event, im_cards.EVENT_KIND_REMOVED)
+        removed_card = private_personal_card(
+            build_event_card(event, im_cards.EVENT_KIND_REMOVED)
+        )
         deliveries.extend(
             (user, removed_card)
             for user in models.User.objects.filter(id__in=removed_user_ids)
@@ -409,7 +435,7 @@ def prepare_event_change(  # noqa: PLR0913 - explicit event-card change fields
         )
     return (
         event.source_conversation_id,
-        card,
+        redact_private_source_card(card),
         event.organizer,
         tuple(deliveries),
     )
@@ -470,18 +496,20 @@ def notify_event_change(  # noqa: PLR0913 - explicit event-card change fields
 
 def notify_event_cancelled(
     cid: str,
-    card: dict,
+    source_card: dict,
     *,
     organizer,
     attendee_user_ids,
+    personal_card: dict | None = None,
 ) -> None:
     """Deliver one source card plus one personal cancellation per attendee."""
     from core import models  # noqa: PLC0415 - delayed to avoid model/service cycle
 
     if cid:
-        push_card(cid, card, organizer=organizer)
+        push_card(cid, source_card, organizer=organizer)
+    personal_card = personal_card or source_card
     push_user_cards(
-        (user, card)
+        (user, personal_card)
         for user in models.User.objects.filter(id__in=attendee_user_ids)
         if user.id != organizer.id
     )
@@ -506,11 +534,13 @@ def notify_event_rsvp(event_id, responder_id, rsvp_status: str) -> None:
     recurrence_scope = (
         "one" if event.recurrence_parent_id else "all" if event.recurrence else ""
     )
-    card = build_event_card(
-        event,
-        im_cards.EVENT_KIND_RSVP_CHANGED,
-        responder_name=responder_name,
-        rsvp_status=rsvp_status,
-        recurrence_scope=recurrence_scope,
+    card = private_personal_card(
+        build_event_card(
+            event,
+            im_cards.EVENT_KIND_RSVP_CHANGED,
+            responder_name=responder_name,
+            rsvp_status=rsvp_status,
+            recurrence_scope=recurrence_scope,
+        )
     )
     push_user_cards([(event.organizer, card)])

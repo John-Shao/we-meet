@@ -26,6 +26,14 @@
     "reminderDay": "1 dag van tevoren",
     "reminderDays": "{{count}} dagen van tevoren",
     "attendees": "Deelnemers",
+    "required": "Verplicht",
+    "optional": "Optioneel",
+    "attendeeRole": "Deelnametype voor {{name}}",
+    "externalEmail": "E-mailadres externe deelnemer",
+    "externalEmailPlaceholder": "Extern e-mailadres invoeren",
+    "addExternal": "E-mail toevoegen",
+    "privateEvent": "Privéafspraak",
+    "privateEventHint": "Niet-deelnemers zien alleen de bezette tijd, zonder details of deelnamelink",
     "selected": "{{count}} geselecteerd",
     "searchPlaceholder": "Leden zoeken…",
     "loading": "Laden…",
@@ -82,7 +90,10 @@
     "summaryView": "Notulen bekijken",
     "close": "Sluiten",
     "attendeeCount": "{{count}} deelnemers",
-    "attendeeAccepted": "{{count}} geaccepteerd"
+    "attendeeAccepted": "{{count}} geaccepteerd",
+    "privateEvent": "Privéafspraak",
+    "privateEventHint": "Je bent geen deelnemer; de afspraakdetails zijn verborgen.",
+    "optionalAttendee": "Optioneel"
   },
   "rsvp": {
     "label": "Mijn reactie",

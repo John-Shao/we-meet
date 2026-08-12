@@ -76,6 +76,13 @@ kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core
 # 期望: [X] 0091_calendar_recurrence_source_backfill
 ```
 
+### 日历 P1-8（无迁移）部署顺序
+
+按 **backend → frontend → Android** 发布。后端先提供 ``attendee_entries``、
+``details_redacted`` 和组织者 RSVP 限制；新字段均为加法兼容，旧客户端继续使用
+``attendee_ids``。本阶段复用既有 ``visibility``、``EventAttendee.email/role`` 字段，
+不新增数据库迁移。
+
 ---
 
 ## 已归档的实例:2026-07-02「假完成坑」三项(commit 29634218)

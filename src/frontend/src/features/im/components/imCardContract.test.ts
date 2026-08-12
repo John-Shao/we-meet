@@ -3,7 +3,9 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { parseDocCard } from './docCard'
-import { parseEventCard } from './eventCard'
+import type { CalendarEvent } from '@/features/calendar'
+
+import { buildEventCardBody, parseEventCard } from './eventCard'
 import { parseMeetingCard } from './meetingCard'
 import { parseRichText, richTextPlain } from './richText'
 
@@ -38,6 +40,33 @@ describe('IM card golden fixtures', () => {
       expect(card?.kind).toBe('created')
       expect(card?.title).toBe('季度评审')
       expect(card?.attendee_count).toBe(4)
+    })
+
+    it('parses a redacted private card', () => {
+      const card = parseEventCard(load('event_card_private'))
+      expect(card?.visibility).toBe('private')
+      expect(card?.title).toBe('')
+      expect(card?.attendee_count).toBe(0)
+      expect(card?.organizer_name).toBe('')
+    })
+
+    it('redacts a private event before sending it to its source chat', () => {
+      const body = buildEventCardBody({
+        id: 'event-private',
+        title: 'Secret review',
+        start_at: '2026-08-12T02:00:00Z',
+        end_at: '2026-08-12T03:00:00Z',
+        all_day: false,
+        visibility: 'private',
+        attendees: [{}, {}],
+        organizer: { full_name: 'Alice' },
+      } as CalendarEvent)
+      const card = parseEventCard(body)
+
+      expect(card?.visibility).toBe('private')
+      expect(card?.title).toBe('')
+      expect(card?.attendee_count).toBe(0)
+      expect(card?.organizer_name).toBe('')
     })
 
     it('parses invitation and removal cards', () => {

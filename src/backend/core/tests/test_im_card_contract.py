@@ -64,6 +64,21 @@ def test_event_card_created():
     )
 
 
+def test_private_event_card_redacts_conversation_metadata():
+    _assert_golden(
+        "event_card_private",
+        im_cards.build_event_card(
+            event_id="11111111-1111-4111-8111-111111111111",
+            title="",
+            start="2026-08-10T02:00:00+00:00",
+            end="2026-08-10T03:00:00+00:00",
+            attendee_count=0,
+            organizer_name="",
+            visibility="private",
+        ),
+    )
+
+
 def test_event_card_invited():
     _assert_golden(
         "event_card_invited",

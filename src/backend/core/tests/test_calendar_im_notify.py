@@ -183,6 +183,94 @@ def test_destroy_pushes_cancelled_snapshot(django_capture_on_commit_callbacks):
     assert push.call_args.kwargs["organizer"].email == "o@acme.com"
 
 
+def test_private_change_redacts_source_but_not_personal_card(
+    django_capture_on_commit_callbacks,
+    _stub_personal_delivery,
+):
+    _, _, peer, client = _setup()
+    body = _create(
+        client,
+        visibility="private",
+        attendee_ids=[str(peer.id)],
+    )
+    new_start = timezone.now() + timedelta(days=2)
+
+    with mock.patch.object(calendar_im_notify, "push_card") as push:
+        with django_capture_on_commit_callbacks(execute=True):
+            response = client.patch(
+                f"/api/v1.0/calendar-events/{body['id']}/",
+                {
+                    "start_at": new_start.isoformat(),
+                    "end_at": (new_start + timedelta(hours=1)).isoformat(),
+                },
+                format="json",
+            )
+
+    assert response.status_code == 200, response.content
+    source_card = push.call_args.args[1]
+    assert source_card["visibility"] == "private"
+    assert source_card["title"] == ""
+    assert source_card["attendee_count"] == 0
+    assert source_card["organizer_name"] == ""
+
+    deliveries = list(_stub_personal_delivery.call_args.args[0])
+    assert len(deliveries) == 1
+    assert deliveries[0][0].id == peer.id
+    assert deliveries[0][1]["title"] == "周会"
+    assert deliveries[0][1]["attendee_count"] == 2
+    assert "visibility" not in deliveries[0][1]
+
+
+def test_private_cancel_redacts_source_but_not_personal_card(
+    django_capture_on_commit_callbacks,
+    _stub_personal_delivery,
+):
+    _, _, peer, client = _setup()
+    body = _create(
+        client,
+        visibility="private",
+        attendee_ids=[str(peer.id)],
+    )
+
+    with mock.patch.object(calendar_im_notify, "push_card") as push:
+        with django_capture_on_commit_callbacks(execute=True):
+            response = client.delete(f"/api/v1.0/calendar-events/{body['id']}/")
+
+    assert response.status_code == 204, response.content
+    source_card = push.call_args.args[1]
+    assert source_card["visibility"] == "private"
+    assert source_card["title"] == ""
+    assert source_card["attendee_count"] == 0
+    assert source_card["organizer_name"] == ""
+
+    deliveries = list(_stub_personal_delivery.call_args.args[0])
+    assert len(deliveries) == 1
+    assert deliveries[0][0].id == peer.id
+    assert deliveries[0][1]["title"] == "周会"
+    assert deliveries[0][1]["kind"] == "cancelled"
+    assert "visibility" not in deliveries[0][1]
+
+
+def test_external_email_attendee_is_not_treated_as_an_im_user(
+    django_capture_on_commit_callbacks,
+    _stub_personal_delivery,
+):
+    _, _, _, client = _setup()
+
+    with django_capture_on_commit_callbacks(execute=True):
+        response = _create(
+            client,
+            cid=None,
+            attendee_entries=[
+                {"email": "guest@example.com", "role": "optional"},
+            ],
+        )
+
+    assert response["attendees"][1]["email"] == "guest@example.com"
+    _stub_personal_delivery.assert_called_once()
+    assert list(_stub_personal_delivery.call_args.args[0]) == []
+
+
 def test_event_without_cid_uses_only_personal_notifications(
     django_capture_on_commit_callbacks,
 ):

@@ -31,6 +31,7 @@ export interface EventCardBody {
   /** 只随 kind=rsvp_changed 出现。 */
   responder_name?: string
   rsvp_status?: 'needs_action' | 'accepted' | 'declined' | 'tentative'
+  visibility?: 'private'
 }
 
 /** 创建成功后由客户端组来源会话 created 卡；个人生命周期卡由后端发送。 */
@@ -39,13 +40,15 @@ export const buildEventCardBody = (event: CalendarEvent): string =>
     v: 1,
     kind: 'created',
     event_id: event.id,
-    title: event.title,
+    title: event.visibility === 'private' ? '' : event.title,
     start: event.start_at,
     end: event.end_at,
     all_day: event.all_day,
     // 以后端返回体为准 —— 跨组织 id 会被服务端静默丢弃,本地选择数会虚高。
-    attendee_count: event.attendees.length,
-    organizer_name: event.organizer?.full_name ?? '',
+    attendee_count: event.visibility === 'private' ? 0 : event.attendees.length,
+    organizer_name:
+      event.visibility === 'private' ? '' : (event.organizer?.full_name ?? ''),
+    ...(event.visibility === 'private' ? { visibility: 'private' } : {}),
   } satisfies EventCardBody)
 
 const KINDS = new Set([
@@ -100,6 +103,7 @@ export const parseEventCard = (raw: string): EventCardBody | null => {
       rsvp_status: RSVP_STATUSES.has(o.rsvp_status as string)
         ? (o.rsvp_status as EventCardBody['rsvp_status'])
         : undefined,
+      visibility: o.visibility === 'private' ? 'private' : undefined,
     }
   } catch {
     return null

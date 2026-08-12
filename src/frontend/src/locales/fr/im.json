@@ -214,6 +214,7 @@
       "organizer": "Organisateur : {{name}}",
       "view": "Voir",
       "allDay": "Journée entière",
+      "privateEvent": "Événement privé",
       "invited": "Vous êtes invité",
       "timeChanged": "Reprogrammé",
       "attendeesChanged": "Participants modifiés",

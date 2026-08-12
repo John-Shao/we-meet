@@ -43,13 +43,14 @@ def mock_admin_client():
         yield instance
 
 
-def _make_event(
+def _make_event(  # noqa: PLR0913 - compact test fixture factory
     *,
     start_at,
     reminders,
     source_conversation_id="source-cid",
     status=EventStatusChoices.CONFIRMED,
     with_room=False,
+    visibility="default",
 ):
     owner = UserFactory()
     owner.im_uid = str(owner.id)
@@ -61,6 +62,7 @@ def _make_event(
         start_at=start_at,
         end_at=start_at + timedelta(minutes=30),
         status=status,
+        visibility=visibility,
         reminders=reminders,
         source_conversation_id=source_conversation_id,
         room=RoomFactory() if with_room else None,
@@ -101,6 +103,21 @@ def test_source_reminder_posts_strictly_as_organizer(jusi_settings, mock_admin_c
     event.refresh_from_db()
     assert event.reminder_outcome == "delivered"
     assert event.reminder_pushed_at is not None
+
+
+def test_private_source_reminder_hides_the_title(jusi_settings, mock_admin_client):
+    now = timezone.now()
+    _make_event(
+        start_at=now + timedelta(minutes=5),
+        reminders=[10],
+        visibility="private",
+    )
+
+    assert push_due_reminders(now=now) == 1
+
+    body = mock_admin_client.post_message.call_args.kwargs["body"]
+    assert "私密日程" in body
+    assert "周会" not in body
 
 
 def test_organizer_departure_uses_calendar_assistant(jusi_settings, mock_admin_client):

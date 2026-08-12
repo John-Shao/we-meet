@@ -225,6 +225,7 @@
       "organizer": "Organizer: {{name}}",
       "view": "View",
       "allDay": "All day",
+      "privateEvent": "Private event",
       "invited": "You're invited",
       "timeChanged": "Rescheduled",
       "attendeesChanged": "Attendees changed",

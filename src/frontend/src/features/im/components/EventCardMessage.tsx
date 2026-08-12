@@ -80,6 +80,10 @@ export const EventCardMessage = ({
     cardEl = <span className={fallbackCls}>{t('preview.event')}</span>
   } else {
     const inactive = card.kind === 'cancelled' || card.kind === 'removed'
+    const privateCard = card.visibility === 'private'
+    const displayTitle = privateCard
+      ? t('calendar.card.privateEvent')
+      : card.title || t('preview.event')
     const badge =
       card.kind === 'invited'
         ? t('calendar.card.invited')
@@ -162,7 +166,7 @@ export const EventCardMessage = ({
             })}
             style={inactive ? { textDecoration: 'line-through' } : undefined}
           >
-            {card.title || t('preview.event')}
+            {displayTitle}
           </span>
           {badge && (
             <span
@@ -235,10 +239,15 @@ export const EventCardMessage = ({
           })}
         >
           <span>
-            {card.attendee_count != null &&
+            {!privateCard &&
+              card.attendee_count != null &&
               t('calendar.card.attendees', { count: card.attendee_count })}
-            {card.attendee_count != null && card.organizer_name && ' · '}
-            {card.organizer_name &&
+            {!privateCard &&
+              card.attendee_count != null &&
+              card.organizer_name &&
+              ' · '}
+            {!privateCard &&
+              card.organizer_name &&
               t('calendar.card.organizer', { name: card.organizer_name })}
           </span>
           {clickable && (

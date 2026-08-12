@@ -54,11 +54,38 @@ class SourceConversationVerificationError(exceptions.APIException):
     default_detail = "Unable to verify source conversation membership."
 
 
+class CalendarAttendeeInputSerializer(serializers.Serializer):
+    """One internal or external attendee in a calendar write payload."""
+
+    user_id = serializers.UUIDField(required=False)
+    email = serializers.EmailField(required=False, allow_blank=False)
+    role = serializers.ChoiceField(
+        choices=[
+            models.EventAttendeeRoleChoices.REQUIRED,
+            models.EventAttendeeRoleChoices.OPTIONAL,
+        ],
+        default=models.EventAttendeeRoleChoices.REQUIRED,
+    )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        has_user = "user_id" in attrs
+        has_email = "email" in attrs
+        if has_user == has_email:
+            raise serializers.ValidationError(
+                "exactly one of user_id or email is required"
+            )
+        if has_email:
+            attrs["email"] = attrs["email"].strip().casefold()
+        return attrs
+
+
 class CalendarEventSerializer(serializers.ModelSerializer):
     """Read + write a calendar event.
 
-    ``attendee_ids`` (write-only) is the list of we-meet user ids to invite;
-    ``attendees`` / ``my_rsvp`` / ``room_slug`` are read-only enrichments.
+    ``attendee_entries`` is the structured internal/external invitee input;
+    legacy ``attendee_ids`` remains accepted. ``attendees`` / ``my_rsvp`` /
+    ``room_slug`` are read-only enrichments.
     """
 
     # 组织者带头像(短时效预签名 URL,同 directory/im resolve 口径),供日程
@@ -70,11 +97,16 @@ class CalendarEventSerializer(serializers.ModelSerializer):
         child=serializers.UUIDField(),
         write_only=True,
         required=False,
-        default=list,
+    )
+    attendee_entries = CalendarAttendeeInputSerializer(
+        many=True,
+        write_only=True,
+        required=False,
     )
     attendees = serializers.SerializerMethodField()
     room_slug = serializers.SerializerMethodField()
     my_rsvp = serializers.SerializerMethodField()
+    details_redacted = serializers.SerializerMethodField()
     # P9 实体会议室 —— 与上面的 ``room`` (LiveKit 视频房间) 毫无关系。
     # 写:``meeting_room_id``;absent = 不动,null/"" = 释放,uuid = 预订/换房。
     meeting_room = serializers.SerializerMethodField()
@@ -108,7 +140,9 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "room_slug",
             "attendees",
             "attendee_ids",
+            "attendee_entries",
             "my_rsvp",
+            "details_redacted",
             "created_at",
             "meeting_room",
             "meeting_room_id",
@@ -129,6 +163,7 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "room_slug",
             "attendees",
             "my_rsvp",
+            "details_redacted",
             "created_at",
             "recurrence_parent",
         ]
@@ -200,6 +235,38 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             for a in obj.attendees.all()
         ]
 
+    def get_details_redacted(self, obj):
+        if obj.visibility != models.EventVisibilityChoices.PRIVATE:
+            return False
+        request = self.context.get("request")
+        if request is None or not request.user.is_authenticated:
+            return True
+        if obj.organizer_id == request.user.id:
+            return False
+        return not any(a.user_id == request.user.id for a in obj.attendees.all())
+
+    def to_representation(self, instance):
+        """Expose only the busy window of a private event to outsiders."""
+        data = super().to_representation(instance)
+        if not data["details_redacted"]:
+            return data
+        data.update(
+            {
+                "title": "",
+                "description": "",
+                "reminders": [],
+                "organizer": None,
+                "room": None,
+                "room_slug": None,
+                "meeting_room": None,
+                "attendees": [],
+                "my_rsvp": None,
+                "recurrence": "",
+                "recurrence_parent": None,
+            }
+        )
+        return data
+
     def get_room_slug(self, obj):
         return obj.room.slug if obj.room_id else None
 
@@ -245,6 +312,22 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         """All-day events cannot hold a room (M1) — see docs/phases/p9."""
         attrs = super().validate(attrs)
+        if "attendee_ids" in attrs and "attendee_entries" in attrs:
+            raise serializers.ValidationError(
+                {"attendee_entries": ("use attendee_entries or attendee_ids, not both")}
+            )
+        entries = attrs.get("attendee_entries")
+        if entries is not None:
+            identities = [
+                ("user", str(entry["user_id"]))
+                if "user_id" in entry
+                else ("email", entry["email"])
+                for entry in entries
+            ]
+            if len(identities) != len(set(identities)):
+                raise serializers.ValidationError(
+                    {"attendee_entries": "duplicate attendee"}
+                )
         start = attrs.get("start_at", getattr(self.instance, "start_at", None))
         end = attrs.get("end_at", getattr(self.instance, "end_at", None))
         if start is not None and end is not None and end <= start:
@@ -336,12 +419,10 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
     pagination_class = Pagination
 
     def get_queryset(self):
-        # 分享日程到聊天:详情放宽为「凭 event_id 只读」——群里的非参与人点开
-        # 分享卡片也能看基本信息(标题/时间/组织者/入会),语义同「拿到链接就能看」。
-        # **只放宽 retrieve**,其余一律不动:list 仍只列自己的;update/destroy 走
-        # 下面的受限 queryset + _require_organizer;rsvp 同样走受限 queryset,
-        # 因此非参与人拿不到对象、无法表态。不做组织过滤——群本就可跨组织
-        # (与云文档分享授权同口径)。
+        # 分享日程到聊天时允许凭 event_id 只读。普通日程沿用「拿到链接即可
+        # 查看」；private 日程由 serializer 对非组织者/非参与者只保留忙碌时间窗，
+        # 标题、描述、参与人、会议室和入会信息全部脱敏。list/update/destroy/rsvp
+        # 仍走下方受限 queryset，不因分享读取而扩大写权限。
         if self.action == "retrieve":
             return (
                 models.CalendarEvent.objects.all()
@@ -411,6 +492,126 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         context["request"] = self.request
         return context
 
+    @staticmethod
+    def _pop_attendee_entries(data):
+        """Normalize the new structured input and the legacy UUID list."""
+        entries = data.pop("attendee_entries", None)
+        attendee_ids = data.pop("attendee_ids", None)
+        if entries is not None:
+            return list(entries)
+        if attendee_ids is not None:
+            return [
+                {
+                    "user_id": user_id,
+                    "role": models.EventAttendeeRoleChoices.REQUIRED,
+                }
+                for user_id in attendee_ids
+            ]
+        return None
+
+    @staticmethod
+    def _attendee_identities(event) -> set[tuple[str, object]]:
+        """Stable internal/external identities for attendee change diffs."""
+        identities = set()
+        for user_id, email in event.attendees.values_list("user_id", "email"):
+            if user_id is not None:
+                identities.add(("user", user_id))
+            elif email:
+                identities.add(("email", email.casefold()))
+        return identities
+
+    @staticmethod
+    def _attendee_roles(event) -> dict[tuple[str, object], str]:
+        roles = {}
+        for user_id, email, role in event.attendees.values_list(
+            "user_id", "email", "role"
+        ):
+            identity = (
+                ("user", user_id)
+                if user_id is not None
+                else ("email", email.casefold())
+            )
+            roles[identity] = role
+        return roles
+
+    @staticmethod
+    def _sync_attendees(event, entries, room=None) -> None:
+        """Full-sync internal/external invitees while preserving the organizer."""
+        internal_specs = {
+            entry["user_id"]: entry["role"]
+            for entry in entries
+            if "user_id" in entry and entry["user_id"] != event.organizer_id
+        }
+        external_specs = {
+            entry["email"].casefold(): entry["role"]
+            for entry in entries
+            if "email" in entry
+        }
+        internal_users = list(
+            models.User.objects.filter(
+                id__in=internal_specs,
+                memberships__organization=event.organization,
+                memberships__status=models.MembershipStatusChoices.ACTIVE,
+            )
+            .exclude(id=event.organizer_id)
+            .distinct()
+        )
+        target_user_ids = {user.id for user in internal_users}
+
+        for attendee in internal_users:
+            attendance, _ = models.EventAttendee.objects.get_or_create(
+                event=event,
+                user=attendee,
+                defaults={"role": internal_specs[attendee.id]},
+            )
+            wanted_role = internal_specs[attendee.id]
+            if attendance.role != wanted_role:
+                attendance.role = wanted_role
+                attendance.save(update_fields=["role", "updated_at"])
+            if room is not None:
+                models.ResourceAccess.objects.get_or_create(
+                    resource=room,
+                    user=attendee,
+                    defaults={"role": models.RoleChoices.MEMBER},
+                )
+
+        existing_external = {
+            attendance.email.casefold(): attendance
+            for attendance in event.attendees.filter(user__isnull=True)
+            if attendance.email
+        }
+        for email, role in external_specs.items():
+            attendance = existing_external.get(email)
+            if attendance is None:
+                models.EventAttendee.objects.create(
+                    event=event,
+                    email=email,
+                    role=role,
+                )
+            elif attendance.role != role or attendance.email != email:
+                attendance.email = email
+                attendance.role = role
+                attendance.save(update_fields=["email", "role", "updated_at"])
+
+        removed_user_ids = set(
+            event.attendees.exclude(role=models.EventAttendeeRoleChoices.ORGANIZER)
+            .filter(user__isnull=False)
+            .exclude(user_id__in=target_user_ids)
+            .values_list("user_id", flat=True)
+        )
+        event.attendees.exclude(role=models.EventAttendeeRoleChoices.ORGANIZER).filter(
+            user__isnull=False
+        ).exclude(user_id__in=target_user_ids).delete()
+        for email, attendance in existing_external.items():
+            if email not in external_specs:
+                attendance.delete()
+
+        if room is not None and removed_user_ids:
+            models.ResourceAccess.objects.filter(
+                resource=room,
+                user_id__in=removed_user_ids,
+            ).exclude(role=models.RoleChoices.OWNER).delete()
+
     def perform_create(self, serializer):
         """Create the event + its Room (organizer owner, invitees members) + attendees."""
         user = self.request.user
@@ -420,7 +621,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 {"detail": "No active organization membership."}
             )
         data = serializer.validated_data
-        attendee_ids = data.pop("attendee_ids", [])
+        attendee_entries = self._pop_attendee_entries(data) or []
         timezone_name = data.pop("timezone", "") or str(user.timezone)
         meeting_room, booking_policy = self._pop_room_args(data)
         # 缺省 = 开(老客户端不传该字段,行为保持不变)。
@@ -459,31 +660,9 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 role=models.EventAttendeeRoleChoices.ORGANIZER,
                 rsvp=models.EventRSVPChoices.ACCEPTED,
             )
-            # Invitees → attendees + room members (so the IM group includes them).
-            # Org-scoped: only active members of the caller's organization can be
-            # invited (no cross-org leakage into the event / Room / IM group);
-            # out-of-org ids are silently dropped, matching directory resolve.
-            invited = (
-                models.User.objects.filter(
-                    id__in=attendee_ids,
-                    memberships__organization=organization,
-                    memberships__status=models.MembershipStatusChoices.ACTIVE,
-                )
-                .exclude(id=user.id)
-                .distinct()
-            )
-            for attendee in invited:
-                models.EventAttendee.objects.get_or_create(
-                    event=event,
-                    user=attendee,
-                    defaults={"role": models.EventAttendeeRoleChoices.REQUIRED},
-                )
-                if room is not None:
-                    models.ResourceAccess.objects.get_or_create(
-                        resource=room,
-                        user=attendee,
-                        defaults={"role": models.RoleChoices.MEMBER},
-                    )
+            # Internal invitees are still org-scoped; external email-only rows
+            # deliberately have no Room access or RSVP identity.
+            self._sync_attendees(event, attendee_entries, room)
             # P9 会议室:主事件行 = 系列首场,先抢它。冲突时 strict 抛出 →
             # 整个事务回滚 → 409,日程不落库(用户改时间或换房再来)。
             # 重复日程的后续场次此刻还没物化,它们的 booking 由物化任务补建
@@ -653,9 +832,15 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             self.perform_update(serializer)
             return Response(serializer.data)
 
-        if "attendee_ids" in (request.data or {}):
+        if any(
+            key in (request.data or {}) for key in ("attendee_ids", "attendee_entries")
+        ):
             raise exceptions.ValidationError(
-                {"attendee_ids": ("attendees cannot be changed on recurring events")}
+                {
+                    "attendee_entries": (
+                        "attendees cannot be changed on recurring events"
+                    )
+                }
             )
 
         data = dict(serializer.validated_data)
@@ -674,7 +859,12 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         # 串已物化子场次的 room,与 attendee_ids 在三选路径下被剔除是同一档
         # 降级(前端同样对重复日程隐藏该控件)。仅「仅此次」按单场处理。
         with_video = data.pop("with_video_meeting", ABSENT)
-        for excluded in ("attendee_ids", "timezone", "recurrence"):
+        for excluded in (
+            "attendee_ids",
+            "attendee_entries",
+            "timezone",
+            "recurrence",
+        ):
             data.pop(excluded, None)
 
         if parent is not None and scope == "following":
@@ -797,10 +987,14 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         self._require_organizer(serializer.instance)
         instance = serializer.instance
         old_start, old_end = instance.start_at, instance.end_at
-        old_attendees = set(instance.attendees.values_list("user_id", flat=True))
+        old_attendees = self._attendee_identities(instance)
+        old_attendee_roles = self._attendee_roles(instance)
+        old_internal_ids = {
+            identity for kind, identity in old_attendees if kind == "user"
+        }
         data = serializer.validated_data
         reminder_schedule_changed = "start_at" in data or "reminders" in data
-        attendee_ids = data.pop("attendee_ids", None)
+        attendee_entries = self._pop_attendee_entries(data)
         meeting_room, booking_policy = self._pop_room_args(data)
         # 编辑时缺省 = 不动(见字段注释),所以哨兵不是 True/False 而是 ABSENT。
         with_video = data.pop("with_video_meeting", ABSENT)
@@ -820,59 +1014,32 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 booked_by=self.request.user,
             )
             meeting_room_booking.invalidate_booking_cache(event)
-            if attendee_ids is not None:
-                room = event.room
-                # Org-scoped like perform_create: only active members of the
-                # event's organization can be added (no cross-org invite).
-                invited = (
-                    models.User.objects.filter(
-                        id__in=attendee_ids,
-                        memberships__organization=event.organization,
-                        memberships__status=models.MembershipStatusChoices.ACTIVE,
-                    )
-                    .exclude(id=event.organizer_id)
-                    .distinct()
-                )
-                target_ids = set()
-                for attendee in invited:
-                    target_ids.add(attendee.id)
-                    models.EventAttendee.objects.get_or_create(
-                        event=event,
-                        user=attendee,
-                        defaults={"role": models.EventAttendeeRoleChoices.REQUIRED},
-                    )
-                    if room is not None:
-                        models.ResourceAccess.objects.get_or_create(
-                            resource=room,
-                            user=attendee,
-                            defaults={"role": models.RoleChoices.MEMBER},
-                        )
-                # 全量同步的删除侧:不在目标列表的非组织者参与者移除,并同步
-                # 移出 room 成员(OWNER=组织者,保险起见永不删)。
-                removed_ids = old_attendees - target_ids - {event.organizer_id}
-                if removed_ids:
-                    event.attendees.filter(user_id__in=removed_ids).delete()
-                    if room is not None:
-                        models.ResourceAccess.objects.filter(
-                            resource=room, user_id__in=removed_ids
-                        ).exclude(role=models.RoleChoices.OWNER).delete()
+            if attendee_entries is not None:
+                self._sync_attendees(event, attendee_entries, event.room)
 
-            new_attendees = set(event.attendees.values_list("user_id", flat=True))
+            new_attendees = self._attendee_identities(event)
+            new_attendee_roles = self._attendee_roles(event)
+            new_internal_ids = {
+                identity for kind, identity in new_attendees if kind == "user"
+            }
             kind = None
             if (event.start_at, event.end_at) != (old_start, old_end):
                 kind = "time_changed"
-            elif new_attendees != old_attendees:
+            elif (
+                new_attendees != old_attendees
+                or new_attendee_roles != old_attendee_roles
+            ):
                 kind = "attendees_changed"
             if kind:
-                added_user_ids = new_attendees - old_attendees
-                removed_user_ids = old_attendees - new_attendees
+                added_user_ids = new_internal_ids - old_internal_ids
+                removed_user_ids = old_internal_ids - new_internal_ids
                 delivery = calendar_im_notify.prepare_event_change(
                     event,
                     kind,
                     old_start=old_start,
                     old_end=old_end,
-                    added_count=len(added_user_ids),
-                    removed_count=len(removed_user_ids),
+                    added_count=len(new_attendees - old_attendees),
+                    removed_count=len(old_attendees - new_attendees),
                     added_user_ids=added_user_ids,
                     removed_user_ids=removed_user_ids,
                 )
@@ -947,13 +1114,22 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             "cancelled",
             recurrence_scope=recurrence_scope,
         )
+        source_card = calendar_im_notify.redact_private_source_card(cancel_card)
+        personal_card = calendar_im_notify.private_personal_card(cancel_card)
         attendee_user_ids = tuple(event.attendees.values_list("user_id", flat=True))
-        return cancel_cid, cancel_card, event.organizer, attendee_user_ids
+        return (
+            cancel_cid,
+            source_card,
+            personal_card,
+            event.organizer,
+            attendee_user_ids,
+        )
 
     def _delete_following_with_notification(self, instance) -> None:
         (
             cancel_cid,
-            cancel_card,
+            source_card,
+            personal_card,
             cancel_organizer,
             attendee_user_ids,
         ) = self._cancel_snapshot(instance, "following")
@@ -962,9 +1138,10 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             transaction.on_commit(
                 lambda: calendar_im_notify.notify_event_cancelled(
                     cancel_cid,
-                    cancel_card,
+                    source_card,
                     organizer=cancel_organizer,
                     attendee_user_ids=attendee_user_ids,
+                    personal_card=personal_card,
                 )
             )
 
@@ -979,7 +1156,8 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         card_event = notification_event or instance
         (
             cancel_cid,
-            cancel_card,
+            source_card,
+            personal_card,
             cancel_organizer,
             attendee_user_ids,
         ) = self._cancel_snapshot(card_event, recurrence_scope)
@@ -1001,9 +1179,10 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             transaction.on_commit(
                 lambda: calendar_im_notify.notify_event_cancelled(
                     cancel_cid,
-                    cancel_card,
+                    source_card,
                     organizer=cancel_organizer,
                     attendee_user_ids=attendee_user_ids,
+                    personal_card=personal_card,
                 )
             )
 
@@ -1098,6 +1277,10 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
     def rsvp(self, request, pk=None):  # pylint: disable=unused-argument
         """Set the caller's RSVP on this event (must be an attendee)."""
         event = self.get_object()
+        if event.organizer_id == request.user.id:
+            raise exceptions.PermissionDenied(
+                "The organizer's RSVP is fixed as accepted."
+            )
         status_value = (request.data or {}).get("status")
         if status_value not in models.EventRSVPChoices.values:
             return Response(

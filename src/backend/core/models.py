@@ -2935,7 +2935,8 @@ class CalendarEvent(BaseModel):
     )
     # 从 IM 会话创建时记录经 roster 鉴权的来源 cid，之后不可重绑。重复
     # 子场次及 following 拆分系列继承它；提醒和范围化变更/取消卡回到该会话。
-    # 空 = 非会话来源，只走客户端消息列表提醒，不发送 IM 消息。
+    # 空 = 非会话来源：提醒只走客户端消息列表；参与人的邀请/变更等个人
+    # 生命周期通知仍可由日程助手私聊发送，但不会向任何来源会话发群卡片。
     source_conversation_id = models.CharField(
         _("source conversation id"),
         max_length=64,

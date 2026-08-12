@@ -26,6 +26,14 @@
     "reminderDay": "1 Tag vorher",
     "reminderDays": "{{count}} Tage vorher",
     "attendees": "Teilnehmer",
+    "required": "Erforderlich",
+    "optional": "Optional",
+    "attendeeRole": "Teilnahmetyp für {{name}}",
+    "externalEmail": "E-Mail eines externen Teilnehmers",
+    "externalEmailPlaceholder": "Externe E-Mail eingeben",
+    "addExternal": "E-Mail hinzufügen",
+    "privateEvent": "Privater Termin",
+    "privateEventHint": "Nichtteilnehmer sehen nur die Belegungszeit, keine Details oder Einwahlinformationen",
     "selected": "{{count}} ausgewählt",
     "searchPlaceholder": "Mitglieder suchen…",
     "loading": "Laden…",
@@ -82,7 +90,10 @@
     "summaryView": "Protokoll ansehen",
     "close": "Schließen",
     "attendeeCount": "{{count}} Teilnehmende",
-    "attendeeAccepted": "{{count}} zugesagt"
+    "attendeeAccepted": "{{count}} zugesagt",
+    "privateEvent": "Privater Termin",
+    "privateEventHint": "Sie nehmen nicht teil; die Termindetails sind ausgeblendet.",
+    "optionalAttendee": "Optional"
   },
   "rsvp": {
     "label": "Meine Antwort",

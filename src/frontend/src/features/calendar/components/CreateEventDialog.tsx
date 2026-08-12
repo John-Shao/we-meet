@@ -13,7 +13,7 @@ import { MeetingRoomField } from '@/features/meeting-rooms'
 import type { MeetingRoomBrief } from '@/features/meeting-rooms'
 
 import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
-import type { CalendarEvent, EditScope } from '../api/ApiCalendar'
+import type { AttendeeRole, CalendarEvent, EditScope } from '../api/ApiCalendar'
 import {
   REMINDER_OPTIONS,
   effectiveReminder,
@@ -87,6 +87,9 @@ export const CreateEventDialog = ({
 
   const [title, setTitle] = useState(editEvent?.title ?? '')
   const [description, setDescription] = useState(editEvent?.description ?? '')
+  const [visibility, setVisibility] = useState<'default' | 'private'>(
+    editEvent?.visibility === 'private' ? 'private' : 'default'
+  )
   const [start, setStart] = useState(toLocalInput(start0))
   const [end, setEnd] = useState(toLocalInput(end0))
   // 全天由入口决定,表单里不再给开关:周/月视图的全天行点击创建时带
@@ -129,6 +132,28 @@ export const CreateEventDialog = ({
     }
     return new Map(initialSelected ?? [])
   })
+  const [attendeeRoles, setAttendeeRoles] = useState<Map<string, AttendeeRole>>(
+    () =>
+      new Map(
+        (editEvent?.attendees ?? []).flatMap((a) =>
+          a.id && a.role !== 'organizer'
+            ? [[a.id, a.role] as [string, AttendeeRole]]
+            : []
+        )
+      )
+  )
+  const [externalAttendees, setExternalAttendees] = useState<
+    Map<string, AttendeeRole>
+  >(
+    () =>
+      new Map(
+        (editEvent?.attendees ?? []).flatMap((a) =>
+          !a.id && a.email
+            ? [[a.email.toLowerCase(), a.role] as [string, AttendeeRole]]
+            : []
+        )
+      )
+  )
   // 编辑态把现有参与者的头像带给选人组件 —— selected 只有 id→名字,
   // 不给头像的话已选行会退成字母色块。
   const initialAvatars = useMemo(
@@ -159,13 +184,21 @@ export const CreateEventDialog = ({
   // P2-M3 忙闲条:发起人自己也占一行。
   const { user } = useUser()
 
-  const toggle = (id: string, label: string) =>
+  const toggle = (id: string, label: string) => {
+    const removing = selected.has(id)
     setSelected((prev) => {
       const next = new Map(prev)
       if (next.has(id)) next.delete(id)
       else next.set(id, label)
       return next
     })
+    setAttendeeRoles((prev) => {
+      const next = new Map(prev)
+      if (removing) next.delete(id)
+      else if (!next.has(id)) next.set(id, 'required')
+      return next
+    })
+  }
 
   const canCreate =
     !!title.trim() && !!start && !!end && !busy && !roomConflicted
@@ -210,6 +243,7 @@ export const CreateEventDialog = ({
         end_at: endDate.toISOString(),
         all_day: allDay,
         reminders: reminder == null ? [] : [reminder],
+        visibility,
         // P9 会议室:'' = 不预订 / 清空既有预订。刻意用空串而不是 null,
         // 好让 Android(Moshi 不序列化 null)能表达同一个意思;后端两者都收。
         // 全天日程不带该字段 —— M1 不支持全天订会议室。
@@ -218,18 +252,26 @@ export const CreateEventDialog = ({
         // 让服务端保持原样)。
         ...(videoEditable ? { with_video_meeting: withVideo } : {}),
       }
+      const attendeeEntries = [
+        ...[...selected.keys()].map((userId) => ({
+          user_id: userId,
+          role: attendeeRoles.get(userId) ?? ('required' as const),
+        })),
+        ...[...externalAttendees.entries()].map(([email, role]) => ({
+          email,
+          role,
+        })),
+      ]
       const event = editEvent
         ? await updateCalendarEvent(editEvent.id, {
             // P2-M2:重复子场次带三选范围;单次/主事件不带(主=服务端全部)。
             ...(editScope ? { ...base, edit_scope: editScope } : base),
             // P8:非重复日程编辑同步参与者(全量);重复日程不传。
-            ...(attendeesEditable
-              ? { attendee_ids: [...selected.keys()] }
-              : {}),
+            ...(attendeesEditable ? { attendee_entries: attendeeEntries } : {}),
           })
         : await createCalendarEvent({
             ...base,
-            attendee_ids: [...selected.keys()],
+            attendee_entries: attendeeEntries,
             recurrence: composeRRule(),
             ...(sourceConversationId
               ? { source_conversation_id: sourceConversationId }
@@ -407,6 +449,18 @@ export const CreateEventDialog = ({
           </div>
         )}
 
+        <Switch
+          isSelected={visibility === 'private'}
+          onChange={(privateEvent) =>
+            setVisibility(privateEvent ? 'private' : 'default')
+          }
+          data-testid="event-private"
+          className={videoSwitchCls}
+        >
+          <span className={labelCls}>{t('form.privateEvent')}</span>
+        </Switch>
+        <div className={videoHintCls}>{t('form.privateEventHint')}</div>
+
         {/* Attendees — 创建态 + 非重复日程编辑态(P8 全量同步);重复日程编辑不展示。 */}
         {attendeesEditable && (
           <div>
@@ -414,6 +468,28 @@ export const CreateEventDialog = ({
             <AttendeePicker
               selected={selected}
               onToggle={toggle}
+              roles={attendeeRoles}
+              onRoleChange={(id, role) =>
+                setAttendeeRoles((prev) => new Map(prev).set(id, role))
+              }
+              external={externalAttendees}
+              onExternalAdd={(email) =>
+                setExternalAttendees((prev) => {
+                  const next = new Map(prev)
+                  if (!next.has(email)) next.set(email, 'required')
+                  return next
+                })
+              }
+              onExternalRemove={(email) =>
+                setExternalAttendees((prev) => {
+                  const next = new Map(prev)
+                  next.delete(email)
+                  return next
+                })
+              }
+              onExternalRoleChange={(email, role) =>
+                setExternalAttendees((prev) => new Map(prev).set(email, role))
+              }
               initialAvatars={initialAvatars}
               slotStart={!allDay && start ? new Date(start) : null}
               slotEnd={!allDay && end ? new Date(end) : null}
@@ -453,7 +529,7 @@ export const CreateEventDialog = ({
           }
           end={end ? new Date(allDay ? `${dateOnly(end)}T00:00` : end) : null}
           allDay={allDay}
-          attendeeCount={selected.size + 1}
+          attendeeCount={selected.size + externalAttendees.size + 1}
           excludeEventId={editEvent?.id}
           onConflictChange={setRoomConflicted}
         />

@@ -52,4 +52,31 @@ describe('EventCardMessage', () => {
     expect(screen.getByText('calendar.card.rsvpChanged')).toBeInTheDocument()
     expect(screen.getByText('calendar.card.rsvpReply')).toBeInTheDocument()
   })
+
+  it('renders a private label without organizer or attendee metadata', () => {
+    render(
+      <EventCardMessage
+        system
+        body={JSON.stringify({
+          v: 1,
+          kind: 'created',
+          event_id: 'event-private',
+          title: '',
+          start: '2026-08-12T02:00:00Z',
+          end: '2026-08-12T03:00:00Z',
+          attendee_count: 0,
+          organizer_name: '',
+          visibility: 'private',
+        })}
+      />
+    )
+
+    expect(screen.getByText('calendar.card.privateEvent')).toBeInTheDocument()
+    expect(
+      screen.queryByText('calendar.card.attendees')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('calendar.card.organizer')
+    ).not.toBeInTheDocument()
+  })
 })

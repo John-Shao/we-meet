@@ -220,6 +220,7 @@
       "organizer": "组织者:{{name}}",
       "view": "查看",
       "allDay": "全天",
+      "privateEvent": "私密日程",
       "invited": "邀请你参加",
       "timeChanged": "已改期",
       "attendeesChanged": "参会人变更",

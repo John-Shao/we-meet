@@ -26,6 +26,14 @@
     "reminderDay": "1 day before",
     "reminderDays": "{{count}} days before",
     "attendees": "Attendees",
+    "required": "Required",
+    "optional": "Optional",
+    "attendeeRole": "Attendance type for {{name}}",
+    "externalEmail": "External attendee email",
+    "externalEmailPlaceholder": "Enter an external email",
+    "addExternal": "Add email",
+    "privateEvent": "Private event",
+    "privateEventHint": "Non-attendees can see only the busy time, not details or joining information",
     "selected": "{{count}} selected",
     "searchPlaceholder": "Search members…",
     "loading": "Loading…",
@@ -83,7 +91,10 @@
     "summaryView": "View notes",
     "close": "Close",
     "attendeeCount": "{{count}} attendees",
-    "attendeeAccepted": "{{count}} accepted"
+    "attendeeAccepted": "{{count}} accepted",
+    "privateEvent": "Private event",
+    "privateEventHint": "You are not an attendee, so the event details are hidden.",
+    "optionalAttendee": "Optional"
   },
   "rsvp": {
     "label": "My response",

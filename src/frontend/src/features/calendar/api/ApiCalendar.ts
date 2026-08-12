@@ -5,6 +5,13 @@ import type { MeetingRoomBrief } from '@/features/meeting-rooms'
 export type { Paginated } from '@/api/Paginated'
 
 export type RSVPStatus = 'needs_action' | 'accepted' | 'declined' | 'tentative'
+export type AttendeeRole = 'required' | 'optional'
+
+export interface AttendeeEntryInput {
+  user_id?: string
+  email?: string
+  role: AttendeeRole
+}
 
 export interface EventAttendee {
   id: string | null
@@ -27,6 +34,8 @@ export interface CalendarEvent {
   all_day: boolean
   status: string
   visibility: string
+  /** 私密日程被非参与人凭分享 id 打开时，详情字段已由服务端清空。 */
+  details_redacted?: boolean
   reminders: number[]
   organizer: {
     id: string
@@ -61,6 +70,8 @@ export interface CreateEventPayload {
   all_day?: boolean
   reminders?: number[]
   attendee_ids?: string[]
+  attendee_entries?: AttendeeEntryInput[]
+  visibility?: 'default' | 'private'
   description?: string
   timezone?: string
   /**
@@ -107,6 +118,8 @@ export interface UpdateEventPayload {
   all_day?: boolean
   reminders?: number[]
   attendee_ids?: string[]
+  attendee_entries?: AttendeeEntryInput[]
+  visibility?: 'default' | 'private'
   /** P2-M2:重复日程子场次的编辑范围;单次事件省略。 */
   edit_scope?: EditScope
   /** P9:`''` = 释放会议室;缺省 = 不动。见 CreateEventPayload 的说明。 */

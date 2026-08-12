@@ -2,8 +2,9 @@
 
 from datetime import timedelta
 
-import pytest
 from django.utils import timezone
+
+import pytest
 from rest_framework.test import APIClient
 
 from core import factories, models
@@ -64,9 +65,7 @@ def test_create_event_provisions_room_and_attendees():
         user=peer, role=models.EventAttendeeRoleChoices.REQUIRED
     ).exists()
     # Room access: organizer owner + invitee member (so the IM group includes them).
-    assert event.room.accesses.filter(
-        user=me, role=models.RoleChoices.OWNER
-    ).exists()
+    assert event.room.accesses.filter(user=me, role=models.RoleChoices.OWNER).exists()
     assert event.room.accesses.filter(
         user=peer, role=models.RoleChoices.MEMBER
     ).exists()
@@ -118,11 +117,15 @@ def test_list_scoped_to_org_and_visibility():
     start, end = _times()
 
     event = models.CalendarEvent.objects.create(
-        organization=org, organizer=organizer, title="Standup",
-        start_at=start, end_at=end,
+        organization=org,
+        organizer=organizer,
+        title="Standup",
+        start_at=start,
+        end_at=end,
     )
     models.EventAttendee.objects.create(
-        event=event, user=organizer,
+        event=event,
+        user=organizer,
         role=models.EventAttendeeRoleChoices.ORGANIZER,
     )
     models.EventAttendee.objects.create(event=event, user=invitee)
@@ -139,6 +142,96 @@ def test_list_scoped_to_org_and_visibility():
     assert str(event.id) not in ids2
 
 
+def test_structured_attendees_support_roles_and_external_email():
+    org = factories.OrganizationFactory()
+    organizer = factories.UserFactory(email="o@acme.com")
+    required = factories.UserFactory(email="required@acme.com")
+    optional = factories.UserFactory(email="optional@acme.com")
+    for user in (organizer, required, optional):
+        _membership(org, user)
+    start, end = _times()
+    client = APIClient()
+    client.force_login(organizer)
+
+    response = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Partner review",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "attendee_entries": [
+                {"user_id": str(required.id), "role": "required"},
+                {"user_id": str(optional.id), "role": "optional"},
+                {"email": " Guest@Example.COM ", "role": "optional"},
+            ],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201, response.content
+    event = models.CalendarEvent.objects.get(id=response.json()["id"])
+    assert event.attendees.get(user=required).role == "required"
+    assert event.attendees.get(user=optional).role == "optional"
+    external = event.attendees.get(user__isnull=True)
+    assert external.email == "guest@example.com"
+    assert external.role == "optional"
+    assert external.rsvp == models.EventRSVPChoices.NEEDS_ACTION
+    assert event.room.accesses.filter(user=optional).exists()
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [
+        [{"email": "not-an-email", "role": "required"}],
+        [{"role": "required"}],
+        [{"user_id": "00000000-0000-0000-0000-000000000001", "email": "x@y.io"}],
+        [{"email": "same@example.com"}, {"email": "SAME@example.com"}],
+        [{"email": "x@example.com", "role": "organizer"}],
+    ],
+)
+def test_structured_attendees_reject_invalid_entries(entries):
+    org = factories.OrganizationFactory()
+    organizer = factories.UserFactory()
+    _membership(org, organizer)
+    start, end = _times()
+    client = APIClient()
+    client.force_login(organizer)
+    response = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Invalid guest",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "attendee_entries": entries,
+        },
+        format="json",
+    )
+    assert response.status_code == 400, response.content
+
+
+def test_attendee_entries_and_legacy_ids_are_mutually_exclusive():
+    org = factories.OrganizationFactory()
+    organizer = factories.UserFactory()
+    peer = factories.UserFactory()
+    _membership(org, organizer)
+    _membership(org, peer)
+    start, end = _times()
+    client = APIClient()
+    client.force_login(organizer)
+    response = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "Ambiguous guests",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "attendee_ids": [str(peer.id)],
+            "attendee_entries": [{"user_id": str(peer.id)}],
+        },
+        format="json",
+    )
+    assert response.status_code == 400, response.content
+
+
 def test_rsvp_updates_attendee_and_rejects_bad_status():
     org = factories.OrganizationFactory()
     organizer = factories.UserFactory(email="o@acme.com")
@@ -147,11 +240,15 @@ def test_rsvp_updates_attendee_and_rejects_bad_status():
     _membership(org, invitee)
     start, end = _times()
     event = models.CalendarEvent.objects.create(
-        organization=org, organizer=organizer, title="Review",
-        start_at=start, end_at=end,
+        organization=org,
+        organizer=organizer,
+        title="Review",
+        start_at=start,
+        end_at=end,
     )
     models.EventAttendee.objects.create(
-        event=event, user=organizer,
+        event=event,
+        user=organizer,
         role=models.EventAttendeeRoleChoices.ORGANIZER,
     )
     att = models.EventAttendee.objects.create(event=event, user=invitee)
@@ -175,19 +272,57 @@ def test_rsvp_updates_attendee_and_rejects_bad_status():
     assert bad.status_code == 400
 
 
+def test_organizer_cannot_change_own_rsvp():
+    org = factories.OrganizationFactory()
+    organizer = factories.UserFactory(email="o@acme.com")
+    _membership(org, organizer)
+    start, end = _times()
+    event = models.CalendarEvent.objects.create(
+        organization=org,
+        organizer=organizer,
+        title="Owner stays accepted",
+        start_at=start,
+        end_at=end,
+    )
+    attendance = models.EventAttendee.objects.create(
+        event=event,
+        user=organizer,
+        role=models.EventAttendeeRoleChoices.ORGANIZER,
+        rsvp=models.EventRSVPChoices.ACCEPTED,
+    )
+    client = APIClient()
+    client.force_login(organizer)
+
+    response = client.post(
+        f"/api/v1.0/calendar-events/{event.id}/rsvp/",
+        {"status": "declined"},
+        format="json",
+    )
+
+    assert response.status_code == 403, response.content
+    attendance.refresh_from_db()
+    assert attendance.rsvp == models.EventRSVPChoices.ACCEPTED
+
+
 def test_list_filters_by_date_range():
     org = factories.OrganizationFactory()
     me = factories.UserFactory(email="o@acme.com")
     _membership(org, me)
     soon_start = timezone.now() + timedelta(days=1)
     soon = models.CalendarEvent.objects.create(
-        organization=org, organizer=me, title="Soon",
-        start_at=soon_start, end_at=soon_start + timedelta(hours=1),
+        organization=org,
+        organizer=me,
+        title="Soon",
+        start_at=soon_start,
+        end_at=soon_start + timedelta(hours=1),
     )
     later_start = timezone.now() + timedelta(days=10)
     later = models.CalendarEvent.objects.create(
-        organization=org, organizer=me, title="Later",
-        start_at=later_start, end_at=later_start + timedelta(hours=1),
+        organization=org,
+        organizer=me,
+        title="Later",
+        start_at=later_start,
+        end_at=later_start + timedelta(hours=1),
     )
 
     client = APIClient()
@@ -214,11 +349,15 @@ def test_only_organizer_can_update_and_delete():
     _membership(org, invitee)
     start, end = _times()
     event = models.CalendarEvent.objects.create(
-        organization=org, organizer=organizer, title="Plan",
-        start_at=start, end_at=end,
+        organization=org,
+        organizer=organizer,
+        title="Plan",
+        start_at=start,
+        end_at=end,
     )
     models.EventAttendee.objects.create(
-        event=event, user=organizer,
+        event=event,
+        user=organizer,
         role=models.EventAttendeeRoleChoices.ORGANIZER,
     )
     models.EventAttendee.objects.create(event=event, user=invitee)
@@ -229,7 +368,8 @@ def test_only_organizer_can_update_and_delete():
     assert (
         ic.patch(
             f"/api/v1.0/calendar-events/{event.id}/",
-            {"title": "Hacked"}, format="json",
+            {"title": "Hacked"},
+            format="json",
         ).status_code
         == 403
     )
@@ -241,7 +381,8 @@ def test_only_organizer_can_update_and_delete():
     assert (
         oc.patch(
             f"/api/v1.0/calendar-events/{event.id}/",
-            {"title": "Renamed"}, format="json",
+            {"title": "Renamed"},
+            format="json",
         ).status_code
         == 200
     )
@@ -354,9 +495,7 @@ def test_update_attendee_ids_full_sync_adds_and_removes():
     assert drop.id not in room_users
     assert added.id in room_users
     # 组织者的 OWNER 访问不受同步影响。
-    assert event.room.accesses.filter(
-        user=me, role=models.RoleChoices.OWNER
-    ).exists()
+    assert event.room.accesses.filter(user=me, role=models.RoleChoices.OWNER).exists()
 
 
 def test_update_attendee_ids_absent_keeps_attendees():
@@ -425,6 +564,50 @@ def test_update_attendee_ids_empty_list_removes_all_but_organizer():
     assert not event.room.accesses.filter(user=peer).exists()
 
 
+def test_update_attendee_entries_syncs_roles_and_external_emails():
+    org = factories.OrganizationFactory()
+    organizer = factories.UserFactory(email="o@acme.com")
+    peer = factories.UserFactory(email="peer@acme.com")
+    _membership(org, organizer)
+    _membership(org, peer)
+    start, end = _times()
+    client = APIClient()
+    client.force_login(organizer)
+    created = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "External sync",
+            "start_at": start.isoformat(),
+            "end_at": end.isoformat(),
+            "attendee_entries": [
+                {"user_id": str(peer.id), "role": "required"},
+                {"email": "old@example.com", "role": "required"},
+            ],
+        },
+        format="json",
+    )
+    assert created.status_code == 201, created.content
+    event = models.CalendarEvent.objects.get(id=created.json()["id"])
+
+    response = client.patch(
+        f"/api/v1.0/calendar-events/{event.id}/",
+        {
+            "attendee_entries": [
+                {"user_id": str(peer.id), "role": "optional"},
+                {"email": "new@example.com", "role": "optional"},
+            ]
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200, response.content
+    assert event.attendees.get(user=peer).role == "optional"
+    assert not event.attendees.filter(email="old@example.com").exists()
+    external = event.attendees.get(email="new@example.com")
+    assert external.user_id is None
+    assert external.role == "optional"
+
+
 # ---- 分享日程到聊天:详情放宽为「凭 id 只读」,其余权限不放宽 ----
 
 
@@ -470,6 +653,43 @@ def test_outsider_can_retrieve_shared_event():
     assert resp.json()["my_rsvp"] is None
 
 
+def test_private_event_details_are_redacted_for_outsider_but_not_attendee():
+    event_id, _, outsider = _event_for_share()
+    event = models.CalendarEvent.objects.get(id=event_id)
+    event.visibility = models.EventVisibilityChoices.PRIVATE
+    event.description = "secret notes"
+    event.save(update_fields=["visibility", "description", "updated_at"])
+    attendee = (
+        event.attendees.exclude(role=models.EventAttendeeRoleChoices.ORGANIZER)
+        .get()
+        .user
+    )
+
+    outsider_client = APIClient()
+    outsider_client.force_login(outsider)
+    hidden = outsider_client.get(f"/api/v1.0/calendar-events/{event_id}/")
+    assert hidden.status_code == 200, hidden.content
+    body = hidden.json()
+    assert body["details_redacted"] is True
+    assert body["title"] == ""
+    assert body["description"] == ""
+    assert body["organizer"] is None
+    assert body["attendees"] == []
+    assert body["room"] is None
+    assert body["room_slug"] is None
+    assert body["meeting_room"] is None
+    assert body["reminders"] == []
+
+    attendee_client = APIClient()
+    attendee_client.force_login(attendee)
+    visible = attendee_client.get(f"/api/v1.0/calendar-events/{event_id}/")
+    assert visible.status_code == 200, visible.content
+    assert visible.json()["details_redacted"] is False
+    assert visible.json()["title"] == "周末派对"
+    assert visible.json()["description"] == "secret notes"
+    assert len(visible.json()["attendees"]) == 2
+
+
 def test_outsider_cannot_rsvp_shared_event():
     """放宽只到「读」为止:非参与人不能替自己表态(rsvp 仍走受限 queryset)。"""
     event_id, _, outsider = _event_for_share()
@@ -496,9 +716,7 @@ def test_outsider_cannot_modify_or_delete_shared_event():
         ).status_code
         == 404
     )
-    assert (
-        client.delete(f"/api/v1.0/calendar-events/{event_id}/").status_code == 404
-    )
+    assert client.delete(f"/api/v1.0/calendar-events/{event_id}/").status_code == 404
 
 
 def test_outsider_does_not_see_shared_event_in_list():
@@ -562,9 +780,10 @@ def test_creating_over_a_booked_room_returns_409_and_saves_nothing():
         "end_at": end.isoformat(),
         "meeting_room_id": str(room.id),
     }
-    assert client.post(
-        "/api/v1.0/calendar-events/", payload, format="json"
-    ).status_code == 201
+    assert (
+        client.post("/api/v1.0/calendar-events/", payload, format="json").status_code
+        == 201
+    )
 
     resp = client.post(
         "/api/v1.0/calendar-events/", {**payload, "title": "Second"}, format="json"
@@ -690,9 +909,7 @@ def test_deleting_an_event_releases_its_room():
         format="json",
     ).json()["id"]
 
-    assert client.delete(
-        f"/api/v1.0/calendar-events/{event_id}/"
-    ).status_code == 204
+    assert client.delete(f"/api/v1.0/calendar-events/{event_id}/").status_code == 204
     assert not models.MeetingRoomBooking.objects.filter(room=room).exists()
 
 
@@ -817,9 +1034,7 @@ def test_creating_without_video_still_invites_attendees():
     peer = factories.UserFactory()
     _membership(org, peer)
 
-    body = _create(
-        client, with_video_meeting=False, attendee_ids=[str(peer.id)]
-    ).json()
+    body = _create(client, with_video_meeting=False, attendee_ids=[str(peer.id)]).json()
 
     event = models.CalendarEvent.objects.get(id=body["id"])
     assert event.room is None
@@ -847,9 +1062,7 @@ def test_adding_a_video_meeting_to_an_existing_event():
     event = models.CalendarEvent.objects.get(id=event_id)
     assert event.room is not None
     # 补建房间时要把既有参与者一起放进去,否则他们进不了会。
-    assert event.room.accesses.filter(
-        user=me, role=models.RoleChoices.OWNER
-    ).exists()
+    assert event.room.accesses.filter(user=me, role=models.RoleChoices.OWNER).exists()
     assert event.room.accesses.filter(
         user=peer, role=models.RoleChoices.MEMBER
     ).exists()
@@ -935,9 +1148,10 @@ def test_booking_longer_than_the_room_allows_is_rejected():
     assert models.MeetingRoomBooking.objects.count() == 0
 
     # Exactly at the limit still goes through — the cap is inclusive.
-    assert _book(
-        client, room, start=start, end=start + timedelta(minutes=60)
-    ).status_code == 201
+    assert (
+        _book(client, room, start=start, end=start + timedelta(minutes=60)).status_code
+        == 201
+    )
 
 
 def test_booking_further_ahead_than_the_room_allows_is_rejected():

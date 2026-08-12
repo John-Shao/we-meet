@@ -214,6 +214,7 @@
       "organizer": "Organisator: {{name}}",
       "view": "Bekijken",
       "allDay": "Hele dag",
+      "privateEvent": "Privéafspraak",
       "invited": "Je bent uitgenodigd",
       "timeChanged": "Verzet",
       "attendeesChanged": "Deelnemers gewijzigd",

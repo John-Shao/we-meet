@@ -114,6 +114,7 @@ def build_event_card(  # noqa: PLR0913 - stable cross-client wire protocol
     recurrence_scope: str = "",
     responder_name: str = "",
     rsvp_status: str = "",
+    visibility: str = "",
 ) -> dict[str, Any]:
     """Calendar event card (protocol v1).
 
@@ -151,6 +152,8 @@ def build_event_card(  # noqa: PLR0913 - stable cross-client wire protocol
             card["rsvp_status"] = rsvp_status
     if recurrence_scope in EVENT_RECURRENCE_SCOPES:
         card["recurrence_scope"] = recurrence_scope
+    if visibility == "private":
+        card["visibility"] = "private"
     return card
 
 

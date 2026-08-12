@@ -26,6 +26,14 @@
     "reminderDay": "1 jour avant",
     "reminderDays": "{{count}} jours avant",
     "attendees": "Participants",
+    "required": "Requis",
+    "optional": "Facultatif",
+    "attendeeRole": "Type de participation de {{name}}",
+    "externalEmail": "E-mail du participant externe",
+    "externalEmailPlaceholder": "Saisir un e-mail externe",
+    "addExternal": "Ajouter l’e-mail",
+    "privateEvent": "Événement privé",
+    "privateEventHint": "Les non-participants voient uniquement la plage occupée, sans détails ni informations de connexion",
     "selected": "{{count}} sélectionné(s)",
     "searchPlaceholder": "Rechercher des membres…",
     "loading": "Chargement…",
@@ -82,7 +90,10 @@
     "summaryView": "Voir le compte rendu",
     "close": "Fermer",
     "attendeeCount": "{{count}} participants",
-    "attendeeAccepted": "{{count}} ont accepté"
+    "attendeeAccepted": "{{count}} ont accepté",
+    "privateEvent": "Événement privé",
+    "privateEventHint": "Vous ne participez pas à cet événement ; les détails sont masqués.",
+    "optionalAttendee": "Facultatif"
   },
   "rsvp": {
     "label": "Ma réponse",

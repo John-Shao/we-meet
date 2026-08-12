@@ -15,7 +15,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
 
-from core.models import CalendarEvent, EventStatusChoices
+from core.models import CalendarEvent, EventStatusChoices, EventVisibilityChoices
 from core.services import calendar_im_notify
 from core.services.jusi_im import (
     JusiImAdminClient,
@@ -100,7 +100,12 @@ def _push_one(event, cfg, *, now) -> bool:
 
     local_start = timezone.localtime(event.start_at, event.timezone)
     timing = "已经开始" if now >= event.start_at else "即将开始"
-    body = f"🔔「{event.title}」{timing}（{local_start:%H:%M}）"
+    display_title = (
+        "私密日程"
+        if event.visibility == EventVisibilityChoices.PRIVATE
+        else event.title
+    )
+    body = f"🔔「{display_title}」{timing}（{local_start:%H:%M}）"
 
     try:
         calendar_im_notify.post_with_organizer_fallback(
