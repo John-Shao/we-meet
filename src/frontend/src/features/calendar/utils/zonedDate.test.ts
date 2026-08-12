@@ -43,4 +43,11 @@ describe('zoned wall-clock adapter', () => {
     expect(rendered.getDate()).toBe(14)
     expect(rendered.getHours()).toBe(9)
   })
+
+  it('rejects a wall clock inside a DST spring-forward gap', () => {
+    const nonexistent = new Date(2027, 2, 14, 2, 30)
+    const instant = zonedDateToInstant(nonexistent, 'America/Los_Angeles')
+
+    expect(Number.isNaN(instant.getTime())).toBe(true)
+  })
 })

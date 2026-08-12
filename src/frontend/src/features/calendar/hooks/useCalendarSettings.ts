@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { ApiError } from '@/api/ApiError'
+import { useUser } from '@/features/auth'
+
 import {
   fetchCalendarPreference,
   updateCalendarPreference,
@@ -30,6 +33,24 @@ const DIRTY_KEY = 'calendar-settings-dirty'
 const REVISION_KEY = 'calendar-settings-revision'
 const EVT = 'calendar-settings-changed'
 
+let activeCalendarSettingsAccount: string | null = null
+let serverRevision: number | null = null
+let initialSync: Promise<void> | null = null
+let writeQueue: Promise<void> = Promise.resolve()
+let syncEpoch = 0
+let localGeneration = 0
+
+const accountStorageKey = (key: string): string =>
+  activeCalendarSettingsAccount
+    ? `${key}:${encodeURIComponent(activeCalendarSettingsAccount)}`
+    : key
+
+const storageGet = (key: string): string | null =>
+  localStorage.getItem(accountStorageKey(key))
+
+const storageSet = (key: string, value: string) =>
+  localStorage.setItem(accountStorageKey(key), value)
+
 export type WeekStartPref = 'mon' | 'sun'
 export type { CalendarTimezoneMode }
 
@@ -43,42 +64,42 @@ export const DURATION_OPTIONS = [30, 60, 90] as const
 export const REMINDER_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 1440, 2880] as const
 
 const readWeekStart = (): WeekStartPref =>
-  localStorage.getItem(WEEK_KEY) === 'sun' ? 'sun' : 'mon'
+  storageGet(WEEK_KEY) === 'sun' ? 'sun' : 'mon'
 
 const readDuration = (): number => {
-  const raw = Number(localStorage.getItem(DURATION_KEY))
+  const raw = Number(storageGet(DURATION_KEY))
   return (DURATION_OPTIONS as readonly number[]).includes(raw) ? raw : 60
 }
 
 const readReminder = (): number | null => {
-  const raw = localStorage.getItem(REMINDER_KEY)
+  const raw = storageGet(REMINDER_KEY)
   if (raw === 'none') return null
   const n = Number(raw)
   return (REMINDER_OPTIONS as readonly number[]).includes(n) ? n : 10
 }
 
-const readDimPast = (): boolean => localStorage.getItem(DIM_PAST_KEY) !== '0'
+const readDimPast = (): boolean => storageGet(DIM_PAST_KEY) !== '0'
 
 // 周视图是否显示周末列。Web 大屏默认开(显示整周);显式存 '0' 才收敛成
 // 周一~周五工作周。App 端小屏默认关,刻意按端差异化(见 SettingsStore)。
-const readWeekend = (): boolean => localStorage.getItem(WEEKEND_KEY) !== '0'
+const readWeekend = (): boolean => storageGet(WEEKEND_KEY) !== '0'
 
 const readWorkingHours = (): WorkingHours => {
   const value = {
-    startMin: Number(localStorage.getItem(WORK_START_KEY)),
-    endMin: Number(localStorage.getItem(WORK_END_KEY)),
+    startMin: Number(storageGet(WORK_START_KEY)),
+    endMin: Number(storageGet(WORK_END_KEY)),
   }
   return isValidWorkingHours(value) ? value : DEFAULT_WORKING_HOURS
 }
 
 const readRangeMode = (key: string): TimeRangeMode =>
-  localStorage.getItem(key) === 'full' ? 'full' : 'work'
+  storageGet(key) === 'full' ? 'full' : 'work'
 
 const readTimezoneMode = (): CalendarTimezoneMode =>
-  localStorage.getItem(TIMEZONE_MODE_KEY) === 'fixed' ? 'fixed' : 'auto'
+  storageGet(TIMEZONE_MODE_KEY) === 'fixed' ? 'fixed' : 'auto'
 
 const readFixedTimezone = (): string => {
-  const value = localStorage.getItem(TIMEZONE_KEY) || ''
+  const value = storageGet(TIMEZONE_KEY) || ''
   return value && isValidTimezone(value) ? value : deviceTimezone()
 }
 
@@ -101,19 +122,19 @@ const localSnapshot = (): Omit<
 
 const dispatchSettingsChanged = () => window.dispatchEvent(new Event(EVT))
 
-const localSettingsDirty = (): boolean =>
-  localStorage.getItem(DIRTY_KEY) === '1'
+const localSettingsDirty = (): boolean => storageGet(DIRTY_KEY) === '1'
 
 const cachedServerRevision = (): number | null => {
-  const raw = localStorage.getItem(REVISION_KEY)
+  const raw = storageGet(REVISION_KEY)
   if (raw == null) return null
   const revision = Number(raw)
   return Number.isInteger(revision) && revision >= 0 ? revision : null
 }
 
 const markLocalSettingsDirty = () => {
+  localGeneration += 1
   try {
-    localStorage.setItem(DIRTY_KEY, '1')
+    storageSet(DIRTY_KEY, '1')
   } catch {
     /* Cache persistence is optional in private browsing mode. */
   }
@@ -141,60 +162,109 @@ const writeRemoteToCache = (preference: CalendarPreference) => {
   ]
   if (preference.timezone) entries.push([TIMEZONE_KEY, preference.timezone])
   try {
-    entries.forEach(([key, value]) => localStorage.setItem(key, value))
+    entries.forEach(([key, value]) => storageSet(key, value))
   } catch {
     /* Cache persistence is optional in private browsing mode. */
   }
   dispatchSettingsChanged()
 }
 
-let serverRevision: number | null = null
-let initialSync: Promise<void> | null = null
-let writeQueue: Promise<void> = Promise.resolve()
+const activateCalendarSettingsAccount = (accountId: string) => {
+  if (activeCalendarSettingsAccount === accountId) return
+  activeCalendarSettingsAccount = accountId
+  serverRevision = null
+  initialSync = null
+  writeQueue = Promise.resolve()
+  localGeneration = 0
+  syncEpoch += 1
+  // useSyncCalendarSettings is commonly rendered before useCalendarSettings;
+  // defer the event until sibling effects have attached their listeners.
+  queueMicrotask(dispatchSettingsChanged)
+}
 
 const syncCalendarSettings = (): Promise<void> => {
+  if (!activeCalendarSettingsAccount) return Promise.resolve()
   if (initialSync) return initialSync
+  const epoch = syncEpoch
   initialSync = fetchCalendarPreference()
     .then(async (remote) => {
+      if (epoch !== syncEpoch) return
       const shouldImportLocal =
         !remote.initialized ||
-        (localSettingsDirty() && cachedServerRevision() === remote.revision)
-      const resolved = shouldImportLocal
-        ? await updateCalendarPreference({
-            ...localSnapshot(),
-            expected_revision: remote.revision,
-          })
-        : remote
+        (localSettingsDirty() &&
+          (cachedServerRevision() === remote.revision || localGeneration > 0))
+      if (!shouldImportLocal) {
+        serverRevision = remote.revision
+        localGeneration = 0
+        writeRemoteToCache(remote)
+        return
+      }
+
+      const sentGeneration = localGeneration
+      const resolved = await updateCalendarPreference({
+        ...localSnapshot(),
+        expected_revision: remote.revision,
+      })
+      if (epoch !== syncEpoch) return
       serverRevision = resolved.revision
-      writeRemoteToCache(resolved)
+      if (localGeneration === sentGeneration) {
+        localGeneration = 0
+        writeRemoteToCache(resolved)
+      } else {
+        storageSet(REVISION_KEY, String(resolved.revision))
+        storageSet(DIRTY_KEY, '1')
+      }
     })
-    .catch(() => {
+    .catch(async (error) => {
       // Offline/anonymous use continues from the local cache.  A later mount
       // retries instead of pinning a rejected singleton promise forever.
+      if (epoch !== syncEpoch) return
       initialSync = null
+      if (!(error instanceof ApiError) || error.statusCode !== 409) return
+      const latest = await fetchCalendarPreference().catch(() => null)
+      if (latest && epoch === syncEpoch) {
+        serverRevision = latest.revision
+        localGeneration = 0
+        writeRemoteToCache(latest)
+      }
     })
   return initialSync
 }
 
 const persistCalendarSettings = () => {
+  if (!activeCalendarSettingsAccount) return
   markLocalSettingsDirty()
+  const epoch = syncEpoch
   writeQueue = writeQueue.then(async () => {
     await syncCalendarSettings()
-    if (serverRevision == null || !localSettingsDirty()) return
+    if (epoch !== syncEpoch || serverRevision == null || !localSettingsDirty())
+      return
+    const sentGeneration = localGeneration
     try {
       const saved = await updateCalendarPreference({
         ...localSnapshot(),
         expected_revision: serverRevision,
       })
+      if (epoch !== syncEpoch) return
       serverRevision = saved.revision
-      writeRemoteToCache(saved)
-    } catch {
-      // A stale revision or reconnect is resolved server-first.  The user can
-      // retry the edit after the refreshed values become visible.
+      if (localGeneration === sentGeneration) {
+        localGeneration = 0
+        writeRemoteToCache(saved)
+      } else {
+        storageSet(REVISION_KEY, String(saved.revision))
+        storageSet(DIRTY_KEY, '1')
+        persistCalendarSettings()
+      }
+    } catch (error) {
+      if (epoch !== syncEpoch) return
       initialSync = null
+      // Only an optimistic-lock conflict is server-authoritative.  Offline,
+      // network and 5xx failures retain the local dirty copy for a later retry.
+      if (!(error instanceof ApiError) || error.statusCode !== 409) return
       const latest = await fetchCalendarPreference().catch(() => null)
-      if (latest) {
+      if (latest && epoch === syncEpoch) {
         serverRevision = latest.revision
+        localGeneration = 0
         writeRemoteToCache(latest)
       }
     }
@@ -203,9 +273,13 @@ const persistCalendarSettings = () => {
 
 /** Load/import the account copy once; localStorage remains the offline cache. */
 export const useSyncCalendarSettings = () => {
+  const { user } = useUser()
+
   useEffect(() => {
+    if (!user?.id) return
+    activateCalendarSettingsAccount(user.id)
     void syncCalendarSettings()
-  }, [])
+  }, [user?.id])
 }
 
 /**
@@ -297,7 +371,7 @@ export const useCalendarSettings = () => {
 
   const write = useCallback((key: string, value: string) => {
     try {
-      localStorage.setItem(key, value)
+      storageSet(key, value)
     } catch {
       /* 隐私模式等:仅本次会话生效 */
     }
@@ -306,7 +380,7 @@ export const useCalendarSettings = () => {
 
   const writeMany = useCallback((entries: Array<[string, string]>) => {
     try {
-      entries.forEach(([key, value]) => localStorage.setItem(key, value))
+      entries.forEach(([key, value]) => storageSet(key, value))
     } catch {
       /* 隐私模式等:仅本次会话生效 */
     }

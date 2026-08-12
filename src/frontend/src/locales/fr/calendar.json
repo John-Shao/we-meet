@@ -43,6 +43,7 @@
     "cancel": "Annuler",
     "error": "Échec : {{message}}",
     "endAfterStart": "La fin doit être après le début.",
+    "invalidLocalTime": "Cette heure locale n’existe pas dans le fuseau horaire sélectionné. Choisissez une autre heure.",
     "noResults": "Aucun membre trouvé",
     "removeAttendee": "Retirer {{name}}",
     "repeat": "Répéter",

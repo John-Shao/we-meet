@@ -43,6 +43,7 @@
     "cancel": "Annuleren",
     "error": "Mislukt: {{message}}",
     "endAfterStart": "Einde moet na het begin liggen.",
+    "invalidLocalTime": "Deze lokale tijd bestaat niet in de geselecteerde tijdzone. Kies een andere tijd.",
     "noResults": "Geen leden gevonden",
     "removeAttendee": "{{name}} verwijderen",
     "repeat": "Herhalen",

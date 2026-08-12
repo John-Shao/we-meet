@@ -682,7 +682,8 @@ export const CalendarGrid = ({
         const isMidnight = (d: Date) =>
           d.getHours() === 0 && d.getMinutes() === 0
         if (isMidnight(start) && isMidnight(slot.end) && slot.end > start) {
-          const endDay = new Date(slot.end.getTime() - 86_400_000)
+          const endDay = new Date(slot.end)
+          endDay.setDate(endDay.getDate() - 1)
           select?.({
             start,
             end: endDay > start ? endDay : start,

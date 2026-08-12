@@ -106,6 +106,20 @@ export const zonedDateToInstant = (wallClock: Date, zone: string): Date => {
   )
   // The first offset probe can sit on the other side of a DST boundary.
   candidate = new Date(naiveUtc - zoneOffsetMinutes(zone, candidate) * 60_000)
+  // A spring-forward gap has no corresponding instant.  Without this
+  // round-trip check, e.g. 02:30 silently becomes 03:30 and the form saves a
+  // different wall clock from the one the user entered.
+  const rendered = partsInZone(candidate, zone)
+  if (
+    rendered.year !== wallClock.getFullYear() ||
+    rendered.month !== wallClock.getMonth() + 1 ||
+    rendered.day !== wallClock.getDate() ||
+    rendered.hour !== wallClock.getHours() ||
+    rendered.minute !== wallClock.getMinutes() ||
+    rendered.second !== wallClock.getSeconds()
+  ) {
+    return new Date(Number.NaN)
+  }
   return candidate
 }
 

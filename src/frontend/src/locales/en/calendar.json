@@ -43,6 +43,7 @@
     "cancel": "Cancel",
     "error": "Failed: {{message}}",
     "endAfterStart": "End must be after start.",
+    "invalidLocalTime": "This local time does not exist in the selected time zone. Choose another time.",
     "noResults": "No members found",
     "removeAttendee": "Remove {{name}}",
     "repeat": "Repeat",

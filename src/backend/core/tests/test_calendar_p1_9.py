@@ -52,6 +52,7 @@ def test_all_day_create_uses_civil_dates_as_source_of_truth():
     ("patch", "field"),
     [
         ({"start_date": "2026-08-12", "end_date": "2026-08-12"}, "end_date"),
+        ({"timezone": ""}, "timezone"),
         ({"timezone": "Mars/Olympus_Mons"}, "timezone"),
     ],
 )

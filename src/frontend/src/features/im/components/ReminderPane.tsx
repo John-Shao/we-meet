@@ -39,6 +39,12 @@ export const ReminderPane = () => {
       day: 'numeric',
       timeZone: calendarTimezone,
     })
+  const fmtCivilDay = (value: string) =>
+    new Date(`${value}T00:00:00Z`).toLocaleDateString(i18n.language, {
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'UTC',
+    })
 
   const banner = nearest
   const bannerCountdown = banner ? reminderCountdown(banner, now) : null
@@ -173,7 +179,11 @@ export const ReminderPane = () => {
             <div
               className={css({ fontSize: '0.875rem', color: 'greyscale.700' })}
             >
-              {`${fmtDay(new Date(banner.start_at))} ${
+              {`${
+                banner.all_day && banner.start_date
+                  ? fmtCivilDay(banner.start_date)
+                  : fmtDay(new Date(banner.start_at))
+              } ${
                 reminderTimeRange(banner, calendarTimezone) ??
                 t('calendar.card.allDay')
               }`}

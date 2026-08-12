@@ -129,7 +129,7 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     start_date = serializers.DateField(required=False, allow_null=True)
     end_date = serializers.DateField(required=False, allow_null=True)
     # TimeZoneField → declare explicitly so it round-trips as an IANA name string.
-    timezone = serializers.CharField(required=False, allow_blank=True)
+    timezone = serializers.CharField(required=False, allow_blank=False)
     attendee_ids = serializers.ListField(
         child=serializers.UUIDField(),
         write_only=True,
@@ -234,7 +234,7 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     def validate_timezone(self, value):
         value = (value or "").strip()
         if not value:
-            return ""
+            raise serializers.ValidationError("timezone cannot be blank")
         try:
             calendar_time.parse_zone(value)
         except (ZoneInfoNotFoundError, ValueError) as exc:

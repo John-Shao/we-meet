@@ -43,6 +43,7 @@
     "cancel": "取消",
     "error": "操作失败:{{message}}",
     "endAfterStart": "结束时间必须晚于开始时间。",
+    "invalidLocalTime": "所选时间在该时区不存在，请选择其他时间。",
     "noResults": "未找到成员",
     "removeAttendee": "移除 {{name}}",
     "repeat": "重复",

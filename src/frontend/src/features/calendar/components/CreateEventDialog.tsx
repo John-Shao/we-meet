@@ -67,8 +67,8 @@ const toLocalInput = (d: Date) =>
 /** "YYYY-MM-DDTHH:MM" → its date portion "YYYY-MM-DD" (for <input type="date">). */
 const dateOnly = (v: string) => v.slice(0, 10)
 
-const defaultStart = () => {
-  const d = new Date()
+const defaultStart = (timezone: string) => {
+  const d = instantToZonedDate(new Date(), timezone)
   d.setHours(d.getHours() + 1, 0, 0, 0)
   return d
 }
@@ -97,7 +97,7 @@ export const CreateEventDialog = ({
     ? allDay && editEvent.start_date
       ? dateOnlyToLocalDate(editEvent.start_date)
       : instantToZonedDate(editEvent.start_at, initialTimezone)
-    : (initialStart ?? instantToZonedDate(defaultStart(), calendarTimezone))
+    : (initialStart ?? defaultStart(calendarTimezone))
   const end0 = editEvent
     ? allDay
       ? dateOnlyToLocalDate(
@@ -221,6 +221,15 @@ export const CreateEventDialog = ({
     })
   }
 
+  const timedStart =
+    !allDay && start ? zonedInputToInstant(start, eventTimezone) : null
+  const timedEnd =
+    !allDay && end ? zonedInputToInstant(end, eventTimezone) : null
+  const validTimedStart =
+    timedStart && !Number.isNaN(timedStart.getTime()) ? timedStart : null
+  const validTimedEnd =
+    timedEnd && !Number.isNaN(timedEnd.getTime()) ? timedEnd : null
+
   const canCreate =
     !!title.trim() && !!start && !!end && !busy && !roomConflicted
 
@@ -253,8 +262,12 @@ export const CreateEventDialog = ({
         end_date: exclusiveAllDayEndDate(inclusiveEnd),
       }
     } else {
-      const startDate = zonedInputToInstant(start, eventTimezone)
-      const endDate = zonedInputToInstant(end, eventTimezone)
+      if (!validTimedStart || !validTimedEnd) {
+        void showAlert({ message: t('form.invalidLocalTime') })
+        return
+      }
+      const startDate = validTimedStart
+      const endDate = validTimedEnd
       if (endDate <= startDate) {
         void showAlert({ message: t('form.endAfterStart') })
         return
@@ -533,14 +546,8 @@ export const CreateEventDialog = ({
                 setAttendeeRoles((prev) => new Map(prev).set(id, role))
               }
               initialAvatars={initialAvatars}
-              slotStart={
-                !allDay && start
-                  ? zonedInputToInstant(start, eventTimezone)
-                  : null
-              }
-              slotEnd={
-                !allDay && end ? zonedInputToInstant(end, eventTimezone) : null
-              }
+              slotStart={validTimedStart}
+              slotEnd={validTimedEnd}
               slotTimezone={eventTimezone}
               excludeEventId={editEvent?.id}
               selfId={user?.id}
@@ -573,10 +580,8 @@ export const CreateEventDialog = ({
         <MeetingRoomField
           value={meetingRoom}
           onChange={setMeetingRoom}
-          start={
-            !allDay && start ? zonedInputToInstant(start, eventTimezone) : null
-          }
-          end={!allDay && end ? zonedInputToInstant(end, eventTimezone) : null}
+          start={validTimedStart}
+          end={validTimedEnd}
           allDay={allDay}
           attendeeCount={selected.size + 1}
           excludeEventId={editEvent?.id}

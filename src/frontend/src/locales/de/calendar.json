@@ -43,6 +43,7 @@
     "cancel": "Abbrechen",
     "error": "Fehlgeschlagen: {{message}}",
     "endAfterStart": "Ende muss nach dem Beginn liegen.",
+    "invalidLocalTime": "Diese Ortszeit existiert in der gewählten Zeitzone nicht. Wählen Sie eine andere Zeit.",
     "noResults": "Keine Mitglieder gefunden",
     "removeAttendee": "{{name}} entfernen",
     "repeat": "Wiederholen",
