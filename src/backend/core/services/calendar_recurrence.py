@@ -33,7 +33,7 @@ from core.models import (
     EventRSVPChoices,
     EventStatusChoices,
 )
-from core.services import calendar_reminders, meeting_room_booking
+from core.services import calendar_reminders, calendar_time, meeting_room_booking
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,12 @@ def materialize_recurrences(now=None, horizon_days: int = HORIZON_DAYS) -> int:
 
 def _materialize_one(parent, now, horizon) -> int:
     duration = parent.end_at - parent.start_at
-    tz = parent.timezone
+    all_day_span = (
+        parent.end_date - parent.start_date
+        if parent.all_day and parent.start_date and parent.end_date
+        else None
+    )
+    tz = calendar_time.parse_zone(parent.timezone)
     # P9 会议室:整个系列订的是主事件那间房。取一次,循环里给每个子场次各建
     # 一条 booking —— 抢不到就落 conflict 行(policy=skip),绝不中断物化:
     # 会议照开,只是那一场没订上会议室。
@@ -83,6 +88,8 @@ def _materialize_one(parent, now, horizon) -> int:
 
     # 墙上钟展开:dtstart 用创作时区的 naive 本地时间,发生集也是 naive 本地。
     local_start = parent.start_at.astimezone(tz).replace(tzinfo=None)
+    if all_day_span is not None:
+        local_start = datetime.combine(parent.start_date, datetime.min.time())
     rule = rrulestr(parent.recurrence, dtstart=local_start)
     win_lo = now.astimezone(tz).replace(tzinfo=None)
     win_hi = horizon.astimezone(tz).replace(tzinfo=None)
@@ -108,6 +115,12 @@ def _materialize_one(parent, now, horizon) -> int:
             )
             break
         start_at = occ.replace(tzinfo=tz)  # ZoneInfo attach(fold 规则生效)
+        start_date = end_date = None
+        end_at = start_at + duration
+        if all_day_span is not None:
+            start_date = occ.date()
+            end_date = start_date + all_day_span
+            start_at, end_at = calendar_time.all_day_anchors(start_date, end_date, tz)
         # dateutil RRULE drops DTSTART microseconds. Compare at the protocol's
         # second precision or a parent created with fractional seconds would
         # be materialized again as a duplicate first occurrence.
@@ -125,7 +138,9 @@ def _materialize_one(parent, now, horizon) -> int:
                     title=parent.title,
                     description=parent.description,
                     start_at=start_at,
-                    end_at=start_at + duration,
+                    end_at=end_at,
+                    start_date=start_date,
+                    end_date=end_date,
                     timezone=tz,
                     all_day=parent.all_day,
                     room=parent.room,
@@ -209,7 +224,7 @@ def _remaining_rrule_for_split(parent, split_start_utc) -> str:
     if not match:
         return rule_str
     total = int(match.group(1))
-    tz = parent.timezone
+    tz = calendar_time.parse_zone(parent.timezone)
     dtstart_local = parent.start_at.astimezone(tz).replace(tzinfo=None)
     split_local = split_start_utc.astimezone(tz).replace(tzinfo=None)
     rule = rrulestr(rule_str, dtstart=dtstart_local)
@@ -247,6 +262,27 @@ def _shift_exdates(exdates, delta) -> list:
             shifted.append((datetime.fromisoformat(s) + delta).isoformat())
         except (ValueError, TypeError):
             shifted.append(s)
+    return shifted
+
+
+def _shift_all_day_exdates(exdates, old_timezone, new_timezone, day_delta) -> list:
+    """Move all-day exclusions by civil date, including across DST changes."""
+    shifted = []
+    for value in exdates or []:
+        try:
+            parsed = datetime.fromisoformat(value)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=old_timezone)
+            old_date = parsed.astimezone(old_timezone).date()
+        except (ValueError, TypeError):
+            shifted.append(value)
+            continue
+        new_date = old_date + day_delta
+        shifted.append(
+            calendar_time.all_day_anchors(
+                new_date, new_date + timedelta(days=1), new_timezone
+            )[0].isoformat()
+        )
     return shifted
 
 
@@ -296,9 +332,10 @@ def split_series(
     """
     now = now or timezone.now()
     parent = child.recurrence_parent
-    tz = parent.timezone
+    old_tz = calendar_time.parse_zone(parent.timezone)
+    tz = calendar_time.parse_zone(new_values.get("timezone", old_tz))
     pivot = child.start_at
-    pivot_local = pivot.astimezone(tz).replace(tzinfo=None)
+    pivot_local = pivot.astimezone(old_tz).replace(tzinfo=None)
 
     duration = child.end_at - child.start_at
     new_start = new_values.get("start_at") or pivot
@@ -308,8 +345,16 @@ def split_series(
     # 会议室随系列迁移到新主事件(读在删除之前,否则拿不到)。
     old_booking = meeting_room_booking.active_booking_for(parent)
     series_room = old_booking.room if old_booking is not None else None
+    all_day_edit = bool(parent.all_day and child.start_date)
+    day_delta = (
+        new_values.get("start_date", child.start_date) - child.start_date
+        if all_day_edit
+        else None
+    )
     reminder_snapshot = {
-        occurrence.start_at: _reminder_state(occurrence)
+        occurrence.start_date if all_day_edit else occurrence.start_at: (
+            _reminder_state(occurrence)
+        )
         for occurrence in parent.occurrences.filter(start_at__gte=pivot)
     }
 
@@ -335,6 +380,8 @@ def split_series(
             description=new_values.get("description", parent.description),
             start_at=new_start,
             end_at=new_end,
+            start_date=new_values.get("start_date", child.start_date),
+            end_date=new_values.get("end_date", child.end_date),
             timezone=tz,
             all_day=new_values.get("all_day", parent.all_day),
             room=parent.room,
@@ -342,7 +389,11 @@ def split_series(
             visibility=new_values.get("visibility", parent.visibility),
             reminders=list(new_values.get("reminders", parent.reminders or [])),
             recurrence=new_rrule,
-            recurrence_exdates=_shift_exdates(moved, delta),
+            recurrence_exdates=(
+                _shift_all_day_exdates(moved, old_tz, tz, day_delta)
+                if all_day_edit and day_delta is not None
+                else _shift_exdates(moved, delta)
+            ),
             source_conversation_id=parent.source_conversation_id,
         )
         _copy_attendees(parent, new_parent)
@@ -359,21 +410,26 @@ def split_series(
         materialize_parent(new_parent, now=now)
         _restore_reminder_state(
             new_parent,
-            reminder_snapshot.get(pivot),
+            reminder_snapshot.get(child.start_date if all_day_edit else pivot),
             schedule_changed=schedule_changed,
             now=now,
         )
         for occurrence in new_parent.occurrences.all():
+            snapshot_key = (
+                occurrence.start_date - day_delta
+                if all_day_edit and occurrence.start_date and day_delta is not None
+                else occurrence.start_at - delta
+            )
             _restore_reminder_state(
                 occurrence,
-                reminder_snapshot.get(occurrence.start_at - delta),
+                reminder_snapshot.get(snapshot_key),
                 schedule_changed=schedule_changed,
                 now=now,
             )
     return new_parent
 
 
-def edit_series_all(
+def edit_series_all(  # noqa: PLR0912,PLR0915 - timed/all-day share one transaction
     parent,
     pivot_old_start,
     new_values,
@@ -393,30 +449,67 @@ def edit_series_all(
     """
     now = now or timezone.now()
     new_start = new_values.get("start_at")
-    delta = (new_start - pivot_old_start) if new_start else timedelta(0)
-    if new_values.get("end_at"):
-        duration = new_values["end_at"] - (new_start or pivot_old_start)
+    old_timezone = calendar_time.parse_zone(parent.timezone)
+    new_timezone = calendar_time.parse_zone(new_values.get("timezone", parent.timezone))
+    all_day_edit = bool(
+        parent.all_day and parent.start_date and new_values.get("start_date")
+    )
+    day_delta = timedelta(0)
+    if all_day_edit:
+        pivot_old_date = pivot_old_start.astimezone(old_timezone).date()
+        day_delta = new_values["start_date"] - pivot_old_date
+        new_parent_start_date = parent.start_date + day_delta
+        new_span = new_values["end_date"] - new_values["start_date"]
+        new_parent_end_date = new_parent_start_date + new_span
+        parent_start_at, parent_end_at = calendar_time.all_day_anchors(
+            new_parent_start_date, new_parent_end_date, new_timezone
+        )
+        delta = parent_start_at - parent.start_at
     else:
-        duration = parent.end_at - parent.start_at
+        delta = (new_start - pivot_old_start) if new_start else timedelta(0)
+        if new_values.get("end_at"):
+            duration = new_values["end_at"] - (new_start or pivot_old_start)
+        else:
+            duration = parent.end_at - parent.start_at
 
     with transaction.atomic():
         for field in SCALAR_FIELDS:
             if field in new_values:
                 setattr(parent, field, new_values[field])
+        if "timezone" in new_values:
+            parent.timezone = new_values["timezone"]
         if "reminders" in new_values:
             parent.reminders = list(new_values["reminders"] or [])
-        parent.start_at = parent.start_at + delta
-        parent.end_at = parent.start_at + duration
-        parent.recurrence_exdates = _shift_exdates(parent.recurrence_exdates, delta)
+        if all_day_edit:
+            parent.start_date = new_parent_start_date
+            parent.end_date = new_parent_end_date
+            parent.start_at = parent_start_at
+            parent.end_at = parent_end_at
+            parent.recurrence_exdates = _shift_all_day_exdates(
+                parent.recurrence_exdates,
+                old_timezone,
+                new_timezone,
+                day_delta,
+            )
+        else:
+            parent.start_at = parent.start_at + delta
+            parent.end_at = parent.start_at + duration
+            parent.recurrence_exdates = _shift_exdates(parent.recurrence_exdates, delta)
         parent.save()
 
         future = list(
             parent.occurrences.filter(start_at__gte=now).prefetch_related("attendees")
         )
         snapshot = {
-            c.start_at: {a.user_id: a.rsvp for a in c.attendees.all()} for c in future
+            c.start_date if all_day_edit else c.start_at: {
+                a.user_id: a.rsvp for a in c.attendees.all()
+            }
+            for c in future
         }
-        reminder_snapshot = {c.start_at: _reminder_state(c) for c in future}
+        reminder_snapshot = {
+            c.start_date if all_day_edit else c.start_at: _reminder_state(c)
+            for c in future
+        }
         parent.occurrences.filter(start_at__gte=now).delete()
         # P9 会议室:未来子场次的 booking 刚随删除释放,主事件此刻才能安全平移
         # 到新时段;子场次的 booking 由下面的 materialize_parent 重建。
@@ -441,7 +534,12 @@ def edit_series_all(
                 )
             )
             for child in fresh:
-                old_rsvps = snapshot.get(child.start_at - delta)
+                snapshot_key = (
+                    child.start_date - day_delta
+                    if all_day_edit and child.start_date
+                    else child.start_at - delta
+                )
+                old_rsvps = snapshot.get(snapshot_key)
                 if old_rsvps:
                     for att in child.attendees.all():
                         want = old_rsvps.get(att.user_id)
@@ -450,7 +548,7 @@ def edit_series_all(
                             att.save(update_fields=["rsvp", "updated_at"])
                 _restore_reminder_state(
                     child,
-                    reminder_snapshot.get(child.start_at - delta),
+                    reminder_snapshot.get(snapshot_key),
                     schedule_changed=schedule_changed,
                     now=now,
                 )
@@ -461,7 +559,9 @@ def delete_following(child) -> None:
     """「此次及以后」删除:主事件截断到该场次前,>= 该场次的子行与 exdates 清理。"""
     parent = child.recurrence_parent
     pivot = child.start_at
-    pivot_local = pivot.astimezone(parent.timezone).replace(tzinfo=None)
+    pivot_local = pivot.astimezone(calendar_time.parse_zone(parent.timezone)).replace(
+        tzinfo=None
+    )
 
     def _before_pivot(s: str) -> bool:
         try:

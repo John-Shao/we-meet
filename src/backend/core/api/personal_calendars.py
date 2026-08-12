@@ -1,18 +1,28 @@
 """Personal calendar sharing, grants, subscriptions, and subscribed feeds."""
 
 import uuid
+from zoneinfo import ZoneInfoNotFoundError
 
+from django.db import transaction
 from django.db.models import Q
-from django.utils.dateparse import parse_datetime
 
 from rest_framework import decorators, exceptions, mixins, serializers, status, viewsets
 from rest_framework.response import Response
 
 from core import models, utils
 from core.api import permissions
-from core.api.calendar import CalendarEventSerializer
+from core.api.calendar import CalendarEventSerializer, filter_calendar_window
 from core.api.directory import get_caller_organization
-from core.services import calendar_access
+from core.services import calendar_access, calendar_time
+
+CALENDAR_DURATION_OPTIONS = {30, 60, 90}
+CALENDAR_REMINDER_OPTIONS = {0, 5, 10, 15, 30, 60, 120, 1440, 2880}
+
+
+class CalendarPreferenceConflict(exceptions.APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_code = "calendar_preference_conflict"
+    default_detail = "Calendar preferences changed on another device."
 
 
 def _user_card(user, organization=None):
@@ -88,6 +98,137 @@ class PersonalCalendarSerializer(serializers.ModelSerializer):
         ).exists()
 
 
+class CalendarPreferenceSerializer(serializers.ModelSerializer):
+    """Cross-device calendar settings; local storage is only an offline cache."""
+
+    timezone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    expected_revision = serializers.IntegerField(
+        required=False, min_value=0, write_only=True
+    )
+
+    class Meta:
+        model = models.CalendarPreference
+        fields = [
+            "timezone_mode",
+            "timezone",
+            "week_start",
+            "default_duration_minutes",
+            "default_reminder_minutes",
+            "dim_past",
+            "show_weekend",
+            "working_start_minutes",
+            "working_end_minutes",
+            "calendar_time_range",
+            "meeting_rooms_time_range",
+            "initialized",
+            "revision",
+            "expected_revision",
+        ]
+        read_only_fields = ["initialized", "revision"]
+
+    def validate_timezone(self, value):
+        if value in (None, ""):
+            return None
+        value = value.strip()
+        try:
+            calendar_time.parse_zone(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise serializers.ValidationError("expected a valid IANA timezone") from exc
+        return value
+
+    def validate_default_duration_minutes(self, value):
+        if value not in CALENDAR_DURATION_OPTIONS:
+            raise serializers.ValidationError("expected 30, 60, or 90")
+        return value
+
+    def validate_default_reminder_minutes(self, value):
+        if value is not None and value not in CALENDAR_REMINDER_OPTIONS:
+            raise serializers.ValidationError("unsupported reminder value")
+        return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        instance = self.instance
+        mode = attrs.get(
+            "timezone_mode",
+            getattr(instance, "timezone_mode", models.CalendarTimezoneModeChoices.AUTO),
+        )
+        zone = attrs.get("timezone", getattr(instance, "timezone", None))
+        if mode == models.CalendarTimezoneModeChoices.FIXED and not zone:
+            raise serializers.ValidationError(
+                {"timezone": "timezone is required while timezone_mode is fixed"}
+            )
+        if mode == models.CalendarTimezoneModeChoices.AUTO:
+            attrs["timezone"] = None
+
+        start = attrs.get(
+            "working_start_minutes", getattr(instance, "working_start_minutes", 540)
+        )
+        end = attrs.get(
+            "working_end_minutes", getattr(instance, "working_end_minutes", 1080)
+        )
+        duration = end - start
+        if (
+            start < 0
+            or end > 24 * 60
+            or start % 30
+            or end % 30
+            or not 6 * 60 <= duration <= 12 * 60
+        ):
+            raise serializers.ValidationError(
+                {
+                    "working_end_minutes": (
+                        "working hours must use 30-minute steps and span 6-12 hours"
+                    )
+                }
+            )
+        return attrs
+
+
+class CalendarPreferenceViewSet(viewsets.GenericViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = CalendarPreferenceSerializer
+    pagination_class = None
+
+    def _preference(self):
+        preference, _ = models.CalendarPreference.objects.get_or_create(
+            user=self.request.user
+        )
+        return preference
+
+    @decorators.action(detail=False, methods=["get", "patch"], url_path="me")
+    def me(self, request):
+        preference = self._preference()
+        if request.method == "GET":
+            return Response(self.get_serializer(preference).data)
+
+        with transaction.atomic():
+            preference = models.CalendarPreference.objects.select_for_update().get(
+                pk=preference.pk
+            )
+            serializer = self.get_serializer(
+                preference, data=request.data, partial=True
+            )
+            serializer.is_valid(raise_exception=True)
+            expected = serializer.validated_data.pop("expected_revision", None)
+            if expected is None:
+                raise exceptions.ValidationError(
+                    {"expected_revision": "expected_revision is required"}
+                )
+            if expected is not None and expected != preference.revision:
+                raise CalendarPreferenceConflict(
+                    {
+                        "detail": CalendarPreferenceConflict.default_detail,
+                        "code": CalendarPreferenceConflict.default_code,
+                        "revision": preference.revision,
+                    }
+                )
+            preference = serializer.save(
+                initialized=True, revision=preference.revision + 1
+            )
+        return Response(self.get_serializer(preference).data)
+
+
 class PersonalCalendarViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
@@ -113,9 +254,7 @@ class PersonalCalendarViewSet(
         organization = get_caller_organization(request.user)
         if organization is None:
             raise exceptions.NotFound()
-        calendar = calendar_access.ensure_personal_calendar(
-            request.user, organization
-        )
+        calendar = calendar_access.ensure_personal_calendar(request.user, organization)
         return Response(self.get_serializer(calendar).data)
 
     def update(self, request, *args, **kwargs):
@@ -136,10 +275,7 @@ class PersonalCalendarViewSet(
                 enabled=True,
             ).first()
             permission = calendar_access.calendar_permission(calendar, request.user)
-            if (
-                subscription is None
-                or permission == models.CalendarAccessChoices.NONE
-            ):
+            if subscription is None or permission == models.CalendarAccessChoices.NONE:
                 raise exceptions.NotFound()
 
         queryset = (
@@ -148,12 +284,7 @@ class PersonalCalendarViewSet(
             .prefetch_related("attendees__user", "room_bookings__room__node")
             .order_by("start_at")
         )
-        start = parse_datetime(request.query_params.get("start", "") or "")
-        end = parse_datetime(request.query_params.get("end", "") or "")
-        if start:
-            queryset = queryset.filter(end_at__gt=start)
-        if end:
-            queryset = queryset.filter(start_at__lt=end)
+        queryset = filter_calendar_window(queryset, request.query_params)
 
         events = list(queryset)
         access_levels = {
@@ -217,9 +348,11 @@ class CalendarAccessGrantViewSet(viewsets.GenericViewSet):
 
     def create(self, request):
         organization = get_caller_organization(request.user)
-        calendar = calendar_access.ensure_personal_calendar(
-            request.user, organization
-        ) if organization else None
+        calendar = (
+            calendar_access.ensure_personal_calendar(request.user, organization)
+            if organization
+            else None
+        )
         if calendar is None:
             raise exceptions.NotFound()
         try:
@@ -244,7 +377,9 @@ class CalendarAccessGrantViewSet(viewsets.GenericViewSet):
         if target is None or not calendar_access.may_share_calendar_with(
             request.user, target, organization
         ):
-            raise exceptions.PermissionDenied("Calendar cannot be shared with this user.")
+            raise exceptions.PermissionDenied(
+                "Calendar cannot be shared with this user."
+            )
         grant, created = models.CalendarAccessGrant.objects.update_or_create(
             calendar=calendar,
             grantee=target,
@@ -311,9 +446,10 @@ class CalendarSubscriptionViewSet(viewsets.GenericViewSet):
     def list(self, request):
         readable = []
         for row in self.get_queryset():
-            if calendar_access.calendar_permission(
-                row.calendar, request.user
-            ) != models.CalendarAccessChoices.NONE:
+            if (
+                calendar_access.calendar_permission(row.calendar, request.user)
+                != models.CalendarAccessChoices.NONE
+            ):
                 readable.append(self._card(row))
         return Response(readable)
 
@@ -350,9 +486,10 @@ class CalendarSubscriptionViewSet(viewsets.GenericViewSet):
         if owner_org is None:
             raise exceptions.PermissionDenied("This calendar is not available.")
         calendar = calendar_access.ensure_personal_calendar(owner, owner_org)
-        if calendar_access.calendar_permission(
-            calendar, request.user
-        ) == models.CalendarAccessChoices.NONE:
+        if (
+            calendar_access.calendar_permission(calendar, request.user)
+            == models.CalendarAccessChoices.NONE
+        ):
             raise exceptions.PermissionDenied("This calendar has not been shared.")
         defaults = {
             "enabled": serializers.BooleanField().run_validation(

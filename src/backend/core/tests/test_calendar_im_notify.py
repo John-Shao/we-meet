@@ -251,24 +251,27 @@ def test_private_cancel_redacts_source_but_not_personal_card(
     assert "visibility" not in deliveries[0][1]
 
 
-def test_external_email_attendee_is_not_treated_as_an_im_user(
-    django_capture_on_commit_callbacks,
+def test_external_email_attendee_is_rejected_before_im_delivery(
     _stub_personal_delivery,
 ):
     _, _, _, client = _setup()
-
-    with django_capture_on_commit_callbacks(execute=True):
-        response = _create(
-            client,
-            cid=None,
-            attendee_entries=[
+    start = timezone.now() + timedelta(days=1)
+    response = client.post(
+        "/api/v1.0/calendar-events/",
+        {
+            "title": "External guest",
+            "start_at": start.isoformat(),
+            "end_at": (start + timedelta(hours=1)).isoformat(),
+            "attendee_entries": [
                 {"email": "guest@example.com", "role": "optional"},
             ],
-        )
+        },
+        format="json",
+    )
 
-    assert response["attendees"][1]["email"] == "guest@example.com"
-    _stub_personal_delivery.assert_called_once()
-    assert list(_stub_personal_delivery.call_args.args[0]) == []
+    assert response.status_code == 400
+    assert "user_id" in response.json()["attendee_entries"][0]
+    _stub_personal_delivery.assert_not_called()
 
 
 def test_event_without_cid_uses_only_personal_notifications(

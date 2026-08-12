@@ -109,6 +109,21 @@ kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core
 
 迁移后先验证后端：无权用户凭 event id 读取 `default/public/private` 均返回 404；拥有 `free_busy/details` 权限且已订阅的用户按矩阵获得忙碌投影或完整详情；私密日程参与者仍能读取详情。再发布 Web/Android，并验证三态选择、共享授权、订阅和撤销外部联系人后的即时失权。
 
+### 日历 P1-9 全天日期与跨设备时区部署顺序
+
+完整时间模型见 [P1-9：全天日期语义与跨设备时区](../phases/p2c-calendar-all-day-timezone.md)。发布顺序固定为 **backend + `0094_calendar_all_day_preferences` → Web → Android**。
+
+迁移会为历史全天日程按各自已保存的事件时区回填半开 `start_date/end_date`，再添加一致性约束，并创建账号级 `CalendarPreference` 表。它不修改原有 `start_at/end_at` 锚点，也不批量创建偏好行。无效时区、非午夜锚点或非正跨度会产生后端告警；部署后需检查迁移日志，按事件核对异常，禁止把全部历史全天日程统一平移。
+
+```bash
+kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | grep 0094
+# 期望: [X] 0094_calendar_all_day_preferences
+```
+
+双端依赖新增的日期字段、`date_start/date_end` 查询参数和 `/calendar-preferences/me/`。读取协议是加法兼容；旧客户端仍可读取全天日程、创建日程和编辑标题等普通字段，但不能只用 UTC 锚点移动一个已有规范全天日程，否则后端返回 400 `all_day_dates_required`。因此双端发布窗口应尽量缩短。
+
+迁移后至少验证：上海/洛杉矶/UTC 查看同一全天日程不跨日；跨 DST 的全天重复场次保持当地午夜；Web 修改固定时区后 Android 同步；自动模式分别跟随各设备；并发设置修改返回 409 而不互相覆盖。
+
 ---
 
 ## 已归档的实例:2026-07-02「假完成坑」三项(commit 29634218)

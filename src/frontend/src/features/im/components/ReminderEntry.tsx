@@ -27,12 +27,12 @@ export const ReminderEntry = ({
 }) => {
   const { t } = useTranslation('im')
   const [enabled] = useReminderEntryEnabled()
-  const { nearest, now } = useReminderWindow(enabled)
+  const { nearest, now, calendarTimezone } = useReminderWindow(enabled)
 
   if (!enabled || !nearest) return null
 
   const countdown = reminderCountdown(nearest, now)
-  const range = reminderTimeRange(nearest)
+  const range = reminderTimeRange(nearest, calendarTimezone)
 
   return (
     <button

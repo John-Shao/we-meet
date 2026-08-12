@@ -32,8 +32,14 @@ import './calendarGridOverrides.css'
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import { resolveRbcView } from '../utils/rbcView'
-import { localGmtOffsetLabel } from '../utils/timeZone'
+import { formatGmtOffset } from '../utils/timeZone'
 import { formatMinutes, isOutsideWorkingHours } from '../utils/workingHours'
+import { zoneOffsetMinutes } from '@/utils/timezoneOptions'
+import {
+  dateOnlyToLocalDate,
+  instantToZonedDate,
+  zonedDateToInstant,
+} from '../utils/zonedDate'
 import { CalendarToolbar } from './CalendarToolbar'
 import { AgendaListView } from './AgendaListView'
 
@@ -330,6 +336,7 @@ export const CalendarGrid = ({
     workingHours,
     calendarTimeRangeMode,
     setCalendarTimeRangeMode,
+    calendarTimezone,
   } = useCalendarSettings()
   const localizer = useMemo(() => localizerFor(weekStartsOn), [weekStartsOn])
   const [viewState, setViewState] = useState<View>('week')
@@ -341,9 +348,20 @@ export const CalendarGrid = ({
     setViewState(v)
     onViewChange?.(v)
   }
-  const [dateState, setDateState] = useState<Date>(() => new Date())
+  const [dateState, setDateState] = useState<Date>(() =>
+    instantToZonedDate(new Date(), calendarTimezone)
+  )
   const date = dateProp ?? dateState
-  const timeZoneLabel = useMemo(() => localGmtOffsetLabel(date), [date])
+  const timeZoneLabel = useMemo(
+    () =>
+      formatGmtOffset(
+        zoneOffsetMinutes(
+          calendarTimezone,
+          zonedDateToInstant(date, calendarTimezone)
+        )
+      ),
+    [calendarTimezone, date]
+  )
   const setDate = (d: Date) => {
     setDateState(d)
     onNavigate?.(d)
@@ -355,11 +373,11 @@ export const CalendarGrid = ({
       value.setMinutes(workingHours.startMin)
       return value
     }
-    const now = new Date()
+    const now = instantToZonedDate(new Date(), calendarTimezone)
     const sameDay = now.toDateString() === date.toDateString()
     const hour = sameDay && now.getHours() >= 8 ? now.getHours() : 8
     return new Date(1970, 0, 1, Math.min(hour, 20), 0)
-  }, [calendarTimeRangeMode, date, workingHours.startMin])
+  }, [calendarTimeRangeMode, calendarTimezone, date, workingHours.startMin])
 
   const visibleTimeBounds = useMemo(() => {
     const base = new Date(1970, 0, 1)
@@ -399,23 +417,41 @@ export const CalendarGrid = ({
     rangeEnd.setDate(rangeEnd.getDate() + (view === 'week' ? 7 : 1))
     return events.filter((event) => {
       if (event.all_day) return false
-      const start = new Date(event.start_at)
-      const end = new Date(event.end_at)
+      const start = instantToZonedDate(event.start_at, calendarTimezone)
+      const end = instantToZonedDate(event.end_at, calendarTimezone)
       if (end <= rangeStart || start >= rangeEnd) return false
       if (!showWeekend && (isWeekend(start) || isWeekend(end))) return false
       return isOutsideWorkingHours(start, end, workingHours)
     }).length
-  }, [date, events, showWeekend, view, weekStartsOn, workingHours])
+  }, [
+    calendarTimezone,
+    date,
+    events,
+    showWeekend,
+    view,
+    weekStartsOn,
+    workingHours,
+  ])
 
   const rbcEvents = useMemo<RbcEvent[]>(() => {
-    const list: RbcEvent[] = events.map((e) => ({
-      id: e.id,
-      title: e.title,
-      start: new Date(e.start_at),
-      end: new Date(e.end_at),
-      allDay: e.all_day,
-      resource: e,
-    }))
+    const list: RbcEvent[] = events.map((e) => {
+      const start =
+        e.all_day && e.start_date
+          ? dateOnlyToLocalDate(e.start_date)
+          : instantToZonedDate(e.start_at, calendarTimezone)
+      const end =
+        e.all_day && e.end_date
+          ? dateOnlyToLocalDate(e.end_date)
+          : instantToZonedDate(e.end_at, calendarTimezone)
+      return {
+        id: e.id,
+        title: e.title,
+        start,
+        end,
+        allDay: e.all_day,
+        resource: e,
+      }
+    })
     if (slotDraft) {
       list.push({
         id: DRAFT_ID,
@@ -427,7 +463,7 @@ export const CalendarGrid = ({
       })
     }
     return list
-  }, [events, slotDraft, t])
+  }, [calendarTimezone, events, slotDraft, t])
 
   // 24 小时时间轴(00:00–23:00,对标群成员日历):默认 culture(zh-CN)的
   // 时间刻度带上午/下午,这里显式用 HH:mm 覆盖成 24h;周/日视图内的选择/事件
@@ -592,7 +628,9 @@ export const CalendarGrid = ({
           // 连文字一起压,标题对比度掉到 2.1:1(浅)/ 2.6:1(深)——「已结束」
           // 不等于「不用读」。改后块的观感一模一样(底色算出来同一个值),
           // 只是文字不再跟着淡。详见 calendarGridOverrides.css 的 wm-past 段。
-          dimPast && ev.end < new Date() ? 'wm-past' : '',
+          dimPast && ev.end < instantToZonedDate(new Date(), calendarTimezone)
+            ? 'wm-past'
+            : '',
         ]
           .filter(Boolean)
           .join(' ')

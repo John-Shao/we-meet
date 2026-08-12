@@ -11,6 +11,11 @@ import { linkBtnCls } from '@/styles/controls'
 import { labelCls } from './formStyles'
 import { BulkAttendeeDialog } from './BulkAttendeeDialog'
 import type { AttendeeRole } from '../api/ApiCalendar'
+import {
+  deviceTimezone,
+  instantToZonedDate,
+  zonedDateToInstant,
+} from '../utils/zonedDate'
 
 interface Props {
   /** 已选参与者 id → 显示名(组织者不在其中)。 */
@@ -23,6 +28,8 @@ interface Props {
   /** 所选时段 —— 用来给每位参与者标忙/闲;全天或时间未填时传 null。 */
   slotStart?: Date | null
   slotEnd?: Date | null
+  /** Calendar/event timezone used to derive the busy-query civil day. */
+  slotTimezone?: string
   /** 编辑态:忙闲里剔除当前日程自身,原参与者不被自己这场误报忙碌。 */
   excludeEventId?: string
   /** 发起人自己 —— 只用于「你在该时段有其他日程」的提示,不进参与者列表。 */
@@ -48,6 +55,7 @@ export const AttendeePicker = ({
   initialAvatars,
   slotStart,
   slotEnd,
+  slotTimezone = deviceTimezone(),
   excludeEventId,
   selfId,
 }: Props) => {
@@ -65,10 +73,18 @@ export const AttendeePicker = ({
 
   // 忙闲:按「所选开始时刻当天」拉一次,判断每人在所选时段是否有冲突。
   // 只要状态(忙/闲),不画时间条。
-  const dayStart = slotStart ? new Date(slotStart) : null
-  dayStart?.setHours(0, 0, 0, 0)
-  const dayEnd = dayStart ? new Date(dayStart) : null
-  dayEnd?.setDate(dayEnd.getDate() + 1)
+  const dayStartWall = slotStart
+    ? instantToZonedDate(slotStart, slotTimezone)
+    : null
+  dayStartWall?.setHours(0, 0, 0, 0)
+  const dayEndWall = dayStartWall ? new Date(dayStartWall) : null
+  dayEndWall?.setDate(dayEndWall.getDate() + 1)
+  const dayStart = dayStartWall
+    ? zonedDateToInstant(dayStartWall, slotTimezone)
+    : null
+  const dayEnd = dayEndWall
+    ? zonedDateToInstant(dayEndWall, slotTimezone)
+    : null
   const busyIds = useMemo(
     () => [...selected.keys(), ...(selfId ? [selfId] : [])],
     [selected, selfId]
@@ -107,8 +123,7 @@ export const AttendeePicker = ({
           「添加会议室 / 更换」同一款右对齐文字按钮。 */}
       <div className={headRowCls}>
         <span className={labelCls}>
-          {t('form.attendees')} (
-          {t('form.selected', { count: selected.size })})
+          {t('form.attendees')} ({t('form.selected', { count: selected.size })})
         </span>
         <button
           type="button"

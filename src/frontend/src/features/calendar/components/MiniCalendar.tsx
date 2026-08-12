@@ -21,6 +21,7 @@ import { navGlyphCls } from '@/styles/controls'
 import { Button } from '@/primitives'
 import type { CalendarEvent } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
+import { instantToZonedDate } from '../utils/zonedDate'
 
 /**
  * Feishu-style mini month picker for the calendar secondary panel (二级导航栏).
@@ -45,15 +46,24 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
   const { i18n } = useTranslation('calendar')
   const locale = localeFor(i18n.language)
   // 周起始日跟「日历设置」(P8),覆盖 locale 缺省。
-  const { weekStartsOn } = useCalendarSettings()
+  const { weekStartsOn, calendarTimezone } = useCalendarSettings()
   const [viewMonth, setViewMonth] = useState<Date>(() => startOfMonth(value))
 
   // Days that have at least one event — keyed by yyyy-MM-dd for O(1) lookup.
   const eventDays = useMemo(() => {
     const set = new Set<string>()
-    for (const e of events) set.add(format(new Date(e.start_at), 'yyyy-MM-dd'))
+    for (const e of events) {
+      set.add(
+        e.all_day && e.start_date
+          ? e.start_date
+          : format(
+              instantToZonedDate(e.start_at, calendarTimezone),
+              'yyyy-MM-dd'
+            )
+      )
+    }
     return set
-  }, [events])
+  }, [calendarTimezone, events])
 
   const weeks = useMemo(() => {
     const start = startOfWeek(startOfMonth(viewMonth), { locale, weekStartsOn })

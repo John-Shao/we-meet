@@ -64,6 +64,28 @@ def test_event_card_created():
     )
 
 
+def test_all_day_event_card_uses_canonical_dates():
+    _assert_golden(
+        "event_card_all_day",
+        im_cards.build_event_card(
+            event_id="11111111-1111-4111-8111-111111111111",
+            title="Company holiday",
+            start="2026-08-11T16:00:00+00:00",
+            end="2026-08-13T16:00:00+00:00",
+            kind=im_cards.EVENT_KIND_TIME_CHANGED,
+            all_day=True,
+            start_date="2026-08-12",
+            end_date="2026-08-14",
+            old_start="2026-08-09T16:00:00+00:00",
+            old_end="2026-08-11T16:00:00+00:00",
+            old_start_date="2026-08-10",
+            old_end_date="2026-08-12",
+            attendee_count=2,
+            organizer_name="Alice",
+        ),
+    )
+
+
 def test_private_event_card_redacts_conversation_metadata():
     _assert_golden(
         "event_card_private",
@@ -224,6 +246,10 @@ def test_optional_keys_are_absent_not_null():
         "recurrence_scope",
         "responder_name",
         "rsvp_status",
+        "start_date",
+        "end_date",
+        "old_start_date",
+        "old_end_date",
     ):
         assert key not in card
 

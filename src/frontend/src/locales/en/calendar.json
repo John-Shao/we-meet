@@ -11,6 +11,8 @@
     "empty": "No events yet"
   },
   "form": {
+    "timezone": "Event timezone",
+    "allDayTimezoneHint": "All-day dates never shift; this timezone is only used for reminders and recurrence",
     "title": "New event",
     "titlePlaceholder": "Event title",
     "descriptionPlaceholder": "Description (optional)",
@@ -179,6 +181,10 @@
   },
   "settings": {
     "title": "Calendar settings",
+    "timezone": "Calendar timezone",
+    "timezoneAuto": "Use device timezone automatically",
+    "timezoneFixed": "Fixed timezone",
+    "fixedTimezone": "Choose timezone",
     "reminderEntry": "Show event reminder in message list",
     "dimPast": "Dim past events",
     "workingHours": "Working hours",

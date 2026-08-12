@@ -6,6 +6,7 @@ import {
   bucketReminderWindow,
   countdownWindowMinutes,
   reminderCountdown,
+  reminderTimeRange,
   shouldRemind,
 } from './reminderWindow'
 
@@ -103,6 +104,17 @@ describe('bucketReminderWindow', () => {
   })
 })
 
+describe('reminderTimeRange', () => {
+  it('uses the selected calendar timezone instead of the browser timezone', () => {
+    const event = ev({
+      start_at: '2026-08-12T00:00:00.000Z',
+      end_at: '2026-08-12T01:30:00.000Z',
+    })
+    expect(reminderTimeRange(event, 'Asia/Shanghai')).toBe('08:00 - 09:30')
+    expect(reminderTimeRange(event, 'America/New_York')).toBe('20:00 - 21:30')
+  })
+})
+
 describe('倒计时角标读日程自己的提前量', () => {
   /**
    * 以前这里是写死的 60 分钟,跟 `reminders` 毫无关系 —— 用户选「提前 10 分钟」
@@ -124,7 +136,9 @@ describe('倒计时角标读日程自己的提前量', () => {
   })
 
   it('没设提前量退 60 分钟 —— 那是兜底窗口,不是「默认提醒时间」', () => {
-    expect(countdownWindowMinutes(ev0([]))).toBe(DEFAULT_COUNTDOWN_WINDOW_MINUTES)
+    expect(countdownWindowMinutes(ev0([]))).toBe(
+      DEFAULT_COUNTDOWN_WINDOW_MINUTES
+    )
     const e = ev({ start_at: at(16, 0), end_at: at(17, 0), reminders: [] })
     expect(reminderCountdown(e, new Date(2026, 6, 30, 15, 5))).toEqual({
       kind: 'soon',
@@ -137,9 +151,7 @@ describe('倒计时角标读日程自己的提前量', () => {
     expect(countdownWindowMinutes(ev0([0, -5]))).toBe(
       DEFAULT_COUNTDOWN_WINDOW_MINUTES
     )
-    expect(
-      countdownWindowMinutes(ev0(['15' as unknown as number]))
-    ).toBe(15)
+    expect(countdownWindowMinutes(ev0(['15' as unknown as number]))).toBe(15)
   })
 
   it('进行中永远是「现在」,不看提前量', () => {

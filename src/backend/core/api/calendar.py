@@ -9,11 +9,12 @@ and is the only IM destination for reminders and change cards.
 
 import uuid
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfoNotFoundError
 
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone as django_timezone
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_date, parse_datetime
 
 from dateutil.rrule import rrulestr
 from rest_framework import decorators, exceptions, serializers, viewsets
@@ -30,6 +31,7 @@ from core.services import (
     calendar_im_notify,
     calendar_recurrence,
     calendar_reminders,
+    calendar_time,
     meeting_room_booking,
 )
 
@@ -37,6 +39,36 @@ from core.services import (
 #: ``false``. Only meaningful for fields whose absence and whose ``false`` must
 #: do different things (see ``with_video_meeting``).
 ABSENT = object()
+
+
+def filter_calendar_window(queryset, query_params):
+    """Filter timed instants and all-day civil dates without mixing semantics."""
+    start = parse_datetime(query_params.get("start", "") or "")
+    end = parse_datetime(query_params.get("end", "") or "")
+    date_start = parse_date(query_params.get("date_start", "") or "")
+    date_end = parse_date(query_params.get("date_end", "") or "")
+    if date_start is None and date_end is None:
+        if start:
+            queryset = queryset.filter(end_at__gt=start)
+        if end:
+            queryset = queryset.filter(start_at__lt=end)
+        return queryset
+
+    # Civil-date bounds have no timezone with which to interpret timed rows.
+    # New clients therefore send both windows; a date-only query intentionally
+    # returns only all-day rows instead of accidentally returning every timed
+    # event in the account.
+    timed = Q(all_day=False) if start or end else Q(pk__isnull=True)
+    all_day = Q(all_day=True)
+    if start:
+        timed &= Q(end_at__gt=start)
+    if end:
+        timed &= Q(start_at__lt=end)
+    if date_start:
+        all_day &= Q(end_date__gt=date_start)
+    if date_end:
+        all_day &= Q(start_date__lt=date_end)
+    return queryset.filter(timed | all_day)
 
 
 class MeetingRoomUnavailableError(exceptions.APIException):
@@ -90,6 +122,12 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     # 组织者带头像(短时效预签名 URL,同 directory/im resolve 口径),供日程
     # 视图详情面板等处渲染「头像+名称」。
     organizer = serializers.SerializerMethodField()
+    # Explicit declarations make all-day writes possible without manufacturing
+    # UTC instants in the client.  The serializer derives compatibility anchors.
+    start_at = serializers.DateTimeField(required=False)
+    end_at = serializers.DateTimeField(required=False)
+    start_date = serializers.DateField(required=False, allow_null=True)
+    end_date = serializers.DateField(required=False, allow_null=True)
     # TimeZoneField → declare explicitly so it round-trips as an IANA name string.
     timezone = serializers.CharField(required=False, allow_blank=True)
     attendee_ids = serializers.ListField(
@@ -126,12 +164,20 @@ class CalendarEventSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.CalendarEvent
+        # ``recurrence_parent`` is read-only and only populated internally. DRF's
+        # generated conditional UniqueTogetherValidator nevertheless marks
+        # ``start_at`` as required before ``validate()`` gets a chance to derive
+        # compatibility anchors from canonical all-day dates. The database
+        # constraint remains the source of truth for materialized occurrences.
+        validators = []
         fields = [
             "id",
             "title",
             "description",
             "start_at",
             "end_at",
+            "start_date",
+            "end_date",
             "timezone",
             "all_day",
             "status",
@@ -183,6 +229,16 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             rrulestr(value, dtstart=datetime(2026, 1, 1, 9, 0))
         except (ValueError, TypeError) as exc:
             raise serializers.ValidationError(f"invalid RRULE: {exc}") from exc
+        return value
+
+    def validate_timezone(self, value):
+        value = (value or "").strip()
+        if not value:
+            return ""
+        try:
+            calendar_time.parse_zone(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise serializers.ValidationError("expected a valid IANA timezone") from exc
         return value
 
     def validate_reminders(self, value):
@@ -326,8 +382,8 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             )
         return room
 
-    def validate(self, attrs):
-        """All-day events cannot hold a room (M1) — see docs/phases/p9."""
+    def validate(self, attrs):  # noqa: PLR0912, PLR0915 - date modes are explicit
+        """Normalize timed instants and canonical all-day civil dates."""
         attrs = super().validate(attrs)
         if "attendee_ids" in attrs and "attendee_entries" in attrs:
             raise serializers.ValidationError(
@@ -340,17 +396,119 @@ class CalendarEventSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"attendee_entries": "duplicate attendee"}
                 )
-        start = attrs.get("start_at", getattr(self.instance, "start_at", None))
-        end = attrs.get("end_at", getattr(self.instance, "end_at", None))
+        instance = self.instance
+        all_day = attrs.get("all_day", getattr(instance, "all_day", False))
+        room = attrs.get("meeting_room_id")
+        if room is not None and all_day:
+            # Keep the product-level error stable even when a legacy client
+            # supplies same-day timed anchors for an all-day request.
+            raise serializers.ValidationError(
+                {"meeting_room_id": "all-day events cannot book a meeting room"}
+            )
+        raw = self.initial_data or {}
+        timezone_value = attrs.get("timezone") or getattr(instance, "timezone", None)
+        if not timezone_value:
+            request = self.context.get("request")
+            timezone_value = (
+                calendar_time.effective_calendar_timezone(request.user)
+                if request is not None
+                else "UTC"
+            )
+
+        if all_day:
+            dates_explicit = "start_date" in raw or "end_date" in raw
+            rebuild_anchors = (
+                instance is None
+                or dates_explicit
+                or not getattr(instance, "all_day", False)
+                or "timezone" in raw
+            )
+            if dates_explicit:
+                start_date = attrs.get(
+                    "start_date", getattr(instance, "start_date", None)
+                )
+                end_date = attrs.get("end_date", getattr(instance, "end_date", None))
+                if start_date is None or end_date is None:
+                    raise serializers.ValidationError(
+                        {
+                            "start_date": (
+                                "start_date and end_date are required for all-day events"
+                            )
+                        }
+                    )
+            elif instance is not None and instance.all_day and instance.start_date:
+                # Legacy clients may still submit the old anchors during a title
+                # edit.  Accept exact no-op values, but never let another device
+                # reinterpret them and silently move the civil date.
+                for field in ("start_at", "end_at"):
+                    submitted = attrs.get(field)
+                    current = getattr(instance, field)
+                    if submitted is not None and submitted != current:
+                        raise serializers.ValidationError(
+                            {
+                                "start_date": (
+                                    "all_day_dates_required: move all-day events "
+                                    "with start_date and end_date"
+                                )
+                            }
+                        )
+                # Exact legacy echoes are not scheduling edits.
+                attrs.pop("start_at", None)
+                attrs.pop("end_at", None)
+                start_date, end_date = instance.start_date, instance.end_date
+            else:
+                # Compatibility for pre-P1-9 creates and historical rows.
+                legacy_start = attrs.get(
+                    "start_at", getattr(instance, "start_at", None)
+                )
+                legacy_end = attrs.get("end_at", getattr(instance, "end_at", None))
+                if legacy_start is None or legacy_end is None:
+                    raise serializers.ValidationError(
+                        {
+                            "start_date": (
+                                "start_date and end_date are required for all-day events"
+                            )
+                        }
+                    )
+                start_date, end_date = calendar_time.dates_from_legacy_anchors(
+                    legacy_start, legacy_end, timezone_value
+                )
+                rebuild_anchors = True
+            if end_date <= start_date:
+                raise serializers.ValidationError(
+                    {"end_date": "end_date must be later than start_date"}
+                )
+            if rebuild_anchors:
+                attrs["start_date"] = start_date
+                attrs["end_date"] = end_date
+                attrs["start_at"], attrs["end_at"] = calendar_time.all_day_anchors(
+                    start_date, end_date, timezone_value
+                )
+        else:
+            if (
+                instance is not None
+                and instance.all_day
+                and attrs.get("all_day") is False
+            ):
+                if "start_at" not in raw or "end_at" not in raw:
+                    raise serializers.ValidationError(
+                        {
+                            "start_at": "start_at and end_at are required for timed events"
+                        }
+                    )
+            if instance is None or getattr(instance, "all_day", False):
+                attrs["start_date"] = None
+                attrs["end_date"] = None
+
+        start = attrs.get("start_at", getattr(instance, "start_at", None))
+        end = attrs.get("end_at", getattr(instance, "end_at", None))
+        if start is None or end is None:
+            raise serializers.ValidationError(
+                {"start_at": "start_at and end_at are required"}
+            )
         if start is not None and end is not None and end <= start:
             raise serializers.ValidationError(
                 {"end_at": "end_at must be later than start_at"}
-            )
-        room = attrs.get("meeting_room_id")
-        all_day = attrs.get("all_day", getattr(self.instance, "all_day", False))
-        if room is not None and all_day:
-            raise serializers.ValidationError(
-                {"meeting_room_id": "all-day events cannot book a meeting room"}
             )
         if room is not None:
             self._validate_room_limits(room, attrs)
@@ -457,12 +615,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         # retrieve/update by pk are never filtered out. Returns events overlapping
         # the window: start_at < end AND end_at > start. Unparseable params ignored.
         if self.action == "list":
-            start = parse_datetime(self.request.query_params.get("start", "") or "")
-            end = parse_datetime(self.request.query_params.get("end", "") or "")
-            if start:
-                queryset = queryset.filter(end_at__gt=start)
-            if end:
-                queryset = queryset.filter(start_at__lt=end)
+            queryset = filter_calendar_window(queryset, self.request.query_params)
         return queryset
 
     def handle_exception(self, exc):
@@ -653,7 +806,9 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         data.pop("visibility_explicit", None)
         attendee_entries = self._pop_attendee_entries(data) or []
-        timezone_name = data.pop("timezone", "") or str(user.timezone)
+        timezone_name = data.pop("timezone", "") or str(
+            calendar_time.effective_calendar_timezone(user)
+        )
         meeting_room, booking_policy = self._pop_room_args(data)
         # 缺省 = 开(老客户端不传该字段,行为保持不变)。
         with_video = bool(data.pop("with_video_meeting", True))
@@ -816,20 +971,35 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         recurrence_scope: str,
         old_start,
         old_end,
+        old_start_date,
+        old_end_date,
         display_start,
         display_end,
+        display_start_date,
+        display_end_date,
     ) -> None:
         """Emit one range-aware card for one recurring edit operation."""
-        if (old_start, old_end) == (display_start, display_end):
+        if event.all_day and old_start_date and display_start_date:
+            unchanged = (old_start_date, old_end_date) == (
+                display_start_date,
+                display_end_date,
+            )
+        else:
+            unchanged = (old_start, old_end) == (display_start, display_end)
+        if unchanged:
             return
         delivery = calendar_im_notify.prepare_event_change(
             event,
             "time_changed",
             old_start=old_start,
             old_end=old_end,
+            old_start_date=old_start_date,
+            old_end_date=old_end_date,
             recurrence_scope=recurrence_scope,
             display_start=display_start,
             display_end=display_end,
+            display_start_date=display_start_date,
+            display_end_date=display_end_date,
         )
         transaction.on_commit(lambda: calendar_im_notify.deliver_event_change(delivery))
 
@@ -879,22 +1049,26 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         if any(
             key in (request.data or {}) for key in ("attendee_ids", "attendee_entries")
         ):
+            submitted_field = (
+                "attendee_entries"
+                if "attendee_entries" in (request.data or {})
+                else "attendee_ids"
+            )
             raise exceptions.ValidationError(
-                {
-                    "attendee_entries": (
-                        "attendees cannot be changed on recurring events"
-                    )
-                }
+                {submitted_field: "attendees cannot be changed on recurring events"}
             )
 
         data = dict(serializer.validated_data)
         old_start, old_end = instance.start_at, instance.end_at
+        old_start_date, old_end_date = instance.start_date, instance.end_date
         duration = old_end - old_start
         display_start = data.get("start_at", old_start)
         display_end = data.get(
             "end_at",
             display_start + duration if "start_at" in data else old_end,
         )
+        display_start_date = data.get("start_date", old_start_date)
+        display_end_date = data.get("end_date", old_end_date)
         reminder_schedule_changed = "start_at" in data or "reminders" in data
         # 会议室在三选分支里单独处理:series 级用 skip(一场冲突不该让用户
         # 彻底改不动系列),单场 one 用调用方给的 policy(默认 strict)。
@@ -906,7 +1080,6 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         for excluded in (
             "attendee_ids",
             "attendee_entries",
-            "timezone",
             "recurrence",
         ):
             data.pop(excluded, None)
@@ -926,8 +1099,12 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 recurrence_scope="following",
                 old_start=old_start,
                 old_end=old_end,
+                old_start_date=old_start_date,
+                old_end_date=old_end_date,
                 display_start=display_start,
                 display_end=display_end,
+                display_start_date=display_start_date,
+                display_end_date=display_end_date,
             )
             return Response(self.get_serializer(new_parent).data)
 
@@ -948,8 +1125,12 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 recurrence_scope="all",
                 old_start=old_start,
                 old_end=old_end,
+                old_start_date=old_start_date,
+                old_end_date=old_end_date,
                 display_start=display_start,
                 display_end=display_end,
+                display_start_date=display_start_date,
+                display_end_date=display_end_date,
             )
             return Response(self.get_serializer(updated).data)
 
@@ -971,8 +1152,12 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 recurrence_scope="all",
                 old_start=old_start,
                 old_end=old_end,
+                old_start_date=old_start_date,
+                old_end_date=old_end_date,
                 display_start=display_start,
                 display_end=display_end,
+                display_start_date=display_start_date,
+                display_end_date=display_end_date,
             )
             return Response(self.get_serializer(updated).data)
 
@@ -1003,8 +1188,12 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     recurrence_scope="one",
                     old_start=old_start,
                     old_end=old_end,
+                    old_start_date=old_start_date,
+                    old_end_date=old_end_date,
                     display_start=event.start_at,
                     display_end=event.end_at,
+                    display_start_date=event.start_date,
+                    display_end_date=event.end_date,
                 )
         except IntegrityError as exc:
             # 撞 (recurrence_parent, start_at) 唯一索引 = 移到了别的场次槽位。
@@ -1031,6 +1220,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         self._require_organizer(serializer.instance)
         instance = serializer.instance
         old_start, old_end = instance.start_at, instance.end_at
+        old_start_date, old_end_date = instance.start_date, instance.end_date
         old_attendees = self._attendee_identities(instance)
         old_attendee_roles = self._attendee_roles(instance)
         old_internal_ids = {
@@ -1067,7 +1257,12 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 identity for kind, identity in new_attendees if kind == "user"
             }
             kind = None
-            if (event.start_at, event.end_at) != (old_start, old_end):
+            schedule_changed = (
+                (event.start_date, event.end_date) != (old_start_date, old_end_date)
+                if event.all_day and event.start_date
+                else (event.start_at, event.end_at) != (old_start, old_end)
+            )
+            if schedule_changed:
                 kind = "time_changed"
             elif (
                 new_attendees != old_attendees
@@ -1082,6 +1277,8 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     kind,
                     old_start=old_start,
                     old_end=old_end,
+                    old_start_date=old_start_date,
+                    old_end_date=old_end_date,
                     added_count=len(new_attendees - old_attendees),
                     removed_count=len(old_attendees - new_attendees),
                     added_user_ids=added_user_ids,

@@ -3,7 +3,8 @@
 协议 v1(与 Web `eventCard.ts` / Android `MessageContent.EventCard` 一致):
 ``{v, kind, event_id, title, start, end, all_day, attendee_count,
 organizer_name, old_start?, old_end?, added_count?, removed_count?,
-recurrence_scope?, responder_name?, rsvp_status?, visibility?}``,
+old_start_date?, old_end_date?, start_date?, end_date?, recurrence_scope?,
+responder_name?, rsvp_status?, visibility?}``,
 content_type 固定 ``event-card``。
 
 ``visibility=private`` 的来源会话卡片只携带时间窗和「私密日程」标记；
@@ -82,11 +83,15 @@ def build_event_card(  # noqa: PLR0913 - mirrors the stable card protocol
     *,
     old_start=None,
     old_end=None,
+    old_start_date=None,
+    old_end_date=None,
     added_count: int = 0,
     removed_count: int = 0,
     recurrence_scope: str = "",
     display_start=None,
     display_end=None,
+    display_start_date=None,
+    display_end_date=None,
     responder_name: str = "",
     rsvp_status: str = "",
 ) -> dict:
@@ -106,12 +111,22 @@ def build_event_card(  # noqa: PLR0913 - mirrors the stable card protocol
         organizer_name=_organizer_name(event),
         old_start=old_start.isoformat() if old_start is not None else None,
         old_end=old_end.isoformat() if old_end is not None else None,
+        old_start_date=(
+            old_start_date.isoformat() if old_start_date is not None else ""
+        ),
+        old_end_date=old_end_date.isoformat() if old_end_date is not None else "",
         added_count=added_count,
         removed_count=removed_count,
         recurrence_scope=recurrence_scope,
         responder_name=responder_name,
         rsvp_status=rsvp_status,
         visibility=event.visibility,
+        start_date=(display_start_date or event.start_date).isoformat()
+        if (display_start_date or event.start_date)
+        else "",
+        end_date=(display_end_date or event.end_date).isoformat()
+        if (display_end_date or event.end_date)
+        else "",
     )
 
 
@@ -376,11 +391,15 @@ def prepare_event_change(  # noqa: PLR0913 - explicit event-card change fields
     *,
     old_start=None,
     old_end=None,
+    old_start_date=None,
+    old_end_date=None,
     added_count: int = 0,
     removed_count: int = 0,
     recurrence_scope: str = "",
     display_start=None,
     display_end=None,
+    display_start_date=None,
+    display_end_date=None,
     added_user_ids=(),
     removed_user_ids=(),
 ) -> tuple[str, dict, object, tuple]:
@@ -405,11 +424,15 @@ def prepare_event_change(  # noqa: PLR0913 - explicit event-card change fields
         kind,
         old_start=old_start,
         old_end=old_end,
+        old_start_date=old_start_date,
+        old_end_date=old_end_date,
         added_count=added_count,
         removed_count=removed_count,
         recurrence_scope=recurrence_scope,
         display_start=display_start,
         display_end=display_end,
+        display_start_date=display_start_date,
+        display_end_date=display_end_date,
     )
     personal_card = private_personal_card(card)
     added_user_ids = set(added_user_ids)
@@ -455,11 +478,15 @@ def notify_event_change(  # noqa: PLR0913 - explicit event-card change fields
     *,
     old_start=None,
     old_end=None,
+    old_start_date=None,
+    old_end_date=None,
     added_count: int = 0,
     removed_count: int = 0,
     recurrence_scope: str = "",
     display_start=None,
     display_end=None,
+    display_start_date=None,
+    display_end_date=None,
     added_user_ids=(),
     removed_user_ids=(),
 ) -> None:
@@ -483,11 +510,15 @@ def notify_event_change(  # noqa: PLR0913 - explicit event-card change fields
         kind,
         old_start=old_start,
         old_end=old_end,
+        old_start_date=old_start_date,
+        old_end_date=old_end_date,
         added_count=added_count,
         removed_count=removed_count,
         recurrence_scope=recurrence_scope,
         display_start=display_start,
         display_end=display_end,
+        display_start_date=display_start_date,
+        display_end_date=display_end_date,
         added_user_ids=added_user_ids,
         removed_user_ids=removed_user_ids,
     )

@@ -4,6 +4,12 @@
  */
 
 import type { CalendarEvent } from '../api/ApiCalendar'
+import {
+  deviceTimezone,
+  instantToZonedDate,
+  localDateToDateOnly,
+  zonedDateToInstant,
+} from './zonedDate'
 
 export interface ReminderBuckets {
   /** 覆盖今天的日程(按开始时间升序,含全天/跨天)。 */
@@ -20,7 +26,16 @@ const startOfDay = (d: Date): Date => {
   return x
 }
 
-const overlaps = (e: CalendarEvent, from: Date, to: Date): boolean => {
+const overlaps = (
+  e: CalendarEvent,
+  from: Date,
+  to: Date,
+  fromDate: string,
+  toDate: string
+): boolean => {
+  if (e.all_day && e.start_date && e.end_date) {
+    return e.start_date < toDate && e.end_date > fromDate
+  }
   const s = new Date(e.start_at).getTime()
   const en = new Date(e.end_at).getTime()
   return s < to.getTime() && en > from.getTime()
@@ -44,13 +59,20 @@ export const shouldRemind = (e: CalendarEvent): boolean =>
 /** 不去的排除(见 [shouldRemind]);窗口 = [今天 00:00, 后天 00:00)(本地)。 */
 export const bucketReminderWindow = (
   events: CalendarEvent[],
-  now: Date
+  now: Date,
+  timezone = deviceTimezone()
 ): ReminderBuckets => {
-  const today0 = startOfDay(now)
-  const tomorrow0 = new Date(today0)
-  tomorrow0.setDate(tomorrow0.getDate() + 1)
-  const after0 = new Date(today0)
-  after0.setDate(after0.getDate() + 2)
+  const today0Wall = startOfDay(instantToZonedDate(now, timezone))
+  const tomorrow0Wall = new Date(today0Wall)
+  tomorrow0Wall.setDate(tomorrow0Wall.getDate() + 1)
+  const after0Wall = new Date(today0Wall)
+  after0Wall.setDate(after0Wall.getDate() + 2)
+  const today0 = zonedDateToInstant(today0Wall, timezone)
+  const tomorrow0 = zonedDateToInstant(tomorrow0Wall, timezone)
+  const after0 = zonedDateToInstant(after0Wall, timezone)
+  const todayDate = localDateToDateOnly(today0Wall)
+  const tomorrowDate = localDateToDateOnly(tomorrow0Wall)
+  const afterDate = localDateToDateOnly(after0Wall)
 
   const active = events
     .filter(shouldRemind)
@@ -58,10 +80,16 @@ export const bucketReminderWindow = (
       (a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
     )
 
-  const today = active.filter((e) => overlaps(e, today0, tomorrow0))
-  const tomorrow = active.filter((e) => overlaps(e, tomorrow0, after0))
+  const today = active.filter((e) =>
+    overlaps(e, today0, tomorrow0, todayDate, tomorrowDate)
+  )
+  const tomorrow = active.filter((e) =>
+    overlaps(e, tomorrow0, after0, tomorrowDate, afterDate)
+  )
   const nearest =
-    today.find((e) => new Date(e.end_at).getTime() > now.getTime()) ?? null
+    today.find(
+      (e) => e.all_day || new Date(e.end_at).getTime() > now.getTime()
+    ) ?? null
   return { today, tomorrow, nearest }
 }
 
@@ -95,9 +123,7 @@ export const countdownWindowMinutes = (event: CalendarEvent): number => {
   const leads = (event.reminders ?? [])
     .map((raw) => Number(raw))
     .filter((n) => Number.isFinite(n) && n > 0)
-  return leads.length
-    ? Math.max(...leads)
-    : DEFAULT_COUNTDOWN_WINDOW_MINUTES
+  return leads.length ? Math.max(...leads) : DEFAULT_COUNTDOWN_WINDOW_MINUTES
 }
 
 /** 角标:进行中 →「现在」;进入本条日程的提醒窗口 →「N 分钟后」;其余无。全天不参与。 */
@@ -118,10 +144,13 @@ export const reminderCountdown = (
 }
 
 /** 「HH:MM - HH:MM」;全天 → null(调用方显示「全天」)。 */
-export const reminderTimeRange = (event: CalendarEvent): string | null => {
+export const reminderTimeRange = (
+  event: CalendarEvent,
+  timezone = deviceTimezone()
+): string | null => {
   if (event.all_day) return null
   const hm = (iso: string) => {
-    const d = new Date(iso)
+    const d = instantToZonedDate(new Date(iso), timezone)
     return `${String(d.getHours()).padStart(2, '0')}:${String(
       d.getMinutes()
     ).padStart(2, '0')}`

@@ -11,6 +11,8 @@
     "empty": "Nog geen items"
   },
   "form": {
+    "timezone": "Tijdzone van afspraak",
+    "allDayTimezoneHint": "Datums van de hele dag verschuiven niet; deze tijdzone wordt alleen gebruikt voor herinneringen en herhaling",
     "title": "Nieuw item",
     "titlePlaceholder": "Titel",
     "descriptionPlaceholder": "Beschrijving (optioneel)",
@@ -178,6 +180,10 @@
   },
   "settings": {
     "title": "Agenda-instellingen",
+    "timezone": "Tijdzone van agenda",
+    "timezoneAuto": "Tijdzone van apparaat automatisch gebruiken",
+    "timezoneFixed": "Vaste tijdzone",
+    "fixedTimezone": "Tijdzone kiezen",
     "reminderEntry": "Agendaherinnering in berichtenlijst",
     "dimPast": "Voorbije afspraken dimmen",
     "workingHours": "Werkuren",

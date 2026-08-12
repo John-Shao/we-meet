@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSnapshot } from 'valtio'
 import { useQueryClient } from '@tanstack/react-query'
@@ -36,6 +36,8 @@ import {
   REMINDER_OPTIONS,
   reminderOptionLabel,
   useCalendarSettings,
+  useSyncCalendarSettings,
+  type CalendarTimezoneMode,
   type WeekStartPref,
 } from '@/features/calendar/hooks/useCalendarSettings'
 import {
@@ -47,6 +49,7 @@ import {
   type TimeRangeMode,
 } from '@/features/calendar/utils/workingHours'
 import { useReminderEntryEnabled } from '@/features/im/hooks/useReminderEntry'
+import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 import { AvatarUploadDialog } from './AvatarUploadDialog'
 
 export type SettingsDialogProps = Pick<
@@ -279,7 +282,8 @@ const MeetingPanel = () => {
 
 /* ─── 日历设置(P8,对标飞书可落地子集,纯 localStorage)──────────────── */
 const CalendarPanel = () => {
-  const { t } = useTranslation('calendar')
+  useSyncCalendarSettings()
+  const { t, i18n } = useTranslation('calendar')
   const [reminderOn, setReminderOn] = useReminderEntryEnabled()
   const {
     weekStart,
@@ -290,6 +294,8 @@ const CalendarPanel = () => {
     workingHours,
     calendarTimeRangeMode,
     meetingRoomsTimeRangeMode,
+    timezoneMode,
+    fixedTimezone,
     setWeekStart,
     setDefaultDuration,
     setDefaultReminder,
@@ -298,7 +304,13 @@ const CalendarPanel = () => {
     setWorkingHours,
     setCalendarTimeRangeMode,
     setMeetingRoomsTimeRangeMode,
+    setTimezoneMode,
+    setFixedTimezone,
   } = useCalendarSettings()
+  const timezoneOptions = useMemo(
+    () => buildTimezoneOptions(i18n.language),
+    [i18n.language]
+  )
 
   const changeWorkStart = (startMin: number) => {
     const currentDuration = workingHours.endMin - workingHours.startMin
@@ -315,6 +327,40 @@ const CalendarPanel = () => {
 
   return (
     <div>
+      <div className={infoRowCls}>
+        <span className={infoKeyCls}>{t('settings.timezone')}</span>
+        <select
+          value={timezoneMode}
+          onChange={(event) =>
+            setTimezoneMode(event.target.value as CalendarTimezoneMode)
+          }
+          data-testid="calendar-settings-timezone-mode"
+          className={selectCls}
+        >
+          <option value="auto">{t('settings.timezoneAuto')}</option>
+          <option value="fixed">{t('settings.timezoneFixed')}</option>
+        </select>
+      </div>
+      {timezoneMode === 'fixed' && (
+        <div className={infoRowCls}>
+          <span className={infoKeyCls}>{t('settings.fixedTimezone')}</span>
+          <select
+            value={fixedTimezone}
+            onChange={(event) => setFixedTimezone(event.target.value)}
+            data-testid="calendar-settings-timezone"
+            className={selectCls}
+          >
+            {!timezoneOptions.some(
+              (option) => option.zone === fixedTimezone
+            ) && <option value={fixedTimezone}>{fixedTimezone}</option>}
+            {timezoneOptions.map((option) => (
+              <option key={option.zone} value={option.zone}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {/* 布尔偏好用开关(对标飞书),整行可点;标签作为 Switch 子节点 →
           自带 label 关联,比裸 checkbox 命中区大、语义更清。 */}
       <div className={infoRowCls}>

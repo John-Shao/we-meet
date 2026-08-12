@@ -3,13 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
 import { RiSettings3Line } from '@remixicon/react'
-import {
-  addMonths,
-  addYears,
-  endOfMonth,
-  startOfDay,
-  startOfMonth,
-} from 'date-fns'
+import { addMonths, addYears, startOfDay, startOfMonth } from 'date-fns'
 
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -49,6 +43,15 @@ import {
   fetchCalendarSubscriptions,
   fetchPersonalCalendarEvents,
 } from '../api/personalCalendars'
+import {
+  useCalendarSettings,
+  useSyncCalendarSettings,
+} from '../hooks/useCalendarSettings'
+import {
+  instantToZonedDate,
+  localDateToDateOnly,
+  zonedDateToInstant,
+} from '../utils/zonedDate'
 
 const EVENTS_KEY = ['calendar'] as const
 
@@ -76,6 +79,8 @@ export const CalendarRoute = () => (
 )
 
 const CalendarAuthenticated = () => {
+  useSyncCalendarSettings()
+  const { calendarTimezone } = useCalendarSettings()
   const { t } = useTranslation('calendar')
   const qc = useQueryClient()
   const [, navigate] = useLocation()
@@ -109,8 +114,21 @@ const CalendarAuthenticated = () => {
       const parsed = new Date(`${d}T00:00`)
       if (!Number.isNaN(parsed.getTime())) return parsed
     }
-    return new Date()
+    return instantToZonedDate(new Date(), calendarTimezone)
   })
+  const previousCalendarTimezone = useRef(calendarTimezone)
+  useEffect(() => {
+    const previous = previousCalendarTimezone.current
+    if (previous === calendarTimezone) return
+    previousCalendarTimezone.current = calendarTimezone
+    setDate((current) => {
+      const now = new Date()
+      const oldToday = instantToZonedDate(now, previous)
+      return localDateToDateOnly(current) === localDateToDateOnly(oldToday)
+        ? instantToZonedDate(now, calendarTimezone)
+        : current
+    })
+  }, [calendarTimezone])
   // P1-4 M3:?event=<id> 事件级定位——窗口数据到位后自动打开该事件详情。
   // 与 ?d= 配套下发(?d 保证事件落在 ±1 月查询窗口内);找不到(超窗/无权限/
   // 已删)则静默放弃,仅按日定位。一次性消费,不随翻月重触发。
@@ -179,18 +197,21 @@ const CalendarAuthenticated = () => {
   // 翻月即换 key 重取,不再一次拉全量。日程视图例外:列表展示锚点日期起
   // 一年,取数窗口同步拉到 [当日, +1年)。
   const monthWindow = useMemo(() => {
+    const asWindow = (start: Date, end: Date) => ({
+      start: zonedDateToInstant(start, calendarTimezone).toISOString(),
+      end: zonedDateToInstant(end, calendarTimezone).toISOString(),
+      date_start: localDateToDateOnly(start),
+      date_end: localDateToDateOnly(end),
+    })
     if (view === 'agenda') {
       const anchor = startOfDay(date)
-      return {
-        start: anchor.toISOString(),
-        end: addYears(anchor, 1).toISOString(),
-      }
+      return asWindow(anchor, addYears(anchor, 1))
     }
-    return {
-      start: startOfMonth(addMonths(date, -1)).toISOString(),
-      end: endOfMonth(addMonths(date, 1)).toISOString(),
-    }
-  }, [date, view])
+    return asWindow(
+      startOfMonth(addMonths(date, -1)),
+      startOfMonth(addMonths(date, 2))
+    )
+  }, [calendarTimezone, date, view])
   const { data: ownEvents = [], isLoading: ownEventsLoading } = useQuery({
     queryKey: ['calendar', 'window', monthWindow],
     queryFn: () => fetchCalendarEvents(monthWindow),
@@ -258,9 +279,20 @@ const CalendarAuthenticated = () => {
   const moveEvent = async (event: CalendarEvent, start: Date, end: Date) => {
     const key = ['calendar', 'window', monthWindow] as const
     const before = qc.getQueryData<CalendarEvent[]>(key)
-    const times = { start_at: start.toISOString(), end_at: end.toISOString() }
+    const times = event.all_day
+      ? {
+          start_date: localDateToDateOnly(start),
+          end_date: localDateToDateOnly(end),
+        }
+      : {
+          start_at: zonedDateToInstant(start, calendarTimezone).toISOString(),
+          end_at: zonedDateToInstant(end, calendarTimezone).toISOString(),
+          timezone: calendarTimezone,
+        }
     qc.setQueryData<CalendarEvent[]>(key, (list) =>
-      (list ?? []).map((e) => (e.id === event.id ? { ...e, ...times } : e))
+      (list ?? []).map((e) =>
+        e.id === event.id ? ({ ...e, ...times } as CalendarEvent) : e
+      )
     )
     try {
       await updateCalendarEvent(event.id, times)
@@ -338,12 +370,16 @@ const CalendarAuthenticated = () => {
   // 侧栏「即将开始」:与聚焦日期无关,始终 now 起的未来窗口(独立查询,避免聚焦
   // 远月时上游窗口拿不到近期事件)。key 按天,当天内稳定复用。
   const upcomingWindow = useMemo(() => {
-    const now = new Date()
+    const now = instantToZonedDate(new Date(), calendarTimezone)
+    const start = startOfDay(now)
+    const end = addMonths(start, 6)
     return {
-      start: startOfDay(now).toISOString(),
-      end: addMonths(now, 6).toISOString(),
+      start: zonedDateToInstant(start, calendarTimezone).toISOString(),
+      end: zonedDateToInstant(end, calendarTimezone).toISOString(),
+      date_start: localDateToDateOnly(start),
+      date_end: localDateToDateOnly(end),
     }
-  }, [])
+  }, [calendarTimezone])
   const { data: ownUpcomingEvents = [] } = useQuery({
     queryKey: ['calendar', 'upcoming', upcomingWindow],
     queryFn: () => fetchCalendarEvents(upcomingWindow),

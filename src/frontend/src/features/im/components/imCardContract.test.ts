@@ -42,6 +42,15 @@ describe('IM card golden fixtures', () => {
       expect(card?.attendee_count).toBe(4)
     })
 
+    it('parses canonical dates from an all-day card', () => {
+      const card = parseEventCard(load('event_card_all_day'))
+      expect(card?.all_day).toBe(true)
+      expect(card?.start_date).toBe('2026-08-12')
+      expect(card?.end_date).toBe('2026-08-14')
+      expect(card?.old_start_date).toBe('2026-08-10')
+      expect(card?.old_end_date).toBe('2026-08-12')
+    })
+
     it('parses a redacted private card', () => {
       const card = parseEventCard(load('event_card_private'))
       expect(card?.visibility).toBe('private')

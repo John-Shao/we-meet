@@ -4,8 +4,15 @@ import { useQuery } from '@tanstack/react-query'
 import {
   bucketReminderWindow,
   fetchCalendarEvents,
+  useCalendarSettings,
+  useSyncCalendarSettings,
   type ReminderBuckets,
 } from '@/features/calendar'
+import {
+  instantToZonedDate,
+  localDateToDateOnly,
+  zonedDateToInstant,
+} from '@/features/calendar/utils/zonedDate'
 
 const STORAGE_KEY = 'im-reminder-entry'
 
@@ -45,7 +52,9 @@ export const useReminderEntryEnabled = (): [boolean, (v: boolean) => void] => {
  */
 export const useReminderWindow = (
   enabled: boolean
-): ReminderBuckets & { now: Date } => {
+): ReminderBuckets & { now: Date; calendarTimezone: string } => {
+  useSyncCalendarSettings()
+  const { calendarTimezone } = useCalendarSettings()
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
     if (!enabled) return
@@ -53,17 +62,20 @@ export const useReminderWindow = (
     return () => clearInterval(t)
   }, [enabled])
 
-  const dayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
+  const calendarNow = instantToZonedDate(now, calendarTimezone)
+  const dayKey = `${calendarTimezone}:${localDateToDateOnly(calendarNow)}`
   const { data: events = [] } = useQuery({
-    queryKey: ['calendar', 'reminder-window', dayKey],
+    queryKey: ['calendar', 'reminder-window', calendarTimezone, dayKey],
     queryFn: () => {
-      const start = new Date()
+      const start = instantToZonedDate(new Date(), calendarTimezone)
       start.setHours(0, 0, 0, 0)
       const end = new Date(start)
       end.setDate(end.getDate() + 2)
       return fetchCalendarEvents({
-        start: start.toISOString(),
-        end: end.toISOString(),
+        start: zonedDateToInstant(start, calendarTimezone).toISOString(),
+        end: zonedDateToInstant(end, calendarTimezone).toISOString(),
+        date_start: localDateToDateOnly(start),
+        date_end: localDateToDateOnly(end),
       })
     },
     enabled,
@@ -72,7 +84,11 @@ export const useReminderWindow = (
   })
 
   return useMemo(
-    () => ({ ...bucketReminderWindow(events, now), now }),
-    [events, now]
+    () => ({
+      ...bucketReminderWindow(events, now, calendarTimezone),
+      now,
+      calendarTimezone,
+    }),
+    [calendarTimezone, events, now]
   )
 }

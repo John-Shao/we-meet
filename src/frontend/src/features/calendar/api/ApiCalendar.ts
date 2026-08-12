@@ -32,6 +32,9 @@ export interface CalendarEvent {
   /** ISO 8601 (UTC). */
   start_at: string
   end_at: string
+  /** Canonical half-open civil-date range for all-day events. */
+  start_date?: string | null
+  end_date?: string | null
   timezone: string
   all_day: boolean
   status: string
@@ -66,9 +69,12 @@ export interface CalendarEvent {
 
 export interface CreateEventPayload {
   title: string
-  /** ISO 8601 (send `new Date(local).toISOString()`). */
-  start_at: string
-  end_at: string
+  /** Timed events use UTC instants; all-day events use start_date/end_date. */
+  start_at?: string
+  end_at?: string
+  start_date?: string
+  end_date?: string
+  timezone?: string
   all_day?: boolean
   reminders?: number[]
   attendee_ids?: string[]
@@ -77,7 +83,6 @@ export interface CreateEventPayload {
   /** Marks an intentional edit so legacy default submissions cannot downgrade public. */
   visibility_explicit?: boolean
   description?: string
-  timezone?: string
   /**
    * P2-M1: RRULE 串,空/缺省=单次。UNTIL 必须用「浮动本地时刻」(无 Z,如
    * `FREQ=WEEKLY;UNTIL=20261231T235959`)——后端按事件时区墙上钟展开,dateutil
@@ -119,6 +124,9 @@ export interface UpdateEventPayload {
   description?: string
   start_at?: string
   end_at?: string
+  start_date?: string
+  end_date?: string
+  timezone?: string
   all_day?: boolean
   reminders?: number[]
   attendee_ids?: string[]

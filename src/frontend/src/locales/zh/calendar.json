@@ -11,6 +11,8 @@
     "empty": "暂无日程"
   },
   "form": {
+    "timezone": "日程时区",
+    "allDayTimezoneHint": "全天日期不会随时区变化；该时区仅用于提醒和重复规则",
     "title": "新建日程",
     "titlePlaceholder": "日程标题",
     "descriptionPlaceholder": "日程描述(选填)",
@@ -179,6 +181,10 @@
   },
   "settings": {
     "title": "日历设置",
+    "timezone": "日历时区",
+    "timezoneAuto": "自动使用设备时区",
+    "timezoneFixed": "固定时区",
+    "fixedTimezone": "选择时区",
     "reminderEntry": "在消息列表提醒日程",
     "dimPast": "降低已结束日程的亮度",
     "workingHours": "工作时间",

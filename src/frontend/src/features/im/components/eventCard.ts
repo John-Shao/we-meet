@@ -20,10 +20,14 @@ export interface EventCardBody {
   start: string
   end: string
   all_day?: boolean
+  start_date?: string
+  end_date?: string
   attendee_count?: number
   organizer_name?: string
   old_start?: string
   old_end?: string
+  old_start_date?: string
+  old_end_date?: string
   recurrence_scope?: 'one' | 'following' | 'all'
   /** 只随 kind=attendees_changed 出现,且为 0 时后端省略该键。 */
   added_count?: number
@@ -44,6 +48,9 @@ export const buildEventCardBody = (event: CalendarEvent): string =>
     start: event.start_at,
     end: event.end_at,
     all_day: event.all_day,
+    ...(event.all_day && event.start_date && event.end_date
+      ? { start_date: event.start_date, end_date: event.end_date }
+      : {}),
     // 以后端返回体为准 —— 跨组织 id 会被服务端静默丢弃,本地选择数会虚高。
     attendee_count: event.visibility === 'private' ? 0 : event.attendees.length,
     organizer_name:
@@ -83,12 +90,18 @@ export const parseEventCard = (raw: string): EventCardBody | null => {
       start: typeof o.start === 'string' ? o.start : '',
       end: typeof o.end === 'string' ? o.end : '',
       all_day: !!o.all_day,
+      start_date: typeof o.start_date === 'string' ? o.start_date : undefined,
+      end_date: typeof o.end_date === 'string' ? o.end_date : undefined,
       attendee_count:
         typeof o.attendee_count === 'number' ? o.attendee_count : undefined,
       organizer_name:
         typeof o.organizer_name === 'string' ? o.organizer_name : undefined,
       old_start: typeof o.old_start === 'string' ? o.old_start : undefined,
       old_end: typeof o.old_end === 'string' ? o.old_end : undefined,
+      old_start_date:
+        typeof o.old_start_date === 'string' ? o.old_start_date : undefined,
+      old_end_date:
+        typeof o.old_end_date === 'string' ? o.old_end_date : undefined,
       recurrence_scope: RECURRENCE_SCOPES.has(o.recurrence_scope as string)
         ? (o.recurrence_scope as EventCardBody['recurrence_scope'])
         : undefined,

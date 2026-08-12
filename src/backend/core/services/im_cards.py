@@ -109,12 +109,16 @@ def build_event_card(  # noqa: PLR0913 - stable cross-client wire protocol
     organizer_name: str = "",
     old_start: str | None = None,
     old_end: str | None = None,
+    old_start_date: str = "",
+    old_end_date: str = "",
     added_count: int = 0,
     removed_count: int = 0,
     recurrence_scope: str = "",
     responder_name: str = "",
     rsvp_status: str = "",
     visibility: str = "",
+    start_date: str = "",
+    end_date: str = "",
 ) -> dict[str, Any]:
     """Calendar event card (protocol v1).
 
@@ -141,6 +145,9 @@ def build_event_card(  # noqa: PLR0913 - stable cross-client wire protocol
     ):
         card["old_start"] = old_start
         card["old_end"] = old_end
+        if old_start_date and old_end_date:
+            card["old_start_date"] = old_start_date
+            card["old_end_date"] = old_end_date
     if kind == EVENT_KIND_ATTENDEES_CHANGED and added_count:
         card["added_count"] = added_count
     if kind == EVENT_KIND_ATTENDEES_CHANGED and removed_count:
@@ -154,6 +161,9 @@ def build_event_card(  # noqa: PLR0913 - stable cross-client wire protocol
         card["recurrence_scope"] = recurrence_scope
     if visibility == "private":
         card["visibility"] = "private"
+    if all_day and start_date and end_date:
+        card["start_date"] = start_date
+        card["end_date"] = end_date
     return card
 
 

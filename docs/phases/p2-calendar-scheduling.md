@@ -1,6 +1,6 @@
 # P2 — 日历 / 日程（Calendar / Scheduling）
 
-**状态**：✅ 已实现并持续收敛（更新至 2026-08-12）。后端、Web、Android 已覆盖重复日程、忙闲、来源会话提醒、范围化编辑/取消，以及个人日历共享与三态公开范围。权限模型详见 [P1-8b：日程公开范围与个人日历共享权限](./p2b-calendar-visibility-sharing.md)。
+**状态**：✅ 已实现并持续收敛（更新至 2026-08-12）。后端、Web、Android 已覆盖重复日程、忙闲、来源会话提醒、范围化编辑/取消、个人日历共享与三态公开范围，以及全天民用日期和跨设备日历时区。权限模型详见 [P1-8b](./p2b-calendar-visibility-sharing.md)，时间模型详见 [P1-9](./p2c-calendar-all-day-timezone.md)。
 **工作量**：后端 ~1.5d(模型+API+提醒) + 前端 ~1d + 部署 1 项(定时器)
 **前置**：P1 组织架构(通讯录选人/org-scope)、会议核心(Room/ResourceAccess/scheduled_at)、IM bridge(ensure-group / post_message)、会议纪要 IM 推送 pattern
 **触发**：路线图第二支柱。当前只有「预约会议」= `Room.scheduled_at`(信息性),没有真正的日程:邀人、RSVP、会前提醒、agenda 视图、与 IM 群联动。
@@ -47,14 +47,16 @@
 | **D7** | 周期重复 | 主事件保存 RRULE，滚动物化 `recurrence_parent` 子场次；子场次继承来源会话并逐场提醒。编辑/删除支持 `one / following / all`，系列参与人和重复规则编辑仍不开放。 |
 | **D8** | Free/busy | ✅ 已实现个人日历组织默认权限、点对点授权与显式订阅；`default / public / private` 在基础权限之上决定详情或忙碌投影。跨组织仅允许已接受且未失效的外部联系人，并要求显式授权。 |
 | **D9** | Agenda 前端 | 新增 `features/calendar`:建日程表单(复用 ContactPicker 多选邀人)、**agenda 列表**(我的日程,按日/即将)、RSVP 操作、详情。Header 加「日历」入口 + `/calendar` 路由。`ScheduledMeetingsList`(legacy 预约会议)暂保留,后续收敛。 |
-| **D10** | 时区 | `start_at`/`end_at` 存 UTC(tz-aware);展示按 `user.timezone` 转换。`timezone` 字段存事件原始时区(跨时区显示用)。 |
+| **D10** | 日期与时区 | 定时日程的 `start_at/end_at` 是 UTC 时间点，`timezone` 保存事件原始 IANA 时区；全天日程以半开民用日期 `start_date/end_date` 为事实源，UTC 字段只作兼容锚点。显示时区支持设备自动/账号固定并跨设备同步，不再复用 `User.timezone`。完整规则见 [P1-9](./p2c-calendar-all-day-timezone.md)。 |
 | **D11** | 多租户 | `CalendarEvent.organization` FK(nullable,默认 org),queryset 一律 org-scope(同 P1 范式)。 |
 
 ---
 
 ## 数据模型（草案,继承 BaseModel,db_table = meet_*)
 
-**CalendarEvent**:`organization` FK、`organizer` FK(User)、`title`、`description`、`start_at`/`end_at`(DateTimeField)、`timezone`(CharField/TZ)、`all_day`(bool)、`room` FK(Room, SET_NULL)、`status`、`visibility`(`default/public/private`)、`reminders`(空或单个 0–2880 分钟整数)、`reminder_pushed_at/outcome`(幂等结果)、`recurrence`(空=单次)、`recurrence_parent` self-FK、不可重绑的 `source_conversation_id`。
+**CalendarEvent**:`organization` FK、`organizer` FK(User)、`title`、`description`、定时日程时间点 `start_at/end_at`、全天日程半开民用日期 `start_date/end_date`、事件 IANA `timezone`、`all_day`、`room` FK(Room, SET_NULL)、`status`、`visibility`(`default/public/private`)、`reminders`(空或单个 0–2880 分钟整数)、`reminder_pushed_at/outcome`(幂等结果)、`recurrence`(空=单次)、`recurrence_parent` self-FK、不可重绑的 `source_conversation_id`。
+
+**日历偏好**：`CalendarPreference` 以用户一对一保存自动/固定显示时区、每周首日、默认时长/提醒、工作时间和视图范围；`revision` 防止跨设备静默覆盖。`localStorage` / `SharedPreferences` 只是离线缓存。详见 [P1-9](./p2c-calendar-all-day-timezone.md)。
 
 **个人日历共享**：`PersonalCalendar` 记录组织内默认访问级别，`CalendarAccessGrant` 记录点对点覆盖，`CalendarSubscription` 只记录显示偏好；日程动态投影到组织者与未拒绝参与者的个人日历。数据结构、接口和兼容策略见 [P1-8b](./p2b-calendar-visibility-sharing.md)。
 
@@ -92,7 +94,7 @@
 
 ## 不在 P2 / 后续
 
-- 重复规则编辑、范围化参与人/视频会议、跨时区工作时间;CalDAV/Exchange 同步。
+- 重复规则编辑、范围化参与人/视频会议、跨时区共同工作时间;CalDAV/Exchange 同步。
 - 与「预约会议」(Room.scheduled_at)的完全收敛。
 - 会议纪要也落 Doc(那是 P3)。
 - FCM/离线推送(提醒完整通道待 [[project-fcm-deferred]] 解除)。
@@ -109,4 +111,4 @@
 | agenda 视图 | 我的日程按时间显示,即将开始高亮,一键进会跳 room |
 | 会前到点(窗口内) | CronJob 扫到 → IM 群收到「🔔 X 即将开始」提醒,只推一次(幂等) |
 | 一键进会 | 跳到该日程的 Room |
-| 跨时区 | 北京建的日程,另一时区用户看到本地时间 |
+| 跨时区 | 定时日程按查看者有效显示时区换算；全天日程在所有时区保持相同民用日期 |

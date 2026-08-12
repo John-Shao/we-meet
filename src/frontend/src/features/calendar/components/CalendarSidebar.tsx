@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
+import { useCalendarSettings } from '../hooks/useCalendarSettings'
+import {
+  dateOnlyToLocalDate,
+  instantToZonedDate,
+  localDateToDateOnly,
+} from '../utils/zonedDate'
 import { MiniCalendar } from './MiniCalendar'
 
 /**
@@ -12,16 +18,23 @@ import { MiniCalendar } from './MiniCalendar'
  * same detail dialog the grid uses.
  */
 
-const formatWhen = (iso: string, locale: string) => {
+const formatWhen = (
+  event: CalendarEvent,
+  locale: string,
+  calendarTimezone: string
+) => {
   try {
+    const value =
+      event.all_day && event.start_date
+        ? dateOnlyToLocalDate(event.start_date)
+        : instantToZonedDate(event.start_at, calendarTimezone)
     return new Intl.DateTimeFormat(locale || undefined, {
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(iso))
+      ...(event.all_day ? {} : { hour: '2-digit', minute: '2-digit' }),
+    }).format(value)
   } catch {
-    return iso
+    return event.start_date || event.start_at
   }
 }
 
@@ -122,18 +135,26 @@ export const CalendarSidebar = ({
   onCreate,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
+  const { calendarTimezone } = useCalendarSettings()
 
   // Upcoming = events whose start is in the future, soonest first, capped.
   const upcoming = useMemo(() => {
     const now = Date.now()
+    const today = localDateToDateOnly(
+      instantToZonedDate(new Date(now), calendarTimezone)
+    )
     return upcomingEvents
-      .filter((e) => new Date(e.start_at).getTime() >= now)
+      .filter((e) =>
+        e.all_day && e.end_date
+          ? e.end_date > today
+          : new Date(e.start_at).getTime() >= now
+      )
       .sort(
         (a, b) =>
           new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
       )
       .slice(0, 6)
-  }, [upcomingEvents])
+  }, [calendarTimezone, upcomingEvents])
 
   return (
     <aside
@@ -232,7 +253,7 @@ export const CalendarSidebar = ({
                         e.my_rsvp === 'declined' ? whenDeclinedCls : whenCls
                       }
                     >
-                      {formatWhen(e.start_at, i18n.language)}
+                      {formatWhen(e, i18n.language, calendarTimezone)}
                     </span>
                   </span>
                 </button>

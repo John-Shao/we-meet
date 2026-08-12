@@ -11,6 +11,7 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { useUser } from '@/features/auth'
 import { MeetingRoomField } from '@/features/meeting-rooms'
 import type { MeetingRoomBrief } from '@/features/meeting-rooms'
+import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
 import type {
@@ -27,7 +28,15 @@ import {
 } from '../hooks/useCalendarSettings'
 import { AttendeePicker } from './AttendeePicker'
 import { fieldCls, inputCls, labelCls } from './formStyles'
-import { allDayApiRange, inclusiveAllDayEnd } from '../utils/allDayRange'
+import {
+  addCivilDays,
+  dateOnlyToLocalDate,
+  exclusiveAllDayEndDate,
+  inclusiveAllDayEndDate,
+  instantToZonedDate,
+  localDateToDateOnly,
+  zonedInputToInstant,
+} from '../utils/zonedDate'
 
 interface Props {
   onCreated: (event: CalendarEvent) => void
@@ -76,18 +85,32 @@ export const CreateEventDialog = ({
   editEvent,
   editScope,
 }: Props) => {
-  const { t } = useTranslation('calendar')
-  // P8 日历设置:新建态的默认时长/默认提醒从本地设置读(编辑态用事件自身值)。
-  const { defaultDurationMin, defaultReminderMin } = useCalendarSettings()
+  const { t, i18n } = useTranslation('calendar')
+  // P1-9:新建默认采用日历显示时区;编辑采用事件创作时区。全天日期本身
+  // 不受时区影响,该字段只决定提醒与重复规则的午夜锚点。
+  const { defaultDurationMin, defaultReminderMin, calendarTimezone } =
+    useCalendarSettings()
   const isEdit = !!editEvent
   const allDay = editEvent?.all_day ?? initialAllDay ?? false
+  const initialTimezone = editEvent?.timezone || calendarTimezone
   const start0 = editEvent
-    ? new Date(editEvent.start_at)
-    : (initialStart ?? defaultStart())
+    ? allDay && editEvent.start_date
+      ? dateOnlyToLocalDate(editEvent.start_date)
+      : instantToZonedDate(editEvent.start_at, initialTimezone)
+    : (initialStart ?? instantToZonedDate(defaultStart(), calendarTimezone))
   const end0 = editEvent
     ? allDay
-      ? inclusiveAllDayEnd(start0, new Date(editEvent.end_at))
-      : new Date(editEvent.end_at)
+      ? dateOnlyToLocalDate(
+          editEvent.start_date && editEvent.end_date
+            ? inclusiveAllDayEndDate(editEvent.start_date, editEvent.end_date)
+            : addCivilDays(
+                localDateToDateOnly(
+                  instantToZonedDate(editEvent.end_at, initialTimezone)
+                ),
+                -1
+              )
+        )
+      : instantToZonedDate(editEvent.end_at, initialTimezone)
     : (initialEnd ?? new Date(start0.getTime() + defaultDurationMin * 60_000))
 
   const [title, setTitle] = useState(editEvent?.title ?? '')
@@ -97,6 +120,11 @@ export const CreateEventDialog = ({
   )
   const [start, setStart] = useState(toLocalInput(start0))
   const [end, setEnd] = useState(toLocalInput(end0))
+  const [eventTimezone, setEventTimezone] = useState(initialTimezone)
+  const timezoneOptions = useMemo(
+    () => buildTimezoneOptions(i18n.language),
+    [i18n.language]
+  )
   // 全天由入口决定,表单里不再给开关:周/月视图的全天行点击创建时带
   // initialAllDay 进来,编辑既有全天日程时沿用它自己的值(保存原样回传)。
   // 提醒是「一场日程一条」的单选(null = 不提醒),与 App 端 ReminderDropdown
@@ -210,30 +238,39 @@ export const CreateEventDialog = ({
 
   const submit = async () => {
     if (!canCreate) return
-    let startDate: Date
-    let endDate: Date
+    let schedule:
+      | { start_date: string; end_date: string }
+      | { start_at: string; end_at: string }
     if (allDay) {
-      // All-day: pin to local midnight and make the end the exclusive
-      // next-midnight of the chosen end day, so a single-day all-day event
-      // still spans a full 24h instead of the arbitrary picker time-of-day.
-      const range = allDayApiRange(dateOnly(start), dateOnly(end))
-      startDate = range.start
-      endDate = range.end
+      const startDate = dateOnly(start)
+      const inclusiveEnd = dateOnly(end)
+      if (inclusiveEnd < startDate) {
+        void showAlert({ message: t('form.endAfterStart') })
+        return
+      }
+      schedule = {
+        start_date: startDate,
+        end_date: exclusiveAllDayEndDate(inclusiveEnd),
+      }
     } else {
-      startDate = new Date(start)
-      endDate = new Date(end)
-    }
-    if (endDate <= startDate) {
-      void showAlert({ message: t('form.endAfterStart') })
-      return
+      const startDate = zonedInputToInstant(start, eventTimezone)
+      const endDate = zonedInputToInstant(end, eventTimezone)
+      if (endDate <= startDate) {
+        void showAlert({ message: t('form.endAfterStart') })
+        return
+      }
+      schedule = {
+        start_at: startDate.toISOString(),
+        end_at: endDate.toISOString(),
+      }
     }
     setBusy(true)
     try {
       const base = {
         title: title.trim(),
         description: description.trim(),
-        start_at: startDate.toISOString(),
-        end_at: endDate.toISOString(),
+        ...schedule,
+        timezone: eventTimezone,
         all_day: allDay,
         reminders: reminder == null ? [] : [reminder],
         visibility,
@@ -363,6 +400,29 @@ export const CreateEventDialog = ({
           </label>
         </div>
 
+        <label className={fieldCls} htmlFor="event-timezone">
+          <span className={labelCls}>{t('form.timezone')}</span>
+          <select
+            id="event-timezone"
+            value={eventTimezone}
+            onChange={(event) => setEventTimezone(event.target.value)}
+            data-testid="event-timezone"
+            className={cx(inputCls, selectChrome)}
+          >
+            {!timezoneOptions.some(
+              (option) => option.zone === eventTimezone
+            ) && <option value={eventTimezone}>{eventTimezone}</option>}
+            {timezoneOptions.map((option) => (
+              <option key={option.zone} value={option.zone}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {allDay && (
+            <div className={videoHintCls}>{t('form.allDayTimezoneHint')}</div>
+          )}
+        </label>
+
         {/* 提醒 —— 与下面的「重复」同构(标签 + 满宽 select)。原来它和「全天」
             复选框挤在一行,select 一撑就把「全天」挤到下一行去,布局散架。 */}
         <div
@@ -473,8 +533,15 @@ export const CreateEventDialog = ({
                 setAttendeeRoles((prev) => new Map(prev).set(id, role))
               }
               initialAvatars={initialAvatars}
-              slotStart={!allDay && start ? new Date(start) : null}
-              slotEnd={!allDay && end ? new Date(end) : null}
+              slotStart={
+                !allDay && start
+                  ? zonedInputToInstant(start, eventTimezone)
+                  : null
+              }
+              slotEnd={
+                !allDay && end ? zonedInputToInstant(end, eventTimezone) : null
+              }
+              slotTimezone={eventTimezone}
               excludeEventId={editEvent?.id}
               selfId={user?.id}
             />
@@ -507,9 +574,9 @@ export const CreateEventDialog = ({
           value={meetingRoom}
           onChange={setMeetingRoom}
           start={
-            start ? new Date(allDay ? `${dateOnly(start)}T00:00` : start) : null
+            !allDay && start ? zonedInputToInstant(start, eventTimezone) : null
           }
-          end={end ? new Date(allDay ? `${dateOnly(end)}T00:00` : end) : null}
+          end={!allDay && end ? zonedInputToInstant(end, eventTimezone) : null}
           allDay={allDay}
           attendeeCount={selected.size + 1}
           excludeEventId={editEvent?.id}

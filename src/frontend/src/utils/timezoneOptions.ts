@@ -41,7 +41,7 @@ export const listTimezones = (): string[] => {
   if (typeof supported === 'function') {
     try {
       const zones = supported('timeZone')
-      if (zones.length) return zones
+      if (zones.length) return zones.includes('UTC') ? zones : [...zones, 'UTC']
     } catch {
       /* fall through to the curated list */
     }

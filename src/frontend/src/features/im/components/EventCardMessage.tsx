@@ -17,6 +17,37 @@ const formatWhen = (
   locale: string,
   allDayLabel: string
 ): string | null => {
+  if (card.all_day && card.start_date) {
+    const civilDate = (value: string) => {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+      if (!match) return null
+      const result = new Date(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3])
+      )
+      return result.getFullYear() === Number(match[1]) &&
+        result.getMonth() === Number(match[2]) - 1 &&
+        result.getDate() === Number(match[3])
+        ? result
+        : null
+    }
+    const first = civilDate(card.start_date)
+    if (first) {
+      const lastExclusive = card.end_date ? civilDate(card.end_date) : null
+      const last = lastExclusive ? new Date(lastExclusive) : null
+      last?.setDate(last.getDate() - 1)
+      const formatDate = (value: Date) =>
+        value.toLocaleDateString(locale, {
+          month: 'long',
+          day: 'numeric',
+          weekday: 'short',
+        })
+      return last && last > first
+        ? `${formatDate(first)} – ${formatDate(last)} ${allDayLabel}`
+        : `${formatDate(first)} ${allDayLabel}`
+    }
+  }
   const s = new Date(card.start)
   const e = new Date(card.end)
   if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return null
@@ -102,7 +133,13 @@ export const EventCardMessage = ({
     const oldWhen =
       card.kind === 'time_changed' && card.old_start && card.old_end
         ? formatWhen(
-            { ...card, start: card.old_start, end: card.old_end },
+            {
+              ...card,
+              start: card.old_start,
+              end: card.old_end,
+              start_date: card.old_start_date,
+              end_date: card.old_end_date,
+            },
             i18n.language,
             t('calendar.card.allDay')
           )

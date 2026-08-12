@@ -85,7 +85,12 @@ export const unsubscribeCalendar = (id: string): Promise<void> =>
 
 export const fetchPersonalCalendarEvents = (
   calendarId: string,
-  range: { start: string; end: string }
+  range: {
+    start: string
+    end: string
+    date_start?: string
+    date_end?: string
+  }
 ): Promise<CalendarEvent[]> => {
   const query = new URLSearchParams(range)
   return fetchApi(

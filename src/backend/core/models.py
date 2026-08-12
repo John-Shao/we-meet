@@ -2964,6 +2964,84 @@ class CalendarSubscription(BaseModel):
                 )
 
 
+class CalendarTimezoneModeChoices(models.TextChoices):
+    """How a client resolves the calendar display timezone."""
+
+    AUTO = "auto", _("Use device timezone")
+    FIXED = "fixed", _("Use a fixed timezone")
+
+
+class CalendarWeekStartChoices(models.TextChoices):
+    MONDAY = "mon", _("Monday")
+    SUNDAY = "sun", _("Sunday")
+
+
+class CalendarTimeRangeChoices(models.TextChoices):
+    WORK = "work", _("Working hours")
+    FULL = "full", _("Full day")
+
+
+class CalendarPreference(BaseModel):
+    """Account-portable calendar presentation and creation defaults.
+
+    ``User.timezone`` is intentionally not reused here: Web and Android report
+    their current device timezone there for notification/quiet-hour behavior.
+    Calendar display can instead remain automatic per device or be pinned to a
+    fixed IANA zone and synchronized across every client.
+    """
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="calendar_preference"
+    )
+    timezone_mode = models.CharField(
+        max_length=8,
+        choices=CalendarTimezoneModeChoices.choices,
+        default=CalendarTimezoneModeChoices.AUTO,
+    )
+    timezone = TimeZoneField(
+        _("calendar timezone"),
+        choices_display="WITH_GMT_OFFSET",
+        use_pytz=False,
+        null=True,
+        blank=True,
+        help_text=_("Fixed calendar timezone; empty while timezone_mode is auto."),
+    )
+    week_start = models.CharField(
+        max_length=3,
+        choices=CalendarWeekStartChoices.choices,
+        default=CalendarWeekStartChoices.MONDAY,
+    )
+    default_duration_minutes = models.PositiveSmallIntegerField(default=60)
+    default_reminder_minutes = models.PositiveSmallIntegerField(
+        null=True, blank=True, default=10
+    )
+    dim_past = models.BooleanField(default=True)
+    show_weekend = models.BooleanField(default=True)
+    working_start_minutes = models.PositiveSmallIntegerField(default=9 * 60)
+    working_end_minutes = models.PositiveSmallIntegerField(default=18 * 60)
+    calendar_time_range = models.CharField(
+        max_length=8,
+        choices=CalendarTimeRangeChoices.choices,
+        default=CalendarTimeRangeChoices.WORK,
+    )
+    meeting_rooms_time_range = models.CharField(
+        max_length=8,
+        choices=CalendarTimeRangeChoices.choices,
+        default=CalendarTimeRangeChoices.WORK,
+    )
+    initialized = models.BooleanField(
+        default=False,
+        help_text=_("Whether an upgraded client has imported its local settings."),
+    )
+    revision = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "meet_calendar_preference"
+
+    def __str__(self):
+        return f"CalendarPreference({self.user_id}, r{self.revision})"
+
+
 class EventRSVPChoices(models.TextChoices):
     """An attendee's response to an invitation."""
 
@@ -3001,6 +3079,11 @@ class CalendarEvent(BaseModel):
     description = models.TextField(_("description"), blank=True, default="")
     start_at = models.DateTimeField(_("start at"))
     end_at = models.DateTimeField(_("end at"))
+    # Canonical half-open civil-date range for all-day events.  ``start_at`` /
+    # ``end_at`` remain non-null compatibility anchors for old clients, search,
+    # and reminder scheduling, but must never be used to recover these dates.
+    start_date = models.DateField(_("start date"), null=True, blank=True)
+    end_date = models.DateField(_("end date"), null=True, blank=True)
     timezone = TimeZoneField(
         _("timezone"),
         choices_display="WITH_GMT_OFFSET",
@@ -3102,6 +3185,22 @@ class CalendarEvent(BaseModel):
             models.Index(fields=["start_at"], name="calevent_start_idx"),
         ]
         constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        all_day=True,
+                        start_date__isnull=False,
+                        end_date__isnull=False,
+                        end_date__gt=models.F("start_date"),
+                    )
+                    | models.Q(
+                        all_day=False,
+                        start_date__isnull=True,
+                        end_date__isnull=True,
+                    )
+                ),
+                name="calevent_all_day_dates_consistent",
+            ),
             # P2-M1 物化幂等:同一主事件的同一发生时刻只允许一行子事件。
             models.UniqueConstraint(
                 fields=["recurrence_parent", "start_at"],

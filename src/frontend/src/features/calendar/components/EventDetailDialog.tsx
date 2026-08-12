@@ -33,7 +33,14 @@ import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import {
   effectiveReminder,
   reminderOptionLabel,
+  useCalendarSettings,
 } from '../hooks/useCalendarSettings'
+import {
+  addCivilDays,
+  dateOnlyToLocalDate,
+  instantToZonedDate,
+  localDateToDateOnly,
+} from '../utils/zonedDate'
 
 interface Props {
   event: CalendarEvent
@@ -72,6 +79,7 @@ export const EventDetailDialog = ({
   onShare,
 }: Props) => {
   const { t, i18n } = useTranslation(['calendar', 'meeting-rooms'])
+  const { calendarTimezone } = useCalendarSettings()
   const { user } = useUser()
   const [rsvp, setRsvp] = useState<RSVPStatus | null>(event.my_rsvp ?? null)
   // 会议号/链接的「已复制」瞬时态。
@@ -114,29 +122,39 @@ export const EventDetailDialog = ({
       : t('visibility.busy')
     : event.title
 
-  const fmtDate = (iso: string, tz?: string) =>
-    new Date(iso).toLocaleDateString(i18n.language, {
+  const fmtDate = (date: Date) =>
+    date.toLocaleDateString(i18n.language, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       weekday: 'short',
-      timeZone: tz,
     })
-  const fmtTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString(i18n.language, {
+  const fmtTime = (date: Date) =>
+    date.toLocaleTimeString(i18n.language, {
       hour: '2-digit',
       minute: '2-digit',
     })
-  const sameDay =
-    new Date(event.start_at).toDateString() ===
-    new Date(event.end_at).toDateString()
+  const timedStart = instantToZonedDate(event.start_at, calendarTimezone)
+  const timedEnd = instantToZonedDate(event.end_at, calendarTimezone)
+  const civilStart = event.start_date
+    ? dateOnlyToLocalDate(event.start_date)
+    : instantToZonedDate(event.start_at, event.timezone)
+  const civilInclusiveEnd = event.end_date
+    ? dateOnlyToLocalDate(addCivilDays(event.end_date, -1))
+    : civilStart
+  const sameDay = timedStart.toDateString() === timedEnd.toDateString()
   const when = event.all_day
-    ? fmtDate(event.start_at, event.timezone || undefined)
+    ? civilStart.toDateString() === civilInclusiveEnd.toDateString()
+      ? fmtDate(civilStart)
+      : `${fmtDate(civilStart)} – ${fmtDate(civilInclusiveEnd)}`
     : sameDay
-      ? `${fmtDate(event.start_at)} ${fmtTime(event.start_at)} – ${fmtTime(event.end_at)}`
-      : `${fmtDate(event.start_at)} ${fmtTime(event.start_at)} – ${fmtDate(event.end_at)} ${fmtTime(event.end_at)}`
-  const isToday =
-    new Date(event.start_at).toDateString() === new Date().toDateString()
+      ? `${fmtDate(timedStart)} ${fmtTime(timedStart)} – ${fmtTime(timedEnd)}`
+      : `${fmtDate(timedStart)} ${fmtTime(timedStart)} – ${fmtDate(timedEnd)} ${fmtTime(timedEnd)}`
+  const isToday = event.all_day
+    ? localDateToDateOnly(civilStart) ===
+      localDateToDateOnly(instantToZonedDate(new Date(), calendarTimezone))
+    : timedStart.toDateString() ===
+      instantToZonedDate(new Date(), calendarTimezone).toDateString()
 
   // 表态即时反映到参与人列表:日历页的 detailEvent 是点开时的快照,invalidate
   // 只刷列表查询、不会回填这个 prop,不覆写的话自己那行会一直停在旧状态

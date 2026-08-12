@@ -11,6 +11,8 @@
     "empty": "Noch keine Termine"
   },
   "form": {
+    "timezone": "Terminzeitzone",
+    "allDayTimezoneHint": "Ganztägige Daten verschieben sich nicht; diese Zeitzone gilt nur für Erinnerungen und Wiederholungen",
     "title": "Neuer Termin",
     "titlePlaceholder": "Termintitel",
     "descriptionPlaceholder": "Beschreibung (optional)",
@@ -178,6 +180,10 @@
   },
   "settings": {
     "title": "Kalendereinstellungen",
+    "timezone": "Kalenderzeitzone",
+    "timezoneAuto": "Gerätezeitzone automatisch verwenden",
+    "timezoneFixed": "Feste Zeitzone",
+    "fixedTimezone": "Zeitzone auswählen",
     "reminderEntry": "Terminerinnerung in der Nachrichtenliste",
     "dimPast": "Vergangene Termine abdunkeln",
     "workingHours": "Arbeitszeit",

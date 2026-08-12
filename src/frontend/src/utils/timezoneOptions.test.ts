@@ -85,6 +85,7 @@ describe('buildTimezoneOptions', () => {
     const shanghai = options.find((o) => o.zone === 'Asia/Shanghai')
     expect(shanghai).toBeDefined()
     expect(shanghai!.label).toContain('Asia/Shanghai')
+    expect(options.some((o) => o.zone === 'UTC')).toBe(true)
     expect(options.every((o) => o.label.length > 0)).toBe(true)
   })
 

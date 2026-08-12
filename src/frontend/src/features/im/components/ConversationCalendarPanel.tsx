@@ -21,6 +21,11 @@ import {
   type RSVPStatus,
   type SuggestedSlot,
 } from '@/features/calendar'
+import {
+  instantToZonedDate,
+  localDateToDateOnly,
+  zonedDateToInstant,
+} from '@/features/calendar/utils/zonedDate'
 
 import { resolveImUsers } from '../api/resolveImUsers'
 import { Avatar } from './Avatar'
@@ -137,6 +142,8 @@ export const ConversationCalendarPanel = ({
   const { t, i18n } = useTranslation('im')
   const { alert: showAlert } = useConfirm()
   const queryClient = useQueryClient()
+  const { defaultDurationMin, workingHours, calendarTimezone } =
+    useCalendarSettings()
   const cid = conversation.cid
   const isGroup = conversation.type === 'group'
 
@@ -178,7 +185,7 @@ export const ConversationCalendarPanel = ({
 
   // ── 日期导航(单日窗口,远小于 freebusy 的 31 天上限) ──
   const [day, setDay] = useState(() => {
-    const d = new Date()
+    const d = instantToZonedDate(new Date(), calendarTimezone)
     d.setHours(0, 0, 0, 0)
     return d
   })
@@ -190,12 +197,18 @@ export const ConversationCalendarPanel = ({
     return d
   }, [day])
   const dayKey = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`
+  const dayEndKey = localDateToDateOnly(dayEnd)
+  const dayStartInstant = useMemo(
+    () => zonedDateToInstant(day, calendarTimezone),
+    [calendarTimezone, day]
+  )
+  const dayEndInstant = useMemo(
+    () => zonedDateToInstant(dayEnd, calendarTimezone),
+    [calendarTimezone, dayEnd]
+  )
   const isToday =
     dayKey ===
-    (() => {
-      const n = new Date()
-      return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`
-    })()
+    localDateToDateOnly(instantToZonedDate(new Date(), calendarTimezone))
   const shiftDay = (delta: number) =>
     setDay((prev) => {
       const d = new Date(prev)
@@ -208,8 +221,13 @@ export const ConversationCalendarPanel = ({
     [activePeople]
   )
   const { data: entries = [] } = useQuery({
-    queryKey: ['im', 'freebusy', cid, dayKey, ids],
-    queryFn: () => fetchFreeBusy(ids, day.toISOString(), dayEnd.toISOString()),
+    queryKey: ['im', 'freebusy', cid, dayKey, calendarTimezone, ids],
+    queryFn: () =>
+      fetchFreeBusy(
+        ids,
+        dayStartInstant.toISOString(),
+        dayEndInstant.toISOString()
+      ),
     enabled: ids.length > 0,
     staleTime: 30_000,
   })
@@ -218,11 +236,13 @@ export const ConversationCalendarPanel = ({
   // 标题,他人列显示「他对我这场会的回复状态」——后者在日程详情里本来就能
   // 看到,不是新增泄露。拉失败退回纯灰块,不影响忙闲主流程。 ──
   const { data: myEvents = [] } = useQuery({
-    queryKey: ['im', 'my-events', dayKey],
+    queryKey: ['im', 'my-events', dayKey, dayEndKey, calendarTimezone],
     queryFn: () =>
       fetchCalendarEvents({
-        start: day.toISOString(),
-        end: dayEnd.toISOString(),
+        start: dayStartInstant.toISOString(),
+        end: dayEndInstant.toISOString(),
+        date_start: dayKey,
+        date_end: dayEndKey,
       }),
     staleTime: 30_000,
   })
@@ -234,10 +254,14 @@ export const ConversationCalendarPanel = ({
   const myEventAt = (startMin: number, endMin: number) =>
     myEvents.find((ev) => {
       const s = Math.round(
-        (new Date(ev.start_at).getTime() - day.getTime()) / 60_000
+        (instantToZonedDate(ev.start_at, calendarTimezone).getTime() -
+          day.getTime()) /
+          60_000
       )
       const e = Math.round(
-        (new Date(ev.end_at).getTime() - day.getTime()) / 60_000
+        (instantToZonedDate(ev.end_at, calendarTimezone).getTime() -
+          day.getTime()) /
+          60_000
       )
       return clamp(s, 0, 1440) === startMin && clamp(e, 0, 1440) === endMin
     })
@@ -268,20 +292,29 @@ export const ConversationCalendarPanel = ({
         id: ev.id,
         title: ev.title,
         startMin: clamp(
-          (new Date(ev.start_at).getTime() - day.getTime()) / 60_000,
+          (instantToZonedDate(ev.start_at, calendarTimezone).getTime() -
+            day.getTime()) /
+            60_000,
           0,
           1440
         ),
         endMin: clamp(
-          (new Date(ev.end_at).getTime() - day.getTime()) / 60_000,
+          (instantToZonedDate(ev.end_at, calendarTimezone).getTime() -
+            day.getTime()) /
+            60_000,
           0,
           1440
         ),
       }))
       .filter((b) => b.endMin > b.startMin)
 
-  const busyOf = (id: string) =>
+  const rawBusyOf = (id: string) =>
     entries.find((e) => e.user_id === id)?.busy ?? []
+  const busyOf = (id: string) =>
+    rawBusyOf(id).map((interval) => ({
+      start: instantToZonedDate(interval.start, calendarTimezone),
+      end: instantToZonedDate(interval.end, calendarTimezone),
+    }))
   const peopleBusy = useMemo(
     () => activePeople.map((p) => ({ id: p.id, busy: busyOf(p.id) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,7 +323,6 @@ export const ConversationCalendarPanel = ({
 
   // ── 时段选择(30min 吸附落段;单击用「日程默认时长」,拖动用拖出的区间;
   // 选完可拖框移位 / 拖抓手改起止,15min 吸附) ──
-  const { defaultDurationMin, workingHours } = useCalendarSettings()
   const [sel, setSel] = useState<{ startMin: number; endMin: number } | null>(
     null
   )
@@ -420,10 +452,11 @@ export const ConversationCalendarPanel = ({
       activePeople.length > 1 && entries.length > 0
         ? suggestCommonSlots(peopleBusy, day, {
             durationMin: defaultDurationMin,
+            now: instantToZonedDate(new Date(), calendarTimezone),
           })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [peopleBusy, dayKey, defaultDurationMin]
+    [peopleBusy, dayKey, defaultDurationMin, calendarTimezone]
   )
   const pickSuggestion = (s: SuggestedSlot) =>
     setSel({
@@ -452,7 +485,7 @@ export const ConversationCalendarPanel = ({
   )
 
   const nowMin = (() => {
-    const n = new Date()
+    const n = instantToZonedDate(new Date(), calendarTimezone)
     return n.getHours() * 60 + n.getMinutes()
   })()
 
@@ -846,12 +879,12 @@ export const ConversationCalendarPanel = ({
                     })}
                     {busyOf(p.id).map((b, i) => {
                       const s = clamp(
-                        (new Date(b.start).getTime() - day.getTime()) / 60_000,
+                        (b.start.getTime() - day.getTime()) / 60_000,
                         0,
                         1440
                       )
                       const e = clamp(
-                        (new Date(b.end).getTime() - day.getTime()) / 60_000,
+                        (b.end.getTime() - day.getTime()) / 60_000,
                         0,
                         1440
                       )

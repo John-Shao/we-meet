@@ -79,4 +79,53 @@ describe('EventCardMessage', () => {
       screen.queryByText('calendar.card.organizer')
     ).not.toBeInTheDocument()
   })
+
+  it('renders a canonical multi-day all-day range without timezone shifting', () => {
+    render(
+      <EventCardMessage
+        system
+        body={JSON.stringify({
+          v: 1,
+          kind: 'created',
+          event_id: 'event-all-day',
+          title: 'Company holiday',
+          start: '2026-08-11T16:00:00Z',
+          end: '2026-08-13T16:00:00Z',
+          start_date: '2026-08-12',
+          end_date: '2026-08-14',
+          all_day: true,
+        })}
+      />
+    )
+
+    expect(screen.getByText(/August 12.*August 13/)).toHaveTextContent(
+      'calendar.card.allDay'
+    )
+  })
+
+  it('renders canonical old and new dates for an all-day reschedule', () => {
+    render(
+      <EventCardMessage
+        system
+        body={JSON.stringify({
+          v: 1,
+          kind: 'time_changed',
+          event_id: 'event-all-day-moved',
+          title: 'Company holiday',
+          start: '2026-08-11T16:00:00Z',
+          end: '2026-08-13T16:00:00Z',
+          start_date: '2026-08-12',
+          end_date: '2026-08-14',
+          old_start: '2026-08-09T16:00:00Z',
+          old_end: '2026-08-11T16:00:00Z',
+          old_start_date: '2026-08-10',
+          old_end_date: '2026-08-12',
+          all_day: true,
+        })}
+      />
+    )
+
+    expect(screen.getByText(/August 10.*August 11/)).toBeInTheDocument()
+    expect(screen.getByText(/August 12.*August 13/)).toBeInTheDocument()
+  })
 })

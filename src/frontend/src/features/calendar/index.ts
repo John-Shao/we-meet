@@ -9,7 +9,10 @@ export type {
 export { CreateEventDialog } from './components/CreateEventDialog'
 export { EventDetailHost } from './components/EventDetailHost'
 export { MiniCalendar } from './components/MiniCalendar'
-export { useCalendarSettings } from './hooks/useCalendarSettings'
+export {
+  useCalendarSettings,
+  useSyncCalendarSettings,
+} from './hooks/useCalendarSettings'
 export {
   DEFAULT_WORKING_HOURS,
   WORKING_TIME_OPTIONS,

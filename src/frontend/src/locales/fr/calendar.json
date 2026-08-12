@@ -11,6 +11,8 @@
     "empty": "Aucun événement"
   },
   "form": {
+    "timezone": "Fuseau horaire de l’événement",
+    "allDayTimezoneHint": "Les dates sur la journée ne changent pas ; ce fuseau sert uniquement aux rappels et à la récurrence",
     "title": "Nouvel événement",
     "titlePlaceholder": "Titre de l'événement",
     "descriptionPlaceholder": "Description (facultatif)",
@@ -178,6 +180,10 @@
   },
   "settings": {
     "title": "Paramètres du calendrier",
+    "timezone": "Fuseau horaire du calendrier",
+    "timezoneAuto": "Utiliser automatiquement le fuseau de l’appareil",
+    "timezoneFixed": "Fuseau horaire fixe",
+    "fixedTimezone": "Choisir un fuseau horaire",
     "reminderEntry": "Rappel d'agenda dans la liste de messages",
     "dimPast": "Atténuer les événements passés",
     "workingHours": "Horaires de travail",

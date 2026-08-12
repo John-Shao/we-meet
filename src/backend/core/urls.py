@@ -74,6 +74,7 @@ from core.api.meeting_rooms import (
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.personal_calendars import (
     CalendarAccessGrantViewSet,
+    CalendarPreferenceViewSet,
     CalendarSubscriptionViewSet,
     PersonalCalendarViewSet,
 )
@@ -138,6 +139,11 @@ router.register(
     "calendar-subscriptions",
     CalendarSubscriptionViewSet,
     basename="calendar_subscriptions",
+)
+router.register(
+    "calendar-preferences",
+    CalendarPreferenceViewSet,
+    basename="calendar_preferences",
 )
 router.register(
     "directory/user-groups",

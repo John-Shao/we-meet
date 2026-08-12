@@ -29,11 +29,16 @@ export const ReminderPane = () => {
   const [, navigate] = useLocation()
   const [enabled, setEnabled] = useReminderEntryEnabled()
   // 页面本身即使开关关闭也可见(用户刚在此关掉开关时不闪退出)。
-  const { today, tomorrow, nearest, now } = useReminderWindow(true)
+  const { today, tomorrow, nearest, now, calendarTimezone } =
+    useReminderWindow(true)
   const [viewEventId, setViewEventId] = useState<string | null>(null)
 
   const fmtDay = (d: Date) =>
-    d.toLocaleDateString(i18n.language, { month: 'long', day: 'numeric' })
+    d.toLocaleDateString(i18n.language, {
+      month: 'long',
+      day: 'numeric',
+      timeZone: calendarTimezone,
+    })
 
   const banner = nearest
   const bannerCountdown = banner ? reminderCountdown(banner, now) : null
@@ -169,7 +174,8 @@ export const ReminderPane = () => {
               className={css({ fontSize: '0.875rem', color: 'greyscale.700' })}
             >
               {`${fmtDay(new Date(banner.start_at))} ${
-                reminderTimeRange(banner) ?? t('calendar.card.allDay')
+                reminderTimeRange(banner, calendarTimezone) ??
+                t('calendar.card.allDay')
               }`}
             </div>
             {banner.room_slug && (
@@ -206,6 +212,7 @@ export const ReminderPane = () => {
           <ReminderSection
             label={t('reminder.today')}
             events={today}
+            timezone={calendarTimezone}
             onOpen={setViewEventId}
           />
         )}
@@ -213,6 +220,7 @@ export const ReminderPane = () => {
           <ReminderSection
             label={t('reminder.tomorrow')}
             events={tomorrow}
+            timezone={calendarTimezone}
             onOpen={setViewEventId}
           />
         )}
@@ -231,18 +239,22 @@ export const ReminderPane = () => {
 const ReminderSection = ({
   label,
   events,
+  timezone,
   onOpen,
 }: {
   label: string
   events: CalendarEvent[]
+  timezone: string
   onOpen: (id: string) => void
 }) => {
   const { t } = useTranslation('im')
   const hm = (iso: string) => {
-    const d = new Date(iso)
-    return `${String(d.getHours()).padStart(2, '0')}:${String(
-      d.getMinutes()
-    ).padStart(2, '0')}`
+    return new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: timezone,
+    }).format(new Date(iso))
   }
   return (
     <div>

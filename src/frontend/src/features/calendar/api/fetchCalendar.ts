@@ -26,6 +26,8 @@ const EVENTS_MAX_PAGES = 10
 export const fetchCalendarEvents = async (range?: {
   start: string
   end: string
+  date_start?: string
+  date_end?: string
 }): Promise<CalendarEvent[]> => {
   const all: CalendarEvent[] = []
   for (let page = 1; page <= EVENTS_MAX_PAGES; page += 1) {
@@ -36,6 +38,8 @@ export const fetchCalendarEvents = async (range?: {
     if (range) {
       qs.set('start', range.start)
       qs.set('end', range.end)
+      if (range.date_start) qs.set('date_start', range.date_start)
+      if (range.date_end) qs.set('date_end', range.date_end)
     }
     const res = await fetchApi<Paginated<CalendarEvent>>(
       `/calendar-events/?${qs.toString()}`
