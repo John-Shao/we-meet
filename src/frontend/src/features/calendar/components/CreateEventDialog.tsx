@@ -13,7 +13,12 @@ import { MeetingRoomField } from '@/features/meeting-rooms'
 import type { MeetingRoomBrief } from '@/features/meeting-rooms'
 
 import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
-import type { AttendeeRole, CalendarEvent, EditScope } from '../api/ApiCalendar'
+import type {
+  AttendeeRole,
+  CalendarEvent,
+  EditScope,
+  EventVisibility,
+} from '../api/ApiCalendar'
 import {
   REMINDER_OPTIONS,
   effectiveReminder,
@@ -87,8 +92,8 @@ export const CreateEventDialog = ({
 
   const [title, setTitle] = useState(editEvent?.title ?? '')
   const [description, setDescription] = useState(editEvent?.description ?? '')
-  const [visibility, setVisibility] = useState<'default' | 'private'>(
-    editEvent?.visibility === 'private' ? 'private' : 'default'
+  const [visibility, setVisibility] = useState<EventVisibility>(
+    editEvent?.visibility ?? 'default'
   )
   const [start, setStart] = useState(toLocalInput(start0))
   const [end, setEnd] = useState(toLocalInput(end0))
@@ -232,6 +237,7 @@ export const CreateEventDialog = ({
         all_day: allDay,
         reminders: reminder == null ? [] : [reminder],
         visibility,
+        ...(editEvent ? { visibility_explicit: true } : {}),
         // P9 会议室:'' = 不预订 / 清空既有预订。刻意用空串而不是 null,
         // 好让 Android(Moshi 不序列化 null)能表达同一个意思;后端两者都收。
         // 全天日程不带该字段 —— M1 不支持全天订会议室。
@@ -433,17 +439,27 @@ export const CreateEventDialog = ({
           </div>
         )}
 
-        <Switch
-          isSelected={visibility === 'private'}
-          onChange={(privateEvent) =>
-            setVisibility(privateEvent ? 'private' : 'default')
-          }
-          data-testid="event-private"
-          className={videoSwitchCls}
-        >
-          <span className={labelCls}>{t('form.privateEvent')}</span>
-        </Switch>
-        <div className={videoHintCls}>{t('form.privateEventHint')}</div>
+        <div className={fieldCls}>
+          <label className={labelCls} htmlFor="event-visibility">
+            {t('visibility.label')}
+          </label>
+          <select
+            id="event-visibility"
+            value={visibility}
+            onChange={(event) =>
+              setVisibility(event.target.value as EventVisibility)
+            }
+            data-testid="event-visibility"
+            className={cx(inputCls, selectChrome)}
+          >
+            <option value="default">{t('visibility.default')}</option>
+            <option value="public">{t('visibility.public')}</option>
+            <option value="private">{t('visibility.private')}</option>
+          </select>
+          <div className={videoHintCls}>
+            {t(`visibility.hint.${visibility}`)}
+          </div>
+        </div>
 
         {/* Attendees — 创建态 + 非重复日程编辑态(P8 全量同步);重复日程编辑不展示。 */}
         {attendeesEditable && (

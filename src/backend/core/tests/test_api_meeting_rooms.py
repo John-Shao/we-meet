@@ -316,7 +316,7 @@ def test_availability_rejects_oversized_windows(org_user):
 # --- timeline --------------------------------------------------------------
 
 
-def test_timeline_returns_bookings_with_organizer(org_user):
+def test_timeline_redacts_booking_without_calendar_subscription(org_user):
     org, user = org_user
     room = factories.MeetingRoomFactory(organization=org, name="Boardroom")
     organizer = factories.UserFactory(full_name="Alice")
@@ -334,11 +334,10 @@ def test_timeline_returns_bookings_with_organizer(org_user):
     assert row["name"] == "Boardroom"
     assert len(row["bookings"]) == 1
     booking = row["bookings"][0]
-    assert booking["title"] == "Quarterly review"
-    # You always get to see who to go ask about that slot.
-    assert booking["organizer"]["full_name"] == "Alice"
-    assert booking["is_private"] is False
-    assert booking["event_id"] is not None
+    assert booking["title"] is None
+    assert booking["organizer"] is None
+    assert booking["is_private"] is True
+    assert booking["event_id"] is None
     assert booking["can_manage"] is False
     assert booking["can_move"] is False
 
@@ -371,8 +370,7 @@ def test_timeline_hides_private_titles_from_outsiders(org_user):
     assert booking["event_id"] is None
     assert booking["can_manage"] is False
     assert booking["can_move"] is False
-    # The slot and its owner stay visible — that is the point of the board.
-    assert booking["organizer"]["full_name"] == "Alice"
+    assert booking["organizer"] is None
     assert "Performance review" not in resp.content.decode()
 
 

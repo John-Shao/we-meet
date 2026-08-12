@@ -44,6 +44,11 @@ import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EditScopeDialog } from '../components/EditScopeDialog'
 import { EventDetailDialog } from '../components/EventDetailDialog'
 import { EventShareDialog } from '../components/EventShareDialog'
+import { CalendarSharingDialog } from '../components/CalendarSharingDialog'
+import {
+  fetchCalendarSubscriptions,
+  fetchPersonalCalendarEvents,
+} from '../api/personalCalendars'
 
 const EVENTS_KEY = ['calendar'] as const
 
@@ -77,6 +82,7 @@ const CalendarAuthenticated = () => {
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const { user } = useUser()
   const [creating, setCreating] = useState(false)
+  const [sharingCalendar, setSharingCalendar] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('we-meet:calendar-sidebar-collapsed') === '1'
   )
@@ -185,13 +191,58 @@ const CalendarAuthenticated = () => {
       end: endOfMonth(addMonths(date, 1)).toISOString(),
     }
   }, [date, view])
-  const { data: events = [], isLoading } = useQuery({
+  const { data: ownEvents = [], isLoading: ownEventsLoading } = useQuery({
     queryKey: ['calendar', 'window', monthWindow],
     queryFn: () => fetchCalendarEvents(monthWindow),
     staleTime: 30_000,
     // 会议室 Tab 不渲染网格,±1 月的事件窗口是纯浪费。
     enabled: tab === 'calendar',
   })
+  const { data: subscriptions = [], isLoading: subscriptionsLoading } =
+    useQuery({
+      queryKey: ['calendar', 'subscriptions'],
+      queryFn: fetchCalendarSubscriptions,
+      staleTime: 30_000,
+      enabled: tab === 'calendar',
+    })
+  const { data: subscribedEvents = [], isLoading: subscribedEventsLoading } =
+    useQuery({
+      queryKey: [
+        'calendar',
+        'subscribed-window',
+        monthWindow,
+        subscriptions.map((item) => item.calendar_id).join(','),
+      ],
+      queryFn: async () => {
+        const results = await Promise.allSettled(
+          subscriptions
+            .filter((item) => item.enabled)
+            .map((item) =>
+              fetchPersonalCalendarEvents(item.calendar_id, monthWindow)
+            )
+        )
+        return results.flatMap((result) =>
+          result.status === 'fulfilled' ? result.value : []
+        )
+      },
+      enabled: tab === 'calendar' && !subscriptionsLoading,
+      staleTime: 30_000,
+    })
+  const events = useMemo(() => {
+    const merged = new Map<string, CalendarEvent>()
+    for (const event of [...ownEvents, ...subscribedEvents]) {
+      const current = merged.get(event.id)
+      if (!current || (current.details_redacted && !event.details_redacted)) {
+        merged.set(event.id, {
+          ...event,
+          title: event.details_redacted ? t('sharing.busy') : event.title,
+        })
+      }
+    }
+    return [...merged.values()]
+  }, [ownEvents, subscribedEvents, t])
+  const isLoading =
+    ownEventsLoading || subscriptionsLoading || subscribedEventsLoading
 
   const invalidateCalendarData = () =>
     Promise.all([
@@ -293,11 +344,46 @@ const CalendarAuthenticated = () => {
       end: addMonths(now, 6).toISOString(),
     }
   }, [])
-  const { data: upcomingEvents = [] } = useQuery({
+  const { data: ownUpcomingEvents = [] } = useQuery({
     queryKey: ['calendar', 'upcoming', upcomingWindow],
     queryFn: () => fetchCalendarEvents(upcomingWindow),
     staleTime: 30_000,
   })
+  const { data: subscribedUpcomingEvents = [] } = useQuery({
+    queryKey: [
+      'calendar',
+      'subscribed-upcoming',
+      upcomingWindow,
+      subscriptions.map((item) => item.calendar_id).join(','),
+    ],
+    queryFn: async () => {
+      const results = await Promise.allSettled(
+        subscriptions
+          .filter((item) => item.enabled)
+          .map((item) =>
+            fetchPersonalCalendarEvents(item.calendar_id, upcomingWindow)
+          )
+      )
+      return results.flatMap((result) =>
+        result.status === 'fulfilled' ? result.value : []
+      )
+    },
+    enabled: !subscriptionsLoading,
+    staleTime: 30_000,
+  })
+  const upcomingEvents = useMemo(() => {
+    const merged = new Map<string, CalendarEvent>()
+    for (const event of [...ownUpcomingEvents, ...subscribedUpcomingEvents]) {
+      const current = merged.get(event.id)
+      if (!current || (current.details_redacted && !event.details_redacted)) {
+        merged.set(event.id, {
+          ...event,
+          title: event.details_redacted ? t('sharing.busy') : event.title,
+        })
+      }
+    }
+    return [...merged.values()]
+  }, [ownUpcomingEvents, subscribedUpcomingEvents, t])
 
   const setRsvp = async (event: CalendarEvent, status: RSVPStatus) => {
     try {
@@ -447,6 +533,14 @@ const CalendarAuthenticated = () => {
               data-testid="calendar-create"
             >
               ＋ {t('page.create')}
+            </Button>
+            <Button
+              variant="secondaryText"
+              size="action"
+              onPress={() => setSharingCalendar(true)}
+              data-testid="calendar-sharing"
+            >
+              {t('sharing.manage')}
             </Button>
             {/* P8 设置收敛:齿轮只是快捷入口,打开系统设置并定位「日历」节。
                无边框纯图标钮,置于「新建日程」右侧。 */}
@@ -615,6 +709,15 @@ const CalendarAuthenticated = () => {
         <EventShareDialog
           event={sharingEvent}
           onClose={() => setSharingEvent(null)}
+        />
+      )}
+
+      {sharingCalendar && (
+        <CalendarSharingDialog
+          onClose={() => setSharingCalendar(false)}
+          onChanged={() => {
+            void invalidateCalendarData()
+          }}
         />
       )}
 

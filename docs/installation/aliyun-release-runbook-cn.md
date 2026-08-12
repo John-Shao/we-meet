@@ -96,6 +96,19 @@ kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core
 # 期望: [X] 0092_external_contacts
 ```
 
+### 日历 P1-8b 公开范围与个人日历共享部署顺序
+
+完整权限模型见 [P1-8b：日程公开范围与个人日历共享权限](../phases/p2b-calendar-visibility-sharing.md)。发布顺序固定为 **backend + `0093_calendar_sharing_visibility` → Web → Android**。迁移会创建个人日历、点对点授权和订阅表，为有效组织成员回填默认 `free_busy` 的个人日历，并给 `CalendarEvent.visibility` 增加 `public`；不会复制或改写历史日程。
+
+双端依赖新的个人日历 API，不能先于迁移发布。协议为加法兼容：旧客户端不能选择 `public`；旧客户端编辑已有 `public` 日程时，即使隐式提交 `visibility=default`，后端也会保留 `public`。新客户端主动切回默认范围时会发送只写标记 `visibility_explicit=true`。
+
+```bash
+kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | grep 0093
+# 期望: [X] 0093_calendar_sharing_visibility
+```
+
+迁移后先验证后端：无权用户凭 event id 读取 `default/public/private` 均返回 404；拥有 `free_busy/details` 权限且已订阅的用户按矩阵获得忙碌投影或完整详情；私密日程参与者仍能读取详情。再发布 Web/Android，并验证三态选择、共享授权、订阅和撤销外部联系人后的即时失权。
+
 ---
 
 ## 已归档的实例:2026-07-02「假完成坑」三项(commit 29634218)

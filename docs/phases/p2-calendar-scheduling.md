@@ -1,6 +1,6 @@
 # P2 — 日历 / 日程（Calendar / Scheduling）
 
-**状态**：✅ 已实现并持续收敛（更新至 2026-08-11）。后端、Web、Android 已覆盖重复日程、忙闲、来源会话提醒及范围化编辑/取消。
+**状态**：✅ 已实现并持续收敛（更新至 2026-08-12）。后端、Web、Android 已覆盖重复日程、忙闲、来源会话提醒、范围化编辑/取消，以及个人日历共享与三态公开范围。权限模型详见 [P1-8b：日程公开范围与个人日历共享权限](./p2b-calendar-visibility-sharing.md)。
 **工作量**：后端 ~1.5d(模型+API+提醒) + 前端 ~1d + 部署 1 项(定时器)
 **前置**：P1 组织架构(通讯录选人/org-scope)、会议核心(Room/ResourceAccess/scheduled_at)、IM bridge(ensure-group / post_message)、会议纪要 IM 推送 pattern
 **触发**：路线图第二支柱。当前只有「预约会议」= `Room.scheduled_at`(信息性),没有真正的日程:邀人、RSVP、会前提醒、agenda 视图、与 IM 群联动。
@@ -39,13 +39,13 @@
 | # | 决策 | 倾向（推荐） |
 |---|---|---|
 | **D1** | 调度实体 | 新增 **`CalendarEvent`**(BaseModel),不把日程塞进 Room。日程 ≠ 视频房间(可全天/外部嘉宾/纯日程),且 RSVP/可见性/提醒不该堆在 Room 上。`Room.scheduled_at` 既有「预约会议」轻量路径保留(legacy),agenda 以 CalendarEvent 为准;二者收敛留后续。 |
-| **D2** | RBAC / 参与者 | **不**让 CalendarEvent 继承 Resource。用 `organizer` FK(User)+ **`EventAttendee`** 行表参与者/RSVP。可见性靠 `organization` org-scope + organizer/attendee 过滤(MVP:能看到=我是 organizer 或 attendee)。 |
+| **D2** | RBAC / 参与者 | **不**让 CalendarEvent 继承 Resource。用 `organizer` FK(User)+ **`EventAttendee`** 行表参与者/RSVP。读取统一判定为 `NONE / BUSY / DETAILS`：组织者和参与者、个人日历授权+订阅、来源会话成员构成有效路径；任意 event id 不形成权限。完整矩阵见 [P1-8b](./p2b-calendar-visibility-sharing.md)。 |
 | **D3** | 联动会议室 | 建日程时**同时建 Room**(server 端 `Room.objects.create` + `ResourceAccess(owner=organizer)`),`Room.scheduled_at = event.start_at`,并调既有 `ensure-group` 预建 IM 群。`CalendarEvent.room` FK **SET_NULL**(房间/群比日程长寿)。"一键进会"= 跳该 room。可选:`all_day` 或纯日程不建 Room。 |
 | **D4** | RSVP | `EventAttendee.rsvp ∈ {needs_action, accepted, declined, tentative}`;`role ∈ {organizer, required, optional}`。内部成员与已接受的[P1b 外部联系人](./p1b-external-contacts.md)都使用真实 `user` FK；`email` 仅保留历史数据读取，新写入不再接受。RSVP 端点 `POST /calendar-events/{id}/rsvp {status}`。 |
 | **D5** | 提醒投递 | 有来源会话的日程回原会话发送，身份顺序为组织者 → 日程助手 → SYSTEM；无来源日程只在客户端消息列表聚合，不建群、不接设备直推。幂等使用 event 级 `reminder_pushed_at`。 |
 | **D6** | 提醒调度基建 | **k8s CronJob 跑 management command**(`python manage.py send_due_reminders`，每分钟扫描到期且未处理的来源会话日程)，**不新立 celery-beat**：k8s 已是部署底座、CronJob 自带单实例语义、比 beat + 单实例锁更简单。 |
 | **D7** | 周期重复 | 主事件保存 RRULE，滚动物化 `recurrence_parent` 子场次；子场次继承来源会话并逐场提醒。编辑/删除支持 `one / following / all`，系列参与人和重复规则编辑仍不开放。 |
-| **D8** | Free/busy | MVP **跳过**(或仅本人)。跨人忙闲后续。 |
+| **D8** | Free/busy | ✅ 已实现个人日历组织默认权限、点对点授权与显式订阅；`default / public / private` 在基础权限之上决定详情或忙碌投影。跨组织仅允许已接受且未失效的外部联系人，并要求显式授权。 |
 | **D9** | Agenda 前端 | 新增 `features/calendar`:建日程表单(复用 ContactPicker 多选邀人)、**agenda 列表**(我的日程,按日/即将)、RSVP 操作、详情。Header 加「日历」入口 + `/calendar` 路由。`ScheduledMeetingsList`(legacy 预约会议)暂保留,后续收敛。 |
 | **D10** | 时区 | `start_at`/`end_at` 存 UTC(tz-aware);展示按 `user.timezone` 转换。`timezone` 字段存事件原始时区(跨时区显示用)。 |
 | **D11** | 多租户 | `CalendarEvent.organization` FK(nullable,默认 org),queryset 一律 org-scope(同 P1 范式)。 |
@@ -54,7 +54,9 @@
 
 ## 数据模型（草案,继承 BaseModel,db_table = meet_*)
 
-**CalendarEvent**:`organization` FK、`organizer` FK(User)、`title`、`description`、`start_at`/`end_at`(DateTimeField)、`timezone`(CharField/TZ)、`all_day`(bool)、`room` FK(Room, SET_NULL)、`status`、`visibility`、`reminders`(空或单个 0–2880 分钟整数)、`reminder_pushed_at/outcome`(幂等结果)、`recurrence`(空=单次)、`recurrence_parent` self-FK、不可重绑的 `source_conversation_id`。
+**CalendarEvent**:`organization` FK、`organizer` FK(User)、`title`、`description`、`start_at`/`end_at`(DateTimeField)、`timezone`(CharField/TZ)、`all_day`(bool)、`room` FK(Room, SET_NULL)、`status`、`visibility`(`default/public/private`)、`reminders`(空或单个 0–2880 分钟整数)、`reminder_pushed_at/outcome`(幂等结果)、`recurrence`(空=单次)、`recurrence_parent` self-FK、不可重绑的 `source_conversation_id`。
+
+**个人日历共享**：`PersonalCalendar` 记录组织内默认访问级别，`CalendarAccessGrant` 记录点对点覆盖，`CalendarSubscription` 只记录显示偏好；日程动态投影到组织者与未拒绝参与者的个人日历。数据结构、接口和兼容策略见 [P1-8b](./p2b-calendar-visibility-sharing.md)。
 
 **EventAttendee**:`event` FK、`user` FK（内部成员或已接受的真实外部联系人）、历史 `email`（只读兼容）、`rsvp`(needs_action/accepted/declined/tentative)、`role`(organizer/required/optional)。约束 unique(event, user)。新写协议为 `attendee_entries=[{user_id, role}]`；提交 `email` 返回 400。
 

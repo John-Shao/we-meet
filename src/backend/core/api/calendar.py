@@ -26,6 +26,7 @@ from core.api.directory import get_caller_organization
 from core.api.meeting_rooms import bookable_scope_filter, room_path_label
 from core.api.viewsets import Pagination
 from core.services import (
+    calendar_access,
     calendar_im_notify,
     calendar_recurrence,
     calendar_reminders,
@@ -119,6 +120,9 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     # 之后两者就再也分不开,任何一次 PATCH 都会给「本来没有会议」的日程凭空
     # 补一个房间。读侧看 ``room`` / ``room_slug`` 是否为空即可。
     with_video_meeting = serializers.BooleanField(write_only=True, required=False)
+    # Transitional write marker: old clients always submit ``default`` while
+    # editing and would otherwise silently downgrade a new ``public`` event.
+    visibility_explicit = serializers.BooleanField(write_only=True, required=False)
 
     class Meta:
         model = models.CalendarEvent
@@ -132,6 +136,7 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "all_day",
             "status",
             "visibility",
+            "visibility_explicit",
             "reminders",
             "organizer",
             "room",
@@ -244,6 +249,10 @@ class CalendarEventSerializer(serializers.ModelSerializer):
         ]
 
     def get_details_redacted(self, obj):
+        access_levels = self.context.get("event_access_levels", {})
+        access = access_levels.get(obj.id)
+        if access is not None:
+            return access != calendar_access.EventAccess.DETAILS
         if obj.visibility != models.EventVisibilityChoices.PRIVATE:
             return False
         request = self.context.get("request")
@@ -422,10 +431,9 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
     pagination_class = Pagination
 
     def get_queryset(self):
-        # 分享日程到聊天时允许凭 event_id 只读。普通日程沿用「拿到链接即可
-        # 查看」；private 日程由 serializer 对非组织者/非参与者只保留忙碌时间窗，
-        # 标题、描述、参与人、会议室和入会信息全部脱敏。list/update/destroy/rsvp
-        # 仍走下方受限 queryset，不因分享读取而扩大写权限。
+        # Retrieve must load the candidate before the unified access policy can
+        # resolve subscriptions and source-conversation membership. Knowing an
+        # event UUID is never an access grant; unauthorized retrieval remains 404.
         if self.action == "retrieve":
             return (
                 models.CalendarEvent.objects.all()
@@ -472,6 +480,29 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 }
             )
         return super().handle_exception(exc)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Read through an explicit relationship, subscription, or source chat.
+
+        UUID knowledge alone is not authorization.  A valid busy-only path gets
+        the existing redacted DTO; no valid path is deliberately indistinguish-
+        able from a missing event.
+        """
+        instance = self.get_object()
+        try:
+            access = calendar_access.resolve_event_access(instance, request.user)
+        except calendar_access.SourceAccessUnavailable as exc:
+            raise SourceConversationVerificationError(detail=str(exc)) from exc
+        if access == calendar_access.EventAccess.NONE:
+            raise exceptions.NotFound()
+        serializer = self.serializer_class(
+            instance,
+            context={
+                **self.get_serializer_context(),
+                "event_access_levels": {instance.id: access},
+            },
+        )
+        return Response(serializer.data)
 
     @staticmethod
     def _pop_room_args(data):
@@ -620,6 +651,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 {"detail": "No active organization membership."}
             )
         data = serializer.validated_data
+        data.pop("visibility_explicit", None)
         attendee_entries = self._pop_attendee_entries(data) or []
         timezone_name = data.pop("timezone", "") or str(user.timezone)
         meeting_room, booking_policy = self._pop_room_args(data)
@@ -824,6 +856,19 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
+        visibility_explicit = bool(
+            serializer.validated_data.pop("visibility_explicit", False)
+        )
+        if (
+            instance.visibility == models.EventVisibilityChoices.PUBLIC
+            and serializer.validated_data.get("visibility")
+            == models.EventVisibilityChoices.DEFAULT
+            and not visibility_explicit
+        ):
+            # Legacy Web/App always serialized a default/private switch even
+            # when the user only changed another field.  Preserve a public
+            # event unless a v2 client marks the visibility change as explicit.
+            serializer.validated_data.pop("visibility")
 
         parent = instance.recurrence_parent
         is_recurring = parent is not None or bool(instance.recurrence)

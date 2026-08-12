@@ -6,6 +6,7 @@ export type { Paginated } from '@/api/Paginated'
 
 export type RSVPStatus = 'needs_action' | 'accepted' | 'declined' | 'tentative'
 export type AttendeeRole = 'required' | 'optional'
+export type EventVisibility = 'default' | 'public' | 'private'
 
 export interface AttendeeEntryInput {
   user_id: string
@@ -34,7 +35,7 @@ export interface CalendarEvent {
   timezone: string
   all_day: boolean
   status: string
-  visibility: string
+  visibility: EventVisibility
   /** 私密日程被非参与人凭分享 id 打开时，详情字段已由服务端清空。 */
   details_redacted?: boolean
   reminders: number[]
@@ -72,7 +73,9 @@ export interface CreateEventPayload {
   reminders?: number[]
   attendee_ids?: string[]
   attendee_entries?: AttendeeEntryInput[]
-  visibility?: 'default' | 'private'
+  visibility?: EventVisibility
+  /** Marks an intentional edit so legacy default submissions cannot downgrade public. */
+  visibility_explicit?: boolean
   description?: string
   timezone?: string
   /**
@@ -120,7 +123,8 @@ export interface UpdateEventPayload {
   reminders?: number[]
   attendee_ids?: string[]
   attendee_entries?: AttendeeEntryInput[]
-  visibility?: 'default' | 'private'
+  visibility?: EventVisibility
+  visibility_explicit?: boolean
   /** P2-M2:重复日程子场次的编辑范围;单次事件省略。 */
   edit_scope?: EditScope
   /** P9:`''` = 释放会议室;缺省 = 不动。见 CreateEventPayload 的说明。 */

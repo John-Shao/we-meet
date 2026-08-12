@@ -59,6 +59,37 @@
     "bulkAdd": "Ajouter des participants",
     "bulkAddTitle": "Ajouter des participants"
   },
+  "visibility": {
+    "label": "Visibilité de l’événement",
+    "default": "Visibilité par défaut",
+    "public": "Public",
+    "private": "Privé",
+    "busy": "Occupé",
+    "busyHint": "Votre accès au calendrier affiche uniquement les périodes occupées.",
+    "hint": {
+      "default": "Suit l’autorisation de calendrier de chaque abonné.",
+      "public": "Tous les abonnés autorisés voient les détails complets.",
+      "private": "Seuls l’organisateur et les participants voient les détails."
+    }
+  },
+  "sharing": {
+    "title": "Partage du calendrier",
+    "manage": "Partager le calendrier",
+    "organizationDefault": "Accès par défaut des membres de l’organisation",
+    "none": "Non partagé",
+    "freeBusy": "Disponibilité uniquement",
+    "details": "Détails des événements",
+    "share": "Partager avec des personnes",
+    "subscribe": "S’abonner à des calendriers",
+    "shareAction": "Partager",
+    "subscribeAction": "S’abonner",
+    "sharedWith": "Partagé avec",
+    "subscribed": "Calendriers suivis",
+    "remove": "Retirer",
+    "unsubscribe": "Se désabonner",
+    "empty": "Aucun",
+    "busy": "Occupé"
+  },
   "card": {
     "organizer": "Organisateur",
     "attendees": "{{count}} personnes",

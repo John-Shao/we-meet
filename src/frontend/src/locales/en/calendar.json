@@ -60,6 +60,37 @@
     "bulkAddTitle": "Add attendees",
     "loadMore": "Load more"
   },
+  "visibility": {
+    "label": "Event visibility",
+    "default": "Default visibility",
+    "public": "Public",
+    "private": "Private",
+    "busy": "Busy",
+    "busyHint": "Your calendar access allows you to see only the busy time.",
+    "hint": {
+      "default": "Follow the visibility permission of each subscriber.",
+      "public": "All authorized subscribers can view complete event details.",
+      "private": "Only the organizer and attendees can view event details."
+    }
+  },
+  "sharing": {
+    "title": "Calendar sharing",
+    "manage": "Share calendar",
+    "organizationDefault": "Default access for organization members",
+    "none": "Not shared",
+    "freeBusy": "Free/busy only",
+    "details": "Event details",
+    "share": "Share with people",
+    "subscribe": "Subscribe to calendars",
+    "shareAction": "Share",
+    "subscribeAction": "Subscribe",
+    "sharedWith": "Shared with",
+    "subscribed": "Subscribed calendars",
+    "remove": "Remove",
+    "unsubscribe": "Unsubscribe",
+    "empty": "None",
+    "busy": "Busy"
+  },
   "card": {
     "organizer": "Organizer",
     "attendees": "{{count}} people",

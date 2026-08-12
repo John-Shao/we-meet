@@ -59,6 +59,37 @@
     "bulkAdd": "Deelnemers toevoegen",
     "bulkAddTitle": "Deelnemers toevoegen"
   },
+  "visibility": {
+    "label": "Zichtbaarheid van afspraak",
+    "default": "Standaardzichtbaarheid",
+    "public": "Openbaar",
+    "private": "Privé",
+    "busy": "Bezet",
+    "busyHint": "Je kalenderrechten tonen alleen de bezette tijd.",
+    "hint": {
+      "default": "Volgt de kalenderrechten van elke abonnee.",
+      "public": "Alle bevoegde abonnees zien de volledige details.",
+      "private": "Alleen de organisator en deelnemers zien de details."
+    }
+  },
+  "sharing": {
+    "title": "Kalender delen",
+    "manage": "Kalender delen",
+    "organizationDefault": "Standaardtoegang voor organisatieleden",
+    "none": "Niet gedeeld",
+    "freeBusy": "Alleen vrij/bezet",
+    "details": "Afspraakdetails",
+    "share": "Delen met personen",
+    "subscribe": "Kalenders abonneren",
+    "shareAction": "Delen",
+    "subscribeAction": "Abonneren",
+    "sharedWith": "Gedeeld met",
+    "subscribed": "Geabonneerde kalenders",
+    "remove": "Verwijderen",
+    "unsubscribe": "Afmelden",
+    "empty": "Geen",
+    "busy": "Bezet"
+  },
   "card": {
     "organizer": "Organisator",
     "attendees": "{{count}} personen",

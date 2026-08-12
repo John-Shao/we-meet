@@ -2,7 +2,7 @@
 
 **状态**：🟡 M1 主链已实现并通过定向测试（2026-08-12）；M2–M5 为规划，**尚未实现**。
 **范围**：we-meet 后端、Web、Android；M1 复用现有 jusi-light-im 协议，不修改 jusi 服务端。
-**前置**：[P1 组织架构](./p1-organization-foundation.md)、[P2 日历](./p2-calendar-scheduling.md)、[P8 IM × 日历](./p8-im-calendar-integration.md)。
+**前置**：[P1 组织架构](./p1-organization-foundation.md)、[P2 日历](./p2-calendar-scheduling.md)、[P1-8b 日历共享权限](./p2b-calendar-visibility-sharing.md)、[P8 IM × 日历](./p8-im-calendar-integration.md)。
 
 > 竞品依据：[飞书《添加或删除外部联系人》](https://www.feishu.cn/hc/zh-CN/articles/360043505973-%E6%B7%BB%E5%8A%A0%E6%88%96%E5%88%A0%E9%99%A4%E5%A4%96%E9%83%A8%E8%81%94%E7%B3%BB%E4%BA%BA)。
 > we-meet 参考的是“先在通讯录建立真实账号关系，再进入聊天、日历和会议协作”的产品边界，不照搬飞书的 UI、商业版本或后台配置。

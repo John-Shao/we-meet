@@ -109,7 +109,9 @@ export const EventDetailDialog = ({
     event.organizer?.id !== user.id &&
     event.attendees.some((a) => a.id === user.id)
   const displayTitle = event.details_redacted
-    ? t('detail.privateEvent')
+    ? event.visibility === 'private'
+      ? t('detail.privateEvent')
+      : t('visibility.busy')
     : event.title
 
   const fmtDate = (iso: string, tz?: string) =>
@@ -159,18 +161,20 @@ export const EventDetailDialog = ({
           <span className={dotCls} aria-hidden="true" />
           <h2 className={titleCls}>{displayTitle}</h2>
           <div className={headerActionsCls}>
-            {onShare && event.visibility !== 'private' && (
-              <Button
-                variant="quaternaryText"
-                size="icon28"
-                onPress={onShare}
-                data-testid="detail-share"
-                tooltip={t('detail.share')}
-                aria-label={t('detail.share')}
-              >
-                <RiShareForwardLine size={16} />
-              </Button>
-            )}
+            {onShare &&
+              !event.details_redacted &&
+              event.visibility !== 'private' && (
+                <Button
+                  variant="quaternaryText"
+                  size="icon28"
+                  onPress={onShare}
+                  data-testid="detail-share"
+                  tooltip={t('detail.share')}
+                  aria-label={t('detail.share')}
+                >
+                  <RiShareForwardLine size={16} />
+                </Button>
+              )}
             {canManage && (
               <>
                 <Button
@@ -219,7 +223,13 @@ export const EventDetailDialog = ({
       <div className={bodyCls}>
         {event.details_redacted && (
           <InfoRow icon={RiLockLine} testId="detail-private-redacted">
-            <span className={mutedTextCls}>{t('detail.privateEventHint')}</span>
+            <span className={mutedTextCls}>
+              {t(
+                event.visibility === 'private'
+                  ? 'detail.privateEventHint'
+                  : 'visibility.busyHint'
+              )}
+            </span>
           </InfoRow>
         )}
         {/* P2-M1 重复标识:主事件按 FREQ 显示预设名;子场次显示「重复日程的一次」。 */}

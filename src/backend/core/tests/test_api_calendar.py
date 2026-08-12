@@ -651,20 +651,17 @@ def _event_for_share():
     return resp.json()["id"], organizer, outsider
 
 
-def test_outsider_can_retrieve_shared_event():
-    """非参与人凭 event_id 可读详情 —— 群里点开分享卡片不再「日程加载失败」。"""
+def test_outsider_cannot_retrieve_event_by_id_alone():
+    """Knowing an event id is not a calendar-sharing authorization."""
     event_id, _, outsider = _event_for_share()
     client = APIClient()
     client.force_login(outsider)
     resp = client.get(f"/api/v1.0/calendar-events/{event_id}/")
-    assert resp.status_code == 200, resp.content
-    assert resp.json()["title"] == "周末派对"
-    # 非参与人没有表态记录 → 客户端据此收起 RSVP 区。
-    assert resp.json()["my_rsvp"] is None
+    assert resp.status_code == 404, resp.content
 
 
 def test_private_event_details_are_redacted_for_outsider_but_not_attendee():
-    event_id, _, outsider = _event_for_share()
+    event_id, organizer, outsider = _event_for_share()
     event = models.CalendarEvent.objects.get(id=event_id)
     event.visibility = models.EventVisibilityChoices.PRIVATE
     event.description = "secret notes"
@@ -673,6 +670,15 @@ def test_private_event_details_are_redacted_for_outsider_but_not_attendee():
         event.attendees.exclude(role=models.EventAttendeeRoleChoices.ORGANIZER)
         .get()
         .user
+    )
+    calendar = models.PersonalCalendar.objects.create(
+        organization=event.organization,
+        owner=organizer,
+        organization_default_access=models.CalendarAccessChoices.FREE_BUSY,
+    )
+    models.CalendarSubscription.objects.create(
+        calendar=calendar,
+        subscriber=outsider,
     )
 
     outsider_client = APIClient()

@@ -59,6 +59,37 @@
     "bulkAdd": "Teilnehmende hinzufügen",
     "bulkAddTitle": "Teilnehmende hinzufügen"
   },
+  "visibility": {
+    "label": "Terminsichtbarkeit",
+    "default": "Standardsichtbarkeit",
+    "public": "Öffentlich",
+    "private": "Privat",
+    "busy": "Belegt",
+    "busyHint": "Ihre Kalenderberechtigung zeigt nur die Belegungszeit.",
+    "hint": {
+      "default": "Folgt der Kalenderberechtigung des Abonnenten.",
+      "public": "Alle berechtigten Abonnenten sehen die vollständigen Details.",
+      "private": "Nur Organisator und Teilnehmende sehen die Details."
+    }
+  },
+  "sharing": {
+    "title": "Kalenderfreigabe",
+    "manage": "Kalender freigeben",
+    "organizationDefault": "Standardzugriff für Organisationsmitglieder",
+    "none": "Nicht freigegeben",
+    "freeBusy": "Nur frei/belegt",
+    "details": "Termindetails",
+    "share": "Mit Personen teilen",
+    "subscribe": "Kalender abonnieren",
+    "shareAction": "Freigeben",
+    "subscribeAction": "Abonnieren",
+    "sharedWith": "Freigegeben für",
+    "subscribed": "Abonnierte Kalender",
+    "remove": "Entfernen",
+    "unsubscribe": "Abo beenden",
+    "empty": "Keine",
+    "busy": "Belegt"
+  },
   "card": {
     "organizer": "Organisator",
     "attendees": "{{count}} Personen",

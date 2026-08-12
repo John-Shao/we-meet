@@ -60,6 +60,37 @@
     "bulkAddTitle": "添加参与者",
     "loadMore": "加载更多"
   },
+  "visibility": {
+    "label": "日程公开范围",
+    "default": "默认的公开范围",
+    "public": "公开",
+    "private": "私密",
+    "busy": "忙碌",
+    "busyHint": "你对该日历仅有忙闲权限，无法查看日程详情。",
+    "hint": {
+      "default": "跟随每位订阅者拥有的日历访问权限。",
+      "public": "所有有权访问该日历的订阅者都能查看完整详情。",
+      "private": "仅组织者和参与者可以查看日程详情。"
+    }
+  },
+  "sharing": {
+    "title": "个人日历共享",
+    "manage": "共享日历",
+    "organizationDefault": "组织成员默认权限",
+    "none": "不共享",
+    "freeBusy": "仅查看忙闲",
+    "details": "查看日程详情",
+    "share": "共享给成员",
+    "subscribe": "订阅其他日历",
+    "shareAction": "共享",
+    "subscribeAction": "订阅",
+    "sharedWith": "已共享给",
+    "subscribed": "已订阅的日历",
+    "remove": "移除",
+    "unsubscribe": "取消订阅",
+    "empty": "暂无",
+    "busy": "忙碌"
+  },
   "card": {
     "organizer": "组织者",
     "attendees": "{{count}} 人",

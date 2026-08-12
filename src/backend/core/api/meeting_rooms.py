@@ -33,6 +33,7 @@ from core import models, utils
 from core.api import permissions
 from core.api.directory import get_caller_membership, get_caller_organization
 from core.api.viewsets import Pagination
+from core.services import calendar_access
 
 #: Availability windows are a picker aid, not a report.
 MAX_AVAILABILITY_DAYS = 31
@@ -478,10 +479,14 @@ class MeetingRoomViewSet(
         title = row.title
         if event is not None:
             is_mine = event.organizer_id == user.id or event.id in visible_event_ids
-            is_private = (
-                event.visibility == models.EventVisibilityChoices.PRIVATE
-                and not is_mine
+            access = (
+                calendar_access.EventAccess.DETAILS
+                if is_mine
+                else calendar_access.resolve_event_access(
+                    event, user, include_source=False
+                )
             )
+            is_private = access != calendar_access.EventAccess.DETAILS
             can_manage = event.organizer_id == user.id
             can_move = (
                 can_manage
@@ -489,6 +494,8 @@ class MeetingRoomViewSet(
                 and event.recurrence_parent_id is None
             )
             title = None if is_private else event.title
+            if is_private:
+                organizer = None
         else:
             is_mine = False
         return {

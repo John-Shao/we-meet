@@ -8,6 +8,11 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
+from core.api.admin_audit import AuditLogViewSet
+from core.api.admin_bots import AdminBotViewSet
+from core.api.admin_import import ImportJobViewSet, MemberExportView
+from core.api.admin_invitations import OrgInvitationViewSet
+from core.api.admin_invite_links import InviteLinkViewSet, JoinRequestViewSet
 from core.api.admin_meeting_rooms import (
     MeetingRoomAdminViewSet,
     MeetingRoomBookingAdminViewSet,
@@ -25,61 +30,54 @@ from core.api.admin_roles import (
     AdminRoleViewSet,
     PermissionCatalogueView,
 )
-from core.api.admin_import import ImportJobViewSet, MemberExportView
+from core.api.admin_stats import AdminStatsOverviewView
 from core.api.agent_internal import IngestTranscriptView
+from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.bot_webhook import BotWebhookView
+from core.api.calendar import CalendarEventViewSet
+from core.api.directory import (
+    ContactPreferenceViewSet,
+    DepartmentViewSet,
+    DirectoryMemberViewSet,
+    DirectoryMeView,
+    ExternalContactViewSet,
+    SpecialAlertContactViewSet,
+    StarredContactViewSet,
+    UserGroupDirectoryViewSet,
+)
+from core.api.docs_session import DocsSessionView
+from core.api.im import ImViewSet
 from core.api.im_bots import ImBotViewSet
 from core.api.im_cards import ImCardViewSet
-from core.api.recording_accesses import RecordingAccessViewSet
-from core.api.admin_invite_links import InviteLinkViewSet, JoinRequestViewSet
+from core.api.im_input import (
+    AdminImEmojiViewSet,
+    ImCustomEmojiViewSet,
+    ImPreferenceView,
+)
+from core.api.im_later import ImLaterViewSet
 from core.api.invite import (
     CancelJoinRequestView,
     InviteApplyView,
     InviteResolveView,
     MyJoinRequestsView,
 )
-from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
-from core.api.calendar import CalendarEventViewSet
-from core.api.admin_audit import AuditLogViewSet
-from core.api.admin_bots import AdminBotViewSet
-from core.api.admin_invitations import OrgInvitationViewSet
-from core.api.admin_stats import AdminStatsOverviewView
-from core.api.directory import (
-    ContactPreferenceViewSet,
-    DepartmentViewSet,
-    DirectoryMeView,
-    DirectoryMemberViewSet,
-    ExternalContactViewSet,
-    SpecialAlertContactViewSet,
-    StarredContactViewSet,
-    UserGroupDirectoryViewSet,
-)
-from core.api.im import ImViewSet
-from core.api.im_input import (
-    AdminImEmojiViewSet,
-    ImCustomEmojiViewSet,
-    ImPreferenceView,
+from core.api.keycloak_sms import (
+    KeycloakOtpSendView,
+    KeycloakOtpVerifyView,
+    KeycloakSmsGatewayView,
 )
 from core.api.meeting_rooms import (
     MeetingRoomFacilityViewSet,
     MeetingRoomNodeViewSet,
     MeetingRoomViewSet,
 )
-from core.api.im_later import ImLaterViewSet
-from core.api.keycloak_sms import (
-    KeycloakOtpSendView,
-    KeycloakOtpVerifyView,
-    KeycloakSmsGatewayView,
-)
-from core.api.docs_session import DocsSessionView
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
-from core.api.push import ImPushHookView, PushPreferenceView, PushTokenView
-from core.api.search import (
-    DocsMyDocumentsView,
-    DocsSearchView,
-    GlobalAskStreamView,
-    GlobalAskView,
+from core.api.personal_calendars import (
+    CalendarAccessGrantViewSet,
+    CalendarSubscriptionViewSet,
+    PersonalCalendarViewSet,
 )
+from core.api.push import ImPushHookView, PushPreferenceView, PushTokenView
 from core.api.qr_login import (
     QrAuthenticatorStatusView,
     QrCancelView,
@@ -88,6 +86,13 @@ from core.api.qr_login import (
     QrPollView,
     QrReadyView,
     QrScanView,
+)
+from core.api.recording_accesses import RecordingAccessViewSet
+from core.api.search import (
+    DocsMyDocumentsView,
+    DocsSearchView,
+    GlobalAskStreamView,
+    GlobalAskView,
 )
 from core.external_api import viewsets as external_viewsets
 
@@ -120,6 +125,19 @@ router.register("im/bots", ImBotViewSet, basename="im_bots")
 router.register("im/cards", ImCardViewSet, basename="im_cards")
 router.register(
     "calendar-events", CalendarEventViewSet, basename="calendar_events"
+)
+router.register(
+    "personal-calendars", PersonalCalendarViewSet, basename="personal_calendars"
+)
+router.register(
+    "calendar-access-grants",
+    CalendarAccessGrantViewSet,
+    basename="calendar_access_grants",
+)
+router.register(
+    "calendar-subscriptions",
+    CalendarSubscriptionViewSet,
+    basename="calendar_subscriptions",
 )
 router.register(
     "directory/user-groups",

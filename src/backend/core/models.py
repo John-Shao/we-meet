@@ -2814,10 +2814,154 @@ class EventStatusChoices(models.TextChoices):
 
 
 class EventVisibilityChoices(models.TextChoices):
-    """Who may see an event's details (MVP: org-scoped + organizer/attendee)."""
+    """Per-event override on top of the personal calendar's access level."""
 
     DEFAULT = "default", _("Default")
+    PUBLIC = "public", _("Public")
     PRIVATE = "private", _("Private")
+
+
+class CalendarAccessChoices(models.TextChoices):
+    """How much of a personal calendar a viewer may read."""
+
+    NONE = "none", _("Not shared")
+    FREE_BUSY = "free_busy", _("Free/busy only")
+    DETAILS = "details", _("Event details")
+
+
+class PersonalCalendar(BaseModel):
+    """One personal calendar per organization membership owner.
+
+    Events stay account-backed and are projected onto the organizer's and every
+    non-declining attendee's calendar.  Keeping that projection derived avoids
+    rewriting all historical events while preserving the future option to add
+    non-personal calendar kinds separately.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="personal_calendars"
+    )
+    owner = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="personal_calendars"
+    )
+    organization_default_access = models.CharField(
+        max_length=16,
+        choices=CalendarAccessChoices.choices,
+        default=CalendarAccessChoices.FREE_BUSY,
+        help_text=_(
+            "Access inherited by active members of this organization unless an "
+            "explicit grant overrides it."
+        ),
+    )
+
+    class Meta:
+        db_table = "meet_personal_calendar"
+        ordering = ("created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "owner"],
+                name="personal_calendar_unique_org_owner",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "owner"],
+                name="personalcal_org_owner_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"PersonalCalendar({self.owner_id} @ {self.organization_id})"
+
+
+class CalendarAccessGrant(BaseModel):
+    """An explicit owner-controlled override for one calendar viewer."""
+
+    calendar = models.ForeignKey(
+        PersonalCalendar, on_delete=models.CASCADE, related_name="access_grants"
+    )
+    grantee = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="calendar_access_grants"
+    )
+    permission = models.CharField(
+        max_length=16,
+        choices=[
+            (CalendarAccessChoices.FREE_BUSY, _("Free/busy only")),
+            (CalendarAccessChoices.DETAILS, _("Event details")),
+        ],
+    )
+
+    class Meta:
+        db_table = "meet_calendar_access_grant"
+        ordering = ("calendar_id", "created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["calendar", "grantee"],
+                name="calendar_grant_unique_calendar_grantee",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["grantee", "permission"],
+                name="calgrant_grantee_perm_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"CalendarGrant({self.calendar_id} -> {self.grantee_id})"
+
+    def clean(self):
+        super().clean()
+        if self.calendar_id and self.grantee_id:
+            owner_id = self.calendar.owner_id
+            if owner_id == self.grantee_id:
+                raise ValidationError({"grantee": _("The owner already has access.")})
+
+
+class CalendarSubscription(BaseModel):
+    """A viewer's presentation preference for a calendar they may access.
+
+    Authorization deliberately remains in ``PersonalCalendar`` and
+    ``CalendarAccessGrant``.  Deleting a subscription hides the calendar but
+    never changes what the owner has shared.
+    """
+
+    calendar = models.ForeignKey(
+        PersonalCalendar, on_delete=models.CASCADE, related_name="subscriptions"
+    )
+    subscriber = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="calendar_subscriptions"
+    )
+    enabled = models.BooleanField(default=True)
+    color = models.CharField(max_length=16, blank=True, default="")
+
+    class Meta:
+        db_table = "meet_calendar_subscription"
+        ordering = ("created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["calendar", "subscriber"],
+                name="calendar_subscription_unique_calendar_subscriber",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["subscriber", "enabled"],
+                name="calsub_subscriber_enabled_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"CalendarSubscription({self.subscriber_id} -> {self.calendar_id})"
+
+    def clean(self):
+        super().clean()
+        if self.calendar_id and self.subscriber_id:
+            owner_id = self.calendar.owner_id
+            if owner_id == self.subscriber_id:
+                raise ValidationError(
+                    {"subscriber": _("The owner calendar is always visible.")}
+                )
 
 
 class EventRSVPChoices(models.TextChoices):

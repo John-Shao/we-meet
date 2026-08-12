@@ -748,7 +748,20 @@ class ExternalContactViewSet(
     def destroy(self, request, *args, **kwargs):
         """Either side may remove the mutual relation or cancel a request."""
         relationship = self.get_object()
-        relationship.delete()
+        first, second = relationship.user_a, relationship.user_b
+        with transaction.atomic():
+            # Cross-organization calendar sharing is valid only while this
+            # mutual relationship remains accepted.  Existing event attendee
+            # rows and conversations deliberately survive the contact removal.
+            models.CalendarSubscription.objects.filter(
+                Q(calendar__owner=first, subscriber=second)
+                | Q(calendar__owner=second, subscriber=first)
+            ).delete()
+            models.CalendarAccessGrant.objects.filter(
+                Q(calendar__owner=first, grantee=second)
+                | Q(calendar__owner=second, grantee=first)
+            ).delete()
+            relationship.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
