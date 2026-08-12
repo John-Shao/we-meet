@@ -142,18 +142,6 @@ export const CreateEventDialog = ({
         )
       )
   )
-  const [externalAttendees, setExternalAttendees] = useState<
-    Map<string, AttendeeRole>
-  >(
-    () =>
-      new Map(
-        (editEvent?.attendees ?? []).flatMap((a) =>
-          !a.id && a.email
-            ? [[a.email.toLowerCase(), a.role] as [string, AttendeeRole]]
-            : []
-        )
-      )
-  )
   // 编辑态把现有参与者的头像带给选人组件 —— selected 只有 id→名字,
   // 不给头像的话已选行会退成字母色块。
   const initialAvatars = useMemo(
@@ -256,10 +244,6 @@ export const CreateEventDialog = ({
         ...[...selected.keys()].map((userId) => ({
           user_id: userId,
           role: attendeeRoles.get(userId) ?? ('required' as const),
-        })),
-        ...[...externalAttendees.entries()].map(([email, role]) => ({
-          email,
-          role,
         })),
       ]
       const event = editEvent
@@ -472,24 +456,6 @@ export const CreateEventDialog = ({
               onRoleChange={(id, role) =>
                 setAttendeeRoles((prev) => new Map(prev).set(id, role))
               }
-              external={externalAttendees}
-              onExternalAdd={(email) =>
-                setExternalAttendees((prev) => {
-                  const next = new Map(prev)
-                  if (!next.has(email)) next.set(email, 'required')
-                  return next
-                })
-              }
-              onExternalRemove={(email) =>
-                setExternalAttendees((prev) => {
-                  const next = new Map(prev)
-                  next.delete(email)
-                  return next
-                })
-              }
-              onExternalRoleChange={(email, role) =>
-                setExternalAttendees((prev) => new Map(prev).set(email, role))
-              }
               initialAvatars={initialAvatars}
               slotStart={!allDay && start ? new Date(start) : null}
               slotEnd={!allDay && end ? new Date(end) : null}
@@ -529,7 +495,7 @@ export const CreateEventDialog = ({
           }
           end={end ? new Date(allDay ? `${dateOnly(end)}T00:00` : end) : null}
           allDay={allDay}
-          attendeeCount={selected.size + externalAttendees.size + 1}
+          attendeeCount={selected.size + 1}
           excludeEventId={editEvent?.id}
           onConflictChange={setRoomConflicted}
         />

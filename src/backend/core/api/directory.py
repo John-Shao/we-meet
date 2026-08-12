@@ -15,8 +15,10 @@ import logging
 import uuid
 from typing import Optional
 
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.http import Http404
+from django.utils import timezone
 
 from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
@@ -382,8 +384,7 @@ class DirectoryMemberViewSet(
         query = self.request.query_params.get("q", "").strip()
         if query:
             queryset = queryset.filter(
-                Q(user__full_name__icontains=query)
-                | Q(user__email__icontains=query)
+                Q(user__full_name__icontains=query) | Q(user__email__icontains=query)
             )
         return queryset
 
@@ -482,6 +483,273 @@ class DirectoryMemberViewSet(
                     exc_info=True,
                 )
         return Response({"phone": phone}, status=status.HTTP_200_OK)
+
+
+class ExternalContactViewSet(
+    mixins.ListModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet
+):
+    """Mutual cross-organization contacts and their friend requests.
+
+    Phone/email is only a discovery mechanism here.  Calendar and IM receive a
+    real ``User`` id only after the request has been accepted; there is no
+    email-only calendar identity in this flow.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = serializers.Serializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return models.ExternalContact.objects.filter(
+            Q(user_a=self.request.user) | Q(user_b=self.request.user)
+        ).select_related(
+            "user_a",
+            "user_b",
+            "requested_by",
+        )
+
+    @staticmethod
+    def _organization_for(user, *, exclude=None):
+        memberships = models.Membership.objects.filter(
+            user=user,
+            status=models.MembershipStatusChoices.ACTIVE,
+            organization__is_active=True,
+        ).select_related("organization")
+        if exclude is not None:
+            memberships = memberships.exclude(organization=exclude)
+        membership = memberships.order_by("-is_primary", "created_at").first()
+        return membership.organization if membership else None
+
+    def _card(self, relationship, *, user=None):
+        target = user or relationship.other_user(self.request.user)
+        caller_org = get_caller_organization(self.request.user)
+        organization = self._organization_for(target, exclude=caller_org)
+        direction = "accepted"
+        if relationship.status == models.ExternalContactStatusChoices.PENDING:
+            direction = (
+                "outgoing"
+                if relationship.requested_by_id == self.request.user.id
+                else "incoming"
+            )
+        elif relationship.status == models.ExternalContactStatusChoices.DECLINED:
+            direction = "declined"
+        return {
+            "relationship_id": str(relationship.id),
+            "id": str(target.id),
+            "full_name": target.full_name,
+            "short_name": target.short_name,
+            "avatar_url": utils.generate_profile_image_get_url(
+                "avatar", target.avatar_key
+            ),
+            "organization": (
+                {"id": str(organization.id), "name": organization.name}
+                if organization
+                else None
+            ),
+            "status": relationship.status,
+            "direction": direction,
+            "requested_at": relationship.created_at,
+        }
+
+    def list(self, request, *args, **kwargs):
+        rows = self.get_queryset().filter(
+            status=models.ExternalContactStatusChoices.ACCEPTED
+        )
+        cards = [self._card(row) for row in rows]
+        cards.sort(
+            key=lambda card: (card["full_name"] or card["short_name"] or "").casefold()
+        )
+        return Response(cards)
+
+    @action(detail=False, methods=["get"], url_path="search")
+    def search(self, request):
+        """Exact account discovery by phone or email; never fuzzy-enumerate."""
+        query = str(request.query_params.get("q") or "").strip()
+        if not query:
+            return Response([])
+        organization = get_caller_organization(request.user)
+        if organization is None:
+            return Response([])
+
+        # Users sharing any active membership with the caller are internal,
+        # even if they also happen to belong to another organization.
+        internal_ids = models.Membership.objects.filter(
+            organization=organization,
+            status=models.MembershipStatusChoices.ACTIVE,
+        ).values_list("user_id", flat=True)
+        compact_phone = "".join(ch for ch in query if ch.isdigit() or ch == "+")
+        identity_filter = Q(email__iexact=query) | Q(phone=query)
+        if compact_phone and compact_phone != query:
+            identity_filter |= Q(phone=compact_phone)
+        users = (
+            models.User.objects.filter(identity_filter, is_active=True, is_device=False)
+            .exclude(id=request.user.id)
+            .exclude(id__in=internal_ids)
+            .exclude(sub__isnull=True)
+            .exclude(sub="")
+            .filter(
+                memberships__status=models.MembershipStatusChoices.ACTIVE,
+                memberships__organization__is_active=True,
+            )
+            .distinct()[:20]
+        )
+
+        results = []
+        for target in users:
+            user_a, user_b = models.ExternalContact.canonical_pair(request.user, target)
+            relationship = models.ExternalContact.objects.filter(
+                user_a=user_a, user_b=user_b
+            ).first()
+            if relationship is None:
+                # Unsaved relationship-shaped object keeps the response card
+                # uniform without creating state merely because somebody searched.
+                relationship = models.ExternalContact(
+                    user_a=user_a,
+                    user_b=user_b,
+                    requested_by=request.user,
+                    status=models.ExternalContactStatusChoices.DECLINED,
+                )
+                card = self._card(relationship, user=target)
+                card.update(
+                    {
+                        "relationship_id": None,
+                        "status": "none",
+                        "direction": "none",
+                        "requested_at": None,
+                    }
+                )
+            else:
+                card = self._card(relationship, user=target)
+            results.append(card)
+        return Response(results)
+
+    @action(detail=False, methods=["get", "post"], url_path="requests")
+    def requests(self, request):
+        """List pending requests or send one to a discovered real account."""
+        if request.method == "GET":
+            rows = self.get_queryset().filter(
+                status=models.ExternalContactStatusChoices.PENDING
+            )
+            return Response([self._card(row) for row in rows])
+
+        raw_target = (request.data or {}).get("target_user_id")
+        try:
+            target_id = uuid.UUID(str(raw_target))
+        except (ValueError, TypeError, AttributeError):
+            return Response(
+                {"target_user_id": "a valid user id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if target_id == request.user.id:
+            return Response(
+                {"target_user_id": "cannot add yourself"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        caller_org = get_caller_organization(request.user)
+        target = (
+            models.User.objects.filter(
+                id=target_id,
+                is_active=True,
+                is_device=False,
+                sub__isnull=False,
+            )
+            .exclude(sub="")
+            .first()
+        )
+        if (
+            caller_org is None
+            or target is None
+            or models.Membership.objects.filter(
+                user=target,
+                organization=caller_org,
+                status=models.MembershipStatusChoices.ACTIVE,
+            ).exists()
+            or self._organization_for(target, exclude=caller_org) is None
+        ):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        user_a, user_b = models.ExternalContact.canonical_pair(request.user, target)
+        try:
+            with transaction.atomic():
+                relationship = (
+                    models.ExternalContact.objects.select_for_update()
+                    .filter(user_a=user_a, user_b=user_b)
+                    .first()
+                )
+                if relationship is None:
+                    relationship = models.ExternalContact.objects.create(
+                        user_a=user_a,
+                        user_b=user_b,
+                        requested_by=request.user,
+                    )
+                elif (
+                    relationship.status == models.ExternalContactStatusChoices.ACCEPTED
+                ):
+                    pass
+                elif (
+                    relationship.status == models.ExternalContactStatusChoices.PENDING
+                    and relationship.requested_by_id != request.user.id
+                ):
+                    # Crossing requests are mutual intent, so accept immediately.
+                    relationship.status = models.ExternalContactStatusChoices.ACCEPTED
+                    relationship.responded_at = timezone.now()
+                    relationship.save(
+                        update_fields=["status", "responded_at", "updated_at"]
+                    )
+                else:
+                    relationship.requested_by = request.user
+                    relationship.status = models.ExternalContactStatusChoices.PENDING
+                    relationship.responded_at = None
+                    relationship.save(
+                        update_fields=[
+                            "requested_by",
+                            "status",
+                            "responded_at",
+                            "updated_at",
+                        ]
+                    )
+        except IntegrityError:
+            relationship = models.ExternalContact.objects.get(
+                user_a=user_a, user_b=user_b
+            )
+        return Response(
+            self._card(relationship, user=target),
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"])
+    def accept(self, request, *args, **kwargs):
+        relationship = self.get_object()
+        if relationship.status == models.ExternalContactStatusChoices.ACCEPTED:
+            return Response(self._card(relationship))
+        if (
+            relationship.status != models.ExternalContactStatusChoices.PENDING
+            or relationship.requested_by_id == request.user.id
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        relationship.status = models.ExternalContactStatusChoices.ACCEPTED
+        relationship.responded_at = timezone.now()
+        relationship.save(update_fields=["status", "responded_at", "updated_at"])
+        return Response(self._card(relationship))
+
+    @action(detail=True, methods=["post"])
+    def decline(self, request, *args, **kwargs):
+        relationship = self.get_object()
+        if (
+            relationship.status != models.ExternalContactStatusChoices.PENDING
+            or relationship.requested_by_id == request.user.id
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        relationship.status = models.ExternalContactStatusChoices.DECLINED
+        relationship.responded_at = timezone.now()
+        relationship.save(update_fields=["status", "responded_at", "updated_at"])
+        return Response(self._card(relationship))
+
+    def destroy(self, request, *args, **kwargs):
+        """Either side may remove the mutual relation or cancel a request."""
+        relationship = self.get_object()
+        relationship.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def parse_user_id(raw) -> Optional[uuid.UUID]:
@@ -629,7 +897,9 @@ class ContactPreferenceViewSet(viewsets.GenericViewSet):
 
     def list(self, request):
         """Flags only — what the client needs to prime its local sets."""
-        rows = self.get_queryset().values_list("target_id", "is_starred", "special_alert")
+        rows = self.get_queryset().values_list(
+            "target_id", "is_starred", "special_alert"
+        )
         return Response(
             [
                 {

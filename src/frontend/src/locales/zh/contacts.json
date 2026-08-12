@@ -47,6 +47,28 @@
     "empty": "你还没有加入任何群聊",
     "noMatch": "没有匹配的群聊"
   },
+  "external": {
+    "title": "外部联系人",
+    "tag": "外部",
+    "hint": "已与其他组织账号建立的双向联系人关系",
+    "add": "添加外部联系人",
+    "addTitle": "添加外部联系人",
+    "addHint": "通过手机号或邮箱精确查找账号，发送联系人申请",
+    "searchPlaceholder": "输入完整手机号或邮箱",
+    "search": "查找",
+    "searchEmpty": "输入完整手机号或邮箱查找外部账号",
+    "empty": "还没有外部联系人",
+    "requests": "联系人申请",
+    "accept": "接受",
+    "decline": "拒绝",
+    "pending": "等待对方接受",
+    "cancelRequest": "撤回",
+    "sendRequest": "发送申请",
+    "alreadyContact": "已是外部联系人",
+    "remove": "删除",
+    "removeConfirm": "确定删除外部联系人「{{name}}」？双方将不能再通过联系人入口发起沟通。",
+    "error": "外部联系人操作失败：{{message}}"
+  },
   "starred": {
     "title": "星标联系人",
     "add": "添加",

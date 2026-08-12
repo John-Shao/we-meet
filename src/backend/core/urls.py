@@ -49,6 +49,7 @@ from core.api.directory import (
     DepartmentViewSet,
     DirectoryMeView,
     DirectoryMemberViewSet,
+    ExternalContactViewSet,
     SpecialAlertContactViewSet,
     StarredContactViewSet,
     UserGroupDirectoryViewSet,
@@ -130,6 +131,11 @@ router.register(
 )
 router.register(
     "directory/members", DirectoryMemberViewSet, basename="directory_members"
+)
+router.register(
+    "directory/external-contacts",
+    ExternalContactViewSet,
+    basename="directory_external_contacts",
 )
 router.register(
     "directory/starred", StarredContactViewSet, basename="directory_starred"

@@ -76,12 +76,25 @@ kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core
 # 期望: [X] 0091_calendar_recurrence_source_backfill
 ```
 
-### 日历 P1-8（无迁移）部署顺序
+### 日历 P1-8 与外部联系人部署顺序
+
+完整设计、身份边界和已知限制见 [P1b 外部联系人](../phases/p1b-external-contacts.md)。
 
 按 **backend → frontend → Android** 发布。后端先提供 ``attendee_entries``、
 ``details_redacted`` 和组织者 RSVP 限制；新字段均为加法兼容，旧客户端继续使用
-``attendee_ids``。本阶段复用既有 ``visibility``、``EventAttendee.email/role`` 字段，
-不新增数据库迁移。
+``attendee_ids``。外部联系人闭环新增迁移 ``0092_external_contacts``，必须先完成后端
+迁移，再发布移除日历邮箱直邀入口的 Web/Android 客户端。``EventAttendee.email``
+仅保留历史数据读取能力，新写请求必须提交真实用户 ``user_id``；手机号/邮箱搜索、
+好友申请与接受操作统一收口到通讯录模块。
+
+旧 Web/App 若仍显示“外部邮箱参与人”，在新后端提交该字段会收到 400；这是移除
+email-only 错误身份模型的刻意不兼容。三端发布窗口应尽量缩短，并在 Android 发版
+完成前保留明确的升级提示。
+
+```bash
+kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | grep 0092
+# 期望: [X] 0092_external_contacts
+```
 
 ---
 

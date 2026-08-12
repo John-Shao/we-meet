@@ -44,6 +44,27 @@ export interface DirectoryMember {
   left: boolean
 }
 
+export type ExternalContactStatus = 'none' | 'pending' | 'accepted' | 'declined'
+export type ExternalContactDirection =
+  | 'none'
+  | 'incoming'
+  | 'outgoing'
+  | 'accepted'
+  | 'declined'
+
+/** Minimal cross-organization card; department and direct identifiers stay hidden. */
+export interface ExternalContact {
+  relationship_id: string | null
+  id: string
+  full_name: string | null
+  short_name: string | null
+  avatar_url: string
+  organization: { id: string; name: string } | null
+  status: ExternalContactStatus
+  direction: ExternalContactDirection
+  requested_at: string | null
+}
+
 export interface DirectoryDepartmentHead {
   id: string
   full_name: string | null

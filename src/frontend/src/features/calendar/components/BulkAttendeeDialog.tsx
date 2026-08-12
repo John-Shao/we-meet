@@ -71,6 +71,8 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
         searchRef={searchRef}
         searchTestId="bulk-attendee-search"
         testIdPrefix="bulk-attendee-item-"
+        includeExternal
+        externalLabel={t('form.externalContact')}
       />
 
       <div className={footerCls}>

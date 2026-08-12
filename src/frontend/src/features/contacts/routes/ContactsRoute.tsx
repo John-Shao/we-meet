@@ -21,6 +21,7 @@ import { DepartmentDetailPanel } from '../components/DepartmentDetailPanel'
 import { MemberDetailPanel } from '../components/MemberDetailPanel'
 import { MyGroupsPanel } from '../components/MyGroupsPanel'
 import { StarredAddDialog } from '../components/StarredAddDialog'
+import { ExternalContactsPanel } from '../components/ExternalContactsPanel'
 import { fetchDepartmentMembersPage } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
 import { fetchDirectoryMembersPage } from '../api/fetchDirectoryMembers'
@@ -28,6 +29,7 @@ import { fetchDirectoryMember } from '../api/fetchDirectoryMember'
 import { fetchStarredContacts } from '../api/fetchStarredContacts'
 import { fetchContactPrefs, setContactPref } from '../api/setContactPref'
 import type { DirectoryMember } from '../api/ApiDirectory'
+import type { ExternalContact } from '../api/ApiDirectory'
 
 /**
  * `/contacts` — org directory: browse the department tree (left) and the members
@@ -49,7 +51,7 @@ const ContactsAuthenticated = () => {
   const qc = useQueryClient()
   const { alert: showAlert } = useConfirm()
   // 左栏四态:'starred'(星标联系人)/ 'groups'(我的群组)/ null(全部成员)/ 部门 id。
-  const [view, setView] = useState<'starred' | 'groups' | null>(null)
+  const [view, setView] = useState<'starred' | 'groups' | 'external' | null>(null)
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [selectedMember, setSelectedMember] = useState<DirectoryMember | null>(
     null
@@ -70,6 +72,12 @@ const ContactsAuthenticated = () => {
 
   const selectGroups = () => {
     setView('groups')
+    setSelectedDeptId(null)
+    setSelectedMember(null)
+  }
+
+  const selectExternal = () => {
+    setView('external')
     setSelectedDeptId(null)
     setSelectedMember(null)
   }
@@ -126,7 +134,7 @@ const ContactsAuthenticated = () => {
     getNextPageParam: (lastPage) => lastPage.next ?? undefined,
     staleTime: 30_000,
     // 「我的群组」视图里根本不渲染成员名单,别白拉一整册人。
-    enabled: view !== 'groups',
+    enabled: view !== 'groups' && view !== 'external',
   })
   const members = useMemo(
     () => (memberPages?.pages ?? []).flatMap((page) => page.results),
@@ -207,6 +215,19 @@ const ContactsAuthenticated = () => {
     }
   }
 
+  const handleExternalMessage = async (contact: ExternalContact) => {
+    try {
+      const result = await createDirectConversationByUserId(contact.id)
+      navigate(`/im?cid=${encodeURIComponent(result.cid)}`)
+    } catch (e) {
+      void showAlert({
+        message: t('page.messageError', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
+    }
+  }
+
   return (
     <div
       className={css({
@@ -265,6 +286,14 @@ const ContactsAuthenticated = () => {
           </button>
           <button
             type="button"
+            onClick={selectExternal}
+            data-testid="contacts-external-entry"
+            className={deptButton(view === 'external')}
+          >
+            ◇ {t('external.title')}
+          </button>
+          <button
+            type="button"
             onClick={() => selectDept(null)}
             className={deptButton(view === null && selectedDeptId === null)}
           >
@@ -289,6 +318,8 @@ const ContactsAuthenticated = () => {
       >
         {view === 'groups' ? (
           <MyGroupsPanel />
+        ) : view === 'external' ? (
+          <ExternalContactsPanel onMessage={handleExternalMessage} />
         ) : (
           <>
         {view === 'starred' && (
@@ -528,7 +559,7 @@ const ContactsAuthenticated = () => {
 
       {/* 右栏三态:选了人 → 成员卡;只选了部门 → 部门卡(终于用上 head);
           都没选 → 不渲染。 */}
-      {!selectedMember && selectedDept && (
+      {view !== 'external' && !selectedMember && selectedDept && (
         <DepartmentDetailPanel
           department={selectedDept}
           ancestors={deptAncestors}

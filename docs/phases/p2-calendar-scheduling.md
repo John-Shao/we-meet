@@ -41,7 +41,7 @@
 | **D1** | 调度实体 | 新增 **`CalendarEvent`**(BaseModel),不把日程塞进 Room。日程 ≠ 视频房间(可全天/外部嘉宾/纯日程),且 RSVP/可见性/提醒不该堆在 Room 上。`Room.scheduled_at` 既有「预约会议」轻量路径保留(legacy),agenda 以 CalendarEvent 为准;二者收敛留后续。 |
 | **D2** | RBAC / 参与者 | **不**让 CalendarEvent 继承 Resource。用 `organizer` FK(User)+ **`EventAttendee`** 行表参与者/RSVP。可见性靠 `organization` org-scope + organizer/attendee 过滤(MVP:能看到=我是 organizer 或 attendee)。 |
 | **D3** | 联动会议室 | 建日程时**同时建 Room**(server 端 `Room.objects.create` + `ResourceAccess(owner=organizer)`),`Room.scheduled_at = event.start_at`,并调既有 `ensure-group` 预建 IM 群。`CalendarEvent.room` FK **SET_NULL**(房间/群比日程长寿)。"一键进会"= 跳该 room。可选:`all_day` 或纯日程不建 Room。 |
-| **D4** | RSVP | `EventAttendee.rsvp ∈ {needs_action, accepted, declined, tentative}`;`role ∈ {organizer, required, optional}`;`user` FK(内部)或 `email`(外部,MVP 可只支持内部)。RSVP 端点 `POST /calendar-events/{id}/rsvp {status}`。 |
+| **D4** | RSVP | `EventAttendee.rsvp ∈ {needs_action, accepted, declined, tentative}`;`role ∈ {organizer, required, optional}`。内部成员与已接受的[P1b 外部联系人](./p1b-external-contacts.md)都使用真实 `user` FK；`email` 仅保留历史数据读取，新写入不再接受。RSVP 端点 `POST /calendar-events/{id}/rsvp {status}`。 |
 | **D5** | 提醒投递 | 有来源会话的日程回原会话发送，身份顺序为组织者 → 日程助手 → SYSTEM；无来源日程只在客户端消息列表聚合，不建群、不接设备直推。幂等使用 event 级 `reminder_pushed_at`。 |
 | **D6** | 提醒调度基建 | **k8s CronJob 跑 management command**(`python manage.py send_due_reminders`，每分钟扫描到期且未处理的来源会话日程)，**不新立 celery-beat**：k8s 已是部署底座、CronJob 自带单实例语义、比 beat + 单实例锁更简单。 |
 | **D7** | 周期重复 | 主事件保存 RRULE，滚动物化 `recurrence_parent` 子场次；子场次继承来源会话并逐场提醒。编辑/删除支持 `one / following / all`，系列参与人和重复规则编辑仍不开放。 |
@@ -56,7 +56,7 @@
 
 **CalendarEvent**:`organization` FK、`organizer` FK(User)、`title`、`description`、`start_at`/`end_at`(DateTimeField)、`timezone`(CharField/TZ)、`all_day`(bool)、`room` FK(Room, SET_NULL)、`status`、`visibility`、`reminders`(空或单个 0–2880 分钟整数)、`reminder_pushed_at/outcome`(幂等结果)、`recurrence`(空=单次)、`recurrence_parent` self-FK、不可重绑的 `source_conversation_id`。
 
-**EventAttendee**:`event` FK、`user` FK(null)/`email`(外部)、`rsvp`(needs_action/accepted/declined/tentative)、`role`(organizer/required/optional)。约束 unique(event, user)。
+**EventAttendee**:`event` FK、`user` FK（内部成员或已接受的真实外部联系人）、历史 `email`（只读兼容）、`rsvp`(needs_action/accepted/declined/tentative)、`role`(organizer/required/optional)。约束 unique(event, user)。新写协议为 `attendee_entries=[{user_id, role}]`；提交 `email` 返回 400。
 
 ---
 
@@ -68,7 +68,7 @@
 
 ### P2-b API（`core/api/calendar.py`,新建;DRF viewset,org-scoped,IsAuthenticated）
 - `CalendarEventViewSet` CRUD(queryset:org + 我是 organizer/attendee)。
-- 建日程 `perform_create`:建 event → 建 Room(`ResourceAccess` owner=organizer)→ `Room.scheduled_at=start_at` → ensure-group 预建 IM 群 → 写 EventAttendee(organizer + 选中的人)。
+- 建日程 `perform_create`:建 event → 建 Room(`ResourceAccess` owner=organizer)→ `Room.scheduled_at=start_at` → 写 EventAttendee(organizer + 本组织成员/accepted 外部联系人)。来源会话与会议群遵循 P8 的独立语义，不因日程无来源而自动生成提醒群。
 - `POST /calendar-events/{id}/rsvp {status}`(更新调用者 EventAttendee.rsvp)。
 - `POST /calendar-events/{id}/attendees` / `DELETE …`(organizer 改参与者)。
 - `core/urls.py` 注册 `calendar-events`。
@@ -81,7 +81,7 @@
 - 迁移 `0091_calendar_recurrence_source_backfill`:只回填来源为空且父来源非空的子场次；未来触发点保持待发送，已过且未处理的触发点静默置幂等时间且 outcome 留空。
 
 ### P2-d 前端（`features/calendar`,新建）
-- 建日程表单:title/start/end/all_day + 邀人(包 `ContactPicker` 多选 → `attendee_user_ids`)+ 提醒提前量。
+- 建日程表单:title/start/end/all_day + 邀人（`ContactPicker` 合并本组织成员与 accepted 外部联系人 → `attendee_entries`）+ 提醒提前量。
 - agenda 视图:我的日程(按时间分组,即将高亮),一键进会(跳 room)。
 - RSVP 操作(接受/拒绝/待定)。
 - Header「日历」入口 + `/calendar` 路由 + 5 语言。
@@ -94,6 +94,7 @@
 - 与「预约会议」(Room.scheduled_at)的完全收敛。
 - 会议纪要也落 Doc(那是 P3)。
 - FCM/离线推送(提醒完整通道待 [[project-fcm-deferred]] 解除)。
+- 直接输入陌生邮箱邀请不再属于日历能力；外部账号发现、双方确认、信任组织与访客边界统一见 [P1b](./p1b-external-contacts.md)。
 
 ---
 

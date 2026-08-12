@@ -18,10 +18,6 @@ interface Props {
   onToggle: (id: string, label: string) => void
   roles: Map<string, AttendeeRole>
   onRoleChange: (id: string, role: AttendeeRole) => void
-  external: Map<string, AttendeeRole>
-  onExternalAdd: (email: string) => void
-  onExternalRemove: (email: string) => void
-  onExternalRoleChange: (email: string, role: AttendeeRole) => void
   /** 预填参与者的头像(编辑态从事件带进来);选人面板选中的会自动补进缓存。 */
   initialAvatars?: Map<string, string>
   /** 所选时段 —— 用来给每位参与者标忙/闲;全天或时间未填时传 null。 */
@@ -49,10 +45,6 @@ export const AttendeePicker = ({
   onToggle,
   roles,
   onRoleChange,
-  external,
-  onExternalAdd,
-  onExternalRemove,
-  onExternalRoleChange,
   initialAvatars,
   slotStart,
   slotEnd,
@@ -61,11 +53,6 @@ export const AttendeePicker = ({
 }: Props) => {
   const { t } = useTranslation('calendar')
   const [bulkOpen, setBulkOpen] = useState(false)
-  const [externalEmail, setExternalEmail] = useState('')
-  const normalizedExternalEmail = externalEmail.trim().toLowerCase()
-  const externalEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-    normalizedExternalEmail
-  )
 
   // 头像缓存:selected 只有 id→名字,渲染已选行时拿不到头像 URL(会退成字母
   // 色块)。编辑态由 props 预填,选人面板确定时把勾过的人一并带回来。
@@ -121,7 +108,7 @@ export const AttendeePicker = ({
       <div className={headRowCls}>
         <span className={labelCls}>
           {t('form.attendees')} (
-          {t('form.selected', { count: selected.size + external.size })})
+          {t('form.selected', { count: selected.size })})
         </span>
         <button
           type="button"
@@ -179,67 +166,6 @@ export const AttendeePicker = ({
               </li>
             )
           })}
-        </ul>
-      )}
-
-      <div className={externalAddCls}>
-        <input
-          type="email"
-          value={externalEmail}
-          onChange={(e) => setExternalEmail(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && externalEmailValid) {
-              e.preventDefault()
-              onExternalAdd(normalizedExternalEmail)
-              setExternalEmail('')
-            }
-          }}
-          placeholder={t('form.externalEmailPlaceholder')}
-          aria-label={t('form.externalEmail')}
-          data-testid="attendee-external-email"
-          className={externalInputCls}
-        />
-        <button
-          type="button"
-          disabled={!externalEmailValid}
-          onClick={() => {
-            onExternalAdd(normalizedExternalEmail)
-            setExternalEmail('')
-          }}
-          className={externalAddButtonCls}
-          data-testid="attendee-external-add"
-        >
-          {t('form.addExternal')}
-        </button>
-      </div>
-
-      {external.size > 0 && (
-        <ul className={pickedListCls} data-testid="attendee-external-picked">
-          {[...external.entries()].map(([email, role]) => (
-            <li key={email} className={pickedRowCls}>
-              <span className={externalAvatarCls}>@</span>
-              <span className={pickedNameCls}>{email}</span>
-              <select
-                value={role}
-                onChange={(e) =>
-                  onExternalRoleChange(email, e.target.value as AttendeeRole)
-                }
-                aria-label={t('form.attendeeRole', { name: email })}
-                className={roleSelectCls}
-              >
-                <option value="required">{t('form.required')}</option>
-                <option value="optional">{t('form.optional')}</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => onExternalRemove(email)}
-                aria-label={t('form.removeAttendee', { name: email })}
-                className={pickedRemoveCls}
-              >
-                ×
-              </button>
-            </li>
-          ))}
         </ul>
       )}
 
@@ -340,46 +266,6 @@ const roleSelectCls = css({
   paddingY: '0.125rem',
   fontSize: '0.75rem',
   color: 'greyscale.700',
-})
-
-const externalAddCls = css({
-  display: 'flex',
-  gap: '0.5rem',
-  marginTop: '0.5rem',
-})
-
-const externalInputCls = css({
-  flex: 1,
-  minWidth: 0,
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.375rem',
-  paddingX: '0.625rem',
-  paddingY: '0.375rem',
-  fontSize: '0.8125rem',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
-})
-
-const externalAddButtonCls = css({
-  border: 'none',
-  background: 'transparent',
-  color: 'primary.600',
-  cursor: 'pointer',
-  fontSize: '0.8125rem',
-  _disabled: { color: 'greyscale.400', cursor: 'not-allowed' },
-})
-
-const externalAvatarCls = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '1.5rem',
-  height: '1.5rem',
-  flexShrink: 0,
-  borderRadius: '50%',
-  backgroundColor: 'greyscale.200',
-  color: 'greyscale.600',
-  fontSize: '0.75rem',
 })
 
 const pickedRemoveCls = css({

@@ -1,9 +1,11 @@
 import { type RefObject } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
+import { fetchExternalContacts } from '../api/externalContacts'
 import { MemberAvatar } from './MemberAvatar'
 
 export interface DirectoryMultiPickerLabels {
@@ -30,6 +32,9 @@ interface Props {
   testIdPrefix?: string
   searchTestId?: string
   searchRef?: RefObject<HTMLInputElement>
+  /** Calendar/IM pickers may include already accepted external accounts. */
+  includeExternal?: boolean
+  externalLabel?: string
 }
 
 /**
@@ -49,6 +54,8 @@ export const DirectoryMultiPicker = ({
   testIdPrefix,
   searchRef,
   searchTestId,
+  includeExternal = false,
+  externalLabel = 'External',
 }: Props) => {
   const {
     query,
@@ -59,9 +66,28 @@ export const DirectoryMultiPicker = ({
     hasNextPage,
     isFetchingNextPage,
   } = useDirectoryMemberSearch()
+  const { data: externalContacts = [], isFetching: isFetchingExternal } = useQuery({
+    queryKey: ['directory', 'external-contacts'],
+    queryFn: fetchExternalContacts,
+    enabled: includeExternal,
+    staleTime: 30_000,
+  })
   const options = excludeIds
     ? selectable.filter((m) => !excludeIds.has(m.id))
     : selectable
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const externalOptions = includeExternal
+    ? externalContacts.filter((contact) => {
+        if (excludeIds?.has(contact.id)) return false
+        if (!normalizedQuery) return true
+        return [
+          contact.full_name,
+          contact.short_name,
+          contact.organization?.name,
+        ].some((value) => value?.toLowerCase().includes(normalizedQuery))
+      })
+    : []
+  const empty = options.length === 0 && externalOptions.length === 0
 
   return (
     <div className={bodyCls}>
@@ -87,9 +113,9 @@ export const DirectoryMultiPicker = ({
               disabled
             />
           )}
-          {isFetching && options.length === 0 ? (
+          {(isFetching || isFetchingExternal) && empty ? (
             <StateHint loading>{labels.loading}</StateHint>
-          ) : options.length === 0 ? (
+          ) : empty ? (
             <StateHint>{labels.empty}</StateHint>
           ) : (
             options.map((m) => {
@@ -109,6 +135,22 @@ export const DirectoryMultiPicker = ({
               )
             })
           )}
+          {externalOptions.map((contact) => {
+            const label = contact.full_name || contact.short_name || contact.id
+            return (
+              <Row
+                key={`external-${contact.id}`}
+                testid={testIdPrefix ? `${testIdPrefix}${contact.id}` : undefined}
+                label={label}
+                sub={[contact.organization?.name, externalLabel]
+                  .filter(Boolean)
+                  .join(' · ')}
+                avatarSrc={contact.avatar_url}
+                checked={selected.has(contact.id)}
+                onToggle={() => onToggle(contact.id, label, contact.avatar_url)}
+              />
+            )
+          })}
           {hasNextPage && (
             <button
               type="button"

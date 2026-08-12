@@ -29,14 +29,13 @@ from rest_framework.exceptions import (
 )
 from rest_framework.response import Response
 
-from core.services.jusi_im import JusiImServiceError
-
 from core import models, utils
 from core.api.directory import get_caller_organization
 from core.services import im_conversations
 from core.services.jusi_im import (
     JusiImAdminClient,
     JusiImBadResponseError,
+    JusiImServiceError,
     JusiImUnreachableError,
 )
 
@@ -296,15 +295,11 @@ class ImViewSet(viewsets.ViewSet):
         content_type = data.get("content_type")
         size = data.get("size")
         if content_type not in utils.ALLOWED_CHAT_IMAGE_MIME_TYPES:
-            raise ValidationError(
-                {"content_type": "must be one of jpeg/png/webp/gif"}
-            )
+            raise ValidationError({"content_type": "must be one of jpeg/png/webp/gif"})
         if not isinstance(size, int) or size <= 0:
             raise ValidationError({"size": "positive integer byte size required"})
         if size > utils.MAX_CHAT_IMAGE_SIZE:
-            raise ValidationError(
-                {"size": f"max {utils.MAX_CHAT_IMAGE_SIZE} bytes"}
-            )
+            raise ValidationError({"size": f"max {utils.MAX_CHAT_IMAGE_SIZE} bytes"})
         payload = utils.generate_chat_image_upload_url(
             user=request.user, content_type=content_type, size=size
         )
@@ -462,7 +457,9 @@ class ImViewSet(viewsets.ViewSet):
         cid = str(uuid.uuid5(uuid.NAMESPACE_OID, f"direct:{lo}:{hi}"))
 
         try:
-            result = client.create_direct(cid=cid, owner_uid=self_uid, peer_uid=peer_uid)
+            result = client.create_direct(
+                cid=cid, owner_uid=self_uid, peer_uid=peer_uid
+            )
         except JusiImUnreachableError as exc:
             raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
         except JusiImBadResponseError as exc:
@@ -535,9 +532,7 @@ class ImViewSet(viewsets.ViewSet):
             if resolved != self_uid and resolved not in member_uids:
                 member_uids.append(resolved)
         if not member_uids:
-            raise ValidationError(
-                {"member_user_ids": "no valid members to add"}
-            )
+            raise ValidationError({"member_user_ids": "no valid members to add"})
 
         cid = str(uuid.uuid4())
         meta = {"name": name} if name else None
@@ -585,7 +580,9 @@ class ImViewSet(viewsets.ViewSet):
         if not cid:
             raise ValidationError({"cid": "cid is required"})
         if not isinstance(raw_ids, list) or not raw_ids:
-            raise ValidationError({"member_user_ids": "at least one member is required"})
+            raise ValidationError(
+                {"member_user_ids": "at least one member is required"}
+            )
 
         client = self._make_client()
         me = self._issue(client, self._external_id(request.user))
@@ -892,9 +889,7 @@ class ImViewSet(viewsets.ViewSet):
             return Response({"granted": 0})
 
         # 不做组织过滤:群可跨组织,授权面 = 会话全体成员本身。
-        users = models.User.objects.filter(
-            im_uid__in=member_uids, is_device=False
-        )
+        users = models.User.objects.filter(im_uid__in=member_uids, is_device=False)
         payload = [
             {"sub": str(u.sub or ""), "email": str(u.email or "")}
             for u in users
@@ -904,9 +899,7 @@ class ImViewSet(viewsets.ViewSet):
             return Response({"granted": 0})
 
         try:
-            granted = docs_client.grant_access_for_users(
-                doc_id=doc_id, users=payload
-            )
+            granted = docs_client.grant_access_for_users(doc_id=doc_id, users=payload)
         except DocsServiceError as exc:
             logger.warning("grant-doc-access degraded: %s", exc)
             return Response({"granted": 0})
@@ -955,15 +948,12 @@ class ImViewSet(viewsets.ViewSet):
                 valid.append(uuid.UUID(str(raw)))
             except (ValueError, AttributeError, TypeError):
                 continue
-        users = (
-            models.User.objects.filter(
-                id__in=valid,
-                is_device=False,
-                memberships__organization=organization,
-                memberships__status=models.MembershipStatusChoices.ACTIVE,
-            )
-            .distinct()
-        )
+        users = models.User.objects.filter(
+            id__in=valid,
+            is_device=False,
+            memberships__organization=organization,
+            memberships__status=models.MembershipStatusChoices.ACTIVE,
+        ).distinct()
         return {str(u.id): u for u in users}
 
     def _require_role(self, client, cid, me, *, owner_only: bool) -> list:
@@ -1008,10 +998,9 @@ class ImViewSet(viewsets.ViewSet):
     def _resolve_peer_uid(caller, peer_user_id, client) -> str:
         """Resolve a we-meet user id (from the directory/picker) to their IM uid.
 
-        Restricted to users sharing the caller's organization so a direct
-        conversation can't be forced with an arbitrary cross-org user. Resolving
-        lazily registers the peer in jusi-light-im — acceptable here since the
-        caller explicitly chose to message them.
+        Restricted to users sharing the caller's organization or an accepted
+        external-contact relationship, so an arbitrary cross-org id cannot be
+        used to force a direct conversation.
         """
         try:
             uuid.UUID(str(peer_user_id))
@@ -1022,20 +1011,26 @@ class ImViewSet(viewsets.ViewSet):
         if organization is None:
             raise ValidationError({"peer_user_id": "caller has no organization"})
 
-        peer = (
-            models.User.objects.filter(
-                id=peer_user_id,
-                is_device=False,
-                memberships__organization=organization,
-                memberships__status=models.MembershipStatusChoices.ACTIVE,
-            )
-            .distinct()
-            .first()
+        peer = models.User.objects.filter(
+            id=peer_user_id, is_active=True, is_device=False
+        ).first()
+        same_org = bool(
+            peer
+            and models.Membership.objects.filter(
+                user=peer,
+                organization=organization,
+                status=models.MembershipStatusChoices.ACTIVE,
+            ).exists()
         )
-        if peer is None:
-            raise ValidationError(
-                {"peer_user_id": "not found in your organization"}
-            )
+        external_contact = bool(
+            peer
+            and models.ExternalContact.objects.filter(
+                Q(user_a=caller, user_b=peer) | Q(user_a=peer, user_b=caller),
+                status=models.ExternalContactStatusChoices.ACCEPTED,
+            ).exists()
+        )
+        if peer is None or not (same_org or external_contact):
+            raise ValidationError({"peer_user_id": "not found in your contacts"})
 
         try:
             resolved = client.issue_token(
@@ -1073,4 +1068,6 @@ class ImViewSet(viewsets.ViewSet):
             user.im_uid = uid
             user.save(update_fields=["im_uid"])
         except Exception:  # noqa: BLE001 — cache write is non-critical
-            logger.warning("im: failed to cache im_uid for user %s", user.pk, exc_info=True)
+            logger.warning(
+                "im: failed to cache im_uid for user %s", user.pk, exc_info=True
+            )

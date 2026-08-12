@@ -142,13 +142,23 @@ def test_list_scoped_to_org_and_visibility():
     assert str(event.id) not in ids2
 
 
-def test_structured_attendees_support_roles_and_external_email():
+def test_structured_attendees_support_roles_and_accepted_external_contact():
     org = factories.OrganizationFactory()
+    partner_org = factories.OrganizationFactory()
     organizer = factories.UserFactory(email="o@acme.com")
     required = factories.UserFactory(email="required@acme.com")
     optional = factories.UserFactory(email="optional@acme.com")
     for user in (organizer, required, optional):
         _membership(org, user)
+    partner = factories.UserFactory(email="partner@example.com")
+    _membership(partner_org, partner)
+    user_a, user_b = models.ExternalContact.canonical_pair(organizer, partner)
+    models.ExternalContact.objects.create(
+        user_a=user_a,
+        user_b=user_b,
+        requested_by=organizer,
+        status=models.ExternalContactStatusChoices.ACCEPTED,
+    )
     start, end = _times()
     client = APIClient()
     client.force_login(organizer)
@@ -162,7 +172,7 @@ def test_structured_attendees_support_roles_and_external_email():
             "attendee_entries": [
                 {"user_id": str(required.id), "role": "required"},
                 {"user_id": str(optional.id), "role": "optional"},
-                {"email": " Guest@Example.COM ", "role": "optional"},
+                {"user_id": str(partner.id), "role": "optional"},
             ],
         },
         format="json",
@@ -172,11 +182,17 @@ def test_structured_attendees_support_roles_and_external_email():
     event = models.CalendarEvent.objects.get(id=response.json()["id"])
     assert event.attendees.get(user=required).role == "required"
     assert event.attendees.get(user=optional).role == "optional"
-    external = event.attendees.get(user__isnull=True)
-    assert external.email == "guest@example.com"
+    external = event.attendees.get(user=partner)
     assert external.role == "optional"
     assert external.rsvp == models.EventRSVPChoices.NEEDS_ACTION
     assert event.room.accesses.filter(user=optional).exists()
+    assert event.room.accesses.filter(user=partner).exists()
+    response_attendee = next(
+        attendee
+        for attendee in response.json()["attendees"]
+        if attendee["id"] == str(partner.id)
+    )
+    assert response_attendee["external"] is True
 
 
 @pytest.mark.parametrize(
@@ -564,7 +580,7 @@ def test_update_attendee_ids_empty_list_removes_all_but_organizer():
     assert not event.room.accesses.filter(user=peer).exists()
 
 
-def test_update_attendee_entries_syncs_roles_and_external_emails():
+def test_update_attendee_entries_syncs_roles_and_drops_legacy_email_rows():
     org = factories.OrganizationFactory()
     organizer = factories.UserFactory(email="o@acme.com")
     peer = factories.UserFactory(email="peer@acme.com")
@@ -579,22 +595,19 @@ def test_update_attendee_entries_syncs_roles_and_external_emails():
             "title": "External sync",
             "start_at": start.isoformat(),
             "end_at": end.isoformat(),
-            "attendee_entries": [
-                {"user_id": str(peer.id), "role": "required"},
-                {"email": "old@example.com", "role": "required"},
-            ],
+            "attendee_entries": [{"user_id": str(peer.id), "role": "required"}],
         },
         format="json",
     )
     assert created.status_code == 201, created.content
     event = models.CalendarEvent.objects.get(id=created.json()["id"])
+    models.EventAttendee.objects.create(event=event, email="old@example.com")
 
     response = client.patch(
         f"/api/v1.0/calendar-events/{event.id}/",
         {
             "attendee_entries": [
                 {"user_id": str(peer.id), "role": "optional"},
-                {"email": "new@example.com", "role": "optional"},
             ]
         },
         format="json",
@@ -603,9 +616,6 @@ def test_update_attendee_entries_syncs_roles_and_external_emails():
     assert response.status_code == 200, response.content
     assert event.attendees.get(user=peer).role == "optional"
     assert not event.attendees.filter(email="old@example.com").exists()
-    external = event.attendees.get(email="new@example.com")
-    assert external.user_id is None
-    assert external.role == "optional"
 
 
 # ---- 分享日程到聊天:详情放宽为「凭 id 只读」,其余权限不放宽 ----

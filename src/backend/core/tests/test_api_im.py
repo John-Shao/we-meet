@@ -93,7 +93,9 @@ def test_im_token_uses_user_sub_as_external_id(mock_admin_client):
     client = APIClient()
     client.force_login(user)
     client.post("/api/v1.0/im/token/", {}, format="json")
-    assert mock_admin_client.issue_token.call_args.kwargs["external_id"] == str(user.sub)
+    assert mock_admin_client.issue_token.call_args.kwargs["external_id"] == str(
+        user.sub
+    )
 
 
 def _org_member(org, user):
@@ -164,6 +166,46 @@ def test_im_conversations_direct_peer_user_id_cross_org_rejected(mock_admin_clie
     assert response.status_code == 400, response.content
 
 
+def test_im_conversations_direct_accepted_external_contact(mock_admin_client):
+    """An accepted mutual external contact may start a direct conversation."""
+    org = models.Organization.objects.create(name="Acme", slug="acme-external")
+    other = models.Organization.objects.create(name="Other", slug="other-external")
+    me = UserFactory()
+    peer = UserFactory()
+    _org_member(org, me)
+    _org_member(other, peer)
+    user_a, user_b = models.ExternalContact.canonical_pair(me, peer)
+    models.ExternalContact.objects.create(
+        user_a=user_a,
+        user_b=user_b,
+        requested_by=me,
+        status=models.ExternalContactStatusChoices.ACCEPTED,
+    )
+
+    def _issue(external_id, ttl_seconds):
+        uid = "peer-uid" if external_id == str(peer.sub) else "self-uid"
+        return JusiImTokenResponse(uid=uid, token="t", expires_at=1)
+
+    mock_admin_client.issue_token.side_effect = _issue
+    mock_admin_client.create_direct.return_value = JusiImConversationResponse(
+        cid="cid-external",
+        type="direct",
+        owner_uid="self-uid",
+        members=["self-uid", "peer-uid"],
+        created_at=1,
+    )
+    client = APIClient()
+    client.force_login(me)
+    response = client.post(
+        "/api/v1.0/im/conversations/direct/",
+        {"peer_user_id": str(peer.id)},
+        format="json",
+    )
+
+    assert response.status_code == 200, response.content
+    assert response.json()["cid"] == "cid-external"
+
+
 def test_im_conversations_direct_requires_a_peer(mock_admin_client):
     """Neither peer_user_id nor peer_uid → 400."""
     org = models.Organization.objects.create(name="Acme", slug="acme")
@@ -175,9 +217,7 @@ def test_im_conversations_direct_requires_a_peer(mock_admin_client):
 
     client = APIClient()
     client.force_login(me)
-    response = client.post(
-        "/api/v1.0/im/conversations/direct/", {}, format="json"
-    )
+    response = client.post("/api/v1.0/im/conversations/direct/", {}, format="json")
 
     assert response.status_code == 400, response.content
 
@@ -279,7 +319,11 @@ def test_chat_file_upload_url_rejects_oversize():
     client.force_login(UserFactory())
     r = client.post(
         FILE_UPLOAD_URL,
-        {"content_type": "application/pdf", "size": 60 * 1024 * 1024, "filename": "a.pdf"},
+        {
+            "content_type": "application/pdf",
+            "size": 60 * 1024 * 1024,
+            "filename": "a.pdf",
+        },
         format="json",
     )
     assert r.status_code == 400, r.content
@@ -317,7 +361,11 @@ def test_chat_audio_upload_url_rejects_oversize():
     client.force_login(UserFactory())
     r = client.post(
         AUDIO_UPLOAD_URL,
-        {"content_type": "audio/webm", "size": 30 * 1024 * 1024, "filename": "voice.webm"},
+        {
+            "content_type": "audio/webm",
+            "size": 30 * 1024 * 1024,
+            "filename": "voice.webm",
+        },
         format="json",
     )
     assert r.status_code == 400, r.content
@@ -353,9 +401,12 @@ GRANT_DOC_ACCESS = "/api/v1.0/im/grant-doc-access/"
 
 def test_grant_doc_access_anonymous():
     """匿名 → 401(DRF 鉴权闸,不触碰 jusi/docs)。"""
-    assert APIClient().post(
-        GRANT_DOC_ACCESS, {"doc_id": "d1", "cids": ["c1"]}, format="json"
-    ).status_code == 401
+    assert (
+        APIClient()
+        .post(GRANT_DOC_ACCESS, {"doc_id": "d1", "cids": ["c1"]}, format="json")
+        .status_code
+        == 401
+    )
 
 
 def test_grant_doc_access_resolves_members_and_grants(mock_admin_client, settings):
@@ -379,13 +430,16 @@ def test_grant_doc_access_resolves_members_and_grants(mock_admin_client, setting
 
     client = APIClient()
     client.force_login(sharer)
-    with mock.patch(
-        "core.services.docs_client.DocsClient.user_can_access_document",
-        return_value=True,
-    ), mock.patch(
-        "core.services.docs_client.DocsClient.grant_access_for_users",
-        return_value=2,
-    ) as spy:
+    with (
+        mock.patch(
+            "core.services.docs_client.DocsClient.user_can_access_document",
+            return_value=True,
+        ),
+        mock.patch(
+            "core.services.docs_client.DocsClient.grant_access_for_users",
+            return_value=2,
+        ) as spy,
+    ):
         r = client.post(
             GRANT_DOC_ACCESS, {"doc_id": "d1", "cids": ["cid-A"]}, format="json"
         )
@@ -412,12 +466,15 @@ def test_grant_doc_access_skips_non_member_cid(mock_admin_client, settings):
 
     client = APIClient()
     client.force_login(sharer)
-    with mock.patch(
-        "core.services.docs_client.DocsClient.user_can_access_document",
-        return_value=True,
-    ), mock.patch(
-        "core.services.docs_client.DocsClient.grant_access_for_users"
-    ) as spy:
+    with (
+        mock.patch(
+            "core.services.docs_client.DocsClient.user_can_access_document",
+            return_value=True,
+        ),
+        mock.patch(
+            "core.services.docs_client.DocsClient.grant_access_for_users"
+        ) as spy,
+    ):
         r = client.post(
             GRANT_DOC_ACCESS, {"doc_id": "d1", "cids": ["cid-X"]}, format="json"
         )
@@ -438,12 +495,15 @@ def test_grant_doc_access_rejects_document_not_visible_to_sharer(
     client = APIClient()
     client.force_login(UserFactory(sub="sub-sharer"))
 
-    with mock.patch(
-        "core.services.docs_client.DocsClient.user_can_access_document",
-        return_value=False,
-    ), mock.patch(
-        "core.services.docs_client.DocsClient.grant_access_for_users",
-    ) as grant:
+    with (
+        mock.patch(
+            "core.services.docs_client.DocsClient.user_can_access_document",
+            return_value=False,
+        ),
+        mock.patch(
+            "core.services.docs_client.DocsClient.grant_access_for_users",
+        ) as grant,
+    ):
         response = client.post(
             GRANT_DOC_ACCESS,
             {"doc_id": "guessed-document", "cids": ["cid-A"]},

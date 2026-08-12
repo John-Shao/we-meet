@@ -8,8 +8,7 @@ export type RSVPStatus = 'needs_action' | 'accepted' | 'declined' | 'tentative'
 export type AttendeeRole = 'required' | 'optional'
 
 export interface AttendeeEntryInput {
-  user_id?: string
-  email?: string
+  user_id: string
   role: AttendeeRole
 }
 
@@ -21,6 +20,8 @@ export interface EventAttendee {
   avatar_url?: string
   rsvp: RSVPStatus
   role: 'organizer' | 'required' | 'optional'
+  /** True for an accepted external-contact account (legacy email rows too). */
+  external?: boolean
 }
 
 export interface CalendarEvent {

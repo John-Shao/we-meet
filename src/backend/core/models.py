@@ -3791,6 +3791,76 @@ class PushPreference(BaseModel):
         return f"PushPreference({self.user_id}, quiet={state} {self.quiet_start}-{self.quiet_end})"
 
 
+class ExternalContactStatusChoices(models.TextChoices):
+    """Lifecycle of a cross-organization contact relationship."""
+
+    PENDING = "pending", _("Pending")
+    ACCEPTED = "accepted", _("Accepted")
+    DECLINED = "declined", _("Declined")
+
+
+class ExternalContact(BaseModel):
+    """A mutual contact relationship between two real users in different orgs.
+
+    The pair is stored once in canonical UUID order.  ``requested_by`` keeps the
+    direction while the row is pending; an accepted row is deliberately
+    directionless, matching the product rule that external contacts are mutual.
+    """
+
+    user_a = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="external_contacts_as_a"
+    )
+    user_b = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="external_contacts_as_b"
+    )
+    requested_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="external_contact_requests_sent"
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=ExternalContactStatusChoices.choices,
+        default=ExternalContactStatusChoices.PENDING,
+    )
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_external_contact"
+        ordering = ("-updated_at",)
+        verbose_name = _("external contact")
+        verbose_name_plural = _("external contacts")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user_a", "user_b"],
+                name="one_external_contact_per_user_pair",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(user_a=models.F("user_b")),
+                name="external_contact_users_differ",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(requested_by=models.F("user_a"))
+                | models.Q(requested_by=models.F("user_b")),
+                name="external_contact_requester_in_pair",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user_a", "status"], name="extcontact_a_status_idx"),
+            models.Index(fields=["user_b", "status"], name="extcontact_b_status_idx"),
+        ]
+
+    def __str__(self):
+        return f"ExternalContact({self.user_a_id} <-> {self.user_b_id}: {self.status})"
+
+    @staticmethod
+    def canonical_pair(first, second):
+        """Return a stable ``(user_a, user_b)`` tuple for two users."""
+        return (first, second) if str(first.id) < str(second.id) else (second, first)
+
+    def other_user(self, user):
+        """Return the other side of the relationship."""
+        return self.user_b if self.user_a_id == user.id else self.user_a
+
+
 class ContactPreference(BaseModel):
     """``owner``'s personal flags on one ``target`` contact (对标企业微信).
 

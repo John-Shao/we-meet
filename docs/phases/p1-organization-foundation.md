@@ -5,6 +5,8 @@
 **前置**：会议核心已有的 `Resource`/`ResourceAccess`/`BaseAccess` RBAC（团队访问行全链路已就绪，只差 `get_teams()` 填真值）。
 **触发**：路线图第一支柱、整套 to-B 协同的地基——没有组织架构，@部门、审批路由、通讯录选人、按部门共享全都无从谈起。
 
+> 跨组织个人协作不属于内部组织树：双向外部联系人、真实账号日历邀请及后续信任组织蓝图见 [P1b 外部联系人](./p1b-external-contacts.md)。
+
 ---
 
 ## 背景与目标
@@ -122,6 +124,7 @@ Membership.objects.filter(
 ## 不在 P1 / 后续
 
 - **邮件邀请未注册成员 → 待定 Membership → OIDC 按 email 关联**（原计划项，未建；当前走"自动入默认组织 + admin 放部门"）。
+- 跨组织外部联系人不写入 `Membership`，由 [P1b](./p1b-external-contacts.md) 的独立用户关系承载。
 - 子树授权展开（`get_teams()` 仅直属）、虚线汇报、Keycloak group 单向导入、拼音搜索、SCIM/CSV 批量导入、真多租户隔离。
 - 独立 M 端（运营管理端）——延后，过渡走 Django admin（[[project-management-console-deferred]]）。
 
