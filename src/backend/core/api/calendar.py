@@ -492,6 +492,10 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 meeting_room_booking.book_for_event(
                     event, meeting_room, policy=booking_policy, booked_by=user
                 )
+            event_id = event.id
+            transaction.on_commit(
+                lambda: calendar_im_notify.notify_event_created(event_id)
+            )
 
     @staticmethod
     def _provision_video_room(event, organizer, attendees=()):
@@ -606,22 +610,18 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         display_end,
     ) -> None:
         """Emit one range-aware card for one recurring edit operation."""
-        if not event.source_conversation_id:
-            return
         if (old_start, old_end) == (display_start, display_end):
             return
-        event_id = event.id
-        transaction.on_commit(
-            lambda: calendar_im_notify.notify_event_change(
-                event_id,
-                "time_changed",
-                old_start=old_start,
-                old_end=old_end,
-                recurrence_scope=recurrence_scope,
-                display_start=display_start,
-                display_end=display_end,
-            )
+        delivery = calendar_im_notify.prepare_event_change(
+            event,
+            "time_changed",
+            old_start=old_start,
+            old_end=old_end,
+            recurrence_scope=recurrence_scope,
+            display_start=display_start,
+            display_end=display_end,
         )
+        transaction.on_commit(lambda: calendar_im_notify.deliver_event_change(delivery))
 
     def update(self, request, *args, **kwargs):  # noqa: PLR0915 - scope branches
         """PATCH/PUT;P2-M2 重复日程三选语义(body 里的 ``edit_scope``):
@@ -791,7 +791,8 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         P8 变更推送(仅非重复日程走此路径):save 前快照 start/end + attendee
         集合 → 值差分 → ``transaction.on_commit`` 推 event-card。防噪规则:
         改标题/描述/提醒不推;幂等 PATCH 不推;时间+人同变只发一张
-        time_changed(携增删计数);RSVP 不经此路径天然不推。
+        time_changed(携增删计数)。当前参与者收到个人变更卡；新增者收到
+        邀请卡、移除者收到移除卡。RSVP 由独立 action 通知组织者。
         """
         self._require_organizer(serializer.instance)
         instance = serializer.instance
@@ -856,26 +857,28 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                             resource=room, user_id__in=removed_ids
                         ).exclude(role=models.RoleChoices.OWNER).delete()
 
-            if event.source_conversation_id:
-                new_attendees = set(event.attendees.values_list("user_id", flat=True))
-                kind = None
-                if (event.start_at, event.end_at) != (old_start, old_end):
-                    kind = "time_changed"
-                elif new_attendees != old_attendees:
-                    kind = "attendees_changed"
-                if kind:
-                    added = len(new_attendees - old_attendees)
-                    removed = len(old_attendees - new_attendees)
-                    transaction.on_commit(
-                        lambda: calendar_im_notify.notify_event_change(
-                            event.id,
-                            kind,
-                            old_start=old_start,
-                            old_end=old_end,
-                            added_count=added,
-                            removed_count=removed,
-                        )
-                    )
+            new_attendees = set(event.attendees.values_list("user_id", flat=True))
+            kind = None
+            if (event.start_at, event.end_at) != (old_start, old_end):
+                kind = "time_changed"
+            elif new_attendees != old_attendees:
+                kind = "attendees_changed"
+            if kind:
+                added_user_ids = new_attendees - old_attendees
+                removed_user_ids = old_attendees - new_attendees
+                delivery = calendar_im_notify.prepare_event_change(
+                    event,
+                    kind,
+                    old_start=old_start,
+                    old_end=old_end,
+                    added_count=len(added_user_ids),
+                    removed_count=len(removed_user_ids),
+                    added_user_ids=added_user_ids,
+                    removed_user_ids=removed_user_ids,
+                )
+                transaction.on_commit(
+                    lambda: calendar_im_notify.deliver_event_change(delivery)
+                )
 
     def destroy(self, request, *args, **kwargs):
         """Delete one occurrence, following occurrences, or the whole series."""
@@ -939,32 +942,31 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
     def _cancel_snapshot(event, recurrence_scope: str):
         """Freeze a cancellation card before its event rows are deleted."""
         cancel_cid = event.source_conversation_id
-        cancel_card = (
-            calendar_im_notify.build_event_card(
-                event,
-                "cancelled",
-                recurrence_scope=recurrence_scope,
-            )
-            if cancel_cid
-            else None
+        cancel_card = calendar_im_notify.build_event_card(
+            event,
+            "cancelled",
+            recurrence_scope=recurrence_scope,
         )
-        cancel_organizer = event.organizer if cancel_cid else None
-        return cancel_cid, cancel_card, cancel_organizer
+        attendee_user_ids = tuple(event.attendees.values_list("user_id", flat=True))
+        return cancel_cid, cancel_card, event.organizer, attendee_user_ids
 
     def _delete_following_with_notification(self, instance) -> None:
-        cancel_cid, cancel_card, cancel_organizer = self._cancel_snapshot(
-            instance, "following"
-        )
+        (
+            cancel_cid,
+            cancel_card,
+            cancel_organizer,
+            attendee_user_ids,
+        ) = self._cancel_snapshot(instance, "following")
         with transaction.atomic():
             calendar_recurrence.delete_following(instance)
-            if cancel_card is not None:
-                transaction.on_commit(
-                    lambda: calendar_im_notify.push_card(
-                        cancel_cid,
-                        cancel_card,
-                        organizer=cancel_organizer,
-                    )
+            transaction.on_commit(
+                lambda: calendar_im_notify.notify_event_cancelled(
+                    cancel_cid,
+                    cancel_card,
+                    organizer=cancel_organizer,
+                    attendee_user_ids=attendee_user_ids,
                 )
+            )
 
     def _delete_with_notification(
         self,
@@ -975,9 +977,12 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
     ) -> None:
         """Delete with existing recurrence semantics and emit one card."""
         card_event = notification_event or instance
-        cancel_cid, cancel_card, cancel_organizer = self._cancel_snapshot(
-            card_event, recurrence_scope
-        )
+        (
+            cancel_cid,
+            cancel_card,
+            cancel_organizer,
+            attendee_user_ids,
+        ) = self._cancel_snapshot(card_event, recurrence_scope)
 
         with transaction.atomic():
             parent = instance.recurrence_parent
@@ -993,12 +998,14 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     start_at__gte=django_timezone.now()
                 ).delete()
             instance.delete()
-            if cancel_card is not None:
-                transaction.on_commit(
-                    lambda: calendar_im_notify.push_card(
-                        cancel_cid, cancel_card, organizer=cancel_organizer
-                    )
+            transaction.on_commit(
+                lambda: calendar_im_notify.notify_event_cancelled(
+                    cancel_cid,
+                    cancel_card,
+                    organizer=cancel_organizer,
+                    attendee_user_ids=attendee_user_ids,
                 )
+            )
 
     @decorators.action(detail=False, methods=["get"], url_path="freebusy")
     def freebusy(self, request):  # noqa: PLR0912 - validation and merge branches
@@ -1105,6 +1112,17 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 {"detail": "Not an attendee of this event."},
                 status=drf_status.HTTP_403_FORBIDDEN,
             )
-        attendee.rsvp = status_value
-        attendee.save(update_fields=["rsvp", "updated_at"])
+        if attendee.rsvp != status_value:
+            with transaction.atomic():
+                attendee.rsvp = status_value
+                attendee.save(update_fields=["rsvp", "updated_at"])
+                event_id = event.id
+                responder_id = request.user.id
+                transaction.on_commit(
+                    lambda: calendar_im_notify.notify_event_rsvp(
+                        event_id,
+                        responder_id,
+                        status_value,
+                    )
+                )
         return Response({"status": status_value}, status=drf_status.HTTP_200_OK)

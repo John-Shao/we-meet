@@ -77,14 +77,20 @@ CARD_RESOLVE_EACH = "each"
 # event-card kinds. Unknown values render as "created" on both clients, so
 # adding one is backward compatible.
 EVENT_KIND_CREATED = "created"
+EVENT_KIND_INVITED = "invited"
 EVENT_KIND_TIME_CHANGED = "time_changed"
 EVENT_KIND_ATTENDEES_CHANGED = "attendees_changed"
+EVENT_KIND_REMOVED = "removed"
+EVENT_KIND_RSVP_CHANGED = "rsvp_changed"
 EVENT_KIND_CANCELLED = "cancelled"
 
 EVENT_KINDS = (
     EVENT_KIND_CREATED,
+    EVENT_KIND_INVITED,
     EVENT_KIND_TIME_CHANGED,
     EVENT_KIND_ATTENDEES_CHANGED,
+    EVENT_KIND_REMOVED,
+    EVENT_KIND_RSVP_CHANGED,
     EVENT_KIND_CANCELLED,
 )
 
@@ -106,6 +112,8 @@ def build_event_card(  # noqa: PLR0913 - stable cross-client wire protocol
     added_count: int = 0,
     removed_count: int = 0,
     recurrence_scope: str = "",
+    responder_name: str = "",
+    rsvp_status: str = "",
 ) -> dict[str, Any]:
     """Calendar event card (protocol v1).
 
@@ -136,6 +144,11 @@ def build_event_card(  # noqa: PLR0913 - stable cross-client wire protocol
         card["added_count"] = added_count
     if kind == EVENT_KIND_ATTENDEES_CHANGED and removed_count:
         card["removed_count"] = removed_count
+    if kind == EVENT_KIND_RSVP_CHANGED:
+        if responder_name:
+            card["responder_name"] = responder_name
+        if rsvp_status:
+            card["rsvp_status"] = rsvp_status
     if recurrence_scope in EVENT_RECURRENCE_SCOPES:
         card["recurrence_scope"] = recurrence_scope
     return card

@@ -214,8 +214,18 @@
       "organizer": "Organisateur : {{name}}",
       "view": "Voir",
       "allDay": "Journée entière",
+      "invited": "Vous êtes invité",
       "timeChanged": "Reprogrammé",
       "attendeesChanged": "Participants modifiés",
+      "removed": "Vous avez été retiré",
+      "rsvpChanged": "Réponse mise à jour",
+      "rsvpReply": "{{name}} : {{status}}",
+      "rsvp": {
+        "needs_action": "Sans réponse",
+        "accepted": "Accepté",
+        "declined": "Refusé",
+        "tentative": "Provisoire"
+      },
       "cancelled": "Annulé",
       "recurrenceScope": {
         "one": "Uniquement cette occurrence",

@@ -6,7 +6,14 @@ export const IM_SYSTEM_UID = '00000000-0000-0000-0000-000000000000'
 /** P8 event-card 线上协议 v1(与 Android / 后端 calendar_im_notify 一致)。 */
 export interface EventCardBody {
   v: number
-  kind: 'created' | 'time_changed' | 'attendees_changed' | 'cancelled'
+  kind:
+    | 'created'
+    | 'invited'
+    | 'time_changed'
+    | 'attendees_changed'
+    | 'removed'
+    | 'rsvp_changed'
+    | 'cancelled'
   event_id: string
   title: string
   /** ISO-8601 UTC;渲染端转本地。 */
@@ -21,9 +28,12 @@ export interface EventCardBody {
   /** 只随 kind=attendees_changed 出现,且为 0 时后端省略该键。 */
   added_count?: number
   removed_count?: number
+  /** 只随 kind=rsvp_changed 出现。 */
+  responder_name?: string
+  rsvp_status?: 'needs_action' | 'accepted' | 'declined' | 'tentative'
 }
 
-/** 创建成功后由客户端组卡(created 卡只由客户端发,变更卡只由后端发)。 */
+/** 创建成功后由客户端组来源会话 created 卡；个人生命周期卡由后端发送。 */
 export const buildEventCardBody = (event: CalendarEvent): string =>
   JSON.stringify({
     v: 1,
@@ -40,11 +50,20 @@ export const buildEventCardBody = (event: CalendarEvent): string =>
 
 const KINDS = new Set([
   'created',
+  'invited',
   'time_changed',
   'attendees_changed',
+  'removed',
+  'rsvp_changed',
   'cancelled',
 ])
 const RECURRENCE_SCOPES = new Set(['one', 'following', 'all'])
+const RSVP_STATUSES = new Set([
+  'needs_action',
+  'accepted',
+  'declined',
+  'tentative',
+])
 
 /** 宽容解析:缺 event_id → 不可点;kind 未知 → 按 created;整体坏 → null。 */
 export const parseEventCard = (raw: string): EventCardBody | null => {
@@ -76,6 +95,11 @@ export const parseEventCard = (raw: string): EventCardBody | null => {
         typeof o.added_count === 'number' ? o.added_count : undefined,
       removed_count:
         typeof o.removed_count === 'number' ? o.removed_count : undefined,
+      responder_name:
+        typeof o.responder_name === 'string' ? o.responder_name : undefined,
+      rsvp_status: RSVP_STATUSES.has(o.rsvp_status as string)
+        ? (o.rsvp_status as EventCardBody['rsvp_status'])
+        : undefined,
     }
   } catch {
     return null

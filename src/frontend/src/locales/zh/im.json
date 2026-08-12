@@ -220,8 +220,18 @@
       "organizer": "组织者:{{name}}",
       "view": "查看",
       "allDay": "全天",
+      "invited": "邀请你参加",
       "timeChanged": "已改期",
       "attendeesChanged": "参会人变更",
+      "removed": "已将你移出",
+      "rsvpChanged": "回复已更新",
+      "rsvpReply": "{{name}}：{{status}}",
+      "rsvp": {
+        "needs_action": "未回复",
+        "accepted": "接受",
+        "declined": "拒绝",
+        "tentative": "待定"
+      },
       "cancelled": "已取消",
       "recurrenceScope": {
         "one": "仅此场次",

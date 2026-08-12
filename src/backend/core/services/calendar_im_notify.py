@@ -1,27 +1,30 @@
-"""P8 变更推送:日程 改时间/增删参会人/取消 → 向来源 IM 会话推 event-card。
+"""日历通知:来源会话卡片 + 日程助手个人通知组成完整生命周期。
 
 协议 v1(与 Web `eventCard.ts` / Android `MessageContent.EventCard` 一致):
 ``{v, kind, event_id, title, start, end, all_day, attendee_count,
 organizer_name, old_start?, old_end?, added_count?, removed_count?,
-recurrence_scope?}``,
+recurrence_scope?, responder_name?, rsvp_status?}``,
 content_type 固定 ``event-card``。
 
 P8-UX:先以**组织者身份**严格发送；仅 ``sender_not_member`` 允许日程助手
 补位，助手失败再退 SYSTEM。网络/5xx 不冒充退群。双端从可选
 ``recurrence_scope`` 渲染 one/following/all 范围标签。
 
-契约:**best-effort** —— 推送失败只记 warning,绝不影响日程操作本身
-(镜像 im.py `_post_system_message`);创建卡由客户端发,这里只发变更/取消。
-触发点收敛在 CalendarEventViewSet 的用户更新/删除路径,经
+契约:**best-effort** —— 推送失败只记 warning,绝不影响日程操作本身。
+来源会话的创建卡仍由客户端发；后端通过日程助手私聊发送个人邀请、
+变更/移除/取消通知和 RSVP 回复，并继续向来源会话发送变更/取消卡。
+触发点收敛在 CalendarEventViewSet 的用户操作路径,经
 ``transaction.on_commit`` 调用(事务回滚不推、不拖长 DB 事务)。
 """
 
 import json
 import logging
+import uuid
 
 from django.conf import settings
 
 from core.services import im_bots, im_cards
+from core.services.im_provisioning import resolve_uid
 from core.services.jusi_im import (
     JusiImAdminClient,
     JusiImConversationAccessDeniedError,
@@ -81,6 +84,8 @@ def build_event_card(  # noqa: PLR0913 - mirrors the stable card protocol
     recurrence_scope: str = "",
     display_start=None,
     display_end=None,
+    responder_name: str = "",
+    rsvp_status: str = "",
 ) -> dict:
     """组协议 v1 卡片 dict。perform_destroy 在删除前调用留快照。
 
@@ -101,6 +106,8 @@ def build_event_card(  # noqa: PLR0913 - mirrors the stable card protocol
         added_count=added_count,
         removed_count=removed_count,
         recurrence_scope=recurrence_scope,
+        responder_name=responder_name,
+        rsvp_status=rsvp_status,
     )
 
 
@@ -256,6 +263,166 @@ def push_card(cid: str, card: dict, *, organizer=None) -> None:
         )
 
 
+def push_user_cards(deliveries) -> None:
+    """Send personalized cards through one Calendar Assistant direct chat/user.
+
+    ``deliveries`` is an iterable of ``(User, card)`` pairs. One broken recipient
+    must not suppress the rest, and no failure may roll back the calendar action.
+    The assistant conversation is deterministic, so invitations, replies and
+    later changes stay in one thread instead of creating one chat per event.
+    """
+    try:
+        deliveries = list(deliveries)
+    except Exception:  # noqa: BLE001 - notification preparation is best-effort
+        logger.warning(
+            "calendar_im_notify: failed to prepare direct notifications",
+            exc_info=True,
+        )
+        return
+    if not deliveries:
+        return
+    client = _make_client()
+    if client is None:
+        return
+
+    sender_uid = im_bots.SYSTEM_UID
+    try:
+        assistant = im_bots.get_builtin(im_bots.BOT_CALENDAR_ASSISTANT)
+        if assistant is not None:
+            sender_uid = (
+                im_bots.resolve_bot_uid(client, assistant) or im_bots.SYSTEM_UID
+            )
+    except Exception:  # noqa: BLE001 - fall back to SYSTEM for any bot failure
+        logger.warning(
+            "calendar_im_notify: calendar assistant resolve failed; "
+            "using SYSTEM for direct notifications",
+            exc_info=True,
+        )
+
+    for user, card in deliveries:
+        try:
+            recipient_uid = resolve_uid(client, user)
+            if not recipient_uid or recipient_uid == sender_uid:
+                continue
+            lo, hi = sorted([sender_uid, recipient_uid])
+            cid = str(uuid.uuid5(uuid.NAMESPACE_OID, f"direct:{lo}:{hi}"))
+            client.create_direct(
+                cid=cid,
+                owner_uid=sender_uid,
+                peer_uid=recipient_uid,
+            )
+            client.post_message(
+                cid=cid,
+                body=json.dumps(card, ensure_ascii=False),
+                sender_uid=(None if sender_uid == im_bots.SYSTEM_UID else sender_uid),
+                content_type=CONTENT_TYPE,
+            )
+        except Exception:  # noqa: BLE001 - isolate each best-effort recipient
+            logger.warning(
+                "calendar_im_notify: direct push %s failed for user=%s event=%s",
+                card.get("kind"),
+                getattr(user, "pk", None),
+                card.get("event_id"),
+                exc_info=True,
+            )
+
+
+def notify_event_created(event_id) -> None:
+    """Deliver a personal invitation to every non-organizer attendee."""
+    from core import models  # noqa: PLC0415 - delayed to avoid model/service cycle
+
+    event = (
+        models.CalendarEvent.objects.select_related("organizer")
+        .prefetch_related("attendees__user")
+        .filter(id=event_id)
+        .first()
+    )
+    if event is None:
+        return
+    card = build_event_card(event, im_cards.EVENT_KIND_INVITED)
+    push_user_cards(
+        (attendance.user, card)
+        for attendance in event.attendees.all()
+        if attendance.user_id != event.organizer_id
+    )
+
+
+def prepare_event_change(  # noqa: PLR0913 - explicit event-card change fields
+    event,
+    kind: str,
+    *,
+    old_start=None,
+    old_end=None,
+    added_count: int = 0,
+    removed_count: int = 0,
+    recurrence_scope: str = "",
+    display_start=None,
+    display_end=None,
+    added_user_ids=(),
+    removed_user_ids=(),
+) -> tuple[str, dict, object, tuple]:
+    """Freeze a change card and its recipients before ``on_commit``.
+
+    A later request may delete the event before a captured commit callback is
+    executed (tests do this deliberately, and queued callbacks can also lag).
+    Building the delivery while the row still exists keeps the notification
+    tied to the successful mutation instead of a subsequent database lookup.
+    """
+    from core import models  # noqa: PLC0415 - delayed to avoid model/service cycle
+
+    # DRF may have prefetched attendees when it resolved the object. Explicit
+    # attendee edits happen after that lookup, so discard the stale relation
+    # cache before freezing the new count and recipient list.
+    prefetch_cache = getattr(event, "_prefetched_objects_cache", None)
+    if prefetch_cache is not None:
+        prefetch_cache.pop("attendees", None)
+
+    card = build_event_card(
+        event,
+        kind,
+        old_start=old_start,
+        old_end=old_end,
+        added_count=added_count,
+        removed_count=removed_count,
+        recurrence_scope=recurrence_scope,
+        display_start=display_start,
+        display_end=display_end,
+    )
+    added_user_ids = set(added_user_ids)
+    removed_user_ids = set(removed_user_ids)
+    deliveries = []
+    for attendance in event.attendees.select_related("user"):
+        if attendance.user_id == event.organizer_id:
+            continue
+        attendee_card = (
+            build_event_card(event, im_cards.EVENT_KIND_INVITED)
+            if attendance.user_id in added_user_ids
+            else card
+        )
+        deliveries.append((attendance.user, attendee_card))
+    if removed_user_ids:
+        removed_card = build_event_card(event, im_cards.EVENT_KIND_REMOVED)
+        deliveries.extend(
+            (user, removed_card)
+            for user in models.User.objects.filter(id__in=removed_user_ids)
+            if user.id != event.organizer_id
+        )
+    return (
+        event.source_conversation_id,
+        card,
+        event.organizer,
+        tuple(deliveries),
+    )
+
+
+def deliver_event_change(delivery) -> None:
+    """Send a previously frozen source/personal change notification."""
+    cid, card, organizer, user_cards = delivery
+    if cid:
+        push_card(cid, card, organizer=organizer)
+    push_user_cards(user_cards)
+
+
 def notify_event_change(  # noqa: PLR0913 - explicit event-card change fields
     event_id,
     kind: str,
@@ -267,32 +434,83 @@ def notify_event_change(  # noqa: PLR0913 - explicit event-card change fields
     recurrence_scope: str = "",
     display_start=None,
     display_end=None,
+    added_user_ids=(),
+    removed_user_ids=(),
 ) -> None:
-    """on_commit 后重取 event(闭包持旧对象会读到过期值)并推送。
+    """Compatibility entry point: load an existing event and push its change.
 
-    行已不在 / 无来源会话 → 静默返回。
+    ViewSet mutations use ``prepare_event_change`` before commit so a later
+    delete cannot erase a queued notification. A missing row here is ignored.
     """
     from core import models  # noqa: PLC0415 - delayed to avoid model/service cycle
 
     event = (
         models.CalendarEvent.objects.select_related("organizer")
+        .prefetch_related("attendees__user")
         .filter(id=event_id)
         .first()
     )
-    if event is None or not event.source_conversation_id:
+    if event is None:
         return
-    push_card(
-        event.source_conversation_id,
-        build_event_card(
-            event,
-            kind,
-            old_start=old_start,
-            old_end=old_end,
-            added_count=added_count,
-            removed_count=removed_count,
-            recurrence_scope=recurrence_scope,
-            display_start=display_start,
-            display_end=display_end,
-        ),
-        organizer=event.organizer,
+    delivery = prepare_event_change(
+        event,
+        kind,
+        old_start=old_start,
+        old_end=old_end,
+        added_count=added_count,
+        removed_count=removed_count,
+        recurrence_scope=recurrence_scope,
+        display_start=display_start,
+        display_end=display_end,
+        added_user_ids=added_user_ids,
+        removed_user_ids=removed_user_ids,
     )
+    deliver_event_change(delivery)
+
+
+def notify_event_cancelled(
+    cid: str,
+    card: dict,
+    *,
+    organizer,
+    attendee_user_ids,
+) -> None:
+    """Deliver one source card plus one personal cancellation per attendee."""
+    from core import models  # noqa: PLC0415 - delayed to avoid model/service cycle
+
+    if cid:
+        push_card(cid, card, organizer=organizer)
+    push_user_cards(
+        (user, card)
+        for user in models.User.objects.filter(id__in=attendee_user_ids)
+        if user.id != organizer.id
+    )
+
+
+def notify_event_rsvp(event_id, responder_id, rsvp_status: str) -> None:
+    """Tell the organizer when an invitee changes their RSVP."""
+    from core import models  # noqa: PLC0415 - delayed to avoid model/service cycle
+
+    event = (
+        models.CalendarEvent.objects.select_related("organizer")
+        .prefetch_related("attendees")
+        .filter(id=event_id)
+        .first()
+    )
+    responder = models.User.objects.filter(id=responder_id).first()
+    if event is None or responder is None or event.organizer_id == responder.id:
+        return
+    responder_name = (
+        responder.full_name or responder.short_name or responder.email or ""
+    )
+    recurrence_scope = (
+        "one" if event.recurrence_parent_id else "all" if event.recurrence else ""
+    )
+    card = build_event_card(
+        event,
+        im_cards.EVENT_KIND_RSVP_CHANGED,
+        responder_name=responder_name,
+        rsvp_status=rsvp_status,
+        recurrence_scope=recurrence_scope,
+    )
+    push_user_cards([(event.organizer, card)])

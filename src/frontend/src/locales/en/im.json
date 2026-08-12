@@ -225,8 +225,18 @@
       "organizer": "Organizer: {{name}}",
       "view": "View",
       "allDay": "All day",
+      "invited": "You're invited",
       "timeChanged": "Rescheduled",
       "attendeesChanged": "Attendees changed",
+      "removed": "You were removed",
+      "rsvpChanged": "Response updated",
+      "rsvpReply": "{{name}}: {{status}}",
+      "rsvp": {
+        "needs_action": "No response",
+        "accepted": "Accepted",
+        "declined": "Declined",
+        "tentative": "Tentative"
+      },
       "cancelled": "Cancelled",
       "recurrenceScope": {
         "one": "This occurrence only",

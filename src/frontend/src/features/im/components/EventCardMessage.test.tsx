@@ -31,4 +31,25 @@ describe('EventCardMessage', () => {
       screen.getByTestId('im-msg-event-card-recurrence-scope')
     ).toHaveTextContent('calendar.card.recurrenceScope.all')
   })
+
+  it('renders an RSVP response instead of degrading it to a created card', () => {
+    render(
+      <EventCardMessage
+        system
+        body={JSON.stringify({
+          v: 1,
+          kind: 'rsvp_changed',
+          event_id: 'event-1',
+          title: 'Weekly review',
+          start: '2026-08-12T02:00:00Z',
+          end: '2026-08-12T03:00:00Z',
+          responder_name: 'Alice',
+          rsvp_status: 'accepted',
+        })}
+      />
+    )
+
+    expect(screen.getByText('calendar.card.rsvpChanged')).toBeInTheDocument()
+    expect(screen.getByText('calendar.card.rsvpReply')).toBeInTheDocument()
+  })
 })

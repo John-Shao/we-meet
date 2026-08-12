@@ -40,6 +40,18 @@ describe('IM card golden fixtures', () => {
       expect(card?.attendee_count).toBe(4)
     })
 
+    it('parses invitation and removal cards', () => {
+      expect(parseEventCard(load('event_card_invited'))?.kind).toBe('invited')
+      expect(parseEventCard(load('event_card_removed'))?.kind).toBe('removed')
+    })
+
+    it('parses an RSVP reply card', () => {
+      const card = parseEventCard(load('event_card_rsvp_changed'))
+      expect(card?.kind).toBe('rsvp_changed')
+      expect(card?.responder_name).toBe('李四')
+      expect(card?.rsvp_status).toBe('accepted')
+    })
+
     it('parses a time_changed card with the previous window', () => {
       const card = parseEventCard(load('event_card_time_changed'))
       expect(card?.kind).toBe('time_changed')

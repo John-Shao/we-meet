@@ -48,6 +48,9 @@
 > recurrence 测试时间炸弹(系列基准日/UNTIL 硬编码 2026-07-20,过期后 edit/delete
 > 按真实 now 划分历史场次致 4 例假失败;改「当前+30 天」动态基准),38 测试全过。
 > 性质:**只扩展不修改**。日历本体(P2)与 IM 富消息管线(P7)全部复用,不动 jusi-light-im 服务端。
+> P1-7 邀请—回复—变更通知闭环(2026-08-11):来源会话继续承载上下文卡片；
+> 日程助手固定私聊补齐个人邀请、RSVP 回复、变更、移除与取消通知。无来源日程
+> 同样具备个人生命周期通知，但提醒仍只进入消息列表的聚合入口，不发送私聊。
 
 ## 1. 背景与需求
 
@@ -78,7 +81,7 @@
 ```jsonc
 {
   "v": 1,
-  "kind": "created",              // created | time_changed | attendees_changed | cancelled
+  "kind": "created",              // created | invited | time_changed | attendees_changed | removed | cancelled | rsvp_changed
   "event_id": "uuid",             // 必填;缺失则卡片不可点
   "title": "项目周会",
   "start": "2026-07-21T02:00:00+00:00",   // ISO-8601 UTC,渲染端转本地
@@ -88,13 +91,21 @@
   "organizer_name": "彭伟",
   "old_start": "…", "old_end": "…",       // 仅 time_changed
   "added_count": 2,                       // 仅 attendees_changed
-  "recurrence_scope": "following"        // 可选:one | following | all
+  "removed_count": 1,                     // 仅 attendees_changed
+  "recurrence_scope": "following",       // 可选:one | following | all
+  "responder_name": "李雷",               // 仅 rsvp_changed
+  "rsvp_status": "accepted"              // accepted | declined | tentative | needs_action
 }
 ```
 
 容错约定:JSON 解析失败 → Web 灰气泡「[日程]」/ App 落 Unsupported;`kind` 未知按 created 渲染;时间字段非法只显标题。
 
-**职责边界:created 卡只由客户端创建成功后发;变更/取消卡只由后端发(M3)** —— 天然无双卡。重复日程一次用户操作只发一张卡，`recurrence_scope` 标明仅此场次、此次及以后或所有场次；旧客户端忽略该加法字段，仍按普通卡显示。
+**职责边界:**来源会话中的 `created` 卡仍只由客户端在创建成功后发送，避免升级期间
+双发；后端发送来源会话的变更/取消卡，并通过日程助手固定私聊发送个人生命周期卡。
+创建时每位非组织者参与人收到 `invited`；参与人回复后组织者收到 `rsvp_changed`；
+现有参与人收到改期/参与人变化，新增者收到 `invited`，移除者收到 `removed`，取消时
+参与人收到 `cancelled`。重复日程一次用户操作只发一张卡，`recurrence_scope` 标明范围。
+新字段和新 kind 均为加法协议；旧客户端仍可按普通日程卡降级展示。
 
 **发送者身份规则(P8-UX)**:
 1. 组织者仍在会话内 → 提醒、变更和取消卡以**组织者 IM 身份**严格发送;
@@ -107,8 +118,9 @@
 
 ### 提醒行为(2026-08-11 收敛)
 
-**① 无来源会话的日程不发送 IM 消息。** 它们只进入双端消息列表的「日程提醒」入口；
-即使已有 Room 会议群也不投递，避免把会议群和日程来源混为一谈。
+**① 无来源会话的日程不发送 IM 提醒。** 它们的定时提醒只进入双端消息列表的
+「日程提醒」入口；即使已有 Room 会议群也不投递，避免把会议群和日程来源混为一谈。
+邀请、回复、变更、移除和取消属于生命周期通知，仍通过日程助手个人会话送达。
 
 **② 「提前 N 分钟」以前不驱动那个入口。** 列表入口的倒计时角标窗口曾经是写死的
 60 分钟,与日程的 `reminders` 字段毫无关系 —— 于是对上面①那类日程,用户设的
@@ -157,9 +169,9 @@ i18n:`locales/{de,en,fr,nl,zh}/im.json`。
 ## 6. M3 — 变更推送(后端)
 
 - `CalendarEvent.source_conversation_id`(CharField 64, blank, default "")→ **迁移 0062**；serializer write_only。仅创建时可写，创建前用调用者自己的短期 IM token 拉取 roster 验证成员身份；非成员/会话不存在返回 403，无法验证返回 503，且不落库。
-- `core/services/calendar_im_notify.py`:提醒/变更/取消共用组织者 → 日程助手 → SYSTEM 的发送策略；变更与取消仍在 on_commit 后 best-effort 推送，提醒对瞬时错误保留重试状态。
+- `core/services/calendar_im_notify.py`:来源会话内提醒/变更/取消共用组织者 → 日程助手 → SYSTEM 的发送策略；个人通知统一进入每位用户确定性的「日程助手」私聊，助手不可用时以 SYSTEM 发送。所有生命周期通知均在 on_commit 后 best-effort 投递，提醒对瞬时错误保留重试状态。
 - 触发点收敛到 ViewSet 用户操作路径(不用 signal，避免重复日程物化产生推送风暴):save/delete 前快照 → 值差分 → `transaction.on_commit`。重复日程 `one/following/all` 改期或取消每次操作只推一张带范围字段的卡，时间展示发起操作的场次。
-- 防噪:改标题/描述/提醒不推;幂等 PATCH 不推;时间+人同变只发一张 time_changed(携 added_count);RSVP 不经此路径天然不推;destroy 用删除前快照推 cancelled。
+- 防噪:改标题/描述/提醒不推;幂等 PATCH 和重复 RSVP 不推;时间+人同变只发一张 time_changed(携 added/removed_count);RSVP 状态真正变化时仅通知组织者;destroy 用删除前快照推 cancelled。
 - 重复系列不可范围化修改参与人；双端隐藏入口，API 显式提交 `attendee_ids` 返回 400。
 
 ## 7. 已知限制(设计内)

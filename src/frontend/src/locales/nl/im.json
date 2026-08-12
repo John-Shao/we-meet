@@ -214,8 +214,18 @@
       "organizer": "Organisator: {{name}}",
       "view": "Bekijken",
       "allDay": "Hele dag",
+      "invited": "Je bent uitgenodigd",
       "timeChanged": "Verzet",
       "attendeesChanged": "Deelnemers gewijzigd",
+      "removed": "Je bent verwijderd",
+      "rsvpChanged": "Reactie bijgewerkt",
+      "rsvpReply": "{{name}}: {{status}}",
+      "rsvp": {
+        "needs_action": "Geen reactie",
+        "accepted": "Geaccepteerd",
+        "declined": "Geweigerd",
+        "tentative": "Voorlopig"
+      },
       "cancelled": "Geannuleerd",
       "recurrenceScope": {
         "one": "Alleen deze keer",

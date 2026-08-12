@@ -215,8 +215,18 @@
       "organizer": "Organisator: {{name}}",
       "view": "Ansehen",
       "allDay": "Ganztägig",
+      "invited": "Du bist eingeladen",
       "timeChanged": "Verschoben",
       "attendeesChanged": "Teilnehmer geändert",
+      "removed": "Du wurdest entfernt",
+      "rsvpChanged": "Antwort aktualisiert",
+      "rsvpReply": "{{name}}: {{status}}",
+      "rsvp": {
+        "needs_action": "Keine Antwort",
+        "accepted": "Angenommen",
+        "declined": "Abgelehnt",
+        "tentative": "Vielleicht"
+      },
       "cancelled": "Abgesagt",
       "recurrenceScope": {
         "one": "Nur dieser Termin",

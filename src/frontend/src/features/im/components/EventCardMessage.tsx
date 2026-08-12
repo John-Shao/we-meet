@@ -79,15 +79,21 @@ export const EventCardMessage = ({
   if (!card) {
     cardEl = <span className={fallbackCls}>{t('preview.event')}</span>
   } else {
-    const cancelled = card.kind === 'cancelled'
+    const inactive = card.kind === 'cancelled' || card.kind === 'removed'
     const badge =
-      card.kind === 'time_changed'
-        ? t('calendar.card.timeChanged')
-        : card.kind === 'attendees_changed'
-          ? t('calendar.card.attendeesChanged')
-          : cancelled
-            ? t('calendar.card.cancelled')
-            : null
+      card.kind === 'invited'
+        ? t('calendar.card.invited')
+        : card.kind === 'time_changed'
+          ? t('calendar.card.timeChanged')
+          : card.kind === 'attendees_changed'
+            ? t('calendar.card.attendeesChanged')
+            : card.kind === 'removed'
+              ? t('calendar.card.removed')
+              : card.kind === 'rsvp_changed'
+                ? t('calendar.card.rsvpChanged')
+                : card.kind === 'cancelled'
+                  ? t('calendar.card.cancelled')
+                  : null
     const when = formatWhen(card, i18n.language, t('calendar.card.allDay'))
     const oldWhen =
       card.kind === 'time_changed' && card.old_start && card.old_end
@@ -100,6 +106,13 @@ export const EventCardMessage = ({
     const recurrenceScope = card.recurrence_scope
       ? t(`calendar.card.recurrenceScope.${card.recurrence_scope}`)
       : null
+    const rsvpReply =
+      card.kind === 'rsvp_changed' && card.responder_name && card.rsvp_status
+        ? t('calendar.card.rsvpReply', {
+            name: card.responder_name,
+            status: t(`calendar.card.rsvp.${card.rsvp_status}`),
+          })
+        : null
     const clickable = !!card.event_id && !!onOpen
 
     cardEl = (
@@ -124,7 +137,7 @@ export const EventCardMessage = ({
           _disabled: { cursor: 'default' },
           _hover: { backgroundColor: 'greyscale.50' },
         })}
-        style={cancelled ? { opacity: 0.65 } : undefined}
+        style={inactive ? { opacity: 0.65 } : undefined}
       >
         <span
           className={css({
@@ -147,7 +160,7 @@ export const EventCardMessage = ({
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
             })}
-            style={cancelled ? { textDecoration: 'line-through' } : undefined}
+            style={inactive ? { textDecoration: 'line-through' } : undefined}
           >
             {card.title || t('preview.event')}
           </span>
@@ -157,8 +170,8 @@ export const EventCardMessage = ({
                 flexShrink: 0,
                 fontSize: '0.6875rem',
                 fontWeight: 'normal',
-                color: cancelled ? 'greyscale.500' : 'brand.600',
-                backgroundColor: cancelled ? 'greyscale.100' : 'brand.50',
+                color: inactive ? 'greyscale.500' : 'brand.600',
+                backgroundColor: inactive ? 'greyscale.100' : 'brand.50',
                 borderRadius: '0.25rem',
                 paddingX: '0.25rem',
               })}
@@ -191,6 +204,17 @@ export const EventCardMessage = ({
             })}
           >
             {oldWhen}
+          </span>
+        )}
+        {rsvpReply && (
+          <span
+            className={css({
+              fontSize: '0.8125rem',
+              color: 'greyscale.700',
+              fontWeight: 'medium',
+            })}
+          >
+            {rsvpReply}
           </span>
         )}
         {when && (

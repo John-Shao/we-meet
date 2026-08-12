@@ -64,6 +64,21 @@ def test_event_card_created():
     )
 
 
+def test_event_card_invited():
+    _assert_golden(
+        "event_card_invited",
+        im_cards.build_event_card(
+            event_id="11111111-1111-4111-8111-111111111111",
+            title="季度评审",
+            start="2026-08-10T02:00:00+00:00",
+            end="2026-08-10T03:00:00+00:00",
+            kind=im_cards.EVENT_KIND_INVITED,
+            attendee_count=4,
+            organizer_name="张三",
+        ),
+    )
+
+
 def test_event_card_time_changed_carries_the_old_window():
     _assert_golden(
         "event_card_time_changed",
@@ -108,6 +123,38 @@ def test_event_card_cancelled():
             kind=im_cards.EVENT_KIND_CANCELLED,
             attendee_count=4,
             organizer_name="张三",
+        ),
+    )
+
+
+def test_event_card_removed():
+    _assert_golden(
+        "event_card_removed",
+        im_cards.build_event_card(
+            event_id="11111111-1111-4111-8111-111111111111",
+            title="季度评审",
+            start="2026-08-10T02:00:00+00:00",
+            end="2026-08-10T03:00:00+00:00",
+            kind=im_cards.EVENT_KIND_REMOVED,
+            attendee_count=3,
+            organizer_name="张三",
+        ),
+    )
+
+
+def test_event_card_rsvp_changed():
+    _assert_golden(
+        "event_card_rsvp_changed",
+        im_cards.build_event_card(
+            event_id="11111111-1111-4111-8111-111111111111",
+            title="季度评审",
+            start="2026-08-10T02:00:00+00:00",
+            end="2026-08-10T03:00:00+00:00",
+            kind=im_cards.EVENT_KIND_RSVP_CHANGED,
+            attendee_count=4,
+            organizer_name="张三",
+            responder_name="李四",
+            rsvp_status="accepted",
         ),
     )
 
@@ -160,6 +207,8 @@ def test_optional_keys_are_absent_not_null():
         "added_count",
         "removed_count",
         "recurrence_scope",
+        "responder_name",
+        "rsvp_status",
     ):
         assert key not in card
 
