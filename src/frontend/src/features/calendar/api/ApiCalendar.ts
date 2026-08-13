@@ -29,6 +29,8 @@ export interface CalendarEvent {
   id: string
   title: string
   description: string
+  location?: string
+  attachment_names?: string[]
   /** ISO 8601 (UTC). */
   start_at: string
   end_at: string
@@ -41,6 +43,11 @@ export interface CalendarEvent {
   visibility: EventVisibility
   /** 私密日程被非参与人凭分享 id 打开时，详情字段已由服务端清空。 */
   details_redacted?: boolean
+  calendar_ids?: string[]
+  display_calendar_id?: string | null
+  can_edit?: boolean
+  can_delete?: boolean
+  sync_status?: '' | 'pending' | 'synced' | 'conflict' | 'error'
   reminders: number[]
   organizer: {
     id: string
@@ -69,6 +76,8 @@ export interface CalendarEvent {
 
 export interface CreateEventPayload {
   title: string
+  /** Target unified calendar; omitted for compatibility writes to the primary calendar. */
+  calendar_id?: string
   /** Timed events use UTC instants; all-day events use start_date/end_date. */
   start_at?: string
   end_at?: string

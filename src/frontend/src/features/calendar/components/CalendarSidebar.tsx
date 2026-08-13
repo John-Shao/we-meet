@@ -10,6 +10,7 @@ import {
   localDateToDateOnly,
 } from '../utils/zonedDate'
 import { MiniCalendar } from './MiniCalendar'
+import { CalendarListManager } from './CalendarListManager'
 
 /**
  * Calendar module secondary panel (二级导航栏), mirroring the 视频会议 aside.
@@ -124,6 +125,7 @@ interface Props {
   upcomingEvents: CalendarEvent[]
   onSelectEvent: (event: CalendarEvent) => void
   onCreate: () => void
+  onCalendarChanged: () => void
 }
 
 export const CalendarSidebar = ({
@@ -133,6 +135,7 @@ export const CalendarSidebar = ({
   upcomingEvents,
   onSelectEvent,
   onCreate,
+  onCalendarChanged,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
   const { calendarTimezone } = useCalendarSettings()
@@ -181,6 +184,12 @@ export const CalendarSidebar = ({
       </h1>
 
       <MiniCalendar value={date} onChange={onDateChange} events={events} />
+
+      <div
+        className={css({ display: 'flex', flexDirection: 'column', gap: '0.5rem' })}
+      >
+        <CalendarListManager onChanged={onCalendarChanged} />
+      </div>
 
       <div
         className={css({

@@ -1,4 +1,5 @@
 export { CalendarRoute } from './routes/CalendarRoute'
+export { CalendarSubscribeRoute } from './routes/CalendarSubscribeRoute'
 export type {
   CalendarEvent,
   EventAttendee,

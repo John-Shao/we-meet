@@ -13,7 +13,7 @@ import { RecordingDownloadRoute } from '@/features/recording'
 import { MeetingDetailRoute } from '@/features/meetings'
 import { ImRoute } from '@/features/im'
 import { ContactsRoute } from '@/features/contacts'
-import { CalendarRoute } from '@/features/calendar'
+import { CalendarRoute, CalendarSubscribeRoute } from '@/features/calendar'
 import { ApprovalRoute } from '@/features/approval'
 import { DocsRoute } from '@/features/docs'
 import { InviteRoute } from '@/features/invite'
@@ -38,6 +38,7 @@ export const routes: Record<
   | 'im'
   | 'contacts'
   | 'calendar'
+  | 'calendarSubscribe'
   | 'approval'
   | 'docs'
   | 'invite',
@@ -117,6 +118,11 @@ export const routes: Record<
     name: 'calendar',
     path: '/calendar',
     Component: CalendarRoute,
+  },
+  calendarSubscribe: {
+    name: 'calendarSubscribe',
+    path: '/calendar/subscribe/:token',
+    Component: CalendarSubscribeRoute,
   },
   approval: {
     name: 'approval',

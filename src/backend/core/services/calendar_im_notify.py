@@ -301,7 +301,7 @@ def push_card(cid: str, card: dict, *, organizer=None) -> None:
         )
 
 
-def push_user_cards(deliveries) -> None:
+def push_user_cards(deliveries, *, content_type: str = CONTENT_TYPE) -> None:
     """Send personalized cards through one Calendar Assistant direct chat/user.
 
     ``deliveries`` is an iterable of ``(User, card)`` pairs. One broken recipient
@@ -353,7 +353,7 @@ def push_user_cards(deliveries) -> None:
                 cid=cid,
                 body=json.dumps(card, ensure_ascii=False),
                 sender_uid=(None if sender_uid == im_bots.SYSTEM_UID else sender_uid),
-                content_type=CONTENT_TYPE,
+                content_type=content_type,
             )
         except Exception:  # noqa: BLE001 - isolate each best-effort recipient
             logger.warning(

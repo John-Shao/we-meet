@@ -67,6 +67,7 @@ class DocsClient:
     """Thin client over the Docs server-to-server document endpoint."""
 
     CREATE_FOR_OWNER_PATH = "/api/v1.0/documents/create-for-owner/"
+    CREATE_TABLE_FOR_OWNER_PATH = "/api/v1.0/documents/create-table-for-owner/"
 
     def __init__(
         self,
@@ -83,7 +84,7 @@ class DocsClient:
         self._token = str(server_to_server_token)
         self._timeout = timeout_seconds
 
-    def create_for_owner(
+    def create_for_owner(  # noqa: PLR0913 - mirrors the S2S identity/content payload
         self,
         *,
         sub: str,
@@ -146,6 +147,53 @@ class DocsClient:
             return DocsCreateResponse(id=str(data["id"]))
         except (KeyError, TypeError) as exc:
             raise DocsBadResponseError(f"unexpected response shape: {data}") from exc
+
+    def create_table_for_owner(  # noqa: PLR0913 - explicit S2S payload fields
+        self,
+        *,
+        sub: str,
+        email: str,
+        title: str,
+        columns: list[str],
+        rows: list[list[str]],
+        intro: str = "",
+    ) -> DocsCreateResponse:
+        """Create a native Docs document whose first-class content is a table."""
+        if not sub and not email:
+            raise ValueError("sub or email is required")
+        if not title or not columns:
+            raise ValueError("title and columns are required")
+        url = self._api_url + self.CREATE_TABLE_FOR_OWNER_PATH
+        try:
+            response = requests.post(
+                url,
+                json={
+                    "sub": str(sub or ""),
+                    "email": str(email or ""),
+                    "title": title,
+                    "intro": intro,
+                    "columns": [str(value) for value in columns],
+                    "rows": [[str(value) for value in row] for row in rows],
+                },
+                headers={"Authorization": f"Bearer {self._token}"},
+                timeout=self._timeout,
+            )
+        except requests.RequestException as exc:
+            logger.exception("docs server unreachable: %s", url)
+            raise DocsUnreachableError(str(exc)) from exc
+        if response.status_code >= 500:
+            raise DocsUnreachableError(
+                f"docs returned {response.status_code} from {self.CREATE_TABLE_FOR_OWNER_PATH}"
+            )
+        if response.status_code >= 400:
+            raise DocsBadResponseError(
+                f"docs returned {response.status_code}: {response.text[:200]}"
+            )
+        try:
+            data = response.json()
+            return DocsCreateResponse(id=str(data["id"]))
+        except (ValueError, KeyError, TypeError) as exc:
+            raise DocsBadResponseError("unexpected create-table response") from exc
 
     SEARCH_FOR_USER_PATH = "/api/v1.0/documents/search-for-user/"
 

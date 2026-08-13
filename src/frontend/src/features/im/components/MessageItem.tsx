@@ -19,6 +19,7 @@ import type { CardState } from '../api/cardStates'
 
 import { Avatar } from './Avatar'
 import { DocCardMessage } from './DocCardMessage'
+import { CalendarCardMessage } from './CalendarCardMessage'
 import { EventCardMessage } from './EventCardMessage'
 import { MeetingCardMessage } from './MeetingCardMessage'
 import { IM_SYSTEM_UID } from './eventCard'
@@ -577,6 +578,17 @@ export const MessageItem = ({
         onContextMenu={onContextMenu}
         onOpen={onOpenEvent}
       />
+    ) : message.content_type === 'calendar-card' ? (
+      <CalendarCardMessage
+        body={message.body}
+        isOwn={isOwn}
+        senderName={name}
+        senderBot={senderBot}
+        senderAvatarUrl={senderAvatarUrl}
+        showSender={showSender}
+        onAvatarClick={onAvatarClick}
+        onContextMenu={onContextMenu}
+      />
     ) : message.content_type === 'doc-card' ? (
       <DocCardMessage
         body={message.body}
@@ -629,9 +641,7 @@ export const MessageItem = ({
             alignItems: isOwn ? 'flex-end' : 'flex-start',
           })}
         >
-          {!isOwn && showSender && (
-            <SenderLabel name={name} bot={senderBot} />
-          )}
+          {!isOwn && showSender && <SenderLabel name={name} bot={senderBot} />}
           <div
             title={new Date(message.ts).toLocaleString()}
             className={css({
@@ -664,7 +674,11 @@ export const MessageItem = ({
                 >
                   <img
                     src={imageUrl}
-                    alt={isCustomEmoji ? t('preview.emoji', { defaultValue: '表情' }) : t('image.alt')}
+                    alt={
+                      isCustomEmoji
+                        ? t('preview.emoji', { defaultValue: '表情' })
+                        : t('image.alt')
+                    }
                     className={css({
                       display: 'block',
                       maxWidth: isCustomEmoji ? '6rem' : '15rem',

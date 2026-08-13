@@ -85,7 +85,9 @@ class PersonalCalendarSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request is None:
             return models.CalendarAccessChoices.NONE
-        return calendar_access.calendar_permission(obj, request.user)
+        return calendar_access.calendar_read_permission(
+            calendar_access.calendar_permission(obj, request.user)
+        )
 
     def get_subscribed(self, obj):
         request = self.context.get("request")
@@ -280,7 +282,7 @@ class PersonalCalendarViewSet(
 
         queryset = (
             calendar_access.events_for_calendar(calendar)
-            .select_related("organizer", "room")
+            .select_related("organizer", "room", "source_calendar")
             .prefetch_related("attendees__user", "room_bookings__room__node")
             .order_by("start_at")
         )
@@ -295,6 +297,7 @@ class PersonalCalendarViewSet(
                     event,
                     request.user,
                     permission,
+                    projection_calendar=calendar,
                 )
             )
             for event in events

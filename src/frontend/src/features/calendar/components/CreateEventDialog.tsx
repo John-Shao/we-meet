@@ -14,6 +14,7 @@ import type { MeetingRoomBrief } from '@/features/meeting-rooms'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 import { createCalendarEvent, updateCalendarEvent } from '../api/fetchCalendar'
+import type { UnifiedCalendar } from '../api/calendars'
 import type {
   AttendeeRole,
   CalendarEvent,
@@ -58,6 +59,8 @@ interface Props {
   editEvent?: CalendarEvent
   /** P2-M2:重复子场次的编辑范围(one/following/all),随 PATCH 提交。 */
   editScope?: EditScope
+  /** Unified calendars the caller can write. Old embedding surfaces may omit it. */
+  calendars?: UnifiedCalendar[]
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -84,6 +87,7 @@ export const CreateEventDialog = ({
   sourceConversationId,
   editEvent,
   editScope,
+  calendars = [],
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
   // P1-9:新建默认采用日历显示时区;编辑采用事件创作时区。全天日期本身
@@ -114,6 +118,21 @@ export const CreateEventDialog = ({
     : (initialEnd ?? new Date(start0.getTime() + defaultDurationMin * 60_000))
 
   const [title, setTitle] = useState(editEvent?.title ?? '')
+  const writableCalendars = useMemo(
+    () => calendars.filter((calendar) => calendar.capabilities.can_write),
+    [calendars]
+  )
+  const [calendarId, setCalendarId] = useState(
+    editEvent?.display_calendar_id ||
+      writableCalendars.find((calendar) => calendar.enabled)?.id ||
+      writableCalendars[0]?.id ||
+      ''
+  )
+  const selectedCalendarId =
+    calendarId ||
+    writableCalendars.find((calendar) => calendar.enabled)?.id ||
+    writableCalendars[0]?.id ||
+    ''
   const [description, setDescription] = useState(editEvent?.description ?? '')
   const [visibility, setVisibility] = useState<EventVisibility>(
     editEvent?.visibility ?? 'default'
@@ -311,6 +330,7 @@ export const CreateEventDialog = ({
           })
         : await createCalendarEvent({
             ...base,
+            ...(selectedCalendarId ? { calendar_id: selectedCalendarId } : {}),
             attendee_entries: attendeeEntries,
             recurrence: composeRRule(),
             ...(sourceConversationId
@@ -350,6 +370,24 @@ export const CreateEventDialog = ({
 
       <div className={scrollBodyCls}>
         <div className={formStackCls}>
+          {!isEdit && writableCalendars.length > 0 && (
+            <label className={fieldCls} htmlFor="event-calendar">
+              <span className={labelCls}>日历</span>
+              <select
+                id="event-calendar"
+                value={selectedCalendarId}
+                onChange={(event) => setCalendarId(event.target.value)}
+                className={cx(inputCls, selectChrome)}
+              >
+                {writableCalendars.map((calendar) => (
+                  <option key={calendar.id} value={calendar.id}>
+                    {calendar.display_name}
+                    {calendar.kind === 'external' ? '（外部同步）' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <input
             ref={titleRef}
             type="text"

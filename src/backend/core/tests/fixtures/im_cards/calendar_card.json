@@ -1,0 +1,9 @@
+{
+  "calendar_id": "55555555-5555-4555-8555-555555555555",
+  "description": "Milestones and reviews",
+  "name": "Project launch",
+  "owner_name": "Alice",
+  "subscribe_url": "https://meet.example.com/calendar/subscribe/signed-token",
+  "subscriber_count": 12,
+  "v": 1
+}

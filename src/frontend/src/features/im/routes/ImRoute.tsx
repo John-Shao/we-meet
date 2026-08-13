@@ -384,15 +384,17 @@ const ImAuthenticated = () => {
                           ? t('preview.event')
                           : ct === 'doc-card'
                             ? t('preview.doc')
-                            : ct === 'rich-text'
-                              ? richTextPreview(c.last_message ?? '') ||
-                                t('preview.richText')
-                              : ct === 'rich-card'
-                                ? richCardPreview(c.last_message ?? '') ||
-                                  t('preview.richCard')
-                                : ct === 'quote'
-                                  ? parseQuoteText(c.last_message)
-                                  : (c.last_message ?? '')
+                            : ct === 'calendar-card'
+                              ? '日历分享'
+                              : ct === 'rich-text'
+                                ? richTextPreview(c.last_message ?? '') ||
+                                  t('preview.richText')
+                                : ct === 'rich-card'
+                                  ? richCardPreview(c.last_message ?? '') ||
+                                    t('preview.richCard')
+                                  : ct === 'quote'
+                                    ? parseQuoteText(c.last_message)
+                                    : (c.last_message ?? '')
     const ts = c.last_message_ts
     if (c.type !== 'group' || c.last_content_type === 'system') {
       return { text: body, ts }
@@ -492,6 +494,7 @@ const ImAuthenticated = () => {
     }
     if (m.content_type === 'merged') return t('preview.merged')
     if (m.content_type === 'doc-card') return t('preview.doc')
+    if (m.content_type === 'calendar-card') return '日历分享'
     if (m.content_type === 'rich-text')
       return richTextPreview(m.body) || t('preview.richText')
     if (m.content_type === 'rich-card')
@@ -521,6 +524,7 @@ const ImAuthenticated = () => {
       m.content_type === 'event-card' ||
       m.content_type === 'meeting-card' ||
       m.content_type === 'doc-card' ||
+      m.content_type === 'calendar-card' ||
       // 富文本 body 自包含(单语言、无外部引用),除了拆 @ 不用动别的。
       m.content_type === 'rich-text'
     ) {

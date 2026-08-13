@@ -3,6 +3,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { parseDocCard } from './docCard'
+import { parseCalendarCard } from './calendarCard'
 import type { CalendarEvent } from '@/features/calendar'
 
 import { buildEventCardBody, parseEventCard } from './eventCard'
@@ -139,6 +140,20 @@ describe('IM card golden fixtures', () => {
       expect(card?.title).toBe('产品需求文档')
       expect(card?.doc_id).toBe('22222222-2222-4222-8222-222222222222')
       expect(card?.url).toContain('/docs/')
+    })
+  })
+
+  describe('calendar-card', () => {
+    it('parses the shared calendar subscription snapshot', () => {
+      const card = parseCalendarCard(load('calendar_card'))
+      expect(card).not.toBeNull()
+      expect(card?.calendar_id).toBe('55555555-5555-4555-8555-555555555555')
+      expect(card?.name).toBe('Project launch')
+      expect(card?.owner_name).toBe('Alice')
+      expect(card?.subscriber_count).toBe(12)
+      expect(card?.subscribe_url).toBe(
+        'https://meet.example.com/calendar/subscribe/signed-token'
+      )
     })
   })
 

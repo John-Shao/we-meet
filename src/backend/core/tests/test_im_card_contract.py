@@ -296,6 +296,23 @@ def test_doc_card_omits_blank_shared_by():
     assert "shared_by" not in im_cards.build_doc_card(doc_id="d", title="t", url="u")
 
 
+# --- calendar-card -----------------------------------------------------------
+
+
+def test_calendar_card():
+    _assert_golden(
+        "calendar_card",
+        im_cards.build_calendar_card(
+            calendar_id="55555555-5555-4555-8555-555555555555",
+            name="Project launch",
+            owner_name="Alice",
+            description="Milestones and reviews",
+            subscriber_count=12,
+            subscribe_url="https://meet.example.com/calendar/subscribe/signed-token",
+        ),
+    )
+
+
 # --- meeting-card ------------------------------------------------------------
 
 

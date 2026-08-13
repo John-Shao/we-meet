@@ -2822,28 +2822,56 @@ class EventVisibilityChoices(models.TextChoices):
 
 
 class CalendarAccessChoices(models.TextChoices):
-    """How much of a personal calendar a viewer may read."""
+    """A calendar member's effective role, ordered from least to most power."""
 
     NONE = "none", _("Not shared")
     FREE_BUSY = "free_busy", _("Free/busy only")
     DETAILS = "details", _("Event details")
+    WRITER = "writer", _("Can edit events")
+    ADMIN = "admin", _("Calendar administrator")
 
 
-class PersonalCalendar(BaseModel):
-    """One personal calendar per organization membership owner.
+class CalendarKindChoices(models.TextChoices):
+    PRIMARY = "primary", _("Primary calendar")
+    SHARED = "shared", _("Shared calendar")
+    RESOURCE = "resource", _("Resource calendar")
+    EXTERNAL = "external", _("External calendar")
 
-    Events stay account-backed and are projected onto the organizer's and every
-    non-declining attendee's calendar.  Keeping that projection derived avoids
-    rewriting all historical events while preserving the future option to add
-    non-personal calendar kinds separately.
+
+class Calendar(BaseModel):
+    """A first-class calendar while preserving the legacy personal-calendar table.
+
+    ``primary`` rows retain the old one-per-membership behaviour. ``shared``
+    rows own collaborative events, ``resource`` rows project meeting-room
+    bookings, and ``external`` rows mirror a provider calendar.
     """
 
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="personal_calendars"
     )
     owner = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="personal_calendars"
+        User,
+        on_delete=models.CASCADE,
+        related_name="personal_calendars",
+        null=True,
+        blank=True,
     )
+    kind = models.CharField(
+        max_length=16,
+        choices=CalendarKindChoices.choices,
+        default=CalendarKindChoices.PRIMARY,
+    )
+    name = models.CharField(_("calendar name"), max_length=255, blank=True, default="")
+    description = models.TextField(_("description"), blank=True, default="")
+    meeting_room = models.OneToOneField(
+        "MeetingRoom",
+        on_delete=models.CASCADE,
+        related_name="calendar",
+        null=True,
+        blank=True,
+    )
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    share_link_version = models.PositiveIntegerField(default=1)
     organization_default_access = models.CharField(
         max_length=16,
         choices=CalendarAccessChoices.choices,
@@ -2860,7 +2888,15 @@ class PersonalCalendar(BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["organization", "owner"],
-                name="personal_calendar_unique_org_owner",
+                condition=models.Q(kind=CalendarKindChoices.PRIMARY),
+                name="calendar_unique_primary_org_owner",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(kind=CalendarKindChoices.RESOURCE, meeting_room__isnull=False)
+                    | ~models.Q(kind=CalendarKindChoices.RESOURCE)
+                ),
+                name="calendar_resource_has_room",
             ),
         ]
         indexes = [
@@ -2871,14 +2907,31 @@ class PersonalCalendar(BaseModel):
         ]
 
     def __str__(self):
-        return f"PersonalCalendar({self.owner_id} @ {self.organization_id})"
+        return f"Calendar({self.kind}:{self.display_name} @ {self.organization_id})"
+
+    @property
+    def display_name(self):
+        if self.kind == CalendarKindChoices.PRIMARY and self.owner_id:
+            return self.owner.full_name or self.owner.short_name or self.owner.email
+        if self.kind == CalendarKindChoices.RESOURCE and self.meeting_room_id:
+            return self.meeting_room.name or self.meeting_room.code
+        return self.name or _("Untitled calendar")
+
+    @property
+    def is_deleted(self):
+        return self.deleted_at is not None
 
 
-class CalendarAccessGrant(BaseModel):
-    """An explicit owner-controlled override for one calendar viewer."""
+# Compatibility for the already-shipped API and downstream integrations. The
+# migration renames Django's state model, while the physical table and UUIDs stay put.
+PersonalCalendar = Calendar
+
+
+class CalendarMembership(BaseModel):
+    """An explicit calendar role. Subscription remains presentation-only."""
 
     calendar = models.ForeignKey(
-        PersonalCalendar, on_delete=models.CASCADE, related_name="access_grants"
+        Calendar, on_delete=models.CASCADE, related_name="access_grants"
     )
     grantee = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="calendar_access_grants"
@@ -2888,6 +2941,8 @@ class CalendarAccessGrant(BaseModel):
         choices=[
             (CalendarAccessChoices.FREE_BUSY, _("Free/busy only")),
             (CalendarAccessChoices.DETAILS, _("Event details")),
+            (CalendarAccessChoices.WRITER, _("Can edit events")),
+            (CalendarAccessChoices.ADMIN, _("Calendar administrator")),
         ],
     )
 
@@ -2917,6 +2972,17 @@ class CalendarAccessGrant(BaseModel):
             if owner_id == self.grantee_id:
                 raise ValidationError({"grantee": _("The owner already has access.")})
 
+    @property
+    def role(self):
+        return self.permission
+
+    @role.setter
+    def role(self, value):
+        self.permission = value
+
+
+CalendarAccessGrant = CalendarMembership
+
 
 class CalendarSubscription(BaseModel):
     """A viewer's presentation preference for a calendar they may access.
@@ -2927,7 +2993,7 @@ class CalendarSubscription(BaseModel):
     """
 
     calendar = models.ForeignKey(
-        PersonalCalendar, on_delete=models.CASCADE, related_name="subscriptions"
+        Calendar, on_delete=models.CASCADE, related_name="subscriptions"
     )
     subscriber = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="calendar_subscriptions"
@@ -2956,12 +3022,216 @@ class CalendarSubscription(BaseModel):
 
     def clean(self):
         super().clean()
-        if self.calendar_id and self.subscriber_id:
-            owner_id = self.calendar.owner_id
-            if owner_id == self.subscriber_id:
-                raise ValidationError(
-                    {"subscriber": _("The owner calendar is always visible.")}
-                )
+
+
+class CalendarExportStatusChoices(models.TextChoices):
+    QUEUED = "queued", _("Queued")
+    RUNNING = "running", _("Running")
+    SUCCEEDED = "succeeded", _("Succeeded")
+    FAILED = "failed", _("Failed")
+
+
+class CalendarExportJob(BaseModel):
+    """One immutable, single-calendar export request."""
+
+    calendar = models.ForeignKey(
+        Calendar, on_delete=models.CASCADE, related_name="export_jobs"
+    )
+    requester = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="calendar_export_jobs"
+    )
+    range_start = models.DateField()
+    range_end = models.DateField(
+        help_text=_("Inclusive civil end date in the export timezone.")
+    )
+    timezone = TimeZoneField(
+        choices_display="WITH_GMT_OFFSET", use_pytz=False, default=settings.TIME_ZONE
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=CalendarExportStatusChoices.choices,
+        default=CalendarExportStatusChoices.QUEUED,
+    )
+    row_count = models.PositiveIntegerField(default=0)
+    document_id = models.CharField(max_length=255, blank=True, default="")
+    csv_file = models.FileField(
+        upload_to="calendar-exports/%Y/%m/%d/", null=True, blank=True
+    )
+    csv_token = models.CharField(max_length=96, blank=True, default="")
+    csv_expires_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    error_detail = models.TextField(blank=True, default="")
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_calendar_export_job"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(
+                fields=["requester", "status"], name="calexport_requester_status_idx"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"CalendarExportJob({self.calendar_id}, {self.status})"
+
+
+class ExternalCalendarProviderChoices(models.TextChoices):
+    GOOGLE = "google", _("Google Calendar")
+    MICROSOFT = "microsoft", _("Microsoft Calendar")
+
+
+class ExternalCalendarAccountStatusChoices(models.TextChoices):
+    ACTIVE = "active", _("Active")
+    REAUTH_REQUIRED = "reauth_required", _("Reauthorization required")
+    ERROR = "error", _("Error")
+
+
+class ExternalCalendarAccount(BaseModel):
+    """An OAuth account. Token fields contain reversible encrypted envelopes."""
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="external_calendar_accounts"
+    )
+    owner = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="external_calendar_accounts"
+    )
+    provider = models.CharField(
+        max_length=16, choices=ExternalCalendarProviderChoices.choices
+    )
+    provider_account_id = models.CharField(max_length=255)
+    email = models.EmailField(blank=True, default="")
+    access_token_encrypted = models.TextField(blank=True, default="")
+    refresh_token_encrypted = models.TextField(blank=True, default="")
+    token_expires_at = models.DateTimeField(null=True, blank=True)
+    scopes = models.JSONField(blank=True, default=list)
+    status = models.CharField(
+        max_length=24,
+        choices=ExternalCalendarAccountStatusChoices.choices,
+        default=ExternalCalendarAccountStatusChoices.ACTIVE,
+    )
+    error_code = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        db_table = "meet_external_calendar_account"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "provider", "provider_account_id"],
+                name="extcal_account_unique_owner_provider_id",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"ExternalCalendarAccount({self.provider}, {self.email})"
+
+
+class ExternalCalendarBinding(BaseModel):
+    """One selected remote calendar and its provider cursor/subscription."""
+
+    account = models.ForeignKey(
+        ExternalCalendarAccount, on_delete=models.CASCADE, related_name="bindings"
+    )
+    calendar = models.OneToOneField(
+        Calendar, on_delete=models.CASCADE, related_name="external_binding"
+    )
+    remote_calendar_id = models.CharField(max_length=1024)
+    remote_name = models.CharField(max_length=255, blank=True, default="")
+    is_primary = models.BooleanField(default=False)
+    sync_cursor = models.TextField(blank=True, default="")
+    sync_window_start = models.DateField(null=True, blank=True)
+    sync_window_end = models.DateField(null=True, blank=True)
+    webhook_id = models.CharField(max_length=255, blank=True, default="")
+    webhook_secret = models.CharField(max_length=255, blank=True, default="")
+    webhook_expires_at = models.DateTimeField(null=True, blank=True)
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    sync_status = models.CharField(max_length=24, blank=True, default="pending")
+    error_code = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        db_table = "meet_external_calendar_binding"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["account", "remote_calendar_id"],
+                name="extcal_binding_unique_account_remote",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"ExternalCalendarBinding({self.account_id}, {self.remote_name})"
+
+
+class ExternalEventMirror(BaseModel):
+    """Provider identity and concurrency metadata for a mirrored event."""
+
+    binding = models.ForeignKey(
+        ExternalCalendarBinding, on_delete=models.CASCADE, related_name="event_mirrors"
+    )
+    event = models.OneToOneField(
+        "CalendarEvent", on_delete=models.CASCADE, related_name="external_mirror"
+    )
+    remote_event_id = models.CharField(max_length=1024)
+    remote_revision = models.CharField(max_length=512, blank=True, default="")
+    remote_updated_at = models.DateTimeField(null=True, blank=True)
+    remote_payload = models.JSONField(blank=True, default=dict)
+    conflict_payload = models.JSONField(blank=True, default=dict)
+
+    class Meta:
+        db_table = "meet_external_event_mirror"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["binding", "remote_event_id"],
+                name="extcal_mirror_unique_binding_event",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"ExternalEventMirror({self.binding_id}, {self.remote_event_id})"
+
+
+class CalendarSyncOutboxStatusChoices(models.TextChoices):
+    PENDING = "pending", _("Pending")
+    RUNNING = "running", _("Running")
+    CONFLICT = "conflict", _("Conflict")
+    SUCCEEDED = "succeeded", _("Succeeded")
+    FAILED = "failed", _("Failed")
+
+
+class CalendarSyncOutbox(BaseModel):
+    binding = models.ForeignKey(
+        ExternalCalendarBinding, on_delete=models.CASCADE, related_name="outbox_entries"
+    )
+    event = models.ForeignKey(
+        "CalendarEvent",
+        on_delete=models.CASCADE,
+        related_name="sync_outbox_entries",
+        null=True,
+        blank=True,
+    )
+    operation = models.CharField(
+        max_length=16,
+        choices=[("create", _("Create")), ("update", _("Update")), ("delete", _("Delete"))],
+    )
+    payload = models.JSONField(blank=True, default=dict)
+    expected_revision = models.CharField(max_length=512, blank=True, default="")
+    status = models.CharField(
+        max_length=16,
+        choices=CalendarSyncOutboxStatusChoices.choices,
+        default=CalendarSyncOutboxStatusChoices.PENDING,
+    )
+    attempts = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True, default="")
+
+    class Meta:
+        db_table = "meet_calendar_sync_outbox"
+        ordering = ("created_at",)
+        indexes = [
+            models.Index(fields=["status", "next_attempt_at"], name="calsync_status_next_idx")
+        ]
+
+    def __str__(self) -> str:
+        return f"CalendarSyncOutbox({self.operation}, {self.status})"
 
 
 class CalendarTimezoneModeChoices(models.TextChoices):
@@ -3072,11 +3342,24 @@ class CalendarEvent(BaseModel):
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="calendar_events"
     )
+    source_calendar = models.ForeignKey(
+        Calendar,
+        on_delete=models.CASCADE,
+        related_name="source_events",
+        help_text=_(
+            "Owning calendar. Legacy writers that omit it are assigned the "
+            "organizer's primary calendar before persistence."
+        ),
+    )
     organizer = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="organized_events"
     )
     title = models.CharField(_("title"), max_length=255)
     description = models.TextField(_("description"), blank=True, default="")
+    location = models.CharField(_("location"), max_length=512, blank=True, default="")
+    attachment_names = models.JSONField(
+        _("attachment names"), blank=True, default=list
+    )
     start_at = models.DateTimeField(_("start at"))
     end_at = models.DateTimeField(_("end at"))
     # Canonical half-open civil-date range for all-day events.  ``start_at`` /
@@ -3174,6 +3457,12 @@ class CalendarEvent(BaseModel):
             "pushed back to it (best-effort)."
         ),
     )
+    sync_status = models.CharField(
+        max_length=24,
+        blank=True,
+        default="",
+        help_text=_("External provider state: pending/synced/conflict/error."),
+    )
 
     class Meta:
         db_table = "meet_calendar_event"
@@ -3211,6 +3500,23 @@ class CalendarEvent(BaseModel):
 
     def __str__(self):
         return f"{self.title} @ {self.start_at:%Y-%m-%d %H:%M}"
+
+    def save(self, *args, **kwargs):
+        """Keep non-API legacy writers compatible with the unified model."""
+        if (
+            not self.source_calendar_id
+            and self.organization_id
+            and self.organizer_id
+        ):
+            self.source_calendar, _ = Calendar.objects.get_or_create(
+                organization_id=self.organization_id,
+                owner_id=self.organizer_id,
+                kind=CalendarKindChoices.PRIMARY,
+                defaults={
+                    "organization_default_access": CalendarAccessChoices.FREE_BUSY,
+                },
+            )
+        return super().save(*args, **kwargs)
 
 
 class EventAttendee(BaseModel):

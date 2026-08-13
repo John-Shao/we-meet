@@ -10,8 +10,8 @@ import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { ApiError } from '@/api/ApiError'
+import { useConfig } from '@/api/useConfig'
 import { useConfirm } from '@/components/ConfirmProvider'
-import { useUser } from '@/features/auth'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 
@@ -38,11 +38,7 @@ import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EditScopeDialog } from '../components/EditScopeDialog'
 import { EventDetailDialog } from '../components/EventDetailDialog'
 import { EventShareDialog } from '../components/EventShareDialog'
-import { CalendarSharingDialog } from '../components/CalendarSharingDialog'
-import {
-  fetchCalendarSubscriptions,
-  fetchPersonalCalendarEvents,
-} from '../api/personalCalendars'
+import { fetchCalendars } from '../api/calendars'
 import {
   useCalendarSettings,
   useSyncCalendarSettings,
@@ -80,14 +76,14 @@ export const CalendarRoute = () => (
 
 const CalendarAuthenticated = () => {
   useSyncCalendarSettings()
+  const { data: runtimeConfig } = useConfig()
+  const unifiedCalendarEnabled = runtimeConfig?.calendar?.enabled === true
   const { calendarTimezone } = useCalendarSettings()
   const { t } = useTranslation('calendar')
   const qc = useQueryClient()
   const [, navigate] = useLocation()
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
-  const { user } = useUser()
   const [creating, setCreating] = useState(false)
-  const [sharingCalendar, setSharingCalendar] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('we-meet:calendar-sidebar-collapsed') === '1'
   )
@@ -219,39 +215,25 @@ const CalendarAuthenticated = () => {
     // 会议室 Tab 不渲染网格,±1 月的事件窗口是纯浪费。
     enabled: tab === 'calendar',
   })
-  const { data: subscriptions = [], isLoading: subscriptionsLoading } =
-    useQuery({
-      queryKey: ['calendar', 'subscriptions'],
-      queryFn: fetchCalendarSubscriptions,
-      staleTime: 30_000,
-      enabled: tab === 'calendar',
-    })
-  const { data: subscribedEvents = [], isLoading: subscribedEventsLoading } =
-    useQuery({
-      queryKey: [
-        'calendar',
-        'subscribed-window',
-        monthWindow,
-        subscriptions.map((item) => item.calendar_id).join(','),
-      ],
-      queryFn: async () => {
-        const results = await Promise.allSettled(
-          subscriptions
-            .filter((item) => item.enabled)
-            .map((item) =>
-              fetchPersonalCalendarEvents(item.calendar_id, monthWindow)
-            )
-        )
-        return results.flatMap((result) =>
-          result.status === 'fulfilled' ? result.value : []
-        )
-      },
-      enabled: tab === 'calendar' && !subscriptionsLoading,
-      staleTime: 30_000,
-    })
+  const { data: calendars = [], isLoading: calendarsLoading } = useQuery({
+    queryKey: ['calendar', 'unified'],
+    queryFn: fetchCalendars,
+    staleTime: 30_000,
+    enabled: unifiedCalendarEnabled,
+  })
+  const enabledCalendarIds = useMemo(
+    () => new Set(calendars.filter((row) => row.enabled).map((row) => row.id)),
+    [calendars]
+  )
   const events = useMemo(() => {
     const merged = new Map<string, CalendarEvent>()
-    for (const event of [...ownEvents, ...subscribedEvents]) {
+    for (const event of ownEvents) {
+      if (
+        unifiedCalendarEnabled &&
+        event.display_calendar_id &&
+        !enabledCalendarIds.has(event.display_calendar_id)
+      )
+        continue
       const current = merged.get(event.id)
       if (!current || (current.details_redacted && !event.details_redacted)) {
         merged.set(event.id, {
@@ -261,9 +243,9 @@ const CalendarAuthenticated = () => {
       }
     }
     return [...merged.values()]
-  }, [ownEvents, subscribedEvents, t])
+  }, [enabledCalendarIds, ownEvents, t, unifiedCalendarEnabled])
   const isLoading =
-    ownEventsLoading || subscriptionsLoading || subscribedEventsLoading
+    ownEventsLoading || (unifiedCalendarEnabled && calendarsLoading)
 
   const invalidateCalendarData = () =>
     Promise.all([
@@ -310,12 +292,9 @@ const CalendarAuthenticated = () => {
     }
   }
 
-  /** 组织者本人 + 非重复日程才可拖动改期(与后端 PATCH 的放行口径一致)。 */
+  /** The API projects write permission per event (including shared calendars). */
   const canMoveEvent = (event: CalendarEvent) =>
-    !!user &&
-    event.organizer?.id === user.id &&
-    !event.recurrence &&
-    !event.recurrence_parent
+    !!event.can_edit && !event.recurrence && !event.recurrence_parent
 
   const openMeetingRoomBooking = async (booking: RoomBooking) => {
     const eventId = booking.event_id
@@ -385,31 +364,14 @@ const CalendarAuthenticated = () => {
     queryFn: () => fetchCalendarEvents(upcomingWindow),
     staleTime: 30_000,
   })
-  const { data: subscribedUpcomingEvents = [] } = useQuery({
-    queryKey: [
-      'calendar',
-      'subscribed-upcoming',
-      upcomingWindow,
-      subscriptions.map((item) => item.calendar_id).join(','),
-    ],
-    queryFn: async () => {
-      const results = await Promise.allSettled(
-        subscriptions
-          .filter((item) => item.enabled)
-          .map((item) =>
-            fetchPersonalCalendarEvents(item.calendar_id, upcomingWindow)
-          )
-      )
-      return results.flatMap((result) =>
-        result.status === 'fulfilled' ? result.value : []
-      )
-    },
-    enabled: !subscriptionsLoading,
-    staleTime: 30_000,
-  })
   const upcomingEvents = useMemo(() => {
     const merged = new Map<string, CalendarEvent>()
-    for (const event of [...ownUpcomingEvents, ...subscribedUpcomingEvents]) {
+    for (const event of ownUpcomingEvents) {
+      if (
+        event.display_calendar_id &&
+        !enabledCalendarIds.has(event.display_calendar_id)
+      )
+        continue
       const current = merged.get(event.id)
       if (!current || (current.details_redacted && !event.details_redacted)) {
         merged.set(event.id, {
@@ -419,7 +381,7 @@ const CalendarAuthenticated = () => {
       }
     }
     return [...merged.values()]
-  }, [ownUpcomingEvents, subscribedUpcomingEvents, t])
+  }, [enabledCalendarIds, ownUpcomingEvents, t])
 
   const setRsvp = async (event: CalendarEvent, status: RSVPStatus) => {
     try {
@@ -498,6 +460,7 @@ const CalendarAuthenticated = () => {
             upcomingEvents={upcomingEvents}
             onSelectEvent={setDetailEvent}
             onCreate={() => openCreate(null)}
+            onCalendarChanged={() => void invalidateCalendarData()}
           />
         </ResizablePanel>
       )}
@@ -569,14 +532,6 @@ const CalendarAuthenticated = () => {
               data-testid="calendar-create"
             >
               ＋ {t('page.create')}
-            </Button>
-            <Button
-              variant="secondaryText"
-              size="action"
-              onPress={() => setSharingCalendar(true)}
-              data-testid="calendar-sharing"
-            >
-              {t('sharing.manage')}
             </Button>
             {/* P8 设置收敛:齿轮只是快捷入口,打开系统设置并定位「日历」节。
                无边框纯图标钮,置于「新建日程」右侧。 */}
@@ -713,7 +668,7 @@ const CalendarAuthenticated = () => {
       {detailEvent && (
         <EventDetailDialog
           event={detailEvent}
-          canManage={!!user && detailEvent.organizer?.id === user.id}
+          canManage={detailEvent.can_edit}
           onEdit={() => {
             // P2-M2:重复子场次先选范围;主事件/单次直接进编辑(主=全部)。
             if (detailEvent.recurrence_parent) {
@@ -748,17 +703,9 @@ const CalendarAuthenticated = () => {
         />
       )}
 
-      {sharingCalendar && (
-        <CalendarSharingDialog
-          onClose={() => setSharingCalendar(false)}
-          onChanged={() => {
-            void invalidateCalendarData()
-          }}
-        />
-      )}
-
       {creating && (
         <CreateEventDialog
+          calendars={calendars}
           initialStart={draft?.start}
           initialEnd={draft?.end}
           initialAllDay={draft?.allDay}
@@ -773,6 +720,7 @@ const CalendarAuthenticated = () => {
 
       {editEvent && (
         <CreateEventDialog
+          calendars={calendars}
           editEvent={editEvent}
           editScope={editScope}
           onClose={() => {

@@ -51,6 +51,12 @@ export interface ApiConfig {
     // configured server-side. Absent/null ⇒ hide the "文档" nav entry.
     url?: string | null
   }
+  calendar?: {
+    enabled: boolean
+    sharing_enabled: boolean
+    export_enabled: boolean
+    external_sync_enabled: boolean
+  }
   telephony: {
     enabled: boolean
     phone_number?: string

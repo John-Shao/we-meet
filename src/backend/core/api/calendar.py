@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfoNotFoundError
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone as django_timezone
@@ -32,8 +33,10 @@ from core.services import (
     calendar_recurrence,
     calendar_reminders,
     calendar_time,
+    external_calendars,
     meeting_room_booking,
 )
+from core.tasks.external_calendars import deliver_calendar_outbox
 
 #: "the client did not mention this field at all" — distinct from an explicit
 #: ``false``. Only meaningful for fields whose absence and whose ``false`` must
@@ -85,6 +88,24 @@ class SourceConversationVerificationError(exceptions.APIException):
     status_code = drf_status.HTTP_503_SERVICE_UNAVAILABLE
     default_code = "source_conversation_verification_unavailable"
     default_detail = "Unable to verify source conversation membership."
+
+
+class ExternalCalendarUnavailableError(exceptions.APIException):
+    """503 - external writes must never make provider calls in the HTTP request."""
+
+    status_code = drf_status.HTTP_503_SERVICE_UNAVAILABLE
+    default_code = "external_calendar_sync_unavailable"
+    default_detail = "External calendar sync is unavailable until Celery is configured."
+
+
+def queue_external_event_on_commit(event, operation):
+    if event.source_calendar.kind != models.CalendarKindChoices.EXTERNAL:
+        return
+    if not getattr(settings, "CELERY_ENABLED", False):
+        raise ExternalCalendarUnavailableError()
+    entry = external_calendars.queue_local_change(event, operation)
+    if entry:
+        transaction.on_commit(lambda: deliver_calendar_outbox.delay(str(entry.id)))
 
 
 class CalendarAttendeeInputSerializer(serializers.Serializer):
@@ -161,6 +182,11 @@ class CalendarEventSerializer(serializers.ModelSerializer):
     # Transitional write marker: old clients always submit ``default`` while
     # editing and would otherwise silently downgrade a new ``public`` event.
     visibility_explicit = serializers.BooleanField(write_only=True, required=False)
+    calendar_id = serializers.UUIDField(write_only=True, required=False)
+    calendar_ids = serializers.SerializerMethodField()
+    display_calendar_id = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
 
     class Meta:
         model = models.CalendarEvent
@@ -174,6 +200,8 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "description",
+            "location",
+            "attachment_names",
             "start_at",
             "end_at",
             "start_date",
@@ -192,6 +220,12 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "attendee_entries",
             "my_rsvp",
             "details_redacted",
+            "calendar_id",
+            "calendar_ids",
+            "display_calendar_id",
+            "can_edit",
+            "can_delete",
+            "sync_status",
             "created_at",
             "meeting_room",
             "meeting_room_id",
@@ -213,6 +247,11 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "attendees",
             "my_rsvp",
             "details_redacted",
+            "calendar_ids",
+            "display_calendar_id",
+            "can_edit",
+            "can_delete",
+            "sync_status",
             "created_at",
             "recurrence_parent",
         ]
@@ -264,6 +303,11 @@ class CalendarEventSerializer(serializers.ModelSerializer):
                 "source conversation cannot be changed after creation"
             )
         return value.strip()
+
+    def validate_calendar_id(self, value):
+        if self.instance is not None:
+            raise serializers.ValidationError("calendar cannot be changed after creation")
+        return value
 
     def get_organizer(self, obj):
         if not obj.organizer_id:
@@ -318,6 +362,69 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             return False
         return not any(a.user_id == request.user.id for a in obj.attendees.all())
 
+    def get_calendar_ids(self, obj):
+        ids = []
+        if obj.source_calendar_id:
+            ids.append(str(obj.source_calendar_id))
+        request = self.context.get("request")
+        if request is not None and (
+            obj.organizer_id == request.user.id
+            or any(a.user_id == request.user.id for a in obj.attendees.all())
+        ):
+            primary = models.Calendar.objects.filter(
+                organization=obj.organization,
+                owner=request.user,
+                kind=models.CalendarKindChoices.PRIMARY,
+                deleted_at__isnull=True,
+            ).values_list("id", flat=True).first()
+            if primary and str(primary) not in ids:
+                ids.append(str(primary))
+        room_ids = [booking.room_id for booking in obj.room_bookings.all()]
+        for calendar_id in models.Calendar.objects.filter(
+            kind=models.CalendarKindChoices.RESOURCE,
+            meeting_room_id__in=room_ids,
+            deleted_at__isnull=True,
+        ).values_list("id", flat=True):
+            if str(calendar_id) not in ids:
+                ids.append(str(calendar_id))
+        return ids
+
+    def get_display_calendar_id(self, obj):
+        ids = self.get_calendar_ids(obj)
+        request = self.context.get("request")
+        if request is None or not ids:
+            return ids[0] if ids else None
+        enabled = {
+            str(value)
+            for value in models.CalendarSubscription.objects.filter(
+                subscriber=request.user,
+                enabled=True,
+                calendar_id__in=ids,
+            ).values_list("calendar_id", flat=True)
+        }
+        return next((value for value in ids if value in enabled), ids[0])
+
+    def _can_mutate(self, obj):
+        request = self.context.get("request")
+        if request is None:
+            return False
+        if obj.organizer_id == request.user.id:
+            return True
+        calendar = obj.source_calendar
+        if calendar is None or not calendar_access.calendar_can_write(
+            calendar, request.user
+        ):
+            return False
+        if obj.visibility == models.EventVisibilityChoices.PRIVATE:
+            return any(a.user_id == request.user.id for a in obj.attendees.all())
+        return True
+
+    def get_can_edit(self, obj):
+        return self._can_mutate(obj)
+
+    def get_can_delete(self, obj):
+        return self._can_mutate(obj)
+
     def to_representation(self, instance):
         """Expose only the busy window of a private event to outsiders."""
         data = super().to_representation(instance)
@@ -327,6 +434,8 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             {
                 "title": "",
                 "description": "",
+                "location": "",
+                "attachment_names": [],
                 "reminders": [],
                 "organizer": None,
                 "room": None,
@@ -336,6 +445,8 @@ class CalendarEventSerializer(serializers.ModelSerializer):
                 "my_rsvp": None,
                 "recurrence": "",
                 "recurrence_parent": None,
+                "can_edit": False,
+                "can_delete": False,
             }
         )
         return data
@@ -595,7 +706,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         if self.action == "retrieve":
             return (
                 models.CalendarEvent.objects.all()
-                .select_related("organizer", "room")
+                .select_related("organizer", "room", "source_calendar")
                 .prefetch_related("attendees__user", "room_bookings__room__node")
             )
         organization = get_caller_organization(self.request.user)
@@ -604,10 +715,14 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = (
             models.CalendarEvent.objects.filter(
-                Q(organizer=user) | Q(attendees__user=user)
+                Q(organizer=user)
+                | Q(attendees__user=user)
+                | Q(source_calendar__owner=user)
+                | Q(source_calendar__access_grants__grantee=user)
+                | Q(source_calendar__subscriptions__subscriber=user)
             )
             .distinct()
-            .select_related("organizer", "room")
+            .select_related("organizer", "room", "source_calendar")
             .prefetch_related("attendees__user", "room_bookings__room__node")
             .order_by("start_at")
         )
@@ -617,6 +732,34 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         if self.action == "list":
             queryset = filter_calendar_window(queryset, self.request.query_params)
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        events = []
+        access_levels = {}
+        for event in queryset:
+            try:
+                access = calendar_access.resolve_event_access(
+                    event, request.user, include_source=False
+                )
+            except calendar_access.SourceAccessUnavailable:
+                access = calendar_access.EventAccess.NONE
+            if access != calendar_access.EventAccess.NONE:
+                events.append(event)
+                access_levels[event.id] = access
+        page = self.paginate_queryset(events)
+        selected = page if page is not None else events
+        serializer = self.get_serializer(
+            selected,
+            many=True,
+            context={
+                **self.get_serializer_context(),
+                "event_access_levels": access_levels,
+            },
+        )
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
 
     def handle_exception(self, exc):
         """Turn a room clash into a 409 carrying the blocking ranges.
@@ -669,11 +812,22 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         return room, policy
 
     def _require_organizer(self, event):
-        """Only the organizer may edit / delete an event (invitees can RSVP only)."""
-        if event.organizer_id != self.request.user.id:
-            raise exceptions.PermissionDenied(
-                "Only the organizer can modify this event."
+        """Allow organizer or an eligible writer of the owning shared calendar."""
+        if event.organizer_id == self.request.user.id:
+            return
+        calendar = event.source_calendar
+        attendee = any(
+            row.user_id == self.request.user.id for row in event.attendees.all()
+        )
+        if (
+            calendar is not None
+            and calendar_access.calendar_can_write(calendar, self.request.user)
+            and (
+                event.visibility != models.EventVisibilityChoices.PRIVATE or attendee
             )
+        ):
+            return
+        raise exceptions.PermissionDenied("You cannot modify this event.")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -804,6 +958,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 {"detail": "No active organization membership."}
             )
         data = serializer.validated_data
+        requested_calendar_id = data.pop("calendar_id", None)
         data.pop("visibility_explicit", None)
         attendee_entries = self._pop_attendee_entries(data) or []
         timezone_name = data.pop("timezone", "") or str(
@@ -825,6 +980,31 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 raise SourceConversationVerificationError(detail=str(exc)) from exc
 
         with transaction.atomic():
+            if requested_calendar_id is None:
+                source_calendar = calendar_access.ensure_personal_calendar(
+                    user, organization
+                )
+            else:
+                source_calendar = models.Calendar.objects.filter(
+                    pk=requested_calendar_id,
+                    organization=organization,
+                    deleted_at__isnull=True,
+                ).first()
+                if source_calendar is None or not calendar_access.calendar_can_write(
+                    source_calendar, user
+                ):
+                    raise exceptions.PermissionDenied(
+                        "You cannot create events in this calendar."
+                    )
+                if source_calendar.kind == models.CalendarKindChoices.RESOURCE:
+                    raise exceptions.ValidationError(
+                        {"calendar_id": "resource calendars are read-only"}
+                    )
+                if (
+                    source_calendar.kind == models.CalendarKindChoices.EXTERNAL
+                    and not getattr(settings, "CELERY_ENABLED", False)
+                ):
+                    raise ExternalCalendarUnavailableError()
             room = None
             if with_video:
                 room = models.Room.objects.create(
@@ -836,6 +1016,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             event = serializer.save(
                 organizer=user,
                 organization=organization,
+                source_calendar=source_calendar,
                 room=room,
                 timezone=timezone_name,
             )
@@ -849,6 +1030,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             # External invitees are real accepted contacts, so they receive the
             # same Room access and RSVP identity as internal members.
             self._sync_attendees(event, attendee_entries, room)
+            queue_external_event_on_commit(event, "create")
             # P9 会议室:主事件行 = 系列首场,先抢它。冲突时 strict 抛出 →
             # 整个事务回滚 → 409,日程不落库(用户改时间或换房再来)。
             # 重复日程的后续场次此刻还没物化,它们的 booking 由物化任务补建
@@ -1219,6 +1401,11 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         """
         self._require_organizer(serializer.instance)
         instance = serializer.instance
+        if (
+            instance.source_calendar.kind == models.CalendarKindChoices.EXTERNAL
+            and not getattr(settings, "CELERY_ENABLED", False)
+        ):
+            raise ExternalCalendarUnavailableError()
         old_start, old_end = instance.start_at, instance.end_at
         old_start_date, old_end_date = instance.start_date, instance.end_date
         old_attendees = self._attendee_identities(instance)
@@ -1250,6 +1437,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             meeting_room_booking.invalidate_booking_cache(event)
             if attendee_entries is not None:
                 self._sync_attendees(event, attendee_entries, event.room)
+            queue_external_event_on_commit(event, "update")
 
             new_attendees = self._attendee_identities(event)
             new_attendee_roles = self._attendee_roles(event)
@@ -1292,6 +1480,12 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         """Delete one occurrence, following occurrences, or the whole series."""
         instance = self.get_object()
         self._require_organizer(instance)
+        if instance.source_calendar.kind == models.CalendarKindChoices.EXTERNAL:
+            if not getattr(settings, "CELERY_ENABLED", False):
+                raise ExternalCalendarUnavailableError()
+            with transaction.atomic():
+                queue_external_event_on_commit(instance, "delete")
+            return Response(status=drf_status.HTTP_204_NO_CONTENT)
         scope = str(request.query_params.get("scope") or "").strip()
         if scope not in ("", "one", "following", "all"):
             raise exceptions.ValidationError(

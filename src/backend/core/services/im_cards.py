@@ -24,8 +24,9 @@ from typing import Any
 EVENT_CARD = "event-card"
 DOC_CARD = "doc-card"
 MEETING_CARD = "meeting-card"
+CALENDAR_CARD = "calendar-card"
 
-CARD_CONTENT_TYPES = (EVENT_CARD, DOC_CARD, MEETING_CARD)
+CARD_CONTENT_TYPES = (EVENT_CARD, DOC_CARD, MEETING_CARD, CALENDAR_CARD)
 
 #: Multi-paragraph rich text — today only group bots produce it, from 飞书's
 #: ``msg_type=post``. Named for what it *is* rather than who sends it, so a
@@ -184,6 +185,27 @@ def build_doc_card(
     if shared_by:
         card["shared_by"] = shared_by
     return card
+
+
+def build_calendar_card(  # noqa: PLR0913 - stable wire-contract fields
+    *,
+    calendar_id: str,
+    name: str,
+    subscribe_url: str,
+    owner_name: str = "",
+    description: str = "",
+    subscriber_count: int = 0,
+) -> dict[str, Any]:
+    """Static calendar-share snapshot; authorization is checked on link open."""
+    return {
+        "v": 1,
+        "calendar_id": calendar_id,
+        "name": name,
+        "owner_name": owner_name,
+        "description": description,
+        "subscriber_count": max(0, int(subscriber_count)),
+        "subscribe_url": subscribe_url,
+    }
 
 
 def build_meeting_card(

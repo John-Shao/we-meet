@@ -135,8 +135,11 @@ def _materialize_one(parent, now, horizon) -> int:
                 child = CalendarEvent.objects.create(
                     organization=parent.organization,
                     organizer=parent.organizer,
+                    source_calendar=parent.source_calendar,
                     title=parent.title,
                     description=parent.description,
+                    location=parent.location,
+                    attachment_names=list(parent.attachment_names or []),
                     start_at=start_at,
                     end_at=end_at,
                     start_date=start_date,
@@ -187,7 +190,14 @@ def _iso_utc(dt) -> str:
 # ---- P2-M2 三选编辑语义(one 在 viewset 内完成;以下是 following / all / 删除) ----
 
 # 「全部」编辑可传播的标量字段(时间走 delta 平移,attendees/timezone 不在内)。
-SCALAR_FIELDS = ("title", "description", "all_day", "visibility")
+SCALAR_FIELDS = (
+    "title",
+    "description",
+    "location",
+    "attachment_names",
+    "all_day",
+    "visibility",
+)
 
 
 def materialize_parent(parent, now=None, horizon_days: int = HORIZON_DAYS) -> int:
@@ -376,8 +386,13 @@ def split_series(
         new_parent = CalendarEvent.objects.create(
             organization=parent.organization,
             organizer=parent.organizer,
+            source_calendar=parent.source_calendar,
             title=new_values.get("title", parent.title),
             description=new_values.get("description", parent.description),
+            location=new_values.get("location", parent.location),
+            attachment_names=new_values.get(
+                "attachment_names", list(parent.attachment_names or [])
+            ),
             start_at=new_start,
             end_at=new_end,
             start_date=new_values.get("start_date", child.start_date),

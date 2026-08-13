@@ -16,6 +16,10 @@ class FeatureFlag:
         "file_upload": "FILE_UPLOAD_ENABLED",
         "addons": "ADDONS_ENABLED",
         "application": "APPLICATION_ENABLED",
+        "unified_calendar": "UNIFIED_CALENDAR_ENABLED",
+        "calendar_sharing": "CALENDAR_SHARING_ENABLED",
+        "calendar_export": "CALENDAR_EXPORT_ENABLED",
+        "external_calendar_sync": "EXTERNAL_CALENDAR_SYNC_ENABLED",
         # P1-4 全局搜索 AI 问答(关闭=端点 404,config 同步藏前端入口)。
         "search_ai": "GLOBAL_SEARCH_AI_ENABLED",
     }

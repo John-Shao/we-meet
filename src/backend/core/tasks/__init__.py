@@ -14,11 +14,13 @@ omission only surfaces in production, as a job that stays "pending" forever.
 Add the import in the same commit as the task module.
 """
 
-# noqa: F401 — these imports register tasks as a side effect.
-from core.tasks import file as _file  # noqa: F401
-from core.tasks import summary as _summary  # noqa: F401
-from core.tasks import embeddings as _embeddings  # noqa: F401
-from core.tasks import offboarding as _offboarding  # noqa: F401
-from core.tasks import activity as _activity  # noqa: F401
-from core.tasks import member_import as _member_import  # noqa: F401
-from core.tasks import bot_callback as _bot_callback  # noqa: F401
+from core.tasks import activity as _activity
+from core.tasks import bot_callback as _bot_callback
+from core.tasks import calendar_exports as _calendar_exports
+from core.tasks import calendar_maintenance as _calendar_maintenance
+from core.tasks import embeddings as _embeddings
+from core.tasks import external_calendars as _external_calendars
+from core.tasks import file as _file
+from core.tasks import member_import as _member_import
+from core.tasks import offboarding as _offboarding
+from core.tasks import summary as _summary

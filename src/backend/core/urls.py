@@ -35,6 +35,8 @@ from core.api.agent_internal import IngestTranscriptView
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.bot_webhook import BotWebhookView
 from core.api.calendar import CalendarEventViewSet
+from core.api.calendar_exports import CalendarExportJobViewSet
+from core.api.calendars import CalendarShareView, CalendarViewSet
 from core.api.directory import (
     ContactPreferenceViewSet,
     DepartmentViewSet,
@@ -46,6 +48,12 @@ from core.api.directory import (
     UserGroupDirectoryViewSet,
 )
 from core.api.docs_session import DocsSessionView
+from core.api.external_calendars import (
+    CalendarSyncOutboxViewSet,
+    ExternalCalendarAccountViewSet,
+    ExternalCalendarOAuthCallbackView,
+    ExternalCalendarWebhookView,
+)
 from core.api.im import ImViewSet
 from core.api.im_bots import ImBotViewSet
 from core.api.im_cards import ImCardViewSet
@@ -126,6 +134,20 @@ router.register("im/bots", ImBotViewSet, basename="im_bots")
 router.register("im/cards", ImCardViewSet, basename="im_cards")
 router.register(
     "calendar-events", CalendarEventViewSet, basename="calendar_events"
+)
+router.register("calendars", CalendarViewSet, basename="calendars")
+router.register(
+    "calendar-exports", CalendarExportJobViewSet, basename="calendar_exports"
+)
+router.register(
+    "external-calendar-accounts",
+    ExternalCalendarAccountViewSet,
+    basename="external_calendar_accounts",
+)
+router.register(
+    "calendar-sync-outbox",
+    CalendarSyncOutboxViewSet,
+    basename="calendar_sync_outbox",
 )
 router.register(
     "personal-calendars", PersonalCalendarViewSet, basename="personal_calendars"
@@ -264,6 +286,21 @@ urlpatterns = [
         include(
             [
                 path("im/preferences/", ImPreferenceView.as_view(), name="im_preferences"),
+                path(
+                    "calendar-share/<str:token>/",
+                    CalendarShareView.as_view(),
+                    name="calendar_share",
+                ),
+                path(
+                    "external-calendars/oauth/<str:provider>/callback/",
+                    ExternalCalendarOAuthCallbackView.as_view(),
+                    name="external_calendar_oauth_callback",
+                ),
+                path(
+                    "external-calendars/webhooks/<str:provider>/",
+                    ExternalCalendarWebhookView.as_view(),
+                    name="external_calendar_webhook",
+                ),
                 *router.urls,
                 *oidc_urls,
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),
