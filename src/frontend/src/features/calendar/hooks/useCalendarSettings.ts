@@ -22,7 +22,6 @@ const WEEK_KEY = 'calendar-week-start'
 const DURATION_KEY = 'calendar-default-duration'
 const REMINDER_KEY = 'calendar-default-reminder'
 const DIM_PAST_KEY = 'calendar-dim-past'
-const WEEKEND_KEY = 'calendar-show-weekend'
 const WORK_START_KEY = 'calendar-work-start'
 const WORK_END_KEY = 'calendar-work-end'
 const CALENDAR_RANGE_KEY = 'calendar-time-range'
@@ -80,10 +79,6 @@ const readReminder = (): number | null => {
 
 const readDimPast = (): boolean => storageGet(DIM_PAST_KEY) !== '0'
 
-// 周视图是否显示周末列。Web 大屏默认开(显示整周);显式存 '0' 才收敛成
-// 周一~周五工作周。App 端小屏默认关,刻意按端差异化(见 SettingsStore)。
-const readWeekend = (): boolean => storageGet(WEEKEND_KEY) !== '0'
-
 const readWorkingHours = (): WorkingHours => {
   const value = {
     startMin: Number(storageGet(WORK_START_KEY)),
@@ -113,7 +108,9 @@ const localSnapshot = (): Omit<
   default_duration_minutes: readDuration(),
   default_reminder_minutes: readReminder(),
   dim_past: readDimPast(),
-  show_weekend: readWeekend(),
+  // Retained only for compatibility with the existing preference API.
+  // The fixed three-day view always includes weekends.
+  show_weekend: true,
   working_start_minutes: readWorkingHours().startMin,
   working_end_minutes: readWorkingHours().endMin,
   calendar_time_range: readRangeMode(CALENDAR_RANGE_KEY),
@@ -152,7 +149,6 @@ const writeRemoteToCache = (preference: CalendarPreference) => {
         : String(preference.default_reminder_minutes),
     ],
     [DIM_PAST_KEY, preference.dim_past ? '1' : '0'],
-    [WEEKEND_KEY, preference.show_weekend ? '1' : '0'],
     [WORK_START_KEY, String(preference.working_start_minutes)],
     [WORK_END_KEY, String(preference.working_end_minutes)],
     [CALENDAR_RANGE_KEY, preference.calendar_time_range],
@@ -340,7 +336,6 @@ export const useCalendarSettings = () => {
     readReminder
   )
   const [dimPast, setDimPastState] = useState<boolean>(readDimPast)
-  const [showWeekend, setShowWeekendState] = useState<boolean>(readWeekend)
   const [workingHours, setWorkingHoursState] =
     useState<WorkingHours>(readWorkingHours)
   const [calendarTimeRangeMode, setCalendarTimeRangeModeState] =
@@ -356,7 +351,6 @@ export const useCalendarSettings = () => {
       setDurationState(readDuration())
       setReminderState(readReminder())
       setDimPastState(readDimPast())
-      setShowWeekendState(readWeekend())
       setWorkingHoursState(readWorkingHours())
       setCalendarTimeRangeModeState(readRangeMode(CALENDAR_RANGE_KEY))
       setMeetingRoomsTimeRangeModeState(readRangeMode(ROOMS_RANGE_KEY))
@@ -444,15 +438,6 @@ export const useCalendarSettings = () => {
     [saveRemote, write]
   )
 
-  const setShowWeekend = useCallback(
-    (v: boolean) => {
-      setShowWeekendState(v)
-      write(WEEKEND_KEY, v ? '1' : '0')
-      saveRemote()
-    },
-    [saveRemote, write]
-  )
-
   const setWorkingHours = useCallback(
     (startMin: number, endMin: number) => {
       const value = { startMin, endMin }
@@ -498,8 +483,6 @@ export const useCalendarSettings = () => {
     defaultReminderMin,
     /** 降低已结束日程的亮度(对标飞书,默认开)。 */
     dimPast,
-    /** 周视图是否显示周末列(Web 默认开显示整周,关则只显工作周 5 列;App 默认关)。 */
-    showWeekend,
     workingHours,
     calendarTimeRangeMode,
     meetingRoomsTimeRangeMode,
@@ -507,7 +490,6 @@ export const useCalendarSettings = () => {
     setDefaultDuration,
     setDefaultReminder,
     setDimPast,
-    setShowWeekend,
     setWorkingHours,
     setCalendarTimeRangeMode,
     setMeetingRoomsTimeRangeMode,

@@ -21,14 +21,15 @@ import {
   useSyncCalendarSettings,
 } from './useCalendarSettings'
 
-const preference = (showWeekend: boolean) => ({
+const preference = () => ({
   timezone_mode: 'auto' as const,
   timezone: null,
   week_start: 'mon' as const,
   default_duration_minutes: 60,
   default_reminder_minutes: 10,
   dim_past: true,
-  show_weekend: showWeekend,
+  // The server may still return the legacy field; clients always render weekends.
+  show_weekend: false,
   working_start_minutes: 540,
   working_end_minutes: 1080,
   calendar_time_range: 'work' as const,
@@ -46,7 +47,7 @@ beforeEach(() => {
 
 describe('calendar preference account cache', () => {
   it('keeps transiently failed edits dirty and does not leak them to another account', async () => {
-    mocks.fetchPreference.mockImplementation(async () => preference(true))
+    mocks.fetchPreference.mockImplementation(async () => preference())
     mocks.updatePreference.mockRejectedValue(new Error('offline'))
 
     const settings = renderHook(() => {
@@ -60,9 +61,15 @@ describe('calendar preference account cache', () => {
       )
     )
 
-    act(() => settings.result.current.setShowWeekend(false))
+    act(() => settings.result.current.setDefaultDuration(90))
     await waitFor(() => expect(mocks.updatePreference).toHaveBeenCalled())
-    expect(settings.result.current.showWeekend).toBe(false)
+    expect(mocks.updatePreference).toHaveBeenCalledWith(
+      expect.objectContaining({
+        default_duration_minutes: 90,
+        show_weekend: true,
+      })
+    )
+    expect(settings.result.current.defaultDurationMin).toBe(90)
     expect(localStorage.getItem('calendar-settings-dirty:account-a')).toBe('1')
 
     mocks.accountId = 'account-b'
@@ -73,8 +80,12 @@ describe('calendar preference account cache', () => {
         '3'
       )
     )
-    expect(settings.result.current.showWeekend).toBe(true)
-    expect(localStorage.getItem('calendar-show-weekend:account-a')).toBe('0')
-    expect(localStorage.getItem('calendar-show-weekend:account-b')).toBe('1')
+    expect(settings.result.current.defaultDurationMin).toBe(60)
+    expect(localStorage.getItem('calendar-default-duration:account-a')).toBe(
+      '90'
+    )
+    expect(localStorage.getItem('calendar-default-duration:account-b')).toBe(
+      '60'
+    )
   })
 })

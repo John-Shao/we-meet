@@ -7,8 +7,6 @@ import {
   useCalendarSettings,
 } from './useCalendarSettings'
 
-const WEEKEND_KEY = 'calendar-show-weekend'
-
 beforeEach(() => localStorage.clear())
 
 describe('reminderOptionLabel', () => {
@@ -56,45 +54,6 @@ describe('effectiveReminder', () => {
 
   it('0(日程开始时)是有效值,不能被当成「没有提醒」', () => {
     expect(effectiveReminder([0])).toBe(0)
-  })
-})
-
-describe('useCalendarSettings — showWeekend', () => {
-  it('localStorage 空时默认开(显示整周)', () => {
-    const { result } = renderHook(() => useCalendarSettings())
-    expect(result.current.showWeekend).toBe(true)
-  })
-
-  it('显式存 "0" → 关(收敛成工作周)', () => {
-    localStorage.setItem(WEEKEND_KEY, '0')
-    const { result } = renderHook(() => useCalendarSettings())
-    expect(result.current.showWeekend).toBe(false)
-  })
-
-  it('setShowWeekend 更新状态并持久化为 1/0', () => {
-    const { result } = renderHook(() => useCalendarSettings())
-
-    act(() => result.current.setShowWeekend(true))
-    expect(result.current.showWeekend).toBe(true)
-    expect(localStorage.getItem(WEEKEND_KEY)).toBe('1')
-
-    act(() => result.current.setShowWeekend(false))
-    expect(result.current.showWeekend).toBe(false)
-    expect(localStorage.getItem(WEEKEND_KEY)).toBe('0')
-  })
-
-  it('初始读取已存的 "1" → 开', () => {
-    localStorage.setItem(WEEKEND_KEY, '1')
-    const { result } = renderHook(() => useCalendarSettings())
-    expect(result.current.showWeekend).toBe(true)
-  })
-
-  it('同页跨实例经 EVT 同步(设置页改动,日历页即时生效)', () => {
-    const a = renderHook(() => useCalendarSettings())
-    const b = renderHook(() => useCalendarSettings())
-
-    act(() => a.result.current.setShowWeekend(true))
-    expect(b.result.current.showWeekend).toBe(true)
   })
 })
 

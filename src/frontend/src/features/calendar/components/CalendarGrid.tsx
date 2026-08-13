@@ -18,6 +18,7 @@ import {
   format,
   parse,
   startOfWeek,
+  startOfDay,
   getDay,
   isSameDay,
   isWeekend,
@@ -31,7 +32,6 @@ import './calendarGridOverrides.css'
 
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
-import { resolveRbcView } from '../utils/rbcView'
 import { formatGmtOffset } from '../utils/timeZone'
 import { formatMinutes, isOutsideWorkingHours } from '../utils/workingHours'
 import { zoneOffsetMinutes } from '@/utils/timezoneOptions'
@@ -42,6 +42,7 @@ import {
 } from '../utils/zonedDate'
 import { CalendarToolbar } from './CalendarToolbar'
 import { AgendaListView } from './AgendaListView'
+import { ThreeDayView } from './ThreeDayView'
 
 /**
  * Feishu-style 月/周/日 calendar grid (P6-e #3), backed by react-big-calendar.
@@ -273,10 +274,7 @@ const useAlignedTimeGridHeader = (calendarRootId: string) => {
 // 引用稳定避免视图重挂。类型上 rbc 的 Views 不含自定义组件签名,窄化断言。
 const RBC_VIEWS = {
   month: true,
-  week: true,
-  // 显示周末关闭时,周视图渲染层收敛到内置 work_week(周一~周五);切换器/
-  // 路由层 view 仍是 'week',仅此处映射,不额外暴露 work_week 分段按钮。
-  work_week: true,
+  week: ThreeDayView,
   day: true,
   agenda: AgendaListView,
 } as unknown as View[]
@@ -331,7 +329,6 @@ export const CalendarGrid = ({
   const {
     weekStartsOn,
     dimPast,
-    showWeekend,
     defaultDurationMin,
     workingHours,
     calendarTimeRangeMode,
@@ -341,9 +338,6 @@ export const CalendarGrid = ({
   const localizer = useMemo(() => localizerFor(weekStartsOn), [weekStartsOn])
   const [viewState, setViewState] = useState<View>('week')
   const view = viewProp ?? viewState
-  // 关周末时把周视图映射到内置 work_week(周一~周五);其余视图透传。app 层
-  // view 恒为 'week',若 rbc 回吐 work_week(如内部下钻)映射回 'week'。
-  const effectiveView = resolveRbcView(view, showWeekend)
   const setView = (v: View) => {
     setViewState(v)
     onViewChange?.(v)
@@ -409,27 +403,21 @@ export const CalendarGrid = ({
 
   const outsideEventCount = useMemo(() => {
     if (view !== 'day' && view !== 'week') return 0
-    const rangeStart =
-      view === 'week'
-        ? startOfWeek(date, { weekStartsOn })
-        : new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    const rangeStart = startOfDay(date)
     const rangeEnd = new Date(rangeStart)
-    rangeEnd.setDate(rangeEnd.getDate() + (view === 'week' ? 7 : 1))
+    rangeEnd.setDate(rangeEnd.getDate() + (view === 'week' ? 3 : 1))
     return events.filter((event) => {
       if (event.all_day) return false
       const start = instantToZonedDate(event.start_at, calendarTimezone)
       const end = instantToZonedDate(event.end_at, calendarTimezone)
       if (end <= rangeStart || start >= rangeEnd) return false
-      if (!showWeekend && (isWeekend(start) || isWeekend(end))) return false
       return isOutsideWorkingHours(start, end, workingHours)
     }).length
   }, [
     calendarTimezone,
     date,
     events,
-    showWeekend,
     view,
-    weekStartsOn,
     workingHours,
   ])
 
@@ -524,8 +512,6 @@ export const CalendarGrid = ({
       toolbar: Toolbar,
       timeGutterHeader: TimeGutterHeader,
       week: { header: weekHeader, event: TimeEvent },
-      // work_week 复用周视图的表头/事件组件(仅列数收敛为 5)。
-      work_week: { header: weekHeader, event: TimeEvent },
       day: { event: TimeEvent },
       month: { event: MonthEvent, header: monthHeader },
     }
@@ -581,8 +567,8 @@ export const CalendarGrid = ({
       events={rbcEvents}
       startAccessor="start"
       endAccessor="end"
-      view={effectiveView}
-      onView={(v) => setView(v === ('work_week' as View) ? 'week' : v)}
+      view={view}
+      onView={setView}
       date={date}
       onNavigate={setDate}
       views={RBC_VIEWS}

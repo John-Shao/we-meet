@@ -85,13 +85,11 @@ export const CalendarViewSwitcher = ({
   )
 }
 
-// 翻页箭头 tooltip 按视图区分:日=前一天/后一天、周=上周/下周、
+// 翻页箭头 tooltip 按视图区分:日=前一天/后一天、三日=前/后 3 天、
 // 月=上个月/下个月;日程视图锚点按天调整,同「前一天/后一天」。
 const NAV_TIP_KEYS: Partial<Record<View, [string, string]>> = {
   day: ['grid.prevDay', 'grid.nextDay'],
   week: ['grid.prevWeek', 'grid.nextWeek'],
-  // 关周末时周视图渲染为 work_week,翻页语义仍是上周/下周。
-  work_week: ['grid.prevWeek', 'grid.nextWeek'],
   month: ['grid.prevMonth', 'grid.nextMonth'],
   agenda: ['grid.prevDay', 'grid.nextDay'],
 }
@@ -194,7 +192,7 @@ export function CalendarToolbar<
           minWidth: 0,
         })}
       >
-        {(view === 'day' || view === 'week' || view === 'work_week') &&
+        {(view === 'day' || view === 'week') &&
           timeRangeMode === 'work' &&
           onTimeRangeModeChange &&
           outsideEventCount > 0 && (
@@ -215,7 +213,7 @@ export function CalendarToolbar<
             </button>
           )}
         <CalendarViewSwitcher
-          view={view === ('work_week' as View) ? 'week' : view}
+          view={view}
           onView={onView}
         />
       </div>

@@ -290,7 +290,6 @@ const CalendarPanel = () => {
     defaultDurationMin,
     defaultReminderMin,
     dimPast,
-    showWeekend,
     workingHours,
     calendarTimeRangeMode,
     meetingRoomsTimeRangeMode,
@@ -300,7 +299,6 @@ const CalendarPanel = () => {
     setDefaultDuration,
     setDefaultReminder,
     setDimPast,
-    setShowWeekend,
     setWorkingHours,
     setCalendarTimeRangeMode,
     setMeetingRoomsTimeRangeMode,
@@ -496,16 +494,6 @@ const CalendarPanel = () => {
           <option value="mon">{t('settings.weekStartMon')}</option>
           <option value="sun">{t('settings.weekStartSun')}</option>
         </select>
-      </div>
-      <div className={infoRowCls}>
-        <Switch
-          isSelected={showWeekend}
-          onChange={setShowWeekend}
-          data-testid="calendar-settings-show-weekend"
-          className={switchRowCls}
-        >
-          <span className={infoKeyCls}>{t('settings.showWeekend')}</span>
-        </Switch>
       </div>
       <div className={infoRowCls}>
         <span className={infoKeyCls}>{t('settings.defaultDuration')}</span>
