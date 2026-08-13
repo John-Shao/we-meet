@@ -67,6 +67,17 @@ kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input
 ```
 > 手动兜底要在**新后端 pod 就绪后**(pod 里已是含该迁移的新代码)执行 —— 所以兜底命令放在 rollout 之后。切勿在 `helm upgrade` 前用旧 pod 跑 migrate(旧代码没有该迁移文件)。
 
+### 三方日历同步删除（迁移 0098）部署顺序
+
+`0098_remove_external_calendar_sync` 会删除本地同步账号、令牌、镜像日历/日程和同步
+Schema，属于破坏性迁移，不能套用本页默认的“迁移先于 rollout”顺序。必须先更新
+backend 和 `meet-celery-backend`，确认旧同步代码已退出，再执行 `0098`，最后发布
+frontend 和 Android。迁移前必须完成 PostgreSQL 全量备份；迁移后回滚需要同时恢复
+数据库与旧镜像，不能只执行 `migrate core 0097`。
+
+完整命令、Schema 验收、云端 OAuth 收口与回滚步骤见
+[三方日历同步删除 — 部署步骤](../extensions/三方日历同步删除_部署步骤.md)。
+
 ### 日历 P1（迁移 0091）部署顺序
 
 按 **backend + `0091_calendar_recurrence_source_backfill` → frontend → Android** 发布。0091 只给来源为空、父事件来源非空的物化子场次补值，不覆盖非空来源；同时把已过触发点且未处理的提醒静默标记为已处理（outcome 留空），未来提醒保持待发送，因此迁移完成后不会集中补发迟到提醒。
