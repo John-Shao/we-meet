@@ -55,7 +55,6 @@ export interface ApiConfig {
     enabled: boolean
     sharing_enabled: boolean
     export_enabled: boolean
-    external_sync_enabled: boolean
   }
   telephony: {
     enabled: boolean

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
@@ -28,18 +28,11 @@ export const CalendarListManager = ({
   const unifiedEnabled = config?.calendar?.enabled === true
   const sharingEnabled = config?.calendar?.sharing_enabled === true
   const exportEnabled = config?.calendar?.export_enabled === true
-  const externalEnabled = config?.calendar?.external_sync_enabled === true
-  const externalCallback =
-    externalEnabled &&
-    new URLSearchParams(window.location.search).get('external') === 'connected'
-  const [addOpen, setAddOpen] = useState(externalCallback)
+  const [addOpen, setAddOpen] = useState(false)
   const [settings, setSettings] = useState<UnifiedCalendar | null>(null)
   const [share, setShare] = useState<UnifiedCalendar | null>(null)
   const [exporting, setExporting] = useState<UnifiedCalendar | null>(null)
   const [error, setError] = useState('')
-  useEffect(() => {
-    if (externalCallback) setAddOpen(true)
-  }, [externalCallback])
   const { data: calendars = [] } = useQuery({
     queryKey: ['calendar', 'unified'],
     queryFn: fetchCalendars,
@@ -78,13 +71,8 @@ export const CalendarListManager = ({
       setError(apiErrorMessage(reason))
     }
   }
-  const managed = calendars.filter(
-    (row) => row.kind !== 'external' && row.capabilities.can_manage
-  )
-  const subscribed = calendars.filter(
-    (row) => row.kind !== 'external' && !row.capabilities.can_manage
-  )
-  const external = calendars.filter((row) => row.kind === 'external')
+  const managed = calendars.filter((row) => row.capabilities.can_manage)
+  const subscribed = calendars.filter((row) => !row.capabilities.can_manage)
   const renderGroup = (title: string, rows: UnifiedCalendar[]) => (
     <section className={groupCls}>
       <h3 className={groupTitleCls}>{title}</h3>
@@ -122,8 +110,7 @@ export const CalendarListManager = ({
                   仅显示此日历
                 </button>
                 {calendar.capabilities.can_manage &&
-                  calendar.kind !== 'resource' &&
-                  calendar.kind !== 'external' && (
+                  calendar.kind !== 'resource' && (
                     <button type="button" onClick={() => setSettings(calendar)}>
                       日历设置
                     </button>
@@ -165,12 +152,9 @@ export const CalendarListManager = ({
       </button>
       {renderGroup('我管理的', managed)}
       {renderGroup('我订阅的', subscribed)}
-      {renderGroup('第三方日历', external)}
       {error && <p className={errorCls}>{error}</p>}
       {addOpen && (
         <AddCalendarDialog
-          initialMode={externalCallback ? 'external' : 'subscribe'}
-          externalEnabled={externalEnabled}
           onClose={() => setAddOpen(false)}
           onChanged={() => void refresh()}
         />

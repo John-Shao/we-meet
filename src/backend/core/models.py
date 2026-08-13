@@ -2835,15 +2835,14 @@ class CalendarKindChoices(models.TextChoices):
     PRIMARY = "primary", _("Primary calendar")
     SHARED = "shared", _("Shared calendar")
     RESOURCE = "resource", _("Resource calendar")
-    EXTERNAL = "external", _("External calendar")
 
 
 class Calendar(BaseModel):
     """A first-class calendar while preserving the legacy personal-calendar table.
 
     ``primary`` rows retain the old one-per-membership behaviour. ``shared``
-    rows own collaborative events, ``resource`` rows project meeting-room
-    bookings, and ``external`` rows mirror a provider calendar.
+    rows own collaborative events, and ``resource`` rows project meeting-room
+    bookings.
     """
 
     organization = models.ForeignKey(
@@ -3077,163 +3076,6 @@ class CalendarExportJob(BaseModel):
         return f"CalendarExportJob({self.calendar_id}, {self.status})"
 
 
-class ExternalCalendarProviderChoices(models.TextChoices):
-    GOOGLE = "google", _("Google Calendar")
-    MICROSOFT = "microsoft", _("Microsoft Calendar")
-
-
-class ExternalCalendarAccountStatusChoices(models.TextChoices):
-    ACTIVE = "active", _("Active")
-    REAUTH_REQUIRED = "reauth_required", _("Reauthorization required")
-    ERROR = "error", _("Error")
-
-
-class ExternalCalendarAccount(BaseModel):
-    """An OAuth account. Token fields contain reversible encrypted envelopes."""
-
-    organization = models.ForeignKey(
-        Organization, on_delete=models.CASCADE, related_name="external_calendar_accounts"
-    )
-    owner = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="external_calendar_accounts"
-    )
-    provider = models.CharField(
-        max_length=16, choices=ExternalCalendarProviderChoices.choices
-    )
-    provider_account_id = models.CharField(max_length=255)
-    email = models.EmailField(blank=True, default="")
-    access_token_encrypted = models.TextField(blank=True, default="")
-    refresh_token_encrypted = models.TextField(blank=True, default="")
-    token_expires_at = models.DateTimeField(null=True, blank=True)
-    scopes = models.JSONField(blank=True, default=list)
-    status = models.CharField(
-        max_length=24,
-        choices=ExternalCalendarAccountStatusChoices.choices,
-        default=ExternalCalendarAccountStatusChoices.ACTIVE,
-    )
-    error_code = models.CharField(max_length=64, blank=True, default="")
-
-    class Meta:
-        db_table = "meet_external_calendar_account"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["owner", "provider", "provider_account_id"],
-                name="extcal_account_unique_owner_provider_id",
-            )
-        ]
-
-    def __str__(self) -> str:
-        return f"ExternalCalendarAccount({self.provider}, {self.email})"
-
-
-class ExternalCalendarBinding(BaseModel):
-    """One selected remote calendar and its provider cursor/subscription."""
-
-    account = models.ForeignKey(
-        ExternalCalendarAccount, on_delete=models.CASCADE, related_name="bindings"
-    )
-    calendar = models.OneToOneField(
-        Calendar, on_delete=models.CASCADE, related_name="external_binding"
-    )
-    remote_calendar_id = models.CharField(max_length=1024)
-    remote_name = models.CharField(max_length=255, blank=True, default="")
-    is_primary = models.BooleanField(default=False)
-    sync_cursor = models.TextField(blank=True, default="")
-    sync_window_start = models.DateField(null=True, blank=True)
-    sync_window_end = models.DateField(null=True, blank=True)
-    webhook_id = models.CharField(max_length=255, blank=True, default="")
-    webhook_secret = models.CharField(max_length=255, blank=True, default="")
-    webhook_expires_at = models.DateTimeField(null=True, blank=True)
-    last_synced_at = models.DateTimeField(null=True, blank=True)
-    sync_status = models.CharField(max_length=24, blank=True, default="pending")
-    error_code = models.CharField(max_length=64, blank=True, default="")
-
-    class Meta:
-        db_table = "meet_external_calendar_binding"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["account", "remote_calendar_id"],
-                name="extcal_binding_unique_account_remote",
-            )
-        ]
-
-    def __str__(self) -> str:
-        return f"ExternalCalendarBinding({self.account_id}, {self.remote_name})"
-
-
-class ExternalEventMirror(BaseModel):
-    """Provider identity and concurrency metadata for a mirrored event."""
-
-    binding = models.ForeignKey(
-        ExternalCalendarBinding, on_delete=models.CASCADE, related_name="event_mirrors"
-    )
-    event = models.OneToOneField(
-        "CalendarEvent", on_delete=models.CASCADE, related_name="external_mirror"
-    )
-    remote_event_id = models.CharField(max_length=1024)
-    remote_revision = models.CharField(max_length=512, blank=True, default="")
-    remote_updated_at = models.DateTimeField(null=True, blank=True)
-    remote_payload = models.JSONField(blank=True, default=dict)
-    conflict_payload = models.JSONField(blank=True, default=dict)
-
-    class Meta:
-        db_table = "meet_external_event_mirror"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["binding", "remote_event_id"],
-                name="extcal_mirror_unique_binding_event",
-            )
-        ]
-
-    def __str__(self) -> str:
-        return f"ExternalEventMirror({self.binding_id}, {self.remote_event_id})"
-
-
-class CalendarSyncOutboxStatusChoices(models.TextChoices):
-    PENDING = "pending", _("Pending")
-    RUNNING = "running", _("Running")
-    CONFLICT = "conflict", _("Conflict")
-    SUCCEEDED = "succeeded", _("Succeeded")
-    FAILED = "failed", _("Failed")
-
-
-class CalendarSyncOutbox(BaseModel):
-    binding = models.ForeignKey(
-        ExternalCalendarBinding, on_delete=models.CASCADE, related_name="outbox_entries"
-    )
-    event = models.ForeignKey(
-        "CalendarEvent",
-        on_delete=models.CASCADE,
-        related_name="sync_outbox_entries",
-        null=True,
-        blank=True,
-    )
-    operation = models.CharField(
-        max_length=16,
-        choices=[("create", _("Create")), ("update", _("Update")), ("delete", _("Delete"))],
-    )
-    payload = models.JSONField(blank=True, default=dict)
-    expected_revision = models.CharField(max_length=512, blank=True, default="")
-    status = models.CharField(
-        max_length=16,
-        choices=CalendarSyncOutboxStatusChoices.choices,
-        default=CalendarSyncOutboxStatusChoices.PENDING,
-    )
-    attempts = models.PositiveSmallIntegerField(default=0)
-    next_attempt_at = models.DateTimeField(null=True, blank=True)
-    last_error = models.TextField(blank=True, default="")
-
-    class Meta:
-        db_table = "meet_calendar_sync_outbox"
-        ordering = ("created_at",)
-        indexes = [
-            models.Index(fields=["status", "next_attempt_at"], name="calsync_status_next_idx")
-        ]
-
-    def __str__(self) -> str:
-        return f"CalendarSyncOutbox({self.operation}, {self.status})"
-
-
 class CalendarTimezoneModeChoices(models.TextChoices):
     """How a client resolves the calendar display timezone."""
 
@@ -3457,13 +3299,6 @@ class CalendarEvent(BaseModel):
             "pushed back to it (best-effort)."
         ),
     )
-    sync_status = models.CharField(
-        max_length=24,
-        blank=True,
-        default="",
-        help_text=_("External provider state: pending/synced/conflict/error."),
-    )
-
     class Meta:
         db_table = "meet_calendar_event"
         ordering = ("start_at",)

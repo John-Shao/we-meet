@@ -69,9 +69,6 @@ def calendar_permission(calendar, viewer) -> str:  # noqa: PLR0911
         return models.CalendarAccessChoices.NONE
     if calendar.owner_id == viewer.id:
         return models.CalendarAccessChoices.ADMIN
-    if calendar.kind == models.CalendarKindChoices.EXTERNAL:
-        return models.CalendarAccessChoices.NONE
-
     if calendar.kind == models.CalendarKindChoices.RESOURCE:
         same_org = models.Membership.objects.filter(
             organization=calendar.organization,
@@ -175,11 +172,8 @@ def event_calendar_owner_ids(event) -> set:
 
 
 def events_for_calendar(calendar):
-    """Base queryset for a primary, shared, resource, or external calendar."""
-    if calendar.kind in (
-        models.CalendarKindChoices.SHARED,
-        models.CalendarKindChoices.EXTERNAL,
-    ):
+    """Base queryset for a primary, shared, or resource calendar."""
+    if calendar.kind == models.CalendarKindChoices.SHARED:
         return models.CalendarEvent.objects.filter(source_calendar=calendar)
     if calendar.kind == models.CalendarKindChoices.RESOURCE:
         return models.CalendarEvent.objects.filter(
@@ -208,15 +202,6 @@ def event_access_for_calendar_permission(
         attendee.user_id == viewer.id for attendee in event.attendees.all()
     ):
         return EventAccess.DETAILS
-    # Mirrored third-party events contribute to the owner's personal busy/free
-    # projection, but their provider details never inherit the primary
-    # calendar's otherwise more permissive default.
-    if (
-        projection_calendar is not None
-        and projection_calendar.kind == models.CalendarKindChoices.PRIMARY
-        and event.source_calendar.kind == models.CalendarKindChoices.EXTERNAL
-    ):
-        return EventAccess.BUSY
     if event.visibility == models.EventVisibilityChoices.PRIVATE:
         return EventAccess.BUSY
     if event.visibility == models.EventVisibilityChoices.PUBLIC:
@@ -234,8 +219,7 @@ def _event_access_through_calendar(event, viewer, calendar) -> EventAccess:
         calendar.kind == models.CalendarKindChoices.PRIMARY
         and calendar.owner_id in event_calendar_owner_ids(event)
     ) or (
-        calendar.kind
-        in (models.CalendarKindChoices.SHARED, models.CalendarKindChoices.EXTERNAL)
+        calendar.kind == models.CalendarKindChoices.SHARED
         and event.source_calendar_id == calendar.id
     ) or (
         calendar.kind == models.CalendarKindChoices.RESOURCE

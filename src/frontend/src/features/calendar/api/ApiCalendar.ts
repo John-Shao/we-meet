@@ -47,7 +47,6 @@ export interface CalendarEvent {
   display_calendar_id?: string | null
   can_edit?: boolean
   can_delete?: boolean
-  sync_status?: '' | 'pending' | 'synced' | 'conflict' | 'error'
   reminders: number[]
   organizer: {
     id: string

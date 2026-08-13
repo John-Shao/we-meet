@@ -80,7 +80,6 @@ def get_frontend_configuration(request):
             "enabled": settings.UNIFIED_CALENDAR_ENABLED,
             "sharing_enabled": settings.CALENDAR_SHARING_ENABLED,
             "export_enabled": settings.CALENDAR_EXPORT_ENABLED,
-            "external_sync_enabled": settings.EXTERNAL_CALENDAR_SYNC_ENABLED,
         },
         "livekit": {
             "url": settings.LIVEKIT_CONFIGURATION["url"],

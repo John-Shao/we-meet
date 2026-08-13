@@ -382,7 +382,6 @@ export const CreateEventDialog = ({
                 {writableCalendars.map((calendar) => (
                   <option key={calendar.id} value={calendar.id}>
                     {calendar.display_name}
-                    {calendar.kind === 'external' ? '（外部同步）' : ''}
                   </option>
                 ))}
               </select>

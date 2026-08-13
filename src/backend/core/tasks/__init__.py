@@ -19,7 +19,6 @@ from core.tasks import bot_callback as _bot_callback
 from core.tasks import calendar_exports as _calendar_exports
 from core.tasks import calendar_maintenance as _calendar_maintenance
 from core.tasks import embeddings as _embeddings
-from core.tasks import external_calendars as _external_calendars
 from core.tasks import file as _file
 from core.tasks import member_import as _member_import
 from core.tasks import offboarding as _offboarding

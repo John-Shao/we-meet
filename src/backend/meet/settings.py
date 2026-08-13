@@ -654,9 +654,6 @@ class Base(Configuration):
     CALENDAR_EXPORT_ENABLED = values.BooleanValue(
         False, environ_name="CALENDAR_EXPORT_ENABLED", environ_prefix=None
     )
-    EXTERNAL_CALENDAR_SYNC_ENABLED = values.BooleanValue(
-        False, environ_name="EXTERNAL_CALENDAR_SYNC_ENABLED", environ_prefix=None
-    )
     CELERY_TASK_ALWAYS_EAGER = values.BooleanValue(False, environ_prefix=None)
     CELERY_TASK_DEFAULT_QUEUE = values.Value("meet-backend", environ_prefix=None)
     CELERY_BROKER_URL = values.Value("redis://redis:6379/0", environ_prefix=None)
@@ -868,43 +865,7 @@ class Base(Configuration):
             5.0, environ_name="DOCS_TIMEOUT_S", environ_prefix=None
         ),
     }
-    # Google Calendar and Microsoft Graph OAuth/synchronization.  Token keys are
-    # Fernet keys ordered newest first; old keys remain readable during rotation.
-    EXTERNAL_CALENDAR_CONFIGURATION = {
-        "google_client_id": values.Value(
-            environ_name="GOOGLE_CALENDAR_CLIENT_ID", environ_prefix=None, default=""
-        ),
-        "google_client_secret": SecretFileValue(
-            "", environ_name="GOOGLE_CALENDAR_CLIENT_SECRET", environ_prefix=None
-        ),
-        "microsoft_client_id": values.Value(
-            environ_name="MICROSOFT_CALENDAR_CLIENT_ID", environ_prefix=None, default=""
-        ),
-        "microsoft_client_secret": SecretFileValue(
-            "", environ_name="MICROSOFT_CALENDAR_CLIENT_SECRET", environ_prefix=None
-        ),
-        "token_keys": values.ListValue(
-            [], environ_name="EXTERNAL_CALENDAR_TOKEN_KEYS", environ_prefix=None
-        ),
-        "webhook_base_url": values.Value(
-            environ_name="EXTERNAL_CALENDAR_WEBHOOK_BASE_URL",
-            environ_prefix=None,
-            default="",
-        ),
-        "request_timeout_seconds": values.FloatValue(
-            10.0, environ_name="EXTERNAL_CALENDAR_TIMEOUT_S", environ_prefix=None
-        ),
-    }
-
     CELERY_BEAT_SCHEDULE = {
-        "poll-external-calendars": {
-            "task": "core.tasks.external_calendars.poll_external_calendars",
-            "schedule": 300.0,
-        },
-        "renew-external-calendar-webhooks": {
-            "task": "core.tasks.external_calendars.renew_external_calendar_webhooks",
-            "schedule": 3600.0,
-        },
         "purge-expired-shared-calendars": {
             "task": "core.tasks.calendar_maintenance.purge_expired_shared_calendars",
             "schedule": 86400.0,
@@ -1236,7 +1197,7 @@ class Base(Configuration):
         environ_prefix=None,
     )
 
-    # Calendar integrations
+    # Room creation callback settings
     ROOM_CREATION_CALLBACK_CACHE_TIMEOUT = values.PositiveIntegerValue(
         600,  # 10 minutes
         environ_name="ROOM_CREATION_CALLBACK_CACHE_TIMEOUT",

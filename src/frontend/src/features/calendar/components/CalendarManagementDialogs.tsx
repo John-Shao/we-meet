@@ -10,25 +10,18 @@ import { css } from '@/styled-system/css'
 
 import {
   addCalendarMember,
-  authorizeExternalCalendar,
   createCalendar,
   createCalendarExport,
   deleteCalendar,
-  disconnectExternalCalendarAccount,
   discoverCalendars,
   fetchCalendarMembers,
   fetchCalendarShareLink,
-  fetchExternalCalendarAccounts,
-  fetchProviderCalendars,
   removeCalendarMember,
   resetCalendarShareLink,
-  selectProviderCalendars,
   setCalendarSubscription,
-  syncExternalCalendarAccount,
   updateCalendar,
   updateCalendarMember,
   type CalendarRole,
-  type ExternalCalendarAccount,
   type UnifiedCalendar,
 } from '../api/calendars'
 
@@ -104,18 +97,12 @@ const DialogFrame = ({
 export const AddCalendarDialog = ({
   onClose,
   onChanged,
-  initialMode = 'subscribe',
-  externalEnabled = true,
 }: {
   onClose: () => void
   onChanged: () => void
-  initialMode?: 'subscribe' | 'create' | 'external'
-  externalEnabled?: boolean
 }) => {
   const qc = useQueryClient()
-  const [mode, setMode] = useState<'subscribe' | 'create' | 'external'>(
-    initialMode
-  )
+  const [mode, setMode] = useState<'subscribe' | 'create'>('subscribe')
   const [discoverType, setDiscoverType] = useState<
     'contact' | 'room' | 'public'
   >('contact')
@@ -186,9 +173,6 @@ export const AddCalendarDialog = ({
           [
             ['subscribe', '订阅日历'],
             ['create', '新建日历'],
-            ...(externalEnabled
-              ? ([['external', '添加第三方日历']] as const)
-              : []),
           ] as const
         ).map(([value, label]) => (
           <button
@@ -296,10 +280,10 @@ export const AddCalendarDialog = ({
               <option value="details">订阅者（查看详情）</option>
             </select>
           </label>
-          <label className={labelCls}>
+          <div className={labelCls}>
             新增共享人的角色
             <RoleSelect value={memberRole} onChange={setMemberRole} />
-          </label>
+          </div>
           <DirectoryMultiPicker
             selected={members}
             onToggle={(id, label) =>
@@ -328,9 +312,6 @@ export const AddCalendarDialog = ({
             保存
           </button>
         </div>
-      )}
-      {mode === 'external' && (
-        <ExternalCalendarPanel onChanged={() => void changed()} />
       )}
       {error && <p className={errorCls}>{error}</p>}
     </DialogFrame>
@@ -751,135 +732,6 @@ export const CalendarExportDialog = ({
   )
 }
 
-const ExternalCalendarPanel = ({ onChanged }: { onChanged: () => void }) => {
-  const qc = useQueryClient()
-  const [error, setError] = useState('')
-  const { data: accounts = [] } = useQuery({
-    queryKey: ['calendar', 'external-accounts'],
-    queryFn: fetchExternalCalendarAccounts,
-  })
-  const refresh = async () => {
-    await Promise.all([
-      qc.invalidateQueries({ queryKey: ['calendar', 'external-accounts'] }),
-      qc.invalidateQueries({ queryKey: ['calendar', 'unified'] }),
-    ])
-    onChanged()
-  }
-  const connect = async (provider: 'google' | 'microsoft') => {
-    try {
-      const result = await authorizeExternalCalendar(provider)
-      window.location.assign(result.authorization_url)
-    } catch (reason) {
-      setError(apiErrorMessage(reason))
-    }
-  }
-  return (
-    <div className={stackCls}>
-      <div className={buttonRowCls}>
-        <button
-          type="button"
-          className={primaryBtnCls}
-          onClick={() => void connect('google')}
-        >
-          连接 Google Calendar
-        </button>
-        <button
-          type="button"
-          className={primaryBtnCls}
-          onClick={() => void connect('microsoft')}
-        >
-          连接 Microsoft 365 / Outlook.com
-        </button>
-      </div>
-      {accounts.map((account) => (
-        <ProviderAccountRow
-          key={account.id}
-          account={account}
-          onChanged={() => void refresh()}
-        />
-      ))}
-      {error && <p className={errorCls}>{error}</p>}
-    </div>
-  )
-}
-
-const ProviderAccountRow = ({
-  account,
-  onChanged,
-}: {
-  account: ExternalCalendarAccount
-  onChanged: () => void
-}) => {
-  const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(account.bindings.map((row) => row.remote_calendar_id))
-  )
-  const [error, setError] = useState('')
-  const { data: calendars = [] } = useQuery({
-    queryKey: ['calendar', 'provider-calendars', account.id],
-    queryFn: () => fetchProviderCalendars(account.id),
-  })
-  return (
-    <section className={accountCls}>
-      <strong>{account.email || account.provider}</strong>
-      <span className={mutedCls}>{account.status}</span>
-      {calendars.map((calendar) => (
-        <label key={calendar.id} className={radioCls}>
-          <input
-            type="checkbox"
-            checked={selected.has(calendar.id)}
-            onChange={() =>
-              setSelected((current) => {
-                const next = new Set(current)
-                if (next.has(calendar.id)) next.delete(calendar.id)
-                else next.add(calendar.id)
-                return next
-              })
-            }
-          />
-          {calendar.name} {calendar.primary ? '（主日历）' : ''}
-        </label>
-      ))}
-      <div className={buttonRowCls}>
-        <button
-          type="button"
-          className={primaryBtnCls}
-          disabled={selected.size === 0}
-          onClick={() =>
-            void selectProviderCalendars(account.id, [...selected])
-              .then(onChanged)
-              .catch((reason) => setError(apiErrorMessage(reason)))
-          }
-        >
-          保存同步范围
-        </button>
-        <button
-          type="button"
-          className={secondaryBtnCls}
-          onClick={() =>
-            void syncExternalCalendarAccount(account.id).catch((reason) =>
-              setError(apiErrorMessage(reason))
-            )
-          }
-        >
-          立即同步
-        </button>
-        <button
-          type="button"
-          className={dangerBtnCls}
-          onClick={() =>
-            void disconnectExternalCalendarAccount(account.id)
-              .then(onChanged)
-              .catch((reason) => setError(apiErrorMessage(reason)))
-          }
-        >
-          断开连接
-        </button>
-      </div>
-      {error && <p className={errorCls}>{error}</p>}
-    </section>
-  )
-}
-
 const headerCls = css({
   display: 'flex',
   alignItems: 'center',
@@ -997,12 +849,4 @@ const qrCls = css({
   alignItems: 'center',
   gap: '0.6rem',
   padding: '1rem',
-})
-const accountCls = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.55rem',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '0.5rem',
-  padding: '0.75rem',
 })

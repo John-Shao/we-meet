@@ -331,10 +331,7 @@ class CalendarViewSet(viewsets.GenericViewSet):
         calendar = self.get_object()
         if not calendar_access.calendar_can_manage(calendar, request.user):
             raise exceptions.PermissionDenied()
-        if calendar.kind in (
-            models.CalendarKindChoices.RESOURCE,
-            models.CalendarKindChoices.EXTERNAL,
-        ):
+        if calendar.kind == models.CalendarKindChoices.RESOURCE:
             raise exceptions.PermissionDenied("This calendar has no editable settings.")
         serializer = self.get_serializer(calendar, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -597,10 +594,7 @@ class CalendarViewSet(viewsets.GenericViewSet):
                 )
 
     def _upsert_member(self, calendar, user_id, role):
-        if calendar.kind in (
-            models.CalendarKindChoices.RESOURCE,
-            models.CalendarKindChoices.EXTERNAL,
-        ):
+        if calendar.kind == models.CalendarKindChoices.RESOURCE:
             raise exceptions.ValidationError("This calendar cannot have members.")
         user = models.User.objects.filter(
             id=user_id, is_active=True, is_device=False

@@ -33,10 +33,8 @@ from core.services import (
     calendar_recurrence,
     calendar_reminders,
     calendar_time,
-    external_calendars,
     meeting_room_booking,
 )
-from core.tasks.external_calendars import deliver_calendar_outbox
 
 #: "the client did not mention this field at all" — distinct from an explicit
 #: ``false``. Only meaningful for fields whose absence and whose ``false`` must
@@ -88,24 +86,6 @@ class SourceConversationVerificationError(exceptions.APIException):
     status_code = drf_status.HTTP_503_SERVICE_UNAVAILABLE
     default_code = "source_conversation_verification_unavailable"
     default_detail = "Unable to verify source conversation membership."
-
-
-class ExternalCalendarUnavailableError(exceptions.APIException):
-    """503 - external writes must never make provider calls in the HTTP request."""
-
-    status_code = drf_status.HTTP_503_SERVICE_UNAVAILABLE
-    default_code = "external_calendar_sync_unavailable"
-    default_detail = "External calendar sync is unavailable until Celery is configured."
-
-
-def queue_external_event_on_commit(event, operation):
-    if event.source_calendar.kind != models.CalendarKindChoices.EXTERNAL:
-        return
-    if not getattr(settings, "CELERY_ENABLED", False):
-        raise ExternalCalendarUnavailableError()
-    entry = external_calendars.queue_local_change(event, operation)
-    if entry:
-        transaction.on_commit(lambda: deliver_calendar_outbox.delay(str(entry.id)))
 
 
 class CalendarAttendeeInputSerializer(serializers.Serializer):
@@ -225,7 +205,6 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "display_calendar_id",
             "can_edit",
             "can_delete",
-            "sync_status",
             "created_at",
             "meeting_room",
             "meeting_room_id",
@@ -251,7 +230,6 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             "display_calendar_id",
             "can_edit",
             "can_delete",
-            "sync_status",
             "created_at",
             "recurrence_parent",
         ]
@@ -1000,11 +978,6 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                     raise exceptions.ValidationError(
                         {"calendar_id": "resource calendars are read-only"}
                     )
-                if (
-                    source_calendar.kind == models.CalendarKindChoices.EXTERNAL
-                    and not getattr(settings, "CELERY_ENABLED", False)
-                ):
-                    raise ExternalCalendarUnavailableError()
             room = None
             if with_video:
                 room = models.Room.objects.create(
@@ -1030,7 +1003,6 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             # External invitees are real accepted contacts, so they receive the
             # same Room access and RSVP identity as internal members.
             self._sync_attendees(event, attendee_entries, room)
-            queue_external_event_on_commit(event, "create")
             # P9 会议室:主事件行 = 系列首场,先抢它。冲突时 strict 抛出 →
             # 整个事务回滚 → 409,日程不落库(用户改时间或换房再来)。
             # 重复日程的后续场次此刻还没物化,它们的 booking 由物化任务补建
@@ -1401,11 +1373,6 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         """
         self._require_organizer(serializer.instance)
         instance = serializer.instance
-        if (
-            instance.source_calendar.kind == models.CalendarKindChoices.EXTERNAL
-            and not getattr(settings, "CELERY_ENABLED", False)
-        ):
-            raise ExternalCalendarUnavailableError()
         old_start, old_end = instance.start_at, instance.end_at
         old_start_date, old_end_date = instance.start_date, instance.end_date
         old_attendees = self._attendee_identities(instance)
@@ -1437,7 +1404,6 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
             meeting_room_booking.invalidate_booking_cache(event)
             if attendee_entries is not None:
                 self._sync_attendees(event, attendee_entries, event.room)
-            queue_external_event_on_commit(event, "update")
 
             new_attendees = self._attendee_identities(event)
             new_attendee_roles = self._attendee_roles(event)
@@ -1480,12 +1446,6 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         """Delete one occurrence, following occurrences, or the whole series."""
         instance = self.get_object()
         self._require_organizer(instance)
-        if instance.source_calendar.kind == models.CalendarKindChoices.EXTERNAL:
-            if not getattr(settings, "CELERY_ENABLED", False):
-                raise ExternalCalendarUnavailableError()
-            with transaction.atomic():
-                queue_external_event_on_commit(instance, "delete")
-            return Response(status=drf_status.HTTP_204_NO_CONTENT)
         scope = str(request.query_params.get("scope") or "").strip()
         if scope not in ("", "one", "following", "all"):
             raise exceptions.ValidationError(

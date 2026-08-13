@@ -1,6 +1,6 @@
 import { fetchApi } from '@/api/fetchApi'
 
-export type CalendarKind = 'primary' | 'shared' | 'resource' | 'external'
+export type CalendarKind = 'primary' | 'shared' | 'resource'
 export type CalendarRole = 'none' | 'free_busy' | 'details' | 'writer' | 'admin'
 
 export interface UnifiedCalendar {
@@ -47,31 +47,6 @@ export interface CalendarExportJob {
   download_url: string
   error_code: string
   error_detail: string
-}
-
-export interface ExternalCalendarAccount {
-  id: string
-  provider: 'google' | 'microsoft'
-  email: string
-  status: 'active' | 'reauth_required' | 'error'
-  error_code: string
-  bindings: Array<{
-    id: string
-    calendar_id: string
-    remote_calendar_id: string
-    name: string
-    is_primary: boolean
-    sync_status: string
-    error_code: string
-    last_synced_at: string | null
-  }>
-}
-
-export interface ProviderCalendar {
-  id: string
-  name: string
-  primary: boolean
-  selected: boolean
 }
 
 export const fetchCalendars = (): Promise<UnifiedCalendar[]> =>
@@ -187,46 +162,3 @@ export const createCalendarExport = (
     method: 'POST',
     body: JSON.stringify(payload),
   })
-
-export const fetchExternalCalendarAccounts = (): Promise<
-  ExternalCalendarAccount[]
-> => fetchApi('/external-calendar-accounts/')
-
-export const authorizeExternalCalendar = (
-  provider: 'google' | 'microsoft'
-): Promise<{ authorization_url: string }> =>
-  fetchApi('/external-calendar-accounts/authorize/', {
-    method: 'POST',
-    body: JSON.stringify({ provider }),
-  })
-
-export const fetchProviderCalendars = (
-  accountId: string
-): Promise<ProviderCalendar[]> =>
-  fetchApi(
-    `/external-calendar-accounts/${encodeURIComponent(accountId)}/calendars/`
-  )
-
-export const selectProviderCalendars = (
-  accountId: string,
-  calendarIds: string[]
-): Promise<ExternalCalendarAccount> =>
-  fetchApi(
-    `/external-calendar-accounts/${encodeURIComponent(accountId)}/calendars/`,
-    { method: 'POST', body: JSON.stringify({ calendar_ids: calendarIds }) }
-  )
-
-export const syncExternalCalendarAccount = (accountId: string): Promise<void> =>
-  fetchApi(
-    `/external-calendar-accounts/${encodeURIComponent(accountId)}/sync/`,
-    {
-      method: 'POST',
-    }
-  ).then(() => undefined)
-
-export const disconnectExternalCalendarAccount = (
-  accountId: string
-): Promise<void> =>
-  fetchApi(`/external-calendar-accounts/${encodeURIComponent(accountId)}/`, {
-    method: 'DELETE',
-  }).then(() => undefined)

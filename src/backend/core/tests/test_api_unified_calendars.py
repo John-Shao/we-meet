@@ -1,16 +1,14 @@
-"""Unified calendar, sharing, export safety, and token encryption contracts."""
+"""Unified calendar, sharing, and export safety contracts."""
 
-from base64 import urlsafe_b64encode
 from datetime import timedelta
 
-from django.test import override_settings
 from django.utils import timezone
 
 import pytest
 from rest_framework.test import APIClient
 
 from core import factories, models
-from core.services import calendar_crypto, calendar_exports
+from core.services import calendar_exports
 
 
 def member(organization, user):
@@ -42,6 +40,12 @@ def test_shared_calendar_writer_can_create_event_and_private_event_is_redacted()
     )
     assert created.status_code == 201, created.content
     calendar_id = created.json()["id"]
+    subscribed = api(reader).put(
+        f"/api/v1.0/calendars/{calendar_id}/subscription/",
+        {"enabled": True},
+        format="json",
+    )
+    assert subscribed.status_code == 200, subscribed.content
     start = timezone.now() + timedelta(days=1)
     event = api(writer).post(
         "/api/v1.0/calendar-events/",
@@ -112,14 +116,3 @@ def test_csv_cells_are_bom_encoded_and_formula_safe():
     decoded = content.decode("utf-8-sig")
     assert "'=1+1" in decoded
     assert "'@SUM(A1:A2)" in decoded
-
-
-@override_settings(
-    EXTERNAL_CALENDAR_CONFIGURATION={
-        "token_keys": [urlsafe_b64encode(b"x" * 32).decode("ascii")]
-    }
-)
-def test_external_calendar_tokens_are_reversibly_encrypted():
-    envelope = calendar_crypto.encrypt("refresh-token")
-    assert "refresh-token" not in envelope
-    assert calendar_crypto.decrypt(envelope) == "refresh-token"

@@ -20,7 +20,6 @@ from core.services import (
     calendar_access,
     calendar_im_notify,
     calendar_time,
-    external_calendars,
     im_cards,
 )
 from core.services.docs_client import DocsClient
@@ -178,33 +177,6 @@ def run_export(job_id: str) -> None:
     job.started_at = timezone.now()
     job.save(update_fields=["status", "started_at", "updated_at"])
     try:
-        # Exports may request dates outside the rolling mirror window.  Expand
-        # and refill that window in the worker before taking the immutable
-        # snapshot; the HTTP request still never performs provider I/O.
-        if job.calendar.kind == models.CalendarKindChoices.EXTERNAL:
-            binding = job.calendar.external_binding
-            if (
-                binding.sync_window_start is None
-                or binding.sync_window_end is None
-                or job.range_start < binding.sync_window_start
-                or job.range_end > binding.sync_window_end
-            ):
-                binding.sync_window_start = min(
-                    value for value in (binding.sync_window_start, job.range_start) if value
-                )
-                binding.sync_window_end = max(
-                    value for value in (binding.sync_window_end, job.range_end) if value
-                )
-                binding.sync_cursor = ""
-                binding.save(
-                    update_fields=[
-                        "sync_window_start",
-                        "sync_window_end",
-                        "sync_cursor",
-                        "updated_at",
-                    ]
-                )
-                external_calendars.sync_binding(binding.id)
         rows = _event_rows(job)
         token = secrets.token_urlsafe(48)
         job.csv_token = token
