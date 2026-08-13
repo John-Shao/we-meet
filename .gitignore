@@ -90,4 +90,4 @@ docker/livekit/out
 
 # LiveKit CA configuration
 docker/livekit/rootCA.pem
-docs/research/(abandon)kira-voice-assistant.md
+docs/research/(deprecated)kira-voice-assistant.md
