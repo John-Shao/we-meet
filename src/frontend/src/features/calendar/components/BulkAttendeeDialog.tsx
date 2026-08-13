@@ -15,6 +15,13 @@ interface Props {
     avatars: Map<string, string>
   ) => void
   onClose: () => void
+  /** Optional copy makes the shared directory picker usable for calendar ACLs. */
+  title?: string
+  searchPlaceholder?: string
+  selectedTitle?: (count: number) => string
+  confirmLabel?: string
+  /** Hide people who are already present in the target collection. */
+  excludeIds?: Set<string>
 }
 
 /**
@@ -25,8 +32,18 @@ interface Props {
  *
  * 选择在本地副本上改,确定才回写 —— 中途取消不该动已经选好的人。
  */
-export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
+export const BulkAttendeeDialog = ({
+  initial,
+  onConfirm,
+  onClose,
+  title,
+  searchPlaceholder,
+  selectedTitle,
+  confirmLabel,
+  excludeIds,
+}: Props) => {
   const { t } = useTranslation('calendar')
+  const dialogTitle = title ?? t('form.bulkAddTitle')
   const [draft, setDraft] = useState<Map<string, string>>(
     () => new Map(initial)
   )
@@ -48,13 +65,13 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
   return (
     <Modal
       onClose={onClose}
-      ariaLabel={t('form.bulkAddTitle')}
+      ariaLabel={dialogTitle}
       maxWidth="640px"
       maxHeight="72vh"
       initialFocusRef={searchRef}
     >
       <div className={headerCls}>
-        <h2 className={titleCls}>{t('form.bulkAddTitle')}</h2>
+        <h2 className={titleCls}>{dialogTitle}</h2>
         <ModalCloseButton onClose={onClose} label={t('form.cancel')} />
       </div>
 
@@ -62,8 +79,10 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
         selected={draft}
         onToggle={toggle}
         labels={{
-          searchPlaceholder: t('form.searchPlaceholder'),
-          selectedTitle: t('form.selected', { count: draft.size }),
+          searchPlaceholder: searchPlaceholder ?? t('form.searchPlaceholder'),
+          selectedTitle:
+            selectedTitle?.(draft.size) ??
+            t('form.selected', { count: draft.size }),
           loading: t('form.loading'),
           empty: t('form.noResults'),
           loadMore: t('form.loadMore'),
@@ -73,6 +92,7 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
         testIdPrefix="bulk-attendee-item-"
         includeExternal
         externalLabel={t('form.externalContact')}
+        excludeIds={excludeIds}
       />
 
       <div className={footerCls}>
@@ -85,7 +105,7 @@ export const BulkAttendeeDialog = ({ initial, onConfirm, onClose }: Props) => {
           onPress={() => onConfirm(draft, avatarsRef.current)}
           data-testid="bulk-attendee-confirm"
         >
-          {t('form.confirm')}
+          {confirmLabel ?? t('form.confirm')}
         </Button>
       </div>
     </Modal>

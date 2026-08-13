@@ -22,6 +22,10 @@ from core.tasks.calendar_exports import generate_calendar_export
 
 class CalendarExportJobSerializer(serializers.ModelSerializer):
     calendar_id = serializers.UUIDField(source="calendar.id", read_only=True)
+    # django-timezone-field exposes a ZoneInfo instance on model objects. DRF's
+    # inferred ModelField leaves it untouched, which makes the JSON renderer
+    # fail after the export job has already been queued.
+    timezone = serializers.CharField(read_only=True)
     download_url = serializers.SerializerMethodField()
     document_url = serializers.SerializerMethodField()
 

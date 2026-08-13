@@ -1,13 +1,16 @@
 """Unified calendar, sharing, and export safety contracts."""
 
-from datetime import timedelta
+from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 
 from django.utils import timezone
 
 import pytest
+from rest_framework.renderers import JSONRenderer
 from rest_framework.test import APIClient
 
 from core import factories, models
+from core.api.calendar_exports import CalendarExportJobSerializer
 from core.services import calendar_exports
 
 
@@ -116,3 +119,21 @@ def test_csv_cells_are_bom_encoded_and_formula_safe():
     decoded = content.decode("utf-8-sig")
     assert "'=1+1" in decoded
     assert "'@SUM(A1:A2)" in decoded
+
+
+def test_calendar_export_job_timezone_is_json_serializable():
+    calendar = models.Calendar(
+        kind=models.CalendarKindChoices.SHARED,
+        name="Roadmap",
+    )
+    job = models.CalendarExportJob(
+        calendar=calendar,
+        range_start=date(2026, 8, 13),
+        range_end=date(2026, 8, 13),
+        timezone=ZoneInfo("Asia/Shanghai"),
+    )
+
+    data = CalendarExportJobSerializer(job).data
+
+    assert data["timezone"] == "Asia/Shanghai"
+    assert JSONRenderer().render(data)

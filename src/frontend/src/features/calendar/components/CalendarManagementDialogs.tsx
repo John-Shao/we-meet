@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
 
@@ -6,7 +6,9 @@ import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { DirectoryMultiPicker } from '@/features/contacts/components/DirectoryMultiPicker'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
-import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
+import { selectChrome } from '@/primitives/selectChrome'
+import { css, cx } from '@/styled-system/css'
 
 import {
   addCalendarMember,
@@ -24,6 +26,12 @@ import {
   type CalendarRole,
   type UnifiedCalendar,
 } from '../api/calendars'
+import {
+  fieldCls,
+  inputCls as eventInputCls,
+  labelCls as eventLabelCls,
+} from './formStyles'
+import { BulkAttendeeDialog } from './BulkAttendeeDialog'
 
 const roleLabels: Record<Exclude<CalendarRole, 'none'>, string> = {
   free_busy: '仅忙闲',
@@ -80,17 +88,27 @@ const DialogFrame = ({
   title,
   onClose,
   children,
+  footer,
+  maxWidth = '560px',
 }: {
   title: string
   onClose: () => void
-  children: React.ReactNode
+  children: ReactNode
+  footer?: ReactNode
+  maxWidth?: string
 }) => (
-  <Modal onClose={onClose} ariaLabel={title} maxWidth="780px" maxHeight="88vh">
+  <Modal
+    onClose={onClose}
+    ariaLabel={title}
+    maxWidth={maxWidth}
+    maxHeight="82vh"
+  >
     <header className={headerCls}>
       <h2 className={titleCls}>{title}</h2>
       <ModalCloseButton onClose={onClose} label="关闭" />
     </header>
     <div className={bodyCls}>{children}</div>
+    {footer ? <footer className={footerCls}>{footer}</footer> : null}
   </Modal>
 )
 
@@ -167,7 +185,28 @@ export const AddCalendarDialog = ({
   }
 
   return (
-    <DialogFrame title="添加日历" onClose={onClose}>
+    <DialogFrame
+      title="添加日历"
+      onClose={onClose}
+      maxWidth="680px"
+      footer={
+        mode === 'create' ? (
+          <>
+            <Button variant="secondary" size="action" onPress={onClose}>
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              size="action"
+              isDisabled={busy || !name.trim()}
+              onPress={() => void create()}
+            >
+              保存
+            </Button>
+          </>
+        ) : undefined
+      }
+    >
       <div className={tabsCls}>
         {(
           [
@@ -188,7 +227,7 @@ export const AddCalendarDialog = ({
       {mode === 'subscribe' && (
         <div className={stackCls}>
           <input
-            className={inputCls}
+            className={eventInputCls}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="搜索联系人、会议室或公共日历"
@@ -226,14 +265,14 @@ export const AddCalendarDialog = ({
                   <strong>{calendar.display_name}</strong>
                   <small className={mutedCls}>{calendar.description}</small>
                 </span>
-                <button
-                  type="button"
-                  className={primaryBtnCls}
-                  disabled={busy || calendar.subscribed}
-                  onClick={() => void subscribe(calendar)}
+                <Button
+                  variant="primary"
+                  size="dense"
+                  isDisabled={busy || calendar.subscribed}
+                  onPress={() => void subscribe(calendar)}
                 >
                   {calendar.subscribed ? '已订阅' : '订阅'}
-                </button>
+                </Button>
               </div>
             ))
           )}
@@ -241,35 +280,36 @@ export const AddCalendarDialog = ({
       )}
       {mode === 'create' && (
         <div className={stackCls}>
-          <label className={labelCls}>
-            日历名称
+          <label className={fieldCls}>
+            <span className={eventLabelCls}>日历名称</span>
             <input
-              className={inputCls}
+              className={eventInputCls}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </label>
-          <label className={labelCls}>
-            描述
+          <label className={fieldCls}>
+            <span className={eventLabelCls}>描述</span>
             <textarea
-              className={inputCls}
+              className={textareaCls}
               value={description}
               maxLength={400}
               onChange={(e) => setDescription(e.target.value)}
             />
           </label>
-          <label className={labelCls}>
-            颜色
+          <label className={fieldCls}>
+            <span className={eventLabelCls}>颜色</span>
             <input
               type="color"
+              className={colorInputCls}
               value={color}
               onChange={(e) => setColor(e.target.value)}
             />
           </label>
-          <label className={labelCls}>
-            组织内默认权限
+          <label className={fieldCls}>
+            <span className={eventLabelCls}>组织内默认权限</span>
             <select
-              className={inputCls}
+              className={cx(eventInputCls, selectChrome)}
               value={defaultAccess}
               onChange={(e) =>
                 setDefaultAccess(e.target.value as typeof defaultAccess)
@@ -280,37 +320,31 @@ export const AddCalendarDialog = ({
               <option value="details">订阅者（查看详情）</option>
             </select>
           </label>
-          <div className={labelCls}>
-            新增共享人的角色
+          <div className={fieldCls}>
+            <span className={eventLabelCls}>新增共享人的角色</span>
             <RoleSelect value={memberRole} onChange={setMemberRole} />
           </div>
-          <DirectoryMultiPicker
-            selected={members}
-            onToggle={(id, label) =>
-              setMembers((current) => {
-                const next = new Map(current)
-                if (next.has(id)) next.delete(id)
-                else next.set(id, label)
-                return next
-              })
-            }
-            includeExternal
-            labels={{
-              searchPlaceholder: '搜索共享人',
-              selectedTitle: `已选 ${members.size} 人`,
-              loading: '加载中',
-              empty: '没有结果',
-              loadMore: '加载更多',
-            }}
-          />
-          <button
-            type="button"
-            className={primaryBtnCls}
-            disabled={busy || !name.trim()}
-            onClick={() => void create()}
-          >
-            保存
-          </button>
+          <div className={pickerPanelCls}>
+            <DirectoryMultiPicker
+              selected={members}
+              onToggle={(id, label) =>
+                setMembers((current) => {
+                  const next = new Map(current)
+                  if (next.has(id)) next.delete(id)
+                  else next.set(id, label)
+                  return next
+                })
+              }
+              includeExternal
+              labels={{
+                searchPlaceholder: '搜索共享人',
+                selectedTitle: `已选 ${members.size} 人`,
+                loading: '加载中',
+                empty: '没有结果',
+                loadMore: '加载更多',
+              }}
+            />
+          </div>
         </div>
       )}
       {error && <p className={errorCls}>{error}</p>}
@@ -330,7 +364,7 @@ const RoleSelect = ({
   allowedRoles?: Exclude<CalendarRole, 'none'>[]
 }) => (
   <select
-    className={inputCls}
+    className={cx(eventInputCls, selectChrome)}
     value={value}
     disabled={readOnly}
     onChange={(event) =>
@@ -363,7 +397,7 @@ export const CalendarSettingsDialog = ({
   const [color, setColor] = useState(calendar.color)
   const [addRole, setAddRole] =
     useState<Exclude<CalendarRole, 'none'>>('details')
-  const [selected, setSelected] = useState<Map<string, string>>(new Map())
+  const [memberPickerOpen, setMemberPickerOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const { data: members = [] } = useQuery({
@@ -390,163 +424,183 @@ export const CalendarSettingsDialog = ({
       setBusy(false)
     }
   }
+  const saveSettings = () =>
+    act(async () => {
+      await updateCalendar(calendar.id, {
+        ...(calendar.kind === 'primary' ? {} : { name }),
+        description,
+        organization_default_access: defaultAccess,
+      })
+      await setCalendarSubscription(calendar.id, { color })
+    })
   return (
-    <DialogFrame title="日历设置" onClose={onClose}>
-      <div className={stackCls}>
-        <label className={labelCls}>
-          日历名称
-          <input
-            className={inputCls}
-            disabled={calendar.kind === 'primary'}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          {calendar.kind === 'primary' && (
-            <small className={mutedCls}>个人主日历名称跟随账号名称</small>
-          )}
-        </label>
-        <label className={labelCls}>
-          描述
-          <textarea
-            className={inputCls}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </label>
-        <label className={labelCls}>
-          我的显示颜色
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-          />
-        </label>
-        <label className={labelCls}>
-          组织内默认权限
-          <select
-            className={inputCls}
-            value={defaultAccess}
-            onChange={(e) =>
-              setDefaultAccess(e.target.value as typeof defaultAccess)
-            }
-          >
-            <option value="none">私密</option>
-            <option value="free_busy">游客（仅忙闲）</option>
-            <option value="details">订阅者（查看详情）</option>
-          </select>
-        </label>
-        <p className={mutedCls}>
-          组织外默认私密；已建立外部联系的人只能被单独授予只读权限。
-        </p>
-        <button
-          type="button"
-          className={primaryBtnCls}
-          disabled={busy}
-          onClick={() =>
-            void act(async () => {
-              await updateCalendar(calendar.id, {
-                ...(calendar.kind === 'primary' ? {} : { name }),
-                description,
-                organization_default_access: defaultAccess,
-              })
-              await setCalendarSubscription(calendar.id, { color })
-            })
-          }
-        >
-          保存设置
-        </button>
-        <h3 className={sectionTitleCls}>共享人</h3>
-        {members.map((member) => (
-          <div key={member.id} className={rowCls}>
-            <span className={growCls}>
-              {member.user.full_name || member.user.short_name}
-              {member.external ? '（外部联系人）' : ''}
-            </span>
-            <RoleSelect
-              value={member.role}
-              allowedRoles={
-                calendar.kind === 'primary' || member.external
-                  ? ['free_busy', 'details']
-                  : undefined
-              }
-              onChange={(role) =>
-                void act(() =>
-                  updateCalendarMember(calendar.id, member.id, role)
-                )
-              }
+    <>
+      <DialogFrame
+        title="日历设置"
+        onClose={onClose}
+        footer={
+          <>
+            <Button variant="secondary" size="action" onPress={onClose}>
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              size="action"
+              isDisabled={busy || !name.trim()}
+              onPress={() => void saveSettings()}
+            >
+              保存
+            </Button>
+          </>
+        }
+      >
+        <div className={stackCls}>
+          <label className={fieldCls}>
+            <span className={eventLabelCls}>日历名称</span>
+            <input
+              className={cx(eventInputCls, disabledControlCls)}
+              disabled={calendar.kind === 'primary'}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
             />
-            <button
-              type="button"
-              className={dangerBtnCls}
-              onClick={() =>
-                void act(() => removeCalendarMember(calendar.id, member.id))
+            {calendar.kind === 'primary' && (
+              <small className={mutedCls}>个人主日历名称跟随账号名称</small>
+            )}
+          </label>
+          <label className={fieldCls}>
+            <span className={eventLabelCls}>描述</span>
+            <textarea
+              className={textareaCls}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </label>
+          <label className={fieldCls}>
+            <span className={eventLabelCls}>我的显示颜色</span>
+            <input
+              type="color"
+              className={colorInputCls}
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+            />
+          </label>
+          <label className={fieldCls}>
+            <span className={eventLabelCls}>组织内默认权限</span>
+            <select
+              className={cx(eventInputCls, selectChrome)}
+              value={defaultAccess}
+              onChange={(e) =>
+                setDefaultAccess(e.target.value as typeof defaultAccess)
               }
             >
-              移除
-            </button>
+              <option value="none">私密</option>
+              <option value="free_busy">游客（仅忙闲）</option>
+              <option value="details">订阅者（查看详情）</option>
+            </select>
+          </label>
+          <p className={mutedCls}>
+            组织外默认私密；已建立外部联系的人只能被单独授予只读权限。
+          </p>
+          <h3 className={sectionTitleCls}>共享人</h3>
+          {members.map((member) => (
+            <div key={member.id} className={rowCls}>
+              <span className={growCls}>
+                {member.user.full_name || member.user.short_name}
+                {member.external ? '（外部联系人）' : ''}
+              </span>
+              <div className={memberRoleCls}>
+                <RoleSelect
+                  value={member.role}
+                  allowedRoles={
+                    calendar.kind === 'primary' || member.external
+                      ? ['free_busy', 'details']
+                      : undefined
+                  }
+                  onChange={(role) =>
+                    void act(() =>
+                      updateCalendarMember(calendar.id, member.id, role)
+                    )
+                  }
+                />
+              </div>
+              <Button
+                variant="quaternaryDanger"
+                size="dense"
+                onPress={() =>
+                  void act(() => removeCalendarMember(calendar.id, member.id))
+                }
+              >
+                移除
+              </Button>
+            </div>
+          ))}
+          <div className={memberAddRowCls}>
+            <div className={fieldCls}>
+              <span className={eventLabelCls}>新增共享人的角色</span>
+              <RoleSelect
+                value={addRole}
+                onChange={setAddRole}
+                allowedRoles={
+                  calendar.kind === 'primary'
+                    ? ['free_busy', 'details']
+                    : undefined
+                }
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              isDisabled={busy}
+              onPress={() => setMemberPickerOpen(true)}
+            >
+              添加共享人
+            </Button>
           </div>
-        ))}
-        <RoleSelect
-          value={addRole}
-          onChange={setAddRole}
-          allowedRoles={
-            calendar.kind === 'primary' ? ['free_busy', 'details'] : undefined
-          }
-        />
-        <DirectoryMultiPicker
-          selected={selected}
-          onToggle={(id, label) =>
-            setSelected((current) => {
-              const next = new Map(current)
-              if (next.has(id)) next.delete(id)
-              else next.set(id, label)
-              return next
-            })
-          }
-          includeExternal
-          labels={{
-            searchPlaceholder: '添加共享人',
-            selectedTitle: `已选 ${selected.size} 人`,
-            loading: '加载中',
-            empty: '没有结果',
-            loadMore: '加载更多',
-          }}
-        />
-        <button
-          type="button"
-          className={secondaryBtnCls}
-          disabled={busy || selected.size === 0}
-          onClick={() =>
-            void act(async () => {
-              await Promise.all(
+          {calendar.capabilities.can_delete && (
+            <div className={dangerZoneCls}>
+              <span className={mutedCls}>删除后 30 天内可恢复。</span>
+              <Button
+                variant="quaternaryDanger"
+                size="action"
+                className={dangerActionBtnCls}
+                isDisabled={busy}
+                onPress={() =>
+                  void act(async () => {
+                    await deleteCalendar(calendar.id)
+                    onClose()
+                  })
+                }
+              >
+                删除日历
+              </Button>
+            </div>
+          )}
+          {error && <p className={errorCls}>{error}</p>}
+        </div>
+      </DialogFrame>
+      {memberPickerOpen && (
+        <BulkAttendeeDialog
+          initial={new Map()}
+          title="添加共享人"
+          searchPlaceholder="搜索共享人"
+          selectedTitle={(count) => `已选 ${count} 人`}
+          confirmLabel="添加"
+          excludeIds={new Set(members.map((member) => member.user.id))}
+          onClose={() => setMemberPickerOpen(false)}
+          onConfirm={(selected) => {
+            setMemberPickerOpen(false)
+            if (selected.size === 0) return
+            void act(() =>
+              Promise.all(
                 [...selected.keys()].map((id) =>
                   addCalendarMember(calendar.id, id, addRole)
                 )
               )
-              setSelected(new Map())
-            })
-          }
-        >
-          添加共享人
-        </button>
-        {calendar.capabilities.can_delete && (
-          <button
-            type="button"
-            className={dangerBtnCls}
-            disabled={busy}
-            onClick={() =>
-              void act(async () => {
-                await deleteCalendar(calendar.id)
-                onClose()
-              })
-            }
-          >
-            删除日历（30 天内可恢复）
-          </button>
-        )}
-        {error && <p className={errorCls}>{error}</p>}
-      </div>
-    </DialogFrame>
+            )
+          }}
+        />
+      )}
+    </>
   )
 }
 
@@ -583,41 +637,57 @@ export const CalendarShareDialog = ({
       />
     )
   return (
-    <DialogFrame title="分享日历" onClose={onClose}>
+    <DialogFrame
+      title="分享日历"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" size="action" onPress={onClose}>
+            取消
+          </Button>
+          <Button
+            variant="primary"
+            size="action"
+            isDisabled={!data}
+            onPress={() => {
+              if (data) void navigator.clipboard.writeText(data.url)
+            }}
+          >
+            复制链接
+          </Button>
+        </>
+      }
+    >
       <div className={stackCls}>
-        <p>分享只邀请对方订阅查看；编辑权限请在“日历设置 → 共享人”中授予。</p>
+        <p className={bodyTextCls}>
+          分享只邀请对方订阅查看；编辑权限请在“日历设置 → 共享人”中授予。
+        </p>
         {data && (
           <>
-            <label className={labelCls}>
-              日历链接
-              <input className={inputCls} readOnly value={data.url} />
+            <label className={fieldCls}>
+              <span className={eventLabelCls}>日历链接</span>
+              <input className={eventInputCls} readOnly value={data.url} />
             </label>
             <div className={buttonRowCls}>
-              <button
-                type="button"
-                className={primaryBtnCls}
-                onClick={() => void navigator.clipboard.writeText(data.url)}
-              >
-                复制链接
-              </button>
-              <button
-                type="button"
-                className={secondaryBtnCls}
-                onClick={() => setChat(true)}
+              <Button
+                variant="secondary"
+                size="action"
+                onPress={() => setChat(true)}
               >
                 分享至会话
-              </button>
-              <button
-                type="button"
-                className={dangerBtnCls}
-                onClick={() =>
+              </Button>
+              <Button
+                variant="quaternaryDanger"
+                size="action"
+                className={dangerActionBtnCls}
+                onPress={() =>
                   void resetCalendarShareLink(calendar.id)
                     .then(() => refetch())
                     .catch((reason) => setError(apiErrorMessage(reason)))
                 }
               >
                 重置链接
-              </button>
+              </Button>
             </div>
             <div className={qrCls}>
               <QRCodeSVG id="calendar-share-qr" value={data.url} size={220} />
@@ -625,24 +695,24 @@ export const CalendarShareDialog = ({
                 Web 可打开；Android App Link 可直接预览并订阅。
               </span>
               <div className={buttonRowCls}>
-                <button
-                  type="button"
-                  className={secondaryBtnCls}
-                  onClick={() =>
+                <Button
+                  variant="secondary"
+                  size="action"
+                  onPress={() =>
                     void copyQrImage().catch((reason) =>
                       setError(apiErrorMessage(reason))
                     )
                   }
                 >
                   复制二维码
-                </button>
-                <button
-                  type="button"
-                  className={secondaryBtnCls}
-                  onClick={() => downloadQrImage(calendar.display_name)}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="action"
+                  onPress={() => downloadQrImage(calendar.display_name)}
                 >
                   下载二维码
-                </button>
+                </Button>
               </div>
             </div>
           </>
@@ -668,65 +738,85 @@ export const CalendarExportDialog = ({
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const submitExport = () => {
+    setBusy(true)
+    setMessage('')
+    const payload =
+      range === 'custom'
+        ? ({ range, timezone, start, end } as const)
+        : ({ range, timezone } as const)
+    void createCalendarExport(calendar.id, payload)
+      .then(() => setMessage('导出任务已提交，完成后日历助手会通知你。'))
+      .catch((reason) => setMessage(apiErrorMessage(reason)))
+      .finally(() => setBusy(false))
+  }
   return (
-    <DialogFrame title="导出日历" onClose={onClose}>
+    <DialogFrame
+      title="导出日历"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" size="action" onPress={onClose}>
+            取消
+          </Button>
+          <Button
+            variant="primary"
+            size="action"
+            isDisabled={busy || (range === 'custom' && (!start || !end))}
+            onPress={submitExport}
+          >
+            确定
+          </Button>
+        </>
+      }
+    >
       <div className={stackCls}>
-        {(['today', 'week', 'month', 'custom'] as const).map((value) => (
-          <label key={value} className={radioCls}>
-            <input
-              type="radio"
-              checked={range === value}
-              onChange={() => setRange(value)}
-            />
-            {
-              { today: '今天', week: '本周', month: '本月', custom: '自定义' }[
-                value
-              ]
-            }
-          </label>
-        ))}
+        <div className={rangeListCls}>
+          {(['today', 'week', 'month', 'custom'] as const).map((value) => (
+            <label key={value} className={radioCls}>
+              <input
+                type="radio"
+                checked={range === value}
+                onChange={() => setRange(value)}
+              />
+              {
+                {
+                  today: '今天',
+                  week: '本周',
+                  month: '本月',
+                  custom: '自定义',
+                }[value]
+              }
+            </label>
+          ))}
+        </div>
         {range === 'custom' && (
-          <div className={buttonRowCls}>
-            <input
-              type="date"
-              className={inputCls}
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-            />
-            <input
-              type="date"
-              className={inputCls}
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-            />
+          <div className={dateRangeCls}>
+            <label className={fieldCls}>
+              <span className={eventLabelCls}>开始日期</span>
+              <input
+                type="date"
+                className={eventInputCls}
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+              />
+            </label>
+            <label className={fieldCls}>
+              <span className={eventLabelCls}>结束日期</span>
+              <input
+                type="date"
+                className={eventInputCls}
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+              />
+            </label>
           </div>
         )}
         <p className={mutedCls}>
           将异步生成 Docs 原生表格和 CSV
           静态快照；图片、内嵌表格与附件原文件不导出。
         </p>
-        <button
-          type="button"
-          className={primaryBtnCls}
-          disabled={busy || (range === 'custom' && (!start || !end))}
-          onClick={() => {
-            setBusy(true)
-            setMessage('')
-            const payload =
-              range === 'custom'
-                ? ({ range, timezone, start, end } as const)
-                : ({ range, timezone } as const)
-            void createCalendarExport(calendar.id, payload)
-              .then(() =>
-                setMessage('导出任务已提交，完成后日历助手会通知你。')
-              )
-              .catch((reason) => setMessage(apiErrorMessage(reason)))
-              .finally(() => setBusy(false))
-          }}
-        >
-          确定
-        </button>
-        {message && <p>{message}</p>}
+        {message && <p className={statusMessageCls}>{message}</p>}
       </div>
     </DialogFrame>
   )
@@ -734,61 +824,108 @@ export const CalendarExportDialog = ({
 
 const headerCls = css({
   display: 'flex',
+  flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'space-between',
-  padding: '1rem',
+  paddingX: '1rem',
+  paddingY: '0.75rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
-const titleCls = css({ margin: 0, fontSize: '1.1rem', fontWeight: 700 })
-const bodyCls = css({ padding: '1rem', overflowY: 'auto' })
+const titleCls = css({
+  margin: 0,
+  fontSize: '1rem',
+  fontWeight: 'bold',
+  color: 'greyscale.900',
+})
+const bodyCls = css({
+  flex: 1,
+  minHeight: 0,
+  padding: '1rem',
+  overflowY: 'auto',
+  fontSize: '0.875rem',
+  color: 'greyscale.900',
+})
+const footerCls = css({
+  display: 'flex',
+  flexShrink: 0,
+  justifyContent: 'flex-end',
+  gap: '0.5rem',
+  paddingX: '1rem',
+  paddingY: '0.75rem',
+  borderTop: '1px solid token(colors.greyscale.200)',
+})
 const stackCls = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.75rem',
+  gap: '0.875rem',
 })
 const tabsCls = css({
   display: 'flex',
   alignItems: 'center',
-  gap: '0.35rem',
+  gap: '0.25rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
   marginBottom: '0.75rem',
 })
 const tabCls = css({
   border: 0,
   background: 'transparent',
-  padding: '0.65rem',
+  minHeight: 'control.md',
+  paddingX: '0.75rem',
+  paddingY: '0.375rem',
+  fontSize: '0.875rem',
   color: 'greyscale.600',
   cursor: 'pointer',
+  _hover: { color: 'greyscale.900' },
 })
 const activeTabCls = css({
   border: 0,
   borderBottom: '2px solid token(colors.primary.500)',
   background: 'transparent',
-  padding: '0.65rem',
+  minHeight: 'control.md',
+  paddingX: '0.75rem',
+  paddingY: '0.375rem',
+  fontSize: '0.875rem',
+  fontWeight: 'medium',
   color: 'primary.600',
   cursor: 'pointer',
 })
-const labelCls = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.3rem',
-  color: 'greyscale.700',
-  fontSize: '0.85rem',
-})
-const inputCls = css({
+const textareaCls = css({
   width: '100%',
+  minHeight: '3.5rem',
   border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.4rem',
-  padding: '0.55rem 0.65rem',
+  borderRadius: '0.5rem',
+  paddingX: '0.75rem',
+  paddingY: '0.5rem',
+  fontSize: '0.875rem',
+  fontFamily: 'inherit',
+  resize: 'vertical',
+  outline: 'none',
+  _focus: { borderColor: 'primary.500' },
+})
+const colorInputCls = css({
+  width: '3rem',
+  height: 'control.md',
+  padding: '0.1875rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '0.5rem',
   background: 'greyscale.000',
-  color: 'greyscale.900',
+  cursor: 'pointer',
+})
+const disabledControlCls = css({
+  _disabled: {
+    backgroundColor: 'greyscale.100',
+    color: 'greyscale.500',
+    cursor: 'not-allowed',
+  },
 })
 const rowCls = css({
   display: 'flex',
   alignItems: 'center',
   gap: '0.6rem',
-  padding: '0.55rem',
-  borderRadius: '0.4rem',
+  minHeight: '2.75rem',
+  paddingX: '0.25rem',
+  paddingY: '0.375rem',
+  borderBottom: '1px solid token(colors.greyscale.100)',
   _hover: { background: 'greyscale.50' },
 })
 const growCls = css({
@@ -797,56 +934,99 @@ const growCls = css({
   display: 'flex',
   flexDirection: 'column',
 })
+const memberRoleCls = css({
+  width: '9rem',
+  maxWidth: '42%',
+  flexShrink: 0,
+})
 const dotCls = css({
   width: '0.7rem',
   height: '0.7rem',
   borderRadius: '0.2rem',
   flexShrink: 0,
 })
-const mutedCls = css({ color: 'greyscale.500', fontSize: '0.78rem' })
-const errorCls = css({ color: 'danger.600', fontSize: '0.82rem' })
+const mutedCls = css({ color: 'greyscale.500', fontSize: '0.75rem' })
+const errorCls = css({ margin: 0, color: 'danger.600', fontSize: '0.8125rem' })
 const buttonRowCls = css({
   display: 'flex',
   gap: '0.5rem',
   flexWrap: 'wrap',
   alignItems: 'center',
 })
-const primaryBtnCls = css({
-  border: 0,
-  borderRadius: '0.4rem',
-  background: 'primary.500',
-  color: 'white',
-  padding: '0.5rem 0.8rem',
-  cursor: 'pointer',
-  _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-})
-const secondaryBtnCls = css({
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.4rem',
-  background: 'greyscale.000',
-  color: 'greyscale.800',
-  padding: '0.5rem 0.8rem',
-  cursor: 'pointer',
-})
-const dangerBtnCls = css({
-  border: '1px solid token(colors.danger.300)',
-  borderRadius: '0.4rem',
-  background: 'greyscale.000',
+const dangerActionBtnCls = css({
+  borderColor: 'danger.300',
   color: 'danger.600',
-  padding: '0.5rem 0.8rem',
-  cursor: 'pointer',
+  whiteSpace: 'nowrap',
 })
-const sectionTitleCls = css({ margin: '0.4rem 0 0', fontSize: '0.95rem' })
+const sectionTitleCls = css({
+  margin: '0.5rem 0 0',
+  paddingTop: '0.875rem',
+  borderTop: '1px solid token(colors.greyscale.200)',
+  fontSize: '0.875rem',
+  fontWeight: 'bold',
+})
 const radioCls = css({
   display: 'flex',
   alignItems: 'center',
-  gap: '0.45rem',
-  fontSize: '0.85rem',
+  gap: '0.5rem',
+  minHeight: 'control.md',
+  fontSize: '0.875rem',
+  cursor: 'pointer',
+})
+const rangeListCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.125rem',
+})
+const dateRangeCls = css({
+  display: 'flex',
+  gap: '0.75rem',
+  flexWrap: 'wrap',
 })
 const qrCls = css({
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  gap: '0.6rem',
-  padding: '1rem',
+  gap: '0.75rem',
+  marginTop: '0.25rem',
+  paddingTop: '1rem',
+  borderTop: '1px solid token(colors.greyscale.200)',
+})
+const pickerPanelCls = css({
+  display: 'flex',
+  height: '16rem',
+  minHeight: '12rem',
+  overflow: 'hidden',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '0.5rem',
+})
+const memberAddRowCls = css({
+  display: 'flex',
+  alignItems: 'flex-end',
+  gap: '0.75rem',
+  flexWrap: 'wrap',
+  '& > button': { flexShrink: 0 },
+})
+const dangerZoneCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.75rem',
+  marginTop: '0.25rem',
+  paddingTop: '0.875rem',
+  borderTop: '1px solid token(colors.greyscale.200)',
+})
+const bodyTextCls = css({
+  margin: 0,
+  color: 'greyscale.700',
+  fontSize: '0.875rem',
+  lineHeight: 1.5,
+})
+const statusMessageCls = css({
+  margin: 0,
+  padding: '0.625rem 0.75rem',
+  borderRadius: '0.5rem',
+  backgroundColor: 'greyscale.50',
+  color: 'greyscale.700',
+  fontSize: '0.8125rem',
 })

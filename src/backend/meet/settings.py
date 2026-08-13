@@ -20,6 +20,7 @@ from django.utils.translation import gettext_lazy as _
 
 import dj_database_url
 import sentry_sdk
+from botocore.config import Config as BotoConfig
 from configurations import Configuration, values
 from lasuite.configuration.values import SecretFileValue
 from sentry_sdk.integrations.django import DjangoIntegration
@@ -164,6 +165,14 @@ class Base(Configuration):
     AWS_S3_SIGNATURE_VERSION = values.Value(
         "s3v4",
         environ_name="AWS_S3_SIGNATURE_VERSION",
+        environ_prefix=None,
+    )
+    # S3-compatible providers such as Aliyun OSS reject path-style requests.
+    # django-storages reads this Django setting (not the environment variable
+    # directly), so declare it explicitly instead of only setting it in Helm.
+    AWS_S3_ADDRESSING_STYLE = values.Value(
+        "auto",
+        environ_name="AWS_S3_ADDRESSING_STYLE",
         environ_prefix=None,
     )
     AWS_S3_UPLOAD_POLICY_EXPIRATION = values.Value(
@@ -1409,6 +1418,17 @@ class Base(Configuration):
         Delegate to the module function to enable easier testing.
         """
         return get_release()
+
+    # pylint: disable=invalid-name
+    @property
+    def AWS_S3_CLIENT_CONFIG(self):
+        """Return an S3 client configuration compatible with Aliyun OSS."""
+        return BotoConfig(
+            signature_version=self.AWS_S3_SIGNATURE_VERSION,
+            s3={"addressing_style": self.AWS_S3_ADDRESSING_STYLE},
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
+        )
 
     # pylint: disable=invalid-name
     @property
