@@ -170,6 +170,13 @@ backend:
     # room_finished webhook.
     CELERY_ENABLED: "True"
 
+    # Calendar P0/P1/P2 have completed production rollout.  Keep the unified
+    # list enabled so the secondary sidebar exposes Add/Managed/Subscribed;
+    # sharing and export remain independently gated for emergency rollback.
+    UNIFIED_CALENDAR_ENABLED: "True"
+    CALENDAR_SHARING_ENABLED: "True"
+    CALENDAR_EXPORT_ENABLED: "True"
+
     # ─── jusi-light-im (IM bridge — P5/P6) ───────────────────────────────
     # Independent 4C4G ECS at im.we-meet.online running K3s + jusi-light-im +
     # systemd PG/Redis + Caddy. See John-Shao/jusi-light-im for deploy runbook.

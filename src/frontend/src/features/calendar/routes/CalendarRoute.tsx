@@ -48,6 +48,7 @@ import {
   localDateToDateOnly,
   zonedDateToInstant,
 } from '../utils/zonedDate'
+import { prepareVisibleCalendarEvents } from '../utils/visibleCalendarEvents'
 
 const EVENTS_KEY = ['calendar'] as const
 
@@ -225,25 +226,15 @@ const CalendarAuthenticated = () => {
     () => new Set(calendars.filter((row) => row.enabled).map((row) => row.id)),
     [calendars]
   )
-  const events = useMemo(() => {
-    const merged = new Map<string, CalendarEvent>()
-    for (const event of ownEvents) {
-      if (
-        unifiedCalendarEnabled &&
-        event.display_calendar_id &&
-        !enabledCalendarIds.has(event.display_calendar_id)
-      )
-        continue
-      const current = merged.get(event.id)
-      if (!current || (current.details_redacted && !event.details_redacted)) {
-        merged.set(event.id, {
-          ...event,
-          title: event.details_redacted ? t('sharing.busy') : event.title,
-        })
-      }
-    }
-    return [...merged.values()]
-  }, [enabledCalendarIds, ownEvents, t, unifiedCalendarEnabled])
+  const events = useMemo(
+    () =>
+      prepareVisibleCalendarEvents(ownEvents, {
+        unifiedCalendarEnabled,
+        enabledCalendarIds,
+        busyTitle: t('sharing.busy'),
+      }),
+    [enabledCalendarIds, ownEvents, t, unifiedCalendarEnabled]
+  )
   const isLoading =
     ownEventsLoading || (unifiedCalendarEnabled && calendarsLoading)
 
@@ -364,24 +355,15 @@ const CalendarAuthenticated = () => {
     queryFn: () => fetchCalendarEvents(upcomingWindow),
     staleTime: 30_000,
   })
-  const upcomingEvents = useMemo(() => {
-    const merged = new Map<string, CalendarEvent>()
-    for (const event of ownUpcomingEvents) {
-      if (
-        event.display_calendar_id &&
-        !enabledCalendarIds.has(event.display_calendar_id)
-      )
-        continue
-      const current = merged.get(event.id)
-      if (!current || (current.details_redacted && !event.details_redacted)) {
-        merged.set(event.id, {
-          ...event,
-          title: event.details_redacted ? t('sharing.busy') : event.title,
-        })
-      }
-    }
-    return [...merged.values()]
-  }, [enabledCalendarIds, ownUpcomingEvents, t])
+  const upcomingEvents = useMemo(
+    () =>
+      prepareVisibleCalendarEvents(ownUpcomingEvents, {
+        unifiedCalendarEnabled,
+        enabledCalendarIds,
+        busyTitle: t('sharing.busy'),
+      }),
+    [enabledCalendarIds, ownUpcomingEvents, t, unifiedCalendarEnabled]
+  )
 
   const setRsvp = async (event: CalendarEvent, status: RSVPStatus) => {
     try {

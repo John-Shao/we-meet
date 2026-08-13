@@ -72,8 +72,9 @@ kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input
 `0098_remove_external_calendar_sync` 会删除本地同步账号、令牌、镜像日历/日程和同步
 Schema，属于破坏性迁移，不能套用本页默认的“迁移先于 rollout”顺序。必须先更新
 backend 和 `meet-celery-backend`，确认旧同步代码已退出，再执行 `0098`，最后发布
-frontend 和 Android。迁移前必须完成 PostgreSQL 全量备份；迁移后回滚需要同时恢复
-数据库与旧镜像，不能只执行 `migrate core 0097`。
+`helm upgrade` 应用统一日历/分享/导出开关并发布 frontend 和 Android。迁移前必须
+完成 PostgreSQL 全量备份；迁移后回滚需要同时恢复数据库与旧镜像，不能只执行
+`migrate core 0097`。
 
 完整命令、Schema 验收、云端 OAuth 收口与回滚步骤见
 [三方日历同步删除 — 部署步骤](../extensions/三方日历同步删除_部署步骤.md)。
