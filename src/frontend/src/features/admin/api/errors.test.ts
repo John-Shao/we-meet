@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import { ApiError } from '@/api/ApiError'
 
-import { apiErrorCode, describeApiError, describeRoleError } from './errors'
+import {
+  apiErrorCode,
+  describeApiError,
+  describeInvitationError,
+  describeRoleError,
+} from './errors'
 
 /**
  * 管理台报错文案的两段:DRF 原文兜底 + 机器可读 `code` 映射成中文。
@@ -23,11 +28,15 @@ const fakeT = (key: string, options?: Record<string, unknown>): string => {
 
 describe('describeApiError', () => {
   it('DRF 的 detail 优先', () => {
-    expect(describeApiError(err({ detail: 'Not allowed.' }))).toBe('Not allowed.')
+    expect(describeApiError(err({ detail: 'Not allowed.' }))).toBe(
+      'Not allowed.'
+    )
   })
 
   it('没有 detail 时取第一个字段的第一条', () => {
-    expect(describeApiError(err({ scope_type: ['nope'], code: 'x' }))).toBe('nope')
+    expect(describeApiError(err({ scope_type: ['nope'], code: 'x' }))).toBe(
+      'nope'
+    )
   })
 
   it('body 不是对象时退回 ApiError.message', () => {
@@ -43,7 +52,12 @@ describe('describeApiError', () => {
 describe('apiErrorCode', () => {
   it('拿到 code,并把列表插值成逗号串', () => {
     const hit = apiErrorCode(
-      err({ permissions: 'x', code: 'unscopable_assigned', codes: ['a', 'b'], count: 2 }),
+      err({
+        permissions: 'x',
+        code: 'unscopable_assigned',
+        codes: ['a', 'b'],
+        count: 2,
+      })
     )
     expect(hit).toEqual({
       code: 'unscopable_assigned',
@@ -62,8 +76,8 @@ describe('apiErrorCode', () => {
           code: ['unscopable_assigned'],
           codes: ['org.bot.read'],
           count: ['1'],
-        }),
-      ),
+        })
+      )
     ).toEqual({
       code: 'unscopable_assigned',
       params: {
@@ -89,7 +103,7 @@ describe('describeRoleError', () => {
         scope_type: 'This role includes organization-wide permissions…',
         code: 'unscopable_scope',
         codes: ['org.bot.read'],
-      }),
+      })
     )
     expect(message).toBe('组织级权限（org.bot.read）不能限定到部门')
   })
@@ -97,13 +111,44 @@ describe('describeRoleError', () => {
   it('认不出的 code 退回后端原文,而不是显示成键名', () => {
     // 后端新加一条 code、前端还没跟上时的样子 —— 必须仍是一句人话。
     expect(
-      describeRoleError(fakeT, err({ detail: 'Something specific.', code: 'brand_new' })),
+      describeRoleError(
+        fakeT,
+        err({ detail: 'Something specific.', code: 'brand_new' })
+      )
     ).toBe('Something specific.')
   })
 
   it('没带 code 的普通校验错误照旧', () => {
     expect(describeRoleError(fakeT, err({ detail: 'Name is required.' }))).toBe(
-      'Name is required.',
+      'Name is required.'
     )
+  })
+})
+
+describe('describeInvitationError', () => {
+  it('maps the serializer error code through the active locale', () => {
+    const t = (key: string, options?: Record<string, unknown>) =>
+      key === 'addMember.error.already_member'
+        ? '该成员已在当前组织中。'
+        : String(options?.defaultValue ?? key)
+
+    expect(
+      describeInvitationError(
+        t,
+        err({
+          phone: ['This person is already in your organization.'],
+          code: ['already_member'],
+        })
+      )
+    ).toBe('该成员已在当前组织中。')
+  })
+
+  it('keeps the server message as a fallback for unknown codes', () => {
+    expect(
+      describeInvitationError(
+        fakeT,
+        err({ detail: 'A specific validation error.', code: 'future_code' })
+      )
+    ).toBe('A specific validation error.')
   })
 })

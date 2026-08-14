@@ -135,11 +135,17 @@ class OrgInvitationCreateSerializer(serializers.ModelSerializer):
         )
         if email and pending.filter(email__iexact=email).exists():
             raise serializers.ValidationError(
-                {"email": _("A pending invitation already exists for this email.")}
+                {
+                    "email": _("A pending invitation already exists for this email."),
+                    "code": "pending_email",
+                }
             )
         if phone and pending.filter(phone=phone).exists():
             raise serializers.ValidationError(
-                {"phone": _("A pending invitation already exists for this number.")}
+                {
+                    "phone": _("A pending invitation already exists for this number."),
+                    "code": "pending_phone",
+                }
             )
 
         self._reject_existing_member(organization, email=email, phone=phone)
@@ -182,11 +188,15 @@ class OrgInvitationCreateSerializer(serializers.ModelSerializer):
                     field: _(
                         "This person is a departed member of your organization. "
                         "Reinstate them from the 已离职 tab instead of adding them again."
-                    )
+                    ),
+                    "code": "departed_member",
                 }
             )
         raise serializers.ValidationError(
-            {field: _("This person is already in your organization.")}
+            {
+                field: _("This person is already in your organization."),
+                "code": "already_member",
+            }
         )
 
     def _organization(self):

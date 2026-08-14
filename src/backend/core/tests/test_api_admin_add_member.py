@@ -133,6 +133,7 @@ def test_the_same_number_cannot_be_queued_twice():
     assert _add(client, phone=PHONE).status_code == 201
     again = _add(client, phone=f"+86{PHONE}")  # a different spelling, same person
     assert again.status_code == 400
+    assert str(again.data["code"][0]) == "pending_phone"
     assert models.OrgInvitation.objects.count() == 1
 
 
@@ -153,6 +154,7 @@ def test_adding_someone_already_in_the_directory_is_refused():
     )
     response = _add(client, phone=PHONE)
     assert response.status_code == 400
+    assert str(response.data["code"][0]) == "already_member"
     assert "already" in str(response.data).lower()
 
 
@@ -172,6 +174,7 @@ def test_adding_a_departed_member_points_at_rehire():
     )
     response = _add(client, phone=PHONE)
     assert response.status_code == 400
+    assert str(response.data["code"][0]) == "departed_member"
     assert "离职" in str(response.data)
 
 

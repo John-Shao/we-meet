@@ -77,6 +77,22 @@
     "revoke": "Widerrufen",
     "revokeConfirm": "Einladung für „{{email}}“ widerrufen?"
   },
+  "addMember": {
+    "button": "Mitglied hinzufügen",
+    "title": "Mitglied hinzufügen",
+    "phone": "Mobilnummer",
+    "phoneInvalid": "Geben Sie eine 11-stellige Mobilnummer aus Festlandchina ein.",
+    "name": "Name",
+    "email": "E-Mail (optional)",
+    "submit": "Hinzufügen",
+    "hint": "Eine Telefonnummer genügt — die Person benötigt noch kein Konto. Das Mitglied wird als „Noch nicht beigetreten“ angezeigt, bis es sich mit dieser Nummer anmeldet, und tritt dann mit dieser Abteilung / Rolle / Position bei.",
+    "error": {
+      "pending_email": "Für diese E-Mail-Adresse liegt bereits eine offene Einladung vor.",
+      "pending_phone": "Für diese Mobilnummer liegt bereits eine offene Einladung vor.",
+      "departed_member": "Diese Person ist aus Ihrer Organisation ausgeschieden. Stellen Sie sie über den Tab „Ausgeschieden“ wieder ein, statt sie erneut hinzuzufügen.",
+      "already_member": "Diese Person ist bereits Mitglied Ihrer Organisation."
+    }
+  },
   "members": {
     "title": "Mitglieder",
     "tabMembers": "Mitglieder",

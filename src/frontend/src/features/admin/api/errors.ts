@@ -43,7 +43,7 @@ export const describeApiError = (e: unknown): string => {
  * 返回 `null` 表示这个错误没带 code,调用方直接用 `describeApiError`。
  */
 export const apiErrorCode = (
-  e: unknown,
+  e: unknown
 ): { code: string; params: Record<string, unknown> } | null => {
   if (!(e instanceof ApiError) || !e.body || typeof e.body !== 'object') {
     return null
@@ -68,10 +68,23 @@ type Translate = (key: string, options?: Record<string, unknown>) => string
  * 本来就各自持有 `t` 和 `showAlert`。
  */
 export const describeRoleError = (t: Translate, e: unknown): string => {
+  return describeCodedApiError(t, e, 'roles.error')
+}
+
+/** Localized validation messages for the add-member invitation flow. */
+export const describeInvitationError = (t: Translate, e: unknown): string => {
+  return describeCodedApiError(t, e, 'addMember.error')
+}
+
+const describeCodedApiError = (
+  t: Translate,
+  e: unknown,
+  keyPrefix: string
+): string => {
   const fallback = describeApiError(e)
   const hit = apiErrorCode(e)
   if (!hit) return fallback
-  return t(`roles.error.${hit.code}`, {
+  return t(`${keyPrefix}.${hit.code}`, {
     ...hit.params,
     defaultValue: fallback,
   })

@@ -77,6 +77,22 @@
     "revoke": "Révoquer",
     "revokeConfirm": "Révoquer l'invitation pour « {{email}} » ?"
   },
+  "addMember": {
+    "button": "Ajouter un membre",
+    "title": "Ajouter un membre",
+    "phone": "Numéro de téléphone mobile",
+    "phoneInvalid": "Saisissez un numéro de téléphone mobile de Chine continentale à 11 chiffres.",
+    "name": "Nom",
+    "email": "E-mail (facultatif)",
+    "submit": "Ajouter",
+    "hint": "Un numéro de téléphone suffit — la personne n'a pas encore besoin de compte. Elle apparaîtra comme « Non inscrite » jusqu'à sa connexion avec ce numéro, puis rejoindra l'organisation avec ce service / rôle / intitulé de poste.",
+    "error": {
+      "pending_email": "Une invitation est déjà en attente pour cette adresse e-mail.",
+      "pending_phone": "Une invitation est déjà en attente pour ce numéro de téléphone mobile.",
+      "departed_member": "Cette personne a quitté votre organisation. Réintégrez-la depuis l'onglet « Anciens membres » au lieu de l'ajouter à nouveau.",
+      "already_member": "Cette personne appartient déjà à votre organisation."
+    }
+  },
   "members": {
     "title": "Membres",
     "tabMembers": "Membres",

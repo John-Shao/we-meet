@@ -179,7 +179,13 @@
     "name": "Name",
     "email": "Email (optional)",
     "submit": "Add",
-    "hint": "A phone number is enough — they do not need an account yet. The member shows as \"Not joined\" until they sign in with that number, and then joins with this department / role / title."
+    "hint": "A phone number is enough — they do not need an account yet. The member shows as \"Not joined\" until they sign in with that number, and then joins with this department / role / title.",
+    "error": {
+      "pending_email": "A pending invitation already exists for this email address.",
+      "pending_phone": "A pending invitation already exists for this mobile number.",
+      "departed_member": "This person has left your organization. Reinstate them from the Departed tab instead of adding them again.",
+      "already_member": "This person is already in your organization."
+    }
   },
   "invites": {
     "title": "Invite members",

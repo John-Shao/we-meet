@@ -161,6 +161,7 @@ def test_admin_membership_cannot_suspend_self():
         format="json",
     )
     assert response.status_code == 400, response.content
+    assert str(response.data["code"][0]) == "pending_email"
 
 
 def test_admin_membership_cannot_demote_last_owner():

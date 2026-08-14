@@ -28,7 +28,7 @@ import {
 import { fetchDictItems } from '../api/adminDictionaries'
 import { fetchAdminDepartments } from '../api/adminDepartments'
 import { createInvitation, fetchInvitations } from '../api/adminInvitations'
-import { describeApiError } from '../api/errors'
+import { describeApiError, describeInvitationError } from '../api/errors'
 import { SelectDialog } from '../components/SelectDialog'
 import { TextPromptDialog } from '../components/TextPromptDialog'
 import { AddMemberDialog } from '../components/AddMemberDialog'
@@ -177,7 +177,8 @@ export const AdminMembers = () => {
       invalidate()
       setInviteOpen(false)
     },
-    onError,
+    onError: (e: unknown) =>
+      showAlert({ message: describeInvitationError(t, e) }),
   })
 
   const members = data?.results ?? []
@@ -194,9 +195,12 @@ export const AdminMembers = () => {
   const toggleSuspend = async (m: AdminMember) => {
     const suspend = m.status === 'active'
     const ok = await confirm({
-      message: t(suspend ? 'members.suspendConfirm' : 'members.restoreConfirm', {
-        name: displayName(m),
-      }),
+      message: t(
+        suspend ? 'members.suspendConfirm' : 'members.restoreConfirm',
+        {
+          name: displayName(m),
+        }
+      ),
       danger: suspend,
     })
     if (!ok) return
@@ -290,7 +294,9 @@ export const AdminMembers = () => {
               {t('members.changeTitle')}
             </MenuItem>
             <MenuItem className={menuItem} onAction={() => toggleSuspend(m)}>
-              {m.status === 'active' ? t('members.suspend') : t('members.restore')}
+              {m.status === 'active'
+                ? t('members.suspend')
+                : t('members.restore')}
             </MenuItem>
             <MenuItem
               className={menuItemDanger}
@@ -308,7 +314,13 @@ export const AdminMembers = () => {
   ]
 
   return (
-    <div className={css({ display: 'flex', flexDirection: 'column', height: '100%' })}>
+    <div
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+      })}
+    >
       <div
         className={css({
           flexShrink: 0,
@@ -317,14 +329,33 @@ export const AdminMembers = () => {
           borderBottom: '1px solid token(colors.greyscale.200)',
         })}
       >
-        <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' })}>
-          <h1 className={css({ fontSize: '1.125rem', fontWeight: 'bold', color: 'greyscale.900' })}>
+        <div
+          className={css({
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '0.75rem',
+          })}
+        >
+          <h1
+            className={css({
+              fontSize: '1.125rem',
+              fontWeight: 'bold',
+              color: 'greyscale.900',
+            })}
+          >
             {t('members.consoleTitle')}
           </h1>
           {/* 「部门」tab 的主操作是「新建部门」,归它自己的工具条 —— 一个页头
               不该按 tab 换主按钮,换到第三个就没人知道现在能点什么了。 */}
           {view !== 'departments' && (
-            <div className={css({ display: 'flex', alignItems: 'center', gap: '0.5rem' })}>
+            <div
+              className={css({
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              })}
+            >
               {/* 导出走 <a download> 而不是 fetch:响应是文件流,拿 JS 接下来
                   再造一个 blob 只是把浏览器已经做好的事重做一遍。 */}
               <a href={MEMBER_EXPORT_PATH} download className={exportLinkCls}>
@@ -348,108 +379,146 @@ export const AdminMembers = () => {
             </div>
           )}
         </div>
-        <div className={css({ display: 'flex', gap: '1rem', marginBottom: '0.75rem', borderBottom: '1px solid token(colors.greyscale.200)' })}>
-          <button type="button" onClick={() => setView('members')} className={tab(view === 'members')}>
+        <div
+          className={css({
+            display: 'flex',
+            gap: '1rem',
+            marginBottom: '0.75rem',
+            borderBottom: '1px solid token(colors.greyscale.200)',
+          })}
+        >
+          <button
+            type="button"
+            onClick={() => setView('members')}
+            className={tab(view === 'members')}
+          >
             {t('members.tabMembers')}
           </button>
-          <button type="button" onClick={() => setView('departments')} className={tab(view === 'departments')}>
+          <button
+            type="button"
+            onClick={() => setView('departments')}
+            className={tab(view === 'departments')}
+          >
             {t('members.tabDepartments')}
           </button>
-          <button type="button" onClick={() => setView('departed')} className={tab(view === 'departed')}>
+          <button
+            type="button"
+            onClick={() => setView('departed')}
+            className={tab(view === 'departed')}
+          >
             {t('members.tabDeparted')}
           </button>
-          <button type="button" onClick={() => setView('invitations')} className={tab(view === 'invitations')}>
+          <button
+            type="button"
+            onClick={() => setView('invitations')}
+            className={tab(view === 'invitations')}
+          >
             {t('members.tabInvitations')}
-            {pendingCount > 0 && <span className={tabBadge}>{pendingCount}</span>}
+            {pendingCount > 0 && (
+              <span className={tabBadge}>{pendingCount}</span>
+            )}
           </button>
         </div>
         {view === 'members' && (
-        <div className={css({ display: 'flex', gap: '0.625rem', flexWrap: 'wrap', alignItems: 'center' })}>
-          <select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value)
-              setPage(1)
-            }}
-            className={filterSelect}
+          <div
+            className={css({
+              display: 'flex',
+              gap: '0.625rem',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+            })}
           >
-            <option value="">{t('members.filterAllStatus')}</option>
-            {MEMBER_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {statusLabel(s)}
-              </option>
-            ))}
-          </select>
-          <select
-            value={department}
-            onChange={(e) => {
-              setDepartment(e.target.value)
-              setPage(1)
-            }}
-            className={filterSelect}
-          >
-            <option value="">{t('members.filterAllDepartments')}</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={employeeType}
-            onChange={(e) => {
-              setEmployeeType(e.target.value)
-              setPage(1)
-            }}
-            className={filterSelect}
-          >
-            <option value="">{t('members.filterAllEmployeeTypes')}</option>
-            {employeeTypes.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              applySearch()
-            }}
-            className={css({ display: 'flex', alignItems: 'center', gap: '0.375rem' })}
-          >
-            <input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={t('members.searchPlaceholder')}
-              className={css({
-                width: '14rem',
-                // 与同排的筛选下拉(filterSelect)一样钉 control.md;钉高必须
-                // 同时去掉上下内边距,见 primitives/selectChrome 的注释。
-                height: 'control.md',
-                paddingX: '0.5rem',
-                border: '1px solid token(colors.control.border)',
-                borderRadius: '4px',
-                backgroundColor: 'greyscale.000',
-                color: 'default.text',
-                fontSize: '0.875rem',
-              })}
-            />
-            <Button
-              type="submit"
-              variant="quaternaryText"
-              size="icon28"
-              aria-label={t('members.search')}
+            <select
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value)
+                setPage(1)
+              }}
+              className={filterSelect}
             >
-              <RiSearchLine size={16} />
-            </Button>
-          </form>
-        </div>
+              <option value="">{t('members.filterAllStatus')}</option>
+              {MEMBER_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {statusLabel(s)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={department}
+              onChange={(e) => {
+                setDepartment(e.target.value)
+                setPage(1)
+              }}
+              className={filterSelect}
+            >
+              <option value="">{t('members.filterAllDepartments')}</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={employeeType}
+              onChange={(e) => {
+                setEmployeeType(e.target.value)
+                setPage(1)
+              }}
+              className={filterSelect}
+            >
+              <option value="">{t('members.filterAllEmployeeTypes')}</option>
+              {employeeTypes.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                applySearch()
+              }}
+              className={css({
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.375rem',
+              })}
+            >
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={t('members.searchPlaceholder')}
+                className={css({
+                  width: '14rem',
+                  // 与同排的筛选下拉(filterSelect)一样钉 control.md;钉高必须
+                  // 同时去掉上下内边距,见 primitives/selectChrome 的注释。
+                  height: 'control.md',
+                  paddingX: '0.5rem',
+                  border: '1px solid token(colors.control.border)',
+                  borderRadius: '4px',
+                  backgroundColor: 'greyscale.000',
+                  color: 'default.text',
+                  fontSize: '0.875rem',
+                })}
+              />
+              <Button
+                type="submit"
+                variant="quaternaryText"
+                size="icon28"
+                aria-label={t('members.search')}
+              >
+                <RiSearchLine size={16} />
+              </Button>
+            </form>
+          </div>
         )}
       </div>
 
       {view === 'members' && selected.length > 0 && (
         <div className={bulkBarCls}>
-          <span className={css({ fontSize: '0.875rem', color: 'greyscale.700' })}>
+          <span
+            className={css({ fontSize: '0.875rem', color: 'greyscale.700' })}
+          >
             {t('members.bulkSelected', { count: selected.length })}
           </span>
           <Button
@@ -476,7 +545,11 @@ export const AdminMembers = () => {
           >
             {t('members.bulkOffboard')}
           </Button>
-          <Button size="sm" variant="tertiaryText" onPress={() => setSelected([])}>
+          <Button
+            size="sm"
+            variant="tertiaryText"
+            onPress={() => setSelected([])}
+          >
             {t('members.bulkClear')}
           </Button>
         </div>
@@ -522,7 +595,8 @@ export const AdminMembers = () => {
               // showTotal 会在右侧再渲染一个「总页数: N」,和左边的「共 N 人」
               // 重复且信息量更低,关掉。总数只保留左侧这一处,沿用既有 i18n key。
               showTotal: false,
-              formatPageText: () => t('members.total', { count: data?.count ?? 0 }),
+              formatPageText: () =>
+                t('members.total', { count: data?.count ?? 0 }),
             }}
           />
         )}
@@ -553,7 +627,8 @@ export const AdminMembers = () => {
         confirmLabel={t('actions.save')}
         submitting={updateMut.isPending}
         onSubmit={(value) =>
-          roleTarget && updateMut.mutate({ id: roleTarget.id, input: { org_role: value } })
+          roleTarget &&
+          updateMut.mutate({ id: roleTarget.id, input: { org_role: value } })
         }
         onClose={() => setRoleTarget(null)}
       />
@@ -570,7 +645,10 @@ export const AdminMembers = () => {
         submitting={updateMut.isPending}
         onSubmit={(value) =>
           deptTarget &&
-          updateMut.mutate({ id: deptTarget.id, input: { department: value || null } })
+          updateMut.mutate({
+            id: deptTarget.id,
+            input: { department: value || null },
+          })
         }
         onClose={() => setDeptTarget(null)}
       />
@@ -585,8 +663,7 @@ export const AdminMembers = () => {
         member={offboardTarget}
         submitting={offboardMut.isPending}
         onSubmit={(input) =>
-          offboardTarget &&
-          offboardMut.mutate({ id: offboardTarget.id, input })
+          offboardTarget && offboardMut.mutate({ id: offboardTarget.id, input })
         }
         onClose={() => setOffboardTarget(null)}
       />
@@ -616,7 +693,8 @@ export const AdminMembers = () => {
         confirmLabel={t('actions.save')}
         submitting={updateMut.isPending}
         onSubmit={(value) =>
-          titleTarget && updateMut.mutate({ id: titleTarget.id, input: { title: value } })
+          titleTarget &&
+          updateMut.mutate({ id: titleTarget.id, input: { title: value } })
         }
         onClose={() => setTitleTarget(null)}
       />
@@ -634,14 +712,19 @@ const badgeBase = css({
   fontSize: '0.75rem',
 })
 const badgeByStatus: Record<string, string> = {
-  active: css({ backgroundColor: 'success.subtle', color: 'success.subtle-text' }),
+  active: css({
+    backgroundColor: 'success.subtle',
+    color: 'success.subtle-text',
+  }),
   invited: css({ backgroundColor: 'brand.100', color: 'brand.700' }),
   suspended: css({ backgroundColor: 'error.200', color: 'error.900' }),
   left: css({ backgroundColor: 'greyscale.200', color: 'greyscale.700' }),
 }
 
 const StatusBadge = ({ status, label }: { status: string; label: string }) => (
-  <span className={`${badgeBase} ${badgeByStatus[status] ?? badgeByStatus.left}`}>
+  <span
+    className={`${badgeBase} ${badgeByStatus[status] ?? badgeByStatus.left}`}
+  >
     {label}
   </span>
 )

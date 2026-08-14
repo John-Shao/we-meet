@@ -77,6 +77,22 @@
     "revoke": "Intrekken",
     "revokeConfirm": "Uitnodiging voor \"{{email}}\" intrekken?"
   },
+  "addMember": {
+    "button": "Lid toevoegen",
+    "title": "Lid toevoegen",
+    "phone": "Mobiel nummer",
+    "phoneInvalid": "Voer een 11-cijferig mobiel nummer van het Chinese vasteland in.",
+    "name": "Naam",
+    "email": "E-mail (optioneel)",
+    "submit": "Toevoegen",
+    "hint": "Een telefoonnummer is voldoende — de persoon heeft nog geen account nodig. Het lid wordt als ‘Nog niet toegetreden’ weergegeven totdat diegene zich met dit nummer aanmeldt en treedt dan toe met deze afdeling / rol / functietitel.",
+    "error": {
+      "pending_email": "Er bestaat al een openstaande uitnodiging voor dit e-mailadres.",
+      "pending_phone": "Er bestaat al een openstaande uitnodiging voor dit mobiele nummer.",
+      "departed_member": "Deze persoon heeft uw organisatie verlaten. Neem diegene opnieuw in dienst via het tabblad ‘Uit dienst’ in plaats van opnieuw toe te voegen.",
+      "already_member": "Deze persoon is al lid van uw organisatie."
+    }
+  },
   "members": {
     "title": "Leden",
     "tabMembers": "Leden",
