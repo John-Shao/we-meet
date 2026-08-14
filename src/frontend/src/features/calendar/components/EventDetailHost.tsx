@@ -14,6 +14,9 @@ import {
   fetchCalendarEvent,
   rsvpCalendarEvent,
 } from '../api/fetchCalendar'
+import type { EditScope } from '../api/ApiCalendar'
+import { CreateEventDialog } from './CreateEventDialog'
+import { EditScopeDialog } from './EditScopeDialog'
 import { EventDetailDialog } from './EventDetailDialog'
 import { EventShareDialog } from './EventShareDialog'
 
@@ -28,9 +31,12 @@ import { EventShareDialog } from './EventShareDialog'
 export const EventDetailHost = ({
   eventId,
   onClose,
+  editMode = 'calendar',
 }: {
   eventId: string
   onClose: () => void
+  /** Keep legacy IM behavior by default; meeting overview edits in place. */
+  editMode?: 'calendar' | 'inline'
 }) => {
   const { t } = useTranslation('im')
   const [, navigate] = useLocation()
@@ -39,6 +45,9 @@ export const EventDetailHost = ({
   const queryClient = useQueryClient()
   // 转分享:详情先关掉再开分享,避免两个 Modal 叠加。
   const [sharing, setSharing] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editScope, setEditScope] = useState<EditScope>()
+  const [choosingEditScope, setChoosingEditScope] = useState(false)
 
   const {
     data: event,
@@ -55,6 +64,7 @@ export const EventDetailHost = ({
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ['calendar'] }),
       queryClient.invalidateQueries({ queryKey: ['im', 'freebusy'] }),
+      queryClient.invalidateQueries({ queryKey: ['scheduled-meetings'] }),
     ])
 
   if (isLoading) return null
@@ -86,6 +96,49 @@ export const EventDetailHost = ({
     navigate('/calendar')
   }
 
+  const startEditing = () => {
+    if (editMode === 'calendar') {
+      toCalendar()
+      return
+    }
+    if (event.recurrence_parent) {
+      setChoosingEditScope(true)
+      return
+    }
+    setEditScope(undefined)
+    setEditing(true)
+  }
+
+  if (choosingEditScope)
+    return (
+      <EditScopeDialog
+        title={t('scope.editTitle', { ns: 'calendar' })}
+        options={['one', 'following', 'all']}
+        onClose={() => setChoosingEditScope(false)}
+        onConfirm={(scope) => {
+          setChoosingEditScope(false)
+          setEditScope(scope)
+          setEditing(true)
+        }}
+      />
+    )
+
+  if (editing)
+    return (
+      <CreateEventDialog
+        editEvent={event}
+        editScope={editScope}
+        onClose={() => {
+          setEditing(false)
+          setEditScope(undefined)
+        }}
+        onCreated={() => {
+          onClose()
+          void invalidate()
+        }}
+      />
+    )
+
   if (sharing)
     return <EventShareDialog event={event} onClose={() => setSharing(false)} />
 
@@ -94,7 +147,7 @@ export const EventDetailHost = ({
       event={event}
       canManage={!!user && event.organizer?.id === user.id}
       onShare={() => setSharing(true)}
-      onEdit={toCalendar}
+      onEdit={startEditing}
       onDelete={() => {
         // 重复日程的范围三选留在日历页;单次日程就地确认删除。
         if (event.recurrence_parent || event.recurrence) {

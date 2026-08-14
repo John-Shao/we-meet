@@ -341,6 +341,7 @@ export const Home = () => {
             {meetingDetail?.eventId ? (
               <EventDetailHost
                 eventId={meetingDetail.eventId}
+                editMode="inline"
                 onClose={() => setMeetingDetail(null)}
               />
             ) : (
