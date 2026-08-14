@@ -87,6 +87,7 @@ export const MessageInput = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [commandIndex, setCommandIndex] = useState(0)
+  const [commandMenuDismissed, setCommandMenuDismissed] = useState(true)
   const [mention, setMention] = useState<{ at: number; query: string } | null>(
     null
   )
@@ -95,11 +96,17 @@ export const MessageInput = ({
   const attachRef = useRef<HTMLInputElement>(null)
   const emojiRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
+  const commandMenuRef = useRef<HTMLUListElement>(null)
   const dragDepthRef = useRef(0)
 
   useEffect(() => {
     setText(initialText)
+    setCommandMenuDismissed(true)
   }, [initialText])
+
+  useEffect(() => {
+    setCommandMenuDismissed(true)
+  }, [conversationType])
 
   const sendFiles = async (files: File[]) => {
     if (files.length === 0 || uploading) return
@@ -181,8 +188,33 @@ export const MessageInput = ({
   }
 
   const commands = matchCommands(text, conversationType)
+  const commandMenuOpen = commands.length > 0 && !commandMenuDismissed
+
+  useEffect(() => {
+    if (!commandMenuOpen) return
+    const closeOnOutside = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (
+        !commandMenuRef.current?.contains(target) &&
+        !inputRef.current?.contains(target)
+      ) {
+        setCommandMenuDismissed(true)
+      }
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCommandMenuDismissed(true)
+    }
+    window.addEventListener('mousedown', closeOnOutside)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      window.removeEventListener('mousedown', closeOnOutside)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [commandMenuOpen])
+
   const executeCommand = (id: ImCommandId) => {
     setShowMore(false)
+    setCommandMenuDismissed(true)
     setText('')
     onDraftChange?.('')
     setCommandIndex(0)
@@ -359,8 +391,9 @@ export const MessageInput = ({
           gap: '0.5rem',
         })}
       >
-        {commands.length > 0 && (
+        {commandMenuOpen && (
           <ul
+            ref={commandMenuRef}
             className={css({
               position: 'absolute',
               bottom: '100%',
@@ -745,13 +778,14 @@ export const MessageInput = ({
             setText(e.target.value)
             onDraftChange?.(e.target.value)
             setCommandIndex(0)
+            setCommandMenuDismissed(false)
             recomputeMention(
               e.target.value,
               e.target.selectionStart ?? e.target.value.length
             )
           }}
           onKeyDown={(e) => {
-            if (commands.length === 0) return
+            if (!commandMenuOpen) return
             if (e.key === 'ArrowDown') {
               e.preventDefault()
               setCommandIndex((value) => (value + 1) % commands.length)
@@ -767,8 +801,7 @@ export const MessageInput = ({
               )
             } else if (e.key === 'Escape') {
               e.preventDefault()
-              setText(text.slice(1))
-              onDraftChange?.(text.slice(1))
+              setCommandMenuDismissed(true)
             }
           }}
           onKeyUp={(e) => {
@@ -779,13 +812,18 @@ export const MessageInput = ({
             const el = e.currentTarget
             recomputeMention(el.value, el.selectionStart ?? el.value.length)
           }}
-          onClick={(e) =>
+          onFocus={() => setCommandMenuDismissed(false)}
+          onClick={(e) => {
+            setCommandMenuDismissed(false)
             recomputeMention(
               e.currentTarget.value,
               e.currentTarget.selectionStart ?? 0
             )
-          }
-          onBlur={() => setMention(null)}
+          }}
+          onBlur={() => {
+            setMention(null)
+            setCommandMenuDismissed(true)
+          }}
           placeholder={t('input.placeholder')}
           disabled={disabled || sending}
           className={css({

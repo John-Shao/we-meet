@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
@@ -32,6 +32,8 @@ export const CalendarListManager = ({
   const [settings, setSettings] = useState<UnifiedCalendar | null>(null)
   const [share, setShare] = useState<UnifiedCalendar | null>(null)
   const [exporting, setExporting] = useState<UnifiedCalendar | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const openMenuRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState('')
   const { data: calendars = [] } = useQuery({
     queryKey: ['calendar', 'unified'],
@@ -73,6 +75,25 @@ export const CalendarListManager = ({
   }
   const managed = calendars.filter((row) => row.capabilities.can_manage)
   const subscribed = calendars.filter((row) => !row.capabilities.can_manage)
+
+  useEffect(() => {
+    if (!openMenuId) return
+    const closeOnOutside = (event: MouseEvent) => {
+      if (!openMenuRef.current?.contains(event.target as Node)) {
+        setOpenMenuId(null)
+      }
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenMenuId(null)
+    }
+    window.addEventListener('mousedown', closeOnOutside)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      window.removeEventListener('mousedown', closeOnOutside)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [openMenuId])
+
   const renderGroup = (title: string, rows: UnifiedCalendar[]) => (
     <section className={groupCls}>
       <h3 className={groupTitleCls}>{title}</h3>
@@ -101,44 +122,89 @@ export const CalendarListManager = ({
             <span className={nameCls} title={calendar.display_name}>
               {calendar.display_name}
             </span>
-            <details className={menuCls}>
-              <summary aria-label={`${calendar.display_name} 菜单`}>
+            <div
+              className={menuCls}
+              ref={openMenuId === calendar.id ? openMenuRef : undefined}
+            >
+              <button
+                type="button"
+                aria-label={`${calendar.display_name} 菜单`}
+                aria-haspopup="menu"
+                aria-expanded={openMenuId === calendar.id}
+                onClick={() =>
+                  setOpenMenuId((current) =>
+                    current === calendar.id ? null : calendar.id
+                  )
+                }
+              >
                 ···
-              </summary>
-              <div className={menuPopupCls}>
-                <button type="button" onClick={() => void only(calendar)}>
-                  仅显示此日历
-                </button>
-                {calendar.capabilities.can_manage &&
-                  calendar.kind !== 'resource' && (
-                    <button type="button" onClick={() => setSettings(calendar)}>
-                      日历设置
-                    </button>
-                  )}
-                {sharingEnabled && calendar.capabilities.can_share && (
-                  <button type="button" onClick={() => setShare(calendar)}>
-                    分享
-                  </button>
-                )}
-                {exportEnabled && calendar.capabilities.can_export && (
-                  <button type="button" onClick={() => setExporting(calendar)}>
-                    导出日历
-                  </button>
-                )}
-                {!calendar.capabilities.can_manage && (
+              </button>
+              {openMenuId === calendar.id && (
+                <div className={menuPopupCls} role="menu">
                   <button
                     type="button"
-                    onClick={() =>
-                      void unsubscribeUnifiedCalendar(calendar.id)
-                        .then(refresh)
-                        .catch((reason) => setError(apiErrorMessage(reason)))
-                    }
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenMenuId(null)
+                      void only(calendar)
+                    }}
                   >
-                    取消订阅
+                    仅显示此日历
                   </button>
-                )}
-              </div>
-            </details>
+                  {calendar.capabilities.can_manage &&
+                    calendar.kind !== 'resource' && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setOpenMenuId(null)
+                          setSettings(calendar)
+                        }}
+                      >
+                        日历设置
+                      </button>
+                    )}
+                  {sharingEnabled && calendar.capabilities.can_share && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setOpenMenuId(null)
+                        setShare(calendar)
+                      }}
+                    >
+                      分享
+                    </button>
+                  )}
+                  {exportEnabled && calendar.capabilities.can_export && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setOpenMenuId(null)
+                        setExporting(calendar)
+                      }}
+                    >
+                      导出日历
+                    </button>
+                  )}
+                  {!calendar.capabilities.can_manage && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setOpenMenuId(null)
+                        void unsubscribeUnifiedCalendar(calendar.id)
+                          .then(refresh)
+                          .catch((reason) => setError(apiErrorMessage(reason)))
+                      }}
+                    >
+                      取消订阅
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ))
       )}
@@ -224,7 +290,13 @@ const nameCls = css({
 })
 const menuCls = css({
   position: 'relative',
-  '& summary': { listStyle: 'none', cursor: 'pointer', color: 'greyscale.500' },
+  '& > button': {
+    border: 0,
+    padding: 0,
+    background: 'transparent',
+    cursor: 'pointer',
+    color: 'greyscale.500',
+  },
 })
 const menuPopupCls = css({
   position: 'absolute',
