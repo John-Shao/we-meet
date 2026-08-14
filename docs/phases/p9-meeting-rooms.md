@@ -190,7 +190,7 @@ savedStateHandle 跨屏回传那一套(见 `AppNav.kt`),`CreateEventScreen` 的�
 `ModalBottomSheet` 又会两层焦点打架。同 sheet 换个 body 是唯一不牺牲东西的做法。
 
 **方向与 Web 相反是刻意的**:Web 是横向时间 × 纵向房间,App 是纵向时间 ×
-横向房间。竖屏天然适合纵向时间轴,也与 App 既有的日/周视图一致;为对齐 Web
+横向房间。竖屏天然适合纵向时间轴,也与 App 既有的日/三日视图一致;为对齐 Web
 掰成横向,反而会和旁边的日历格格不入。
 
 实现上几乎没写新东西 —— `views/TimeGrid.kt` 的 `TimelineScaffold` 已经提供

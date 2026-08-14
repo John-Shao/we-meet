@@ -9,7 +9,7 @@
 > 日历设置(对标飞书设置页的可落地子集,纯客户端本地存储,后端零改动:web `089a13a8`
 > 日历页齿轮→弹窗,android `037a5f3` 日历 tab 齿轮→设置页):①在消息列表提醒日程开关
 > ——收进设置解决「关掉后无处重开」死锁(提醒页开关保留,双入口同一存储);②每周的
-> 第一天(周一默认/周日,作用于 web 主网格+迷你月历、android 月网格+周视图);③日程
+> 第一天(周一默认/周日,作用于 web 主网格+迷你月历、android 月网格+日视图日期条);③日程
 > 默认时长(30/60/90 分钟,默认 60);④默认提醒时间(新建表单预勾提前量,默认 10 分
 > 钟)。飞书其余设置项(工作时间/时区/邮件同步/拒绝日程系列)无对应功能
 > 支撑不做假开关;「默认提醒时间」若要影响后端 IM 提醒推送时机需 per-user 服务端存储,
@@ -26,7 +26,7 @@
 > 会议页侧栏标题行齿轮 = openSystemSettings('meeting') 快捷入口;Web 不提供 H.265
 > (浏览器编码不支持,App native SDK 才有)。
 > 日历设置第 5 项:降低已结束日程的亮度(对标飞书,默认开,web `a702ab14`,android
-> `5616101`):结束早于当前的日程块降透明(web 主网格 opacity 0.45,android 日/周
+> `5616101`):结束早于当前的日程块降透明(web 主网格 opacity 0.45,android 日/三日
 > 时间轴 + 日程/月视图卡片 alpha 0.5;与取消态删除线样式相互独立)。
 > 编辑增删参与者(backend `6fb3ddf4`,web `657ca190`,android `2ec8801`):PATCH
 > ``attendee_ids`` 语义升级——缺省不动(兼容),传列表=**全量同步**(新面孔补建
@@ -69,7 +69,7 @@
 1. **会话内一键约会**:私聊右上角「查看日历」/ 群聊「群成员日历」,侧边直接展示双方 / 全员忙闲时间轴,拖动空白时段就能新建日程,不切页面。
 2. **日程消息互通**:创建完成自动向会话发送日程卡片;改时间 / 增减参会人实时推送变更提醒。
 3. **群成员批量排期**:一键查看全员忙闲,自动筛选所有人都有空的时段。
-4. **App 端视图补齐**:日历 tab 增加 日程(默认)/日/周 视图(飞书的"三日"我们改为周),月视图保留。
+4. **App 端视图补齐**:日历 tab 提供日程(默认)/日/三日/月视图；三日视图为从当前日期开始的连续三天。
 
 ## 2. 现状盘点(全部已核实)
 
@@ -80,8 +80,8 @@
 | IM uid → we-meet 用户 | ✅ `im/users/resolve` 返回 `{id(UUID), name, avatar}`;Web `resolveImUsers`、App `ImUserInfo.id`/`GroupMemberUi.userId`/`peerUserId` 均已解析好 | `core/api/im.py` resolve_users |
 | IM 自定义消息类型 | ✅ `content_type` 透传(P7),已有 image/quote/file/recall/reaction/call-log/group-call 等先例 | `docs/phases/p7-im-rich-messages.md` |
 | 后端向会话发消息 | ✅ jusi admin client + `_post_system_message` 基建 | `core/api/im.py` |
-| Web 日历页 | ✅ react-big-calendar,默认周视图,点格建日程;CreateEventDialog 支持 initialStart/End | `features/calendar/` |
-| App 日历 | ⚠️ 仅月视图+列表;无时间轴视图、无忙闲对比 | `ui/calendar/` |
+| Web 日历页 | ✅ react-big-calendar,默认周视图且始终显示周末,点格建日程;CreateEventDialog 支持 initialStart/End | `features/calendar/` |
+| App 日历 | ✅ 日程/日/三日/月视图、时间轴与忙闲对比 | `ui/calendar/` |
 | IM 会话内日历入口 | ❌ 双端均无 | — |
 
 ## 3. 线上协议:event-card 消息(v1)

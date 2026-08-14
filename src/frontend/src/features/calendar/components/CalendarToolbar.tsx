@@ -85,7 +85,7 @@ export const CalendarViewSwitcher = ({
   )
 }
 
-// 翻页箭头 tooltip 按视图区分:日=前一天/后一天、三日=前/后 3 天、
+// 翻页箭头 tooltip 按视图区分:日=前一天/后一天、周=上周/下周、
 // 月=上个月/下个月;日程视图锚点按天调整,同「前一天/后一天」。
 const NAV_TIP_KEYS: Partial<Record<View, [string, string]>> = {
   day: ['grid.prevDay', 'grid.nextDay'],

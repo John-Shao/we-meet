@@ -18,7 +18,6 @@ import {
   format,
   parse,
   startOfWeek,
-  startOfDay,
   getDay,
   isSameDay,
   isWeekend,
@@ -42,7 +41,6 @@ import {
 } from '../utils/zonedDate'
 import { CalendarToolbar } from './CalendarToolbar'
 import { AgendaListView } from './AgendaListView'
-import { ThreeDayView } from './ThreeDayView'
 
 /**
  * Feishu-style 月/周/日 calendar grid (P6-e #3), backed by react-big-calendar.
@@ -274,7 +272,7 @@ const useAlignedTimeGridHeader = (calendarRootId: string) => {
 // 引用稳定避免视图重挂。类型上 rbc 的 Views 不含自定义组件签名,窄化断言。
 const RBC_VIEWS = {
   month: true,
-  week: ThreeDayView,
+  week: true,
   day: true,
   agenda: AgendaListView,
 } as unknown as View[]
@@ -403,9 +401,12 @@ export const CalendarGrid = ({
 
   const outsideEventCount = useMemo(() => {
     if (view !== 'day' && view !== 'week') return 0
-    const rangeStart = startOfDay(date)
+    const rangeStart =
+      view === 'week'
+        ? startOfWeek(date, { weekStartsOn })
+        : new Date(date.getFullYear(), date.getMonth(), date.getDate())
     const rangeEnd = new Date(rangeStart)
-    rangeEnd.setDate(rangeEnd.getDate() + (view === 'week' ? 3 : 1))
+    rangeEnd.setDate(rangeEnd.getDate() + (view === 'week' ? 7 : 1))
     return events.filter((event) => {
       if (event.all_day) return false
       const start = instantToZonedDate(event.start_at, calendarTimezone)
@@ -418,6 +419,7 @@ export const CalendarGrid = ({
     date,
     events,
     view,
+    weekStartsOn,
     workingHours,
   ])
 

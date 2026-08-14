@@ -109,7 +109,7 @@ const localSnapshot = (): Omit<
   default_reminder_minutes: readReminder(),
   dim_past: readDimPast(),
   // Retained only for compatibility with the existing preference API.
-  // The fixed three-day view always includes weekends.
+  // The Web week view always includes weekends.
   show_weekend: true,
   working_start_minutes: readWorkingHours().startMin,
   working_end_minutes: readWorkingHours().endMin,
