@@ -101,7 +101,6 @@ export const MessageInput = ({
 
   useEffect(() => {
     setText(initialText)
-    setCommandMenuDismissed(true)
   }, [initialText])
 
   useEffect(() => {
@@ -254,7 +253,7 @@ export const MessageInput = ({
 
   const submit = useCallback(async () => {
     const trimmed = text.trim()
-    if (!trimmed || sending || disabled) return
+    if (!trimmed || sending || disabled || commandMenuOpen) return
     setSending(true)
     try {
       await onSend(trimmed)
@@ -266,7 +265,7 @@ export const MessageInput = ({
     } finally {
       setSending(false)
     }
-  }, [text, sending, disabled, onSend, onDraftChange])
+  }, [text, sending, disabled, commandMenuOpen, onSend, onDraftChange])
 
   return (
     <form
@@ -841,7 +840,7 @@ export const MessageInput = ({
           type="submit"
           variant="primary"
           size="action"
-          isDisabled={disabled || sending || !text.trim()}
+          isDisabled={disabled || sending || !text.trim() || commandMenuOpen}
           data-testid="im-msg-send"
         >
           {sending ? t('input.sending') : t('input.send')}
