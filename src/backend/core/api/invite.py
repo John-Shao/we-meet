@@ -135,9 +135,18 @@ class MyJoinRequestsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
+        queryset = models.OrgJoinRequest.objects.filter(user=request.user)
+        invite_code = request.query_params.get("invite_code", "").strip().upper()
+        if invite_code:
+            # The landing page asks about one organization. Applications are
+            # unique per user + organization while pending, so match through
+            # the code's organization rather than only through the exact link:
+            # retrying from a newly issued link must still see the old result.
+            queryset = queryset.filter(
+                organization__invite_links__code=invite_code
+            )
         queryset = (
-            models.OrgJoinRequest.objects.filter(user=request.user)
-            .select_related("organization", "department")
+            queryset.select_related("organization", "department")
             .order_by("-created_at")[:20]
         )
         return Response(JoinRequestMineSerializer(queryset, many=True).data)

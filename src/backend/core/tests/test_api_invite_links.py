@@ -423,7 +423,8 @@ def test_the_quota_counts_approvals_not_applications():
 def test_rejecting_records_the_reason():
     organization, owner = _org_owner()
     link = _link(organization)
-    join_request = invite_links.apply_to_link(link, factories.UserFactory())
+    applicant = factories.UserFactory()
+    join_request = invite_links.apply_to_link(link, applicant)
 
     response = _client(owner).post(
         f"/api/v1.0/admin/join-requests/{join_request.id}/reject/",
@@ -435,6 +436,13 @@ def test_rejecting_records_the_reason():
     assert join_request.status == "rejected"
     assert join_request.reject_reason == "不是我们公司的人"
     assert not models.Membership.objects.filter(user=join_request.user).exists()
+
+    listing = _client(applicant).get(
+        "/api/v1.0/join-requests/mine/", {"invite_code": link.code}
+    )
+    assert listing.status_code == 200
+    assert listing.data[0]["status"] == "rejected"
+    assert listing.data[0]["reject_reason"] == "不是我们公司的人"
 
 
 def test_a_handled_request_cannot_be_handled_again():

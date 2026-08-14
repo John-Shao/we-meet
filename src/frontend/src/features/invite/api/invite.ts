@@ -51,8 +51,14 @@ export const applyToInvite = (code: string): Promise<MyJoinRequest> =>
     body: JSON.stringify({}),
   })
 
-export const fetchMyJoinRequests = (): Promise<MyJoinRequest[]> =>
-  fetchApi<MyJoinRequest[]>('/join-requests/mine/')
+export const fetchMyJoinRequests = (
+  inviteCode?: string
+): Promise<MyJoinRequest[]> => {
+  const query = inviteCode
+    ? `?invite_code=${encodeURIComponent(inviteCode)}`
+    : ''
+  return fetchApi<MyJoinRequest[]>(`/join-requests/mine/${query}`)
+}
 
 export const cancelJoinRequest = (id: string): Promise<MyJoinRequest> =>
   fetchApi<MyJoinRequest>(`/join-requests/${id}/cancel/`, {
