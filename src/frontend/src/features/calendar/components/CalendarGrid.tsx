@@ -32,6 +32,7 @@ import './calendarGridOverrides.css'
 import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import { formatGmtOffset } from '../utils/timeZone'
+import { CALENDAR_TIME_GRID_INTERVAL } from '../utils/timeGridInterval'
 import { formatMinutes, isOutsideWorkingHours } from '../utils/workingHours'
 import { zoneOffsetMinutes } from '@/utils/timezoneOptions'
 import {
@@ -414,14 +415,7 @@ export const CalendarGrid = ({
       if (end <= rangeStart || start >= rangeEnd) return false
       return isOutsideWorkingHours(start, end, workingHours)
     }).length
-  }, [
-    calendarTimezone,
-    date,
-    events,
-    view,
-    weekStartsOn,
-    workingHours,
-  ])
+  }, [calendarTimezone, date, events, view, weekStartsOn, workingHours])
 
   const rbcEvents = useMemo<RbcEvent[]>(() => {
     const list: RbcEvent[] = events.map((e) => {
@@ -582,8 +576,7 @@ export const CalendarGrid = ({
       scrollToTime={scrollToTime}
       min={visibleTimeBounds.min}
       max={visibleTimeBounds.max}
-      step={30}
-      timeslots={2}
+      {...CALENDAR_TIME_GRID_INTERVAL}
       slotPropGetter={(slot) => {
         if (calendarTimeRangeMode !== 'full') return {}
         const minute = slot.getHours() * 60 + slot.getMinutes()
