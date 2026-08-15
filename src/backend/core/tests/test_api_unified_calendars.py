@@ -14,9 +14,9 @@ from core.api.calendar_exports import CalendarExportJobSerializer
 from core.services import calendar_exports
 
 
-def member(organization, user):
+def member(organization, user, **kwargs):
     return models.Membership.objects.create(
-        organization=organization, user=user, is_primary=True
+        organization=organization, user=user, is_primary=True, **kwargs
     )
 
 
@@ -126,6 +126,35 @@ def test_room_discovery_includes_the_timeline_summary_fields():
         "TV",
         "Whiteboard",
     ]
+
+
+@pytest.mark.django_db
+def test_contact_discovery_includes_directory_profile_fields():
+    organization = factories.OrganizationFactory()
+    viewer, contact = factories.UserFactory.create_batch(2)
+    member(organization, viewer)
+    department = factories.DepartmentFactory(
+        organization=organization,
+        name="Product",
+    )
+    member(
+        organization,
+        contact,
+        department=department,
+        title="Designer",
+    )
+
+    response = api(viewer).get("/api/v1.0/calendars/discover/?type=contact")
+
+    assert response.status_code == 200, response.content
+    owner = response.json()[0]["owner"]
+    assert owner["id"] == str(contact.id)
+    assert "avatar_url" in owner
+    assert owner["title"] == "Designer"
+    assert owner["department"] == {
+        "id": str(department.id),
+        "name": "Product",
+    }
 
 
 @pytest.mark.django_db

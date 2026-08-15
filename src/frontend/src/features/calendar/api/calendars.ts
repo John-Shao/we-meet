@@ -16,6 +16,9 @@ export interface UnifiedCalendar {
     id: string
     full_name: string | null
     short_name?: string | null
+    avatar_url?: string | null
+    title?: string | null
+    department?: { id: string; name: string } | null
   } | null
   /** Full on new servers; identity-only during a rolling backend deployment. */
   meeting_room: CalendarMeetingRoom | null

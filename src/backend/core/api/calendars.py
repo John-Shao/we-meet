@@ -26,15 +26,30 @@ SHARE_SALT = "we-meet.calendar-share.v1"
 DEFAULT_COLORS = ("#3370ff", "#34c724", "#f54a45", "#f5a623", "#8b5cf6")
 
 
-def _user_card(user):
+def _user_card(user, membership=None):
     if user is None:
         return None
-    return {
+    card = {
         "id": str(user.id),
         "full_name": user.full_name,
         "short_name": user.short_name,
         "avatar_url": utils.generate_profile_image_get_url("avatar", user.avatar_key),
     }
+    if membership is not None:
+        card.update(
+            {
+                "title": membership.title,
+                "department": (
+                    {
+                        "id": str(membership.department_id),
+                        "name": membership.department.name,
+                    }
+                    if membership.department_id
+                    else None
+                ),
+            }
+        )
+    return card
 
 
 def _share_token(calendar):
@@ -136,7 +151,8 @@ class CalendarSerializer(serializers.ModelSerializer):
         ).first()
 
     def get_owner(self, obj):
-        return _user_card(obj.owner)
+        owner_memberships = self.context.get("owner_memberships", {})
+        return _user_card(obj.owner, owner_memberships.get(obj.owner_id))
 
     def get_organization(self, obj):
         return {"id": str(obj.organization_id), "name": obj.organization.name}
@@ -378,6 +394,7 @@ class CalendarViewSet(viewsets.GenericViewSet):
         kind = str(request.query_params.get("type") or "")
         query = str(request.query_params.get("q") or "").strip()
         organization = get_caller_organization(request.user)
+        owner_memberships = {}
         if organization is None:
             return Response([])
         if kind == "contact":
@@ -389,16 +406,18 @@ class CalendarViewSet(viewsets.GenericViewSet):
                     user__is_device=False,
                 )
                 .exclude(user=request.user)
-                .select_related("user")
+                .select_related("user", "department")
             )
             if query:
                 memberships = memberships.filter(
                     Q(user__full_name__icontains=query)
                     | Q(user__email__icontains=query)
                 )
+            memberships = list(memberships[:50])
+            owner_memberships = {row.user_id: row for row in memberships}
             calendars = [
                 calendar_access.ensure_personal_calendar(row.user, organization)
-                for row in memberships[:50]
+                for row in memberships
             ]
         elif kind == "room":
             rooms = (
@@ -443,7 +462,15 @@ class CalendarViewSet(viewsets.GenericViewSet):
             )
         else:
             raise exceptions.ValidationError({"type": "expected contact | room | public"})
-        return Response(self.get_serializer(calendars, many=True).data)
+        serializer_context = self.get_serializer_context()
+        serializer_context["owner_memberships"] = owner_memberships
+        return Response(
+            self.get_serializer(
+                calendars,
+                many=True,
+                context=serializer_context,
+            ).data
+        )
 
     @decorators.action(detail=True, methods=["put", "delete"])
     def subscription(self, request, pk=None):

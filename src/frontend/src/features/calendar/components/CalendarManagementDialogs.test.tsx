@@ -66,6 +66,43 @@ const roomCalendar: UnifiedCalendar = {
 }
 
 describe('AddCalendarDialog calendar discovery', () => {
+  it('uses the directory avatar and profile details for contact rows', async () => {
+    const contactCalendar: UnifiedCalendar = {
+      ...roomCalendar,
+      id: 'calendar-contact-profile',
+      kind: 'primary',
+      name: 'Ting',
+      display_name: 'Ting',
+      owner: {
+        id: 'contact-1',
+        full_name: 'Ting',
+        avatar_url: '/media/avatars/ting.jpg',
+        title: 'Designer',
+        department: { id: 'department-1', name: 'Product' },
+      },
+      meeting_room: null,
+    }
+    calendarApi.discoverCalendars.mockImplementation((type: string) =>
+      Promise.resolve(type === 'contact' ? [contactCalendar] : [])
+    )
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <AddCalendarDialog onClose={vi.fn()} onChanged={vi.fn()} />
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText('Ting')).toBeVisible()
+    expect(screen.getByText('Designer · Product')).toBeVisible()
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      '/media/avatars/ting.jpg'
+    )
+  })
+
   it('uses the same room identity and resource summary as the timeline', async () => {
     calendarApi.discoverCalendars.mockImplementation((type: string) =>
       Promise.resolve(type === 'room' ? [roomCalendar] : [])

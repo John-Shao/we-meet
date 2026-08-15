@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal, ModalCloseButton } from '@/components/Modal'
+import { MemberAvatar } from '@/features/contacts'
 import { DirectoryMultiPicker } from '@/features/contacts/components/DirectoryMultiPicker'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { MeetingRoomSummary } from '@/features/meeting-rooms'
@@ -264,36 +265,61 @@ export const AddCalendarDialog = ({
           ) : discoveries.length === 0 ? (
             <p className={mutedCls}>没有可订阅的日历</p>
           ) : (
-            discoveries.map((calendar) => (
-              <div key={calendar.id} className={rowCls}>
-                <span
-                  className={dotCls}
-                  style={{ background: calendar.color }}
-                />
-                <span className={growCls}>
-                  {calendar.meeting_room ? (
-                    <MeetingRoomSummary
-                      room={calendar.meeting_room}
-                      primaryClassName={roomNameCls}
-                      secondaryClassName={mutedCls}
+            discoveries.map((calendar) => {
+              const contactSupportingText = [
+                calendar.owner?.title,
+                calendar.owner?.department?.name,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+
+              return (
+                <div key={calendar.id} className={rowCls}>
+                  {discoverType === 'contact' ? (
+                    <MemberAvatar
+                      name={calendar.display_name}
+                      src={calendar.owner?.avatar_url}
+                      size="2.25rem"
                     />
                   ) : (
-                    <>
-                      <strong>{calendar.display_name}</strong>
-                      <small className={mutedCls}>{calendar.description}</small>
-                    </>
+                    <span
+                      className={dotCls}
+                      style={{ background: calendar.color }}
+                    />
                   )}
-                </span>
-                <Button
-                  variant="primary"
-                  size="dense"
-                  isDisabled={busy}
-                  onPress={() => void toggleSubscription(calendar)}
-                >
-                  {calendar.subscribed ? '取消订阅' : '订阅'}
-                </Button>
-              </div>
-            ))
+                  <span className={growCls}>
+                    {calendar.meeting_room ? (
+                      <MeetingRoomSummary
+                        room={calendar.meeting_room}
+                        primaryClassName={roomNameCls}
+                        secondaryClassName={mutedCls}
+                      />
+                    ) : (
+                      <>
+                        <strong>{calendar.display_name}</strong>
+                        {(discoverType === 'contact'
+                          ? contactSupportingText
+                          : calendar.description) && (
+                          <small className={mutedCls}>
+                            {discoverType === 'contact'
+                              ? contactSupportingText
+                              : calendar.description}
+                          </small>
+                        )}
+                      </>
+                    )}
+                  </span>
+                  <Button
+                    variant="primary"
+                    size="dense"
+                    isDisabled={busy}
+                    onPress={() => void toggleSubscription(calendar)}
+                  >
+                    {calendar.subscribed ? '取消订阅' : '订阅'}
+                  </Button>
+                </div>
+              )
+            })
           )}
         </div>
       )}
