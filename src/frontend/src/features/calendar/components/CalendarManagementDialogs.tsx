@@ -22,6 +22,7 @@ import {
   removeCalendarMember,
   resetCalendarShareLink,
   setCalendarSubscription,
+  unsubscribeUnifiedCalendar,
   updateCalendar,
   updateCalendarMember,
   type CalendarRole,
@@ -144,15 +145,22 @@ export const AddCalendarDialog = ({
   })
 
   const changed = async () => {
-    await qc.invalidateQueries({ queryKey: ['calendar', 'unified'] })
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['calendar', 'unified'] }),
+      qc.invalidateQueries({ queryKey: ['calendar', 'discover'] }),
+    ])
     onChanged()
   }
 
-  const subscribe = async (calendar: UnifiedCalendar) => {
+  const toggleSubscription = async (calendar: UnifiedCalendar) => {
     setBusy(true)
     setError('')
     try {
-      await setCalendarSubscription(calendar.id, { enabled: true })
+      if (calendar.subscribed) {
+        await unsubscribeUnifiedCalendar(calendar.id)
+      } else {
+        await setCalendarSubscription(calendar.id, { enabled: true })
+      }
       await changed()
     } catch (reason) {
       setError(apiErrorMessage(reason))
@@ -279,10 +287,10 @@ export const AddCalendarDialog = ({
                 <Button
                   variant="primary"
                   size="dense"
-                  isDisabled={busy || calendar.subscribed}
-                  onPress={() => void subscribe(calendar)}
+                  isDisabled={busy}
+                  onPress={() => void toggleSubscription(calendar)}
                 >
-                  {calendar.subscribed ? '已订阅' : '订阅'}
+                  {calendar.subscribed ? '取消订阅' : '订阅'}
                 </Button>
               </div>
             ))

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { UnifiedCalendar } from '../api/calendars'
@@ -7,6 +7,7 @@ import { AddCalendarDialog } from './CalendarManagementDialogs'
 
 const calendarApi = vi.hoisted(() => ({
   discoverCalendars: vi.fn(),
+  unsubscribeUnifiedCalendar: vi.fn(),
 }))
 
 vi.mock('../api/calendars', async (importOriginal) => ({
@@ -107,5 +108,53 @@ describe('AddCalendarDialog room discovery', () => {
     fireEvent.click(screen.getByRole('button', { name: '会议室' }))
     expect(await screen.findByText('1602 (Overlook)')).toBeVisible()
     expect(screen.getByRole('button', { name: '订阅' })).toBeEnabled()
+  })
+
+  it('allows an existing room subscription to be removed', async () => {
+    let subscribed = true
+    const subscribedCalendar: UnifiedCalendar = {
+      ...roomCalendar,
+      subscribed: true,
+      enabled: true,
+    }
+    calendarApi.discoverCalendars.mockImplementation((type: string) =>
+      Promise.resolve(
+        type === 'room'
+          ? [
+              {
+                ...subscribedCalendar,
+                subscribed,
+                enabled: subscribed,
+              },
+            ]
+          : []
+      )
+    )
+    calendarApi.unsubscribeUnifiedCalendar.mockImplementation(async () => {
+      subscribed = false
+    })
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    render(
+      <QueryClientProvider client={client}>
+        <AddCalendarDialog onClose={vi.fn()} onChanged={vi.fn()} />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '会议室' }))
+    const unsubscribeButton = await screen.findByRole('button', {
+      name: '取消订阅',
+    })
+    expect(unsubscribeButton).toBeEnabled()
+    fireEvent.click(unsubscribeButton)
+
+    await waitFor(() =>
+      expect(calendarApi.unsubscribeUnifiedCalendar).toHaveBeenCalledWith(
+        subscribedCalendar.id
+      )
+    )
+    expect(await screen.findByRole('button', { name: '订阅' })).toBeEnabled()
   })
 })
