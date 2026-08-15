@@ -2,8 +2,12 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
+import type { CalendarEvent } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
+import {
+  calendarColorForEvent,
+  type CalendarColorMap,
+} from '../utils/eventVisuals'
 import {
   dateOnlyToLocalDate,
   instantToZonedDate,
@@ -11,6 +15,7 @@ import {
 } from '../utils/zonedDate'
 import { MiniCalendar } from './MiniCalendar'
 import { CalendarListManager } from './CalendarListManager'
+import { EventRsvpStatus } from './EventRsvpStatus'
 
 /**
  * Calendar module secondary panel (二级导航栏), mirroring the 视频会议 aside.
@@ -39,47 +44,13 @@ const formatWhen = (
   }
 }
 
-/* ── 表态样式:与网格视图同口径(calendarGridOverrides.css)——
-   四态四色、一律实线:接受=蓝、未反馈=紫、待定=琥珀、拒绝=灰(+删除线)。
-   紫/琥珀直接写死色值与网格/App 端对齐(网格 CSS 的强调色一律硬编码);
-   各状态整类切换,不 cx 叠加同属性(panda-cx-atomic-order-trap)。 */
+/* 侧栏沿用主网格的信息分层:色条=日历/用户,徽标=RSVP。 */
 
 const barCls = css({
   flexShrink: 0,
   width: '3px',
   borderRadius: '2px',
-  backgroundColor: 'primary.500',
 })
-
-const barNeedsCls = css({
-  flexShrink: 0,
-  width: '3px',
-  borderRadius: '2px',
-  backgroundColor: '#8B5CF6',
-  _dark: { backgroundColor: '#A78BFA' },
-})
-
-const barTentativeCls = css({
-  flexShrink: 0,
-  width: '3px',
-  borderRadius: '2px',
-  backgroundColor: '#F59E0B',
-  _dark: { backgroundColor: '#FBBF24' },
-})
-
-const barDeclinedCls = css({
-  flexShrink: 0,
-  width: '3px',
-  borderRadius: '2px',
-  backgroundColor: 'greyscale.400',
-})
-
-const barClsFor = (rsvp: RSVPStatus | null): string => {
-  if (rsvp === 'declined') return barDeclinedCls
-  if (rsvp === 'tentative') return barTentativeCls
-  if (rsvp === 'needs_action') return barNeedsCls
-  return barCls
-}
 
 const titleCls = css({
   display: 'block',
@@ -126,6 +97,7 @@ interface Props {
   onSelectEvent: (event: CalendarEvent) => void
   onCreate: () => void
   onCalendarChanged: () => void
+  calendarColors?: CalendarColorMap
 }
 
 export const CalendarSidebar = ({
@@ -136,6 +108,7 @@ export const CalendarSidebar = ({
   onSelectEvent,
   onCreate,
   onCalendarChanged,
+  calendarColors = {},
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
   const { calendarTimezone } = useCalendarSettings()
@@ -183,10 +156,19 @@ export const CalendarSidebar = ({
         {t('page.title')}
       </h1>
 
-      <MiniCalendar value={date} onChange={onDateChange} events={events} />
+      <MiniCalendar
+        value={date}
+        onChange={onDateChange}
+        events={events}
+        calendarColors={calendarColors}
+      />
 
       <div
-        className={css({ display: 'flex', flexDirection: 'column', gap: '0.5rem' })}
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+        })}
       >
         <CalendarListManager onChanged={onCalendarChanged} />
       </div>
@@ -248,21 +230,36 @@ export const CalendarSidebar = ({
                     _hover: { backgroundColor: 'brand.50' },
                   })}
                 >
-                  <span className={barClsFor(e.my_rsvp)} />
-                  <span className={css({ minWidth: 0 })}>
-                    <span
-                      className={
-                        e.my_rsvp === 'declined' ? titleDeclinedCls : titleCls
-                      }
-                    >
-                      {e.title}
-                    </span>
-                    <span
-                      className={
-                        e.my_rsvp === 'declined' ? whenDeclinedCls : whenCls
-                      }
-                    >
-                      {formatWhen(e, i18n.language, calendarTimezone)}
+                  <span
+                    className={barCls}
+                    style={{
+                      backgroundColor: calendarColorForEvent(e, calendarColors),
+                    }}
+                  />
+                  <span
+                    className={css({
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.375rem',
+                      minWidth: 0,
+                    })}
+                  >
+                    <EventRsvpStatus status={e.my_rsvp} />
+                    <span className={css({ minWidth: 0 })}>
+                      <span
+                        className={
+                          e.my_rsvp === 'declined' ? titleDeclinedCls : titleCls
+                        }
+                      >
+                        {e.title}
+                      </span>
+                      <span
+                        className={
+                          e.my_rsvp === 'declined' ? whenDeclinedCls : whenCls
+                        }
+                      >
+                        {formatWhen(e, i18n.language, calendarTimezone)}
+                      </span>
                     </span>
                   </span>
                 </button>

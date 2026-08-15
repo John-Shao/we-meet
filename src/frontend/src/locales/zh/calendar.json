@@ -131,6 +131,7 @@
   "rsvp": {
     "label": "我的回复",
     "accepted": "接受",
+    "needsAction": "未回复",
     "tentative": "待定",
     "declined": "拒绝"
   },

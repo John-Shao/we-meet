@@ -34,6 +34,12 @@ import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import { formatGmtOffset } from '../utils/timeZone'
 import { CALENDAR_TIME_GRID_INTERVAL } from '../utils/timeGridInterval'
 import { formatMinutes, isOutsideWorkingHours } from '../utils/workingHours'
+import {
+  DEFAULT_CALENDAR_COLOR,
+  calendarColorForEvent,
+  calendarColorStyle,
+  type CalendarColorMap,
+} from '../utils/eventVisuals'
 import { zoneOffsetMinutes } from '@/utils/timezoneOptions'
 import {
   dateOnlyToLocalDate,
@@ -42,6 +48,7 @@ import {
 } from '../utils/zonedDate'
 import { CalendarToolbar } from './CalendarToolbar'
 import { AgendaListView } from './AgendaListView'
+import { EventRsvpStatus } from './EventRsvpStatus'
 
 /**
  * Feishu-style 月/周/日 calendar grid (P6-e #3), backed by react-big-calendar.
@@ -77,22 +84,35 @@ interface RbcEvent {
   end: Date
   allDay: boolean
   resource: CalendarEvent
+  calendarColor: string
 }
 
-// 月视图日程展示对齐飞书:全天/跨天日程保留蓝色横条,限时日程改为
-// 「蓝点 + 开始时间 + 标题」纯文字行(样式见 calendarGridOverrides.css,
+// 月视图日程展示:全天/跨天日程保留归属色横条,限时日程改为
+// 「归属色点 + 开始时间 + 状态 + 标题」纯文字行(样式见 calendarGridOverrides.css,
 // 由 eventPropGetter 挂 wm-month-timed 类去掉底色)。
 const isMonthBar = (e: { allDay: boolean; start: Date; end: Date }) =>
   e.allDay || e.end.getTime() - e.start.getTime() >= 86_400_000
 
 function MonthEvent({ event }: { event: RbcEvent }) {
-  if (isMonthBar(event)) return <>{event.title}</>
+  const status =
+    event.id === DRAFT_ID ? null : (
+      <EventRsvpStatus status={event.resource?.my_rsvp} />
+    )
+  if (isMonthBar(event)) {
+    return (
+      <span className="wm-event-content-inner">
+        {status}
+        <span className="wm-event-title-text">{event.title}</span>
+      </span>
+    )
+  }
   return (
     <span className="wm-month-timed-inner">
       <span className="wm-month-timed-dot" />
       <span className="wm-month-timed-time">
         {format(event.start, 'HH:mm')}
       </span>
+      {status}
       <span className="wm-month-timed-title">{event.title}</span>
     </span>
   )
@@ -107,15 +127,24 @@ const isShortTimed = (e: { allDay: boolean; start: Date; end: Date }) =>
 
 const timeEventFor = (zh: boolean) =>
   function TimeEvent({ event }: { event: RbcEvent }) {
-    if (!isShortTimed(event)) return <>{event.title}</>
+    const short = isShortTimed(event)
     return (
-      <>
-        {event.title}
-        {zh ? '，' : ', '}
-        <span className="wm-time-inline">
-          {`${format(event.start, 'HH:mm')} – ${format(event.end, 'HH:mm')}`}
+      <span className="wm-event-content-inner">
+        {event.id !== DRAFT_ID && (
+          <EventRsvpStatus status={event.resource?.my_rsvp} />
+        )}
+        <span className="wm-event-title-text">
+          {event.title}
+          {short && (
+            <>
+              {zh ? '，' : ', '}
+              <span className="wm-time-inline">
+                {`${format(event.start, 'HH:mm')} – ${format(event.end, 'HH:mm')}`}
+              </span>
+            </>
+          )}
         </span>
-      </>
+      </span>
     )
   }
 
@@ -146,9 +175,8 @@ const monthHeaderFor = (locale: Locale) =>
     )
   }
 
-// 表态状态的块样式:四态四色、一律实线(Web / App 统一)——
-// 接受=蓝(默认样式,不加类)、未反馈=紫、待定=琥珀、拒绝=灰 + 删除线。
-// 样式落在 calendarGridOverrides.css,月视图的纯文字行把颜色落到圆点上。
+// RSVP 不再控制日程块色相:块色专门表示日历/用户归属。四态通过内容中的
+// 图形徽标表达,这里只给外层挂状态类以保留「拒绝 = 删除线」的辅助表达。
 // my_rsvp 为空(历史数据里组织者没有 attendee 行)按接受处理。
 const rsvpClassFor = (rsvp?: RSVPStatus | null): string => {
   if (rsvp === 'declined') return 'wm-rsvp-declined'
@@ -280,6 +308,8 @@ const RBC_VIEWS = {
 
 interface Props {
   events: CalendarEvent[]
+  /** Calendar/user identity colors keyed by unified calendar id. */
+  calendarColors?: CalendarColorMap
   onSelectEvent: (event: CalendarEvent) => void
   /** Controlled current date (e.g. driven by the mini calendar). Optional —
    * falls back to internal state when omitted so the grid stays standalone. */
@@ -308,6 +338,7 @@ interface Props {
 
 export const CalendarGrid = ({
   events,
+  calendarColors = {},
   onSelectEvent,
   date: dateProp,
   onNavigate,
@@ -434,6 +465,7 @@ export const CalendarGrid = ({
         end,
         allDay: e.all_day,
         resource: e,
+        calendarColor: calendarColorForEvent(e, calendarColors),
       }
     })
     if (slotDraft) {
@@ -444,10 +476,11 @@ export const CalendarGrid = ({
         end: slotDraft.end,
         allDay: slotDraft.allDay,
         resource: null as unknown as CalendarEvent,
+        calendarColor: DEFAULT_CALENDAR_COLOR,
       })
     }
     return list
-  }, [calendarTimezone, events, slotDraft, t])
+  }, [calendarColors, calendarTimezone, events, slotDraft, t])
 
   // 24 小时时间轴(00:00–23:00,对标群成员日历):默认 culture(zh-CN)的
   // 时间刻度带上午/下午,这里显式用 HH:mm 覆盖成 24h;周/日视图内的选择/事件
@@ -592,7 +625,7 @@ export const CalendarGrid = ({
           .filter(Boolean)
           .join(' '),
       })}
-      // P8「降低已结束日程的亮度」(对标飞书,日历设置可关):渲染时判断,
+      // P8「降低已结束日程的亮度」(日历设置可关):渲染时判断,
       // 不设 tick——交互/取数触发的重渲染足以让新跨过结束时刻的块变淡。
       eventPropGetter={(ev) => {
         // wm-short-timed:周/日视图短日程隐藏第二行时间(由 TimeEvent 内联)。
@@ -605,17 +638,17 @@ export const CalendarGrid = ({
           rsvpClassFor(ev.resource?.my_rsvp),
           // wm-editable:我可改期的日程,hover 时出与预选框同款的圆抓手。
           editable(ev) ? 'wm-editable' : '',
-          // 已结束:交给 CSS 只压底色。原先这里内联 opacity: .45,而 opacity
-          // 连文字一起压,标题对比度掉到 2.1:1(浅)/ 2.6:1(深)——「已结束」
-          // 不等于「不用读」。改后块的观感一模一样(底色算出来同一个值),
-          // 只是文字不再跟着淡。详见 calendarGridOverrides.css 的 wm-past 段。
+          // 已结束:只降低归属色的底色/竖条强度,不覆盖色相和 RSVP 徽标。
           dimPast && ev.end < instantToZonedDate(new Date(), calendarTimezone)
             ? 'wm-past'
             : '',
         ]
           .filter(Boolean)
           .join(' ')
-        return className ? { className } : {}
+        return {
+          ...(className ? { className } : {}),
+          style: calendarColorStyle(ev.calendarColor),
+        }
       }}
       // 预选框与「我可改的日程」都能拖动移位 + 拖上下手柄改时长。
       draggableAccessor={editable}

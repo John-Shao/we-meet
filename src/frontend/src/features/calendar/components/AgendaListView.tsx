@@ -9,7 +9,9 @@ import { Button } from '@/primitives'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { MemberAvatar } from '@/features/contacts'
 
-import type { CalendarEvent, RSVPStatus } from '../api/ApiCalendar'
+import type { CalendarEvent } from '../api/ApiCalendar'
+import { DEFAULT_CALENDAR_COLOR } from '../utils/eventVisuals'
+import { EventRsvpStatus } from './EventRsvpStatus'
 
 /**
  * rbc 自定义「日程」视图(对标飞书重做,替换 rbc 内置 Agenda):
@@ -37,6 +39,7 @@ interface AgendaEvent {
   allDay: boolean
   /** 草稿占位块 resource 为空,列表里过滤掉。 */
   resource: CalendarEvent | null
+  calendarColor?: string
 }
 
 interface Props {
@@ -94,7 +97,11 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
     if (!rows.length) return
     const idx = rows.findIndex((r) => r.id === selectedId)
     const next =
-      idx < 0 ? (delta > 0 ? 0 : rows.length - 1) : clamp(idx + delta, 0, rows.length - 1)
+      idx < 0
+        ? delta > 0
+          ? 0
+          : rows.length - 1
+        : clamp(idx + delta, 0, rows.length - 1)
     setSelectedId(rows[next].id)
   }
 
@@ -205,12 +212,19 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
                     <td className={cx(tdCls, ellipsisCls, centerCls)}>
                       {r.resource?.organizer?.full_name || '—'}
                     </td>
-                    {/* 表态:圆点上色(与月视图同语言),拒绝再加删除线转灰。
+                    {/* 圆点表示日历/用户归属,旁边的图形徽标表示 RSVP;
                        标题套一层 span 而不是给 td 叠类:tdCls 自带 color,
                        cx 叠加同属性按样式表顺序取胜(panda-cx-atomic-order-trap)。 */}
                     <td className={cx(tdCls, ellipsisCls)}>
                       <span className={eventCellCls}>
-                        <span className={dotClsFor(r.resource?.my_rsvp)} />
+                        <span
+                          className={calendarDotCls}
+                          style={{
+                            backgroundColor:
+                              r.calendarColor ?? DEFAULT_CALENDAR_COLOR,
+                          }}
+                        />
+                        <EventRsvpStatus status={r.resource?.my_rsvp} />
                         <span
                           className={
                             r.resource?.my_rsvp === 'declined'
@@ -276,7 +290,10 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
                   {selected.title}
                 </h3>
                 <div
-                  className={css({ fontSize: '0.875rem', color: 'greyscale.800' })}
+                  className={css({
+                    fontSize: '0.875rem',
+                    color: 'greyscale.800',
+                  })}
                 >
                   {detailTime(selected)}
                 </div>
@@ -327,7 +344,10 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
               </div>
             ) : (
               <div
-                className={css({ fontSize: '0.875rem', color: 'greyscale.500' })}
+                className={css({
+                  fontSize: '0.875rem',
+                  color: 'greyscale.500',
+                })}
               >
                 {t('grid.detailHint')}
               </div>
@@ -442,8 +462,7 @@ const centerCls = css({ textAlign: 'center' })
 // th 浏览器默认居中,事件列需显式左对齐。
 const leftCls = css({ textAlign: 'left' })
 
-/* 表态四态四色(与网格/侧栏/App 端同一组色值):接受=蓝、未反馈=紫、
-   待定=琥珀、拒绝=灰。整类切换,不 cx 叠加同属性。 */
+/* 归属色与 RSVP 分开:圆点=日历/用户,徽标=回复状态。 */
 
 const eventCellCls = css({
   display: 'flex',
@@ -468,32 +487,12 @@ const declinedTitleCls = css({
   color: 'greyscale.500',
 })
 
-const dotBase = {
+const calendarDotCls = css({
   flexShrink: 0,
   width: '6px',
   height: '6px',
   borderRadius: '50%',
-} as const
-
-const dotAcceptedCls = css({ ...dotBase, backgroundColor: 'primary.500' })
-const dotNeedsCls = css({
-  ...dotBase,
-  backgroundColor: '#8B5CF6',
-  _dark: { backgroundColor: '#A78BFA' },
 })
-const dotTentativeCls = css({
-  ...dotBase,
-  backgroundColor: '#F59E0B',
-  _dark: { backgroundColor: '#FBBF24' },
-})
-const dotDeclinedCls = css({ ...dotBase, backgroundColor: 'greyscale.400' })
-
-const dotClsFor = (rsvp?: RSVPStatus | null): string => {
-  if (rsvp === 'declined') return dotDeclinedCls
-  if (rsvp === 'tentative') return dotTentativeCls
-  if (rsvp === 'needs_action') return dotNeedsCls
-  return dotAcceptedCls
-}
 
 const ellipsisCls = css({
   maxWidth: 0,

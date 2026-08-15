@@ -226,6 +226,10 @@ const CalendarAuthenticated = () => {
     () => new Set(calendars.filter((row) => row.enabled).map((row) => row.id)),
     [calendars]
   )
+  const calendarColors = useMemo(
+    () => Object.fromEntries(calendars.map((row) => [row.id, row.color])),
+    [calendars]
+  )
   const events = useMemo(
     () =>
       prepareVisibleCalendarEvents(ownEvents, {
@@ -443,6 +447,7 @@ const CalendarAuthenticated = () => {
             onSelectEvent={setDetailEvent}
             onCreate={() => openCreate(null)}
             onCalendarChanged={() => void invalidateCalendarData()}
+            calendarColors={calendarColors}
           />
         </ResizablePanel>
       )}
@@ -604,6 +609,7 @@ const CalendarAuthenticated = () => {
             <>
               <CalendarGrid
                 events={events}
+                calendarColors={calendarColors}
                 onSelectEvent={setDetailEvent}
                 date={date}
                 onNavigate={setDate}

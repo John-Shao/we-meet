@@ -22,11 +22,16 @@ import { Button } from '@/primitives'
 import type { CalendarEvent } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import { instantToZonedDate } from '../utils/zonedDate'
+import {
+  calendarColorForEvent,
+  type CalendarColorMap,
+} from '../utils/eventVisuals'
 
 /**
  * Feishu-style mini month picker for the calendar secondary panel (二级导航栏).
  * Selecting a day drives the main react-big-calendar grid (`value`/`onChange`);
- * days that have events get a small dot. Month-paging is local to this widget
+ * days that have events get up to three calendar-colored dots. Month-paging is
+ * local to this widget
  * and resets to the selected date's month when `value` jumps.
  */
 
@@ -40,30 +45,40 @@ interface Props {
   value: Date
   onChange: (date: Date) => void
   events: CalendarEvent[]
+  calendarColors?: CalendarColorMap
 }
 
-export const MiniCalendar = ({ value, onChange, events }: Props) => {
+export const MiniCalendar = ({
+  value,
+  onChange,
+  events,
+  calendarColors = {},
+}: Props) => {
   const { i18n } = useTranslation('calendar')
   const locale = localeFor(i18n.language)
   // 周起始日跟「日历设置」(P8),覆盖 locale 缺省。
   const { weekStartsOn, calendarTimezone } = useCalendarSettings()
   const [viewMonth, setViewMonth] = useState<Date>(() => startOfMonth(value))
 
-  // Days that have at least one event — keyed by yyyy-MM-dd for O(1) lookup.
-  const eventDays = useMemo(() => {
-    const set = new Set<string>()
+  // Keep up to three distinct calendar/user colors per day. This preserves the
+  // mini calendar's compact footprint while making mixed-calendar days visible.
+  const eventColorsByDay = useMemo(() => {
+    const byDay = new Map<string, string[]>()
     for (const e of events) {
-      set.add(
+      const key =
         e.all_day && e.start_date
           ? e.start_date
           : format(
               instantToZonedDate(e.start_at, calendarTimezone),
               'yyyy-MM-dd'
             )
-      )
+      const color = calendarColorForEvent(e, calendarColors)
+      const colors = byDay.get(key) ?? []
+      if (!colors.includes(color) && colors.length < 3) colors.push(color)
+      byDay.set(key, colors)
     }
-    return set
-  }, [calendarTimezone, events])
+    return byDay
+  }, [calendarColors, calendarTimezone, events])
 
   const weeks = useMemo(() => {
     const start = startOfWeek(startOfMonth(viewMonth), { locale, weekStartsOn })
@@ -137,7 +152,8 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
           const outside = !isSameMonth(day, viewMonth)
           const today = isToday(day)
           const weekend = isWeekend(day)
-          const hasEvent = eventDays.has(format(day, 'yyyy-MM-dd'))
+          const eventColors =
+            eventColorsByDay.get(format(day, 'yyyy-MM-dd')) ?? []
           return (
             <button
               key={day.toISOString()}
@@ -177,17 +193,31 @@ export const MiniCalendar = ({ value, onChange, events }: Props) => {
               )}
             >
               {format(day, 'd')}
-              {hasEvent && (
+              {eventColors.length > 0 && (
                 <span
                   className={css({
                     position: 'absolute',
                     bottom: '3px',
-                    width: '4px',
-                    height: '4px',
-                    borderRadius: '50%',
-                    backgroundColor: selected ? 'white' : 'primary.500',
+                    display: 'flex',
+                    gap: '2px',
                   })}
-                />
+                  aria-hidden="true"
+                >
+                  {eventColors.map((color) => (
+                    <span
+                      key={color}
+                      className={css({
+                        width: '4px',
+                        height: '4px',
+                        borderRadius: '50%',
+                      })}
+                      style={{
+                        backgroundColor: color,
+                        boxShadow: selected ? '0 0 0 1px white' : undefined,
+                      }}
+                    />
+                  ))}
+                </span>
               )}
             </button>
           )

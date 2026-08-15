@@ -130,6 +130,7 @@
   "rsvp": {
     "label": "Meine Antwort",
     "accepted": "Zusagen",
+    "needsAction": "Keine Antwort",
     "tentative": "Vielleicht",
     "declined": "Absagen"
   },
