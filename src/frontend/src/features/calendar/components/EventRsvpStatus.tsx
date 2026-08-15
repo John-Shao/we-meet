@@ -62,15 +62,24 @@ const markCls = css({
   fontSize: '0.625rem',
   fontWeight: 700,
   lineHeight: 1,
+  '&[data-glyph-only="true"]': {
+    width: '0.75rem',
+    height: '0.75rem',
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    _dark: { backgroundColor: 'transparent' },
+  },
 })
 
 /** RSVP is a compact, labelled badge so the event hue remains free for owner. */
 export const EventRsvpStatus = ({
   status,
   className,
+  glyphOnly = false,
 }: {
   status?: RSVPStatus | null
   className?: string
+  glyphOnly?: boolean
 }) => {
   const { t } = useTranslation('calendar')
   // Legacy organizer rows have no attendee RSVP and are treated as accepted.
@@ -83,6 +92,7 @@ export const EventRsvpStatus = ({
       aria-label={label}
       title={label}
       data-rsvp-status={status ?? 'accepted'}
+      data-glyph-only={glyphOnly}
     >
       {visual.glyph}
     </span>

@@ -45,6 +45,46 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 回复状态使用固定空间位置，不再打断标题：常规时间块在右下角，短块在
+   右侧居中；15 分钟极小块由组件退化为纯 glyph。标题预留徽标宽度。 */
+.rbc-day-slot .rbc-event .wm-event-content-inner {
+  align-items: flex-start;
+  gap: 0;
+  height: 100%;
+  padding-right: 20px;
+}
+.rbc-day-slot .rbc-event {
+  container-type: inline-size;
+}
+.rbc-day-slot .rbc-event .wm-event-title-text {
+  width: 100%;
+}
+.rbc-day-slot .rbc-event .wm-event-rsvp {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  z-index: 1;
+}
+.rbc-day-slot .rbc-event.wm-short-timed .wm-event-rsvp {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+@container (max-width: 72px) {
+  .rbc-event .wm-event-rsvp {
+    width: 12px;
+    height: 12px;
+    border-width: 0;
+    background-color: transparent;
+  }
+}
+
+/* 月视图和周/日顶部的全天条只有一行高度，状态固定在最右侧居中。 */
+.rbc-month-view .wm-event-content-inner .wm-event-rsvp,
+.rbc-time-view .rbc-allday-cell .wm-event-content-inner .wm-event-rsvp {
+  margin-left: auto;
+}
 /* 日程标题字号:rbc 默认继承根 16px,全视图(月/周/日块+日程列表)统一
    缩小一号到 14px。 */
 .rbc-event,
@@ -448,6 +488,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  width: 100%;
 }
 .wm-month-timed-dot {
   flex: none;
@@ -461,9 +502,14 @@
   color: var(--colors-greyscale-600);
 }
 .wm-month-timed-title {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.wm-month-timed-inner .wm-event-rsvp {
+  margin-left: auto;
 }
 
 /* 时间轴分割与刻度:对齐群成员日历(ConversationCalendarPanel)——

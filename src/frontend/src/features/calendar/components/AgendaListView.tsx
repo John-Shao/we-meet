@@ -224,7 +224,6 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
                               r.calendarColor ?? DEFAULT_CALENDAR_COLOR,
                           }}
                         />
-                        <EventRsvpStatus status={r.resource?.my_rsvp} />
                         <span
                           className={
                             r.resource?.my_rsvp === 'declined'
@@ -234,6 +233,10 @@ export function AgendaListView({ date, events = [], onSelectEvent }: Props) {
                         >
                           {r.title}
                         </span>
+                        <EventRsvpStatus
+                          status={r.resource?.my_rsvp}
+                          className={agendaStatusCls}
+                        />
                       </span>
                     </td>
                   </tr>
@@ -470,6 +473,8 @@ const eventCellCls = css({
   gap: '0.375rem',
   minWidth: 0,
 })
+
+const agendaStatusCls = css({ marginLeft: 'auto' })
 
 const titleSpanCls = css({
   minWidth: 0,

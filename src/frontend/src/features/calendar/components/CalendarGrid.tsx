@@ -88,7 +88,7 @@ interface RbcEvent {
 }
 
 // 月视图日程展示:全天/跨天日程保留归属色横条,限时日程改为
-// 「归属色点 + 开始时间 + 状态 + 标题」纯文字行(样式见 calendarGridOverrides.css,
+// 「归属色点 + 开始时间 + 标题,状态靠右」纯文字行(样式见 calendarGridOverrides.css,
 // 由 eventPropGetter 挂 wm-month-timed 类去掉底色)。
 const isMonthBar = (e: { allDay: boolean; start: Date; end: Date }) =>
   e.allDay || e.end.getTime() - e.start.getTime() >= 86_400_000
@@ -96,13 +96,16 @@ const isMonthBar = (e: { allDay: boolean; start: Date; end: Date }) =>
 function MonthEvent({ event }: { event: RbcEvent }) {
   const status =
     event.id === DRAFT_ID ? null : (
-      <EventRsvpStatus status={event.resource?.my_rsvp} />
+      <EventRsvpStatus
+        status={event.resource?.my_rsvp}
+        className="wm-event-rsvp"
+      />
     )
   if (isMonthBar(event)) {
     return (
       <span className="wm-event-content-inner">
-        {status}
         <span className="wm-event-title-text">{event.title}</span>
+        {status}
       </span>
     )
   }
@@ -112,8 +115,8 @@ function MonthEvent({ event }: { event: RbcEvent }) {
       <span className="wm-month-timed-time">
         {format(event.start, 'HH:mm')}
       </span>
-      {status}
       <span className="wm-month-timed-title">{event.title}</span>
+      {status}
     </span>
   )
 }
@@ -122,17 +125,17 @@ function MonthEvent({ event }: { event: RbcEvent }) {
 // 「标题,时间」单行(配套 CSS 隐藏第二行时间标签);长日程保持
 // 标题行 + 时间行。中文用全角逗号分隔。
 const SHORT_TIMED_MS = 45 * 60_000
+const TINY_TIMED_MS = 15 * 60_000
 const isShortTimed = (e: { allDay: boolean; start: Date; end: Date }) =>
   !e.allDay && e.end.getTime() - e.start.getTime() <= SHORT_TIMED_MS
+const isTinyTimed = (e: { allDay: boolean; start: Date; end: Date }) =>
+  !e.allDay && e.end.getTime() - e.start.getTime() <= TINY_TIMED_MS
 
 const timeEventFor = (zh: boolean) =>
   function TimeEvent({ event }: { event: RbcEvent }) {
     const short = isShortTimed(event)
     return (
       <span className="wm-event-content-inner">
-        {event.id !== DRAFT_ID && (
-          <EventRsvpStatus status={event.resource?.my_rsvp} />
-        )}
         <span className="wm-event-title-text">
           {event.title}
           {short && (
@@ -144,6 +147,13 @@ const timeEventFor = (zh: boolean) =>
             </>
           )}
         </span>
+        {event.id !== DRAFT_ID && (
+          <EventRsvpStatus
+            status={event.resource?.my_rsvp}
+            className="wm-event-rsvp"
+            glyphOnly={isTinyTimed(event)}
+          />
+        )}
       </span>
     )
   }
@@ -629,12 +639,18 @@ export const CalendarGrid = ({
       // 不设 tick——交互/取数触发的重渲染足以让新跨过结束时刻的块变淡。
       eventPropGetter={(ev) => {
         // wm-short-timed:周/日视图短日程隐藏第二行时间(由 TimeEvent 内联)。
-        const short = isShortTimed(ev) ? ' wm-short-timed' : ''
+        const shortClass = isShortTimed(ev) ? 'wm-short-timed' : ''
         // 草稿占位块:选中态实心蓝,不参与 dimPast/月视图纯文字行/表态样式。
-        if (ev.id === DRAFT_ID) return { className: `wm-slot-draft${short}` }
+        if (ev.id === DRAFT_ID) {
+          return {
+            className: ['wm-slot-draft', shortClass].filter(Boolean).join(' '),
+          }
+        }
         const className = [
           // wm-month-timed 只在月视图 CSS 里生效,周/日视图带着也无副作用。
-          isMonthBar(ev) ? '' : `wm-month-timed${short}`,
+          isMonthBar(ev)
+            ? shortClass
+            : ['wm-month-timed', shortClass].filter(Boolean).join(' '),
           rsvpClassFor(ev.resource?.my_rsvp),
           // wm-editable:我可改期的日程,hover 时出与预选框同款的圆抓手。
           editable(ev) ? 'wm-editable' : '',
