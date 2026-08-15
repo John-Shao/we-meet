@@ -86,6 +86,49 @@ def test_primary_calendar_rejects_delegated_writer():
 
 
 @pytest.mark.django_db
+def test_room_discovery_includes_the_timeline_summary_fields():
+    organization = factories.OrganizationFactory()
+    user = factories.UserFactory()
+    member(organization, user)
+    building = factories.MeetingRoomBuildingFactory(
+        organization=organization,
+        city_timezone="Asia/Shanghai",
+        name="Tencent Tower",
+    )
+    television = factories.MeetingRoomFacilityFactory(
+        organization=organization, name="TV", code="tv"
+    )
+    whiteboard = factories.MeetingRoomFacilityFactory(
+        organization=organization, name="Whiteboard", code="whiteboard"
+    )
+    room = factories.MeetingRoomFactory(
+        organization=organization,
+        node=building,
+        code="1602",
+        name="Overlook",
+        floor="16F",
+        capacity=100,
+    )
+    room.facilities.set([television, whiteboard])
+
+    response = api(user).get("/api/v1.0/calendars/discover/?type=room")
+
+    assert response.status_code == 200, response.content
+    discovered = response.json()[0]["meeting_room"]
+    assert discovered["id"] == str(room.id)
+    assert discovered["code"] == "1602"
+    assert discovered["name"] == "Overlook"
+    assert discovered["capacity"] == 100
+    assert discovered["node"]["name"] == "Tencent Tower"
+    assert discovered["path_label"].endswith("Tencent Tower · 16F")
+    assert discovered["timezone"] == "Asia/Shanghai"
+    assert [facility["name"] for facility in discovered["facilities"]] == [
+        "TV",
+        "Whiteboard",
+    ]
+
+
+@pytest.mark.django_db
 def test_reset_share_link_revokes_old_token():
     organization = factories.OrganizationFactory()
     owner, colleague = factories.UserFactory.create_batch(2)

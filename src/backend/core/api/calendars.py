@@ -19,6 +19,7 @@ from core.api.calendar import CalendarEventSerializer, filter_calendar_window
 from core.api.calendar_exports import create_calendar_export
 from core.api.directory import get_caller_organization
 from core.api.feature_flag import FeatureFlag
+from core.api.meeting_rooms import serialize_room
 from core.services import calendar_access
 
 SHARE_SALT = "we-meet.calendar-share.v1"
@@ -144,7 +145,10 @@ class CalendarSerializer(serializers.ModelSerializer):
         room = obj.meeting_room
         if room is None:
             return None
-        return {"id": str(room.id), "name": room.name, "code": room.code}
+        return serialize_room(
+            room,
+            label_cache=self.context.setdefault("_meeting_room_labels", {}),
+        )
 
     def get_effective_role(self, obj):
         user = self._request_user()
@@ -263,15 +267,19 @@ class CalendarViewSet(viewsets.GenericViewSet):
                 | Q(subscriptions__subscriber=user),
                 deleted_at__isnull=True,
             )
-            .select_related("owner", "organization", "meeting_room")
+            .select_related(
+                "owner", "organization", "meeting_room", "meeting_room__node"
+            )
+            .prefetch_related("meeting_room__facilities")
             .distinct()
         )
 
     def get_object(self):
         calendar = (
             models.Calendar.objects.select_related(
-                "owner", "organization", "meeting_room"
+                "owner", "organization", "meeting_room", "meeting_room__node"
             )
+            .prefetch_related("meeting_room__facilities")
             .filter(pk=self.kwargs.get(self.lookup_field), deleted_at__isnull=True)
             .first()
         )
@@ -393,9 +401,15 @@ class CalendarViewSet(viewsets.GenericViewSet):
                 for row in memberships[:50]
             ]
         elif kind == "room":
-            rooms = models.MeetingRoom.objects.filter(
-                organization=organization, is_active=True
-            ).select_related("node")
+            rooms = (
+                models.MeetingRoom.objects.filter(
+                    organization=organization,
+                    deleted_at__isnull=True,
+                    is_active=True,
+                )
+                .select_related("node")
+                .prefetch_related("facilities")
+            )
             if query:
                 rooms = rooms.filter(
                     Q(name__icontains=query) | Q(code__icontains=query)
@@ -408,6 +422,11 @@ class CalendarViewSet(viewsets.GenericViewSet):
                     meeting_room=room,
                     defaults={"name": room.name or room.code},
                 )
+                # Reuse the fully loaded room and organization while serializing
+                # this discovery page. Existing resource calendars returned by
+                # get_or_create otherwise trigger two queries per row.
+                calendar.meeting_room = room
+                calendar.organization = organization
                 calendars.append(calendar)
         elif kind == "public":
             calendars = list(

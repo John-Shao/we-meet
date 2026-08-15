@@ -24,7 +24,8 @@ import {
   timelineGridTicks,
   timelineTrackWidth,
 } from '../utils/timelineScale'
-import { roomBuildingIdentifier, roomIdentifier } from '../utils/roomLabel'
+import { roomIdentifier } from '../utils/roomLabel'
+import { MeetingRoomSummary } from './MeetingRoomSummary'
 /** Where the track scrolls to on mount — nobody books at 3am. */
 const INITIAL_HOUR = 8
 const DEFAULT_LABEL_WIDTH = 220
@@ -659,26 +660,11 @@ export const RoomTimeline = ({
               data-testid={`mr-timeline-row-${room.id}`}
             >
               <div className={labelCellCls} style={{ width: labelWidth }}>
-                <span
-                  className={roomIdentifierCls}
-                  title={roomBuildingIdentifier(room.node.name, room)}
-                >
-                  {roomBuildingIdentifier(room.node.name, room)}
-                </span>
-                <span
-                  className={roomResourceCls}
-                  title={room.facilities
-                    .map((facility) => facility.name)
-                    .join(' · ')}
-                >
-                  {room.capacity > 0 &&
-                    t('unit.people', { count: room.capacity })}
-                  {room.capacity > 0 && room.facilities.length > 0 && ' · '}
-                  {room.facilities
-                    .slice(0, 2)
-                    .map((facility) => facility.name)
-                    .join(' · ')}
-                </span>
+                <MeetingRoomSummary
+                  room={room}
+                  primaryClassName={roomIdentifierCls}
+                  secondaryClassName={roomResourceCls}
+                />
               </div>
               <div
                 className={trackCls}

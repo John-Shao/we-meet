@@ -1,4 +1,5 @@
 import { fetchApi } from '@/api/fetchApi'
+import type { MeetingRoom } from '@/features/meeting-rooms'
 
 export type CalendarKind = 'primary' | 'shared' | 'resource'
 export type CalendarRole = 'none' | 'free_busy' | 'details' | 'writer' | 'admin'
@@ -14,7 +15,7 @@ export interface UnifiedCalendar {
     full_name: string | null
     short_name?: string | null
   } | null
-  meeting_room: { id: string; name: string; code: string } | null
+  meeting_room: MeetingRoom | null
   organization_default_access: 'none' | 'free_busy' | 'details'
   effective_role: CalendarRole
   effective_permission: 'none' | 'free_busy' | 'details'

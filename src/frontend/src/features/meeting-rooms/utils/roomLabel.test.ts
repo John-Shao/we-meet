@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   roomBuildingIdentifier,
   roomIdentifier,
+  roomResourceLabel,
   roomScheduleLabel,
 } from './roomLabel'
 
@@ -40,5 +41,31 @@ describe('roomScheduleLabel', () => {
     expect(
       roomScheduleLabel('联想大厦', { code: '208', name: '' }, '6 人')
     ).toBe('联想大厦-208 · 6 人')
+  })
+})
+
+describe('roomResourceLabel', () => {
+  it('matches the timeline capacity and facility summary', () => {
+    expect(
+      roomResourceLabel(
+        {
+          facilities: [
+            { name: 'TV' },
+            { name: 'Whiteboard' },
+            { name: 'Projector' },
+          ],
+        },
+        '100 people'
+      )
+    ).toBe('100 people · TV · Whiteboard')
+  })
+
+  it('omits empty capacity and facility values cleanly', () => {
+    expect(
+      roomResourceLabel(
+        { facilities: [{ name: '' }, { name: 'Whiteboard' }] },
+        ''
+      )
+    ).toBe('Whiteboard')
   })
 })

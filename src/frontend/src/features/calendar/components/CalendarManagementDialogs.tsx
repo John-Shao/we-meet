@@ -6,6 +6,7 @@ import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { DirectoryMultiPicker } from '@/features/contacts/components/DirectoryMultiPicker'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
+import { MeetingRoomSummary } from '@/features/meeting-rooms'
 import { Button } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 import { css, cx } from '@/styled-system/css'
@@ -262,8 +263,18 @@ export const AddCalendarDialog = ({
                   style={{ background: calendar.color }}
                 />
                 <span className={growCls}>
-                  <strong>{calendar.display_name}</strong>
-                  <small className={mutedCls}>{calendar.description}</small>
+                  {calendar.meeting_room ? (
+                    <MeetingRoomSummary
+                      room={calendar.meeting_room}
+                      primaryClassName={roomNameCls}
+                      secondaryClassName={mutedCls}
+                    />
+                  ) : (
+                    <>
+                      <strong>{calendar.display_name}</strong>
+                      <small className={mutedCls}>{calendar.description}</small>
+                    </>
+                  )}
                 </span>
                 <Button
                   variant="primary"
@@ -934,6 +945,7 @@ const growCls = css({
   display: 'flex',
   flexDirection: 'column',
 })
+const roomNameCls = css({ fontWeight: 'bold' })
 const memberRoleCls = css({
   width: '9rem',
   maxWidth: '42%',

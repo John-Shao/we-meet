@@ -6,6 +6,7 @@
  */
 
 export { MeetingRoomField } from './components/MeetingRoomField'
+export { MeetingRoomSummary } from './components/MeetingRoomSummary'
 export { MeetingRoomsPane } from './components/MeetingRoomsPane'
 export { MeetingRoomFilters } from './components/MeetingRoomFilters'
 export { RoomTimeline } from './components/RoomTimeline'
