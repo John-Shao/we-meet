@@ -25,34 +25,47 @@ export const CalendarColorPicker = ({
       data-color={value}
     />
     {({ close }) => (
-      <div className={pickerCls}>
-        <strong className={titleCls}>日历颜色</strong>
-        <div className={paletteCls} role="radiogroup" aria-label="日历颜色">
-          {CALENDAR_COLOR_PALETTE.map((color) => {
-            const selected = color.toLowerCase() === value.toLowerCase()
-            return (
-              <button
-                key={color}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                aria-label={`选择 ${color}`}
-                title={color}
-                className={swatchCls}
-                style={{ backgroundColor: color }}
-                onClick={() => {
-                  onChange(color)
-                  close()
-                }}
-              >
-                {selected && <RiCheckLine aria-hidden="true" size={22} />}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+      <CalendarColorPalette
+        value={value}
+        onChange={(color) => {
+          onChange(color)
+          close()
+        }}
+      />
     )}
   </Popover>
+)
+
+export const CalendarColorPalette = ({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) => (
+  <div className={pickerCls}>
+    <strong className={titleCls}>日历颜色</strong>
+    <div className={paletteCls} role="radiogroup" aria-label="日历颜色">
+      {CALENDAR_COLOR_PALETTE.map((color) => {
+        const selected = color.toLowerCase() === value.toLowerCase()
+        return (
+          <button
+            key={color}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={`选择 ${color}`}
+            title={color}
+            className={swatchCls}
+            style={{ backgroundColor: color }}
+            onClick={() => onChange(color)}
+          >
+            {selected && <RiCheckLine aria-hidden="true" size={22} />}
+          </button>
+        )
+      })}
+    </div>
+  </div>
 )
 
 const triggerBase = {

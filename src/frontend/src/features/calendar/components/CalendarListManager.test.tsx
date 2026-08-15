@@ -120,4 +120,31 @@ describe('CalendarListManager menu', () => {
       { color: '#5ad8a6' }
     )
   })
+
+  it('lets a subscribed calendar set its display color from the menu', async () => {
+    const subscribedCalendar: UnifiedCalendar = {
+      ...managedCalendar,
+      id: 'calendar-subscribed',
+      display_name: 'Ting',
+      capabilities: {
+        ...managedCalendar.capabilities,
+        can_manage: false,
+        can_delete: false,
+      },
+    }
+    calendarApi.setCalendarSubscription.mockResolvedValue(undefined)
+    renderManager([subscribedCalendar])
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ting 菜单' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '设置颜色' }))
+    expect(screen.getByRole('dialog', { name: '设置 Ting 颜色' })).toBeVisible()
+    fireEvent.click(await screen.findByRole('radio', { name: '选择 #5ad8a6' }))
+
+    expect(calendarApi.setCalendarSubscription).toHaveBeenCalledWith(
+      subscribedCalendar.id,
+      { color: '#5ad8a6' }
+    )
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
 })

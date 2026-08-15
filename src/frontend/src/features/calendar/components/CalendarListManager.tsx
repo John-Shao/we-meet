@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfig } from '@/api/useConfig'
+import { Modal, ModalCloseButton } from '@/components/Modal'
 import { roomBuildingIdentifier } from '@/features/meeting-rooms'
 import { css } from '@/styled-system/css'
 
@@ -18,7 +19,10 @@ import {
   CalendarSettingsDialog,
   CalendarShareDialog,
 } from './CalendarManagementDialogs'
-import { CalendarColorPicker } from './CalendarColorPicker'
+import {
+  CalendarColorPalette,
+  CalendarColorPicker,
+} from './CalendarColorPicker'
 
 const calendarDisplayName = (calendar: UnifiedCalendar): string => {
   const room = calendar.meeting_room
@@ -42,6 +46,7 @@ export const CalendarListManager = ({
   const [settings, setSettings] = useState<UnifiedCalendar | null>(null)
   const [share, setShare] = useState<UnifiedCalendar | null>(null)
   const [exporting, setExporting] = useState<UnifiedCalendar | null>(null)
+  const [coloring, setColoring] = useState<UnifiedCalendar | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const openMenuRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState('')
@@ -158,6 +163,18 @@ export const CalendarListManager = ({
                   >
                     仅显示此日历
                   </button>
+                  {!calendar.capabilities.can_manage && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setOpenMenuId(null)
+                        setColoring(calendar)
+                      }}
+                    >
+                      设置颜色
+                    </button>
+                  )}
                   {calendar.capabilities.can_manage &&
                     calendar.kind !== 'resource' && (
                       <button
@@ -248,6 +265,28 @@ export const CalendarListManager = ({
           onClose={() => setExporting(null)}
         />
       )}
+      {coloring && (
+        <Modal
+          onClose={() => setColoring(null)}
+          ariaLabel={`设置 ${calendarDisplayName(coloring)} 颜色`}
+          maxWidth="22rem"
+        >
+          <header className={colorDialogHeaderCls}>
+            <h2 className={colorDialogTitleCls}>设置颜色</h2>
+            <ModalCloseButton onClose={() => setColoring(null)} label="关闭" />
+          </header>
+          <div className={colorDialogBodyCls}>
+            <span className={nameCls}>{calendarDisplayName(coloring)}</span>
+            <CalendarColorPalette
+              value={coloring.color}
+              onChange={(color) => {
+                setColoring(null)
+                void update(coloring, { color })
+              }}
+            />
+          </div>
+        </Modal>
+      )}
     </>
   )
 }
@@ -322,3 +361,17 @@ const menuPopupCls = css({
 })
 const mutedCls = css({ color: 'greyscale.400', fontSize: '0.75rem' })
 const errorCls = css({ color: '#dc2626', fontSize: '0.75rem' })
+const colorDialogHeaderCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '1rem 1.25rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+})
+const colorDialogTitleCls = css({ margin: 0, fontSize: '1rem' })
+const colorDialogBodyCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '1rem',
+  padding: '1.25rem',
+})
