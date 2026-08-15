@@ -86,6 +86,18 @@ const whenDeclinedCls = css({
   textDecoration: 'line-through',
 })
 
+const upcomingContentCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  minWidth: 0,
+  flex: 1,
+})
+
+const upcomingTextCls = css({ minWidth: 0, flex: 1 })
+
+const upcomingStatusCls = css({ flexShrink: 0, marginLeft: 'auto' })
+
 interface Props {
   date: Date
   onDateChange: (date: Date) => void
@@ -236,16 +248,8 @@ export const CalendarSidebar = ({
                       backgroundColor: calendarColorForEvent(e, calendarColors),
                     }}
                   />
-                  <span
-                    className={css({
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '0.375rem',
-                      minWidth: 0,
-                    })}
-                  >
-                    <EventRsvpStatus status={e.my_rsvp} />
-                    <span className={css({ minWidth: 0 })}>
+                  <span className={upcomingContentCls}>
+                    <span className={upcomingTextCls}>
                       <span
                         className={
                           e.my_rsvp === 'declined' ? titleDeclinedCls : titleCls
@@ -261,6 +265,10 @@ export const CalendarSidebar = ({
                         {formatWhen(e, i18n.language, calendarTimezone)}
                       </span>
                     </span>
+                    <EventRsvpStatus
+                      status={e.my_rsvp}
+                      className={upcomingStatusCls}
+                    />
                   </span>
                 </button>
               </li>
