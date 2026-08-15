@@ -6,9 +6,34 @@ import type { UnifiedCalendar } from '../api/calendars'
 import { AddCalendarDialog } from './CalendarManagementDialogs'
 
 const calendarApi = vi.hoisted(() => ({
+  createCalendar: vi.fn(),
   discoverCalendars: vi.fn(),
   setCalendarSubscription: vi.fn(),
   unsubscribeUnifiedCalendar: vi.fn(),
+}))
+
+vi.mock('./BulkAttendeeDialog', () => ({
+  BulkAttendeeDialog: ({
+    title,
+    onConfirm,
+  }: {
+    title: string
+    onConfirm: (
+      selected: Map<string, string>,
+      avatars: Map<string, string>
+    ) => void
+  }) => (
+    <div role="dialog" aria-label={title}>
+      <button
+        type="button"
+        onClick={() =>
+          onConfirm(new Map([['member-alice', 'Alice']]), new Map())
+        }
+      >
+        确认选择共享人
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock('../api/calendars', async (importOriginal) => ({
@@ -66,6 +91,45 @@ const roomCalendar: UnifiedCalendar = {
 }
 
 describe('AddCalendarDialog calendar discovery', () => {
+  it('opens the shared people picker and keeps per-person roles in the create payload', async () => {
+    calendarApi.discoverCalendars.mockResolvedValue([])
+    calendarApi.createCalendar.mockResolvedValue(undefined)
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    render(
+      <QueryClientProvider client={client}>
+        <AddCalendarDialog onClose={vi.fn()} onChanged={vi.fn()} />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '新建日历' }))
+    expect(screen.getByText('共享人')).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: '添加共享人' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: '添加共享人' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: '确认选择共享人' })
+    )
+    expect(screen.getByText('Alice')).toBeVisible()
+
+    fireEvent.change(screen.getByLabelText('日历名称'), {
+      target: { value: 'Team calendar' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(calendarApi.createCalendar).toHaveBeenCalledWith({
+        name: 'Team calendar',
+        description: '',
+        color: '#3370ff',
+        organization_default_access: 'details',
+        members: [{ user_id: 'member-alice', role: 'details' }],
+      })
+    )
+  })
+
   it('uses the directory avatar and profile details for contact rows', async () => {
     const contactCalendar: UnifiedCalendar = {
       ...roomCalendar,

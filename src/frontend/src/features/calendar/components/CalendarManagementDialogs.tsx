@@ -5,7 +5,6 @@ import { QRCodeSVG } from 'qrcode.react'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { MemberAvatar } from '@/features/contacts'
-import { DirectoryMultiPicker } from '@/features/contacts/components/DirectoryMultiPicker'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { MeetingRoomSummary } from '@/features/meeting-rooms'
 import { Button } from '@/primitives'
@@ -41,6 +40,11 @@ const roleLabels: Record<Exclude<CalendarRole, 'none'>, string> = {
   details: '订阅者',
   writer: '编辑者',
   admin: '管理员',
+}
+
+type DraftCalendarMember = {
+  label: string
+  role: Exclude<CalendarRole, 'none'>
 }
 
 const qrSvgBlob = () => {
@@ -136,7 +140,10 @@ export const AddCalendarDialog = ({
   >('details')
   const [memberRole, setMemberRole] =
     useState<Exclude<CalendarRole, 'none'>>('details')
-  const [members, setMembers] = useState<Map<string, string>>(new Map())
+  const [members, setMembers] = useState<Map<string, DraftCalendarMember>>(
+    new Map()
+  )
+  const [memberPickerOpen, setMemberPickerOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const { data: discoveries = [], isFetching } = useQuery({
@@ -180,9 +187,9 @@ export const AddCalendarDialog = ({
         description,
         color,
         organization_default_access: defaultAccess,
-        members: [...members.keys()].map((user_id) => ({
+        members: [...members.entries()].map(([user_id, member]) => ({
           user_id,
-          role: memberRole,
+          role: member.role,
         })),
       })
       await changed()
@@ -194,7 +201,7 @@ export const AddCalendarDialog = ({
     }
   }
 
-  return (
+  const dialog = (
     <DialogFrame
       title="添加日历"
       onClose={onClose}
@@ -365,35 +372,82 @@ export const AddCalendarDialog = ({
               <option value="details">订阅者（查看详情）</option>
             </select>
           </label>
-          <div className={fieldCls}>
-            <span className={eventLabelCls}>新增共享人的角色</span>
-            <RoleSelect value={memberRole} onChange={setMemberRole} />
-          </div>
-          <div className={pickerPanelCls}>
-            <DirectoryMultiPicker
-              selected={members}
-              onToggle={(id, label) =>
-                setMembers((current) => {
-                  const next = new Map(current)
-                  if (next.has(id)) next.delete(id)
-                  else next.set(id, label)
-                  return next
-                })
-              }
-              includeExternal
-              labels={{
-                searchPlaceholder: '搜索共享人',
-                selectedTitle: `已选 ${members.size} 人`,
-                loading: '加载中',
-                empty: '没有结果',
-                loadMore: '加载更多',
-              }}
-            />
+          <h3 className={sectionTitleCls}>共享人</h3>
+          {[...members.entries()].map(([id, member]) => (
+            <div key={id} className={rowCls}>
+              <span className={growCls}>{member.label}</span>
+              <div className={memberRoleCls}>
+                <RoleSelect
+                  value={member.role}
+                  onChange={(role) =>
+                    setMembers((current) => {
+                      const next = new Map(current)
+                      next.set(id, { ...member, role })
+                      return next
+                    })
+                  }
+                />
+              </div>
+              <Button
+                variant="quaternaryDanger"
+                size="dense"
+                onPress={() =>
+                  setMembers((current) => {
+                    const next = new Map(current)
+                    next.delete(id)
+                    return next
+                  })
+                }
+              >
+                移除
+              </Button>
+            </div>
+          ))}
+          <div className={memberAddRowCls}>
+            <div className={fieldCls}>
+              <span className={eventLabelCls}>新增共享人的角色</span>
+              <RoleSelect value={memberRole} onChange={setMemberRole} />
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              isDisabled={busy}
+              onPress={() => setMemberPickerOpen(true)}
+            >
+              添加共享人
+            </Button>
           </div>
         </div>
       )}
       {error && <p className={errorCls}>{error}</p>}
     </DialogFrame>
+  )
+
+  if (!memberPickerOpen) return dialog
+
+  return (
+    <>
+      {dialog}
+      <BulkAttendeeDialog
+        initial={new Map()}
+        title="添加共享人"
+        searchPlaceholder="搜索共享人"
+        selectedTitle={(count) => `已选 ${count} 人`}
+        confirmLabel="添加"
+        excludeIds={new Set(members.keys())}
+        onClose={() => setMemberPickerOpen(false)}
+        onConfirm={(selected) => {
+          setMembers((current) => {
+            const next = new Map(current)
+            selected.forEach((label, id) => {
+              next.set(id, { label, role: memberRole })
+            })
+            return next
+          })
+          setMemberPickerOpen(false)
+        }}
+      />
+    </>
   )
 }
 
@@ -1037,14 +1091,6 @@ const qrCls = css({
   marginTop: '0.25rem',
   paddingTop: '1rem',
   borderTop: '1px solid token(colors.greyscale.200)',
-})
-const pickerPanelCls = css({
-  display: 'flex',
-  height: '16rem',
-  minHeight: '12rem',
-  overflow: 'hidden',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '0.5rem',
 })
 const memberAddRowCls = css({
   display: 'flex',
