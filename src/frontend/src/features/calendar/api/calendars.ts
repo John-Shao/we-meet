@@ -3,6 +3,8 @@ import type { MeetingRoom } from '@/features/meeting-rooms'
 
 export type CalendarKind = 'primary' | 'shared' | 'resource'
 export type CalendarRole = 'none' | 'free_busy' | 'details' | 'writer' | 'admin'
+export type CalendarMeetingRoom = Pick<MeetingRoom, 'id' | 'name' | 'code'> &
+  Partial<Omit<MeetingRoom, 'id' | 'name' | 'code'>>
 
 export interface UnifiedCalendar {
   id: string
@@ -15,7 +17,8 @@ export interface UnifiedCalendar {
     full_name: string | null
     short_name?: string | null
   } | null
-  meeting_room: MeetingRoom | null
+  /** Full on new servers; identity-only during a rolling backend deployment. */
+  meeting_room: CalendarMeetingRoom | null
   organization_default_access: 'none' | 'free_busy' | 'details'
   effective_role: CalendarRole
   effective_permission: 'none' | 'free_busy' | 'details'

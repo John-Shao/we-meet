@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { UnifiedCalendar } from '../api/calendars'
@@ -65,7 +65,9 @@ const roomCalendar: UnifiedCalendar = {
 
 describe('AddCalendarDialog room discovery', () => {
   it('uses the same room identity and resource summary as the timeline', async () => {
-    calendarApi.discoverCalendars.mockResolvedValue([roomCalendar])
+    calendarApi.discoverCalendars.mockImplementation((type: string) =>
+      Promise.resolve(type === 'room' ? [roomCalendar] : [])
+    )
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
@@ -76,10 +78,34 @@ describe('AddCalendarDialog room discovery', () => {
       </QueryClientProvider>
     )
 
+    fireEvent.click(screen.getByRole('button', { name: '会议室' }))
     expect(
       await screen.findByText('Tencent Tower-1602 (Overlook)')
     ).toBeVisible()
     expect(screen.getByText('100 people · TV · Whiteboard')).toBeVisible()
     expect(screen.queryByText('Projector')).not.toBeInTheDocument()
+  })
+
+  it('does not blank the page when the server still returns identity-only rooms', async () => {
+    const legacyCalendar: UnifiedCalendar = {
+      ...roomCalendar,
+      meeting_room: { id: 'room-1', name: 'Overlook', code: '1602' },
+    }
+    calendarApi.discoverCalendars.mockImplementation((type: string) =>
+      Promise.resolve(type === 'room' ? [legacyCalendar] : [])
+    )
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    render(
+      <QueryClientProvider client={client}>
+        <AddCalendarDialog onClose={vi.fn()} onChanged={vi.fn()} />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '会议室' }))
+    expect(await screen.findByText('1602 (Overlook)')).toBeVisible()
+    expect(screen.getByRole('button', { name: '订阅' })).toBeEnabled()
   })
 })

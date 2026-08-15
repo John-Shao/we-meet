@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next'
 import type { MeetingRoom } from '../api/ApiMeetingRoom'
 import { roomBuildingIdentifier, roomResourceLabel } from '../utils/roomLabel'
 
+type MeetingRoomSummaryData = Pick<MeetingRoom, 'name' | 'code'> &
+  Partial<Pick<MeetingRoom, 'capacity' | 'node' | 'facilities'>>
+
 /**
  * The shared two-line identity used wherever a meeting room appears in a list.
  * Keeping this in one component prevents calendar discovery from drifting away
@@ -13,18 +16,33 @@ export const MeetingRoomSummary = ({
   primaryClassName,
   secondaryClassName,
 }: {
-  room: MeetingRoom
+  room: MeetingRoomSummaryData
   primaryClassName?: string
   secondaryClassName?: string
 }) => {
   const { t } = useTranslation('meeting-rooms')
-  const identifier = roomBuildingIdentifier(room.node.name, room)
+  // Calendar discovery returned identity-only room objects before the backend
+  // started embedding the full meeting-room summary. Keep mixed-version
+  // deployments renderable instead of crashing the whole React tree.
+  const identity = {
+    code: typeof room.code === 'string' ? room.code : '',
+    name: typeof room.name === 'string' ? room.name : '',
+  }
+  const building =
+    room.node && typeof room.node.name === 'string' ? room.node.name : ''
+  const facilities = Array.isArray(room.facilities)
+    ? room.facilities.map((facility) => ({
+        name: typeof facility?.name === 'string' ? facility.name : '',
+      }))
+    : []
+  const capacity = Number(room.capacity) || 0
+  const identifier = roomBuildingIdentifier(building, identity)
   const capacityLabel =
-    room.capacity > 0 ? t('unit.people', { count: room.capacity }) : ''
-  const summary = roomResourceLabel(room, capacityLabel)
+    capacity > 0 ? t('unit.people', { count: capacity }) : ''
+  const summary = roomResourceLabel({ facilities }, capacityLabel)
   const fullResourceLabel = [
     capacityLabel,
-    ...room.facilities.map((facility) => facility.name),
+    ...facilities.map((facility) => facility.name),
   ]
     .filter(Boolean)
     .join(' · ')
