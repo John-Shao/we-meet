@@ -30,4 +30,9 @@ export {
   fetchMeetingRooms,
 } from './api/fetchMeetingRooms'
 
-export { childrenOf, flattenTree, validMoveTargets } from './utils/roomHierarchy'
+export {
+  childrenOf,
+  flattenTree,
+  validMoveTargets,
+} from './utils/roomHierarchy'
+export { roomBuildingIdentifier } from './utils/roomLabel'

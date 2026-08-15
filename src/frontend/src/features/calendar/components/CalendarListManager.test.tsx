@@ -53,8 +53,8 @@ const managedCalendar: UnifiedCalendar = {
   deleted_at: null,
 }
 
-const renderManager = () => {
-  calendarApi.fetchCalendars.mockResolvedValue([managedCalendar])
+const renderManager = (calendars: UnifiedCalendar[] = [managedCalendar]) => {
+  calendarApi.fetchCalendars.mockResolvedValue(calendars)
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -66,6 +66,33 @@ const renderManager = () => {
 }
 
 describe('CalendarListManager menu', () => {
+  it('prefixes a meeting-room calendar with its building name', async () => {
+    const roomCalendar: UnifiedCalendar = {
+      ...managedCalendar,
+      id: 'calendar-room-1203',
+      kind: 'resource',
+      display_name: '1203',
+      meeting_room: {
+        id: 'room-1203',
+        name: '',
+        code: '1203',
+        node: { id: 'building-lenovo', name: '联想大厦' },
+      },
+      capabilities: {
+        ...managedCalendar.capabilities,
+        can_manage: false,
+        can_delete: false,
+      },
+    }
+
+    renderManager([roomCalendar])
+
+    expect(await screen.findByText('联想大厦-1203')).toBeVisible()
+    expect(
+      screen.getByRole('checkbox', { name: '显示 联想大厦-1203' })
+    ).toBeChecked()
+  })
+
   it('closes on outside click and Escape', async () => {
     renderManager()
     const trigger = await screen.findByRole('button', { name: /Work/ })

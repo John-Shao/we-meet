@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfig } from '@/api/useConfig'
+import { roomBuildingIdentifier } from '@/features/meeting-rooms'
 import { css } from '@/styled-system/css'
 
 import {
@@ -17,6 +18,14 @@ import {
   CalendarSettingsDialog,
   CalendarShareDialog,
 } from './CalendarManagementDialogs'
+
+const calendarDisplayName = (calendar: UnifiedCalendar): string => {
+  const room = calendar.meeting_room
+  if (!room) return calendar.display_name
+  return (
+    roomBuildingIdentifier(room.node?.name ?? '', room) || calendar.display_name
+  )
+}
 
 export const CalendarListManager = ({
   onChanged,
@@ -105,7 +114,7 @@ export const CalendarListManager = ({
             <input
               type="checkbox"
               checked={calendar.enabled}
-              aria-label={`显示 ${calendar.display_name}`}
+              aria-label={`显示 ${calendarDisplayName(calendar)}`}
               onChange={(event) =>
                 void update(calendar, { enabled: event.target.checked })
               }
@@ -113,14 +122,14 @@ export const CalendarListManager = ({
             <input
               type="color"
               value={calendar.color}
-              aria-label={`${calendar.display_name} 颜色`}
+              aria-label={`${calendarDisplayName(calendar)} 颜色`}
               className={colorCls}
               onChange={(event) =>
                 void update(calendar, { color: event.target.value })
               }
             />
-            <span className={nameCls} title={calendar.display_name}>
-              {calendar.display_name}
+            <span className={nameCls} title={calendarDisplayName(calendar)}>
+              {calendarDisplayName(calendar)}
             </span>
             <div
               className={menuCls}
@@ -128,7 +137,7 @@ export const CalendarListManager = ({
             >
               <button
                 type="button"
-                aria-label={`${calendar.display_name} 菜单`}
+                aria-label={`${calendarDisplayName(calendar)} 菜单`}
                 aria-haspopup="menu"
                 aria-expanded={openMenuId === calendar.id}
                 onClick={() =>
