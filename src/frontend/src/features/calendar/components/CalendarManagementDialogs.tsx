@@ -46,6 +46,7 @@ const roleLabels: Record<Exclude<CalendarRole, 'none'>, string> = {
 
 type DraftCalendarMember = {
   label: string
+  avatarUrl?: string
   role: Exclude<CalendarRole, 'none'>
 }
 
@@ -376,6 +377,11 @@ export const AddCalendarDialog = ({
           <h3 className={sectionTitleCls}>共享人</h3>
           {[...members.entries()].map(([id, member]) => (
             <div key={id} className={rowCls}>
+              <MemberAvatar
+                name={member.label}
+                src={member.avatarUrl}
+                size="2rem"
+              />
               <span className={growCls}>{member.label}</span>
               <div className={memberRoleCls}>
                 <RoleSelect
@@ -437,11 +443,15 @@ export const AddCalendarDialog = ({
         confirmLabel="添加"
         excludeIds={new Set(members.keys())}
         onClose={() => setMemberPickerOpen(false)}
-        onConfirm={(selected) => {
+        onConfirm={(selected, avatars) => {
           setMembers((current) => {
             const next = new Map(current)
             selected.forEach((label, id) => {
-              next.set(id, { label, role: memberRole })
+              next.set(id, {
+                label,
+                avatarUrl: avatars.get(id),
+                role: memberRole,
+              })
             })
             return next
           })
@@ -603,8 +613,15 @@ export const CalendarSettingsDialog = ({
           <h3 className={sectionTitleCls}>共享人</h3>
           {members.map((member) => (
             <div key={member.id} className={rowCls}>
+              <MemberAvatar
+                name={
+                  member.user.full_name || member.user.short_name || '未知用户'
+                }
+                src={member.user.avatar_url}
+                size="2rem"
+              />
               <span className={growCls}>
-                {member.user.full_name || member.user.short_name}
+                {member.user.full_name || member.user.short_name || '未知用户'}
                 {member.external ? '（外部联系人）' : ''}
               </span>
               <div className={memberRoleCls}>

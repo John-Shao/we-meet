@@ -41,7 +41,12 @@ export interface UnifiedCalendar {
 
 export interface CalendarMember {
   id: string
-  user: { id: string; full_name: string | null; short_name?: string | null }
+  user: {
+    id: string
+    full_name: string | null
+    short_name?: string | null
+    avatar_url?: string | null
+  }
   role: Exclude<CalendarRole, 'none'>
   external: boolean
 }

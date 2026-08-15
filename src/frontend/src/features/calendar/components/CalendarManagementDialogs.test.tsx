@@ -3,11 +3,15 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { UnifiedCalendar } from '../api/calendars'
-import { AddCalendarDialog } from './CalendarManagementDialogs'
+import {
+  AddCalendarDialog,
+  CalendarSettingsDialog,
+} from './CalendarManagementDialogs'
 
 const calendarApi = vi.hoisted(() => ({
   createCalendar: vi.fn(),
   discoverCalendars: vi.fn(),
+  fetchCalendarMembers: vi.fn(),
   setCalendarSubscription: vi.fn(),
   unsubscribeUnifiedCalendar: vi.fn(),
 }))
@@ -27,7 +31,10 @@ vi.mock('./BulkAttendeeDialog', () => ({
       <button
         type="button"
         onClick={() =>
-          onConfirm(new Map([['member-alice', 'Alice']]), new Map())
+          onConfirm(
+            new Map([['member-alice', 'Alice']]),
+            new Map([['member-alice', '/media/avatars/alice.jpg']])
+          )
         }
       >
         确认选择共享人
@@ -125,7 +132,7 @@ describe('AddCalendarDialog calendar discovery', () => {
       defaultOptions: { queries: { retry: false } },
     })
 
-    render(
+    const { container } = render(
       <QueryClientProvider client={client}>
         <AddCalendarDialog onClose={vi.fn()} onChanged={vi.fn()} />
       </QueryClientProvider>
@@ -140,6 +147,10 @@ describe('AddCalendarDialog calendar discovery', () => {
       await screen.findByRole('button', { name: '确认选择共享人' })
     )
     expect(screen.getByText('Alice')).toBeVisible()
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      '/media/avatars/alice.jpg'
+    )
 
     fireEvent.change(screen.getByLabelText('日历名称'), {
       target: { value: 'Team calendar' },
@@ -154,6 +165,46 @@ describe('AddCalendarDialog calendar discovery', () => {
         organization_default_access: 'details',
         members: [{ user_id: 'member-alice', role: 'details' }],
       })
+    )
+  })
+
+  it('shows member avatars in calendar settings', async () => {
+    calendarApi.fetchCalendarMembers.mockResolvedValue([
+      {
+        id: 'grant-ting',
+        user: {
+          id: 'member-ting',
+          full_name: 'Ting',
+          avatar_url: '/media/avatars/ting.jpg',
+        },
+        role: 'details',
+        external: false,
+      },
+    ])
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const manageableCalendar: UnifiedCalendar = {
+      ...roomCalendar,
+      kind: 'shared',
+      meeting_room: null,
+      capabilities: { ...roomCalendar.capabilities, can_manage: true },
+    }
+
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <CalendarSettingsDialog
+          calendar={manageableCalendar}
+          onClose={vi.fn()}
+          onChanged={vi.fn()}
+        />
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText('Ting')).toBeVisible()
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      '/media/avatars/ting.jpg'
     )
   })
 
