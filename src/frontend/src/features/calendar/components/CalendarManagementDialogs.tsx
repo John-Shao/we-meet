@@ -28,12 +28,14 @@ import {
   type CalendarRole,
   type UnifiedCalendar,
 } from '../api/calendars'
+import { CALENDAR_COLOR_PALETTE } from '../utils/calendarColors'
 import {
   fieldCls,
   inputCls as eventInputCls,
   labelCls as eventLabelCls,
 } from './formStyles'
 import { BulkAttendeeDialog } from './BulkAttendeeDialog'
+import { CalendarColorPicker } from './CalendarColorPicker'
 
 const roleLabels: Record<Exclude<CalendarRole, 'none'>, string> = {
   free_busy: '仅忙闲',
@@ -134,7 +136,7 @@ export const AddCalendarDialog = ({
   const [query, setQuery] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [color, setColor] = useState('#3370ff')
+  const [color, setColor] = useState<string>(CALENDAR_COLOR_PALETTE[0])
   const [defaultAccess, setDefaultAccess] = useState<
     'none' | 'free_busy' | 'details'
   >('details')
@@ -349,15 +351,14 @@ export const AddCalendarDialog = ({
               onChange={(e) => setDescription(e.target.value)}
             />
           </label>
-          <label className={fieldCls}>
+          <div className={fieldCls}>
             <span className={eventLabelCls}>颜色</span>
-            <input
-              type="color"
-              className={colorInputCls}
+            <CalendarColorPicker
               value={color}
-              onChange={(e) => setColor(e.target.value)}
+              label="颜色"
+              onChange={setColor}
             />
-          </label>
+          </div>
           <label className={fieldCls}>
             <span className={eventLabelCls}>组织内默认权限</span>
             <select
@@ -574,15 +575,14 @@ export const CalendarSettingsDialog = ({
               onChange={(e) => setDescription(e.target.value)}
             />
           </label>
-          <label className={fieldCls}>
+          <div className={fieldCls}>
             <span className={eventLabelCls}>我的显示颜色</span>
-            <input
-              type="color"
-              className={colorInputCls}
+            <CalendarColorPicker
               value={color}
-              onChange={(e) => setColor(e.target.value)}
+              label="我的显示颜色"
+              onChange={setColor}
             />
-          </label>
+          </div>
           <label className={fieldCls}>
             <span className={eventLabelCls}>组织内默认权限</span>
             <select
@@ -1000,15 +1000,6 @@ const textareaCls = css({
   resize: 'vertical',
   outline: 'none',
   _focus: { borderColor: 'primary.500' },
-})
-const colorInputCls = css({
-  width: '3rem',
-  height: 'control.md',
-  padding: '0.1875rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  background: 'greyscale.000',
-  cursor: 'pointer',
 })
 const disabledControlCls = css({
   _disabled: {

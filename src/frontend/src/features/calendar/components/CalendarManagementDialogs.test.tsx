@@ -91,6 +91,33 @@ const roomCalendar: UnifiedCalendar = {
 }
 
 describe('AddCalendarDialog calendar discovery', () => {
+  it('closes the preset color palette without closing the calendar form', async () => {
+    calendarApi.discoverCalendars.mockResolvedValue([])
+    const onClose = vi.fn()
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    render(
+      <QueryClientProvider client={client}>
+        <AddCalendarDialog onClose={onClose} onChanged={vi.fn()} />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '新建日历' }))
+    fireEvent.click(screen.getByRole('button', { name: '颜色' }))
+    const palette = await screen.findByRole('radiogroup', {
+      name: '日历颜色',
+    })
+
+    fireEvent.keyDown(palette, { key: 'Escape' })
+
+    await waitFor(() =>
+      expect(screen.queryByRole('radiogroup', { name: '日历颜色' })).toBeNull()
+    )
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('opens the shared people picker and keeps per-person roles in the create payload', async () => {
     calendarApi.discoverCalendars.mockResolvedValue([])
     calendarApi.createCalendar.mockResolvedValue(undefined)

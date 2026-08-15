@@ -18,6 +18,7 @@ import {
   CalendarSettingsDialog,
   CalendarShareDialog,
 } from './CalendarManagementDialogs'
+import { CalendarColorPicker } from './CalendarColorPicker'
 
 const calendarDisplayName = (calendar: UnifiedCalendar): string => {
   const room = calendar.meeting_room
@@ -119,14 +120,11 @@ export const CalendarListManager = ({
                 void update(calendar, { enabled: event.target.checked })
               }
             />
-            <input
-              type="color"
+            <CalendarColorPicker
               value={calendar.color}
-              aria-label={`${calendarDisplayName(calendar)} 颜色`}
-              className={colorCls}
-              onChange={(event) =>
-                void update(calendar, { color: event.target.value })
-              }
+              label={`${calendarDisplayName(calendar)} 颜色`}
+              compact
+              onChange={(color) => void update(calendar, { color })}
             />
             <span className={nameCls} title={calendarDisplayName(calendar)}>
               {calendarDisplayName(calendar)}
@@ -281,13 +279,6 @@ const calendarRowCls = css({
   gap: '0.35rem',
   minWidth: 0,
   position: 'relative',
-})
-const colorCls = css({
-  width: '0.8rem',
-  height: '0.8rem',
-  padding: 0,
-  border: 0,
-  background: 'transparent',
 })
 const nameCls = css({
   flex: 1,

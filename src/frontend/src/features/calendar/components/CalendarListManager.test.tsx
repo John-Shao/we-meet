@@ -95,7 +95,7 @@ describe('CalendarListManager menu', () => {
 
   it('closes on outside click and Escape', async () => {
     renderManager()
-    const trigger = await screen.findByRole('button', { name: /Work/ })
+    const trigger = await screen.findByRole('button', { name: 'Work 菜单' })
 
     fireEvent.click(trigger)
     expect(screen.getByRole('menu')).toBeInTheDocument()
@@ -106,5 +106,18 @@ describe('CalendarListManager menu', () => {
     expect(screen.getByRole('menu')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('updates a calendar with one of the App preset colors', async () => {
+    calendarApi.setCalendarSubscription.mockResolvedValue(undefined)
+    renderManager()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Work 颜色' }))
+    fireEvent.click(await screen.findByRole('radio', { name: '选择 #5ad8a6' }))
+
+    expect(calendarApi.setCalendarSubscription).toHaveBeenCalledWith(
+      managedCalendar.id,
+      { color: '#5ad8a6' }
+    )
   })
 })
