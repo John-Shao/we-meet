@@ -259,7 +259,7 @@ export const AddCalendarDialog = ({
               </button>
             ))}
           </div>
-          {isFetching ? (
+          {isFetching && discoveries.length === 0 ? (
             <p className={mutedCls}>正在搜索…</p>
           ) : discoveries.length === 0 ? (
             <p className={mutedCls}>没有可订阅的日历</p>

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { UnifiedCalendar } from '../api/calendars'
@@ -7,6 +7,7 @@ import { AddCalendarDialog } from './CalendarManagementDialogs'
 
 const calendarApi = vi.hoisted(() => ({
   discoverCalendars: vi.fn(),
+  setCalendarSubscription: vi.fn(),
   unsubscribeUnifiedCalendar: vi.fn(),
 }))
 
@@ -64,7 +65,7 @@ const roomCalendar: UnifiedCalendar = {
   deleted_at: null,
 }
 
-describe('AddCalendarDialog room discovery', () => {
+describe('AddCalendarDialog calendar discovery', () => {
   it('uses the same room identity and resource summary as the timeline', async () => {
     calendarApi.discoverCalendars.mockImplementation((type: string) =>
       Promise.resolve(type === 'room' ? [roomCalendar] : [])
@@ -110,29 +111,67 @@ describe('AddCalendarDialog room discovery', () => {
     expect(screen.getByRole('button', { name: '订阅' })).toBeEnabled()
   })
 
-  it('allows an existing room subscription to be removed', async () => {
-    let subscribed = true
+  it('keeps contact rows visible while adding a subscription', async () => {
+    const contactCalendar: UnifiedCalendar = {
+      ...roomCalendar,
+      id: 'calendar-contact-1',
+      kind: 'shared',
+      name: 'Ting',
+      display_name: 'Ting',
+      meeting_room: null,
+    }
+    let contactRequestCount = 0
+    let finishRefresh: ((rows: UnifiedCalendar[]) => void) | undefined
+    calendarApi.discoverCalendars.mockImplementation((type: string) => {
+      if (type !== 'contact') return Promise.resolve([])
+      contactRequestCount += 1
+      if (contactRequestCount === 1) return Promise.resolve([contactCalendar])
+      return new Promise<UnifiedCalendar[]>((resolve) => {
+        finishRefresh = resolve
+      })
+    })
+    calendarApi.setCalendarSubscription.mockResolvedValue(undefined)
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    render(
+      <QueryClientProvider client={client}>
+        <AddCalendarDialog onClose={vi.fn()} onChanged={vi.fn()} />
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText('Ting')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '订阅' }))
+    await waitFor(() => expect(finishRefresh).toBeTypeOf('function'))
+    expect(screen.getByText('Ting')).toBeVisible()
+    expect(screen.queryByText('正在搜索…')).not.toBeInTheDocument()
+
+    await act(async () => {
+      finishRefresh?.([{ ...contactCalendar, subscribed: true, enabled: true }])
+    })
+    expect(
+      await screen.findByRole('button', { name: '取消订阅' })
+    ).toBeEnabled()
+  })
+
+  it('keeps room rows visible while removing a subscription', async () => {
     const subscribedCalendar: UnifiedCalendar = {
       ...roomCalendar,
       subscribed: true,
       enabled: true,
     }
-    calendarApi.discoverCalendars.mockImplementation((type: string) =>
-      Promise.resolve(
-        type === 'room'
-          ? [
-              {
-                ...subscribedCalendar,
-                subscribed,
-                enabled: subscribed,
-              },
-            ]
-          : []
-      )
-    )
-    calendarApi.unsubscribeUnifiedCalendar.mockImplementation(async () => {
-      subscribed = false
+    let roomRequestCount = 0
+    let finishRefresh: ((rows: UnifiedCalendar[]) => void) | undefined
+    calendarApi.discoverCalendars.mockImplementation((type: string) => {
+      if (type !== 'room') return Promise.resolve([])
+      roomRequestCount += 1
+      if (roomRequestCount === 1) return Promise.resolve([subscribedCalendar])
+      return new Promise<UnifiedCalendar[]>((resolve) => {
+        finishRefresh = resolve
+      })
     })
+    calendarApi.unsubscribeUnifiedCalendar.mockResolvedValue(undefined)
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
@@ -155,6 +194,15 @@ describe('AddCalendarDialog room discovery', () => {
         subscribedCalendar.id
       )
     )
+    await waitFor(() => expect(finishRefresh).toBeTypeOf('function'))
+    expect(screen.getByText('Tencent Tower-1602 (Overlook)')).toBeVisible()
+    expect(screen.queryByText('正在搜索…')).not.toBeInTheDocument()
+
+    await act(async () => {
+      finishRefresh?.([
+        { ...subscribedCalendar, subscribed: false, enabled: false },
+      ])
+    })
     expect(await screen.findByRole('button', { name: '订阅' })).toBeEnabled()
   })
 })
