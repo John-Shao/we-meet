@@ -18,7 +18,7 @@ import {
 } from '../utils/zonedDate'
 
 interface Props {
-  /** 已选参与者 id → 显示名(组织者不在其中)。 */
+  /** 已选普通参与者 id → 显示名(组织者由 organizer 单独传入)。 */
   selected: Map<string, string>
   onToggle: (id: string, label: string) => void
   roles: Map<string, AttendeeRole>
@@ -32,8 +32,14 @@ interface Props {
   slotTimezone?: string
   /** 编辑态:忙闲里剔除当前日程自身,原参与者不被自己这场误报忙碌。 */
   excludeEventId?: string
-  /** 发起人自己 —— 只用于「你在该时段有其他日程」的提示,不进参与者列表。 */
+  /** 当前用户 —— 仅在其不在参与者列表时显示自身冲突提示。 */
   selfId?: string
+  /** 固定显示并计数的组织者；不进入普通参与者提交载荷。 */
+  organizer?: {
+    id: string
+    label: string
+    avatarUrl?: string
+  } | null
 }
 
 /**
@@ -58,6 +64,7 @@ export const AttendeePicker = ({
   slotTimezone = deviceTimezone(),
   excludeEventId,
   selfId,
+  organizer,
 }: Props) => {
   const { t } = useTranslation('calendar')
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -86,8 +93,15 @@ export const AttendeePicker = ({
     ? zonedDateToInstant(dayEndWall, slotTimezone)
     : null
   const busyIds = useMemo(
-    () => [...selected.keys(), ...(selfId ? [selfId] : [])],
-    [selected, selfId]
+    () =>
+      Array.from(
+        new Set([
+          ...selected.keys(),
+          ...(organizer?.id ? [organizer.id] : []),
+          ...(selfId ? [selfId] : []),
+        ])
+      ),
+    [organizer?.id, selected, selfId]
   )
   const { data: entries = [] } = useQuery({
     /* eslint-disable @tanstack/query/exhaustive-deps */
@@ -116,6 +130,9 @@ export const AttendeePicker = ({
     )
   }
   const showStatus = !!slotStart && !!slotEnd
+  const participantCount = selected.size + (organizer ? 1 : 0)
+  const selfIsListed =
+    !!selfId && (selfId === organizer?.id || selected.has(selfId))
 
   return (
     <div>
@@ -123,7 +140,8 @@ export const AttendeePicker = ({
           「添加会议室 / 更换」同一款右对齐文字按钮。 */}
       <div className={headRowCls}>
         <span className={labelCls}>
-          {t('form.attendees')} ({t('form.selected', { count: selected.size })})
+          {t('form.attendees')} (
+          {t('form.selected', { count: participantCount })})
         </span>
         <button
           type="button"
@@ -135,9 +153,47 @@ export const AttendeePicker = ({
         </button>
       </div>
 
-      {/* 已选参与者:一人一行,行内直接标忙/闲(对齐飞书的参与者列表)。 */}
-      {selected.size > 0 && (
+      {/* 组织者是固定参与者；普通参与者仍可修改角色或移除。 */}
+      {(organizer || selected.size > 0) && (
         <ul className={pickedListCls} data-testid="attendee-picked">
+          {organizer && (
+            <li
+              className={
+                showStatus && isBusy(organizer.id)
+                  ? pickedRowBusyCls
+                  : pickedRowCls
+              }
+              data-testid="attendee-organizer"
+            >
+              <MemberAvatar
+                name={organizer.label}
+                src={organizer.avatarUrl}
+                size="1.5rem"
+              />
+              <span
+                className={
+                  showStatus && isBusy(organizer.id)
+                    ? pickedNameBusyCls
+                    : pickedNameCls
+                }
+              >
+                {organizer.label}
+              </span>
+              {showStatus && (
+                <span
+                  className={
+                    isBusy(organizer.id) ? statusBusyCls : statusFreeCls
+                  }
+                  data-testid={`attendee-status-${organizer.id}`}
+                >
+                  {isBusy(organizer.id)
+                    ? t('freebusy.busy')
+                    : t('freebusy.free')}
+                </span>
+              )}
+              <span className={organizerRoleCls}>{t('card.organizer')}</span>
+            </li>
+          )}
           {[...selected.entries()].map(([id, label]) => {
             const busy = showStatus && isBusy(id)
             return (
@@ -184,8 +240,8 @@ export const AttendeePicker = ({
         </ul>
       )}
 
-      {/* 发起人自己不在参与者列表里,但「我这个点也有事」同样该提醒。 */}
-      {showStatus && selfId && isBusy(selfId) && (
+      {/* 当前用户不在参与者列表时，仍提醒其自身的时段冲突。 */}
+      {showStatus && selfId && !selfIsListed && isBusy(selfId) && (
         <p className={selfBusyCls} data-testid="attendee-self-busy">
           {t('freebusy.selfBusy')}
         </p>
@@ -194,6 +250,7 @@ export const AttendeePicker = ({
       {bulkOpen && (
         <BulkAttendeeDialog
           initial={selected}
+          excludeIds={organizer ? new Set([organizer.id]) : undefined}
           onClose={() => setBulkOpen(false)}
           onConfirm={(next, avatars) => {
             avatars.forEach((url, id) => avatarsRef.current.set(id, url))
@@ -277,6 +334,14 @@ const roleSelectCls = css({
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '0.375rem',
   backgroundColor: 'white',
+  paddingX: '0.375rem',
+  paddingY: '0.125rem',
+  fontSize: '0.75rem',
+  color: 'greyscale.700',
+})
+
+const organizerRoleCls = css({
+  flexShrink: 0,
   paddingX: '0.375rem',
   paddingY: '0.125rem',
   fontSize: '0.75rem',

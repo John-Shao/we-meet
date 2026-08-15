@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/primitives'
@@ -221,10 +221,54 @@ export const CreateEventDialog = ({
   const [roomConflicted, setRoomConflicted] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
   const { alert: showAlert } = useConfirm()
-  // P2-M3 忙闲条:发起人自己也占一行。
   const { user } = useUser()
+  const organizer = useMemo(() => {
+    const eventOrganizerAttendee = editEvent?.attendees.find(
+      (attendee) => attendee.role === 'organizer'
+    )
+    const source = editEvent
+      ? editEvent.organizer
+      : user
+        ? {
+            id: user.id,
+            full_name: user.full_name,
+            avatar_url: user.avatar_url,
+          }
+        : null
+    const id = source?.id || eventOrganizerAttendee?.id
+    if (!id) return null
+    return {
+      id,
+      label:
+        source?.full_name ||
+        eventOrganizerAttendee?.full_name ||
+        eventOrganizerAttendee?.email ||
+        (!editEvent ? user?.email : '') ||
+        '?',
+      avatarUrl: source?.avatar_url || eventOrganizerAttendee?.avatar_url,
+    }
+  }, [editEvent, user])
+
+  // 组织者在 UI 中作为固定参与者单独展示，不能同时作为普通受邀者提交。
+  // 这也清理了从 IM 等入口预填时可能包含当前用户的情况。
+  useEffect(() => {
+    if (!organizer) return
+    setSelected((prev) => {
+      if (!prev.has(organizer.id)) return prev
+      const next = new Map(prev)
+      next.delete(organizer.id)
+      return next
+    })
+    setAttendeeRoles((prev) => {
+      if (!prev.has(organizer.id)) return prev
+      const next = new Map(prev)
+      next.delete(organizer.id)
+      return next
+    })
+  }, [organizer])
 
   const toggle = (id: string, label: string) => {
+    if (id === organizer?.id) return
     const removing = selected.has(id)
     setSelected((prev) => {
       const next = new Map(prev)
@@ -316,10 +360,12 @@ export const CreateEventDialog = ({
         ...(videoEditable ? { with_video_meeting: withVideo } : {}),
       }
       const attendeeEntries = [
-        ...[...selected.keys()].map((userId) => ({
-          user_id: userId,
-          role: attendeeRoles.get(userId) ?? ('required' as const),
-        })),
+        ...[...selected.keys()]
+          .filter((userId) => userId !== organizer?.id)
+          .map((userId) => ({
+            user_id: userId,
+            role: attendeeRoles.get(userId) ?? ('required' as const),
+          })),
       ]
       const event = editEvent
         ? await updateCalendarEvent(editEvent.id, {
@@ -583,6 +629,7 @@ export const CreateEventDialog = ({
                 slotTimezone={eventTimezone}
                 excludeEventId={editEvent?.id}
                 selfId={user?.id}
+                organizer={organizer}
               />
             </div>
           )}
