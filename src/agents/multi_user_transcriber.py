@@ -47,6 +47,12 @@ TRANSLATION_TARGET_LANGS = [
 TRANSLATION_DATACHANNEL_TOPIC = "lk.transcription.translation"
 
 
+async def _get_livekit_room_sid(room: rtc.Room) -> str:
+    """Resolve LiveKit's asynchronous Room.sid property to a wire-safe string."""
+    room_sid = await room.sid
+    return room_sid or ""
+
+
 def create_stt_provider():
     """Create STT provider based on environment configuration."""
     if STT_PROVIDER == "deepgram":
@@ -206,7 +212,7 @@ class MultiUserTranscriber:
         # persist the row to the backend. All failures log but never
         # crash the transcription session.
         room_id = self.ctx.room.name
-        livekit_room_sid = self.ctx.room.sid or ""
+        livekit_room_sid = await _get_livekit_room_sid(self.ctx.room)
         speaker_identity = participant.identity
         # Display name is mirrored into participant attributes by the
         # backend (core.utils.generate_token) because livekit-rtc doesn't
