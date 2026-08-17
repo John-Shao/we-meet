@@ -837,11 +837,18 @@ class RoomViewSet(
         mode = serializer.validated_data["mode"]
         options = serializer.validated_data.get("options")
         room = self.get_object()
+        recording_requested_at = timezone.now()
+        session = MeetingSessionService().resolve_for_artifact(
+            room=room,
+            artifact_at=recording_requested_at,
+            start_source=models.MeetingSession.StartSource.WEBHOOK,
+        )
 
         try:
             with transaction.atomic():
                 recording = models.Recording.objects.create(
                     room=room,
+                    session=session,
                     mode=mode,
                     options=options.model_dump(exclude_none=True) if options else {},
                 )

@@ -8,7 +8,7 @@ from datetime import timezone as datetime_timezone
 from logging import getLogger
 
 from django.db import transaction
-from django.db.models import Case, DateTimeField, F, Value, When
+from django.db.models import Case, DateTimeField, F, Q, Value, When
 from django.utils import timezone
 
 from livekit import api
@@ -304,6 +304,115 @@ class MeetingSessionService:
             start_source=source,
             event_at=event_at,
         )
+
+    def resolve_for_artifact(
+        self,
+        *,
+        room,
+        artifact_at,
+        livekit_room_sid=None,
+        start_source=models.MeetingSession.StartSource.TRANSCRIPT,
+    ):
+        """Resolve an artifact to one session without guessing across boundaries.
+
+        New writers provide a LiveKit SID, which is a strong natural key and may
+        provision a session before ``room_started`` arrives.  Legacy writers may
+        omit it; they are bound only when an active or time-covering ended session
+        is unambiguous.  Otherwise ``None`` is returned and the caller may retain
+        a room-only artifact for later repair.
+        """
+
+        artifact_at = _aware(artifact_at) or timezone.now()
+        if isinstance(livekit_room_sid, str) and livekit_room_sid.strip():
+            session, _created = self.start_or_reconcile(
+                room=room,
+                livekit_room_sid=livekit_room_sid,
+                started_at=artifact_at,
+                start_source=start_source,
+                event_at=artifact_at,
+            )
+            return session
+
+        active = (
+            models.MeetingSession.objects.filter(
+                room=room,
+                status=models.MeetingSession.Status.ACTIVE,
+                started_at__lte=artifact_at,
+            )
+            .order_by("-started_at")
+            .first()
+        )
+        if active is not None:
+            return active
+
+        covering = list(
+            models.MeetingSession.objects.filter(
+                Q(ended_at__isnull=True) | Q(ended_at__gte=artifact_at),
+                room=room,
+                started_at__lte=artifact_at,
+            ).order_by("-started_at")[:2]
+        )
+        if len(covering) == 1:
+            return covering[0]
+
+        logger.warning(
+            "meeting_artifact.session_unresolved room_id=%s artifact_at=%s "
+            "candidate_count=%s",
+            room.id,
+            artifact_at.isoformat(),
+            len(covering),
+        )
+        return None
+
+    def bind_recording(
+        self,
+        *,
+        recording,
+        livekit_room_sid=None,
+        artifact_at=None,
+    ):
+        """Bind or correct a Recording using an active session or egress SID."""
+
+        artifact_at = _aware(artifact_at) or recording.created_at or timezone.now()
+        if recording.session_id is not None and not livekit_room_sid:
+            return recording.session
+
+        session = self.resolve_for_artifact(
+            room=recording.room,
+            artifact_at=artifact_at,
+            livekit_room_sid=livekit_room_sid,
+            start_source=models.MeetingSession.StartSource.WEBHOOK,
+        )
+        if session is None:
+            logger.warning(
+                "recording.session_unresolved room_id=%s recording_id=%s "
+                "livekit_room_sid=%s",
+                recording.room_id,
+                recording.id,
+                livekit_room_sid or "",
+            )
+            return None
+
+        with transaction.atomic():
+            locked = models.Recording.objects.select_for_update().get(pk=recording.pk)
+            if locked.room_id != session.room_id:
+                raise MeetingSessionRoomMismatch(
+                    "Recording session belongs to a different Room"
+                )
+            if locked.session_id != session.id:
+                previous_session_id = locked.session_id
+                locked.session = session
+                locked.save(update_fields=["session", "updated_at"])
+                logger.info(
+                    "recording.session_bound room_id=%s recording_id=%s "
+                    "session_id=%s previous_session_id=%s livekit_room_sid=%s",
+                    locked.room_id,
+                    locked.id,
+                    session.id,
+                    previous_session_id or "",
+                    session.livekit_room_sid or "",
+                )
+        return session
 
     def finish(self, *, session, ended_at, reason, event_at=None):
         """Idempotently end a session and close dangling participant intervals."""

@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from core.recording.worker.exceptions import WorkerResponseError
-from core.recording.worker.factories import WorkerServiceConfig
+from core.recording.worker.factories import WorkerServiceConfig, WorkerStartResult
 from core.recording.worker.services import (
     AudioCompositeEgressService,
     BaseEgressService,
@@ -204,7 +204,9 @@ def test_video_composite_egress_start_success(video_service):
     """Test successful start of video composite egress"""
     # Setup mock response
     egress_id = "test-egress-123"
-    video_service._handle_request.return_value = Mock(egress_id=egress_id)
+    video_service._handle_request.return_value = Mock(
+        egress_id=egress_id, room_id="RM_video"
+    )
 
     # Test parameters
     room_name = "test-room"
@@ -214,7 +216,7 @@ def test_video_composite_egress_start_success(video_service):
     result = video_service.start(room_name, recording_id)
 
     # Verify result
-    assert result == egress_id
+    assert result == WorkerStartResult(egress_id, "RM_video")
 
     # Verify request construction
     video_service._handle_request.assert_called_once()
@@ -293,7 +295,9 @@ def test_audio_composite_egress_start_success(audio_service):
     """Test successful start of audio composite egress"""
     # Setup mock response
     egress_id = "test-egress-123"
-    audio_service._handle_request.return_value = Mock(egress_id=egress_id)
+    audio_service._handle_request.return_value = Mock(
+        egress_id=egress_id, room_id="RM_audio"
+    )
 
     # Test parameters
     room_name = "test-room"
@@ -303,7 +307,7 @@ def test_audio_composite_egress_start_success(audio_service):
     result = audio_service.start(room_name, recording_id)
 
     # Verify result
-    assert result == egress_id
+    assert result == WorkerStartResult(egress_id, "RM_audio")
 
     # Verify request construction
     audio_service._handle_request.assert_called_once()

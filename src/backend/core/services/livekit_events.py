@@ -170,6 +170,8 @@ class LiveKitEventsService:
                 f"Recording with worker ID {egress_id} does not exist"
             ) from err
 
+        self._bind_recording_session_from_egress(recording, data)
+
         egress_status = data.egress_info.status
         self.recording_events.handle_update(recording, egress_status)
 
@@ -184,6 +186,8 @@ class LiveKitEventsService:
             raise ActionFailedError(
                 f"Recording with worker ID {data.egress_info.egress_id} does not exist"
             ) from err
+
+        self._bind_recording_session_from_egress(recording, data)
 
         try:
             room_name = str(recording.room.id)
@@ -229,7 +233,7 @@ class LiveKitEventsService:
 
         event_at = webhook_event_time(data)
         try:
-            self.meeting_sessions.start_from_livekit_room(
+            session, _ = self.meeting_sessions.start_from_livekit_room(
                 room=room,
                 livekit_room=data.room,
                 event_at=event_at,
@@ -238,6 +242,8 @@ class LiveKitEventsService:
             raise ActionFailedError(
                 f"Failed to project meeting session for room {room_id}"
             ) from err
+
+        self._bind_pending_recordings(room, session)
 
         if settings.ROOM_TELEPHONY_ENABLED:
             try:
@@ -351,7 +357,48 @@ class LiveKitEventsService:
             raise ActionFailedError(
                 f"Failed to project meeting session for room {room_id}"
             ) from err
+        self._bind_pending_recordings(room, session)
         return session, event_at
+
+    @staticmethod
+    def _bind_pending_recordings(room, session):
+        """Attach recordings created before the first lifecycle webhook arrived."""
+
+        updated = models.Recording.objects.filter(
+            room=room,
+            session__isnull=True,
+            status__in=[
+                models.RecordingStatusChoices.INITIATED,
+                models.RecordingStatusChoices.ACTIVE,
+            ],
+        ).update(session=session)
+        if updated:
+            logger.info(
+                "recording.pending_sessions_bound room_id=%s session_id=%s count=%s",
+                room.id,
+                session.id,
+                updated,
+            )
+
+    def _bind_recording_session_from_egress(self, recording, data):
+        """Use EgressInfo.room_id (the LiveKit room SID) to correct ownership."""
+
+        livekit_room_sid = getattr(data.egress_info, "room_id", None)
+        if not isinstance(livekit_room_sid, str) or not livekit_room_sid.strip():
+            livekit_room_sid = None
+        try:
+            self.meeting_sessions.bind_recording(
+                recording=recording,
+                livekit_room_sid=livekit_room_sid,
+                # Egress events may arrive long after a newer room lifecycle
+                # has started. Recording creation time preserves late-event
+                # ordering and avoids superseding the current session.
+                artifact_at=recording.created_at,
+            )
+        except MeetingSessionProjectionError as err:
+            raise ActionFailedError(
+                f"Failed to bind recording {recording.id} to a meeting session"
+            ) from err
 
     def _handle_participant_joined(self, data):
         """Handle 'participant_joined' and create one connection interval."""

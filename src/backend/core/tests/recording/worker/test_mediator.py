@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from core.factories import RecordingFactory
+from core.factories import MeetingSessionFactory, RecordingFactory
 from core.models import RecordingStatusChoices
 from core.recording.worker.exceptions import (
     RecordingStartError,
@@ -16,7 +16,7 @@ from core.recording.worker.exceptions import (
     WorkerRequestError,
     WorkerResponseError,
 )
-from core.recording.worker.factories import WorkerService
+from core.recording.worker.factories import WorkerService, WorkerStartResult
 from core.recording.worker.mediator import WorkerServiceMediator
 
 pytestmark = pytest.mark.django_db
@@ -64,6 +64,32 @@ def test_start_recording_success(
         str(mock_recording.room.id),
         {"recording_mode": mock_recording.mode, "recording_status": "starting"},
     )
+
+
+@mock.patch("core.utils.update_room_metadata")
+def test_start_recording_binds_session_from_worker_result(
+    mock_update_room_metadata, mediator, mock_worker_service
+):
+    """The synchronous egress response should bind Recording immediately."""
+
+    session = MeetingSessionFactory(livekit_room_sid="RM_worker_result")
+    recording = RecordingFactory(
+        room=session.room,
+        session=None,
+        status=RecordingStatusChoices.INITIATED,
+        worker_id=None,
+    )
+    mock_worker_service.start.return_value = WorkerStartResult(
+        worker_id="test-worker-session",
+        livekit_room_sid=session.livekit_room_sid,
+    )
+
+    mediator.start(recording)
+
+    recording.refresh_from_db()
+    assert recording.worker_id == "test-worker-session"
+    assert recording.session == session
+    mock_update_room_metadata.assert_called_once()
 
 
 @pytest.mark.parametrize(

@@ -18,16 +18,23 @@ import logging
 import os
 import urllib.error
 import urllib.request
+import uuid
 from datetime import datetime
 from typing import Optional
 
 logger = logging.getLogger("transcript-writer")
+
+_MAX_ATTEMPTS = 3
+_HTTP_BAD_REQUEST = 400
+_HTTP_TOO_MANY_REQUESTS = 429
+_HTTP_SERVER_ERROR = 500
 
 
 class TranscriptWriter:
     """Async transcript-ingestion client. Best-effort, fire-and-forget OK."""
 
     def __init__(self, *, base_url: str, token: str, timeout: float = 5.0) -> None:
+        """Configure the trusted backend endpoint and agent credential."""
         self._base_url = base_url.rstrip("/")
         self._token = token
         self._timeout = timeout
@@ -45,10 +52,11 @@ class TranscriptWriter:
         """True iff both base URL and token are non-empty."""
         return bool(self._base_url and self._token)
 
-    async def write(
+    async def write(  # noqa: PLR0913 - mirrors the transcript wire contract
         self,
         *,
         room_id: str,
+        livekit_room_sid: str,
         speaker_identity: str,
         speaker_name: str,
         text: str,
@@ -56,8 +64,9 @@ class TranscriptWriter:
         started_at: datetime,
         ended_at: Optional[datetime] = None,
         translations: Optional[dict] = None,
+        ingest_id: Optional[str] = None,
     ) -> None:
-        """POST one transcript row. Errors are logged, never raised."""
+        """POST one transcript row with a stable key across transient retries."""
         if not self.is_configured:
             logger.debug("TranscriptWriter not configured; dropping transcript")
             return
@@ -66,6 +75,8 @@ class TranscriptWriter:
 
         payload = {
             "room_id": room_id,
+            "livekit_room_sid": livekit_room_sid,
+            "ingest_id": ingest_id or str(uuid.uuid4()),
             "speaker_identity": speaker_identity,
             "speaker_name": speaker_name or "",
             "text": text,
@@ -77,18 +88,27 @@ class TranscriptWriter:
         if translations:
             payload["translations"] = translations
 
-        try:
-            await asyncio.to_thread(self._post_sync, payload)
-        except Exception:
-            logger.exception(
-                "Failed to ingest transcript for room=%s speaker=%s",
-                room_id,
-                speaker_identity,
-            )
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                await asyncio.to_thread(self._post_sync, payload)
+                return
+            except (OSError, urllib.error.URLError):
+                if attempt == _MAX_ATTEMPTS - 1:
+                    logger.exception(
+                        "Failed to ingest transcript after retries "
+                        "room=%s room_sid=%s speaker=%s ingest_id=%s",
+                        room_id,
+                        livekit_room_sid,
+                        speaker_identity,
+                        payload["ingest_id"],
+                    )
+                    return
+                await asyncio.sleep(0.25 * (2**attempt))
 
-    def _post_sync(self, payload: dict) -> None:
+    def _post_sync(self, payload: dict) -> bool:
         body = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
+        # The endpoint is assembled from an operator-controlled HTTP(S) base URL.
+        req = urllib.request.Request(  # noqa: S310
             self._endpoint,
             data=body,
             method="POST",
@@ -98,8 +118,10 @@ class TranscriptWriter:
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
-                if resp.status >= 400:
+            with urllib.request.urlopen(  # noqa: S310
+                req, timeout=self._timeout
+            ) as resp:
+                if resp.status >= _HTTP_BAD_REQUEST:
                     logger.warning(
                         "Transcript ingest got HTTP %s: %s",
                         resp.status,
@@ -112,5 +134,12 @@ class TranscriptWriter:
                         payload.get("language", ""),
                         payload.get("text", "")[:80],
                     )
+                    return True
         except urllib.error.HTTPError as e:
-            logger.warning("Transcript ingest HTTP %s: %s", e.code, e.read(500))
+            response_body = e.read(500)
+            if e.code == _HTTP_TOO_MANY_REQUESTS or e.code >= _HTTP_SERVER_ERROR:
+                raise
+            logger.warning("Transcript ingest HTTP %s: %s", e.code, response_body)
+            return False
+
+        return False

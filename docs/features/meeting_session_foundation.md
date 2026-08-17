@@ -1,6 +1,6 @@
 # MeetingSession 场次地基设计
 
-状态：M1 场次投影已实施，M2-M5 待实施
+状态：M1 场次投影、M2 产物双写已实施，M3-M5 待实施
 
 日期：2026-08-17
 
@@ -464,7 +464,7 @@ session-null 产物持续增长。
 | 阶段 | 范围 | 完成标志 |
 |---|---|---|
 | M1 场次投影 ✅ | MeetingSession、Participation、webhook 状态机、修复任务 | 2026-08-17 已实施，实时场次和出席连接可落库 |
-| M2 产物双写 | agent SID/ingest_id、Transcript/Recording session 归属 | 新产物无 session-null，重试不重复 |
+| M2 产物双写 ✅ | agent SID/ingest_id、Transcript/Recording session 归属 | 2026-08-17 已实施；新 agent 字幕按 SID 归场且重试不重复，录制由活动场次及 egress SID 双重校正 |
 | M3 纪要闭环切换 | Summary/ActionItem/Chapter/Chunk/IM/Docs 按 session | 同 Room 多场产物完全隔离 |
 | M4 历史与客户端 | backfill、Session API、历史详情 Web/Android | 用户可按场次浏览和引用 |
 | M5 收口 | 收紧约束、废弃旧 API/字段、运维手册 | Room 聚合读路径退出主流程 |

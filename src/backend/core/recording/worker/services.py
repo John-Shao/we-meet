@@ -8,7 +8,7 @@ from livekit import api as livekit_api
 from ... import utils
 from ..enums import FileExtension
 from .exceptions import WorkerConnectionError, WorkerResponseError
-from .factories import WorkerServiceConfig
+from .factories import WorkerServiceConfig, WorkerStartResult
 
 
 class BaseEgressService:
@@ -137,7 +137,13 @@ class VideoCompositeEgressService(BaseEgressService):
         if not response.egress_id:
             raise WorkerResponseError("Egress ID not found in the response.")
 
-        return response.egress_id
+        livekit_room_sid = getattr(response, "room_id", None)
+        if not isinstance(livekit_room_sid, str) or not livekit_room_sid:
+            livekit_room_sid = None
+        return WorkerStartResult(
+            worker_id=response.egress_id,
+            livekit_room_sid=livekit_room_sid,
+        )
 
 
 class AudioCompositeEgressService(BaseEgressService):
@@ -169,4 +175,10 @@ class AudioCompositeEgressService(BaseEgressService):
         if not response.egress_id:
             raise WorkerResponseError("Egress ID not found in the response.")
 
-        return response.egress_id
+        livekit_room_sid = getattr(response, "room_id", None)
+        if not isinstance(livekit_room_sid, str) or not livekit_room_sid:
+            livekit_room_sid = None
+        return WorkerStartResult(
+            worker_id=response.egress_id,
+            livekit_room_sid=livekit_room_sid,
+        )

@@ -9,7 +9,7 @@ from unittest import mock
 import pytest
 from rest_framework.test import APIClient
 
-from ...factories import RoomFactory, UserFactory
+from ...factories import MeetingSessionFactory, RoomFactory, UserFactory
 from ...models import Recording
 from ...recording.worker.exceptions import RecordingStartError
 
@@ -267,6 +267,28 @@ def test_start_recording_success(
     access = recording.accesses.first()
     assert access.user == user
     assert access.role == "owner"
+
+
+def test_start_recording_binds_active_meeting_session(
+    settings, mock_worker_service_factory, mock_worker_manager
+):
+    """A recording requested during a meeting should dual-write its session."""
+
+    settings.RECORDING_ENABLE = True
+    room = RoomFactory()
+    session = MeetingSessionFactory(room=room)
+    user = UserFactory()
+    room.accesses.create(user=user, role="owner")
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.post(
+        f"/api/v1.0/rooms/{room.id}/start-recording/",
+        {"mode": "screen_recording"},
+    )
+
+    assert response.status_code == 201
+    assert Recording.objects.get(room=room).session == session
 
 
 @pytest.mark.parametrize("value", ["fr", "en", "nl", "de"])

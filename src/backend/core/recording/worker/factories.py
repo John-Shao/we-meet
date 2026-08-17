@@ -70,6 +70,14 @@ class WorkerServiceConfig:
         )
 
 
+@dataclass(frozen=True)
+class WorkerStartResult:
+    """Identity returned when LiveKit accepts a recording egress request."""
+
+    worker_id: str
+    livekit_room_sid: Optional[str] = None
+
+
 class WorkerService(Protocol):
     """Define the interface for interacting with a worker service."""
 
@@ -78,7 +86,7 @@ class WorkerService(Protocol):
     def __init__(self, config: WorkerServiceConfig):
         """Initialize the service with the given configuration."""
 
-    def start(self, room_id: str, recording_id: str) -> str:
+    def start(self, room_id: str, recording_id: str) -> WorkerStartResult:
         """Start a recording for a specified room."""
 
     def stop(self, worker_id: str) -> str:

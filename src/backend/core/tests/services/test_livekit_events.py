@@ -13,7 +13,12 @@ import pytest
 from livekit.api import EgressStatus
 
 from core import models
-from core.factories import RecordingFactory, RoomFactory, UserFactory
+from core.factories import (
+    MeetingSessionFactory,
+    RecordingFactory,
+    RoomFactory,
+    UserFactory,
+)
 from core.recording.services.recording_events import RecordingEventsService
 from core.services.livekit_events import (
     ActionFailedError,
@@ -122,6 +127,33 @@ def test_handle_egress_updated_success(
     mock_update_room_metadata.assert_called_once_with(
         str(recording.room.id), {"recording_status": status}
     )
+
+
+@mock.patch("core.utils.update_room_metadata")
+def test_handle_egress_updated_binds_recording_by_livekit_room_sid(
+    mock_update_room_metadata, service
+):
+    """The egress room_id should correct Recording ownership to its session."""
+
+    room = RoomFactory()
+    session = MeetingSessionFactory(room=room, livekit_room_sid="RM_egress")
+    recording = RecordingFactory(
+        room=room,
+        session=None,
+        worker_id="worker-session-bind",
+        status="initiated",
+    )
+    data = mock.MagicMock()
+    data.created_at = int(timezone.now().timestamp())
+    data.egress_info.egress_id = recording.worker_id
+    data.egress_info.room_id = session.livekit_room_sid
+    data.egress_info.status = EgressStatus.EGRESS_ACTIVE
+
+    service._handle_egress_updated(data)
+
+    recording.refresh_from_db()
+    assert recording.session == session
+    mock_update_room_metadata.assert_called_once()
 
 
 @pytest.mark.parametrize(

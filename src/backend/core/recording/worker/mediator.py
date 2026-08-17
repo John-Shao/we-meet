@@ -4,6 +4,10 @@ import logging
 
 from core import utils
 from core.models import Recording, RecordingStatusChoices
+from core.services.meeting_sessions import (
+    MeetingSessionProjectionError,
+    MeetingSessionService,
+)
 
 from .exceptions import (
     RecordingStartError,
@@ -12,7 +16,7 @@ from .exceptions import (
     WorkerRequestError,
     WorkerResponseError,
 )
-from .factories import WorkerService
+from .factories import WorkerService, WorkerStartResult
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +52,7 @@ class WorkerServiceMediator:
 
         room_name = str(recording.room.id)
         try:
-            worker_id = self._worker_service.start(room_name, recording.id)
+            start_result = self._worker_service.start(room_name, recording.id)
         except (WorkerRequestError, WorkerConnectionError, WorkerResponseError) as e:
             logger.exception(
                 "Failed to start recording for room %s: %s", recording.room.slug, e
@@ -56,10 +60,33 @@ class WorkerServiceMediator:
             recording.status = RecordingStatusChoices.FAILED_TO_START
             raise RecordingStartError() from e
         else:
-            recording.worker_id = worker_id
+            if isinstance(start_result, WorkerStartResult):
+                recording.worker_id = start_result.worker_id
+                livekit_room_sid = start_result.livekit_room_sid
+            else:
+                # Preserve compatibility with custom worker implementations
+                # that still return only an egress ID during the rollout.
+                recording.worker_id = start_result
+                livekit_room_sid = None
             recording.status = RecordingStatusChoices.ACTIVE
         finally:
             recording.save()
+
+        if livekit_room_sid:
+            try:
+                MeetingSessionService().bind_recording(
+                    recording=recording,
+                    livekit_room_sid=livekit_room_sid,
+                    artifact_at=recording.created_at,
+                )
+            except MeetingSessionProjectionError:
+                # Egress has already started and must remain controllable.  The
+                # webhook path will retry the authoritative association.
+                logger.exception(
+                    "Failed to bind started recording %s to LiveKit SID %s",
+                    recording.id,
+                    livekit_room_sid,
+                )
 
         mode = recording.options.get("original_mode", None) or recording.mode
 

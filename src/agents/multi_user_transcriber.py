@@ -206,6 +206,7 @@ class MultiUserTranscriber:
         # persist the row to the backend. All failures log but never
         # crash the transcription session.
         room_id = self.ctx.room.name
+        livekit_room_sid = self.ctx.room.sid or ""
         speaker_identity = participant.identity
         # Display name is mirrored into participant attributes by the
         # backend (core.utils.generate_token) because livekit-rtc doesn't
@@ -233,6 +234,7 @@ class MultiUserTranscriber:
             )
             await writer.write(
                 room_id=room_id,
+                livekit_room_sid=livekit_room_sid,
                 speaker_identity=speaker_identity,
                 speaker_name=speaker_name,
                 text=text,

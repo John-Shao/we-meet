@@ -943,6 +943,18 @@ class Recording(BaseModel):
         related_name="recordings",
         verbose_name=_("Room"),
     )
+    session = models.ForeignKey(
+        MeetingSession,
+        on_delete=models.SET_NULL,
+        related_name="recordings",
+        null=True,
+        blank=True,
+        verbose_name=_("meeting session"),
+        help_text=_(
+            "Concrete meeting lifecycle that produced this recording. "
+            "Null is retained only for legacy or unresolved writes during rollout."
+        ),
+    )
     status = models.CharField(
         max_length=50,
         choices=RecordingStatusChoices.choices,
@@ -989,9 +1001,31 @@ class Recording(BaseModel):
                 name="unique_initiated_or_active_recording_per_room",
             )
         ]
+        indexes = [
+            models.Index(
+                fields=["session", "-created_at"],
+                name="meet_rec_session_created_idx",
+            )
+        ]
 
     def __str__(self):
         return f"Recording {self.id} ({self.status})"
+
+    def clean(self):
+        """Reject a recording assigned to a session from another room."""
+
+        super().clean()
+        session_room_id = None
+        if self.session_id is not None:
+            session_room_id = (
+                MeetingSession.objects.filter(pk=self.session_id)
+                .values_list("room_id", flat=True)
+                .first()
+            )
+        if self.room_id is not None and session_room_id not in {None, self.room_id}:
+            raise ValidationError(
+                {"session": _("Recording session must belong to the same room.")}
+            )
 
     def get_abilities(self, user):
         """Compute and return abilities for a given user on the recording."""
@@ -1708,6 +1742,25 @@ class Transcript(BaseModel):
         related_name="transcripts",
         verbose_name=_("room"),
     )
+    session = models.ForeignKey(
+        MeetingSession,
+        on_delete=models.SET_NULL,
+        related_name="transcripts",
+        null=True,
+        blank=True,
+        verbose_name=_("meeting session"),
+        help_text=_(
+            "Concrete meeting lifecycle that produced this transcript. "
+            "Null is retained only for legacy or unresolved writes during rollout."
+        ),
+    )
+    ingest_id = models.UUIDField(
+        _("ingest id"),
+        unique=True,
+        null=True,
+        blank=True,
+        help_text=_("Agent-generated idempotency key for transcript retries."),
+    )
     speaker_identity = models.CharField(
         _("speaker identity"),
         max_length=128,
@@ -1753,10 +1806,30 @@ class Transcript(BaseModel):
             # 30-char index-name limit. Don't add a fixed name back unless
             # you also keep it short (≤30 chars).
             models.Index(fields=["room", "started_at"]),
+            models.Index(
+                fields=["session", "started_at"],
+                name="meet_tr_session_start_idx",
+            ),
         ]
 
     def __str__(self) -> str:
         return f"{self.speaker_identity}: {self.text[:60]}"
+
+    def clean(self):
+        """Reject a transcript assigned to a session from another room."""
+
+        super().clean()
+        session_room_id = None
+        if self.session_id is not None:
+            session_room_id = (
+                MeetingSession.objects.filter(pk=self.session_id)
+                .values_list("room_id", flat=True)
+                .first()
+            )
+        if self.room_id is not None and session_room_id not in {None, self.room_id}:
+            raise ValidationError(
+                {"session": _("Transcript session must belong to the same room.")}
+            )
 
 
 # ---------------------------------------------------------------------------
