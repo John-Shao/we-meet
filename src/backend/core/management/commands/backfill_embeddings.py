@@ -1,107 +1,98 @@
-"""Manual entry point for the Sprint 2.4 embedding pipeline.
-
-Re-runs ``embed_meeting_transcripts`` synchronously (not via Celery) so
-historical meetings get TranscriptChunks. Useful after first deploy of
-Sprint 2.4 (no chunks exist yet for past meetings) and as a recovery
-tool when embedding tasks failed silently.
-
-Usage:
-    python manage.py backfill_embeddings <room_id>           # single room
-    python manage.py backfill_embeddings --all               # every room with a Summary
-    python manage.py backfill_embeddings --all --dry-run     # just count
-"""
+"""Manual entry point for session-scoped transcript embeddings."""
 
 import logging
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Count
 
-from core.models import Room
+from core.models import MeetingSession, Room
+from core.tasks.embeddings import embed_meeting_transcripts
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Backfill TranscriptChunk embeddings for finished meetings."
+    help = "Backfill TranscriptChunk embeddings for meeting sessions."
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "room",
+            "target",
             nargs="?",
-            help="Room UUID or slug. Omit when using --all.",
+            help="Session UUID, or a Room UUID/slug to use its latest session.",
         )
         parser.add_argument(
             "--all",
             action="store_true",
-            help="Embed every Room that has a successful Summary.",
+            help="Embed every session that has transcripts and a successful summary.",
         )
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Count target rooms without calling the embedding API.",
-        )
+        parser.add_argument("--dry-run", action="store_true")
 
     def handle(self, *args, **options):
-        # Imported here to avoid a hard import-time dependency on the
-        # task module / Celery during management command parsing.
-        from core.tasks.embeddings import embed_meeting_transcripts
-
         if options["all"]:
             return self._handle_all(
                 embed_meeting_transcripts, dry_run=options["dry_run"]
             )
-        if not options["room"]:
-            raise CommandError("Either <room> or --all is required")
-        return self._handle_one(embed_meeting_transcripts, options["room"])
+        if not options["target"]:
+            raise CommandError("Either <target> or --all is required")
+        session = self._resolve_session(options["target"])
+        result = embed_meeting_transcripts(str(session.id))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"session={session.id} room={session.room_id} chunks={result}"
+            )
+        )
 
-    def _resolve_room(self, ref: str) -> Room:
+    @staticmethod
+    def _resolve_session(ref: str) -> MeetingSession:
+        try:
+            session = MeetingSession.objects.filter(id=ref).first()
+        except ValueError:
+            session = None
+        if session is not None:
+            return session
         try:
             room = (
                 Room.objects.filter(id=ref).first()
                 or Room.objects.filter(slug=ref).first()
             )
-        except (ValueError, Room.DoesNotExist):
+        except ValueError:
             room = None
         if room is None:
-            raise CommandError(f"Room not found: {ref}")
-        return room
-
-    def _handle_one(self, task_fn, ref: str):
-        room = self._resolve_room(ref)
-        # Call the task body directly — Celery tasks are plain callables,
-        # this runs sync without going through the broker. Works in both
-        # CELERY_ENABLED and sync-fallback environments.
-        result = task_fn(str(room.id))
-        self.stdout.write(
-            self.style.SUCCESS(f"room={room.id} chunks={result}")
+            raise CommandError(f"Session or Room not found: {ref}")
+        session = (
+            room.meeting_sessions.filter(transcripts__isnull=False)
+            .distinct()
+            .order_by("-started_at")
+            .first()
         )
+        if session is None:
+            raise CommandError(f"Room has no session with transcripts: {ref}")
+        return session
 
     def _handle_all(self, task_fn, *, dry_run: bool):
-        rooms = (
-            Room.objects.annotate(t_count=Count("transcripts"))
+        sessions = (
+            MeetingSession.objects.annotate(t_count=Count("transcripts"))
             .filter(t_count__gt=0, summary__status="success")
-            .order_by("-updated_at")
+            .select_related("room")
+            .order_by("-started_at")
         )
-        count = rooms.count()
+        count = sessions.count()
         if dry_run:
             self.stdout.write(
                 self.style.NOTICE(
-                    f"Dry-run: would embed {count} room(s) with successful summaries."
+                    f"Dry-run: would embed {count} session(s) with successful summaries."
                 )
             )
             return
 
-        self.stdout.write(f"Embedding {count} room(s)…")
+        self.stdout.write(f"Embedding {count} session(s)...")
         ok = 0
-        for room in rooms:
+        for session in sessions:
             try:
-                # Call the task body directly — Celery tasks are plain callables,
-                # this runs sync without going through the broker. Works in both
-                # CELERY_ENABLED and sync-fallback environments.
-                result = task_fn(str(room.id))
+                result = task_fn(str(session.id))
                 ok += 1
-                self.stdout.write(f"  {room.id} → {result} chunks")
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("backfill failed for %s", room.id)
-                self.stdout.write(self.style.ERROR(f"  {room.id} → {exc}"))
+                self.stdout.write(f"  {session.id} -> {result} chunks")
+            except Exception as exc:
+                logger.exception("backfill failed for %s", session.id)
+                self.stdout.write(self.style.ERROR(f"  {session.id} -> {exc}"))
         self.stdout.write(self.style.SUCCESS(f"Done: {ok}/{count} succeeded"))

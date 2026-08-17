@@ -1,87 +1,96 @@
-"""Manual entry point for the Sprint 2.2.a summary pipeline.
-
-Run against an existing room (UUID or slug) to (re)generate its Summary
-and ActionItem rows. Useful for ops, smoke testing, and bulk back-fills
-before the room-finished webhook hook is wired (Sprint 2.2.b).
-
-Usage:
-    python manage.py generate_summary <room_id_or_slug>
-    python manage.py generate_summary --all       # all rooms with transcripts
-"""
+"""Manual entry point for session-scoped summary generation."""
 
 import logging
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Count
 
-from core.models import Room
+from core.models import MeetingSession, Room
 from core.services.meeting_summary import MeetingSummaryService
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Generate (or refresh) the Summary + ActionItems for a meeting."
+    help = "Generate or refresh summary artifacts for a meeting session."
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "room",
+            "target",
             nargs="?",
-            help="Room UUID or slug. Omit when using --all.",
+            help="Session UUID, or a Room UUID/slug to use its latest session.",
         )
         parser.add_argument(
             "--all",
             action="store_true",
-            help="Regenerate summaries for every Room that has transcripts.",
+            help="Regenerate every session that has transcripts.",
         )
 
     def handle(self, *args, **options):
         service = MeetingSummaryService()
         if options["all"]:
             return self._handle_all(service)
-        if not options["room"]:
-            raise CommandError("Either <room> or --all is required")
-        return self._handle_one(service, options["room"])
+        if not options["target"]:
+            raise CommandError("Either <target> or --all is required")
+        return self._handle_one(service, options["target"])
 
-    def _handle_one(self, service: MeetingSummaryService, ref: str):
+    @staticmethod
+    def _resolve_session(ref: str) -> MeetingSession:
+        try:
+            session = MeetingSession.objects.filter(id=ref).first()
+        except ValueError:
+            session = None
+        if session is not None:
+            return session
+
         try:
             room = (
                 Room.objects.filter(id=ref).first()
                 or Room.objects.filter(slug=ref).first()
             )
-        except (ValueError, Room.DoesNotExist):
+        except ValueError:
             room = None
         if room is None:
-            raise CommandError(f"Room not found: {ref}")
+            raise CommandError(f"Session or Room not found: {ref}")
+        session = (
+            room.meeting_sessions.filter(transcripts__isnull=False)
+            .distinct()
+            .order_by("-started_at")
+            .first()
+        )
+        if session is None:
+            raise CommandError(f"Room has no session with transcripts: {ref}")
+        return session
 
-        summary = service.generate(room)
+    def _handle_one(self, service: MeetingSummaryService, ref: str):
+        session = self._resolve_session(ref)
+        summary = service.generate(session)
         self.stdout.write(
             self.style.SUCCESS(
-                f"room={room.id} status={summary.status} "
-                f"transcripts={summary.transcripts_count}"
+                f"session={session.id} room={session.room_id} "
+                f"status={summary.status} transcripts={summary.transcripts_count}"
             )
         )
         if summary.error_message:
             self.stdout.write(self.style.WARNING(summary.error_message))
 
     def _handle_all(self, service: MeetingSummaryService):
-        rooms = (
-            Room.objects.annotate(t_count=Count("transcripts"))
+        sessions = (
+            MeetingSession.objects.annotate(t_count=Count("transcripts"))
             .filter(t_count__gt=0)
-            .order_by("-updated_at")
+            .select_related("room")
+            .order_by("-started_at")
         )
-        count = rooms.count()
-        self.stdout.write(f"Regenerating summaries for {count} room(s)…")
+        count = sessions.count()
+        self.stdout.write(f"Regenerating summaries for {count} session(s)...")
         ok = 0
-        for room in rooms:
+        for session in sessions:
             try:
-                summary = service.generate(room)
+                summary = service.generate(session)
                 if summary.status == "success":
                     ok += 1
-                self.stdout.write(
-                    f"  {room.id} → {summary.status}"
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("generate_summary failed for %s", room.id)
-                self.stdout.write(self.style.ERROR(f"  {room.id} → {exc}"))
+                self.stdout.write(f"  {session.id} -> {summary.status}")
+            except Exception as exc:
+                logger.exception("generate_summary failed for %s", session.id)
+                self.stdout.write(self.style.ERROR(f"  {session.id} -> {exc}"))
         self.stdout.write(self.style.SUCCESS(f"Done: {ok}/{count} succeeded"))

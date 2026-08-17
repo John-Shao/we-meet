@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-from core.factories import RoomFactory
+from core.factories import MeetingSessionFactory, RoomFactory
 from core.models import Summary, SummaryChapter, Transcript
 from core.services.meeting_summary import MeetingSummaryService
 
@@ -17,10 +17,12 @@ pytestmark = pytest.mark.django_db
 
 def _room_with_transcripts(n=3, start=None):
     room = RoomFactory()
+    session = MeetingSessionFactory(room=room)
     start = start or datetime(2026, 7, 18, 9, 0, tzinfo=dt_timezone.utc)
     transcripts = [
         Transcript.objects.create(
             room=room,
+            session=session,
             speaker_identity=f"sub-{i}",
             speaker_name=f"讲者{i}",
             text=f"第 {i} 段发言",
@@ -115,6 +117,7 @@ def test_persist_rebuilds_chapters_idempotently():
         {"title": "B", "digest": "b", "started_at": None, "ended_at": None},
     ]
     svc._persist(
+        session=transcripts[0].session,
         room=room,
         summary_text="## 摘要",
         items=[],
@@ -126,6 +129,7 @@ def test_persist_rebuilds_chapters_idempotently():
 
     # regen:换一组章节 → 全删重建,不残留。
     svc._persist(
+        session=transcripts[0].session,
         room=room,
         summary_text="## 摘要 v2",
         items=[],
@@ -147,6 +151,7 @@ def test_summary_card_body_bullets_counts_and_link():
     svc = MeetingSummaryService(llm=mock.Mock())
     summary = Summary.objects.create(
         room=room,
+        session=transcripts[0].session,
         status=Summary.Status.SUCCESS,
         content=(
             "## 会议主题\n"
@@ -157,6 +162,7 @@ def test_summary_card_body_bullets_counts_and_link():
         ),
     )
     svc._persist(
+        session=transcripts[0].session,
         room=room,
         summary_text=summary.content,
         items=[{"content": "写周报", "owner": "张三", "due": ""}],

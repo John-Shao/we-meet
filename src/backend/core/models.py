@@ -575,6 +575,26 @@ class Room(Resource):
         """Check if the room has been ended by its owner."""
         return self.ended_at is not None
 
+    @property
+    def summary(self):
+        """Return the latest session summary for legacy Room read paths."""
+        return (
+            self.summaries.order_by(
+                models.F("session__started_at").desc(nulls_last=True),
+                "-updated_at",
+            ).first()
+        )
+
+    @property
+    def meeting_doc(self):
+        """Return the latest session document for legacy Room read paths."""
+        return (
+            self.meeting_docs.order_by(
+                models.F("session__started_at").desc(nulls_last=True),
+                "-created_at",
+            ).first()
+        )
+
     @staticmethod
     def generate_unique_slug(length=8, max_retries=10):
         """Generate a unique numeric slug — the room's 8-digit meeting code."""
@@ -1843,18 +1863,30 @@ class Transcript(BaseModel):
 
 
 class Summary(BaseModel):
-    """A LLM-generated narrative summary of one meeting (one row per Room)."""
+    """A LLM-generated narrative summary of one concrete meeting session."""
 
     class Status(models.TextChoices):
         PENDING = "pending", _("Pending")
         SUCCESS = "success", _("Success")
         FAILED = "failed", _("Failed")
 
-    room = models.OneToOneField(
+    room = models.ForeignKey(
         Room,
         on_delete=models.CASCADE,
-        related_name="summary",
+        related_name="summaries",
         verbose_name=_("room"),
+    )
+    session = models.OneToOneField(
+        MeetingSession,
+        on_delete=models.CASCADE,
+        related_name="summary",
+        null=True,
+        blank=True,
+        verbose_name=_("meeting session"),
+        help_text=_(
+            "Concrete meeting lifecycle summarized by this row. Null is "
+            "retained only for legacy summaries until historical backfill."
+        ),
     )
     content = models.TextField(_("content"), blank=True, default="")
     model_used = models.CharField(
@@ -1896,11 +1928,22 @@ class Summary(BaseModel):
     content_generated_at = models.DateTimeField(
         _("content generated at"), null=True, blank=True
     )
+    im_pushed_at = models.DateTimeField(
+        _("IM pushed at"),
+        null=True,
+        blank=True,
+        help_text=_("Set after this session summary is posted to the Room IM group."),
+    )
 
     class Meta:
         verbose_name = _("meeting summary")
         verbose_name_plural = _("meeting summaries")
         ordering = ("-updated_at",)
+        indexes = [
+            models.Index(
+                fields=["room", "-updated_at"], name="meet_sum_room_upd_idx"
+            )
+        ]
 
     @property
     def is_edited(self) -> bool:
@@ -1920,7 +1963,23 @@ class Summary(BaseModel):
         )
 
     def __str__(self) -> str:
-        return f"Summary({self.room_id}, {self.status})"
+        return f"Summary({self.room_id}, {self.session_id}, {self.status})"
+
+    def clean(self):
+        """Reject a summary assigned to a session from another room."""
+
+        super().clean()
+        session_room_id = None
+        if self.session_id is not None:
+            session_room_id = (
+                MeetingSession.objects.filter(pk=self.session_id)
+                .values_list("room_id", flat=True)
+                .first()
+            )
+        if self.room_id is not None and session_room_id not in {None, self.room_id}:
+            raise ValidationError(
+                {"session": _("Summary session must belong to the same room.")}
+            )
 
 
 class ActionItem(BaseModel):
@@ -1982,6 +2041,48 @@ class ActionItem(BaseModel):
         owner = f"[{self.owner_text}] " if self.owner_text else ""
         return f"{owner}{self.content[:80]}"
 
+    def clean(self):
+        """Keep redundant Room and source transcript within the summary session."""
+
+        super().clean()
+        if self.summary_id is None:
+            return
+        summary_values = (
+            Summary.objects.filter(pk=self.summary_id)
+            .values("room_id", "session_id")
+            .first()
+        )
+        if summary_values is None:
+            return
+        if self.room_id not in {None, summary_values["room_id"]}:
+            raise ValidationError(
+                {"room": _("Action item room must match its summary room.")}
+            )
+        if self.source_transcript_id is None:
+            return
+        transcript_values = (
+            Transcript.objects.filter(pk=self.source_transcript_id)
+            .values("room_id", "session_id")
+            .first()
+        )
+        if transcript_values is None:
+            return
+        if transcript_values["room_id"] != summary_values["room_id"]:
+            raise ValidationError(
+                {"source_transcript": _("Source transcript must use the same room.")}
+            )
+        if (
+            summary_values["session_id"] is not None
+            and transcript_values["session_id"] != summary_values["session_id"]
+        ):
+            raise ValidationError(
+                {
+                    "source_transcript": _(
+                        "Source transcript must belong to the summary session."
+                    )
+                }
+            )
+
 
 class SummaryChapter(BaseModel):
     """智能章节(纪要闭环 P0-3 D1):LLM 按话题切分的会议时间轴段落。
@@ -2023,6 +2124,22 @@ class SummaryChapter(BaseModel):
     def __str__(self) -> str:
         return f"Chapter({self.sort_order}, {self.title[:40]})"
 
+    def clean(self):
+        """Keep the redundant Room aligned with the parent summary."""
+
+        super().clean()
+        if self.summary_id is None:
+            return
+        summary_room_id = (
+            Summary.objects.filter(pk=self.summary_id)
+            .values_list("room_id", flat=True)
+            .first()
+        )
+        if self.room_id not in {None, summary_room_id}:
+            raise ValidationError(
+                {"room": _("Summary chapter room must match its summary room.")}
+            )
+
 
 class TranscriptChunk(BaseModel):
     """A retrieval unit for cross-meeting RAG (Sprint 2.4).
@@ -2047,6 +2164,18 @@ class TranscriptChunk(BaseModel):
         on_delete=models.CASCADE,
         related_name="chunks",
         verbose_name=_("room"),
+    )
+    session = models.ForeignKey(
+        MeetingSession,
+        on_delete=models.CASCADE,
+        related_name="chunks",
+        null=True,
+        blank=True,
+        verbose_name=_("meeting session"),
+        help_text=_(
+            "Concrete meeting lifecycle indexed by this chunk. Null is retained "
+            "only for legacy chunks until historical backfill."
+        ),
     )
     summary = models.ForeignKey(
         Summary,
@@ -2119,6 +2248,10 @@ class TranscriptChunk(BaseModel):
             # Hot path: load all chunks for a set of user-accessible
             # rooms. (room_id, chunk_index) covers both filter & sort.
             models.Index(fields=["room", "chunk_index"]),
+            models.Index(
+                fields=["session", "chunk_index"],
+                name="meet_chunk_session_idx",
+            ),
             models.Index(fields=["summary"]),
         ]
 
@@ -2126,6 +2259,42 @@ class TranscriptChunk(BaseModel):
         speaker = self.speaker_name or self.speaker_identity[:12] or "?"
         preview = self.text[:60]
         return f"#{self.chunk_index} {speaker}: {preview}"
+
+    def clean(self):
+        """Keep chunk Room, Session and Summary ownership consistent."""
+
+        super().clean()
+        session_room_id = None
+        if self.session_id is not None:
+            session_room_id = (
+                MeetingSession.objects.filter(pk=self.session_id)
+                .values_list("room_id", flat=True)
+                .first()
+            )
+        if self.room_id is not None and session_room_id not in {None, self.room_id}:
+            raise ValidationError(
+                {"session": _("Transcript chunk session must use the same room.")}
+            )
+        if self.summary_id is None:
+            return
+        summary_values = (
+            Summary.objects.filter(pk=self.summary_id)
+            .values("room_id", "session_id")
+            .first()
+        )
+        if summary_values is None:
+            return
+        if self.room_id not in {None, summary_values["room_id"]}:
+            raise ValidationError(
+                {"summary": _("Transcript chunk summary must use the same room.")}
+            )
+        if (
+            self.session_id is not None
+            and summary_values["session_id"] != self.session_id
+        ):
+            raise ValidationError(
+                {"summary": _("Transcript chunk summary must use the same session.")}
+            )
 
 
 # ---- P5: meeting ↔ jusi-light-im group bridge ----
@@ -2184,22 +2353,33 @@ class MeetingConversation(BaseModel):
 
 
 class MeetingDoc(BaseModel):
-    """1:1 mapping between a Room and its La Suite Docs document (P3 妙记落 Doc).
+    """1:1 mapping between a meeting session and its La Suite Docs document.
 
     Created when a meeting Summary is pushed to Docs via the server-to-server
-    ``create-for-owner`` endpoint. Mirrors MeetingConversation: Room ON DELETE
-    SET NULL so the document outlives the room (the doc is the lasting artefact).
-    The row's existence is the idempotency guard for the summary→doc push — once a
-    MeetingDoc exists for a room, the push hook no-ops.
+    ``create-for-owner`` endpoint. Room and Session both use ON DELETE SET NULL
+    so the document outlives the meeting (the doc is the lasting artefact).
+    The Session OneToOne constraint is the idempotency guard for new documents;
+    legacy rows with no Session remain compatible during backfill.
     """
 
-    room = models.OneToOneField(
+    room = models.ForeignKey(
         Room,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="meeting_doc",
+        related_name="meeting_docs",
         help_text=_("the meeting room this document was created for"),
+    )
+    session = models.OneToOneField(
+        MeetingSession,
+        on_delete=models.SET_NULL,
+        related_name="meeting_doc",
+        null=True,
+        blank=True,
+        help_text=_(
+            "the concrete meeting session this document was created from; "
+            "null is retained for legacy documents"
+        ),
     )
     doc_id = models.CharField(
         max_length=64,
@@ -2218,7 +2398,23 @@ class MeetingDoc(BaseModel):
 
     def __str__(self) -> str:
         room_repr = str(self.room_id) if self.room_id else "<orphan>"
-        return f"MeetingDoc room={room_repr} doc={self.doc_id}"
+        return f"MeetingDoc room={room_repr} session={self.session_id} doc={self.doc_id}"
+
+    def clean(self):
+        """Reject a document assigned to a session from another room."""
+
+        super().clean()
+        session_room_id = None
+        if self.session_id is not None:
+            session_room_id = (
+                MeetingSession.objects.filter(pk=self.session_id)
+                .values_list("room_id", flat=True)
+                .first()
+            )
+        if self.room_id is not None and session_room_id not in {None, self.room_id}:
+            raise ValidationError(
+                {"session": _("Meeting document session must use the same room.")}
+            )
 
 
 # ---------------------------------------------------------------------------

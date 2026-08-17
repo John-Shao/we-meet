@@ -1,9 +1,9 @@
 """Meeting summary + action-item extraction (Sprint 2.2.a).
 
-Reads the Transcript rows for a Room, asks Doubao Pro (via the Ark
+Reads the Transcript rows for a MeetingSession, asks Doubao Pro (via the Ark
 OpenAI-compatible endpoint) to (a) produce a narrative summary and
 (b) extract a JSON-typed list of action items, persists both. Idempotent:
-re-running on the same room rewrites the Summary row and replaces its
+re-running on the same session rewrites the Summary row and replaces its
 ActionItem rows in a single transaction.
 
 Vector embeddings are intentionally out of scope here; see
@@ -27,6 +27,7 @@ from core.models import (
     AIUsageKindChoices,
     MeetingConversation,
     MeetingDoc,
+    MeetingSession,
     RoleChoices,
     Room,
     Summary,
@@ -98,7 +99,7 @@ class SummaryGenerationError(RuntimeError):
 
 
 class MeetingSummaryService:
-    """Generate / refresh the Summary + ActionItems for a single Room."""
+    """Generate / refresh summary artifacts for one MeetingSession."""
 
     # Hard cap: prompt token budget vs Doubao Pro 32K context.
     # ~3 chars/token CN, ~4 chars/token EN — keep transcript bytes ≤ 60k to
@@ -113,22 +114,23 @@ class MeetingSummaryService:
             self._llm = LLMClient.from_settings()
         return self._llm
 
-    def generate(self, room: Room) -> Summary:
+    def generate(self, session: MeetingSession) -> Summary:
         """Run the full pipeline. Always returns a Summary row (status may
         be ``failed`` if the LLM call blew up)."""
+        room = session.room
         try:
             client = self._client()
         except LLMUnavailable as exc:
             logger.warning("Skipping summary for room %s: %s", room.id, exc)
-            return self._mark_failed(room, str(exc), model_used="")
+            return self._mark_failed(session, str(exc), model_used="")
 
         transcripts = list(
-            Transcript.objects.filter(room=room).order_by("started_at")
+            Transcript.objects.filter(session=session).order_by("started_at")
         )
         if not transcripts:
             return self._mark_failed(
-                room,
-                "No transcripts for this room — nothing to summarise.",
+                session,
+                "No transcripts for this meeting session — nothing to summarise.",
                 model_used=client.model,
             )
 
@@ -140,8 +142,8 @@ class MeetingSummaryService:
         usage_sink = ai_usage.make_sink(
             organization=room.organization,
             kind=AIUsageKindChoices.SUMMARY,
-            ref_type="room",
-            ref_id=str(room.id),
+            ref_type="meeting_session",
+            ref_id=str(session.id),
         )
 
         try:
@@ -154,7 +156,7 @@ class MeetingSummaryService:
         except Exception as exc:
             logger.exception("LLM summary call failed for room %s", room.id)
             return self._mark_failed(
-                room, f"LLM summary call failed: {exc}", model_used=client.model
+                session, f"LLM summary call failed: {exc}", model_used=client.model
             )
 
         try:
@@ -184,6 +186,7 @@ class MeetingSummaryService:
             chapters = []
 
         summary = self._persist(
+            session=session,
             room=room,
             summary_text=summary_text,
             items=items,
@@ -360,7 +363,7 @@ class MeetingSummaryService:
         No-ops when:
           - the summary did NOT succeed (status != SUCCESS)
           - the room never had an IM conversation provisioned (no MeetingConversation row)
-          - the summary was already pushed once (idempotent — summary_pushed_at != None)
+          - the summary was already pushed once (idempotent — im_pushed_at != None)
           - JUSI_IM_CONFIGURATION is not configured
 
         Transport failures DO NOT raise: by design, the summary is the canonical
@@ -376,7 +379,14 @@ class MeetingSummaryService:
             return
 
         mc = MeetingConversation.objects.filter(room=room).first()
-        if mc is None or mc.summary_pushed_at is not None:
+        if mc is None:
+            return
+        already_pushed = (
+            summary.im_pushed_at is not None
+            if summary.session_id is not None
+            else mc.summary_pushed_at is not None
+        )
+        if already_pushed:
             return
 
         cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
@@ -414,16 +424,25 @@ class MeetingSummaryService:
             )
             return
 
-        mc.summary_pushed_at = timezone.now()
-        mc.save(update_fields=["summary_pushed_at", "updated_at"])
-        logger.info("P5 summary pushed to IM cid=%s for room %s", mc.cid, room.id)
+        if summary.session_id is not None:
+            summary.im_pushed_at = timezone.now()
+            summary.save(update_fields=["im_pushed_at", "updated_at"])
+        else:
+            mc.summary_pushed_at = timezone.now()
+            mc.save(update_fields=["summary_pushed_at", "updated_at"])
+        logger.info(
+            "P5 summary pushed to IM cid=%s for session %s (room %s)",
+            mc.cid,
+            summary.session_id,
+            room.id,
+        )
 
     def _push_summary_to_doc(self, room: Room, summary: Summary) -> None:
         """Create a La Suite Docs document from the summary (P3 妙记落 Doc).
 
         No-ops when:
           - the summary did NOT succeed
-          - a MeetingDoc already exists for this room (idempotent — row existence)
+          - a MeetingDoc already exists for this session (idempotent — row existence)
           - DOCS_CONFIGURATION is incomplete (Docs not wired up yet)
           - the room has no OWNER to attribute the document to
 
@@ -439,7 +458,12 @@ class MeetingSummaryService:
 
         if summary.status != Summary.Status.SUCCESS:
             return
-        if MeetingDoc.objects.filter(room=room).exists():
+        existing_doc = (
+            MeetingDoc.objects.filter(session=summary.session)
+            if summary.session_id is not None
+            else MeetingDoc.objects.filter(room=room, session__isnull=True)
+        )
+        if existing_doc.exists():
             return
 
         cfg = getattr(settings, "DOCS_CONFIGURATION", None)
@@ -455,7 +479,14 @@ class MeetingSummaryService:
             return
         owner_user = owner.user
 
-        title = f"「{room.name}」会议纪要" if getattr(room, "name", "") else "会议纪要"
+        room_name = getattr(room, "name", "") or "会议"
+        if summary.session_id is not None:
+            session_label = timezone.localtime(summary.session.started_at).strftime(
+                "%Y-%m-%d %H:%M"
+            )
+            title = f"{room_name} - {session_label}"
+        else:
+            title = f"{room_name}会议纪要"
         client = DocsClient(
             api_url=str(cfg["api_url"]),
             server_to_server_token=str(cfg["server_to_server_token"]),
@@ -475,8 +506,18 @@ class MeetingSummaryService:
 
         base = str(cfg["api_url"]).rstrip("/")
         doc_url = f"{base}/docs/{created.id}/"
-        MeetingDoc.objects.create(room=room, doc_id=created.id, doc_url=doc_url)
-        logger.info("P3 summary doc created doc=%s for room %s", created.id, room.id)
+        MeetingDoc.objects.create(
+            room=room,
+            session=summary.session,
+            doc_id=created.id,
+            doc_url=doc_url,
+        )
+        logger.info(
+            "P3 summary doc created doc=%s for session %s (room %s)",
+            created.id,
+            summary.session_id,
+            room.id,
+        )
 
         self._push_doc_link_to_im(room, doc_url)
 
@@ -513,6 +554,7 @@ class MeetingSummaryService:
     def _persist(
         self,
         *,
+        session: MeetingSession,
         room: Room,
         summary_text: str,
         items: list[dict],
@@ -521,8 +563,9 @@ class MeetingSummaryService:
         chapters: Optional[list[dict]] = None,
     ) -> Summary:
         summary, _ = Summary.objects.update_or_create(
-            room=room,
+            session=session,
             defaults={
+                "room": room,
                 "content": summary_text,
                 "model_used": model_used,
                 "transcripts_count": len(transcripts),
@@ -533,7 +576,7 @@ class MeetingSummaryService:
                 "content_generated_at": timezone.now(),
             },
         )
-        ActionItem.objects.filter(room=room).delete()
+        ActionItem.objects.filter(summary=summary).delete()
         for index, item in enumerate(items):
             ActionItem.objects.create(
                 room=room,
@@ -544,7 +587,7 @@ class MeetingSummaryService:
                 sort_order=index,
             )
         # 纪要闭环 D1:章节与行动项同语义——全删重建,regen 幂等。
-        SummaryChapter.objects.filter(room=room).delete()
+        SummaryChapter.objects.filter(summary=summary).delete()
         for index, chapter in enumerate(chapters or []):
             SummaryChapter.objects.create(
                 room=room,
@@ -556,7 +599,8 @@ class MeetingSummaryService:
                 sort_order=index,
             )
         logger.info(
-            "Generated summary for room %s — %d action items, %d chapters, %d transcripts",
+            "Generated summary for session %s (room %s): %d action items, %d chapters, %d transcripts",
+            session.id,
             room.id,
             len(items),
             len(chapters or []),
@@ -566,11 +610,12 @@ class MeetingSummaryService:
 
     @transaction.atomic
     def _mark_failed(
-        self, room: Room, message: str, *, model_used: str
+        self, session: MeetingSession, message: str, *, model_used: str
     ) -> Summary:
         summary, _ = Summary.objects.update_or_create(
-            room=room,
+            session=session,
             defaults={
+                "room": session.room,
                 "status": Summary.Status.FAILED,
                 "error_message": message,
                 "model_used": model_used,

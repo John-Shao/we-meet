@@ -7,7 +7,12 @@ from unittest import mock
 import pytest
 from rest_framework.test import APIClient
 
-from core.factories import OrganizationFactory, RoomFactory, UserFactory
+from core.factories import (
+    MeetingSessionFactory,
+    OrganizationFactory,
+    RoomFactory,
+    UserFactory,
+)
 from core.models import (
     AuditActionChoices,
     AuditLog,
@@ -26,10 +31,14 @@ def _setup(role=RoleChoices.OWNER):
     user = UserFactory()
     Membership.objects.create(organization=org, user=user, is_primary=True)
     room = RoomFactory()
+    session = MeetingSessionFactory(room=room)
     if role is not None:
         ResourceAccess.objects.create(resource=room, user=user, role=role)
     summary = Summary.objects.create(
-        room=room, content="## AI 原文", status=Summary.Status.SUCCESS
+        room=room,
+        session=session,
+        content="## AI 原文",
+        status=Summary.Status.SUCCESS,
     )
     client = APIClient()
     client.force_login(user)
@@ -105,6 +114,7 @@ def test_regen_preserves_edit_and_flags_ai_update():
 
     svc = MeetingSummaryService(llm=mock.Mock())
     svc._persist(
+        session=summary.session,
         room=room,
         summary_text="## AI 原文 v2",
         items=[],

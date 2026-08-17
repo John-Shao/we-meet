@@ -10,7 +10,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Max, Q
 from django.http import Http404, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -1261,9 +1261,11 @@ class RoomViewSet(
         """
         rooms = list(
             self.get_queryset()
-            .filter(users=request.user, summary__isnull=False)
+            .filter(users=request.user, summaries__isnull=False)
+            .annotate(latest_session_at=Max("summaries__session__started_at"))
+            .annotate(latest_summary_at=Max("summaries__updated_at"))
             .distinct()
-            .order_by("-summary__updated_at")[:20]
+            .order_by("-latest_session_at", "-latest_summary_at")[:20]
         )
         # 归属:列表混着「我创建的」和「我只是参会的」(filter 是 users=me,不是
         # owner=me)。删除仅房主可做(RoomPermissions:DELETE → is_owner),客户端
@@ -1385,7 +1387,17 @@ class RoomViewSet(
         # need it during management commands.
         from core.tasks.summary import generate_meeting_summary
 
-        generate_meeting_summary.apply_async(args=[str(room.id)])
+        session = (
+            room.meeting_sessions.filter(transcripts__isnull=False)
+            .distinct()
+            .order_by("-started_at")
+            .first()
+        )
+        if session is None:
+            raise drf_exceptions.ValidationError(
+                "No session with transcripts is available for regeneration."
+            )
+        generate_meeting_summary.apply_async(args=[str(session.id), True])
         return drf_response.Response(
             {"status": "scheduled"}, status=drf_status.HTTP_202_ACCEPTED
         )
@@ -1398,7 +1410,12 @@ class RoomViewSet(
     def get_action_items(self, request, pk=None):  # pylint: disable=unused-argument
         """List action items for this meeting."""
         room = self.get_object()
-        items = room.action_items.all().order_by("sort_order", "created_at")
+        summary = room.summary
+        items = (
+            summary.action_items.all().order_by("sort_order", "created_at")
+            if summary is not None
+            else models.ActionItem.objects.none()
+        )
         return drf_response.Response(
             serializers.ActionItemSerializer(items, many=True).data
         )
@@ -1411,7 +1428,17 @@ class RoomViewSet(
     def get_transcripts(self, request, pk=None):  # pylint: disable=unused-argument
         """List all FINAL transcripts for this meeting in time order."""
         room = self.get_object()
-        rows = room.transcripts.all().order_by("started_at")
+        session = (
+            room.meeting_sessions.filter(transcripts__isnull=False)
+            .distinct()
+            .order_by("-started_at")
+            .first()
+        )
+        rows = (
+            room.transcripts.filter(session=session).order_by("started_at")
+            if session is not None
+            else room.transcripts.filter(session__isnull=True).order_by("started_at")
+        )
         return drf_response.Response(
             serializers.TranscriptSerializer(rows, many=True).data
         )

@@ -375,6 +375,7 @@ class GlobalAskService:
             .only(
                 "id",
                 "room_id",
+                "session_id",
                 "speaker_name",
                 "speaker_identity",
                 "text",
@@ -425,6 +426,9 @@ class GlobalAskService:
                     "title": room_name,
                     "snippet": f"{speaker}: {text[:80]}",
                     "room_id": str(chunk.room_id),
+                    "session_id": (
+                        str(chunk.session_id) if chunk.session_id is not None else None
+                    ),
                     "date": chunk.started_at.date().isoformat(),
                 }
             )
@@ -684,7 +688,7 @@ class GlobalAskService:
                 status=Summary.Status.SUCCESS,
             )
             .distinct()
-            .select_related("room")
+            .select_related("room", "session")
             .order_by("-updated_at")[:_CAP_SUMMARIES]
         )
         entries: list[str] = []
@@ -700,6 +704,11 @@ class GlobalAskService:
                     "title": f"{room_name}(纪要)",
                     "snippet": snippet[:80],
                     "room_id": str(summary.room_id),
+                    "session_id": (
+                        str(summary.session_id)
+                        if summary.session_id is not None
+                        else None
+                    ),
                     "date": summary.updated_at.date().isoformat(),
                 }
             )

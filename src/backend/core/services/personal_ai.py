@@ -188,6 +188,7 @@ class PersonalAIService:
             .only(
                 "id",
                 "room_id",
+                "session_id",
                 "summary_id",
                 "speaker_name",
                 "speaker_identity",
@@ -218,7 +219,18 @@ class PersonalAIService:
         }
         context = self._format_context(top, rooms_map)
         rooms_referenced = [
-            {"id": str(r.id), "name": r.name or "", "slug": r.slug or ""}
+            {
+                "id": str(r.id),
+                "name": r.name or "",
+                "slug": r.slug or "",
+                "session_ids": sorted(
+                    {
+                        str(chunk.session_id)
+                        for chunk, _score in top
+                        if chunk.room_id == r.id and chunk.session_id is not None
+                    }
+                ),
+            }
             for r in rooms_map.values()
         ]
         return {
@@ -274,7 +286,7 @@ class PersonalAIService:
         return list(
             Room.objects.filter(
                 users=user,
-                summary__status=Summary.Status.SUCCESS,
+                summaries__status=Summary.Status.SUCCESS,
             )
             .distinct()
             .values_list("id", flat=True)

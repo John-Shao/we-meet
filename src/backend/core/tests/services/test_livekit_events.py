@@ -568,7 +568,9 @@ def test_handle_room_finished_closes_session_and_open_participations(
         joined_at=started_at + timedelta(minutes=1),
     )
 
-    with mock.patch("core.tasks.summary.generate_meeting_summary.apply_async"):
+    with mock.patch(
+        "core.tasks.summary.generate_meeting_summary.apply_async"
+    ) as mock_summary:
         service._handle_room_finished(data)
 
     session.refresh_from_db()
@@ -578,6 +580,7 @@ def test_handle_room_finished_closes_session_and_open_participations(
     assert session.ended_at == ended_at
     assert participation.left_at == ended_at
     mock_clear_cache.assert_called_once_with(room.id)
+    mock_summary.assert_called_once_with(args=[str(session.id)], countdown=30)
 
 
 def test_handle_room_started_raises_error_for_invalid_room_name(service):

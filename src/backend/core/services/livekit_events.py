@@ -266,6 +266,7 @@ class LiveKitEventsService:
             raise ActionFailedError("Failed to process room finished event") from e
 
         event_at = webhook_event_time(data)
+        session = None
         room = models.Room.objects.filter(id=room_id).first()
         if room is None:
             # A Room may have been deleted while LiveKit was still draining it.
@@ -314,20 +315,23 @@ class LiveKitEventsService:
         # transcripts land in the DB first. Failures here are logged but
         # never propagate: the summary is a "nice to have" and must not
         # fail the webhook ack.
-        try:
-            from core.tasks.summary import generate_meeting_summary
+        if session is not None:
+            try:
+                from core.tasks.summary import generate_meeting_summary
 
-            generate_meeting_summary.apply_async(
-                args=[str(room_id)], countdown=30
-            )
-            logger.info(
-                "Scheduled meeting summary for room %s (countdown=30s)",
-                room_id,
-            )
-        except Exception:
-            logger.exception(
-                "Failed to schedule auto summary for room %s — continuing", room_id
-            )
+                generate_meeting_summary.apply_async(
+                    args=[str(session.id)], countdown=30
+                )
+                logger.info(
+                    "Scheduled meeting summary for session %s (room %s, countdown=30s)",
+                    session.id,
+                    room_id,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to schedule auto summary for session %s — continuing",
+                    session.id,
+                )
 
     def _resolve_participant_event_session(self, data):
         """Resolve the Room and MeetingSession shared by participant events."""
