@@ -72,6 +72,7 @@ from core.services.livekit_events import (
     LiveKitEventsService,
     LiveKitWebhookError,
 )
+from core.services.meeting_sessions import MeetingSessionService
 from core.services.lobby import (
     LobbyParticipantNotFound,
     LobbyService,
@@ -1840,7 +1841,20 @@ class RoomViewSet(
             )
 
         ended_at = timezone.now()
-        models.Room.objects.filter(pk=room.pk).update(ended_at=ended_at)
+        with transaction.atomic():
+            models.Room.objects.filter(pk=room.pk).update(ended_at=ended_at)
+            active_session = (
+                models.MeetingSession.objects.select_for_update()
+                .filter(room=room, status=models.MeetingSession.Status.ACTIVE)
+                .first()
+            )
+            if active_session is not None:
+                MeetingSessionService().finish(
+                    session=active_session,
+                    ended_at=ended_at,
+                    reason=models.MeetingSession.EndReason.OWNER_ENDED,
+                    event_at=ended_at,
+                )
 
         try:
             ParticipantsManagement().remove_all(room_name=str(room.pk))

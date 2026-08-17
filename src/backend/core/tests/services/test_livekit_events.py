@@ -4,12 +4,16 @@ Test LiveKitEvents service.
 # pylint: disable=W0621,W0613, W0212, E0611
 
 import uuid
+from datetime import timedelta
 from unittest import mock
+
+from django.utils import timezone
 
 import pytest
 from livekit.api import EgressStatus
 
-from core.factories import RecordingFactory, RoomFactory
+from core import models
+from core.factories import RecordingFactory, RoomFactory, UserFactory
 from core.recording.services.recording_events import RecordingEventsService
 from core.services.livekit_events import (
     ActionFailedError,
@@ -429,10 +433,14 @@ def test_handle_room_started_creates_dispatch_rule_successfully(
     room = RoomFactory()
     mock_data = mock.MagicMock()
     mock_data.room.name = str(room.id)
+    mock_data.room.sid = "RM_started_telephony"
 
     service._handle_room_started(mock_data)
 
     mock_create_dispatch_rule.assert_called_once_with(room)
+    assert models.MeetingSession.objects.filter(
+        room=room, livekit_room_sid="RM_started_telephony"
+    ).exists()
 
 
 @mock.patch.object(TelephonyService, "create_dispatch_rule")
@@ -444,10 +452,100 @@ def test_handle_room_started_skips_dispatch_rule_when_telephony_disabled(
     room = RoomFactory()
     mock_data = mock.MagicMock()
     mock_data.room.name = str(room.id)
+    mock_data.room.sid = "RM_started_no_telephony"
 
     service._handle_room_started(mock_data)
 
     mock_create_dispatch_rule.assert_not_called()
+
+
+def test_handle_participant_events_create_and_close_participation(service, settings):
+    """Participant webhooks should project one idempotent connection interval."""
+
+    settings.ROOM_TELEPHONY_ENABLED = False
+    room = RoomFactory()
+    user = UserFactory(sub="participant-user")
+    started_at = timezone.now().replace(microsecond=0)
+    joined_at = started_at + timedelta(seconds=2)
+    left_at = joined_at + timedelta(minutes=3)
+    livekit_room = api.Room(
+        name=str(room.id),
+        sid="RM_participants",
+        creation_time=int(started_at.timestamp()),
+    )
+    participant = api.ParticipantInfo(
+        sid="PA_participant",
+        identity=user.sub,
+        name="Participant User",
+        kind=api.ParticipantInfo.STANDARD,
+        joined_at=int(joined_at.timestamp()),
+    )
+    joined_event = api.WebhookEvent(
+        id="EV_join",
+        event="participant_joined",
+        created_at=int(joined_at.timestamp()),
+        room=livekit_room,
+        participant=participant,
+    )
+    left_event = api.WebhookEvent(
+        id="EV_left",
+        event="participant_left",
+        created_at=int(left_at.timestamp()),
+        room=livekit_room,
+        participant=participant,
+    )
+
+    service._handle_participant_joined(joined_event)
+    service._handle_participant_joined(joined_event)
+    service._handle_participant_left(left_event)
+    service._handle_participant_left(left_event)
+
+    participation = models.MeetingParticipation.objects.get()
+    assert participation.user == user
+    assert participation.joined_at == joined_at
+    assert participation.left_at == left_at
+
+
+@mock.patch.object(LobbyService, "clear_room_cache")
+def test_handle_room_finished_closes_session_and_open_participations(
+    mock_clear_cache, service, settings
+):
+    """room_finished should close both the session and dangling attendance."""
+
+    settings.ROOM_TELEPHONY_ENABLED = False
+    room = RoomFactory()
+    started_at = timezone.now().replace(microsecond=0) - timedelta(minutes=10)
+    ended_at = started_at + timedelta(minutes=8)
+    data = api.WebhookEvent(
+        id="EV_finish",
+        event="room_finished",
+        created_at=int(ended_at.timestamp()),
+        room=api.Room(
+            name=str(room.id),
+            sid="RM_finished",
+            creation_time=int(started_at.timestamp()),
+        ),
+    )
+    session, _ = service.meeting_sessions.start_from_livekit_room(
+        room=room, livekit_room=data.room, event_at=started_at
+    )
+    participation = models.MeetingParticipation.objects.create(
+        session=session,
+        livekit_participant_sid="PA_open",
+        identity="open-user",
+        joined_at=started_at + timedelta(minutes=1),
+    )
+
+    with mock.patch("core.tasks.summary.generate_meeting_summary.apply_async"):
+        service._handle_room_finished(data)
+
+    session.refresh_from_db()
+    participation.refresh_from_db()
+    assert session.status == models.MeetingSession.Status.ENDED
+    assert session.end_reason == models.MeetingSession.EndReason.ROOM_FINISHED
+    assert session.ended_at == ended_at
+    assert participation.left_at == ended_at
+    mock_clear_cache.assert_called_once_with(room.id)
 
 
 def test_handle_room_started_raises_error_for_invalid_room_name(service):

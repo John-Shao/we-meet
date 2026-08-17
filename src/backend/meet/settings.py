@@ -879,6 +879,10 @@ class Base(Configuration):
             "task": "core.tasks.calendar_maintenance.purge_expired_shared_calendars",
             "schedule": 86400.0,
         },
+        "reconcile-active-meeting-sessions": {
+            "task": "core.tasks.meeting_sessions.reconcile_active_meeting_sessions",
+            "schedule": 900.0,
+        },
     }
     LIVEKIT_FORCE_WSS_PROTOCOL = values.BooleanValue(
         False, environ_name="LIVEKIT_FORCE_WSS_PROTOCOL", environ_prefix=None
@@ -1051,6 +1055,11 @@ class Base(Configuration):
     # Regex to filter webhook events by room name. Only matching events are processed.
     LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX = values.Value(
         None, environ_name="LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX", environ_prefix=None
+    )
+    MEETING_SESSION_STALE_AFTER_SECONDS = values.PositiveIntegerValue(
+        86400,
+        environ_name="MEETING_SESSION_STALE_AFTER_SECONDS",
+        environ_prefix=None,
     )
     RESOURCE_DEFAULT_ACCESS_LEVEL = values.Value(
         "trusted", environ_name="RESOURCE_DEFAULT_ACCESS_LEVEL", environ_prefix=None

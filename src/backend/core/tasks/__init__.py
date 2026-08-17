@@ -20,6 +20,7 @@ from core.tasks import calendar_exports as _calendar_exports
 from core.tasks import calendar_maintenance as _calendar_maintenance
 from core.tasks import embeddings as _embeddings
 from core.tasks import file as _file
+from core.tasks import meeting_sessions as _meeting_sessions
 from core.tasks import member_import as _member_import
 from core.tasks import offboarding as _offboarding
 from core.tasks import summary as _summary

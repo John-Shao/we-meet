@@ -621,6 +621,224 @@ class Room(Resource):
         return None
 
 
+class MeetingSession(BaseModel):
+    """One concrete LiveKit room lifecycle for a reusable :class:`Room`.
+
+    ``Room`` owns the stable meeting link, configuration and ACL.  A new row is
+    created here whenever LiveKit assigns a new room SID to that link.  Legacy
+    rows created during the later artifact backfill are the only rows allowed
+    not to have a LiveKit SID.
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", _("Active")
+        ENDED = "ended", _("Ended")
+
+    class StartSource(models.TextChoices):
+        LIVEKIT_ROOM = "livekit_room", _("LiveKit room creation time")
+        WEBHOOK = "webhook", _("Webhook event time")
+        TRANSCRIPT = "transcript", _("Transcript fallback")
+        LEGACY = "legacy", _("Legacy backfill")
+
+    class EndReason(models.TextChoices):
+        ROOM_FINISHED = "room_finished", _("LiveKit room finished")
+        OWNER_ENDED = "owner_ended", _("Owner ended room")
+        SUPERSEDED = "superseded", _("Superseded by a new LiveKit room")
+        RECONCILED = "reconciled", _("Closed by reconciliation")
+        LEGACY = "legacy", _("Legacy backfill")
+
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name="meeting_sessions",
+        verbose_name=_("room"),
+    )
+    livekit_room_sid = models.CharField(
+        _("LiveKit room SID"),
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text=_("Server-assigned LiveKit room instance identifier."),
+    )
+    status = models.CharField(
+        _("status"),
+        max_length=16,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+    )
+    started_at = models.DateTimeField(_("started at"), db_index=True)
+    ended_at = models.DateTimeField(_("ended at"), null=True, blank=True, db_index=True)
+    start_source = models.CharField(
+        _("start source"),
+        max_length=24,
+        choices=StartSource.choices,
+        default=StartSource.WEBHOOK,
+    )
+    end_reason = models.CharField(
+        _("end reason"),
+        max_length=24,
+        choices=EndReason.choices,
+        blank=True,
+        default="",
+    )
+    last_event_at = models.DateTimeField(_("last event at"), null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_meeting_session"
+        ordering = ("-started_at",)
+        verbose_name = _("meeting session")
+        verbose_name_plural = _("meeting sessions")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room"],
+                condition=models.Q(status="active"),
+                name="uniq_active_session_per_room",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(status="active", ended_at__isnull=True, end_reason="")
+                    | (
+                        models.Q(status="ended", ended_at__isnull=False)
+                        & ~models.Q(end_reason="")
+                    )
+                ),
+                name="session_status_end_consistent",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(ended_at__isnull=True)
+                    | models.Q(ended_at__gte=models.F("started_at"))
+                ),
+                name="session_end_not_before_start",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(start_source="legacy", livekit_room_sid__isnull=True)
+                    | (
+                        ~models.Q(start_source="legacy")
+                        & models.Q(livekit_room_sid__isnull=False)
+                    )
+                ),
+                name="session_legacy_sid_consistent",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["room", "-started_at"], name="meet_sess_room_start_idx"
+            ),
+            models.Index(
+                fields=["status", "updated_at"], name="meet_sess_status_upd_idx"
+            ),
+        ]
+
+    def __str__(self):
+        sid = self.livekit_room_sid or "legacy"
+        return f"MeetingSession({self.room_id}, {sid}, {self.status})"
+
+    def clean(self):
+        """Keep lifecycle fields consistent before the database constraints run."""
+
+        super().clean()
+        if self.livekit_room_sid == "":
+            self.livekit_room_sid = None
+
+        errors = {}
+        if self.start_source == self.StartSource.LEGACY:
+            if self.livekit_room_sid is not None:
+                errors["livekit_room_sid"] = _("A legacy session cannot have a SID.")
+        elif not self.livekit_room_sid:
+            errors["livekit_room_sid"] = _("A live meeting session requires a SID.")
+
+        if self.status == self.Status.ACTIVE:
+            if self.ended_at is not None:
+                errors["ended_at"] = _("An active session cannot have an end time.")
+            if self.end_reason:
+                errors["end_reason"] = _("An active session cannot have an end reason.")
+        else:
+            if self.ended_at is None:
+                errors["ended_at"] = _("An ended session requires an end time.")
+            if not self.end_reason:
+                errors["end_reason"] = _("An ended session requires an end reason.")
+
+        if self.started_at and self.ended_at and self.ended_at < self.started_at:
+            errors["ended_at"] = _("End time cannot be before start time.")
+
+        if errors:
+            raise ValidationError(errors)
+
+
+class MeetingParticipation(BaseModel):
+    """One participant connection interval inside a meeting session."""
+
+    session = models.ForeignKey(
+        MeetingSession,
+        on_delete=models.CASCADE,
+        related_name="participations",
+        verbose_name=_("meeting session"),
+    )
+    livekit_participant_sid = models.CharField(
+        _("LiveKit participant SID"), max_length=64
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="meeting_participations",
+        null=True,
+        blank=True,
+        verbose_name=_("user"),
+    )
+    identity = models.CharField(
+        _("participant identity"), max_length=255, db_index=True
+    )
+    display_name = models.CharField(
+        _("display name"), max_length=128, blank=True, default=""
+    )
+    kind = models.CharField(_("participant kind"), max_length=32, default="unknown")
+    joined_at = models.DateTimeField(_("joined at"), db_index=True)
+    left_at = models.DateTimeField(_("left at"), null=True, blank=True, db_index=True)
+    disconnect_reason = models.CharField(
+        _("disconnect reason"), max_length=48, blank=True, default=""
+    )
+
+    class Meta:
+        db_table = "meet_meeting_participation"
+        ordering = ("session", "joined_at")
+        verbose_name = _("meeting participation")
+        verbose_name_plural = _("meeting participations")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "livekit_participant_sid"],
+                name="uniq_session_participant_sid",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(left_at__isnull=True)
+                    | models.Q(left_at__gte=models.F("joined_at"))
+                ),
+                name="participation_leave_after_join",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["session", "joined_at"], name="meet_part_sess_join_idx"
+            ),
+            models.Index(fields=["user", "session"], name="meet_part_user_sess_idx"),
+        ]
+
+    def __str__(self):
+        return f"MeetingParticipation({self.session_id}, {self.identity})"
+
+    def clean(self):
+        """Reject impossible intervals while accepting future LiveKit enum values."""
+
+        super().clean()
+        if self.left_at and self.joined_at and self.left_at < self.joined_at:
+            raise ValidationError(
+                {"left_at": _("Leave time cannot be before join time.")}
+            )
+
+
 class BaseAccessManager(models.Manager):
     """Base manager for handling resource access control."""
 

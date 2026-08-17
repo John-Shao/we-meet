@@ -112,6 +112,33 @@ class RoomFactory(ResourceFactory):
     access_level = factory.fuzzy.FuzzyChoice(models.RoomAccessLevel)
 
 
+class MeetingSessionFactory(factory.django.DjangoModelFactory):
+    """Create a concrete meeting session for tests."""
+
+    class Meta:
+        model = models.MeetingSession
+
+    room = factory.SubFactory(RoomFactory)
+    livekit_room_sid = factory.Sequence(lambda n: f"RM_test_{n}")
+    status = models.MeetingSession.Status.ACTIVE
+    started_at = factory.LazyFunction(django_timezone.now)
+    start_source = models.MeetingSession.StartSource.LIVEKIT_ROOM
+
+
+class MeetingParticipationFactory(factory.django.DjangoModelFactory):
+    """Create one participant connection interval for tests."""
+
+    class Meta:
+        model = models.MeetingParticipation
+
+    session = factory.SubFactory(MeetingSessionFactory)
+    livekit_participant_sid = factory.Sequence(lambda n: f"PA_test_{n}")
+    identity = factory.Sequence(lambda n: f"participant-{n}")
+    display_name = factory.Faker("name")
+    kind = "standard"
+    joined_at = factory.LazyFunction(django_timezone.now)
+
+
 class RecordingFactory(factory.django.DjangoModelFactory):
     """Create fake recording for testing."""
 

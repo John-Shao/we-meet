@@ -22,6 +22,11 @@ from core.recording.services.recording_events import (
 )
 
 from .lobby import LobbyService
+from .meeting_sessions import (
+    MeetingSessionProjectionError,
+    MeetingSessionService,
+    webhook_event_time,
+)
 from .telephony import TelephonyException, TelephonyService
 
 logger = getLogger(__name__)
@@ -96,6 +101,7 @@ class LiveKitEventsService:
         self.lobby_service = LobbyService()
         self.telephony_service = TelephonyService()
         self.recording_events = RecordingEventsService()
+        self.meeting_sessions = MeetingSessionService()
 
         self._filter_regex = None
         if settings.LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX:
@@ -140,6 +146,15 @@ class LiveKitEventsService:
 
         if not handler or not callable(handler):
             return
+
+        logger.info(
+            "livekit_webhook.received webhook_event_id=%s event_type=%s "
+            "livekit_room_sid=%s room_name=%s",
+            data.id,
+            data.event,
+            data.room.sid,
+            room_name,
+        )
 
         # pylint: disable=not-callable
         handler(data)
@@ -212,6 +227,18 @@ class LiveKitEventsService:
         except models.Room.DoesNotExist as err:
             raise ActionFailedError(f"Room with ID {room_id} does not exist") from err
 
+        event_at = webhook_event_time(data)
+        try:
+            self.meeting_sessions.start_from_livekit_room(
+                room=room,
+                livekit_room=data.room,
+                event_at=event_at,
+            )
+        except MeetingSessionProjectionError as err:
+            raise ActionFailedError(
+                f"Failed to project meeting session for room {room_id}"
+            ) from err
+
         if settings.ROOM_TELEPHONY_ENABLED:
             try:
                 self.telephony_service.create_dispatch_rule(room)
@@ -231,6 +258,35 @@ class LiveKitEventsService:
                 data.room.name,
             )
             raise ActionFailedError("Failed to process room finished event") from e
+
+        event_at = webhook_event_time(data)
+        room = models.Room.objects.filter(id=room_id).first()
+        if room is None:
+            # A Room may have been deleted while LiveKit was still draining it.
+            # Preserve the existing cleanup behaviour without manufacturing an
+            # orphan MeetingSession.
+            logger.warning(
+                "meeting_session.room_missing room_id=%s webhook_event_id=%s",
+                room_id,
+                data.id,
+            )
+        else:
+            try:
+                session, _ = self.meeting_sessions.start_from_livekit_room(
+                    room=room,
+                    livekit_room=data.room,
+                    event_at=event_at,
+                )
+                self.meeting_sessions.finish(
+                    session=session,
+                    ended_at=event_at,
+                    reason=models.MeetingSession.EndReason.ROOM_FINISHED,
+                    event_at=event_at,
+                )
+            except MeetingSessionProjectionError as err:
+                raise ActionFailedError(
+                    f"Failed to project meeting session for room {room_id}"
+                ) from err
 
         if settings.ROOM_TELEPHONY_ENABLED:
             try:
@@ -266,3 +322,61 @@ class LiveKitEventsService:
             logger.exception(
                 "Failed to schedule auto summary for room %s — continuing", room_id
             )
+
+    def _resolve_participant_event_session(self, data):
+        """Resolve the Room and MeetingSession shared by participant events."""
+
+        try:
+            room_id = uuid.UUID(data.room.name)
+        except (TypeError, ValueError) as err:
+            logger.warning(
+                "Ignoring participant event: room name '%s' is not a valid UUID.",
+                data.room.name,
+            )
+            raise ActionFailedError("Failed to process participant event") from err
+
+        try:
+            room = models.Room.objects.get(id=room_id)
+        except models.Room.DoesNotExist as err:
+            raise ActionFailedError(f"Room with ID {room_id} does not exist") from err
+
+        event_at = webhook_event_time(data)
+        try:
+            session, _ = self.meeting_sessions.start_from_livekit_room(
+                room=room,
+                livekit_room=data.room,
+                event_at=event_at,
+            )
+        except MeetingSessionProjectionError as err:
+            raise ActionFailedError(
+                f"Failed to project meeting session for room {room_id}"
+            ) from err
+        return session, event_at
+
+    def _handle_participant_joined(self, data):
+        """Handle 'participant_joined' and create one connection interval."""
+
+        session, event_at = self._resolve_participant_event_session(data)
+        try:
+            self.meeting_sessions.record_participant_join(
+                session=session,
+                participant=data.participant,
+                event_at=event_at,
+            )
+        except MeetingSessionProjectionError as err:
+            raise ActionFailedError(
+                "Failed to process participant joined event"
+            ) from err
+
+    def _handle_participant_left(self, data):
+        """Handle 'participant_left' and close or recover its interval."""
+
+        session, event_at = self._resolve_participant_event_session(data)
+        try:
+            self.meeting_sessions.record_participant_left(
+                session=session,
+                participant=data.participant,
+                event_at=event_at,
+            )
+        except MeetingSessionProjectionError as err:
+            raise ActionFailedError("Failed to process participant left event") from err
