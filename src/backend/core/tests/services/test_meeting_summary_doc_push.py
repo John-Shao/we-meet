@@ -1,6 +1,6 @@
 """Tests for the P3 summary→Doc hook: on a successful Summary, create a La Suite
 Docs document (via the server-to-server create-for-owner endpoint), persist the
-MeetingDoc link, and notify the source conversation or actual participants.
+MeetingDoc link, and grant the actual participants reader access.
 
 DocsClient (and JusiImAdminClient) are mocked so the test needs neither a running
 Docs server nor jusi-light-im.
@@ -8,7 +8,6 @@ Docs server nor jusi-light-im.
 
 # pylint: disable=redefined-outer-name,unused-argument
 
-import json
 from unittest import mock
 
 import pytest
@@ -137,7 +136,7 @@ def test_meeting_conversation_is_not_a_doc_link_fallback(
     post_direct.assert_not_called()
 
 
-def test_pushes_doc_link_to_calendar_source_before_meeting_group(
+def test_doc_creation_does_not_send_a_second_im_card(
     mock_docs_client, mock_im_client, meeting_assistant
 ):
     owner, room = _room_with_owner()
@@ -146,22 +145,17 @@ def test_pushes_doc_link_to_calendar_source_before_meeting_group(
         room=room, cid=MeetingConversation.cid_for_room(room.id)
     )
 
-    with mock.patch("core.services.meeting_summary.im_bots.post_as") as post_as:
+    with (
+        mock.patch("core.services.meeting_summary.im_bots.post_as") as post_as,
+        mock.patch("core.services.meeting_summary.im_bots.post_direct") as post_direct,
+    ):
         _svc()._push_summary_to_doc(room, _summary(room))
 
-    post_as.assert_called_once()
-    assert post_as.call_args.args[:3] == (
-        mock_im_client,
-        meeting_assistant,
-        "source-group-cid",
-    )
-    card = json.loads(post_as.call_args.args[3])
-    assert post_as.call_args.kwargs["content_type"] == "doc-card"
-    assert card["doc_id"] == "doc-123"
-    assert card["shared_by"] == "会议助手"
+    post_as.assert_not_called()
+    post_direct.assert_not_called()
 
 
-def test_pushes_doc_link_by_meeting_assistant_dm_without_source(
+def test_doc_creation_does_not_dm_a_second_card_without_source(
     mock_docs_client, mock_im_client, meeting_assistant
 ):
     owner, room = _room_with_owner()
@@ -171,13 +165,7 @@ def test_pushes_doc_link_by_meeting_assistant_dm_without_source(
     with mock.patch("core.services.meeting_summary.im_bots.post_direct") as post_direct:
         _svc()._push_summary_to_doc(room, summary)
 
-    assert post_direct.call_count == 2
-    assert {call.args[2] for call in post_direct.call_args_list} == {
-        owner,
-        participant,
-    }
-    assert all(call.kwargs["content_type"] == "doc-card" for call in post_direct.call_args_list)
-    assert all(json.loads(call.args[3])["doc_id"] == "doc-123" for call in post_direct.call_args_list)
+    post_direct.assert_not_called()
 
 
 def test_grants_docs_reader_access_to_actual_participants(

@@ -873,6 +873,7 @@ export const MessageItem = ({
                 raw={message.body}
                 state={cardState}
                 onClickButton={onCardButton}
+                onOpenDoc={onOpenDoc}
               />
             ) : (
               <div>

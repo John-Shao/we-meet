@@ -200,6 +200,7 @@ export const RichCardMessage = ({
   raw,
   state,
   onClickButton,
+  onOpenDoc,
 }: {
   raw: string
   /**
@@ -209,6 +210,8 @@ export const RichCardMessage = ({
   state?: CardState
   /** 点一个 callback 按钮。缺省时按钮渲染成禁用态(比如引用/转发的场景)。 */
   onClickButton?: (buttonId: string) => void
+  /** 与 doc-card 一样在当前应用内打开文档。 */
+  onOpenDoc?: (card: { doc_id: string; url: string }) => void
 }) => {
   const body = parseRichCard(raw)
   // 坏数据不能把气泡变空 —— 与卡片组件同一种降级。
@@ -289,6 +292,23 @@ export const RichCardMessage = ({
                   >
                     {button.text}
                   </a>
+                ) : button.action === 'doc' ? (
+                  <button
+                    key={button.id}
+                    type="button"
+                    disabled={!onOpenDoc}
+                    onClick={() => {
+                      if (button.doc_id && button.url) {
+                        onOpenDoc?.({ doc_id: button.doc_id, url: button.url })
+                      }
+                    }}
+                    data-testid={`card-button-${button.id}`}
+                    className={`${buttonBaseCls} ${BUTTON_CLS[button.style]} ${
+                      !onOpenDoc ? css({ opacity: 0.5, cursor: 'default' }) : ''
+                    }`}
+                  >
+                    {button.text}
+                  </button>
                 ) : (
                   // callback 按钮:点了走服务端记账 + 广播(A2)。没有 onClick
                   // 的场合(引用、转发预览)渲染成禁用态 —— 一个点了没反应的

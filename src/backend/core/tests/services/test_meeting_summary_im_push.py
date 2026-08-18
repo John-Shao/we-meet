@@ -16,7 +16,7 @@ from core.factories import (
     RoomFactory,
     UserFactory,
 )
-from core.models import MeetingConversation, Summary, SummaryImDelivery
+from core.models import MeetingConversation, MeetingDoc, Summary, SummaryImDelivery
 from core.services.jusi_im import JusiImBadResponseError, JusiImUnreachableError
 from core.services.meeting_summary import MeetingSummaryService
 
@@ -71,6 +71,12 @@ def test_source_conversation_is_preferred_and_session_push_is_idempotent(
 ):
     room, summary, users = _session_summary(user_count=1)
     CalendarEventFactory(room=room, source_conversation_id="source-group-cid")
+    MeetingDoc.objects.create(
+        room=room,
+        session=summary.session,
+        doc_id="doc-123",
+        doc_url="https://docs.example.test/docs/doc-123/",
+    )
     legacy_group = MeetingConversation.objects.create(
         room=room, cid=MeetingConversation.cid_for_room(room.id)
     )
@@ -93,7 +99,23 @@ def test_source_conversation_is_preferred_and_session_push_is_idempotent(
     assert post_as.call_args.kwargs["content_type"] == "rich-card"
     assert card["header"] == {"title": "会议纪要", "theme": "info"}
     assert card["plain"].startswith(f"{room.name}会议纪要")
-    assert all(block["type"] != "actions" for block in card["blocks"])
+    actions = [block for block in card["blocks"] if block["type"] == "actions"]
+    assert actions == [
+        {
+            "type": "actions",
+            "resolve": "each",
+            "buttons": [
+                {
+                    "id": "open-summary-document",
+                    "text": "查看文档",
+                    "style": "primary",
+                    "action": "doc",
+                    "doc_id": "doc-123",
+                    "url": "https://docs.example.test/docs/doc-123/",
+                }
+            ],
+        }
+    ]
     post_direct.assert_not_called()
     summary.refresh_from_db()
     legacy_group.refresh_from_db()

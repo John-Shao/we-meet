@@ -189,7 +189,7 @@ class MeetingSummaryService:
                 usage_sink=usage_sink,
             )
             chapters = self._parse_chapters(chapters_raw, transcripts)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("LLM chapters call failed for room %s", room.id)
             chapters = []
 
@@ -202,19 +202,18 @@ class MeetingSummaryService:
             transcripts=transcripts,
             model_used=client.model,
         )
-        # P5: if this room has a jusi-light-im group conversation, push the summary
-        # there as a system message. Best-effort, fenced from raising — failure here
-        # MUST NOT roll back the summary itself.
-        try:
-            self._push_summary_to_im(room, summary)
-        except Exception:  # noqa: BLE001
-            logger.exception("P5 summary IM push failed for room %s", room.id)
-        # P3: also land the summary as a La Suite Docs document (妙记). Same best-effort
-        # fence — a doc / IM-link failure MUST NOT roll back the summary.
+        # Create and authorize the Doc before the IM card. The rich card carries
+        # its internal document action, so one meeting produces one IM message.
         try:
             self._push_summary_to_doc(room, summary)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("P3 summary doc push failed for room %s", room.id)
+        # Best-effort IM nudge. A Docs failure must not roll back or suppress the
+        # persisted summary; it simply yields a card without the document action.
+        try:
+            self._push_summary_to_im(room, summary)
+        except Exception:
+            logger.exception("P5 summary IM push failed for room %s", room.id)
         return summary
 
     # ------------------------------------------------------------------
@@ -432,13 +431,7 @@ class MeetingSummaryService:
 
     @staticmethod
     def _summary_rich_card_body(room: Room, summary: Summary) -> str:
-        """Build the summary preview; the paired ``doc-card`` opens its full text.
-
-        The meeting document is created after this preview is delivered.  Keep
-        the full-text affordance on that ``doc-card`` so Web and Android both
-        use their established in-app Docs session path, rather than sending an
-        unauthenticated browser to the meeting URL.
-        """
+        """Build one summary card, including an internal Docs action when available."""
         bullets: list[str] = []
         total = 0
         for line in (summary.content or "").splitlines():
@@ -487,6 +480,28 @@ class MeetingSummaryService:
                 },
             ]
         )
+        meeting_doc = (
+            MeetingDoc.objects.filter(session_id=summary.session_id).first()
+            if summary.session_id is not None
+            else MeetingDoc.objects.filter(room=room, session__isnull=True).first()
+        )
+        if meeting_doc is not None and meeting_doc.doc_id and meeting_doc.doc_url:
+            blocks.append(
+                {
+                    "type": im_cards.CARD_BLOCK_ACTIONS,
+                    "resolve": im_cards.CARD_RESOLVE_EACH,
+                    "buttons": [
+                        {
+                            "id": "open-summary-document",
+                            "text": "查看文档",
+                            "style": "primary",
+                            "action": "doc",
+                            "doc_id": meeting_doc.doc_id,
+                            "url": meeting_doc.doc_url,
+                        }
+                    ],
+                }
+            )
         plain = " · ".join(
             [f"{name}会议纪要", *bullets, f"行动项 {items_count} 条，章节 {chapters_count} 个"]
         )
@@ -637,8 +652,8 @@ class MeetingSummaryService:
             logger.info("P5 summary push skipped: JUSI_IM_CONFIGURATION incomplete")
             return
 
-        # The paired doc-card is the full-text entry point. It reuses the
-        # established Docs in-app session flow on both Web and Android.
+        # The rich card embeds the Docs action once the document has been
+        # created and participant access has been granted.
         body = self._summary_rich_card_body(room, summary)
 
         client = JusiImAdminClient(
@@ -672,10 +687,8 @@ class MeetingSummaryService:
           - the room has no OWNER to attribute the document to
 
         Best-effort & fenced: a transport failure leaves NO MeetingDoc row, so the
-        next successful summarisation retries. After the doc is created we also drop
-        a link into the source conversation or participant DMs (courtesy nudge,
-        never fatal). Actual authenticated participants are granted Docs reader
-        access before that link is sent.
+        next successful summarisation retries. Actual authenticated participants are
+        granted Docs reader access before the summary rich card is delivered.
         """
         from core.services.docs_client import (  # local import to avoid load coupling
             DocsBadResponseError,
@@ -755,7 +768,6 @@ class MeetingSummaryService:
             room.id,
         )
 
-        self._push_doc_link_to_im(room, summary, created.id, title, doc_url)
 
     def _grant_doc_access_to_participants(
         self, client, summary: Summary, doc_id: str, service_error: type[Exception]
@@ -789,69 +801,6 @@ class MeetingSummaryService:
             doc_id,
             summary.session_id,
         )
-
-    def _push_doc_link_to_im(
-        self, room: Room, summary: Summary, doc_id: str, title: str, doc_url: str
-    ) -> None:
-        """Courtesy: drop the new doc's link into the resolved IM target. Never fatal."""
-        from core.services.jusi_im import (
-            JusiImAdminClient,
-            JusiImServiceError,
-        )
-
-        cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
-        if not cfg or not cfg.get("api_url") or not cfg.get("admin_hmac_secret"):
-            return
-        client = JusiImAdminClient(
-            api_url=str(cfg["api_url"]),
-            admin_hmac_secret=str(cfg["admin_hmac_secret"]),
-            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
-        )
-        card_body = json.dumps(
-            im_cards.build_doc_card(
-                doc_id=doc_id,
-                title=f"会议纪要 · {title}",
-                url=doc_url,
-                shared_by="会议助手",
-            ),
-            ensure_ascii=False,
-        )
-        assistant = im_bots.get_builtin(im_bots.BOT_MEETING_ASSISTANT)
-        if assistant is None:
-            return
-
-        source_cid = self._source_conversation_for_room(room)
-        if source_cid:
-            try:
-                im_bots.post_as(
-                    client,
-                    assistant,
-                    source_cid,
-                    card_body,
-                    content_type=im_cards.DOC_CARD,
-                )
-            except JusiImServiceError as exc:
-                logger.warning(
-                    "P3 doc link IM push failed for room %s: %s", room.id, exc
-                )
-            return
-
-        for recipient in self._participant_users(summary):
-            try:
-                im_bots.post_direct(
-                    client,
-                    assistant,
-                    recipient,
-                    card_body,
-                    content_type=im_cards.DOC_CARD,
-                )
-            except JusiImServiceError as exc:
-                logger.warning(
-                    "P3 doc link DM failed for session %s recipient %s: %s",
-                    summary.session_id,
-                    recipient.id,
-                    exc,
-                )
 
     @transaction.atomic
     def _persist(

@@ -37,7 +37,7 @@ const THEMES: readonly CardTheme[] = [
   'neutral',
 ]
 
-export type CardButtonAction = 'url' | 'callback'
+export type CardButtonAction = 'url' | 'callback' | 'doc'
 
 export interface CardButton {
   id: string
@@ -46,6 +46,8 @@ export interface CardButton {
   action: CardButtonAction
   /** 只有 `action: 'url'` 才有。 */
   url?: string
+  /** 只有 `action: 'doc'` 才有；点击复用 doc-card 的内部查看器。 */
+  doc_id?: string
 }
 
 export type CardBlock =
@@ -103,6 +105,11 @@ const normalizeButton = (raw: unknown): CardButton | null => {
   }
   if (o.action === 'callback') {
     return { id: o.id, text: o.text, style, action: 'callback' }
+  }
+  if (o.action === 'doc') {
+    return typeof o.doc_id === 'string' && o.doc_id && isWebUrl(o.url)
+      ? { id: o.id, text: o.text, style, action: 'doc', doc_id: o.doc_id, url: o.url }
+      : null
   }
   // 认不出的动作类型不渲染 —— 一个点了没反应的按钮比没有按钮更糟。
   return null

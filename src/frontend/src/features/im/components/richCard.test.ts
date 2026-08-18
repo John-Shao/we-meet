@@ -147,6 +147,35 @@ describe('parseRichCard 的降级', () => {
     expect(parseRichCard(raw)).toBeNull()
   })
 
+  it('doc 按钮仅接受完整的内部文档定位信息', () => {
+    const raw = JSON.stringify({
+      v: 1,
+      blocks: [
+        {
+          type: 'actions',
+          resolve: 'each',
+          buttons: [
+            {
+              id: 'open-doc',
+              text: '查看文档',
+              style: 'primary',
+              action: 'doc',
+              doc_id: 'doc-123',
+              url: 'https://docs.example.test/docs/doc-123/',
+            },
+          ],
+        },
+      ],
+    })
+    const actions = parseRichCard(raw)!.blocks[0]
+    if (actions.type !== 'actions') throw new Error('expected actions')
+    expect(actions.buttons[0]).toMatchObject({
+      action: 'doc',
+      doc_id: 'doc-123',
+      url: 'https://docs.example.test/docs/doc-123/',
+    })
+  })
+
   it('未知 theme 兜底 neutral', () => {
     const raw = JSON.stringify({
       v: 1,
