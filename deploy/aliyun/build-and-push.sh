@@ -18,7 +18,8 @@
 #   .image.credentials.{registry,username,password} 读取 (需要 yq); 也可显式 export.
 #
 # 用法:
-#   export IMAGE_TAG=$(git rev-parse --short HEAD)   # 或不设, 默认 latest
+#   不设 IMAGE_TAG 时，自动使用当前 HEAD 的短提交号。
+#   也可显式 export IMAGE_TAG=<immutable-tag> 覆盖。
 #   bash deploy/aliyun/build-and-push.sh                       # build 全部 + push 全部
 #   bash deploy/aliyun/build-and-push.sh backend               # 只处理 backend
 #   bash deploy/aliyun/build-and-push.sh backend frontend      # 只处理指定子集
@@ -116,7 +117,10 @@ fi
 VOLC_CR_REGISTRY="$(secret_or "${VOLC_CR_REGISTRY:-}" '.image.credentials.registry')"
 : "${VOLC_CR_REGISTRY:=your-cr.cr-domain.com}"
 : "${VOLC_CR_NAMESPACE:=we-meet}"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
+IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD)}"
+if [[ "$IMAGE_TAG" == "latest" ]]; then
+  die "IMAGE_TAG=latest 已禁用；请留空以使用当前 HEAD，或指定不可变 tag"
+fi
 
 if [[ "$VOLC_CR_REGISTRY" == "your-cr.cr-domain.com" ]]; then
   die "$(printf '%s\n' \
@@ -135,7 +139,6 @@ build_one() {
   local short=$1 dockerfile=$2 context=$3 target=$4
   want "$short" || return 0
   local img="${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${short}:${IMAGE_TAG}"
-  local img_latest="${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${short}:latest"
 
   # ---- frontend special-case: pass VITE_JUSI_IM_BASE_URL build-arg ----
   # jusi-light-im SDK 现在从 npm registry 装 (@jusi/light-im-sdk@0.1.0-alpha.x),
@@ -163,7 +166,7 @@ build_one() {
   # --network host: 让 build 走宿主机网络栈, 命中 VPN 的 TUN 路由 (CN 环境必需).
   # docker 默认 bridge 网络绕过宿主 VPN, agents Dockerfile 的 apt-get
   # 拉 deb.debian.org 大文件会超时 (199.232.162.132 Fastly CDN 直连不稳).
-  docker build --network host ${NO_CACHE} "${extra[@]}" -f "$dockerfile" --target "$target" -t "$img" -t "$img_latest" "$context"
+  docker build --network host ${NO_CACHE} "${extra[@]}" -f "$dockerfile" --target "$target" -t "$img" "$context"
 }
 
 if [[ $DO_BUILD == 1 ]]; then
@@ -195,14 +198,9 @@ push_one() {
   local short=$1
   want "$short" || return 0
   local img="${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${short}:${IMAGE_TAG}"
-  local img_latest="${VOLC_CR_REGISTRY}/${VOLC_CR_NAMESPACE}/meet-${short}:latest"
   echo
   echo "==> Pushing $img"
   docker push "$img"
-  if [[ "$IMAGE_TAG" != "latest" ]]; then
-    echo "==> Pushing $img_latest"
-    docker push "$img_latest"
-  fi
 }
 
 if [[ $DO_PUSH == 1 ]]; then
@@ -241,24 +239,7 @@ if [[ $DO_PUSH == 1 ]]; then
   if [[ -n "$K8S_SEL" ]]; then
     echo "  # ── meet 服务 (aliyun-sjy, k8s) ──"
     echo "  cd /opt/we-meet && git pull origin aliyun-dev"
-    if [[ "$IMAGE_TAG" == "latest" ]]; then
-      echo "  # latest tag: helm 不自动 roll Deployment, 手动 rollout"
-      restart=""
-      for m in $K8S_SEL; do restart="${restart:+$restart }deploy/meet-${m}"; done
-      echo "  kubectl -n meet rollout restart ${restart}"
-      for m in $K8S_SEL; do
-        echo "  kubectl -n meet rollout status  deploy/meet-${m} --timeout=120s"
-      done
-    else
-      echo "  # <commit-sha> tag: 先把 image.tag 改到 ${IMAGE_TAG}, 再 helm upgrade"
-      echo "  # (在 src/helm/env.d/aliyun-prod/values.meet.yaml 中更新 image.tag)"
-      echo "  helm -n meet upgrade meet ./src/helm/meet -f src/helm/env.d/aliyun-prod/values.meet.yaml"
-    fi
-    if [[ " $K8S_SEL " == *" backend "* ]]; then
-      echo "  # backend 迁移 (无迁移可跳过):"
-      echo "  kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input"
-      echo "  kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | tail -5"
-    fi
+    echo "  bash deploy/aliyun/release-meet.sh --tag ${IMAGE_TAG} ${K8S_SEL}"
     echo
   fi
 
