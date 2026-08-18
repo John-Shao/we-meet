@@ -74,6 +74,13 @@ _CHAPTERS_SYSTEM = (
     "4. 标题与要点语言跟随字幕主要语言。"
 )
 
+_CHAPTER_STRING_FIELDS = "title|digest|start|end"
+_CHAPTER_BARE_STRING_RE = re.compile(
+    rf'(?P<prefix>"(?:{_CHAPTER_STRING_FIELDS})"\s*:\s*)'
+    r'(?P<value>(?!")[^"{}\[\]\r\n]+?)'
+    rf'"\s*(?=(?:,\s*"(?:{_CHAPTER_STRING_FIELDS})"\s*:)|(?:\s*}}))'
+)
+
 _ACTION_ITEMS_SYSTEM = (
     "你是会议行动项提取助手。从下面的会议字幕中抽取明确的『谁要做什么、"
     "什么时候完成』。输出**严格 JSON**，schema：\n"
@@ -278,9 +285,28 @@ class MeetingSummaryService:
             stripped = stripped.strip("`").lstrip("json").strip()
         try:
             payload = json.loads(stripped)
-        except json.JSONDecodeError:
-            logger.warning("Chapters JSON parse failed; raw=%r", raw[:200])
-            return []
+        except json.JSONDecodeError as initial_error:
+            repaired = self._repair_chapters_json(stripped)
+            if repaired == stripped:
+                logger.warning(
+                    "Chapters JSON parse failed at char %s; raw=%r",
+                    initial_error.pos,
+                    raw[:200],
+                )
+                return []
+            try:
+                payload = json.loads(repaired)
+            except json.JSONDecodeError as repaired_error:
+                logger.warning(
+                    "Chapters JSON repair failed at char %s; raw=%r",
+                    repaired_error.pos,
+                    raw[:200],
+                )
+                return []
+            logger.info(
+                "Repaired malformed chapters JSON after parse error at char %s",
+                initial_error.pos,
+            )
         chapters = payload.get("chapters") if isinstance(payload, dict) else None
         if not isinstance(chapters, list):
             return []
@@ -322,6 +348,52 @@ class MeetingSummaryService:
             if len(cleaned) >= 12:  # 防御:提示词要求 3-8 个,硬上限 12
                 break
         return cleaned
+
+    @staticmethod
+    def _repair_chapters_json(raw: str) -> str:
+        """Repair narrow, unambiguous JSON mistakes seen in chapter responses.
+
+        The LLM occasionally emits ``"title": some text"``: the closing quote
+        and following known field are present, but the opening quote is missing.
+        Quote only those known chapter string fields, then remove JSON trailing
+        commas. The caller still validates the result with the standard decoder.
+        """
+
+        def quote_bare_value(match: re.Match[str]) -> str:
+            value = match.group("value").strip()
+            return match.group("prefix") + json.dumps(value, ensure_ascii=False)
+
+        repaired = _CHAPTER_BARE_STRING_RE.sub(quote_bare_value, raw)
+        return MeetingSummaryService._remove_json_trailing_commas(repaired)
+
+    @staticmethod
+    def _remove_json_trailing_commas(raw: str) -> str:
+        """Drop commas before ``}``/``]`` without touching string contents."""
+        cleaned: list[str] = []
+        in_string = False
+        escaped = False
+        for index, char in enumerate(raw):
+            if in_string:
+                cleaned.append(char)
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+                cleaned.append(char)
+                continue
+            if char == ",":
+                next_index = index + 1
+                while next_index < len(raw) and raw[next_index].isspace():
+                    next_index += 1
+                if next_index < len(raw) and raw[next_index] in "}]":
+                    continue
+            cleaned.append(char)
+        return "".join(cleaned)
 
     @staticmethod
     def _summary_card_body(room: Room, summary: Summary, link: str) -> str:

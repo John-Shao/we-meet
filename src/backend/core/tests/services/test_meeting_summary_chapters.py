@@ -3,7 +3,8 @@
 # pylint: disable=redefined-outer-name,unused-argument,protected-access
 
 import json
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from unittest import mock
 
 import pytest
@@ -81,6 +82,52 @@ def test_parse_chapters_defensive_bad_shapes():
     assert chapters[0]["title"] == "有效"
     assert chapters[0]["started_at"] is None
     assert chapters[0]["ended_at"] is None
+
+
+def test_parse_chapters_repairs_missing_opening_quote_and_trailing_commas():
+    """Recover the malformed title shape observed from the production LLM."""
+    room, transcripts = _room_with_transcripts()
+    svc = MeetingSummaryService(llm=mock.Mock())
+    raw = """{
+        "chapters": [
+            {
+                "title": "分享数量与生产情况",
+                "digest": "提及分享数量和生产情况。",
+                "start": "09:00:00",
+                "end": "09:10:00"
+            },
+            {
+                "title": 字段与上报结果",
+                "digest": "讨论新增字段和多个上报结果，保留 literal,}。",
+                "start": "09:10:00",
+                "end": "09:20:00",
+            },
+        ]
+    }"""
+
+    chapters = svc._parse_chapters(raw, transcripts)
+
+    assert [chapter["title"] for chapter in chapters] == [
+        "分享数量与生产情况",
+        "字段与上报结果",
+    ]
+    assert chapters[1]["digest"] == "讨论新增字段和多个上报结果，保留 literal,}。"
+    assert chapters[1]["started_at"] == datetime(
+        2026, 7, 18, 9, 10, tzinfo=dt_timezone.utc
+    )
+
+
+def test_parse_chapters_does_not_guess_ambiguous_malformed_json():
+    room, transcripts = _room_with_transcripts()
+    svc = MeetingSummaryService(llm=mock.Mock())
+
+    assert (
+        svc._parse_chapters(
+            '{"chapters": [{"title": missing both quotes, "digest": "x"}]}',
+            transcripts,
+        )
+        == []
+    )
 
 
 def test_parse_chapters_midnight_wrap_monotonic():
