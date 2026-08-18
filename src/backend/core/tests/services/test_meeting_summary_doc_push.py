@@ -8,6 +8,7 @@ Docs server nor jusi-light-im.
 
 # pylint: disable=redefined-outer-name,unused-argument
 
+import json
 from unittest import mock
 
 import pytest
@@ -154,7 +155,10 @@ def test_pushes_doc_link_to_calendar_source_before_meeting_group(
         meeting_assistant,
         "source-group-cid",
     )
-    assert "doc-123" in post_as.call_args.args[3]
+    card = json.loads(post_as.call_args.args[3])
+    assert post_as.call_args.kwargs["content_type"] == "doc-card"
+    assert card["doc_id"] == "doc-123"
+    assert card["shared_by"] == "会议助手"
 
 
 def test_pushes_doc_link_by_meeting_assistant_dm_without_source(
@@ -172,7 +176,26 @@ def test_pushes_doc_link_by_meeting_assistant_dm_without_source(
         owner,
         participant,
     }
-    assert all("doc-123" in call.args[3] for call in post_direct.call_args_list)
+    assert all(call.kwargs["content_type"] == "doc-card" for call in post_direct.call_args_list)
+    assert all(json.loads(call.args[3])["doc_id"] == "doc-123" for call in post_direct.call_args_list)
+
+
+def test_grants_docs_reader_access_to_actual_participants(
+    mock_docs_client, mock_im_client
+):
+    owner, room = _room_with_owner()
+    participant = UserFactory()
+    summary = _session_summary(room, [owner, participant])
+
+    _svc()._push_summary_to_doc(room, summary)
+
+    mock_docs_client.grant_access_for_users.assert_called_once()
+    kwargs = mock_docs_client.grant_access_for_users.call_args.kwargs
+    assert kwargs["doc_id"] == "doc-123"
+    assert {(user["sub"], user["email"]) for user in kwargs["users"]} == {
+        (str(owner.sub), str(owner.email)),
+        (str(participant.sub), str(participant.email)),
+    }
 
 
 # ---- no-op / guard branches ----
@@ -187,6 +210,24 @@ def test_idempotent_when_meetingdoc_exists(mock_docs_client, mock_im_client):
 
     assert mock_docs_client.create_for_owner.call_count == 0
     assert MeetingDoc.objects.filter(room=room).count() == 1
+
+
+def test_existing_doc_retries_participant_access_grant(mock_docs_client, mock_im_client):
+    owner, room = _room_with_owner()
+    participant = UserFactory()
+    summary = _session_summary(room, [owner, participant])
+    MeetingDoc.objects.create(
+        room=room,
+        session=summary.session,
+        doc_id="existing",
+        doc_url="http://docs.example.com/docs/existing/",
+    )
+
+    _svc()._push_summary_to_doc(room, summary)
+
+    mock_docs_client.create_for_owner.assert_not_called()
+    mock_docs_client.grant_access_for_users.assert_called_once()
+    assert mock_docs_client.grant_access_for_users.call_args.kwargs["doc_id"] == "existing"
 
 
 def test_skips_when_summary_not_success(mock_docs_client, mock_im_client):

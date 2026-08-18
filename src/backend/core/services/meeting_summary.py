@@ -35,7 +35,7 @@ from core.models import (
     Transcript,
     User,
 )
-from core.services import ai_usage, im_bots
+from core.services import ai_usage, im_bots, im_cards
 from core.services.llm_client import LLMClient, LLMUnavailable
 
 logger = logging.getLogger(__name__)
@@ -431,6 +431,85 @@ class MeetingSummaryService:
         return "\n".join(lines)
 
     @staticmethod
+    def _summary_rich_card_body(room: Room, summary: Summary, link: str) -> str:
+        """Build a compact, cross-client rich card for a meeting summary."""
+        bullets: list[str] = []
+        total = 0
+        for line in (summary.content or "").splitlines():
+            text = line.strip()
+            if not re.match(r"^([-*•]|\d+[.、])\s*", text):
+                continue
+            text = re.sub(r"^([-*•]|\d+[.、])\s*", "", text).strip()
+            text = re.sub(r"[*_`#]", "", text)
+            if not text:
+                continue
+            if total + len(text) > 120:
+                text = text[: max(0, 120 - total)]
+                if text:
+                    bullets.append(text + "…")
+                break
+            bullets.append(text)
+            total += len(text)
+            if len(bullets) >= 3:
+                break
+
+        items_count = summary.action_items.count()
+        chapters_count = summary.chapters.count()
+        name = getattr(room, "name", "") or "会议"
+        blocks: list[dict] = [
+            {
+                "type": im_cards.CARD_BLOCK_TEXT,
+                "spans": [{"tag": im_cards.RICH_TAG_TEXT, "text": name, "b": True}],
+            },
+        ]
+        blocks.extend(
+            {
+                "type": im_cards.CARD_BLOCK_TEXT,
+                "spans": [{"tag": im_cards.RICH_TAG_TEXT, "text": point}],
+            }
+            for point in bullets
+        )
+        blocks.extend(
+            [
+                {"type": im_cards.CARD_BLOCK_DIVIDER},
+                {
+                    "type": im_cards.CARD_BLOCK_FIELDS,
+                    "items": [
+                        {"label": "行动项", "value": f"{items_count} 条"},
+                        {"label": "章节", "value": f"{chapters_count} 个"},
+                    ],
+                },
+            ]
+        )
+        if link.startswith(("https://", "http://")):
+            blocks.append(
+                {
+                    "type": im_cards.CARD_BLOCK_ACTIONS,
+                    "resolve": im_cards.CARD_RESOLVE_EACH,
+                    "buttons": [
+                        {
+                            "id": "open-meeting",
+                            "text": "查看完整纪要",
+                            "style": "primary",
+                            "action": "url",
+                            "url": link,
+                        }
+                    ],
+                }
+            )
+        plain = " · ".join(
+            [f"{name}会议纪要", *bullets, f"行动项 {items_count} 条，章节 {chapters_count} 个"]
+        )
+        return json.dumps(
+            im_cards.build_rich_card(
+                header={"title": "会议纪要", "theme": "info"},
+                blocks=blocks,
+                plain=plain,
+            ),
+            ensure_ascii=False,
+        )
+
+    @staticmethod
     def _source_conversation_for_room(room: Room) -> str | None:
         """Return the IM conversation from which this room's event was created."""
         return (
@@ -461,7 +540,9 @@ class MeetingSummaryService:
         from core.services.jusi_im import JusiImServiceError
 
         try:
-            im_bots.post_as(client, assistant, cid, body)
+            im_bots.post_as(
+                client, assistant, cid, body, content_type=im_cards.RICH_CARD
+            )
         except JusiImServiceError as exc:
             logger.warning(
                 "Meeting summary source push failed for room %s: %s", room.id, exc
@@ -494,7 +575,13 @@ class MeetingSummaryService:
             if delivery.delivered_at is not None:
                 continue
             try:
-                result = im_bots.post_direct(client, assistant, recipient, body)
+                result = im_bots.post_direct(
+                    client,
+                    assistant,
+                    recipient,
+                    body,
+                    content_type=im_cards.RICH_CARD,
+                )
                 if result is None:
                     delivery.last_error = "IM uid unavailable"
                     delivery.save(update_fields=["last_error", "updated_at"])
@@ -564,8 +651,8 @@ class MeetingSummaryService:
         if base and not base.endswith("/"):
             base += "/"
         link = f"{base}meetings/{room.id}" if base else str(room.id)
-        # 纪要闭环 D4:纯文本协议内的卡片式正文(标题+要点+计数+链接)。
-        body = self._summary_card_body(room, summary, link)
+        # 富卡片提供摘要、统计和会议详情入口；plain 字段用于预览与搜索。
+        body = self._summary_rich_card_body(room, summary, link)
 
         client = JusiImAdminClient(
             api_url=str(cfg["api_url"]),
@@ -594,18 +681,19 @@ class MeetingSummaryService:
 
         No-ops when:
           - the summary did NOT succeed
-          - a MeetingDoc already exists for this session (idempotent — row existence)
           - DOCS_CONFIGURATION is incomplete (Docs not wired up yet)
           - the room has no OWNER to attribute the document to
 
         Best-effort & fenced: a transport failure leaves NO MeetingDoc row, so the
         next successful summarisation retries. After the doc is created we also drop
         a link into the source conversation or participant DMs (courtesy nudge,
-        never fatal).
+        never fatal). Actual authenticated participants are granted Docs reader
+        access before that link is sent.
         """
         from core.services.docs_client import (  # local import to avoid load coupling
             DocsBadResponseError,
             DocsClient,
+            DocsServiceError,
             DocsUnreachableError,
         )
 
@@ -616,12 +704,22 @@ class MeetingSummaryService:
             if summary.session_id is not None
             else MeetingDoc.objects.filter(room=room, session__isnull=True)
         )
-        if existing_doc.exists():
-            return
 
         cfg = getattr(settings, "DOCS_CONFIGURATION", None)
         if not cfg or not cfg.get("api_url") or not cfg.get("server_to_server_token"):
             logger.info("P3 summary doc push skipped: DOCS_CONFIGURATION incomplete")
+            return
+
+        client = DocsClient(
+            api_url=str(cfg["api_url"]),
+            server_to_server_token=str(cfg["server_to_server_token"]),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
+        )
+        existing = existing_doc.first()
+        if existing is not None:
+            self._grant_doc_access_to_participants(
+                client, summary, existing.doc_id, DocsServiceError
+            )
             return
 
         owner = (
@@ -640,11 +738,6 @@ class MeetingSummaryService:
             title = f"{room_name} - {session_label}"
         else:
             title = f"{room_name}会议纪要"
-        client = DocsClient(
-            api_url=str(cfg["api_url"]),
-            server_to_server_token=str(cfg["server_to_server_token"]),
-            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
-        )
         try:
             created = client.create_for_owner(
                 sub=str(owner_user.sub or ""),
@@ -665,6 +758,9 @@ class MeetingSummaryService:
             doc_id=created.id,
             doc_url=doc_url,
         )
+        self._grant_doc_access_to_participants(
+            client, summary, created.id, DocsServiceError
+        )
         logger.info(
             "P3 summary doc created doc=%s for session %s (room %s)",
             created.id,
@@ -672,9 +768,44 @@ class MeetingSummaryService:
             room.id,
         )
 
-        self._push_doc_link_to_im(room, summary, doc_url)
+        self._push_doc_link_to_im(room, summary, created.id, title, doc_url)
 
-    def _push_doc_link_to_im(self, room: Room, summary: Summary, doc_url: str) -> None:
+    def _grant_doc_access_to_participants(
+        self, client, summary: Summary, doc_id: str, service_error: type[Exception]
+    ) -> None:
+        """Grant Docs reader access to actual authenticated meeting participants.
+
+        The Docs endpoint is idempotent, so the same payload safely repairs a
+        previous best-effort failure when a summary is regenerated. Guests and SIP
+        participants without a local ``User`` are intentionally excluded.
+        """
+        recipients = [
+            {"sub": str(user.sub or ""), "email": str(user.email or "")}
+            for user in self._participant_users(summary)
+            if user.sub or user.email
+        ]
+        if not recipients:
+            return
+        try:
+            granted = client.grant_access_for_users(doc_id=doc_id, users=recipients)
+        except service_error as exc:
+            logger.warning(
+                "P3 summary doc access grant failed for doc %s session %s: %s",
+                doc_id,
+                summary.session_id,
+                exc,
+            )
+            return
+        logger.info(
+            "P3 summary doc access granted to %s participants for doc %s session %s",
+            granted,
+            doc_id,
+            summary.session_id,
+        )
+
+    def _push_doc_link_to_im(
+        self, room: Room, summary: Summary, doc_id: str, title: str, doc_url: str
+    ) -> None:
         """Courtesy: drop the new doc's link into the resolved IM target. Never fatal."""
         from core.services.jusi_im import (
             JusiImAdminClient,
@@ -689,7 +820,15 @@ class MeetingSummaryService:
             admin_hmac_secret=str(cfg["admin_hmac_secret"]),
             timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
         )
-        body = f"📄 会议纪要文档已生成: {doc_url}"
+        card_body = json.dumps(
+            im_cards.build_doc_card(
+                doc_id=doc_id,
+                title=f"会议纪要 · {title}",
+                url=doc_url,
+                shared_by="会议助手",
+            ),
+            ensure_ascii=False,
+        )
         assistant = im_bots.get_builtin(im_bots.BOT_MEETING_ASSISTANT)
         if assistant is None:
             return
@@ -697,7 +836,13 @@ class MeetingSummaryService:
         source_cid = self._source_conversation_for_room(room)
         if source_cid:
             try:
-                im_bots.post_as(client, assistant, source_cid, body)
+                im_bots.post_as(
+                    client,
+                    assistant,
+                    source_cid,
+                    card_body,
+                    content_type=im_cards.DOC_CARD,
+                )
             except JusiImServiceError as exc:
                 logger.warning(
                     "P3 doc link IM push failed for room %s: %s", room.id, exc
@@ -706,7 +851,13 @@ class MeetingSummaryService:
 
         for recipient in self._participant_users(summary):
             try:
-                im_bots.post_direct(client, assistant, recipient, body)
+                im_bots.post_direct(
+                    client,
+                    assistant,
+                    recipient,
+                    card_body,
+                    content_type=im_cards.DOC_CARD,
+                )
             except JusiImServiceError as exc:
                 logger.warning(
                     "P3 doc link DM failed for session %s recipient %s: %s",

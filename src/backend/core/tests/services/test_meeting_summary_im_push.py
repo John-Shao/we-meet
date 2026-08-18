@@ -2,6 +2,7 @@
 
 # pylint: disable=redefined-outer-name,unused-argument
 
+import json
 from unittest import mock
 
 from django.utils import timezone
@@ -89,7 +90,14 @@ def test_source_conversation_is_preferred_and_session_push_is_idempotent(
         meeting_assistant,
         "source-group-cid",
     )
-    assert str(room.id) in post_as.call_args.args[3]
+    card = json.loads(post_as.call_args.args[3])
+    assert post_as.call_args.kwargs["content_type"] == "rich-card"
+    assert card["header"] == {"title": "会议纪要", "theme": "info"}
+    assert card["plain"].startswith(f"{room.name}会议纪要")
+    assert any(
+        block["type"] == "actions" and block["buttons"][0]["url"].endswith(str(room.id))
+        for block in card["blocks"]
+    )
     post_direct.assert_not_called()
     summary.refresh_from_db()
     legacy_group.refresh_from_db()
@@ -119,7 +127,7 @@ def test_without_source_meeting_assistant_dms_every_actual_user_once(
 ):
     room, summary, users = _session_summary(user_count=2)
 
-    def delivered(client, assistant, user, body):
+    def delivered(client, assistant, user, body, **kwargs):
         return f"cid-{user.id}", mock.Mock()
 
     with mock.patch(
@@ -131,6 +139,7 @@ def test_without_source_meeting_assistant_dms_every_actual_user_once(
 
     assert post_direct.call_count == 2
     assert {call.args[2] for call in post_direct.call_args_list} == set(users)
+    assert all(call.kwargs["content_type"] == "rich-card" for call in post_direct.call_args_list)
     deliveries = SummaryImDelivery.objects.filter(summary=summary)
     assert deliveries.count() == 2
     assert deliveries.filter(delivered_at__isnull=False).count() == 2
@@ -148,7 +157,7 @@ def test_partial_dm_failure_retries_only_the_pending_recipient(
     failing_user = users[1]
     attempts = {user.id: 0 for user in users}
 
-    def deliver(client, assistant, user, body):
+    def deliver(client, assistant, user, body, **kwargs):
         attempts[user.id] += 1
         if user == failing_user and attempts[user.id] == 1:
             raise JusiImUnreachableError("temporary")
