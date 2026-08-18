@@ -69,7 +69,6 @@ def _session_summary(user_count=0, status=Summary.Status.SUCCESS):
 def test_source_conversation_is_preferred_and_session_push_is_idempotent(
     mock_admin_client, meeting_assistant, settings
 ):
-    settings.EMAIL_APP_BASE_URL = "https://meet.we-meet.online/"
     room, summary, users = _session_summary(user_count=1)
     CalendarEventFactory(room=room, source_conversation_id="source-group-cid")
     legacy_group = MeetingConversation.objects.create(
@@ -94,10 +93,7 @@ def test_source_conversation_is_preferred_and_session_push_is_idempotent(
     assert post_as.call_args.kwargs["content_type"] == "rich-card"
     assert card["header"] == {"title": "会议纪要", "theme": "info"}
     assert card["plain"].startswith(f"{room.name}会议纪要")
-    assert any(
-        block["type"] == "actions" and block["buttons"][0]["url"].endswith(str(room.id))
-        for block in card["blocks"]
-    )
+    assert all(block["type"] != "actions" for block in card["blocks"])
     post_direct.assert_not_called()
     summary.refresh_from_db()
     legacy_group.refresh_from_db()

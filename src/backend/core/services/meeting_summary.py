@@ -431,8 +431,14 @@ class MeetingSummaryService:
         return "\n".join(lines)
 
     @staticmethod
-    def _summary_rich_card_body(room: Room, summary: Summary, link: str) -> str:
-        """Build a compact, cross-client rich card for a meeting summary."""
+    def _summary_rich_card_body(room: Room, summary: Summary) -> str:
+        """Build the summary preview; the paired ``doc-card`` opens its full text.
+
+        The meeting document is created after this preview is delivered.  Keep
+        the full-text affordance on that ``doc-card`` so Web and Android both
+        use their established in-app Docs session path, rather than sending an
+        unauthenticated browser to the meeting URL.
+        """
         bullets: list[str] = []
         total = 0
         for line in (summary.content or "").splitlines():
@@ -481,22 +487,6 @@ class MeetingSummaryService:
                 },
             ]
         )
-        if link.startswith(("https://", "http://")):
-            blocks.append(
-                {
-                    "type": im_cards.CARD_BLOCK_ACTIONS,
-                    "resolve": im_cards.CARD_RESOLVE_EACH,
-                    "buttons": [
-                        {
-                            "id": "open-meeting",
-                            "text": "查看完整纪要",
-                            "style": "primary",
-                            "action": "url",
-                            "url": link,
-                        }
-                    ],
-                }
-            )
         plain = " · ".join(
             [f"{name}会议纪要", *bullets, f"行动项 {items_count} 条，章节 {chapters_count} 个"]
         )
@@ -647,12 +637,9 @@ class MeetingSummaryService:
             logger.info("P5 summary push skipped: JUSI_IM_CONFIGURATION incomplete")
             return
 
-        base = getattr(settings, "EMAIL_APP_BASE_URL", None) or ""
-        if base and not base.endswith("/"):
-            base += "/"
-        link = f"{base}meetings/{room.id}" if base else str(room.id)
-        # 富卡片提供摘要、统计和会议详情入口；plain 字段用于预览与搜索。
-        body = self._summary_rich_card_body(room, summary, link)
+        # The paired doc-card is the full-text entry point. It reuses the
+        # established Docs in-app session flow on both Web and Android.
+        body = self._summary_rich_card_body(room, summary)
 
         client = JusiImAdminClient(
             api_url=str(cfg["api_url"]),
