@@ -8,10 +8,14 @@ from django.utils import timezone
 
 import pytest
 
-from core.factories import MeetingSessionFactory, RoomFactory, UserFactory
+from core.factories import (
+    CalendarEventFactory,
+    MeetingSessionFactory,
+    RoomFactory,
+    UserFactory,
+)
 from core.models import (
     ActionItem,
-    MeetingConversation,
     MeetingDoc,
     MeetingSession,
     ResourceAccess,
@@ -22,7 +26,6 @@ from core.models import (
     TranscriptChunk,
 )
 from core.services.docs_client import DocsCreateResponse
-from core.services.jusi_im import JusiImMessageResponse
 from core.services.meeting_summary import MeetingSummaryService
 from core.tasks.embeddings import embed_meeting_transcripts
 
@@ -147,7 +150,7 @@ def test_embedding_rebuild_only_replaces_target_session():
     assert TranscriptChunk.objects.filter(session=first).exists()
 
 
-def test_each_session_summary_pushes_once_to_same_im_conversation(settings):
+def test_each_session_summary_pushes_once_to_same_source_conversation(settings):
     room = RoomFactory()
     first = _ended_session(room)
     second = _ended_session(room, first.started_at + timedelta(hours=1))
@@ -157,21 +160,25 @@ def test_each_session_summary_pushes_once_to_same_im_conversation(settings):
     second_summary = Summary.objects.create(
         room=room, session=second, content="second", status=Summary.Status.SUCCESS
     )
-    MeetingConversation.objects.create(
-        room=room, cid=MeetingConversation.cid_for_room(room.id)
-    )
+    CalendarEventFactory(room=room, source_conversation_id="source-cid")
     client = mock.Mock()
-    client.post_message.return_value = JusiImMessageResponse(
-        mid=1, cid="x", sender_uid="sys", seq=1, ts=0
-    )
     service = MeetingSummaryService(llm=mock.Mock())
 
-    with mock.patch("core.services.jusi_im.JusiImAdminClient", return_value=client):
+    assistant = mock.Mock()
+    with (
+        mock.patch("core.services.jusi_im.JusiImAdminClient", return_value=client),
+        mock.patch(
+            "core.services.meeting_summary.im_bots.get_builtin",
+            return_value=assistant,
+        ),
+        mock.patch("core.services.meeting_summary.im_bots.post_as") as post_as,
+    ):
         service._push_summary_to_im(room, first_summary)
         service._push_summary_to_im(room, first_summary)
         service._push_summary_to_im(room, second_summary)
 
-    assert client.post_message.call_count == 2
+    assert post_as.call_count == 2
+    assert {call.args[2] for call in post_as.call_args_list} == {"source-cid"}
     first_summary.refresh_from_db()
     second_summary.refresh_from_db()
     assert first_summary.im_pushed_at is not None

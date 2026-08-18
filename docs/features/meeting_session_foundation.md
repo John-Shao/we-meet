@@ -351,8 +351,11 @@ embedding 只删除并重建目标 Session 的 TranscriptChunk。个人/全局 A
 
 ### 9.3 IM
 
-MeetingConversation 保持 Room 级，一条长期会议链接仍对应一个讨论群。幂等位从
-`MeetingConversation.summary_pushed_at` 移至 `Summary.im_pushed_at`，这样每个场次最多推送一次，
+MeetingConversation 作为旧的按需会议群桥接保留，但不再参与纪要路由。由 IM 会话创建的
+日程优先使用 `CalendarEvent.source_conversation_id` 把纪要和文档链接推回来源会话；
+没有来源会话时，会议助手分别私聊本场实际参会用户，不额外创建群。总幂等位从
+`MeetingConversation.summary_pushed_at` 移至 `Summary.im_pushed_at`，并用
+`SummaryImDelivery` 逐接收人记账，这样部分失败重试不会给已成功用户重复发送，
 而同一群可以依次收到多场纪要。旧字段只用于历史兼容，完成迁移后废弃。
 
 ### 9.4 La Suite Docs

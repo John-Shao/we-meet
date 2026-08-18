@@ -1932,7 +1932,7 @@ class Summary(BaseModel):
         _("IM pushed at"),
         null=True,
         blank=True,
-        help_text=_("Set after this session summary is posted to the Room IM group."),
+        help_text=_("Set after all intended IM deliveries for this summary succeed."),
     )
 
     class Meta:
@@ -1980,6 +1980,49 @@ class Summary(BaseModel):
             raise ValidationError(
                 {"session": _("Summary session must belong to the same room.")}
             )
+
+
+class SummaryImDelivery(BaseModel):
+    """Per-recipient delivery ledger for Meeting Assistant direct messages.
+
+    A single ``Summary.im_pushed_at`` is enough for one source conversation, but
+    not for a participant fan-out: if user A succeeds and user B fails, retrying
+    must not send a duplicate to A. One row per summary/user records that boundary.
+    """
+
+    summary = models.ForeignKey(
+        Summary,
+        on_delete=models.CASCADE,
+        related_name="im_deliveries",
+        verbose_name=_("meeting summary"),
+    )
+    recipient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="meeting_summary_deliveries",
+        verbose_name=_("recipient"),
+    )
+    conversation_id = models.CharField(
+        _("conversation id"), max_length=64, blank=True, default=""
+    )
+    delivered_at = models.DateTimeField(
+        _("delivered at"), null=True, blank=True, db_index=True
+    )
+    last_error = models.TextField(_("last error"), blank=True, default="")
+
+    class Meta:
+        db_table = "meet_summary_im_delivery"
+        verbose_name = _("meeting summary IM delivery")
+        verbose_name_plural = _("meeting summary IM deliveries")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["summary", "recipient"],
+                name="uniq_summary_im_delivery_recipient",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"SummaryImDelivery({self.summary_id}, {self.recipient_id})"
 
 
 class ActionItem(BaseModel):

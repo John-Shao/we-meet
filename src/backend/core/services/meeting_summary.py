@@ -25,14 +25,15 @@ from django.utils import timezone
 from core.models import (
     ActionItem,
     AIUsageKindChoices,
-    MeetingConversation,
     MeetingDoc,
     MeetingSession,
     RoleChoices,
     Room,
     Summary,
     SummaryChapter,
+    SummaryImDelivery,
     Transcript,
+    User,
 )
 from core.services import ai_usage, im_bots
 from core.services.llm_client import LLMClient, LLMUnavailable
@@ -357,36 +358,129 @@ class MeetingSummaryService:
         lines.append(link)
         return "\n".join(lines)
 
+    @staticmethod
+    def _source_conversation_for_room(room: Room) -> str | None:
+        """Return the IM conversation from which this room's event was created."""
+        return (
+            room.calendar_events.exclude(source_conversation_id="")
+            .order_by("-created_at")
+            .values_list("source_conversation_id", flat=True)
+            .first()
+        )
+
+    @staticmethod
+    def _participant_users(summary: Summary) -> list[User]:
+        """Authenticated users who actually connected during this session."""
+        if summary.session_id is None:
+            return []
+        return list(
+            User.objects.filter(
+                meeting_participations__session_id=summary.session_id,
+            )
+            .distinct()
+            .order_by("id")
+        )
+
+    @staticmethod
+    def _push_summary_to_source(
+        client, assistant, room: Room, summary: Summary, cid: str, body: str
+    ) -> bool:
+        """Deliver one summary to its source conversation."""
+        from core.services.jusi_im import JusiImServiceError
+
+        try:
+            im_bots.post_as(client, assistant, cid, body)
+        except JusiImServiceError as exc:
+            logger.warning(
+                "Meeting summary source push failed for room %s: %s", room.id, exc
+            )
+            return False
+        summary.im_pushed_at = timezone.now()
+        summary.save(update_fields=["im_pushed_at", "updated_at"])
+        logger.info(
+            "Meeting summary pushed to source cid=%s for session %s (room %s)",
+            cid,
+            summary.session_id,
+            room.id,
+        )
+        return True
+
+    def _push_summary_to_participants(
+        self, client, assistant, summary: Summary, body: str
+    ) -> None:
+        """DM actual users, retrying only ledger rows that are still pending."""
+        from core.services.jusi_im import JusiImServiceError
+
+        recipients = self._participant_users(summary)
+        if not recipients:
+            return
+
+        for recipient in recipients:
+            delivery, _ = SummaryImDelivery.objects.get_or_create(
+                summary=summary, recipient=recipient
+            )
+            if delivery.delivered_at is not None:
+                continue
+            try:
+                result = im_bots.post_direct(client, assistant, recipient, body)
+                if result is None:
+                    delivery.last_error = "IM uid unavailable"
+                    delivery.save(update_fields=["last_error", "updated_at"])
+                    continue
+                cid, _ = result
+            except JusiImServiceError as exc:
+                delivery.last_error = str(exc)[:2000]
+                delivery.save(update_fields=["last_error", "updated_at"])
+                logger.warning(
+                    "Meeting summary DM failed for session %s recipient %s: %s",
+                    summary.session_id,
+                    recipient.id,
+                    exc,
+                )
+                continue
+
+            delivery.conversation_id = cid
+            delivery.delivered_at = timezone.now()
+            delivery.last_error = ""
+            delivery.save(
+                update_fields=[
+                    "conversation_id",
+                    "delivered_at",
+                    "last_error",
+                    "updated_at",
+                ]
+            )
+
+        recipient_ids = [recipient.id for recipient in recipients]
+        delivered_count = SummaryImDelivery.objects.filter(
+            summary=summary,
+            recipient_id__in=recipient_ids,
+            delivered_at__isnull=False,
+        ).count()
+        if delivered_count == len(recipient_ids):
+            summary.im_pushed_at = timezone.now()
+            summary.save(update_fields=["im_pushed_at", "updated_at"])
+            logger.info(
+                "Meeting summary delivered by assistant DM to %s users for session %s",
+                delivered_count,
+                summary.session_id,
+            )
+
     def _push_summary_to_im(self, room: Room, summary: Summary) -> None:
-        """Post a `📋 会议纪要已生成: <url>` system message into the room's IM group.
+        """Post to the source conversation, or DM actual users as Meeting Assistant.
 
         No-ops when:
           - the summary did NOT succeed (status != SUCCESS)
-          - the room never had an IM conversation provisioned (no MeetingConversation row)
+          - a legacy summary has no session/source conversation
           - the summary was already pushed once (idempotent — im_pushed_at != None)
           - JUSI_IM_CONFIGURATION is not configured
 
         Transport failures DO NOT raise: by design, the summary is the canonical
         artefact; the IM push is a courtesy nudge.
         """
-        from core.services.jusi_im import (  # local import to avoid module-load coupling
-            JusiImAdminClient,
-            JusiImBadResponseError,
-            JusiImUnreachableError,
-        )
+        from core.services.jusi_im import JusiImAdminClient
 
-        if summary.status != Summary.Status.SUCCESS:
-            return
-
-        mc = MeetingConversation.objects.filter(room=room).first()
-        if mc is None:
-            return
-        already_pushed = (
-            summary.im_pushed_at is not None
-            if summary.session_id is not None
-            else mc.summary_pushed_at is not None
-        )
-        if already_pushed:
+        if summary.status != Summary.Status.SUCCESS or summary.im_pushed_at is not None:
             return
 
         cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
@@ -410,32 +504,18 @@ class MeetingSummaryService:
         # both clients render this as a centred grey bar, which is right for
         # "张三 退出群聊" and wrong for a meeting's minutes.
         assistant = im_bots.get_builtin(im_bots.BOT_MEETING_ASSISTANT)
-        try:
-            if assistant is not None:
-                im_bots.post_as(client, assistant, mc.cid, body)
-            else:
-                client.post_message(cid=mc.cid, body=body)
-        except (JusiImUnreachableError, JusiImBadResponseError) as exc:
-            # P5 doesn't retry (see open-question #8). Log and move on; the next
-            # successful summarisation for this room will retry naturally because
-            # summary_pushed_at is still NULL.
-            logger.warning(
-                "P5 summary push to jusi-light-im failed for room %s: %s", room.id, exc
+        if assistant is None:
+            logger.warning("Meeting summary IM push skipped: Meeting Assistant missing")
+            return
+
+        source_cid = self._source_conversation_for_room(room)
+        if source_cid:
+            self._push_summary_to_source(
+                client, assistant, room, summary, source_cid, body
             )
             return
 
-        if summary.session_id is not None:
-            summary.im_pushed_at = timezone.now()
-            summary.save(update_fields=["im_pushed_at", "updated_at"])
-        else:
-            mc.summary_pushed_at = timezone.now()
-            mc.save(update_fields=["summary_pushed_at", "updated_at"])
-        logger.info(
-            "P5 summary pushed to IM cid=%s for session %s (room %s)",
-            mc.cid,
-            summary.session_id,
-            room.id,
-        )
+        self._push_summary_to_participants(client, assistant, summary, body)
 
     def _push_summary_to_doc(self, room: Room, summary: Summary) -> None:
         """Create a La Suite Docs document from the summary (P3 妙记落 Doc).
@@ -448,7 +528,8 @@ class MeetingSummaryService:
 
         Best-effort & fenced: a transport failure leaves NO MeetingDoc row, so the
         next successful summarisation retries. After the doc is created we also drop
-        a link into the room's IM group (courtesy nudge, never fatal).
+        a link into the source conversation or participant DMs (courtesy nudge,
+        never fatal).
         """
         from core.services.docs_client import (  # local import to avoid load coupling
             DocsBadResponseError,
@@ -519,19 +600,15 @@ class MeetingSummaryService:
             room.id,
         )
 
-        self._push_doc_link_to_im(room, doc_url)
+        self._push_doc_link_to_im(room, summary, doc_url)
 
-    def _push_doc_link_to_im(self, room: Room, doc_url: str) -> None:
-        """Courtesy: drop the new doc's link into the room's IM group. Never fatal."""
+    def _push_doc_link_to_im(self, room: Room, summary: Summary, doc_url: str) -> None:
+        """Courtesy: drop the new doc's link into the resolved IM target. Never fatal."""
         from core.services.jusi_im import (
             JusiImAdminClient,
-            JusiImBadResponseError,
-            JusiImUnreachableError,
+            JusiImServiceError,
         )
 
-        mc = MeetingConversation.objects.filter(room=room).first()
-        if mc is None:
-            return
         cfg = getattr(settings, "JUSI_IM_CONFIGURATION", None)
         if not cfg or not cfg.get("api_url") or not cfg.get("admin_hmac_secret"):
             return
@@ -542,13 +619,29 @@ class MeetingSummaryService:
         )
         body = f"📄 会议纪要文档已生成: {doc_url}"
         assistant = im_bots.get_builtin(im_bots.BOT_MEETING_ASSISTANT)
-        try:
-            if assistant is not None:
-                im_bots.post_as(client, assistant, mc.cid, body)
-            else:
-                client.post_message(cid=mc.cid, body=body)
-        except (JusiImUnreachableError, JusiImBadResponseError) as exc:
-            logger.warning("P3 doc link IM push failed for room %s: %s", room.id, exc)
+        if assistant is None:
+            return
+
+        source_cid = self._source_conversation_for_room(room)
+        if source_cid:
+            try:
+                im_bots.post_as(client, assistant, source_cid, body)
+            except JusiImServiceError as exc:
+                logger.warning(
+                    "P3 doc link IM push failed for room %s: %s", room.id, exc
+                )
+            return
+
+        for recipient in self._participant_users(summary):
+            try:
+                im_bots.post_direct(client, assistant, recipient, body)
+            except JusiImServiceError as exc:
+                logger.warning(
+                    "P3 doc link DM failed for session %s recipient %s: %s",
+                    summary.session_id,
+                    recipient.id,
+                    exc,
+                )
 
     @transaction.atomic
     def _persist(

@@ -3,12 +3,15 @@
 # pylint: disable=redefined-outer-name,unused-argument
 
 import logging
+import uuid
 from unittest import mock
 
-import pytest
 from django.core.cache import cache
 
+import pytest
+
 from core import models
+from core.factories import UserFactory
 from core.services import im_bots
 from core.services.jusi_im import (
     JusiImAddMembersResponse,
@@ -142,6 +145,36 @@ def test_a_private_message_is_not_recorded(bot, client):
     assert not models.ImBotInstallation.objects.filter(cid=CID).exists()
 
 
+def test_direct_message_creates_bot_user_conversation_without_group_installation(
+    bot, client
+):
+    user_uid = "01900000-0000-7000-8000-0000000000a1"
+    models.ImBot.objects.filter(pk=bot.pk).update(im_uid=BOT_UID)
+    bot.refresh_from_db()
+    user = UserFactory(im_uid=user_uid)
+    client.post_message.return_value = JusiImMessageResponse(
+        mid=1, cid="direct", sender_uid=BOT_UID, seq=1, ts=1781700000
+    )
+
+    cid, result = im_bots.post_direct(client, bot, user, "会议纪要")
+
+    lo, hi = sorted([BOT_UID, user_uid])
+    assert cid == str(uuid.uuid5(uuid.NAMESPACE_OID, f"direct:{lo}:{hi}"))
+    client.create_direct.assert_called_once_with(
+        cid=cid, owner_uid=BOT_UID, peer_uid=user_uid
+    )
+    client.post_message.assert_called_once_with(
+        cid=cid,
+        body="会议纪要",
+        sender_uid=BOT_UID,
+        content_type="text",
+        require_sender_membership=True,
+    )
+    client.add_bots.assert_not_called()
+    assert result.sender_uid == BOT_UID
+    assert not models.ImBotInstallation.objects.filter(cid=cid).exists()
+
+
 def test_bookkeeping_never_breaks_a_post(bot, client, caplog):
     """记账挂了只该在日志里出现 —— 消息已经发出去了,不能因此抛。"""
     with mock.patch(
@@ -180,8 +213,6 @@ def test_builtins_are_seeded_and_lookup_by_slug_works():
 def test_the_seed_pks_are_deterministic():
     """Same bot, same id in dev, staging and production — which is what makes
     re-running the seed migration a no-op."""
-    import uuid  # pylint: disable=import-outside-toplevel
-
     assistant = im_bots.get_builtin(im_bots.BOT_MEETING_ASSISTANT)
     expected = uuid.uuid5(
         uuid.NAMESPACE_OID, "we-meet:builtin-bot:meeting-assistant"

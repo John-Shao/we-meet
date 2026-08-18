@@ -19,6 +19,7 @@ management API. Both speak through the same path.
 """
 
 import logging
+import uuid
 
 from django.core.cache import cache
 
@@ -195,6 +196,38 @@ def post_as(
     if record_installation:
         _touch_installation(bot, cid)
     return result
+
+
+def post_direct(client, bot, user, body: str, *, content_type: str = "text"):
+    """Send one private message from ``bot`` to a real we-meet user.
+
+    The deterministic cid makes repeated setup converge on the same direct
+    conversation. Unlike :func:`post_as`, this path does not add a bot to an
+    existing conversation and does not create an ``ImBotInstallation`` row:
+    the assistant is already the direct conversation owner, and private chats
+    do not belong in group-bot governance.
+
+    Returns ``(cid, message)``. A missing user/bot uid returns ``None`` so the
+    caller can leave its delivery ledger pending and retry later.
+    """
+    from core.services.im_provisioning import resolve_uid
+
+    recipient_uid = resolve_uid(client, user)
+    bot_uid = resolve_bot_uid(client, bot)
+    if not recipient_uid or not bot_uid or recipient_uid == bot_uid:
+        return None
+
+    lo, hi = sorted([bot_uid, recipient_uid])
+    cid = str(uuid.uuid5(uuid.NAMESPACE_OID, f"direct:{lo}:{hi}"))
+    client.create_direct(cid=cid, owner_uid=bot_uid, peer_uid=recipient_uid)
+    message = client.post_message(
+        cid=cid,
+        body=body,
+        sender_uid=bot_uid,
+        content_type=content_type,
+        require_sender_membership=True,
+    )
+    return cid, message
 
 
 def get_builtin(slug: str):

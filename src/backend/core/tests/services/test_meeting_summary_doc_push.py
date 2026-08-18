@@ -1,6 +1,6 @@
 """Tests for the P3 summary→Doc hook: on a successful Summary, create a La Suite
 Docs document (via the server-to-server create-for-owner endpoint), persist the
-MeetingDoc link, and drop the doc link into the room's IM group.
+MeetingDoc link, and notify the source conversation or actual participants.
 
 DocsClient (and JusiImAdminClient) are mocked so the test needs neither a running
 Docs server nor jusi-light-im.
@@ -12,7 +12,13 @@ from unittest import mock
 
 import pytest
 
-from core.factories import RoomFactory, UserFactory
+from core.factories import (
+    CalendarEventFactory,
+    MeetingParticipationFactory,
+    MeetingSessionFactory,
+    RoomFactory,
+    UserFactory,
+)
 from core.models import (
     MeetingConversation,
     MeetingDoc,
@@ -25,7 +31,6 @@ from core.services.docs_client import (
     DocsCreateResponse,
     DocsUnreachableError,
 )
-from core.services.jusi_im import JusiImMessageResponse
 from core.services.meeting_summary import MeetingSummaryService
 
 pytestmark = pytest.mark.django_db
@@ -47,10 +52,16 @@ def mock_im_client():
     with mock.patch("core.services.jusi_im.JusiImAdminClient") as ctor:
         instance = mock.Mock()
         ctor.return_value = instance
-        instance.post_message.return_value = JusiImMessageResponse(
-            mid=1, cid="x", sender_uid="sys", seq=1, ts=0
-        )
         yield instance
+
+
+@pytest.fixture
+def meeting_assistant():
+    assistant = mock.Mock(name="meeting-assistant")
+    with mock.patch(
+        "core.services.meeting_summary.im_bots.get_builtin", return_value=assistant
+    ):
+        yield assistant
 
 
 def _room_with_owner():
@@ -62,6 +73,23 @@ def _room_with_owner():
 
 def _summary(room, status=Summary.Status.SUCCESS, content="## 会议纪要\n讨论了 X。"):
     return Summary.objects.create(room=room, content=content, status=status)
+
+
+def _session_summary(room, users):
+    session = MeetingSessionFactory(room=room)
+    for index, user in enumerate(users):
+        MeetingParticipationFactory(
+            session=session,
+            user=user,
+            identity=str(user.id),
+            livekit_participant_sid=f"PA_{index}",
+        )
+    return Summary.objects.create(
+        room=room,
+        session=session,
+        content="## 会议纪要\n讨论了 X。",
+        status=Summary.Status.SUCCESS,
+    )
 
 
 def _svc():
@@ -90,17 +118,61 @@ def test_creates_doc_and_persists_meetingdoc(mock_docs_client, mock_im_client):
     assert md.doc_url.endswith("/docs/doc-123/")
 
 
-def test_pushes_doc_link_to_im_when_conversation_exists(mock_docs_client, mock_im_client):
+def test_meeting_conversation_is_not_a_doc_link_fallback(
+    mock_docs_client, mock_im_client, meeting_assistant
+):
     owner, room = _room_with_owner()
-    mc = MeetingConversation.objects.create(
+    MeetingConversation.objects.create(
         room=room, cid=MeetingConversation.cid_for_room(room.id)
     )
-    _svc()._push_summary_to_doc(room, _summary(room))
 
-    mock_im_client.post_message.assert_called_once()
-    pm = mock_im_client.post_message.call_args.kwargs
-    assert pm["cid"] == mc.cid
-    assert "doc-123" in pm["body"] and pm["body"].startswith("📄")
+    with (
+        mock.patch("core.services.meeting_summary.im_bots.post_as") as post_as,
+        mock.patch("core.services.meeting_summary.im_bots.post_direct") as post_direct,
+    ):
+        _svc()._push_summary_to_doc(room, _summary(room))
+
+    post_as.assert_not_called()
+    post_direct.assert_not_called()
+
+
+def test_pushes_doc_link_to_calendar_source_before_meeting_group(
+    mock_docs_client, mock_im_client, meeting_assistant
+):
+    owner, room = _room_with_owner()
+    CalendarEventFactory(room=room, source_conversation_id="source-group-cid")
+    MeetingConversation.objects.create(
+        room=room, cid=MeetingConversation.cid_for_room(room.id)
+    )
+
+    with mock.patch("core.services.meeting_summary.im_bots.post_as") as post_as:
+        _svc()._push_summary_to_doc(room, _summary(room))
+
+    post_as.assert_called_once()
+    assert post_as.call_args.args[:3] == (
+        mock_im_client,
+        meeting_assistant,
+        "source-group-cid",
+    )
+    assert "doc-123" in post_as.call_args.args[3]
+
+
+def test_pushes_doc_link_by_meeting_assistant_dm_without_source(
+    mock_docs_client, mock_im_client, meeting_assistant
+):
+    owner, room = _room_with_owner()
+    participant = UserFactory()
+    summary = _session_summary(room, [owner, participant])
+
+    with mock.patch("core.services.meeting_summary.im_bots.post_direct") as post_direct:
+        _svc()._push_summary_to_doc(room, summary)
+
+    assert post_direct.call_count == 2
+    assert {call.args[2] for call in post_direct.call_args_list} == {
+        owner,
+        participant,
+    }
+    assert all("doc-123" in call.args[3] for call in post_direct.call_args_list)
 
 
 # ---- no-op / guard branches ----
