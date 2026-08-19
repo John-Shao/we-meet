@@ -118,7 +118,12 @@ export const UnifiedInvitePanel = ({
               })}
             >
               {t('meetingCode')}
-              <b className={css({ marginLeft: '0.375rem', letterSpacing: '0.05em' })}>
+              <b
+                className={css({
+                  marginLeft: '0.375rem',
+                  letterSpacing: '0.05em',
+                })}
+              >
                 {roomSlug}
               </b>
             </span>
@@ -131,15 +136,21 @@ export const UnifiedInvitePanel = ({
                 color: copied ? 'success.600' : 'primary.500',
               })}
             >
-              {copied ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+              {copied ? (
+                <RiCheckLine size={16} />
+              ) : (
+                <RiFileCopyLine size={16} />
+              )}
               {copied ? tShare('copied') : tShare('copyUrl')}
             </Button>
           </div>
           {showPin && (
-            <span className={css({ fontSize: '0.75rem', color: 'greyscale.600' })}>
+            <span
+              className={css({ fontSize: '0.75rem', color: 'greyscale.600' })}
+            >
               {tShare('phone.call')} ({telephony?.country}){' '}
-              {telephony?.internationalPhoneNumber} ·{' '}
-              {tShare('phone.pinCode')} {formatPinCode(roomData?.pin_code)}
+              {telephony?.internationalPhoneNumber} · {tShare('phone.pinCode')}{' '}
+              {formatPinCode(roomData?.pin_code)}
             </span>
           )}
         </div>

@@ -33,7 +33,7 @@ export interface UserGroupMember {
 export const fetchUserGroups = (query?: string): Promise<UserGroup[]> => {
   const q = query?.trim()
   return fetchApi<UserGroup[]>(
-    `/admin/user-groups/${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    `/admin/user-groups/${q ? `?q=${encodeURIComponent(q)}` : ''}`
   )
 }
 
@@ -48,7 +48,7 @@ export const createUserGroup = (input: {
 
 export const updateUserGroup = (
   id: string,
-  input: { name?: string; description?: string; is_active?: boolean },
+  input: { name?: string; description?: string; is_active?: boolean }
 ): Promise<UserGroup> =>
   fetchApi<UserGroup>(`/admin/user-groups/${id}/`, {
     method: 'PATCH',
@@ -59,9 +59,7 @@ export const updateUserGroup = (
 export const deleteUserGroup = (id: string): Promise<unknown> =>
   fetchApi(`/admin/user-groups/${id}/`, { method: 'DELETE' })
 
-export const fetchUserGroupMembers = (
-  id: string,
-): Promise<UserGroupMember[]> =>
+export const fetchUserGroupMembers = (id: string): Promise<UserGroupMember[]> =>
   fetchApi<UserGroupMember[]>(`/admin/user-groups/${id}/members/`)
 
 export interface AddMembersResult {
@@ -73,7 +71,7 @@ export interface AddMembersResult {
 
 export const addUserGroupMembers = (
   id: string,
-  userIds: string[],
+  userIds: string[]
 ): Promise<AddMembersResult> =>
   fetchApi<AddMembersResult>(`/admin/user-groups/${id}/add-members/`, {
     method: 'POST',
@@ -82,7 +80,7 @@ export const addUserGroupMembers = (
 
 export const removeUserGroupMember = (
   id: string,
-  userId: string,
+  userId: string
 ): Promise<unknown> =>
   fetchApi(`/admin/user-groups/${id}/remove-member/`, {
     method: 'POST',

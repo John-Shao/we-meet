@@ -53,7 +53,13 @@ export const RejectJoinRequestDialog = ({
           minWidth: '20rem',
         })}
       >
-        <p className={css({ fontSize: '0.875rem', color: 'greyscale.700', margin: 0 })}>
+        <p
+          className={css({
+            fontSize: '0.875rem',
+            color: 'greyscale.700',
+            margin: 0,
+          })}
+        >
           {t('invites.rejectPrompt', {
             name: request?.full_name || request?.phone || '',
           })}
@@ -74,7 +80,13 @@ export const RejectJoinRequestDialog = ({
             onChange={(e) => setReason(e.target.value)}
           />
         </label>
-        <div className={css({ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' })}>
+        <div
+          className={css({
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '0.5rem',
+          })}
+        >
           <Button variant="secondary" size="sm" onPress={onClose}>
             {t('actions.cancel')}
           </Button>

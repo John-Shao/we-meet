@@ -184,7 +184,9 @@ export const GroupBotDetailPage = ({
             {bot.name}
           </div>
           {bot.description && (
-            <div className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}>
+            <div
+              className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
+            >
               {bot.description}
             </div>
           )}
@@ -304,7 +306,9 @@ export const GroupBotDetailPage = ({
                   key={word}
                   type="button"
                   onClick={() =>
-                    patch.mutate({ keywords: keywords.filter((k) => k !== word) })
+                    patch.mutate({
+                      keywords: keywords.filter((k) => k !== word),
+                    })
                   }
                   className={css({
                     fontSize: '0.75rem',

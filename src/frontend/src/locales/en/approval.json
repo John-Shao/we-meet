@@ -6,7 +6,11 @@
     "create": "New request",
     "loading": "Loading…"
   },
-  "section": { "pending": "Awaiting my approval", "mine": "My requests", "empty": "Nothing here" },
+  "section": {
+    "pending": "Awaiting my approval",
+    "mine": "My requests",
+    "empty": "Nothing here"
+  },
   "tab": { "create": "New request", "pending": "To do", "mine": "Submitted" },
   "status": {
     "pending": "Pending",

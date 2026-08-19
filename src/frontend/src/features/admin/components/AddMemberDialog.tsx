@@ -19,7 +19,8 @@ interface Props {
 
 /** 11 digits, `1` then 3–9 — the same rule the backend enforces. */
 const CN_MOBILE = /^1[3-9]\d{9}$/
-const digitsOnly = (value: string) => value.replace(/[\s\-()（）.]/g, '').replace(/^\+?86/, '')
+const digitsOnly = (value: string) =>
+  value.replace(/[\s\-()（）.]/g, '').replace(/^\+?86/, '')
 
 /**
  * 添加成员 —— 定向录入一个人（手机号为主键），落成一条待接受的邀请。
@@ -62,7 +63,8 @@ export const AddMemberDialog = ({
   const normalizedPhone = digitsOnly(phone)
   // Only complain once there is something to complain about — a red field on
   // an empty form that has not been touched is noise.
-  const phoneInvalid = normalizedPhone.length > 0 && !CN_MOBILE.test(normalizedPhone)
+  const phoneInvalid =
+    normalizedPhone.length > 0 && !CN_MOBILE.test(normalizedPhone)
   const canSubmit = CN_MOBILE.test(normalizedPhone) && !submitting
 
   const submit = () => {
@@ -90,7 +92,12 @@ export const AddMemberDialog = ({
           e.preventDefault()
           submit()
         }}
-        className={css({ display: 'flex', flexDirection: 'column', gap: '0.875rem', minWidth: '22rem' })}
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.875rem',
+          minWidth: '22rem',
+        })}
       >
         <label className={fieldLabel}>
           <span>{t('addMember.phone')}</span>
@@ -110,7 +117,10 @@ export const AddMemberDialog = ({
         </label>
         <label className={fieldLabel}>
           <span>{t('addMember.name')}</span>
-          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          <Input
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+          />
         </label>
         <label className={fieldLabel}>
           <span>{t('addMember.email')}</span>
@@ -123,7 +133,11 @@ export const AddMemberDialog = ({
         </label>
         <label className={fieldLabel}>
           <span>{t('invite.department')}</span>
-          <select value={department} onChange={(e) => setDepartment(e.target.value)} className={selectCss}>
+          <select
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            className={selectCss}
+          >
             <option value="">{t('members.orgLevel')}</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>
@@ -134,7 +148,11 @@ export const AddMemberDialog = ({
         </label>
         <label className={fieldLabel}>
           <span>{t('invite.role')}</span>
-          <select value={orgRole} onChange={(e) => setOrgRole(e.target.value)} className={selectCss}>
+          <select
+            value={orgRole}
+            onChange={(e) => setOrgRole(e.target.value)}
+            className={selectCss}
+          >
             {ORG_ROLES.map((r) => (
               <option key={r} value={r}>
                 {t(`role.${r}`, { defaultValue: r })}
@@ -146,10 +164,22 @@ export const AddMemberDialog = ({
           <span>{t('invite.jobTitle')}</span>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
-        <p className={css({ fontSize: '0.75rem', color: 'greyscale.500', margin: 0 })}>
+        <p
+          className={css({
+            fontSize: '0.75rem',
+            color: 'greyscale.500',
+            margin: 0,
+          })}
+        >
           {t('addMember.hint')}
         </p>
-        <div className={css({ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' })}>
+        <div
+          className={css({
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '0.5rem',
+          })}
+        >
           <Button variant="secondary" size="sm" onPress={onClose}>
             {t('actions.cancel')}
           </Button>

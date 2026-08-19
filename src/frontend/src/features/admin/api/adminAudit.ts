@@ -31,7 +31,7 @@ export interface AuditListParams {
 }
 
 export const fetchAuditLogs = (
-  params: AuditListParams,
+  params: AuditListParams
 ): Promise<Paginated<AuditLogEntry>> => {
   const qs = new URLSearchParams()
   if (params.action) qs.set('action', params.action)
@@ -40,7 +40,7 @@ export const fetchAuditLogs = (
   if (params.page) qs.set('page', String(params.page))
   const s = qs.toString()
   return fetchApi<Paginated<AuditLogEntry>>(
-    `/admin/audit-logs/${s ? `?${s}` : ''}`,
+    `/admin/audit-logs/${s ? `?${s}` : ''}`
   )
 }
 
@@ -68,7 +68,7 @@ export interface AuditActionOption {
  */
 export const fetchAuditActions = (): Promise<AuditActionOption[]> =>
   fetchApi<{ actions: AuditActionOption[] }>('/admin/audit-logs/actions/').then(
-    (r) => r.actions,
+    (r) => r.actions
   )
 
 /** i18n key for an action label (dots → underscores; i18next splits on dots). */

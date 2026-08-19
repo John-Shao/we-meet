@@ -51,7 +51,9 @@ const ContactsAuthenticated = () => {
   const qc = useQueryClient()
   const { alert: showAlert } = useConfirm()
   // 左栏四态:'starred'(星标联系人)/ 'groups'(我的群组)/ null(全部成员)/ 部门 id。
-  const [view, setView] = useState<'starred' | 'groups' | 'external' | null>(null)
+  const [view, setView] = useState<'starred' | 'groups' | 'external' | null>(
+    null
+  )
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [selectedMember, setSelectedMember] = useState<DirectoryMember | null>(
     null
@@ -138,12 +140,12 @@ const ContactsAuthenticated = () => {
   })
   const members = useMemo(
     () => (memberPages?.pages ?? []).flatMap((page) => page.results),
-    [memberPages],
+    [memberPages]
   )
 
   const selectedDept = useMemo(
     () => departments.find((d) => d.id === selectedDeptId) ?? null,
-    [departments, selectedDeptId],
+    [departments, selectedDeptId]
   )
   // 祖先链从扁平列表里按 parent 上溯 —— 部门树本来就整棵返回,不必再请求一次。
   const deptAncestors = useMemo(() => {
@@ -243,69 +245,69 @@ const ContactsAuthenticated = () => {
         min={220}
         max={460}
       >
-      <aside
-        className={css({
-          width: '100%',
-          height: '100%',
-          borderRight: '1px solid token(colors.greyscale.200)',
-          overflowY: 'auto',
-          backgroundColor: 'greyscale.50',
-        })}
-      >
-        <div className={css({ paddingX: '1rem', paddingY: '0.75rem' })}>
-          <h2
-            className={css({
-              margin: 0,
-              fontSize: '1rem',
-              fontWeight: 'bold',
-              color: 'greyscale.900',
-            })}
-          >
-            {t('page.departments')}
-          </h2>
-        </div>
-        <div>
-          {/* 星标联系人:与部门并列的一个入口(对标飞书通讯录的独立分组)。 */}
-          <button
-            type="button"
-            onClick={selectStarred}
-            data-testid="contacts-starred-entry"
-            className={deptButton(view === 'starred')}
-          >
-            ⭐ {t('starred.title')}
-          </button>
-          {/* 我的群组:零后端 —— 群清单就是 IM 会话列表里 type==='group' 的
+        <aside
+          className={css({
+            width: '100%',
+            height: '100%',
+            borderRight: '1px solid token(colors.greyscale.200)',
+            overflowY: 'auto',
+            backgroundColor: 'greyscale.50',
+          })}
+        >
+          <div className={css({ paddingX: '1rem', paddingY: '0.75rem' })}>
+            <h2
+              className={css({
+                margin: 0,
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                color: 'greyscale.900',
+              })}
+            >
+              {t('page.departments')}
+            </h2>
+          </div>
+          <div>
+            {/* 星标联系人:与部门并列的一个入口(对标飞书通讯录的独立分组)。 */}
+            <button
+              type="button"
+              onClick={selectStarred}
+              data-testid="contacts-starred-entry"
+              className={deptButton(view === 'starred')}
+            >
+              ⭐ {t('starred.title')}
+            </button>
+            {/* 我的群组:零后端 —— 群清单就是 IM 会话列表里 type==='group' 的
               那部分,复用会话列表已有的查询缓存。 */}
-          <button
-            type="button"
-            onClick={selectGroups}
-            data-testid="contacts-groups-entry"
-            className={deptButton(view === 'groups')}
-          >
-            👥 {t('groups.title')}
-          </button>
-          <button
-            type="button"
-            onClick={selectExternal}
-            data-testid="contacts-external-entry"
-            className={deptButton(view === 'external')}
-          >
-            ◇ {t('external.title')}
-          </button>
-          <button
-            type="button"
-            onClick={() => selectDept(null)}
-            className={deptButton(view === null && selectedDeptId === null)}
-          >
-            {t('page.allMembers')}
-          </button>
-          <DepartmentTree
-            departments={departments}
-            selectedId={selectedDeptId}
-            onSelect={selectDept}
-          />
-        </div>
-      </aside>
+            <button
+              type="button"
+              onClick={selectGroups}
+              data-testid="contacts-groups-entry"
+              className={deptButton(view === 'groups')}
+            >
+              👥 {t('groups.title')}
+            </button>
+            <button
+              type="button"
+              onClick={selectExternal}
+              data-testid="contacts-external-entry"
+              className={deptButton(view === 'external')}
+            >
+              ◇ {t('external.title')}
+            </button>
+            <button
+              type="button"
+              onClick={() => selectDept(null)}
+              className={deptButton(view === null && selectedDeptId === null)}
+            >
+              {t('page.allMembers')}
+            </button>
+            <DepartmentTree
+              departments={departments}
+              selectedId={selectedDeptId}
+              onSelect={selectDept}
+            />
+          </div>
+        </aside>
       </ResizablePanel>
 
       <main
@@ -322,237 +324,248 @@ const ContactsAuthenticated = () => {
           <ExternalContactsPanel onMessage={handleExternalMessage} />
         ) : (
           <>
-        {view === 'starred' && (
-          <div
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingX: '1rem',
-              paddingY: '0.625rem',
-              borderBottom: '1px solid token(colors.greyscale.200)',
-            })}
-          >
-            <h2
-              className={css({
-                margin: 0,
-                fontSize: '0.9375rem',
-                fontWeight: 'bold',
-                color: 'greyscale.900',
-              })}
-            >
-              {t('starred.title')}
-            </h2>
-            {/* dense 而非 sm:sm 不带字号,会吃到浏览器默认 16px,比同页的
+            {view === 'starred' && (
+              <div
+                className={css({
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingX: '1rem',
+                  paddingY: '0.625rem',
+                  borderBottom: '1px solid token(colors.greyscale.200)',
+                })}
+              >
+                <h2
+                  className={css({
+                    margin: 0,
+                    fontSize: '0.9375rem',
+                    fontWeight: 'bold',
+                    color: 'greyscale.900',
+                  })}
+                >
+                  {t('starred.title')}
+                </h2>
+                {/* dense 而非 sm:sm 不带字号,会吃到浏览器默认 16px,比同页的
                 「发消息」大一号 —— 正是 buttonRecipe 里 dense 那档点名要收口的
                 「通讯录『添加』vs『发消息』」不一致。 */}
-            <Button
-              variant="secondary"
-              size="dense"
-              onPress={() => setAddingStarred(true)}
-              data-testid="contacts-starred-add"
-            >
-              {t('starred.add')}
-            </Button>
-          </div>
-        )}
-        <div className={css({ overflowY: 'auto', flex: 1 })}>
-          {isFetching && members.length === 0 ? (
-            <StateHint loading>{t('page.loading')}</StateHint>
-          ) : members.length === 0 ? (
-            <StateHint>
-              {view === 'starred' ? t('starred.empty') : t('page.empty')}
-            </StateHint>
-          ) : (
-            <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
-              {members.map((member) => {
-                const label =
-                  member.full_name || member.short_name || member.email || ''
-                const selected = selectedMember?.id === member.id
-                return (
-                  <li
-                    key={member.id}
-                    className={css({
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      borderBottom: '1px solid token(colors.greyscale.100)',
-                      // 选中用会翻转的 greyscale.100(避免浅蓝底配翻转后的浅字看不见)。
-                      backgroundColor: selected ? 'greyscale.100' : 'transparent',
-                      _hover: { backgroundColor: 'greyscale.50' },
-                    })}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMember(member)}
-                      data-testid={`contacts-member-${member.id}`}
-                      className={css({
-                        flex: 1,
-                        minWidth: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.625rem',
-                        border: 'none',
-                        background: 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        paddingX: '1rem',
-                        paddingY: '0.625rem',
-                      })}
-                    >
-                      {member.avatar_url ? (
-                        <img
-                          src={member.avatar_url}
-                          alt={label}
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={() => setAddingStarred(true)}
+                  data-testid="contacts-starred-add"
+                >
+                  {t('starred.add')}
+                </Button>
+              </div>
+            )}
+            <div className={css({ overflowY: 'auto', flex: 1 })}>
+              {isFetching && members.length === 0 ? (
+                <StateHint loading>{t('page.loading')}</StateHint>
+              ) : members.length === 0 ? (
+                <StateHint>
+                  {view === 'starred' ? t('starred.empty') : t('page.empty')}
+                </StateHint>
+              ) : (
+                <ul
+                  className={css({ listStyle: 'none', margin: 0, padding: 0 })}
+                >
+                  {members.map((member) => {
+                    const label =
+                      member.full_name ||
+                      member.short_name ||
+                      member.email ||
+                      ''
+                    const selected = selectedMember?.id === member.id
+                    return (
+                      <li
+                        key={member.id}
+                        className={css({
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          borderBottom: '1px solid token(colors.greyscale.100)',
+                          // 选中用会翻转的 greyscale.100(避免浅蓝底配翻转后的浅字看不见)。
+                          backgroundColor: selected
+                            ? 'greyscale.100'
+                            : 'transparent',
+                          _hover: { backgroundColor: 'greyscale.50' },
+                        })}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedMember(member)}
+                          data-testid={`contacts-member-${member.id}`}
                           className={css({
-                            flexShrink: 0,
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '8px',
-                            objectFit: 'cover',
-                          })}
-                        />
-                      ) : (
-                        <span
-                          className={css({
-                            flexShrink: 0,
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '8px',
-                            backgroundColor: 'primary.500',
-                            color: 'white',
+                            flex: 1,
+                            minWidth: 0,
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '0.875rem',
+                            gap: '0.625rem',
+                            border: 'none',
+                            background: 'transparent',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            paddingX: '1rem',
+                            paddingY: '0.625rem',
                           })}
                         >
-                          {(label || '?').slice(0, 1).toUpperCase()}
-                        </span>
-                      )}
-                      <span
-                        className={css({
-                          minWidth: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.125rem',
-                        })}
-                      >
-                        <span
-                          className={css({
-                            fontWeight: 'medium',
-                            color: 'greyscale.900',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          })}
-                        >
-                          {label}
-                          {/* 星标标记(对标飞书:名字后跟一颗 ⭐)。 */}
-                          {starredIds.has(member.id) && (
+                          {member.avatar_url ? (
+                            <img
+                              src={member.avatar_url}
+                              alt={label}
+                              className={css({
+                                flexShrink: 0,
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '8px',
+                                objectFit: 'cover',
+                              })}
+                            />
+                          ) : (
                             <span
-                              aria-label={t('starred.title')}
-                              title={t('starred.title')}
+                              className={css({
+                                flexShrink: 0,
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '8px',
+                                backgroundColor: 'primary.500',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.875rem',
+                              })}
                             >
-                              {' '}
-                              ⭐
+                              {(label || '?').slice(0, 1).toUpperCase()}
                             </span>
                           )}
-                          {member.is_self && (
-                            <span className={css({ color: 'greyscale.400' })}>
-                              {' '}
-                              {t('page.selfTag')}
+                          <span
+                            className={css({
+                              minWidth: 0,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.125rem',
+                            })}
+                          >
+                            <span
+                              className={css({
+                                fontWeight: 'medium',
+                                color: 'greyscale.900',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              })}
+                            >
+                              {label}
+                              {/* 星标标记(对标飞书:名字后跟一颗 ⭐)。 */}
+                              {starredIds.has(member.id) && (
+                                <span
+                                  aria-label={t('starred.title')}
+                                  title={t('starred.title')}
+                                >
+                                  {' '}
+                                  ⭐
+                                </span>
+                              )}
+                              {member.is_self && (
+                                <span
+                                  className={css({ color: 'greyscale.400' })}
+                                >
+                                  {' '}
+                                  {t('page.selfTag')}
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </span>
-                        <span
-                          className={css({
-                            fontSize: '0.75rem',
-                            color: 'greyscale.500',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          })}
-                        >
-                          {[member.title, member.department?.name]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </span>
-                      </span>
-                    </button>
-                    {view === 'starred' && (
-                      <span
-                        className={css({
-                          flexShrink: 0,
-                          display: 'flex',
-                          alignItems: 'center',
-                          marginRight: '0.5rem',
-                        })}
-                      >
-                        {/* 与其它分组行尾的「发消息」同档(dense):它俩占同一个
+                            <span
+                              className={css({
+                                fontSize: '0.75rem',
+                                color: 'greyscale.500',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              })}
+                            >
+                              {[member.title, member.department?.name]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </span>
+                          </span>
+                        </button>
+                        {view === 'starred' && (
+                          <span
+                            className={css({
+                              flexShrink: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              marginRight: '0.5rem',
+                            })}
+                          >
+                            {/* 与其它分组行尾的「发消息」同档(dense):它俩占同一个
                             列位,尺寸必须一致,否则切分组时行高会跳。 */}
-                        <Button
-                          variant="secondaryText"
-                          size="dense"
-                          onPress={() =>
-                            void toggleContactPref(member, { is_starred: false })
-                          }
-                          data-testid={`contacts-unstar-${member.id}`}
-                        >
-                          {t('starred.remove')}
-                        </Button>
-                      </span>
-                    )}
-                    {/* 星标名单里不放「发消息」:那一行已经有「取消星标」,再并一个
+                            <Button
+                              variant="secondaryText"
+                              size="dense"
+                              onPress={() =>
+                                void toggleContactPref(member, {
+                                  is_starred: false,
+                                })
+                              }
+                              data-testid={`contacts-unstar-${member.id}`}
+                            >
+                              {t('starred.remove')}
+                            </Button>
+                          </span>
+                        )}
+                        {/* 星标名单里不放「发消息」:那一行已经有「取消星标」,再并一个
                         按钮既挤又抢焦点,而点整行就能开详情卡、卡里就有发消息。 */}
-                    {view !== 'starred' && !member.is_self && (
-                      <span
-                        className={css({
-                          flexShrink: 0,
-                          display: 'flex',
-                          alignItems: 'center',
-                          marginRight: '1rem',
-                        })}
-                      >
-                        <Button
-                          variant="secondary"
-                          size="dense"
-                          onPress={() => handleMessage(member)}
-                          data-testid={`contacts-message-${member.id}`}
-                        >
-                          {t('page.message')}
-                        </Button>
-                      </span>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-          {/* 只有真的还有下一页时才出现 —— 之前列表在第 100 人处静默截断,页面
+                        {view !== 'starred' && !member.is_self && (
+                          <span
+                            className={css({
+                              flexShrink: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              marginRight: '1rem',
+                            })}
+                          >
+                            <Button
+                              variant="secondary"
+                              size="dense"
+                              onPress={() => handleMessage(member)}
+                              data-testid={`contacts-message-${member.id}`}
+                            >
+                              {t('page.message')}
+                            </Button>
+                          </span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              {/* 只有真的还有下一页时才出现 —— 之前列表在第 100 人处静默截断,页面
               上没有任何迹象说明「还没完」。 */}
-          {hasNextPage && (
-            <div
-              className={css({
-                display: 'flex',
-                justifyContent: 'center',
-                padding: '0.75rem',
-              })}
-            >
-              <Button
-                variant="tertiaryText"
-                size="sm"
-                onPress={() => void fetchNextPage()}
-                isDisabled={isFetchingNextPage}
-                data-testid="contacts-load-more"
-              >
-                {isFetchingNextPage
-                  ? t('page.loading')
-                  : t('page.loadMore')}
-              </Button>
+              {hasNextPage && (
+                <div
+                  className={css({
+                    display: 'flex',
+                    justifyContent: 'center',
+                    padding: '0.75rem',
+                  })}
+                >
+                  <Button
+                    variant="tertiaryText"
+                    size="sm"
+                    onPress={() => void fetchNextPage()}
+                    isDisabled={isFetchingNextPage}
+                    data-testid="contacts-load-more"
+                  >
+                    {isFetchingNextPage
+                      ? t('page.loading')
+                      : t('page.loadMore')}
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
           </>
         )}
       </main>

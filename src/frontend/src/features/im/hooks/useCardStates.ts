@@ -61,10 +61,14 @@ export const useCardStates = (messages: Message[]) => {
   // ② 这一屏有哪些卡片。排序后进 queryKey,免得顺序抖动引发重复请求。
   const cardMids = useMemo(
     () =>
-      [...new Set(messages.filter((m) => m.content_type === 'rich-card').map((m) => m.mid))].sort(
-        (a, b) => a - b,
-      ),
-    [messages],
+      [
+        ...new Set(
+          messages
+            .filter((m) => m.content_type === 'rich-card')
+            .map((m) => m.mid)
+        ),
+      ].sort((a, b) => a - b),
+    [messages]
   )
 
   const { data } = useQuery({

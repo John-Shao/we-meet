@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { isWebUrl, parseRichText, richTextPlain, richTextPreview } from './richText'
+import {
+  isWebUrl,
+  parseRichText,
+  richTextPlain,
+  richTextPreview,
+} from './richText'
 
 describe('parseRichText', () => {
   const body = (content: unknown, extra: object = {}) =>
@@ -59,8 +64,10 @@ describe('parseRichText', () => {
   })
 
   it('keeps a title-only body', () => {
-    expect(parseRichText(JSON.stringify({ v: 1, title: '只有标题', content: [] }))
-      ?.title).toBe('只有标题')
+    expect(
+      parseRichText(JSON.stringify({ v: 1, title: '只有标题', content: [] }))
+        ?.title
+    ).toBe('只有标题')
   })
 })
 

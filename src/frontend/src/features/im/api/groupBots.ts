@@ -86,7 +86,9 @@ export const rotateBotCallbackSecret = (botId: string): Promise<ImBotSecret> =>
     method: 'POST',
   })
 
-export const resetBotToken = (botId: string): Promise<{ webhook_url: string }> =>
+export const resetBotToken = (
+  botId: string
+): Promise<{ webhook_url: string }> =>
   fetchApi<{ webhook_url: string }>(`/im/bots/${botId}/reset-token/`, {
     method: 'POST',
   })

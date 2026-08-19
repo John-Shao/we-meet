@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
@@ -72,14 +77,22 @@ export const AdminBots = () => {
 
   const onToggle = async (bot: AdminBot) => {
     if (bot.is_active) {
-      const ok = await confirm({ message: t('bots.disableConfirm', { name: bot.name }) })
+      const ok = await confirm({
+        message: t('bots.disableConfirm', { name: bot.name }),
+      })
       if (!ok) return
     }
     toggle.mutate({ bot, reason: '' })
   }
 
   return (
-    <div className={css({ display: 'flex', flexDirection: 'column', height: '100%' })}>
+    <div
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+      })}
+    >
       <div
         className={css({
           flexShrink: 0,
@@ -98,10 +111,23 @@ export const AdminBots = () => {
         >
           {t('bots.title')}
         </h1>
-        <p className={css({ fontSize: '0.8125rem', color: 'greyscale.500', marginBottom: '0.75rem' })}>
+        <p
+          className={css({
+            fontSize: '0.8125rem',
+            color: 'greyscale.500',
+            marginBottom: '0.75rem',
+          })}
+        >
           {t('bots.subtitle')}
         </p>
-        <div className={css({ display: 'flex', gap: '0.625rem', flexWrap: 'wrap', alignItems: 'center' })}>
+        <div
+          className={css({
+            display: 'flex',
+            gap: '0.625rem',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          })}
+        >
           <input
             value={q}
             placeholder={t('bots.searchPlaceholder')}
@@ -156,7 +182,13 @@ export const AdminBots = () => {
               {bots.map((bot) => (
                 <tr key={bot.id} className={trCls}>
                   <td className={tdCls}>
-                    <div className={css({ display: 'flex', alignItems: 'center', gap: '0.5rem' })}>
+                    <div
+                      className={css({
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                      })}
+                    >
                       <span
                         aria-hidden
                         className={css({
@@ -165,17 +197,23 @@ export const AdminBots = () => {
                           borderRadius: '50%',
                           flexShrink: 0,
                         })}
-                        style={{ backgroundColor: botColorAt(bot.avatar_color_index) }}
+                        style={{
+                          backgroundColor: botColorAt(bot.avatar_color_index),
+                        }}
                       />
                       <span>{bot.name}</span>
                       {bot.kind === 'builtin' && (
                         <span className={chipCls}>{t('bots.builtinChip')}</span>
                       )}
                       {!bot.is_active && (
-                        <span className={chipCls}>{t('bots.disabledChip')}</span>
+                        <span className={chipCls}>
+                          {t('bots.disabledChip')}
+                        </span>
                       )}
                       {bot.has_callback && (
-                        <span className={chipCls}>{t('bots.callbackChip')}</span>
+                        <span className={chipCls}>
+                          {t('bots.callbackChip')}
+                        </span>
                       )}
                     </div>
                   </td>
@@ -183,13 +221,21 @@ export const AdminBots = () => {
                     <div>{bot.conversation_name || t('bots.unnamedGroup')}</div>
                     {/* cid 前 12 位:群名可能为空(jusi 没有 admin 读接口),
                         运营拿这串能去 IM 侧对上。 */}
-                    <div className={css({ fontSize: '0.75rem', color: 'greyscale.400', fontFamily: 'mono' })}>
+                    <div
+                      className={css({
+                        fontSize: '0.75rem',
+                        color: 'greyscale.400',
+                        fontFamily: 'mono',
+                      })}
+                    >
                       {bot.cid.slice(0, 12)}
                     </div>
                   </td>
                   <td className={tdCls}>{bot.created_by_name || '—'}</td>
                   <td className={tdCls}>{bot.message_count}</td>
-                  <td className={`${tdCls} ${css({ whiteSpace: 'nowrap', color: 'greyscale.600' })}`}>
+                  <td
+                    className={`${tdCls} ${css({ whiteSpace: 'nowrap', color: 'greyscale.600' })}`}
+                  >
                     {formatTime(bot.last_used_at, i18n.language)}
                   </td>
                   <td className={actionCellCls}>
@@ -268,13 +314,21 @@ const filterControl = css({
   fontSize: '0.875rem',
   backgroundColor: 'greyscale.000',
 })
-const tableCls = css({ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' })
+const tableCls = css({
+  width: '100%',
+  borderCollapse: 'collapse',
+  fontSize: '0.875rem',
+})
 const theadRowCls = css({
   textAlign: 'left',
   color: 'greyscale.500',
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
-const thBase = { paddingX: '1rem', paddingY: '0.625rem', fontWeight: '600' as const }
+const thBase = {
+  paddingX: '1rem',
+  paddingY: '0.625rem',
+  fontWeight: '600' as const,
+}
 const thCls = css(thBase)
 /* 固定窄列会把中文按钮挤成竖排,让内容说了算(与 Invites 同款)。 */
 const actionHeadCls = css({ ...thBase, width: '1%', whiteSpace: 'nowrap' })
@@ -304,4 +358,8 @@ const chipCls = css({
   backgroundColor: 'greyscale.100',
   whiteSpace: 'nowrap',
 })
-const emptyText = css({ padding: '2rem', textAlign: 'center', color: 'greyscale.500' })
+const emptyText = css({
+  padding: '2rem',
+  textAlign: 'center',
+  color: 'greyscale.500',
+})

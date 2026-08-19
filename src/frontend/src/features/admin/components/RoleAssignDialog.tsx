@@ -190,7 +190,7 @@ const selectCls = cx(
     color: 'default.text',
     fontSize: '0.875rem',
   }),
-  selectChrome,
+  selectChrome
 )
 const hintCls = css({
   marginLeft: '5.25rem',

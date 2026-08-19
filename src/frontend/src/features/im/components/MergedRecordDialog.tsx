@@ -35,7 +35,10 @@ const fmtTs = (ts: number, locale: string): string => {
     d.getMonth() === now.getMonth() &&
     d.getDate() === now.getDate()
   if (sameDay) return hm
-  const datePart = d.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
+  const datePart = d.toLocaleDateString(locale, {
+    month: 'short',
+    day: 'numeric',
+  })
   return `${datePart} ${hm}`
 }
 
@@ -62,7 +65,14 @@ export const MergedRecordDialog = ({ record, onClose }: Props) => {
           ×
         </button>
       </div>
-      <div className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem', padding: '0.5rem 0' })}>
+      <div
+        className={css({
+          overflowY: 'auto',
+          flex: 1,
+          minHeight: '8rem',
+          padding: '0.5rem 0',
+        })}
+      >
         {record.items.map((it, idx) => (
           <div key={idx} className={rowCls} data-testid="merged-line">
             <div className={metaCls}>

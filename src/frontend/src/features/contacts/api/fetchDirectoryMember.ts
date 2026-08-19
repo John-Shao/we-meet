@@ -8,8 +8,6 @@ import type { DirectoryMember } from './ApiDirectory'
  * directly, e.g. deep-linked from an IM message avatar (`/contacts?member=<id>`).
  */
 export const fetchDirectoryMember = (
-  userId: string,
+  userId: string
 ): Promise<DirectoryMember> =>
-  fetchApi<DirectoryMember>(
-    `/directory/members/${encodeURIComponent(userId)}/`,
-  )
+  fetchApi<DirectoryMember>(`/directory/members/${encodeURIComponent(userId)}/`)

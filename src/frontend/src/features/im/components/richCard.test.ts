@@ -19,7 +19,7 @@ import {
  */
 const FIXTURE_DIR = path.resolve(
   __dirname,
-  '../../../../../backend/core/tests/fixtures/im_cards',
+  '../../../../../backend/core/tests/fixtures/im_cards'
 )
 
 const load = (name: string): string =>
@@ -61,7 +61,8 @@ describe('rich-card 金标准', () => {
     // 与后端 test_no_button_ever_carries_its_value 是同一条不变量的两端。
     const card = parseRichCard(load('rich_card_full'))!
     const actions = card.blocks.find((b) => b.type === 'actions')
-    if (actions?.type !== 'actions') throw new Error('expected an actions block')
+    if (actions?.type !== 'actions')
+      throw new Error('expected an actions block')
     for (const button of actions.buttons) {
       expect(button).not.toHaveProperty('value')
     }
@@ -108,10 +109,7 @@ describe('parseRichCard 的降级', () => {
   it('未知块类型丢弃,不是崩 —— 协议加块时老客户端只是少显示一块', () => {
     const raw = JSON.stringify({
       v: 1,
-      blocks: [
-        { type: 'chart', data: [1, 2, 3] },
-        { type: 'divider' },
-      ],
+      blocks: [{ type: 'chart', data: [1, 2, 3] }, { type: 'divider' }],
     })
     expect(parseRichCard(raw)!.blocks).toEqual([{ type: 'divider' }])
   })
@@ -123,7 +121,9 @@ describe('parseRichCard 的降级', () => {
         {
           type: 'actions',
           resolve: 'once',
-          buttons: [{ id: 'b0', text: 'x', style: 'default', action: 'teleport' }],
+          buttons: [
+            { id: 'b0', text: 'x', style: 'default', action: 'teleport' },
+          ],
         },
       ],
     })
@@ -139,7 +139,13 @@ describe('parseRichCard 的降级', () => {
           type: 'actions',
           resolve: 'once',
           buttons: [
-            { id: 'b0', text: 'x', style: 'default', action: 'url', url: 'javascript:x' },
+            {
+              id: 'b0',
+              text: 'x',
+              style: 'default',
+              action: 'url',
+              url: 'javascript:x',
+            },
           ],
         },
       ],
@@ -226,7 +232,11 @@ describe('投影', () => {
   })
 
   it('转义和「截在转义符上」都不会把预览弄丢', () => {
-    const raw = JSON.stringify({ plain: '他说"上线"\n然后 C:\\build 挂了', v: 1, blocks: [] })
+    const raw = JSON.stringify({
+      plain: '他说"上线"\n然后 C:\\build 挂了',
+      v: 1,
+      blocks: [],
+    })
     expect(richCardPreview(raw)).toBe('他说"上线" 然后 C:\\build 挂了')
     // 截断刚好落在一个反斜杠上:交出已经读到的部分,不抛。
     const upToEscape = raw.slice(0, raw.indexOf('\\n') + 1)
@@ -257,15 +267,15 @@ describe('stripActions', () => {
         {
           type: 'actions',
           resolve: 'once',
-          buttons: [{ id: 'b0', text: '同意', style: 'primary', action: 'callback' }],
+          buttons: [
+            { id: 'b0', text: '同意', style: 'primary', action: 'callback' },
+          ],
         },
       ],
     })
-    expect(parseRichCard(stripActions(raw))!.blocks.map((b) => b.type)).toEqual([
-      'text',
-      'divider',
-      'text',
-    ])
+    expect(parseRichCard(stripActions(raw))!.blocks.map((b) => b.type)).toEqual(
+      ['text', 'divider', 'text']
+    )
   })
 
   it('剥完只剩一堆线的卡片会整个化为 null,由调用方退回纯文本', () => {
@@ -280,7 +290,9 @@ describe('stripActions', () => {
         {
           type: 'actions',
           resolve: 'once',
-          buttons: [{ id: 'b0', text: '同意', style: 'primary', action: 'callback' }],
+          buttons: [
+            { id: 'b0', text: '同意', style: 'primary', action: 'callback' },
+          ],
         },
       ],
     })
@@ -311,12 +323,24 @@ describe('actionsBlockKey(三端契约)', () => {
       JSON.stringify({
         v: 1,
         blocks: [
-          { type: 'actions', resolve: 'once', buttons: [{ id: 'b0', text: 'x', style: 'default', action: 'callback' }] },
+          {
+            type: 'actions',
+            resolve: 'once',
+            buttons: [
+              { id: 'b0', text: 'x', style: 'default', action: 'callback' },
+            ],
+          },
           { type: 'divider' },
           { type: 'text', spans: [{ tag: 'text', text: '中间' }] },
-          { type: 'actions', resolve: 'each', buttons: [{ id: 'b1', text: 'y', style: 'default', action: 'callback' }] },
+          {
+            type: 'actions',
+            resolve: 'each',
+            buttons: [
+              { id: 'b1', text: 'y', style: 'default', action: 'callback' },
+            ],
+          },
         ],
-      }),
+      })
     )!.blocks
     expect(actionsBlockKey(blocks, 0)).toBe('a0')
     expect(actionsBlockKey(blocks, 3)).toBe('a1')

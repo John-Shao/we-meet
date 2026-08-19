@@ -16,7 +16,9 @@ export const StyledToastContainer = styled('div', {
     color: 'white',
     borderRadius: '8px',
     '&[data-entering]': { animation: 'fade token(durations.slow)' },
-    '&[data-exiting]': { animation: 'fade token(durations.normal) reverse ease-in' },
+    '&[data-exiting]': {
+      animation: 'fade token(durations.normal) reverse ease-in',
+    },
     width: 'fit-content',
     marginLeft: 'auto',
   },

@@ -67,7 +67,14 @@ export const MyGroupsPanel = () => {
   }, [groups, query])
 
   return (
-    <div className={css({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 })}>
+    <div
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        minHeight: 0,
+      })}
+    >
       <div className={headerCls}>
         <h2 className={titleCls}>
           {t('groups.title')} ({groups.length})
@@ -96,7 +103,9 @@ export const MyGroupsPanel = () => {
               <li key={c.cid}>
                 <button
                   type="button"
-                  onClick={() => navigate(`/im?cid=${encodeURIComponent(c.cid)}`)}
+                  onClick={() =>
+                    navigate(`/im?cid=${encodeURIComponent(c.cid)}`)
+                  }
                   className={rowCls}
                 >
                   <GroupAvatar

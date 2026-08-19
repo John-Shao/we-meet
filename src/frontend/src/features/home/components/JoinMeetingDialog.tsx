@@ -10,9 +10,7 @@ export const JoinMeetingDialog = () => {
   // normalizeRoomId so that pasted formats like "1234 5678" or "1234-5678"
   // collapse to the canonical 8-digit slug expected by the room route.
   const sanitize = (raw: string) =>
-    normalizeRoomId(
-      raw.trim().replace(`${window.location.origin}/`, '')
-    )
+    normalizeRoomId(raw.trim().replace(`${window.location.origin}/`, ''))
 
   const handleSubmit = (data: { roomId?: FormDataEntryValue }) => {
     navigateTo('room', sanitize(data.roomId as string))

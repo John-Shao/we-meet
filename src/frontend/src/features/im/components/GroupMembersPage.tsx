@@ -39,7 +39,7 @@ export const GroupMembersPage = ({
   const { roster, isLoading, names, nameOf, refresh } = useGroupRoster(
     client,
     cid,
-    currentUserUID,
+    currentUserUID
   )
   const [busy, setBusy] = useState(false)
 

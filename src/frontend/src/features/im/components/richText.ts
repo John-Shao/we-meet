@@ -91,7 +91,9 @@ const normalizeTag = (raw: unknown): RichTextTag | null => {
   if (!raw || typeof raw !== 'object') return null
   const o = raw as Record<string, unknown>
   if (o.tag === 'text') {
-    return typeof o.text === 'string' && o.text ? { tag: 'text', text: o.text } : null
+    return typeof o.text === 'string' && o.text
+      ? { tag: 'text', text: o.text }
+      : null
   }
   if (o.tag === 'a') {
     if (typeof o.text !== 'string' || !o.text) return null
@@ -146,9 +148,7 @@ export const richTextPlain = (body: RichTextBody): string => {
   if (body.title) lines.push(body.title)
   for (const paragraph of body.content) {
     const line = paragraph
-      .map((tag) =>
-        tag.tag === 'at' ? `@${tag.name}` : tag.text
-      )
+      .map((tag) => (tag.tag === 'at' ? `@${tag.name}` : tag.text))
       .join('')
       .trim()
     if (line) lines.push(line)

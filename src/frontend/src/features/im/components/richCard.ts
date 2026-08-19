@@ -108,7 +108,14 @@ const normalizeButton = (raw: unknown): CardButton | null => {
   }
   if (o.action === 'doc') {
     return typeof o.doc_id === 'string' && o.doc_id && isWebUrl(o.url)
-      ? { id: o.id, text: o.text, style, action: 'doc', doc_id: o.doc_id, url: o.url }
+      ? {
+          id: o.id,
+          text: o.text,
+          style,
+          action: 'doc',
+          doc_id: o.doc_id,
+          url: o.url,
+        }
       : null
   }
   // 认不出的动作类型不渲染 —— 一个点了没反应的按钮比没有按钮更糟。
@@ -148,10 +155,16 @@ const normalizeBlock = (raw: unknown): CardBlock | null => {
 
   if (o.type === 'actions') {
     const buttons = Array.isArray(o.buttons)
-      ? o.buttons.map(normalizeButton).filter((b): b is CardButton => b !== null)
+      ? o.buttons
+          .map(normalizeButton)
+          .filter((b): b is CardButton => b !== null)
       : []
     return buttons.length
-      ? { type: 'actions', resolve: o.resolve === 'each' ? 'each' : 'once', buttons }
+      ? {
+          type: 'actions',
+          resolve: o.resolve === 'each' ? 'each' : 'once',
+          buttons,
+        }
       : null
   }
 

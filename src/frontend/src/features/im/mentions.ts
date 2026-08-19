@@ -46,13 +46,15 @@ export const MENTION_EVERYONE_ALIASES = [
 export const mentionsEveryone = (text: string): boolean => {
   const haystack = text.toLowerCase()
   return MENTION_EVERYONE_ALIASES.some((a) =>
-    haystack.includes(`@${a.toLowerCase()}`),
+    haystack.includes(`@${a.toLowerCase()}`)
   )
 }
 
 /** 这段文本里有没有点名 [names] 中的任何一个(空名字跳过)。 */
-const mentionsAnyName = (text: string, names: readonly (string | undefined)[]) =>
-  names.some((n) => !!n && text.includes(`@${n}`))
+const mentionsAnyName = (
+  text: string,
+  names: readonly (string | undefined)[]
+) => names.some((n) => !!n && text.includes(`@${n}`))
 
 export interface MentionHit {
   /** 点到我了(按我的群昵称或目录名)。 */
@@ -84,7 +86,7 @@ const AT_EVERYONE_UID = 'all'
 export const mentionScan = (
   contentType: string,
   body: string,
-  selfNames: readonly (string | undefined)[],
+  selfNames: readonly (string | undefined)[]
 ): MentionHit => {
   const scanLiteral = (text: string): MentionHit => ({
     self: mentionsAnyName(text, selfNames),
@@ -99,7 +101,7 @@ export const mentionScan = (
       const rich = parseRichText(body)
       if (!rich) return NONE
       const byTag = rich.content.some((para) =>
-        para.some((tag) => tag.tag === 'at' && tag.uid === AT_EVERYONE_UID),
+        para.some((tag) => tag.tag === 'at' && tag.uid === AT_EVERYONE_UID)
       )
       const byPlain = scanLiteral(rich.plain ?? '')
       return { self: byPlain.self, everyone: byTag || byPlain.everyone }
@@ -114,8 +116,8 @@ export const mentionScan = (
         (block) =>
           block.type === 'text' &&
           block.spans.some(
-            (span) => span.tag === 'at' && span.uid === AT_EVERYONE_UID,
-          ),
+            (span) => span.tag === 'at' && span.uid === AT_EVERYONE_UID
+          )
       )
       const byPlain = scanLiteral(card.plain ?? '')
       return { self: byPlain.self, everyone: byTag || byPlain.everyone }
@@ -146,7 +148,7 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 /** `@所有人` → `所有人`。与 [mentionsEveryone] 同一张表、同样大小写无关。 */
 const EVERYONE_AT = new RegExp(
   `@(${MENTION_EVERYONE_ALIASES.map(escapeRe).join('|')})`,
-  'gi',
+  'gi'
 )
 
 /** 只摘 `@` 前缀,字一个不删 —— 预览里读作「…运行日志 所有人 环境 生产」。 */
@@ -197,7 +199,7 @@ const defuseRichText = (raw: string): string => {
       if (tag.tag !== 'at') return tag
       names.push(tag.name)
       return { tag: 'text', text: `@${tag.name}` }
-    }),
+    })
   )
 
   const derived = body.plain || richTextPlain(body)

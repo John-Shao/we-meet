@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import Table, { type ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 
 import { css } from '@/styled-system/css'
@@ -89,7 +94,9 @@ export const DepartedPanel = () => {
       title: t('members.colLeftDays'),
       width: 100,
       render: (_: unknown, m: AdminMember) =>
-        m.left_days === null ? '—' : t('members.daysAgo', { count: m.left_days }),
+        m.left_days === null
+          ? '—'
+          : t('members.daysAgo', { count: m.left_days }),
     },
     {
       title: t('members.colLeftAt'),
@@ -181,8 +188,7 @@ export const DepartedPanel = () => {
           total: data?.count ?? 0,
           onPageChange: setPage,
           showTotal: false,
-          formatPageText: () =>
-            t('members.total', { count: data?.count ?? 0 }),
+          formatPageText: () => t('members.total', { count: data?.count ?? 0 }),
         }}
       />
     </div>

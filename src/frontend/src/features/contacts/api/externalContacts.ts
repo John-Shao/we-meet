@@ -13,7 +13,9 @@ export const fetchExternalContactRequests = (): Promise<ExternalContact[]> =>
 export const searchExternalAccounts = (
   query: string
 ): Promise<ExternalContact[]> =>
-  fetchApi<ExternalContact[]>(`${BASE}/search/?q=${encodeURIComponent(query.trim())}`)
+  fetchApi<ExternalContact[]>(
+    `${BASE}/search/?q=${encodeURIComponent(query.trim())}`
+  )
 
 export const sendExternalContactRequest = (
   targetUserId: string
@@ -26,16 +28,22 @@ export const sendExternalContactRequest = (
 export const acceptExternalContactRequest = (
   relationshipId: string
 ): Promise<ExternalContact> =>
-  fetchApi<ExternalContact>(`${BASE}/${encodeURIComponent(relationshipId)}/accept/`, {
-    method: 'POST',
-  })
+  fetchApi<ExternalContact>(
+    `${BASE}/${encodeURIComponent(relationshipId)}/accept/`,
+    {
+      method: 'POST',
+    }
+  )
 
 export const declineExternalContactRequest = (
   relationshipId: string
 ): Promise<ExternalContact> =>
-  fetchApi<ExternalContact>(`${BASE}/${encodeURIComponent(relationshipId)}/decline/`, {
-    method: 'POST',
-  })
+  fetchApi<ExternalContact>(
+    `${BASE}/${encodeURIComponent(relationshipId)}/decline/`,
+    {
+      method: 'POST',
+    }
+  )
 
 export const removeExternalContact = (relationshipId: string): Promise<void> =>
   fetchApi<void>(`${BASE}/${encodeURIComponent(relationshipId)}/`, {

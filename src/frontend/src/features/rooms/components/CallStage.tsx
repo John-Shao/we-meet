@@ -376,7 +376,9 @@ const GridTile = ({
     <div
       className={css({ borderRadius: '50%' })}
       style={
-        speaking ? { boxShadow: '0 0 0 3px #30a46c', borderRadius: '50%' } : undefined
+        speaking
+          ? { boxShadow: '0 0 0 3px #30a46c', borderRadius: '50%' }
+          : undefined
       }
     >
       <Avatar name={name} src={src} size="4.5rem" />

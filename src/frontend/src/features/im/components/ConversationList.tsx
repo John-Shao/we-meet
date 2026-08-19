@@ -75,9 +75,7 @@ export const ConversationList = ({
   const { t, i18n } = useTranslation('im')
 
   if (loading) {
-    return (
-      <StateHint loading>{t('list.loading')}</StateHint>
-    )
+    return <StateHint loading>{t('list.loading')}</StateHint>
   }
   if (conversations.length === 0) {
     return (
@@ -92,8 +90,7 @@ export const ConversationList = ({
       {conversations.map((c) => {
         const preview = previewOf?.(c) ?? null
         const hasSecondLine = !!preview?.text || c.unread_count > 0
-        const groupTiles =
-          c.type === 'group' ? membersOf?.(c) : undefined
+        const groupTiles = c.type === 'group' ? membersOf?.(c) : undefined
         return (
           <li
             key={c.cid}
@@ -311,7 +308,8 @@ export const ConversationList = ({
                 lineHeight: 1,
                 cursor: 'pointer',
                 opacity: 0,
-                transition: 'opacity token(durations.normal), color token(durations.normal)',
+                transition:
+                  'opacity token(durations.normal), color token(durations.normal)',
                 _hover: { color: 'danger.600' },
               })}
             >

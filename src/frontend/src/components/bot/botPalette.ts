@@ -26,4 +26,6 @@ export const BOT_COLORS = [
 ] as const
 
 export const botColorAt = (index: number | undefined): string =>
-  BOT_COLORS[((index ?? 0) % BOT_COLORS.length + BOT_COLORS.length) % BOT_COLORS.length]
+  BOT_COLORS[
+    (((index ?? 0) % BOT_COLORS.length) + BOT_COLORS.length) % BOT_COLORS.length
+  ]

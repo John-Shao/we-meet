@@ -38,9 +38,9 @@ export const useDirectoryMemberSearch = (debounceMs = 250) => {
   const selectable = useMemo(
     () =>
       (data?.pages ?? []).flatMap((page) =>
-        page.results.filter((m) => !m.is_self),
+        page.results.filter((m) => !m.is_self)
       ),
-    [data],
+    [data]
   )
 
   return {

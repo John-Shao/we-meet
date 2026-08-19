@@ -16,7 +16,7 @@ import {
 
 /** 保持后端给的顺序(枚举顺序),同组的聚在一起。`Map` 记住插入顺序。 */
 const groupByGroup = (
-  options: AuditActionOption[],
+  options: AuditActionOption[]
 ): [string, AuditActionOption[]][] => {
   const buckets = new Map<string, AuditActionOption[]>()
   for (const option of options) {
@@ -74,7 +74,9 @@ export const AdminAudit = () => {
   const actionLabel = (a: string) =>
     t(actionI18nKey(a), { defaultValue: labelByValue.get(a) ?? a })
   const actorLabel = (e: AuditLogEntry) =>
-    e.actor ? e.actor.full_name || e.actor.short_name || '' : t('audit.systemActor')
+    e.actor
+      ? e.actor.full_name || e.actor.short_name || ''
+      : t('audit.systemActor')
 
   const resetPageThen = (fn: () => void) => {
     fn()
@@ -82,7 +84,13 @@ export const AdminAudit = () => {
   }
 
   return (
-    <div className={css({ display: 'flex', flexDirection: 'column', height: '100%' })}>
+    <div
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+      })}
+    >
       <div
         className={css({
           flexShrink: 0,
@@ -91,10 +99,24 @@ export const AdminAudit = () => {
           borderBottom: '1px solid token(colors.greyscale.200)',
         })}
       >
-        <h1 className={css({ fontSize: '1.125rem', fontWeight: 'bold', color: 'greyscale.900', marginBottom: '0.75rem' })}>
+        <h1
+          className={css({
+            fontSize: '1.125rem',
+            fontWeight: 'bold',
+            color: 'greyscale.900',
+            marginBottom: '0.75rem',
+          })}
+        >
           {t('audit.title')}
         </h1>
-        <div className={css({ display: 'flex', gap: '0.625rem', flexWrap: 'wrap', alignItems: 'center' })}>
+        <div
+          className={css({
+            display: 'flex',
+            gap: '0.625rem',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          })}
+        >
           <select
             value={action}
             onChange={(e) => resetPageThen(() => setAction(e.target.value))}
@@ -141,9 +163,21 @@ export const AdminAudit = () => {
         ) : logs.length === 0 ? (
           <p className={emptyText}>{t('audit.noLogs')}</p>
         ) : (
-          <table className={css({ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' })}>
+          <table
+            className={css({
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: '0.875rem',
+            })}
+          >
             <thead>
-              <tr className={css({ textAlign: 'left', color: 'greyscale.500', borderBottom: '1px solid token(colors.greyscale.200)' })}>
+              <tr
+                className={css({
+                  textAlign: 'left',
+                  color: 'greyscale.500',
+                  borderBottom: '1px solid token(colors.greyscale.200)',
+                })}
+              >
                 <th className={th}>{t('audit.colTime')}</th>
                 <th className={th}>{t('audit.colActor')}</th>
                 <th className={th}>{t('audit.colAction')}</th>
@@ -159,7 +193,9 @@ export const AdminAudit = () => {
                     _hover: { backgroundColor: 'greyscale.50' },
                   })}
                 >
-                  <td className={`${td} ${css({ whiteSpace: 'nowrap', color: 'greyscale.600' })}`}>
+                  <td
+                    className={`${td} ${css({ whiteSpace: 'nowrap', color: 'greyscale.600' })}`}
+                  >
                     {formatTime(e.created_at, i18n.language)}
                   </td>
                   <td className={td}>{actorLabel(e)}</td>
@@ -167,7 +203,12 @@ export const AdminAudit = () => {
                   <td className={td}>
                     {e.target_label || e.target_id}
                     {e.target_type && (
-                      <span className={css({ color: 'greyscale.400', fontSize: '0.8125rem' })}>
+                      <span
+                        className={css({
+                          color: 'greyscale.400',
+                          fontSize: '0.8125rem',
+                        })}
+                      >
                         {' '}
                         ({e.target_type})
                       </span>
@@ -217,8 +258,17 @@ export const AdminAudit = () => {
 }
 
 const th = css({ paddingX: '1rem', paddingY: '0.625rem', fontWeight: '600' })
-const td = css({ paddingX: '1rem', paddingY: '0.5rem', color: 'greyscale.800', verticalAlign: 'top' })
-const emptyText = css({ padding: '1.5rem', color: 'greyscale.500', fontSize: '0.9375rem' })
+const td = css({
+  paddingX: '1rem',
+  paddingY: '0.5rem',
+  color: 'greyscale.800',
+  verticalAlign: 'top',
+})
+const emptyText = css({
+  padding: '1.5rem',
+  color: 'greyscale.500',
+  fontSize: '0.9375rem',
+})
 // 筛选行里的下拉与两个日期输入共用。高度钉在 control.md 与 selectChrome 同档,
 // 并去掉上下内边距 —— 留着会把内容盒挤到装不下 21px 的行盒(font: inherit 让
 // 行高继承成 1.5),文字被上下切掉,详见 primitives/selectChrome 的注释。

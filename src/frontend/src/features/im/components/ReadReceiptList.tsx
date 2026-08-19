@@ -70,12 +70,22 @@ export const ReadReceiptList = ({ read, unread, onClose }: Props) => {
 
       <div className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem' })}>
         {list.length === 0 ? (
-          <p className={css({ padding: '1rem', color: 'greyscale.500', fontSize: '0.875rem' })}>
+          <p
+            className={css({
+              padding: '1rem',
+              color: 'greyscale.500',
+              fontSize: '0.875rem',
+            })}
+          >
             {tab === 'read' ? t('read.emptyRead') : t('read.emptyUnread')}
           </p>
         ) : (
           list.map((m) => (
-            <div key={m.uid} className={rowCls} data-testid={`read-member-${m.uid}`}>
+            <div
+              key={m.uid}
+              className={rowCls}
+              data-testid={`read-member-${m.uid}`}
+            >
               <Avatar name={m.name} src={m.avatarUrl} size="2rem" />
               <span className={nameCls}>{m.name}</span>
             </div>

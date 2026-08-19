@@ -45,7 +45,9 @@ export const InvitationsPanel = () => {
 
   const revoke = async (inv: OrgInvitation) => {
     const ok = await confirm({
-      message: t('invite.revokeConfirm', { name: inv.full_name || inv.phone || inv.email }),
+      message: t('invite.revokeConfirm', {
+        name: inv.full_name || inv.phone || inv.email,
+      }),
       danger: true,
     })
     if (ok) revokeMut.mutate(inv.id)
@@ -59,9 +61,21 @@ export const InvitationsPanel = () => {
   }
 
   return (
-    <table className={css({ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' })}>
+    <table
+      className={css({
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '0.875rem',
+      })}
+    >
       <thead>
-        <tr className={css({ textAlign: 'left', color: 'greyscale.500', borderBottom: '1px solid token(colors.greyscale.200)' })}>
+        <tr
+          className={css({
+            textAlign: 'left',
+            color: 'greyscale.500',
+            borderBottom: '1px solid token(colors.greyscale.200)',
+          })}
+        >
           <th className={th}>{t('members.colMember')}</th>
           <th className={th}>{t('members.colDepartment')}</th>
           <th className={th}>{t('members.colRole')}</th>
@@ -80,16 +94,22 @@ export const InvitationsPanel = () => {
           >
             <td className={td}>
               {inv.full_name && (
-                <span className={css({ marginRight: '0.5rem' })}>{inv.full_name}</span>
+                <span className={css({ marginRight: '0.5rem' })}>
+                  {inv.full_name}
+                </span>
               )}
               {/* 手机号在前:这才是 we-meet 的登录主键,邮箱多半是它合成出来的。 */}
               <span className={css({ color: 'greyscale.600' })}>
                 {inv.phone || inv.email}
               </span>
             </td>
-            <td className={td}>{inv.department?.name ?? t('members.orgLevel')}</td>
+            <td className={td}>
+              {inv.department?.name ?? t('members.orgLevel')}
+            </td>
             <td className={td}>{roleLabel(inv.org_role)}</td>
-            <td className={`${td} ${css({ color: 'greyscale.600', whiteSpace: 'nowrap' })}`}>
+            <td
+              className={`${td} ${css({ color: 'greyscale.600', whiteSpace: 'nowrap' })}`}
+            >
               {formatDate(inv.created_at)}
             </td>
             <td className={`${td} ${actionCell}`}>
@@ -115,13 +135,30 @@ export const InvitationsPanel = () => {
   )
 }
 
-const thBase = { paddingX: '1rem', paddingY: '0.625rem', fontWeight: '600' as const }
+const thBase = {
+  paddingX: '1rem',
+  paddingY: '0.625rem',
+  fontWeight: '600' as const,
+}
 const th = css(thBase)
-const td = css({ paddingX: '1rem', paddingY: '0.5rem', color: 'greyscale.800', verticalAlign: 'middle' })
-const emptyText = css({ padding: '1.5rem', color: 'greyscale.500', fontSize: '0.9375rem' })
+const td = css({
+  paddingX: '1rem',
+  paddingY: '0.5rem',
+  color: 'greyscale.800',
+  verticalAlign: 'middle',
+})
+const emptyText = css({
+  padding: '1.5rem',
+  color: 'greyscale.500',
+  fontSize: '0.9375rem',
+})
 /* 操作列:`width: 1%` + nowrap 是「收缩到内容宽度」的标准写法。原来钉死
    4rem,而单元格自带左右各 1rem 内边距,留给按钮的只剩 ~32px ——「撤销」
    两个字被挤成了竖排。钉一个固定值就得同时算进 padding 和按钮自己的
    内边距,不如让内容说了算。 */
 const actionHead = css({ ...thBase, width: '1%', whiteSpace: 'nowrap' })
-const actionCell = css({ width: '1%', whiteSpace: 'nowrap', textAlign: 'right' })
+const actionCell = css({
+  width: '1%',
+  whiteSpace: 'nowrap',
+  textAlign: 'right',
+})

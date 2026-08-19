@@ -32,7 +32,7 @@ describe('parseMeetingCard', () => {
         title: 'W008 的会议',
         status: 'scheduled',
         scheduled_at: '2026-07-25T01:00:00Z',
-      }),
+      })
     )
     expect(card).not.toBeNull()
     expect(card?.room_id).toBe('')
@@ -41,7 +41,7 @@ describe('parseMeetingCard', () => {
 
   it('defaults an unknown status to ongoing and normalizes missing time', () => {
     const card = parseMeetingCard(
-      JSON.stringify({ slug: 's', title: 't', status: 'weird' }),
+      JSON.stringify({ slug: 's', title: 't', status: 'weird' })
     )
     expect(card?.status).toBe('ongoing')
     expect(card?.scheduled_at).toBeNull()

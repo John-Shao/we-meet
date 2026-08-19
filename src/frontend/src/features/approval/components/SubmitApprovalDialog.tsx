@@ -86,7 +86,11 @@ export const SubmitApprovalDialog = ({
   }
 
   return (
-    <Modal onClose={onClose} ariaLabel={t('form.title')} initialFocusRef={firstFieldRef}>
+    <Modal
+      onClose={onClose}
+      ariaLabel={t('form.title')}
+      initialFocusRef={firstFieldRef}
+    >
       <div className={css({ padding: '1.25rem', overflowY: 'auto' })}>
         <h2
           className={css({

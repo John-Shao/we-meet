@@ -29,7 +29,7 @@ export interface DictItem {
 
 export const fetchDictItems = (
   scope?: DictScope,
-  includeInactive = false,
+  includeInactive = false
 ): Promise<DictItem[]> => {
   const qs = new URLSearchParams()
   if (scope) qs.set('scope', scope)
@@ -51,7 +51,7 @@ export const createDictItem = (input: {
 
 export const updateDictItem = (
   id: string,
-  input: { label?: string; sort_order?: number; is_active?: boolean },
+  input: { label?: string; sort_order?: number; is_active?: boolean }
 ): Promise<DictItem> =>
   fetchApi<DictItem>(`/admin/dictionaries/${id}/`, {
     method: 'PATCH',

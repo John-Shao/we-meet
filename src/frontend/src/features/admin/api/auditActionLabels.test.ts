@@ -31,7 +31,9 @@ const backendActions = (): string[] => {
   const block = end < 0 ? rest : rest.slice(0, end)
   // 值是 `"dept.create"` 这种小写点分串;标签在 `_("Department created")` 里,
   // 有空格有大写,不会误命中。多行括号写法(meeting_room_facility.*)也照样匹配。
-  return [...block.matchAll(/"([a-z][a-z0-9_]*\.[a-z0-9_]+)"/g)].map((m) => m[1])
+  return [...block.matchAll(/"([a-z][a-z0-9_]*\.[a-z0-9_]+)"/g)].map(
+    (m) => m[1]
+  )
 }
 
 describe('审计动作的中文标签', () => {
@@ -45,8 +47,8 @@ describe('审计动作的中文标签', () => {
   })
 
   it('每一条都有中文,一条都不许漏', () => {
-    const labels = (zhAdmin as { audit: { action: Record<string, string> } }).audit
-      .action
+    const labels = (zhAdmin as { audit: { action: Record<string, string> } })
+      .audit.action
     const missing = backendActions().filter((action) => {
       const key = actionI18nKey(action).replace('audit.action.', '')
       return !labels[key]
@@ -57,10 +59,10 @@ describe('审计动作的中文标签', () => {
   it('没有对不上任何动作的死标签', () => {
     // 后端删掉一个动作时,这里会提醒把标签也带走 —— 否则文件只增不减。
     const known = new Set(
-      backendActions().map((a) => actionI18nKey(a).replace('audit.action.', '')),
+      backendActions().map((a) => actionI18nKey(a).replace('audit.action.', ''))
     )
-    const labels = (zhAdmin as { audit: { action: Record<string, string> } }).audit
-      .action
+    const labels = (zhAdmin as { audit: { action: Record<string, string> } })
+      .audit.action
     expect(Object.keys(labels).filter((k) => !known.has(k))).toEqual([])
   })
 })

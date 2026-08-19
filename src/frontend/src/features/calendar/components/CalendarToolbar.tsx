@@ -212,10 +212,7 @@ export function CalendarToolbar<
               {t('grid.outsideEvents', { count: outsideEventCount })}
             </button>
           )}
-        <CalendarViewSwitcher
-          view={view}
-          onView={onView}
-        />
+        <CalendarViewSwitcher view={view} onView={onView} />
       </div>
     </div>
   )

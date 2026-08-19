@@ -134,8 +134,7 @@ export const DepartmentsPanel = () => {
         { value: '', label: t('org.moveToTop') },
         ...departments
           .filter(
-            (d) =>
-              d.id !== moveTarget.id && !d.path.startsWith(moveTarget.path),
+            (d) => d.id !== moveTarget.id && !d.path.startsWith(moveTarget.path)
           )
           .map((d) => ({ value: d.id, label: d.name })),
       ]
@@ -153,7 +152,11 @@ export const DepartmentsPanel = () => {
 
   return (
     <div
-      className={css({ display: 'flex', flexDirection: 'column', height: '100%' })}
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+      })}
     >
       <div
         className={css({
@@ -265,7 +268,8 @@ export const DepartmentsPanel = () => {
                 <span>{t('org.head')}:</span>
                 <span className={css({ color: 'greyscale.900' })}>
                   {selectedDept.head
-                    ? selectedDept.head.full_name || selectedDept.head.short_name
+                    ? selectedDept.head.full_name ||
+                      selectedDept.head.short_name
                     : t('org.noHead')}
                 </span>
                 <Button
@@ -295,7 +299,9 @@ export const DepartmentsPanel = () => {
                   {t('org.noMembers')}
                 </p>
               ) : (
-                <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
+                <ul
+                  className={css({ listStyle: 'none', margin: 0, padding: 0 })}
+                >
                   {members.map((m) => (
                     <li
                       key={m.id}
@@ -331,7 +337,9 @@ export const DepartmentsPanel = () => {
       <TextPromptDialog
         isOpen={prompt !== null}
         title={
-          prompt?.mode === 'rename' ? t('org.renameTitle') : t('org.createTitle')
+          prompt?.mode === 'rename'
+            ? t('org.renameTitle')
+            : t('org.createTitle')
         }
         label={t('org.namePlaceholder')}
         initialValue={prompt?.mode === 'rename' ? prompt.dept.name : ''}
@@ -363,7 +371,8 @@ export const DepartmentsPanel = () => {
         confirmLabel={t('org.move')}
         submitting={moveMut.isPending}
         onSubmit={(value) =>
-          moveTarget && moveMut.mutate({ id: moveTarget.id, parent: value || null })
+          moveTarget &&
+          moveMut.mutate({ id: moveTarget.id, parent: value || null })
         }
         onClose={() => setMoveTarget(null)}
       />
@@ -383,7 +392,8 @@ export const DepartmentsPanel = () => {
         confirmLabel={t('actions.save')}
         submitting={headMut.isPending}
         onSubmit={(value) =>
-          headTarget && headMut.mutate({ id: headTarget.id, head: value || null })
+          headTarget &&
+          headMut.mutate({ id: headTarget.id, head: value || null })
         }
         onClose={() => setHeadTarget(null)}
       />

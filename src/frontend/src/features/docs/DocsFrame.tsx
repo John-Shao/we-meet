@@ -87,7 +87,7 @@ export const DocsRoute = () => {
   const buildRelative = useCallback(
     (path: string) =>
       `${path}?embed=1&lang=${encodeURIComponent(i18n.language)}&theme=${initialScheme}`,
-    [i18n.language, initialScheme],
+    [i18n.language, initialScheme]
   )
   // 与 App 端(we-meet-android DocsScreen.docsUrl)对齐:经 docs 的 OIDC
   // authenticate 入口进站,而非裸 `/`。无 docs 会话的浏览器(新浏览器/无痕窗)
@@ -107,10 +107,10 @@ export const DocsRoute = () => {
     (relative: string) =>
       docsBase
         ? `${docsBase}/api/v1.0/authenticate/?next=${encodeURIComponent(
-            `${docsBase}${relative}`,
+            `${docsBase}${relative}`
           )}`
         : '',
-    [docsBase],
+    [docsBase]
   )
 
   // 首选进站:后端用调用者身份换一张 Docs 一次性票据,iframe 直接带票据进站 ——
@@ -195,9 +195,11 @@ export const DocsRoute = () => {
     if (!docsOrigin) return
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== docsOrigin) return
-      const data = e.data as
-        | { type?: string; features?: unknown; docId?: unknown }
-        | null
+      const data = e.data as {
+        type?: string
+        features?: unknown
+        docId?: unknown
+      } | null
       if (data?.type !== 'wemeet-embed-hello') return
       const features = Array.isArray(data.features) ? data.features : []
       setDocsRouteSync(features.includes('route-sync'))
@@ -208,7 +210,7 @@ export const DocsRoute = () => {
           platform: 'web',
           features: HOST_FEATURES,
         },
-        docsOrigin,
+        docsOrigin
       )
     }
     window.addEventListener('message', onMsg)
@@ -236,7 +238,10 @@ export const DocsRoute = () => {
       if (data?.type !== 'wemeet-route-changed') return
       // 只认 uuid;其余(列表页、回收站等)一律落回 /docs,不把 docs 的内部路径
       // 原样写进 meet 的地址栏。
-      const id = typeof data.docId === 'string' && UUID_RE.test(data.docId) ? data.docId : null
+      const id =
+        typeof data.docId === 'string' && UUID_RE.test(data.docId)
+          ? data.docId
+          : null
       currentPathRef.current = id ? `/docs/${id}/` : '/'
       const shellPath = id ? `/docs/${id}` : '/docs'
       if (window.location.pathname !== shellPath) {
@@ -253,7 +258,7 @@ export const DocsRoute = () => {
     const post = () => {
       iframeRef.current?.contentWindow?.postMessage(
         { type: 'wemeet-theme', theme: colorScheme },
-        '*',
+        '*'
       )
     }
     post()
@@ -273,9 +278,12 @@ export const DocsRoute = () => {
     if (!docsOrigin) return
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== docsOrigin) return
-      const data = e.data as
-        | { type?: string; docId?: string; title?: string; url?: string }
-        | null
+      const data = e.data as {
+        type?: string
+        docId?: string
+        title?: string
+        url?: string
+      } | null
       if (data?.type !== 'wemeet-share-doc' || !data.docId || !data.url) return
       setShareDoc({
         docId: data.docId,
@@ -340,7 +348,7 @@ export const DocsRoute = () => {
               if (!granted || !docsOrigin) return
               iframeRef.current?.contentWindow?.postMessage(
                 { type: 'wemeet-doc-access-updated', docId: shareDoc.docId },
-                docsOrigin,
+                docsOrigin
               )
             })
           }}

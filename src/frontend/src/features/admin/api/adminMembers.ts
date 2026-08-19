@@ -83,7 +83,7 @@ export interface MemberListParams {
 }
 
 export const fetchAdminMembers = (
-  params: MemberListParams,
+  params: MemberListParams
 ): Promise<Paginated<AdminMember>> => {
   const qs = new URLSearchParams()
   if (params.status) qs.set('status', params.status)
@@ -99,7 +99,7 @@ export const fetchAdminMembers = (
   if (params.page) qs.set('page', String(params.page))
   const s = qs.toString()
   return fetchApi<Paginated<AdminMember>>(
-    `/admin/memberships/${s ? `?${s}` : ''}`,
+    `/admin/memberships/${s ? `?${s}` : ''}`
   )
 }
 
@@ -126,7 +126,7 @@ export interface UpdateMembershipInput {
 
 export const updateMembership = (
   id: string,
-  input: UpdateMembershipInput,
+  input: UpdateMembershipInput
 ): Promise<unknown> =>
   fetchApi(`/admin/memberships/${id}/`, {
     method: 'PATCH',
@@ -160,7 +160,7 @@ export interface OffboardInput {
 
 export const offboardMember = (
   id: string,
-  input: OffboardInput,
+  input: OffboardInput
 ): Promise<unknown> =>
   fetchApi(`/admin/memberships/${id}/offboard/`, {
     method: 'POST',
@@ -169,7 +169,7 @@ export const offboardMember = (
 
 export const rehireMember = (
   id: string,
-  input: { department?: string | null; org_role?: string } = {},
+  input: { department?: string | null; org_role?: string } = {}
 ): Promise<unknown> =>
   fetchApi(`/admin/memberships/${id}/rehire/`, {
     method: 'POST',
@@ -191,7 +191,7 @@ export interface BulkSkip {
 
 export const bulkChangeDepartment = (
   ids: string[],
-  department: string | null,
+  department: string | null
 ): Promise<{ moved: number; skipped: BulkSkip[] }> =>
   fetchApi(`/admin/memberships/bulk-department/`, {
     method: 'POST',
@@ -200,7 +200,7 @@ export const bulkChangeDepartment = (
 
 export const bulkOffboard = (
   ids: string[],
-  input: { reason?: string; allow_orphan_head?: boolean } = {},
+  input: { reason?: string; allow_orphan_head?: boolean } = {}
 ): Promise<{ offboarded: number; skipped: BulkSkip[] }> =>
   fetchApi(`/admin/memberships/bulk-offboard/`, {
     method: 'POST',

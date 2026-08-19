@@ -91,103 +91,109 @@ export const GroupVoiceCallPicker = ({
       maxHeight="72vh"
     >
       <div className={modalHead}>
-          <h2
-            className={css({
-              margin: 0,
-              fontSize: '1rem',
-              fontWeight: 'bold',
-              color: 'greyscale.900',
-            })}
-          >
-            {title ?? t('call.groupPicker.title')}
-          </h2>
-          <ModalCloseButton onClose={onClose} label={t('call.cancel')} />
-        </div>
-        <div className={css({ overflowY: 'auto', flex: 1 })}>
-          {isFetching && candidates.length === 0 ? (
-            <StateHint loading>{t('group.loading')}</StateHint>
-          ) : (
-            <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
-              {candidates.map((m) => {
-                const checked = isChecked(m.userId)
-                return (
-                  <li key={m.userId}>
-                    <button
-                      type="button"
-                      onClick={() => toggle(m.userId)}
-                      aria-pressed={checked}
-                      data-testid={`group-call-item-${m.userId}`}
+        <h2
+          className={css({
+            margin: 0,
+            fontSize: '1rem',
+            fontWeight: 'bold',
+            color: 'greyscale.900',
+          })}
+        >
+          {title ?? t('call.groupPicker.title')}
+        </h2>
+        <ModalCloseButton onClose={onClose} label={t('call.cancel')} />
+      </div>
+      <div className={css({ overflowY: 'auto', flex: 1 })}>
+        {isFetching && candidates.length === 0 ? (
+          <StateHint loading>{t('group.loading')}</StateHint>
+        ) : (
+          <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
+            {candidates.map((m) => {
+              const checked = isChecked(m.userId)
+              return (
+                <li key={m.userId}>
+                  <button
+                    type="button"
+                    onClick={() => toggle(m.userId)}
+                    aria-pressed={checked}
+                    data-testid={`group-call-item-${m.userId}`}
+                    className={css({
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.625rem',
+                      width: '100%',
+                      paddingX: '1rem',
+                      paddingY: '0.5rem',
+                      border: 'none',
+                      borderBottom: '1px solid token(colors.greyscale.100)',
+                      backgroundColor: checked
+                        ? 'greyscale.100'
+                        : 'transparent',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      _hover: { backgroundColor: 'greyscale.100' },
+                    })}
+                  >
+                    <span
+                      aria-hidden="true"
                       className={css({
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.625rem',
-                        width: '100%',
-                        paddingX: '1rem',
-                        paddingY: '0.5rem',
-                        border: 'none',
-                        borderBottom: '1px solid token(colors.greyscale.100)',
+                        flexShrink: 0,
+                        width: '1.125rem',
+                        height: '1.125rem',
+                        borderRadius: '0.25rem',
+                        border: '1px solid token(colors.greyscale.400)',
+                        // 未选中走会翻转的 greyscale.000(浅色仍是纯白),
+                        // 裸 'white' 在深色下是一排刺眼白方块。
                         backgroundColor: checked
-                          ? 'greyscale.100'
-                          : 'transparent',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        _hover: { backgroundColor: 'greyscale.100' },
+                          ? 'primary.500'
+                          : 'greyscale.000',
+                        color: 'white',
+                        fontSize: '0.75rem',
+                        lineHeight: '1.125rem',
+                        textAlign: 'center',
                       })}
                     >
-                      <span
-                        aria-hidden="true"
-                        className={css({
-                          flexShrink: 0,
-                          width: '1.125rem',
-                          height: '1.125rem',
-                          borderRadius: '0.25rem',
-                          border: '1px solid token(colors.greyscale.400)',
-                          // 未选中走会翻转的 greyscale.000(浅色仍是纯白),
-                          // 裸 'white' 在深色下是一排刺眼白方块。
-                          backgroundColor: checked
-                            ? 'primary.500'
-                            : 'greyscale.000',
-                          color: 'white',
-                          fontSize: '0.75rem',
-                          lineHeight: '1.125rem',
-                          textAlign: 'center',
-                        })}
-                      >
-                        {checked ? '✓' : ''}
-                      </span>
-                      <MemberAvatar name={m.label} src={m.avatarUrl} size="2rem" />
-                      <span
-                        className={css({
-                          fontWeight: 'medium',
-                          color: 'greyscale.900',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        })}
-                      >
-                        {m.label}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-        <div className={modalFoot}>
-          <span className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}>
-            {t('group.selected', { count: picked.length })}
-          </span>
-          <Button
-            variant="primary"
-            size="action"
-            isDisabled={picked.length === 0}
-            onPress={confirm}
-            data-testid="group-call-confirm"
-          >
-            {t('call.groupPicker.confirm')}
-          </Button>
-        </div>
+                      {checked ? '✓' : ''}
+                    </span>
+                    <MemberAvatar
+                      name={m.label}
+                      src={m.avatarUrl}
+                      size="2rem"
+                    />
+                    <span
+                      className={css({
+                        fontWeight: 'medium',
+                        color: 'greyscale.900',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      })}
+                    >
+                      {m.label}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+      <div className={modalFoot}>
+        <span
+          className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}
+        >
+          {t('group.selected', { count: picked.length })}
+        </span>
+        <Button
+          variant="primary"
+          size="action"
+          isDisabled={picked.length === 0}
+          onPress={confirm}
+          data-testid="group-call-confirm"
+        >
+          {t('call.groupPicker.confirm')}
+        </Button>
+      </div>
     </Modal>
   )
 }

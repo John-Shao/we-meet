@@ -46,7 +46,8 @@ export const SuggestedParticipantsList = ({
   // Latest invite per user wins — re-calls push a fresh entry for the same
   // person and the row must track the newest attempt.
   const latestByUser = new Map<string, MeetInvite>()
-  for (const invite of invites) latestByUser.set(invite.userId, invite as MeetInvite)
+  for (const invite of invites)
+    latestByUser.set(invite.userId, invite as MeetInvite)
 
   const call = (person: SuggestedParticipant) =>
     sendMeetInvites(
@@ -84,10 +85,8 @@ export const SuggestedParticipantsList = ({
         const label = person.full_name || person.short_name || person.email
         const invite = latestByUser.get(person.id)
         const mineActive =
-          invite &&
-          (invite.state === 'inviting' || invite.state === 'ringing')
-        const remoteRinging =
-          !mineActive && remoteRingingUserIds.has(person.id)
+          invite && (invite.state === 'inviting' || invite.state === 'ringing')
+        const remoteRinging = !mineActive && remoteRingingUserIds.has(person.id)
         const mineEnded =
           invite &&
           !mineActive &&
@@ -106,11 +105,7 @@ export const SuggestedParticipantsList = ({
               opacity: remoteRinging ? 0.55 : 1,
             })}
           >
-            <MemberAvatar
-              name={label}
-              src={person.avatar_url}
-              size="2rem"
-            />
+            <MemberAvatar name={label} src={person.avatar_url} size="2rem" />
             <span
               className={css({
                 display: 'flex',

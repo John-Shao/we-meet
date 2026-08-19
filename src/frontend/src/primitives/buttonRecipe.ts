@@ -33,7 +33,8 @@ export const buttonRecipe = cva({
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    transition: 'background token(durations.slow), outline token(durations.slow), border-color token(durations.slow)',
+    transition:
+      'background token(durations.slow), outline token(durations.slow), border-color token(durations.slow)',
     cursor: 'pointer',
     border: '1px solid transparent',
     '&[data-disabled]': {
@@ -169,7 +170,12 @@ export const buttonRecipe = cva({
        * 配色走 variant 而非各写一套:`quaternaryText`(透明底 + 灰图标 + hover
        * 浅灰底)正是这一族该有的样子,删除类用 `quaternaryDanger`。
        */
-      icon24: { borderRadius: 6, width: '1.5rem', height: '1.5rem', padding: 0 },
+      icon24: {
+        borderRadius: 6,
+        width: '1.5rem',
+        height: '1.5rem',
+        padding: 0,
+      },
       icon28: {
         borderRadius: 6,
         width: '1.75rem',

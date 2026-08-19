@@ -74,13 +74,13 @@ export const DeleteDepartmentDialog = ({
           className={cx(
             selectChrome,
             css({
-            width: '100%',
-            padding: '0.375rem 0.5rem',
-            border: '1px solid token(colors.control.border)',
-            borderRadius: '4px',
-            backgroundColor: 'greyscale.000',
-            color: 'default.text',
-            fontSize: '0.875rem',
+              width: '100%',
+              padding: '0.375rem 0.5rem',
+              border: '1px solid token(colors.control.border)',
+              borderRadius: '4px',
+              backgroundColor: 'greyscale.000',
+              color: 'default.text',
+              fontSize: '0.875rem',
             })
           )}
         >

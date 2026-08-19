@@ -11,10 +11,25 @@ export const PagePlaceholder = ({
   title: string
   hint: string
 }) => (
-  <div className={css({ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' })}>
-    <h1 className={css({ fontSize: '1.25rem', fontWeight: 'bold', color: 'greyscale.900' })}>
+  <div
+    className={css({
+      padding: '1.5rem',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.75rem',
+    })}
+  >
+    <h1
+      className={css({
+        fontSize: '1.25rem',
+        fontWeight: 'bold',
+        color: 'greyscale.900',
+      })}
+    >
       {title}
     </h1>
-    <p className={css({ color: 'greyscale.500', fontSize: '0.9375rem' })}>{hint}</p>
+    <p className={css({ color: 'greyscale.500', fontSize: '0.9375rem' })}>
+      {hint}
+    </p>
   </div>
 )

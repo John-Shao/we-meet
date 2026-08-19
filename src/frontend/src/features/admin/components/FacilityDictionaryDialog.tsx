@@ -53,7 +53,8 @@ export const FacilityDictionaryDialog = ({
     // The C-side filter chips read the same dictionary.
     void queryClient.invalidateQueries({ queryKey: ['meeting-rooms'] })
   }
-  const onError = (e: unknown) => void showAlert({ message: describeApiError(e) })
+  const onError = (e: unknown) =>
+    void showAlert({ message: describeApiError(e) })
 
   const createMut = useMutation({
     mutationFn: (input: FacilityInput) => createFacility(input),
@@ -118,7 +119,10 @@ export const FacilityDictionaryDialog = ({
                 value={editing[facility.id] ?? facility.name}
                 aria-label={t('meetingRooms.facilityName')}
                 onChange={(e) =>
-                  setEditing((prev) => ({ ...prev, [facility.id]: e.target.value }))
+                  setEditing((prev) => ({
+                    ...prev,
+                    [facility.id]: e.target.value,
+                  }))
                 }
                 onBlur={() => rename(facility)}
               />

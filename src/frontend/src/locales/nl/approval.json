@@ -6,8 +6,16 @@
     "create": "Nieuw verzoek",
     "loading": "Laden…"
   },
-  "section": { "pending": "Te beoordelen", "mine": "Mijn verzoeken", "empty": "Niets hier" },
-  "tab": { "create": "Nieuw verzoek", "pending": "Te doen", "mine": "Verstuurd" },
+  "section": {
+    "pending": "Te beoordelen",
+    "mine": "Mijn verzoeken",
+    "empty": "Niets hier"
+  },
+  "tab": {
+    "create": "Nieuw verzoek",
+    "pending": "Te doen",
+    "mine": "Verstuurd"
+  },
   "status": {
     "pending": "In behandeling",
     "approved": "Goedgekeurd",

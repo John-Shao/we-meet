@@ -115,14 +115,10 @@ export const ParticipantsList = () => {
   const q = query.trim().toLowerCase()
   const matchesName = (name: string) => !q || name.toLowerCase().includes(q)
   const filteredSuggested = suggested.filter((s) =>
-    matchesName(
-      [s.full_name, s.short_name, s.email].filter(Boolean).join(' ')
-    )
+    matchesName([s.full_name, s.short_name, s.email].filter(Boolean).join(' '))
   )
   const filterParticipants = <T extends Participant>(list: T[]): T[] =>
-    q
-      ? list.filter((p) => p && matchesName(p.name || p.identity))
-      : list
+    q ? list.filter((p) => p && matchesName(p.name || p.identity)) : list
   const filteredSorted = filterParticipants(sortedParticipants)
   const filteredRaised = filterParticipants(raisedHandParticipants)
   const filteredWaiting = q
@@ -269,9 +265,7 @@ export const ParticipantsList = () => {
                     participant={participant}
                   />
                 )}
-                action={
-                  <LowerAllHandsButton participants={filteredRaised} />
-                }
+                action={<LowerAllHandsButton participants={filteredRaised} />}
               />
             </Div>
           )}

@@ -32,7 +32,8 @@ export const clipToWindow = (
   windowStart: Date,
   windowEnd: Date
 ): BusyRange | null => {
-  if (!rangesOverlap(range.start, range.end, windowStart, windowEnd)) return null
+  if (!rangesOverlap(range.start, range.end, windowStart, windowEnd))
+    return null
   return {
     start: new Date(
       Math.max(ms(range.start), windowStart.getTime())
@@ -46,9 +47,7 @@ export const capacityFits = (capacity: number, headcount: number): boolean =>
   capacity === 0 || capacity >= headcount
 
 /** Ids of the rooms reported free, for greying out the rest of the list. */
-export const availableIdSet = (
-  rows: MeetingRoomAvailability[]
-): Set<string> =>
+export const availableIdSet = (rows: MeetingRoomAvailability[]): Set<string> =>
   new Set(rows.filter((r) => r.is_available).map((r) => r.id))
 
 /**

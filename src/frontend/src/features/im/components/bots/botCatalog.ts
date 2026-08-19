@@ -6,7 +6,11 @@
  * (application bots from an open platform) actually exists.
  */
 export const BOT_CATALOG = [
-  { key: 'custom', nameKey: 'bots.catalog.custom', descKey: 'bots.catalog.customDesc' },
+  {
+    key: 'custom',
+    nameKey: 'bots.catalog.custom',
+    descKey: 'bots.catalog.customDesc',
+  },
 ] as const
 
 export type BotCatalogEntry = (typeof BOT_CATALOG)[number]

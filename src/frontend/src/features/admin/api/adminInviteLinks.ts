@@ -23,7 +23,11 @@ export interface InviteLink {
   used_count: number
   is_active: boolean
   is_expired: boolean
-  created_by: { id: string; full_name: string | null; short_name: string | null } | null
+  created_by: {
+    id: string
+    full_name: string | null
+    short_name: string | null
+  } | null
   created_at: string
 }
 
@@ -43,9 +47,17 @@ export interface JoinRequest {
   department: { id: string; name: string } | null
   org_role: string
   status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'
-  invited_by: { id: string; full_name: string | null; short_name: string | null } | null
+  invited_by: {
+    id: string
+    full_name: string | null
+    short_name: string | null
+  } | null
   link_code: string
-  reviewed_by: { id: string; full_name: string | null; short_name: string | null } | null
+  reviewed_by: {
+    id: string
+    full_name: string | null
+    short_name: string | null
+  } | null
   reviewed_at: string | null
   reject_reason: string
   created_at: string
@@ -55,12 +67,16 @@ export interface JoinRequest {
 export const MAX_EXPIRY_DAYS = 30
 export const EXPIRY_PRESETS = [1, 3, 7, 14, 30]
 
-export const fetchInviteLinks = (activeOnly = true): Promise<Paginated<InviteLink>> =>
+export const fetchInviteLinks = (
+  activeOnly = true
+): Promise<Paginated<InviteLink>> =>
   fetchApi<Paginated<InviteLink>>(
     `/admin/invite-links/${activeOnly ? '?active=1' : ''}`
   )
 
-export const createInviteLink = (input: CreateInviteLinkInput): Promise<InviteLink> =>
+export const createInviteLink = (
+  input: CreateInviteLinkInput
+): Promise<InviteLink> =>
   fetchApi<InviteLink>('/admin/invite-links/', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -87,7 +103,10 @@ export const approveJoinRequest = (
     body: JSON.stringify(input),
   })
 
-export const rejectJoinRequest = (id: string, reason: string): Promise<JoinRequest> =>
+export const rejectJoinRequest = (
+  id: string,
+  reason: string
+): Promise<JoinRequest> =>
   fetchApi<JoinRequest>(`/admin/join-requests/${id}/reject/`, {
     method: 'POST',
     body: JSON.stringify({ reason }),

@@ -53,7 +53,8 @@ export const InviteLinkDialog = ({
 
   const parsedMaxUses = maxUses.trim() === '' ? null : Number(maxUses)
   const maxUsesInvalid =
-    parsedMaxUses !== null && (!Number.isInteger(parsedMaxUses) || parsedMaxUses < 1)
+    parsedMaxUses !== null &&
+    (!Number.isInteger(parsedMaxUses) || parsedMaxUses < 1)
 
   const submit = () => {
     if (submitting || maxUsesInvalid) return
@@ -160,7 +161,13 @@ export const InviteLinkDialog = ({
           <p className={warnCls}>{t('invites.noApprovalWarning')}</p>
         )}
 
-        <div className={css({ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' })}>
+        <div
+          className={css({
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '0.5rem',
+          })}
+        >
           <Button variant="secondary" size="sm" onPress={onClose}>
             {t('actions.cancel')}
           </Button>

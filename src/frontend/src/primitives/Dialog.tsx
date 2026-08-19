@@ -26,7 +26,9 @@ const StyledModalOverlay = styled(ModalOverlay, {
     alignItems: 'center',
     zIndex: 'modal',
     '&[data-entering]': { animation: 'fade token(durations.slow)' },
-    '&[data-exiting]': { animation: 'fade token(durations.normal) reverse ease-in' },
+    '&[data-exiting]': {
+      animation: 'fade token(durations.normal) reverse ease-in',
+    },
   },
 })
 

@@ -60,65 +60,62 @@ export const useGlobalAsk = () => {
     setState(INITIAL)
   }, [abort])
 
-  const ask = useCallback(
-    async (rawQuestion: string) => {
-      const question = rawQuestion.trim()
-      if (!question) return
-      abortRef.current?.abort()
-      const ctrl = new AbortController()
-      abortRef.current = ctrl
-      setState({ ...INITIAL, status: 'asking', question })
+  const ask = useCallback(async (rawQuestion: string) => {
+    const question = rawQuestion.trim()
+    if (!question) return
+    abortRef.current?.abort()
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
+    setState({ ...INITIAL, status: 'asking', question })
 
-      try {
-        for await (const ev of sseStream('search/ask-stream/', {
-          body: { question },
-          signal: ctrl.signal,
-        })) {
-          if (ev.type === 'meta') {
-            const meta = ev as {
-              citations?: GlobalAskCitation[]
-              sources?: GlobalAskSources
-            }
-            setState((prev) => ({
-              ...prev,
-              citations: meta.citations ?? [],
-              sources: meta.sources ?? {},
-            }))
-          } else if (ev.type === 'delta') {
-            setState((prev) => ({ ...prev, answer: prev.answer + ev.text }))
-          } else if (ev.type === 'error') {
-            throw new Error(ev.message)
-          } else if (ev.type === 'done') {
-            const done = ev as unknown as {
-              citations_used?: number[]
-              degraded?: boolean
-            }
-            setState((prev) => ({
-              ...prev,
-              status: 'done',
-              citationsUsed: done.citations_used ?? [],
-              degraded: !!done.degraded,
-            }))
+    try {
+      for await (const ev of sseStream('search/ask-stream/', {
+        body: { question },
+        signal: ctrl.signal,
+      })) {
+        if (ev.type === 'meta') {
+          const meta = ev as {
+            citations?: GlobalAskCitation[]
+            sources?: GlobalAskSources
           }
+          setState((prev) => ({
+            ...prev,
+            citations: meta.citations ?? [],
+            sources: meta.sources ?? {},
+          }))
+        } else if (ev.type === 'delta') {
+          setState((prev) => ({ ...prev, answer: prev.answer + ev.text }))
+        } else if (ev.type === 'error') {
+          throw new Error(ev.message)
+        } else if (ev.type === 'done') {
+          const done = ev as unknown as {
+            citations_used?: number[]
+            degraded?: boolean
+          }
+          setState((prev) => ({
+            ...prev,
+            status: 'done',
+            citationsUsed: done.citations_used ?? [],
+            degraded: !!done.degraded,
+          }))
         }
-      } catch (e) {
-        if (e instanceof DOMException && e.name === 'AbortError') return
-        const message =
-          e instanceof ApiError
-            ? `${e.statusCode}`
-            : e instanceof Error
-              ? e.message
-              : String(e)
-        setState((prev) => ({ ...prev, status: 'done', error: message }))
-      } finally {
-        if (abortRef.current === ctrl) abortRef.current = null
-        setState((prev) =>
-          prev.status === 'asking' ? { ...prev, status: 'done' } : prev
-        )
       }
-    },
-    []
-  )
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      const message =
+        e instanceof ApiError
+          ? `${e.statusCode}`
+          : e instanceof Error
+            ? e.message
+            : String(e)
+      setState((prev) => ({ ...prev, status: 'done', error: message }))
+    } finally {
+      if (abortRef.current === ctrl) abortRef.current = null
+      setState((prev) =>
+        prev.status === 'asking' ? { ...prev, status: 'done' } : prev
+      )
+    }
+  }, [])
 
   return { state, ask, abort, reset }
 }

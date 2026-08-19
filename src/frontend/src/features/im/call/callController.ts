@@ -483,7 +483,10 @@ export const scheduleCallRoomLeave = (extra?: () => void): void => {
     const c = connectedCall
     if (c) {
       connectedCall = null
-      const durationSec = Math.max(1, Math.round((leftAtMs - c.startedAt) / 1000))
+      const durationSec = Math.max(
+        1,
+        Math.round((leftAtMs - c.startedAt) / 1000)
+      )
       void sendCallLog(
         { cid: c.cid, media: c.media } as CallInfo,
         'completed',
@@ -493,7 +496,10 @@ export const scheduleCallRoomLeave = (extra?: () => void): void => {
     const m = connectedMeetCall
     if (m) {
       connectedMeetCall = null
-      const durationSec = Math.max(1, Math.round((leftAtMs - m.startedAt) / 1000))
+      const durationSec = Math.max(
+        1,
+        Math.round((leftAtMs - m.startedAt) / 1000)
+      )
       void sendCallLog(
         { cid: m.cid, media: m.media } as CallInfo,
         'completed',

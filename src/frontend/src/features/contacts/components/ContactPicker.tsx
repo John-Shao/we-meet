@@ -121,7 +121,10 @@ export const ContactPicker = ({ onSelect, onClose }: Props) => {
                 >
                   <MemberAvatar
                     name={
-                      member.full_name || member.short_name || member.email || ''
+                      member.full_name ||
+                      member.short_name ||
+                      member.email ||
+                      ''
                     }
                     src={member.avatar_url}
                     size="2.25rem"

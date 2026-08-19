@@ -51,7 +51,9 @@ export const DocCardMessage = ({
       <button
         type="button"
         disabled={!clickable}
-        onClick={() => clickable && onOpen?.({ doc_id: card.doc_id, url: card.url })}
+        onClick={() =>
+          clickable && onOpen?.({ doc_id: card.doc_id, url: card.url })
+        }
         className={css({
           display: 'flex',
           flexDirection: 'column',
@@ -151,9 +153,7 @@ export const DocCardMessage = ({
           alignItems: isOwn ? 'flex-end' : 'flex-start',
         })}
       >
-        {!isOwn && showSender && (
-          <SenderLabel name={name} bot={senderBot} />
-        )}
+        {!isOwn && showSender && <SenderLabel name={name} bot={senderBot} />}
         {cardEl}
       </div>
       {isOwn && (

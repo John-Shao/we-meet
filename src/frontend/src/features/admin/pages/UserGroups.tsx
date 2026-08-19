@@ -193,7 +193,9 @@ export const AdminUserGroups = () => {
               ) : members.length === 0 ? (
                 <p className={hintCls}>{t('groups.noMembers')}</p>
               ) : (
-                <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
+                <ul
+                  className={css({ listStyle: 'none', margin: 0, padding: 0 })}
+                >
                   {members.map((m) => (
                     <li key={m.id} className={memberRowCls}>
                       <span className={css({ color: 'greyscale.900' })}>

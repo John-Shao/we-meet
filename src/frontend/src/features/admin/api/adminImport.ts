@@ -55,13 +55,13 @@ export interface ImportJob {
 /** 上传 CSV 并跑预检。返回的 job 已经带上逐行预览。 */
 export const uploadImportFile = async (
   file: File,
-  createMissingDepartments: boolean,
+  createMissingDepartments: boolean
 ): Promise<ImportJob> => {
   const form = new FormData()
   form.append('file', file)
   form.append(
     'create_missing_departments',
-    createMissingDepartments ? 'true' : 'false',
+    createMissingDepartments ? 'true' : 'false'
   )
   // 不设 Content-Type:交给浏览器带上 multipart 的 boundary,手写会漏掉它。
   return fetchApi<ImportJob>('/admin/import-jobs/', {
@@ -76,7 +76,7 @@ export const uploadImportFile = async (
  */
 export const applyImportJob = (
   id: string,
-  expectedTotal: number,
+  expectedTotal: number
 ): Promise<ImportJob> =>
   fetchApi<ImportJob>(`/admin/import-jobs/${id}/apply/`, {
     method: 'POST',

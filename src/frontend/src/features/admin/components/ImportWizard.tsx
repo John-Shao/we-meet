@@ -66,12 +66,17 @@ export const ImportWizard = ({ isOpen, onDone, onClose }: Props) => {
   const rows = job?.rows ?? []
   const errorRows = rows.filter((r) => r.action === 'error')
   const warnRows = rows.filter(
-    (r) => r.action !== 'error' && r.warnings.length > 0,
+    (r) => r.action !== 'error' && r.warnings.length > 0
   )
 
   return (
     // type="flex":默认 dialog 档定宽 30rem,46rem 的向导会整片溢到框外。
-    <Dialog isOpen={isOpen} onClose={close} type="flex" title={t('import.title')}>
+    <Dialog
+      isOpen={isOpen}
+      onClose={close}
+      type="flex"
+      title={t('import.title')}
+    >
       <div className={css({ width: 'min(46rem, calc(100vw - 6rem))' })}>
         {job === null ? (
           <>
@@ -118,7 +123,11 @@ export const ImportWizard = ({ isOpen, onDone, onClose }: Props) => {
           <>
             <p className={errorCls}>{job.error}</p>
             <div className={footerCls}>
-              <Button variant="tertiaryText" size="sm" onPress={() => setJob(null)}>
+              <Button
+                variant="tertiaryText"
+                size="sm"
+                onPress={() => setJob(null)}
+              >
                 {t('import.chooseAnother')}
               </Button>
             </div>

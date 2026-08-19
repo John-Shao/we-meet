@@ -28,9 +28,7 @@ export const fetchApprovalsPage = (
   role: 'pending' | 'mine',
   page: number
 ): Promise<Paginated<ApprovalInstance>> =>
-  fetchApi<Paginated<ApprovalInstance>>(
-    `/approvals/?role=${role}&page=${page}`
-  )
+  fetchApi<Paginated<ApprovalInstance>>(`/approvals/?role=${role}&page=${page}`)
 
 /** POST /api/v1.0/approvals — file a new request off a template. */
 export const submitApproval = (

@@ -20,7 +20,7 @@ import { resolveImUsers } from '../api/resolveImUsers'
 export const useGroupRoster = (
   client: Client,
   cid: string,
-  currentUserUID: string,
+  currentUserUID: string
 ) => {
   const qc = useQueryClient()
 

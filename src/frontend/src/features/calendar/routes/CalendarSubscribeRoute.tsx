@@ -63,8 +63,30 @@ const SubscribeCard = () => {
   )
 }
 
-const pageCls = css({ width: '100%', minHeight: '100%', display: 'grid', placeItems: 'center', padding: '2rem' })
-const cardCls = css({ width: '100%', maxWidth: '32rem', border: '1px solid token(colors.greyscale.200)', borderRadius: '0.75rem', background: 'greyscale.000', padding: '1.5rem', boxShadow: 'sm' })
+const pageCls = css({
+  width: '100%',
+  minHeight: '100%',
+  display: 'grid',
+  placeItems: 'center',
+  padding: '2rem',
+})
+const cardCls = css({
+  width: '100%',
+  maxWidth: '32rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '0.75rem',
+  background: 'greyscale.000',
+  padding: '1.5rem',
+  boxShadow: 'sm',
+})
 const mutedCls = css({ color: 'greyscale.500' })
-const buttonCls = css({ border: 0, borderRadius: '0.4rem', padding: '0.65rem 1rem', background: 'primary.500', color: 'white', cursor: 'pointer', _disabled: { opacity: 0.5 } })
+const buttonCls = css({
+  border: 0,
+  borderRadius: '0.4rem',
+  padding: '0.65rem 1rem',
+  background: 'primary.500',
+  color: 'white',
+  cursor: 'pointer',
+  _disabled: { opacity: 0.5 },
+})
 const errorCls = css({ color: '#dc2626' })

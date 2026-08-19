@@ -66,12 +66,13 @@ export const DirectoryMultiPicker = ({
     hasNextPage,
     isFetchingNextPage,
   } = useDirectoryMemberSearch()
-  const { data: externalContacts = [], isFetching: isFetchingExternal } = useQuery({
-    queryKey: ['directory', 'external-contacts'],
-    queryFn: fetchExternalContacts,
-    enabled: includeExternal,
-    staleTime: 30_000,
-  })
+  const { data: externalContacts = [], isFetching: isFetchingExternal } =
+    useQuery({
+      queryKey: ['directory', 'external-contacts'],
+      queryFn: fetchExternalContacts,
+      enabled: includeExternal,
+      staleTime: 30_000,
+    })
   const options = excludeIds
     ? selectable.filter((m) => !excludeIds.has(m.id))
     : selectable
@@ -140,7 +141,9 @@ export const DirectoryMultiPicker = ({
             return (
               <Row
                 key={`external-${contact.id}`}
-                testid={testIdPrefix ? `${testIdPrefix}${contact.id}` : undefined}
+                testid={
+                  testIdPrefix ? `${testIdPrefix}${contact.id}` : undefined
+                }
                 label={label}
                 sub={[contact.organization?.name, externalLabel]
                   .filter(Boolean)

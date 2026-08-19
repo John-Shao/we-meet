@@ -46,10 +46,7 @@ export const PersonalAIFab = () => {
         <RiSparkling2Line />
       </Button>
       <Popover>
-        <Dialog
-          aria-label={t('title')}
-          className={css({ outline: 'none' })}
-        >
+        <Dialog aria-label={t('title')} className={css({ outline: 'none' })}>
           <PersonalAIDrawer onClose={() => setIsOpen(false)} />
         </Dialog>
       </Popover>

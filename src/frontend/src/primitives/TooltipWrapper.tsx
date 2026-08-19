@@ -73,7 +73,9 @@ const StyledTooltip = styled(RACTooltip, {
       fill: 'var(--highlight-background)',
     },
     '&[data-entering]': { animation: 'slide token(durations.slow)' },
-    '&[data-exiting]': { animation: 'slide token(durations.slow) reverse ease-in' },
+    '&[data-exiting]': {
+      animation: 'slide token(durations.slow) reverse ease-in',
+    },
   },
 })
 

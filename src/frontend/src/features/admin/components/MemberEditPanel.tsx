@@ -105,11 +105,11 @@ export const MemberEditPanel = ({ member, departments, onClose }: Props) => {
     member.full_name || member.short_name || member.email || member.sub || ''
   const set = <K extends keyof UpdateMembershipInput>(
     key: K,
-    value: UpdateMembershipInput[K],
+    value: UpdateMembershipInput[K]
   ) => setForm((prev) => ({ ...prev, [key]: value }))
 
   const managerOptions = (candidates?.results ?? []).filter(
-    (m) => m.id !== member.id,
+    (m) => m.id !== member.id
   )
 
   return (
@@ -134,7 +134,10 @@ export const MemberEditPanel = ({ member, departments, onClose }: Props) => {
           <Section title={t('members.sectionBasic')}>
             {/* Identity comes from the IdP — editable here would be a second truth. */}
             <ReadOnlyRow label={t('members.colMember')} value={displayName} />
-            <ReadOnlyRow label={t('invite.email')} value={member.email ?? '—'} />
+            <ReadOnlyRow
+              label={t('invite.email')}
+              value={member.email ?? '—'}
+            />
             <SelectRow
               label={t('members.colDepartment')}
               value={form.department ?? ''}

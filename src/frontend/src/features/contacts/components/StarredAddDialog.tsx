@@ -95,7 +95,12 @@ export const StarredAddDialog = ({
       />
 
       <div className={footerCls}>
-        <Button variant="secondaryText" size="action" onPress={onClose} isDisabled={busy}>
+        <Button
+          variant="secondaryText"
+          size="action"
+          onPress={onClose}
+          isDisabled={busy}
+        >
           {t('starred.cancel')}
         </Button>
         <Button
@@ -127,7 +132,6 @@ const titleCls = css({
   fontWeight: 'bold',
   color: 'greyscale.900',
 })
-
 
 const footerCls = css({
   display: 'flex',

@@ -44,7 +44,7 @@ export interface RoleAssignment {
 
 export const fetchPermissionCatalogue = (): Promise<PermissionEntry[]> =>
   fetchApi<{ permissions: PermissionEntry[] }>('/admin/permissions/').then(
-    (r) => r.permissions,
+    (r) => r.permissions
   )
 
 export const fetchAdminRoles = (): Promise<AdminRole[]> =>
@@ -68,7 +68,7 @@ export const updateAdminRole = (
     description?: string
     permissions?: string[]
     is_active?: boolean
-  },
+  }
 ): Promise<AdminRole> =>
   fetchApi<AdminRole>(`/admin/roles/${id}/`, {
     method: 'PATCH',
@@ -80,7 +80,9 @@ export const deleteAdminRole = (id: string): Promise<unknown> =>
 
 /** 补齐本组织缺失的内置角色(hr / it / admin_office)。幂等。 */
 export const seedBuiltinRoles = (): Promise<{ created: number }> =>
-  fetchApi<{ created: number }>('/admin/roles/seed-builtin/', { method: 'POST' })
+  fetchApi<{ created: number }>('/admin/roles/seed-builtin/', {
+    method: 'POST',
+  })
 
 export const fetchRoleAssignments = (params?: {
   role?: string
@@ -90,7 +92,9 @@ export const fetchRoleAssignments = (params?: {
   if (params?.role) qs.set('role', params.role)
   if (params?.membership) qs.set('membership', params.membership)
   const s = qs.toString()
-  return fetchApi<RoleAssignment[]>(`/admin/role-assignments/${s ? `?${s}` : ''}`)
+  return fetchApi<RoleAssignment[]>(
+    `/admin/role-assignments/${s ? `?${s}` : ''}`
+  )
 }
 
 export const createRoleAssignment = (input: {

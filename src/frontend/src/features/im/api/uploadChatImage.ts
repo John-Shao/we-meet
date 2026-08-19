@@ -30,7 +30,10 @@ const RECODE_SIZE_THRESHOLD = 2 * 1024 * 1024
 /** Thrown with a stable `code` the caller maps to an i18n message. */
 export class ChatImageError extends Error {
   code: 'invalidType' | 'tooLarge' | 'uploadError'
-  constructor(code: 'invalidType' | 'tooLarge' | 'uploadError', message?: string) {
+  constructor(
+    code: 'invalidType' | 'tooLarge' | 'uploadError',
+    message?: string
+  ) {
     super(message ?? code)
     this.code = code
   }
@@ -106,7 +109,10 @@ export const uploadChatImage = async (file: File): Promise<string> => {
       body: JSON.stringify({ content_type: contentType, size: blob.size }),
     })
   } catch (e) {
-    throw new ChatImageError('uploadError', e instanceof Error ? e.message : undefined)
+    throw new ChatImageError(
+      'uploadError',
+      e instanceof Error ? e.message : undefined
+    )
   }
 
   const put = await fetch(presigned.upload_url, {
@@ -115,7 +121,10 @@ export const uploadChatImage = async (file: File): Promise<string> => {
     headers: presigned.headers ?? { 'Content-Type': contentType },
   })
   if (!put.ok) {
-    throw new ChatImageError('uploadError', `Storage upload failed (${put.status})`)
+    throw new ChatImageError(
+      'uploadError',
+      `Storage upload failed (${put.status})`
+    )
   }
   return presigned.object_key
 }

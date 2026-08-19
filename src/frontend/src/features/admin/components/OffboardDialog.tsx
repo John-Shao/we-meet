@@ -55,7 +55,7 @@ export const OffboardDialog = ({
     member.full_name || member.short_name || member.email || member.sub || ''
   const headsDepartments = (owned?.headed_departments.length ?? 0) > 0
   const successorOptions = (candidates?.results ?? []).filter(
-    (m) => m.id !== member.id,
+    (m) => m.id !== member.id
   )
 
   return (

@@ -85,5 +85,7 @@ export const verifyOtp = async (
  * Note: Keycloak rotates refresh tokens by default; the response carries a
  * new refresh_token that replaces the old one in [setTokens].
  */
-export const refreshTokens = (refresh_token: string): Promise<VerifyOtpResponse> =>
+export const refreshTokens = (
+  refresh_token: string
+): Promise<VerifyOtpResponse> =>
   postJson<VerifyOtpResponse>('refresh/', { refresh_token })

@@ -8,7 +8,7 @@ import type { ImRemoveMemberResponse } from './ApiIm'
  */
 export const removeMember = (
   cid: string,
-  memberUserId: string,
+  memberUserId: string
 ): Promise<ImRemoveMemberResponse> =>
   fetchApi<ImRemoveMemberResponse>('/im/conversations/remove-member/', {
     method: 'POST',

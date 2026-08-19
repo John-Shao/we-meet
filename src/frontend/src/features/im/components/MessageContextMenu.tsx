@@ -47,8 +47,10 @@ export const MessageContextMenu = ({
     const r = el.getBoundingClientRect()
     let nx = x
     let ny = y
-    if (x + r.width > window.innerWidth - 8) nx = window.innerWidth - r.width - 8
-    if (y + r.height > window.innerHeight - 8) ny = window.innerHeight - r.height - 8
+    if (x + r.width > window.innerWidth - 8)
+      nx = window.innerWidth - r.width - 8
+    if (y + r.height > window.innerHeight - 8)
+      ny = window.innerHeight - r.height - 8
     setPos({ x: Math.max(8, nx), y: Math.max(8, ny) })
     // Re-clamp when switching into the (taller/wider) emoji picker.
   }, [x, y, showPicker])
@@ -60,7 +62,11 @@ export const MessageContextMenu = ({
     }
     // Ignore scrolls that originate INSIDE the menu (e.g. the emoji grid).
     const onScroll = (e: Event) => {
-      if (ref.current && e.target instanceof Node && ref.current.contains(e.target)) {
+      if (
+        ref.current &&
+        e.target instanceof Node &&
+        ref.current.contains(e.target)
+      ) {
         return
       }
       onClose()
@@ -171,32 +177,32 @@ export const MessageContextMenu = ({
             </div>
           )}
           {items.map((it) => (
-        <button
-          key={it.key}
-          type="button"
-          role="menuitem"
-          onClick={() => {
-            it.onSelect()
-            onClose()
-          }}
-          data-testid={`msg-ctx-${it.key}`}
-          className={css({
-            display: 'block',
-            width: '100%',
-            textAlign: 'left',
-            paddingX: '0.625rem',
-            paddingY: '0.4375rem',
-            border: 'none',
-            background: 'transparent',
-            borderRadius: '0.375rem',
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-            color: it.danger ? 'danger.500' : 'greyscale.800',
-            _hover: { backgroundColor: 'greyscale.100' },
-          })}
-        >
-          {it.label}
-        </button>
+            <button
+              key={it.key}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                it.onSelect()
+                onClose()
+              }}
+              data-testid={`msg-ctx-${it.key}`}
+              className={css({
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                paddingX: '0.625rem',
+                paddingY: '0.4375rem',
+                border: 'none',
+                background: 'transparent',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                color: it.danger ? 'danger.500' : 'greyscale.800',
+                _hover: { backgroundColor: 'greyscale.100' },
+              })}
+            >
+              {it.label}
+            </button>
           ))}
         </>
       )}

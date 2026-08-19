@@ -13,22 +13,22 @@ import { toApiPath } from './fetchDirectoryMembers'
 export const fetchDepartmentMembersPage = (
   departmentId: string,
   includeSubtree = false,
-  pageUrl?: string,
+  pageUrl?: string
 ): Promise<Paginated<DirectoryMember>> => {
   if (pageUrl) {
     return fetchApi<Paginated<DirectoryMember>>(toApiPath(pageUrl))
   }
   const qs = includeSubtree ? '?include_subtree=true' : ''
   return fetchApi<Paginated<DirectoryMember>>(
-    `/directory/departments/${departmentId}/members/${qs}`,
+    `/directory/departments/${departmentId}/members/${qs}`
   )
 }
 
 /** First page only — see `fetchDepartmentMembersPage` for the paging version. */
 export const fetchDepartmentMembers = (
   departmentId: string,
-  includeSubtree = false,
+  includeSubtree = false
 ): Promise<DirectoryMember[]> =>
   fetchDepartmentMembersPage(departmentId, includeSubtree).then(
-    (page) => page.results,
+    (page) => page.results
   )

@@ -188,4 +188,3 @@ export const DepartmentAdminTree = ({
 
   return <div>{renderNodes('', 0)}</div>
 }
-

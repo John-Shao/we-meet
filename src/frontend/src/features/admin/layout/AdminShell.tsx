@@ -172,7 +172,9 @@ export const AdminShell = ({ children }: { children: ReactNode }) => {
         >
           {t('shell.title')}
         </div>
-        <div className={css({ flex: 1, overflowY: 'auto', paddingY: '0.5rem' })}>
+        <div
+          className={css({ flex: 1, overflowY: 'auto', paddingY: '0.5rem' })}
+        >
           {visibleGroups.map((group, index) => (
             <div key={group.labelKey ?? `g${index}`}>
               {group.labelKey && (

@@ -132,14 +132,18 @@ export const MemberDetailPanel = ({
         >
           {name}
           {member.is_self && (
-            <span className={css({ color: 'greyscale.400', fontWeight: 'normal' })}>
+            <span
+              className={css({ color: 'greyscale.400', fontWeight: 'normal' })}
+            >
               {' '}
               {t('page.selfTag')}
             </span>
           )}
         </span>
         {member.title && (
-          <span className={css({ fontSize: '0.8125rem', color: 'greyscale.500' })}>
+          <span
+            className={css({ fontSize: '0.8125rem', color: 'greyscale.500' })}
+          >
             {member.title}
           </span>
         )}
@@ -155,7 +159,10 @@ export const MemberDetailPanel = ({
           gap: '0.875rem',
         })}
       >
-        <InfoRow label={t('detail.department')} value={member.department?.name || dash} />
+        <InfoRow
+          label={t('detail.department')}
+          value={member.department?.name || dash}
+        />
         <InfoRow label={t('detail.title')} value={member.title || dash} />
         <InfoRow label={t('detail.email')} value={member.email || dash} />
       </dl>
@@ -221,8 +228,16 @@ export const MemberDetailPanel = ({
 }
 
 const InfoRow = ({ label, value }: { label: string; value: string }) => (
-  <div className={css({ display: 'flex', flexDirection: 'column', gap: '0.125rem' })}>
-    <dt className={css({ fontSize: '0.75rem', color: 'greyscale.400' })}>{label}</dt>
+  <div
+    className={css({
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.125rem',
+    })}
+  >
+    <dt className={css({ fontSize: '0.75rem', color: 'greyscale.400' })}>
+      {label}
+    </dt>
     <dd
       className={css({
         margin: 0,

@@ -465,7 +465,8 @@ const TemplateCard = ({
       backgroundColor: 'greyscale.000',
       cursor: 'pointer',
       textAlign: 'left',
-      transition: 'border-color token(durations.normal), box-shadow token(durations.normal)',
+      transition:
+        'border-color token(durations.normal), box-shadow token(durations.normal)',
       _hover: {
         borderColor: 'primary.300',
         boxShadow: '0 2px 8px rgba(51,112,255,0.12)',
@@ -758,7 +759,10 @@ const InstanceCard = ({
               size="dense"
               onPress={() => onAct(inst.id, 'rejected', comment)}
               data-testid={`approval-reject-${inst.id}`}
-              className={css({ color: 'danger.600', borderColor: 'danger.300' })}
+              className={css({
+                color: 'danger.600',
+                borderColor: 'danger.300',
+              })}
             >
               {t('act.reject')}
             </Button>
@@ -786,7 +790,10 @@ const InstanceCard = ({
             variant="secondary"
             size="dense"
             onPress={() => onCancel(inst.id)}
-            className={css({ color: 'greyscale.700', borderColor: 'greyscale.300' })}
+            className={css({
+              color: 'greyscale.700',
+              borderColor: 'greyscale.300',
+            })}
           >
             {t('act.cancel')}
           </Button>

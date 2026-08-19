@@ -21,7 +21,7 @@ import { parseRichCard, richCardPlain } from './components/richCard'
  */
 const FIXTURE = path.resolve(
   __dirname,
-  '../../../../backend/core/tests/fixtures/im_cards/mention_everyone_aliases.json',
+  '../../../../backend/core/tests/fixtures/im_cards/mention_everyone_aliases.json'
 )
 
 const LOCALES = ['zh', 'en', 'fr', 'de', 'nl'] as const
@@ -46,11 +46,11 @@ describe('@所有人 别名表(三方契约)', () => {
       by_locale: Record<string, string>
     }
     expect([...MENTION_EVERYONE_ALIASES].sort()).toEqual(
-      [...data.aliases].sort(),
+      [...data.aliases].sort()
     )
     // fixture 内部自洽:aliases 就是 by_locale 的扁平投影。
     expect([...data.aliases].sort()).toEqual(
-      Object.values(data.by_locale).sort(),
+      Object.values(data.by_locale).sort()
     )
   })
 
@@ -62,7 +62,7 @@ describe('@所有人 别名表(三方契约)', () => {
     }
     // 反向:别名表里不该有任何 locale 都不用的僵尸项。
     expect([...MENTION_EVERYONE_ALIASES].sort()).toEqual(
-      [...new Set(fromLocales)].sort(),
+      [...new Set(fromLocales)].sort()
     )
   })
 })
@@ -139,16 +139,28 @@ describe('mentionScan', () => {
     })
     // 引用一条 @所有人 会让所有人**再被通知一次** —— 那是 bug 不是设计。
     expect(mentionScan('quote', body, ME).everyone).toBe(false)
-    expect(mentionScan('quote', JSON.stringify({ text: '@小王 你看' }), ME).self)
-      .toBe(true)
+    expect(
+      mentionScan('quote', JSON.stringify({ text: '@小王 你看' }), ME).self
+    ).toBe(true)
   })
 
   it('其余 content_type 一律不扫', () => {
     // 以前是拿原始 body 无差别扫的,于是一个叫「@所有人 周会」的会议卡片
     // 也会点亮红 @。
     const card = JSON.stringify({ title: '@所有人 周会', status: 'ongoing' })
-    for (const ct of ['meeting-card', 'doc-card', 'event-card', 'image', 'file', 'merged', 'system']) {
-      expect(mentionScan(ct, card, ME)).toEqual({ self: false, everyone: false })
+    for (const ct of [
+      'meeting-card',
+      'doc-card',
+      'event-card',
+      'image',
+      'file',
+      'merged',
+      'system',
+    ]) {
+      expect(mentionScan(ct, card, ME)).toEqual({
+        self: false,
+        everyone: false,
+      })
     }
   })
 
@@ -184,9 +196,9 @@ describe('defuseMentions(转发时拆 @)', () => {
     const raw = fs.readFileSync(
       path.resolve(
         __dirname,
-        '../../../../backend/core/tests/fixtures/im_cards/rich_card_full.json',
+        '../../../../backend/core/tests/fixtures/im_cards/rich_card_full.json'
       ),
-      'utf-8',
+      'utf-8'
     )
     // 原件是会点亮的 —— 否则下面那条断言是空转。
     expect(mentionScan('rich-card', raw, ME).everyone).toBe(true)
@@ -203,8 +215,8 @@ describe('defuseMentions(转发时拆 @)', () => {
           { tag: 'text', text: '请 ' },
           { tag: 'at', uid: 'all', name: '所有人' },
           { tag: 'text', text: ' 确认' },
-        ]),
-      ),
+        ])
+      )
     )!
     const [block] = body.blocks
     if (block.type !== 'text') throw new Error('expected a text block')
@@ -222,7 +234,7 @@ describe('defuseMentions(转发时拆 @)', () => {
     const raw = cardWith(
       [{ tag: 'text', text: '@Iedereen let op' }],
       // 字面量那条腿只看服务端给的 plain(从不自己推),真实卡片一定带它。
-      '生产构建失败 @Iedereen let op',
+      '生产构建失败 @Iedereen let op'
     )
     expect(mentionScan('rich-card', raw, ME).everyone).toBe(true)
     expect(scanForward('rich-card', raw)).toEqual(NONE)
@@ -232,7 +244,7 @@ describe('defuseMentions(转发时拆 @)', () => {
   it('点名到人:at 标签的名字从 plain 里摘掉,不误伤正文里别的 @', () => {
     const raw = cardWith(
       [{ tag: 'at', uid: 'ou_x', name: '小王' }],
-      '@小王 顺便看下 x@example.com',
+      '@小王 顺便看下 x@example.com'
     )
     expect(mentionScan('rich-card', raw, ME).self).toBe(true)
     expect(scanForward('rich-card', raw)).toEqual(NONE)
@@ -278,7 +290,7 @@ describe('defuseMentions(转发时拆 @)', () => {
     const raw = '@所有人 明天九点'
     expect(defuseMentions('text', raw)).toBe(raw)
     expect(mentionScan('text', defuseMentions('text', raw), ME).everyone).toBe(
-      true,
+      true
     )
   })
 })

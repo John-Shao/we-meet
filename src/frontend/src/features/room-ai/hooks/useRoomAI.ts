@@ -116,9 +116,7 @@ export const useRoomAI = () => {
         abortRef.current = null
         setIsAsking(false)
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id === asstId ? { ...m, isStreaming: false } : m
-          )
+          prev.map((m) => (m.id === asstId ? { ...m, isStreaming: false } : m))
         )
       }
     },

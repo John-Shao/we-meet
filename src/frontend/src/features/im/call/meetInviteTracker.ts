@@ -71,7 +71,10 @@ let client: Client | null = null
 let unsubscribe: (() => void) | null = null
 const timers = new Map<
   string,
-  { resend?: ReturnType<typeof setInterval>; timeout?: ReturnType<typeof setTimeout> }
+  {
+    resend?: ReturnType<typeof setInterval>
+    timeout?: ReturnType<typeof setTimeout>
+  }
 >()
 
 /** Wired from initCallController — same client, separate frame subscription. */

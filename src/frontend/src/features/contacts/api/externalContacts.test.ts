@@ -22,10 +22,7 @@ describe('external contacts API', () => {
     await fetchExternalContacts()
     await fetchExternalContactRequests()
 
-    expect(fetchApi).toHaveBeenNthCalledWith(
-      1,
-      '/directory/external-contacts/'
-    )
+    expect(fetchApi).toHaveBeenNthCalledWith(1, '/directory/external-contacts/')
     expect(fetchApi).toHaveBeenNthCalledWith(
       2,
       '/directory/external-contacts/requests/'

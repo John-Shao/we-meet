@@ -33,7 +33,7 @@ export interface ImUserInfo {
  * so the client never has to carry display identities itself.
  */
 export const resolveImUsers = (
-  imUids: string[],
+  imUids: string[]
 ): Promise<Record<string, ImUserInfo>> =>
   fetchApi<Record<string, ImUserInfo>>('/im/users/resolve/', {
     method: 'POST',

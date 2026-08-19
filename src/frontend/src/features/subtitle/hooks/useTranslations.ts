@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import {
-  DataPacket_Kind,
-  RemoteParticipant,
-  RoomEvent,
-} from 'livekit-client'
+import { DataPacket_Kind, RemoteParticipant, RoomEvent } from 'livekit-client'
 import { useRoomContext } from '@livekit/components-react'
 
 const TRANSLATION_TOPIC = 'lk.transcription.translation'

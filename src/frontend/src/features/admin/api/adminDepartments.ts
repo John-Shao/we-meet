@@ -22,7 +22,7 @@ export interface CreateDepartmentInput {
 }
 
 export const createDepartment = (
-  input: CreateDepartmentInput,
+  input: CreateDepartmentInput
 ): Promise<AdminDepartment> =>
   fetchApi<AdminDepartment>('/admin/departments/', {
     method: 'POST',
@@ -38,7 +38,7 @@ export interface UpdateDepartmentInput {
 
 export const updateDepartment = (
   id: string,
-  input: UpdateDepartmentInput,
+  input: UpdateDepartmentInput
 ): Promise<AdminDepartment> =>
   fetchApi<AdminDepartment>(`/admin/departments/${id}/`, {
     method: 'PATCH',
@@ -52,7 +52,7 @@ export const updateDepartment = (
  */
 export const moveDepartment = (
   id: string,
-  parentId: string | null,
+  parentId: string | null
 ): Promise<AdminDepartment> =>
   fetchApi<AdminDepartment>(`/admin/departments/${id}/move/`, {
     method: 'POST',
@@ -66,7 +66,7 @@ export const moveDepartment = (
  */
 export const deleteDepartment = (
   id: string,
-  reassignToId?: string | null,
+  reassignToId?: string | null
 ): Promise<unknown> => {
   const qs = reassignToId ? `?reassign=${encodeURIComponent(reassignToId)}` : ''
   return fetchApi(`/admin/departments/${id}/${qs}`, { method: 'DELETE' })

@@ -175,7 +175,10 @@ const Spans = ({ spans }: { spans: CardSpan[] }) => (
       }
       if (span.tag === 'at') {
         return (
-          <span key={i} className={css({ fontWeight: 'bold', color: 'primary.600' })}>
+          <span
+            key={i}
+            className={css({ fontWeight: 'bold', color: 'primary.600' })}
+          >
             @{span.name}
           </span>
         )
@@ -240,7 +243,10 @@ export const RichCardMessage = ({
           }
           if (block.type === 'text') {
             return (
-              <p key={bi} className={css({ margin: 0, whiteSpace: 'pre-wrap' })}>
+              <p
+                key={bi}
+                className={css({ margin: 0, whiteSpace: 'pre-wrap' })}
+              >
                 <Spans spans={block.spans} />
               </p>
             )
@@ -253,7 +259,9 @@ export const RichCardMessage = ({
                   <div
                     key={ii}
                     className={
-                      odd && ii === block.items.length - 1 ? fieldSpanCls : undefined
+                      odd && ii === block.items.length - 1
+                        ? fieldSpanCls
+                        : undefined
                     }
                   >
                     {item.label && (
@@ -272,7 +280,10 @@ export const RichCardMessage = ({
           if (resolution) {
             return (
               <div key={bi} className={actionsCls}>
-                <span className={resultCls} data-testid={`card-resolved-${blockKey}`}>
+                <span
+                  className={resultCls}
+                  data-testid={`card-resolved-${blockKey}`}
+                >
                   {resolution.text}
                 </span>
               </div>
@@ -327,7 +338,7 @@ export const RichCardMessage = ({
                   >
                     {button.text}
                   </button>
-                ),
+                )
               )}
             </div>
           )

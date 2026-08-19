@@ -66,7 +66,8 @@ export const AdminRoles = () => {
     queryClient.invalidateQueries({ queryKey: ROLES_KEY })
     queryClient.invalidateQueries({ queryKey: ASSIGNMENTS_KEY })
   }
-  const onError = (e: unknown) => showAlert({ message: describeRoleError(t, e) })
+  const onError = (e: unknown) =>
+    showAlert({ message: describeRoleError(t, e) })
 
   const permissionMut = useMutation({
     mutationFn: (vars: { id: string; permissions: string[] }) =>
@@ -95,7 +96,7 @@ export const AdminRoles = () => {
   // owner_only 的权限点不渲染:服务端拒绝把它放进任何自定义角色,勾了必被 400。
   const grantable = useMemo(
     () => catalogue.filter((p) => !p.owner_only),
-    [catalogue],
+    [catalogue]
   )
   const byGroup = useMemo(() => {
     const map = new Map<string, typeof grantable>()
@@ -225,7 +226,9 @@ export const AdminRoles = () => {
               {assignments.length === 0 ? (
                 <p className={hintCls}>{t('roles.noHolders')}</p>
               ) : (
-                <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
+                <ul
+                  className={css({ listStyle: 'none', margin: 0, padding: 0 })}
+                >
                   {assignments.map((a) => (
                     <li key={a.id} className={holderRowCls}>
                       <span className={css({ color: 'greyscale.900' })}>
@@ -278,7 +281,11 @@ export const AdminRoles = () => {
   )
 }
 
-const pageCls = css({ display: 'flex', flexDirection: 'column', height: '100%' })
+const pageCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  height: '100%',
+})
 const headerCls = css({
   flexShrink: 0,
   display: 'flex',
@@ -293,7 +300,12 @@ const titleCls = css({
   fontWeight: 'bold',
   color: 'greyscale.900',
 })
-const bodyCls = css({ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' })
+const bodyCls = css({
+  flex: 1,
+  display: 'flex',
+  minHeight: 0,
+  overflow: 'hidden',
+})
 const listCls = css({
   width: '100%',
   height: '100%',

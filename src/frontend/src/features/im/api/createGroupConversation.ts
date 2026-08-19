@@ -13,7 +13,7 @@ import type { ImGroupConversationResponse } from './ApiIm'
  */
 export const createGroupConversation = (
   memberUserIds: string[],
-  name: string,
+  name: string
 ): Promise<ImGroupConversationResponse> =>
   fetchApi<ImGroupConversationResponse>('/im/conversations/group/', {
     method: 'POST',

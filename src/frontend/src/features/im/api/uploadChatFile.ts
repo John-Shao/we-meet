@@ -51,7 +51,10 @@ export const uploadChatFile = async (file: File): Promise<ChatFileMeta> => {
       }),
     })
   } catch (e) {
-    throw new ChatFileError('uploadError', e instanceof Error ? e.message : undefined)
+    throw new ChatFileError(
+      'uploadError',
+      e instanceof Error ? e.message : undefined
+    )
   }
 
   const put = await fetch(presigned.upload_url, {
@@ -60,7 +63,10 @@ export const uploadChatFile = async (file: File): Promise<ChatFileMeta> => {
     headers: presigned.headers ?? { 'Content-Type': contentType },
   })
   if (!put.ok) {
-    throw new ChatFileError('uploadError', `Storage upload failed (${put.status})`)
+    throw new ChatFileError(
+      'uploadError',
+      `Storage upload failed (${put.status})`
+    )
   }
   return { key: presigned.object_key, name: file.name, size: file.size }
 }

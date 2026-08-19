@@ -11,7 +11,7 @@ import type { ImDirectConversationResponse } from './ApiIm'
  * of who initiates.
  */
 export const createDirectConversation = (
-  peerUid: string,
+  peerUid: string
 ): Promise<ImDirectConversationResponse> =>
   fetchApi<ImDirectConversationResponse>('/im/conversations/direct/', {
     method: 'POST',
@@ -24,7 +24,7 @@ export const createDirectConversation = (
  * for UI flows — the client never has to know the raw IM uid.
  */
 export const createDirectConversationByUserId = (
-  peerUserId: string,
+  peerUserId: string
 ): Promise<ImDirectConversationResponse> =>
   fetchApi<ImDirectConversationResponse>('/im/conversations/direct/', {
     method: 'POST',

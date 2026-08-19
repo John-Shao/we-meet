@@ -27,7 +27,7 @@ export const toApiPath = (absoluteUrl: string): string => {
  */
 export const fetchDirectoryMembersPage = (
   query?: string,
-  pageUrl?: string,
+  pageUrl?: string
 ): Promise<Paginated<DirectoryMember>> => {
   if (pageUrl) {
     return fetchApi<Paginated<DirectoryMember>>(toApiPath(pageUrl))
@@ -43,6 +43,6 @@ export const fetchDirectoryMembersPage = (
  * `fetchDirectoryMembersPage`.
  */
 export const fetchDirectoryMembers = (
-  query?: string,
+  query?: string
 ): Promise<DirectoryMember[]> =>
   fetchDirectoryMembersPage(query).then((page) => page.results)

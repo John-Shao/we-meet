@@ -82,7 +82,10 @@ export const MeetingCardMessage = ({
             color: 'greyscale.900',
           })}
         >
-          <RiVidiconLine size={16} className={css({ flexShrink: 0, color: 'brand.600' })} />
+          <RiVidiconLine
+            size={16}
+            className={css({ flexShrink: 0, color: 'brand.600' })}
+          />
           <span
             className={css({
               minWidth: 0,
@@ -94,10 +97,13 @@ export const MeetingCardMessage = ({
             {card.title}
           </span>
         </span>
-        <span className={css({ fontSize: '0.8125rem', color: 'greyscale.700' })}>
+        <span
+          className={css({ fontSize: '0.8125rem', color: 'greyscale.700' })}
+        >
           {card.status === 'ongoing'
             ? t('meetingCard.ongoing', { defaultValue: '进行中' })
-            : when || t('meetingCard.scheduled', { defaultValue: '已预约会议' })}
+            : when ||
+              t('meetingCard.scheduled', { defaultValue: '已预约会议' })}
         </span>
         <span
           className={css({
@@ -146,9 +152,7 @@ export const MeetingCardMessage = ({
           alignItems: isOwn ? 'flex-end' : 'flex-start',
         })}
       >
-        {!isOwn && showSender && (
-          <SenderLabel name={name} bot={senderBot} />
-        )}
+        {!isOwn && showSender && <SenderLabel name={name} bot={senderBot} />}
         {cardEl}
       </div>
       {isOwn && (

@@ -9,7 +9,7 @@ import type { DirectoryDepartment } from './ApiDirectory'
  * Unpaginated (trees are small) — the backend returns a plain array.
  */
 export const fetchDepartments = (
-  parentId?: string,
+  parentId?: string
 ): Promise<DirectoryDepartment[]> => {
   const qs = parentId ? `?parent=${encodeURIComponent(parentId)}` : ''
   return fetchApi<DirectoryDepartment[]>(`/directory/departments/${qs}`)

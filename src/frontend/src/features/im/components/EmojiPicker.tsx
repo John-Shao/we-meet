@@ -7,27 +7,109 @@ import type { CustomEmoji, RecentEmoji } from '../api/inputSync'
 const GROUPS: { key: string; emojis: string[] }[] = [
   {
     key: 'smileys',
-    emojis: ['😀', '😁', '😂', '🤣', '😊', '😍', '😘', '😎', '🤔', '😴', '😢', '😭', '😡', '😱', '🙄', '😅'],
+    emojis: [
+      '😀',
+      '😁',
+      '😂',
+      '🤣',
+      '😊',
+      '😍',
+      '😘',
+      '😎',
+      '🤔',
+      '😴',
+      '😢',
+      '😭',
+      '😡',
+      '😱',
+      '🙄',
+      '😅',
+    ],
   },
   {
     key: 'gestures',
-    emojis: ['👍', '👎', '👏', '🙌', '🙏', '👌', '✌️', '🤝', '💪', '👋', '🤙', '🫡'],
+    emojis: [
+      '👍',
+      '👎',
+      '👏',
+      '🙌',
+      '🙏',
+      '👌',
+      '✌️',
+      '🤝',
+      '💪',
+      '👋',
+      '🤙',
+      '🫡',
+    ],
   },
   {
     key: 'hearts',
-    emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💔', '💕', '💖', '✨'],
+    emojis: [
+      '❤️',
+      '🧡',
+      '💛',
+      '💚',
+      '💙',
+      '💜',
+      '🖤',
+      '🤍',
+      '💔',
+      '💕',
+      '💖',
+      '✨',
+    ],
   },
   {
     key: 'celebrate',
-    emojis: ['🎉', '🎊', '🥳', '🎁', '🔥', '⭐', '🌟', '💯', '✅', '❌', '⚡', '🚀'],
+    emojis: [
+      '🎉',
+      '🎊',
+      '🥳',
+      '🎁',
+      '🔥',
+      '⭐',
+      '🌟',
+      '💯',
+      '✅',
+      '❌',
+      '⚡',
+      '🚀',
+    ],
   },
   {
     key: 'animals',
-    emojis: ['🐶', '🐱', '🐭', '🐰', '🦊', '🐻', '🐼', '🐨', '🌹', '🌸', '🍀', '🌈'],
+    emojis: [
+      '🐶',
+      '🐱',
+      '🐭',
+      '🐰',
+      '🦊',
+      '🐻',
+      '🐼',
+      '🐨',
+      '🌹',
+      '🌸',
+      '🍀',
+      '🌈',
+    ],
   },
   {
     key: 'food',
-    emojis: ['🍎', '🍕', '🍔', '🍟', '🍣', '🍜', '🍰', '🍺', '☕', '🍵', '🍇', '🍓'],
+    emojis: [
+      '🍎',
+      '🍕',
+      '🍔',
+      '🍟',
+      '🍣',
+      '🍜',
+      '🍰',
+      '🍺',
+      '☕',
+      '🍵',
+      '🍇',
+      '🍓',
+    ],
   },
 ]
 
@@ -58,7 +140,11 @@ export const EmojiPicker = ({
       <EmojiSection title="最近">
         {recent.map((entry) =>
           entry.kind === 'unicode' ? (
-            <EmojiButton key={`u-${entry.value}`} emoji={entry.value} onPick={onPick} />
+            <EmojiButton
+              key={`u-${entry.value}`}
+              emoji={entry.value}
+              onPick={onPick}
+            />
           ) : (
             <CustomEmojiButton
               key={`c-${entry.id}`}
@@ -69,7 +155,13 @@ export const EmojiPicker = ({
         )}
       </EmojiSection>
     )}
-    <div className={css({ fontSize: '0.75rem', color: 'greyscale.500', padding: '0.25rem' })}>
+    <div
+      className={css({
+        fontSize: '0.75rem',
+        color: 'greyscale.500',
+        padding: '0.25rem',
+      })}
+    >
       系统表情
     </div>
     {GROUPS.map((g) => (
@@ -107,26 +199,58 @@ export const EmojiPicker = ({
     {custom.length > 0 && onPickCustom && (
       <EmojiSection title="企业表情">
         {custom.map((emoji) => (
-          <CustomEmojiButton key={emoji.id} emoji={emoji} onPick={onPickCustom} />
+          <CustomEmojiButton
+            key={emoji.id}
+            emoji={emoji}
+            onPick={onPickCustom}
+          />
         ))}
       </EmojiSection>
     )}
   </div>
 )
 
-const EmojiSection = ({ title, children }: { title: string; children: ReactNode }) => (
+const EmojiSection = ({
+  title,
+  children,
+}: {
+  title: string
+  children: ReactNode
+}) => (
   <section>
-    <div className={css({ fontSize: '0.75rem', color: 'greyscale.500', padding: '0.25rem' })}>
+    <div
+      className={css({
+        fontSize: '0.75rem',
+        color: 'greyscale.500',
+        padding: '0.25rem',
+      })}
+    >
       {title}
     </div>
-    <div className={css({ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '0.125rem' })}>
+    <div
+      className={css({
+        display: 'grid',
+        gridTemplateColumns: 'repeat(8, 1fr)',
+        gap: '0.125rem',
+      })}
+    >
       {children}
     </div>
   </section>
 )
 
-const EmojiButton = ({ emoji, onPick }: { emoji: string; onPick: (emoji: string) => void }) => (
-  <button type="button" onClick={() => onPick(emoji)} className={emojiButtonCls}>
+const EmojiButton = ({
+  emoji,
+  onPick,
+}: {
+  emoji: string
+  onPick: (emoji: string) => void
+}) => (
+  <button
+    type="button"
+    onClick={() => onPick(emoji)}
+    className={emojiButtonCls}
+  >
     {emoji}
   </button>
 )
@@ -137,16 +261,25 @@ const CustomEmojiButton = ({
 }: {
   emoji?: CustomEmoji
   onPick?: (emoji: CustomEmoji) => void
-}) => emoji && onPick ? (
-  <button
-    type="button"
-    onClick={() => onPick(emoji)}
-    title={emoji.name}
-    className={emojiButtonCls}
-  >
-    <img src={emoji.url} alt={emoji.name} className={css({ width: '1.5rem', height: '1.5rem', objectFit: 'contain' })} />
-  </button>
-) : null
+}) =>
+  emoji && onPick ? (
+    <button
+      type="button"
+      onClick={() => onPick(emoji)}
+      title={emoji.name}
+      className={emojiButtonCls}
+    >
+      <img
+        src={emoji.url}
+        alt={emoji.name}
+        className={css({
+          width: '1.5rem',
+          height: '1.5rem',
+          objectFit: 'contain',
+        })}
+      />
+    </button>
+  ) : null
 
 const emojiButtonCls = css({
   border: 'none',

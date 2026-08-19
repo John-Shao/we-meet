@@ -27,7 +27,9 @@ export interface CardState {
 }
 
 /** 批量拉一屏卡片的叠加层。 */
-export const fetchCardStates = (mids: number[]): Promise<{ states: CardState[] }> =>
+export const fetchCardStates = (
+  mids: number[]
+): Promise<{ states: CardState[] }> =>
   fetchApi<{ states: CardState[] }>('/im/cards/states/', {
     method: 'POST',
     body: JSON.stringify({ mids }),
@@ -43,7 +45,7 @@ export const fetchCardStates = (mids: number[]): Promise<{ states: CardState[] }
 export const clickCardButton = (
   mid: number,
   buttonId: string,
-  clickId: string,
+  clickId: string
 ): Promise<{ replayed: boolean; state: CardState }> =>
   fetchApi<{ replayed: boolean; state: CardState }>(`/im/cards/${mid}/click/`, {
     method: 'POST',

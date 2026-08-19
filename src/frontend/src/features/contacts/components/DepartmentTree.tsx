@@ -16,7 +16,11 @@ interface Props {
  * 点名字选中该部门(右侧列其直属成员),点箭头仅展开/收起。父级缺失(被停用/过滤)
  * 的节点视为根,避免孤儿节点消失。
  */
-export const DepartmentTree = ({ departments, selectedId, onSelect }: Props) => {
+export const DepartmentTree = ({
+  departments,
+  selectedId,
+  onSelect,
+}: Props) => {
   // 按 parent 分组;'' = 根。父 id 不在集合内的也归到根,防孤儿。
   const childrenOf = useMemo(() => {
     const ids = new Set(departments.map((d) => d.id))
@@ -56,7 +60,9 @@ export const DepartmentTree = ({ departments, selectedId, onSelect }: Props) => 
               borderBottom: '1px solid token(colors.greyscale.100)',
               // selected.* 自带深浅两套(见 panda.config),不要退回裸 primary.*。
               backgroundColor: active ? 'selected.bg' : 'transparent',
-              _hover: { backgroundColor: active ? 'selected.bg' : 'greyscale.100' },
+              _hover: {
+                backgroundColor: active ? 'selected.bg' : 'greyscale.100',
+              },
             })}
             style={{ paddingLeft: `${0.25 + depth * 0.85}rem` }}
           >

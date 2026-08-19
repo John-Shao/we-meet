@@ -51,7 +51,9 @@ export const BotSecretField = ({
   const { data } = useQuery({
     queryKey,
     queryFn: () =>
-      kind === 'callback' ? fetchBotCallbackSecret(botId) : fetchBotSecret(botId),
+      kind === 'callback'
+        ? fetchBotCallbackSecret(botId)
+        : fetchBotSecret(botId),
     enabled: shown,
     staleTime: Infinity,
     gcTime: 0,

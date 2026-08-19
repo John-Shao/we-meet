@@ -111,7 +111,9 @@ export const AdminInvites = () => {
 
   const revoke = async (link: InviteLink) => {
     const ok = await confirm({
-      message: t('invites.revokeConfirm', { code: formatInviteCode(link.code) }),
+      message: t('invites.revokeConfirm', {
+        code: formatInviteCode(link.code),
+      }),
       danger: true,
     })
     if (ok) revokeMut.mutate(link.id)
@@ -120,15 +122,33 @@ export const AdminInvites = () => {
   const url = current ? inviteUrl(current.code) : ''
 
   return (
-    <div className={css({ display: 'flex', flexDirection: 'column', height: '100%' })}>
+    <div
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+      })}
+    >
       <div className={headerCls}>
         <h1 className={titleCls}>{t('invites.title')}</h1>
-        <Button size="sm" variant="primary" icon={<RiAddLine size={16} />} onPress={() => setCreating(true)}>
+        <Button
+          size="sm"
+          variant="primary"
+          icon={<RiAddLine size={16} />}
+          onPress={() => setCreating(true)}
+        >
           {t('invites.newLink')}
         </Button>
       </div>
 
-      <div className={css({ flex: 1, overflowY: 'auto', paddingX: '1.25rem', paddingY: '1rem' })}>
+      <div
+        className={css({
+          flex: 1,
+          overflowY: 'auto',
+          paddingX: '1.25rem',
+          paddingY: '1rem',
+        })}
+      >
         {/* 说清楚这个审批今天到底管什么。管理员以为自己在把门、实际没有,
             比没有审批更糟。 */}
         <p className={noticeCls}>{t('invites.autoJoinNotice')}</p>
@@ -170,14 +190,24 @@ export const AdminInvites = () => {
               <section className={cardCls}>
                 <h3 className={cardTitleCls}>{t('invites.cardCode')}</h3>
                 <p className={cardHintCls}>{t('invites.cardCodeHint')}</p>
-                <div className={codeBoxCls}>{formatInviteCode(current.code)}</div>
+                <div className={codeBoxCls}>
+                  {formatInviteCode(current.code)}
+                </div>
                 <Button
                   variant="secondary"
                   size="sm"
-                  icon={copied === 'code' ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+                  icon={
+                    copied === 'code' ? (
+                      <RiCheckLine size={16} />
+                    ) : (
+                      <RiFileCopyLine size={16} />
+                    )
+                  }
                   onPress={() => copy('code', current.code)}
                 >
-                  {copied === 'code' ? t('invites.copied') : t('invites.copyCode')}
+                  {copied === 'code'
+                    ? t('invites.copied')
+                    : t('invites.copyCode')}
                 </Button>
               </section>
 
@@ -188,10 +218,18 @@ export const AdminInvites = () => {
                 <Button
                   variant="secondary"
                   size="sm"
-                  icon={copied === 'url' ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+                  icon={
+                    copied === 'url' ? (
+                      <RiCheckLine size={16} />
+                    ) : (
+                      <RiFileCopyLine size={16} />
+                    )
+                  }
                   onPress={() => copy('url', url)}
                 >
-                  {copied === 'url' ? t('invites.copied') : t('invites.copyLink')}
+                  {copied === 'url'
+                    ? t('invites.copied')
+                    : t('invites.copyLink')}
                 </Button>
               </section>
 
@@ -201,7 +239,11 @@ export const AdminInvites = () => {
                 <div className={qrBoxCls}>
                   <QRCodeSVG value={url} size={132} level="M" />
                 </div>
-                <Button variant="secondary" size="sm" onPress={() => revoke(current)}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => revoke(current)}
+                >
                   {t('invites.revoke')}
                 </Button>
               </section>
@@ -225,7 +267,9 @@ export const AdminInvites = () => {
         </div>
 
         {requests.length === 0 ? (
-          <p className={emptyCls}>{isFetching ? '' : t('invites.noRequests')}</p>
+          <p className={emptyCls}>
+            {isFetching ? '' : t('invites.noRequests')}
+          </p>
         ) : (
           <table className={tableCls}>
             <thead>
@@ -252,11 +296,18 @@ export const AdminInvites = () => {
                   </td>
                   <td className={tdCls}>{t(`invites.status.${r.status}`)}</td>
                   <td className={tdCls}>
-                    {r.reviewed_by?.full_name || r.reviewed_by?.short_name || '—'}
+                    {r.reviewed_by?.full_name ||
+                      r.reviewed_by?.short_name ||
+                      '—'}
                   </td>
                   <td className={actionCellCls}>
                     {r.status === 'pending' && (
-                      <span className={css({ display: 'inline-flex', gap: '0.375rem' })}>
+                      <span
+                        className={css({
+                          display: 'inline-flex',
+                          gap: '0.375rem',
+                        })}
+                      >
                         <Button
                           variant="secondary"
                           size="dense"
@@ -310,7 +361,11 @@ const headerCls = css({
   paddingY: '0.875rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
-const titleCls = css({ fontSize: '1.125rem', fontWeight: 'bold', color: 'greyscale.900' })
+const titleCls = css({
+  fontSize: '1.125rem',
+  fontWeight: 'bold',
+  color: 'greyscale.900',
+})
 const noticeCls = css({
   fontSize: '0.8125rem',
   color: 'greyscale.700',
@@ -326,7 +381,11 @@ const sectionCls = css({
   marginTop: '1.25rem',
   marginBottom: '0.75rem',
 })
-const emptyCls = css({ color: 'greyscale.500', fontSize: '0.9375rem', paddingY: '1rem' })
+const emptyCls = css({
+  color: 'greyscale.500',
+  fontSize: '0.9375rem',
+  paddingY: '1rem',
+})
 const configCls = css({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(11rem, 1fr))',
@@ -350,8 +409,16 @@ const cardCls = css({
   alignItems: 'center',
   gap: '0.625rem',
 })
-const cardTitleCls = css({ fontSize: '0.9375rem', fontWeight: '600', color: 'greyscale.900' })
-const cardHintCls = css({ fontSize: '0.75rem', color: 'greyscale.500', margin: 0 })
+const cardTitleCls = css({
+  fontSize: '0.9375rem',
+  fontWeight: '600',
+  color: 'greyscale.900',
+})
+const cardHintCls = css({
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+  margin: 0,
+})
 const codeBoxCls = css({
   fontSize: '1.5rem',
   fontWeight: 'bold',
@@ -379,13 +446,21 @@ const qrBoxCls = css({
   borderRadius: '8px',
   lineHeight: 0,
 })
-const tableCls = css({ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' })
+const tableCls = css({
+  width: '100%',
+  borderCollapse: 'collapse',
+  fontSize: '0.875rem',
+})
 const theadRowCls = css({
   textAlign: 'left',
   color: 'greyscale.500',
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
-const thBase = { paddingX: '1rem', paddingY: '0.625rem', fontWeight: '600' as const }
+const thBase = {
+  paddingX: '1rem',
+  paddingY: '0.625rem',
+  fontWeight: '600' as const,
+}
 const thCls = css(thBase)
 /* 与「待接受邀请」同款:固定窄列会把中文按钮挤成竖排,让内容说了算。 */
 const actionHeadCls = css({ ...thBase, width: '1%', whiteSpace: 'nowrap' })

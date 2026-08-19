@@ -29,9 +29,12 @@ export const AvatarUploadDialog = ({ onClose }: { onClose: () => void }) => {
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const imgRef = useRef<HTMLImageElement>(null)
-  const drag = useRef<{ dx: number; dy: number; ox: number; oy: number } | null>(
-    null
-  )
+  const drag = useRef<{
+    dx: number
+    dy: number
+    ox: number
+    oy: number
+  } | null>(null)
 
   const [src, setSrc] = useState<string | null>(null)
   const [nat, setNat] = useState<{ w: number; h: number }>({ w: 0, h: 0 })
@@ -60,7 +63,10 @@ export const AvatarUploadDialog = ({ onClose }: { onClose: () => void }) => {
     const url = URL.createObjectURL(f)
     const im = new Image()
     im.onload = () => {
-      const bs = Math.max(VIEWPORT / im.naturalWidth, VIEWPORT / im.naturalHeight)
+      const bs = Math.max(
+        VIEWPORT / im.naturalWidth,
+        VIEWPORT / im.naturalHeight
+      )
       const rw = im.naturalWidth * bs
       const rh = im.naturalHeight * bs
       setNat({ w: im.naturalWidth, h: im.naturalHeight })

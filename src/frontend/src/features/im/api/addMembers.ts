@@ -10,7 +10,7 @@ import type { ImAddMembersResponse } from './ApiIm'
  */
 export const addMembers = (
   cid: string,
-  memberUserIds: string[],
+  memberUserIds: string[]
 ): Promise<ImAddMembersResponse> =>
   fetchApi<ImAddMembersResponse>('/im/conversations/add-members/', {
     method: 'POST',

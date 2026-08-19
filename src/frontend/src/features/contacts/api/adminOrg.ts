@@ -16,7 +16,7 @@ export interface CreateDepartmentPayload {
 }
 
 export const createDepartment = (
-  payload: CreateDepartmentPayload,
+  payload: CreateDepartmentPayload
 ): Promise<DirectoryDepartment> =>
   fetchApi<DirectoryDepartment>('/admin/departments/', {
     method: 'POST',
@@ -29,7 +29,7 @@ export const createDepartment = (
  */
 export const updateMembershipDepartment = (
   membershipId: string,
-  departmentId: string | null,
+  departmentId: string | null
 ): Promise<unknown> =>
   fetchApi(`/admin/memberships/${membershipId}/`, {
     method: 'PATCH',

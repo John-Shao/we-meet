@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { RiCheckLine, RiEyeLine, RiEyeOffLine, RiFileCopyLine } from '@remixicon/react'
+import {
+  RiCheckLine,
+  RiEyeLine,
+  RiEyeOffLine,
+  RiFileCopyLine,
+} from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
@@ -55,7 +60,10 @@ export const BotCredentialDialog = ({
   }
 
   return (
-    <Modal onClose={close} ariaLabel={t('bots.credential.title', { name: botName })}>
+    <Modal
+      onClose={close}
+      ariaLabel={t('bots.credential.title', { name: botName })}
+    >
       <div
         className={css({
           display: 'flex',
@@ -66,7 +74,13 @@ export const BotCredentialDialog = ({
           borderBottom: '1px solid token(colors.greyscale.200)',
         })}
       >
-        <span className={css({ flex: 1, fontWeight: 'bold', color: 'greyscale.900' })}>
+        <span
+          className={css({
+            flex: 1,
+            fontWeight: 'bold',
+            color: 'greyscale.900',
+          })}
+        >
           {t('bots.credential.title', { name: botName })}
         </span>
         <ModalCloseButton onClose={close} label={t('bots.credential.close')} />
@@ -118,17 +132,22 @@ export const BotCredentialDialog = ({
                   type="button"
                   onClick={() => setRevealed((v) => !v)}
                   aria-label={t(
-                    revealed ? 'bots.credential.hide' : 'bots.credential.show',
+                    revealed ? 'bots.credential.hide' : 'bots.credential.show'
                   )}
                   className={iconBtnCls}
                 >
-                  {revealed ? <RiEyeOffLine size={16} /> : <RiEyeLine size={16} />}
+                  {revealed ? (
+                    <RiEyeOffLine size={16} />
+                  ) : (
+                    <RiEyeLine size={16} />
+                  )}
                 </button>
                 <button
                   type="button"
                   disabled={!data.signing_secret}
                   onClick={() =>
-                    data.signing_secret && void copy('secret', data.signing_secret)
+                    data.signing_secret &&
+                    void copy('secret', data.signing_secret)
                   }
                   aria-label={t('bots.credential.copy')}
                   className={iconBtnCls}

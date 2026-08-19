@@ -42,7 +42,7 @@ const { directory } = vi.hoisted(() => ({
 vi.mock('../api/resolveImUsers', () => ({
   resolveImUsers: async (uids: string[]) =>
     Object.fromEntries(
-      uids.filter((u) => u in directory).map((u) => [u, directory[u]]),
+      uids.filter((u) => u in directory).map((u) => [u, directory[u]])
     ),
 }))
 
@@ -114,7 +114,7 @@ const mountRoster = async ({
         currentUserUID={currentUserUID}
         onAddMembers={() => {}}
       />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
 
   // 等最后一行的**显示名**出现,而不是等成员计数 —— roster 的初值是 [],
@@ -158,7 +158,7 @@ describe('群成员名单', () => {
 
     // getByText 单数:徽章只能有一个。
     expect(screen.getByText('manage.owner').closest('li')).toHaveTextContent(
-      '新群主',
+      '新群主'
     )
   })
 
@@ -172,7 +172,7 @@ describe('群成员名单', () => {
     })
 
     expect(screen.getByText('departed.chip').closest('li')).toHaveTextContent(
-      '离职的',
+      '离职的'
     )
   })
 
@@ -180,7 +180,9 @@ describe('群成员名单', () => {
     const people = [{ uid: 'owner' }, { uid: 'other' }]
 
     await mountRoster({ people, ownerUid: 'owner', currentUserUID: 'other' })
-    expect(screen.queryByTestId('member-transfer-owner')).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('member-transfer-owner')
+    ).not.toBeInTheDocument()
     expect(screen.queryByTestId('member-kick-owner')).not.toBeInTheDocument()
 
     cleanup()

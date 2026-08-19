@@ -38,12 +38,26 @@
     "none": "—"
   },
   "external": {
-    "title": "External contacts", "tag": "External", "hint": "Mutual contacts with accounts in other organizations",
-    "add": "Add external contact", "addTitle": "Add external contact", "addHint": "Find an account by its exact phone number or email and send a request",
-    "searchPlaceholder": "Enter a full phone number or email", "search": "Search", "searchEmpty": "Enter a full phone number or email to find an external account",
-    "empty": "No external contacts yet", "requests": "Contact requests", "accept": "Accept", "decline": "Decline", "pending": "Waiting for acceptance",
-    "cancelRequest": "Cancel", "sendRequest": "Send request", "alreadyContact": "Already a contact", "remove": "Remove",
-    "removeConfirm": "Remove external contact “{{name}}”?", "error": "External contact action failed: {{message}}"
+    "title": "External contacts",
+    "tag": "External",
+    "hint": "Mutual contacts with accounts in other organizations",
+    "add": "Add external contact",
+    "addTitle": "Add external contact",
+    "addHint": "Find an account by its exact phone number or email and send a request",
+    "searchPlaceholder": "Enter a full phone number or email",
+    "search": "Search",
+    "searchEmpty": "Enter a full phone number or email to find an external account",
+    "empty": "No external contacts yet",
+    "requests": "Contact requests",
+    "accept": "Accept",
+    "decline": "Decline",
+    "pending": "Waiting for acceptance",
+    "cancelRequest": "Cancel",
+    "sendRequest": "Send request",
+    "alreadyContact": "Already a contact",
+    "remove": "Remove",
+    "removeConfirm": "Remove external contact “{{name}}”?",
+    "error": "External contact action failed: {{message}}"
   },
   "starred": {
     "title": "Markierte Kontakte",

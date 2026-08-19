@@ -161,7 +161,9 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
                     danger: true,
                   })
                   if (ok) {
-                    void run(() => removeExternalContact(contact.relationship_id!))
+                    void run(() =>
+                      removeExternalContact(contact.relationship_id!)
+                    )
                   }
                 }}
               >
@@ -282,7 +284,9 @@ const AddExternalContactDialog = ({
           results.map((contact) => (
             <ContactRow key={contact.id} contact={contact}>
               {contact.status === 'accepted' ? (
-                <span className={statusCls}>{t('external.alreadyContact')}</span>
+                <span className={statusCls}>
+                  {t('external.alreadyContact')}
+                </span>
               ) : contact.direction === 'incoming' ? (
                 <Button
                   variant="primary"
@@ -326,7 +330,11 @@ const headerCls = css({
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
 const titleCls = css({ margin: 0, fontSize: '1rem', fontWeight: 'bold' })
-const hintCls = css({ margin: '0.25rem 0 0', color: 'greyscale.500', fontSize: '0.8125rem' })
+const hintCls = css({
+  margin: '0.25rem 0 0',
+  color: 'greyscale.500',
+  fontSize: '0.8125rem',
+})
 const sectionCls = css({ padding: '0.5rem 1rem' })
 const sectionTitleCls = css({ fontSize: '0.8125rem', color: 'greyscale.600' })
 const rowCls = css({
@@ -344,7 +352,11 @@ const identityCls = css({
   fontSize: '0.875rem',
   '& span': { color: 'greyscale.500', fontSize: '0.75rem' },
 })
-const actionsCls = css({ display: 'flex', alignItems: 'center', gap: '0.375rem' })
+const actionsCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+})
 const statusCls = css({ color: 'greyscale.500', fontSize: '0.75rem' })
 const externalTagCls = css({
   color: 'warning.700',
@@ -361,4 +373,9 @@ const inputCls = css({
   borderRadius: '0.5rem',
   paddingX: '0.75rem',
 })
-const resultsCls = css({ minHeight: '260px', maxHeight: '52vh', overflowY: 'auto', paddingX: '1rem' })
+const resultsCls = css({
+  minHeight: '260px',
+  maxHeight: '52vh',
+  overflowY: 'auto',
+  paddingX: '1rem',
+})

@@ -69,17 +69,14 @@ export const ConfirmProvider = ({ children }: { children: ReactNode }) => {
   )
 
   // Resolve the pending promise (confirm → boolean; alert → void) and close.
-  const settle = useCallback(
-    (result: boolean) => {
-      setPending((p) => {
-        if (!p) return null
-        if (p.mode === 'confirm') p.resolve(result)
-        else p.resolve()
-        return null
-      })
-    },
-    []
-  )
+  const settle = useCallback((result: boolean) => {
+    setPending((p) => {
+      if (!p) return null
+      if (p.mode === 'confirm') p.resolve(result)
+      else p.resolve()
+      return null
+    })
+  }, [])
 
   const confirmOpts = pending?.mode === 'confirm' ? pending.opts : null
   const alertOpts = pending?.mode === 'alert' ? pending.opts : null

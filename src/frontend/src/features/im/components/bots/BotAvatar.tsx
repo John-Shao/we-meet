@@ -47,14 +47,7 @@ export const BotAvatar = ({
       <rect x="7" y="10" width="18" height="14" rx="4.5" fill="#fff" />
       <ellipse cx="12.5" cy="16" rx="1.7" ry="1.9" fill={background} />
       <ellipse cx="19.5" cy="16" rx="1.7" ry="1.9" fill={background} />
-      <rect
-        x="12.5"
-        y="20"
-        width="7"
-        height="1.4"
-        rx="0.7"
-        fill={background}
-      />
+      <rect x="12.5" y="20" width="7" height="1.4" rx="0.7" fill={background} />
     </svg>
   )
 }

@@ -39,7 +39,7 @@ export interface AdminBotListParams {
 }
 
 export const fetchAdminBots = (
-  params: AdminBotListParams,
+  params: AdminBotListParams
 ): Promise<Paginated<AdminBot>> => {
   const qs = new URLSearchParams()
   if (params.kind) qs.set('kind', params.kind)
@@ -50,7 +50,10 @@ export const fetchAdminBots = (
   return fetchApi<Paginated<AdminBot>>(`/admin/bots/${s ? `?${s}` : ''}`)
 }
 
-export const disableAdminBot = (id: string, reason: string): Promise<AdminBot> =>
+export const disableAdminBot = (
+  id: string,
+  reason: string
+): Promise<AdminBot> =>
   fetchApi<AdminBot>(`/admin/bots/${id}/disable/`, {
     method: 'POST',
     body: JSON.stringify({ reason }),
@@ -72,6 +75,6 @@ export interface AdminBotCredential {
  * 内存和 HTTP 缓存,外加 100 条审计。
  */
 export const fetchAdminBotCredential = (
-  id: string,
+  id: string
 ): Promise<AdminBotCredential> =>
   fetchApi<AdminBotCredential>(`/admin/bots/${id}/credential/`)

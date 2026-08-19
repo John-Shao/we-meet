@@ -21,7 +21,7 @@ export const getImClient = (): Client => {
 
   if (!baseURL) {
     throw new Error(
-      'VITE_JUSI_IM_BASE_URL is not configured — jusi-light-im integration disabled',
+      'VITE_JUSI_IM_BASE_URL is not configured — jusi-light-im integration disabled'
     )
   }
 

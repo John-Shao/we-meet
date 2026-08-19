@@ -13,7 +13,7 @@ import { fetchApi } from '@/api/fetchApi'
  */
 export const grantDocAccess = (
   docId: string,
-  cids: string[],
+  cids: string[]
 ): Promise<boolean> => {
   if (!docId || cids.length === 0) return Promise.resolve(false)
   return fetchApi('/im/grant-doc-access/', {

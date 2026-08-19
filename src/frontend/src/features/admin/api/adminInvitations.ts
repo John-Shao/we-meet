@@ -20,7 +20,11 @@ export interface OrgInvitation {
   org_role: string
   title: string
   status: string
-  invited_by: { id: string; full_name: string | null; short_name: string | null } | null
+  invited_by: {
+    id: string
+    full_name: string | null
+    short_name: string | null
+  } | null
   created_at: string
 }
 
@@ -35,14 +39,14 @@ export interface CreateInvitationInput {
 }
 
 export const fetchInvitations = (
-  status = 'pending',
+  status = 'pending'
 ): Promise<Paginated<OrgInvitation>> =>
   fetchApi<Paginated<OrgInvitation>>(
-    `/admin/invitations/?status=${encodeURIComponent(status)}`,
+    `/admin/invitations/?status=${encodeURIComponent(status)}`
   )
 
 export const createInvitation = (
-  input: CreateInvitationInput,
+  input: CreateInvitationInput
 ): Promise<OrgInvitation> =>
   fetchApi<OrgInvitation>('/admin/invitations/', {
     method: 'POST',

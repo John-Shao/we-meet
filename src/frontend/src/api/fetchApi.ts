@@ -74,7 +74,12 @@ export const fetchApi = async <T = Record<string, unknown>>(
   let response = await fetch(target, {
     credentials: 'include',
     ...options,
-    headers: buildHeaders(initialBearer, csrfToken, options?.headers, options?.body),
+    headers: buildHeaders(
+      initialBearer,
+      csrfToken,
+      options?.headers,
+      options?.body
+    ),
   })
 
   // Bearer 401 → attempt one silent refresh, retry once with the new token.
@@ -86,7 +91,12 @@ export const fetchApi = async <T = Record<string, unknown>>(
       response = await fetch(target, {
         credentials: 'include',
         ...options,
-        headers: buildHeaders(newAccess, csrfToken, options?.headers, options?.body),
+        headers: buildHeaders(
+          newAccess,
+          csrfToken,
+          options?.headers,
+          options?.body
+        ),
       })
     }
     // If the retry is also 401, or we never had a refresh token / it

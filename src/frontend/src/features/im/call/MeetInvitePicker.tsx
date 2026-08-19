@@ -82,136 +82,140 @@ export const MeetInvitePicker = ({
       initialFocusRef={searchRef}
     >
       <div className={modalHead}>
-          <h2
-            className={css({
-              margin: 0,
-              fontSize: '1rem',
-              fontWeight: 'bold',
-              color: 'greyscale.900',
-            })}
-          >
-            {t('call.invite.title')}
-          </h2>
-          <ModalCloseButton onClose={onClose} label={t('call.cancel')} />
-        </div>
-        <div className={css({ padding: '0.75rem 1rem' })}>
-          <input
-            ref={searchRef}
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('group.searchPlaceholder')}
-            data-testid="meet-invite-search"
-            className={inputCls}
-          />
-        </div>
-        <div className={css({ overflowY: 'auto', flex: 1 })}>
-          {isFetching && selectable.length === 0 ? (
-            <StateHint loading>{t('group.loading')}</StateHint>
-          ) : selectable.length === 0 ? (
-            <StateHint>{t('manage.empty')}</StateHint>
-          ) : (
-            <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
-              {selectable.map((m) => {
-                const label = m.full_name || m.short_name || m.email || m.id
-                const checked = selected.has(m.id)
-                return (
-                  <li key={m.id}>
-                    <button
-                      type="button"
-                      onClick={() => toggle(m.id, label, m.avatar_url || undefined)}
-                      aria-pressed={checked}
-                      data-testid={`meet-invite-item-${m.id}`}
+        <h2
+          className={css({
+            margin: 0,
+            fontSize: '1rem',
+            fontWeight: 'bold',
+            color: 'greyscale.900',
+          })}
+        >
+          {t('call.invite.title')}
+        </h2>
+        <ModalCloseButton onClose={onClose} label={t('call.cancel')} />
+      </div>
+      <div className={css({ padding: '0.75rem 1rem' })}>
+        <input
+          ref={searchRef}
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t('group.searchPlaceholder')}
+          data-testid="meet-invite-search"
+          className={inputCls}
+        />
+      </div>
+      <div className={css({ overflowY: 'auto', flex: 1 })}>
+        {isFetching && selectable.length === 0 ? (
+          <StateHint loading>{t('group.loading')}</StateHint>
+        ) : selectable.length === 0 ? (
+          <StateHint>{t('manage.empty')}</StateHint>
+        ) : (
+          <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
+            {selectable.map((m) => {
+              const label = m.full_name || m.short_name || m.email || m.id
+              const checked = selected.has(m.id)
+              return (
+                <li key={m.id}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      toggle(m.id, label, m.avatar_url || undefined)
+                    }
+                    aria-pressed={checked}
+                    data-testid={`meet-invite-item-${m.id}`}
+                    className={css({
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.625rem',
+                      width: '100%',
+                      paddingX: '1rem',
+                      paddingY: '0.5rem',
+                      border: 'none',
+                      borderBottom: '1px solid token(colors.greyscale.100)',
+                      backgroundColor: checked
+                        ? 'greyscale.100'
+                        : 'transparent',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      _hover: { backgroundColor: 'greyscale.100' },
+                    })}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={css({
+                        flexShrink: 0,
+                        width: '1.125rem',
+                        height: '1.125rem',
+                        borderRadius: '0.25rem',
+                        border: '1px solid token(colors.greyscale.400)',
+                        // 未选中走会翻转的 greyscale.000(浅色仍是纯白),
+                        // 裸 'white' 在深色下是一排刺眼白方块。
+                        backgroundColor: checked
+                          ? 'primary.500'
+                          : 'greyscale.000',
+                        color: 'white',
+                        fontSize: '0.75rem',
+                        lineHeight: '1.125rem',
+                        textAlign: 'center',
+                      })}
+                    >
+                      {checked ? '✓' : ''}
+                    </span>
+                    <MemberAvatar name={label} src={m.avatar_url} size="2rem" />
+                    <span
                       className={css({
                         display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.625rem',
-                        width: '100%',
-                        paddingX: '1rem',
-                        paddingY: '0.5rem',
-                        border: 'none',
-                        borderBottom: '1px solid token(colors.greyscale.100)',
-                        backgroundColor: checked
-                          ? 'greyscale.100'
-                          : 'transparent',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        _hover: { backgroundColor: 'greyscale.100' },
+                        flexDirection: 'column',
+                        minWidth: 0,
                       })}
                     >
                       <span
-                        aria-hidden="true"
                         className={css({
-                          flexShrink: 0,
-                          width: '1.125rem',
-                          height: '1.125rem',
-                          borderRadius: '0.25rem',
-                          border: '1px solid token(colors.greyscale.400)',
-                          // 未选中走会翻转的 greyscale.000(浅色仍是纯白),
-                          // 裸 'white' 在深色下是一排刺眼白方块。
-                          backgroundColor: checked
-                            ? 'primary.500'
-                            : 'greyscale.000',
-                          color: 'white',
-                          fontSize: '0.75rem',
-                          lineHeight: '1.125rem',
-                          textAlign: 'center',
+                          fontWeight: 'medium',
+                          color: 'greyscale.900',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
                         })}
                       >
-                        {checked ? '✓' : ''}
+                        {label}
                       </span>
-                      <MemberAvatar name={label} src={m.avatar_url} size="2rem" />
                       <span
                         className={css({
-                          display: 'flex',
-                          flexDirection: 'column',
-                          minWidth: 0,
+                          fontSize: '0.75rem',
+                          color: 'greyscale.500',
                         })}
                       >
-                        <span
-                          className={css({
-                            fontWeight: 'medium',
-                            color: 'greyscale.900',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          })}
-                        >
-                          {label}
-                        </span>
-                        <span
-                          className={css({
-                            fontSize: '0.75rem',
-                            color: 'greyscale.500',
-                          })}
-                        >
-                          {[m.title, m.department?.name]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </span>
+                        {[m.title, m.department?.name]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-        {footer}
-        <div className={modalFoot}>
-          <span className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}>
-            {t('group.selected', { count: selected.size })}
-          </span>
-          <Button
-            variant="primary"
-            size="action"
-            isDisabled={selected.size === 0}
-            onPress={confirm}
-            data-testid="meet-invite-confirm"
-          >
-            {t('call.invite.confirm')}
-          </Button>
-        </div>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+      {footer}
+      <div className={modalFoot}>
+        <span
+          className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}
+        >
+          {t('group.selected', { count: selected.size })}
+        </span>
+        <Button
+          variant="primary"
+          size="action"
+          isDisabled={selected.size === 0}
+          onPress={confirm}
+          data-testid="meet-invite-confirm"
+        >
+          {t('call.invite.confirm')}
+        </Button>
+      </div>
     </Modal>
   )
 }

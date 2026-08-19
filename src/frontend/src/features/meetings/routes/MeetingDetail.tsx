@@ -318,44 +318,44 @@ const ChaptersTab = ({
               }
               title={jumpable ? t('chapters.jumpHint') : undefined}
               className={css({
-              display: 'flex',
-              width: '100%',
-              gap: '0.75rem',
-              alignItems: 'flex-start',
-              borderRadius: '0.5rem',
-              border: 0,
-              background: 'transparent',
-              textAlign: 'left',
-              padding: '0.25rem 0.375rem',
-              cursor: jumpable ? 'pointer' : 'default',
-              _hover: jumpable ? { backgroundColor: 'greyscale.50' } : {},
-            })}
-            >
-            <span
-              className={css({
-                flexShrink: 0,
-                minWidth: '7.5rem',
-                fontFamily: 'monospace',
-                fontSize: '0.8125rem',
-                color: 'greyscale.500',
-                paddingTop: '0.125rem',
+                display: 'flex',
+                width: '100%',
+                gap: '0.75rem',
+                alignItems: 'flex-start',
+                borderRadius: '0.5rem',
+                border: 0,
+                background: 'transparent',
+                textAlign: 'left',
+                padding: '0.25rem 0.375rem',
+                cursor: jumpable ? 'pointer' : 'default',
+                _hover: jumpable ? { backgroundColor: 'greyscale.50' } : {},
               })}
             >
-              {chapter.started_at
-                ? `${fmt(chapter.started_at)}${chapter.ended_at ? ` – ${fmt(chapter.ended_at)}` : ''}`
-                : '—'}
-            </span>
-            <div>
-              <Text bold>{chapter.title}</Text>
-              {chapter.digest && (
-                <Text
-                  variant="note"
-                  className={css({ marginTop: '0.125rem', display: 'block' })}
-                >
-                  {chapter.digest}
-                </Text>
-              )}
-            </div>
+              <span
+                className={css({
+                  flexShrink: 0,
+                  minWidth: '7.5rem',
+                  fontFamily: 'monospace',
+                  fontSize: '0.8125rem',
+                  color: 'greyscale.500',
+                  paddingTop: '0.125rem',
+                })}
+              >
+                {chapter.started_at
+                  ? `${fmt(chapter.started_at)}${chapter.ended_at ? ` – ${fmt(chapter.ended_at)}` : ''}`
+                  : '—'}
+              </span>
+              <div>
+                <Text bold>{chapter.title}</Text>
+                {chapter.digest && (
+                  <Text
+                    variant="note"
+                    className={css({ marginTop: '0.125rem', display: 'block' })}
+                  >
+                    {chapter.digest}
+                  </Text>
+                )}
+              </div>
             </button>
           </li>
         )
@@ -391,7 +391,9 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
             borderColor: 'greyscale.300',
             borderRadius: '6px',
             padding: '0.75rem 1rem',
-            backgroundColor: item.is_completed ? 'greyscale.100' : 'greyscale.000',
+            backgroundColor: item.is_completed
+              ? 'greyscale.100'
+              : 'greyscale.000',
             opacity: item.is_completed ? 0.7 : 1,
           })}
         >
@@ -481,8 +483,7 @@ const TranscriptTab = ({
           ? row.translations[translationKey]
           : null
         const showTranslation =
-          translation &&
-          row.language.toLowerCase().split('-')[0] !== userLang
+          translation && row.language.toLowerCase().split('-')[0] !== userLang
         return (
           <div
             key={row.id}
@@ -528,7 +529,13 @@ const TranscriptTab = ({
   )
 }
 
-const InfoRow = ({ label, children }: { label: string; children: ReactNode }) => (
+const InfoRow = ({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) => (
   <div
     className={css({
       display: 'flex',
@@ -549,7 +556,13 @@ const InfoRow = ({ label, children }: { label: string; children: ReactNode }) =>
     >
       {label}
     </div>
-    <div className={css({ flex: 1, fontSize: '0.9375rem', wordBreak: 'break-word' })}>
+    <div
+      className={css({
+        flex: 1,
+        fontSize: '0.9375rem',
+        wordBreak: 'break-word',
+      })}
+    >
       {children}
     </div>
   </div>
@@ -581,7 +594,9 @@ const MeetingInfoTab = ({ roomId }: { roomId: string }) => {
 
   const start = new Date(data.created_at).toLocaleString()
   const end = data.closed_at ? new Date(data.closed_at).toLocaleString() : null
-  const timeText = end ? `${start} – ${end}` : `${start}（${t('info.ongoing')}）`
+  const timeText = end
+    ? `${start} – ${end}`
+    : `${start}（${t('info.ongoing')}）`
 
   const memberNames = (data.accesses ?? []).map(
     (a) => a.user.full_name || a.user.short_name || a.user.email || '—'
@@ -637,9 +652,7 @@ export const MeetingDetail = () => {
 
   if (isLoggedIn === undefined || isAuthLoading) return <LoadingScreen />
   if (!isLoggedIn)
-    return (
-      <ErrorScreen title={t('auth.title')} body={t('auth.body')} />
-    )
+    return <ErrorScreen title={t('auth.title')} body={t('auth.body')} />
   if (!roomId)
     return <ErrorScreen title={t('error.title')} body={t('error.body')} />
 
