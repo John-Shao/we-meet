@@ -21,6 +21,8 @@ import { css } from '@/styled-system/css'
  * 上下切掉(汉字切得最狠,拉丁文只丢降部,所以英文截图看不出来)。这正是
  * selectChrome 踩过的坑,见那边的注释。单行控件的文字由浏览器在元素盒内
  * 垂直居中,不需要 paddingY 来摆位。多行的 textarea 不适用,别照抄。
+ *
+ * 聚焦描边由 styles/index.css 的「统一焦点描边」统一给出,这里不要再写 _focus。
  */
 export const inputCls = css({
   width: '100%',
@@ -31,8 +33,6 @@ export const inputCls = css({
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '0.5rem',
   fontSize: '0.875rem',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
 })
 
 export const fieldCls = css({

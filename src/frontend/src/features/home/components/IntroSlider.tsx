@@ -147,8 +147,9 @@ type Slide = {
 
 const carouselNavButton = css({
   _focusVisible: {
+    // offset 与全站焦点环统一为 2px(见 styles/index.css 的「统一焦点描边」②)。
     outline: '2px solid var(--colors-focus-ring) !important',
-    outlineOffset: '1px',
+    outlineOffset: '2px',
   },
   _disabled: {
     color: 'greyscale.400',

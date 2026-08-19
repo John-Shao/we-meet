@@ -21,6 +21,7 @@ export const modalFoot = css({
   borderTop: '1px solid token(colors.greyscale.200)',
 })
 
+// 聚焦描边由 styles/index.css 的「统一焦点描边」统一给出,这里不要再写 _focus。
 export const inputCls = css({
   width: '100%',
   paddingX: '0.75rem',
@@ -28,8 +29,6 @@ export const inputCls = css({
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '0.5rem',
   fontSize: '0.875rem',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
 })
 
 export const sectionCls = css({

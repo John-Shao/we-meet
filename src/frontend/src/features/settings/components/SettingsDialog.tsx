@@ -890,8 +890,6 @@ const selectCls = cx(
     color: 'greyscale.900',
     fontSize: '0.875rem',
     cursor: 'pointer',
-    outline: 'none',
-    _focus: { borderColor: 'primary.500' },
   }),
   selectChrome
 )
@@ -955,8 +953,6 @@ const editInputCls = css({
   backgroundColor: 'greyscale.000',
   color: 'greyscale.900',
   fontSize: '0.875rem',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
 })
 const noShrinkCls = css({ flexShrink: 0 })
 const editErrorCls = css({ fontSize: '0.8125rem', color: 'danger.600' })

@@ -26,9 +26,13 @@
     transparent
   );
 }
+/* 焦点环走全站统一的 --colors-focus-ring + 2px offset(见 styles/index.css 的
+   「统一焦点描边」②),**不**用 --wm-calendar-color:那是用户自选的订阅色,
+   拿它画焦点环有两个问题 —— 颜色浅的日历(淡黄/淡灰)焦点几乎看不见,而且焦点
+   与「颜色=归属」这层语义混在一起。归属仍由左侧竖条和块底表达,没有丢。 */
 .rbc-event:focus {
-  outline: 2px solid var(--wm-calendar-color);
-  outline-offset: 1px;
+  outline: 2px solid var(--colors-focus-ring);
+  outline-offset: 2px;
 }
 .rbc-event-content {
   font-weight: 500;

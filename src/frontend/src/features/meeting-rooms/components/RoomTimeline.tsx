@@ -1006,9 +1006,12 @@ const eventBlockCls = css({
 })
 const interactiveBlockCls = css({
   cursor: 'pointer',
+  // 焦点环走 focusRing token(随主题翻转)+ 2px offset,与全站统一:
+  // 见 styles/index.css 的「统一焦点描边」②。原先写死 primary.500 + 1px,
+  // 深色下与同一屏别处的焦点环不是一个颜色。
   _focusVisible: {
-    outline: '2px solid token(colors.primary.500)',
-    outlineOffset: '1px',
+    outline: '2px solid token(colors.focusRing)',
+    outlineOffset: '2px',
   },
 })
 const movableBlockCls = css({

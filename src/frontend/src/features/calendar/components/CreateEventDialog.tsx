@@ -727,10 +727,8 @@ const textareaCls = css({
   borderRadius: '0.5rem',
   fontSize: '0.875rem',
   fontFamily: 'inherit',
-  outline: 'none',
   resize: 'vertical',
   minHeight: '3.5rem',
-  _focus: { borderColor: 'primary.500' },
 })
 
 // 标签在左、开关在右(Switch 默认滑块在前,故 row-reverse)。

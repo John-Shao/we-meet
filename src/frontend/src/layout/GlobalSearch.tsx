@@ -473,6 +473,11 @@ const SearchPalette = ({
             outline: 'none',
             fontSize: '0.9375rem',
             backgroundColor: 'transparent',
+            // 这一个输入框**刻意**不要统一焦点描边(styles/index.css 的「统一焦点
+            // 描边」①):它没有边框、底也是透明的,焦点由整块命令面板代表(打开就
+            // 在此,见 initialFocusRef)。没有边框可染时只剩那圈柔光环,会变成一团
+            // 悬在分割线上的蓝雾。`!` 是因为那条规则未分层,普通声明盖不住。
+            _focus: { boxShadow: 'none!' },
           })}
         />
       </div>

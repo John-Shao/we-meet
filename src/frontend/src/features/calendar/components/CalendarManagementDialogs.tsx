@@ -1005,6 +1005,7 @@ const activeTabCls = css({
   color: 'primary.600',
   cursor: 'pointer',
 })
+// 聚焦描边由 styles/index.css 的「统一焦点描边」统一给出,这里不要再写 _focus。
 const textareaCls = css({
   width: '100%',
   minHeight: '3.5rem',
@@ -1015,8 +1016,6 @@ const textareaCls = css({
   fontSize: '0.875rem',
   fontFamily: 'inherit',
   resize: 'vertical',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
 })
 const disabledControlCls = css({
   _disabled: {

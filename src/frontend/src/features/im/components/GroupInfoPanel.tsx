@@ -470,8 +470,6 @@ export const GroupInfoPanel = ({
                 border: '1px solid token(colors.greyscale.300)',
                 borderRadius: '0.5rem',
                 fontSize: '0.875rem',
-                outline: 'none',
-                _focus: { borderColor: 'primary.500' },
               })}
             />
             <div className={editActions}>
@@ -683,6 +681,7 @@ export const GroupInfoPanel = ({
   )
 }
 
+// 聚焦描边由 styles/index.css 的「统一焦点描边」统一给出,这里不要再写 _focus。
 const inputCls = css({
   flex: 1,
   minWidth: 0,
@@ -691,8 +690,6 @@ const inputCls = css({
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '0.5rem',
   fontSize: '0.875rem',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
 })
 
 const sectionCls = css({

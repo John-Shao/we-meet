@@ -73,9 +73,15 @@ const cascadeCls = css({
   flexWrap: 'wrap',
   gap: '0.5rem',
 })
+/**
+ * 层级级联下拉。`border` 不能省:panda preflight 把 `*` 的 border-width 清成 0,
+ * selectChrome 又只管外观不管边框 —— 原先是没有框的白方块,而统一焦点描边
+ * (见 styles/index.css)需要有一条边框可染,否则聚焦时只剩一圈悬空光环。
+ */
 const selectCls = css({
   minWidth: '7.25rem',
   maxWidth: '11rem',
   fontSize: '0.8125rem',
-  paddingY: '0.375rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: 4,
 })

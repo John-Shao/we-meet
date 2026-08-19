@@ -832,7 +832,6 @@ export const MessageInput = ({
             border: '1px solid token(colors.greyscale.300)',
             borderRadius: '0.5rem',
             fontSize: '0.9375rem',
-            _focus: { outline: 'none', borderColor: 'primary.500' },
           })}
           data-testid="im-msg-input"
         />

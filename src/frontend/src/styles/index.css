@@ -40,12 +40,83 @@ main#main-content :is(h1, h2, h3)[tabindex='-1']:focus {
   outline-offset: 2px;
 }
 
-[data-rac][data-focus-visible]:not(label, .react-aria-Select),
-:is(a, button, input[type='text'], select, textarea):not(
-    [data-rac]
-  ):focus-visible {
+/* ===== 统一焦点描边 =======================================================
+ * 基准 = 登录页(Keycloak phone 主题)输入框的 `.wm-field:focus-within`:
+ * 品牌蓝描边 + 3px 半透明蓝柔光环。这里把它落成**全站唯一一处**焦点样式定义,
+ * 分两类:
+ *
+ *   ① 输入类(原生 input / textarea / select,外加自绘的组合控件) ——
+ *      蓝描边 + 柔光环(--shadows-focus-ring)。描边落在控件本来那条 1px 边框上,
+ *      光环走 box-shadow,两者都不占布局,聚焦时不跳位。
+ *   ② 其余可聚焦控件(链接 / 按钮 / 勾选框 / RAC 组件) —— 2px 焦点环 + 2px offset。
+ *      环不给输入类用:表单一行里常是 Input + Select + Button 挨着排,带 offset 的
+ *      环会压到邻居身上(Select 基元原先就为此把 offset 写成 -1px,自成一档)。
+ *
+ * 两类共用同一个 `--colors-focus-ring`,它**随主题翻转**(见 panda.config)。
+ * 这正是改前最刺眼的那处不一致:原值是固定色 rgb(74,121,199),深色下发灰,
+ * 而同一页里另有 38 处控件自己写死 primary.500 当焦点色 —— 于是「同一个焦点态」
+ * 在浅色/深色、原生控件/基元控件之间有四五种长相。
+ *
+ * ⚠️ 为什么写在 CSS 文件里而不是各组件里:本文件的规则**未分层**,而 panda 的
+ * `css()` 产物落在 `@layer utilities`。未分层规则优先于任何分层规则(与具体度
+ * 无关),所以组件里普通的 `outline: 'none'` / `_focus: {...}` 一律盖不住这里 ——
+ * 改前那 38 处「outline:none + borderColor:primary.500」其实全被下面这条环盖着,
+ * 写了等于没写。反过来,组件确实需要另画焦点时,唯一的办法是 panda 的 `!`
+ * (见 primitives/Select.tsx 与 Checkbox / Radio / Switch)。
+ *
+ * 排除项:
+ *   - checkbox / radio / range / file 不是「描边控件」(它们的框由系统绘制),归 ②;
+ *   - ② 的 `[data-rac]` 分支排除原生输入元素,否则 RAC 的 Input / TextArea 会同时
+ *     命中 ① 和 ②,而 ② 具体度更高会赢,基元输入框的焦点态就和原生 input 对不上;
+ *   - `label`(Checkbox / Radio / Switch 的根)与 `.react-aria-Select`(Select 的根
+ *     div)自己不画焦点,由内部的方块 / 触发按钮各自画。
+ */
+:is(
+  input:not(
+    [type='checkbox'],
+    [type='radio'],
+    [type='range'],
+    [type='file'],
+    [type='color'],
+    [type='image'],
+    [type='button'],
+    [type='submit'],
+    [type='reset']
+  ),
+  textarea,
+  select
+):focus {
+  outline: none;
+  border-color: var(--colors-focus-ring);
+  box-shadow: var(--shadows-focus-ring);
+}
+
+/* 描边/光环的过渡挂在**静止态**上,聚焦收起时才同样有过渡(只写在 :focus 上
+   的过渡是「进有出无」)。120ms 与登录页的 .15s 同量级。开了「减弱动态效果」时
+   由本文件末尾那条兜底规则统一压掉。 */
+:is(input, textarea, select) {
+  transition:
+    border-color var(--durations-fast) var(--easings-standard),
+    box-shadow var(--durations-fast) var(--easings-standard);
+}
+
+[data-rac][data-focus-visible]:not(
+    label,
+    .react-aria-Select,
+    input,
+    textarea,
+    select
+  ),
+:is(
+    a,
+    button,
+    input[type='checkbox'],
+    input[type='radio'],
+    input[type='range'],
+    input[type='file']
+  ):not([data-rac]):focus-visible {
   outline: 2px solid var(--colors-focus-ring);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -57,9 +57,20 @@ These control the main visual aspects of the interface:
 | Error      | Errors and destructive actions  | `--colors-error`            |
 | Warning    | Warnings and alerts             | `--colors-warning`          |
 | Alert      | Notification backgrounds        | `--colors-alert`            |
+| Focus      | Focus outline of every control  | `--colors-focus-ring`       |
+| Focus      | Focus halo of input-like fields | `--shadows-focus-ring`      |
 | Font Sans  | Main UI font                    | `--fonts-sans`              |
 | Font Serif | Alternate/reading font          | `--fonts-serif`             |
 | Font Mono  | Code or technical font          | `--fonts-mono`              |
+
+> [!NOTE]
+> Focus styling is defined in exactly one place — the "统一焦点描边" block of
+> [src/frontend/src/styles/index.css](../src/frontend/src/styles/index.css) — and comes in two flavours:
+> input-like controls (`input` / `textarea` / `select`, plus the `Select` primitive) get a brand-blue
+> border plus the `--shadows-focus-ring` halo, mirroring the login page's input; everything else
+> (links, buttons, checkboxes, react-aria components) gets a `2px` `--colors-focus-ring` outline with a
+> `2px` offset. Overriding those two variables re-themes every focus state in the app, in both light
+> and dark mode.
 
 
 ### Assets (Logo, Images)

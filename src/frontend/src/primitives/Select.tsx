@@ -33,9 +33,21 @@ const StyledButton = styled(Button, {
     color: 'control.text',
     borderRadius: 4,
     boxShadow: '0 1px 2px rgba(0 0 0 / 0.1)',
-    '&[data-focus-visible]': {
-      outline: '2px solid {colors.focusRing}',
-      outlineOffset: '-1px',
+    '&[data-focus-visible], &[data-focused]': {
+      // 「选择框」归输入类:焦点态与输入框同款 —— 蓝描边 + 柔光环,见
+      // styles/index.css 的「统一焦点描边」。原先这里是 2px 焦点环 + offset -1px,
+      // 全站独一档;offset 取负正是因为环画在外面会压到同一行的邻居,而
+      // box-shadow 光环贴着边框长,天生没这个问题。
+      //
+      // 连 data-focused 一起认(而不只是键盘态 data-focus-visible):原生 <select>
+      // 走 CSS `:focus`,鼠标点开时也亮描边,两种选择框的焦点态得对得上。
+      //
+      // 三个 `!` 是必需的:index.css 里那条兜底焦点环是**未分层**规则,优先于
+      // panda utilities 层的普通声明,不加 `!` 这三行会被它整体盖掉
+      // (Checkbox / Radio / Switch 同理)。
+      outline: 'none!',
+      borderColor: 'focusRing!',
+      boxShadow: 'focusRing!',
     },
     '&[data-pressed]': {
       backgroundColor: 'control.hover',

@@ -132,8 +132,6 @@ const textareaStyle = css({
   fontSize: '0.875rem',
   fontFamily: 'inherit',
   resize: 'none',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
 })
 
 const cursorStyle = css({

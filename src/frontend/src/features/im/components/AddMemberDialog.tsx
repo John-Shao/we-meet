@@ -217,6 +217,4 @@ const inputCls = css({
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '0.5rem',
   fontSize: '0.875rem',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
 })

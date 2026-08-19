@@ -56,7 +56,7 @@ export const MeetingRoomFilters = ({
       {!compact && (
         <input
           type="search"
-          className={cx(selectChrome, searchCls)}
+          className={searchCls}
           value={value.q ?? ''}
           onChange={(event) => onChange({ ...value, q: event.target.value })}
           placeholder={t('picker.searchPlaceholder')}
@@ -154,15 +154,38 @@ const rowCls = css({
   alignItems: 'center',
   gap: '0.5rem',
 })
+/**
+ * 筛选行里的下拉。
+ *
+ * `border` 不能省:panda preflight 把 `*` 的 border-width 清成 0,而 selectChrome
+ * 只管外观(高度 / 箭头 / 底色)不管边框 —— 原先这两个下拉是**一点框都没有**的白
+ * 方块,同一页别处的下拉却都有 1px 灰框。更要紧的是「聚焦时描边变蓝」(见
+ * styles/index.css 的统一焦点描边)得有一条边框可染,没有边框就只剩一圈悬空光环。
+ */
 const selectCls = css({
   fontSize: '0.8125rem',
-  paddingY: '0.375rem',
   minWidth: '8rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: 4,
 })
+/**
+ * 搜索框。
+ *
+ * 刻意**不**套 selectChrome:它是给原生 `<select>` 的(自绘下拉箭头 + 右侧留位),
+ * 套在 `<input type="search">` 上等于给搜索框画了个假的下拉箭头 —— 原先就是这样。
+ * 高度仍钉 control.md 并清掉 paddingBlock,与同一行的下拉齐平(理由见
+ * primitives/selectChrome.ts 的注释:留着 paddingY 会把文字上下切掉)。
+ */
 const searchCls = css({
   minWidth: '13rem',
   fontSize: '0.8125rem',
-  paddingY: '0.375rem',
+  height: 'control.md',
+  minHeight: 'control.md',
+  paddingBlock: 0,
+  paddingX: '0.625rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: 4,
+  backgroundColor: 'greyscale.000',
 })
 const facilityRowCls = css({
   display: 'flex',

@@ -3,6 +3,9 @@ import { styled } from '@/styled-system/jsx'
 
 /**
  * Styled RAC TextArea.
+ *
+ * 焦点态同 Input:由 styles/index.css 的「统一焦点描边」①给出,不要在这里写
+ * `_focus`(那条规则未分层,普通声明盖不住)。
  */
 export const TextArea = styled(RACTextArea, {
   base: {

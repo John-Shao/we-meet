@@ -360,7 +360,5 @@ const inputCls = css({
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '0.5rem',
   paddingX: '0.75rem',
-  outline: 'none',
-  _focus: { borderColor: 'primary.500' },
 })
 const resultsCls = css({ minHeight: '260px', maxHeight: '52vh', overflowY: 'auto', paddingX: '1rem' })

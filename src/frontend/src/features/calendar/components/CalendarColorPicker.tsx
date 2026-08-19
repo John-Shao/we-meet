@@ -75,8 +75,10 @@ const triggerBase = {
   borderRadius: 'full',
   outline: '1px solid token(colors.greyscale.300)',
   cursor: 'pointer',
+  // 焦点环用 focusRing token(随主题翻转),与全站统一 —— 见 styles/index.css
+  // 的「统一焦点描边」②。静止态那条 1px 灰 outline 是装饰边,不是焦点态。
   _focusVisible: {
-    outline: '2px solid token(colors.primary.500)',
+    outline: '2px solid token(colors.focusRing)',
     outlineOffset: '2px',
   },
 } as const
@@ -123,8 +125,12 @@ const swatchCls = css({
   color: 'white',
   cursor: 'pointer',
   _hover: { transform: 'scale(1.08)' },
+  // 与全站统一的焦点环(见 styles/index.css 的「统一焦点描边」②)。原先写死
+  // greyscale.900,想的是「中性色在任何色板上都读得出」—— 但 2px offset 的环
+  // 落在色板**外面**的面上,底色是面板而不是色块,蓝环一样清楚;而且那行其实
+  // 一直被 index.css 的兜底环盖着,从未真正生效过。
   _focusVisible: {
-    outline: '2px solid token(colors.greyscale.900)',
+    outline: '2px solid token(colors.focusRing)',
     outlineOffset: '2px',
   },
 })
