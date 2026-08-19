@@ -12,6 +12,11 @@
   "forbidden": {
     "heading": "Accès interdit"
   },
+  "inlineEdit": {
+    "hint": "Modification de {{field}} : Entrée pour enregistrer, Échap pour annuler",
+    "hintMultiline": "Modification de {{field}} : Échap pour annuler",
+    "saving": "Enregistrement…"
+  },
   "loading": "Chargement…",
   "loggedInUserTooltip": "Connecté en tant que ",
   "login": {

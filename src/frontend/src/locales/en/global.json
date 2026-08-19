@@ -12,6 +12,11 @@
   "forbidden": {
     "heading": "You don't have the permission to view this page"
   },
+  "inlineEdit": {
+    "hint": "Editing {{field}}: Enter to save, Esc to cancel",
+    "hintMultiline": "Editing {{field}}: Esc to cancel",
+    "saving": "Saving…"
+  },
   "loading": "Loading…",
   "loggedInUserTooltip": "Logged in as ",
   "login": {

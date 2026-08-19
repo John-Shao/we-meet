@@ -5,9 +5,9 @@ import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 import { RiCalendarScheduleLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
-import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
-import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
+import { InlineEditField } from '@/components/InlineEditField'
+import { useInlineEdit } from '@/hooks/useInlineEdit'
 
 import { announceLeave } from '../api/announceLeave'
 import { listGroupBots } from '../api/groupBots'
@@ -70,6 +70,7 @@ export const GroupInfoPanel = ({
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
+  const { t: gt } = useTranslation()
   const { confirm: askConfirm, alert: showAlert } = useConfirm()
   const qc = useQueryClient()
   const cid = conversation.cid
@@ -80,21 +81,7 @@ export const GroupInfoPanel = ({
   const muted = !!conversation.muted
   const muteAtAll = !!conversation.mute_at_all
 
-  const [editingName, setEditingName] = useState(false)
-  const [nameDraft, setNameDraft] = useState(conversation.name || '')
-  const [editingDesc, setEditingDesc] = useState(false)
-  const [descDraft, setDescDraft] = useState(description)
-  const [editingNick, setEditingNick] = useState(false)
-  const [nickDraft, setNickDraft] = useState('')
   const [busy, setBusy] = useState(false)
-  // 三处行内编辑的焦点接力(进编辑聚焦字段、退出还给 ✎ 按钮)统一走 hook,
-  // 契约与「为什么不能用 useRestoreFocus」都写在 useInlineEditFocus 里。
-  const { fieldRef: nameRef, triggerRef: nameTriggerRef } =
-    useInlineEditFocus(editingName)
-  const { fieldRef: descRef, triggerRef: descTriggerRef } =
-    useInlineEditFocus<HTMLTextAreaElement>(editingDesc)
-  const { fieldRef: nickRef, triggerRef: nickTriggerRef } =
-    useInlineEditFocus(editingNick)
   const displayName = conversation.name || t('convName.groupFallback')
 
   // Sub-pages are local state, matching how the rest of the app switches
@@ -154,65 +141,47 @@ export const GroupInfoPanel = ({
       }),
     })
 
-  const saveName = async () => {
-    const next = nameDraft.trim()
-    if (!next || next === conversation.name) {
-      setEditingName(false)
-      return
-    }
-    setBusy(true)
-    try {
+  // 三处行内编辑统一走 useInlineEdit(无按钮:Enter 保存 / Esc 取消 / 失焦自动保存);
+  // 各自的 onSave 只做 trim + 判空/判等 + 发请求 + invalidate,退出/忙/错误交给 hook。
+  const nameEdit = useInlineEdit({
+    value: conversation.name || '',
+    onSave: async (draft) => {
+      const next = draft.trim()
+      if (!next || next === conversation.name) return
       // Send full meta (preserve description) — jusi replaces meta wholesale.
       await updateGroupMeta(cid, { name: next, description, kind: 'rename' })
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
-      setEditingName(false)
-    } catch (e) {
-      onError(e)
-    } finally {
-      setBusy(false)
-    }
-  }
+    },
+    onSaveError: onError,
+  })
 
-  const saveDescription = async () => {
-    const next = descDraft.trim()
-    if (next === description) {
-      setEditingDesc(false)
-      return
-    }
-    setBusy(true)
-    try {
+  const descEdit = useInlineEdit({
+    value: description,
+    multiline: true,
+    onSave: async (draft) => {
+      const next = draft.trim()
+      if (next === description) return
       await updateGroupMeta(cid, {
         name: conversation.name || '',
         description: next,
         kind: 'description',
       })
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
-      setEditingDesc(false)
-    } catch (e) {
-      onError(e)
-    } finally {
-      setBusy(false)
-    }
-  }
+    },
+    onSaveError: onError,
+  })
 
-  const saveNickname = async () => {
-    const next = nickDraft.trim()
-    if (next === myNickname) {
-      setEditingNick(false)
-      return
-    }
-    setBusy(true)
-    try {
+  const nickEdit = useInlineEdit({
+    value: myNickname,
+    onSave: async (draft) => {
+      const next = draft.trim()
+      if (next === myNickname) return
       await client.setConversationSettings(cid, { nickname: next })
       // Roster carries nickname (drives my row + how others/messages render me).
       await qc.invalidateQueries({ queryKey: ['im', 'members', cid] })
-      setEditingNick(false)
-    } catch (e) {
-      onError(e)
-    } finally {
-      setBusy(false)
-    }
-  }
+    },
+    onSaveError: onError,
+  })
 
   // pinned / muted / mute_at_all are private toggles surfaced on the summary;
   // flip then refresh the list (reorders pinned + re-reads the flags).
@@ -359,27 +328,21 @@ export const GroupInfoPanel = ({
         })}
       >
         <GroupAvatar members={avatarTiles} size="2.75rem" />
-        {editingName ? (
+        {nameEdit.editing ? (
           <div className={css({ display: 'flex', flex: 1, gap: '0.5rem' })}>
-            <input
-              ref={nameRef}
-              type="text"
-              value={nameDraft}
+            <InlineEditField
+              ref={nameEdit.fieldRef}
+              value={nameEdit.draft}
+              onChange={nameEdit.setDraft}
+              onKeyDown={nameEdit.onFieldKeyDown}
+              onBlur={nameEdit.onFieldBlur}
+              disabled={nameEdit.busy}
               maxLength={60}
-              onChange={(e) => setNameDraft(e.target.value)}
               placeholder={t('manage.renamePlaceholder')}
-              data-testid="group-rename-input"
+              ariaLabel={gt('inlineEdit.hint', { field: t('manage.rename') })}
+              testid="group-rename-input"
               className={inputCls}
             />
-            <Button
-              variant="primary"
-              size="dense"
-              isDisabled={busy}
-              onPress={saveName}
-              data-testid="group-rename-save"
-            >
-              {t('manage.save')}
-            </Button>
           </div>
         ) : (
           <div
@@ -407,11 +370,8 @@ export const GroupInfoPanel = ({
             {isOwner && (
               <button
                 type="button"
-                ref={nameTriggerRef}
-                onClick={() => {
-                  setNameDraft(conversation.name || '')
-                  setEditingName(true)
-                }}
+                ref={nameEdit.triggerRef}
+                onClick={nameEdit.startEdit}
                 title={t('manage.rename')}
                 aria-label={t('manage.rename')}
                 data-testid="group-rename"
@@ -428,14 +388,11 @@ export const GroupInfoPanel = ({
       <div className={sectionCls}>
         <div className={sectionHead}>
           <span className={sectionLabel}>{t('manage.description')}</span>
-          {isOwner && !editingDesc && (
+          {isOwner && !descEdit.editing && (
             <button
               type="button"
-              ref={descTriggerRef}
-              onClick={() => {
-                setDescDraft(description)
-                setEditingDesc(true)
-              }}
+              ref={descEdit.triggerRef}
+              onClick={descEdit.startEdit}
               aria-label={t('manage.description')}
               data-testid="group-desc-edit"
               className={editBtn}
@@ -444,7 +401,7 @@ export const GroupInfoPanel = ({
             </button>
           )}
         </div>
-        {editingDesc ? (
+        {descEdit.editing ? (
           <div
             className={css({
               display: 'flex',
@@ -452,14 +409,21 @@ export const GroupInfoPanel = ({
               gap: '0.5rem',
             })}
           >
-            <textarea
-              ref={descRef}
-              value={descDraft}
+            <InlineEditField
+              ref={descEdit.fieldRef}
+              multiline
+              value={descEdit.draft}
+              onChange={descEdit.setDraft}
+              onKeyDown={descEdit.onFieldKeyDown}
+              onBlur={descEdit.onFieldBlur}
+              disabled={descEdit.busy}
               maxLength={200}
               rows={3}
-              onChange={(e) => setDescDraft(e.target.value)}
               placeholder={t('manage.descriptionPlaceholder')}
-              data-testid="group-desc-input"
+              ariaLabel={gt('inlineEdit.hintMultiline', {
+                field: t('manage.description'),
+              })}
+              testid="group-desc-input"
               className={css({
                 width: '100%',
                 resize: 'none',
@@ -470,24 +434,6 @@ export const GroupInfoPanel = ({
                 fontSize: '0.875rem',
               })}
             />
-            <div className={editActions}>
-              <Button
-                variant="secondary"
-                size="dense"
-                onPress={() => setEditingDesc(false)}
-              >
-                {t('manage.cancel')}
-              </Button>
-              <Button
-                variant="primary"
-                size="dense"
-                isDisabled={busy}
-                onPress={saveDescription}
-                data-testid="group-desc-save"
-              >
-                {t('manage.save')}
-              </Button>
-            </div>
           </div>
         ) : (
           <p
@@ -509,14 +455,11 @@ export const GroupInfoPanel = ({
       <div className={sectionCls}>
         <div className={sectionHead}>
           <span className={sectionLabel}>{t('manage.nickname')}</span>
-          {!editingNick && (
+          {!nickEdit.editing && (
             <button
               type="button"
-              ref={nickTriggerRef}
-              onClick={() => {
-                setNickDraft(myNickname)
-                setEditingNick(true)
-              }}
+              ref={nickEdit.triggerRef}
+              onClick={nickEdit.startEdit}
               aria-label={t('manage.nickname')}
               data-testid="group-nick-edit"
               className={editBtn}
@@ -525,27 +468,21 @@ export const GroupInfoPanel = ({
             </button>
           )}
         </div>
-        {editingNick ? (
+        {nickEdit.editing ? (
           <div className={css({ display: 'flex', gap: '0.5rem' })}>
-            <input
-              ref={nickRef}
-              type="text"
-              value={nickDraft}
+            <InlineEditField
+              ref={nickEdit.fieldRef}
+              value={nickEdit.draft}
+              onChange={nickEdit.setDraft}
+              onKeyDown={nickEdit.onFieldKeyDown}
+              onBlur={nickEdit.onFieldBlur}
+              disabled={nickEdit.busy}
               maxLength={60}
-              onChange={(e) => setNickDraft(e.target.value)}
               placeholder={t('manage.nicknamePlaceholder')}
-              data-testid="group-nick-input"
+              ariaLabel={gt('inlineEdit.hint', { field: t('manage.nickname') })}
+              testid="group-nick-input"
               className={inputCls}
             />
-            <Button
-              variant="primary"
-              size="dense"
-              isDisabled={busy}
-              onPress={saveNickname}
-              data-testid="group-nick-save"
-            >
-              {t('manage.save')}
-            </Button>
           </div>
         ) : (
           <p
@@ -701,10 +638,4 @@ const sectionHead = css({
   alignItems: 'center',
   justifyContent: 'space-between',
   marginBottom: '0.375rem',
-})
-
-const editActions = css({
-  display: 'flex',
-  gap: '0.5rem',
-  justifyContent: 'flex-end',
 })

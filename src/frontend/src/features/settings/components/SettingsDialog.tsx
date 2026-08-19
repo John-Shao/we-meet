@@ -18,14 +18,15 @@ import type { RemixiconComponentType } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
 import { useLanguageLabels } from '@/i18n/useLanguageLabels'
-import { Button, type DialogProps } from '@/primitives'
+import { type DialogProps } from '@/primitives'
 import { Switch } from '@/primitives/Switch'
 import { selectChrome } from '@/primitives/selectChrome'
 import { useUser } from '@/features/auth'
-import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
+import { useInlineEdit } from '@/hooks/useInlineEdit'
 import { updateEmail, updateNickname } from '@/features/auth/api/updateProfile'
 import { keys } from '@/api/queryKeys'
 import { LoginButton } from '@/components/LoginButton'
+import { InlineEditField } from '@/components/InlineEditField'
 import { Modal } from '@/components/Modal'
 import { routes } from '@/routes'
 import { themeStore, type ThemeMode } from '@/stores/theme'
@@ -619,7 +620,7 @@ const AccountPanel = ({
   )
 }
 
-/* 单行可编辑字段:点铅笔进入编辑,保存走 onSave(乐观由 invalidate 兜底)。 */
+/* 单行可编辑字段:点铅笔进入编辑,无按钮交互(Enter 保存 / Esc 取消 / 失焦保存)。 */
 // 导出只为单测(EditableRow.test.tsx)能直接渲染它 —— 焦点行为没有第二处兜底,
 // 而 SettingsDialog 整体要拖进 useUser / 主题 store / Modal 一大串无关依赖。
 export const EditableRow = ({
@@ -638,47 +639,23 @@ export const EditableRow = ({
   onSave: (v: string) => Promise<void>
 }) => {
   const { t } = useTranslation('settings')
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  // 点了「编辑」焦点直接进输入框,退出时还给「编辑」按钮 —— 契约与理由都在
-  // useInlineEditFocus 里,别在这里再抄一份 effect。
-  const { fieldRef, triggerRef } = useInlineEditFocus(editing)
+  // inlineEdit.* 的提示文案在 global 命名空间(默认),与 settings 分开取。
+  const { t: gt } = useTranslation()
+  const edit = useInlineEdit({
+    value,
+    onSave,
+    validate,
+    formatError: extractApiError,
+  })
 
-  const startEdit = () => {
-    setDraft(value)
-    setError('')
-    setEditing(true)
-  }
-
-  const submit = async () => {
-    if (busy) return
-    const validationError = validate?.(draft) ?? ''
-    if (validationError) {
-      setError(validationError)
-      return
-    }
-    setBusy(true)
-    setError('')
-    try {
-      await onSave(draft)
-      setEditing(false)
-    } catch (e) {
-      setError(extractApiError(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (!editing) {
+  if (!edit.editing) {
     return (
       <div className={infoRowCls}>
         <span className={infoKeyCls}>{label}</span>
         <button
           type="button"
-          ref={triggerRef}
-          onClick={startEdit}
+          ref={edit.triggerRef}
+          onClick={edit.startEdit}
           aria-label={t('systemSettings.account.edit', { field: label })}
           className={editTriggerCls}
         >
@@ -694,40 +671,25 @@ export const EditableRow = ({
       <div className={editHeadCls}>
         <span className={infoKeyCls}>{label}</span>
         <div className={editControlsCls}>
-          <input
+          <InlineEditField
+            ref={edit.fieldRef}
             type={inputType}
-            ref={fieldRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void submit()
-              if (e.key === 'Escape') setEditing(false)
-            }}
+            value={edit.draft}
+            onChange={edit.setDraft}
+            onKeyDown={edit.onFieldKeyDown}
+            onBlur={edit.onFieldBlur}
+            disabled={edit.busy}
+            placeholder={placeholder}
+            ariaLabel={gt('inlineEdit.hint', { field: label })}
             className={editInputCls}
           />
-          {/* flexShrink:0 —— 同排的输入框是 flex:1,窄窗口下会把按钮压扁。 */}
-          <Button
-            variant="secondary"
-            size="dense"
-            onPress={() => setEditing(false)}
-            className={noShrinkCls}
-          >
-            {t('systemSettings.account.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            size="dense"
-            onPress={() => void submit()}
-            isDisabled={busy}
-            className={noShrinkCls}
-          >
-            {busy
-              ? t('systemSettings.account.saving')
-              : t('systemSettings.account.save')}
-          </Button>
         </div>
       </div>
-      {error && <span className={editErrorCls}>{error}</span>}
+      {(edit.error || edit.busy) && (
+        <span className={editErrorCls}>
+          {edit.busy ? gt('inlineEdit.saving') : edit.error}
+        </span>
+      )}
     </div>
   )
 }
@@ -962,7 +924,6 @@ const editInputCls = css({
   color: 'greyscale.900',
   fontSize: '0.875rem',
 })
-const noShrinkCls = css({ flexShrink: 0 })
 const editErrorCls = css({ fontSize: '0.8125rem', color: 'danger.600' })
 const avatarBtnCls = css({
   width: '2.5rem',

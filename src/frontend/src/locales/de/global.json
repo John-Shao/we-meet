@@ -12,6 +12,11 @@
   "forbidden": {
     "heading": "Zugriff verweigert"
   },
+  "inlineEdit": {
+    "hint": "{{field}} bearbeiten: Enter zum Speichern, Esc zum Abbrechen",
+    "hintMultiline": "{{field}} bearbeiten: Esc zum Abbrechen",
+    "saving": "Speichern…"
+  },
   "loading": "Ladevorgang…",
   "loggedInUserTooltip": "Angemeldet als…",
   "login": {
