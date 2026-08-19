@@ -11,6 +11,17 @@ const trapFocus = (e: KeyboardEvent, container: HTMLElement | null) => {
   if (focusable.length === 0) return
   const first = focusable[0]
   const last = focusable[focusable.length - 1]
+  // 容器自身(tabIndex=-1)持有焦点 = 刚打开、调用方没给 initialFocusRef 的那一档。
+  // 这一档必须自己接住:正向 Tab 交给浏览器就对了(容器在子节点之前,下一个可聚焦
+  // 点就是 first),但反向 Tab 会直接跳出弹窗 —— 下面两个分支都匹配不上,因为
+  // activeElement 既不是 first 也不是 last。
+  if (document.activeElement === container) {
+    if (e.shiftKey) {
+      e.preventDefault()
+      last.focus()
+    }
+    return
+  }
   if (e.shiftKey && document.activeElement === first) {
     e.preventDefault()
     last.focus()
@@ -31,7 +42,13 @@ interface Props {
   onClose: () => void
   /** Accessible name for the dialog. */
   ariaLabel: string
-  /** Focused on open; falls back to the dialog container itself. */
+  /**
+   * Focused on open; falls back to the dialog container itself.
+   *
+   * 「打开后第一件事就是打字」的对话框(搜索选人、新建、重命名)应当把它指到那个
+   * 输入框上 —— 否则人开了对话框还得再点一下才能输入。确认框、以浏览列表为主的
+   * 面板刻意不设:焦点落进输入框会把「先看清再决定」变成「像是要填表」。
+   */
   initialFocusRef?: RefObject<HTMLElement | null>
   maxWidth?: string
   maxHeight?: string
@@ -59,7 +76,15 @@ export const Modal = ({
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null
-    ;(initialFocusRef?.current ?? dialogRef.current)?.focus()
+    initialFocusRef?.current?.focus()
+    // 兜底要**校验后再兜**,不能只看 initialFocusRef 是否为空:调用方指过来的字段
+    // 可能是 disabled 的(例:日历设置里主日历的名称框跟随账号名,恒 disabled),对
+    // disabled / 不可聚焦元素调 focus() 是空操作,而焦点仍留在弹窗**外面**的触发
+    // 按钮上 —— Tab 陷阱因此咬不住。所以这里检查焦点是否真的落进容器,没落进就
+    // 补一次容器焦点(容器有 tabIndex=-1,见下)。
+    if (!dialogRef.current?.contains(document.activeElement)) {
+      dialogRef.current?.focus()
+    }
     const token = Symbol('modal')
     modalStack.push(token)
     const onKey = (e: KeyboardEvent) => {
@@ -102,6 +127,13 @@ export const Modal = ({
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
+        // tabIndex=-1 不是可有可无:上面那句兜底 `dialogRef.current?.focus()` 打在
+        // 不带 tabindex 的 div 上是**空操作**(不可聚焦元素 focus 不动),于是没传
+        // initialFocusRef 的对话框开起来时,焦点仍停在弹窗外的触发按钮上 —— 而 Tab
+        // 陷阱只在焦点已进容器时才咬得住,一按 Tab 就跑到弹窗背后的页面里去了。
+        // -1 = 可编程聚焦、不进 Tab 序列(所以也不会被 trapFocus 里那句
+        // `[tabindex]:not([tabindex="-1"])` 选中)。
+        tabIndex={-1}
         style={{ maxWidth, maxHeight }}
         className={css({
           display: 'flex',

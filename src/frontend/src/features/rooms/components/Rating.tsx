@@ -104,7 +104,11 @@ const OpenFeedback = ({
   return (
     <Card>
       <H lvl={3}>{t('question')}</H>
+      {/* eslint-disable jsx-a11y/no-autofocus -- 这一屏整体只为写这段反馈,而它是用户
+          推进向导后**新挂载**的一步(挂载即揭示),焦点该直接进来。判据同
+          TextPromptDialog:打开后第一件事不含歧义地就是打字。 */}
       <TextArea
+        autoFocus
         id="feedbackInput"
         name="feedback"
         placeholder={t('placeholder')}
@@ -116,6 +120,7 @@ const OpenFeedback = ({
           marginBottom: '1rem',
         }}
       />
+      {/* eslint-enable jsx-a11y/no-autofocus */}
       <VStack gap="0.5">
         <Button
           variant="primary"
@@ -269,7 +274,10 @@ const AuthenticationMessage = ({
       }}
     >
       <H lvl={3}>{t('heading')}</H>
+      {/* eslint-disable jsx-a11y/no-autofocus -- 同上:这一步只为填邮箱,且是推进向导
+          后新挂载的一屏。 */}
       <Input
+        autoFocus
         id="emailInput"
         name="email"
         placeholder={t('placeholder')}
@@ -280,6 +288,7 @@ const AuthenticationMessage = ({
           marginBottom: '1rem',
         }}
       />
+      {/* eslint-enable jsx-a11y/no-autofocus */}
       <VStack gap="0.5">
         <Button
           variant="primary"

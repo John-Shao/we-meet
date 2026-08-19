@@ -246,7 +246,11 @@ export const PersonalAIDrawer = ({ onClose }: { onClose?: () => void }) => {
       )}
 
       <div className={composerStyle}>
+        {/* eslint-disable jsx-a11y/no-autofocus -- 抽屉由用户点 FAB 主动打开,打开就
+            是为了提问,焦点直接进输入框(同会中聊天侧栏 Chat.tsx 在 onOpened 里聚焦
+            composer)。RAC 的 useDialog 默认只聚焦容器,需子元素 autoFocus 覆盖。 */}
         <textarea
+          autoFocus
           aria-label={t('inputAriaLabel')}
           className={textareaStyle}
           placeholder={t('placeholder')}
@@ -257,6 +261,7 @@ export const PersonalAIDrawer = ({ onClose }: { onClose?: () => void }) => {
           disabled={isAsking}
           data-attr="personal-ai-input"
         />
+        {/* eslint-enable jsx-a11y/no-autofocus */}
         <Button
           variant="primary"
           onPress={submit}

@@ -10,6 +10,7 @@ import { Button } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useCopy } from '@/hooks/useCopy'
+import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
 
 import { SwitchRow } from '../SettingRows'
 import {
@@ -56,6 +57,10 @@ export const GroupBotDetailPage = ({
   const [ipDraft, setIpDraft] = useState<string | null>(null)
   const [keywordDraft, setKeywordDraft] = useState('')
   const [callbackDraft, setCallbackDraft] = useState<string | null>(null)
+  // 只取 triggerRef:编辑表单里的第一个字段由 CustomBotForm 自己聚焦(它是弹窗的
+  // 第二页,Modal 的 initialFocusRef 只在挂载时触发一次),这里要补的是**退出**那一半
+  // —— 取消/保存后编辑表单卸载,焦点会掉到 <body>,应还给「编辑」按钮。
+  const { triggerRef: editTriggerRef } = useInlineEditFocus(editing)
 
   const { data: bots = [], isLoading } = useQuery({
     queryKey: ['im', 'bots', cid],
@@ -194,6 +199,7 @@ export const GroupBotDetailPage = ({
         {canManage && bot.kind === 'custom' && (
           <button
             type="button"
+            ref={editTriggerRef}
             onClick={() => setEditing(true)}
             className={linkBtnCls}
             data-testid="bot-edit"

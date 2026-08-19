@@ -22,6 +22,7 @@ import { Button, type DialogProps } from '@/primitives'
 import { Switch } from '@/primitives/Switch'
 import { selectChrome } from '@/primitives/selectChrome'
 import { useUser } from '@/features/auth'
+import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
 import { updateEmail, updateNickname } from '@/features/auth/api/updateProfile'
 import { keys } from '@/api/queryKeys'
 import { LoginButton } from '@/components/LoginButton'
@@ -619,7 +620,9 @@ const AccountPanel = ({
 }
 
 /* 单行可编辑字段:点铅笔进入编辑,保存走 onSave(乐观由 invalidate 兜底)。 */
-const EditableRow = ({
+// 导出只为单测(EditableRow.test.tsx)能直接渲染它 —— 焦点行为没有第二处兜底,
+// 而 SettingsDialog 整体要拖进 useUser / 主题 store / Modal 一大串无关依赖。
+export const EditableRow = ({
   label,
   value,
   placeholder,
@@ -639,6 +642,9 @@ const EditableRow = ({
   const [draft, setDraft] = useState(value)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // 点了「编辑」焦点直接进输入框,退出时还给「编辑」按钮 —— 契约与理由都在
+  // useInlineEditFocus 里,别在这里再抄一份 effect。
+  const { fieldRef, triggerRef } = useInlineEditFocus(editing)
 
   const startEdit = () => {
     setDraft(value)
@@ -671,6 +677,7 @@ const EditableRow = ({
         <span className={infoKeyCls}>{label}</span>
         <button
           type="button"
+          ref={triggerRef}
           onClick={startEdit}
           aria-label={t('systemSettings.account.edit', { field: label })}
           className={editTriggerCls}
@@ -689,6 +696,7 @@ const EditableRow = ({
         <div className={editControlsCls}>
           <input
             type={inputType}
+            ref={fieldRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {

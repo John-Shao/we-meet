@@ -1162,6 +1162,8 @@ const MemberPicker = ({
   const { t } = useTranslation('im')
   const [temp, setTemp] = useState<Set<string>>(() => new Set(initial))
   const [query, setQuery] = useState('')
+  // 这个选择器打开后第一件事就是搜人,焦点直接给搜索框(见 Modal 的 initialFocusRef)。
+  const searchRef = useRef<HTMLInputElement>(null)
   const shown = query.trim()
     ? people.filter((p) =>
         p.label.toLowerCase().includes(query.trim().toLowerCase())
@@ -1183,6 +1185,7 @@ const MemberPicker = ({
       onClose={onClose}
       ariaLabel={t('calendar.picker.title')}
       maxWidth="380px"
+      initialFocusRef={searchRef}
     >
       <div
         className={css({
@@ -1198,6 +1201,7 @@ const MemberPicker = ({
       </div>
       <div className={css({ padding: '0.75rem 1rem 0' })}>
         <input
+          ref={searchRef}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

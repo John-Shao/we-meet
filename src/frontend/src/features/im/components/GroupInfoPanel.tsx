@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
@@ -7,6 +7,7 @@ import { RiCalendarScheduleLine } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
 
 import { announceLeave } from '../api/announceLeave'
 import { listGroupBots } from '../api/groupBots'
@@ -86,9 +87,14 @@ export const GroupInfoPanel = ({
   const [editingNick, setEditingNick] = useState(false)
   const [nickDraft, setNickDraft] = useState('')
   const [busy, setBusy] = useState(false)
-  const nameRef = useRef<HTMLInputElement>(null)
-  const descRef = useRef<HTMLTextAreaElement>(null)
-  const nickRef = useRef<HTMLInputElement>(null)
+  // 三处行内编辑的焦点接力(进编辑聚焦字段、退出还给 ✎ 按钮)统一走 hook,
+  // 契约与「为什么不能用 useRestoreFocus」都写在 useInlineEditFocus 里。
+  const { fieldRef: nameRef, triggerRef: nameTriggerRef } =
+    useInlineEditFocus(editingName)
+  const { fieldRef: descRef, triggerRef: descTriggerRef } =
+    useInlineEditFocus<HTMLTextAreaElement>(editingDesc)
+  const { fieldRef: nickRef, triggerRef: nickTriggerRef } =
+    useInlineEditFocus(editingNick)
   const displayName = conversation.name || t('convName.groupFallback')
 
   // Sub-pages are local state, matching how the rest of the app switches
@@ -113,16 +119,6 @@ export const GroupInfoPanel = ({
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose, view])
-
-  useEffect(() => {
-    if (editingName) nameRef.current?.focus()
-  }, [editingName])
-  useEffect(() => {
-    if (editingDesc) descRef.current?.focus()
-  }, [editingDesc])
-  useEffect(() => {
-    if (editingNick) nickRef.current?.focus()
-  }, [editingNick])
 
   // 花名册整体搬去了成员二级页,但 root 仍要挂这个 hook ——「我的群昵称」
   // 那一行没有第二个来源:`ConversationSummary` 里不含 caller 自己的 nickname。
@@ -411,6 +407,7 @@ export const GroupInfoPanel = ({
             {isOwner && (
               <button
                 type="button"
+                ref={nameTriggerRef}
                 onClick={() => {
                   setNameDraft(conversation.name || '')
                   setEditingName(true)
@@ -434,6 +431,7 @@ export const GroupInfoPanel = ({
           {isOwner && !editingDesc && (
             <button
               type="button"
+              ref={descTriggerRef}
               onClick={() => {
                 setDescDraft(description)
                 setEditingDesc(true)
@@ -514,6 +512,7 @@ export const GroupInfoPanel = ({
           {!editingNick && (
             <button
               type="button"
+              ref={nickTriggerRef}
               onClick={() => {
                 setNickDraft(myNickname)
                 setEditingNick(true)

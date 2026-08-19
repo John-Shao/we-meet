@@ -13,6 +13,7 @@ import { Screen } from '@/layout/Screen'
 import { Button, H, Text } from '@/primitives'
 import { Tabs, Tab, TabList, TabPanel } from '@/primitives/Tabs'
 import { UserAware, useUser } from '@/features/auth'
+import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
 
 import {
   useMeetingActionItems,
@@ -67,6 +68,12 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [viewAi, setViewAi] = useState(false)
+  // 点「编辑」= 要动手改这段纪要,焦点得直接落进编辑框;退出时还给「编辑」按钮
+  // (它在编辑期间被卸载,回来是新节点,所以不能用 useRestoreFocus)。
+  const { fieldRef, triggerRef } = useInlineEditFocus<
+    HTMLTextAreaElement,
+    HTMLButtonElement
+  >(editing)
 
   // 拍板 #1:编辑权限首期仅房间 OWNER/ADMIN(accesses 仅对管理者返回,
   // 普通参会者拿不到该数组,自然收敛为不可编辑)。
@@ -153,6 +160,7 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
           <Button
             variant="tertiary"
             size="sm"
+            ref={triggerRef}
             onPress={() => {
               setDraft(effective)
               setViewAi(false)
@@ -215,6 +223,7 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
           })}
         >
           <textarea
+            ref={fieldRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={18}

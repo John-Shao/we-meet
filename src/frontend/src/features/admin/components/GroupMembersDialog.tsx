@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
 
@@ -36,6 +36,14 @@ export const GroupMembersDialog = ({
   const { t } = useTranslation('admin')
   const { alert: showAlert } = useConfirm()
   const [selected, setSelected] = useState<Map<string, string>>(new Map())
+  // 搜索优先的多选器,打开就该能直接搜人 —— 与另外 6 个选择器(走
+  // components/Modal 的 initialFocusRef)保持一致。这里是 RAC 壳:useDialog 默认只
+  // 聚焦对话框容器,所以自己聚焦;本组件在关闭态也保持挂载(靠 isOpen 控制),
+  // 因此必须按 group 打开这一刻触发,不能写成 mount-only 的 effect。
+  const searchRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (group) searchRef.current?.focus()
+  }, [group])
 
   useEffect(() => {
     if (group) setSelected(new Map())
@@ -76,6 +84,7 @@ export const GroupMembersDialog = ({
     >
       <div className={css({ width: 'min(44rem, calc(100vw - 6rem))' })}>
         <DirectoryMultiPicker
+          searchRef={searchRef}
           selected={selected}
           onToggle={toggle}
           excludeIds={existingIds}

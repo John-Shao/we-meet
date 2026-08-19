@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { RiArrowRightSLine, RiRobot2Line } from '@remixicon/react'
@@ -35,6 +35,15 @@ export const AddBotDialog = ({
   const [page, setPage] = useState<'catalog' | 'custom'>('catalog')
   const [search, setSearch] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+
+  // 从「自定义」页按 ‹ 返回目录页时把焦点还给搜索框。Modal 的 initialFocusRef 只在
+  // 挂载那一次生效(这是同一个 Modal 换页,不是新开弹窗),而自定义页的表单整段卸载
+  // 后焦点会掉到 <body> —— 键盘用户下一次 Tab 得从对话框头部重来。
+  // 刻意不用 useInlineEditFocus:page 是二值联合而非布尔,且它的"退出"分支会与
+  // CustomBotForm 自己的挂载聚焦(见那边注释)抢焦点。
+  useEffect(() => {
+    if (page === 'catalog') searchRef.current?.focus()
+  }, [page])
 
   const create = useMutation({
     mutationFn: createGroupBot,

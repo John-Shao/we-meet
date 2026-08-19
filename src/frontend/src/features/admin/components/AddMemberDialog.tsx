@@ -101,7 +101,11 @@ export const AddMemberDialog = ({
       >
         <label className={fieldLabel}>
           <span>{t('addMember.phone')}</span>
+          {/* eslint-disable jsx-a11y/no-autofocus -- 手机号是这个对话框的主键字段
+              (必填),打开就该能直接输。RAC useDialog 默认只聚焦容器,需子元素
+              autoFocus 覆盖(机制见 TextPromptDialog.test.tsx)。 */}
           <Input
+            autoFocus
             type="tel"
             inputMode="numeric"
             value={phone}
@@ -109,6 +113,7 @@ export const AddMemberDialog = ({
             onChange={(e) => setPhone(e.target.value)}
             placeholder="13800000000"
           />
+          {/* eslint-enable jsx-a11y/no-autofocus */}
           {phoneInvalid && (
             <span className={css({ fontSize: '0.75rem', color: 'danger.600' })}>
               {t('addMember.phoneInvalid')}

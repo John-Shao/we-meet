@@ -146,13 +146,18 @@ export const MeetingRoomDialog = ({
           <label className={labelCls} htmlFor="mr-room-code">
             {t('meetingRooms.roomCode')}
           </label>
+          {/* eslint-disable jsx-a11y/no-autofocus -- 编号是必填的首字段,新建会议室
+              打开就该能直接输。RAC useDialog 默认只聚焦对话框容器,需子元素
+              autoFocus 覆盖(机制见 TextPromptDialog.test.tsx)。 */}
           <Input
+            autoFocus
             id="mr-room-code"
             required
             aria-label={t('meetingRooms.roomCode')}
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
+          {/* eslint-enable jsx-a11y/no-autofocus */}
           {fullLabel && (
             <span className={previewCls}>
               {t('meetingRooms.fullNamePreview', { label: fullLabel })}

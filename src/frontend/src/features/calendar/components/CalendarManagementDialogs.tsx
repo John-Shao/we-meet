@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, type RefObject, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
 
@@ -7,6 +7,7 @@ import { Modal, ModalCloseButton } from '@/components/Modal'
 import { MemberAvatar } from '@/features/contacts'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { MeetingRoomSummary } from '@/features/meeting-rooms'
+import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
 import { Button } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 import { css, cx } from '@/styled-system/css'
@@ -100,18 +101,22 @@ const DialogFrame = ({
   children,
   footer,
   maxWidth = '560px',
+  initialFocusRef,
 }: {
   title: string
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
   maxWidth?: string
+  /** 透传给 Modal:打开后第一件事就是打字的对话框应当指到那个输入框(见 Modal)。 */
+  initialFocusRef?: RefObject<HTMLElement | null>
 }) => (
   <Modal
     onClose={onClose}
     ariaLabel={title}
     maxWidth={maxWidth}
     maxHeight="82vh"
+    initialFocusRef={initialFocusRef}
   >
     <header className={headerCls}>
       <h2 className={titleCls}>{title}</h2>
@@ -149,6 +154,11 @@ export const AddCalendarDialog = ({
   const [memberPickerOpen, setMemberPickerOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // 打开时停在「订阅日历」态,主目标就是那个搜索框 —— 交给 Modal 的初始焦点。
+  const searchRef = useRef<HTMLInputElement>(null)
+  // 切到「新建日历」是另一件事:名称字段这时才出现,焦点得跟过去。标签按钮本身不会
+  // 卸载(点它焦点自然停在它上面),所以不需要退出时的回焦,只用 fieldRef。
+  const { fieldRef: nameRef } = useInlineEditFocus(mode === 'create')
   const { data: discoveries = [], isFetching } = useQuery({
     queryKey: ['calendar', 'discover', discoverType, query],
     queryFn: () => discoverCalendars(discoverType, query),
@@ -209,6 +219,7 @@ export const AddCalendarDialog = ({
       title="添加日历"
       onClose={onClose}
       maxWidth="680px"
+      initialFocusRef={searchRef}
       footer={
         mode === 'create' ? (
           <>
@@ -247,6 +258,7 @@ export const AddCalendarDialog = ({
       {mode === 'subscribe' && (
         <div className={stackCls}>
           <input
+            ref={searchRef}
             className={eventInputCls}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -338,6 +350,7 @@ export const AddCalendarDialog = ({
           <label className={fieldCls}>
             <span className={eventLabelCls}>日历名称</span>
             <input
+              ref={nameRef}
               className={eventInputCls}
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -500,6 +513,12 @@ export const CalendarSettingsDialog = ({
 }) => {
   const qc = useQueryClient()
   const [name, setName] = useState(calendar.display_name)
+  // 「日历设置」是单一表单(不是多节导航面板),打开后第一件事通常就是改名 ——
+  // 焦点给名称框。但**主日历的名称框是 disabled**(跟随账号名),对 disabled 元素
+  // 调 focus() 是空操作,而 Modal 只要拿到非空的 initialFocusRef 就不会再退回容器
+  // 兜底 —— 那样焦点会重新掉到弹窗外面。所以主日历这一档必须不传 ref。
+  const nameRef = useRef<HTMLInputElement>(null)
+  const nameEditable = calendar.kind !== 'primary'
   const [description, setDescription] = useState(calendar.description)
   const [defaultAccess, setDefaultAccess] = useState(
     calendar.organization_default_access
@@ -548,6 +567,7 @@ export const CalendarSettingsDialog = ({
       <DialogFrame
         title="日历设置"
         onClose={onClose}
+        initialFocusRef={nameEditable ? nameRef : undefined}
         footer={
           <>
             <Button variant="secondary" size="action" onPress={onClose}>
@@ -568,6 +588,7 @@ export const CalendarSettingsDialog = ({
           <label className={fieldCls}>
             <span className={eventLabelCls}>日历名称</span>
             <input
+              ref={nameRef}
               className={cx(eventInputCls, disabledControlCls)}
               disabled={calendar.kind === 'primary'}
               value={name}

@@ -71,11 +71,16 @@ export const RoleCreateDialog = ({
       <div className={css({ width: 'min(36rem, calc(100vw - 6rem))' })}>
         <label className={fieldCls}>
           <span className={labelCls}>{t('roles.nameLabel')}</span>
+          {/* eslint-disable jsx-a11y/no-autofocus -- 新建角色的第一步就是填名称。
+              RAC 的 useDialog 默认只把焦点放在对话框容器上,必须由子元素 autoFocus
+              覆盖 —— 机制由 TextPromptDialog.test.tsx 钉住。 */}
           <input
+            autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
             className={inputCls}
           />
+          {/* eslint-enable jsx-a11y/no-autofocus */}
         </label>
         <label className={fieldCls}>
           <span className={labelCls}>{t('roles.codeLabel')}</span>

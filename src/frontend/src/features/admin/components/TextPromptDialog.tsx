@@ -58,12 +58,19 @@ export const TextPromptDialog = ({
           submit()
         }}
       >
+        {/* eslint-disable jsx-a11y/no-autofocus -- 这个对话框整体只为填这一个值
+            (新建/重命名),打开就该能直接打字。RAC 的 useDialog 默认把焦点放在对话框
+            **容器**上(源码原话:"Focus the dialog itself on mount, unless a child
+            element is already focused"),所以只能由子元素 autoFocus 抢在它前面 ——
+            与 JoinMeetingDialog 同款做法。 */}
         <Input
+          autoFocus
           aria-label={label ?? title}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className={css({ marginBottom: '1.25rem', minWidth: '18rem' })}
         />
+        {/* eslint-enable jsx-a11y/no-autofocus */}
         <div
           className={css({
             display: 'flex',

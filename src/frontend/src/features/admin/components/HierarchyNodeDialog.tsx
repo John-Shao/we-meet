@@ -125,12 +125,17 @@ export const HierarchyNodeDialog = ({
           <label className={labelCls} htmlFor="mr-node-name">
             {t('meetingRooms.levelName')}
           </label>
+          {/* eslint-disable jsx-a11y/no-autofocus -- 增/改层级打开后第一件事就是填
+              名称。RAC useDialog 默认只聚焦对话框容器,需子元素 autoFocus 覆盖
+              (机制见 TextPromptDialog.test.tsx)。 */}
           <Input
+            autoFocus
             id="mr-node-name"
             aria-label={t('meetingRooms.levelName')}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+          {/* eslint-enable jsx-a11y/no-autofocus */}
         </div>
 
         {levelType === 'city' && (
