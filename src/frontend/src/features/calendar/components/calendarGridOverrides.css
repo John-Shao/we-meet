@@ -32,7 +32,8 @@
    与「颜色=归属」这层语义混在一起。归属仍由左侧竖条和块底表达,没有丢。 */
 .rbc-event:focus {
   outline: 2px solid var(--colors-focus-ring);
-  outline-offset: 2px;
+  /* Edge-day cells clip overflow, so keep the focus ring inside the event box. */
+  outline-offset: -2px;
 }
 .rbc-event-content {
   font-weight: 500;
