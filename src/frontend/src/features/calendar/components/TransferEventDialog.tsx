@@ -1,9 +1,13 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal, ModalCloseButton } from '@/components/Modal'
-import { DirectoryMultiPicker } from '@/features/contacts'
+import {
+  ContactPicker,
+  MemberAvatar,
+  type DirectoryMember,
+} from '@/features/contacts'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 
@@ -22,28 +26,19 @@ export const TransferEventDialog = ({
   onTransferred,
 }: Props) => {
   const { t } = useTranslation('calendar')
-  const [selected, setSelected] = useState<Map<string, string>>(new Map())
+  const [selected, setSelected] = useState<DirectoryMember | null>(null)
+  const [selecting, setSelecting] = useState(true)
   const [keepOriginal, setKeepOriginal] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const searchRef = useRef<HTMLInputElement>(null)
-
-  const toggle = (id: string, label: string) => {
-    setError('')
-    setSelected((current) => {
-      if (current.has(id)) return new Map()
-      return new Map([[id, label]])
-    })
-  }
 
   const submit = async () => {
-    const newOrganizerId = selected.keys().next().value as string | undefined
-    if (!newOrganizerId || submitting) return
+    if (!selected || submitting) return
     setSubmitting(true)
     setError('')
     try {
       onTransferred(
-        await transferCalendarEvent(event.id, newOrganizerId, keepOriginal)
+        await transferCalendarEvent(event.id, selected.id, keepOriginal)
       )
     } catch (reason) {
       setError(apiErrorMessage(reason))
@@ -51,35 +46,59 @@ export const TransferEventDialog = ({
     }
   }
 
+  if (selecting) {
+    return (
+      <ContactPicker
+        title={t('transfer.title')}
+        searchPlaceholder={t('transfer.searchPlaceholder')}
+        onClose={() => {
+          if (selected) setSelecting(false)
+          else onClose()
+        }}
+        onSelect={(member) => {
+          setError('')
+          setSelected(member)
+          setSelecting(false)
+        }}
+      />
+    )
+  }
+
+  if (!selected) return null
+
+  const selectedLabel =
+    selected.full_name || selected.short_name || selected.email || selected.id
+  const selectedSub = [selected.title, selected.department?.name]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
-    <Modal
-      onClose={onClose}
-      ariaLabel={t('transfer.title')}
-      maxWidth="640px"
-      maxHeight="72vh"
-      initialFocusRef={searchRef}
-    >
+    <Modal onClose={onClose} ariaLabel={t('transfer.title')} maxWidth="480px">
       <div className={headerCls}>
         <h2 className={titleCls}>{t('transfer.title')}</h2>
         <ModalCloseButton onClose={onClose} label={t('form.cancel')} />
       </div>
 
       <p className={labelCls}>{t('transfer.targetLabel')}</p>
-      <DirectoryMultiPicker
-        selected={selected}
-        onToggle={toggle}
-        labels={{
-          searchPlaceholder: t('transfer.searchPlaceholder'),
-          selectedTitle: t('transfer.selected', { count: selected.size }),
-          loading: t('form.loading'),
-          empty: t('form.noResults'),
-          loadMore: t('form.loadMore'),
-        }}
-        searchRef={searchRef}
-        searchTestId="transfer-event-search"
-        testIdPrefix="transfer-event-member-"
-        excludeIds={new Set([event.organizer?.id].filter(Boolean) as string[])}
-      />
+      <button
+        type="button"
+        className={targetCls}
+        onClick={() => setSelecting(true)}
+        data-testid="transfer-event-target"
+      >
+        <MemberAvatar
+          name={selectedLabel}
+          src={selected.avatar_url}
+          size="2.25rem"
+        />
+        <span className={targetTextCls}>
+          <span className={targetNameCls}>{selectedLabel}</span>
+          {selectedSub && <span className={targetSubCls}>{selectedSub}</span>}
+        </span>
+        <span className={targetArrowCls} aria-hidden="true">
+          ›
+        </span>
+      </button>
 
       <label className={checkboxCls}>
         <input
@@ -102,7 +121,7 @@ export const TransferEventDialog = ({
         <Button
           variant="primary"
           size="action"
-          isDisabled={selected.size !== 1 || submitting}
+          isDisabled={submitting}
           onPress={() => void submit()}
           data-testid="transfer-event-confirm"
         >
@@ -143,6 +162,50 @@ const checkboxCls = css({
   fontSize: '0.875rem',
   color: 'greyscale.800',
   cursor: 'pointer',
+})
+
+const targetCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
+  width: 'calc(100% - 2rem)',
+  margin: '0.5rem 1rem 0',
+  padding: '0.625rem 0.75rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '0.5rem',
+  backgroundColor: 'transparent',
+  textAlign: 'left',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+
+const targetTextCls = css({
+  display: 'flex',
+  flex: 1,
+  flexDirection: 'column',
+  gap: '0.125rem',
+  minWidth: 0,
+})
+
+const targetNameCls = css({
+  color: 'greyscale.900',
+  fontWeight: 'medium',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+const targetSubCls = css({
+  color: 'greyscale.500',
+  fontSize: '0.75rem',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+const targetArrowCls = css({
+  color: 'greyscale.500',
+  fontSize: '1.25rem',
 })
 
 const errorCls = css({
