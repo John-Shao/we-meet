@@ -47,5 +47,20 @@
     "edit": "Modifier",
     "save": "Enregistrer",
     "cancelEdit": "Ignorer les modifications"
+  },
+  "history": {
+    "title": "Historique des actions",
+    "show": "Historique des actions",
+    "hide": "Masquer l’historique",
+    "loading": "Chargement de l’historique…",
+    "empty": "Aucune action enregistrée.",
+    "error": "Impossible de charger l’historique. Veuillez réessayer.",
+    "events": {
+      "created": "{{actor}} a créé la tâche",
+      "content_changed": "{{actor}} a modifié le contenu de la tâche",
+      "dates_changed": "{{actor}} a ajusté les dates de la tâche",
+      "assignee_changed": "{{actor}} a réattribué la tâche à {{assignee}}",
+      "status_changed": "{{actor}} a changé le statut en « {{status}} »"
+    }
   }
 }

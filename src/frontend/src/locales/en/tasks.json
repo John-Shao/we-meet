@@ -47,5 +47,20 @@
     "edit": "Edit",
     "save": "Save",
     "cancelEdit": "Discard changes"
+  },
+  "history": {
+    "title": "Activity history",
+    "show": "Activity history",
+    "hide": "Hide history",
+    "loading": "Loading activity history…",
+    "empty": "No activity recorded yet.",
+    "error": "The activity history could not be loaded. Please try again.",
+    "events": {
+      "created": "{{actor}} created the task",
+      "content_changed": "{{actor}} updated the task content",
+      "dates_changed": "{{actor}} adjusted the task dates",
+      "assignee_changed": "{{actor}} reassigned the task to {{assignee}}",
+      "status_changed": "{{actor}} changed the status to “{{status}}”"
+    }
   }
 }

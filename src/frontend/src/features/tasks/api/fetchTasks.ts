@@ -6,6 +6,7 @@ import type { Paginated } from '@/api/Paginated'
 
 import type {
   ApiTask,
+  ApiTaskActivity,
   CreateTaskPayload,
   PatchTaskPayload,
   TaskScope,
@@ -18,6 +19,15 @@ export const useTasks = (scope: TaskScope) =>
   useQuery<Paginated<ApiTask>, ApiError>({
     queryKey: ['tasks', scope],
     queryFn: () => fetchTasks(scope),
+  })
+
+const fetchTaskActivities = (taskId: string) =>
+  fetchApi<ApiTaskActivity[]>(`tasks/${encodeURIComponent(taskId)}/activities/`)
+
+export const useTaskActivities = (taskId: string) =>
+  useQuery<ApiTaskActivity[], ApiError>({
+    queryKey: ['tasks', taskId, 'activities'],
+    queryFn: () => fetchTaskActivities(taskId),
   })
 
 const createTask = (payload: CreateTaskPayload) =>
@@ -48,6 +58,11 @@ export const usePatchTask = () => {
     { taskId: string; patch: PatchTaskPayload }
   >({
     mutationFn: ({ taskId, patch }) => patchTask(taskId, patch),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: (_task, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['tasks', variables.taskId, 'activities'],
+      })
+    },
   })
 }

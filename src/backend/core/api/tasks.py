@@ -5,13 +5,19 @@ from django.db.models import Q
 from django.utils import timezone
 
 from rest_framework import mixins, serializers, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from core import models
 from core.api import permissions
-from core.api.serializers import TaskSerializer
+from core.api.serializers import TaskActivitySerializer, TaskSerializer
 from core.api.viewsets import Pagination
+from core.services.task_history import (
+    record_task_changes,
+    record_task_created,
+    snapshot_task,
+)
 from core.services.task_notifications import record_task_assignment
 from core.services.tasks import TaskAssigneeError, ensure_task_assignee_allowed
 
@@ -194,6 +200,7 @@ class TaskViewSet(
                 assignee=assignee,
                 **validated_data,
             )
+            record_task_created(task=task, actor=request.user)
             record_task_assignment(
                 task=task,
                 event=models.TaskImDelivery.Event.ASSIGNED,
@@ -206,6 +213,7 @@ class TaskViewSet(
     def partial_update(self, request, *args, **kwargs):
         with transaction.atomic():
             task = self.get_object()
+            history_snapshot = snapshot_task(task)
             previous_assignee_id = task.assignee_id
             requested_fields = set(request.data)
             allowed_fields = {
@@ -231,6 +239,11 @@ class TaskViewSet(
             )
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            record_task_changes(
+                task=task,
+                actor=request.user,
+                before=history_snapshot,
+            )
             if task.assignee_id != previous_assignee_id:
                 record_task_assignment(
                     task=task,
@@ -238,3 +251,9 @@ class TaskViewSet(
                 )
             response_data = TaskSerializer(task, context={"request": request}).data
         return Response(response_data)
+
+    @action(detail=True, methods=["get"])
+    def activities(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        task = self.get_object()
+        activities = task.activities.select_related("actor").order_by("-created_at")
+        return Response(TaskActivitySerializer(activities, many=True).data)

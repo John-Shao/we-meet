@@ -47,5 +47,20 @@
     "edit": "编辑",
     "save": "保存",
     "cancelEdit": "放弃修改"
+  },
+  "history": {
+    "title": "操作历史",
+    "show": "操作历史",
+    "hide": "收起历史",
+    "loading": "正在加载操作历史…",
+    "empty": "暂无操作记录。",
+    "error": "操作历史加载失败，请稍后重试。",
+    "events": {
+      "created": "{{actor}} 创建了任务",
+      "content_changed": "{{actor}} 修改了任务内容",
+      "dates_changed": "{{actor}} 调整了任务日期",
+      "assignee_changed": "{{actor}} 将负责人转交给 {{assignee}}",
+      "status_changed": "{{actor}} 将任务状态改为“{{status}}”"
+    }
   }
 }

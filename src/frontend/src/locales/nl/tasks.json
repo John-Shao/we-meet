@@ -47,5 +47,20 @@
     "edit": "Bewerken",
     "save": "Opslaan",
     "cancelEdit": "Wijzigingen negeren"
+  },
+  "history": {
+    "title": "Activiteitengeschiedenis",
+    "show": "Activiteitengeschiedenis",
+    "hide": "Geschiedenis verbergen",
+    "loading": "Activiteitengeschiedenis laden…",
+    "empty": "Nog geen activiteit vastgelegd.",
+    "error": "De activiteitengeschiedenis kon niet worden geladen.",
+    "events": {
+      "created": "{{actor}} heeft de taak gemaakt",
+      "content_changed": "{{actor}} heeft de taakinhoud bijgewerkt",
+      "dates_changed": "{{actor}} heeft de taakdatums aangepast",
+      "assignee_changed": "{{actor}} heeft de taak toegewezen aan {{assignee}}",
+      "status_changed": "{{actor}} heeft de status gewijzigd in ‘{{status}}’"
+    }
   }
 }

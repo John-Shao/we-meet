@@ -2245,6 +2245,49 @@ class Task(BaseModel):
         return self.title[:80]
 
 
+class TaskActivity(BaseModel):
+    """Append-only audit trail for user-visible task operations."""
+
+    class Event(models.TextChoices):
+        CREATED = "created", _("Created")
+        CONTENT_CHANGED = "content_changed", _("Content changed")
+        DATES_CHANGED = "dates_changed", _("Dates changed")
+        ASSIGNEE_CHANGED = "assignee_changed", _("Assignee changed")
+        STATUS_CHANGED = "status_changed", _("Status changed")
+
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="activities",
+        verbose_name=_("task"),
+    )
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="task_activities",
+        null=True,
+        blank=True,
+        verbose_name=_("actor"),
+    )
+    event = models.CharField(_("event"), max_length=32, choices=Event.choices)
+    changes = models.JSONField(_("changes"), blank=True, default=dict)
+
+    class Meta:
+        db_table = "meet_task_activity"
+        verbose_name = _("task activity")
+        verbose_name_plural = _("task activities")
+        ordering = ("created_at",)
+        indexes = [
+            models.Index(
+                fields=["task", "-created_at"],
+                name="task_act_task_created_idx",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"TaskActivity({self.task_id}, {self.event})"
+
+
 class TaskImDelivery(BaseModel):
     """Durable delivery ledger for task-assignment assistant messages."""
 

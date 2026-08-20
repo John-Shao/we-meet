@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'wouter'
+import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { StateHint } from '@/components/StateHint'
@@ -11,11 +12,17 @@ import { css } from '@/styled-system/css'
 
 import type {
   ApiTask,
+  ApiTaskActivity,
   PatchTaskPayload,
   TaskScope,
   TaskStatus,
 } from '../api/ApiTask'
-import { useCreateTask, usePatchTask, useTasks } from '../api/fetchTasks'
+import {
+  useCreateTask,
+  usePatchTask,
+  useTaskActivities,
+  useTasks,
+} from '../api/fetchTasks'
 
 const scopes: TaskScope[] = ['assigned', 'created', 'all']
 
@@ -63,6 +70,9 @@ const TasksAuthenticated = () => {
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [editing, setEditing] = useState<ApiTask | null>(null)
+  const [expandedActivities, setExpandedActivities] = useState<Set<string>>(
+    () => new Set()
+  )
   const [assigneePicker, setAssigneePicker] = useState<
     'create' | 'edit' | null
   >(null)
@@ -94,6 +104,15 @@ const TasksAuthenticated = () => {
 
   const patchStatus = (task: ApiTask, status: TaskStatus) =>
     patchMutation.mutate({ taskId: task.id, patch: { status } })
+
+  const toggleActivities = (taskId: string) => {
+    setExpandedActivities((current) => {
+      const next = new Set(current)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }
 
   const submitEdit = async (event: FormEvent) => {
     event.preventDefault()
@@ -534,7 +553,20 @@ const TasksAuthenticated = () => {
                         {t('actions.edit')}
                       </Button>
                     )}
+                    <Button
+                      variant="secondary"
+                      size="dense"
+                      aria-expanded={expandedActivities.has(task.id)}
+                      onPress={() => toggleActivities(task.id)}
+                    >
+                      {expandedActivities.has(task.id)
+                        ? t('history.hide')
+                        : t('history.show')}
+                    </Button>
                   </div>
+                  {expandedActivities.has(task.id) && (
+                    <TaskActivityTimeline taskId={task.id} />
+                  )}
                 </article>
               )}
             </li>
@@ -572,6 +604,119 @@ const TaskMeta = ({ label, value }: { label: string; value: string }) => (
   </div>
 )
 
+const TaskActivityTimeline = ({ taskId }: { taskId: string }) => {
+  const { t, i18n } = useTranslation('tasks')
+  const { data, isLoading, error } = useTaskActivities(taskId)
+  const formatDateTime = (value: string) =>
+    new Intl.DateTimeFormat(i18n.language, {
+      dateStyle: 'medium',
+      timeStyle: 'medium',
+    }).format(new Date(value))
+
+  return (
+    <section
+      aria-label={t('history.title')}
+      className={css({
+        borderTop: '1px solid token(colors.greyscale.200)',
+        paddingTop: '0.875rem',
+      })}
+    >
+      <h3
+        className={css({
+          margin: 0,
+          color: 'greyscale.800',
+          fontSize: '0.875rem',
+          fontWeight: '600',
+        })}
+      >
+        {t('history.title')}
+      </h3>
+      {isLoading ? (
+        <p className={historyHintCss}>{t('history.loading')}</p>
+      ) : error ? (
+        <p className={historyErrorCss}>{t('history.error')}</p>
+      ) : !data?.length ? (
+        <p className={historyHintCss}>{t('history.empty')}</p>
+      ) : (
+        <ol
+          className={css({
+            listStyle: 'none',
+            margin: 0,
+            paddingTop: '0.75rem',
+            paddingLeft: '0.375rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.75rem',
+          })}
+        >
+          {data.map((activity) => (
+            <li
+              key={activity.id}
+              className={css({
+                position: 'relative',
+                paddingLeft: '1rem',
+                borderLeft: '1px solid token(colors.greyscale.300)',
+                _before: {
+                  content: '""',
+                  position: 'absolute',
+                  left: '-0.25rem',
+                  top: '0.25rem',
+                  width: '0.4375rem',
+                  height: '0.4375rem',
+                  borderRadius: '999px',
+                  backgroundColor: 'primary.500',
+                },
+              })}
+            >
+              <p
+                className={css({
+                  margin: 0,
+                  color: 'greyscale.800',
+                  fontSize: '0.8125rem',
+                })}
+              >
+                {taskActivityMessage(activity, t)}
+              </p>
+              <time
+                dateTime={activity.created_at}
+                className={css({
+                  color: 'greyscale.500',
+                  fontSize: '0.75rem',
+                })}
+              >
+                {formatDateTime(activity.created_at)}
+              </time>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
+}
+
+const taskActivityMessage = (
+  activity: ApiTaskActivity,
+  t: TFunction<'tasks'>
+) => {
+  const actor = displayName(activity.actor)
+  if (activity.event === 'status_changed') {
+    const status = activity.changes.status?.to
+    return t('history.events.status_changed', {
+      actor,
+      status: status ? t(`statuses.${status}`) : '—',
+    })
+  }
+  if (activity.event === 'assignee_changed') {
+    const assignee = activity.changes.assignee
+    const target = assignee && 'to' in assignee ? assignee.to?.name : null
+    return t('history.events.assignee_changed', {
+      actor,
+      assignee: target || '—',
+    })
+  }
+  return t(`history.events.${activity.event}`, { actor })
+}
+
 const cardCss = css({
   display: 'flex',
   flexDirection: 'column',
@@ -588,6 +733,18 @@ const actionRowCss = css({
   flexWrap: 'wrap',
   alignItems: 'center',
   gap: '0.5rem',
+})
+
+const historyHintCss = css({
+  marginBottom: 0,
+  color: 'greyscale.500',
+  fontSize: '0.8125rem',
+})
+
+const historyErrorCss = css({
+  marginBottom: 0,
+  color: 'danger.700',
+  fontSize: '0.8125rem',
 })
 
 const statusCss = (status: TaskStatus) =>

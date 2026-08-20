@@ -47,5 +47,20 @@
     "edit": "Bearbeiten",
     "save": "Speichern",
     "cancelEdit": "Änderungen verwerfen"
+  },
+  "history": {
+    "title": "Aktivitätsverlauf",
+    "show": "Aktivitätsverlauf",
+    "hide": "Verlauf ausblenden",
+    "loading": "Aktivitätsverlauf wird geladen…",
+    "empty": "Noch keine Aktivität erfasst.",
+    "error": "Der Aktivitätsverlauf konnte nicht geladen werden.",
+    "events": {
+      "created": "{{actor}} hat die Aufgabe erstellt",
+      "content_changed": "{{actor}} hat den Aufgabeninhalt geändert",
+      "dates_changed": "{{actor}} hat die Aufgabendaten angepasst",
+      "assignee_changed": "{{actor}} hat die Aufgabe {{assignee}} zugewiesen",
+      "status_changed": "{{actor}} hat den Status in „{{status}}“ geändert"
+    }
   }
 }

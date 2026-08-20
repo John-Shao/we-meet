@@ -9,7 +9,7 @@ from core.factories import (
     RoomFactory,
     UserFactory,
 )
-from core.models import ActionItem, Summary, Task, TaskImDelivery
+from core.models import ActionItem, Summary, Task, TaskActivity, TaskImDelivery
 
 pytestmark = pytest.mark.django_db
 
@@ -53,6 +53,10 @@ def test_user_creates_personal_task_assigned_to_self():
     assert task.assignee == user
     assert task.start_date.isoformat() == "2026-08-20"
     assert task.due_date.isoformat() == "2026-08-31"
+    activity = TaskActivity.objects.get()
+    assert activity.task == task
+    assert activity.actor == user
+    assert activity.event == TaskActivity.Event.CREATED
     assert TaskImDelivery.objects.count() == 0
 
 
@@ -171,6 +175,12 @@ def test_assignee_can_advance_status_but_cannot_edit_content():
     assert response.json()["status"] == Task.Status.IN_PROGRESS
     assert response.json()["can_edit"] is False
     assert response.json()["can_update_status"] is True
+    activity = TaskActivity.objects.get()
+    assert activity.actor == assignee
+    assert activity.event == TaskActivity.Event.STATUS_CHANGED
+    assert activity.changes == {
+        "status": {"from": Task.Status.TODO, "to": Task.Status.IN_PROGRESS}
+    }
 
     response = client.patch(
         f"{TASKS_URL}{task.id}/",
@@ -215,6 +225,11 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
     delivery = TaskImDelivery.objects.get()
     assert delivery.recipient == next_assignee
     assert delivery.event == TaskImDelivery.Event.REASSIGNED
+    activity = TaskActivity.objects.get()
+    assert activity.actor == creator
+    assert activity.event == TaskActivity.Event.ASSIGNEE_CHANGED
+    assert activity.changes["assignee"]["from"]["id"] == str(previous_assignee.id)
+    assert activity.changes["assignee"]["to"]["id"] == str(next_assignee.id)
     assert _client(previous_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 404
     assert _client(next_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 200
 
@@ -239,6 +254,11 @@ def test_creator_edits_content_and_completion_timestamp():
     assert completed.json()["start_date"] == "2026-08-20"
     assert completed.json()["due_date"] == "2026-08-25"
     assert completed.json()["completed_at"] is not None
+    assert list(TaskActivity.objects.values_list("event", flat=True)) == [
+        TaskActivity.Event.CONTENT_CHANGED,
+        TaskActivity.Event.DATES_CHANGED,
+        TaskActivity.Event.STATUS_CHANGED,
+    ]
 
     reopened = client.patch(
         f"{TASKS_URL}{task.id}/",
@@ -247,6 +267,19 @@ def test_creator_edits_content_and_completion_timestamp():
     )
     assert reopened.status_code == 200
     assert reopened.json()["completed_at"] is None
+    assert (
+        TaskActivity.objects.filter(event=TaskActivity.Event.STATUS_CHANGED).count()
+        == 2
+    )
+
+    activity_count = TaskActivity.objects.count()
+    unchanged = client.patch(
+        f"{TASKS_URL}{task.id}/",
+        {"title": "Final draft"},
+        format="json",
+    )
+    assert unchanged.status_code == 200
+    assert TaskActivity.objects.count() == activity_count
 
 
 def test_invalid_status_transition_is_rejected():
@@ -273,6 +306,38 @@ def test_outsider_cannot_retrieve_task():
     response = _client(outsider).get(f"{TASKS_URL}{task.id}/")
 
     assert response.status_code == 404
+
+
+def test_related_users_can_read_task_activities_but_outsider_cannot():
+    creator = UserFactory()
+    assignee = UserFactory()
+    outsider = UserFactory()
+    task = Task.objects.create(title="Audited", creator=creator, assignee=assignee)
+    created = TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=TaskActivity.Event.CREATED,
+    )
+    changed = TaskActivity.objects.create(
+        task=task,
+        actor=assignee,
+        event=TaskActivity.Event.STATUS_CHANGED,
+        changes={"status": {"from": "todo", "to": "in_progress"}},
+    )
+    url = f"{TASKS_URL}{task.id}/activities/"
+
+    creator_response = _client(creator).get(url)
+    assignee_response = _client(assignee).get(url)
+    outsider_response = _client(outsider).get(url)
+
+    assert creator_response.status_code == 200
+    assert [entry["id"] for entry in creator_response.json()] == [
+        str(changed.id),
+        str(created.id),
+    ]
+    assert creator_response.json()[0]["actor"]["id"] == str(assignee.id)
+    assert assignee_response.status_code == 200
+    assert outsider_response.status_code == 404
 
 
 def test_meeting_task_exposes_source_room():

@@ -26,6 +26,41 @@ export interface ApiTask {
   updated_at: string
 }
 
+export type TaskActivityEvent =
+  | 'created'
+  | 'content_changed'
+  | 'dates_changed'
+  | 'assignee_changed'
+  | 'status_changed'
+
+export interface ApiTaskActivityUserSnapshot {
+  id: string
+  name: string
+}
+
+export interface ApiTaskActivity {
+  id: string
+  actor: ApiTaskUser | null
+  event: TaskActivityEvent
+  changes: {
+    fields?: Array<'title' | 'description'>
+    dates?: Partial<
+      Record<
+        'start_date' | 'due_date',
+        { from: string | null; to: string | null }
+      >
+    >
+    assignee?:
+      | ApiTaskActivityUserSnapshot
+      | {
+          from: ApiTaskActivityUserSnapshot | null
+          to: ApiTaskActivityUserSnapshot | null
+        }
+    status?: { from: TaskStatus; to: TaskStatus }
+  }
+  created_at: string
+}
+
 export type TaskScope = 'assigned' | 'created' | 'all'
 
 export interface CreateTaskPayload {

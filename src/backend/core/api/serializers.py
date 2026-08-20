@@ -476,6 +476,17 @@ class ActionItemSerializer(serializers.ModelSerializer):
         ]
 
 
+class TaskActivitySerializer(serializers.ModelSerializer):
+    """Serialize one immutable task operation for the activity timeline."""
+
+    actor = UserLightSerializer(read_only=True)
+
+    class Meta:
+        model = models.TaskActivity
+        fields = ["id", "actor", "event", "changes", "created_at"]
+        read_only_fields = fields
+
+
 class TaskSerializer(serializers.ModelSerializer):
     """Serialize a durable task for the task center and meeting detail."""
 
