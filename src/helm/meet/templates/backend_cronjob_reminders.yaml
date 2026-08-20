@@ -10,8 +10,8 @@ metadata:
   labels:
     {{- include "meet.common.labels" (list . $component) | nindent 4 }}
 spec:
-  # Scan due calendar events and push source-conversation IM reminders.
-  # Idempotent (CalendarEvent.reminder_pushed_at), so re-runs are safe.
+  # Scan due calendar events and recover pending task-assignment notifications.
+  # Both paths use durable idempotency guards, so re-runs are safe.
   schedule: {{ .Values.backend.reminders.schedule | quote }}
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 120

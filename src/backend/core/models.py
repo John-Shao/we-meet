@@ -2245,6 +2245,61 @@ class Task(BaseModel):
         return self.title[:80]
 
 
+class TaskImDelivery(BaseModel):
+    """Durable delivery ledger for task-assignment assistant messages."""
+
+    class Event(models.TextChoices):
+        ASSIGNED = "assigned", _("Assigned")
+        REASSIGNED = "reassigned", _("Reassigned")
+
+    class Status(models.TextChoices):
+        PENDING = "pending", _("Pending")
+        DELIVERED = "delivered", _("Delivered")
+        FAILED = "failed", _("Failed")
+        SUPERSEDED = "superseded", _("Superseded")
+
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="im_deliveries",
+        verbose_name=_("task"),
+    )
+    recipient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="task_im_deliveries",
+        verbose_name=_("recipient"),
+    )
+    event = models.CharField(_("event"), max_length=16, choices=Event.choices)
+    status = models.CharField(
+        _("status"),
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    conversation_id = models.CharField(
+        _("conversation id"), max_length=64, blank=True, default=""
+    )
+    attempt_count = models.PositiveSmallIntegerField(_("attempt count"), default=0)
+    next_attempt_at = models.DateTimeField(
+        _("next attempt at"), null=True, blank=True, db_index=True
+    )
+    delivered_at = models.DateTimeField(
+        _("delivered at"), null=True, blank=True, db_index=True
+    )
+    last_error = models.TextField(_("last error"), blank=True, default="")
+
+    class Meta:
+        db_table = "meet_task_im_delivery"
+        verbose_name = _("task IM delivery")
+        verbose_name_plural = _("task IM deliveries")
+        ordering = ("created_at",)
+
+    def __str__(self) -> str:
+        return f"TaskImDelivery({self.task_id}, {self.recipient_id}, {self.event})"
+
+
 class SummaryChapter(BaseModel):
     """智能章节(纪要闭环 P0-3 D1):LLM 按话题切分的会议时间轴段落。
 

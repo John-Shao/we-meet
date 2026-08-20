@@ -9,7 +9,7 @@ from core.factories import (
     RoomFactory,
     UserFactory,
 )
-from core.models import ActionItem, Summary, Task
+from core.models import ActionItem, Summary, Task, TaskImDelivery
 
 pytestmark = pytest.mark.django_db
 
@@ -53,6 +53,7 @@ def test_user_creates_personal_task_assigned_to_self():
     assert task.assignee == user
     assert task.start_date.isoformat() == "2026-08-20"
     assert task.due_date.isoformat() == "2026-08-31"
+    assert TaskImDelivery.objects.count() == 0
 
 
 def test_task_date_range_must_be_chronological():
@@ -96,6 +97,10 @@ def test_creator_assigns_task_to_colleague_from_same_organization():
     assert response.status_code == 201
     assert response.json()["assignee"]["id"] == str(colleague.id)
     assert Task.objects.get().assignee == colleague
+    delivery = TaskImDelivery.objects.get()
+    assert delivery.recipient == colleague
+    assert delivery.event == TaskImDelivery.Event.ASSIGNED
+    assert delivery.status == TaskImDelivery.Status.PENDING
 
 
 def test_creator_cannot_assign_task_outside_organization():
@@ -207,6 +212,9 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
 
     assert response.status_code == 200
     assert response.json()["assignee"]["id"] == str(next_assignee.id)
+    delivery = TaskImDelivery.objects.get()
+    assert delivery.recipient == next_assignee
+    assert delivery.event == TaskImDelivery.Event.REASSIGNED
     assert _client(previous_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 404
     assert _client(next_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 200
 

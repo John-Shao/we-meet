@@ -16,6 +16,7 @@ from django.core.management.base import BaseCommand
 
 from core.services.calendar_recurrence import materialize_recurrences
 from core.services.calendar_reminders import push_due_reminders
+from core.services.task_notifications import enqueue_due_task_assignments
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         materialized = materialize_recurrences()
         count = push_due_reminders()
+        task_notifications = enqueue_due_task_assignments()
         self.stdout.write(
             self.style.SUCCESS(
-                f"occurrences materialized: {materialized}, reminders pushed: {count}"
+                f"occurrences materialized: {materialized}, reminders pushed: {count}, "
+                f"task notifications queued: {task_notifications}"
             )
         )

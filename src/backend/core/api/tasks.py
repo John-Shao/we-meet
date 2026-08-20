@@ -1,5 +1,6 @@
 """Minimal standalone task API."""
 
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -11,6 +12,7 @@ from core import models
 from core.api import permissions
 from core.api.serializers import TaskSerializer
 from core.api.viewsets import Pagination
+from core.services.task_notifications import record_task_assignment
 from core.services.tasks import TaskAssigneeError, ensure_task_assignee_allowed
 
 
@@ -186,40 +188,53 @@ class TaskViewSet(
         serializer.is_valid(raise_exception=True)
         validated_data = dict(serializer.validated_data)
         assignee = validated_data.pop("assignee", request.user)
-        task = models.Task.objects.create(
-            creator=request.user,
-            assignee=assignee,
-            **validated_data,
-        )
+        with transaction.atomic():
+            task = models.Task.objects.create(
+                creator=request.user,
+                assignee=assignee,
+                **validated_data,
+            )
+            record_task_assignment(
+                task=task,
+                event=models.TaskImDelivery.Event.ASSIGNED,
+            )
         return Response(
             TaskSerializer(task, context={"request": request}).data,
             status=201,
         )
 
     def partial_update(self, request, *args, **kwargs):
-        task = self.get_object()
-        requested_fields = set(request.data)
-        allowed_fields = {
-            "title",
-            "description",
-            "start_date",
-            "due_date",
-            "assignee_id",
-            "status",
-        }
-        if not requested_fields or not requested_fields <= allowed_fields:
-            raise serializers.ValidationError(
-                {"detail": "Provide only editable task fields."}
-            )
-        if task.creator_id != request.user.id and requested_fields != {"status"}:
-            raise PermissionDenied("Assignees can only update the task status.")
+        with transaction.atomic():
+            task = self.get_object()
+            previous_assignee_id = task.assignee_id
+            requested_fields = set(request.data)
+            allowed_fields = {
+                "title",
+                "description",
+                "start_date",
+                "due_date",
+                "assignee_id",
+                "status",
+            }
+            if not requested_fields or not requested_fields <= allowed_fields:
+                raise serializers.ValidationError(
+                    {"detail": "Provide only editable task fields."}
+                )
+            if task.creator_id != request.user.id and requested_fields != {"status"}:
+                raise PermissionDenied("Assignees can only update the task status.")
 
-        serializer = TaskUpdateSerializer(
-            task,
-            data=request.data,
-            partial=True,
-            context={"request": request},
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(TaskSerializer(task, context={"request": request}).data)
+            serializer = TaskUpdateSerializer(
+                task,
+                data=request.data,
+                partial=True,
+                context={"request": request},
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            if task.assignee_id != previous_assignee_id:
+                record_task_assignment(
+                    task=task,
+                    event=models.TaskImDelivery.Event.REASSIGNED,
+                )
+            response_data = TaskSerializer(task, context={"request": request}).data
+        return Response(response_data)

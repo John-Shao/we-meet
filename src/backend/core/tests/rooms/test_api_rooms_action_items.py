@@ -13,7 +13,7 @@ from core.factories import (
     RoomFactory,
     UserFactory,
 )
-from core.models import ActionItem, Summary, Task
+from core.models import ActionItem, Summary, Task, TaskImDelivery
 
 pytestmark = pytest.mark.django_db
 
@@ -231,6 +231,9 @@ def test_manager_creates_task_from_confirmed_action_item():
     assert payload["due_date"] == timezone.localdate(due_at).isoformat()
     item.refresh_from_db()
     assert item.task_id == Task.objects.get().id
+    delivery = TaskImDelivery.objects.get()
+    assert delivery.recipient == assignee
+    assert delivery.event == TaskImDelivery.Event.ASSIGNED
 
 
 def test_action_item_task_conversion_is_idempotent():
@@ -247,6 +250,7 @@ def test_action_item_task_conversion_is_idempotent():
     assert second.status_code == 200
     assert second.json()["id"] == first.json()["id"]
     assert Task.objects.count() == 1
+    assert TaskImDelivery.objects.count() == 1
 
 
 def test_only_manager_can_convert_action_item_to_task():
