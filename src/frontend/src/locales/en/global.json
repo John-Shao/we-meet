@@ -14,8 +14,7 @@
   },
   "inlineEdit": {
     "hint": "Editing {{field}}: Enter to save, Esc to cancel",
-    "hintMultiline": "Editing {{field}}: Esc to cancel",
-    "saving": "Saving…"
+    "hintMultiline": "Editing {{field}}: Esc to cancel"
   },
   "loading": "Loading…",
   "loggedInUserTooltip": "Logged in as ",

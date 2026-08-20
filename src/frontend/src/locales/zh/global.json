@@ -14,8 +14,7 @@
   },
   "inlineEdit": {
     "hint": "编辑{{field}}：Enter 保存，Esc 取消",
-    "hintMultiline": "编辑{{field}}：Esc 取消",
-    "saving": "保存中…"
+    "hintMultiline": "编辑{{field}}：Esc 取消"
   },
   "loading": "加载中…",
   "loggedInUserTooltip": "当前登录账号：",

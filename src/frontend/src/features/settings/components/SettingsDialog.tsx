@@ -685,11 +685,7 @@ export const EditableRow = ({
           />
         </div>
       </div>
-      {(edit.error || edit.busy) && (
-        <span className={editErrorCls}>
-          {edit.busy ? gt('inlineEdit.saving') : edit.error}
-        </span>
-      )}
+      {edit.error && <span className={editErrorCls}>{edit.error}</span>}
     </div>
   )
 }

@@ -14,8 +14,7 @@
   },
   "inlineEdit": {
     "hint": "Modification de {{field}} : Entrée pour enregistrer, Échap pour annuler",
-    "hintMultiline": "Modification de {{field}} : Échap pour annuler",
-    "saving": "Enregistrement…"
+    "hintMultiline": "Modification de {{field}} : Échap pour annuler"
   },
   "loading": "Chargement…",
   "loggedInUserTooltip": "Connecté en tant que ",

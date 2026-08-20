@@ -14,8 +14,7 @@
   },
   "inlineEdit": {
     "hint": "{{field}} bewerken: Enter om op te slaan, Esc om te annuleren",
-    "hintMultiline": "{{field}} bewerken: Esc om te annuleren",
-    "saving": "Opslaan…"
+    "hintMultiline": "{{field}} bewerken: Esc om te annuleren"
   },
   "loading": "Laden ...",
   "loggedInUserTooltip": "Ingelogd als ",
