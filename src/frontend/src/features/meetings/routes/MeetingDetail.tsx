@@ -10,13 +10,15 @@ import { css } from '@/styled-system/css'
 import { ErrorScreen } from '@/components/ErrorScreen'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { Screen } from '@/layout/Screen'
-import { Button, H, Text } from '@/primitives'
+import { Button, Field, H, Text } from '@/primitives'
+import { Select } from '@/primitives/Select'
 import { Tabs, Tab, TabList, TabPanel } from '@/primitives/Tabs'
 import { UserAware, useUser } from '@/features/auth'
 import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
 
 import {
   useMeetingActionItems,
+  useMeetingActionItemAssignees,
   useMeetingRoom,
   useMeetingSummary,
   useMeetingTranscripts,
@@ -24,6 +26,7 @@ import {
   usePatchSummary,
   useRegenerateSummary,
 } from '../api/fetchMeeting'
+import { ApiActionItem } from '../api/ApiMeeting'
 
 const markdownBodyStyle = css({
   fontSize: '0.9375rem',
@@ -378,6 +381,52 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
   const { t } = useTranslation('meetings')
   const { data, isLoading, isError } = useMeetingActionItems(roomId)
   const patch = usePatchActionItem(roomId)
+  const canManage = data?.some((item) => item.can_manage) ?? false
+  const {
+    data: assignees = [],
+    isLoading: assigneesLoading,
+    isError: assigneesError,
+  } = useMeetingActionItemAssignees(roomId, canManage)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draftContent, setDraftContent] = useState('')
+  const [draftAssigneeId, setDraftAssigneeId] = useState<string | null>(null)
+  const [draftDueAt, setDraftDueAt] = useState('')
+
+  const toLocalDateTime = (value: string | null) => {
+    if (!value) return ''
+    const date = new Date(value)
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    return local.toISOString().slice(0, 16)
+  }
+
+  const beginEdit = (item: ApiActionItem) => {
+    patch.reset()
+    setEditingId(item.id)
+    setDraftContent(item.content)
+    setDraftAssigneeId(item.assignee?.id ?? null)
+    setDraftDueAt(toLocalDateTime(item.due_at))
+  }
+
+  const cancelEdit = () => {
+    patch.reset()
+    setEditingId(null)
+  }
+
+  const saveEdit = (item: ApiActionItem) => {
+    const content = draftContent.trim()
+    if (!content) return
+    patch.mutate(
+      {
+        itemId: item.id,
+        patch: {
+          content,
+          assignee_id: draftAssigneeId,
+          due_at: draftDueAt ? new Date(draftDueAt).toISOString() : null,
+        },
+      },
+      { onSuccess: () => setEditingId(null) }
+    )
+  }
 
   if (isLoading) return <Text>{t('loading')}</Text>
   if (isError) return <Text>{t('error.loadFailed')}</Text>
@@ -408,150 +457,264 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
             opacity: item.is_completed ? 0.7 : 1,
           })}
         >
-          <div
-            className={css({
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: '0.75rem',
-              marginBottom: '0.25rem',
-            })}
-          >
-            <span className={css({ fontWeight: 500 })}>{item.content}</span>
-            <span
-              className={css({
-                flexShrink: 0,
-                borderRadius: '999px',
-                padding: '0.125rem 0.5rem',
-                fontSize: '0.75rem',
-                color:
-                  item.status === 'completed'
-                    ? 'success.700'
-                    : 'greyscale.700',
-                backgroundColor:
-                  item.status === 'completed'
-                    ? 'success.100'
-                    : 'greyscale.100',
-              })}
-            >
-              {t(`actionItems.status.${item.status}`)}
-            </span>
-          </div>
-          <div
-            className={css({
-              fontSize: '0.875rem',
-              color: 'greyscale.700',
-              display: 'flex',
-              gap: '1rem',
-              flexWrap: 'wrap',
-            })}
-          >
-            {(item.assignee || item.owner_text) && (
-              <span>
-                {t('actionItems.owner')}:{' '}
-                {item.assignee?.full_name ||
-                  item.assignee?.short_name ||
-                  item.owner_text}
-              </span>
-            )}
-            {(item.due_at || item.due_text) && (
-              <span>
-                {t('actionItems.due')}:{' '}
-                {item.due_at
-                  ? new Intl.DateTimeFormat(undefined, {
-                      dateStyle: 'medium',
-                    }).format(new Date(item.due_at))
-                  : item.due_text}
-              </span>
-            )}
-          </div>
-          {(item.can_update_status || item.can_manage) && (
+          {editingId === item.id ? (
             <div
               className={css({
                 display: 'flex',
-                flexWrap: 'wrap',
-                gap: '0.5rem',
-                marginTop: '0.75rem',
+                flexDirection: 'column',
+                gap: '0.75rem',
               })}
             >
-              {item.status === 'proposed' && item.can_update_status && (
+              <Field
+                type="text"
+                label={t('actionItems.content')}
+                value={draftContent}
+                onChange={setDraftContent}
+                isRequired
+                isDisabled={patch.isPending}
+                wrapperProps={{ noMargin: true, fullWidth: true }}
+              />
+              <Select
+                label={t('actionItems.assignee')}
+                aria-label={t('actionItems.assignee')}
+                items={[
+                  {
+                    value: '__unassigned__',
+                    label: t('actionItems.unassigned'),
+                  },
+                  ...assignees.map((user) => ({
+                    value: user.id,
+                    label:
+                      user.full_name ||
+                      user.short_name ||
+                      user.email ||
+                      user.id,
+                  })),
+                ]}
+                selectedKey={draftAssigneeId ?? '__unassigned__'}
+                onSelectionChange={(key) =>
+                  setDraftAssigneeId(
+                    key === '__unassigned__' ? null : String(key)
+                  )
+                }
+                isDisabled={patch.isPending || assigneesLoading}
+              />
+              {assigneesError && (
+                <Text variant="note">{t('actionItems.assigneesFailed')}</Text>
+              )}
+              <label
+                className={css({
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.25rem',
+                  fontSize: '0.875rem',
+                })}
+              >
+                {t('actionItems.dueAt')}
+                <input
+                  type="datetime-local"
+                  value={draftDueAt}
+                  onChange={(event) => setDraftDueAt(event.target.value)}
+                  disabled={patch.isPending}
+                  className={css({
+                    width: 'full',
+                    minHeight: 'control.md',
+                    paddingX: '0.5rem',
+                    border: '1px solid',
+                    borderColor: 'control.border',
+                    color: 'control.text',
+                    borderRadius: 4,
+                  })}
+                />
+              </label>
+              {patch.isError && (
+                <Text variant="note">{t('actionItems.updateFailed')}</Text>
+              )}
+              <div
+                className={css({
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.5rem',
+                })}
+              >
                 <Button
                   size="sm"
                   variant="secondary"
-                  isDisabled={patch.isPending}
-                  onPress={() =>
-                    patch.mutate({
-                      itemId: item.id,
-                      patch: { status: 'confirmed' },
-                    })
-                  }
+                  isDisabled={patch.isPending || !draftContent.trim()}
+                  onPress={() => saveEdit(item)}
                 >
-                  {t('actionItems.confirm')}
+                  {patch.isPending
+                    ? t('actionItems.saving')
+                    : t('actionItems.save')}
                 </Button>
-              )}
-              {item.status === 'confirmed' && item.can_update_status && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  isDisabled={patch.isPending}
-                  onPress={() =>
-                    patch.mutate({
-                      itemId: item.id,
-                      patch: { status: 'completed' },
-                    })
-                  }
-                >
-                  {t('actionItems.complete')}
-                </Button>
-              )}
-              {item.status === 'completed' && item.can_update_status && (
                 <Button
                   size="sm"
                   variant="tertiary"
                   isDisabled={patch.isPending}
-                  onPress={() =>
-                    patch.mutate({
-                      itemId: item.id,
-                      patch: { status: 'confirmed' },
-                    })
-                  }
+                  onPress={cancelEdit}
                 >
-                  {t('actionItems.reopen')}
+                  {t('actionItems.cancelEdit')}
                 </Button>
-              )}
-              {item.status === 'dismissed' && item.can_manage && (
-                <Button
-                  size="sm"
-                  variant="tertiary"
-                  isDisabled={patch.isPending}
-                  onPress={() =>
-                    patch.mutate({
-                      itemId: item.id,
-                      patch: { status: 'proposed' },
-                    })
-                  }
-                >
-                  {t('actionItems.restore')}
-                </Button>
-              )}
-              {(item.status === 'proposed' ||
-                item.status === 'confirmed') &&
-                item.can_manage && (
-                  <Button
-                    size="sm"
-                    variant="tertiary"
-                    isDisabled={patch.isPending}
-                    onPress={() =>
-                      patch.mutate({
-                        itemId: item.id,
-                        patch: { status: 'dismissed' },
-                      })
-                    }
-                  >
-                    {t('actionItems.dismiss')}
-                  </Button>
-                )}
+              </div>
             </div>
+          ) : (
+            <>
+              <div
+                className={css({
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  marginBottom: '0.25rem',
+                })}
+              >
+                <span className={css({ fontWeight: 500 })}>{item.content}</span>
+                <span
+                  className={css({
+                    flexShrink: 0,
+                    borderRadius: '999px',
+                    padding: '0.125rem 0.5rem',
+                    fontSize: '0.75rem',
+                    color:
+                      item.status === 'completed'
+                        ? 'success.700'
+                        : 'greyscale.700',
+                    backgroundColor:
+                      item.status === 'completed'
+                        ? 'success.100'
+                        : 'greyscale.100',
+                  })}
+                >
+                  {t(`actionItems.status.${item.status}`)}
+                </span>
+              </div>
+              <div
+                className={css({
+                  fontSize: '0.875rem',
+                  color: 'greyscale.700',
+                  display: 'flex',
+                  gap: '1rem',
+                  flexWrap: 'wrap',
+                })}
+              >
+                {(item.assignee || item.owner_text) && (
+                  <span>
+                    {t('actionItems.owner')}:{' '}
+                    {item.assignee?.full_name ||
+                      item.assignee?.short_name ||
+                      item.owner_text}
+                  </span>
+                )}
+                {(item.due_at || item.due_text) && (
+                  <span>
+                    {t('actionItems.due')}:{' '}
+                    {item.due_at
+                      ? new Intl.DateTimeFormat(undefined, {
+                          dateStyle: 'medium',
+                        }).format(new Date(item.due_at))
+                      : item.due_text}
+                  </span>
+                )}
+              </div>
+              {(item.can_update_status || item.can_manage) && (
+                <div
+                  className={css({
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                    marginTop: '0.75rem',
+                  })}
+                >
+                  {item.can_manage && (
+                    <Button
+                      size="sm"
+                      variant="tertiary"
+                      isDisabled={patch.isPending || editingId !== null}
+                      onPress={() => beginEdit(item)}
+                    >
+                      {t('actionItems.edit')}
+                    </Button>
+                  )}
+                  {item.status === 'proposed' && item.can_update_status && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      isDisabled={patch.isPending}
+                      onPress={() =>
+                        patch.mutate({
+                          itemId: item.id,
+                          patch: { status: 'confirmed' },
+                        })
+                      }
+                    >
+                      {t('actionItems.confirm')}
+                    </Button>
+                  )}
+                  {item.status === 'confirmed' && item.can_update_status && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      isDisabled={patch.isPending}
+                      onPress={() =>
+                        patch.mutate({
+                          itemId: item.id,
+                          patch: { status: 'completed' },
+                        })
+                      }
+                    >
+                      {t('actionItems.complete')}
+                    </Button>
+                  )}
+                  {item.status === 'completed' && item.can_update_status && (
+                    <Button
+                      size="sm"
+                      variant="tertiary"
+                      isDisabled={patch.isPending}
+                      onPress={() =>
+                        patch.mutate({
+                          itemId: item.id,
+                          patch: { status: 'confirmed' },
+                        })
+                      }
+                    >
+                      {t('actionItems.reopen')}
+                    </Button>
+                  )}
+                  {item.status === 'dismissed' && item.can_manage && (
+                    <Button
+                      size="sm"
+                      variant="tertiary"
+                      isDisabled={patch.isPending}
+                      onPress={() =>
+                        patch.mutate({
+                          itemId: item.id,
+                          patch: { status: 'proposed' },
+                        })
+                      }
+                    >
+                      {t('actionItems.restore')}
+                    </Button>
+                  )}
+                  {(item.status === 'proposed' ||
+                    item.status === 'confirmed') &&
+                    item.can_manage && (
+                      <Button
+                        size="sm"
+                        variant="tertiary"
+                        isDisabled={patch.isPending}
+                        onPress={() =>
+                          patch.mutate({
+                            itemId: item.id,
+                            patch: { status: 'dismissed' },
+                          })
+                        }
+                      >
+                        {t('actionItems.dismiss')}
+                      </Button>
+                    )}
+                </div>
+              )}
+            </>
           )}
         </li>
       ))}

@@ -1426,6 +1426,33 @@ class RoomViewSet(
 
     @decorators.action(
         detail=True,
+        methods=["get"],
+        url_path="action-item-assignees",
+        permission_classes=[permissions.HasPrivilegesOnRoom],
+    )
+    def get_action_item_assignees(
+        self, request, pk=None
+    ):  # pylint: disable=unused-argument
+        """List room members and participants eligible for assignment."""
+
+        room = self.get_object()
+        summary = room.summary
+        session_id = summary.session_id if summary is not None else None
+        if session_id is None:
+            latest_session = room.meeting_sessions.order_by("-started_at").first()
+            session_id = latest_session.id if latest_session is not None else None
+
+        eligible = models.User.objects.filter(
+            Q(accesses__resource=room)
+            | Q(meeting_participations__session_id=session_id)
+        ).distinct()
+        eligible = eligible.order_by("full_name", "short_name", "email")
+        return drf_response.Response(
+            serializers.ActionItemAssigneeSerializer(eligible, many=True).data
+        )
+
+    @decorators.action(
+        detail=True,
         methods=["patch"],
         url_path=r"action-items/(?P<action_item_id>[0-9a-f-]+)",
         permission_classes=[permissions.IsAuthenticated],

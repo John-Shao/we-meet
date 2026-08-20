@@ -7,6 +7,7 @@ import { ApiRoom } from '@/features/rooms/api/ApiRoom'
 
 import {
   ActionItemStatus,
+  ApiActionItemAssignee,
   ApiActionItem,
   ApiRecentMeeting,
   ApiRoomDetail,
@@ -46,6 +47,19 @@ export const useMeetingActionItems = (roomId: string | undefined) =>
     enabled: !!roomId,
   })
 
+const fetchActionItemAssignees = (roomId: string) =>
+  fetchApi<ApiActionItemAssignee[]>(`rooms/${roomId}/action-item-assignees/`)
+
+export const useMeetingActionItemAssignees = (
+  roomId: string | undefined,
+  enabled: boolean
+) =>
+  useQuery<ApiActionItemAssignee[], ApiError>({
+    queryKey: ['meeting-action-item-assignees', roomId],
+    queryFn: () => fetchActionItemAssignees(roomId!),
+    enabled: !!roomId && enabled,
+  })
+
 interface ActionItemPatch {
   status?: ActionItemStatus
   content?: string
@@ -70,15 +84,14 @@ export const usePatchActionItem = (roomId: string | undefined) => {
     ApiError,
     { itemId: string; patch: ActionItemPatch }
   >({
-    mutationFn: ({ itemId, patch }) =>
-      patchActionItem(roomId!, itemId, patch),
+    mutationFn: ({ itemId, patch }) => patchActionItem(roomId!, itemId, patch),
     onSuccess: (updated) => {
       qc.setQueryData<ApiActionItem[]>(
         ['meeting-action-items', roomId],
         (current) =>
-          current?.map((item) =>
-            item.id === updated.id ? updated : item
-          ) ?? [updated]
+          current?.map((item) => (item.id === updated.id ? updated : item)) ?? [
+            updated,
+          ]
       )
     },
   })

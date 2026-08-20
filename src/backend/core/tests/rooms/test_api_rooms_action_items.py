@@ -172,3 +172,36 @@ def test_list_exposes_capabilities_for_current_user():
     assert owner_payload["can_update_status"] is True
     assert assignee_payload["can_manage"] is False
     assert assignee_payload["can_update_status"] is True
+
+
+def test_manager_can_list_members_and_participants_as_assignees():
+    owner, assignee, member, _outsider, room, item = _world()
+    participant_only = UserFactory()
+    MeetingParticipationFactory(
+        session=item.session,
+        user=participant_only,
+        identity=str(participant_only.sub),
+    )
+
+    response = _client(owner).get(
+        f"/api/v1.0/rooms/{room.id}/action-item-assignees/"
+    )
+
+    assert response.status_code == 200
+    assert {entry["id"] for entry in response.json()} == {
+        str(owner.id),
+        str(assignee.id),
+        str(member.id),
+        str(participant_only.id),
+    }
+    assert all("email" in entry for entry in response.json())
+
+
+def test_member_cannot_list_action_item_assignees():
+    _owner, _assignee, member, _outsider, room, _item = _world()
+
+    response = _client(member).get(
+        f"/api/v1.0/rooms/{room.id}/action-item-assignees/"
+    )
+
+    assert response.status_code == 403

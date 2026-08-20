@@ -69,6 +69,14 @@ class UserLightSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "full_name", "short_name"]
 
 
+class ActionItemAssigneeSerializer(UserLightSerializer):
+    """Serialize users that a meeting manager can assign action items to."""
+
+    class Meta(UserLightSerializer.Meta):
+        fields = [*UserLightSerializer.Meta.fields, "email"]
+        read_only_fields = fields
+
+
 class ResourceAccessSerializerMixin:
     """
     A serializer mixin to share controlling that the logged-in user submitting a room access object

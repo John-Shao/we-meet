@@ -93,6 +93,8 @@ export interface ApiRoomAccessUser {
   email?: string | null
 }
 
+export type ApiActionItemAssignee = ApiRoomAccessUser
+
 export interface ApiRoomAccess {
   id: string
   role: string
