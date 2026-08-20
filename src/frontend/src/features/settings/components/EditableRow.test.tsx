@@ -107,7 +107,7 @@ describe('EditableRow 的无按钮编辑', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
-  it('Esc 退出编辑、焦点回到「编辑」按钮、不触发保存', () => {
+  it('Esc 退出编辑、焦点回到「编辑」按钮、不触发保存', async () => {
     const onSave = vi.fn(async () => {})
     setup(onSave)
     const input = edit()
@@ -117,6 +117,7 @@ describe('EditableRow 的无按钮编辑', () => {
 
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-    expect(screen.getByRole('button')).toHaveFocus()
+    // 焦点归还被延迟到下一拍(见 useInlineEditFocus),等待它落位。
+    await waitFor(() => expect(screen.getByRole('button')).toHaveFocus())
   })
 })

@@ -67,7 +67,7 @@ describe('useInlineEdit 状态机', () => {
     )
   })
 
-  it('Esc 取消:不保存、退出编辑、焦点回到触发按钮', () => {
+  it('Esc 取消:不保存、退出编辑、焦点回到触发按钮', async () => {
     const onSave = vi.fn(async () => {})
     render(<Harness value="a" onSave={onSave} />)
 
@@ -77,7 +77,9 @@ describe('useInlineEdit 状态机', () => {
 
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.queryByTestId('field')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '编辑' })).toHaveFocus()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '编辑' })).toHaveFocus()
+    )
   })
 
   it('失焦自动保存一次', async () => {

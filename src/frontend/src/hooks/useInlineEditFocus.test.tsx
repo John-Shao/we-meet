@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { useInlineEditFocus } from './useInlineEditFocus'
 
@@ -49,13 +49,16 @@ describe('useInlineEditFocus', () => {
     expect(screen.getByRole('textbox', { name: '名称' })).toHaveFocus()
   })
 
-  it('退出编辑态时焦点回到触发按钮', () => {
+  it('退出编辑态时焦点回到触发按钮', async () => {
     render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: '编辑' }))
 
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
 
-    expect(screen.getByRole('button', { name: '编辑' })).toHaveFocus()
+    // 焦点归还被延迟到下一拍(避免 Enter 提交后误激活 ✎ 按钮),等待它落位。
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '编辑' })).toHaveFocus()
+    )
   })
 
   it('没挂 triggerRef 时退出编辑不报错(只要「进编辑聚焦」的站点是合法用法)', () => {

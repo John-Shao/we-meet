@@ -48,7 +48,13 @@ export const useInlineEditFocus = <
     } else if (wasActive.current) {
       // 回到触发器这一侧则压掉滚动:人可能在编辑期间滚到了别处,把页面拽回按钮那里
       // 会像"跳了一下"(同 useRestoreFocus 的 preventScroll 取舍)。
-      triggerRef.current?.focus({ preventScroll: true })
+      //
+      // 延迟到下一拍再还焦点:退出编辑态常由 Enter 触发,字段一卸载、焦点立刻落到
+      // ✎ 按钮上,同一记 Enter 的默认行为可能把这个刚聚焦的按钮再「激活」一次 ——
+      // 表现为退出后马上又进入编辑(编辑框闪一下)。setTimeout 让 keydown/keyup 先
+      // 走完,按钮获得焦点时 Enter 已经释放,不会再被误触发。
+      const trigger = triggerRef.current
+      window.setTimeout(() => trigger?.focus({ preventScroll: true }), 0)
     }
     wasActive.current = active
   }, [active])
