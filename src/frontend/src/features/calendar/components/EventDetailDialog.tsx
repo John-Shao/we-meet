@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RiBuilding2Line,
@@ -94,6 +94,7 @@ export const EventDetailDialog = ({
   const { user } = useUser()
   const [rsvp, setRsvp] = useState<RSVPStatus | null>(event.my_rsvp ?? null)
   const [moreOpen, setMoreOpen] = useState(false)
+  const moreWrapRef = useRef<HTMLDivElement>(null)
   // 会议号/链接的「已复制」瞬时态。
   const [copied, setCopied] = useState<'id' | 'link' | null>(null)
   const meetingLink = event.room_slug
@@ -178,6 +179,26 @@ export const EventDetailDialog = ({
 
   const acceptedCount = attendees.filter((a) => a.rsvp === 'accepted').length
 
+  useEffect(() => {
+    if (!moreOpen) return
+
+    const closeOnOutside = (pointerEvent: PointerEvent) => {
+      if (!moreWrapRef.current?.contains(pointerEvent.target as Node)) {
+        setMoreOpen(false)
+      }
+    }
+    const closeOnEscape = (keyboardEvent: KeyboardEvent) => {
+      if (keyboardEvent.key === 'Escape') setMoreOpen(false)
+    }
+
+    window.addEventListener('pointerdown', closeOnOutside)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      window.removeEventListener('pointerdown', closeOnOutside)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [moreOpen])
+
   const handle = (status: RSVPStatus) => {
     setRsvp(status)
     onRsvp(status)
@@ -232,7 +253,19 @@ export const EventDetailDialog = ({
               </>
             )}
             {((canCopy && onCopy) || (canTransfer && onTransfer)) && (
-              <div className={moreWrapCls}>
+              <div
+                ref={moreWrapRef}
+                className={moreWrapCls}
+                onBlur={(blurEvent) => {
+                  if (
+                    !moreWrapRef.current?.contains(
+                      blurEvent.relatedTarget as Node | null
+                    )
+                  ) {
+                    setMoreOpen(false)
+                  }
+                }}
+              >
                 <Button
                   variant="quaternaryText"
                   size="icon28"
@@ -240,6 +273,8 @@ export const EventDetailDialog = ({
                   data-testid="detail-more"
                   tooltip={t('detail.more')}
                   aria-label={t('detail.more')}
+                  aria-haspopup="menu"
+                  aria-expanded={moreOpen}
                 >
                   <RiMoreLine size={17} />
                 </Button>
