@@ -487,6 +487,18 @@ class TaskActivitySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class TaskCommentSerializer(serializers.ModelSerializer):
+    """Serialize and validate one immutable task comment."""
+
+    author = UserLightSerializer(read_only=True)
+    content = serializers.CharField(max_length=2000, trim_whitespace=True)
+
+    class Meta:
+        model = models.TaskComment
+        fields = ["id", "author", "content", "created_at"]
+        read_only_fields = ["id", "author", "created_at"]
+
+
 class TaskSerializer(serializers.ModelSerializer):
     """Serialize a durable task for the task center and meeting detail."""
 

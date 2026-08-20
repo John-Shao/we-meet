@@ -2288,6 +2288,41 @@ class TaskActivity(BaseModel):
         return f"TaskActivity({self.task_id}, {self.event})"
 
 
+class TaskComment(BaseModel):
+    """Append-only collaboration comment attached to one task."""
+
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="comments",
+        verbose_name=_("task"),
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="task_comments",
+        null=True,
+        blank=True,
+        verbose_name=_("author"),
+    )
+    content = models.TextField(_("content"))
+
+    class Meta:
+        db_table = "meet_task_comment"
+        verbose_name = _("task comment")
+        verbose_name_plural = _("task comments")
+        ordering = ("created_at",)
+        indexes = [
+            models.Index(
+                fields=["task", "created_at"],
+                name="task_comment_created_idx",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"TaskComment({self.task_id}, {self.author_id})"
+
+
 class TaskImDelivery(BaseModel):
     """Durable delivery ledger for task-assignment assistant messages."""
 

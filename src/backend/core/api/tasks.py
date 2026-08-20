@@ -11,7 +11,11 @@ from rest_framework.response import Response
 
 from core import models
 from core.api import permissions
-from core.api.serializers import TaskActivitySerializer, TaskSerializer
+from core.api.serializers import (
+    TaskActivitySerializer,
+    TaskCommentSerializer,
+    TaskSerializer,
+)
 from core.api.viewsets import Pagination
 from core.services.task_history import (
     record_task_changes,
@@ -257,3 +261,15 @@ class TaskViewSet(
         task = self.get_object()
         activities = task.activities.select_related("actor").order_by("-created_at")
         return Response(TaskActivitySerializer(activities, many=True).data)
+
+    @action(detail=True, methods=["get", "post"])
+    def comments(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        task = self.get_object()
+        if request.method == "GET":
+            comments = task.comments.select_related("author").order_by("created_at")
+            return Response(TaskCommentSerializer(comments, many=True).data)
+
+        serializer = TaskCommentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.save(task=task, author=request.user)
+        return Response(TaskCommentSerializer(comment).data, status=201)

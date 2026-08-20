@@ -48,6 +48,18 @@
     "save": "Opslaan",
     "cancelEdit": "Wijzigingen negeren"
   },
+  "comments": {
+    "title": "Opmerkingen",
+    "show": "Opmerkingen",
+    "hide": "Opmerkingen verbergen",
+    "loading": "Opmerkingen laden…",
+    "empty": "Nog geen opmerkingen.",
+    "error": "Opmerkingen konden niet worden geladen.",
+    "inputLabel": "Opmerking toevoegen",
+    "placeholder": "Deel voortgang, vragen of context",
+    "submit": "Opmerking plaatsen",
+    "postError": "De opmerking kon niet worden geplaatst."
+  },
   "history": {
     "title": "Activiteitengeschiedenis",
     "show": "Activiteitengeschiedenis",

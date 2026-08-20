@@ -48,6 +48,18 @@
     "save": "保存",
     "cancelEdit": "放弃修改"
   },
+  "comments": {
+    "title": "评论",
+    "show": "评论",
+    "hide": "收起评论",
+    "loading": "正在加载评论…",
+    "empty": "暂无评论。",
+    "error": "评论加载失败，请稍后重试。",
+    "inputLabel": "添加评论",
+    "placeholder": "补充进展、问题或协作信息",
+    "submit": "发表评论",
+    "postError": "评论发送失败，请重试。"
+  },
   "history": {
     "title": "操作历史",
     "show": "操作历史",

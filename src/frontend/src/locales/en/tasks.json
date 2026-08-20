@@ -48,6 +48,18 @@
     "save": "Save",
     "cancelEdit": "Discard changes"
   },
+  "comments": {
+    "title": "Comments",
+    "show": "Comments",
+    "hide": "Hide comments",
+    "loading": "Loading comments…",
+    "empty": "No comments yet.",
+    "error": "Comments could not be loaded. Please try again.",
+    "inputLabel": "Add a comment",
+    "placeholder": "Share progress, questions, or context",
+    "submit": "Post comment",
+    "postError": "The comment could not be posted. Please try again."
+  },
   "history": {
     "title": "Activity history",
     "show": "Activity history",

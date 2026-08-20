@@ -18,9 +18,11 @@ import type {
   TaskStatus,
 } from '../api/ApiTask'
 import {
+  useCreateTaskComment,
   useCreateTask,
   usePatchTask,
   useTaskActivities,
+  useTaskComments,
   useTasks,
 } from '../api/fetchTasks'
 
@@ -73,6 +75,9 @@ const TasksAuthenticated = () => {
   const [expandedActivities, setExpandedActivities] = useState<Set<string>>(
     () => new Set()
   )
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(
+    () => new Set()
+  )
   const [assigneePicker, setAssigneePicker] = useState<
     'create' | 'edit' | null
   >(null)
@@ -107,6 +112,15 @@ const TasksAuthenticated = () => {
 
   const toggleActivities = (taskId: string) => {
     setExpandedActivities((current) => {
+      const next = new Set(current)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }
+
+  const toggleComments = (taskId: string) => {
+    setExpandedComments((current) => {
       const next = new Set(current)
       if (next.has(taskId)) next.delete(taskId)
       else next.add(taskId)
@@ -556,6 +570,16 @@ const TasksAuthenticated = () => {
                     <Button
                       variant="secondary"
                       size="dense"
+                      aria-expanded={expandedComments.has(task.id)}
+                      onPress={() => toggleComments(task.id)}
+                    >
+                      {expandedComments.has(task.id)
+                        ? t('comments.hide')
+                        : t('comments.show')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="dense"
                       aria-expanded={expandedActivities.has(task.id)}
                       onPress={() => toggleActivities(task.id)}
                     >
@@ -564,6 +588,9 @@ const TasksAuthenticated = () => {
                         : t('history.show')}
                     </Button>
                   </div>
+                  {expandedComments.has(task.id) && (
+                    <TaskComments taskId={task.id} />
+                  )}
                   {expandedActivities.has(task.id) && (
                     <TaskActivityTimeline taskId={task.id} />
                   )}
@@ -603,6 +630,152 @@ const TaskMeta = ({ label, value }: { label: string; value: string }) => (
     <dd className={css({ margin: 0, color: 'greyscale.800' })}>{value}</dd>
   </div>
 )
+
+const TaskComments = ({ taskId }: { taskId: string }) => {
+  const { t, i18n } = useTranslation('tasks')
+  const [content, setContent] = useState('')
+  const { data, isLoading, error } = useTaskComments(taskId)
+  const createMutation = useCreateTaskComment()
+  const formatDateTime = (value: string) =>
+    new Intl.DateTimeFormat(i18n.language, {
+      dateStyle: 'medium',
+      timeStyle: 'medium',
+    }).format(new Date(value))
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    const cleanContent = content.trim()
+    if (!cleanContent) return
+    try {
+      await createMutation.mutateAsync({ taskId, content: cleanContent })
+      setContent('')
+    } catch {
+      // Keep the draft available so the user can retry.
+    }
+  }
+
+  return (
+    <section
+      aria-label={t('comments.title')}
+      className={css({
+        borderTop: '1px solid token(colors.greyscale.200)',
+        paddingTop: '0.875rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.75rem',
+      })}
+    >
+      <h3
+        className={css({
+          margin: 0,
+          color: 'greyscale.800',
+          fontSize: '0.875rem',
+          fontWeight: '600',
+        })}
+      >
+        {t('comments.title')}
+      </h3>
+      {isLoading ? (
+        <p className={historyHintCss}>{t('comments.loading')}</p>
+      ) : error ? (
+        <p className={historyErrorCss}>{t('comments.error')}</p>
+      ) : !data?.length ? (
+        <p className={historyHintCss}>{t('comments.empty')}</p>
+      ) : (
+        <ul
+          className={css({
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.625rem',
+          })}
+        >
+          {data.map((comment) => (
+            <li
+              key={comment.id}
+              className={css({
+                padding: '0.75rem',
+                borderRadius: '8px',
+                backgroundColor: 'greyscale.50',
+              })}
+            >
+              <div
+                className={css({
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  justifyContent: 'space-between',
+                  gap: '0.25rem 0.75rem',
+                  color: 'greyscale.600',
+                  fontSize: '0.75rem',
+                })}
+              >
+                <strong
+                  className={css({
+                    color: 'greyscale.800',
+                    fontWeight: '600',
+                  })}
+                >
+                  {displayName(comment.author)}
+                </strong>
+                <time dateTime={comment.created_at}>
+                  {formatDateTime(comment.created_at)}
+                </time>
+              </div>
+              <p
+                className={css({
+                  marginTop: '0.375rem',
+                  marginBottom: 0,
+                  color: 'greyscale.800',
+                  fontSize: '0.8125rem',
+                  overflowWrap: 'anywhere',
+                  whiteSpace: 'pre-wrap',
+                })}
+              >
+                {comment.content}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        onSubmit={(event) => void submit(event)}
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+        })}
+      >
+        <label className={labelCss}>
+          {t('comments.inputLabel')}
+          <TextArea
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            placeholder={t('comments.placeholder')}
+            maxLength={2000}
+            rows={2}
+          />
+        </label>
+        {createMutation.error && (
+          <p role="alert" className={historyErrorCss}>
+            {t('comments.postError')}
+          </p>
+        )}
+        <div>
+          <Button
+            type="submit"
+            size="dense"
+            loading={createMutation.isPending}
+            isDisabled={!content.trim()}
+          >
+            {t('comments.submit')}
+          </Button>
+        </div>
+      </form>
+    </section>
+  )
+}
 
 const TaskActivityTimeline = ({ taskId }: { taskId: string }) => {
   const { t, i18n } = useTranslation('tasks')

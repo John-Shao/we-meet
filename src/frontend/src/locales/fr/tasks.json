@@ -48,6 +48,18 @@
     "save": "Enregistrer",
     "cancelEdit": "Ignorer les modifications"
   },
+  "comments": {
+    "title": "Commentaires",
+    "show": "Commentaires",
+    "hide": "Masquer les commentaires",
+    "loading": "Chargement des commentaires…",
+    "empty": "Aucun commentaire.",
+    "error": "Impossible de charger les commentaires.",
+    "inputLabel": "Ajouter un commentaire",
+    "placeholder": "Partagez l’avancement, vos questions ou du contexte",
+    "submit": "Publier",
+    "postError": "Impossible de publier le commentaire. Veuillez réessayer."
+  },
   "history": {
     "title": "Historique des actions",
     "show": "Historique des actions",

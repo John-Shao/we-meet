@@ -9,7 +9,14 @@ from core.factories import (
     RoomFactory,
     UserFactory,
 )
-from core.models import ActionItem, Summary, Task, TaskActivity, TaskImDelivery
+from core.models import (
+    ActionItem,
+    Summary,
+    Task,
+    TaskActivity,
+    TaskComment,
+    TaskImDelivery,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -338,6 +345,59 @@ def test_related_users_can_read_task_activities_but_outsider_cannot():
     assert creator_response.json()[0]["actor"]["id"] == str(assignee.id)
     assert assignee_response.status_code == 200
     assert outsider_response.status_code == 404
+
+
+def test_creator_and_assignee_can_post_and_list_task_comments():
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = Task.objects.create(title="Discuss", creator=creator, assignee=assignee)
+    url = f"{TASKS_URL}{task.id}/comments/"
+
+    first = _client(creator).post(
+        url,
+        {"content": "  Initial context  "},
+        format="json",
+    )
+    second = _client(assignee).post(
+        url,
+        {"content": "I will follow up."},
+        format="json",
+    )
+    response = _client(creator).get(url)
+
+    assert first.status_code == 201
+    assert first.json()["content"] == "Initial context"
+    assert first.json()["author"]["id"] == str(creator.id)
+    assert second.status_code == 201
+    assert response.status_code == 200
+    assert [entry["id"] for entry in response.json()] == [
+        first.json()["id"],
+        second.json()["id"],
+    ]
+    assert list(TaskComment.objects.values_list("content", flat=True)) == [
+        "Initial context",
+        "I will follow up.",
+    ]
+
+
+def test_task_comments_reject_blank_content_and_outsiders():
+    creator = UserFactory()
+    outsider = UserFactory()
+    task = Task.objects.create(title="Private", creator=creator, assignee=creator)
+    url = f"{TASKS_URL}{task.id}/comments/"
+
+    blank = _client(creator).post(url, {"content": "   "}, format="json")
+    outsider_list = _client(outsider).get(url)
+    outsider_post = _client(outsider).post(
+        url,
+        {"content": "Not allowed"},
+        format="json",
+    )
+
+    assert blank.status_code == 400
+    assert outsider_list.status_code == 404
+    assert outsider_post.status_code == 404
+    assert TaskComment.objects.count() == 0
 
 
 def test_meeting_task_exposes_source_room():

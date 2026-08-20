@@ -61,6 +61,13 @@ export interface ApiTaskActivity {
   created_at: string
 }
 
+export interface ApiTaskComment {
+  id: string
+  author: ApiTaskUser | null
+  content: string
+  created_at: string
+}
+
 export type TaskScope = 'assigned' | 'created' | 'all'
 
 export interface CreateTaskPayload {

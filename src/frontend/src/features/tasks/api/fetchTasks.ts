@@ -7,6 +7,7 @@ import type { Paginated } from '@/api/Paginated'
 import type {
   ApiTask,
   ApiTaskActivity,
+  ApiTaskComment,
   CreateTaskPayload,
   PatchTaskPayload,
   TaskScope,
@@ -29,6 +30,36 @@ export const useTaskActivities = (taskId: string) =>
     queryKey: ['tasks', taskId, 'activities'],
     queryFn: () => fetchTaskActivities(taskId),
   })
+
+const fetchTaskComments = (taskId: string) =>
+  fetchApi<ApiTaskComment[]>(`tasks/${encodeURIComponent(taskId)}/comments/`)
+
+export const useTaskComments = (taskId: string) =>
+  useQuery<ApiTaskComment[], ApiError>({
+    queryKey: ['tasks', taskId, 'comments'],
+    queryFn: () => fetchTaskComments(taskId),
+  })
+
+const createTaskComment = (taskId: string, content: string) =>
+  fetchApi<ApiTaskComment>(`tasks/${encodeURIComponent(taskId)}/comments/`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  })
+
+export const useCreateTaskComment = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskComment,
+    ApiError,
+    { taskId: string; content: string }
+  >({
+    mutationFn: ({ taskId, content }) => createTaskComment(taskId, content),
+    onSuccess: (_comment, variables) =>
+      queryClient.invalidateQueries({
+        queryKey: ['tasks', variables.taskId, 'comments'],
+      }),
+  })
+}
 
 const createTask = (payload: CreateTaskPayload) =>
   fetchApi<ApiTask>('tasks/', {

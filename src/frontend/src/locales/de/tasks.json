@@ -48,6 +48,18 @@
     "save": "Speichern",
     "cancelEdit": "Änderungen verwerfen"
   },
+  "comments": {
+    "title": "Kommentare",
+    "show": "Kommentare",
+    "hide": "Kommentare ausblenden",
+    "loading": "Kommentare werden geladen…",
+    "empty": "Noch keine Kommentare.",
+    "error": "Kommentare konnten nicht geladen werden.",
+    "inputLabel": "Kommentar hinzufügen",
+    "placeholder": "Fortschritt, Fragen oder Kontext teilen",
+    "submit": "Kommentar senden",
+    "postError": "Der Kommentar konnte nicht gesendet werden."
+  },
   "history": {
     "title": "Aktivitätsverlauf",
     "show": "Aktivitätsverlauf",
