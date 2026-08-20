@@ -333,11 +333,15 @@ const roleSelectCls = css({
   flexShrink: 0,
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '0.375rem',
-  backgroundColor: 'white',
+  backgroundColor: 'greyscale.000',
   paddingX: '0.375rem',
   paddingY: '0.125rem',
   fontSize: '0.75rem',
   color: 'greyscale.700',
+  '& option': {
+    backgroundColor: 'greyscale.000',
+    color: 'greyscale.900',
+  },
 })
 
 const organizerRoleCls = css({
