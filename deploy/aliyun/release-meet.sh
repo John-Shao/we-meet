@@ -3,11 +3,13 @@
 #
 # Run on the production host after build-and-push.sh has pushed the image:
 #   bash deploy/aliyun/release-meet.sh backend
+#   bash deploy/aliyun/release-meet.sh --branch release/2026-08 backend
 #   bash deploy/aliyun/release-meet.sh --tag 574f03b4 frontend
 #   bash deploy/aliyun/release-meet.sh                 # release all modules
 #
 # A release always uses explicit image tags. When --tag is omitted, the current
-# checked-out commit is used after `git pull --ff-only`. For a partial release,
+# checked-out commit is used after the selected branch is updated with
+# `git pull --ff-only`. For a partial release,
 # the script reads the running tag of every unselected module and passes it back
 # to Helm, preventing values.meet.yaml defaults from changing those modules.
 
@@ -15,7 +17,9 @@ set -euo pipefail
 
 NAMESPACE="${NAMESPACE:-meet}"
 RELEASE="${RELEASE:-meet}"
-BRANCH="${BRANCH:-aliyun-dev}"
+# When omitted, use the branch that is currently checked out on the release host.
+# Set BRANCH or pass --branch to select a different source branch explicitly.
+BRANCH="${BRANCH:-}"
 VALUES_FILE="${VALUES_FILE:-src/helm/env.d/aliyun-prod/values.meet.yaml}"
 SECRETS_FILE="${SECRETS_FILE:-src/helm/env.d/aliyun-prod/values.secrets.yaml}"
 ALL_MODULES=(backend frontend summary agents)
@@ -38,6 +42,8 @@ Without module arguments, release all modules. Without --tag, release the
 current HEAD short SHA after pulling the configured branch.
 
 Options:
+  --branch <name>   Source branch to check out and pull (default: current branch;
+                    may also be set with BRANCH)
   --tag <sha>       Immutable image tag to deploy (default: current HEAD short SHA)
   --dry-run         Render the Helm upgrade without changing the cluster
   --skip-git-pull   Do not pull the configured branch before releasing
@@ -89,6 +95,11 @@ while (($#)); do
       TAG=$2
       shift 2
       ;;
+    --branch)
+      (($# >= 2)) || die "--branch requires a value"
+      BRANCH=$2
+      shift 2
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
@@ -130,6 +141,21 @@ require_command helm
 require_command kubectl
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "run from the we-meet repository"
+if [[ -z "$BRANCH" ]]; then
+  BRANCH=$(git branch --show-current)
+  [[ -n "$BRANCH" ]] || die "HEAD is detached; specify the source branch with --branch or BRANCH"
+fi
+
+# `git pull origin <branch>` pulls into the current branch; it does not switch
+# branches. Check out the requested branch first so TAG and Helm charts always
+# come from the intended source.
+if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+  git checkout "$BRANCH"
+else
+  git fetch origin "$BRANCH"
+  git checkout --track "origin/$BRANCH"
+fi
+
 if ((SKIP_GIT_PULL == 0)); then
   echo "==> Updating source: origin/$BRANCH"
   git pull --ff-only origin "$BRANCH"
