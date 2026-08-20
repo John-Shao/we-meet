@@ -66,7 +66,7 @@ export const ParticipantsToggle = ({
           right: '-.25rem',
           width: '1.25rem',
           height: '1.25rem',
-          backgroundColor: 'gray',
+          backgroundColor: 'greyscale.500',
           borderRadius: '50%',
           color: 'white',
           fontSize: '0.75rem',
