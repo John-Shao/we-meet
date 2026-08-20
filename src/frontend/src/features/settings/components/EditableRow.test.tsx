@@ -96,6 +96,17 @@ describe('EditableRow 的无按钮编辑', () => {
     )
   })
 
+  it('未改动就回车:不保存,只退出编辑', () => {
+    const onSave = vi.fn(async () => {})
+    setup(onSave)
+    const input = edit()
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
   it('Esc 退出编辑、焦点回到「编辑」按钮、不触发保存', () => {
     const onSave = vi.fn(async () => {})
     setup(onSave)

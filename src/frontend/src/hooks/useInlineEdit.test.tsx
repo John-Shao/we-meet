@@ -35,7 +35,7 @@ const Harness = (props: Partial<UseInlineEditOptions> & { value: string }) => {
         ref={edit.fieldRef}
         multiline={props.multiline}
         value={edit.draft}
-        onChange={edit.setDraft}
+        onChange={edit.onDraftChange}
         onKeyDown={edit.onFieldKeyDown}
         onBlur={edit.onFieldBlur}
         disabled={edit.busy}
@@ -94,13 +94,38 @@ describe('useInlineEdit 状态机', () => {
     )
   })
 
-  it('未改动就失焦/回车:不保存,只退出', () => {
+  it('未改动就回车:不保存,只退出', () => {
+    const onSave = vi.fn(async () => {})
+    render(<Harness value="a" onSave={onSave} />)
+
+    const field = start()
+    fireEvent.keyDown(field, { key: 'Enter' })
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('field')).not.toBeInTheDocument()
+  })
+
+  it('未改动就失焦:不保存,只退出', () => {
     const onSave = vi.fn(async () => {})
     render(<Harness value="a" onSave={onSave} />)
 
     const field = start()
     fireEvent.blur(field)
 
+    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('field')).not.toBeInTheDocument()
+  })
+
+  it('编辑期间 value 被外部更新,未改动回车仍只退出、不误保存', () => {
+    const onSave = vi.fn(async () => {})
+    const { rerender } = render(<Harness value="a" onSave={onSave} />)
+
+    const field = start() // draft = "a", dirty = false
+    rerender(<Harness value="b" onSave={onSave} />) // 外部把 value 改成 "b"
+
+    fireEvent.keyDown(field, { key: 'Enter' })
+
+    // 用户没敲键盘:dirty 仍为 false,回车应当直接退出,而不是拿旧 draft "a" 去保存。
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.queryByTestId('field')).not.toBeInTheDocument()
   })

@@ -27,7 +27,7 @@ import { useInlineEditFocus } from './useInlineEditFocus'
  * const edit = useInlineEdit({ value, onSave, validate, multiline })
  * // 读态:<button ref={edit.triggerRef} onClick={edit.startEdit}>✎</button>
  * // 编辑态:<InlineEditField ref={edit.fieldRef} value={edit.draft}
- * //          onChange={edit.setDraft} onKeyDown={edit.onFieldKeyDown}
+ * //          onChange={edit.onDraftChange} onKeyDown={edit.onFieldKeyDown}
  * //          onBlur={edit.onFieldBlur} disabled={edit.busy} … />
  * ```
  */
@@ -56,6 +56,11 @@ export const useInlineEdit = ({
 }: UseInlineEditOptions) => {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
+  // 「用户是否真的敲过键盘」与「draft 是否等于 value」是两码事:value 可能在编辑
+  // 期间被外部更新(群昵称的 roster、群名被同步等),此时 draft 仍是旧值、不等于新
+  // value,但用户什么都没改,回车/失焦应当直接退出而不是误触发一次保存。所以用
+  // dirty 记录「用户有输入」,而不是拿 draft 去比对 value。
+  const [dirty, setDirty] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -68,15 +73,21 @@ export const useInlineEdit = ({
 
   const startEdit = () => {
     setDraft(value)
+    setDirty(false)
     setError('')
     ignoreNextBlur.current = false
     setEditing(true)
   }
 
+  const onDraftChange = (next: string) => {
+    setDraft(next)
+    setDirty(true)
+  }
+
   const commit = () => {
     if (busy) return
-    if (draft === value) {
-      // 没改过:只退出编辑,不发请求,也不报错。
+    if (!dirty || draft === value) {
+      // 没改过(或改完又改回原值):只退出编辑,不发请求,也不报错。
       ignoreNextBlur.current = true
       setEditing(false)
       return
@@ -138,7 +149,7 @@ export const useInlineEdit = ({
   return {
     editing,
     draft,
-    setDraft,
+    onDraftChange,
     busy,
     error,
     fieldRef,

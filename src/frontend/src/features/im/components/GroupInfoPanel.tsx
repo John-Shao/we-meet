@@ -333,7 +333,7 @@ export const GroupInfoPanel = ({
             <InlineEditField
               ref={nameEdit.fieldRef}
               value={nameEdit.draft}
-              onChange={nameEdit.setDraft}
+              onChange={nameEdit.onDraftChange}
               onKeyDown={nameEdit.onFieldKeyDown}
               onBlur={nameEdit.onFieldBlur}
               disabled={nameEdit.busy}
@@ -413,7 +413,7 @@ export const GroupInfoPanel = ({
               ref={descEdit.fieldRef}
               multiline
               value={descEdit.draft}
-              onChange={descEdit.setDraft}
+              onChange={descEdit.onDraftChange}
               onKeyDown={descEdit.onFieldKeyDown}
               onBlur={descEdit.onFieldBlur}
               disabled={descEdit.busy}
@@ -473,7 +473,7 @@ export const GroupInfoPanel = ({
             <InlineEditField
               ref={nickEdit.fieldRef}
               value={nickEdit.draft}
-              onChange={nickEdit.setDraft}
+              onChange={nickEdit.onDraftChange}
               onKeyDown={nickEdit.onFieldKeyDown}
               onBlur={nickEdit.onFieldBlur}
               disabled={nickEdit.busy}
