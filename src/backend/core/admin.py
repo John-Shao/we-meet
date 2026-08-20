@@ -471,7 +471,15 @@ class ActionItemInline(admin.TabularInline):
 
     model = models.ActionItem
     extra = 0
-    fields = ("sort_order", "content", "owner_text", "due_text", "is_completed")
+    fields = (
+        "sort_order",
+        "content",
+        "owner_text",
+        "due_text",
+        "assignee",
+        "due_at",
+        "status",
+    )
     autocomplete_fields = ()
     fk_name = "summary"
 
@@ -498,14 +506,21 @@ class ActionItemAdmin(admin.ModelAdmin):
         "room",
         "owner_text",
         "_content_preview",
-        "due_text",
-        "is_completed",
+        "assignee",
+        "due_at",
+        "status",
         "sort_order",
     )
-    list_filter = ("is_completed",)
-    list_editable = ("is_completed", "sort_order")
+    list_filter = ("status",)
+    list_editable = ("status", "sort_order")
     search_fields = ("content", "owner_text", "room__name")
-    autocomplete_fields = ("room", "summary", "source_transcript")
+    autocomplete_fields = (
+        "room",
+        "summary",
+        "source_transcript",
+        "assignee",
+        "confirmed_by",
+    )
 
     def _content_preview(self, obj):
         return (obj.content[:60] + "…") if len(obj.content) > 60 else obj.content

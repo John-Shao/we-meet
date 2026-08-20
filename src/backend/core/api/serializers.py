@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
+from django.utils import timezone
 
 # pylint: disable=abstract-method,no-name-in-module
 from django.utils.translation import gettext_lazy as _
@@ -317,21 +318,154 @@ class TranscriptSerializer(serializers.ModelSerializer):
 
 
 class ActionItemSerializer(serializers.ModelSerializer):
-    """Read-only serializer for the meeting detail page."""
+    """Serialize the AI proposal and its human-review lifecycle."""
+
+    assignee = UserLightSerializer(read_only=True)
+    assignee_id = serializers.PrimaryKeyRelatedField(
+        source="assignee",
+        queryset=models.User.objects.all(),
+        allow_null=True,
+        required=False,
+        write_only=True,
+    )
+    confirmed_by = UserLightSerializer(read_only=True)
+    can_manage = serializers.SerializerMethodField()
+    can_update_status = serializers.SerializerMethodField()
+
+    _TRANSITIONS = {
+        models.ActionItem.Status.PROPOSED: {
+            models.ActionItem.Status.CONFIRMED,
+            models.ActionItem.Status.DISMISSED,
+        },
+        models.ActionItem.Status.CONFIRMED: {
+            models.ActionItem.Status.COMPLETED,
+            models.ActionItem.Status.DISMISSED,
+        },
+        models.ActionItem.Status.COMPLETED: {
+            models.ActionItem.Status.CONFIRMED,
+        },
+        models.ActionItem.Status.DISMISSED: {
+            models.ActionItem.Status.PROPOSED,
+        },
+    }
+
+    def _request_user(self):
+        request = self.context.get("request")
+        return getattr(request, "user", None)
+
+    def get_can_manage(self, instance):
+        user = self._request_user()
+        return bool(
+            user
+            and user.is_authenticated
+            and instance.room.is_administrator_or_owner(user)
+        )
+
+    def get_can_update_status(self, instance):
+        user = self._request_user()
+        return bool(
+            self.get_can_manage(instance)
+            or (
+                user
+                and user.is_authenticated
+                and instance.assignee_id == user.id
+            )
+        )
+
+    def validate_assignee_id(self, assignee):
+        """Only meeting members/participants can own an action item."""
+
+        if assignee is None or self.instance is None:
+            return assignee
+        room = self.instance.room
+        has_room_access = room.accesses.filter(user=assignee).exists()
+        was_participant = bool(
+            self.instance.session_id
+            and models.MeetingParticipation.objects.filter(
+                session_id=self.instance.session_id, user=assignee
+            ).exists()
+        )
+        if not has_room_access and not was_participant:
+            raise serializers.ValidationError(
+                _("Assignee must be a member or participant of this meeting.")
+            )
+        return assignee
+
+    def validate_status(self, status):
+        if self.instance is None or status == self.instance.status:
+            return status
+        allowed = self._TRANSITIONS.get(self.instance.status, set())
+        if status not in allowed:
+            raise serializers.ValidationError(
+                _("This action item status transition is not allowed.")
+            )
+        return status
+
+    def update(self, instance, validated_data):
+        previous_status = instance.status
+        instance = super().update(instance, validated_data)
+        if instance.status == previous_status:
+            return instance
+
+        now = timezone.now()
+        actor = self._request_user()
+        if instance.status == models.ActionItem.Status.CONFIRMED:
+            if instance.confirmed_at is None:
+                instance.confirmed_at = now
+                instance.confirmed_by = actor
+            instance.completed_at = None
+        elif instance.status == models.ActionItem.Status.COMPLETED:
+            if instance.confirmed_at is None:
+                instance.confirmed_at = now
+                instance.confirmed_by = actor
+            instance.completed_at = now
+        elif instance.status == models.ActionItem.Status.PROPOSED:
+            instance.confirmed_at = None
+            instance.confirmed_by = None
+            instance.completed_at = None
+        elif instance.status == models.ActionItem.Status.DISMISSED:
+            instance.completed_at = None
+
+        instance.save()
+        return instance
 
     class Meta:
         model = models.ActionItem
         fields = [
             "id",
+            "session_id",
             "content",
             "owner_text",
             "due_text",
+            "assignee",
+            "assignee_id",
+            "due_at",
+            "status",
+            "confirmed_by",
+            "confirmed_at",
+            "completed_at",
+            "task_id",
+            "sort_order",
+            "is_completed",
+            "source_transcript_id",
+            "can_manage",
+            "can_update_status",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "session_id",
+            "owner_text",
+            "due_text",
+            "confirmed_by",
+            "confirmed_at",
+            "completed_at",
+            "task_id",
             "sort_order",
             "is_completed",
             "source_transcript_id",
             "created_at",
         ]
-        read_only_fields = fields
 
 
 class SummaryChapterSerializer(serializers.ModelSerializer):

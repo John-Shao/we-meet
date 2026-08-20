@@ -2026,7 +2026,19 @@ class SummaryImDelivery(BaseModel):
 
 
 class ActionItem(BaseModel):
-    """A single follow-up extracted by the LLM from the meeting transcript."""
+    """A follow-up extracted from a meeting and reviewed by humans.
+
+    ``owner_text`` and ``due_text`` keep the LLM output verbatim.  The structured
+    ``assignee`` / ``due_at`` fields are only populated once somebody reviews the
+    proposal.  This separation prevents unconfirmed AI output from silently
+    becoming an operational task.
+    """
+
+    class Status(models.TextChoices):
+        PROPOSED = "proposed", _("Proposed")
+        CONFIRMED = "confirmed", _("Confirmed")
+        COMPLETED = "completed", _("Completed")
+        DISMISSED = "dismissed", _("Dismissed")
 
     room = models.ForeignKey(
         Room,
@@ -2041,6 +2053,14 @@ class ActionItem(BaseModel):
         null=True,
         blank=True,
         verbose_name=_("summary"),
+    )
+    session = models.ForeignKey(
+        "MeetingSession",
+        on_delete=models.SET_NULL,
+        related_name="action_items",
+        null=True,
+        blank=True,
+        verbose_name=_("meeting session"),
     )
     source_transcript = models.ForeignKey(
         "Transcript",
@@ -2072,7 +2092,41 @@ class ActionItem(BaseModel):
         default="",
         help_text=_("Free-text deadline (e.g. '下周五', 'before EOQ')."),
     )
+    assignee = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="assigned_meeting_action_items",
+        null=True,
+        blank=True,
+        verbose_name=_("assignee"),
+    )
+    due_at = models.DateTimeField(_("due at"), null=True, blank=True, db_index=True)
+    status = models.CharField(
+        _("status"),
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PROPOSED,
+        db_index=True,
+    )
+    confirmed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="confirmed_meeting_action_items",
+        null=True,
+        blank=True,
+        verbose_name=_("confirmed by"),
+    )
+    confirmed_at = models.DateTimeField(_("confirmed at"), null=True, blank=True)
+    completed_at = models.DateTimeField(_("completed at"), null=True, blank=True)
+    task_id = models.UUIDField(
+        _("linked task id"),
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=_("Reserved link to the task created from this action item."),
+    )
     sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
+    # Kept for backwards wire compatibility during the action-item migration.
     is_completed = models.BooleanField(_("completed"), default=False)
 
     class Meta:
@@ -2083,6 +2137,12 @@ class ActionItem(BaseModel):
     def __str__(self) -> str:
         owner = f"[{self.owner_text}] " if self.owner_text else ""
         return f"{owner}{self.content[:80]}"
+
+    def save(self, *args, **kwargs):
+        """Keep the legacy completion flag aligned with the lifecycle status."""
+
+        self.is_completed = self.status == self.Status.COMPLETED
+        super().save(*args, **kwargs)
 
     def clean(self):
         """Keep redundant Room and source transcript within the summary session."""
@@ -2100,6 +2160,10 @@ class ActionItem(BaseModel):
         if self.room_id not in {None, summary_values["room_id"]}:
             raise ValidationError(
                 {"room": _("Action item room must match its summary room.")}
+            )
+        if self.session_id not in {None, summary_values["session_id"]}:
+            raise ValidationError(
+                {"session": _("Action item session must match its summary session.")}
             )
         if self.source_transcript_id is None:
             return

@@ -20,6 +20,7 @@ import {
   useMeetingRoom,
   useMeetingSummary,
   useMeetingTranscripts,
+  usePatchActionItem,
   usePatchSummary,
   useRegenerateSummary,
 } from '../api/fetchMeeting'
@@ -376,6 +377,7 @@ const ChaptersTab = ({
 const ActionItemsTab = ({ roomId }: { roomId: string }) => {
   const { t } = useTranslation('meetings')
   const { data, isLoading, isError } = useMeetingActionItems(roomId)
+  const patch = usePatchActionItem(roomId)
 
   if (isLoading) return <Text>{t('loading')}</Text>
   if (isError) return <Text>{t('error.loadFailed')}</Text>
@@ -406,8 +408,34 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
             opacity: item.is_completed ? 0.7 : 1,
           })}
         >
-          <div className={css({ fontWeight: 500, marginBottom: '0.25rem' })}>
-            {item.content}
+          <div
+            className={css({
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              marginBottom: '0.25rem',
+            })}
+          >
+            <span className={css({ fontWeight: 500 })}>{item.content}</span>
+            <span
+              className={css({
+                flexShrink: 0,
+                borderRadius: '999px',
+                padding: '0.125rem 0.5rem',
+                fontSize: '0.75rem',
+                color:
+                  item.status === 'completed'
+                    ? 'success.700'
+                    : 'greyscale.700',
+                backgroundColor:
+                  item.status === 'completed'
+                    ? 'success.100'
+                    : 'greyscale.100',
+              })}
+            >
+              {t(`actionItems.status.${item.status}`)}
+            </span>
           </div>
           <div
             className={css({
@@ -418,17 +446,113 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
               flexWrap: 'wrap',
             })}
           >
-            {item.owner_text && (
+            {(item.assignee || item.owner_text) && (
               <span>
-                {t('actionItems.owner')}: {item.owner_text}
+                {t('actionItems.owner')}:{' '}
+                {item.assignee?.full_name ||
+                  item.assignee?.short_name ||
+                  item.owner_text}
               </span>
             )}
-            {item.due_text && (
+            {(item.due_at || item.due_text) && (
               <span>
-                {t('actionItems.due')}: {item.due_text}
+                {t('actionItems.due')}:{' '}
+                {item.due_at
+                  ? new Intl.DateTimeFormat(undefined, {
+                      dateStyle: 'medium',
+                    }).format(new Date(item.due_at))
+                  : item.due_text}
               </span>
             )}
           </div>
+          {(item.can_update_status || item.can_manage) && (
+            <div
+              className={css({
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+                marginTop: '0.75rem',
+              })}
+            >
+              {item.status === 'proposed' && item.can_update_status && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  isDisabled={patch.isPending}
+                  onPress={() =>
+                    patch.mutate({
+                      itemId: item.id,
+                      patch: { status: 'confirmed' },
+                    })
+                  }
+                >
+                  {t('actionItems.confirm')}
+                </Button>
+              )}
+              {item.status === 'confirmed' && item.can_update_status && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  isDisabled={patch.isPending}
+                  onPress={() =>
+                    patch.mutate({
+                      itemId: item.id,
+                      patch: { status: 'completed' },
+                    })
+                  }
+                >
+                  {t('actionItems.complete')}
+                </Button>
+              )}
+              {item.status === 'completed' && item.can_update_status && (
+                <Button
+                  size="sm"
+                  variant="tertiary"
+                  isDisabled={patch.isPending}
+                  onPress={() =>
+                    patch.mutate({
+                      itemId: item.id,
+                      patch: { status: 'confirmed' },
+                    })
+                  }
+                >
+                  {t('actionItems.reopen')}
+                </Button>
+              )}
+              {item.status === 'dismissed' && item.can_manage && (
+                <Button
+                  size="sm"
+                  variant="tertiary"
+                  isDisabled={patch.isPending}
+                  onPress={() =>
+                    patch.mutate({
+                      itemId: item.id,
+                      patch: { status: 'proposed' },
+                    })
+                  }
+                >
+                  {t('actionItems.restore')}
+                </Button>
+              )}
+              {(item.status === 'proposed' ||
+                item.status === 'confirmed') &&
+                item.can_manage && (
+                  <Button
+                    size="sm"
+                    variant="tertiary"
+                    isDisabled={patch.isPending}
+                    onPress={() =>
+                      patch.mutate({
+                        itemId: item.id,
+                        patch: { status: 'dismissed' },
+                      })
+                    }
+                  >
+                    {t('actionItems.dismiss')}
+                  </Button>
+                )}
+            </div>
+          )}
         </li>
       ))}
     </ul>

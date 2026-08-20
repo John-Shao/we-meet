@@ -42,6 +42,17 @@
     "saveFailed": "Speichern fehlgeschlagen."
   },
   "actionItems": {
+    "confirm": "Bestätigen",
+    "complete": "Als erledigt markieren",
+    "reopen": "Wieder öffnen",
+    "dismiss": "Verwerfen",
+    "restore": "Wiederherstellen",
+    "status": {
+      "proposed": "Zu bestätigen",
+      "confirmed": "Bestätigt",
+      "completed": "Erledigt",
+      "dismissed": "Verworfen"
+    },
     "empty": "Keine Maßnahmen",
     "owner": "Verantwortlich",
     "due": "Fällig"

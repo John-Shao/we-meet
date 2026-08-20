@@ -42,6 +42,17 @@
     "saveFailed": "保存失败。"
   },
   "actionItems": {
+    "confirm": "确认行动项",
+    "complete": "标记完成",
+    "reopen": "重新打开",
+    "dismiss": "忽略",
+    "restore": "恢复",
+    "status": {
+      "proposed": "待确认",
+      "confirmed": "已确认",
+      "completed": "已完成",
+      "dismissed": "已忽略"
+    },
     "empty": "暂无行动项",
     "owner": "负责人",
     "due": "截止"

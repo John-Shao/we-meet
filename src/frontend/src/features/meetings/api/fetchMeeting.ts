@@ -6,6 +6,7 @@ import { fetchApi } from '@/api/fetchApi'
 import { ApiRoom } from '@/features/rooms/api/ApiRoom'
 
 import {
+  ActionItemStatus,
   ApiActionItem,
   ApiRecentMeeting,
   ApiRoomDetail,
@@ -44,6 +45,44 @@ export const useMeetingActionItems = (roomId: string | undefined) =>
     queryFn: () => fetchActionItems(roomId!),
     enabled: !!roomId,
   })
+
+interface ActionItemPatch {
+  status?: ActionItemStatus
+  content?: string
+  assignee_id?: string | null
+  due_at?: string | null
+}
+
+const patchActionItem = (
+  roomId: string,
+  itemId: string,
+  patch: ActionItemPatch
+) =>
+  fetchApi<ApiActionItem>(`rooms/${roomId}/action-items/${itemId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+
+export const usePatchActionItem = (roomId: string | undefined) => {
+  const qc = useQueryClient()
+  return useMutation<
+    ApiActionItem,
+    ApiError,
+    { itemId: string; patch: ActionItemPatch }
+  >({
+    mutationFn: ({ itemId, patch }) =>
+      patchActionItem(roomId!, itemId, patch),
+    onSuccess: (updated) => {
+      qc.setQueryData<ApiActionItem[]>(
+        ['meeting-action-items', roomId],
+        (current) =>
+          current?.map((item) =>
+            item.id === updated.id ? updated : item
+          ) ?? [updated]
+      )
+    },
+  })
+}
 
 const fetchTranscripts = (roomId: string) =>
   fetchApi<ApiTranscript[]>(`rooms/${roomId}/transcripts/`)

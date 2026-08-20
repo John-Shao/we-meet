@@ -1417,8 +1417,62 @@ class RoomViewSet(
             else models.ActionItem.objects.none()
         )
         return drf_response.Response(
-            serializers.ActionItemSerializer(items, many=True).data
+            serializers.ActionItemSerializer(
+                items.select_related("room", "assignee", "confirmed_by"),
+                many=True,
+                context={"request": request},
+            ).data
         )
+
+    @decorators.action(
+        detail=True,
+        methods=["patch"],
+        url_path=r"action-items/(?P<action_item_id>[0-9a-f-]+)",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def update_action_item(
+        self, request, pk=None, action_item_id=None
+    ):  # pylint: disable=unused-argument
+        """Review or advance one action item from this meeting."""
+
+        room = self.get_object()
+        item = get_object_or_404(
+            models.ActionItem.objects.select_related(
+                "room", "assignee", "confirmed_by"
+            ),
+            pk=action_item_id,
+            room=room,
+        )
+        can_manage = room.is_administrator_or_owner(request.user)
+        is_assignee = item.assignee_id == request.user.id
+        if not can_manage and not is_assignee:
+            raise drf_exceptions.PermissionDenied(
+                "Only meeting managers or the assignee can update this action item."
+            )
+
+        requested_fields = set(request.data)
+        if is_assignee and not can_manage:
+            if requested_fields != {"status"}:
+                raise drf_exceptions.PermissionDenied(
+                    "Assignees can only update the action item status."
+                )
+            if request.data.get("status") not in {
+                models.ActionItem.Status.CONFIRMED,
+                models.ActionItem.Status.COMPLETED,
+            }:
+                raise drf_exceptions.PermissionDenied(
+                    "Assignees can only confirm, complete, or reopen their action item."
+                )
+
+        serializer = serializers.ActionItemSerializer(
+            item,
+            data=request.data,
+            partial=True,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return drf_response.Response(serializer.data)
 
     @decorators.action(
         detail=True,

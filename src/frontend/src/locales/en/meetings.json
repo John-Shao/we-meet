@@ -42,6 +42,17 @@
     "saveFailed": "Failed to save."
   },
   "actionItems": {
+    "confirm": "Confirm",
+    "complete": "Mark complete",
+    "reopen": "Reopen",
+    "dismiss": "Dismiss",
+    "restore": "Restore",
+    "status": {
+      "proposed": "To confirm",
+      "confirmed": "Confirmed",
+      "completed": "Completed",
+      "dismissed": "Dismissed"
+    },
     "empty": "No action items",
     "owner": "Owner",
     "due": "Due"

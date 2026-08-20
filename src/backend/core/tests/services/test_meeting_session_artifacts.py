@@ -123,6 +123,37 @@ def test_summary_children_regeneration_isolated_between_sessions():
     assert room.summary == second_summary
 
 
+def test_regeneration_preserves_reviewed_action_items():
+    room = RoomFactory()
+    session = _ended_session(room)
+    service = MeetingSummaryService(llm=mock.Mock())
+    summary = _persist(service, session, "first")
+    reviewed = summary.action_items.get()
+    reviewed.status = ActionItem.Status.CONFIRMED
+    reviewed.save()
+
+    service._persist(
+        session=session,
+        room=room,
+        summary_text="summary-v2",
+        items=[
+            {"content": reviewed.content, "owner": "", "due": ""},
+            {"content": "new proposal", "owner": "", "due": ""},
+        ],
+        chapters=[],
+        transcripts=list(session.transcripts.all()),
+        model_used="test",
+    )
+
+    rows = list(
+        summary.action_items.order_by("created_at").values_list("content", "status")
+    )
+    assert rows == [
+        (reviewed.content, ActionItem.Status.CONFIRMED),
+        ("new proposal", ActionItem.Status.PROPOSED),
+    ]
+
+
 def test_embedding_rebuild_only_replaces_target_session():
     room = RoomFactory()
     first = _ended_session(room)

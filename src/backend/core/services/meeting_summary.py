@@ -420,7 +420,9 @@ class MeetingSummaryService:
             if len(bullets) >= 3:
                 break
 
-        items_count = summary.action_items.count()
+        items_count = summary.action_items.exclude(
+            status=ActionItem.Status.DISMISSED
+        ).count()
         chapters_count = summary.chapters.count()
         name = getattr(room, "name", "") or "会议"
         lines = [f"📋 「{name}」会议纪要"]
@@ -452,7 +454,9 @@ class MeetingSummaryService:
             if len(bullets) >= 3:
                 break
 
-        items_count = summary.action_items.count()
+        items_count = summary.action_items.exclude(
+            status=ActionItem.Status.DISMISSED
+        ).count()
         chapters_count = summary.chapters.count()
         name = getattr(room, "name", "") or "会议"
         blocks: list[dict] = [
@@ -828,11 +832,25 @@ class MeetingSummaryService:
                 "content_generated_at": timezone.now(),
             },
         )
-        ActionItem.objects.filter(summary=summary).delete()
+        # Regeneration refreshes AI proposals, but reviewed work is durable.  A
+        # confirmed/completed/dismissed item must never disappear just because
+        # somebody asks the LLM for a better summary.
+        proposed = ActionItem.objects.filter(
+            summary=summary, status=ActionItem.Status.PROPOSED
+        )
+        proposed.delete()
+        reviewed_contents = set(
+            ActionItem.objects.filter(summary=summary)
+            .exclude(status=ActionItem.Status.PROPOSED)
+            .values_list("content", flat=True)
+        )
         for index, item in enumerate(items):
+            if item["content"] in reviewed_contents:
+                continue
             ActionItem.objects.create(
                 room=room,
                 summary=summary,
+                session=session,
                 content=item["content"],
                 owner_text=item["owner"],
                 due_text=item["due"],

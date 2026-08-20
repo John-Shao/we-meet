@@ -42,6 +42,17 @@
     "saveFailed": "Opslaan mislukt."
   },
   "actionItems": {
+    "confirm": "Bevestigen",
+    "complete": "Markeren als voltooid",
+    "reopen": "Heropenen",
+    "dismiss": "Negeren",
+    "restore": "Herstellen",
+    "status": {
+      "proposed": "Te bevestigen",
+      "confirmed": "Bevestigd",
+      "completed": "Voltooid",
+      "dismissed": "Genegeerd"
+    },
     "empty": "Geen actiepunten",
     "owner": "Verantwoordelijke",
     "due": "Deadline"

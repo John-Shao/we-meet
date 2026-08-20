@@ -8,15 +8,30 @@
  */
 
 export type SummaryStatus = 'pending' | 'success' | 'failed'
+export type ActionItemStatus =
+  | 'proposed'
+  | 'confirmed'
+  | 'completed'
+  | 'dismissed'
 
 export interface ApiActionItem {
   id: string
+  session_id: string | null
   content: string
   owner_text: string
   due_text: string
+  assignee: ApiRoomAccessUser | null
+  due_at: string | null
+  status: ActionItemStatus
+  confirmed_by: ApiRoomAccessUser | null
+  confirmed_at: string | null
+  completed_at: string | null
+  task_id: string | null
   sort_order: number
   is_completed: boolean
   source_transcript_id: string | null
+  can_manage: boolean
+  can_update_status: boolean
   created_at: string
 }
 

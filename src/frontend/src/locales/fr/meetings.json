@@ -42,6 +42,17 @@
     "saveFailed": "Échec de la sauvegarde."
   },
   "actionItems": {
+    "confirm": "Confirmer",
+    "complete": "Marquer comme terminée",
+    "reopen": "Rouvrir",
+    "dismiss": "Ignorer",
+    "restore": "Restaurer",
+    "status": {
+      "proposed": "À confirmer",
+      "confirmed": "Confirmée",
+      "completed": "Terminée",
+      "dismissed": "Ignorée"
+    },
     "empty": "Aucune action à mener",
     "owner": "Responsable",
     "due": "Échéance"
