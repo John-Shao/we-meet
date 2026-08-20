@@ -57,6 +57,11 @@
     "dueAt": "Deadline",
     "assigneesFailed": "Kan verantwoordelijken niet laden. Probeer opnieuw.",
     "updateFailed": "Kan het actiepunt niet opslaan. Probeer opnieuw.",
+    "createTask": "Taak maken",
+    "creatingTask": "Aanmaken…",
+    "taskCreated": "Taak aangemaakt",
+    "assignBeforeTask": "Wijs eerst een verantwoordelijke toe",
+    "createTaskFailed": "Kan de taak niet aanmaken. Probeer opnieuw.",
     "status": {
       "proposed": "Te bevestigen",
       "confirmed": "Bevestigd",

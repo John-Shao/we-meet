@@ -17,6 +17,7 @@ import { UserAware, useUser } from '@/features/auth'
 import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
 
 import {
+  useCreateActionItemTask,
   useMeetingActionItems,
   useMeetingActionItemAssignees,
   useMeetingRoom,
@@ -381,6 +382,7 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
   const { t } = useTranslation('meetings')
   const { data, isLoading, isError } = useMeetingActionItems(roomId)
   const patch = usePatchActionItem(roomId)
+  const createTask = useCreateActionItemTask(roomId)
   const canManage = data?.some((item) => item.can_manage) ?? false
   const {
     data: assignees = [],
@@ -635,6 +637,52 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
                       {t('actionItems.edit')}
                     </Button>
                   )}
+                  {item.task_id && (
+                    <span
+                      className={css({
+                        alignSelf: 'center',
+                        color: 'success.700',
+                        fontSize: '0.875rem',
+                      })}
+                    >
+                      {t('actionItems.taskCreated')}
+                    </span>
+                  )}
+                  {item.status === 'confirmed' &&
+                    item.can_manage &&
+                    !item.task_id && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          isDisabled={
+                            patch.isPending ||
+                            createTask.isPending ||
+                            !item.assignee
+                          }
+                          onPress={() => {
+                            createTask.reset()
+                            createTask.mutate({ itemId: item.id })
+                          }}
+                        >
+                          {createTask.isPending &&
+                          createTask.variables?.itemId === item.id
+                            ? t('actionItems.creatingTask')
+                            : t('actionItems.createTask')}
+                        </Button>
+                        {!item.assignee && (
+                          <Text variant="note">
+                            {t('actionItems.assignBeforeTask')}
+                          </Text>
+                        )}
+                        {createTask.isError &&
+                          createTask.variables?.itemId === item.id && (
+                            <Text variant="note">
+                              {t('actionItems.createTaskFailed')}
+                            </Text>
+                          )}
+                      </>
+                    )}
                   {item.status === 'proposed' && item.can_update_status && (
                     <Button
                       size="sm"

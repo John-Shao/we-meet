@@ -1,0 +1,44 @@
+{
+  "title": "Tasks",
+  "subtitle": "Track personal tasks and tasks created from meeting action items.",
+  "loading": "Loading tasks…",
+  "empty": "No tasks here yet.",
+  "error": "The task operation failed. Please try again.",
+  "meeting": "Meeting",
+  "sourceMeeting": "Source meeting: {{name}}",
+  "form": {
+    "title": "Task title",
+    "titlePlaceholder": "What needs to happen next",
+    "description": "Description (optional)",
+    "descriptionPlaceholder": "Add context or acceptance criteria",
+    "dueAt": "Due date (optional)",
+    "create": "Create task"
+  },
+  "scopes": {
+    "label": "Task scope",
+    "assigned": "Assigned to me",
+    "created": "Created by me",
+    "all": "All related"
+  },
+  "statuses": {
+    "todo": "To do",
+    "in_progress": "In progress",
+    "completed": "Completed",
+    "canceled": "Canceled"
+  },
+  "meta": {
+    "assignee": "Assignee",
+    "creator": "Creator",
+    "dueAt": "Due date",
+    "none": "Not set"
+  },
+  "actions": {
+    "to_todo": "Reopen",
+    "to_in_progress": "Start",
+    "to_completed": "Complete",
+    "to_canceled": "Cancel task",
+    "edit": "Edit",
+    "save": "Save",
+    "cancelEdit": "Discard changes"
+  }
+}

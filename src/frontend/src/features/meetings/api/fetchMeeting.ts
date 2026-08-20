@@ -4,6 +4,7 @@ import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 
 import { ApiRoom } from '@/features/rooms/api/ApiRoom'
+import type { ApiTask } from '@/features/tasks'
 
 import {
   ActionItemStatus,
@@ -92,6 +93,29 @@ export const usePatchActionItem = (roomId: string | undefined) => {
           current?.map((item) => (item.id === updated.id ? updated : item)) ?? [
             updated,
           ]
+      )
+    },
+  })
+}
+
+const createActionItemTask = (roomId: string, itemId: string) =>
+  fetchApi<ApiTask>(`rooms/${roomId}/action-items/${itemId}/task/`, {
+    method: 'POST',
+  })
+
+export const useCreateActionItemTask = (roomId: string | undefined) => {
+  const qc = useQueryClient()
+  return useMutation<ApiTask, ApiError, { itemId: string }>({
+    mutationFn: ({ itemId }) => createActionItemTask(roomId!, itemId),
+    onSuccess: (task) => {
+      qc.setQueryData<ApiActionItem[]>(
+        ['meeting-action-items', roomId],
+        (current) =>
+          current?.map((item) =>
+            item.id === task.source_action_item_id
+              ? { ...item, task_id: task.id }
+              : item
+          ) ?? []
       )
     },
   })

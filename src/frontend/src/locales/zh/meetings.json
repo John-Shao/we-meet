@@ -57,6 +57,11 @@
     "dueAt": "截止时间",
     "assigneesFailed": "负责人列表加载失败，请稍后重试。",
     "updateFailed": "行动项保存失败，请稍后重试。",
+    "createTask": "创建任务",
+    "creatingTask": "创建中…",
+    "taskCreated": "已创建任务",
+    "assignBeforeTask": "请先指定负责人",
+    "createTaskFailed": "任务创建失败，请稍后重试。",
     "status": {
       "proposed": "待确认",
       "confirmed": "已确认",

@@ -476,6 +476,65 @@ class ActionItemSerializer(serializers.ModelSerializer):
         ]
 
 
+class TaskSerializer(serializers.ModelSerializer):
+    """Serialize a durable task for the task center and meeting detail."""
+
+    creator = UserLightSerializer(read_only=True)
+    assignee = UserLightSerializer(read_only=True)
+    source_action_item_id = serializers.UUIDField(read_only=True)
+    source_room_id = serializers.SerializerMethodField()
+    source_room_name = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
+    can_update_status = serializers.SerializerMethodField()
+
+    def _request_user(self):
+        request = self.context.get("request")
+        return getattr(request, "user", None)
+
+    def get_can_edit(self, obj):
+        user = self._request_user()
+        return bool(user and user.is_authenticated and obj.creator_id == user.id)
+
+    def get_can_update_status(self, obj):
+        user = self._request_user()
+        return bool(
+            user
+            and user.is_authenticated
+            and user.id in {obj.creator_id, obj.assignee_id}
+        )
+
+    def get_source_room_id(self, obj):
+        if obj.source_action_item_id is None:
+            return None
+        return obj.source_action_item.room_id
+
+    def get_source_room_name(self, obj):
+        if obj.source_action_item_id is None:
+            return None
+        return obj.source_action_item.room.name
+
+    class Meta:
+        model = models.Task
+        fields = [
+            "id",
+            "title",
+            "description",
+            "creator",
+            "assignee",
+            "status",
+            "due_at",
+            "completed_at",
+            "source_action_item_id",
+            "source_room_id",
+            "source_room_name",
+            "can_edit",
+            "can_update_status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
 class SummaryChapterSerializer(serializers.ModelSerializer):
     """纪要闭环 D1:智能章节(read-only,嵌在 Summary 里)。"""
 

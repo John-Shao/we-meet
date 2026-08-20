@@ -2191,6 +2191,59 @@ class ActionItem(BaseModel):
             )
 
 
+class Task(BaseModel):
+    """A durable work item, optionally created from a meeting action item."""
+
+    class Status(models.TextChoices):
+        TODO = "todo", _("To do")
+        IN_PROGRESS = "in_progress", _("In progress")
+        COMPLETED = "completed", _("Completed")
+        CANCELED = "canceled", _("Canceled")
+
+    title = models.TextField(_("title"))
+    description = models.TextField(_("description"), blank=True, default="")
+    creator = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="created_tasks",
+        verbose_name=_("creator"),
+    )
+    assignee = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="assigned_tasks",
+        null=True,
+        blank=True,
+        verbose_name=_("assignee"),
+    )
+    status = models.CharField(
+        _("status"),
+        max_length=16,
+        choices=Status.choices,
+        default=Status.TODO,
+        db_index=True,
+    )
+    due_at = models.DateTimeField(_("due at"), null=True, blank=True, db_index=True)
+    completed_at = models.DateTimeField(_("completed at"), null=True, blank=True)
+    source_action_item = models.OneToOneField(
+        ActionItem,
+        on_delete=models.SET_NULL,
+        related_name="linked_task",
+        null=True,
+        blank=True,
+        verbose_name=_("source action item"),
+    )
+
+    class Meta:
+        db_table = "meet_task"
+        verbose_name = _("task")
+        verbose_name_plural = _("tasks")
+        ordering = ("status", "due_at", "created_at")
+
+    def __str__(self) -> str:
+        return self.title[:80]
+
+
 class SummaryChapter(BaseModel):
     """智能章节(纪要闭环 P0-3 D1):LLM 按话题切分的会议时间轴段落。
 

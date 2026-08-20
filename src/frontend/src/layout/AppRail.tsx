@@ -10,6 +10,7 @@ import {
   RiVidiconLine,
   RiCalendarLine,
   RiCheckboxCircleLine,
+  RiTaskLine,
   RiContactsBookLine,
   RiFileTextLine,
   RiArrowLeftSLine,
@@ -53,6 +54,7 @@ const NAV: NavItem[] = [
   { to: '/meeting', labelKey: 'nav.meeting', Icon: RiVidiconLine },
   { to: '/calendar', labelKey: 'nav.calendar', Icon: RiCalendarLine },
   { to: '/approval', labelKey: 'nav.approval', Icon: RiCheckboxCircleLine },
+  { to: '/tasks', labelKey: 'nav.tasks', Icon: RiTaskLine },
   { to: '/contacts', labelKey: 'nav.contacts', Icon: RiContactsBookLine },
 ]
 

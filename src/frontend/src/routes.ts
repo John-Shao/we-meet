@@ -17,6 +17,7 @@ import { CalendarRoute, CalendarSubscribeRoute } from '@/features/calendar'
 import { ApprovalRoute } from '@/features/approval'
 import { DocsRoute } from '@/features/docs'
 import { InviteRoute } from '@/features/invite'
+import { TasksRoute } from '@/features/tasks'
 
 const roomIdRegex = new RegExp(`^[/](?<roomId>${flexibleRoomIdPattern})$`)
 
@@ -40,6 +41,7 @@ export const routes: Record<
   | 'calendar'
   | 'calendarSubscribe'
   | 'approval'
+  | 'tasks'
   | 'docs'
   | 'invite',
   {
@@ -128,6 +130,11 @@ export const routes: Record<
     name: 'approval',
     path: '/approval',
     Component: ApprovalRoute,
+  },
+  tasks: {
+    name: 'tasks',
+    path: '/tasks',
+    Component: TasksRoute,
   },
   docs: {
     name: 'docs',

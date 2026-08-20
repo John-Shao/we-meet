@@ -57,6 +57,11 @@
     "dueAt": "Date et heure d’échéance",
     "assigneesFailed": "Impossible de charger les responsables. Réessayez.",
     "updateFailed": "Impossible d’enregistrer l’action. Réessayez.",
+    "createTask": "Créer une tâche",
+    "creatingTask": "Création…",
+    "taskCreated": "Tâche créée",
+    "assignBeforeTask": "Attribuez d’abord un responsable",
+    "createTaskFailed": "Impossible de créer la tâche. Réessayez.",
     "status": {
       "proposed": "À confirmer",
       "confirmed": "Confirmée",

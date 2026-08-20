@@ -88,6 +88,10 @@ from core.services.room_management import (
     RoomManagementException,
     RoomNotFoundException,
 )
+from core.services.tasks import (
+    ActionItemTaskConversionError,
+    create_task_from_action_item,
+)
 from core.services.ai_agent import AIAgentException, AIAgentService
 from core.services.room_ai import RoomAIService
 from core.services.personal_ai import PersonalAIService
@@ -1500,6 +1504,42 @@ class RoomViewSet(
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return drf_response.Response(serializer.data)
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path=r"action-items/(?P<action_item_id>[0-9a-f-]+)/task",
+        permission_classes=[permissions.HasPrivilegesOnRoom],
+    )
+    def create_action_item_task(
+        self, request, pk=None, action_item_id=None
+    ):  # pylint: disable=unused-argument
+        """Convert one confirmed action item into a durable task."""
+
+        room = self.get_object()
+        item = get_object_or_404(
+            models.ActionItem,
+            pk=action_item_id,
+            room=room,
+        )
+        try:
+            task, created = create_task_from_action_item(
+                action_item_id=item.id,
+                creator=request.user,
+            )
+        except ActionItemTaskConversionError as exc:
+            raise drf_exceptions.ValidationError(str(exc)) from exc
+
+        return drf_response.Response(
+            serializers.TaskSerializer(
+                task, context={"request": request}
+            ).data,
+            status=(
+                drf_status.HTTP_201_CREATED
+                if created
+                else drf_status.HTTP_200_OK
+            ),
+        )
 
     @decorators.action(
         detail=True,

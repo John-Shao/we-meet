@@ -1,0 +1,44 @@
+{
+  "title": "Taken",
+  "subtitle": "Volg persoonlijke taken en taken uit vergaderacties.",
+  "loading": "Taken laden…",
+  "empty": "Er zijn nog geen taken.",
+  "error": "De taakactie is mislukt. Probeer het opnieuw.",
+  "meeting": "Vergadering",
+  "sourceMeeting": "Bronvergadering: {{name}}",
+  "form": {
+    "title": "Taaktitel",
+    "titlePlaceholder": "Wat moet er als volgende gebeuren",
+    "description": "Beschrijving (optioneel)",
+    "descriptionPlaceholder": "Voeg context of acceptatiecriteria toe",
+    "dueAt": "Deadline (optioneel)",
+    "create": "Taak maken"
+  },
+  "scopes": {
+    "label": "Taakbereik",
+    "assigned": "Aan mij toegewezen",
+    "created": "Door mij gemaakt",
+    "all": "Alle relevante"
+  },
+  "statuses": {
+    "todo": "Te doen",
+    "in_progress": "Bezig",
+    "completed": "Voltooid",
+    "canceled": "Geannuleerd"
+  },
+  "meta": {
+    "assignee": "Verantwoordelijke",
+    "creator": "Maker",
+    "dueAt": "Deadline",
+    "none": "Niet ingesteld"
+  },
+  "actions": {
+    "to_todo": "Heropenen",
+    "to_in_progress": "Starten",
+    "to_completed": "Voltooien",
+    "to_canceled": "Taak annuleren",
+    "edit": "Bewerken",
+    "save": "Opslaan",
+    "cancelEdit": "Wijzigingen negeren"
+  }
+}

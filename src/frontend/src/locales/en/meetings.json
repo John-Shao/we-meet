@@ -57,6 +57,11 @@
     "dueAt": "Due date and time",
     "assigneesFailed": "Failed to load assignees. Please try again.",
     "updateFailed": "Failed to save the action item. Please try again.",
+    "createTask": "Create task",
+    "creatingTask": "Creating…",
+    "taskCreated": "Task created",
+    "assignBeforeTask": "Assign an owner first",
+    "createTaskFailed": "Failed to create the task. Please try again.",
     "status": {
       "proposed": "To confirm",
       "confirmed": "Confirmed",

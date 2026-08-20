@@ -13,7 +13,7 @@ from core.factories import (
     RoomFactory,
     UserFactory,
 )
-from core.models import ActionItem, Summary
+from core.models import ActionItem, Summary, Task
 
 pytestmark = pytest.mark.django_db
 
@@ -58,6 +58,10 @@ def _client(user):
 
 def _url(room, item):
     return f"/api/v1.0/rooms/{room.id}/action-items/{item.id}/"
+
+
+def _task_url(room, item):
+    return f"/api/v1.0/rooms/{room.id}/action-items/{item.id}/task/"
 
 
 def test_manager_confirms_and_assigns_action_item():
@@ -205,3 +209,70 @@ def test_member_cannot_list_action_item_assignees():
     )
 
     assert response.status_code == 403
+
+
+def test_manager_creates_task_from_confirmed_action_item():
+    owner, assignee, _member, _outsider, room, item = _world()
+    due_at = timezone.now() + timedelta(days=2)
+    item.status = ActionItem.Status.CONFIRMED
+    item.assignee = assignee
+    item.due_at = due_at
+    item.save()
+
+    response = _client(owner).post(_task_url(room, item), format="json")
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["title"] == item.content
+    assert payload["status"] == Task.Status.TODO
+    assert payload["creator"]["id"] == str(owner.id)
+    assert payload["assignee"]["id"] == str(assignee.id)
+    assert payload["source_action_item_id"] == str(item.id)
+    item.refresh_from_db()
+    assert item.task_id == Task.objects.get().id
+
+
+def test_action_item_task_conversion_is_idempotent():
+    owner, assignee, _member, _outsider, room, item = _world()
+    item.status = ActionItem.Status.CONFIRMED
+    item.assignee = assignee
+    item.save()
+    client = _client(owner)
+
+    first = client.post(_task_url(room, item), format="json")
+    second = client.post(_task_url(room, item), format="json")
+
+    assert first.status_code == 201
+    assert second.status_code == 200
+    assert second.json()["id"] == first.json()["id"]
+    assert Task.objects.count() == 1
+
+
+def test_only_manager_can_convert_action_item_to_task():
+    owner, assignee, member, _outsider, room, item = _world()
+    item.status = ActionItem.Status.CONFIRMED
+    item.assignee = assignee
+    item.save()
+
+    response = _client(member).post(_task_url(room, item), format="json")
+
+    assert response.status_code == 403
+    assert Task.objects.count() == 0
+
+
+def test_action_item_must_be_confirmed_and_assigned_before_conversion():
+    owner, assignee, _member, _outsider, room, item = _world()
+    client = _client(owner)
+
+    response = client.post(_task_url(room, item), format="json")
+    assert response.status_code == 400
+
+    item.status = ActionItem.Status.CONFIRMED
+    item.save()
+    response = client.post(_task_url(room, item), format="json")
+    assert response.status_code == 400
+
+    item.assignee = assignee
+    item.save()
+    response = client.post(_task_url(room, item), format="json")
+    assert response.status_code == 201

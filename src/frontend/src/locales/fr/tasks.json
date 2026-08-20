@@ -1,0 +1,44 @@
+{
+  "title": "Tâches",
+  "subtitle": "Suivez les tâches personnelles et celles issues des réunions.",
+  "loading": "Chargement des tâches…",
+  "empty": "Aucune tâche pour le moment.",
+  "error": "L’opération a échoué. Veuillez réessayer.",
+  "meeting": "Réunion",
+  "sourceMeeting": "Réunion source : {{name}}",
+  "form": {
+    "title": "Titre de la tâche",
+    "titlePlaceholder": "Prochaine action à réaliser",
+    "description": "Description (facultatif)",
+    "descriptionPlaceholder": "Ajoutez du contexte ou des critères",
+    "dueAt": "Échéance (facultatif)",
+    "create": "Créer la tâche"
+  },
+  "scopes": {
+    "label": "Périmètre des tâches",
+    "assigned": "À faire par moi",
+    "created": "Créées par moi",
+    "all": "Toutes"
+  },
+  "statuses": {
+    "todo": "À faire",
+    "in_progress": "En cours",
+    "completed": "Terminée",
+    "canceled": "Annulée"
+  },
+  "meta": {
+    "assignee": "Responsable",
+    "creator": "Créateur",
+    "dueAt": "Échéance",
+    "none": "Non définie"
+  },
+  "actions": {
+    "to_todo": "Rouvrir",
+    "to_in_progress": "Commencer",
+    "to_completed": "Terminer",
+    "to_canceled": "Annuler la tâche",
+    "edit": "Modifier",
+    "save": "Enregistrer",
+    "cancelEdit": "Ignorer les modifications"
+  }
+}

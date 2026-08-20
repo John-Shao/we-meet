@@ -57,6 +57,11 @@
     "dueAt": "Fälligkeitsdatum und -zeit",
     "assigneesFailed": "Verantwortliche konnten nicht geladen werden.",
     "updateFailed": "Die Maßnahme konnte nicht gespeichert werden.",
+    "createTask": "Aufgabe erstellen",
+    "creatingTask": "Wird erstellt…",
+    "taskCreated": "Aufgabe erstellt",
+    "assignBeforeTask": "Zuerst eine verantwortliche Person zuweisen",
+    "createTaskFailed": "Die Aufgabe konnte nicht erstellt werden.",
     "status": {
       "proposed": "Zu bestätigen",
       "confirmed": "Bestätigt",

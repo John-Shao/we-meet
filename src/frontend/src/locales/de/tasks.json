@@ -1,0 +1,44 @@
+{
+  "title": "Aufgaben",
+  "subtitle": "Persönliche Aufgaben und Aufgaben aus Meetings nachverfolgen.",
+  "loading": "Aufgaben werden geladen…",
+  "empty": "Noch keine Aufgaben vorhanden.",
+  "error": "Die Aufgabenaktion ist fehlgeschlagen. Bitte erneut versuchen.",
+  "meeting": "Meeting",
+  "sourceMeeting": "Quell-Meeting: {{name}}",
+  "form": {
+    "title": "Aufgabentitel",
+    "titlePlaceholder": "Was als Nächstes erledigt werden muss",
+    "description": "Beschreibung (optional)",
+    "descriptionPlaceholder": "Kontext oder Abnahmekriterien ergänzen",
+    "dueAt": "Fälligkeit (optional)",
+    "create": "Aufgabe erstellen"
+  },
+  "scopes": {
+    "label": "Aufgabenbereich",
+    "assigned": "Mir zugewiesen",
+    "created": "Von mir erstellt",
+    "all": "Alle relevanten"
+  },
+  "statuses": {
+    "todo": "Offen",
+    "in_progress": "In Arbeit",
+    "completed": "Erledigt",
+    "canceled": "Abgebrochen"
+  },
+  "meta": {
+    "assignee": "Verantwortlich",
+    "creator": "Erstellt von",
+    "dueAt": "Fälligkeit",
+    "none": "Nicht festgelegt"
+  },
+  "actions": {
+    "to_todo": "Wieder öffnen",
+    "to_in_progress": "Starten",
+    "to_completed": "Abschließen",
+    "to_canceled": "Aufgabe abbrechen",
+    "edit": "Bearbeiten",
+    "save": "Speichern",
+    "cancelEdit": "Änderungen verwerfen"
+  }
+}
