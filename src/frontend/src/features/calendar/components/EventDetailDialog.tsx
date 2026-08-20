@@ -57,6 +57,9 @@ interface Props {
   /** Only the current organizer can transfer ownership. */
   canTransfer?: boolean
   onTransfer?: () => void
+  /** Any viewer with complete details may use the event as a creation template. */
+  canCopy?: boolean
+  onCopy?: () => void
 }
 
 /**
@@ -83,6 +86,8 @@ export const EventDetailDialog = ({
   onShare,
   canTransfer,
   onTransfer,
+  canCopy,
+  onCopy,
 }: Props) => {
   const { t, i18n } = useTranslation(['calendar', 'meeting-rooms'])
   const { calendarTimezone } = useCalendarSettings()
@@ -226,7 +231,7 @@ export const EventDetailDialog = ({
                 </Button>
               </>
             )}
-            {canTransfer && onTransfer && (
+            {((canCopy && onCopy) || (canTransfer && onTransfer)) && (
               <div className={moreWrapCls}>
                 <Button
                   variant="quaternaryText"
@@ -240,17 +245,32 @@ export const EventDetailDialog = ({
                 </Button>
                 {moreOpen && (
                   <div className={moreMenuCls} role="menu">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={moreItemCls}
-                      onClick={() => {
-                        setMoreOpen(false)
-                        onTransfer()
-                      }}
-                    >
-                      {t('transfer.action')}
-                    </button>
+                    {canCopy && onCopy && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={moreItemCls}
+                        onClick={() => {
+                          setMoreOpen(false)
+                          onCopy()
+                        }}
+                      >
+                        {t('copyEvent.action')}
+                      </button>
+                    )}
+                    {canTransfer && onTransfer && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={moreItemCls}
+                        onClick={() => {
+                          setMoreOpen(false)
+                          onTransfer()
+                        }}
+                      >
+                        {t('transfer.action')}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

@@ -129,6 +129,9 @@
     "privateEventHint": "You are not an attendee, so the event details are hidden.",
     "optionalAttendee": "Optional"
   },
+  "copyEvent": {
+    "action": "Create copy"
+  },
   "transfer": {
     "action": "Transfer event",
     "title": "Transfer event",

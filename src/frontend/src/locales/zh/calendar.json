@@ -129,6 +129,9 @@
     "privateEventHint": "你不是该日程的参与者，详细信息已隐藏。",
     "optionalAttendee": "可选"
   },
+  "copyEvent": {
+    "action": "创建副本"
+  },
   "transfer": {
     "action": "转让日程",
     "title": "转让日程",

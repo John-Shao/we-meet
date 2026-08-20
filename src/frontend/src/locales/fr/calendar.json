@@ -129,6 +129,9 @@
     "privateEventHint": "Vous ne participez pas à cet événement ; les détails sont masqués.",
     "optionalAttendee": "Facultatif"
   },
+  "copyEvent": {
+    "action": "Créer une copie"
+  },
   "transfer": {
     "action": "Transférer l’événement",
     "title": "Transférer l’événement",

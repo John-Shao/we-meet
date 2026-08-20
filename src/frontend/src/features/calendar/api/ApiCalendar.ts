@@ -91,6 +91,8 @@ export interface CreateEventPayload {
   /** Marks an intentional edit so legacy default submissions cannot downgrade public. */
   visibility_explicit?: boolean
   description?: string
+  location?: string
+  attachment_names?: string[]
   /**
    * P2-M1: RRULE 串,空/缺省=单次。UNTIL 必须用「浮动本地时刻」(无 Z,如
    * `FREQ=WEEKLY;UNTIL=20261231T235959`)——后端按事件时区墙上钟展开,dateutil

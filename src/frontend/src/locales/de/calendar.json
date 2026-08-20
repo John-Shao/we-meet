@@ -129,6 +129,9 @@
     "privateEventHint": "Sie nehmen nicht teil; die Termindetails sind ausgeblendet.",
     "optionalAttendee": "Optional"
   },
+  "copyEvent": {
+    "action": "Kopie erstellen"
+  },
   "transfer": {
     "action": "Termin übertragen",
     "title": "Termin übertragen",

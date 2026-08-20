@@ -129,6 +129,9 @@
     "privateEventHint": "Je bent geen deelnemer; de afspraakdetails zijn verborgen.",
     "optionalAttendee": "Optioneel"
   },
+  "copyEvent": {
+    "action": "Kopie maken"
+  },
   "transfer": {
     "action": "Afspraak overdragen",
     "title": "Afspraak overdragen",

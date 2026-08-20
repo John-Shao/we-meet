@@ -57,6 +57,8 @@ interface Props {
    * P8:非重复日程的编辑态同样可增删参与者(attendee_ids 全量同步);
    * 重复日程编辑仍为标量字段(服务端三选路径剔除 attendee_ids)。 */
   editEvent?: CalendarEvent
+  /** Prefill a new, independent event without turning the form into edit mode. */
+  copyEvent?: CalendarEvent
   /** P2-M2:重复子场次的编辑范围(one/following/all),随 PATCH 提交。 */
   editScope?: EditScope
   /** Unified calendars the caller can write. Old embedding surfaces may omit it. */
@@ -86,6 +88,7 @@ export const CreateEventDialog = ({
   initialSelected,
   sourceConversationId,
   editEvent,
+  copyEvent,
   editScope,
   calendars = [],
 }: Props) => {
@@ -95,47 +98,50 @@ export const CreateEventDialog = ({
   const { defaultDurationMin, defaultReminderMin, calendarTimezone } =
     useCalendarSettings()
   const isEdit = !!editEvent
-  const allDay = editEvent?.all_day ?? initialAllDay ?? false
-  const initialTimezone = editEvent?.timezone || calendarTimezone
-  const start0 = editEvent
-    ? allDay && editEvent.start_date
-      ? dateOnlyToLocalDate(editEvent.start_date)
-      : instantToZonedDate(editEvent.start_at, initialTimezone)
+  const seedEvent = editEvent ?? copyEvent
+  const allDay = seedEvent?.all_day ?? initialAllDay ?? false
+  const initialTimezone = seedEvent?.timezone || calendarTimezone
+  const start0 = seedEvent
+    ? allDay && seedEvent.start_date
+      ? dateOnlyToLocalDate(seedEvent.start_date!)
+      : instantToZonedDate(seedEvent.start_at, initialTimezone)
     : (initialStart ?? defaultStart(calendarTimezone))
-  const end0 = editEvent
+  const end0 = seedEvent
     ? allDay
       ? dateOnlyToLocalDate(
-          editEvent.start_date && editEvent.end_date
-            ? inclusiveAllDayEndDate(editEvent.start_date, editEvent.end_date)
+          seedEvent.start_date && seedEvent.end_date
+            ? inclusiveAllDayEndDate(seedEvent.start_date, seedEvent.end_date)
             : addCivilDays(
                 localDateToDateOnly(
-                  instantToZonedDate(editEvent.end_at, initialTimezone)
+                  instantToZonedDate(seedEvent.end_at, initialTimezone)
                 ),
                 -1
               )
         )
-      : instantToZonedDate(editEvent.end_at, initialTimezone)
+      : instantToZonedDate(seedEvent.end_at, initialTimezone)
     : (initialEnd ?? new Date(start0.getTime() + defaultDurationMin * 60_000))
 
-  const [title, setTitle] = useState(editEvent?.title ?? '')
+  const [title, setTitle] = useState(seedEvent?.title ?? '')
   const writableCalendars = useMemo(
     () => calendars.filter((calendar) => calendar.capabilities.can_write),
     [calendars]
   )
   const [calendarId, setCalendarId] = useState(
-    editEvent?.display_calendar_id ||
+    seedEvent?.display_calendar_id ||
       writableCalendars.find((calendar) => calendar.enabled)?.id ||
       writableCalendars[0]?.id ||
       ''
   )
   const selectedCalendarId =
-    calendarId ||
+    (writableCalendars.some((calendar) => calendar.id === calendarId)
+      ? calendarId
+      : '') ||
     writableCalendars.find((calendar) => calendar.enabled)?.id ||
     writableCalendars[0]?.id ||
     ''
-  const [description, setDescription] = useState(editEvent?.description ?? '')
+  const [description, setDescription] = useState(seedEvent?.description ?? '')
   const [visibility, setVisibility] = useState<EventVisibility>(
-    editEvent?.visibility ?? 'default'
+    seedEvent?.visibility ?? 'default'
   )
   const [start, setStart] = useState(toLocalInput(start0))
   const [end, setEnd] = useState(toLocalInput(end0))
@@ -151,19 +157,18 @@ export const CreateEventDialog = ({
   // 复选框是张空头支票 —— 勾两档也只会到最早那档才响,故收敛成单选。
   // 编辑历史多值数据时取 effectiveReminder(= max),即真正会响的那一条。
   const [reminder, setReminder] = useState<number | null>(() =>
-    editEvent ? effectiveReminder(editEvent.reminders) : defaultReminderMin
+    seedEvent ? effectiveReminder(seedEvent.reminders) : defaultReminderMin
   )
   // 标准档位 + 历史数据里的非标准值(45 分钟这种),免得下拉选不中当前值。
   const reminderOptions = useMemo(() => {
     const presets = REMINDER_OPTIONS as readonly number[]
-    const seed = editEvent
-      ? effectiveReminder(editEvent.reminders)
+    const seed = seedEvent
+      ? effectiveReminder(seedEvent.reminders)
       : defaultReminderMin
     const extra = seed != null && !presets.includes(seed) ? [seed] : []
     return [...presets, ...extra].sort((a, b) => a - b)
     // defaultReminderMin 只作为初值种子,设置页改动不重排已打开的表单。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editEvent])
+  }, [seedEvent, defaultReminderMin])
   // P2-M1 重复日程:创建时可选预设;编辑重复规则属 M2 三选语义,编辑态不展示。
   const [repeat, setRepeat] = useState('')
   const [repeatUntil, setRepeatUntil] = useState('')
@@ -172,11 +177,11 @@ export const CreateEventDialog = ({
   const attendeesEditable =
     !editEvent || (!editEvent.recurrence && !editEvent.recurrence_parent)
   const [selected, setSelected] = useState<Map<string, string>>(() => {
-    if (editEvent) {
+    if (seedEvent) {
       // 编辑态预填现有参与者(组织者恒在,不进列表、不可被移除)。
       return new Map(
-        editEvent.attendees.flatMap((a) =>
-          a.role !== 'organizer' && a.id
+        seedEvent.attendees.flatMap((a) =>
+          a.id
             ? [[a.id, a.full_name || a.email || '?'] as [string, string]]
             : []
         )
@@ -187,9 +192,14 @@ export const CreateEventDialog = ({
   const [attendeeRoles, setAttendeeRoles] = useState<Map<string, AttendeeRole>>(
     () =>
       new Map(
-        (editEvent?.attendees ?? []).flatMap((a) =>
-          a.id && a.role !== 'organizer'
-            ? [[a.id, a.role] as [string, AttendeeRole]]
+        (seedEvent?.attendees ?? []).flatMap((a) =>
+          a.id
+            ? [
+                [a.id, a.role === 'organizer' ? 'required' : a.role] as [
+                  string,
+                  AttendeeRole,
+                ],
+              ]
             : []
         )
       )
@@ -199,24 +209,24 @@ export const CreateEventDialog = ({
   const initialAvatars = useMemo(
     () =>
       new Map(
-        (editEvent?.attendees ?? []).flatMap((a) =>
+        (seedEvent?.attendees ?? []).flatMap((a) =>
           a.id && a.avatar_url ? [[a.id, a.avatar_url] as [string, string]] : []
         )
       ),
-    [editEvent]
+    [seedEvent]
   )
   const [busy, setBusy] = useState(false)
   // 视频会议(对标飞书:可移除的一项,而非日程的固有属性)。创建默认开;
   // 编辑态按事件当前有没有房间预填。
   const [withVideo, setWithVideo] = useState(
-    editEvent ? editEvent.room !== null : true
+    seedEvent ? seedEvent.room !== null : true
   )
   // 重复日程的系列级编辑不放开该字段(服务端三选路径会剔除),与参与者同档。
   const videoEditable = attendeesEditable
   // P9 会议室:编辑态从事件预填;`roomConflicted` 是客户端预判(服务端 409
   // 才是权威),用来提前禁用提交并就地解释原因。
   const [meetingRoom, setMeetingRoom] = useState<MeetingRoomBrief | null>(
-    editEvent?.meeting_room ?? initialMeetingRoom ?? null
+    editEvent?.meeting_room ?? (copyEvent ? null : (initialMeetingRoom ?? null))
   )
   const [roomConflicted, setRoomConflicted] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
@@ -376,6 +386,10 @@ export const CreateEventDialog = ({
           })
         : await createCalendarEvent({
             ...base,
+            ...(copyEvent?.location ? { location: copyEvent.location } : {}),
+            ...(copyEvent?.attachment_names?.length
+              ? { attachment_names: copyEvent.attachment_names }
+              : {}),
             ...(selectedCalendarId ? { calendar_id: selectedCalendarId } : {}),
             attendee_entries: attendeeEntries,
             recurrence: composeRRule(),

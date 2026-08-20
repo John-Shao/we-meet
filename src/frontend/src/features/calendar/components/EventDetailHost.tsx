@@ -20,6 +20,7 @@ import { EditScopeDialog } from './EditScopeDialog'
 import { EventDetailDialog } from './EventDetailDialog'
 import { EventShareDialog } from './EventShareDialog'
 import { TransferEventDialog } from './TransferEventDialog'
+import { fetchCalendars } from '../api/calendars'
 
 /**
  * P8:按 id 拉取日程并复用现有 EventDetailDialog —— IM 日程卡片点「查看」
@@ -47,6 +48,7 @@ export const EventDetailHost = ({
   // 转分享:详情先关掉再开分享,避免两个 Modal 叠加。
   const [sharing, setSharing] = useState(false)
   const [transferring, setTransferring] = useState(false)
+  const [copying, setCopying] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editScope, setEditScope] = useState<EditScope>()
   const [choosingEditScope, setChoosingEditScope] = useState(false)
@@ -60,6 +62,11 @@ export const EventDetailHost = ({
     queryFn: () => fetchCalendarEvent(eventId),
     retry: false,
     staleTime: 15_000,
+  })
+  const { data: calendars = [] } = useQuery({
+    queryKey: ['calendar', 'unified'],
+    queryFn: fetchCalendars,
+    staleTime: 30_000,
   })
 
   const invalidate = () =>
@@ -141,6 +148,19 @@ export const EventDetailHost = ({
       />
     )
 
+  if (copying)
+    return (
+      <CreateEventDialog
+        copyEvent={event}
+        calendars={calendars}
+        onClose={() => setCopying(false)}
+        onCreated={() => {
+          onClose()
+          void invalidate()
+        }}
+      />
+    )
+
   if (sharing)
     return <EventShareDialog event={event} onClose={() => setSharing(false)} />
 
@@ -161,6 +181,8 @@ export const EventDetailHost = ({
       event={event}
       canManage={!!user && event.organizer?.id === user.id}
       canTransfer={!!user && event.organizer?.id === user.id}
+      canCopy={!event.details_redacted}
+      onCopy={() => setCopying(true)}
       onTransfer={() => setTransferring(true)}
       onShare={() => setSharing(true)}
       onEdit={startEditing}

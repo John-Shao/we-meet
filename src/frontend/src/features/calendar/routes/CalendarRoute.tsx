@@ -102,6 +102,7 @@ const CalendarAuthenticated = () => {
   const [sharingEvent, setSharingEvent] = useState<CalendarEvent | null>(null)
   const [transferringEvent, setTransferringEvent] =
     useState<CalendarEvent | null>(null)
+  const [copyEvent, setCopyEvent] = useState<CalendarEvent | null>(null)
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null)
   // P2-M2 三选:重复子场次的编辑/删除先弹范围选择;editScope 随编辑对话框提交。
   const [scopeAsk, setScopeAsk] = useState<{
@@ -663,6 +664,11 @@ const CalendarAuthenticated = () => {
           event={detailEvent}
           canManage={detailEvent.can_edit}
           canTransfer={!!user && detailEvent.organizer?.id === user.id}
+          canCopy={!detailEvent.details_redacted}
+          onCopy={() => {
+            setCopyEvent(detailEvent)
+            setDetailEvent(null)
+          }}
           onTransfer={() => {
             setTransferringEvent(detailEvent)
             setDetailEvent(null)
@@ -722,6 +728,18 @@ const CalendarAuthenticated = () => {
           onClose={closeCreate}
           onCreated={() => {
             closeCreate()
+            void invalidateCalendarData()
+          }}
+        />
+      )}
+
+      {copyEvent && (
+        <CreateEventDialog
+          calendars={calendars}
+          copyEvent={copyEvent}
+          onClose={() => setCopyEvent(null)}
+          onCreated={() => {
+            setCopyEvent(null)
             void invalidateCalendarData()
           }}
         />

@@ -7,6 +7,7 @@ import { EventDetailHost } from './EventDetailHost'
 
 const mocks = vi.hoisted(() => ({
   fetchCalendarEvent: vi.fn(),
+  fetchCalendars: vi.fn(),
   navigate: vi.fn(),
 }))
 
@@ -31,32 +32,60 @@ vi.mock('../api/fetchCalendar', async (importOriginal) => ({
   fetchCalendarEvent: mocks.fetchCalendarEvent,
 }))
 
+vi.mock('../api/calendars', () => ({
+  fetchCalendars: mocks.fetchCalendars,
+}))
+
 vi.mock('./EventDetailDialog', () => ({
-  EventDetailDialog: ({ onEdit }: { onEdit?: () => void }) => (
-    <button type="button" data-testid="detail-edit" onClick={onEdit}>
-      edit
-    </button>
+  EventDetailDialog: ({
+    onEdit,
+    onCopy,
+    canCopy,
+  }: {
+    onEdit?: () => void
+    onCopy?: () => void
+    canCopy?: boolean
+  }) => (
+    <>
+      <button type="button" data-testid="detail-edit" onClick={onEdit}>
+        edit
+      </button>
+      {canCopy && (
+        <button type="button" data-testid="detail-copy" onClick={onCopy}>
+          copy
+        </button>
+      )}
+    </>
   ),
 }))
 
 vi.mock('./CreateEventDialog', () => ({
   CreateEventDialog: ({
     editEvent,
+    copyEvent,
     editScope,
     onClose,
     onCreated,
   }: {
-    editEvent: CalendarEvent
+    editEvent?: CalendarEvent
+    copyEvent?: CalendarEvent
     editScope?: EditScope
     onClose: () => void
     onCreated: (event: CalendarEvent) => void
   }) => (
-    <div data-testid="event-editor" data-edit-scope={editScope ?? ''}>
-      <span>{editEvent.title}</span>
+    <div
+      data-testid="event-editor"
+      data-edit-scope={editScope ?? ''}
+      data-mode={copyEvent ? 'copy' : 'edit'}
+    >
+      <span>{(editEvent ?? copyEvent)?.title}</span>
       <button type="button" onClick={onClose}>
         cancel
       </button>
-      <button type="button" onClick={() => onCreated(editEvent)}>
+      <button
+        type="button"
+        onClick={() => onCreated((editEvent ?? copyEvent)!)}
+      >
         save
       </button>
     </div>
@@ -112,6 +141,7 @@ const renderHost = (
   options: { editMode?: 'calendar' | 'inline'; value?: CalendarEvent } = {}
 ) => {
   mocks.fetchCalendarEvent.mockResolvedValue(options.value ?? event)
+  mocks.fetchCalendars.mockResolvedValue([])
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -183,5 +213,25 @@ describe('EventDetailHost editing', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(mocks.navigate).toHaveBeenCalledWith('/calendar')
+  })
+
+  it('opens the create form with the event as a copy seed', async () => {
+    renderHost()
+
+    fireEvent.click(await screen.findByTestId('detail-copy'))
+
+    expect(screen.getByTestId('event-editor')).toHaveAttribute(
+      'data-mode',
+      'copy'
+    )
+    expect(screen.getByTestId('event-editor')).toHaveTextContent('Weekly sync')
+    expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('does not offer copying for a redacted event', async () => {
+    renderHost({ value: { ...event, details_redacted: true } })
+
+    await screen.findByTestId('detail-edit')
+    expect(screen.queryByTestId('detail-copy')).not.toBeInTheDocument()
   })
 })
