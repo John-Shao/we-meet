@@ -10,6 +10,7 @@ import {
   RiGroupLine,
   RiLockLine,
   RiNotification3Line,
+  RiMoreLine,
   RiPencilLine,
   RiQuestionLine,
   RiRepeatLine,
@@ -53,6 +54,9 @@ interface Props {
   onDelete?: () => void
   /** 分享日程到聊天(不限组织者);缺省则不显示分享按钮。 */
   onShare?: () => void
+  /** Only the current organizer can transfer ownership. */
+  canTransfer?: boolean
+  onTransfer?: () => void
 }
 
 /**
@@ -77,11 +81,14 @@ export const EventDetailDialog = ({
   onEdit,
   onDelete,
   onShare,
+  canTransfer,
+  onTransfer,
 }: Props) => {
   const { t, i18n } = useTranslation(['calendar', 'meeting-rooms'])
   const { calendarTimezone } = useCalendarSettings()
   const { user } = useUser()
   const [rsvp, setRsvp] = useState<RSVPStatus | null>(event.my_rsvp ?? null)
+  const [moreOpen, setMoreOpen] = useState(false)
   // 会议号/链接的「已复制」瞬时态。
   const [copied, setCopied] = useState<'id' | 'link' | null>(null)
   const meetingLink = event.room_slug
@@ -218,6 +225,35 @@ export const EventDetailDialog = ({
                   <RiDeleteBinLine size={16} />
                 </Button>
               </>
+            )}
+            {canTransfer && onTransfer && (
+              <div className={moreWrapCls}>
+                <Button
+                  variant="quaternaryText"
+                  size="icon28"
+                  onPress={() => setMoreOpen((open) => !open)}
+                  data-testid="detail-more"
+                  tooltip={t('detail.more')}
+                  aria-label={t('detail.more')}
+                >
+                  <RiMoreLine size={17} />
+                </Button>
+                {moreOpen && (
+                  <div className={moreMenuCls} role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={moreItemCls}
+                      onClick={() => {
+                        setMoreOpen(false)
+                        onTransfer()
+                      }}
+                    >
+                      {t('transfer.action')}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
             <Button
               variant="quaternaryText"
@@ -554,6 +590,35 @@ const headerActionsCls = css({
   alignItems: 'center',
   gap: '0.125rem',
   marginTop: '-0.125rem',
+})
+
+const moreWrapCls = css({ position: 'relative' })
+
+const moreMenuCls = css({
+  position: 'absolute',
+  zIndex: 2,
+  top: 'calc(100% + 0.25rem)',
+  right: 0,
+  minWidth: '7rem',
+  padding: '0.25rem',
+  borderRadius: 6,
+  border: '1px solid token(colors.greyscale.200)',
+  backgroundColor: 'greyscale.000',
+  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+})
+
+const moreItemCls = css({
+  width: '100%',
+  paddingX: '0.625rem',
+  paddingY: '0.4375rem',
+  border: 0,
+  borderRadius: 4,
+  background: 'transparent',
+  color: 'greyscale.900',
+  fontSize: '0.8125rem',
+  textAlign: 'left',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100' },
 })
 
 // 图标钮走小控件圆角 6px(按钮视觉标准:常规 8 / 小控件 6)。

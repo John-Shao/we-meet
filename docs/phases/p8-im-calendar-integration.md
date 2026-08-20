@@ -91,7 +91,7 @@
 ```jsonc
 {
   "v": 1,
-  "kind": "created",              // created | invited | time_changed | attendees_changed | removed | cancelled | rsvp_changed
+  "kind": "created",              // created | invited | time_changed | attendees_changed | organizer_changed | removed | cancelled | rsvp_changed
   "event_id": "uuid",             // 必填;缺失则卡片不可点
   "title": "项目周会",
   "start": "2026-07-21T02:00:00+00:00",   // ISO-8601 UTC,渲染端转本地
@@ -102,6 +102,7 @@
   "old_start": "…", "old_end": "…",       // 仅 time_changed
   "added_count": 2,                       // 仅 attendees_changed
   "removed_count": 1,                     // 仅 attendees_changed
+  // kind=organizer_changed 时 organizer_name 即新组织者
   "recurrence_scope": "following",       // 可选:one | following | all
   "responder_name": "李雷",               // 仅 rsvp_changed
   "rsvp_status": "accepted"              // accepted | declined | tentative | needs_action
@@ -115,6 +116,9 @@
 创建时每位非组织者参与人收到 `invited`；参与人回复后组织者收到 `rsvp_changed`；
 现有参与人收到改期/参与人变化，新增者收到 `invited`，移除者收到 `removed`，取消时
 参与人收到 `cancelled`。重复日程一次用户操作只发一张卡，`recurrence_scope` 标明范围。
+组织者转让发送 `organizer_changed`：新组织者与现有参与人收到个人生命周期卡，来源
+会话只发一张；系列转让固定 `recurrence_scope=all`。发送身份从转让完成后的新组织者
+开始，继续复用组织者 → 日程助手 → SYSTEM 的既有降级策略。
 新字段和新 kind 均为加法协议；旧客户端仍可按普通日程卡降级展示。
 
 **发送者身份规则(P8-UX)**:

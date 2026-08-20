@@ -14,6 +14,7 @@ import { useConfig } from '@/api/useConfig'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
+import { useUser } from '@/features/auth'
 
 import {
   fetchCalendarEvent,
@@ -38,6 +39,7 @@ import { CalendarSidebar } from '../components/CalendarSidebar'
 import { EditScopeDialog } from '../components/EditScopeDialog'
 import { EventDetailDialog } from '../components/EventDetailDialog'
 import { EventShareDialog } from '../components/EventShareDialog'
+import { TransferEventDialog } from '../components/TransferEventDialog'
 import { fetchCalendars } from '../api/calendars'
 import {
   useCalendarSettings,
@@ -84,6 +86,7 @@ const CalendarAuthenticated = () => {
   const qc = useQueryClient()
   const [, navigate] = useLocation()
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
+  const { user } = useUser()
   const [creating, setCreating] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('we-meet:calendar-sidebar-collapsed') === '1'
@@ -97,6 +100,8 @@ const CalendarAuthenticated = () => {
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null)
   // 分享日程到聊天:与详情弹窗并列(而非嵌套),避免弹窗套弹窗。
   const [sharingEvent, setSharingEvent] = useState<CalendarEvent | null>(null)
+  const [transferringEvent, setTransferringEvent] =
+    useState<CalendarEvent | null>(null)
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null)
   // P2-M2 三选:重复子场次的编辑/删除先弹范围选择;editScope 随编辑对话框提交。
   const [scopeAsk, setScopeAsk] = useState<{
@@ -657,6 +662,11 @@ const CalendarAuthenticated = () => {
         <EventDetailDialog
           event={detailEvent}
           canManage={detailEvent.can_edit}
+          canTransfer={!!user && detailEvent.organizer?.id === user.id}
+          onTransfer={() => {
+            setTransferringEvent(detailEvent)
+            setDetailEvent(null)
+          }}
           onEdit={() => {
             // P2-M2:重复子场次先选范围;主事件/单次直接进编辑(主=全部)。
             if (detailEvent.recurrence_parent) {
@@ -688,6 +698,17 @@ const CalendarAuthenticated = () => {
         <EventShareDialog
           event={sharingEvent}
           onClose={() => setSharingEvent(null)}
+        />
+      )}
+
+      {transferringEvent && (
+        <TransferEventDialog
+          event={transferringEvent}
+          onClose={() => setTransferringEvent(null)}
+          onTransferred={() => {
+            setTransferringEvent(null)
+            void invalidateCalendarData()
+          }}
         />
       )}
 

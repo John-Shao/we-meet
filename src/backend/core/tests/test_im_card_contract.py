@@ -149,6 +149,22 @@ def test_event_card_attendees_changed():
     )
 
 
+def test_event_card_organizer_changed():
+    _assert_golden(
+        "event_card_organizer_changed",
+        im_cards.build_event_card(
+            event_id="11111111-1111-4111-8111-111111111111",
+            title="季度评审",
+            start="2026-08-10T02:00:00+00:00",
+            end="2026-08-10T03:00:00+00:00",
+            kind=im_cards.EVENT_KIND_ORGANIZER_CHANGED,
+            attendee_count=4,
+            organizer_name="李四",
+            recurrence_scope="all",
+        ),
+    )
+
+
 def test_event_card_cancelled():
     _assert_golden(
         "event_card_cancelled",

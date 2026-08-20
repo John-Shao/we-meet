@@ -247,6 +247,7 @@
         "tentative": "待定"
       },
       "cancelled": "已取消",
+      "organizerChanged": "组织者已变更",
       "recurrenceScope": {
         "one": "仅此场次",
         "following": "此场次及以后",

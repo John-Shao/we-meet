@@ -33,6 +33,7 @@ from core.services import (
     calendar_recurrence,
     calendar_reminders,
     calendar_time,
+    im_cards,
     meeting_room_booking,
 )
 
@@ -110,6 +111,13 @@ class CalendarAttendeeInputSerializer(serializers.Serializer):
                 {"email": "Add this account as an external contact first."}
             )
         return attrs
+
+
+class CalendarEventTransferSerializer(serializers.Serializer):
+    """Immediate organizer transfer for one event or an entire series."""
+
+    new_organizer_id = serializers.UUIDField(required=True)
+    keep_original_organizer = serializers.BooleanField(default=True)
 
 
 class CalendarEventSerializer(serializers.ModelSerializer):
@@ -926,6 +934,176 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
                 resource=room,
                 user_id__in=removed_user_ids,
             ).exclude(role=models.RoleChoices.OWNER).delete()
+
+    @staticmethod
+    def _transfer_video_room_access(
+        room_ids, old_organizer, new_organizer, *, keep_original: bool
+    ) -> None:
+        """Promote the new organizer before revoking the old Room owner role."""
+        for room_id in room_ids:
+            access, _ = models.ResourceAccess.objects.get_or_create(
+                resource_id=room_id,
+                user=new_organizer,
+                defaults={"role": models.RoleChoices.OWNER},
+            )
+            if access.role != models.RoleChoices.OWNER:
+                models.ResourceAccess.objects.filter(pk=access.pk).update(
+                    role=models.RoleChoices.OWNER
+                )
+            old_access = models.ResourceAccess.objects.filter(
+                resource_id=room_id, user=old_organizer
+            )
+            if keep_original:
+                models.ResourceAccess.objects.update_or_create(
+                    resource_id=room_id,
+                    user=old_organizer,
+                    defaults={"role": models.RoleChoices.MEMBER},
+                )
+            else:
+                old_access.delete()
+
+    @decorators.action(detail=True, methods=["post"])
+    def transfer(self, request, pk=None):  # pylint: disable=unused-argument
+        """Transfer ownership immediately; recurring events always move as a series.
+
+        Only the current organizer may transfer.  The target must be an active,
+        non-device member of the same organization.  The event identity, source
+        conversation, video room, physical-room booking, and reminder state stay
+        unchanged; organizer-dependent calendar and Room permissions move with it.
+        """
+        requested_event = self.get_object()
+        if requested_event.organizer_id != request.user.id:
+            raise exceptions.PermissionDenied(
+                "Only the current organizer can transfer this event."
+            )
+
+        payload = CalendarEventTransferSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        new_organizer_id = payload.validated_data["new_organizer_id"]
+        keep_original = payload.validated_data["keep_original_organizer"]
+        if new_organizer_id == request.user.id:
+            raise exceptions.ValidationError(
+                {"new_organizer_id": "select a different organizer"}
+            )
+
+        new_organizer = (
+            models.User.objects.filter(
+                id=new_organizer_id,
+                is_active=True,
+                is_device=False,
+                memberships__organization=requested_event.organization,
+                memberships__status=models.MembershipStatusChoices.ACTIVE,
+            )
+            .distinct()
+            .first()
+        )
+        if new_organizer is None:
+            raise exceptions.ValidationError(
+                {
+                    "new_organizer_id": (
+                        "expected an active internal member of this organization"
+                    )
+                }
+            )
+
+        root_id = requested_event.recurrence_parent_id or requested_event.id
+        with transaction.atomic():
+            root = (
+                models.CalendarEvent.objects.select_for_update()
+                .select_related("organizer")
+                .get(id=root_id)
+            )
+            # Re-check under the row lock so two organizer actions cannot race.
+            if root.organizer_id != request.user.id:
+                raise exceptions.PermissionDenied(
+                    "Only the current organizer can transfer this event."
+                )
+            series = list(
+                models.CalendarEvent.objects.select_for_update()
+                .filter(Q(id=root.id) | Q(recurrence_parent=root))
+                .select_related("organizer")
+                .prefetch_related("attendees__user")
+            )
+            old_organizer = root.organizer
+            new_calendar = calendar_access.ensure_personal_calendar(
+                new_organizer, root.organization
+            )
+            room_ids = {event.room_id for event in series if event.room_id}
+
+            for event in series:
+                old_attendance = models.EventAttendee.objects.filter(
+                    event=event, user=old_organizer
+                )
+                if keep_original:
+                    models.EventAttendee.objects.update_or_create(
+                        event=event,
+                        user=old_organizer,
+                        defaults={
+                            "role": models.EventAttendeeRoleChoices.REQUIRED,
+                            "rsvp": models.EventRSVPChoices.ACCEPTED,
+                        },
+                    )
+                else:
+                    old_attendance.delete()
+
+                new_attendance, _ = models.EventAttendee.objects.get_or_create(
+                    event=event,
+                    user=new_organizer,
+                    defaults={
+                        "role": models.EventAttendeeRoleChoices.ORGANIZER,
+                        "rsvp": models.EventRSVPChoices.ACCEPTED,
+                    },
+                )
+                if (
+                    new_attendance.role
+                    != models.EventAttendeeRoleChoices.ORGANIZER
+                    or new_attendance.rsvp != models.EventRSVPChoices.ACCEPTED
+                ):
+                    new_attendance.role = models.EventAttendeeRoleChoices.ORGANIZER
+                    new_attendance.rsvp = models.EventRSVPChoices.ACCEPTED
+                    new_attendance.save(update_fields=["role", "rsvp", "updated_at"])
+
+                event.organizer = new_organizer
+                event.source_calendar = new_calendar
+                event.save(
+                    update_fields=["organizer", "source_calendar", "updated_at"]
+                )
+
+            # Keep the physical-room reservation itself unchanged, but move its
+            # audit owner so later exports/admin views do not attribute the hold
+            # to someone who no longer organizes the event.
+            models.MeetingRoomBooking.objects.filter(
+                event__in=series,
+                status__in=models.ACTIVE_BOOKING_STATUSES,
+            ).update(booked_by=new_organizer)
+
+            self._transfer_video_room_access(
+                room_ids,
+                old_organizer,
+                new_organizer,
+                keep_original=keep_original,
+            )
+
+            notification_event = next(
+                event for event in series if event.id == requested_event.id
+            )
+            recurrence_scope = (
+                "all"
+                if root.recurrence or requested_event.recurrence_parent_id
+                else ""
+            )
+            delivery = calendar_im_notify.prepare_event_change(
+                notification_event,
+                im_cards.EVENT_KIND_ORGANIZER_CHANGED,
+                recurrence_scope=recurrence_scope,
+                include_organizer=True,
+            )
+            transaction.on_commit(
+                lambda: calendar_im_notify.deliver_event_change(delivery)
+            )
+
+        requested_event.refresh_from_db()
+        return Response(self.get_serializer(requested_event).data)
 
     def perform_create(self, serializer):
         """Create the event + its Room (organizer owner, invitees members) + attendees."""

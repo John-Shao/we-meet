@@ -129,6 +129,16 @@
     "privateEventHint": "你不是该日程的参与者，详细信息已隐藏。",
     "optionalAttendee": "可选"
   },
+  "transfer": {
+    "action": "转让日程",
+    "title": "转让日程",
+    "targetLabel": "将日程转让给",
+    "searchPlaceholder": "搜索新的组织者",
+    "selected": "已选择 {{count}} 人",
+    "keepOriginal": "将原组织者保留在此日程",
+    "confirm": "确定",
+    "error": "转让失败：{{message}}"
+  },
   "rsvp": {
     "label": "我的回复",
     "accepted": "接受",

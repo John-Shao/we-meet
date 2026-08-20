@@ -402,6 +402,7 @@ def prepare_event_change(  # noqa: PLR0913 - explicit event-card change fields
     display_end_date=None,
     added_user_ids=(),
     removed_user_ids=(),
+    include_organizer: bool = False,
 ) -> tuple[str, dict, object, tuple]:
     """Freeze a change card and its recipients before ``on_commit``.
 
@@ -439,7 +440,9 @@ def prepare_event_change(  # noqa: PLR0913 - explicit event-card change fields
     removed_user_ids = set(removed_user_ids)
     deliveries = []
     for attendance in event.attendees.select_related("user"):
-        if attendance.user_id is None or attendance.user_id == event.organizer_id:
+        if attendance.user_id is None or (
+            attendance.user_id == event.organizer_id and not include_organizer
+        ):
             continue
         attendee_card = (
             private_personal_card(build_event_card(event, im_cards.EVENT_KIND_INVITED))

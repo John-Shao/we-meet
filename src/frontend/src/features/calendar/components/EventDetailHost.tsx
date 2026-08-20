@@ -19,6 +19,7 @@ import { CreateEventDialog } from './CreateEventDialog'
 import { EditScopeDialog } from './EditScopeDialog'
 import { EventDetailDialog } from './EventDetailDialog'
 import { EventShareDialog } from './EventShareDialog'
+import { TransferEventDialog } from './TransferEventDialog'
 
 /**
  * P8:按 id 拉取日程并复用现有 EventDetailDialog —— IM 日程卡片点「查看」
@@ -45,6 +46,7 @@ export const EventDetailHost = ({
   const queryClient = useQueryClient()
   // 转分享:详情先关掉再开分享,避免两个 Modal 叠加。
   const [sharing, setSharing] = useState(false)
+  const [transferring, setTransferring] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editScope, setEditScope] = useState<EditScope>()
   const [choosingEditScope, setChoosingEditScope] = useState(false)
@@ -142,10 +144,24 @@ export const EventDetailHost = ({
   if (sharing)
     return <EventShareDialog event={event} onClose={() => setSharing(false)} />
 
+  if (transferring)
+    return (
+      <TransferEventDialog
+        event={event}
+        onClose={() => setTransferring(false)}
+        onTransferred={() => {
+          void invalidate()
+          onClose()
+        }}
+      />
+    )
+
   return (
     <EventDetailDialog
       event={event}
       canManage={!!user && event.organizer?.id === user.id}
+      canTransfer={!!user && event.organizer?.id === user.id}
+      onTransfer={() => setTransferring(true)}
       onShare={() => setSharing(true)}
       onEdit={startEditing}
       onDelete={() => {

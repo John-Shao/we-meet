@@ -1,6 +1,6 @@
 # P2 — 日历 / 日程（Calendar / Scheduling）
 
-**状态**：✅ 已实现并持续收敛（更新至 2026-08-12）。后端、Web、Android 已覆盖重复日程、忙闲、来源会话提醒、范围化编辑/取消、个人日历共享与三态公开范围，以及全天民用日期和跨设备日历时区。权限模型详见 [P1-8b](./p2b-calendar-visibility-sharing.md)，时间模型详见 [P1-9](./p2c-calendar-all-day-timezone.md)。
+**状态**：✅ 已实现并持续收敛（更新至 2026-08-20）。后端、Web、Android 已覆盖重复日程、忙闲、来源会话提醒、范围化编辑/取消、组织者转让、个人日历共享与三态公开范围，以及全天民用日期和跨设备日历时区。权限模型详见 [P1-8b](./p2b-calendar-visibility-sharing.md)，时间模型详见 [P1-9](./p2c-calendar-all-day-timezone.md)。
 **工作量**：后端 ~1.5d(模型+API+提醒) + 前端 ~1d + 部署 1 项(定时器)
 **前置**：P1 组织架构(通讯录选人/org-scope)、会议核心(Room/ResourceAccess/scheduled_at)、IM bridge(ensure-group / post_message)、会议纪要 IM 推送 pattern
 **触发**：路线图第二支柱。当前只有「预约会议」= `Room.scheduled_at`(信息性),没有真正的日程:邀人、RSVP、会前提醒、agenda 视图、与 IM 群联动。
@@ -49,6 +49,7 @@
 | **D9** | Agenda 前端 | 新增 `features/calendar`:建日程表单(复用 ContactPicker 多选邀人)、**agenda 列表**(我的日程,按日/即将)、RSVP 操作、详情。Header 加「日历」入口 + `/calendar` 路由。`ScheduledMeetingsList`(legacy 预约会议)暂保留,后续收敛。 |
 | **D10** | 日期与时区 | 定时日程的 `start_at/end_at` 是 UTC 时间点，`timezone` 保存事件原始 IANA 时区；全天日程以半开民用日期 `start_date/end_date` 为事实源，UTC 字段只作兼容锚点。显示时区支持设备自动/账号固定并跨设备同步，不再复用 `User.timezone`。完整规则见 [P1-9](./p2c-calendar-all-day-timezone.md)。 |
 | **D11** | 多租户 | `CalendarEvent.organization` FK(nullable,默认 org),queryset 一律 org-scope(同 P1 范式)。 |
+| **D12** | 转让日程 | 仅当前组织者可立即转给同组织 active 内部成员；不要求接收确认。单次日程原地换组织者，重复日程无论从父项还是子场次发起都转让整个系列。事件 ID、来源会话、提醒、视频会议、实体会议室和预订保持不变；新组织者获得事件、个人日历和 Room OWNER 权限，原组织者按选项保留为 required/accepted 参与人或完全移除。 |
 
 ---
 
@@ -75,6 +76,7 @@
 - 建日程 `perform_create`:建 event → 建 Room(`ResourceAccess` owner=organizer)→ `Room.scheduled_at=start_at` → 写 EventAttendee(organizer + 本组织成员/accepted 外部联系人)。来源会话与会议群遵循 P8 的独立语义，不因日程无来源而自动生成提醒群。
 - `POST /calendar-events/{id}/rsvp {status}`(更新调用者 EventAttendee.rsvp)。
 - `POST /calendar-events/{id}/attendees` / `DELETE …`(organizer 改参与者)。
+- `POST /calendar-events/{id}/transfer/ {new_organizer_id, keep_original_organizer}`：仅当前组织者；目标只能是同组织内部成员；重复日程固定整个系列。成功后立即返回更新后的原事件 DTO。
 - `core/urls.py` 注册 `calendar-events`。
 
 ### P2-c 提醒（IM 推送 + 定时）
@@ -112,3 +114,5 @@
 | 会前到点(窗口内) | CronJob 扫到 → IM 群收到「🔔 X 即将开始」提醒,只推一次(幂等) |
 | 一键进会 | 跳到该日程的 Room |
 | 跨时区 | 定时日程按查看者有效显示时区换算；全天日程在所有时区保持相同民用日期 |
+| 转让日程并保留原组织者 | 同一事件/系列改由新组织者管理；会议链接和会议室预订不变；原组织者变为已接受的必选参与人；参会人收到一张组织者变更卡 |
+| 转让日程且移除原组织者 | 原组织者失去事件与视频会议权限，且日历中不再显示；新组织者立即可编辑、取消和管理参会人 |

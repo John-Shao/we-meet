@@ -129,6 +129,16 @@
     "privateEventHint": "Vous ne participez pas à cet événement ; les détails sont masqués.",
     "optionalAttendee": "Facultatif"
   },
+  "transfer": {
+    "action": "Transférer l’événement",
+    "title": "Transférer l’événement",
+    "targetLabel": "Transférer l’événement à",
+    "searchPlaceholder": "Rechercher un nouvel organisateur",
+    "selected": "{{count}} sélectionné(s)",
+    "keepOriginal": "Conserver l’organisateur initial dans cet événement",
+    "confirm": "Confirmer",
+    "error": "Échec du transfert : {{message}}"
+  },
   "rsvp": {
     "label": "Ma réponse",
     "accepted": "Accepter",

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchApi } from '@/api/fetchApi'
 
-import { deleteCalendarEvent } from './fetchCalendar'
+import { deleteCalendarEvent, transferCalendarEvent } from './fetchCalendar'
 
 vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
 
@@ -22,4 +22,25 @@ describe('deleteCalendarEvent', () => {
       )
     }
   )
+})
+
+describe('transferCalendarEvent', () => {
+  beforeEach(() => {
+    vi.mocked(fetchApi).mockReset().mockResolvedValue({ id: 'event/id' })
+  })
+
+  it('posts the new organizer and original-organizer retention choice', async () => {
+    await transferCalendarEvent('event/id', 'new-owner', false)
+
+    expect(fetchApi).toHaveBeenCalledWith(
+      '/calendar-events/event%2Fid/transfer/',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          new_organizer_id: 'new-owner',
+          keep_original_organizer: false,
+        }),
+      }
+    )
+  })
 })

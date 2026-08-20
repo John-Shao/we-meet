@@ -129,6 +129,16 @@
     "privateEventHint": "Je bent geen deelnemer; de afspraakdetails zijn verborgen.",
     "optionalAttendee": "Optioneel"
   },
+  "transfer": {
+    "action": "Afspraak overdragen",
+    "title": "Afspraak overdragen",
+    "targetLabel": "Afspraak overdragen aan",
+    "searchPlaceholder": "Zoek een nieuwe organisator",
+    "selected": "{{count}} geselecteerd",
+    "keepOriginal": "Oorspronkelijke organisator als deelnemer behouden",
+    "confirm": "Bevestigen",
+    "error": "Overdracht mislukt: {{message}}"
+  },
   "rsvp": {
     "label": "Mijn reactie",
     "accepted": "Accepteren",

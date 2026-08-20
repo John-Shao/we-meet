@@ -247,6 +247,7 @@
         "tentative": "Vielleicht"
       },
       "cancelled": "Abgesagt",
+      "organizerChanged": "Organisator geändert",
       "recurrenceScope": {
         "one": "Nur dieser Termin",
         "following": "Dieser und alle folgenden Termine",

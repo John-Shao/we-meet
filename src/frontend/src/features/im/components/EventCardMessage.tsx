@@ -122,13 +122,15 @@ export const EventCardMessage = ({
           ? t('calendar.card.timeChanged')
           : card.kind === 'attendees_changed'
             ? t('calendar.card.attendeesChanged')
-            : card.kind === 'removed'
-              ? t('calendar.card.removed')
-              : card.kind === 'rsvp_changed'
-                ? t('calendar.card.rsvpChanged')
-                : card.kind === 'cancelled'
-                  ? t('calendar.card.cancelled')
-                  : null
+            : card.kind === 'organizer_changed'
+              ? t('calendar.card.organizerChanged')
+              : card.kind === 'removed'
+                ? t('calendar.card.removed')
+                : card.kind === 'rsvp_changed'
+                  ? t('calendar.card.rsvpChanged')
+                  : card.kind === 'cancelled'
+                    ? t('calendar.card.cancelled')
+                    : null
     const when = formatWhen(card, i18n.language, t('calendar.card.allDay'))
     const oldWhen =
       card.kind === 'time_changed' && card.old_start && card.old_end

@@ -129,6 +129,16 @@
     "privateEventHint": "Sie nehmen nicht teil; die Termindetails sind ausgeblendet.",
     "optionalAttendee": "Optional"
   },
+  "transfer": {
+    "action": "Termin übertragen",
+    "title": "Termin übertragen",
+    "targetLabel": "Termin übertragen an",
+    "searchPlaceholder": "Neue organisierende Person suchen",
+    "selected": "{{count}} ausgewählt",
+    "keepOriginal": "Bisherige organisierende Person als Teilnehmer behalten",
+    "confirm": "Bestätigen",
+    "error": "Übertragung fehlgeschlagen: {{message}}"
+  },
   "rsvp": {
     "label": "Meine Antwort",
     "accepted": "Zusagen",

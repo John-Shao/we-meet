@@ -247,6 +247,7 @@
         "tentative": "Voorlopig"
       },
       "cancelled": "Geannuleerd",
+      "organizerChanged": "Organisator gewijzigd",
       "recurrenceScope": {
         "one": "Alleen deze keer",
         "following": "Deze en volgende keren",

@@ -129,6 +129,16 @@
     "privateEventHint": "You are not an attendee, so the event details are hidden.",
     "optionalAttendee": "Optional"
   },
+  "transfer": {
+    "action": "Transfer event",
+    "title": "Transfer event",
+    "targetLabel": "Transfer event to",
+    "searchPlaceholder": "Search for a new organizer",
+    "selected": "{{count}} selected",
+    "keepOriginal": "Keep the original organizer in this event",
+    "confirm": "Confirm",
+    "error": "Transfer failed: {{message}}"
+  },
   "rsvp": {
     "label": "My response",
     "accepted": "Accept",

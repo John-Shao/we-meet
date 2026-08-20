@@ -247,6 +247,7 @@
         "tentative": "Tentative"
       },
       "cancelled": "Cancelled",
+      "organizerChanged": "Organizer changed",
       "recurrenceScope": {
         "one": "This occurrence only",
         "following": "This and following occurrences",

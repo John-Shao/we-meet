@@ -11,6 +11,7 @@ export interface EventCardBody {
     | 'invited'
     | 'time_changed'
     | 'attendees_changed'
+    | 'organizer_changed'
     | 'removed'
     | 'rsvp_changed'
     | 'cancelled'
@@ -63,6 +64,7 @@ const KINDS = new Set([
   'invited',
   'time_changed',
   'attendees_changed',
+  'organizer_changed',
   'removed',
   'rsvp_changed',
   'cancelled',

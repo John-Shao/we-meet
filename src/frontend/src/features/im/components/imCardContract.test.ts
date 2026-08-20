@@ -104,6 +104,13 @@ describe('IM card golden fixtures', () => {
       expect(card?.added_count).toBe(2)
     })
 
+    it('parses an organizer transfer card', () => {
+      const card = parseEventCard(load('event_card_organizer_changed'))
+      expect(card?.kind).toBe('organizer_changed')
+      expect(card?.organizer_name).toBe('李四')
+      expect(card?.recurrence_scope).toBe('all')
+    })
+
     it('parses a cancelled card', () => {
       expect(parseEventCard(load('event_card_cancelled'))?.kind).toBe(
         'cancelled'

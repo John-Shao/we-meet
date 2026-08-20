@@ -73,6 +73,23 @@ export const updateCalendarEvent = (
     body: JSON.stringify(payload),
   })
 
+/** Transfer organizer ownership while preserving the existing event resources. */
+export const transferCalendarEvent = (
+  id: string,
+  newOrganizerId: string,
+  keepOriginalOrganizer = true
+): Promise<CalendarEvent> =>
+  fetchApi<CalendarEvent>(
+    `/calendar-events/${encodeURIComponent(id)}/transfer/`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        new_organizer_id: newOrganizerId,
+        keep_original_organizer: keepOriginalOrganizer,
+      }),
+    }
+  )
+
 /** DELETE /api/v1.0/calendar-events/{id} — delete (cancel) an event.
  *  P2-M2: `scope=following`(仅重复子场次)= 该场次及之后整段删除;缺省 =
  *  M1 语义(子场次仅此次 / 主事件删系列 / 单次直接删)。 */
