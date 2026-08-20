@@ -3,7 +3,12 @@
 import pytest
 from rest_framework.test import APIClient
 
-from core.factories import RoomFactory, UserFactory
+from core.factories import (
+    MembershipFactory,
+    OrganizationFactory,
+    RoomFactory,
+    UserFactory,
+)
 from core.models import ActionItem, Summary, Task
 
 pytestmark = pytest.mark.django_db
@@ -67,6 +72,57 @@ def test_task_date_range_must_be_chronological():
     assert "due_date" in response.json()
 
 
+def test_creator_assigns_task_to_colleague_from_same_organization():
+    organization = OrganizationFactory()
+    creator = UserFactory()
+    colleague = UserFactory()
+    MembershipFactory(
+        organization=organization,
+        user=creator,
+        is_primary=True,
+    )
+    MembershipFactory(
+        organization=organization,
+        user=colleague,
+        is_primary=True,
+    )
+
+    response = _client(creator).post(
+        TASKS_URL,
+        {"title": "Review proposal", "assignee_id": str(colleague.id)},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["assignee"]["id"] == str(colleague.id)
+    assert Task.objects.get().assignee == colleague
+
+
+def test_creator_cannot_assign_task_outside_organization():
+    creator = UserFactory()
+    outsider = UserFactory()
+    MembershipFactory(
+        organization=OrganizationFactory(),
+        user=creator,
+        is_primary=True,
+    )
+    MembershipFactory(
+        organization=OrganizationFactory(),
+        user=outsider,
+        is_primary=True,
+    )
+
+    response = _client(creator).post(
+        TASKS_URL,
+        {"title": "Private assignment", "assignee_id": str(outsider.id)},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "assignee_id" in response.json()
+    assert Task.objects.count() == 0
+
+
 def test_list_scopes_tasks_to_creator_and_assignee():
     creator = UserFactory()
     assignee = UserFactory()
@@ -117,6 +173,42 @@ def test_assignee_can_advance_status_but_cannot_edit_content():
         format="json",
     )
     assert response.status_code == 403
+
+    response = client.patch(
+        f"{TASKS_URL}{task.id}/",
+        {"assignee_id": str(creator.id)},
+        format="json",
+    )
+    assert response.status_code == 403
+
+
+def test_creator_reassigns_task_and_visibility_follows_assignee():
+    organization = OrganizationFactory()
+    creator = UserFactory()
+    previous_assignee = UserFactory()
+    next_assignee = UserFactory()
+    for user in (creator, previous_assignee, next_assignee):
+        MembershipFactory(
+            organization=organization,
+            user=user,
+            is_primary=True,
+        )
+    task = Task.objects.create(
+        title="Prepare report",
+        creator=creator,
+        assignee=previous_assignee,
+    )
+
+    response = _client(creator).patch(
+        f"{TASKS_URL}{task.id}/",
+        {"assignee_id": str(next_assignee.id)},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["assignee"]["id"] == str(next_assignee.id)
+    assert _client(previous_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 404
+    assert _client(next_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 200
 
 
 def test_creator_edits_content_and_completion_timestamp():

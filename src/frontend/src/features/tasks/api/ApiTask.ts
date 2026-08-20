@@ -31,6 +31,7 @@ export type TaskScope = 'assigned' | 'created' | 'all'
 export interface CreateTaskPayload {
   title: string
   description?: string
+  assignee_id?: string
   start_date?: string | null
   due_date?: string | null
 }
@@ -38,6 +39,7 @@ export interface CreateTaskPayload {
 export interface PatchTaskPayload {
   title?: string
   description?: string
+  assignee_id?: string
   start_date?: string | null
   due_date?: string | null
   status?: TaskStatus

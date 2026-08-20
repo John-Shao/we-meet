@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Input } from '@/primitives'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
 import type { DirectoryMember } from '../api/ApiDirectory'
@@ -13,6 +14,9 @@ interface Props {
   /** Called with the chosen member. The caller closes the picker. */
   onSelect: (member: DirectoryMember) => void
   onClose: () => void
+  includeSelf?: boolean
+  title?: string
+  searchPlaceholder?: string
 }
 
 /**
@@ -20,17 +24,28 @@ interface Props {
  * the IM "+ new conversation" flow — the chosen member's `id` is passed to the
  * backend as `peer_user_id`, which resolves the IM uid server-side.
  *
- * The caller themselves is filtered out (`is_self`) — you can't message yourself.
+ * The caller themselves is filtered out by default. Flows such as task
+ * assignment can opt in with `includeSelf` so the same picker also supports
+ * assigning work back to the creator.
  */
-export const ContactPicker = ({ onSelect, onClose }: Props) => {
+export const ContactPicker = ({
+  onSelect,
+  onClose,
+  includeSelf = false,
+  title,
+  searchPlaceholder,
+}: Props) => {
   const { t } = useTranslation('contacts')
   const inputRef = useRef<HTMLInputElement>(null)
-  const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
+  const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch({
+    includeSelf,
+  })
+  const pickerTitle = title || t('picker.title')
 
   return (
     <Modal
       onClose={onClose}
-      ariaLabel={t('picker.title')}
+      ariaLabel={pickerTitle}
       initialFocusRef={inputRef}
       maxWidth="420px"
       maxHeight="70vh"
@@ -53,41 +68,19 @@ export const ContactPicker = ({ onSelect, onClose }: Props) => {
             color: 'greyscale.900',
           })}
         >
-          {t('picker.title')}
+          {pickerTitle}
         </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('picker.cancel')}
-          className={css({
-            border: 'none',
-            background: 'transparent',
-            fontSize: '1.25rem',
-            lineHeight: 1,
-            cursor: 'pointer',
-            color: 'greyscale.600',
-          })}
-        >
-          ×
-        </button>
+        <ModalCloseButton onClose={onClose} label={t('picker.cancel')} />
       </div>
 
       <div className={css({ padding: '0.75rem 1rem' })}>
-        <input
+        <Input
           ref={inputRef}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('picker.searchPlaceholder')}
+          placeholder={searchPlaceholder || t('picker.searchPlaceholder')}
           data-testid="contact-picker-search"
-          className={css({
-            width: '100%',
-            paddingX: '0.75rem',
-            paddingY: '0.5rem',
-            border: '1px solid token(colors.greyscale.300)',
-            borderRadius: '0.5rem',
-            fontSize: '0.875rem',
-          })}
         />
       </div>
 

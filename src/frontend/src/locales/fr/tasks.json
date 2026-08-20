@@ -11,6 +11,10 @@
     "titlePlaceholder": "Prochaine action à réaliser",
     "description": "Description (facultatif)",
     "descriptionPlaceholder": "Ajoutez du contexte ou des critères",
+    "assignee": "Responsable",
+    "assigneeSelf": "Moi-même",
+    "selectAssignee": "Choisir un responsable",
+    "searchAssignee": "Rechercher par nom ou e-mail…",
     "startDate": "Date de début (facultatif)",
     "dueDate": "Date d’échéance (facultatif)",
     "create": "Créer la tâche"

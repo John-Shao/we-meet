@@ -11,6 +11,10 @@
     "titlePlaceholder": "Wat moet er als volgende gebeuren",
     "description": "Beschrijving (optioneel)",
     "descriptionPlaceholder": "Voeg context of acceptatiecriteria toe",
+    "assignee": "Verantwoordelijke",
+    "assigneeSelf": "Ikzelf",
+    "selectAssignee": "Verantwoordelijke kiezen",
+    "searchAssignee": "Zoeken op naam of e-mail…",
     "startDate": "Startdatum (optioneel)",
     "dueDate": "Deadline (optioneel)",
     "create": "Taak maken"

@@ -11,6 +11,10 @@
     "titlePlaceholder": "Was als Nächstes erledigt werden muss",
     "description": "Beschreibung (optional)",
     "descriptionPlaceholder": "Kontext oder Abnahmekriterien ergänzen",
+    "assignee": "Verantwortlich",
+    "assigneeSelf": "Ich selbst",
+    "selectAssignee": "Verantwortliche Person auswählen",
+    "searchAssignee": "Nach Name oder E-Mail suchen…",
     "startDate": "Startdatum (optional)",
     "dueDate": "Fälligkeitsdatum (optional)",
     "create": "Aufgabe erstellen"

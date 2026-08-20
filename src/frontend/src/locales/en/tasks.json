@@ -11,6 +11,10 @@
     "titlePlaceholder": "What needs to happen next",
     "description": "Description (optional)",
     "descriptionPlaceholder": "Add context or acceptance criteria",
+    "assignee": "Assignee",
+    "assigneeSelf": "Myself",
+    "selectAssignee": "Select assignee",
+    "searchAssignee": "Search by name or email…",
     "startDate": "Start date (optional)",
     "dueDate": "Due date (optional)",
     "create": "Create task"

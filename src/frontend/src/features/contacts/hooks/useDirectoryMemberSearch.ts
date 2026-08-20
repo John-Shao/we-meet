@@ -12,10 +12,17 @@ import { fetchDirectoryMembersPage } from '../api/fetchDirectoryMembers'
  * stopped. `fetchNextPage` / `hasNextPage` let each picker load the rest.
  *
  * Returns the live `query`/`setQuery` for the search box and the `selectable`
- * members (the caller themselves — `is_self` — is always filtered out).
- * `keepPreviousData` stops the list flickering to empty between keystrokes.
+ * members. The caller is filtered out by default, while assignment flows may
+ * opt in with `includeSelf`. `keepPreviousData` stops the list flickering to
+ * empty between keystrokes.
  */
-export const useDirectoryMemberSearch = (debounceMs = 250) => {
+export const useDirectoryMemberSearch = ({
+  debounceMs = 250,
+  includeSelf = false,
+}: {
+  debounceMs?: number
+  includeSelf?: boolean
+} = {}) => {
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
 
@@ -38,9 +45,9 @@ export const useDirectoryMemberSearch = (debounceMs = 250) => {
   const selectable = useMemo(
     () =>
       (data?.pages ?? []).flatMap((page) =>
-        page.results.filter((m) => !m.is_self)
+        page.results.filter((m) => includeSelf || !m.is_self)
       ),
-    [data]
+    [data, includeSelf]
   )
 
   return {

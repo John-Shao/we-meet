@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { StateHint } from '@/components/StateHint'
 import { RequireAuth } from '@/components/RequireAuth'
+import { ContactPicker, type DirectoryMember } from '@/features/contacts'
 import { Screen } from '@/layout/Screen'
 import { Button, Input, TextArea } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -36,6 +37,13 @@ const labelCss = css({
 const displayName = (user: ApiTask['creator'] | null) =>
   user?.full_name || user?.short_name || user?.email || '—'
 
+const taskUserFromMember = (member: DirectoryMember) => ({
+  id: member.id,
+  full_name: member.full_name,
+  short_name: member.short_name,
+  email: member.email,
+})
+
 export const TasksRoute = () => (
   <RequireAuth>
     <Screen footer={false}>
@@ -49,9 +57,15 @@ const TasksAuthenticated = () => {
   const [scope, setScope] = useState<TaskScope>('assigned')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [createAssignee, setCreateAssignee] = useState<DirectoryMember | null>(
+    null
+  )
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [editing, setEditing] = useState<ApiTask | null>(null)
+  const [assigneePicker, setAssigneePicker] = useState<
+    'create' | 'edit' | null
+  >(null)
   const { data, isLoading, error } = useTasks(scope)
   const createMutation = useCreateTask()
   const patchMutation = usePatchTask()
@@ -64,11 +78,13 @@ const TasksAuthenticated = () => {
       await createMutation.mutateAsync({
         title: cleanTitle,
         description: description.trim(),
+        assignee_id: createAssignee?.id,
         start_date: startDate || null,
         due_date: dueDate || null,
       })
       setTitle('')
       setDescription('')
+      setCreateAssignee(null)
       setStartDate('')
       setDueDate('')
     } catch {
@@ -85,6 +101,7 @@ const TasksAuthenticated = () => {
     const patch: PatchTaskPayload = {
       title: editing.title.trim(),
       description: editing.description.trim(),
+      ...(editing.assignee ? { assignee_id: editing.assignee.id } : {}),
       start_date: editing.start_date,
       due_date: editing.due_date,
     }
@@ -152,7 +169,8 @@ const TasksAuthenticated = () => {
           display: 'grid',
           gridTemplateColumns: {
             base: '1fr',
-            md: '2fr 1fr 1fr auto',
+            md: 'repeat(2, 1fr)',
+            lg: '2fr 1.25fr 1fr 1fr auto',
           },
           gap: '0.75rem',
           padding: '1rem',
@@ -171,6 +189,20 @@ const TasksAuthenticated = () => {
             maxLength={500}
             required
           />
+        </label>
+        <label className={labelCss}>
+          {t('form.assignee')}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className={css({ width: '100%', justifyContent: 'flex-start' })}
+            onPress={() => setAssigneePicker('create')}
+          >
+            {createAssignee
+              ? displayName(createAssignee)
+              : t('form.assigneeSelf')}
+          </Button>
         </label>
         <label className={labelCss}>
           {t('form.startDate')}
@@ -199,7 +231,10 @@ const TasksAuthenticated = () => {
           {t('form.create')}
         </Button>
         <label
-          className={`${labelCss} ${css({ md: { gridColumn: '1 / 4' } })}`}
+          className={`${labelCss} ${css({
+            md: { gridColumn: '1 / -1' },
+            lg: { gridColumn: '1 / 5' },
+          })}`}
         >
           {t('form.description')}
           <TextArea
@@ -306,6 +341,21 @@ const TasksAuthenticated = () => {
                       maxLength={5000}
                       rows={3}
                     />
+                  </label>
+                  <label className={labelCss}>
+                    {t('form.assignee')}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className={css({
+                        width: '100%',
+                        justifyContent: 'flex-start',
+                      })}
+                      onPress={() => setAssigneePicker('edit')}
+                    >
+                      {displayName(editing.assignee)}
+                    </Button>
                   </label>
                   <div
                     className={css({
@@ -490,6 +540,26 @@ const TasksAuthenticated = () => {
             </li>
           ))}
         </ul>
+      )}
+
+      {assigneePicker && (
+        <ContactPicker
+          includeSelf
+          title={t('form.selectAssignee')}
+          searchPlaceholder={t('form.searchAssignee')}
+          onClose={() => setAssigneePicker(null)}
+          onSelect={(member) => {
+            if (assigneePicker === 'create') {
+              setCreateAssignee(member)
+            } else if (editing) {
+              setEditing({
+                ...editing,
+                assignee: taskUserFromMember(member),
+              })
+            }
+            setAssigneePicker(null)
+          }}
+        />
       )}
     </div>
   )
