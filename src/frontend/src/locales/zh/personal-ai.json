@@ -10,5 +10,6 @@
   "send": "发送",
   "sending": "发送中…",
   "thinking": "正在跨会议检索…",
-  "error": "请求失败：{{message}}"
+  "error": "请求失败：{{message}}",
+  "unnamedRoom": "未命名"
 }

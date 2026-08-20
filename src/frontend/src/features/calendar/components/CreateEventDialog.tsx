@@ -418,7 +418,7 @@ export const CreateEventDialog = ({
         <div className={formStackCls}>
           {!isEdit && writableCalendars.length > 0 && (
             <label className={fieldCls} htmlFor="event-calendar">
-              <span className={labelCls}>日历</span>
+              <span className={labelCls}>{t('form.calendar')}</span>
               <select
                 id="event-calendar"
                 value={selectedCalendarId}

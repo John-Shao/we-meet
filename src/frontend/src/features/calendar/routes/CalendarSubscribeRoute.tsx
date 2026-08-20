@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation, useParams } from 'wouter'
 
@@ -18,6 +19,7 @@ export const CalendarSubscribeRoute = () => (
 )
 
 const SubscribeCard = () => {
+  const { t } = useTranslation('calendar')
   const { token = '' } = useParams<{ token: string }>()
   const [, navigate] = useLocation()
   const [busy, setBusy] = useState(false)
@@ -30,14 +32,16 @@ const SubscribeCard = () => {
   return (
     <main className={pageCls}>
       <section className={cardCls}>
-        <h1>订阅日历</h1>
+        <h1>{t('subscribe.title')}</h1>
         {data ? (
           <>
             <h2>{data.display_name}</h2>
-            <p>{data.description || '暂无描述'}</p>
+            <p>{data.description || t('subscribe.noDescription')}</p>
             <p className={mutedCls}>
-              所有者：{data.owner?.full_name || data.owner?.short_name || '—'} ·{' '}
-              {data.subscriber_count} 人已订阅
+              {t('subscribe.meta', {
+                owner: data.owner?.full_name || data.owner?.short_name || '—',
+                count: data.subscriber_count,
+              })}
             </p>
             <button
               type="button"
@@ -51,11 +55,13 @@ const SubscribeCard = () => {
                   .finally(() => setBusy(false))
               }}
             >
-              {data.subscribed ? '已订阅' : '确认订阅'}
+              {data.subscribed
+                ? t('subscribe.alreadySubscribed')
+                : t('subscribe.confirm')}
             </button>
           </>
         ) : (
-          <p>{loadError ? apiErrorMessage(loadError) : '正在加载…'}</p>
+          <p>{loadError ? apiErrorMessage(loadError) : t('subscribe.loading')}</p>
         )}
         {error && <p className={errorCls}>{error}</p>}
       </section>

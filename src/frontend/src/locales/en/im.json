@@ -182,10 +182,15 @@
     "call": "[Call]",
     "phoneViewed": "Phone number viewed",
     "event": "[Event]",
+    "calendar": "Calendar share",
     "doc": "[Document]",
     "meeting": "[Meeting]",
     "richCard": "[Card]",
     "richText": "[Rich text]"
+  },
+  "calendarCard": {
+    "owner": "Owner: {{name}}",
+    "footer": "{{count}} subscribers · View & subscribe"
   },
   "meetingCard": {
     "ongoing": "In progress",

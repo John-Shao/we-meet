@@ -10,5 +10,6 @@
   "send": "Envoyer",
   "sending": "Envoi…",
   "thinking": "Recherche dans vos réunions…",
-  "error": "Échec de la requête : {{message}}"
+  "error": "Échec de la requête : {{message}}",
+  "unnamedRoom": "Sans titre"
 }

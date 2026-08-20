@@ -1,4 +1,5 @@
 import { RiCalendarLine } from '@remixicon/react'
+import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 
@@ -25,6 +26,7 @@ export const CalendarCardMessage = ({
   onAvatarClick?: () => void
   onContextMenu?: (event: React.MouseEvent) => void
 }) => {
+  const { t } = useTranslation('im')
   const card = parseCalendarCard(body)
   const content = card ? (
     <button
@@ -35,16 +37,18 @@ export const CalendarCardMessage = ({
       <span className={headingCls}>
         <RiCalendarLine size={18} /> {card.name}
       </span>
-      {card.owner_name && <span>所有者：{card.owner_name}</span>}
+      {card.owner_name && (
+        <span>{t('calendarCard.owner', { name: card.owner_name })}</span>
+      )}
       {card.description && (
         <span className={descriptionCls}>{card.description}</span>
       )}
       <span className={footerCls}>
-        {card.subscriber_count} 人已订阅 · 查看并订阅
+        {t('calendarCard.footer', { count: card.subscriber_count })}
       </span>
     </button>
   ) : (
-    <span className={fallbackCls}>日历分享</span>
+    <span className={fallbackCls}>{t('preview.calendar')}</span>
   )
   return (
     <div

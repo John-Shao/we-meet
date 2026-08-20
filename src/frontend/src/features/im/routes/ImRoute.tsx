@@ -385,7 +385,7 @@ const ImAuthenticated = () => {
                           : ct === 'doc-card'
                             ? t('preview.doc')
                             : ct === 'calendar-card'
-                              ? '日历分享'
+                              ? t('preview.calendar')
                               : ct === 'rich-text'
                                 ? richTextPreview(c.last_message ?? '') ||
                                   t('preview.richText')
@@ -494,7 +494,7 @@ const ImAuthenticated = () => {
     }
     if (m.content_type === 'merged') return t('preview.merged')
     if (m.content_type === 'doc-card') return t('preview.doc')
-    if (m.content_type === 'calendar-card') return '日历分享'
+    if (m.content_type === 'calendar-card') return t('preview.calendar')
     if (m.content_type === 'rich-text')
       return richTextPreview(m.body) || t('preview.richText')
     if (m.content_type === 'rich-card')

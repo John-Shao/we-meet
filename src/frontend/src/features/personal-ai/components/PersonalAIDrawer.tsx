@@ -148,6 +148,7 @@ const MessageBubble = ({
   message: PersonalAIMessage
   onPickRoom: (roomId: string) => void
 }) => {
+  const { t } = useTranslation('personal-ai')
   const isUser = message.role === 'user'
   if (isUser) {
     return (
@@ -171,7 +172,7 @@ const MessageBubble = ({
               className={chipStyle}
               onClick={() => onPickRoom(r.id)}
             >
-              《{r.name || '未命名'}》
+              《{r.name || t('unnamedRoom')}》
             </button>
           ))}
         </div>

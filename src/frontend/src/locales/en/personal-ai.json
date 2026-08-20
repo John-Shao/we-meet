@@ -10,5 +10,6 @@
   "send": "Send",
   "sending": "Sending…",
   "thinking": "Searching across your meetings…",
-  "error": "Request failed: {{message}}"
+  "error": "Request failed: {{message}}",
+  "unnamedRoom": "Untitled"
 }

@@ -111,16 +111,16 @@ describe('AddCalendarDialog calendar discovery', () => {
       </QueryClientProvider>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '新建日历' }))
-    fireEvent.click(screen.getByRole('button', { name: '颜色' }))
+    fireEvent.click(screen.getByRole('button', { name: 'manage.tabCreate' }))
+    fireEvent.click(screen.getByRole('button', { name: 'manage.color' }))
     const palette = await screen.findByRole('radiogroup', {
-      name: '日历颜色',
+      name: 'color.pickerTitle',
     })
 
     fireEvent.keyDown(palette, { key: 'Escape' })
 
     await waitFor(() =>
-      expect(screen.queryByRole('radiogroup', { name: '日历颜色' })).toBeNull()
+      expect(screen.queryByRole('radiogroup', { name: 'color.pickerTitle' })).toBeNull()
     )
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -138,11 +138,11 @@ describe('AddCalendarDialog calendar discovery', () => {
       </QueryClientProvider>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '新建日历' }))
-    expect(screen.getByText('共享人')).toBeVisible()
-    expect(screen.queryByRole('dialog', { name: '添加共享人' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'manage.tabCreate' }))
+    expect(screen.getByText('manage.sharedMembers')).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'manage.addSharedMember' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: '添加共享人' }))
+    fireEvent.click(screen.getByRole('button', { name: 'manage.addSharedMember' }))
     fireEvent.click(
       await screen.findByRole('button', { name: '确认选择共享人' })
     )
@@ -152,10 +152,10 @@ describe('AddCalendarDialog calendar discovery', () => {
       '/media/avatars/alice.jpg'
     )
 
-    fireEvent.change(screen.getByLabelText('日历名称'), {
+    fireEvent.change(screen.getByLabelText('manage.name'), {
       target: { value: 'Team calendar' },
     })
-    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    fireEvent.click(screen.getByRole('button', { name: 'manage.save' }))
 
     await waitFor(() =>
       expect(calendarApi.createCalendar).toHaveBeenCalledWith({
@@ -259,7 +259,7 @@ describe('AddCalendarDialog calendar discovery', () => {
       </QueryClientProvider>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '会议室' }))
+    fireEvent.click(screen.getByRole('button', { name: 'manage.discoverRoom' }))
     expect(
       await screen.findByText('Tencent Tower-1602 (Overlook)')
     ).toBeVisible()
@@ -285,9 +285,9 @@ describe('AddCalendarDialog calendar discovery', () => {
       </QueryClientProvider>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '会议室' }))
+    fireEvent.click(screen.getByRole('button', { name: 'manage.discoverRoom' }))
     expect(await screen.findByText('1602 (Overlook)')).toBeVisible()
-    expect(screen.getByRole('button', { name: '订阅' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'manage.subscribe' })).toBeEnabled()
   })
 
   it('keeps contact rows visible while adding a subscription', async () => {
@@ -321,16 +321,16 @@ describe('AddCalendarDialog calendar discovery', () => {
     )
 
     expect(await screen.findByText('Ting')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: '订阅' }))
+    fireEvent.click(screen.getByRole('button', { name: 'manage.subscribe' }))
     await waitFor(() => expect(finishRefresh).toBeTypeOf('function'))
     expect(screen.getByText('Ting')).toBeVisible()
-    expect(screen.queryByText('正在搜索…')).not.toBeInTheDocument()
+    expect(screen.queryByText('manage.searching')).not.toBeInTheDocument()
 
     await act(async () => {
       finishRefresh?.([{ ...contactCalendar, subscribed: true, enabled: true }])
     })
     expect(
-      await screen.findByRole('button', { name: '取消订阅' })
+      await screen.findByRole('button', { name: 'manage.unsubscribe' })
     ).toBeEnabled()
   })
 
@@ -361,9 +361,9 @@ describe('AddCalendarDialog calendar discovery', () => {
       </QueryClientProvider>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '会议室' }))
+    fireEvent.click(screen.getByRole('button', { name: 'manage.discoverRoom' }))
     const unsubscribeButton = await screen.findByRole('button', {
-      name: '取消订阅',
+      name: 'manage.unsubscribe',
     })
     expect(unsubscribeButton).toBeEnabled()
     fireEvent.click(unsubscribeButton)
@@ -375,13 +375,13 @@ describe('AddCalendarDialog calendar discovery', () => {
     )
     await waitFor(() => expect(finishRefresh).toBeTypeOf('function'))
     expect(screen.getByText('Tencent Tower-1602 (Overlook)')).toBeVisible()
-    expect(screen.queryByText('正在搜索…')).not.toBeInTheDocument()
+    expect(screen.queryByText('manage.searching')).not.toBeInTheDocument()
 
     await act(async () => {
       finishRefresh?.([
         { ...subscribedCalendar, subscribed: false, enabled: false },
       ])
     })
-    expect(await screen.findByRole('button', { name: '订阅' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'manage.subscribe' })).toBeEnabled()
   })
 })

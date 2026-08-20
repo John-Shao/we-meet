@@ -183,9 +183,14 @@
     "call": "[通话]",
     "phoneViewed": "手机号码查看提醒",
     "event": "[日程]",
+    "calendar": "日历分享",
     "doc": "[云文档]",
     "richCard": "[卡片]",
     "richText": "[富文本]"
+  },
+  "calendarCard": {
+    "owner": "所有者：{{name}}",
+    "footer": "{{count}} 人已订阅 · 查看并订阅"
   },
   "docCard": {
     "view": "查看文档"

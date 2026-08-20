@@ -1,4 +1,5 @@
 import { type ReactNode, type RefObject, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
 
@@ -38,11 +39,14 @@ import {
 import { BulkAttendeeDialog } from './BulkAttendeeDialog'
 import { CalendarColorPicker } from './CalendarColorPicker'
 
-const roleLabels: Record<Exclude<CalendarRole, 'none'>, string> = {
-  free_busy: '仅忙闲',
-  details: '订阅者',
-  writer: '编辑者',
-  admin: '管理员',
+const roleKeys: Record<
+  Exclude<CalendarRole, 'none'>,
+  'freeBusy' | 'details' | 'writer' | 'admin'
+> = {
+  free_busy: 'freeBusy',
+  details: 'details',
+  writer: 'writer',
+  admin: 'admin',
 }
 
 type DraftCalendarMember = {
@@ -53,7 +57,7 @@ type DraftCalendarMember = {
 
 const qrSvgBlob = () => {
   const svg = document.getElementById('calendar-share-qr')
-  if (!(svg instanceof SVGElement)) throw new Error('二维码尚未生成')
+  if (!(svg instanceof SVGElement)) throw new Error('QR code not generated')
   return new Blob([new XMLSerializer().serializeToString(svg)], {
     type: 'image/svg+xml;charset=utf-8',
   })
@@ -78,14 +82,14 @@ const copyQrImage = async () => {
     canvas.width = 440
     canvas.height = 440
     const context = canvas.getContext('2d')
-    if (!context) throw new Error('浏览器不支持复制二维码')
+    if (!context) throw new Error('Copying QR code is not supported')
     context.fillStyle = '#fff'
     context.fillRect(0, 0, canvas.width, canvas.height)
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
     const png = await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
         (value) =>
-          value ? resolve(value) : reject(new Error('二维码生成失败')),
+          value ? resolve(value) : reject(new Error('QR code generation failed')),
         'image/png'
       )
     )
@@ -110,22 +114,25 @@ const DialogFrame = ({
   maxWidth?: string
   /** 透传给 Modal:打开后第一件事就是打字的对话框应当指到那个输入框(见 Modal)。 */
   initialFocusRef?: RefObject<HTMLElement | null>
-}) => (
-  <Modal
-    onClose={onClose}
-    ariaLabel={title}
-    maxWidth={maxWidth}
-    maxHeight="82vh"
-    initialFocusRef={initialFocusRef}
-  >
-    <header className={headerCls}>
-      <h2 className={titleCls}>{title}</h2>
-      <ModalCloseButton onClose={onClose} label="关闭" />
-    </header>
-    <div className={bodyCls}>{children}</div>
-    {footer ? <footer className={footerCls}>{footer}</footer> : null}
-  </Modal>
-)
+}) => {
+  const { t } = useTranslation('calendar')
+  return (
+    <Modal
+      onClose={onClose}
+      ariaLabel={title}
+      maxWidth={maxWidth}
+      maxHeight="82vh"
+      initialFocusRef={initialFocusRef}
+    >
+      <header className={headerCls}>
+        <h2 className={titleCls}>{title}</h2>
+        <ModalCloseButton onClose={onClose} label={t('manage.close')} />
+      </header>
+      <div className={bodyCls}>{children}</div>
+      {footer ? <footer className={footerCls}>{footer}</footer> : null}
+    </Modal>
+  )
+}
 
 export const AddCalendarDialog = ({
   onClose,
@@ -134,6 +141,7 @@ export const AddCalendarDialog = ({
   onClose: () => void
   onChanged: () => void
 }) => {
+  const { t } = useTranslation('calendar')
   const qc = useQueryClient()
   const [mode, setMode] = useState<'subscribe' | 'create'>('subscribe')
   const [discoverType, setDiscoverType] = useState<
@@ -216,7 +224,7 @@ export const AddCalendarDialog = ({
 
   const dialog = (
     <DialogFrame
-      title="添加日历"
+      title={t('manage.addTitle')}
       onClose={onClose}
       maxWidth="680px"
       initialFocusRef={searchRef}
@@ -224,7 +232,7 @@ export const AddCalendarDialog = ({
         mode === 'create' ? (
           <>
             <Button variant="secondary" size="action" onPress={onClose}>
-              取消
+              {t('manage.cancel')}
             </Button>
             <Button
               variant="primary"
@@ -232,7 +240,7 @@ export const AddCalendarDialog = ({
               isDisabled={busy || !name.trim()}
               onPress={() => void create()}
             >
-              保存
+              {t('manage.save')}
             </Button>
           </>
         ) : undefined
@@ -241,8 +249,8 @@ export const AddCalendarDialog = ({
       <div className={tabsCls}>
         {(
           [
-            ['subscribe', '订阅日历'],
-            ['create', '新建日历'],
+            ['subscribe', t('manage.tabSubscribe')],
+            ['create', t('manage.tabCreate')],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -262,14 +270,14 @@ export const AddCalendarDialog = ({
             className={eventInputCls}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索联系人、会议室或公共日历"
+            placeholder={t('manage.searchPlaceholder')}
           />
           <div className={tabsCls}>
             {(
               [
-                ['contact', '联系人'],
-                ['room', '会议室'],
-                ['public', '公共日历'],
+                ['contact', t('manage.discoverContact')],
+                ['room', t('manage.discoverRoom')],
+                ['public', t('manage.discoverPublic')],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -283,9 +291,9 @@ export const AddCalendarDialog = ({
             ))}
           </div>
           {isFetching && discoveries.length === 0 ? (
-            <p className={mutedCls}>正在搜索…</p>
+            <p className={mutedCls}>{t('manage.searching')}</p>
           ) : discoveries.length === 0 ? (
-            <p className={mutedCls}>没有可订阅的日历</p>
+            <p className={mutedCls}>{t('manage.noDiscoveries')}</p>
           ) : (
             discoveries.map((calendar) => {
               const contactSupportingText = [
@@ -337,7 +345,9 @@ export const AddCalendarDialog = ({
                     isDisabled={busy}
                     onPress={() => void toggleSubscription(calendar)}
                   >
-                    {calendar.subscribed ? '取消订阅' : '订阅'}
+                    {calendar.subscribed
+                      ? t('manage.unsubscribe')
+                      : t('manage.subscribe')}
                   </Button>
                 </div>
               )
@@ -348,7 +358,7 @@ export const AddCalendarDialog = ({
       {mode === 'create' && (
         <div className={stackCls}>
           <label className={fieldCls}>
-            <span className={eventLabelCls}>日历名称</span>
+            <span className={eventLabelCls}>{t('manage.name')}</span>
             <input
               ref={nameRef}
               className={eventInputCls}
@@ -357,7 +367,7 @@ export const AddCalendarDialog = ({
             />
           </label>
           <label className={fieldCls}>
-            <span className={eventLabelCls}>描述</span>
+            <span className={eventLabelCls}>{t('manage.description')}</span>
             <textarea
               className={textareaCls}
               value={description}
@@ -366,15 +376,17 @@ export const AddCalendarDialog = ({
             />
           </label>
           <div className={fieldCls}>
-            <span className={eventLabelCls}>颜色</span>
+            <span className={eventLabelCls}>{t('manage.color')}</span>
             <CalendarColorPicker
               value={color}
-              label="颜色"
+              label={t('manage.color')}
               onChange={setColor}
             />
           </div>
           <label className={fieldCls}>
-            <span className={eventLabelCls}>组织内默认权限</span>
+            <span className={eventLabelCls}>
+              {t('manage.organizationDefaultAccess')}
+            </span>
             <select
               className={cx(eventInputCls, selectChrome)}
               value={defaultAccess}
@@ -382,12 +394,12 @@ export const AddCalendarDialog = ({
                 setDefaultAccess(e.target.value as typeof defaultAccess)
               }
             >
-              <option value="none">私密</option>
-              <option value="free_busy">游客（仅忙闲）</option>
-              <option value="details">订阅者（查看详情）</option>
+              <option value="none">{t('manage.access.none')}</option>
+              <option value="free_busy">{t('manage.access.freeBusy')}</option>
+              <option value="details">{t('manage.access.details')}</option>
             </select>
           </label>
-          <h3 className={sectionTitleCls}>共享人</h3>
+          <h3 className={sectionTitleCls}>{t('manage.sharedMembers')}</h3>
           {[...members.entries()].map(([id, member]) => (
             <div key={id} className={rowCls}>
               <MemberAvatar
@@ -419,13 +431,13 @@ export const AddCalendarDialog = ({
                   })
                 }
               >
-                移除
+                {t('manage.remove')}
               </Button>
             </div>
           ))}
           <div className={memberAddRowCls}>
             <div className={fieldCls}>
-              <span className={eventLabelCls}>新增共享人的角色</span>
+              <span className={eventLabelCls}>{t('manage.newMemberRole')}</span>
               <RoleSelect value={memberRole} onChange={setMemberRole} />
             </div>
             <Button
@@ -434,7 +446,7 @@ export const AddCalendarDialog = ({
               isDisabled={busy}
               onPress={() => setMemberPickerOpen(true)}
             >
-              添加共享人
+              {t('manage.addSharedMember')}
             </Button>
           </div>
         </div>
@@ -450,10 +462,10 @@ export const AddCalendarDialog = ({
       {dialog}
       <BulkAttendeeDialog
         initial={new Map()}
-        title="添加共享人"
-        searchPlaceholder="搜索共享人"
-        selectedTitle={(count) => `已选 ${count} 人`}
-        confirmLabel="添加"
+        title={t('manage.addSharedMember')}
+        searchPlaceholder={t('manage.searchMember')}
+        selectedTitle={(count) => t('manage.selectedCount', { count })}
+        confirmLabel={t('manage.add')}
         excludeIds={new Set(members.keys())}
         onClose={() => setMemberPickerOpen(false)}
         onConfirm={(selected, avatars) => {
@@ -479,28 +491,36 @@ const RoleSelect = ({
   value,
   onChange,
   readOnly = false,
-  allowedRoles = Object.keys(roleLabels) as Exclude<CalendarRole, 'none'>[],
+  allowedRoles = [
+    'free_busy',
+    'details',
+    'writer',
+    'admin',
+  ] as Exclude<CalendarRole, 'none'>[],
 }: {
   value: Exclude<CalendarRole, 'none'>
   onChange: (role: Exclude<CalendarRole, 'none'>) => void
   readOnly?: boolean
   allowedRoles?: Exclude<CalendarRole, 'none'>[]
-}) => (
-  <select
-    className={cx(eventInputCls, selectChrome)}
-    value={value}
-    disabled={readOnly}
-    onChange={(event) =>
-      onChange(event.target.value as Exclude<CalendarRole, 'none'>)
-    }
-  >
-    {allowedRoles.map((role) => (
-      <option key={role} value={role}>
-        {roleLabels[role]}
-      </option>
-    ))}
-  </select>
-)
+}) => {
+  const { t } = useTranslation('calendar')
+  return (
+    <select
+      className={cx(eventInputCls, selectChrome)}
+      value={value}
+      disabled={readOnly}
+      onChange={(event) =>
+        onChange(event.target.value as Exclude<CalendarRole, 'none'>)
+      }
+    >
+      {allowedRoles.map((role) => (
+        <option key={role} value={role}>
+          {t(`manage.role.${roleKeys[role]}`)}
+        </option>
+      ))}
+    </select>
+  )
+}
 
 export const CalendarSettingsDialog = ({
   calendar,
@@ -511,6 +531,7 @@ export const CalendarSettingsDialog = ({
   onClose: () => void
   onChanged: () => void
 }) => {
+  const { t } = useTranslation('calendar')
   const qc = useQueryClient()
   const [name, setName] = useState(calendar.display_name)
   // 「日历设置」是单一表单(不是多节导航面板),打开后第一件事通常就是改名 ——
@@ -565,13 +586,13 @@ export const CalendarSettingsDialog = ({
   return (
     <>
       <DialogFrame
-        title="日历设置"
+        title={t('manage.settingsTitle')}
         onClose={onClose}
         initialFocusRef={nameEditable ? nameRef : undefined}
         footer={
           <>
             <Button variant="secondary" size="action" onPress={onClose}>
-              取消
+              {t('manage.cancel')}
             </Button>
             <Button
               variant="primary"
@@ -579,14 +600,14 @@ export const CalendarSettingsDialog = ({
               isDisabled={busy || !name.trim()}
               onPress={() => void saveSettings()}
             >
-              保存
+              {t('manage.save')}
             </Button>
           </>
         }
       >
         <div className={stackCls}>
           <label className={fieldCls}>
-            <span className={eventLabelCls}>日历名称</span>
+            <span className={eventLabelCls}>{t('manage.name')}</span>
             <input
               ref={nameRef}
               className={cx(eventInputCls, disabledControlCls)}
@@ -595,11 +616,11 @@ export const CalendarSettingsDialog = ({
               onChange={(e) => setName(e.target.value)}
             />
             {calendar.kind === 'primary' && (
-              <small className={mutedCls}>个人主日历名称跟随账号名称</small>
+              <small className={mutedCls}>{t('manage.primaryNameHint')}</small>
             )}
           </label>
           <label className={fieldCls}>
-            <span className={eventLabelCls}>描述</span>
+            <span className={eventLabelCls}>{t('manage.description')}</span>
             <textarea
               className={textareaCls}
               value={description}
@@ -607,15 +628,17 @@ export const CalendarSettingsDialog = ({
             />
           </label>
           <div className={fieldCls}>
-            <span className={eventLabelCls}>我的显示颜色</span>
+            <span className={eventLabelCls}>{t('manage.myDisplayColor')}</span>
             <CalendarColorPicker
               value={color}
-              label="我的显示颜色"
+              label={t('manage.myDisplayColor')}
               onChange={setColor}
             />
           </div>
           <label className={fieldCls}>
-            <span className={eventLabelCls}>组织内默认权限</span>
+            <span className={eventLabelCls}>
+              {t('manage.organizationDefaultAccess')}
+            </span>
             <select
               className={cx(eventInputCls, selectChrome)}
               value={defaultAccess}
@@ -623,27 +646,29 @@ export const CalendarSettingsDialog = ({
                 setDefaultAccess(e.target.value as typeof defaultAccess)
               }
             >
-              <option value="none">私密</option>
-              <option value="free_busy">游客（仅忙闲）</option>
-              <option value="details">订阅者（查看详情）</option>
+              <option value="none">{t('manage.access.none')}</option>
+              <option value="free_busy">{t('manage.access.freeBusy')}</option>
+              <option value="details">{t('manage.access.details')}</option>
             </select>
           </label>
-          <p className={mutedCls}>
-            组织外默认私密；已建立外部联系的人只能被单独授予只读权限。
-          </p>
-          <h3 className={sectionTitleCls}>共享人</h3>
+          <p className={mutedCls}>{t('manage.externalDefaultHint')}</p>
+          <h3 className={sectionTitleCls}>{t('manage.sharedMembers')}</h3>
           {members.map((member) => (
             <div key={member.id} className={rowCls}>
               <MemberAvatar
                 name={
-                  member.user.full_name || member.user.short_name || '未知用户'
+                  member.user.full_name ||
+                  member.user.short_name ||
+                  t('manage.unknownUser')
                 }
                 src={member.user.avatar_url}
                 size="2rem"
               />
               <span className={growCls}>
-                {member.user.full_name || member.user.short_name || '未知用户'}
-                {member.external ? '（外部联系人）' : ''}
+                {member.user.full_name ||
+                  member.user.short_name ||
+                  t('manage.unknownUser')}
+                {member.external ? t('manage.externalContact') : ''}
               </span>
               <div className={memberRoleCls}>
                 <RoleSelect
@@ -667,13 +692,13 @@ export const CalendarSettingsDialog = ({
                   void act(() => removeCalendarMember(calendar.id, member.id))
                 }
               >
-                移除
+                {t('manage.remove')}
               </Button>
             </div>
           ))}
           <div className={memberAddRowCls}>
             <div className={fieldCls}>
-              <span className={eventLabelCls}>新增共享人的角色</span>
+              <span className={eventLabelCls}>{t('manage.newMemberRole')}</span>
               <RoleSelect
                 value={addRole}
                 onChange={setAddRole}
@@ -690,12 +715,12 @@ export const CalendarSettingsDialog = ({
               isDisabled={busy}
               onPress={() => setMemberPickerOpen(true)}
             >
-              添加共享人
+              {t('manage.addSharedMember')}
             </Button>
           </div>
           {calendar.capabilities.can_delete && (
             <div className={dangerZoneCls}>
-              <span className={mutedCls}>删除后 30 天内可恢复。</span>
+              <span className={mutedCls}>{t('manage.deleteRestoreHint')}</span>
               <Button
                 variant="quaternaryDanger"
                 size="action"
@@ -708,7 +733,7 @@ export const CalendarSettingsDialog = ({
                   })
                 }
               >
-                删除日历
+                {t('manage.deleteCalendar')}
               </Button>
             </div>
           )}
@@ -718,10 +743,10 @@ export const CalendarSettingsDialog = ({
       {memberPickerOpen && (
         <BulkAttendeeDialog
           initial={new Map()}
-          title="添加共享人"
-          searchPlaceholder="搜索共享人"
-          selectedTitle={(count) => `已选 ${count} 人`}
-          confirmLabel="添加"
+          title={t('manage.addSharedMember')}
+          searchPlaceholder={t('manage.searchMember')}
+          selectedTitle={(count) => t('manage.selectedCount', { count })}
+          confirmLabel={t('manage.add')}
           excludeIds={new Set(members.map((member) => member.user.id))}
           onClose={() => setMemberPickerOpen(false)}
           onConfirm={(selected) => {
@@ -748,6 +773,7 @@ export const CalendarShareDialog = ({
   calendar: UnifiedCalendar
   onClose: () => void
 }) => {
+  const { t } = useTranslation('calendar')
   const [chat, setChat] = useState(false)
   const [error, setError] = useState('')
   const { data, refetch } = useQuery({
@@ -768,19 +794,19 @@ export const CalendarShareDialog = ({
       <ShareToChatDialog
         body={body}
         contentType="calendar-card"
-        previewText={`分享日历：${calendar.display_name}`}
-        errorMessage="分享日历失败"
+        previewText={t('manage.sharePreview', { name: calendar.display_name })}
+        errorMessage={t('manage.shareFailed')}
         onClose={() => setChat(false)}
       />
     )
   return (
     <DialogFrame
-      title="分享日历"
+      title={t('manage.shareTitle')}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" size="action" onPress={onClose}>
-            取消
+            {t('manage.cancel')}
           </Button>
           <Button
             variant="primary"
@@ -790,19 +816,17 @@ export const CalendarShareDialog = ({
               if (data) void navigator.clipboard.writeText(data.url)
             }}
           >
-            复制链接
+            {t('manage.copyLink')}
           </Button>
         </>
       }
     >
       <div className={stackCls}>
-        <p className={bodyTextCls}>
-          分享只邀请对方订阅查看；编辑权限请在“日历设置 → 共享人”中授予。
-        </p>
+        <p className={bodyTextCls}>{t('manage.shareHint')}</p>
         {data && (
           <>
             <label className={fieldCls}>
-              <span className={eventLabelCls}>日历链接</span>
+              <span className={eventLabelCls}>{t('manage.shareLink')}</span>
               <input className={eventInputCls} readOnly value={data.url} />
             </label>
             <div className={buttonRowCls}>
@@ -811,7 +835,7 @@ export const CalendarShareDialog = ({
                 size="action"
                 onPress={() => setChat(true)}
               >
-                分享至会话
+                {t('manage.shareToChat')}
               </Button>
               <Button
                 variant="quaternaryDanger"
@@ -823,32 +847,34 @@ export const CalendarShareDialog = ({
                     .catch((reason) => setError(apiErrorMessage(reason)))
                 }
               >
-                重置链接
+                {t('manage.resetLink')}
               </Button>
             </div>
             <div className={qrCls}>
               <QRCodeSVG id="calendar-share-qr" value={data.url} size={220} />
-              <span className={mutedCls}>
-                Web 可打开；Android App Link 可直接预览并订阅。
-              </span>
+              <span className={mutedCls}>{t('manage.qrNote')}</span>
               <div className={buttonRowCls}>
                 <Button
                   variant="secondary"
                   size="action"
                   onPress={() =>
-                    void copyQrImage().catch((reason) =>
-                      setError(apiErrorMessage(reason))
-                    )
+                    void copyQrImage().catch(() => setError(t('manage.qrFailed')))
                   }
                 >
-                  复制二维码
+                  {t('manage.copyQr')}
                 </Button>
                 <Button
                   variant="secondary"
                   size="action"
-                  onPress={() => downloadQrImage(calendar.display_name)}
+                  onPress={() => {
+                    try {
+                      downloadQrImage(calendar.display_name)
+                    } catch {
+                      setError(t('manage.qrFailed'))
+                    }
+                  }}
                 >
-                  下载二维码
+                  {t('manage.downloadQr')}
                 </Button>
               </div>
             </div>
@@ -867,6 +893,7 @@ export const CalendarExportDialog = ({
   calendar: UnifiedCalendar
   onClose: () => void
 }) => {
+  const { t } = useTranslation('calendar')
   const [range, setRange] = useState<'today' | 'week' | 'month' | 'custom'>(
     'week'
   )
@@ -883,18 +910,18 @@ export const CalendarExportDialog = ({
         ? ({ range, timezone, start, end } as const)
         : ({ range, timezone } as const)
     void createCalendarExport(calendar.id, payload)
-      .then(() => setMessage('导出任务已提交，完成后日历助手会通知你。'))
+      .then(() => setMessage(t('manage.exportSubmitted')))
       .catch((reason) => setMessage(apiErrorMessage(reason)))
       .finally(() => setBusy(false))
   }
   return (
     <DialogFrame
-      title="导出日历"
+      title={t('manage.exportTitle')}
       onClose={onClose}
       footer={
         <>
           <Button variant="secondary" size="action" onPress={onClose}>
-            取消
+            {t('manage.cancel')}
           </Button>
           <Button
             variant="primary"
@@ -902,7 +929,7 @@ export const CalendarExportDialog = ({
             isDisabled={busy || (range === 'custom' && (!start || !end))}
             onPress={submitExport}
           >
-            确定
+            {t('manage.confirm')}
           </Button>
         </>
       }
@@ -918,10 +945,10 @@ export const CalendarExportDialog = ({
               />
               {
                 {
-                  today: '今天',
-                  week: '本周',
-                  month: '本月',
-                  custom: '自定义',
+                  today: t('manage.exportToday'),
+                  week: t('manage.exportWeek'),
+                  month: t('manage.exportMonth'),
+                  custom: t('manage.exportCustom'),
                 }[value]
               }
             </label>
@@ -930,7 +957,7 @@ export const CalendarExportDialog = ({
         {range === 'custom' && (
           <div className={dateRangeCls}>
             <label className={fieldCls}>
-              <span className={eventLabelCls}>开始日期</span>
+              <span className={eventLabelCls}>{t('manage.startDate')}</span>
               <input
                 type="date"
                 className={eventInputCls}
@@ -939,7 +966,7 @@ export const CalendarExportDialog = ({
               />
             </label>
             <label className={fieldCls}>
-              <span className={eventLabelCls}>结束日期</span>
+              <span className={eventLabelCls}>{t('manage.endDate')}</span>
               <input
                 type="date"
                 className={eventInputCls}
@@ -949,10 +976,7 @@ export const CalendarExportDialog = ({
             </label>
           </div>
         )}
-        <p className={mutedCls}>
-          将异步生成 Docs 原生表格和 CSV
-          静态快照；图片、内嵌表格与附件原文件不导出。
-        </p>
+        <p className={mutedCls}>{t('manage.exportHint')}</p>
         {message && <p className={statusMessageCls}>{message}</p>}
       </div>
     </DialogFrame>

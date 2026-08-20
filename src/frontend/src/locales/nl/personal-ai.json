@@ -10,5 +10,6 @@
   "send": "Verzenden",
   "sending": "Wordt verzonden…",
   "thinking": "Doorzoekt uw vergaderingen…",
-  "error": "Aanvraag mislukt: {{message}}"
+  "error": "Aanvraag mislukt: {{message}}",
+  "unnamedRoom": "Naamloos"
 }

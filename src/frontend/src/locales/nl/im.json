@@ -183,9 +183,14 @@
     "call": "[Oproep]",
     "phoneViewed": "Telefoonnummer bekeken",
     "event": "[Afspraak]",
+    "calendar": "Agenda delen",
     "doc": "[Document]",
     "richCard": "[Kaart]",
     "richText": "[Rich text]"
+  },
+  "calendarCard": {
+    "owner": "Eigenaar: {{name}}",
+    "footer": "{{count}} abonnees · Bekijk en abonneer"
   },
   "docCard": {
     "view": "Document bekijken"

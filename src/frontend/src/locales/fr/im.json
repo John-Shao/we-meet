@@ -183,9 +183,14 @@
     "call": "[Appel]",
     "phoneViewed": "Numéro consulté",
     "event": "[Événement]",
+    "calendar": "Partage de calendrier",
     "doc": "[Document]",
     "richCard": "[Carte]",
     "richText": "[Rich text]"
+  },
+  "calendarCard": {
+    "owner": "Propriétaire : {{name}}",
+    "footer": "{{count}} abonnés · Voir et s'abonner"
   },
   "docCard": {
     "view": "Voir le document"

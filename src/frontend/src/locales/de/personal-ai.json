@@ -10,5 +10,6 @@
   "send": "Senden",
   "sending": "Wird gesendet…",
   "thinking": "Durchsuche Ihre Meetings…",
-  "error": "Anfrage fehlgeschlagen: {{message}}"
+  "error": "Anfrage fehlgeschlagen: {{message}}",
+  "unnamedRoom": "Unbenannt"
 }

@@ -136,7 +136,7 @@ const snippetOf = (m: Message, t: (k: string) => string): string => {
   if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
   if (m.content_type === 'event-card') return t('preview.event')
   if (m.content_type === 'meeting-card') return t('preview.meeting')
-  if (m.content_type === 'calendar-card') return '日历分享'
+  if (m.content_type === 'calendar-card') return t('preview.calendar')
   // One branch here fixes three downstream users at once: the quote bar,
   // the 稍后处理 snippet and the merged-forward snapshot.
   if (m.content_type === 'rich-text')

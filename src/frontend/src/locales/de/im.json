@@ -183,9 +183,14 @@
     "call": "[Anruf]",
     "phoneViewed": "Telefonnummer angesehen",
     "event": "[Termin]",
+    "calendar": "Kalenderfreigabe",
     "doc": "[Dokument]",
     "richCard": "[Karte]",
     "richText": "[Rich text]"
+  },
+  "calendarCard": {
+    "owner": "Eigentümer: {{name}}",
+    "footer": "{{count}} Abonnenten · Ansehen und abonnieren"
   },
   "docCard": {
     "view": "Dokument öffnen"
