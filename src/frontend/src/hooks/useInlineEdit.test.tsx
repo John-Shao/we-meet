@@ -82,6 +82,22 @@ describe('useInlineEdit 状态机', () => {
     )
   })
 
+  it('Enter 提交不把焦点还给触发按钮(与失焦一致)', async () => {
+    const onSave = vi.fn(async () => {})
+    render(<Harness value="a" onSave={onSave} />)
+
+    const field = start()
+    fireEvent.change(field, { target: { value: 'b' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('field')).not.toBeInTheDocument()
+    )
+    // 提交后焦点不应跳回 ✎ 按钮,而是留在 body(同失焦)。
+    expect(screen.getByRole('button', { name: '编辑' })).not.toHaveFocus()
+    expect(document.body).toHaveFocus()
+  })
+
   it('失焦自动保存一次', async () => {
     const onSave = vi.fn(async () => {})
     render(<Harness value="a" onSave={onSave} />)

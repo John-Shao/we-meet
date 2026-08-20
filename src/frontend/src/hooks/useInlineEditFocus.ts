@@ -29,12 +29,17 @@ import { useEffect, useRef } from 'react'
  * 两个 ref 都可以只挂其中一个:只需要「进编辑聚焦」时不挂 `triggerRef` 即可,
  * 缺失的那个 ref 是 null,hook 什么也不做。多行字段传
  * `useInlineEditFocus<HTMLTextAreaElement>(editing)`。
+ *
+ * `restoreTriggerOnExit`(默认 true):退出编辑态时是否把焦点还给触发按钮。提交
+ * (Enter/失焦)退出时应传 false —— 用户提交/点走后焦点该留在原地,而不是跳回按钮;
+ * 只有 Esc 取消退出时才需要还给按钮(键盘用户接着 Tab / 再次回车)。
  */
 export const useInlineEditFocus = <
   Field extends HTMLElement = HTMLInputElement,
   Trigger extends HTMLElement = HTMLButtonElement,
 >(
-  active: boolean
+  active: boolean,
+  restoreTriggerOnExit = true
 ) => {
   const fieldRef = useRef<Field>(null)
   const triggerRef = useRef<Trigger>(null)
@@ -45,19 +50,15 @@ export const useInlineEditFocus = <
       // 字段这一侧**允许**滚动:它是用户此刻的目标,必须可见。长表单里字段本来就
       // 在刚点过的那一行,通常不会真的滚。
       fieldRef.current?.focus()
-    } else if (wasActive.current) {
+    } else if (wasActive.current && restoreTriggerOnExit) {
       // 回到触发器这一侧则压掉滚动:人可能在编辑期间滚到了别处,把页面拽回按钮那里
       // 会像"跳了一下"(同 useRestoreFocus 的 preventScroll 取舍)。
-      //
-      // 延迟到下一拍再还焦点:退出编辑态常由 Enter 触发,字段一卸载、焦点立刻落到
-      // ✎ 按钮上,同一记 Enter 的默认行为可能把这个刚聚焦的按钮再「激活」一次 ——
-      // 表现为退出后马上又进入编辑(编辑框闪一下)。setTimeout 让 keydown/keyup 先
-      // 走完,按钮获得焦点时 Enter 已经释放,不会再被误触发。
       const trigger = triggerRef.current
+      // 延迟到下一拍:让触发退出的键盘事件(keydown/keyup)先走完,再落焦点。
       window.setTimeout(() => trigger?.focus({ preventScroll: true }), 0)
     }
     wasActive.current = active
-  }, [active])
+  }, [active, restoreTriggerOnExit])
 
   return { fieldRef, triggerRef }
 }

@@ -64,9 +64,13 @@ export const useInlineEdit = ({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  // 退出编辑态时是否把焦点还给 ✎ 按钮:只有 Esc 取消才还;Enter 提交/失焦都不还
+  // (与失焦一致 —— 用户提交/点走后焦点应留在原地,而不是跳回按钮)。
+  const restoreTriggerOnExit = useRef(false)
+
   const { fieldRef, triggerRef } = useInlineEditFocus<
     HTMLInputElement | HTMLTextAreaElement
-  >(editing)
+  >(editing, restoreTriggerOnExit.current)
 
   // 吞掉「退出编辑态导致字段卸载」的那一次 blur(见文件头注释)。
   const ignoreNextBlur = useRef(false)
@@ -76,6 +80,7 @@ export const useInlineEdit = ({
     setDirty(false)
     setError('')
     ignoreNextBlur.current = false
+    restoreTriggerOnExit.current = false
     setEditing(true)
   }
 
@@ -86,6 +91,8 @@ export const useInlineEdit = ({
 
   const commit = () => {
     if (busy) return
+    // 提交路径(Enter / 失焦)退出后不还焦点。
+    restoreTriggerOnExit.current = false
     if (!dirty || draft === value) {
       // 没改过(或改完又改回原值):只退出编辑,不发请求,也不报错。
       ignoreNextBlur.current = true
@@ -118,6 +125,7 @@ export const useInlineEdit = ({
   }
 
   const cancel = () => {
+    restoreTriggerOnExit.current = true
     ignoreNextBlur.current = true
     setError('')
     setEditing(false)
