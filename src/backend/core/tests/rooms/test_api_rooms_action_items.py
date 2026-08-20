@@ -228,6 +228,7 @@ def test_manager_creates_task_from_confirmed_action_item():
     assert payload["creator"]["id"] == str(owner.id)
     assert payload["assignee"]["id"] == str(assignee.id)
     assert payload["source_action_item_id"] == str(item.id)
+    assert payload["due_date"] == timezone.localdate(due_at).isoformat()
     item.refresh_from_db()
     assert item.task_id == Task.objects.get().id
 

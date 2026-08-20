@@ -1,6 +1,7 @@
 """Task creation workflows."""
 
 from django.db import transaction
+from django.utils import timezone
 
 from core import models
 
@@ -38,7 +39,11 @@ def create_task_from_action_item(*, action_item_id, creator):
         title=action_item.content,
         creator=creator,
         assignee=action_item.assignee,
-        due_at=action_item.due_at,
+        due_date=(
+            timezone.localdate(action_item.due_at)
+            if action_item.due_at is not None
+            else None
+        ),
         source_action_item=action_item,
     )
     action_item.task_id = task.id

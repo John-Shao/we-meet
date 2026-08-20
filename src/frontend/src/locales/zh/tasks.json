@@ -11,7 +11,8 @@
     "titlePlaceholder": "准备下一步要完成的工作",
     "description": "说明（可选）",
     "descriptionPlaceholder": "补充任务背景或验收标准",
-    "dueAt": "截止时间（可选）",
+    "startDate": "开始日期（可选）",
+    "dueDate": "截止日期（可选）",
     "create": "新建任务"
   },
   "scopes": {
@@ -29,7 +30,9 @@
   "meta": {
     "assignee": "负责人",
     "creator": "创建人",
-    "dueAt": "截止时间",
+    "startDate": "开始日期",
+    "dueDate": "截止日期",
+    "createdAt": "创建时间",
     "none": "未设置"
   },
   "actions": {

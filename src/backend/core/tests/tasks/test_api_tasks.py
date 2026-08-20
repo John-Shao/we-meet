@@ -1,9 +1,5 @@
 """API coverage for the minimal standalone task module."""
 
-from datetime import timedelta
-
-from django.utils import timezone
-
 import pytest
 from rest_framework.test import APIClient
 
@@ -23,11 +19,15 @@ def _client(user):
 
 def test_user_creates_personal_task_assigned_to_self():
     user = UserFactory()
-    due_at = (timezone.now() + timedelta(days=1)).isoformat()
 
     response = _client(user).post(
         TASKS_URL,
-        {"title": "  Prepare launch  ", "description": "Checklist", "due_at": due_at},
+        {
+            "title": "  Prepare launch  ",
+            "description": "Checklist",
+            "start_date": "2026-08-20",
+            "due_date": "2026-08-31",
+        },
         format="json",
     )
 
@@ -37,6 +37,8 @@ def test_user_creates_personal_task_assigned_to_self():
     assert payload["creator"]["id"] == str(user.id)
     assert payload["assignee"]["id"] == str(user.id)
     assert payload["status"] == Task.Status.TODO
+    assert payload["start_date"] == "2026-08-20"
+    assert payload["due_date"] == "2026-08-31"
     assert payload["source_room_id"] is None
     assert payload["source_room_name"] is None
     assert payload["can_edit"] is True
@@ -44,6 +46,25 @@ def test_user_creates_personal_task_assigned_to_self():
     task = Task.objects.get()
     assert task.creator == user
     assert task.assignee == user
+    assert task.start_date.isoformat() == "2026-08-20"
+    assert task.due_date.isoformat() == "2026-08-31"
+
+
+def test_task_date_range_must_be_chronological():
+    user = UserFactory()
+
+    response = _client(user).post(
+        TASKS_URL,
+        {
+            "title": "Impossible schedule",
+            "start_date": "2026-08-31",
+            "due_date": "2026-08-20",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "due_date" in response.json()
 
 
 def test_list_scopes_tasks_to_creator_and_assignee():
@@ -105,11 +126,18 @@ def test_creator_edits_content_and_completion_timestamp():
 
     completed = client.patch(
         f"{TASKS_URL}{task.id}/",
-        {"title": "Final draft", "status": Task.Status.COMPLETED},
+        {
+            "title": "Final draft",
+            "start_date": "2026-08-20",
+            "due_date": "2026-08-25",
+            "status": Task.Status.COMPLETED,
+        },
         format="json",
     )
     assert completed.status_code == 200
     assert completed.json()["title"] == "Final draft"
+    assert completed.json()["start_date"] == "2026-08-20"
+    assert completed.json()["due_date"] == "2026-08-25"
     assert completed.json()["completed_at"] is not None
 
     reopened = client.patch(

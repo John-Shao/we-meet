@@ -11,7 +11,8 @@
     "titlePlaceholder": "Wat moet er als volgende gebeuren",
     "description": "Beschrijving (optioneel)",
     "descriptionPlaceholder": "Voeg context of acceptatiecriteria toe",
-    "dueAt": "Deadline (optioneel)",
+    "startDate": "Startdatum (optioneel)",
+    "dueDate": "Deadline (optioneel)",
     "create": "Taak maken"
   },
   "scopes": {
@@ -29,7 +30,9 @@
   "meta": {
     "assignee": "Verantwoordelijke",
     "creator": "Maker",
-    "dueAt": "Deadline",
+    "startDate": "Startdatum",
+    "dueDate": "Deadline",
+    "createdAt": "Aangemaakt op",
     "none": "Niet ingesteld"
   },
   "actions": {

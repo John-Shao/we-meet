@@ -20,7 +20,19 @@ class TaskCreateSerializer(serializers.Serializer):
     description = serializers.CharField(
         required=False, allow_blank=True, max_length=5000, default=""
     )
-    due_at = serializers.DateTimeField(required=False, allow_null=True)
+    start_date = serializers.DateField(required=False, allow_null=True)
+    due_date = serializers.DateField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        if (
+            attrs.get("start_date")
+            and attrs.get("due_date")
+            and attrs["start_date"] > attrs["due_date"]
+        ):
+            raise serializers.ValidationError(
+                {"due_date": "Due date cannot be earlier than start date."}
+            )
+        return attrs
 
 
 class TaskUpdateSerializer(serializers.ModelSerializer):
@@ -46,7 +58,17 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Task
-        fields = ["title", "description", "due_at", "status"]
+        fields = ["title", "description", "start_date", "due_date", "status"]
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        start_date = attrs.get("start_date", self.instance.start_date)
+        due_date = attrs.get("due_date", self.instance.due_date)
+        if start_date and due_date and start_date > due_date:
+            raise serializers.ValidationError(
+                {"due_date": "Due date cannot be earlier than start date."}
+            )
+        return attrs
 
     def validate_status(self, value):
         if self.instance is None or value == self.instance.status:
@@ -139,7 +161,13 @@ class TaskViewSet(
     def partial_update(self, request, *args, **kwargs):
         task = self.get_object()
         requested_fields = set(request.data)
-        allowed_fields = {"title", "description", "due_at", "status"}
+        allowed_fields = {
+            "title",
+            "description",
+            "start_date",
+            "due_date",
+            "status",
+        }
         if not requested_fields or not requested_fields <= allowed_fields:
             raise serializers.ValidationError(
                 {"detail": "Provide only editable task fields."}

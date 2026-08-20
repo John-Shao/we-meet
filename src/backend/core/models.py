@@ -2223,7 +2223,8 @@ class Task(BaseModel):
         default=Status.TODO,
         db_index=True,
     )
-    due_at = models.DateTimeField(_("due at"), null=True, blank=True, db_index=True)
+    start_date = models.DateField(_("start date"), null=True, blank=True, db_index=True)
+    due_date = models.DateField(_("due date"), null=True, blank=True, db_index=True)
     completed_at = models.DateTimeField(_("completed at"), null=True, blank=True)
     source_action_item = models.OneToOneField(
         ActionItem,
@@ -2238,7 +2239,7 @@ class Task(BaseModel):
         db_table = "meet_task"
         verbose_name = _("task")
         verbose_name_plural = _("tasks")
-        ordering = ("status", "due_at", "created_at")
+        ordering = ("status", "due_date", "created_at")
 
     def __str__(self) -> str:
         return self.title[:80]

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { StateHint } from '@/components/StateHint'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
-import { Button } from '@/primitives'
+import { Button, Input, TextArea } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 import type {
@@ -25,17 +25,6 @@ const nextStatusActions: Record<TaskStatus, TaskStatus[]> = {
   canceled: ['todo'],
 }
 
-const inputCss = css({
-  width: '100%',
-  minHeight: '2.25rem',
-  paddingX: '0.625rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '6px',
-  color: 'control.text',
-  backgroundColor: 'greyscale.000',
-})
-
 const labelCss = css({
   display: 'flex',
   flexDirection: 'column',
@@ -43,17 +32,6 @@ const labelCss = css({
   fontSize: '0.8125rem',
   color: 'greyscale.700',
 })
-
-const toIsoOrNull = (value: string) =>
-  value ? new Date(value).toISOString() : null
-
-const toLocalInput = (value: string | null) => {
-  if (!value) return ''
-  const date = new Date(value)
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-    .toISOString()
-    .slice(0, 16)
-}
 
 const displayName = (user: ApiTask['creator'] | null) =>
   user?.full_name || user?.short_name || user?.email || '—'
@@ -71,7 +49,8 @@ const TasksAuthenticated = () => {
   const [scope, setScope] = useState<TaskScope>('assigned')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [dueAt, setDueAt] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [editing, setEditing] = useState<ApiTask | null>(null)
   const { data, isLoading, error } = useTasks(scope)
   const createMutation = useCreateTask()
@@ -85,11 +64,13 @@ const TasksAuthenticated = () => {
       await createMutation.mutateAsync({
         title: cleanTitle,
         description: description.trim(),
-        due_at: toIsoOrNull(dueAt),
+        start_date: startDate || null,
+        due_date: dueDate || null,
       })
       setTitle('')
       setDescription('')
-      setDueAt('')
+      setStartDate('')
+      setDueDate('')
     } catch {
       // The mutation error is rendered below the form.
     }
@@ -104,7 +85,8 @@ const TasksAuthenticated = () => {
     const patch: PatchTaskPayload = {
       title: editing.title.trim(),
       description: editing.description.trim(),
-      due_at: editing.due_at,
+      start_date: editing.start_date,
+      due_date: editing.due_date,
     }
     try {
       await patchMutation.mutateAsync({ taskId: editing.id, patch })
@@ -114,10 +96,17 @@ const TasksAuthenticated = () => {
     }
   }
 
-  const formatDate = (value: string) =>
+  const formatDate = (value: string) => {
+    const [year, month, day] = value.split('-').map(Number)
+    return new Intl.DateTimeFormat(i18n.language, {
+      dateStyle: 'medium',
+    }).format(new Date(year, month - 1, day))
+  }
+
+  const formatDateTime = (value: string) =>
     new Intl.DateTimeFormat(i18n.language, {
       dateStyle: 'medium',
-      timeStyle: 'short',
+      timeStyle: 'medium',
     }).format(new Date(value))
 
   const mutationError = createMutation.error || patchMutation.error
@@ -161,7 +150,10 @@ const TasksAuthenticated = () => {
         onSubmit={(event) => void submitCreate(event)}
         className={css({
           display: 'grid',
-          gridTemplateColumns: { base: '1fr', md: '2fr 1fr auto' },
+          gridTemplateColumns: {
+            base: '1fr',
+            md: '2fr 1fr 1fr auto',
+          },
           gap: '0.75rem',
           padding: '1rem',
           border: '1px solid token(colors.greyscale.200)',
@@ -172,22 +164,30 @@ const TasksAuthenticated = () => {
       >
         <label className={labelCss}>
           {t('form.title')}
-          <input
+          <Input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={t('form.titlePlaceholder')}
             maxLength={500}
             required
-            className={inputCss}
           />
         </label>
         <label className={labelCss}>
-          {t('form.dueAt')}
-          <input
-            type="datetime-local"
-            value={dueAt}
-            onChange={(event) => setDueAt(event.target.value)}
-            className={inputCss}
+          {t('form.startDate')}
+          <Input
+            type="date"
+            value={startDate}
+            max={dueDate || undefined}
+            onChange={(event) => setStartDate(event.target.value)}
+          />
+        </label>
+        <label className={labelCss}>
+          {t('form.dueDate')}
+          <Input
+            type="date"
+            value={dueDate}
+            min={startDate || undefined}
+            onChange={(event) => setDueDate(event.target.value)}
           />
         </label>
         <Button
@@ -199,16 +199,15 @@ const TasksAuthenticated = () => {
           {t('form.create')}
         </Button>
         <label
-          className={`${labelCss} ${css({ md: { gridColumn: '1 / 3' } })}`}
+          className={`${labelCss} ${css({ md: { gridColumn: '1 / 4' } })}`}
         >
           {t('form.description')}
-          <textarea
+          <TextArea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder={t('form.descriptionPlaceholder')}
             maxLength={5000}
             rows={2}
-            className={inputCss}
           />
         </label>
       </form>
@@ -285,19 +284,18 @@ const TasksAuthenticated = () => {
                 >
                   <label className={labelCss}>
                     {t('form.title')}
-                    <input
+                    <Input
                       value={editing.title}
                       onChange={(event) =>
                         setEditing({ ...editing, title: event.target.value })
                       }
-                      className={inputCss}
                       maxLength={500}
                       required
                     />
                   </label>
                   <label className={labelCss}>
                     {t('form.description')}
-                    <textarea
+                    <TextArea
                       value={editing.description}
                       onChange={(event) =>
                         setEditing({
@@ -305,25 +303,46 @@ const TasksAuthenticated = () => {
                           description: event.target.value,
                         })
                       }
-                      className={inputCss}
                       maxLength={5000}
                       rows={3}
                     />
                   </label>
-                  <label className={labelCss}>
-                    {t('form.dueAt')}
-                    <input
-                      type="datetime-local"
-                      value={toLocalInput(editing.due_at)}
-                      onChange={(event) =>
-                        setEditing({
-                          ...editing,
-                          due_at: toIsoOrNull(event.target.value),
-                        })
-                      }
-                      className={inputCss}
-                    />
-                  </label>
+                  <div
+                    className={css({
+                      display: 'grid',
+                      gridTemplateColumns: { base: '1fr', sm: '1fr 1fr' },
+                      gap: '0.75rem',
+                    })}
+                  >
+                    <label className={labelCss}>
+                      {t('form.startDate')}
+                      <Input
+                        type="date"
+                        value={editing.start_date || ''}
+                        max={editing.due_date || undefined}
+                        onChange={(event) =>
+                          setEditing({
+                            ...editing,
+                            start_date: event.target.value || null,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className={labelCss}>
+                      {t('form.dueDate')}
+                      <Input
+                        type="date"
+                        value={editing.due_date || ''}
+                        min={editing.start_date || undefined}
+                        onChange={(event) =>
+                          setEditing({
+                            ...editing,
+                            due_date: event.target.value || null,
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
                   <div className={actionRowCss}>
                     <Button
                       type="submit"
@@ -388,7 +407,8 @@ const TasksAuthenticated = () => {
                       display: 'grid',
                       gridTemplateColumns: {
                         base: '1fr',
-                        sm: 'repeat(3, 1fr)',
+                        sm: 'repeat(2, 1fr)',
+                        lg: 'repeat(5, 1fr)',
                       },
                       gap: '0.5rem 1rem',
                       fontSize: '0.8125rem',
@@ -403,10 +423,24 @@ const TasksAuthenticated = () => {
                       value={displayName(task.creator)}
                     />
                     <TaskMeta
-                      label={t('meta.dueAt')}
+                      label={t('meta.startDate')}
                       value={
-                        task.due_at ? formatDate(task.due_at) : t('meta.none')
+                        task.start_date
+                          ? formatDate(task.start_date)
+                          : t('meta.none')
                       }
+                    />
+                    <TaskMeta
+                      label={t('meta.dueDate')}
+                      value={
+                        task.due_date
+                          ? formatDate(task.due_date)
+                          : t('meta.none')
+                      }
+                    />
+                    <TaskMeta
+                      label={t('meta.createdAt')}
+                      value={formatDateTime(task.created_at)}
                     />
                   </dl>
 
@@ -443,7 +477,7 @@ const TasksAuthenticated = () => {
                       ))}
                     {task.can_edit && (
                       <Button
-                        variant="tertiaryText"
+                        variant="secondary"
                         size="dense"
                         onPress={() => setEditing(task)}
                       >

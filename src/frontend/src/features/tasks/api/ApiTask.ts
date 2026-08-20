@@ -14,7 +14,8 @@ export interface ApiTask {
   creator: ApiTaskUser
   assignee: ApiTaskUser | null
   status: TaskStatus
-  due_at: string | null
+  start_date: string | null
+  due_date: string | null
   completed_at: string | null
   source_action_item_id: string | null
   source_room_id: string | null
@@ -30,12 +31,14 @@ export type TaskScope = 'assigned' | 'created' | 'all'
 export interface CreateTaskPayload {
   title: string
   description?: string
-  due_at?: string | null
+  start_date?: string | null
+  due_date?: string | null
 }
 
 export interface PatchTaskPayload {
   title?: string
   description?: string
-  due_at?: string | null
+  start_date?: string | null
+  due_date?: string | null
   status?: TaskStatus
 }

@@ -11,7 +11,8 @@
     "titlePlaceholder": "What needs to happen next",
     "description": "Description (optional)",
     "descriptionPlaceholder": "Add context or acceptance criteria",
-    "dueAt": "Due date (optional)",
+    "startDate": "Start date (optional)",
+    "dueDate": "Due date (optional)",
     "create": "Create task"
   },
   "scopes": {
@@ -29,7 +30,9 @@
   "meta": {
     "assignee": "Assignee",
     "creator": "Creator",
-    "dueAt": "Due date",
+    "startDate": "Start date",
+    "dueDate": "Due date",
+    "createdAt": "Created at",
     "none": "Not set"
   },
   "actions": {

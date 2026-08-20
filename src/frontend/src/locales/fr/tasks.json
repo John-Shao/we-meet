@@ -11,7 +11,8 @@
     "titlePlaceholder": "Prochaine action à réaliser",
     "description": "Description (facultatif)",
     "descriptionPlaceholder": "Ajoutez du contexte ou des critères",
-    "dueAt": "Échéance (facultatif)",
+    "startDate": "Date de début (facultatif)",
+    "dueDate": "Date d’échéance (facultatif)",
     "create": "Créer la tâche"
   },
   "scopes": {
@@ -29,7 +30,9 @@
   "meta": {
     "assignee": "Responsable",
     "creator": "Créateur",
-    "dueAt": "Échéance",
+    "startDate": "Date de début",
+    "dueDate": "Date d’échéance",
+    "createdAt": "Créée le",
     "none": "Non définie"
   },
   "actions": {

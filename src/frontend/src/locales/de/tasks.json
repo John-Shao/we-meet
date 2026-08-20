@@ -11,7 +11,8 @@
     "titlePlaceholder": "Was als Nächstes erledigt werden muss",
     "description": "Beschreibung (optional)",
     "descriptionPlaceholder": "Kontext oder Abnahmekriterien ergänzen",
-    "dueAt": "Fälligkeit (optional)",
+    "startDate": "Startdatum (optional)",
+    "dueDate": "Fälligkeitsdatum (optional)",
     "create": "Aufgabe erstellen"
   },
   "scopes": {
@@ -29,7 +30,9 @@
   "meta": {
     "assignee": "Verantwortlich",
     "creator": "Erstellt von",
-    "dueAt": "Fälligkeit",
+    "startDate": "Startdatum",
+    "dueDate": "Fälligkeitsdatum",
+    "createdAt": "Erstellt am",
     "none": "Nicht festgelegt"
   },
   "actions": {
