@@ -164,7 +164,21 @@
     "showMore": "还有 {{count}} 项"
   },
   "sidebar": {
-    "upcoming": "即将开始"
+    "upcoming": "即将开始",
+    "addCalendar": "+ 添加日历",
+    "managed": "我管理的",
+    "subscribed": "我订阅的",
+    "empty": "暂无",
+    "toggleCalendar": "显示 {{calendar}}",
+    "calendarColor": "{{calendar}} 颜色",
+    "calendarMenu": "{{calendar}} 菜单",
+    "onlyThisCalendar": "仅显示此日历",
+    "setColor": "设置颜色",
+    "setCalendarColor": "设置 {{calendar}} 颜色",
+    "calendarSettings": "日历设置",
+    "share": "分享",
+    "export": "导出日历",
+    "unsubscribe": "取消订阅"
   },
   "scope": {
     "editTitle": "编辑重复日程",

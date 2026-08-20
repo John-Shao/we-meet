@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfig } from '@/api/useConfig'
@@ -37,6 +38,7 @@ export const CalendarListManager = ({
 }: {
   onChanged: () => void
 }) => {
+  const { t } = useTranslation('calendar')
   const qc = useQueryClient()
   const { data: config } = useConfig()
   const unifiedEnabled = config?.calendar?.enabled === true
@@ -113,21 +115,25 @@ export const CalendarListManager = ({
     <section className={groupCls}>
       <h3 className={groupTitleCls}>{title}</h3>
       {rows.length === 0 ? (
-        <span className={mutedCls}>暂无</span>
+        <span className={mutedCls}>{t('sidebar.empty')}</span>
       ) : (
         rows.map((calendar) => (
           <div key={calendar.id} className={calendarRowCls}>
             <input
               type="checkbox"
               checked={calendar.enabled}
-              aria-label={`显示 ${calendarDisplayName(calendar)}`}
+              aria-label={t('sidebar.toggleCalendar', {
+                calendar: calendarDisplayName(calendar),
+              })}
               onChange={(event) =>
                 void update(calendar, { enabled: event.target.checked })
               }
             />
             <CalendarColorPicker
               value={calendar.color}
-              label={`${calendarDisplayName(calendar)} 颜色`}
+              label={t('sidebar.calendarColor', {
+                calendar: calendarDisplayName(calendar),
+              })}
               compact
               onChange={(color) => void update(calendar, { color })}
             />
@@ -140,7 +146,9 @@ export const CalendarListManager = ({
             >
               <button
                 type="button"
-                aria-label={`${calendarDisplayName(calendar)} 菜单`}
+                aria-label={t('sidebar.calendarMenu', {
+                  calendar: calendarDisplayName(calendar),
+                })}
                 aria-haspopup="menu"
                 aria-expanded={openMenuId === calendar.id}
                 onClick={() =>
@@ -161,7 +169,7 @@ export const CalendarListManager = ({
                       void only(calendar)
                     }}
                   >
-                    仅显示此日历
+                    {t('sidebar.onlyThisCalendar')}
                   </button>
                   {!calendar.capabilities.can_manage && (
                     <button
@@ -172,7 +180,7 @@ export const CalendarListManager = ({
                         setColoring(calendar)
                       }}
                     >
-                      设置颜色
+                      {t('sidebar.setColor')}
                     </button>
                   )}
                   {calendar.capabilities.can_manage &&
@@ -185,7 +193,7 @@ export const CalendarListManager = ({
                           setSettings(calendar)
                         }}
                       >
-                        日历设置
+                        {t('sidebar.calendarSettings')}
                       </button>
                     )}
                   {sharingEnabled && calendar.capabilities.can_share && (
@@ -197,7 +205,7 @@ export const CalendarListManager = ({
                         setShare(calendar)
                       }}
                     >
-                      分享
+                      {t('sidebar.share')}
                     </button>
                   )}
                   {exportEnabled && calendar.capabilities.can_export && (
@@ -209,7 +217,7 @@ export const CalendarListManager = ({
                         setExporting(calendar)
                       }}
                     >
-                      导出日历
+                      {t('sidebar.export')}
                     </button>
                   )}
                   {!calendar.capabilities.can_manage && (
@@ -223,7 +231,7 @@ export const CalendarListManager = ({
                           .catch((reason) => setError(apiErrorMessage(reason)))
                       }}
                     >
-                      取消订阅
+                      {t('sidebar.unsubscribe')}
                     </button>
                   )}
                 </div>
@@ -238,10 +246,10 @@ export const CalendarListManager = ({
   return (
     <>
       <button type="button" className={addCls} onClick={() => setAddOpen(true)}>
-        ＋ 添加日历
+        {t('sidebar.addCalendar')}
       </button>
-      {renderGroup('我管理的', managed)}
-      {renderGroup('我订阅的', subscribed)}
+      {renderGroup(t('sidebar.managed'), managed)}
+      {renderGroup(t('sidebar.subscribed'), subscribed)}
       {error && <p className={errorCls}>{error}</p>}
       {addOpen && (
         <AddCalendarDialog
@@ -268,12 +276,17 @@ export const CalendarListManager = ({
       {coloring && (
         <Modal
           onClose={() => setColoring(null)}
-          ariaLabel={`设置 ${calendarDisplayName(coloring)} 颜色`}
+          ariaLabel={t('sidebar.setCalendarColor', {
+            calendar: calendarDisplayName(coloring),
+          })}
           maxWidth="22rem"
         >
           <header className={colorDialogHeaderCls}>
-            <h2 className={colorDialogTitleCls}>设置颜色</h2>
-            <ModalCloseButton onClose={() => setColoring(null)} label="关闭" />
+            <h2 className={colorDialogTitleCls}>{t('sidebar.setColor')}</h2>
+            <ModalCloseButton
+              onClose={() => setColoring(null)}
+              label={t('detail.close')}
+            />
           </header>
           <div className={colorDialogBodyCls}>
             <span className={nameCls}>{calendarDisplayName(coloring)}</span>

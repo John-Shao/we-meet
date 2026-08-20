@@ -164,7 +164,21 @@
     "showMore": "+{{count}} more"
   },
   "sidebar": {
-    "upcoming": "Upcoming"
+    "upcoming": "Upcoming",
+    "addCalendar": "+ Add calendar",
+    "managed": "Managed by me",
+    "subscribed": "Subscribed by me",
+    "empty": "None",
+    "toggleCalendar": "Show {{calendar}}",
+    "calendarColor": "{{calendar}} color",
+    "calendarMenu": "{{calendar}} menu",
+    "onlyThisCalendar": "Show only this calendar",
+    "setColor": "Set color",
+    "setCalendarColor": "Set {{calendar}} color",
+    "calendarSettings": "Calendar settings",
+    "share": "Share",
+    "export": "Export calendar",
+    "unsubscribe": "Unsubscribe"
   },
   "scope": {
     "editTitle": "Edit repeating event",
