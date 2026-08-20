@@ -4,6 +4,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { CALENDAR_COLOR_PALETTE } from '../utils/calendarColors'
 import { CalendarColorPicker } from './CalendarColorPicker'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { color?: string }) => {
+      if (key === 'color.pickerTitle') return '日历颜色'
+      if (key === 'color.select') return `选择 ${options?.color}`
+      return key
+    },
+  }),
+}))
+
 describe('CalendarColorPicker', () => {
   it('offers the same 12 payload colors as the App and marks the selection', async () => {
     const onChange = vi.fn()

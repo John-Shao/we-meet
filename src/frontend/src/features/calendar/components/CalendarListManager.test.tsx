@@ -28,6 +28,37 @@ vi.mock('../api/calendars', async (importOriginal) => ({
   ...calendarApi,
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const zh: Record<string, string> = {
+        'sidebar.empty': '暂无',
+        'sidebar.addCalendar': '+ 添加日历',
+        'sidebar.managed': '我管理的',
+        'sidebar.subscribed': '我订阅的',
+        'sidebar.toggleCalendar': '显示 {{calendar}}',
+        'sidebar.calendarColor': '{{calendar}} 颜色',
+        'sidebar.calendarMenu': '{{calendar}} 菜单',
+        'sidebar.onlyThisCalendar': '仅显示此日历',
+        'sidebar.setColor': '设置颜色',
+        'sidebar.setCalendarColor': '设置 {{calendar}} 颜色',
+        'sidebar.calendarSettings': '日历设置',
+        'sidebar.share': '分享',
+        'sidebar.export': '导出日历',
+        'sidebar.unsubscribe': '取消订阅',
+        'detail.close': '关闭',
+        'color.pickerTitle': '日历颜色',
+        'color.select': '选择 {{color}}',
+      }
+      let text = zh[key] ?? key
+      for (const [optionKey, optionValue] of Object.entries(options ?? {})) {
+        text = text.replace(`{{${optionKey}}}`, String(optionValue))
+      }
+      return text
+    },
+  }),
+}))
+
 const managedCalendar: UnifiedCalendar = {
   id: 'calendar-1',
   kind: 'primary',
