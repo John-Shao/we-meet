@@ -296,7 +296,7 @@
           },
           "invalid_file_type": {
             "title": "Type de fichier non valide",
-            "description": "Le type de fichier n'est pas pris en charge. Veuillez choisir un fichier {{allowedExtension}}."
+            "description": "Le type de fichier n'est pas pris en charge. Veuillez choisir un fichier {{allowedExtension, list(type: 'disjunction')}}."
           }
         }
       },
@@ -527,11 +527,11 @@
       "description": "Ces paramètres limitent les actions possibles des contributeurs pendant la réunion.",
       "microphone": {
         "label": "Allumer le micro",
-        "description": ""
+        "description": "En désactivant cette option, les participants ne pourront plus allumer leur micro."
       },
       "camera": {
         "label": "Activer la vidéo",
-        "description": ""
+        "description": "En désactivant cette option, les participants ne pourront plus activer leur caméra."
       },
       "screenshare": {
         "label": "Partager leur écran",

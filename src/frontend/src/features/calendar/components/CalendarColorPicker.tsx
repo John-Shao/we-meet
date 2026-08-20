@@ -1,5 +1,6 @@
 import { RiCheckLine } from '@remixicon/react'
 import { Button as AriaButton } from 'react-aria-components'
+import { useTranslation } from 'react-i18next'
 
 import { Popover } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -16,8 +17,10 @@ export const CalendarColorPicker = ({
   label: string
   compact?: boolean
   onChange: (value: string) => void
-}) => (
-  <Popover aria-label="日历颜色" withArrow={false}>
+}) => {
+  const { t } = useTranslation('calendar')
+  return (
+  <Popover aria-label={t('color.pickerTitle')} withArrow={false}>
     <AriaButton
       className={compact ? compactTriggerCls : triggerCls}
       style={{ backgroundColor: value }}
@@ -34,7 +37,8 @@ export const CalendarColorPicker = ({
       />
     )}
   </Popover>
-)
+  )
+}
 
 export const CalendarColorPalette = ({
   value,
@@ -42,10 +46,12 @@ export const CalendarColorPalette = ({
 }: {
   value: string
   onChange: (value: string) => void
-}) => (
+}) => {
+  const { t } = useTranslation('calendar')
+  return (
   <div className={pickerCls}>
-    <strong className={titleCls}>日历颜色</strong>
-    <div className={paletteCls} role="radiogroup" aria-label="日历颜色">
+    <strong className={titleCls}>{t('color.pickerTitle')}</strong>
+    <div className={paletteCls} role="radiogroup" aria-label={t('color.pickerTitle')}>
       {CALENDAR_COLOR_PALETTE.map((color) => {
         const selected = color.toLowerCase() === value.toLowerCase()
         return (
@@ -54,7 +60,7 @@ export const CalendarColorPalette = ({
             type="button"
             role="radio"
             aria-checked={selected}
-            aria-label={`选择 ${color}`}
+            aria-label={t('color.select', { color })}
             title={color}
             className={swatchCls}
             style={{ backgroundColor: color }}
@@ -66,7 +72,8 @@ export const CalendarColorPalette = ({
       })}
     </div>
   </div>
-)
+  )
+}
 
 const triggerBase = {
   flexShrink: 0,

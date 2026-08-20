@@ -62,9 +62,14 @@
     "recentTitle": "Réunions passées",
     "recentEmpty": "Aucune réunion passée",
     "scheduledEmpty": "Aucune réunion à venir",
+    "scheduledTitle": "Réunions planifiées",
     "untitled": "(Réunion sans titre)",
     "showAll": "Tout afficher ({{count}})",
     "collapse": "Réduire",
+    "rowMore": "Plus",
+    "enterMeeting": "Rejoindre la réunion",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer « {{name}} » ? Si vous êtes l'organisateur, cet enregistrement sera supprimé pour tout le monde.",
     "today": "Aujourd'hui"
   },
   "chapters": {
@@ -76,5 +81,9 @@
     "copied": "Copié",
     "viewSummary": "Voir le compte rendu",
     "close": "Fermer"
+  },
+  "share": {
+    "action": "Partager la réunion",
+    "sendFailed": "Impossible de partager la réunion. Veuillez réessayer."
   }
 }

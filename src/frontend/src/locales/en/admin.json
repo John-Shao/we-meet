@@ -416,7 +416,51 @@
       "meeting_room_create": "Room created",
       "meeting_room_update": "Room updated",
       "meeting_room_delete": "Room deleted",
-      "summary_edit": "Summary edited"
+      "summary_edit": "Summary edited",
+      "member_offboard": "Member offboarded",
+      "member_rehire": "Member rehired",
+      "member_purge": "Member record permanently deleted",
+      "member_bulk_update": "Members updated in bulk",
+      "dict_item_create": "Dictionary item created",
+      "dict_item_update": "Dictionary item updated",
+      "dict_item_delete": "Dictionary item deleted",
+      "group_create": "User group created",
+      "group_update": "User group updated",
+      "group_delete": "User group deleted",
+      "group_member_add": "Group member added",
+      "group_member_remove": "Group member removed",
+      "role_create": "Admin role created",
+      "role_update": "Admin role updated",
+      "role_delete": "Admin role deleted",
+      "role_assign": "Admin role assigned",
+      "role_unassign": "Admin role revoked",
+      "member_import": "Members imported",
+      "member_export": "Members exported",
+      "invite_link_create": "Invite link created",
+      "invite_link_revoke": "Invite link revoked",
+      "join_request_approve": "Join request approved",
+      "join_request_reject": "Join request rejected",
+      "meeting_room_facility_create": "Room facility created",
+      "meeting_room_facility_update": "Room facility updated",
+      "meeting_room_facility_delete": "Room facility deleted",
+      "bot_create": "Group bot added",
+      "bot_update": "Group bot updated",
+      "bot_delete": "Group bot removed",
+      "bot_secret_reset": "Group bot secret reset",
+      "bot_webhook_view": "Group bot credentials viewed",
+      "bot_disable": "Group bot disabled",
+      "bot_enable": "Group bot enabled"
+    },
+    "group": {
+      "department": "Department",
+      "member": "Member",
+      "group": "User group",
+      "role": "Admin role",
+      "invitation": "Invitations and applications",
+      "meeting_room": "Meeting room",
+      "meeting": "Meeting",
+      "bot": "Group bot",
+      "other": "Other"
     }
   },
   "meetingRooms": {
@@ -504,5 +548,14 @@
     "addFacility": "Add",
     "retired": "Retired",
     "deleteFacilityConfirm": "Delete facility \"{{name}}\"? It is retired instead while rooms still use it."
+  },
+  "emojis": {
+    "description": "PNG, JPG, WebP or GIF, up to 2 MB / 512×512; past messages stay visible after disabling.",
+    "namePlaceholder": "Emoji name",
+    "uploading": "Uploading…",
+    "chooseImage": "Choose image",
+    "loading": "Loading…",
+    "disable": "Disable",
+    "enable": "Enable"
   }
 }

@@ -1,1 +1,19 @@
-{}
+{
+  "joinDepartment": "{{organization}} lädt dich ein, {{department}} beizutreten",
+  "joinOrganization": "{{organization}} lädt dich ein",
+  "signInHint": "Melde dich an, um den Beitritt zu beantragen. Kein Konto nötig — ein Code per SMS genügt.",
+  "signInAndJoin": "Anmelden und beitreten",
+  "needsApproval": "Dein Antrag wird von einem Administrator geprüft; du kannst den Fortschritt hier verfolgen.",
+  "noApproval": "Du trittst sofort bei — keine Prüfung nötig.",
+  "apply": "Beitritt beantragen",
+  "pendingBody": "Eingereicht. Warte auf die Prüfung durch einen Administrator.",
+  "withdraw": "Antrag zurückziehen",
+  "rejectedBody": "Dein Beitrittsantrag wurde abgelehnt.",
+  "rejectionReason": "Ablehnungsgrund",
+  "reapply": "Erneut beantragen",
+  "approvedBody": "Genehmigt — du bist jetzt Mitglied dieser Organisation.",
+  "openWorkspace": "Arbeitsbereich öffnen",
+  "applyFailed": "Einreichen nicht möglich. Bitte versuche es erneut.",
+  "invalidTitle": "Dieser Link ist ungültig oder abgelaufen",
+  "invalidBody": "Bitte die Person, die dich eingeladen hat, um einen neuen Link."
+}

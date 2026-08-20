@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import {
   disableAdminEmoji,
@@ -11,6 +12,7 @@ import {
 export const AdminEmojis = () => {
   const qc = useQueryClient()
   const [name, setName] = useState('')
+  const { t } = useTranslation('admin')
   const { data: emojis = [], isLoading } = useQuery({
     queryKey: ['admin', 'im-emojis'],
     queryFn: listAdminEmojis,
@@ -41,10 +43,10 @@ export const AdminEmojis = () => {
   return (
     <main className={css({ flex: 1, overflow: 'auto', padding: '2rem' })}>
       <h1 className={css({ fontSize: '1.5rem', fontWeight: 'bold' })}>
-        企业表情
+        {t('shell.nav.emojis')}
       </h1>
       <p className={css({ color: 'greyscale.600' })}>
-        PNG、JPG、WebP 或 GIF，最大 2 MB / 512×512；停用后历史消息仍可见。
+        {t('emojis.description')}
       </p>
       <div
         className={css({ display: 'flex', gap: '0.75rem', marginY: '1.5rem' })}
@@ -53,11 +55,11 @@ export const AdminEmojis = () => {
           value={name}
           maxLength={32}
           onChange={(e) => setName(e.target.value)}
-          placeholder="表情名称"
+          placeholder={t('emojis.namePlaceholder')}
           className={inputCls}
         />
         <label className={buttonCls}>
-          {upload.isPending ? '上传中…' : '选择图片'}
+          {upload.isPending ? t('emojis.uploading') : t('emojis.chooseImage')}
           <input
             hidden
             type="file"
@@ -76,7 +78,7 @@ export const AdminEmojis = () => {
         <p className={css({ color: 'red.600' })}>{upload.error.message}</p>
       )}
       {isLoading ? (
-        <p>加载中…</p>
+        <p>{t('emojis.loading')}</p>
       ) : (
         <div
           className={css({
@@ -145,7 +147,7 @@ export const AdminEmojis = () => {
                   )
                 }
               >
-                {emoji.active ? '停用' : '启用'}
+                {emoji.active ? t('emojis.disable') : t('emojis.enable')}
               </button>
             </article>
           ))}

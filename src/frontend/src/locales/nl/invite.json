@@ -1,1 +1,19 @@
-{}
+{
+  "joinDepartment": "{{organization}} nodigt u uit om lid te worden van {{department}}",
+  "joinOrganization": "{{organization}} nodigt u uit om lid te worden",
+  "signInHint": "Meld u aan om het lidmaatschap aan te vragen. Geen account nodig — een sms-code volstaat.",
+  "signInAndJoin": "Aanmelden en lid worden",
+  "needsApproval": "Een beheerder beoordeelt uw aanvraag; u kunt de voortgang hier volgen.",
+  "noApproval": "U wordt onmiddellijk lid — geen beoordeling nodig.",
+  "apply": "Lidmaatschap aanvragen",
+  "pendingBody": "Ingediend. Wachten op beoordeling door een beheerder.",
+  "withdraw": "Aanvraag intrekken",
+  "rejectedBody": "Uw aanvraag om lid te worden is afgewezen.",
+  "rejectionReason": "Reden van afwijzing",
+  "reapply": "Opnieuw aanvragen",
+  "approvedBody": "Goedgekeurd — u bent nu lid van deze organisatie.",
+  "openWorkspace": "Werkruimte openen",
+  "applyFailed": "Indienen niet mogelijk. Probeer het opnieuw.",
+  "invalidTitle": "Deze link is ongeldig of verlopen",
+  "invalidBody": "Vraag degene die u heeft uitgenodigd om een nieuwe link."
+}

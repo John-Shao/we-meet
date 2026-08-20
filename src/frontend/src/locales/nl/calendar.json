@@ -60,7 +60,8 @@
     "videoMeetingOn": "Er wordt een videovergadering bij deze afspraak aangemaakt",
     "videoMeetingOff": "Geen videovergadering — alleen een agenda-item",
     "bulkAdd": "Deelnemers toevoegen",
-    "bulkAddTitle": "Deelnemers toevoegen"
+    "bulkAddTitle": "Deelnemers toevoegen",
+    "loadMore": "Meer laden"
   },
   "visibility": {
     "label": "Zichtbaarheid van afspraak",
@@ -201,5 +202,9 @@
     "minutes": "{{count}} min",
     "defaultReminder": "Standaardherinnering",
     "close": "Klaar"
+  },
+  "color": {
+    "pickerTitle": "Agendakleur",
+    "select": "{{color}} selecteren"
   }
 }

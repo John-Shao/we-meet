@@ -527,11 +527,11 @@
       "description": "Deze instellingen beperken de acties die deelnemers tijdens de vergadering kunnen uitvoeren.",
       "microphone": {
         "label": "Microfoon inschakelen",
-        "description": ""
+        "description": "Wanneer uitgeschakeld, kunnen deelnemers hun microfoon niet meer inschakelen."
       },
       "camera": {
         "label": "Video inschakelen",
-        "description": ""
+        "description": "Wanneer uitgeschakeld, kunnen deelnemers hun camera niet meer inschakelen."
       },
       "screenshare": {
         "label": "Hun scherm delen",

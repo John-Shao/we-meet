@@ -8,7 +8,9 @@
     "searchPlaceholder": "Rechercher par nom ou e-mail…",
     "empty": "Aucun contact trouvé",
     "loading": "Chargement…",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "loadMore": "Charger plus",
+    "remove": "Retirer"
   },
   "page": {
     "authRequired": "Veuillez vous connecter pour consulter l'annuaire.",
@@ -28,7 +30,8 @@
     "deleteDept": "Supprimer le service",
     "deleteDeptConfirm": "Supprimer le service « {{name}} » ? Ses membres passeront en « aucun service ».",
     "deleteDeptError": "Échec de la suppression du service : {{message}}",
-    "selfTag": "(vous)"
+    "selfTag": "(vous)",
+    "loadMore": "Charger plus"
   },
   "detail": {
     "email": "E-mail",
@@ -36,6 +39,15 @@
     "title": "Poste",
     "close": "Fermer",
     "none": "—"
+  },
+  "groups": {
+    "title": "Mes groupes",
+    "unnamed": "Groupe sans nom",
+    "memberCount": "{{count}} membre",
+    "memberCount_other": "{{count}} membres",
+    "searchPlaceholder": "Rechercher des groupes",
+    "empty": "Vous n'avez encore rejoint aucun groupe",
+    "noMatch": "Aucun groupe correspondant"
   },
   "external": {
     "title": "External contacts",
@@ -75,5 +87,12 @@
   "specialAlert": {
     "toggle": "Alertes spéciales pour ses messages",
     "toggleHint": "Ses messages vous notifient même pendant les heures calmes."
+  },
+  "department": {
+    "memberCount": "Membres",
+    "people": "{{count}} personnes",
+    "head": "Responsable",
+    "noHead": "Non défini",
+    "code": "ID du service"
   }
 }

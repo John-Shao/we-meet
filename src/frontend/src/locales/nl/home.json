@@ -13,6 +13,13 @@
     "title": "Inloggen",
     "subtitle": "Log in voor de volledige vergaderervaring"
   },
+  "scheduleMeeting": "Vergadering plannen",
+  "loginPanels": {
+    "qrTitle": "Inloggen met QR-code",
+    "phoneTitle": "Inloggen met code"
+  },
+  "defaultRoomName": "Vergadering van {{user}}",
+  "defaultRoomNameAnonymous": "Nieuwe vergadering",
   "joinMeetingTipContent": "U kunt deelnemen aan een vergadering door de volledige link in de adresbalk van de browser te plakken.",
   "joinMeetingTipHeading": "Wist u dat?",
   "loginToCreateMeeting": "Log in om een vergadering te maken",

@@ -13,6 +13,13 @@
     "title": "Se connecter",
     "subtitle": "Connectez-vous pour profiter pleinement de la réunion"
   },
+  "scheduleMeeting": "Planifier une réunion",
+  "loginPanels": {
+    "qrTitle": "Se connecter par QR code",
+    "phoneTitle": "Se connecter par code"
+  },
+  "defaultRoomName": "Réunion de {{user}}",
+  "defaultRoomNameAnonymous": "Nouvelle réunion",
   "joinMeetingTipContent": "Vous pouvez rejoindre une réunion en copiant directement son lien complet dans la barre d'adresse du navigateur.",
   "joinMeetingTipHeading": "Astuce",
   "loginToCreateMeeting": "Connectez-vous pour créer une réunion",

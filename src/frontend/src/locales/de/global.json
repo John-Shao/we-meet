@@ -24,6 +24,33 @@
     "proconnectLinkLabel": "Was ist ProConnect? – neuer Tab",
     "proconnectLink": "Was ist ProConnect?"
   },
+  "qrLogin": {
+    "hint": "Scanne den Code mit der we-meet-App, um dich anzumelden",
+    "scanned": "Code erfolgreich gescannt",
+    "awaitingConfirm": "Bestätige die Anmeldung in der App",
+    "expired": "Der QR-Code ist abgelaufen",
+    "cancelled": "Anmeldung abgebrochen",
+    "refresh": "QR-Code aktualisieren",
+    "error": {
+      "initFailed": "QR-Code konnte nicht erzeugt werden, bitte später erneut versuchen."
+    }
+  },
+  "phoneLogin": {
+    "title": "Anmeldung mit Mobilnummer",
+    "phoneLabel": "Mobilnummer",
+    "phoneHint": "Gib eine 11-stellige Mobilnummer aus Festlandchina ein",
+    "sendCode": "Code senden",
+    "otpLabel": "SMS-Bestätigungscode",
+    "otpSentTo": "Code gesendet an",
+    "changePhone": "Nummer ändern",
+    "verify": "Anmelden",
+    "resend": "Erneut senden",
+    "resendIn": "Erneut senden in {{seconds}} s",
+    "cancel": "Abbrechen",
+    "error": {
+      "generic": "Ein Fehler ist aufgetreten, bitte erneut versuchen."
+    }
+  },
   "logout": "Abmelden",
   "notFound": {
     "heading": "Überprüfe deinen Meeting-Code",
@@ -62,5 +89,6 @@
     "url": "Um an der Videokonferenz teilzunehmen, folge diesem Link: {{roomUrl}}",
     "numberAndPin": "Um per Telefon teilzunehmen, wähle {{phoneNumber}} und gib diesen Code ein: {{pinCode}}",
     "scheduledAt": "Geplant für: {{scheduledAt}}"
-  }
+  },
+  "adminConsole": "Verwaltungskonsole"
 }

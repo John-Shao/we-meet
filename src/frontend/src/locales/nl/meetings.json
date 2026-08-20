@@ -62,9 +62,14 @@
     "recentTitle": "Eerdere vergaderingen",
     "recentEmpty": "Geen eerdere vergaderingen",
     "scheduledEmpty": "Geen aankomende vergaderingen",
+    "scheduledTitle": "Geplande vergaderingen",
     "untitled": "(Vergadering zonder titel)",
     "showAll": "Alles tonen ({{count}})",
     "collapse": "Inklappen",
+    "rowMore": "Meer",
+    "enterMeeting": "Deelnemen aan de vergadering",
+    "delete": "Verwijderen",
+    "deleteConfirm": "'{{name}}' verwijderen? Als organisator verwijdert u dit item voor iedereen.",
     "today": "Vandaag"
   },
   "chapters": {
@@ -76,5 +81,9 @@
     "copied": "Gekopieerd",
     "viewSummary": "Notulen bekijken",
     "close": "Sluiten"
+  },
+  "share": {
+    "action": "Vergadering delen",
+    "sendFailed": "Vergadering delen is niet mogelijk. Probeer het opnieuw."
   }
 }

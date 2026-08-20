@@ -8,7 +8,9 @@
     "searchPlaceholder": "Zoeken op naam of e-mail…",
     "empty": "Geen contacten gevonden",
     "loading": "Laden…",
-    "cancel": "Annuleren"
+    "cancel": "Annuleren",
+    "loadMore": "Meer laden",
+    "remove": "Verwijderen"
   },
   "page": {
     "authRequired": "Log in om de contactenlijst te bekijken.",
@@ -28,7 +30,8 @@
     "deleteDept": "Afdeling verwijderen",
     "deleteDeptConfirm": "Afdeling '{{name}}' verwijderen? De leden worden 'geen afdeling'.",
     "deleteDeptError": "Verwijderen van afdeling mislukt: {{message}}",
-    "selfTag": "(jij)"
+    "selfTag": "(jij)",
+    "loadMore": "Meer laden"
   },
   "detail": {
     "email": "E-mail",
@@ -36,6 +39,15 @@
     "title": "Functie",
     "close": "Sluiten",
     "none": "—"
+  },
+  "groups": {
+    "title": "Mijn groepen",
+    "unnamed": "Naamloze groep",
+    "memberCount": "{{count}} lid",
+    "memberCount_other": "{{count}} leden",
+    "searchPlaceholder": "Zoek op groepsnaam",
+    "empty": "U bent nog geen groep lid geworden",
+    "noMatch": "Geen overeenkomende groepen"
   },
   "external": {
     "title": "External contacts",
@@ -75,5 +87,12 @@
   "specialAlert": {
     "toggle": "Speciale melding voor zijn berichten",
     "toggleHint": "Zijn berichten melden ook tijdens stille uren."
+  },
+  "department": {
+    "memberCount": "Leden",
+    "people": "{{count}} personen",
+    "head": "Hoofd",
+    "noHead": "Niet ingesteld",
+    "code": "Afdeling-ID"
   }
 }

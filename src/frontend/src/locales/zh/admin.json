@@ -548,5 +548,14 @@
     "addFacility": "添加",
     "retired": "已停用",
     "deleteFacilityConfirm": "确定删除设施「{{name}}」吗?仍被会议室引用时将改为停用。"
+  },
+  "emojis": {
+    "description": "PNG、JPG、WebP 或 GIF，最大 2 MB / 512×512；停用后历史消息仍可见。",
+    "namePlaceholder": "表情名称",
+    "uploading": "上传中…",
+    "chooseImage": "选择图片",
+    "loading": "加载中…",
+    "disable": "停用",
+    "enable": "启用"
   }
 }

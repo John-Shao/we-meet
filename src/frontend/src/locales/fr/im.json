@@ -103,7 +103,8 @@
     "loading": "Chargement…",
     "empty": "Aucun membre à ajouter",
     "error": "Échec de la création du groupe : {{message}}",
-    "you": "Moi"
+    "you": "Moi",
+    "loadMore": "Charger plus"
   },
   "header": {
     "memberCount": "{{count}} membres"
@@ -114,6 +115,8 @@
   },
   "manage": {
     "addMembers": "Ajouter des membres",
+    "searchMembers": "Rechercher des membres",
+    "noMemberMatch": "Aucun membre correspondant",
     "addTitle": "Ajouter des membres au groupe",
     "settings": "Paramètres",
     "membersTitle": "Membres",
@@ -153,17 +156,23 @@
     "pickPrompt": "Choisissez une conversation à gauche pour commencer",
     "jumpToLatest": "Aller au plus récent"
   },
+  "draft": {
+    "label": "Brouillon"
+  },
   "input": {
     "placeholder": "Écrivez un message…",
     "send": "Envoyer",
     "sending": "Envoi en cours…",
     "image": "Image",
     "file": "Fichier local",
+    "emoji": "Envoyer un emoji",
     "voice": "Vocal",
     "doc": "Document cloud",
-    "schedule": "Agenda"
+    "schedule": "Agenda",
+    "dropHint": "Déposez pour envoyer des images ou des fichiers"
   },
   "preview": {
+    "emoji": "[Emoji]",
     "meeting": "[Réunion]",
     "image": "[Image]",
     "file": "[Fichier]",
@@ -180,6 +189,11 @@
   },
   "docCard": {
     "view": "Voir le document"
+  },
+  "meetingCard": {
+    "ongoing": "En cours",
+    "scheduled": "Réunion planifiée",
+    "join": "Rejoindre la réunion"
   },
   "docPicker": {
     "title": "Envoyer un document",
@@ -257,7 +271,8 @@
     "send": "Envoyer",
     "cancel": "Annuler",
     "micDenied": "Impossible d'accéder au microphone, vérifiez les autorisations",
-    "unsupported": "L'enregistrement n'est pas pris en charge par ce navigateur"
+    "unsupported": "L'enregistrement n'est pas pris en charge par ce navigateur",
+    "play": "Lire"
   },
   "image": {
     "alt": "Image",
@@ -382,6 +397,11 @@
   "specialAlert": {
     "marker": "Alertes spéciales activées"
   },
+  "departed": {
+    "suffix": " (a quitté l'organisation)",
+    "chip": "A quitté",
+    "hint": "Cette personne a quitté l'organisation"
+  },
   "bots": {
     "entry": "Group bots",
     "title": "Group bots",
@@ -401,11 +421,11 @@
     "builtinHint": "Built-in assistants ship with the product and cannot be removed; turning one off stops its notifications in this group.",
     "error": "Failed: {{message}}",
     "helpTitle": "Using group bots",
-    "helpIntro": "POST JSON to a bot's webhook URL and the message appears in this group under that bot's name. The request format matches 飞书 custom bots, so an existing script only needs a new URL.",
+    "helpIntro": "POST JSON to a bot's webhook URL and the message appears in this group under that bot's name. The request format matches Feishu custom bots, so an existing script only needs a new URL.",
     "helpText": "Plain text",
     "helpPost": "Rich text",
     "helpSign": "Signature verification (optional)",
-    "helpSignBody": "When enabled every request must carry timestamp and sign. The secret is the HMAC key and the signed data is empty — identical to 飞书.",
+    "helpSignBody": "When enabled every request must carry timestamp and sign. The secret is the HMAC key and the signed data is empty — identical to Feishu.",
     "helpLimits": "Limits",
     "helpLimitsBody": "100 requests/minute and 5/second per bot; request bodies up to 20 KB. Send X-Request-Id on retries so the same id only posts once.",
     "catalog": {
@@ -475,5 +495,11 @@
       "ipAllowlistHint": "One IP or CIDR per line. Leave empty for no restriction.",
       "save": "Save"
     }
+  },
+  "emoji": {
+    "recent": "Récent",
+    "system": "Emojis système",
+    "org": "Emojis de l’organisation",
+    "more": "Plus d’emojis"
   }
 }

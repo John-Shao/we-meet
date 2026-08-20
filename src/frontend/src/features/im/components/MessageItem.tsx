@@ -115,6 +115,7 @@ const VoiceBubble = ({
   durationMs?: number
   isOwn: boolean
 }) => {
+  const { t } = useTranslation('im')
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
   const seconds = Math.max(1, Math.round((durationMs || 0) / 1000))
@@ -140,7 +141,7 @@ const VoiceBubble = ({
       <button
         type="button"
         onClick={toggle}
-        aria-label="play"
+        aria-label={t('voice.play')}
         disabled={!url}
         className={css({
           flexShrink: 0,

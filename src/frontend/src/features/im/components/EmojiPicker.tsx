@@ -1,5 +1,6 @@
 import { css } from '@/styled-system/css'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { CustomEmoji, RecentEmoji } from '../api/inputSync'
 
 // Curated emoji set for chat reactions — grouped, no external dependency.
@@ -126,7 +127,9 @@ export const EmojiPicker = ({
   onPickCustom,
   recent = [],
   custom = [],
-}: Props) => (
+}: Props) => {
+  const { t } = useTranslation('im')
+  return (
   <div
     className={css({
       width: '17rem',
@@ -137,7 +140,7 @@ export const EmojiPicker = ({
     data-testid="emoji-picker"
   >
     {recent.length > 0 && (
-      <EmojiSection title="最近">
+      <EmojiSection title={t('emoji.recent')}>
         {recent.map((entry) =>
           entry.kind === 'unicode' ? (
             <EmojiButton
@@ -162,7 +165,7 @@ export const EmojiPicker = ({
         padding: '0.25rem',
       })}
     >
-      系统表情
+      {t('emoji.system')}
     </div>
     {GROUPS.map((g) => (
       <div key={g.key}>
@@ -197,7 +200,7 @@ export const EmojiPicker = ({
       </div>
     ))}
     {custom.length > 0 && onPickCustom && (
-      <EmojiSection title="企业表情">
+      <EmojiSection title={t('emoji.org')}>
         {custom.map((emoji) => (
           <CustomEmojiButton
             key={emoji.id}
@@ -208,7 +211,8 @@ export const EmojiPicker = ({
       </EmojiSection>
     )}
   </div>
-)
+  )
+}
 
 const EmojiSection = ({
   title,

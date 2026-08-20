@@ -527,11 +527,11 @@
       "description": "These settings restrict the actions contributors can take during the meeting.",
       "microphone": {
         "label": "Turn on microphone",
-        "description": ""
+        "description": "When disabled, participants will no longer be able to turn on their microphone."
       },
       "camera": {
         "label": "Enable video",
-        "description": ""
+        "description": "When disabled, participants will no longer be able to turn on their camera."
       },
       "screenshare": {
         "label": "Share their screen",

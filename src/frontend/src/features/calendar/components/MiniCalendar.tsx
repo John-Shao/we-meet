@@ -54,7 +54,7 @@ export const MiniCalendar = ({
   events,
   calendarColors = {},
 }: Props) => {
-  const { i18n } = useTranslation('calendar')
+  const { t, i18n } = useTranslation('calendar')
   const locale = localeFor(i18n.language)
   // 周起始日跟「日历设置」(P8),覆盖 locale 缺省。
   const { weekStartsOn, calendarTimezone } = useCalendarSettings()
@@ -116,7 +116,7 @@ export const MiniCalendar = ({
             variant="quaternaryText"
             size="icon24"
             className={navGlyphCls}
-            aria-label="prev month"
+            aria-label={t('grid.prevMonth')}
             onPress={() => setViewMonth((m) => addMonths(m, -1))}
           >
             ‹
@@ -125,7 +125,7 @@ export const MiniCalendar = ({
             variant="quaternaryText"
             size="icon24"
             className={navGlyphCls}
-            aria-label="next month"
+            aria-label={t('grid.nextMonth')}
             onPress={() => setViewMonth((m) => addMonths(m, 1))}
           >
             ›

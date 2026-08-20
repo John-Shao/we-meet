@@ -156,13 +156,16 @@
     "pickPrompt": "从左侧选择一个会话开始聊天",
     "jumpToLatest": "跳至最新"
   },
-  "draft": { "label": "草稿" },
+  "draft": {
+    "label": "草稿"
+  },
   "input": {
     "placeholder": "输入消息…",
     "send": "发送",
     "sending": "发送中…",
     "image": "图片",
     "file": "本地文件",
+    "voice": "语音",
     "emoji": "发送表情",
     "doc": "云文档",
     "schedule": "日程",
@@ -186,6 +189,11 @@
   },
   "docCard": {
     "view": "查看文档"
+  },
+  "meetingCard": {
+    "ongoing": "进行中",
+    "scheduled": "已预约会议",
+    "join": "加入会议"
   },
   "docPicker": {
     "title": "分享云文档",
@@ -263,7 +271,8 @@
     "send": "发送",
     "cancel": "取消",
     "micDenied": "无法访问麦克风,请检查浏览器权限",
-    "unsupported": "当前浏览器不支持录音"
+    "unsupported": "当前浏览器不支持录音",
+    "play": "播放"
   },
   "image": {
     "alt": "图片",
@@ -486,5 +495,11 @@
       "ipAllowlistHint": "一行一个 IP 或网段,留空表示不限制。",
       "save": "保存"
     }
+  },
+  "emoji": {
+    "recent": "最近",
+    "system": "系统表情",
+    "org": "企业表情",
+    "more": "更多表情"
   }
 }

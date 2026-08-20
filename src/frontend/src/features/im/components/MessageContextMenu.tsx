@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { RiAddLine } from '@remixicon/react'
+import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 import { EmojiPicker } from './EmojiPicker'
@@ -36,6 +37,7 @@ export const MessageContextMenu = ({
   onReact,
   onClose,
 }: Props) => {
+  const { t } = useTranslation('im')
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ x, y })
   const [showPicker, setShowPicker] = useState(false)
@@ -156,7 +158,7 @@ export const MessageContextMenu = ({
               <button
                 type="button"
                 onClick={() => setShowPicker(true)}
-                aria-label="more emojis"
+                aria-label={t('emoji.more')}
                 data-testid="ctx-react-more"
                 className={css({
                   display: 'flex',

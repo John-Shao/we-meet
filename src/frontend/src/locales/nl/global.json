@@ -24,9 +24,37 @@
     "proconnectLinkLabel": "Wat is ProConnect?",
     "proconnectLink": "Wat is ProConnect?"
   },
+  "qrLogin": {
+    "hint": "Scan de code met de we-meet-app om in te loggen",
+    "scanned": "Code gescand",
+    "awaitingConfirm": "Bevestig de aanmelding in de app",
+    "expired": "De QR-code is verlopen",
+    "cancelled": "Aanmelding geannuleerd",
+    "refresh": "QR-code vernieuwen",
+    "error": {
+      "initFailed": "QR-code kon niet worden gegenereerd, probeer het later opnieuw."
+    }
+  },
+  "phoneLogin": {
+    "title": "Inloggen met mobiel nummer",
+    "phoneLabel": "Mobiel nummer",
+    "phoneHint": "Voer een 11-cijferig mobiel nummer van het Chinese vasteland in",
+    "sendCode": "Code versturen",
+    "otpLabel": "Sms-verificatiecode",
+    "otpSentTo": "Code verstuurd naar",
+    "changePhone": "Ander nummer",
+    "verify": "Inloggen",
+    "resend": "Opnieuw versturen",
+    "resendIn": "Opnieuw versturen over {{seconds}} s",
+    "cancel": "Annuleren",
+    "error": {
+      "generic": "Er is een fout opgetreden, probeer het opnieuw."
+    }
+  },
   "logout": "Uitloggen",
   "notFound": {
-    "heading": "Pagina niet gevonden"
+    "heading": "Pagina niet gevonden",
+    "body": "Controleer of de vergadercode in de URL correct is. Bijvoorbeeld:"
   },
   "selected": "geselecteerd",
   "submit": "OK",
@@ -61,5 +89,6 @@
     "url": "Klik op deze link om deel te nemen aan de videoconferentie: {{roomUrl}}",
     "numberAndPin": "Bel {{phoneNumber}} en voer deze code in om telefonisch deel te nemen: {{pinCode}}",
     "scheduledAt": "Gepland voor: {{scheduledAt}}"
-  }
+  },
+  "adminConsole": "Beheerconsole"
 }

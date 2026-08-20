@@ -60,7 +60,8 @@
     "videoMeetingOn": "Zu diesem Termin wird eine Videokonferenz erstellt",
     "videoMeetingOff": "Keine Videokonferenz — nur ein Kalendereintrag",
     "bulkAdd": "Teilnehmende hinzufügen",
-    "bulkAddTitle": "Teilnehmende hinzufügen"
+    "bulkAddTitle": "Teilnehmende hinzufügen",
+    "loadMore": "Mehr laden"
   },
   "visibility": {
     "label": "Terminsichtbarkeit",
@@ -201,5 +202,9 @@
     "minutes": "{{count}} Min.",
     "defaultReminder": "Standarderinnerung",
     "close": "Fertig"
+  },
+  "color": {
+    "pickerTitle": "Kalenderfarbe",
+    "select": "{{color}} auswählen"
   }
 }

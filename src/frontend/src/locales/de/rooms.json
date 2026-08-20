@@ -296,7 +296,7 @@
           },
           "invalid_file_type": {
             "title": "Ungültiger Dateityp",
-            "description": "Der Dateityp wird nicht unterstützt. Bitte wähle eine {{allowedExtension}}-Datei."
+            "description": "Der Dateityp wird nicht unterstützt. Bitte wähle eine {{allowedExtension, list(type: 'disjunction')}}-Datei."
           }
         }
       },
@@ -527,11 +527,11 @@
       "description": "Diese Einstellungen beschränken die Aktionen, die Teilnehmende während des Meetings durchführen können.",
       "microphone": {
         "label": "Mikrofon einschalten",
-        "description": ""
+        "description": "Wenn du diese Option deaktivierst, können Teilnehmende ihr Mikrofon nicht mehr einschalten."
       },
       "camera": {
         "label": "Video einschalten",
-        "description": ""
+        "description": "Wenn du diese Option deaktivierst, können Teilnehmende ihre Kamera nicht mehr einschalten."
       },
       "screenshare": {
         "label": "Bildschirm teilen",

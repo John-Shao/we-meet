@@ -1,5 +1,6 @@
 import { ProgressBar } from 'react-aria-components'
 import { RiHourglassFill } from '@remixicon/react'
+import { useTranslation } from 'react-i18next'
 import { css, cx } from '@/styled-system/css'
 
 const rotatingArcClassName = css({
@@ -15,13 +16,14 @@ export const Spinner = ({
   size?: number
   variant?: 'light' | 'dark'
 }) => {
+  const { t } = useTranslation()
   const center = 14
   const strokeWidth = 3
   const r = 14 - strokeWidth
   const c = 2 * r * Math.PI
   return (
     <ProgressBar
-      aria-label="Loading..."
+      aria-label={t('loading')}
       value={30}
       style={{ height: size, width: size }}
     >

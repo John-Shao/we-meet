@@ -156,13 +156,16 @@
     "pickPrompt": "Pick a conversation on the left to start chatting",
     "jumpToLatest": "Jump to latest"
   },
-  "draft": { "label": "Draft" },
+  "draft": {
+    "label": "Draft"
+  },
   "input": {
     "placeholder": "Type a message…",
     "send": "Send",
     "sending": "Sending…",
     "image": "Image",
     "file": "Local file",
+    "voice": "Voice",
     "emoji": "Send emoji",
     "doc": "Cloud document",
     "schedule": "Schedule",
@@ -268,7 +271,8 @@
     "send": "Send",
     "cancel": "Cancel",
     "micDenied": "Cannot access microphone, please check browser permissions",
-    "unsupported": "Recording is not supported in this browser"
+    "unsupported": "Recording is not supported in this browser",
+    "play": "Play"
   },
   "image": {
     "alt": "Image",
@@ -417,11 +421,11 @@
     "builtinHint": "Built-in assistants ship with the product and cannot be removed; turning one off stops its notifications in this group.",
     "error": "Failed: {{message}}",
     "helpTitle": "Using group bots",
-    "helpIntro": "POST JSON to a bot's webhook URL and the message appears in this group under that bot's name. The request format matches 飞书 custom bots, so an existing script only needs a new URL.",
+    "helpIntro": "POST JSON to a bot's webhook URL and the message appears in this group under that bot's name. The request format matches Feishu custom bots, so an existing script only needs a new URL.",
     "helpText": "Plain text",
     "helpPost": "Rich text",
     "helpSign": "Signature verification (optional)",
-    "helpSignBody": "When enabled every request must carry timestamp and sign. The secret is the HMAC key and the signed data is empty — identical to 飞书.",
+    "helpSignBody": "When enabled every request must carry timestamp and sign. The secret is the HMAC key and the signed data is empty — identical to Feishu.",
     "helpLimits": "Limits",
     "helpLimitsBody": "100 requests/minute and 5/second per bot; request bodies up to 20 KB. Send X-Request-Id on retries so the same id only posts once.",
     "catalog": {
@@ -491,5 +495,11 @@
       "ipAllowlistHint": "One IP or CIDR per line. Leave empty for no restriction.",
       "save": "Save"
     }
+  },
+  "emoji": {
+    "recent": "Recent",
+    "system": "System emojis",
+    "org": "Organization emojis",
+    "more": "More emojis"
   }
 }

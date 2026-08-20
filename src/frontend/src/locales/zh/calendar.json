@@ -202,5 +202,9 @@
     "minutes": "{{count}} 分钟",
     "defaultReminder": "默认提醒时间",
     "close": "完成"
+  },
+  "color": {
+    "pickerTitle": "日历颜色",
+    "select": "选择 {{color}}"
   }
 }

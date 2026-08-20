@@ -9,7 +9,8 @@
     "empty": "未找到联系人",
     "loading": "正在加载…",
     "cancel": "取消",
-    "loadMore": "加载更多"
+    "loadMore": "加载更多",
+    "remove": "移除"
   },
   "page": {
     "authRequired": "请先登录后再查看通讯录。",
@@ -43,6 +44,7 @@
     "title": "我的群组",
     "unnamed": "未命名群聊",
     "memberCount": "{{count}} 名成员",
+    "memberCount_other": "{{count}} 名成员",
     "searchPlaceholder": "搜索群名称",
     "empty": "你还没有加入任何群聊",
     "noMatch": "没有匹配的群聊"

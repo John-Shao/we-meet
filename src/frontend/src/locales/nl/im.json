@@ -103,7 +103,8 @@
     "loading": "Laden…",
     "empty": "Geen leden om toe te voegen",
     "error": "Groep aanmaken mislukt: {{message}}",
-    "you": "Ik"
+    "you": "Ik",
+    "loadMore": "Meer laden"
   },
   "header": {
     "memberCount": "{{count}} leden"
@@ -114,6 +115,8 @@
   },
   "manage": {
     "addMembers": "Leden toevoegen",
+    "searchMembers": "Leden zoeken",
+    "noMemberMatch": "Geen overeenkomende leden",
     "addTitle": "Groepsleden toevoegen",
     "settings": "Instellingen",
     "membersTitle": "Leden",
@@ -153,17 +156,23 @@
     "pickPrompt": "Kies links een gesprek om te beginnen",
     "jumpToLatest": "Naar nieuwste"
   },
+  "draft": {
+    "label": "Concept"
+  },
   "input": {
     "placeholder": "Typ een bericht…",
     "send": "Verzenden",
     "sending": "Verzenden…",
     "image": "Afbeelding",
     "file": "Lokaal bestand",
+    "emoji": "Emoji verzenden",
     "voice": "Spraak",
     "doc": "Clouddocument",
-    "schedule": "Agenda"
+    "schedule": "Agenda",
+    "dropHint": "Loslaten om afbeeldingen of bestanden te verzenden"
   },
   "preview": {
+    "emoji": "[Emoji]",
     "meeting": "[Vergadering]",
     "image": "[Afbeelding]",
     "file": "[Bestand]",
@@ -180,6 +189,11 @@
   },
   "docCard": {
     "view": "Document bekijken"
+  },
+  "meetingCard": {
+    "ongoing": "Bezig",
+    "scheduled": "Geplande vergadering",
+    "join": "Deelnemen aan vergadering"
   },
   "docPicker": {
     "title": "Document sturen",
@@ -257,7 +271,8 @@
     "send": "Versturen",
     "cancel": "Annuleren",
     "micDenied": "Geen toegang tot microfoon, controleer de rechten",
-    "unsupported": "Opnemen wordt niet ondersteund in deze browser"
+    "unsupported": "Opnemen wordt niet ondersteund in deze browser",
+    "play": "Afspelen"
   },
   "image": {
     "alt": "Afbeelding",
@@ -382,6 +397,11 @@
   "specialAlert": {
     "marker": "Speciale melding aan"
   },
+  "departed": {
+    "suffix": " (vertrokken)",
+    "chip": "Vertrokken",
+    "hint": "Deze persoon heeft de organisatie verlaten"
+  },
   "bots": {
     "entry": "Group bots",
     "title": "Group bots",
@@ -401,11 +421,11 @@
     "builtinHint": "Built-in assistants ship with the product and cannot be removed; turning one off stops its notifications in this group.",
     "error": "Failed: {{message}}",
     "helpTitle": "Using group bots",
-    "helpIntro": "POST JSON to a bot's webhook URL and the message appears in this group under that bot's name. The request format matches 飞书 custom bots, so an existing script only needs a new URL.",
+    "helpIntro": "POST JSON to a bot's webhook URL and the message appears in this group under that bot's name. The request format matches Feishu custom bots, so an existing script only needs a new URL.",
     "helpText": "Plain text",
     "helpPost": "Rich text",
     "helpSign": "Signature verification (optional)",
-    "helpSignBody": "When enabled every request must carry timestamp and sign. The secret is the HMAC key and the signed data is empty — identical to 飞书.",
+    "helpSignBody": "When enabled every request must carry timestamp and sign. The secret is the HMAC key and the signed data is empty — identical to Feishu.",
     "helpLimits": "Limits",
     "helpLimitsBody": "100 requests/minute and 5/second per bot; request bodies up to 20 KB. Send X-Request-Id on retries so the same id only posts once.",
     "catalog": {
@@ -475,5 +495,11 @@
       "ipAllowlistHint": "One IP or CIDR per line. Leave empty for no restriction.",
       "save": "Save"
     }
+  },
+  "emoji": {
+    "recent": "Recent",
+    "system": "Systeem-emoji’s",
+    "org": "Organisatie-emoji’s",
+    "more": "Meer emoji’s"
   }
 }

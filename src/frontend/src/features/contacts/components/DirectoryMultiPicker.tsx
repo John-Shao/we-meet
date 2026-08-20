@@ -1,4 +1,5 @@
 import { type RefObject } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
@@ -325,7 +326,9 @@ const Chip = ({
 }: {
   label: string
   onRemove?: () => void
-}) => (
+}) => {
+  const { t } = useTranslation('contacts')
+  return (
   <li
     className={css({
       display: 'flex',
@@ -353,7 +356,7 @@ const Chip = ({
       <button
         type="button"
         onClick={onRemove}
-        aria-label="remove"
+        aria-label={t('picker.remove')}
         className={css({
           flexShrink: 0,
           border: 'none',
@@ -368,4 +371,5 @@ const Chip = ({
       </button>
     ) : null}
   </li>
-)
+  )
+}

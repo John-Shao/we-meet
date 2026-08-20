@@ -24,6 +24,33 @@
     "proconnectLinkLabel": "Qu'est-ce que ProConnect ? - nouvelle fenêtre",
     "proconnectLink": "Qu'est-ce que ProConnect ?"
   },
+  "qrLogin": {
+    "hint": "Scannez ce code avec l'app we-meet pour vous connecter",
+    "scanned": "Code scanné",
+    "awaitingConfirm": "Confirmez la connexion dans l'app",
+    "expired": "Le code QR a expiré",
+    "cancelled": "Connexion annulée",
+    "refresh": "Actualiser le code QR",
+    "error": {
+      "initFailed": "Impossible de générer le code QR, veuillez réessayer plus tard."
+    }
+  },
+  "phoneLogin": {
+    "title": "Connexion par téléphone",
+    "phoneLabel": "Numéro de téléphone",
+    "phoneHint": "Saisissez un numéro de portable chinois à 11 chiffres",
+    "sendCode": "Envoyer le code",
+    "otpLabel": "Code de vérification SMS",
+    "otpSentTo": "Code envoyé à",
+    "changePhone": "Changer de numéro",
+    "verify": "Se connecter",
+    "resend": "Renvoyer",
+    "resendIn": "Renvoyer dans {{seconds}} s",
+    "cancel": "Annuler",
+    "error": {
+      "generic": "Une erreur est survenue, veuillez réessayer."
+    }
+  },
   "logout": "Se déconnecter",
   "notFound": {
     "heading": "Vérifier votre code de réunion",
@@ -62,5 +89,6 @@
     "url": "Pour participer à la visioconférence, cliquez sur ce lien : {{roomUrl}}",
     "numberAndPin": "Pour participer par téléphone, composez le {{phoneNumber}} et saisissez ce code : {{pinCode}}",
     "scheduledAt": "Prévu pour : {{scheduledAt}}"
-  }
+  },
+  "adminConsole": "Console d'administration"
 }

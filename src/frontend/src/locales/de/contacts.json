@@ -8,7 +8,9 @@
     "searchPlaceholder": "Nach Name oder E-Mail suchen…",
     "empty": "Keine Kontakte gefunden",
     "loading": "Wird geladen…",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "loadMore": "Mehr laden",
+    "remove": "Entfernen"
   },
   "page": {
     "authRequired": "Bitte melden Sie sich an, um das Verzeichnis anzuzeigen.",
@@ -28,7 +30,8 @@
     "deleteDept": "Abteilung löschen",
     "deleteDeptConfirm": "Abteilung „{{name}}“ löschen? Ihre Mitglieder werden „keine Abteilung“.",
     "deleteDeptError": "Abteilung konnte nicht gelöscht werden: {{message}}",
-    "selfTag": "(Sie)"
+    "selfTag": "(Sie)",
+    "loadMore": "Mehr laden"
   },
   "detail": {
     "email": "E-Mail",
@@ -36,6 +39,15 @@
     "title": "Position",
     "close": "Schließen",
     "none": "—"
+  },
+  "groups": {
+    "title": "Meine Gruppen",
+    "unnamed": "Unbenannte Gruppe",
+    "memberCount": "{{count}} Mitglied",
+    "memberCount_other": "{{count}} Mitglieder",
+    "searchPlaceholder": "Gruppen suchen",
+    "empty": "Noch keiner Gruppe beigetreten",
+    "noMatch": "Keine passenden Gruppen"
   },
   "external": {
     "title": "External contacts",
@@ -75,5 +87,12 @@
   "specialAlert": {
     "toggle": "Sonderhinweis für seine Nachrichten",
     "toggleHint": "Seine Nachrichten benachrichtigen dich auch in den Ruhezeiten."
+  },
+  "department": {
+    "memberCount": "Mitglieder",
+    "people": "{{count}} Personen",
+    "head": "Leitung",
+    "noHead": "Nicht festgelegt",
+    "code": "Abteilungs-ID"
   }
 }

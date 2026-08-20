@@ -1,1 +1,19 @@
-{}
+{
+  "joinDepartment": "{{organization}} vous invite à rejoindre {{department}}",
+  "joinOrganization": "{{organization}} vous invite à rejoindre",
+  "signInHint": "Connectez-vous pour demander à rejoindre. Pas de compte ? Un code reçu par SMS suffit.",
+  "signInAndJoin": "Se connecter et rejoindre",
+  "needsApproval": "Un administrateur examinera votre demande ; vous pourrez suivre sa progression ici.",
+  "noApproval": "Vous rejoindrez immédiatement, sans validation.",
+  "apply": "Demander à rejoindre",
+  "pendingBody": "Demande envoyée, en attente de validation par un administrateur.",
+  "withdraw": "Retirer la demande",
+  "rejectedBody": "Votre demande d'adhésion a été rejetée.",
+  "rejectionReason": "Motif du rejet",
+  "reapply": "Faire une nouvelle demande",
+  "approvedBody": "Approuvé — vous êtes maintenant membre de cette organisation.",
+  "openWorkspace": "Ouvrir l'espace de travail",
+  "applyFailed": "Envoi impossible, veuillez réessayer.",
+  "invalidTitle": "Ce lien est invalide ou a expiré",
+  "invalidBody": "Demandez à la personne qui vous a invité un nouveau lien."
+}

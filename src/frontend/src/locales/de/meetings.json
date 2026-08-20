@@ -62,9 +62,14 @@
     "recentTitle": "Vergangene Besprechungen",
     "recentEmpty": "Keine vergangenen Besprechungen",
     "scheduledEmpty": "Keine anstehenden Besprechungen",
+    "scheduledTitle": "Geplante Meetings",
     "untitled": "(Besprechung ohne Titel)",
     "showAll": "Alle anzeigen ({{count}})",
     "collapse": "Einklappen",
+    "rowMore": "Mehr",
+    "enterMeeting": "Meeting beitreten",
+    "delete": "Löschen",
+    "deleteConfirm": "„{{name}}“ löschen? Wenn du der Organisator bist, wird der Eintrag für alle gelöscht.",
     "today": "Heute"
   },
   "chapters": {
@@ -76,5 +81,9 @@
     "copied": "Kopiert",
     "viewSummary": "Protokoll ansehen",
     "close": "Schließen"
+  },
+  "share": {
+    "action": "Meeting teilen",
+    "sendFailed": "Meeting konnte nicht geteilt werden. Bitte versuche es erneut."
   }
 }

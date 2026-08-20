@@ -13,6 +13,13 @@
     "title": "Anmelden",
     "subtitle": "Melde dich an, um das volle Meeting-Erlebnis zu nutzen"
   },
+  "scheduleMeeting": "Meeting planen",
+  "loginPanels": {
+    "qrTitle": "Per QR-Code anmelden",
+    "phoneTitle": "Per Code anmelden"
+  },
+  "defaultRoomName": "{{user}}s Meeting",
+  "defaultRoomNameAnonymous": "Neues Meeting",
   "joinMeetingTipContent": "Du kannst einem Meeting beitreten, indem du den vollständigen Link in die Adressleiste deines Browsers einfügst.",
   "joinMeetingTipHeading": "Wusstest du schon?",
   "loginToCreateMeeting": "Melde dich an, um ein Meeting zu erstellen",

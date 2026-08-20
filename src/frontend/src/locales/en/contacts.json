@@ -9,7 +9,8 @@
     "empty": "No contacts found",
     "loading": "Loading…",
     "cancel": "Cancel",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "remove": "Remove"
   },
   "page": {
     "authRequired": "Please sign in to view the directory.",

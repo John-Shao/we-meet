@@ -60,7 +60,8 @@
     "videoMeetingOn": "Une visioconférence sera créée avec cet événement",
     "videoMeetingOff": "Pas de visioconférence — simple entrée d'agenda",
     "bulkAdd": "Ajouter des participants",
-    "bulkAddTitle": "Ajouter des participants"
+    "bulkAddTitle": "Ajouter des participants",
+    "loadMore": "Charger plus"
   },
   "visibility": {
     "label": "Visibilité de l’événement",
@@ -201,5 +202,9 @@
     "minutes": "{{count}} min",
     "defaultReminder": "Rappel par défaut",
     "close": "Terminé"
+  },
+  "color": {
+    "pickerTitle": "Couleur du calendrier",
+    "select": "Sélectionner {{color}}"
   }
 }

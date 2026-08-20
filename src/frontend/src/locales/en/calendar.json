@@ -202,5 +202,9 @@
     "minutes": "{{count}} min",
     "defaultReminder": "Default reminder",
     "close": "Done"
+  },
+  "color": {
+    "pickerTitle": "Calendar color",
+    "select": "Select {{color}}"
   }
 }
