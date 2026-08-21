@@ -107,6 +107,11 @@ backend:
     # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY 来自 values.secrets.yaml
     MEDIA_BASE_URL: https://meet.we-meet.online
 
+    # Task attachments use the generic /api/v1.0/files/ upload handshake.
+    # Production defaults this feature off, which deliberately returns 404,
+    # so keep the switch explicit alongside the OSS configuration.
+    FILE_UPLOAD_ENABLED: "True"
+
     # --- Mobile app (移动端 OTP 登录 + 个人资料) ---
     # OTP 登录经 meet-service 机密客户端走 Keycloak Token Exchange.
     MOBILE_AUTH_SERVICE_CLIENT_ID: meet-service
