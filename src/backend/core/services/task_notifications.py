@@ -575,7 +575,12 @@ def _date_change_card(delivery: models.TaskImDelivery) -> dict:
     task = delivery.task
     activity = delivery.activity
     date_changes = activity.changes.get("dates", {})
-    fields = []
+    blocks = [
+        {
+            "type": im_cards.CARD_BLOCK_TEXT,
+            "spans": [{"tag": im_cards.RICH_TAG_TEXT, "text": task.title, "b": True}],
+        }
+    ]
     for field_name, label in (
         ("start_date", "开始日期"),
         ("due_date", "截止日期"),
@@ -584,15 +589,18 @@ def _date_change_card(delivery: models.TaskImDelivery) -> dict:
         if change:
             before = change.get("from") or "未设置"
             after = change.get("to") or "未设置"
-            fields.append({"label": label, "value": f"{before} → {after}"})
-    fields.append({"label": "修改人", "value": _display_name(activity.actor)})
-    blocks = [
+            blocks.append(
+                {
+                    "type": im_cards.CARD_BLOCK_FIELDS,
+                    "items": [{"label": label, "value": f"{before} → {after}"}],
+                }
+            )
+    blocks.append(
         {
-            "type": im_cards.CARD_BLOCK_TEXT,
-            "spans": [{"tag": im_cards.RICH_TAG_TEXT, "text": task.title, "b": True}],
-        },
-        {"type": im_cards.CARD_BLOCK_FIELDS, "items": fields},
-    ]
+            "type": im_cards.CARD_BLOCK_FIELDS,
+            "items": [{"label": "修改人", "value": _display_name(activity.actor)}],
+        }
+    )
     base_url = str(getattr(settings, "APPLICATION_BASE_URL", "") or "").rstrip("/")
     if base_url:
         blocks.append(

@@ -570,10 +570,19 @@ def test_date_change_card_preserves_old_and_new_dates(settings):
     card = json.loads(post_direct.call_args.args[3])
     assert card["header"] == {"title": "任务日期已调整", "theme": "warning"}
     assert card["plain"] == "任务日期已调整：调整发布日期"
-    assert card["blocks"][1]["items"] == [
-        {"label": "开始日期", "value": "未设置 → 2026-08-23"},
-        {"label": "截止日期", "value": "2026-08-28 → 2026-08-31"},
-        {"label": "修改人", "value": "创建人"},
+    assert card["blocks"][1:4] == [
+        {
+            "type": "fields",
+            "items": [{"label": "开始日期", "value": "未设置 → 2026-08-23"}],
+        },
+        {
+            "type": "fields",
+            "items": [{"label": "截止日期", "value": "2026-08-28 → 2026-08-31"}],
+        },
+        {
+            "type": "fields",
+            "items": [{"label": "修改人", "value": "创建人"}],
+        },
     ]
     assert card["blocks"][-1]["buttons"][0]["url"] == (
         "https://meet.example.test/tasks"
