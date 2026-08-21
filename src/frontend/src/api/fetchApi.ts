@@ -83,8 +83,11 @@ export const fetchApi = async <T = Record<string, unknown>>(
   })
 
   // Bearer 401 → attempt one silent refresh, retry once with the new token.
-  // Anonymous (cookie-only) 401s bypass this branch; their handling is
-  // unchanged.
+  // If refreshing is impossible (or the refreshed token is also rejected),
+  // retry without Authorization before surfacing the 401. A browser can have
+  // both a stale mobile-login token in localStorage and a still-valid Django
+  // session cookie; DRF checks OIDCAuthentication first, so the stale bearer
+  // would otherwise mask that valid session and make the first write fail.
   if (response.status === 401 && initialBearer) {
     const newAccess = await attemptSilentRefresh()
     if (newAccess) {
@@ -99,11 +102,23 @@ export const fetchApi = async <T = Record<string, unknown>>(
         ),
       })
     }
-    // If the retry is also 401, or we never had a refresh token / it
-    // failed, drop the stored bearer so the next useUser pull treats the
-    // user as signed-out and routes back to the login screen.
+    // If the retry is also 401, or we never had a refresh token / it failed,
+    // discard the rejected bearer and give the session cookie one chance.
+    // A 401 is returned before a protected mutation reaches application
+    // code, so retrying the same write here cannot duplicate a successful
+    // operation.
     if (response.status === 401) {
       clearTokens()
+      response = await fetch(target, {
+        credentials: 'include',
+        ...options,
+        headers: buildHeaders(
+          null,
+          csrfToken,
+          options?.headers,
+          options?.body
+        ),
+      })
     }
   }
 
