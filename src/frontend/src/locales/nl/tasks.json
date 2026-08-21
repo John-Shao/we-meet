@@ -54,6 +54,33 @@
     "high": "Hoge prioriteit",
     "urgent": "Dringend"
   },
+  "labels": {
+    "manage": "Taaklabels beheren",
+    "field": "Labels",
+    "filter": "Filteren op label",
+    "all": "Alle labels",
+    "unlabeled": "Zonder label",
+    "none": "Geen labels",
+    "empty": "Maak een organisatielabel om het bij taken te gebruiken.",
+    "name": "Labelnaam",
+    "color": "Kleur",
+    "create": "Label maken",
+    "rename": "Bewerken",
+    "delete": "Verwijderen",
+    "deleteTitle": "Taaklabel verwijderen",
+    "deleteDescription": "Label ‘{{name}}’ verwijderen? Het wordt van alle taken verwijderd.",
+    "deleteConfirm": "Label verwijderen",
+    "error": "De labelbewerking is mislukt. Probeer het opnieuw.",
+    "colors": {
+      "grey": "Grijs",
+      "blue": "Blauw",
+      "green": "Groen",
+      "yellow": "Geel",
+      "orange": "Oranje",
+      "red": "Rood",
+      "purple": "Paars"
+    }
+  },
   "statuses": {
     "todo": "Te doen",
     "in_progress": "Bezig",
@@ -137,6 +164,7 @@
       "attachment_removed": "{{actor}} heeft bijlage {{filename}} verwijderd",
       "content_changed": "{{actor}} heeft de taakinhoud bijgewerkt",
       "priority_changed": "{{actor}} heeft de taakprioriteit gewijzigd van ‘{{from}}’ naar ‘{{to}}’",
+      "labels_changed": "{{actor}} heeft de taaklabels gewijzigd van ‘{{from}}’ naar ‘{{to}}’",
       "dates_changed": "{{actor}} heeft de taakdatums aangepast",
       "assignee_changed": "{{actor}} heeft de taak toegewezen aan {{assignee}}",
       "status_changed": "{{actor}} heeft de status gewijzigd in ‘{{status}}’",

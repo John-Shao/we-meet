@@ -3,6 +3,23 @@ export type TaskPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 export type TaskPriorityFilter = 'all' | TaskPriority
 export type TaskTimeState = 'starting_today' | 'due_today' | 'overdue'
 export type TaskTimeFilter = 'all' | TaskTimeState
+export type TaskLabelColor =
+  | 'grey'
+  | 'blue'
+  | 'green'
+  | 'yellow'
+  | 'orange'
+  | 'red'
+  | 'purple'
+
+export interface ApiTaskLabel {
+  id: string
+  name: string
+  color: TaskLabelColor
+  can_manage: boolean
+  created_at: string
+  updated_at: string
+}
 
 export interface ApiTaskUser {
   id: string
@@ -19,6 +36,7 @@ export interface ApiTask {
   assignee: ApiTaskUser | null
   status: TaskStatus
   priority: TaskPriority
+  labels: ApiTaskLabel[]
   start_date: string | null
   due_date: string | null
   completed_at: string | null
@@ -42,6 +60,7 @@ export type TaskActivityEvent =
   | 'assignee_changed'
   | 'status_changed'
   | 'priority_changed'
+  | 'labels_changed'
   | 'attachment_removed'
   | 'source_action_item_changed'
 
@@ -76,6 +95,7 @@ export interface ApiTaskActivity {
         }
     status?: { from: TaskStatus; to: TaskStatus }
     priority?: { from: TaskPriority; to: TaskPriority }
+    labels?: { from: ApiTaskLabel[]; to: ApiTaskLabel[] }
     attachment?: { id: string; filename: string }
     source_action_item_sync?: {
       action_item_id: string
@@ -137,6 +157,7 @@ export interface CreateTaskPayload {
   start_date?: string | null
   due_date?: string | null
   priority?: TaskPriority
+  label_ids?: string[]
 }
 
 export interface PatchTaskPayload {
@@ -146,5 +167,6 @@ export interface PatchTaskPayload {
   start_date?: string | null
   due_date?: string | null
   priority?: TaskPriority
+  label_ids?: string[]
   status?: TaskStatus
 }

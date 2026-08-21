@@ -7,6 +7,7 @@ import { createFile } from '@/features/files/api/createFile'
 
 import type {
   ApiTask,
+  ApiTaskLabel,
   ApiTaskActivity,
   ApiTaskAttachment,
   ApiTaskComment,
@@ -15,29 +16,101 @@ import type {
   TaskScope,
   TaskPriorityFilter,
   TaskTimeFilter,
+  TaskLabelColor,
 } from './ApiTask'
 
 export const buildTasksUrl = (
   scope: TaskScope,
   time: TaskTimeFilter,
-  priority: TaskPriorityFilter
-) => `tasks/?scope=${scope}&time=${time}&priority=${priority}&page_size=100`
+  priority: TaskPriorityFilter,
+  label: string
+) =>
+  `tasks/?scope=${scope}&time=${time}&priority=${priority}&label=${encodeURIComponent(label)}&page_size=100`
 
 const fetchTasks = (
   scope: TaskScope,
   time: TaskTimeFilter,
-  priority: TaskPriorityFilter
-) => fetchApi<Paginated<ApiTask>>(buildTasksUrl(scope, time, priority))
+  priority: TaskPriorityFilter,
+  label: string
+) => fetchApi<Paginated<ApiTask>>(buildTasksUrl(scope, time, priority, label))
 
 export const useTasks = (
   scope: TaskScope,
   time: TaskTimeFilter,
-  priority: TaskPriorityFilter
+  priority: TaskPriorityFilter,
+  label: string
 ) =>
   useQuery<Paginated<ApiTask>, ApiError>({
-    queryKey: ['tasks', scope, time, priority],
-    queryFn: () => fetchTasks(scope, time, priority),
+    queryKey: ['tasks', scope, time, priority, label],
+    queryFn: () => fetchTasks(scope, time, priority, label),
   })
+
+const fetchTaskLabels = () => fetchApi<ApiTaskLabel[]>('task-labels/')
+
+export const useTaskLabels = () =>
+  useQuery<ApiTaskLabel[], ApiError>({
+    queryKey: ['task-labels'],
+    queryFn: fetchTaskLabels,
+  })
+
+const createTaskLabel = (payload: { name: string; color: TaskLabelColor }) =>
+  fetchApi<ApiTaskLabel>('task-labels/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const useCreateTaskLabel = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskLabel,
+    ApiError,
+    { name: string; color: TaskLabelColor }
+  >({
+    mutationFn: createTaskLabel,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['task-labels'] }),
+  })
+}
+
+const updateTaskLabel = (
+  labelId: string,
+  patch: { name?: string; color?: TaskLabelColor }
+) =>
+  fetchApi<ApiTaskLabel>(`task-labels/${encodeURIComponent(labelId)}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+
+export const useUpdateTaskLabel = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskLabel,
+    ApiError,
+    { labelId: string; patch: { name?: string; color?: TaskLabelColor } }
+  >({
+    mutationFn: ({ labelId, patch }) => updateTaskLabel(labelId, patch),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-labels'] })
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+const deleteTaskLabel = (labelId: string) =>
+  fetchApi<void>(`task-labels/${encodeURIComponent(labelId)}/`, {
+    method: 'DELETE',
+  })
+
+export const useDeleteTaskLabel = () => {
+  const queryClient = useQueryClient()
+  return useMutation<void, ApiError, string>({
+    mutationFn: deleteTaskLabel,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-labels'] })
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
 
 const fetchTaskSubtasks = (taskId: string) =>
   fetchApi<ApiTask[]>(`tasks/${encodeURIComponent(taskId)}/subtasks/`)

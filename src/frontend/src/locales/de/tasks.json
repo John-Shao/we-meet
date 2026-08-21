@@ -54,6 +54,33 @@
     "high": "Hohe Priorität",
     "urgent": "Dringend"
   },
+  "labels": {
+    "manage": "Aufgabenlabels verwalten",
+    "field": "Labels",
+    "filter": "Nach Label filtern",
+    "all": "Alle Labels",
+    "unlabeled": "Ohne Label",
+    "none": "Keine Labels",
+    "empty": "Erstellen Sie ein Organisationslabel für Aufgaben.",
+    "name": "Labelname",
+    "color": "Farbe",
+    "create": "Label erstellen",
+    "rename": "Bearbeiten",
+    "delete": "Löschen",
+    "deleteTitle": "Aufgabenlabel löschen",
+    "deleteDescription": "Label „{{name}}“ löschen? Es wird von allen Aufgaben entfernt.",
+    "deleteConfirm": "Label löschen",
+    "error": "Die Label-Aktion ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "colors": {
+      "grey": "Grau",
+      "blue": "Blau",
+      "green": "Grün",
+      "yellow": "Gelb",
+      "orange": "Orange",
+      "red": "Rot",
+      "purple": "Violett"
+    }
+  },
   "statuses": {
     "todo": "Offen",
     "in_progress": "In Arbeit",
@@ -137,6 +164,7 @@
       "attachment_removed": "{{actor}} hat den Anhang {{filename}} entfernt",
       "content_changed": "{{actor}} hat den Aufgabeninhalt geändert",
       "priority_changed": "{{actor}} hat die Aufgabenpriorität von „{{from}}“ auf „{{to}}“ geändert",
+      "labels_changed": "{{actor}} hat die Aufgabenlabels von „{{from}}“ auf „{{to}}“ geändert",
       "dates_changed": "{{actor}} hat die Aufgabendaten angepasst",
       "assignee_changed": "{{actor}} hat die Aufgabe {{assignee}} zugewiesen",
       "status_changed": "{{actor}} hat den Status in „{{status}}“ geändert",

@@ -54,6 +54,33 @@
     "high": "高优先级",
     "urgent": "紧急"
   },
+  "labels": {
+    "manage": "管理任务标签",
+    "field": "标签",
+    "filter": "按标签筛选",
+    "all": "全部标签",
+    "unlabeled": "无标签",
+    "none": "无标签",
+    "empty": "请先创建组织任务标签。",
+    "name": "标签名称",
+    "color": "颜色",
+    "create": "创建标签",
+    "rename": "编辑",
+    "delete": "删除",
+    "deleteTitle": "删除任务标签",
+    "deleteDescription": "确定删除标签“{{name}}”吗？该标签将从所有任务中移除。",
+    "deleteConfirm": "删除标签",
+    "error": "标签操作失败，请稍后重试。",
+    "colors": {
+      "grey": "灰色",
+      "blue": "蓝色",
+      "green": "绿色",
+      "yellow": "黄色",
+      "orange": "橙色",
+      "red": "红色",
+      "purple": "紫色"
+    }
+  },
   "statuses": {
     "todo": "待处理",
     "in_progress": "进行中",
@@ -137,6 +164,7 @@
       "attachment_removed": "{{actor}} 删除了附件 {{filename}}",
       "content_changed": "{{actor}} 修改了任务内容",
       "priority_changed": "{{actor}} 将任务优先级从“{{from}}”调整为“{{to}}”",
+      "labels_changed": "{{actor}} 将任务标签从“{{from}}”调整为“{{to}}”",
       "dates_changed": "{{actor}} 调整了任务日期",
       "assignee_changed": "{{actor}} 将负责人转交给 {{assignee}}",
       "status_changed": "{{actor}} 将任务状态改为“{{status}}”",

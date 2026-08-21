@@ -15,6 +15,7 @@ import { css } from '@/styled-system/css'
 import type {
   ApiTask,
   ApiTaskActivity,
+  ApiTaskLabel,
   PatchTaskPayload,
   TaskScope,
   TaskPriority,
@@ -34,8 +35,12 @@ import {
   useTaskAttachments,
   useTaskComments,
   useTaskSubtasks,
+  useTaskLabels,
   useTasks,
 } from '../api/fetchTasks'
+import { TaskLabelBadge } from '../components/TaskLabelBadge'
+import { TaskLabelManager } from '../components/TaskLabelManager'
+import { TaskLabelSelector } from '../components/TaskLabelSelector'
 import { TaskPriorityBadge } from '../components/TaskPriorityBadge'
 
 const scopes: TaskScope[] = ['assigned', 'created', 'all']
@@ -110,6 +115,7 @@ const TasksAuthenticated = () => {
   const [timeFilter, setTimeFilter] = useState<TaskTimeFilter>('all')
   const [priorityFilter, setPriorityFilter] =
     useState<TaskPriorityFilter>('all')
+  const [labelFilter, setLabelFilter] = useState('all')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [createAssignee, setCreateAssignee] = useState<DirectoryMember | null>(
@@ -118,6 +124,7 @@ const TasksAuthenticated = () => {
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [createPriority, setCreatePriority] = useState<TaskPriority>('none')
+  const [createLabelIds, setCreateLabelIds] = useState<string[]>([])
   const [editing, setEditing] = useState<ApiTask | null>(null)
   const [expandedActivities, setExpandedActivities] = useState<Set<string>>(
     () => new Set()
@@ -134,7 +141,13 @@ const TasksAuthenticated = () => {
   const [assigneePicker, setAssigneePicker] = useState<
     'create' | 'edit' | null
   >(null)
-  const { data, isLoading, error } = useTasks(scope, timeFilter, priorityFilter)
+  const { data: labels = [] } = useTaskLabels()
+  const { data, isLoading, error } = useTasks(
+    scope,
+    timeFilter,
+    priorityFilter,
+    labelFilter
+  )
   const createMutation = useCreateTask()
   const patchMutation = usePatchTask()
 
@@ -150,6 +163,7 @@ const TasksAuthenticated = () => {
         start_date: startDate || null,
         due_date: dueDate || null,
         priority: createPriority,
+        label_ids: createLabelIds,
       })
       setTitle('')
       setDescription('')
@@ -157,6 +171,7 @@ const TasksAuthenticated = () => {
       setStartDate('')
       setDueDate('')
       setCreatePriority('none')
+      setCreateLabelIds([])
     } catch {
       // The mutation error is rendered below the form.
     }
@@ -211,6 +226,7 @@ const TasksAuthenticated = () => {
       start_date: editing.start_date,
       due_date: editing.due_date,
       priority: editing.priority,
+      label_ids: editing.labels.map((label) => label.id),
     }
     try {
       await patchMutation.mutateAsync({ taskId: editing.id, patch })
@@ -269,6 +285,8 @@ const TasksAuthenticated = () => {
           {t('subtitle')}
         </p>
       </header>
+
+      <TaskLabelManager labels={labels} />
 
       <form
         onSubmit={(event) => void submitCreate(event)}
@@ -369,6 +387,18 @@ const TasksAuthenticated = () => {
             rows={2}
           />
         </label>
+        <div
+          className={css({
+            md: { gridColumn: '1 / -1' },
+            lg: { gridColumn: '1 / -1' },
+          })}
+        >
+          <TaskLabelSelector
+            labels={labels}
+            selectedIds={createLabelIds}
+            onChange={setCreateLabelIds}
+          />
+        </div>
       </form>
 
       <div
@@ -426,7 +456,13 @@ const TasksAuthenticated = () => {
         ))}
       </div>
 
-      <div className={css({ width: { base: '100%', sm: '12rem' } })}>
+      <div
+        className={css({
+          display: 'grid',
+          gridTemplateColumns: { base: '1fr', sm: '12rem 14rem' },
+          gap: '0.75rem',
+        })}
+      >
         <Select
           label={t('priorityFilters.label')}
           aria-label={t('priorityFilters.label')}
@@ -438,6 +474,20 @@ const TasksAuthenticated = () => {
           onSelectionChange={(key) =>
             setPriorityFilter(String(key) as TaskPriorityFilter)
           }
+        />
+        <Select
+          label={t('labels.filter')}
+          aria-label={t('labels.filter')}
+          items={[
+            { value: 'all', label: t('labels.all') },
+            { value: 'unlabeled', label: t('labels.unlabeled') },
+            ...labels.map((label) => ({
+              value: label.id,
+              label: label.name,
+            })),
+          ]}
+          selectedKey={labelFilter}
+          onSelectionChange={(key) => setLabelFilter(String(key))}
         />
       </div>
 
@@ -530,6 +580,18 @@ const TasksAuthenticated = () => {
                       setEditing({
                         ...editing,
                         priority: String(key) as TaskPriority,
+                      })
+                    }
+                  />
+                  <TaskLabelSelector
+                    labels={labels}
+                    selectedIds={editing.labels.map((label) => label.id)}
+                    onChange={(ids) =>
+                      setEditing({
+                        ...editing,
+                        labels: labels.filter((label) =>
+                          ids.includes(label.id)
+                        ),
                       })
                     }
                   />
@@ -630,6 +692,9 @@ const TasksAuthenticated = () => {
                         gap: '0.375rem',
                       })}
                     >
+                      {task.labels.map((label) => (
+                        <TaskLabelBadge key={label.id} label={label} />
+                      ))}
                       {task.time_state && (
                         <span className={timeStateCss(task.time_state)}>
                           {t(`timeStates.${task.time_state}`)}
@@ -825,8 +890,10 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('none')
+  const [labelIds, setLabelIds] = useState<string[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
   const { data, isLoading, error } = useTaskSubtasks(taskId)
+  const { data: labels = [] } = useTaskLabels()
   const createMutation = useCreateTaskSubtask()
   const patchMutation = usePatchTask()
 
@@ -850,6 +917,7 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
           start_date: startDate || null,
           due_date: dueDate || null,
           priority,
+          label_ids: labelIds,
         },
       })
       setTitle('')
@@ -857,6 +925,7 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
       setStartDate('')
       setDueDate('')
       setPriority('none')
+      setLabelIds([])
     } catch {
       // Keep the form values available so the user can retry.
     }
@@ -957,6 +1026,13 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
         >
           {t('subtasks.create')}
         </Button>
+        <div className={css({ md: { gridColumn: '1 / -1' } })}>
+          <TaskLabelSelector
+            labels={labels}
+            selectedIds={labelIds}
+            onChange={setLabelIds}
+          />
+        </div>
       </form>
       {createMutation.error && (
         <p role="alert" className={historyErrorCss}>
@@ -1016,6 +1092,9 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
                     {t(`statuses.${subtask.status}`)}
                   </span>
                   <TaskPriorityBadge priority={subtask.priority} />
+                  {subtask.labels.map((label) => (
+                    <TaskLabelBadge key={label.id} label={label} />
+                  ))}
                 </div>
                 <p
                   className={css({
@@ -1535,6 +1614,18 @@ const taskActivityMessage = (
       actor,
       from: priority ? t(`priorities.${priority.from}`) : '—',
       to: priority ? t(`priorities.${priority.to}`) : '—',
+    })
+  }
+  if (activity.event === 'labels_changed') {
+    const labels = activity.changes.labels
+    const names = (value: ApiTaskLabel[]) =>
+      value.length
+        ? value.map((label) => label.name).join(', ')
+        : t('labels.none')
+    return t('history.events.labels_changed', {
+      actor,
+      from: labels ? names(labels.from) : '—',
+      to: labels ? names(labels.to) : '—',
     })
   }
   if (activity.event === 'assignee_changed') {

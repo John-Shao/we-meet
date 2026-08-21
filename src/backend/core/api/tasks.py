@@ -1,21 +1,24 @@
 """Minimal standalone task API."""
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Case, Count, F, IntegerField, Q, Value, When
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from rest_framework import mixins, serializers, viewsets
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from core import models, utils
 from core.api import permissions
+from core.api.directory import get_caller_organization, is_caller_org_admin
 from core.api.serializers import (
     TaskActivitySerializer,
     TaskAttachmentSerializer,
     TaskCommentSerializer,
+    TaskLabelSerializer,
     TaskSerializer,
 )
 from core.api.viewsets import Pagination
@@ -100,6 +103,12 @@ def _filter_task_list(queryset, *, request, user):
             )
         queryset = queryset.filter(priority=priority_filter)
 
+    queryset = _filter_by_label(
+        queryset,
+        label_filter=request.query_params.get("label", "all"),
+        user=user,
+    )
+
     time_filter = request.query_params.get("time", "all")
     if time_filter not in TIME_FILTERS:
         raise serializers.ValidationError(
@@ -121,6 +130,30 @@ def _filter_task_list(queryset, *, request, user):
     return queryset.filter(due_date__lt=F("_assignee_local_date"))
 
 
+def _filter_by_label(queryset, *, label_filter, user):
+    """Apply one organization-scoped label or the explicit unlabeled filter."""
+
+    if label_filter == "unlabeled":
+        return queryset.filter(labels__isnull=True)
+    if label_filter == "all":
+        return queryset
+    organization = get_caller_organization(user)
+    try:
+        label = models.TaskLabel.objects.get(
+            id=label_filter,
+            organization=organization,
+        )
+    except (
+        ValueError,
+        DjangoValidationError,
+        models.TaskLabel.DoesNotExist,
+    ) as exc:
+        raise serializers.ValidationError(
+            {"label": "Use all, unlabeled, or a label from your organization."}
+        ) from exc
+    return queryset.filter(labels=label)
+
+
 class TaskAssigneeValidationMixin:
     """Validate assignees against the caller's organization directory."""
 
@@ -133,7 +166,36 @@ class TaskAssigneeValidationMixin:
         return assignee
 
 
-class TaskCreateSerializer(TaskAssigneeValidationMixin, serializers.Serializer):
+class TaskLabelsValidationMixin:
+    """Keep task labels within one stable organization boundary."""
+
+    max_labels = 5
+
+    def validate_label_ids(self, labels):
+        if len(labels) > self.max_labels:
+            raise serializers.ValidationError(
+                f"Choose at most {self.max_labels} task labels."
+            )
+        organization = (
+            self.instance.organization
+            if getattr(self, "instance", None) is not None
+            else get_caller_organization(self.context["request"].user)
+        )
+        if labels and (
+            organization is None
+            or any(label.organization_id != organization.id for label in labels)
+        ):
+            raise serializers.ValidationError(
+                "Choose labels from the task organization."
+            )
+        return labels
+
+
+class TaskCreateSerializer(
+    TaskLabelsValidationMixin,
+    TaskAssigneeValidationMixin,
+    serializers.Serializer,
+):
     """Input for a task created by the caller and assigned to a colleague."""
 
     title = serializers.CharField(max_length=500, trim_whitespace=True)
@@ -153,6 +215,13 @@ class TaskCreateSerializer(TaskAssigneeValidationMixin, serializers.Serializer):
         required=False,
         write_only=True,
     )
+    label_ids = serializers.PrimaryKeyRelatedField(
+        source="labels",
+        queryset=models.TaskLabel.objects.all(),
+        many=True,
+        required=False,
+        write_only=True,
+    )
 
     def validate(self, attrs):
         if (
@@ -166,7 +235,11 @@ class TaskCreateSerializer(TaskAssigneeValidationMixin, serializers.Serializer):
         return attrs
 
 
-class TaskUpdateSerializer(TaskAssigneeValidationMixin, serializers.ModelSerializer):
+class TaskUpdateSerializer(
+    TaskLabelsValidationMixin,
+    TaskAssigneeValidationMixin,
+    serializers.ModelSerializer,
+):
     """Editable fields and state-machine validation for one task."""
 
     _TRANSITIONS = {
@@ -192,6 +265,13 @@ class TaskUpdateSerializer(TaskAssigneeValidationMixin, serializers.ModelSeriali
         required=False,
         write_only=True,
     )
+    label_ids = serializers.PrimaryKeyRelatedField(
+        source="labels",
+        queryset=models.TaskLabel.objects.all(),
+        many=True,
+        required=False,
+        write_only=True,
+    )
 
     class Meta:
         model = models.Task
@@ -201,6 +281,7 @@ class TaskUpdateSerializer(TaskAssigneeValidationMixin, serializers.ModelSeriali
             "start_date",
             "due_date",
             "priority",
+            "label_ids",
             "assignee_id",
             "status",
         ]
@@ -234,6 +315,77 @@ class TaskUpdateSerializer(TaskAssigneeValidationMixin, serializers.ModelSeriali
         )
         instance.save(update_fields=["completed_at", "updated_at"])
         return instance
+
+
+class TaskLabelViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Organization-scoped reusable labels managed by task collaborators."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = TaskLabelSerializer
+    pagination_class = None
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["can_manage_all_labels"] = is_caller_org_admin(self.request.user)
+        return context
+
+    def get_queryset(self):
+        organization = get_caller_organization(self.request.user)
+        if organization is None:
+            return models.TaskLabel.objects.none()
+        return models.TaskLabel.objects.filter(organization=organization).order_by(
+            "name", "id"
+        )
+
+    def perform_create(self, serializer):
+        organization = get_caller_organization(self.request.user)
+        if organization is None:
+            raise serializers.ValidationError(
+                {"detail": "Join an organization before creating task labels."}
+            )
+        self._validate_unique_name(serializer.validated_data["name"], organization)
+        serializer.save(organization=organization, creator=self.request.user)
+
+    def perform_update(self, serializer):
+        label = self.get_object()
+        self._ensure_can_manage(label)
+        name = serializer.validated_data.get("name", label.name)
+        self._validate_unique_name(name, label.organization, exclude=label)
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        label = self.get_object()
+        self._ensure_can_manage(label)
+        label.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _ensure_can_manage(self, label):
+        if label.creator_id != self.request.user.id and not is_caller_org_admin(
+            self.request.user
+        ):
+            raise PermissionDenied(
+                "Only the label creator or an organization administrator can manage it."
+            )
+
+    @staticmethod
+    def _validate_unique_name(name, organization, exclude=None):
+        queryset = models.TaskLabel.objects.filter(
+            organization=organization,
+            name__iexact=name,
+        )
+        if exclude is not None:
+            queryset = queryset.exclude(pk=exclude.pk)
+        if queryset.exists():
+            raise serializers.ValidationError(
+                {"name": "This organization already has a label with this name."}
+            )
 
 
 class TaskAttachmentCreateSerializer(serializers.Serializer):
@@ -292,6 +444,7 @@ class TaskViewSet(
                 "parent__assignee",
                 "source_action_item__room",
             )
+            .prefetch_related("labels")
             .annotate(
                 _subtask_count=Count("subtasks", distinct=True),
                 _completed_subtask_count=Count(
@@ -318,12 +471,15 @@ class TaskViewSet(
         serializer.is_valid(raise_exception=True)
         validated_data = dict(serializer.validated_data)
         assignee = validated_data.pop("assignee", request.user)
+        labels = validated_data.pop("labels", [])
         with transaction.atomic():
             task = models.Task.objects.create(
                 creator=request.user,
                 assignee=assignee,
+                organization=get_caller_organization(request.user),
                 **validated_data,
             )
+            task.labels.set(labels)
             record_task_created(task=task, actor=request.user)
             record_task_assignment(
                 task=task,
@@ -350,6 +506,7 @@ class TaskViewSet(
                     "parent__assignee",
                     "source_action_item__room",
                 )
+                .prefetch_related("labels")
                 .get(pk=task.pk)
             )
             history_snapshot = snapshot_task(task)
@@ -361,6 +518,7 @@ class TaskViewSet(
                 "start_date",
                 "due_date",
                 "priority",
+                "label_ids",
                 "assignee_id",
                 "status",
             }
@@ -448,7 +606,9 @@ class TaskViewSet(
                     "assignee",
                     "parent__creator",
                     "parent__assignee",
-                ).annotate(
+                )
+                .prefetch_related("labels")
+                .annotate(
                     _subtask_count=Count("subtasks", distinct=True),
                     _completed_subtask_count=Count(
                         "subtasks",
@@ -477,13 +637,17 @@ class TaskViewSet(
         serializer.is_valid(raise_exception=True)
         validated_data = dict(serializer.validated_data)
         assignee = validated_data.pop("assignee", request.user)
+        labels = validated_data.pop("labels", [])
         with transaction.atomic():
             subtask = models.Task.objects.create(
                 parent=parent,
                 creator=request.user,
                 assignee=assignee,
+                organization=parent.organization
+                or get_caller_organization(request.user),
                 **validated_data,
             )
+            subtask.labels.set(labels)
             record_task_created(task=subtask, actor=request.user)
             record_task_assignment(
                 task=subtask,

@@ -54,6 +54,33 @@
     "high": "Priorité élevée",
     "urgent": "Urgente"
   },
+  "labels": {
+    "manage": "Gérer les étiquettes de tâche",
+    "field": "Étiquettes",
+    "filter": "Filtrer par étiquette",
+    "all": "Toutes les étiquettes",
+    "unlabeled": "Sans étiquette",
+    "none": "Aucune étiquette",
+    "empty": "Créez une étiquette d’organisation pour l’utiliser sur les tâches.",
+    "name": "Nom de l’étiquette",
+    "color": "Couleur",
+    "create": "Créer l’étiquette",
+    "rename": "Modifier",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer l’étiquette de tâche",
+    "deleteDescription": "Supprimer l’étiquette « {{name}} » ? Elle sera retirée de toutes les tâches.",
+    "deleteConfirm": "Supprimer l’étiquette",
+    "error": "L’opération sur l’étiquette a échoué. Veuillez réessayer.",
+    "colors": {
+      "grey": "Gris",
+      "blue": "Bleu",
+      "green": "Vert",
+      "yellow": "Jaune",
+      "orange": "Orange",
+      "red": "Rouge",
+      "purple": "Violet"
+    }
+  },
   "statuses": {
     "todo": "À faire",
     "in_progress": "En cours",
@@ -137,6 +164,7 @@
       "attachment_removed": "{{actor}} a supprimé la pièce jointe {{filename}}",
       "content_changed": "{{actor}} a modifié le contenu de la tâche",
       "priority_changed": "{{actor}} a modifié la priorité de « {{from}} » à « {{to}} »",
+      "labels_changed": "{{actor}} a modifié les étiquettes de « {{from}} » à « {{to}} »",
       "dates_changed": "{{actor}} a ajusté les dates de la tâche",
       "assignee_changed": "{{actor}} a réattribué la tâche à {{assignee}}",
       "status_changed": "{{actor}} a changé le statut en « {{status}} »",

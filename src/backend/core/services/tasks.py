@@ -16,6 +16,21 @@ class TaskAssigneeError(ValueError):
     """Raised when a user cannot be assigned by the task creator."""
 
 
+def task_organization_for_user(user):
+    """Resolve the active primary-first organization persisted on new tasks."""
+
+    membership = (
+        models.Membership.objects.filter(
+            user=user,
+            status=models.MembershipStatusChoices.ACTIVE,
+        )
+        .select_related("organization")
+        .order_by("-is_primary", "created_at")
+        .first()
+    )
+    return membership.organization if membership is not None else None
+
+
 def ensure_task_assignee_allowed(*, creator, assignee):
     """Allow self-assignment or an active colleague from the same directory.
 
@@ -79,6 +94,7 @@ def create_task_from_action_item(*, action_item_id, creator):
         title=action_item.content,
         creator=creator,
         assignee=action_item.assignee,
+        organization=task_organization_for_user(creator),
         due_date=(
             timezone.localdate(action_item.due_at)
             if action_item.due_at is not None

@@ -54,6 +54,33 @@
     "high": "High priority",
     "urgent": "Urgent"
   },
+  "labels": {
+    "manage": "Manage task labels",
+    "field": "Labels",
+    "filter": "Filter by label",
+    "all": "All labels",
+    "unlabeled": "Without labels",
+    "none": "No labels",
+    "empty": "Create an organization label to use it on tasks.",
+    "name": "Label name",
+    "color": "Color",
+    "create": "Create label",
+    "rename": "Edit",
+    "delete": "Delete",
+    "deleteTitle": "Delete task label",
+    "deleteDescription": "Delete the label “{{name}}”? It will be removed from every task.",
+    "deleteConfirm": "Delete label",
+    "error": "The label operation failed. Please try again.",
+    "colors": {
+      "grey": "Grey",
+      "blue": "Blue",
+      "green": "Green",
+      "yellow": "Yellow",
+      "orange": "Orange",
+      "red": "Red",
+      "purple": "Purple"
+    }
+  },
   "statuses": {
     "todo": "To do",
     "in_progress": "In progress",
@@ -137,6 +164,7 @@
       "attachment_removed": "{{actor}} removed attachment {{filename}}",
       "content_changed": "{{actor}} updated the task content",
       "priority_changed": "{{actor}} changed the task priority from “{{from}}” to “{{to}}”",
+      "labels_changed": "{{actor}} changed the task labels from “{{from}}” to “{{to}}”",
       "dates_changed": "{{actor}} adjusted the task dates",
       "assignee_changed": "{{actor}} reassigned the task to {{assignee}}",
       "status_changed": "{{actor}} changed the status to “{{status}}”",

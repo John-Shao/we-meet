@@ -2227,6 +2227,57 @@ class ActionItem(BaseModel):
             )
 
 
+class TaskLabel(BaseModel):
+    """A reusable organization-scoped label for tasks."""
+
+    class Color(models.TextChoices):
+        GREY = "grey", _("Grey")
+        BLUE = "blue", _("Blue")
+        GREEN = "green", _("Green")
+        YELLOW = "yellow", _("Yellow")
+        ORANGE = "orange", _("Orange")
+        RED = "red", _("Red")
+        PURPLE = "purple", _("Purple")
+
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        related_name="task_labels",
+        verbose_name=_("organization"),
+    )
+    name = models.CharField(_("name"), max_length=32)
+    color = models.CharField(
+        _("color"),
+        max_length=16,
+        choices=Color.choices,
+        default=Color.GREY,
+    )
+    creator = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="created_task_labels",
+        null=True,
+        blank=True,
+        verbose_name=_("creator"),
+    )
+
+    class Meta:
+        db_table = "meet_task_label"
+        verbose_name = _("task label")
+        verbose_name_plural = _("task labels")
+        ordering = ("name", "id")
+        constraints = [
+            models.UniqueConstraint(
+                models.functions.Lower("name"),
+                "organization",
+                name="task_label_name_ci_unique_org",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Task(BaseModel):
     """A durable work item, optionally created from a meeting action item."""
 
@@ -2250,6 +2301,14 @@ class Task(BaseModel):
         on_delete=models.PROTECT,
         related_name="created_tasks",
         verbose_name=_("creator"),
+    )
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        related_name="tasks",
+        null=True,
+        blank=True,
+        verbose_name=_("organization"),
     )
     assignee = models.ForeignKey(
         User,
@@ -2280,6 +2339,12 @@ class Task(BaseModel):
         choices=Priority.choices,
         default=Priority.NONE,
         db_index=True,
+    )
+    labels = models.ManyToManyField(
+        TaskLabel,
+        related_name="tasks",
+        blank=True,
+        verbose_name=_("labels"),
     )
     start_date = models.DateField(_("start date"), null=True, blank=True, db_index=True)
     due_date = models.DateField(_("due date"), null=True, blank=True, db_index=True)
@@ -2313,6 +2378,7 @@ class TaskActivity(BaseModel):
         ASSIGNEE_CHANGED = "assignee_changed", _("Assignee changed")
         STATUS_CHANGED = "status_changed", _("Status changed")
         PRIORITY_CHANGED = "priority_changed", _("Priority changed")
+        LABELS_CHANGED = "labels_changed", _("Labels changed")
         ATTACHMENT_REMOVED = "attachment_removed", _("Attachment removed")
         SOURCE_ACTION_ITEM_CHANGED = (
             "source_action_item_changed",

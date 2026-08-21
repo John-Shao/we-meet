@@ -541,6 +541,36 @@ class TaskAttachmentSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class TaskLabelSerializer(serializers.ModelSerializer):
+    """Serialize one reusable task label without exposing organization details."""
+
+    can_manage = serializers.SerializerMethodField()
+
+    def get_can_manage(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return bool(
+            user
+            and user.is_authenticated
+            and (
+                obj.creator_id == user.id
+                or self.context.get("can_manage_all_labels", False)
+            )
+        )
+
+    class Meta:
+        model = models.TaskLabel
+        fields = [
+            "id",
+            "name",
+            "color",
+            "can_manage",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
 class TaskSerializer(serializers.ModelSerializer):
     """Serialize a durable task for the task center and meeting detail."""
 
@@ -555,6 +585,7 @@ class TaskSerializer(serializers.ModelSerializer):
     can_edit = serializers.SerializerMethodField()
     can_update_status = serializers.SerializerMethodField()
     time_state = serializers.SerializerMethodField()
+    labels = TaskLabelSerializer(many=True, read_only=True)
 
     def _request_user(self):
         request = self.context.get("request")
@@ -630,6 +661,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "completed_subtask_count",
             "status",
             "priority",
+            "labels",
             "start_date",
             "due_date",
             "completed_at",

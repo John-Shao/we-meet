@@ -10,6 +10,8 @@ from rest_framework.test import APIClient
 from core.factories import (
     MeetingParticipationFactory,
     MeetingSessionFactory,
+    MembershipFactory,
+    OrganizationFactory,
     RoomFactory,
     UserFactory,
 )
@@ -23,8 +25,16 @@ def _world():
     assignee = UserFactory()
     member = UserFactory()
     outsider = UserFactory()
+    organization = OrganizationFactory()
+    for user in (owner, assignee, member):
+        MembershipFactory(
+            organization=organization,
+            user=user,
+            is_primary=True,
+        )
     room = RoomFactory(
-        users=[(owner, "owner"), (assignee, "member"), (member, "member")]
+        organization=organization,
+        users=[(owner, "owner"), (assignee, "member"), (member, "member")],
     )
     session = MeetingSessionFactory(
         room=room,
@@ -226,12 +236,16 @@ def test_manager_creates_task_from_confirmed_action_item():
     assert payload["title"] == item.content
     assert payload["status"] == Task.Status.TODO
     assert payload["priority"] == Task.Priority.NONE
+    assert payload["labels"] == []
     assert payload["creator"]["id"] == str(owner.id)
     assert payload["assignee"]["id"] == str(assignee.id)
     assert payload["source_action_item_id"] == str(item.id)
     assert payload["due_date"] == timezone.localdate(due_at).isoformat()
     item.refresh_from_db()
-    assert item.task_id == Task.objects.get().id
+    task = Task.objects.get()
+    assert item.task_id == task.id
+    assert task.organization_id is not None
+    assert not task.labels.exists()
     activity = TaskActivity.objects.get()
     assert activity.actor == owner
     assert activity.event == TaskActivity.Event.CREATED
