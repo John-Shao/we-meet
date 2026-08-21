@@ -52,6 +52,9 @@ backend:
     DJANGO_EMAIL_BRAND_NAME: We-Meet
     DJANGO_EMAIL_DOMAIN: meet.we-meet.online
     DJANGO_EMAIL_APP_BASE_URL: https://meet.we-meet.online
+    # Public application origin used by task/summary cards to build in-product
+    # navigation actions. backend.envVars are inherited by celery-backend.
+    APPLICATION_BASE_URL: https://meet.we-meet.online
     EMAIL_SUPPORT_EMAIL: support@we-meet.online
     EMAIL_LOGO_IMG: https://meet.we-meet.online/assets/logo-suite-numerique.png
 

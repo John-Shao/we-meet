@@ -71,6 +71,32 @@ def test_a_cached_uid_costs_no_round_trip(bot, client):
     client.issue_token.assert_not_called()
 
 
+def test_builtin_avatar_is_rendered_lazily_and_backfilled(client):
+    assistant = im_bots.get_builtin(im_bots.BOT_TASK_ASSISTANT)
+    assert assistant.avatar_key == ""
+
+    with mock.patch(
+        "core.services.im_bots.utils.render_bot_avatar_swatch",
+        return_value="bot/task-assistant.png",
+    ) as render:
+        assert im_bots.resolve_bot_uid(client, assistant) == BOT_UID
+
+    assistant.refresh_from_db()
+    assert assistant.avatar_key == "bot/task-assistant.png"
+    render.assert_called_once_with(color="#7C3AED", label="任务助手")
+
+
+def test_builtin_avatar_failure_does_not_block_cached_uid(client):
+    assistant = im_bots.get_builtin(im_bots.BOT_TASK_ASSISTANT)
+    models.ImBot.objects.filter(pk=assistant.pk).update(im_uid=BOT_UID)
+    assistant.refresh_from_db()
+
+    with mock.patch(
+        "core.services.im_bots.utils.render_bot_avatar_swatch", return_value=""
+    ):
+        assert im_bots.resolve_bot_uid(client, assistant) == BOT_UID
+
+
 def test_the_external_id_can_never_collide_with_a_person(bot):
     """Keycloak subs are UUIDs; ``bot:<pk>`` is not one."""
     assert im_bots.external_id_for(bot) == f"bot:{bot.pk}"

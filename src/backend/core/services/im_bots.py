@@ -23,7 +23,7 @@ import uuid
 
 from django.core.cache import cache
 
-from core import models
+from core import models, utils
 from core.services.jusi_im import (
     JusiImAdminClient,
     JusiImServiceError,
@@ -100,6 +100,34 @@ def make_admin_client() -> JusiImAdminClient | None:
 _MAX_UID_LENGTH = 36
 
 
+def ensure_builtin_avatar(bot) -> str:
+    """Render and backfill a built-in assistant avatar on first use.
+
+    Data migrations deliberately avoid object-storage calls.  This keeps deploys
+    independent from OSS while still ensuring a newly seeded assistant gets the
+    same robot swatch as assistants created through the management API.
+    """
+
+    if bot.kind != models.ImBotKindChoices.BUILTIN or bot.avatar_key:
+        return bot.avatar_key or ""
+
+    rendered = utils.render_bot_avatar_swatch(
+        color=palette_color(bot.avatar_color_index),
+        label=bot.name,
+    )
+    if not rendered:
+        return ""
+
+    updated = models.ImBot.objects.filter(pk=bot.pk, avatar_key="").update(
+        avatar_key=rendered
+    )
+    if updated:
+        bot.avatar_key = rendered
+    else:
+        bot.refresh_from_db(fields=["avatar_key"])
+    return bot.avatar_key or ""
+
+
 def resolve_bot_uid(client, bot) -> str:
     """Return the bot's jusi uid, minting and backfilling it on first use.
 
@@ -112,6 +140,9 @@ def resolve_bot_uid(client, bot) -> str:
     better than a DataError from writing an oversized value into a 36-char
     column halfway through someone's approval flow.
     """
+    # The identity row is seeded without network access. Avatar creation, like
+    # jusi uid minting, belongs to the first real use and must never block it.
+    ensure_builtin_avatar(bot)
     if bot.im_uid:
         return bot.im_uid
     resolved = client.issue_token(
