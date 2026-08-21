@@ -44,7 +44,7 @@
   "actionItems": {
     "confirm": "Bestätigen",
     "complete": "Als erledigt markieren",
-    "reopen": "Wieder öffnen",
+    "reopen": "Aktionspunkt wieder öffnen",
     "dismiss": "Verwerfen",
     "restore": "Wiederherstellen",
     "edit": "Bearbeiten",

@@ -318,19 +318,81 @@ def test_manual_action_item_status_override_clears_task_sync_provenance():
 
     assert response.status_code == 200
     item.refresh_from_db()
+    task.refresh_from_db()
     assert item.task_status_sync_activity is None
+    assert task.status == Task.Status.TODO
+    assert task.completed_at is None
     manual_activity = TaskActivity.objects.get(
         task=task,
         event=TaskActivity.Event.SOURCE_ACTION_ITEM_CHANGED,
     )
+    status_activity = TaskActivity.objects.get(
+        task=task,
+        event=TaskActivity.Event.STATUS_CHANGED,
+        changes__source_action_item_origin__isnull=False,
+    )
     assert manual_activity.actor == owner
-    assert manual_activity.changes == {
-        "source_action_item": {
-            "id": str(item.id),
-            "status": {
-                "from": ActionItem.Status.COMPLETED,
-                "to": ActionItem.Status.CONFIRMED,
-            },
-            "overrode_task_sync": True,
-        }
+    assert manual_activity.changes["source_action_item"] == {
+        "id": str(item.id),
+        "status": {
+            "from": ActionItem.Status.COMPLETED,
+            "to": ActionItem.Status.CONFIRMED,
+        },
+        "overrode_task_sync": True,
     }
+    assert manual_activity.changes["linked_task_sync"] == {
+        "task_id": str(task.id),
+        "result": "updated",
+        "from": Task.Status.COMPLETED,
+        "to": Task.Status.TODO,
+        "status_activity_id": str(status_activity.id),
+    }
+    assert status_activity.actor == owner
+    assert status_activity.changes == {
+        "status": {
+            "from": Task.Status.COMPLETED,
+            "to": Task.Status.TODO,
+        },
+        "source_action_item_origin": {
+            "action_item_id": str(item.id),
+            "activity_id": str(manual_activity.id),
+        },
+    }
+    delivery = TaskImDelivery.objects.get(activity=status_activity)
+    assert delivery.recipient == assignee
+
+
+def test_manual_action_item_completion_completes_linked_task():
+    owner, assignee, _member, _outsider, room, item = _world()
+    item.status = ActionItem.Status.CONFIRMED
+    item.assignee = assignee
+    task = Task.objects.create(
+        title=item.content,
+        creator=owner,
+        assignee=assignee,
+        status=Task.Status.IN_PROGRESS,
+        source_action_item=item,
+    )
+    item.task_id = task.id
+    item.save(update_fields=["status", "assignee", "task_id", "updated_at"])
+
+    response = _client(owner).patch(
+        _url(room, item),
+        {"status": ActionItem.Status.COMPLETED},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    task.refresh_from_db()
+    assert task.status == Task.Status.COMPLETED
+    assert task.completed_at is not None
+    source_activity = TaskActivity.objects.get(
+        task=task,
+        event=TaskActivity.Event.SOURCE_ACTION_ITEM_CHANGED,
+    )
+    assert source_activity.changes["linked_task_sync"]["result"] == "updated"
+    assert TaskImDelivery.objects.filter(
+        task=task,
+        recipient=assignee,
+        event=TaskImDelivery.Event.STATUS_CHANGED,
+    ).exists()

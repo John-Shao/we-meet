@@ -88,6 +88,18 @@ export interface ApiTaskActivity {
       status: { from: SourceActionItemStatus; to: SourceActionItemStatus }
       overrode_task_sync: boolean
     }
+    linked_task_sync?: {
+      task_id: string
+      result: 'updated' | 'already_aligned' | 'skipped_conflict'
+      from: TaskStatus
+      to: TaskStatus
+      reason?: string
+      status_activity_id?: string
+    }
+    source_action_item_origin?: {
+      action_item_id: string
+      activity_id: string
+    }
   }
   created_at: string
 }

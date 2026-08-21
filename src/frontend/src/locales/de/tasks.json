@@ -122,11 +122,15 @@
       "dates_changed": "{{actor}} hat die Aufgabendaten angepasst",
       "assignee_changed": "{{actor}} hat die Aufgabe {{assignee}} zugewiesen",
       "status_changed": "{{actor}} hat den Status in „{{status}}“ geändert",
+      "status_changed_from_action_item": "{{actor}} hat den Aufgabenstatus über den Quell-Aktionspunkt in „{{status}}“ geändert",
       "status_changed_synced": "{{base}}; der Quell-Aktionspunkt wurde mit „{{sourceStatus}}“ synchronisiert",
       "status_changed_aligned": "{{base}}; der Quell-Aktionspunkt war bereits „{{sourceStatus}}“",
       "status_changed_conflict": "{{base}}; der Quell-Aktionspunkt behält den manuellen Status „{{sourceStatus}}“",
       "source_action_item_changed": "{{actor}} hat den Status des Quell-Aktionspunkts in „{{status}}“ geändert",
-      "source_action_item_overrode": "{{actor}} hat den Status des Quell-Aktionspunkts in „{{status}}“ geändert und damit die Aufgaben-Synchronisierung überschrieben"
+      "source_action_item_overrode": "{{actor}} hat den Status des Quell-Aktionspunkts in „{{status}}“ geändert und damit die Aufgaben-Synchronisierung überschrieben",
+      "source_action_item_synced_task": "{{base}}; die verknüpfte Aufgabe wurde mit „{{taskStatus}}“ synchronisiert",
+      "source_action_item_task_aligned": "{{base}}; die verknüpfte Aufgabe war bereits „{{taskStatus}}“",
+      "source_action_item_task_conflict": "{{base}}; die verknüpfte Aufgabe behält den Status „{{taskStatus}}“"
     }
   }
 }

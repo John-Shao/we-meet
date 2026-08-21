@@ -44,7 +44,7 @@
   "actionItems": {
     "confirm": "确认行动项",
     "complete": "标记完成",
-    "reopen": "重新打开",
+    "reopen": "重新打开行动项",
     "dismiss": "忽略",
     "restore": "恢复",
     "edit": "编辑",

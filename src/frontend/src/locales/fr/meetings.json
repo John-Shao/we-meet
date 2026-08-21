@@ -44,7 +44,7 @@
   "actionItems": {
     "confirm": "Confirmer",
     "complete": "Marquer comme terminée",
-    "reopen": "Rouvrir",
+    "reopen": "Rouvrir l’action",
     "dismiss": "Ignorer",
     "restore": "Restaurer",
     "edit": "Modifier",

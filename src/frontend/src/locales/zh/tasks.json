@@ -122,11 +122,15 @@
       "dates_changed": "{{actor}} 调整了任务日期",
       "assignee_changed": "{{actor}} 将负责人转交给 {{assignee}}",
       "status_changed": "{{actor}} 将任务状态改为“{{status}}”",
+      "status_changed_from_action_item": "{{actor}} 通过来源行动项将任务状态改为“{{status}}”",
       "status_changed_synced": "{{base}}；来源行动项同步为“{{sourceStatus}}”",
       "status_changed_aligned": "{{base}}；来源行动项已是“{{sourceStatus}}”",
       "status_changed_conflict": "{{base}}；来源行动项保留人工状态“{{sourceStatus}}”",
       "source_action_item_changed": "{{actor}} 将来源行动项状态改为“{{status}}”",
-      "source_action_item_overrode": "{{actor}} 将来源行动项状态改为“{{status}}”，覆盖了任务联动结果"
+      "source_action_item_overrode": "{{actor}} 将来源行动项状态改为“{{status}}”，覆盖了任务联动结果",
+      "source_action_item_synced_task": "{{base}}；关联任务同步为“{{taskStatus}}”",
+      "source_action_item_task_aligned": "{{base}}；关联任务已是“{{taskStatus}}”",
+      "source_action_item_task_conflict": "{{base}}；关联任务保留“{{taskStatus}}”状态"
     }
   }
 }

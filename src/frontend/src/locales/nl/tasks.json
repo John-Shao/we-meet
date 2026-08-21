@@ -122,11 +122,15 @@
       "dates_changed": "{{actor}} heeft de taakdatums aangepast",
       "assignee_changed": "{{actor}} heeft de taak toegewezen aan {{assignee}}",
       "status_changed": "{{actor}} heeft de status gewijzigd in ‘{{status}}’",
+      "status_changed_from_action_item": "{{actor}} heeft de taakstatus via het bronactiepunt gewijzigd in ‘{{status}}’",
       "status_changed_synced": "{{base}}; het bronactiepunt is gesynchroniseerd naar ‘{{sourceStatus}}’",
       "status_changed_aligned": "{{base}}; het bronactiepunt was al ‘{{sourceStatus}}’",
       "status_changed_conflict": "{{base}}; het bronactiepunt behoudt de handmatige status ‘{{sourceStatus}}’",
       "source_action_item_changed": "{{actor}} heeft de status van het bronactiepunt gewijzigd in ‘{{status}}’",
-      "source_action_item_overrode": "{{actor}} heeft de status van het bronactiepunt gewijzigd in ‘{{status}}’ en daarmee het resultaat van de taaksynchronisatie overschreven"
+      "source_action_item_overrode": "{{actor}} heeft de status van het bronactiepunt gewijzigd in ‘{{status}}’ en daarmee het resultaat van de taaksynchronisatie overschreven",
+      "source_action_item_synced_task": "{{base}}; de gekoppelde taak is gesynchroniseerd naar ‘{{taskStatus}}’",
+      "source_action_item_task_aligned": "{{base}}; de gekoppelde taak was al ‘{{taskStatus}}’",
+      "source_action_item_task_conflict": "{{base}}; de gekoppelde taak behoudt de status ‘{{taskStatus}}’"
     }
   }
 }

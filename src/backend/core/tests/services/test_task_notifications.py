@@ -752,7 +752,36 @@ def test_status_change_by_parent_collaborator_notifies_both_task_owners(
     assert enqueue.call_count == 2
 
 
-def test_status_change_card_preserves_transition_and_actor(settings):
+@pytest.mark.parametrize(
+    ("origin", "expected_items"),
+    [
+        (
+            {},
+            [
+                {"label": "状态", "value": "进行中 → 已完成"},
+                {"label": "操作人", "value": "负责人"},
+            ],
+        ),
+        (
+            {
+                "source_action_item_origin": {
+                    "action_item_id": "action-item-id",
+                    "activity_id": "source-activity-id",
+                }
+            },
+            [
+                {"label": "状态", "value": "进行中 → 已完成"},
+                {"label": "操作人", "value": "负责人"},
+                {"label": "来源", "value": "会议行动项"},
+            ],
+        ),
+    ],
+)
+def test_status_change_card_preserves_transition_actor_and_origin(
+    settings,
+    origin,
+    expected_items,
+):
     settings.JUSI_IM_CONFIGURATION = {
         "api_url": "https://im.example.test",
         "admin_hmac_secret": "s" * 32,
@@ -774,7 +803,8 @@ def test_status_change_card_preserves_transition_and_actor(settings):
             "status": {
                 "from": models.Task.Status.IN_PROGRESS,
                 "to": models.Task.Status.COMPLETED,
-            }
+            },
+            **origin,
         },
     )
     delivery = models.TaskImDelivery.objects.create(
@@ -800,10 +830,7 @@ def test_status_change_card_preserves_transition_and_actor(settings):
     card = json.loads(post_direct.call_args.args[3])
     assert card["header"] == {"title": "任务已完成", "theme": "success"}
     assert card["plain"] == "任务已完成：完成发布复核"
-    assert card["blocks"][1]["items"] == [
-        {"label": "状态", "value": "进行中 → 已完成"},
-        {"label": "操作人", "value": "负责人"},
-    ]
+    assert card["blocks"][1]["items"] == expected_items
     assert card["blocks"][-1]["buttons"][0] == {
         "id": "open-task-status-change",
         "text": "查看任务",

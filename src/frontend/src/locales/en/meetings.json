@@ -44,7 +44,7 @@
   "actionItems": {
     "confirm": "Confirm",
     "complete": "Mark complete",
-    "reopen": "Reopen",
+    "reopen": "Reopen action item",
     "dismiss": "Dismiss",
     "restore": "Restore",
     "edit": "Edit",

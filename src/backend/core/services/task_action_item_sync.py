@@ -1,10 +1,13 @@
-"""Explainable one-way status synchronization from tasks to meeting action items."""
+"""Explainable status synchronization between tasks and meeting action items."""
 
 from django.utils import timezone
 
 from core import models
+from core.services.task_notifications import record_task_status_change
 
 SYNC_CHANGE_KEY = "source_action_item_sync"
+REVERSE_SYNC_CHANGE_KEY = "linked_task_sync"
+SOURCE_ORIGIN_KEY = "source_action_item_origin"
 
 
 def sync_action_item_from_task_status(*, activity: models.TaskActivity) -> dict | None:
@@ -12,6 +15,8 @@ def sync_action_item_from_task_status(*, activity: models.TaskActivity) -> dict 
 
     if activity.event != models.TaskActivity.Event.STATUS_CHANGED:
         raise ValueError("A task status-change activity is required.")
+    if SOURCE_ORIGIN_KEY in activity.changes:
+        return None
 
     task = activity.task
     if task.source_action_item_id is None:
@@ -39,10 +44,14 @@ def record_manual_action_item_status_change(
 ) -> models.TaskActivity | None:
     """Expose a manual source-status decision in the linked task history."""
 
-    task = models.Task.objects.filter(source_action_item=action_item).first()
+    task = (
+        models.Task.objects.select_for_update(of=("self",))
+        .filter(source_action_item=action_item)
+        .first()
+    )
     if task is None:
         return None
-    return models.TaskActivity.objects.create(
+    activity = models.TaskActivity.objects.create(
         task=task,
         actor=actor,
         event=models.TaskActivity.Event.SOURCE_ACTION_ITEM_CHANGED,
@@ -57,6 +66,154 @@ def record_manual_action_item_status_change(
             }
         },
     )
+    sync_task_from_action_item_status(activity=activity)
+    return activity
+
+
+def sync_task_from_action_item_status(*, activity: models.TaskActivity) -> dict | None:
+    """Apply manual completion/reopen decisions to the linked task."""
+
+    if activity.event != models.TaskActivity.Event.SOURCE_ACTION_ITEM_CHANGED:
+        raise ValueError("A source action-item change activity is required.")
+
+    source_change = activity.changes.get("source_action_item", {})
+    status_change = source_change.get("status", {})
+    previous_source_status = status_change.get("from")
+    current_source_status = status_change.get("to")
+    if current_source_status == models.ActionItem.Status.COMPLETED:
+        return _set_task_status_from_action_item(
+            source_activity=activity,
+            target_status=models.Task.Status.COMPLETED,
+        )
+    if (
+        previous_source_status == models.ActionItem.Status.COMPLETED
+        and current_source_status == models.ActionItem.Status.CONFIRMED
+    ):
+        return _set_task_status_from_action_item(
+            source_activity=activity,
+            target_status=models.Task.Status.TODO,
+        )
+    return None
+
+
+def _set_task_status_from_action_item(
+    *,
+    source_activity: models.TaskActivity,
+    target_status: str,
+) -> dict:
+    task = (
+        models.Task.objects.select_for_update(of=("self",))
+        .select_related("source_action_item")
+        .get(pk=source_activity.task_id)
+    )
+    previous_status = task.status
+
+    if previous_status == models.Task.Status.CANCELED:
+        return _record_reverse_sync_result(
+            source_activity=source_activity,
+            task=task,
+            result="skipped_conflict",
+            previous_status=previous_status,
+            reason="task_canceled",
+        )
+
+    if target_status == models.Task.Status.TODO and previous_status in {
+        models.Task.Status.TODO,
+        models.Task.Status.IN_PROGRESS,
+    }:
+        return _record_reverse_sync_result(
+            source_activity=source_activity,
+            task=task,
+            result="already_aligned",
+            previous_status=previous_status,
+        )
+
+    if previous_status == target_status:
+        return _record_reverse_sync_result(
+            source_activity=source_activity,
+            task=task,
+            result="already_aligned",
+            previous_status=previous_status,
+        )
+
+    if target_status == models.Task.Status.COMPLETED and previous_status not in {
+        models.Task.Status.TODO,
+        models.Task.Status.IN_PROGRESS,
+    }:
+        return _record_reverse_sync_result(
+            source_activity=source_activity,
+            task=task,
+            result="skipped_conflict",
+            previous_status=previous_status,
+            reason="task_status_not_open",
+        )
+    if (
+        target_status == models.Task.Status.TODO
+        and previous_status != models.Task.Status.COMPLETED
+    ):
+        return _record_reverse_sync_result(
+            source_activity=source_activity,
+            task=task,
+            result="skipped_conflict",
+            previous_status=previous_status,
+            reason="task_status_not_completed",
+        )
+
+    task.status = target_status
+    task.completed_at = (
+        task.source_action_item.completed_at or timezone.now()
+        if target_status == models.Task.Status.COMPLETED
+        else None
+    )
+    task.save(update_fields=["status", "completed_at", "updated_at"])
+    status_activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=source_activity.actor,
+        event=models.TaskActivity.Event.STATUS_CHANGED,
+        changes={
+            "status": {"from": previous_status, "to": task.status},
+            SOURCE_ORIGIN_KEY: {
+                "action_item_id": str(task.source_action_item_id),
+                "activity_id": str(source_activity.id),
+            },
+        },
+    )
+    result = _record_reverse_sync_result(
+        source_activity=source_activity,
+        task=task,
+        result="updated",
+        previous_status=previous_status,
+        status_activity=status_activity,
+    )
+    record_task_status_change(activity=status_activity)
+    return result
+
+
+def _record_reverse_sync_result(  # noqa: PLR0913
+    *,
+    source_activity: models.TaskActivity,
+    task: models.Task,
+    result: str,
+    previous_status: str,
+    reason: str = "",
+    status_activity: models.TaskActivity | None = None,
+) -> dict:
+    payload = {
+        "task_id": str(task.id),
+        "result": result,
+        "from": previous_status,
+        "to": task.status,
+    }
+    if reason:
+        payload["reason"] = reason
+    if status_activity is not None:
+        payload["status_activity_id"] = str(status_activity.id)
+    source_activity.changes = {
+        **source_activity.changes,
+        REVERSE_SYNC_CHANGE_KEY: payload,
+    }
+    source_activity.save(update_fields=["changes", "updated_at"])
+    return payload
 
 
 def _complete_action_item(*, task: models.Task, activity: models.TaskActivity) -> dict:

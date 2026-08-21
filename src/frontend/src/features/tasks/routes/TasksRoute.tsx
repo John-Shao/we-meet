@@ -1439,7 +1439,10 @@ const taskActivityMessage = (
   const actor = displayName(activity.actor)
   if (activity.event === 'status_changed') {
     const status = activity.changes.status?.to
-    const base = t('history.events.status_changed', {
+    const statusEvent = activity.changes.source_action_item_origin
+      ? 'history.events.status_changed_from_action_item'
+      : 'history.events.status_changed'
+    const base = t(statusEvent, {
       actor,
       status: status ? t(`statuses.${status}`) : '—',
     })
@@ -1474,9 +1477,28 @@ const taskActivityMessage = (
     const event = sourceChange?.overrode_task_sync
       ? 'history.events.source_action_item_overrode'
       : 'history.events.source_action_item_changed'
-    return t(event, {
+    const base = t(event, {
       actor,
       status: status ? t(`actionItemStatuses.${status}`) : '—',
+    })
+    const sync = activity.changes.linked_task_sync
+    if (!sync) return base
+    const taskStatus = t(`statuses.${sync.to}`)
+    if (sync.result === 'updated') {
+      return t('history.events.source_action_item_synced_task', {
+        base,
+        taskStatus,
+      })
+    }
+    if (sync.result === 'already_aligned') {
+      return t('history.events.source_action_item_task_aligned', {
+        base,
+        taskStatus,
+      })
+    }
+    return t('history.events.source_action_item_task_conflict', {
+      base,
+      taskStatus,
     })
   }
   return t(`history.events.${activity.event}`, { actor })

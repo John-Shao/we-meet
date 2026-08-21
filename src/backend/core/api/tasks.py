@@ -291,6 +291,21 @@ class TaskViewSet(
     def partial_update(self, request, *args, **kwargs):
         with transaction.atomic():
             task = self.get_object()
+            if task.source_action_item_id is not None:
+                models.ActionItem.objects.select_for_update().get(
+                    pk=task.source_action_item_id
+                )
+            task = (
+                models.Task.objects.select_for_update(of=("self",))
+                .select_related(
+                    "creator",
+                    "assignee",
+                    "parent__creator",
+                    "parent__assignee",
+                    "source_action_item__room",
+                )
+                .get(pk=task.pk)
+            )
             history_snapshot = snapshot_task(task)
             previous_assignee_id = task.assignee_id
             requested_fields = set(request.data)

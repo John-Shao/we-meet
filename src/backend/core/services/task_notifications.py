@@ -652,6 +652,8 @@ def _status_change_card(delivery: models.TaskImDelivery) -> dict:
         },
         {"label": "操作人", "value": _display_name(activity.actor)},
     ]
+    if activity.changes.get("source_action_item_origin"):
+        fields.append({"label": "来源", "value": "会议行动项"})
     blocks = [
         {
             "type": im_cards.CARD_BLOCK_TEXT,
