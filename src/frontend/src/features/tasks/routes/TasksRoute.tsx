@@ -39,8 +39,11 @@ const labelCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.25rem',
-  fontSize: '0.8125rem',
-  color: 'greyscale.700',
+  // Match the shared Field primitive: editable field labels use the normal
+  // foreground color and 14px type. Muted text is reserved for descriptions,
+  // metadata and genuinely disabled controls.
+  fontSize: '0.875rem',
+  color: 'default.text',
 })
 
 const displayName = (user: ApiTask['creator'] | null) =>
