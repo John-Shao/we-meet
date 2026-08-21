@@ -389,6 +389,44 @@ def test_assignee_can_advance_status_but_cannot_edit_content():
     assert response.status_code == 403
 
 
+def test_assignee_cannot_cancel_or_reopen_canceled_task():
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = Task.objects.create(
+        title="Creator-controlled cancellation",
+        creator=creator,
+        assignee=assignee,
+    )
+    client = _client(assignee)
+
+    cancel_response = client.patch(
+        f"{TASKS_URL}{task.id}/",
+        {"status": Task.Status.CANCELED},
+        format="json",
+    )
+
+    assert cancel_response.status_code == 403
+    task.refresh_from_db()
+    assert task.status == Task.Status.TODO
+    assert not TaskActivity.objects.filter(task=task).exists()
+
+    task.status = Task.Status.CANCELED
+    task.save(update_fields=["status", "updated_at"])
+    reopen_response = client.patch(
+        f"{TASKS_URL}{task.id}/",
+        {"status": Task.Status.TODO},
+        format="json",
+    )
+
+    assert reopen_response.status_code == 403
+    task.refresh_from_db()
+    assert task.status == Task.Status.CANCELED
+    assert not TaskActivity.objects.filter(task=task).exists()
+    detail_response = client.get(f"{TASKS_URL}{task.id}/")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["can_update_status"] is False
+
+
 def test_creator_status_change_notifies_other_assignee():
     creator = UserFactory()
     assignee = UserFactory()
@@ -409,6 +447,15 @@ def test_creator_status_change_notifies_other_assignee():
     delivery = TaskImDelivery.objects.get(activity=activity)
     assert delivery.recipient == assignee
     assert delivery.event == TaskImDelivery.Event.STATUS_CHANGED
+
+    reopen_response = _client(creator).patch(
+        f"{TASKS_URL}{task.id}/",
+        {"status": Task.Status.TODO},
+        format="json",
+    )
+    assert reopen_response.status_code == 200
+    assert reopen_response.json()["status"] == Task.Status.TODO
+    assert reopen_response.json()["can_update_status"] is True
 
 
 def test_creator_reassigns_task_and_visibility_follows_assignee():

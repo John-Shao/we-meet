@@ -567,7 +567,7 @@ class TaskSerializer(serializers.ModelSerializer):
     def get_can_update_status(self, obj):
         user = self._request_user()
         parent = getattr(obj, "parent", None)
-        return bool(
+        can_update = bool(
             user
             and user.is_authenticated
             and (
@@ -578,6 +578,13 @@ class TaskSerializer(serializers.ModelSerializer):
                 )
             )
         )
+        if (
+            can_update
+            and obj.status == models.Task.Status.CANCELED
+            and obj.creator_id != user.id
+        ):
+            return False
+        return can_update
 
     def get_time_state(self, obj):
         user = self._request_user()

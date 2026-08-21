@@ -42,11 +42,20 @@ const timeFilters: TaskTimeFilter[] = [
   'overdue',
 ]
 
-const nextStatusActions: Record<TaskStatus, TaskStatus[]> = {
+const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
   todo: ['in_progress', 'completed', 'canceled'],
   in_progress: ['todo', 'completed', 'canceled'],
   completed: ['todo'],
   canceled: ['todo'],
+}
+
+const nextStatusActions = (
+  task: Pick<ApiTask, 'status' | 'can_edit'>
+): TaskStatus[] => {
+  if (task.status === 'canceled' && !task.can_edit) return []
+  return statusTransitions[task.status].filter(
+    (status) => status !== 'canceled' || task.can_edit
+  )
 }
 
 const labelCss = css({
@@ -637,7 +646,7 @@ const TasksAuthenticated = () => {
 
                   <div className={actionRowCss}>
                     {task.can_update_status &&
-                      nextStatusActions[task.status].map((status) => (
+                      nextStatusActions(task).map((status) => (
                         <Button
                           key={status}
                           variant={
@@ -957,7 +966,7 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
               </div>
               {subtask.can_update_status && (
                 <div className={actionRowCss}>
-                  {nextStatusActions[subtask.status].map((status) => (
+                  {nextStatusActions(subtask).map((status) => (
                     <Button
                       key={status}
                       variant={status === 'completed' ? 'primary' : 'secondary'}

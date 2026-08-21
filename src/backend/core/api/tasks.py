@@ -308,6 +308,13 @@ class TaskViewSet(
                 )
             if task.creator_id != request.user.id and requested_fields != {"status"}:
                 raise PermissionDenied("Assignees can only update the task status.")
+            if task.creator_id != request.user.id and (
+                task.status == models.Task.Status.CANCELED
+                or request.data.get("status") == models.Task.Status.CANCELED
+            ):
+                raise PermissionDenied(
+                    "Only the task creator can cancel or reopen a canceled task."
+                )
 
             serializer = TaskUpdateSerializer(
                 task,
