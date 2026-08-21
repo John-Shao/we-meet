@@ -205,9 +205,25 @@ def test_a_silent_downgrade_to_system_is_detected_and_logged(bot, client, caplog
 
 
 def test_builtins_are_seeded_and_lookup_by_slug_works():
-    assistant = im_bots.get_builtin(im_bots.BOT_MEETING_ASSISTANT)
-    assert assistant is not None
-    assert assistant.name == "会议助手"
+    expected = {
+        im_bots.BOT_MEETING_ASSISTANT: ("会议助手", "会议纪要与文档通知", 0),
+        im_bots.BOT_CALENDAR_ASSISTANT: ("日程助手", "日程变更提醒", 2),
+        im_bots.BOT_APPROVAL_ASSISTANT: ("审批助手", "审批流程通知", 5),
+        im_bots.BOT_TASK_ASSISTANT: ("任务助手", "任务分派与进度通知", 6),
+    }
+
+    for slug, (name, description, color) in expected.items():
+        assistant = im_bots.get_builtin(slug)
+        assert assistant is not None
+        assert (
+            assistant.name,
+            assistant.description,
+            assistant.avatar_color_index,
+        ) == (
+            name,
+            description,
+            color,
+        )
 
 
 def test_the_seed_pks_are_deterministic():
@@ -218,6 +234,10 @@ def test_the_seed_pks_are_deterministic():
         uuid.NAMESPACE_OID, "we-meet:builtin-bot:meeting-assistant"
     )
     assert assistant.pk == expected
+
+    task_assistant = im_bots.get_builtin(im_bots.BOT_TASK_ASSISTANT)
+    expected_task = uuid.uuid5(uuid.NAMESPACE_OID, "we-meet:builtin-bot:task-assistant")
+    assert task_assistant.pk == expected_task
 
 
 def test_posting_as_a_builtin_records_the_installation(client):

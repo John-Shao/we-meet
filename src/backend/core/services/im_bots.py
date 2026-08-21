@@ -13,9 +13,9 @@ Three things have to be true, and getting any of them wrong fails *silently*:
 3. It must join with jusi role='bot' (P23), or it shows up in the roster and
    the member count, and can inherit the group when the owner leaves.
 
-Built-in assistants (会议助手 / 日程助手 / 审批助手) are seeded by migration 0080
-and looked up here by slug; custom webhook bots are created through the
-management API. Both speak through the same path.
+Built-in assistants (会议助手 / 日程助手 / 审批助手 / 任务助手) are seeded by data
+migrations and looked up here by slug; custom webhook bots are created through
+the management API. Both speak through the same path.
 """
 
 import logging
@@ -36,10 +36,11 @@ logger = logging.getLogger(__name__)
 # can share one definition instead of three literals.
 SYSTEM_UID = "00000000-0000-0000-0000-000000000000"
 
-# Built-in assistant slugs. Seeded by migration 0080_seed_builtin_bots.
+# Built-in assistant slugs. Seeded by the built-in assistant data migrations.
 BOT_MEETING_ASSISTANT = "meeting-assistant"
 BOT_CALENDAR_ASSISTANT = "calendar-assistant"
 BOT_APPROVAL_ASSISTANT = "approval-assistant"
+BOT_TASK_ASSISTANT = "task-assistant"
 
 # Short TTL: the token is thrown away, we only want the uid + lazy registration.
 _MINT_TTL_SECONDS = 60

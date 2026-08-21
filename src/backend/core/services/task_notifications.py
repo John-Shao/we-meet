@@ -1,4 +1,4 @@
-"""Reliable Meeting Assistant notifications for task assignments."""
+"""Reliable Task Assistant notifications for task assignments."""
 
 import json
 import logging
@@ -128,9 +128,9 @@ def deliver_claimed_task_assignment(delivery: models.TaskImDelivery) -> None:
     if not cfg.get("api_url") or not cfg.get("admin_hmac_secret"):
         raise TaskImNotificationUnavailable("JUSI IM configuration is incomplete")
 
-    assistant = im_bots.get_builtin(im_bots.BOT_MEETING_ASSISTANT)
+    assistant = im_bots.get_builtin(im_bots.BOT_TASK_ASSISTANT)
     if assistant is None:
-        raise TaskImNotificationUnavailable("Meeting Assistant is unavailable")
+        raise TaskImNotificationUnavailable("Task Assistant is unavailable")
 
     client = JusiImAdminClient(
         api_url=str(cfg["api_url"]),

@@ -5177,8 +5177,8 @@ class ImBot(BaseModel):
 
     Split from :class:`ImBotInstallation` because the two have different
     cardinalities: a custom webhook bot is one identity bound to one group,
-    while a built-in assistant (会议助手 / 日程助手 / 审批助手) is one identity
-    that speaks in every group it has something to say in.
+    while a built-in assistant (会议助手 / 日程助手 / 审批助手 / 任务助手) is one
+    identity that speaks in every group it has something to say in.
 
     Deliberately **not** a :class:`User` row. Bots have no sub, no membership,
     no push tokens; and ``resolve_users`` filters people with

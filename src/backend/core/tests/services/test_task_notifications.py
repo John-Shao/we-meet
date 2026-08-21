@@ -10,6 +10,7 @@ import pytest
 
 from core import models
 from core.factories import RoomFactory, UserFactory
+from core.services import im_bots
 from core.services.jusi_im import JusiImBadResponseError, JusiImUnreachableError
 from core.services.task_notifications import (
     enqueue_due_task_assignments,
@@ -54,7 +55,7 @@ def _delivery(*, event=models.TaskImDelivery.Event.ASSIGNED, source=False):
     return delivery
 
 
-def test_successful_delivery_uses_meeting_assistant_rich_card_once(settings):
+def test_successful_delivery_uses_task_assistant_rich_card_once(settings):
     settings.JUSI_IM_CONFIGURATION = {
         "api_url": "https://im.example.test",
         "admin_hmac_secret": "s" * 32,
@@ -62,12 +63,13 @@ def test_successful_delivery_uses_meeting_assistant_rich_card_once(settings):
     }
     settings.APPLICATION_BASE_URL = "https://meet.example.test"
     delivery = _delivery(source=True)
+    assistant = mock.Mock(name="task-assistant")
 
     with (
         mock.patch(
             "core.services.task_notifications.im_bots.get_builtin",
-            return_value=mock.Mock(name="meeting-assistant"),
-        ),
+            return_value=assistant,
+        ) as get_builtin,
         mock.patch(
             "core.services.task_notifications.im_bots.post_direct",
             return_value=("direct-cid", mock.Mock()),
@@ -81,7 +83,9 @@ def test_successful_delivery_uses_meeting_assistant_rich_card_once(settings):
     assert delivery.attempt_count == 1
     assert delivery.conversation_id == "direct-cid"
     assert delivery.delivered_at is not None
+    get_builtin.assert_called_once_with(im_bots.BOT_TASK_ASSISTANT)
     assert post_direct.call_count == 1
+    assert post_direct.call_args.args[1] is assistant
     assert post_direct.call_args.kwargs["content_type"] == "rich-card"
     card = json.loads(post_direct.call_args.args[3])
     assert card["header"] == {"title": "你收到一个新任务", "theme": "info"}
