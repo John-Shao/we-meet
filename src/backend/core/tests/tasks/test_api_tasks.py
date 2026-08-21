@@ -370,6 +370,9 @@ def test_assignee_can_advance_status_but_cannot_edit_content():
     assert activity.changes == {
         "status": {"from": Task.Status.TODO, "to": Task.Status.IN_PROGRESS}
     }
+    delivery = TaskImDelivery.objects.get(activity=activity)
+    assert delivery.recipient == creator
+    assert delivery.event == TaskImDelivery.Event.STATUS_CHANGED
 
     response = client.patch(
         f"{TASKS_URL}{task.id}/",
@@ -384,6 +387,28 @@ def test_assignee_can_advance_status_but_cannot_edit_content():
         format="json",
     )
     assert response.status_code == 403
+
+
+def test_creator_status_change_notifies_other_assignee():
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = Task.objects.create(
+        title="Cancel duplicate work",
+        creator=creator,
+        assignee=assignee,
+    )
+
+    response = _client(creator).patch(
+        f"{TASKS_URL}{task.id}/",
+        {"status": Task.Status.CANCELED},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    activity = TaskActivity.objects.get(event=TaskActivity.Event.STATUS_CHANGED)
+    delivery = TaskImDelivery.objects.get(activity=activity)
+    assert delivery.recipient == assignee
+    assert delivery.event == TaskImDelivery.Event.STATUS_CHANGED
 
 
 def test_creator_reassigns_task_and_visibility_follows_assignee():
@@ -406,7 +431,11 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
 
     response = _client(creator).patch(
         f"{TASKS_URL}{task.id}/",
-        {"assignee_id": str(next_assignee.id), "due_date": "2026-08-30"},
+        {
+            "assignee_id": str(next_assignee.id),
+            "due_date": "2026-08-30",
+            "status": Task.Status.IN_PROGRESS,
+        },
         format="json",
     )
 
@@ -427,6 +456,13 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
     }
     assert not TaskImDelivery.objects.filter(
         event=TaskImDelivery.Event.DATES_CHANGED
+    ).exists()
+    assert not TaskImDelivery.objects.filter(
+        event=TaskImDelivery.Event.STATUS_CHANGED
+    ).exists()
+    assert TaskActivity.objects.filter(
+        event=TaskActivity.Event.STATUS_CHANGED,
+        changes={"status": {"from": Task.Status.TODO, "to": Task.Status.IN_PROGRESS}},
     ).exists()
     assert _client(previous_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 404
     assert _client(next_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 200
@@ -478,6 +514,7 @@ def test_creator_edits_content_and_completion_timestamp():
     )
     assert unchanged.status_code == 200
     assert TaskActivity.objects.count() == activity_count
+    assert TaskImDelivery.objects.count() == 0
 
 
 def test_creator_date_change_notifies_other_assignee(
@@ -855,9 +892,10 @@ def test_current_task_collaborator_removes_attachment_and_queues_bucket_cleanup(
     attachment_id = attachment.id
     url = f"{TASKS_URL}{task.id}/attachments/{attachment_id}/"
 
-    with mock.patch(
-        "core.api.tasks.process_file_deletion.delay"
-    ) as deletion, django_capture_on_commit_callbacks(execute=True):
+    with (
+        mock.patch("core.api.tasks.process_file_deletion.delay") as deletion,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
         response = _client(assignee).delete(url)
 
     assert response.status_code == 204

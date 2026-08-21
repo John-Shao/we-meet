@@ -19,6 +19,7 @@ from core.services.task_notifications import (
     record_task_assignment,
     record_task_comment,
     record_task_date_change,
+    record_task_status_change,
 )
 from core.tasks.task_notifications import deliver_task_assignment
 
@@ -595,11 +596,7 @@ def test_latest_date_change_supersedes_stale_change_and_reminders(
         task=task,
         actor=creator,
         event=models.TaskActivity.Event.DATES_CHANGED,
-        changes={
-            "dates": {
-                "due_date": {"from": "2026-08-30", "to": "2026-09-01"}
-            }
-        },
+        changes={"dates": {"due_date": {"from": "2026-08-30", "to": "2026-09-01"}}},
     )
     previous_change = models.TaskImDelivery.objects.create(
         task=task,
@@ -662,12 +659,254 @@ def test_date_change_does_not_notify_self_or_closed_task(closed_status):
         task=task,
         actor=creator,
         event=models.TaskActivity.Event.DATES_CHANGED,
-        changes={
-            "dates": {
-                "due_date": {"from": "2026-08-31", "to": "2026-09-01"}
-            }
-        },
+        changes={"dates": {"due_date": {"from": "2026-08-31", "to": "2026-09-01"}}},
     )
 
     assert record_task_date_change(activity=activity) is None
     assert not models.TaskImDelivery.objects.filter(activity=activity).exists()
+
+
+def test_record_task_status_change_notifies_other_collaborator_once(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = models.Task.objects.create(
+        title="Complete review",
+        creator=creator,
+        assignee=assignee,
+        status=models.Task.Status.COMPLETED,
+    )
+    activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=assignee,
+        event=models.TaskActivity.Event.STATUS_CHANGED,
+        changes={
+            "status": {
+                "from": models.Task.Status.IN_PROGRESS,
+                "to": models.Task.Status.COMPLETED,
+            }
+        },
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        deliveries = record_task_status_change(activity=activity)
+        duplicates = record_task_status_change(activity=activity)
+
+    assert len(deliveries) == 1
+    assert duplicates == deliveries
+    delivery = deliveries[0]
+    assert delivery.recipient == creator
+    assert delivery.activity == activity
+    assert delivery.event == models.TaskImDelivery.Event.STATUS_CHANGED
+    assert models.TaskImDelivery.objects.filter(activity=activity).count() == 1
+    enqueue.assert_called_once_with(delivery.id)
+
+
+def test_status_change_by_parent_collaborator_notifies_both_task_owners(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    assignee = UserFactory()
+    parent_collaborator = UserFactory()
+    task = models.Task.objects.create(
+        title="Child progress",
+        creator=creator,
+        assignee=assignee,
+        status=models.Task.Status.IN_PROGRESS,
+    )
+    activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=parent_collaborator,
+        event=models.TaskActivity.Event.STATUS_CHANGED,
+        changes={
+            "status": {
+                "from": models.Task.Status.TODO,
+                "to": models.Task.Status.IN_PROGRESS,
+            }
+        },
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        deliveries = record_task_status_change(activity=activity)
+
+    assert {delivery.recipient_id for delivery in deliveries} == {
+        creator.id,
+        assignee.id,
+    }
+    assert enqueue.call_count == 2
+
+
+def test_status_change_card_preserves_transition_and_actor(settings):
+    settings.JUSI_IM_CONFIGURATION = {
+        "api_url": "https://im.example.test",
+        "admin_hmac_secret": "s" * 32,
+    }
+    settings.APPLICATION_BASE_URL = "https://meet.example.test"
+    creator = UserFactory(full_name="创建人")
+    assignee = UserFactory(full_name="负责人")
+    task = models.Task.objects.create(
+        title="完成发布复核",
+        creator=creator,
+        assignee=assignee,
+        status=models.Task.Status.COMPLETED,
+    )
+    activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=assignee,
+        event=models.TaskActivity.Event.STATUS_CHANGED,
+        changes={
+            "status": {
+                "from": models.Task.Status.IN_PROGRESS,
+                "to": models.Task.Status.COMPLETED,
+            }
+        },
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        activity=activity,
+        recipient=creator,
+        event=models.TaskImDelivery.Event.STATUS_CHANGED,
+        next_attempt_at=timezone.now(),
+    )
+
+    with (
+        mock.patch(
+            "core.services.task_notifications.im_bots.get_builtin",
+            return_value=mock.Mock(),
+        ),
+        mock.patch(
+            "core.services.task_notifications.im_bots.post_direct",
+            return_value=("direct-cid", mock.Mock()),
+        ) as post_direct,
+    ):
+        assert deliver_task_assignment(str(delivery.id)) == "delivered"
+
+    card = json.loads(post_direct.call_args.args[3])
+    assert card["header"] == {"title": "任务已完成", "theme": "success"}
+    assert card["plain"] == "任务已完成：完成发布复核"
+    assert card["blocks"][1]["items"] == [
+        {"label": "状态", "value": "进行中 → 已完成"},
+        {"label": "操作人", "value": "负责人"},
+    ]
+    assert card["blocks"][-1]["buttons"][0] == {
+        "id": "open-task-status-change",
+        "text": "查看任务",
+        "style": "primary",
+        "action": "url",
+        "url": "https://meet.example.test/tasks",
+    }
+
+
+def test_latest_status_change_supersedes_stale_change_and_closed_reminders(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = models.Task.objects.create(
+        title="Close task",
+        creator=creator,
+        assignee=assignee,
+        due_date=date(2026, 8, 22),
+        status=models.Task.Status.COMPLETED,
+    )
+    stale_activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=assignee,
+        event=models.TaskActivity.Event.STATUS_CHANGED,
+        changes={
+            "status": {
+                "from": models.Task.Status.TODO,
+                "to": models.Task.Status.IN_PROGRESS,
+            }
+        },
+    )
+    stale_status = models.TaskImDelivery.objects.create(
+        task=task,
+        activity=stale_activity,
+        recipient=creator,
+        event=models.TaskImDelivery.Event.STATUS_CHANGED,
+        next_attempt_at=timezone.now(),
+    )
+    date_activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=models.TaskActivity.Event.DATES_CHANGED,
+        changes={"dates": {"due_date": {"from": "2026-08-21", "to": "2026-08-22"}}},
+    )
+    pending_date_change = models.TaskImDelivery.objects.create(
+        task=task,
+        activity=date_activity,
+        recipient=assignee,
+        event=models.TaskImDelivery.Event.DATES_CHANGED,
+        next_attempt_at=timezone.now(),
+    )
+    pending_reminder = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=assignee,
+        event=models.TaskImDelivery.Event.DUE_TODAY,
+        reference_date=date(2026, 8, 22),
+        next_attempt_at=timezone.now(),
+    )
+    latest_activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=assignee,
+        event=models.TaskActivity.Event.STATUS_CHANGED,
+        changes={
+            "status": {
+                "from": models.Task.Status.IN_PROGRESS,
+                "to": models.Task.Status.COMPLETED,
+            }
+        },
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery"),
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        deliveries = record_task_status_change(activity=latest_activity)
+
+    assert len(deliveries) == 1
+    for stale in (stale_status, pending_date_change, pending_reminder):
+        stale.refresh_from_db()
+        assert stale.status == models.TaskImDelivery.Status.SUPERSEDED
+        assert stale.next_attempt_at is None
+
+
+def test_stale_status_change_is_superseded_before_delivery():
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = models.Task.objects.create(
+        title="Already reopened",
+        creator=creator,
+        assignee=assignee,
+        status=models.Task.Status.TODO,
+    )
+    activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=assignee,
+        event=models.TaskActivity.Event.STATUS_CHANGED,
+        changes={
+            "status": {
+                "from": models.Task.Status.IN_PROGRESS,
+                "to": models.Task.Status.COMPLETED,
+            }
+        },
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        activity=activity,
+        recipient=creator,
+        event=models.TaskImDelivery.Event.STATUS_CHANGED,
+        next_attempt_at=timezone.now(),
+    )
+
+    assert deliver_task_assignment(str(delivery.id)) is None
+    delivery.refresh_from_db()
+    assert delivery.status == models.TaskImDelivery.Status.SUPERSEDED

@@ -2403,6 +2403,7 @@ class TaskImDelivery(BaseModel):
         REASSIGNED = "reassigned", _("Reassigned")
         COMMENTED = "commented", _("Commented")
         DATES_CHANGED = "dates_changed", _("Dates changed")
+        STATUS_CHANGED = "status_changed", _("Status changed")
         STARTING = "starting", _("Starting")
         DUE_TODAY = "due_today", _("Due today")
         OVERDUE = "overdue", _("Overdue")

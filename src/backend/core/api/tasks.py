@@ -28,6 +28,7 @@ from core.services.task_notifications import (
     record_task_assignment,
     record_task_comment,
     record_task_date_change,
+    record_task_status_change,
 )
 from core.services.task_time import TIME_FILTERS, annotate_assignee_local_date
 from core.services.tasks import TaskAssigneeError, ensure_task_assignee_allowed
@@ -336,6 +337,16 @@ class TaskViewSet(
                 )
                 if date_activity is not None:
                     record_task_date_change(activity=date_activity)
+                status_activity = next(
+                    (
+                        activity
+                        for activity in activities
+                        if activity.event == models.TaskActivity.Event.STATUS_CHANGED
+                    ),
+                    None,
+                )
+                if status_activity is not None:
+                    record_task_status_change(activity=status_activity)
             response_data = TaskSerializer(task, context={"request": request}).data
         return Response(response_data)
 

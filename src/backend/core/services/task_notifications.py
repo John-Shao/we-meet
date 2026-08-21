@@ -28,7 +28,8 @@ REMINDER_EVENTS = (
     models.TaskImDelivery.Event.DUE_TODAY,
     models.TaskImDelivery.Event.OVERDUE,
 )
-CHANGE_EVENTS = (models.TaskImDelivery.Event.DATES_CHANGED,)
+DATE_CHANGE_EVENTS = (models.TaskImDelivery.Event.DATES_CHANGED,)
+STATUS_CHANGE_EVENTS = (models.TaskImDelivery.Event.STATUS_CHANGED,)
 
 
 class TaskImNotificationUnavailable(RuntimeError):
@@ -69,8 +70,15 @@ def record_task_assignment(
         next_attempt_at=None,
         last_error="",
     )
-    pending.filter(event__in=CHANGE_EVENTS).exclude(
+    pending.filter(event__in=DATE_CHANGE_EVENTS).exclude(
         recipient_id=task.assignee_id
+    ).update(
+        status=models.TaskImDelivery.Status.SUPERSEDED,
+        next_attempt_at=None,
+        last_error="",
+    )
+    pending.filter(event__in=STATUS_CHANGE_EVENTS).exclude(
+        Q(recipient_id=task.creator_id) | Q(recipient_id=task.assignee_id)
     ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
@@ -131,7 +139,7 @@ def record_task_date_change(
         task=task,
         status=models.TaskImDelivery.Status.PENDING,
     )
-    pending.filter(event__in=CHANGE_EVENTS).exclude(activity=activity).update(
+    pending.filter(event__in=DATE_CHANGE_EVENTS).exclude(activity=activity).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
         last_error="",
@@ -157,6 +165,53 @@ def record_task_date_change(
     if created:
         transaction.on_commit(lambda: _enqueue_delivery(delivery.id))
     return delivery
+
+
+def record_task_status_change(
+    *, activity: models.TaskActivity
+) -> list[models.TaskImDelivery]:
+    """Notify current collaborators about the latest durable status transition."""
+
+    if activity.event != models.TaskActivity.Event.STATUS_CHANGED:
+        raise ValueError("A status-change activity is required.")
+
+    task = activity.task
+    pending = models.TaskImDelivery.objects.filter(
+        task=task,
+        status=models.TaskImDelivery.Status.PENDING,
+    )
+    pending.filter(event__in=STATUS_CHANGE_EVENTS).exclude(activity=activity).update(
+        status=models.TaskImDelivery.Status.SUPERSEDED,
+        next_attempt_at=None,
+        last_error="",
+    )
+    if task.status not in OPEN_TASK_STATUSES:
+        pending.filter(event__in=DATE_CHANGE_EVENTS + REMINDER_EVENTS).update(
+            status=models.TaskImDelivery.Status.SUPERSEDED,
+            next_attempt_at=None,
+            last_error="",
+        )
+
+    recipient_ids = {
+        recipient_id
+        for recipient_id in (task.creator_id, task.assignee_id)
+        if recipient_id is not None and recipient_id != activity.actor_id
+    }
+    deliveries = []
+    for recipient_id in recipient_ids:
+        delivery, created = models.TaskImDelivery.objects.get_or_create(
+            task=task,
+            activity=activity,
+            recipient_id=recipient_id,
+            defaults={
+                "event": models.TaskImDelivery.Event.STATUS_CHANGED,
+                "next_attempt_at": timezone.now(),
+            },
+        )
+        deliveries.append(delivery)
+        if created:
+            transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
+    return deliveries
 
 
 def _supersede_stale_reminders(*, pending, task: models.Task) -> None:
@@ -562,11 +617,71 @@ def _date_change_card(delivery: models.TaskImDelivery) -> dict:
     )
 
 
+def _status_change_card(delivery: models.TaskImDelivery) -> dict:
+    task = delivery.task
+    activity = delivery.activity
+    status_change = activity.changes.get("status", {})
+    labels = {
+        models.Task.Status.TODO: "待处理",
+        models.Task.Status.IN_PROGRESS: "进行中",
+        models.Task.Status.COMPLETED: "已完成",
+        models.Task.Status.CANCELED: "已取消",
+    }
+    presentation = {
+        models.Task.Status.TODO: ("任务已重新打开", "info"),
+        models.Task.Status.IN_PROGRESS: ("任务已开始处理", "info"),
+        models.Task.Status.COMPLETED: ("任务已完成", "success"),
+        models.Task.Status.CANCELED: ("任务已取消", "warning"),
+    }
+    before = status_change.get("from")
+    after = status_change.get("to")
+    heading, theme = presentation.get(after, ("任务状态已更新", "info"))
+    fields = [
+        {
+            "label": "状态",
+            "value": f"{labels.get(before, before or '未知')} → "
+            f"{labels.get(after, after or '未知')}",
+        },
+        {"label": "操作人", "value": _display_name(activity.actor)},
+    ]
+    blocks = [
+        {
+            "type": im_cards.CARD_BLOCK_TEXT,
+            "spans": [{"tag": im_cards.RICH_TAG_TEXT, "text": task.title, "b": True}],
+        },
+        {"type": im_cards.CARD_BLOCK_FIELDS, "items": fields},
+    ]
+    base_url = str(getattr(settings, "APPLICATION_BASE_URL", "") or "").rstrip("/")
+    if base_url:
+        blocks.append(
+            {
+                "type": im_cards.CARD_BLOCK_ACTIONS,
+                "resolve": im_cards.CARD_RESOLVE_EACH,
+                "buttons": [
+                    {
+                        "id": "open-task-status-change",
+                        "text": "查看任务",
+                        "style": "primary",
+                        "action": "url",
+                        "url": f"{base_url}/tasks",
+                    }
+                ],
+            }
+        )
+    return im_cards.build_rich_card(
+        header={"title": heading, "theme": theme},
+        blocks=blocks,
+        plain=f"{heading}：{task.title}",
+    )
+
+
 def _notification_card(delivery: models.TaskImDelivery) -> dict:
     if delivery.event == models.TaskImDelivery.Event.COMMENTED:
         return _comment_card(delivery)
     if delivery.event == models.TaskImDelivery.Event.DATES_CHANGED:
         return _date_change_card(delivery)
+    if delivery.event == models.TaskImDelivery.Event.STATUS_CHANGED:
+        return _status_change_card(delivery)
     if delivery.event in REMINDER_EVENTS:
         return _reminder_card(delivery)
     return _assignment_card(delivery)
@@ -594,6 +709,16 @@ def _recipient_can_receive(delivery: models.TaskImDelivery) -> bool:
             and task.status in OPEN_TASK_STATUSES
             and _date_change_matches_task(activity=activity, task=task)
         )
+    elif delivery.event == models.TaskImDelivery.Event.STATUS_CHANGED:
+        activity = delivery.activity
+        allowed = bool(
+            activity is not None
+            and activity.task_id == task.id
+            and activity.event == models.TaskActivity.Event.STATUS_CHANGED
+            and delivery.recipient_id in {task.creator_id, task.assignee_id}
+            and activity.actor_id != delivery.recipient_id
+            and _status_change_matches_task(activity=activity, task=task)
+        )
     elif delivery.event in REMINDER_EVENTS:
         if (
             task.assignee_id != delivery.recipient_id
@@ -619,7 +744,9 @@ def _recipient_can_receive(delivery: models.TaskImDelivery) -> bool:
     return allowed
 
 
-def _date_change_matches_task(*, activity: models.TaskActivity, task: models.Task) -> bool:
+def _date_change_matches_task(
+    *, activity: models.TaskActivity, task: models.Task
+) -> bool:
     date_changes = activity.changes.get("dates", {})
     if not date_changes:
         return False
@@ -632,6 +759,13 @@ def _date_change_matches_task(*, activity: models.TaskActivity, task: models.Tas
         if current_value != change.get("to"):
             return False
     return True
+
+
+def _status_change_matches_task(
+    *, activity: models.TaskActivity, task: models.Task
+) -> bool:
+    status_change = activity.changes.get("status", {})
+    return bool(status_change and task.status == status_change.get("to"))
 
 
 def _display_name(user) -> str:
