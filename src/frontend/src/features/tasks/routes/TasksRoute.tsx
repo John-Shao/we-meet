@@ -46,6 +46,17 @@ const labelCss = css({
   color: 'default.text',
 })
 
+// The creation form sits on a subtle panel. Give editable controls their own
+// surface so they do not visually blend into the panel and look disabled.
+// Semantic tokens keep the same distinction when the dark theme is active.
+const editableControlCss = css({
+  backgroundColor: 'default.bg',
+  _placeholder: {
+    color: 'default.subtle-text',
+    opacity: 1,
+  },
+})
+
 const displayName = (user: ApiTask['creator'] | null) =>
   user?.full_name || user?.short_name || user?.email || '—'
 
@@ -219,6 +230,7 @@ const TasksAuthenticated = () => {
         <label className={labelCss}>
           {t('form.title')}
           <Input
+            className={editableControlCss}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={t('form.titlePlaceholder')}
@@ -243,6 +255,7 @@ const TasksAuthenticated = () => {
         <label className={labelCss}>
           {t('form.startDate')}
           <Input
+            className={editableControlCss}
             type="date"
             value={startDate}
             max={dueDate || undefined}
@@ -252,6 +265,7 @@ const TasksAuthenticated = () => {
         <label className={labelCss}>
           {t('form.dueDate')}
           <Input
+            className={editableControlCss}
             type="date"
             value={dueDate}
             min={startDate || undefined}
@@ -274,6 +288,7 @@ const TasksAuthenticated = () => {
         >
           {t('form.description')}
           <TextArea
+            className={editableControlCss}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder={t('form.descriptionPlaceholder')}
