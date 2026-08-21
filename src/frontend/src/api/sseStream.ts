@@ -93,10 +93,17 @@ export async function* sseStream(
   let resp = await doFetch(initialBearer)
 
   // Bearer 401 → one silent refresh + retry, same contract as `fetchApi`.
+  // If the bearer remains invalid, remove it and let an existing Django
+  // session cookie authenticate the stream instead. Without this fallback a
+  // stale mobile-login token can mask a valid browser session because DRF
+  // evaluates OIDCAuthentication before SessionAuthentication.
   if (resp.status === 401 && initialBearer) {
     const newAccess = await attemptSilentRefresh()
     if (newAccess) resp = await doFetch(newAccess)
-    if (resp.status === 401) clearTokens()
+    if (resp.status === 401) {
+      clearTokens()
+      resp = await doFetch(null)
+    }
   }
 
   if (!resp.ok) {
