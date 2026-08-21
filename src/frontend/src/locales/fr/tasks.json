@@ -60,6 +60,20 @@
     "submit": "Publier",
     "postError": "Impossible de publier le commentaire. Veuillez réessayer."
   },
+  "attachments": {
+    "title": "Pièces jointes",
+    "show": "Pièces jointes",
+    "hide": "Masquer les pièces jointes",
+    "loading": "Chargement des pièces jointes…",
+    "empty": "Aucune pièce jointe.",
+    "error": "Impossible de charger les pièces jointes. Veuillez réessayer.",
+    "upload": "Ajouter une pièce jointe",
+    "uploading": "Envoi {{progress}} %",
+    "uploadError": "Impossible d’envoyer la pièce jointe. Veuillez réessayer.",
+    "open": "Voir",
+    "unknownSize": "Taille inconnue",
+    "meta": "{{name}} · {{size}} · {{date}}"
+  },
   "history": {
     "title": "Historique des actions",
     "show": "Historique des actions",

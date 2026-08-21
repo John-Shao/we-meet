@@ -60,6 +60,20 @@
     "submit": "Post comment",
     "postError": "The comment could not be posted. Please try again."
   },
+  "attachments": {
+    "title": "Attachments",
+    "show": "Attachments",
+    "hide": "Hide attachments",
+    "loading": "Loading attachments…",
+    "empty": "No attachments yet.",
+    "error": "Attachments could not be loaded. Please try again.",
+    "upload": "Upload attachment",
+    "uploading": "Uploading {{progress}}%",
+    "uploadError": "The attachment could not be uploaded. Please try again.",
+    "open": "View",
+    "unknownSize": "Unknown size",
+    "meta": "{{name}} · {{size}} · {{date}}"
+  },
   "history": {
     "title": "Activity history",
     "show": "Activity history",

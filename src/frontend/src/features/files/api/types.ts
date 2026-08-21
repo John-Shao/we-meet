@@ -4,7 +4,7 @@ export type ApiFileCreator = {
   short_name: string | null
 }
 
-export type ApiFileType = 'background_image'
+export type ApiFileType = 'background_image' | 'task_attachment'
 export type ApiFileUploadState = 'pending' | 'ready'
 
 export type ApiFileItem = {

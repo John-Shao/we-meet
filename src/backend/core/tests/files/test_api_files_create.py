@@ -61,6 +61,30 @@ def test_api_files_create_authenticated_success():
     assert file.upload_state == FileUploadStateChoices.PENDING
 
 
+def test_api_files_create_task_attachment_success():
+    """Authenticated users can initiate an upload reserved for a task."""
+    user = factories.UserFactory()
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.post(
+        "/api/v1.0/files/",
+        {
+            "filename": "evidence.pdf",
+            "type": FileTypeChoices.TASK_ATTACHMENT,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201, response.json()
+    file = File.objects.get()
+    assert file.creator == user
+    assert file.filename == "evidence.pdf"
+    assert file.type == FileTypeChoices.TASK_ATTACHMENT
+    assert file.upload_state == FileUploadStateChoices.PENDING
+    assert response.json()["policy"]
+
+
 def test_api_files_create_file_authenticated_no_filename():
     """
     Creating a file item without providing a filename should fail.

@@ -60,6 +60,20 @@
     "submit": "发表评论",
     "postError": "评论发送失败，请重试。"
   },
+  "attachments": {
+    "title": "附件",
+    "show": "附件",
+    "hide": "收起附件",
+    "loading": "正在加载附件…",
+    "empty": "暂无附件。",
+    "error": "附件加载失败，请稍后重试。",
+    "upload": "上传附件",
+    "uploading": "上传中 {{progress}}%",
+    "uploadError": "附件上传失败，请重试。",
+    "open": "查看",
+    "unknownSize": "未知大小",
+    "meta": "{{name}} · {{size}} · {{date}}"
+  },
   "history": {
     "title": "操作历史",
     "show": "操作历史",

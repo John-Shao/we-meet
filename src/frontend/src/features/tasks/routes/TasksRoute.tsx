@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link } from 'wouter'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
@@ -19,9 +19,11 @@ import type {
 } from '../api/ApiTask'
 import {
   useCreateTaskComment,
+  useCreateTaskAttachment,
   useCreateTask,
   usePatchTask,
   useTaskActivities,
+  useTaskAttachments,
   useTaskComments,
   useTasks,
 } from '../api/fetchTasks'
@@ -92,6 +94,9 @@ const TasksAuthenticated = () => {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(
     () => new Set()
   )
+  const [expandedAttachments, setExpandedAttachments] = useState<Set<string>>(
+    () => new Set()
+  )
   const [assigneePicker, setAssigneePicker] = useState<
     'create' | 'edit' | null
   >(null)
@@ -126,6 +131,15 @@ const TasksAuthenticated = () => {
 
   const toggleActivities = (taskId: string) => {
     setExpandedActivities((current) => {
+      const next = new Set(current)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }
+
+  const toggleAttachments = (taskId: string) => {
+    setExpandedAttachments((current) => {
       const next = new Set(current)
       if (next.has(taskId)) next.delete(taskId)
       else next.add(taskId)
@@ -598,6 +612,16 @@ const TasksAuthenticated = () => {
                     <Button
                       variant="secondary"
                       size="dense"
+                      aria-expanded={expandedAttachments.has(task.id)}
+                      onPress={() => toggleAttachments(task.id)}
+                    >
+                      {expandedAttachments.has(task.id)
+                        ? t('attachments.hide')
+                        : t('attachments.show')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="dense"
                       aria-expanded={expandedActivities.has(task.id)}
                       onPress={() => toggleActivities(task.id)}
                     >
@@ -608,6 +632,9 @@ const TasksAuthenticated = () => {
                   </div>
                   {expandedComments.has(task.id) && (
                     <TaskComments taskId={task.id} />
+                  )}
+                  {expandedAttachments.has(task.id) && (
+                    <TaskAttachments taskId={task.id} />
                   )}
                   {expandedActivities.has(task.id) && (
                     <TaskActivityTimeline taskId={task.id} />
@@ -648,6 +675,168 @@ const TaskMeta = ({ label, value }: { label: string; value: string }) => (
     <dd className={css({ margin: 0, color: 'greyscale.800' })}>{value}</dd>
   </div>
 )
+
+const TaskAttachments = ({ taskId }: { taskId: string }) => {
+  const { t, i18n } = useTranslation('tasks')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [progress, setProgress] = useState(0)
+  const { data, isLoading, error } = useTaskAttachments(taskId)
+  const createMutation = useCreateTaskAttachment()
+  const formatDateTime = (value: string) =>
+    new Intl.DateTimeFormat(i18n.language, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(value))
+  const formatSize = (size: number | null) => {
+    if (size === null) return t('attachments.unknownSize')
+    if (size < 1024) return `${size} B`
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const selectFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file) return
+    setProgress(0)
+    try {
+      await createMutation.mutateAsync({
+        taskId,
+        file,
+        onProgress: setProgress,
+      })
+    } catch {
+      // The mutation error remains visible so the user can retry.
+    }
+  }
+
+  return (
+    <section
+      aria-label={t('attachments.title')}
+      className={css({
+        borderTop: '1px solid token(colors.greyscale.200)',
+        paddingTop: '0.875rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.75rem',
+      })}
+    >
+      <div
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.75rem',
+        })}
+      >
+        <h3
+          className={css({
+            margin: 0,
+            color: 'greyscale.800',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+          })}
+        >
+          {t('attachments.title')}
+        </h3>
+        <input
+          ref={inputRef}
+          type="file"
+          className={css({ display: 'none' })}
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpeg,.jpg,.png,.gif,.webp,.zip"
+          onChange={(event) => void selectFile(event)}
+        />
+        <Button
+          variant="secondary"
+          size="dense"
+          isDisabled={createMutation.isPending}
+          onPress={() => inputRef.current?.click()}
+        >
+          {createMutation.isPending
+            ? t('attachments.uploading', { progress })
+            : t('attachments.upload')}
+        </Button>
+      </div>
+      {createMutation.error && (
+        <p className={historyErrorCss}>{t('attachments.uploadError')}</p>
+      )}
+      {isLoading ? (
+        <p className={historyHintCss}>{t('attachments.loading')}</p>
+      ) : error ? (
+        <p className={historyErrorCss}>{t('attachments.error')}</p>
+      ) : !data?.length ? (
+        <p className={historyHintCss}>{t('attachments.empty')}</p>
+      ) : (
+        <ul
+          className={css({
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+          })}
+        >
+          {data.map((attachment) => (
+            <li
+              key={attachment.id}
+              className={css({
+                display: 'flex',
+                alignItems: { base: 'flex-start', sm: 'center' },
+                justifyContent: 'space-between',
+                flexDirection: { base: 'column', sm: 'row' },
+                gap: '0.5rem 1rem',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                backgroundColor: 'greyscale.50',
+              })}
+            >
+              <div className={css({ minWidth: 0 })}>
+                <p
+                  className={css({
+                    margin: 0,
+                    color: 'greyscale.800',
+                    fontWeight: '500',
+                    overflowWrap: 'anywhere',
+                  })}
+                >
+                  {attachment.filename}
+                </p>
+                <p
+                  className={css({
+                    margin: 0,
+                    color: 'greyscale.500',
+                    fontSize: '0.75rem',
+                  })}
+                >
+                  {t('attachments.meta', {
+                    name: displayName(attachment.uploader),
+                    size: formatSize(attachment.size),
+                    date: formatDateTime(attachment.created_at),
+                  })}
+                </p>
+              </div>
+              <a
+                href={attachment.url}
+                target="_blank"
+                rel="noreferrer"
+                className={css({
+                  color: 'primary.600',
+                  fontSize: '0.8125rem',
+                  fontWeight: '500',
+                  textDecoration: 'none',
+                  _hover: { textDecoration: 'underline' },
+                })}
+              >
+                {t('attachments.open')}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
 
 const TaskComments = ({ taskId }: { taskId: string }) => {
   const { t, i18n } = useTranslation('tasks')

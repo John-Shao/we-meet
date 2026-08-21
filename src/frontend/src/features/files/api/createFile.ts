@@ -1,6 +1,6 @@
 import { fetchApi } from '@/api/fetchApi'
 import { useMutation } from '@tanstack/react-query'
-import { ApiFileItem } from '@/features/files/api/types.ts'
+import type { ApiFileItem, ApiFileType } from '@/features/files/api/types.ts'
 import { keys } from '@/api/queryKeys.ts'
 import { queryClient } from '@/api/queryClient.ts'
 
@@ -59,13 +59,15 @@ export const uploadFile = (
 export const createFile = async ({
   file,
   onProgress,
+  type = 'background_image',
 }: {
   file: File
   onProgress: (progress: number) => void
+  type?: ApiFileType
 }): Promise<ApiFileItem> => {
   const res = await fetchApi<ApiFileItem>(`/files/`, {
     method: 'POST',
-    body: JSON.stringify({ filename: file.name, type: 'background_image' }),
+    body: JSON.stringify({ filename: file.name, type }),
   })
   if (res.upload_state !== 'pending') {
     throw new Error('State should be pending right after creation')

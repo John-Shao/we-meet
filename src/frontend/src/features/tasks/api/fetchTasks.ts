@@ -3,10 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import type { Paginated } from '@/api/Paginated'
+import { createFile } from '@/features/files/api/createFile'
 
 import type {
   ApiTask,
   ApiTaskActivity,
+  ApiTaskAttachment,
   ApiTaskComment,
   CreateTaskPayload,
   PatchTaskPayload,
@@ -57,6 +59,56 @@ export const useCreateTaskComment = () => {
     onSuccess: (_comment, variables) =>
       queryClient.invalidateQueries({
         queryKey: ['tasks', variables.taskId, 'comments'],
+      }),
+  })
+}
+
+const fetchTaskAttachments = (taskId: string) =>
+  fetchApi<ApiTaskAttachment[]>(
+    `tasks/${encodeURIComponent(taskId)}/attachments/`
+  )
+
+export const useTaskAttachments = (taskId: string) =>
+  useQuery<ApiTaskAttachment[], ApiError>({
+    queryKey: ['tasks', taskId, 'attachments'],
+    queryFn: () => fetchTaskAttachments(taskId),
+  })
+
+const createTaskAttachment = async (
+  taskId: string,
+  file: File,
+  onProgress: (progress: number) => void
+) => {
+  const uploadedFile = await createFile({
+    file,
+    onProgress,
+    type: 'task_attachment',
+  })
+  return fetchApi<ApiTaskAttachment>(
+    `tasks/${encodeURIComponent(taskId)}/attachments/`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ file_id: uploadedFile.id }),
+    }
+  )
+}
+
+export const useCreateTaskAttachment = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskAttachment,
+    Error,
+    {
+      taskId: string
+      file: File
+      onProgress: (progress: number) => void
+    }
+  >({
+    mutationFn: ({ taskId, file, onProgress }) =>
+      createTaskAttachment(taskId, file, onProgress),
+    onSuccess: (_attachment, variables) =>
+      queryClient.invalidateQueries({
+        queryKey: ['tasks', variables.taskId, 'attachments'],
       }),
   })
 }

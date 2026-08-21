@@ -13,6 +13,7 @@ from core import models
 from core.api import permissions
 from core.api.serializers import (
     TaskActivitySerializer,
+    TaskAttachmentSerializer,
     TaskCommentSerializer,
     TaskSerializer,
 )
@@ -133,6 +134,31 @@ class TaskUpdateSerializer(TaskAssigneeValidationMixin, serializers.ModelSeriali
         )
         instance.save(update_fields=["completed_at", "updated_at"])
         return instance
+
+
+class TaskAttachmentCreateSerializer(serializers.Serializer):
+    """Attach one completed upload owned by the caller to a task."""
+
+    file_id = serializers.PrimaryKeyRelatedField(
+        source="file",
+        queryset=models.File.objects.all(),
+    )
+
+    def validate_file_id(self, file):
+        request = self.context["request"]
+        if file.creator_id != request.user.id:
+            raise serializers.ValidationError("You can only attach your own upload.")
+        if file.type != models.FileTypeChoices.TASK_ATTACHMENT:
+            raise serializers.ValidationError("This upload is not a task attachment.")
+        if (
+            file.upload_state != models.FileUploadStateChoices.READY
+            or file.deleted_at is not None
+            or file.hard_deleted_at is not None
+        ):
+            raise serializers.ValidationError("The upload is not ready.")
+        if models.TaskAttachment.objects.filter(file=file).exists():
+            raise serializers.ValidationError("This upload is already attached.")
+        return file
 
 
 class TaskViewSet(
@@ -275,3 +301,30 @@ class TaskViewSet(
             comment = serializer.save(task=task, author=request.user)
             record_task_comment(comment=comment)
         return Response(TaskCommentSerializer(comment).data, status=201)
+
+    @action(detail=True, methods=["get", "post"])
+    def attachments(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        task = self.get_object()
+        if request.method == "GET":
+            attachments = (
+                task.attachments.filter(
+                    file__deleted_at__isnull=True,
+                    file__hard_deleted_at__isnull=True,
+                    file__upload_state=models.FileUploadStateChoices.READY,
+                )
+                .select_related("file", "uploader")
+                .order_by("created_at")
+            )
+            return Response(TaskAttachmentSerializer(attachments, many=True).data)
+
+        serializer = TaskAttachmentCreateSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        attachment = models.TaskAttachment.objects.create(
+            task=task,
+            file=serializer.validated_data["file"],
+            uploader=request.user,
+        )
+        return Response(TaskAttachmentSerializer(attachment).data, status=201)

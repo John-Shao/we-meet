@@ -1287,6 +1287,7 @@ class FileTypeChoices(models.TextChoices):
     """Defines the possible types of a file."""
 
     BACKGROUND_IMAGE = "background_image", _("Background image")
+    TASK_ATTACHMENT = "task_attachment", _("Task attachment")
 
 
 class File(BaseModel):
@@ -1395,7 +1396,18 @@ class File(BaseModel):
         """
         # Characteristics that are based only on specific access
         is_creator = user == self.creator
-        retrieve = is_creator
+        task_attachment = getattr(self, "task_attachment", None)
+        is_task_collaborator = bool(
+            user.is_authenticated
+            and task_attachment
+            and user.id
+            in {
+                task_attachment.task.creator_id,
+                task_attachment.task.assignee_id,
+            }
+            and self.upload_state == FileUploadStateChoices.READY
+        )
+        retrieve = is_creator or is_task_collaborator
         is_deleted = self.deleted_at is not None
         can_update = is_creator and not is_deleted and user.is_authenticated
         can_hard_delete = is_creator and user.is_authenticated
@@ -2321,6 +2333,46 @@ class TaskComment(BaseModel):
 
     def __str__(self) -> str:
         return f"TaskComment({self.task_id}, {self.author_id})"
+
+
+class TaskAttachment(BaseModel):
+    """A private uploaded file shared with the current task collaborators."""
+
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+        verbose_name=_("task"),
+    )
+    file = models.OneToOneField(
+        File,
+        on_delete=models.CASCADE,
+        related_name="task_attachment",
+        verbose_name=_("file"),
+    )
+    uploader = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="task_attachments",
+        null=True,
+        blank=True,
+        verbose_name=_("uploader"),
+    )
+
+    class Meta:
+        db_table = "meet_task_attachment"
+        verbose_name = _("task attachment")
+        verbose_name_plural = _("task attachments")
+        ordering = ("created_at",)
+        indexes = [
+            models.Index(
+                fields=["task", "created_at"],
+                name="task_attach_created_idx",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"TaskAttachment({self.task_id}, {self.file_id})"
 
 
 class TaskImDelivery(BaseModel):

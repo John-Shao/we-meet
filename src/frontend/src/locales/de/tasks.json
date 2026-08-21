@@ -60,6 +60,20 @@
     "submit": "Kommentar senden",
     "postError": "Der Kommentar konnte nicht gesendet werden."
   },
+  "attachments": {
+    "title": "Anhänge",
+    "show": "Anhänge",
+    "hide": "Anhänge ausblenden",
+    "loading": "Anhänge werden geladen…",
+    "empty": "Noch keine Anhänge.",
+    "error": "Anhänge konnten nicht geladen werden. Bitte erneut versuchen.",
+    "upload": "Anhang hochladen",
+    "uploading": "Upload {{progress}} %",
+    "uploadError": "Der Anhang konnte nicht hochgeladen werden. Bitte erneut versuchen.",
+    "open": "Anzeigen",
+    "unknownSize": "Unbekannte Größe",
+    "meta": "{{name}} · {{size}} · {{date}}"
+  },
   "history": {
     "title": "Aktivitätsverlauf",
     "show": "Aktivitätsverlauf",

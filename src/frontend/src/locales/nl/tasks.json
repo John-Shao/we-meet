@@ -60,6 +60,20 @@
     "submit": "Opmerking plaatsen",
     "postError": "De opmerking kon niet worden geplaatst."
   },
+  "attachments": {
+    "title": "Bijlagen",
+    "show": "Bijlagen",
+    "hide": "Bijlagen verbergen",
+    "loading": "Bijlagen laden…",
+    "empty": "Nog geen bijlagen.",
+    "error": "De bijlagen konden niet worden geladen. Probeer het opnieuw.",
+    "upload": "Bijlage uploaden",
+    "uploading": "Uploaden {{progress}}%",
+    "uploadError": "De bijlage kon niet worden geüpload. Probeer het opnieuw.",
+    "open": "Bekijken",
+    "unknownSize": "Onbekende grootte",
+    "meta": "{{name}} · {{size}} · {{date}}"
+  },
   "history": {
     "title": "Activiteitengeschiedenis",
     "show": "Activiteitengeschiedenis",

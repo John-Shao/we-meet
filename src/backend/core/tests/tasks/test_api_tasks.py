@@ -4,6 +4,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from core.factories import (
+    FileFactory,
     MembershipFactory,
     OrganizationFactory,
     RoomFactory,
@@ -11,9 +12,12 @@ from core.factories import (
 )
 from core.models import (
     ActionItem,
+    FileTypeChoices,
+    FileUploadStateChoices,
     Summary,
     Task,
     TaskActivity,
+    TaskAttachment,
     TaskComment,
     TaskImDelivery,
 )
@@ -421,6 +425,142 @@ def test_task_comments_reject_blank_content_and_outsiders():
     assert outsider_list.status_code == 404
     assert outsider_post.status_code == 404
     assert TaskComment.objects.count() == 0
+
+
+def test_task_collaborators_can_attach_and_list_ready_uploads():
+    creator = UserFactory()
+    assignee = UserFactory()
+    outsider = UserFactory()
+    task = Task.objects.create(
+        title="Prepare evidence",
+        creator=creator,
+        assignee=assignee,
+    )
+    file = FileFactory(
+        creator=creator,
+        type=FileTypeChoices.TASK_ATTACHMENT,
+        filename="evidence.pdf",
+        mimetype="application/pdf",
+        size=2048,
+        update_upload_state=FileUploadStateChoices.READY,
+    )
+    url = f"{TASKS_URL}{task.id}/attachments/"
+
+    created = _client(creator).post(
+        url,
+        {"file_id": str(file.id)},
+        format="json",
+    )
+    listed = _client(assignee).get(url)
+    outsider_response = _client(outsider).get(url)
+
+    assert created.status_code == 201
+    assert created.json()["file_id"] == str(file.id)
+    assert created.json()["filename"] == "evidence.pdf"
+    assert listed.status_code == 200
+    assert [entry["id"] for entry in listed.json()] == [created.json()["id"]]
+    assert outsider_response.status_code == 404
+    attachment = TaskAttachment.objects.get()
+    assert attachment.task == task
+    assert attachment.file == file
+    assert attachment.uploader == creator
+
+
+@pytest.mark.parametrize(
+    "file_overrides",
+    [
+        {"type": FileTypeChoices.BACKGROUND_IMAGE},
+        {"upload_state": FileUploadStateChoices.PENDING},
+    ],
+)
+def test_task_attachment_rejects_wrong_type_or_pending_upload(file_overrides):
+    user = UserFactory()
+    task = Task.objects.create(title="Private", creator=user, assignee=user)
+    defaults = {
+        "creator": user,
+        "type": FileTypeChoices.TASK_ATTACHMENT,
+        "upload_state": FileUploadStateChoices.READY,
+    }
+    file = FileFactory(**(defaults | file_overrides))
+
+    response = _client(user).post(
+        f"{TASKS_URL}{task.id}/attachments/",
+        {"file_id": str(file.id)},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert TaskAttachment.objects.count() == 0
+
+
+def test_task_attachment_rejects_upload_owned_by_another_user():
+    creator = UserFactory()
+    other_user = UserFactory()
+    task = Task.objects.create(title="Private", creator=creator, assignee=creator)
+    file = FileFactory(
+        creator=other_user,
+        type=FileTypeChoices.TASK_ATTACHMENT,
+        update_upload_state=FileUploadStateChoices.READY,
+    )
+
+    response = _client(creator).post(
+        f"{TASKS_URL}{task.id}/attachments/",
+        {"file_id": str(file.id)},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert TaskAttachment.objects.count() == 0
+
+
+def test_task_attachment_media_access_follows_current_assignee():
+    creator = UserFactory()
+    former_assignee = UserFactory()
+    current_assignee = UserFactory()
+    task = Task.objects.create(
+        title="Handover",
+        creator=creator,
+        assignee=former_assignee,
+    )
+    file = FileFactory(
+        creator=creator,
+        type=FileTypeChoices.TASK_ATTACHMENT,
+        update_upload_state=FileUploadStateChoices.READY,
+    )
+    TaskAttachment.objects.create(task=task, file=file, uploader=creator)
+    original_url = f"http://localhost/media/{file.file_key:s}"
+
+    assert (
+        _client(former_assignee)
+        .get(
+            "/api/v1.0/files/media-auth/",
+            HTTP_X_ORIGINAL_URL=original_url,
+        )
+        .status_code
+        == 200
+    )
+
+    task.assignee = current_assignee
+    task.save(update_fields=["assignee", "updated_at"])
+
+    assert (
+        _client(former_assignee)
+        .get(
+            "/api/v1.0/files/media-auth/",
+            HTTP_X_ORIGINAL_URL=original_url,
+        )
+        .status_code
+        == 403
+    )
+    assert (
+        _client(current_assignee)
+        .get(
+            "/api/v1.0/files/media-auth/",
+            HTTP_X_ORIGINAL_URL=original_url,
+        )
+        .status_code
+        == 200
+    )
 
 
 def test_meeting_task_exposes_source_room():

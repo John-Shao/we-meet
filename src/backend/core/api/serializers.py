@@ -499,6 +499,39 @@ class TaskCommentSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "author", "created_at"]
 
 
+class TaskAttachmentSerializer(serializers.ModelSerializer):
+    """Serialize one task attachment without exposing its storage key."""
+
+    file_id = serializers.UUIDField(source="file.id", read_only=True)
+    title = serializers.CharField(source="file.title", read_only=True)
+    filename = serializers.CharField(source="file.filename", read_only=True)
+    mimetype = serializers.CharField(source="file.mimetype", read_only=True)
+    size = serializers.IntegerField(source="file.size", read_only=True)
+    uploader = UserLightSerializer(read_only=True)
+    url = serializers.SerializerMethodField()
+
+    def get_url(self, obj):
+        return (
+            f"{settings.MEDIA_BASE_URL:s}{settings.MEDIA_URL:s}"
+            f"{quote(obj.file.file_key):s}"
+        )
+
+    class Meta:
+        model = models.TaskAttachment
+        fields = [
+            "id",
+            "file_id",
+            "title",
+            "filename",
+            "mimetype",
+            "size",
+            "url",
+            "uploader",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
 class TaskSerializer(serializers.ModelSerializer):
     """Serialize a durable task for the task center and meeting detail."""
 

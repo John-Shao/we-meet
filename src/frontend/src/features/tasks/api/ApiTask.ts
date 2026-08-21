@@ -68,6 +68,18 @@ export interface ApiTaskComment {
   created_at: string
 }
 
+export interface ApiTaskAttachment {
+  id: string
+  file_id: string
+  title: string
+  filename: string
+  mimetype: string | null
+  size: number | null
+  url: string
+  uploader: ApiTaskUser | null
+  created_at: string
+}
+
 export type TaskScope = 'assigned' | 'created' | 'all'
 
 export interface CreateTaskPayload {
