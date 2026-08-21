@@ -43,6 +43,12 @@
     "completed": "Erledigt",
     "canceled": "Abgebrochen"
   },
+  "actionItemStatuses": {
+    "proposed": "Vorgeschlagen",
+    "confirmed": "Bestätigt",
+    "completed": "Erledigt",
+    "dismissed": "Verworfen"
+  },
   "meta": {
     "assignee": "Verantwortlich",
     "creator": "Erstellt von",
@@ -115,7 +121,12 @@
       "content_changed": "{{actor}} hat den Aufgabeninhalt geändert",
       "dates_changed": "{{actor}} hat die Aufgabendaten angepasst",
       "assignee_changed": "{{actor}} hat die Aufgabe {{assignee}} zugewiesen",
-      "status_changed": "{{actor}} hat den Status in „{{status}}“ geändert"
+      "status_changed": "{{actor}} hat den Status in „{{status}}“ geändert",
+      "status_changed_synced": "{{base}}; der Quell-Aktionspunkt wurde mit „{{sourceStatus}}“ synchronisiert",
+      "status_changed_aligned": "{{base}}; der Quell-Aktionspunkt war bereits „{{sourceStatus}}“",
+      "status_changed_conflict": "{{base}}; der Quell-Aktionspunkt behält den manuellen Status „{{sourceStatus}}“",
+      "source_action_item_changed": "{{actor}} hat den Status des Quell-Aktionspunkts in „{{status}}“ geändert",
+      "source_action_item_overrode": "{{actor}} hat den Status des Quell-Aktionspunkts in „{{status}}“ geändert und damit die Aufgaben-Synchronisierung überschrieben"
     }
   }
 }

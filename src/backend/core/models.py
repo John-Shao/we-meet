@@ -2148,6 +2148,19 @@ class ActionItem(BaseModel):
         db_index=True,
         help_text=_("Reserved link to the task created from this action item."),
     )
+    task_status_sync_activity = models.ForeignKey(
+        "TaskActivity",
+        on_delete=models.SET_NULL,
+        related_name="synced_action_items",
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name=_("task status sync activity"),
+        help_text=_(
+            "Latest task activity that changed this action item's status; "
+            "cleared by a manual status override."
+        ),
+    )
     sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
     # Kept for backwards wire compatibility during the action-item migration.
     is_completed = models.BooleanField(_("completed"), default=False)
@@ -2286,6 +2299,10 @@ class TaskActivity(BaseModel):
         ASSIGNEE_CHANGED = "assignee_changed", _("Assignee changed")
         STATUS_CHANGED = "status_changed", _("Status changed")
         ATTACHMENT_REMOVED = "attachment_removed", _("Attachment removed")
+        SOURCE_ACTION_ITEM_CHANGED = (
+            "source_action_item_changed",
+            _("Source action item changed"),
+        )
 
     task = models.ForeignKey(
         Task,

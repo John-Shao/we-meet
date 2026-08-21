@@ -285,3 +285,52 @@ def test_action_item_must_be_confirmed_and_assigned_before_conversion():
     item.save()
     response = client.post(_task_url(room, item), format="json")
     assert response.status_code == 201
+
+
+def test_manual_action_item_status_override_clears_task_sync_provenance():
+    owner, assignee, _member, _outsider, room, item = _world()
+    item.status = ActionItem.Status.COMPLETED
+    item.assignee = assignee
+    task = Task.objects.create(
+        title=item.content,
+        creator=owner,
+        assignee=assignee,
+        status=Task.Status.COMPLETED,
+        source_action_item=item,
+    )
+    sync_activity = TaskActivity.objects.create(
+        task=task,
+        actor=assignee,
+        event=TaskActivity.Event.STATUS_CHANGED,
+        changes={
+            "status": {"from": Task.Status.TODO, "to": Task.Status.COMPLETED}
+        },
+    )
+    item.task_id = task.id
+    item.task_status_sync_activity = sync_activity
+    item.save()
+
+    response = _client(owner).patch(
+        _url(room, item),
+        {"status": ActionItem.Status.CONFIRMED},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    item.refresh_from_db()
+    assert item.task_status_sync_activity is None
+    manual_activity = TaskActivity.objects.get(
+        task=task,
+        event=TaskActivity.Event.SOURCE_ACTION_ITEM_CHANGED,
+    )
+    assert manual_activity.actor == owner
+    assert manual_activity.changes == {
+        "source_action_item": {
+            "id": str(item.id),
+            "status": {
+                "from": ActionItem.Status.COMPLETED,
+                "to": ActionItem.Status.CONFIRMED,
+            },
+            "overrode_task_sync": True,
+        }
+    }

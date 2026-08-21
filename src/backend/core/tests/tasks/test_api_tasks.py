@@ -945,3 +945,53 @@ def test_meeting_task_exposes_source_room():
     assert response.status_code == 200
     assert response.json()["source_room_id"] == str(room.id)
     assert response.json()["source_room_name"] == room.name
+
+
+def test_task_status_api_syncs_linked_action_item_completion_and_reopen():
+    owner = UserFactory()
+    assignee = UserFactory()
+    action_item = ActionItem.objects.create(
+        room=RoomFactory(users=[(owner, "owner"), (assignee, "member")]),
+        content="Publish decisions",
+        status=ActionItem.Status.CONFIRMED,
+        assignee=assignee,
+    )
+    task = Task.objects.create(
+        title=action_item.content,
+        creator=owner,
+        assignee=assignee,
+        source_action_item=action_item,
+    )
+    action_item.task_id = task.id
+    action_item.save(update_fields=["task_id", "updated_at"])
+    client = _client(assignee)
+
+    completed = client.patch(
+        f"{TASKS_URL}{task.id}/",
+        {"status": Task.Status.COMPLETED},
+        format="json",
+    )
+
+    assert completed.status_code == 200
+    action_item.refresh_from_db()
+    completed_activity = TaskActivity.objects.get(
+        task=task,
+        event=TaskActivity.Event.STATUS_CHANGED,
+        changes__status__to=Task.Status.COMPLETED,
+    )
+    assert action_item.status == ActionItem.Status.COMPLETED
+    assert action_item.task_status_sync_activity == completed_activity
+    assert completed_activity.changes["source_action_item_sync"]["result"] == (
+        "updated"
+    )
+
+    reopened = client.patch(
+        f"{TASKS_URL}{task.id}/",
+        {"status": Task.Status.TODO},
+        format="json",
+    )
+
+    assert reopened.status_code == 200
+    action_item.refresh_from_db()
+    assert action_item.status == ActionItem.Status.CONFIRMED
+    assert action_item.task_status_sync_activity is None

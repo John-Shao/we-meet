@@ -43,6 +43,12 @@
     "completed": "Voltooid",
     "canceled": "Geannuleerd"
   },
+  "actionItemStatuses": {
+    "proposed": "Voorgesteld",
+    "confirmed": "Bevestigd",
+    "completed": "Voltooid",
+    "dismissed": "Afgewezen"
+  },
   "meta": {
     "assignee": "Verantwoordelijke",
     "creator": "Maker",
@@ -115,7 +121,12 @@
       "content_changed": "{{actor}} heeft de taakinhoud bijgewerkt",
       "dates_changed": "{{actor}} heeft de taakdatums aangepast",
       "assignee_changed": "{{actor}} heeft de taak toegewezen aan {{assignee}}",
-      "status_changed": "{{actor}} heeft de status gewijzigd in ‘{{status}}’"
+      "status_changed": "{{actor}} heeft de status gewijzigd in ‘{{status}}’",
+      "status_changed_synced": "{{base}}; het bronactiepunt is gesynchroniseerd naar ‘{{sourceStatus}}’",
+      "status_changed_aligned": "{{base}}; het bronactiepunt was al ‘{{sourceStatus}}’",
+      "status_changed_conflict": "{{base}}; het bronactiepunt behoudt de handmatige status ‘{{sourceStatus}}’",
+      "source_action_item_changed": "{{actor}} heeft de status van het bronactiepunt gewijzigd in ‘{{status}}’",
+      "source_action_item_overrode": "{{actor}} heeft de status van het bronactiepunt gewijzigd in ‘{{status}}’ en daarmee het resultaat van de taaksynchronisatie overschreven"
     }
   }
 }

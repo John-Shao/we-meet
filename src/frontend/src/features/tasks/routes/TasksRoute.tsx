@@ -1430,10 +1430,20 @@ const taskActivityMessage = (
   const actor = displayName(activity.actor)
   if (activity.event === 'status_changed') {
     const status = activity.changes.status?.to
-    return t('history.events.status_changed', {
+    const base = t('history.events.status_changed', {
       actor,
       status: status ? t(`statuses.${status}`) : '—',
     })
+    const sync = activity.changes.source_action_item_sync
+    if (!sync) return base
+    const sourceStatus = t(`actionItemStatuses.${sync.to}`)
+    if (sync.result === 'updated') {
+      return t('history.events.status_changed_synced', { base, sourceStatus })
+    }
+    if (sync.result === 'already_aligned') {
+      return t('history.events.status_changed_aligned', { base, sourceStatus })
+    }
+    return t('history.events.status_changed_conflict', { base, sourceStatus })
   }
   if (activity.event === 'assignee_changed') {
     const assignee = activity.changes.assignee
@@ -1447,6 +1457,17 @@ const taskActivityMessage = (
     return t('history.events.attachment_removed', {
       actor,
       filename: activity.changes.attachment?.filename || '—',
+    })
+  }
+  if (activity.event === 'source_action_item_changed') {
+    const sourceChange = activity.changes.source_action_item
+    const status = sourceChange?.status.to
+    const event = sourceChange?.overrode_task_sync
+      ? 'history.events.source_action_item_overrode'
+      : 'history.events.source_action_item_changed'
+    return t(event, {
+      actor,
+      status: status ? t(`actionItemStatuses.${status}`) : '—',
     })
   }
   return t(`history.events.${activity.event}`, { actor })

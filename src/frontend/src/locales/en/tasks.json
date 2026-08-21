@@ -43,6 +43,12 @@
     "completed": "Completed",
     "canceled": "Canceled"
   },
+  "actionItemStatuses": {
+    "proposed": "Proposed",
+    "confirmed": "Confirmed",
+    "completed": "Completed",
+    "dismissed": "Dismissed"
+  },
   "meta": {
     "assignee": "Assignee",
     "creator": "Creator",
@@ -115,7 +121,12 @@
       "content_changed": "{{actor}} updated the task content",
       "dates_changed": "{{actor}} adjusted the task dates",
       "assignee_changed": "{{actor}} reassigned the task to {{assignee}}",
-      "status_changed": "{{actor}} changed the status to “{{status}}”"
+      "status_changed": "{{actor}} changed the status to “{{status}}”",
+      "status_changed_synced": "{{base}}; the source action item was synced to “{{sourceStatus}}”",
+      "status_changed_aligned": "{{base}}; the source action item was already “{{sourceStatus}}”",
+      "status_changed_conflict": "{{base}}; the source action item kept its manual status “{{sourceStatus}}”",
+      "source_action_item_changed": "{{actor}} changed the source action item status to “{{status}}”",
+      "source_action_item_overrode": "{{actor}} changed the source action item status to “{{status}}”, overriding the task sync result"
     }
   }
 }

@@ -21,6 +21,9 @@ from rest_framework.exceptions import PermissionDenied
 from timezone_field.rest_framework import TimeZoneSerializerField
 
 from core import models, utils
+from core.services.task_action_item_sync import (
+    record_manual_action_item_status_change,
+)
 from core.services.task_time import local_date_for_user, task_time_state
 
 logger = logging.getLogger(__name__)
@@ -412,6 +415,7 @@ class ActionItemSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         previous_status = instance.status
+        previous_sync_activity_id = instance.task_status_sync_activity_id
         instance = super().update(instance, validated_data)
         if instance.status == previous_status:
             return instance
@@ -435,7 +439,14 @@ class ActionItemSerializer(serializers.ModelSerializer):
         elif instance.status == models.ActionItem.Status.DISMISSED:
             instance.completed_at = None
 
+        instance.task_status_sync_activity = None
         instance.save()
+        record_manual_action_item_status_change(
+            action_item=instance,
+            actor=actor,
+            previous_status=previous_status,
+            overrode_task_sync=previous_sync_activity_id is not None,
+        )
         return instance
 
     class Meta:

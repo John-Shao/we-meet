@@ -43,6 +43,12 @@
     "completed": "Terminée",
     "canceled": "Annulée"
   },
+  "actionItemStatuses": {
+    "proposed": "Proposée",
+    "confirmed": "Confirmée",
+    "completed": "Terminée",
+    "dismissed": "Ignorée"
+  },
   "meta": {
     "assignee": "Responsable",
     "creator": "Créateur",
@@ -115,7 +121,12 @@
       "content_changed": "{{actor}} a modifié le contenu de la tâche",
       "dates_changed": "{{actor}} a ajusté les dates de la tâche",
       "assignee_changed": "{{actor}} a réattribué la tâche à {{assignee}}",
-      "status_changed": "{{actor}} a changé le statut en « {{status}} »"
+      "status_changed": "{{actor}} a changé le statut en « {{status}} »",
+      "status_changed_synced": "{{base}} ; l’action source a été synchronisée sur « {{sourceStatus}} »",
+      "status_changed_aligned": "{{base}} ; l’action source était déjà « {{sourceStatus}} »",
+      "status_changed_conflict": "{{base}} ; l’action source conserve son statut manuel « {{sourceStatus}} »",
+      "source_action_item_changed": "{{actor}} a changé le statut de l’action source en « {{status}} »",
+      "source_action_item_overrode": "{{actor}} a changé le statut de l’action source en « {{status}} », remplaçant le résultat de la synchronisation de la tâche"
     }
   }
 }

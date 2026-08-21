@@ -39,6 +39,13 @@ export type TaskActivityEvent =
   | 'assignee_changed'
   | 'status_changed'
   | 'attachment_removed'
+  | 'source_action_item_changed'
+
+export type SourceActionItemStatus =
+  | 'proposed'
+  | 'confirmed'
+  | 'completed'
+  | 'dismissed'
 
 export interface ApiTaskActivityUserSnapshot {
   id: string
@@ -65,6 +72,22 @@ export interface ApiTaskActivity {
         }
     status?: { from: TaskStatus; to: TaskStatus }
     attachment?: { id: string; filename: string }
+    source_action_item_sync?: {
+      action_item_id: string
+      result:
+        | 'updated'
+        | 'already_aligned'
+        | 'skipped_manual_override'
+        | 'skipped_conflict'
+      from: SourceActionItemStatus
+      to: SourceActionItemStatus
+      reason?: string
+    }
+    source_action_item?: {
+      id: string
+      status: { from: SourceActionItemStatus; to: SourceActionItemStatus }
+      overrode_task_sync: boolean
+    }
   }
   created_at: string
 }

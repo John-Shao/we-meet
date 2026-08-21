@@ -1461,6 +1461,7 @@ class RoomViewSet(
         url_path=r"action-items/(?P<action_item_id>[0-9a-f-]+)",
         permission_classes=[permissions.IsAuthenticated],
     )
+    @transaction.atomic
     def update_action_item(
         self, request, pk=None, action_item_id=None
     ):  # pylint: disable=unused-argument
@@ -1468,7 +1469,7 @@ class RoomViewSet(
 
         room = self.get_object()
         item = get_object_or_404(
-            models.ActionItem.objects.select_related(
+            models.ActionItem.objects.select_for_update(of=("self",)).select_related(
                 "room", "assignee", "confirmed_by"
             ),
             pk=action_item_id,

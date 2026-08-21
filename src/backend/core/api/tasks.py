@@ -19,6 +19,7 @@ from core.api.serializers import (
     TaskSerializer,
 )
 from core.api.viewsets import Pagination
+from core.services.task_action_item_sync import sync_action_item_from_task_status
 from core.services.task_history import (
     record_task_changes,
     record_task_created,
@@ -321,6 +322,16 @@ class TaskViewSet(
                 actor=request.user,
                 before=history_snapshot,
             )
+            status_activity = next(
+                (
+                    activity
+                    for activity in activities
+                    if activity.event == models.TaskActivity.Event.STATUS_CHANGED
+                ),
+                None,
+            )
+            if status_activity is not None:
+                sync_action_item_from_task_status(activity=status_activity)
             if task.assignee_id != previous_assignee_id:
                 record_task_assignment(
                     task=task,
@@ -337,14 +348,6 @@ class TaskViewSet(
                 )
                 if date_activity is not None:
                     record_task_date_change(activity=date_activity)
-                status_activity = next(
-                    (
-                        activity
-                        for activity in activities
-                        if activity.event == models.TaskActivity.Event.STATUS_CHANGED
-                    ),
-                    None,
-                )
                 if status_activity is not None:
                     record_task_status_change(activity=status_activity)
             response_data = TaskSerializer(task, context={"request": request}).data
