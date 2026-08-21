@@ -1,6 +1,10 @@
 """API coverage for the minimal standalone task module."""
 
+from datetime import timedelta
 from unittest import mock
+from zoneinfo import ZoneInfo
+
+from django.utils import timezone
 
 import pytest
 from rest_framework.test import APIClient
@@ -262,6 +266,87 @@ def test_list_scopes_tasks_to_creator_and_assignee():
         str(personal.id),
     }
     assert outsider_results["results"] == []
+
+
+def test_task_list_filters_and_serializes_time_state():
+    user = UserFactory(timezone="UTC")
+    today = timezone.localdate()
+    starting = Task.objects.create(
+        title="Starts today",
+        creator=user,
+        assignee=user,
+        start_date=today,
+        due_date=today + timedelta(days=3),
+    )
+    due = Task.objects.create(
+        title="Due today",
+        creator=user,
+        assignee=user,
+        due_date=today,
+    )
+    overdue = Task.objects.create(
+        title="Overdue",
+        creator=user,
+        assignee=user,
+        due_date=today - timedelta(days=1),
+    )
+    one_day = Task.objects.create(
+        title="Starts and ends today",
+        creator=user,
+        assignee=user,
+        start_date=today,
+        due_date=today,
+    )
+    Task.objects.create(
+        title="Completed overdue",
+        creator=user,
+        assignee=user,
+        due_date=today - timedelta(days=2),
+        status=Task.Status.COMPLETED,
+    )
+
+    client = _client(user)
+    starting_payload = client.get(f"{TASKS_URL}?scope=all&time=starting_today").json()
+    due_payload = client.get(f"{TASKS_URL}?scope=all&time=due_today").json()
+    overdue_payload = client.get(f"{TASKS_URL}?scope=all&time=overdue").json()
+
+    assert [
+        (item["id"], item["time_state"]) for item in starting_payload["results"]
+    ] == [(str(starting.id), "starting_today")]
+    assert {(item["id"], item["time_state"]) for item in due_payload["results"]} == {
+        (str(due.id), "due_today"),
+        (str(one_day.id), "due_today"),
+    }
+    assert [
+        (item["id"], item["time_state"]) for item in overdue_payload["results"]
+    ] == [(str(overdue.id), "overdue")]
+    assert client.get(f"{TASKS_URL}?time=tomorrow").status_code == 400
+
+
+def test_task_time_filter_uses_current_assignee_timezone():
+    now = timezone.now()
+    creator_today = timezone.localdate(now, timezone=ZoneInfo("UTC"))
+    assignee_timezone = next(
+        zone
+        for zone in ("Pacific/Kiritimati", "Etc/GMT+12")
+        if timezone.localdate(now, timezone=ZoneInfo(zone)) != creator_today
+    )
+    assignee_today = timezone.localdate(now, timezone=ZoneInfo(assignee_timezone))
+    creator = UserFactory(timezone="UTC")
+    assignee = UserFactory(timezone=assignee_timezone)
+    task = Task.objects.create(
+        title="Starts in assignee timezone",
+        creator=creator,
+        assignee=assignee,
+        start_date=assignee_today,
+    )
+
+    response = _client(creator).get(f"{TASKS_URL}?scope=created&time=starting_today")
+
+    assert response.status_code == 200
+    assert [
+        (item["id"], item["time_state"]) for item in response.json()["results"]
+    ] == [(str(task.id), "starting_today")]
 
 
 def test_assignee_can_advance_status_but_cannot_edit_content():

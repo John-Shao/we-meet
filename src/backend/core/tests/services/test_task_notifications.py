@@ -1,7 +1,8 @@
 """Task-assignment delivery ledger, card and retry coverage."""
 
 import json
-from datetime import timedelta
+from datetime import date, datetime, timedelta
+from datetime import timezone as dt_timezone
 from unittest import mock
 
 from django.utils import timezone
@@ -14,6 +15,7 @@ from core.services import im_bots
 from core.services.jusi_im import JusiImBadResponseError, JusiImUnreachableError
 from core.services.task_notifications import (
     enqueue_due_task_assignments,
+    record_due_task_reminders,
     record_task_assignment,
     record_task_comment,
 )
@@ -334,3 +336,143 @@ def test_recovery_scan_enqueues_only_due_pending_rows():
         assert enqueue_due_task_assignments() == 1
 
     enqueue.assert_called_once_with(due.id)
+
+
+def test_task_date_reminders_respect_assignee_timezone_and_are_idempotent(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    shanghai = UserFactory(timezone="Asia/Shanghai")
+    utc_user = UserFactory(timezone="UTC")
+    now = datetime(2026, 8, 21, 16, 30, tzinfo=dt_timezone.utc)
+
+    starting = models.Task.objects.create(
+        title="Shanghai starting",
+        creator=creator,
+        assignee=shanghai,
+        start_date=date(2026, 8, 22),
+    )
+    due = models.Task.objects.create(
+        title="Shanghai due",
+        creator=creator,
+        assignee=shanghai,
+        due_date=date(2026, 8, 22),
+    )
+    overdue = models.Task.objects.create(
+        title="Shanghai overdue",
+        creator=creator,
+        assignee=shanghai,
+        due_date=date(2026, 8, 21),
+    )
+    one_day = models.Task.objects.create(
+        title="One day",
+        creator=creator,
+        assignee=shanghai,
+        start_date=date(2026, 8, 22),
+        due_date=date(2026, 8, 22),
+    )
+    utc_starting = models.Task.objects.create(
+        title="UTC starting",
+        creator=creator,
+        assignee=utc_user,
+        start_date=date(2026, 8, 21),
+    )
+    models.Task.objects.create(
+        title="Completed",
+        creator=creator,
+        assignee=shanghai,
+        due_date=date(2026, 8, 21),
+        status=models.Task.Status.COMPLETED,
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        assert record_due_task_reminders(now=now) == 5
+        assert record_due_task_reminders(now=now) == 0
+
+    assert set(
+        models.TaskImDelivery.objects.values_list("task_id", "event", "reference_date")
+    ) == {
+        (starting.id, models.TaskImDelivery.Event.STARTING, date(2026, 8, 22)),
+        (due.id, models.TaskImDelivery.Event.DUE_TODAY, date(2026, 8, 22)),
+        (overdue.id, models.TaskImDelivery.Event.OVERDUE, date(2026, 8, 21)),
+        (one_day.id, models.TaskImDelivery.Event.DUE_TODAY, date(2026, 8, 22)),
+        (
+            utc_starting.id,
+            models.TaskImDelivery.Event.STARTING,
+            date(2026, 8, 21),
+        ),
+    }
+    assert enqueue.call_count == 5
+
+
+def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
+    settings.JUSI_IM_CONFIGURATION = {
+        "api_url": "https://im.example.test",
+        "admin_hmac_secret": "s" * 32,
+    }
+    settings.APPLICATION_BASE_URL = "https://meet.example.test"
+    creator = UserFactory(full_name="创建人")
+    recipient = UserFactory(full_name="负责人", timezone="Asia/Shanghai")
+    task = models.Task.objects.create(
+        title="提交发布材料",
+        creator=creator,
+        assignee=recipient,
+        start_date=date(2026, 8, 20),
+        due_date=date(2026, 8, 22),
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=recipient,
+        event=models.TaskImDelivery.Event.DUE_TODAY,
+        reference_date=date(2026, 8, 22),
+        next_attempt_at=timezone.now(),
+    )
+
+    with (
+        mock.patch(
+            "core.services.task_notifications.local_date_for_user",
+            return_value=date(2026, 8, 22),
+        ),
+        mock.patch(
+            "core.services.task_notifications.im_bots.get_builtin",
+            return_value=mock.Mock(),
+        ),
+        mock.patch(
+            "core.services.task_notifications.im_bots.post_direct",
+            return_value=("direct-cid", mock.Mock()),
+        ) as post_direct,
+    ):
+        assert deliver_task_assignment(str(delivery.id)) == "delivered"
+
+    card = json.loads(post_direct.call_args.args[3])
+    assert card["header"] == {"title": "任务今天截止", "theme": "warning"}
+    assert card["plain"] == "任务今天截止：提交发布材料"
+    assert card["blocks"][-1]["buttons"][0]["url"] == (
+        "https://meet.example.test/tasks"
+    )
+
+
+def test_completed_task_supersedes_pending_time_reminder():
+    creator = UserFactory()
+    recipient = UserFactory(timezone="UTC")
+    task = models.Task.objects.create(
+        title="Already done",
+        creator=creator,
+        assignee=recipient,
+        due_date=date(2026, 8, 21),
+        status=models.Task.Status.COMPLETED,
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=recipient,
+        event=models.TaskImDelivery.Event.DUE_TODAY,
+        reference_date=date(2026, 8, 21),
+        next_attempt_at=timezone.now(),
+    )
+
+    assert deliver_task_assignment(str(delivery.id)) is None
+    delivery.refresh_from_db()
+    assert delivery.status == models.TaskImDelivery.Status.SUPERSEDED

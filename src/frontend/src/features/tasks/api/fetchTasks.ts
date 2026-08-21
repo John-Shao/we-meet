@@ -13,15 +13,18 @@ import type {
   CreateTaskPayload,
   PatchTaskPayload,
   TaskScope,
+  TaskTimeFilter,
 } from './ApiTask'
 
-const fetchTasks = (scope: TaskScope) =>
-  fetchApi<Paginated<ApiTask>>(`tasks/?scope=${scope}&page_size=100`)
+const fetchTasks = (scope: TaskScope, time: TaskTimeFilter) =>
+  fetchApi<Paginated<ApiTask>>(
+    `tasks/?scope=${scope}&time=${time}&page_size=100`
+  )
 
-export const useTasks = (scope: TaskScope) =>
+export const useTasks = (scope: TaskScope, time: TaskTimeFilter) =>
   useQuery<Paginated<ApiTask>, ApiError>({
-    queryKey: ['tasks', scope],
-    queryFn: () => fetchTasks(scope),
+    queryKey: ['tasks', scope, time],
+    queryFn: () => fetchTasks(scope, time),
   })
 
 const fetchTaskSubtasks = (taskId: string) =>

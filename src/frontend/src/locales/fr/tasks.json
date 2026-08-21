@@ -25,6 +25,18 @@
     "created": "Créées par moi",
     "all": "Toutes"
   },
+  "timeFilters": {
+    "label": "Filtre temporel",
+    "all": "Toutes les dates",
+    "starting_today": "Commence aujourd’hui",
+    "due_today": "Échéance aujourd’hui",
+    "overdue": "En retard"
+  },
+  "timeStates": {
+    "starting_today": "Commence aujourd’hui",
+    "due_today": "Échéance aujourd’hui",
+    "overdue": "En retard"
+  },
   "statuses": {
     "todo": "À faire",
     "in_progress": "En cours",

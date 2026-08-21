@@ -25,6 +25,18 @@
     "created": "Door mij gemaakt",
     "all": "Alle relevante"
   },
+  "timeFilters": {
+    "label": "Tijdfilter",
+    "all": "Alle datums",
+    "starting_today": "Begint vandaag",
+    "due_today": "Vandaag aflopend",
+    "overdue": "Te laat"
+  },
+  "timeStates": {
+    "starting_today": "Begint vandaag",
+    "due_today": "Vandaag aflopend",
+    "overdue": "Te laat"
+  },
   "statuses": {
     "todo": "Te doen",
     "in_progress": "Bezig",

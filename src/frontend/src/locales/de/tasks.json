@@ -25,6 +25,18 @@
     "created": "Von mir erstellt",
     "all": "Alle relevanten"
   },
+  "timeFilters": {
+    "label": "Zeitfilter",
+    "all": "Alle Termine",
+    "starting_today": "Startet heute",
+    "due_today": "Heute fällig",
+    "overdue": "Überfällig"
+  },
+  "timeStates": {
+    "starting_today": "Startet heute",
+    "due_today": "Heute fällig",
+    "overdue": "Überfällig"
+  },
   "statuses": {
     "todo": "Offen",
     "in_progress": "In Arbeit",

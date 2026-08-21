@@ -21,6 +21,7 @@ from rest_framework.exceptions import PermissionDenied
 from timezone_field.rest_framework import TimeZoneSerializerField
 
 from core import models, utils
+from core.services.task_time import local_date_for_user, task_time_state
 
 logger = logging.getLogger(__name__)
 
@@ -542,6 +543,7 @@ class TaskSerializer(serializers.ModelSerializer):
     source_room_name = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     can_update_status = serializers.SerializerMethodField()
+    time_state = serializers.SerializerMethodField()
 
     def _request_user(self):
         request = self.context.get("request")
@@ -565,6 +567,15 @@ class TaskSerializer(serializers.ModelSerializer):
                 )
             )
         )
+
+    def get_time_state(self, obj):
+        user = self._request_user()
+        if user is None or not user.is_authenticated:
+            return None
+        today = getattr(obj, "_assignee_local_date", None)
+        if today is None:
+            today = local_date_for_user(obj.assignee or user)
+        return task_time_state(obj, today=today)
 
     def get_subtask_count(self, obj):
         annotated_count = getattr(obj, "_subtask_count", None)
@@ -608,6 +619,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "source_room_name",
             "can_edit",
             "can_update_status",
+            "time_state",
             "created_at",
             "updated_at",
         ]

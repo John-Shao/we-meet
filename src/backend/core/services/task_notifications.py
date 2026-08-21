@@ -12,6 +12,7 @@ from django.utils import timezone
 from core import models
 from core.services import im_bots, im_cards
 from core.services.jusi_im import JusiImAdminClient
+from core.services.task_time import OPEN_TASK_STATUSES, local_date_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,11 @@ CLAIM_TTL = timedelta(minutes=2)
 ASSIGNMENT_EVENTS = (
     models.TaskImDelivery.Event.ASSIGNED,
     models.TaskImDelivery.Event.REASSIGNED,
+)
+REMINDER_EVENTS = (
+    models.TaskImDelivery.Event.STARTING,
+    models.TaskImDelivery.Event.DUE_TODAY,
+    models.TaskImDelivery.Event.OVERDUE,
 )
 
 
@@ -50,6 +56,13 @@ def record_task_assignment(
     )
     pending.filter(event=models.TaskImDelivery.Event.COMMENTED).exclude(
         Q(recipient_id=task.creator_id) | Q(recipient_id=task.assignee_id)
+    ).update(
+        status=models.TaskImDelivery.Status.SUPERSEDED,
+        next_attempt_at=None,
+        last_error="",
+    )
+    pending.filter(event__in=REMINDER_EVENTS).exclude(
+        recipient_id=task.assignee_id
     ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
@@ -95,6 +108,44 @@ def record_task_comment(*, comment: models.TaskComment) -> models.TaskImDelivery
     if created:
         transaction.on_commit(lambda: _enqueue_delivery(delivery.id))
     return delivery
+
+
+def record_due_task_reminders(*, now=None) -> int:
+    """Create today's missing reminder ledger rows in each assignee's timezone."""
+
+    created_count = 0
+    tasks = (
+        models.Task.objects.filter(
+            status__in=OPEN_TASK_STATUSES,
+            assignee__isnull=False,
+            assignee__is_active=True,
+        )
+        .filter(Q(start_date__isnull=False) | Q(due_date__isnull=False))
+        .select_related("assignee")
+    )
+    for task in tasks.iterator():
+        today = local_date_for_user(task.assignee, now=now)
+        reminders = []
+        # A one-day task gets the more urgent due reminder instead of two cards.
+        if task.start_date == today and task.due_date != today:
+            reminders.append((models.TaskImDelivery.Event.STARTING, task.start_date))
+        if task.due_date == today:
+            reminders.append((models.TaskImDelivery.Event.DUE_TODAY, task.due_date))
+        elif task.due_date is not None and task.due_date < today:
+            reminders.append((models.TaskImDelivery.Event.OVERDUE, task.due_date))
+
+        for event, reference_date in reminders:
+            delivery, created = models.TaskImDelivery.objects.get_or_create(
+                task=task,
+                recipient_id=task.assignee_id,
+                event=event,
+                reference_date=reference_date,
+                defaults={"next_attempt_at": timezone.now()},
+            )
+            if created:
+                created_count += 1
+                transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
+    return created_count
 
 
 def _enqueue_delivery(delivery_id) -> bool:
@@ -336,24 +387,89 @@ def _comment_card(delivery: models.TaskImDelivery) -> dict:
     )
 
 
+def _reminder_card(delivery: models.TaskImDelivery) -> dict:
+    task = delivery.task
+    presentation = {
+        models.TaskImDelivery.Event.STARTING: ("任务今天开始", "info"),
+        models.TaskImDelivery.Event.DUE_TODAY: ("任务今天截止", "warning"),
+        models.TaskImDelivery.Event.OVERDUE: ("任务已逾期", "danger"),
+    }
+    heading, theme = presentation[delivery.event]
+    fields = []
+    if task.start_date is not None:
+        fields.append({"label": "开始日期", "value": task.start_date.isoformat()})
+    if task.due_date is not None:
+        fields.append({"label": "截止日期", "value": task.due_date.isoformat()})
+    blocks = [
+        {
+            "type": im_cards.CARD_BLOCK_TEXT,
+            "spans": [{"tag": im_cards.RICH_TAG_TEXT, "text": task.title, "b": True}],
+        },
+        {"type": im_cards.CARD_BLOCK_FIELDS, "items": fields},
+    ]
+    base_url = str(getattr(settings, "APPLICATION_BASE_URL", "") or "").rstrip("/")
+    if base_url:
+        blocks.append(
+            {
+                "type": im_cards.CARD_BLOCK_ACTIONS,
+                "resolve": im_cards.CARD_RESOLVE_EACH,
+                "buttons": [
+                    {
+                        "id": "open-task-reminder",
+                        "text": "查看任务",
+                        "style": "primary",
+                        "action": "url",
+                        "url": f"{base_url}/tasks",
+                    }
+                ],
+            }
+        )
+    return im_cards.build_rich_card(
+        header={"title": heading, "theme": theme},
+        blocks=blocks,
+        plain=f"{heading}：{task.title}",
+    )
+
+
 def _notification_card(delivery: models.TaskImDelivery) -> dict:
     if delivery.event == models.TaskImDelivery.Event.COMMENTED:
         return _comment_card(delivery)
+    if delivery.event in REMINDER_EVENTS:
+        return _reminder_card(delivery)
     return _assignment_card(delivery)
 
 
 def _recipient_can_receive(delivery: models.TaskImDelivery) -> bool:
     task = delivery.task
     if delivery.event in ASSIGNMENT_EVENTS:
-        return task.assignee_id == delivery.recipient_id
-    if delivery.event == models.TaskImDelivery.Event.COMMENTED:
+        allowed = task.assignee_id == delivery.recipient_id
+    elif delivery.event == models.TaskImDelivery.Event.COMMENTED:
         comment = delivery.comment
-        return bool(
+        allowed = bool(
             comment is not None
             and delivery.recipient_id in {task.creator_id, task.assignee_id}
             and delivery.recipient_id != comment.author_id
         )
-    return False
+    elif delivery.event in REMINDER_EVENTS:
+        if (
+            task.assignee_id != delivery.recipient_id
+            or task.status not in OPEN_TASK_STATUSES
+            or delivery.reference_date is None
+        ):
+            allowed = False
+        else:
+            today = local_date_for_user(delivery.recipient)
+            if delivery.event == models.TaskImDelivery.Event.STARTING:
+                allowed = task.start_date == delivery.reference_date == today
+            elif delivery.event == models.TaskImDelivery.Event.DUE_TODAY:
+                allowed = task.due_date == delivery.reference_date == today
+            else:
+                allowed = (
+                    task.due_date == delivery.reference_date and task.due_date < today
+                )
+    else:
+        allowed = False
+    return allowed
 
 
 def _display_name(user) -> str:

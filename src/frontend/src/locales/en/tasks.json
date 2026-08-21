@@ -25,6 +25,18 @@
     "created": "Created by me",
     "all": "All related"
   },
+  "timeFilters": {
+    "label": "Time filter",
+    "all": "All dates",
+    "starting_today": "Starting today",
+    "due_today": "Due today",
+    "overdue": "Overdue"
+  },
+  "timeStates": {
+    "starting_today": "Starts today",
+    "due_today": "Due today",
+    "overdue": "Overdue"
+  },
   "statuses": {
     "todo": "To do",
     "in_progress": "In progress",

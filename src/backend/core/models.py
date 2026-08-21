@@ -2402,6 +2402,9 @@ class TaskImDelivery(BaseModel):
         ASSIGNED = "assigned", _("Assigned")
         REASSIGNED = "reassigned", _("Reassigned")
         COMMENTED = "commented", _("Commented")
+        STARTING = "starting", _("Starting")
+        DUE_TODAY = "due_today", _("Due today")
+        OVERDUE = "overdue", _("Overdue")
 
     class Status(models.TextChoices):
         PENDING = "pending", _("Pending")
@@ -2447,6 +2450,12 @@ class TaskImDelivery(BaseModel):
     delivered_at = models.DateTimeField(
         _("delivered at"), null=True, blank=True, db_index=True
     )
+    reference_date = models.DateField(
+        _("reference date"),
+        null=True,
+        blank=True,
+        help_text=_("Task date used as the idempotency key for reminder events."),
+    )
     last_error = models.TextField(_("last error"), blank=True, default="")
 
     class Meta:
@@ -2458,7 +2467,11 @@ class TaskImDelivery(BaseModel):
             models.UniqueConstraint(
                 fields=("comment", "recipient"),
                 name="task_im_comment_recipient_uniq",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=("task", "recipient", "event", "reference_date"),
+                name="task_im_reminder_reference_uniq",
+            ),
         ]
 
     def __str__(self) -> str:

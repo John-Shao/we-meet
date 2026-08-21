@@ -1,7 +1,7 @@
 """Minimal standalone task API."""
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -25,6 +25,7 @@ from core.services.task_history import (
     snapshot_task,
 )
 from core.services.task_notifications import record_task_assignment, record_task_comment
+from core.services.task_time import TIME_FILTERS, annotate_assignee_local_date
 from core.services.tasks import TaskAssigneeError, ensure_task_assignee_allowed
 from core.tasks.file import process_file_deletion
 
@@ -175,7 +176,7 @@ class TaskViewSet(
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = TaskSerializer
     pagination_class = Pagination
-    http_method_names = ["get", "post", "patch", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
         user = self.request.user
@@ -203,6 +204,7 @@ class TaskViewSet(
                 ),
             )
         )
+        queryset = annotate_assignee_local_date(queryset)
         if self.action == "list":
             queryset = queryset.filter(parent__isnull=True)
             scope = self.request.query_params.get("scope", "assigned")
@@ -232,6 +234,28 @@ class TaskViewSet(
                         {"status": "Use open, all, or a task status."}
                     )
                 queryset = queryset.filter(status=status_filter)
+
+            time_filter = self.request.query_params.get("time", "all")
+            if time_filter not in TIME_FILTERS:
+                raise serializers.ValidationError(
+                    {"time": "Use all, starting_today, due_today, or overdue."}
+                )
+            if time_filter != "all":
+                queryset = queryset.filter(
+                    status__in=[
+                        models.Task.Status.TODO,
+                        models.Task.Status.IN_PROGRESS,
+                    ],
+                    assignee__isnull=False,
+                )
+                if time_filter == "starting_today":
+                    queryset = queryset.filter(
+                        start_date=F("_assignee_local_date")
+                    ).exclude(due_date=F("_assignee_local_date"))
+                elif time_filter == "due_today":
+                    queryset = queryset.filter(due_date=F("_assignee_local_date"))
+                else:
+                    queryset = queryset.filter(due_date__lt=F("_assignee_local_date"))
         return queryset.order_by("-updated_at")
 
     def create(self, request, *args, **kwargs):  # pylint: disable=unused-argument

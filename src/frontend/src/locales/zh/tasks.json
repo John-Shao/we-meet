@@ -25,6 +25,18 @@
     "created": "我创建的",
     "all": "全部相关"
   },
+  "timeFilters": {
+    "label": "时间筛选",
+    "all": "全部日期",
+    "starting_today": "今天开始",
+    "due_today": "今天截止",
+    "overdue": "已逾期"
+  },
+  "timeStates": {
+    "starting_today": "今天开始",
+    "due_today": "今天截止",
+    "overdue": "已逾期"
+  },
   "statuses": {
     "todo": "待处理",
     "in_progress": "进行中",

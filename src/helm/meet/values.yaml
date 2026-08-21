@@ -281,7 +281,7 @@ backend:
         python manage.py createsuperuser --email $DJANGO_SUPERUSER_EMAIL --password $DJANGO_SUPERUSER_PASSWORD
     restartPolicy: Never
 
-  ## @param backend.reminders.enabled Deploy the calendar reminder CronJob (P2-c)
+  ## @param backend.reminders.enabled Deploy the calendar/task reminder CronJob
   ## @param backend.reminders.schedule Cron schedule for the reminder scan
   ## @param backend.reminders.command Override the reminder command
   reminders:

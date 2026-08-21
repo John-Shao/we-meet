@@ -3,6 +3,7 @@ import { Link } from 'wouter'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
+import { useConfirm } from '@/components/ConfirmProvider'
 import { StateHint } from '@/components/StateHint'
 import { RequireAuth } from '@/components/RequireAuth'
 import { ContactPicker, type DirectoryMember } from '@/features/contacts'
@@ -16,6 +17,8 @@ import type {
   PatchTaskPayload,
   TaskScope,
   TaskStatus,
+  TaskTimeFilter,
+  TaskTimeState,
 } from '../api/ApiTask'
 import {
   useCreateTaskComment,
@@ -32,6 +35,12 @@ import {
 } from '../api/fetchTasks'
 
 const scopes: TaskScope[] = ['assigned', 'created', 'all']
+const timeFilters: TaskTimeFilter[] = [
+  'all',
+  'starting_today',
+  'due_today',
+  'overdue',
+]
 
 const nextStatusActions: Record<TaskStatus, TaskStatus[]> = {
   todo: ['in_progress', 'completed', 'canceled'],
@@ -83,6 +92,7 @@ export const TasksRoute = () => (
 const TasksAuthenticated = () => {
   const { t, i18n } = useTranslation('tasks')
   const [scope, setScope] = useState<TaskScope>('assigned')
+  const [timeFilter, setTimeFilter] = useState<TaskTimeFilter>('all')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [createAssignee, setCreateAssignee] = useState<DirectoryMember | null>(
@@ -106,7 +116,7 @@ const TasksAuthenticated = () => {
   const [assigneePicker, setAssigneePicker] = useState<
     'create' | 'edit' | null
   >(null)
-  const { data, isLoading, error } = useTasks(scope)
+  const { data, isLoading, error } = useTasks(scope, timeFilter)
   const createMutation = useCreateTask()
   const patchMutation = usePatchTask()
 
@@ -361,6 +371,27 @@ const TasksAuthenticated = () => {
         ))}
       </div>
 
+      <div
+        aria-label={t('timeFilters.label')}
+        className={css({
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
+        })}
+      >
+        {timeFilters.map((value) => (
+          <Button
+            key={value}
+            variant={timeFilter === value ? 'primary' : 'secondary'}
+            size="dense"
+            aria-pressed={timeFilter === value}
+            onPress={() => setTimeFilter(value)}
+          >
+            {t(`timeFilters.${value}`)}
+          </Button>
+        ))}
+      </div>
+
       {(error || mutationError) && (
         <div
           role="alert"
@@ -526,9 +557,23 @@ const TasksAuthenticated = () => {
                         </p>
                       )}
                     </div>
-                    <span className={statusCss(task.status)}>
-                      {t(`statuses.${task.status}`)}
-                    </span>
+                    <div
+                      className={css({
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        justifyContent: 'flex-end',
+                        gap: '0.375rem',
+                      })}
+                    >
+                      {task.time_state && (
+                        <span className={timeStateCss(task.time_state)}>
+                          {t(`timeStates.${task.time_state}`)}
+                        </span>
+                      )}
+                      <span className={statusCss(task.status)}>
+                        {t(`statuses.${task.status}`)}
+                      </span>
+                    </div>
                   </div>
 
                   <dl
@@ -952,6 +997,7 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
 
 const TaskAttachments = ({ taskId }: { taskId: string }) => {
   const { t, i18n } = useTranslation('tasks')
+  const { confirm: askConfirm } = useConfirm()
   const inputRef = useRef<HTMLInputElement>(null)
   const [progress, setProgress] = useState(0)
   const { data, isLoading, error } = useTaskAttachments(taskId)
@@ -986,7 +1032,13 @@ const TaskAttachments = ({ taskId }: { taskId: string }) => {
   }
 
   const removeAttachment = async (attachmentId: string) => {
-    if (!window.confirm(t('attachments.removeConfirm'))) return
+    if (
+      !(await askConfirm({
+        message: t('attachments.removeConfirm'),
+        danger: true,
+      }))
+    )
+      return
     try {
       await deleteMutation.mutateAsync({ taskId, attachmentId })
     } catch {
@@ -1450,4 +1502,16 @@ const statusCss = (status: TaskStatus) =>
         : status === 'canceled'
           ? 'greyscale.100'
           : 'primary.50',
+  })
+
+const timeStateCss = (state: TaskTimeState) =>
+  css({
+    flexShrink: 0,
+    borderRadius: '999px',
+    paddingX: '0.625rem',
+    paddingY: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    color: state === 'overdue' ? 'danger.700' : 'warning.700',
+    backgroundColor: state === 'overdue' ? 'danger.50' : 'warning.50',
   })

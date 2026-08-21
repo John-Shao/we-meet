@@ -16,21 +16,28 @@ from django.core.management.base import BaseCommand
 
 from core.services.calendar_recurrence import materialize_recurrences
 from core.services.calendar_reminders import push_due_reminders
-from core.services.task_notifications import enqueue_due_task_assignments
+from core.services.task_notifications import (
+    enqueue_due_task_assignments,
+    record_due_task_reminders,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Push IM reminders for calendar events whose reminder time has arrived."
+    help = "Push due calendar and task reminders, then recover pending IM deliveries."
 
     def handle(self, *args, **options):
         materialized = materialize_recurrences()
         count = push_due_reminders()
+        # Recover existing rows before creating today's rows; newly-created
+        # reminders enqueue themselves after their transaction commits.
         task_notifications = enqueue_due_task_assignments()
+        task_reminders = record_due_task_reminders()
         self.stdout.write(
             self.style.SUCCESS(
                 f"occurrences materialized: {materialized}, reminders pushed: {count}, "
-                f"task notifications queued: {task_notifications}"
+                f"task notifications queued: {task_notifications}, "
+                f"task reminders created: {task_reminders}"
             )
         )

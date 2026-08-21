@@ -264,7 +264,7 @@ backend:
         python manage.py createsuperuser --email $DJANGO_SUPERUSER_EMAIL --password $DJANGO_SUPERUSER_PASSWORD || true
     restartPolicy: Never
 
-  # P2-c 日程提醒:每分钟扫描并回来源会话发送(幂等)。
+  # 日程 + 任务提醒:每分钟扫描到期记录并幂等投递。
   # chart 默认 enabled:false;生产开启,schedule/command 继承 chart values。
   reminders:
     enabled: true

@@ -1,4 +1,6 @@
 export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'canceled'
+export type TaskTimeState = 'starting_today' | 'due_today' | 'overdue'
+export type TaskTimeFilter = 'all' | TaskTimeState
 
 export interface ApiTaskUser {
   id: string
@@ -25,6 +27,7 @@ export interface ApiTask {
   completed_subtask_count: number
   can_edit: boolean
   can_update_status: boolean
+  time_state: TaskTimeState | null
   created_at: string
   updated_at: string
 }
