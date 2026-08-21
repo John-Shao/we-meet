@@ -31,6 +31,9 @@ def process_file_deletion(file_id):
         return
 
     logger.info("Deleting file %s", file.file_key)
-    default_storage.delete(file.file_key)
+    default_storage.connection.meta.client.delete_object(
+        Bucket=file.storage_bucket_name,
+        Key=file.file_key,
+    )
 
     file.delete()

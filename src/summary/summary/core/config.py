@@ -80,7 +80,9 @@ class Settings(BaseSettings):
     call_webhook_queue_v2: str = "call-webhook-queue-v2"
 
     # Minio settings
-    aws_storage_bucket_name: str
+    aws_storage_bucket_name: str = Field(
+        validation_alias="AWS_STORAGE_BUCKET_NAME_VIDEO"
+    )
     aws_s3_endpoint_url: str
     aws_s3_access_key_id: str
     aws_s3_secret_access_key: SecretStr

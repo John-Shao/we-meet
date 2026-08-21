@@ -1,5 +1,7 @@
 """API coverage for the minimal standalone task module."""
 
+from unittest import mock
+
 import pytest
 from rest_framework.test import APIClient
 
@@ -652,6 +654,48 @@ def test_task_attachment_media_access_follows_current_assignee():
         .status_code
         == 200
     )
+
+
+def test_task_attachment_url_and_download_access_follow_current_assignee():
+    creator = UserFactory()
+    former_assignee = UserFactory()
+    current_assignee = UserFactory()
+    outsider = UserFactory()
+    task = Task.objects.create(
+        title="Handover", creator=creator, assignee=former_assignee
+    )
+    file = FileFactory(
+        creator=creator,
+        type=FileTypeChoices.TASK_ATTACHMENT,
+        storage_bucket="we-task-attachment",
+        update_upload_state=FileUploadStateChoices.READY,
+    )
+    attachment = TaskAttachment.objects.create(task=task, file=file, uploader=creator)
+    url = f"{TASKS_URL}{task.id}/attachments/{attachment.id}/download/"
+
+    listed = _client(creator).get(f"{TASKS_URL}{task.id}/attachments/")
+    assert listed.status_code == 200
+    assert listed.json()[0]["url"] == url
+
+    with mock.patch(
+        "core.api.tasks.utils.generate_file_download_url",
+        return_value="https://storage.example.test/signed",
+    ) as signed:
+        assert _client(creator).get(url).status_code == 302
+        assert _client(former_assignee).get(url).status_code == 302
+        assert _client(outsider).get(url).status_code == 404
+        signed.assert_called_with(file)
+
+    task.assignee = current_assignee
+    task.save(update_fields=["assignee", "updated_at"])
+    with mock.patch(
+        "core.api.tasks.utils.generate_file_download_url",
+        return_value="https://storage.example.test/signed",
+    ):
+        assert _client(former_assignee).get(url).status_code == 404
+        response = _client(current_assignee).get(url)
+        assert response.status_code == 302
+        assert response["Location"] == "https://storage.example.test/signed"
 
 
 def test_meeting_task_exposes_source_room():

@@ -1311,6 +1311,12 @@ class File(BaseModel):
     hard_deleted_at = models.DateTimeField(null=True, blank=True)
 
     filename = models.CharField(max_length=255, null=False, blank=False)
+    storage_bucket = models.CharField(
+        max_length=63,
+        blank=True,
+        default="",
+        editable=False,
+    )
 
     upload_state = models.CharField(
         max_length=25,
@@ -1389,6 +1395,11 @@ class File(BaseModel):
         # We store only the extension in the storage system to avoid
         # leaking Personal Information in logs, etc.
         return f"{self.key_base}{extension!s}"
+
+    @property
+    def storage_bucket_name(self):
+        """Return this file's persisted bucket, or the legacy primary bucket."""
+        return self.storage_bucket or settings.AWS_STORAGE_BUCKET_NAME_VIDEO
 
     def get_abilities(self, user):
         """

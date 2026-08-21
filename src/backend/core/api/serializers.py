@@ -511,10 +511,7 @@ class TaskAttachmentSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
 
     def get_url(self, obj):
-        return (
-            f"{settings.MEDIA_BASE_URL:s}{settings.MEDIA_URL:s}"
-            f"{quote(obj.file.file_key):s}"
-        )
+        return f"/api/v1.0/tasks/{obj.task_id}/attachments/{obj.id}/download/"
 
     class Meta:
         model = models.TaskAttachment

@@ -101,7 +101,8 @@ backend:
     # 主桶 we-meet-video (recordings/metadata); 头像/封面见下方 Mobile app 块.
     AWS_S3_ENDPOINT_URL: https://oss-cn-shenzhen.aliyuncs.com
     AWS_S3_REGION_NAME: cn-shenzhen
-    AWS_STORAGE_BUCKET_NAME: we-meet-video
+    AWS_STORAGE_BUCKET_NAME_VIDEO: we-meet-video
+    AWS_STORAGE_BUCKET_NAME_TASK_ATTACHMENT: we-task-attachment
     AWS_S3_SIGNATURE_VERSION: s3v4
     AWS_S3_ADDRESSING_STYLE: virtual
     # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY 来自 values.secrets.yaml
@@ -364,7 +365,7 @@ summary:
     APP_NAME: meet-summary
     # APP_API_TOKEN 来自 values.secrets.yaml (= SUMMARY_SERVICE_API_TOKEN)
 
-    AWS_STORAGE_BUCKET_NAME: we-meet-video
+    AWS_STORAGE_BUCKET_NAME_VIDEO: we-meet-video
     AWS_S3_ENDPOINT_URL: https://oss-cn-shenzhen.aliyuncs.com
     AWS_S3_SECURE_ACCESS: "True"
     # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY 来自 values.secrets.yaml
@@ -497,7 +498,7 @@ agentMetadata:
     # 阿里云 OSS we-meet-video 主桶, 华南1(深圳)
     AWS_S3_ENDPOINT_URL: oss-cn-shenzhen.aliyuncs.com
     AWS_S3_SECURE_ACCESS: "True"
-    AWS_STORAGE_BUCKET_NAME: we-meet-video
+    AWS_STORAGE_BUCKET_NAME_VIDEO: we-meet-video
     AWS_S3_OUTPUT_FOLDER: metadata
   command:
     - "python"

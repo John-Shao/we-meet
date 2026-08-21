@@ -2,6 +2,7 @@
 
 import logging
 from io import BytesIO
+from unittest import mock
 
 from django.core.files.storage import default_storage
 
@@ -10,6 +11,7 @@ from rest_framework.test import APIClient
 
 from core import factories, models
 from core.models import FileTypeChoices, FileUploadStateChoices
+from core.tasks.file import process_file_deletion
 
 pytestmark = pytest.mark.django_db
 
@@ -270,3 +272,50 @@ def test_api_upload_ended_file_size_exceeded(settings, caplog):
 
     assert not models.File.objects.filter(id=file.id).exists()
     assert not default_storage.exists(file.file_key)
+
+
+def test_api_task_attachment_upload_ended_uses_persisted_bucket(settings):
+    """The confirmation handshake reads task uploads from their own bucket."""
+    settings.FILE_UPLOAD_APPLY_RESTRICTIONS = False
+    user = factories.UserFactory()
+    file = factories.FileFactory(
+        creator=user,
+        type=FileTypeChoices.TASK_ATTACHMENT,
+        filename="evidence.txt",
+        storage_bucket="we-task-attachment",
+    )
+    client = APIClient()
+    client.force_login(user)
+    s3_client = mock.Mock()
+    s3_client.head_object.return_value = {
+        "ContentLength": 8,
+        "ContentType": "text/plain",
+        "Metadata": {},
+    }
+    s3_client.get_object.return_value = {"Body": BytesIO(b"evidence")}
+
+    with mock.patch("core.api.viewsets.default_storage") as storage:
+        storage.connection.meta.client = s3_client
+        response = client.post(f"/api/v1.0/files/{file.id}/upload-ended/")
+
+    assert response.status_code == 200, response.json()
+    s3_client.head_object.assert_called_once_with(
+        Bucket="we-task-attachment", Key=file.file_key
+    )
+    s3_client.get_object.assert_called_once_with(
+        Bucket="we-task-attachment", Key=file.file_key
+    )
+
+
+def test_file_deletion_uses_persisted_bucket():
+    """Physical deletion does not accidentally fall back to the primary bucket."""
+    file = factories.FileFactory(storage_bucket="we-task-attachment")
+    file.soft_delete()
+    file.hard_delete()
+
+    with mock.patch("core.tasks.file.default_storage") as storage:
+        process_file_deletion(file.id)
+
+    storage.connection.meta.client.delete_object.assert_called_once_with(
+        Bucket="we-task-attachment", Key=file.file_key
+    )

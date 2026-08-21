@@ -251,7 +251,7 @@ def clear_lru_cache():
 
 def test_returns_correct_instance(clear_lru_cache):
     """Test if get_parser returns the correct parser instance."""
-    settings.AWS_STORAGE_BUCKET_NAME = "test-bucket"
+    settings.AWS_STORAGE_BUCKET_NAME_VIDEO = "test-bucket"
     parser = get_parser()
     assert isinstance(parser, MinioParser)
     assert parser._bucket_name == "test-bucket"
@@ -259,7 +259,7 @@ def test_returns_correct_instance(clear_lru_cache):
 
 def test_caching_behavior(clear_lru_cache):
     """Test if the function properly caches the parser instance."""
-    settings.AWS_STORAGE_BUCKET_NAME = "test-bucket"
+    settings.AWS_STORAGE_BUCKET_NAME_VIDEO = "test-bucket"
     parser1 = get_parser()
     parser2 = get_parser()
     assert parser1 is parser2  # Check object identity
@@ -267,7 +267,7 @@ def test_caching_behavior(clear_lru_cache):
 
 def test_different_settings_new_instance():
     """Test if changing settings creates a new instance."""
-    settings.AWS_STORAGE_BUCKET_NAME = "different-bucket"
+    settings.AWS_STORAGE_BUCKET_NAME_VIDEO = "different-bucket"
     parser = get_parser()
     assert parser._bucket_name == "different-bucket"
 

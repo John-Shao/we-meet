@@ -39,7 +39,7 @@ def test_settings():
         "AWS_S3_ACCESS_KEY_ID": "test_key",
         "AWS_S3_SECRET_ACCESS_KEY": "test_secret",
         "AWS_S3_REGION_NAME": "test-region",
-        "AWS_STORAGE_BUCKET_NAME": "test-bucket",
+        "AWS_STORAGE_BUCKET_NAME_VIDEO": "test-bucket",
     }
 
     # Use override_settings to properly patch Django settings
@@ -83,7 +83,7 @@ def test_config_immutability(default_config):
     AWS_S3_ACCESS_KEY_ID="test_key",
     AWS_S3_SECRET_ACCESS_KEY="test_secret",
     AWS_S3_REGION_NAME="test-region",
-    AWS_STORAGE_BUCKET_NAME="test-bucket",
+    AWS_STORAGE_BUCKET_NAME_VIDEO="test-bucket",
     RECORDING_ENCODING_ENABLED=True,
     RECORDING_ENCODING_WIDTH=1280,
     RECORDING_ENCODING_HEIGHT=720,
@@ -122,7 +122,7 @@ def test_config_encoding_options_enabled():
     AWS_S3_ACCESS_KEY_ID="test_key",
     AWS_S3_SECRET_ACCESS_KEY="test_secret",
     AWS_S3_REGION_NAME="test-region",
-    AWS_STORAGE_BUCKET_NAME="test-bucket",
+    AWS_STORAGE_BUCKET_NAME_VIDEO="test-bucket",
 )
 def test_config_caching():
     """Test that from_settings method caches its result"""

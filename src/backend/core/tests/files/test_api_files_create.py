@@ -81,8 +81,30 @@ def test_api_files_create_task_attachment_success():
     assert file.creator == user
     assert file.filename == "evidence.pdf"
     assert file.type == FileTypeChoices.TASK_ATTACHMENT
+    assert file.storage_bucket == "we-task-attachment"
     assert file.upload_state == FileUploadStateChoices.PENDING
     assert response.json()["policy"]
+    assert "/we-task-attachment/" in response.json()["policy"]
+
+
+def test_api_files_create_regular_file_uses_primary_bucket(settings):
+    """Non-task uploads retain the primary bucket and its presigned URL."""
+    settings.AWS_STORAGE_BUCKET_NAME_VIDEO = "primary-bucket"
+    user = factories.UserFactory()
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.post(
+        "/api/v1.0/files/",
+        {"filename": "background.png", "type": FileTypeChoices.BACKGROUND_IMAGE},
+        format="json",
+    )
+
+    assert response.status_code == 201, response.json()
+    file = File.objects.get()
+    assert file.storage_bucket == ""
+    assert file.storage_bucket_name == "primary-bucket"
+    assert "/primary-bucket/" in response.json()["policy"]
 
 
 def test_api_files_create_file_authenticated_no_filename():

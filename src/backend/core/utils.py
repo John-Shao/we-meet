@@ -462,11 +462,20 @@ def generate_upload_policy(file):
     # Generate the policy
     policy = s3_client.generate_presigned_url(
         ClientMethod="put_object",
-        Params={"Bucket": default_storage.bucket_name, "Key": key, "ACL": "private"},
+        Params={"Bucket": file.storage_bucket_name, "Key": key, "ACL": "private"},
         ExpiresIn=settings.AWS_S3_UPLOAD_POLICY_EXPIRATION,
     )
 
     return policy
+
+
+def generate_file_download_url(file, expires_in=300):
+    """Generate a short-lived GET URL from the bucket stored on a File."""
+    return default_storage.connection.meta.client.generate_presigned_url(
+        ClientMethod="get_object",
+        Params={"Bucket": file.storage_bucket_name, "Key": file.file_key},
+        ExpiresIn=expires_in,
+    )
 
 
 # ---------------------------------------------------------------------------

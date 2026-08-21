@@ -577,7 +577,7 @@ values 实配（见 values.meet.yaml）:
 
 只想换 AK/SK: [values.secrets.yaml](../../src/helm/env.d/aliyun-prod/values.secrets.yaml) 里 `AWS_S3_ACCESS_KEY_ID` / `AWS_S3_SECRET_ACCESS_KEY` 出现多处 (backend / celery / summary 系 / agentMetadata), 全改后 `helm upgrade meet`.
 
-切换桶名: [values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) 里 `AWS_STORAGE_BUCKET_NAME*` 各处同步修改.
+切换桶名: [values.meet.yaml](../../src/helm/env.d/aliyun-prod/values.meet.yaml) 里 `AWS_STORAGE_BUCKET_NAME*` 各处同步修改。任务附件专用私有桶 `we-task-attachment` 还必须授予 backend/celery 使用的 OSS AK/SK `PutObject`、`GetObject`、`HeadObject`、`CopyObject`、`DeleteObject` 权限。
 
 ---
 

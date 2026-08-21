@@ -2,6 +2,7 @@
 
 from django.db import transaction
 from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from rest_framework import mixins, serializers, viewsets
@@ -9,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from core import models
+from core import models, utils
 from core.api import permissions
 from core.api.serializers import (
     TaskActivitySerializer,
@@ -402,3 +403,23 @@ class TaskViewSet(
             uploader=request.user,
         )
         return Response(TaskAttachmentSerializer(attachment).data, status=201)
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path=r"attachments/(?P<attachment_id>[^/.]+)/download",
+    )
+    def attachment_download(self, request, attachment_id=None, *args, **kwargs):
+        """Authorize a task collaborator, then redirect to a short-lived object URL."""
+        task = self.get_object()
+        attachment = get_object_or_404(
+            task.attachments.select_related("file"),
+            id=attachment_id,
+            file__deleted_at__isnull=True,
+            file__hard_deleted_at__isnull=True,
+            file__upload_state=models.FileUploadStateChoices.READY,
+        )
+        return Response(
+            status=302,
+            headers={"Location": utils.generate_file_download_url(attachment.file)},
+        )

@@ -71,7 +71,7 @@ def get_parser() -> EventParser:
     """
 
     event_parser_cls = import_string(settings.RECORDING_EVENT_PARSER_CLASS)
-    return event_parser_cls(bucket_name=settings.AWS_STORAGE_BUCKET_NAME)
+    return event_parser_cls(bucket_name=settings.AWS_STORAGE_BUCKET_NAME_VIDEO)
 
 
 class MinioParser:

@@ -2436,7 +2436,10 @@ class FileViewSet(
                     _("You have reached the maximum number of files for this type.")
                 )
 
-        serializer.save(creator=self.request.user)
+        storage_bucket = ""
+        if serializer.validated_data["type"] == models.FileTypeChoices.TASK_ATTACHMENT:
+            storage_bucket = settings.AWS_STORAGE_BUCKET_NAME_TASK_ATTACHMENT
+        serializer.save(creator=self.request.user, storage_bucket=storage_bucket)
 
     def perform_destroy(self, instance):
         """Override to implement a soft delete instead of dumping the record in database."""
@@ -2460,7 +2463,7 @@ class FileViewSet(
         s3_client = default_storage.connection.meta.client
 
         head_response = s3_client.head_object(
-            Bucket=default_storage.bucket_name, Key=file.file_key
+            Bucket=file.storage_bucket_name, Key=file.file_key
         )
         file_size = head_response["ContentLength"]
 
@@ -2484,14 +2487,14 @@ class FileViewSet(
         # of the file for mime type identification.
         if file_size > 2048:
             range_response = s3_client.get_object(
-                Bucket=default_storage.bucket_name,
+                Bucket=file.storage_bucket_name,
                 Key=file.file_key,
                 Range="bytes=0-2047",
             )
             file_head = range_response["Body"].read()
         else:
             file_head = s3_client.get_object(
-                Bucket=default_storage.bucket_name, Key=file.file_key
+                Bucket=file.storage_bucket_name, Key=file.file_key
             )["Body"].read()
 
         # Use improved MIME type detection combining magic bytes and file extension
@@ -2527,10 +2530,10 @@ class FileViewSet(
                 mimetype,
             )
             s3_client.copy_object(
-                Bucket=default_storage.bucket_name,
+                Bucket=file.storage_bucket_name,
                 Key=file.file_key,
                 CopySource={
-                    "Bucket": default_storage.bucket_name,
+                    "Bucket": file.storage_bucket_name,
                     "Key": file.file_key,
                 },
                 ContentType=mimetype,

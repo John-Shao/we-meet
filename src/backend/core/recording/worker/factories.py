@@ -63,7 +63,7 @@ class WorkerServiceConfig:
                 "access_key": settings.AWS_S3_ACCESS_KEY_ID,
                 "secret": settings.AWS_S3_SECRET_ACCESS_KEY,
                 "region": settings.AWS_S3_REGION_NAME,
-                "bucket": settings.AWS_STORAGE_BUCKET_NAME,
+                "bucket": settings.AWS_STORAGE_BUCKET_NAME_VIDEO,
                 "force_path_style": True,
             },
             encoding_options=encoding_options,

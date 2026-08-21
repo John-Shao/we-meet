@@ -157,9 +157,23 @@ class Base(Configuration):
     AWS_S3_REGION_NAME = values.Value(
         environ_name="AWS_S3_REGION_NAME", environ_prefix=None
     )
+    AWS_STORAGE_BUCKET_NAME_VIDEO = values.Value(
+        "meet-media-storage",
+        environ_name="AWS_STORAGE_BUCKET_NAME_VIDEO",
+        environ_prefix=None,
+    )
+    # django-storages reads this exact Django setting. Keep it internally
+    # aligned with the explicitly named video-bucket environment variable.
     AWS_STORAGE_BUCKET_NAME = values.Value(
         "meet-media-storage",
-        environ_name="AWS_STORAGE_BUCKET_NAME",
+        environ_name="AWS_STORAGE_BUCKET_NAME_VIDEO",
+        environ_prefix=None,
+    )
+    # Task attachments live in a dedicated private bucket.  The bucket is also
+    # recorded on each File so changing this setting never strands old uploads.
+    AWS_STORAGE_BUCKET_NAME_TASK_ATTACHMENT = values.Value(
+        "we-task-attachment",
+        environ_name="AWS_STORAGE_BUCKET_NAME_TASK_ATTACHMENT",
         environ_prefix=None,
     )
     AWS_S3_SIGNATURE_VERSION = values.Value(
