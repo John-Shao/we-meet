@@ -24,7 +24,11 @@ from core.services.task_history import (
     record_task_created,
     snapshot_task,
 )
-from core.services.task_notifications import record_task_assignment, record_task_comment
+from core.services.task_notifications import (
+    record_task_assignment,
+    record_task_comment,
+    record_task_date_change,
+)
 from core.services.task_time import TIME_FILTERS, annotate_assignee_local_date
 from core.services.tasks import TaskAssigneeError, ensure_task_assignee_allowed
 from core.tasks.file import process_file_deletion
@@ -311,7 +315,7 @@ class TaskViewSet(
             )
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            record_task_changes(
+            activities = record_task_changes(
                 task=task,
                 actor=request.user,
                 before=history_snapshot,
@@ -321,6 +325,17 @@ class TaskViewSet(
                     task=task,
                     event=models.TaskImDelivery.Event.REASSIGNED,
                 )
+            else:
+                date_activity = next(
+                    (
+                        activity
+                        for activity in activities
+                        if activity.event == models.TaskActivity.Event.DATES_CHANGED
+                    ),
+                    None,
+                )
+                if date_activity is not None:
+                    record_task_date_change(activity=date_activity)
             response_data = TaskSerializer(task, context={"request": request}).data
         return Response(response_data)
 

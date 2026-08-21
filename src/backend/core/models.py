@@ -2402,6 +2402,7 @@ class TaskImDelivery(BaseModel):
         ASSIGNED = "assigned", _("Assigned")
         REASSIGNED = "reassigned", _("Reassigned")
         COMMENTED = "commented", _("Commented")
+        DATES_CHANGED = "dates_changed", _("Dates changed")
         STARTING = "starting", _("Starting")
         DUE_TODAY = "due_today", _("Due today")
         OVERDUE = "overdue", _("Overdue")
@@ -2425,6 +2426,14 @@ class TaskImDelivery(BaseModel):
         null=True,
         blank=True,
         verbose_name=_("comment"),
+    )
+    activity = models.ForeignKey(
+        TaskActivity,
+        on_delete=models.CASCADE,
+        related_name="im_deliveries",
+        null=True,
+        blank=True,
+        verbose_name=_("activity"),
     )
     recipient = models.ForeignKey(
         User,
@@ -2467,6 +2476,10 @@ class TaskImDelivery(BaseModel):
             models.UniqueConstraint(
                 fields=("comment", "recipient"),
                 name="task_im_comment_recipient_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=("activity", "recipient"),
+                name="task_im_activity_recipient_uniq",
             ),
             models.UniqueConstraint(
                 fields=("task", "recipient", "event", "reference_date"),

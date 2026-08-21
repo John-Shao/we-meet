@@ -18,6 +18,7 @@ from core.services.task_notifications import (
     record_due_task_reminders,
     record_task_assignment,
     record_task_comment,
+    record_task_date_change,
 )
 from core.tasks.task_notifications import deliver_task_assignment
 
@@ -476,3 +477,197 @@ def test_completed_task_supersedes_pending_time_reminder():
     assert deliver_task_assignment(str(delivery.id)) is None
     delivery.refresh_from_db()
     assert delivery.status == models.TaskImDelivery.Status.SUPERSEDED
+
+
+def test_record_task_date_change_notifies_assignee_once(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = models.Task.objects.create(
+        title="Reschedule launch",
+        creator=creator,
+        assignee=assignee,
+        start_date=date(2026, 8, 22),
+        due_date=date(2026, 8, 30),
+    )
+    activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=models.TaskActivity.Event.DATES_CHANGED,
+        changes={
+            "dates": {
+                "start_date": {"from": "2026-08-20", "to": "2026-08-22"},
+                "due_date": {"from": "2026-08-25", "to": "2026-08-30"},
+            }
+        },
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        delivery = record_task_date_change(activity=activity)
+        duplicate = record_task_date_change(activity=activity)
+
+    assert delivery is not None
+    assert duplicate == delivery
+    assert delivery.recipient == assignee
+    assert delivery.activity == activity
+    assert delivery.event == models.TaskImDelivery.Event.DATES_CHANGED
+    assert delivery.status == models.TaskImDelivery.Status.PENDING
+    assert models.TaskImDelivery.objects.filter(activity=activity).count() == 1
+    enqueue.assert_called_once_with(delivery.id)
+
+
+def test_date_change_card_preserves_old_and_new_dates(settings):
+    settings.JUSI_IM_CONFIGURATION = {
+        "api_url": "https://im.example.test",
+        "admin_hmac_secret": "s" * 32,
+    }
+    settings.APPLICATION_BASE_URL = "https://meet.example.test"
+    creator = UserFactory(full_name="创建人")
+    assignee = UserFactory(full_name="负责人")
+    task = models.Task.objects.create(
+        title="调整发布日期",
+        creator=creator,
+        assignee=assignee,
+        start_date=date(2026, 8, 23),
+        due_date=date(2026, 8, 31),
+    )
+    activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=models.TaskActivity.Event.DATES_CHANGED,
+        changes={
+            "dates": {
+                "start_date": {"from": None, "to": "2026-08-23"},
+                "due_date": {"from": "2026-08-28", "to": "2026-08-31"},
+            }
+        },
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        activity=activity,
+        recipient=assignee,
+        event=models.TaskImDelivery.Event.DATES_CHANGED,
+        next_attempt_at=timezone.now(),
+    )
+
+    with (
+        mock.patch(
+            "core.services.task_notifications.im_bots.get_builtin",
+            return_value=mock.Mock(),
+        ),
+        mock.patch(
+            "core.services.task_notifications.im_bots.post_direct",
+            return_value=("direct-cid", mock.Mock()),
+        ) as post_direct,
+    ):
+        assert deliver_task_assignment(str(delivery.id)) == "delivered"
+
+    card = json.loads(post_direct.call_args.args[3])
+    assert card["header"] == {"title": "任务日期已调整", "theme": "warning"}
+    assert card["plain"] == "任务日期已调整：调整发布日期"
+    assert card["blocks"][1]["items"] == [
+        {"label": "开始日期", "value": "未设置 → 2026-08-23"},
+        {"label": "截止日期", "value": "2026-08-28 → 2026-08-31"},
+        {"label": "修改人", "value": "创建人"},
+    ]
+    assert card["blocks"][-1]["buttons"][0]["url"] == (
+        "https://meet.example.test/tasks"
+    )
+
+
+def test_latest_date_change_supersedes_stale_change_and_reminders(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = models.Task.objects.create(
+        title="Move again",
+        creator=creator,
+        assignee=assignee,
+        start_date=date(2026, 9, 2),
+        due_date=date(2026, 9, 2),
+    )
+    previous_activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=models.TaskActivity.Event.DATES_CHANGED,
+        changes={
+            "dates": {
+                "due_date": {"from": "2026-08-30", "to": "2026-09-01"}
+            }
+        },
+    )
+    previous_change = models.TaskImDelivery.objects.create(
+        task=task,
+        activity=previous_activity,
+        recipient=assignee,
+        event=models.TaskImDelivery.Event.DATES_CHANGED,
+        next_attempt_at=timezone.now(),
+    )
+    stale_starting = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=assignee,
+        event=models.TaskImDelivery.Event.STARTING,
+        reference_date=date(2026, 9, 2),
+        next_attempt_at=timezone.now(),
+    )
+    stale_due = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=assignee,
+        event=models.TaskImDelivery.Event.DUE_TODAY,
+        reference_date=date(2026, 9, 1),
+        next_attempt_at=timezone.now(),
+    )
+    latest_activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=models.TaskActivity.Event.DATES_CHANGED,
+        changes={
+            "dates": {
+                "start_date": {"from": "2026-09-01", "to": "2026-09-02"},
+                "due_date": {"from": "2026-09-01", "to": "2026-09-02"},
+            }
+        },
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery"),
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        latest = record_task_date_change(activity=latest_activity)
+
+    assert latest is not None
+    for stale in (previous_change, stale_starting, stale_due):
+        stale.refresh_from_db()
+        assert stale.status == models.TaskImDelivery.Status.SUPERSEDED
+        assert stale.next_attempt_at is None
+
+
+@pytest.mark.parametrize("closed_status", [None, models.Task.Status.COMPLETED])
+def test_date_change_does_not_notify_self_or_closed_task(closed_status):
+    creator = UserFactory()
+    assignee = creator if closed_status is None else UserFactory()
+    task = models.Task.objects.create(
+        title="Silent change",
+        creator=creator,
+        assignee=assignee,
+        due_date=date(2026, 9, 1),
+        status=closed_status or models.Task.Status.TODO,
+    )
+    activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=models.TaskActivity.Event.DATES_CHANGED,
+        changes={
+            "dates": {
+                "due_date": {"from": "2026-08-31", "to": "2026-09-01"}
+            }
+        },
+    )
+
+    assert record_task_date_change(activity=activity) is None
+    assert not models.TaskImDelivery.objects.filter(activity=activity).exists()

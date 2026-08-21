@@ -401,11 +401,12 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
         title="Prepare report",
         creator=creator,
         assignee=previous_assignee,
+        due_date="2026-08-25",
     )
 
     response = _client(creator).patch(
         f"{TASKS_URL}{task.id}/",
-        {"assignee_id": str(next_assignee.id)},
+        {"assignee_id": str(next_assignee.id), "due_date": "2026-08-30"},
         format="json",
     )
 
@@ -414,11 +415,19 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
     delivery = TaskImDelivery.objects.get()
     assert delivery.recipient == next_assignee
     assert delivery.event == TaskImDelivery.Event.REASSIGNED
-    activity = TaskActivity.objects.get()
+    activity = TaskActivity.objects.get(event=TaskActivity.Event.ASSIGNEE_CHANGED)
     assert activity.actor == creator
     assert activity.event == TaskActivity.Event.ASSIGNEE_CHANGED
     assert activity.changes["assignee"]["from"]["id"] == str(previous_assignee.id)
     assert activity.changes["assignee"]["to"]["id"] == str(next_assignee.id)
+    date_activity = TaskActivity.objects.get(event=TaskActivity.Event.DATES_CHANGED)
+    assert date_activity.changes["dates"]["due_date"] == {
+        "from": "2026-08-25",
+        "to": "2026-08-30",
+    }
+    assert not TaskImDelivery.objects.filter(
+        event=TaskImDelivery.Event.DATES_CHANGED
+    ).exists()
     assert _client(previous_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 404
     assert _client(next_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 200
 
@@ -469,6 +478,50 @@ def test_creator_edits_content_and_completion_timestamp():
     )
     assert unchanged.status_code == 200
     assert TaskActivity.objects.count() == activity_count
+
+
+def test_creator_date_change_notifies_other_assignee(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = Task.objects.create(
+        title="Customer rollout",
+        creator=creator,
+        assignee=assignee,
+        start_date="2026-08-20",
+        due_date="2026-08-25",
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        changed = _client(creator).patch(
+            f"{TASKS_URL}{task.id}/",
+            {"start_date": "2026-08-22", "due_date": "2026-08-30"},
+            format="json",
+        )
+        unchanged = _client(creator).patch(
+            f"{TASKS_URL}{task.id}/",
+            {"due_date": "2026-08-30"},
+            format="json",
+        )
+
+    assert changed.status_code == 200
+    assert unchanged.status_code == 200
+    activity = TaskActivity.objects.get(event=TaskActivity.Event.DATES_CHANGED)
+    assert activity.changes == {
+        "dates": {
+            "start_date": {"from": "2026-08-20", "to": "2026-08-22"},
+            "due_date": {"from": "2026-08-25", "to": "2026-08-30"},
+        }
+    }
+    delivery = TaskImDelivery.objects.get(activity=activity)
+    assert delivery.task == task
+    assert delivery.recipient == assignee
+    assert delivery.event == TaskImDelivery.Event.DATES_CHANGED
+    enqueue.assert_called_once_with(delivery.id)
 
 
 def test_invalid_status_transition_is_rejected():
