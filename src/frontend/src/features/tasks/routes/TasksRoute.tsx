@@ -21,10 +21,12 @@ import {
   useCreateTaskComment,
   useCreateTaskAttachment,
   useCreateTask,
+  useCreateTaskSubtask,
   usePatchTask,
   useTaskActivities,
   useTaskAttachments,
   useTaskComments,
+  useTaskSubtasks,
   useTasks,
 } from '../api/fetchTasks'
 
@@ -97,6 +99,9 @@ const TasksAuthenticated = () => {
   const [expandedAttachments, setExpandedAttachments] = useState<Set<string>>(
     () => new Set()
   )
+  const [expandedSubtasks, setExpandedSubtasks] = useState<Set<string>>(
+    () => new Set()
+  )
   const [assigneePicker, setAssigneePicker] = useState<
     'create' | 'edit' | null
   >(null)
@@ -149,6 +154,15 @@ const TasksAuthenticated = () => {
 
   const toggleComments = (taskId: string) => {
     setExpandedComments((current) => {
+      const next = new Set(current)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }
+
+  const toggleSubtasks = (taskId: string) => {
+    setExpandedSubtasks((current) => {
       const next = new Set(current)
       if (next.has(taskId)) next.delete(taskId)
       else next.add(taskId)
@@ -602,6 +616,19 @@ const TasksAuthenticated = () => {
                     <Button
                       variant="secondary"
                       size="dense"
+                      aria-expanded={expandedSubtasks.has(task.id)}
+                      onPress={() => toggleSubtasks(task.id)}
+                    >
+                      {expandedSubtasks.has(task.id)
+                        ? t('subtasks.hide')
+                        : t('subtasks.show', {
+                            completed: task.completed_subtask_count,
+                            total: task.subtask_count,
+                          })}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="dense"
                       aria-expanded={expandedComments.has(task.id)}
                       onPress={() => toggleComments(task.id)}
                     >
@@ -630,6 +657,9 @@ const TasksAuthenticated = () => {
                         : t('history.show')}
                     </Button>
                   </div>
+                  {expandedSubtasks.has(task.id) && (
+                    <TaskSubtasks taskId={task.id} />
+                  )}
                   {expandedComments.has(task.id) && (
                     <TaskComments taskId={task.id} />
                   )}
@@ -675,6 +705,249 @@ const TaskMeta = ({ label, value }: { label: string; value: string }) => (
     <dd className={css({ margin: 0, color: 'greyscale.800' })}>{value}</dd>
   </div>
 )
+
+const TaskSubtasks = ({ taskId }: { taskId: string }) => {
+  const { t, i18n } = useTranslation('tasks')
+  const [title, setTitle] = useState('')
+  const [assignee, setAssignee] = useState<DirectoryMember | null>(null)
+  const [startDate, setStartDate] = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const { data, isLoading, error } = useTaskSubtasks(taskId)
+  const createMutation = useCreateTaskSubtask()
+  const patchMutation = usePatchTask()
+
+  const formatDate = (value: string) => {
+    const [year, month, day] = value.split('-').map(Number)
+    return new Intl.DateTimeFormat(i18n.language, {
+      dateStyle: 'medium',
+    }).format(new Date(year, month - 1, day))
+  }
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    const cleanTitle = title.trim()
+    if (!cleanTitle) return
+    try {
+      await createMutation.mutateAsync({
+        taskId,
+        payload: {
+          title: cleanTitle,
+          assignee_id: assignee?.id,
+          start_date: startDate || null,
+          due_date: dueDate || null,
+        },
+      })
+      setTitle('')
+      setAssignee(null)
+      setStartDate('')
+      setDueDate('')
+    } catch {
+      // Keep the form values available so the user can retry.
+    }
+  }
+
+  return (
+    <section
+      aria-label={t('subtasks.title')}
+      className={css({
+        borderTop: '1px solid token(colors.greyscale.200)',
+        paddingTop: '0.875rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.75rem',
+      })}
+    >
+      <h3
+        className={css({
+          margin: 0,
+          color: 'greyscale.800',
+          fontSize: '0.875rem',
+          fontWeight: '600',
+        })}
+      >
+        {t('subtasks.title')}
+      </h3>
+      <form
+        onSubmit={(event) => void submit(event)}
+        className={css({
+          display: 'grid',
+          gridTemplateColumns: {
+            base: '1fr',
+            md: '1.5fr 1fr 1fr 1fr auto',
+          },
+          gap: '0.625rem',
+          alignItems: 'end',
+        })}
+      >
+        <label className={labelCss}>
+          {t('subtasks.titleLabel')}
+          <Input
+            className={editableControlCss}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder={t('subtasks.titlePlaceholder')}
+            maxLength={500}
+            required
+          />
+        </label>
+        <label className={labelCss}>
+          {t('form.assignee')}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className={css({ width: '100%', justifyContent: 'flex-start' })}
+            onPress={() => setPickerOpen(true)}
+          >
+            {assignee ? displayName(assignee) : t('form.assigneeSelf')}
+          </Button>
+        </label>
+        <label className={labelCss}>
+          {t('form.startDate')}
+          <Input
+            className={editableControlCss}
+            type="date"
+            value={startDate}
+            max={dueDate || undefined}
+            onChange={(event) => setStartDate(event.target.value)}
+          />
+        </label>
+        <label className={labelCss}>
+          {t('form.dueDate')}
+          <Input
+            className={editableControlCss}
+            type="date"
+            value={dueDate}
+            min={startDate || undefined}
+            onChange={(event) => setDueDate(event.target.value)}
+          />
+        </label>
+        <Button
+          type="submit"
+          size="sm"
+          loading={createMutation.isPending}
+          isDisabled={!title.trim()}
+        >
+          {t('subtasks.create')}
+        </Button>
+      </form>
+      {createMutation.error && (
+        <p role="alert" className={historyErrorCss}>
+          {t('subtasks.createError')}
+        </p>
+      )}
+      {isLoading ? (
+        <p className={historyHintCss}>{t('subtasks.loading')}</p>
+      ) : error ? (
+        <p className={historyErrorCss}>{t('subtasks.error')}</p>
+      ) : !data?.length ? (
+        <p className={historyHintCss}>{t('subtasks.empty')}</p>
+      ) : (
+        <ul
+          className={css({
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+          })}
+        >
+          {data.map((subtask) => (
+            <li
+              key={subtask.id}
+              className={css({
+                display: 'flex',
+                alignItems: { base: 'flex-start', md: 'center' },
+                justifyContent: 'space-between',
+                flexDirection: { base: 'column', md: 'row' },
+                gap: '0.625rem 1rem',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                backgroundColor: 'greyscale.50',
+              })}
+            >
+              <div className={css({ minWidth: 0 })}>
+                <div
+                  className={css({
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  })}
+                >
+                  <strong
+                    className={css({
+                      color: 'greyscale.800',
+                      fontSize: '0.8125rem',
+                      overflowWrap: 'anywhere',
+                    })}
+                  >
+                    {subtask.title}
+                  </strong>
+                  <span className={statusCss(subtask.status)}>
+                    {t(`statuses.${subtask.status}`)}
+                  </span>
+                </div>
+                <p
+                  className={css({
+                    marginTop: '0.25rem',
+                    marginBottom: 0,
+                    color: 'greyscale.500',
+                    fontSize: '0.75rem',
+                  })}
+                >
+                  {t('subtasks.meta', {
+                    assignee: displayName(subtask.assignee),
+                    start: subtask.start_date
+                      ? formatDate(subtask.start_date)
+                      : t('meta.none'),
+                    due: subtask.due_date
+                      ? formatDate(subtask.due_date)
+                      : t('meta.none'),
+                  })}
+                </p>
+              </div>
+              {subtask.can_update_status && (
+                <div className={actionRowCss}>
+                  {nextStatusActions[subtask.status].map((status) => (
+                    <Button
+                      key={status}
+                      variant={status === 'completed' ? 'primary' : 'secondary'}
+                      size="dense"
+                      isDisabled={patchMutation.isPending}
+                      onPress={() =>
+                        patchMutation.mutate({
+                          taskId: subtask.id,
+                          patch: { status },
+                        })
+                      }
+                    >
+                      {t(`actions.to_${status}`)}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {pickerOpen && (
+        <ContactPicker
+          includeSelf
+          title={t('form.selectAssignee')}
+          searchPlaceholder={t('form.searchAssignee')}
+          onClose={() => setPickerOpen(false)}
+          onSelect={(member) => {
+            setAssignee(member)
+            setPickerOpen(false)
+          }}
+        />
+      )}
+    </section>
+  )
+}
 
 const TaskAttachments = ({ taskId }: { taskId: string }) => {
   const { t, i18n } = useTranslation('tasks')

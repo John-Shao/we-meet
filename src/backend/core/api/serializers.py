@@ -537,6 +537,9 @@ class TaskSerializer(serializers.ModelSerializer):
 
     creator = UserLightSerializer(read_only=True)
     assignee = UserLightSerializer(read_only=True)
+    parent_id = serializers.UUIDField(read_only=True)
+    subtask_count = serializers.SerializerMethodField()
+    completed_subtask_count = serializers.SerializerMethodField()
     source_action_item_id = serializers.UUIDField(read_only=True)
     source_room_id = serializers.SerializerMethodField()
     source_room_name = serializers.SerializerMethodField()
@@ -553,11 +556,30 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_can_update_status(self, obj):
         user = self._request_user()
+        parent = getattr(obj, "parent", None)
         return bool(
             user
             and user.is_authenticated
-            and user.id in {obj.creator_id, obj.assignee_id}
+            and (
+                user.id in {obj.creator_id, obj.assignee_id}
+                or (
+                    parent is not None
+                    and user.id in {parent.creator_id, parent.assignee_id}
+                )
+            )
         )
+
+    def get_subtask_count(self, obj):
+        annotated_count = getattr(obj, "_subtask_count", None)
+        if annotated_count is not None:
+            return annotated_count
+        return obj.subtasks.count()
+
+    def get_completed_subtask_count(self, obj):
+        annotated_count = getattr(obj, "_completed_subtask_count", None)
+        if annotated_count is not None:
+            return annotated_count
+        return obj.subtasks.filter(status=models.Task.Status.COMPLETED).count()
 
     def get_source_room_id(self, obj):
         if obj.source_action_item_id is None:
@@ -577,6 +599,9 @@ class TaskSerializer(serializers.ModelSerializer):
             "description",
             "creator",
             "assignee",
+            "parent_id",
+            "subtask_count",
+            "completed_subtask_count",
             "status",
             "start_date",
             "due_date",

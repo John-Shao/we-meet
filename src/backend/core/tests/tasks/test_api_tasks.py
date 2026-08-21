@@ -118,6 +118,97 @@ def test_creator_assigns_task_to_colleague_from_same_organization():
     assert delivery.status == TaskImDelivery.Status.PENDING
 
 
+def test_parent_collaborators_create_and_manage_first_level_subtasks():
+    organization = OrganizationFactory()
+    creator = UserFactory()
+    parent_assignee = UserFactory()
+    child_assignee = UserFactory()
+    outsider = UserFactory()
+    for user in (creator, parent_assignee, child_assignee):
+        MembershipFactory(
+            organization=organization,
+            user=user,
+            is_primary=True,
+        )
+    parent = Task.objects.create(
+        title="Prepare launch",
+        creator=creator,
+        assignee=parent_assignee,
+    )
+
+    create_response = _client(creator).post(
+        f"{TASKS_URL}{parent.id}/subtasks/",
+        {
+            "title": "Review launch checklist",
+            "assignee_id": str(child_assignee.id),
+            "start_date": "2026-08-24",
+            "due_date": "2026-08-28",
+        },
+        format="json",
+    )
+
+    assert create_response.status_code == 201
+    payload = create_response.json()
+    assert payload["parent_id"] == str(parent.id)
+    assert payload["subtask_count"] == 0
+    assert payload["completed_subtask_count"] == 0
+    child = Task.objects.get(parent=parent)
+    assert child.creator == creator
+    assert child.assignee == child_assignee
+    assert TaskActivity.objects.get(task=child).event == TaskActivity.Event.CREATED
+    delivery = TaskImDelivery.objects.get(task=child)
+    assert delivery.recipient == child_assignee
+    assert delivery.event == TaskImDelivery.Event.ASSIGNED
+
+    inherited_visibility = _client(parent_assignee).get(
+        f"{TASKS_URL}{parent.id}/subtasks/"
+    )
+    assert inherited_visibility.status_code == 200
+    assert inherited_visibility.json()[0]["id"] == str(child.id)
+    assert inherited_visibility.json()[0]["can_update_status"] is True
+
+    status_response = _client(parent_assignee).patch(
+        f"{TASKS_URL}{child.id}/",
+        {"status": Task.Status.COMPLETED},
+        format="json",
+    )
+    assert status_response.status_code == 200
+    assert status_response.json()["status"] == Task.Status.COMPLETED
+
+    parent_response = _client(creator).get(f"{TASKS_URL}{parent.id}/")
+    assert parent_response.status_code == 200
+    assert parent_response.json()["subtask_count"] == 1
+    assert parent_response.json()["completed_subtask_count"] == 1
+
+    top_level_response = _client(creator).get(f"{TASKS_URL}?scope=all")
+    assert top_level_response.status_code == 200
+    assert [item["id"] for item in top_level_response.json()["results"]] == [
+        str(parent.id)
+    ]
+    assert _client(outsider).get(f"{TASKS_URL}{parent.id}/subtasks/").status_code == 404
+
+
+def test_subtask_cannot_have_nested_subtasks():
+    user = UserFactory()
+    parent = Task.objects.create(title="Parent", creator=user, assignee=user)
+    child = Task.objects.create(
+        title="Child",
+        creator=user,
+        assignee=user,
+        parent=parent,
+    )
+
+    response = _client(user).post(
+        f"{TASKS_URL}{child.id}/subtasks/",
+        {"title": "Nested child"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "parent" in response.json()
+    assert Task.objects.count() == 2
+
+
 def test_creator_cannot_assign_task_outside_organization():
     creator = UserFactory()
     outsider = UserFactory()

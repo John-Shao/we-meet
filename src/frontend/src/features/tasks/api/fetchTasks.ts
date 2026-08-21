@@ -24,6 +24,15 @@ export const useTasks = (scope: TaskScope) =>
     queryFn: () => fetchTasks(scope),
   })
 
+const fetchTaskSubtasks = (taskId: string) =>
+  fetchApi<ApiTask[]>(`tasks/${encodeURIComponent(taskId)}/subtasks/`)
+
+export const useTaskSubtasks = (taskId: string) =>
+  useQuery<ApiTask[], ApiError>({
+    queryKey: ['tasks', taskId, 'subtasks'],
+    queryFn: () => fetchTaskSubtasks(taskId),
+  })
+
 const fetchTaskActivities = (taskId: string) =>
   fetchApi<ApiTaskActivity[]>(`tasks/${encodeURIComponent(taskId)}/activities/`)
 
@@ -124,6 +133,29 @@ export const useCreateTask = () => {
   return useMutation<ApiTask, ApiError, CreateTaskPayload>({
     mutationFn: createTask,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
+
+const createTaskSubtask = (taskId: string, payload: CreateTaskPayload) =>
+  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/subtasks/`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const useCreateTaskSubtask = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTask,
+    ApiError,
+    { taskId: string; payload: CreateTaskPayload }
+  >({
+    mutationFn: ({ taskId, payload }) => createTaskSubtask(taskId, payload),
+    onSuccess: (_task, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['tasks', variables.taskId, 'subtasks'],
+      })
+    },
   })
 }
 

@@ -1,7 +1,7 @@
 """Minimal standalone task API."""
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from rest_framework import mixins, serializers, viewsets
@@ -168,7 +168,7 @@ class TaskViewSet(
     mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Tasks visible to the caller as creator or assignee."""
+    """Tasks visible to direct or inherited parent collaborators."""
 
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = TaskSerializer
@@ -178,15 +178,31 @@ class TaskViewSet(
     def get_queryset(self):
         user = self.request.user
         queryset = (
-            models.Task.objects.filter(Q(creator=user) | Q(assignee=user))
+            models.Task.objects.filter(
+                Q(creator=user)
+                | Q(assignee=user)
+                | Q(parent__creator=user)
+                | Q(parent__assignee=user)
+            )
             .distinct()
             .select_related(
                 "creator",
                 "assignee",
+                "parent__creator",
+                "parent__assignee",
                 "source_action_item__room",
+            )
+            .annotate(
+                _subtask_count=Count("subtasks", distinct=True),
+                _completed_subtask_count=Count(
+                    "subtasks",
+                    filter=Q(subtasks__status=models.Task.Status.COMPLETED),
+                    distinct=True,
+                ),
             )
         )
         if self.action == "list":
+            queryset = queryset.filter(parent__isnull=True)
             scope = self.request.query_params.get("scope", "assigned")
             if scope == "assigned":
                 queryset = queryset.filter(assignee=user)
@@ -287,6 +303,64 @@ class TaskViewSet(
         task = self.get_object()
         activities = task.activities.select_related("actor").order_by("-created_at")
         return Response(TaskActivitySerializer(activities, many=True).data)
+
+    @action(detail=True, methods=["get", "post"])
+    def subtasks(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        parent = self.get_object()
+        if request.method == "GET":
+            subtasks = (
+                parent.subtasks.select_related(
+                    "creator",
+                    "assignee",
+                    "parent__creator",
+                    "parent__assignee",
+                )
+                .annotate(
+                    _subtask_count=Count("subtasks", distinct=True),
+                    _completed_subtask_count=Count(
+                        "subtasks",
+                        filter=Q(subtasks__status=models.Task.Status.COMPLETED),
+                        distinct=True,
+                    ),
+                )
+                .order_by("-updated_at")
+            )
+            return Response(
+                TaskSerializer(
+                    subtasks,
+                    many=True,
+                    context={"request": request},
+                ).data
+            )
+
+        if parent.parent_id is not None:
+            raise serializers.ValidationError(
+                {"parent": "Subtasks can only be created under a top-level task."}
+            )
+
+        serializer = TaskCreateSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        validated_data = dict(serializer.validated_data)
+        assignee = validated_data.pop("assignee", request.user)
+        with transaction.atomic():
+            subtask = models.Task.objects.create(
+                parent=parent,
+                creator=request.user,
+                assignee=assignee,
+                **validated_data,
+            )
+            record_task_created(task=subtask, actor=request.user)
+            record_task_assignment(
+                task=subtask,
+                event=models.TaskImDelivery.Event.ASSIGNED,
+            )
+        return Response(
+            TaskSerializer(subtask, context={"request": request}).data,
+            status=201,
+        )
 
     @action(detail=True, methods=["get", "post"])
     def comments(self, request, *args, **kwargs):  # pylint: disable=unused-argument
