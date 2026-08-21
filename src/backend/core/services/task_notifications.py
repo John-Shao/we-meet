@@ -30,6 +30,7 @@ REMINDER_EVENTS = (
 )
 DATE_CHANGE_EVENTS = (models.TaskImDelivery.Event.DATES_CHANGED,)
 STATUS_CHANGE_EVENTS = (models.TaskImDelivery.Event.STATUS_CHANGED,)
+PRIORITY_CHANGE_EVENTS = (models.TaskImDelivery.Event.PRIORITY_CHANGED,)
 
 
 class TaskImNotificationUnavailable(RuntimeError):
@@ -79,6 +80,13 @@ def record_task_assignment(
     )
     pending.filter(event__in=STATUS_CHANGE_EVENTS).exclude(
         Q(recipient_id=task.creator_id) | Q(recipient_id=task.assignee_id)
+    ).update(
+        status=models.TaskImDelivery.Status.SUPERSEDED,
+        next_attempt_at=None,
+        last_error="",
+    )
+    pending.filter(event__in=PRIORITY_CHANGE_EVENTS).exclude(
+        recipient_id=task.assignee_id
     ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
@@ -212,6 +220,42 @@ def record_task_status_change(
         if created:
             transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
     return deliveries
+
+
+def record_task_priority_change(
+    *, activity: models.TaskActivity
+) -> models.TaskImDelivery | None:
+    """Notify the current assignee about the latest priority change."""
+
+    if activity.event != models.TaskActivity.Event.PRIORITY_CHANGED:
+        raise ValueError("A priority-change activity is required.")
+
+    task = activity.task
+    pending = models.TaskImDelivery.objects.filter(
+        task=task,
+        status=models.TaskImDelivery.Status.PENDING,
+    )
+    pending.filter(event__in=PRIORITY_CHANGE_EVENTS).exclude(activity=activity).update(
+        status=models.TaskImDelivery.Status.SUPERSEDED,
+        next_attempt_at=None,
+        last_error="",
+    )
+
+    if task.assignee_id is None or task.assignee_id == activity.actor_id:
+        return None
+
+    delivery, created = models.TaskImDelivery.objects.get_or_create(
+        task=task,
+        activity=activity,
+        recipient_id=task.assignee_id,
+        defaults={
+            "event": models.TaskImDelivery.Event.PRIORITY_CHANGED,
+            "next_attempt_at": timezone.now(),
+        },
+    )
+    if created:
+        transaction.on_commit(lambda: _enqueue_delivery(delivery.id))
+    return delivery
 
 
 def _supersede_stale_reminders(*, pending, task: models.Task) -> None:
@@ -447,6 +491,8 @@ def _assignment_card(delivery: models.TaskImDelivery) -> dict:
         )
 
     fields = [{"label": "创建人", "value": _display_name(task.creator)}]
+    if task.priority != models.Task.Priority.NONE:
+        fields.append({"label": "优先级", "value": _priority_label(task.priority)})
     if task.start_date is not None:
         fields.append({"label": "开始日期", "value": task.start_date.isoformat()})
     if task.due_date is not None:
@@ -536,6 +582,8 @@ def _reminder_card(delivery: models.TaskImDelivery) -> dict:
     }
     heading, theme = presentation[delivery.event]
     fields = []
+    if task.priority != models.Task.Priority.NONE:
+        fields.append({"label": "优先级", "value": _priority_label(task.priority)})
     if task.start_date is not None:
         fields.append({"label": "开始日期", "value": task.start_date.isoformat()})
     if task.due_date is not None:
@@ -685,6 +733,52 @@ def _status_change_card(delivery: models.TaskImDelivery) -> dict:
     )
 
 
+def _priority_change_card(delivery: models.TaskImDelivery) -> dict:
+    task = delivery.task
+    activity = delivery.activity
+    priority_change = activity.changes.get("priority", {})
+    before = priority_change.get("from")
+    after = priority_change.get("to")
+    blocks = [
+        {
+            "type": im_cards.CARD_BLOCK_TEXT,
+            "spans": [{"tag": im_cards.RICH_TAG_TEXT, "text": task.title, "b": True}],
+        },
+        {
+            "type": im_cards.CARD_BLOCK_FIELDS,
+            "items": [
+                {
+                    "label": "优先级",
+                    "value": f"{_priority_label(before)} → {_priority_label(after)}",
+                },
+                {"label": "修改人", "value": _display_name(activity.actor)},
+            ],
+        },
+    ]
+    base_url = str(getattr(settings, "APPLICATION_BASE_URL", "") or "").rstrip("/")
+    if base_url:
+        blocks.append(
+            {
+                "type": im_cards.CARD_BLOCK_ACTIONS,
+                "resolve": im_cards.CARD_RESOLVE_EACH,
+                "buttons": [
+                    {
+                        "id": "open-task-priority-change",
+                        "text": "查看任务",
+                        "style": "primary",
+                        "action": "url",
+                        "url": f"{base_url}/tasks",
+                    }
+                ],
+            }
+        )
+    return im_cards.build_rich_card(
+        header={"title": "任务优先级已调整", "theme": "warning"},
+        blocks=blocks,
+        plain=f"任务优先级已调整：{task.title}",
+    )
+
+
 def _notification_card(delivery: models.TaskImDelivery) -> dict:
     if delivery.event == models.TaskImDelivery.Event.COMMENTED:
         return _comment_card(delivery)
@@ -692,6 +786,8 @@ def _notification_card(delivery: models.TaskImDelivery) -> dict:
         return _date_change_card(delivery)
     if delivery.event == models.TaskImDelivery.Event.STATUS_CHANGED:
         return _status_change_card(delivery)
+    if delivery.event == models.TaskImDelivery.Event.PRIORITY_CHANGED:
+        return _priority_change_card(delivery)
     if delivery.event in REMINDER_EVENTS:
         return _reminder_card(delivery)
     return _assignment_card(delivery)
@@ -728,6 +824,16 @@ def _recipient_can_receive(delivery: models.TaskImDelivery) -> bool:
             and delivery.recipient_id in {task.creator_id, task.assignee_id}
             and activity.actor_id != delivery.recipient_id
             and _status_change_matches_task(activity=activity, task=task)
+        )
+    elif delivery.event == models.TaskImDelivery.Event.PRIORITY_CHANGED:
+        activity = delivery.activity
+        allowed = bool(
+            activity is not None
+            and activity.task_id == task.id
+            and activity.event == models.TaskActivity.Event.PRIORITY_CHANGED
+            and task.assignee_id == delivery.recipient_id
+            and activity.actor_id != delivery.recipient_id
+            and _priority_change_matches_task(activity=activity, task=task)
         )
     elif delivery.event in REMINDER_EVENTS:
         if (
@@ -776,6 +882,23 @@ def _status_change_matches_task(
 ) -> bool:
     status_change = activity.changes.get("status", {})
     return bool(status_change and task.status == status_change.get("to"))
+
+
+def _priority_change_matches_task(
+    *, activity: models.TaskActivity, task: models.Task
+) -> bool:
+    priority_change = activity.changes.get("priority", {})
+    return bool(priority_change and task.priority == priority_change.get("to"))
+
+
+def _priority_label(value: str | None) -> str:
+    return {
+        models.Task.Priority.NONE: "无优先级",
+        models.Task.Priority.LOW: "低",
+        models.Task.Priority.MEDIUM: "中",
+        models.Task.Priority.HIGH: "高",
+        models.Task.Priority.URGENT: "紧急",
+    }.get(value, value or "未知")
 
 
 def _display_name(user) -> str:

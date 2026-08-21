@@ -13,18 +13,30 @@ import type {
   CreateTaskPayload,
   PatchTaskPayload,
   TaskScope,
+  TaskPriorityFilter,
   TaskTimeFilter,
 } from './ApiTask'
 
-const fetchTasks = (scope: TaskScope, time: TaskTimeFilter) =>
-  fetchApi<Paginated<ApiTask>>(
-    `tasks/?scope=${scope}&time=${time}&page_size=100`
-  )
+export const buildTasksUrl = (
+  scope: TaskScope,
+  time: TaskTimeFilter,
+  priority: TaskPriorityFilter
+) => `tasks/?scope=${scope}&time=${time}&priority=${priority}&page_size=100`
 
-export const useTasks = (scope: TaskScope, time: TaskTimeFilter) =>
+const fetchTasks = (
+  scope: TaskScope,
+  time: TaskTimeFilter,
+  priority: TaskPriorityFilter
+) => fetchApi<Paginated<ApiTask>>(buildTasksUrl(scope, time, priority))
+
+export const useTasks = (
+  scope: TaskScope,
+  time: TaskTimeFilter,
+  priority: TaskPriorityFilter
+) =>
   useQuery<Paginated<ApiTask>, ApiError>({
-    queryKey: ['tasks', scope, time],
-    queryFn: () => fetchTasks(scope, time),
+    queryKey: ['tasks', scope, time, priority],
+    queryFn: () => fetchTasks(scope, time, priority),
   })
 
 const fetchTaskSubtasks = (taskId: string) =>

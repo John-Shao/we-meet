@@ -225,6 +225,7 @@ def test_manager_creates_task_from_confirmed_action_item():
     payload = response.json()
     assert payload["title"] == item.content
     assert payload["status"] == Task.Status.TODO
+    assert payload["priority"] == Task.Priority.NONE
     assert payload["creator"]["id"] == str(owner.id)
     assert payload["assignee"]["id"] == str(assignee.id)
     assert payload["source_action_item_id"] == str(item.id)

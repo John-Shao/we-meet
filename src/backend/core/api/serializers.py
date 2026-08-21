@@ -629,6 +629,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "subtask_count",
             "completed_subtask_count",
             "status",
+            "priority",
             "start_date",
             "due_date",
             "completed_at",

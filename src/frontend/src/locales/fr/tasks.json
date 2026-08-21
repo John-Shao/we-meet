@@ -12,6 +12,7 @@
     "description": "Description (facultatif)",
     "descriptionPlaceholder": "Ajoutez du contexte ou des critères",
     "assignee": "Responsable",
+    "priority": "Priorité",
     "assigneeSelf": "Moi-même",
     "selectAssignee": "Choisir un responsable",
     "searchAssignee": "Rechercher par nom ou e-mail…",
@@ -36,6 +37,22 @@
     "starting_today": "Commence aujourd’hui",
     "due_today": "Échéance aujourd’hui",
     "overdue": "En retard"
+  },
+  "priorities": {
+    "none": "Aucune priorité",
+    "low": "Faible",
+    "medium": "Moyenne",
+    "high": "Élevée",
+    "urgent": "Urgente"
+  },
+  "priorityFilters": {
+    "label": "Filtrer par priorité",
+    "all": "Toutes les priorités",
+    "none": "Aucune priorité",
+    "low": "Priorité faible",
+    "medium": "Priorité moyenne",
+    "high": "Priorité élevée",
+    "urgent": "Urgente"
   },
   "statuses": {
     "todo": "À faire",
@@ -119,6 +136,7 @@
       "created": "{{actor}} a créé la tâche",
       "attachment_removed": "{{actor}} a supprimé la pièce jointe {{filename}}",
       "content_changed": "{{actor}} a modifié le contenu de la tâche",
+      "priority_changed": "{{actor}} a modifié la priorité de « {{from}} » à « {{to}} »",
       "dates_changed": "{{actor}} a ajusté les dates de la tâche",
       "assignee_changed": "{{actor}} a réattribué la tâche à {{assignee}}",
       "status_changed": "{{actor}} a changé le statut en « {{status}} »",

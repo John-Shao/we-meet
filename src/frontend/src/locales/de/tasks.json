@@ -12,6 +12,7 @@
     "description": "Beschreibung (optional)",
     "descriptionPlaceholder": "Kontext oder Abnahmekriterien ergänzen",
     "assignee": "Verantwortlich",
+    "priority": "Priorität",
     "assigneeSelf": "Ich selbst",
     "selectAssignee": "Verantwortliche Person auswählen",
     "searchAssignee": "Nach Name oder E-Mail suchen…",
@@ -36,6 +37,22 @@
     "starting_today": "Startet heute",
     "due_today": "Heute fällig",
     "overdue": "Überfällig"
+  },
+  "priorities": {
+    "none": "Keine Priorität",
+    "low": "Niedrig",
+    "medium": "Mittel",
+    "high": "Hoch",
+    "urgent": "Dringend"
+  },
+  "priorityFilters": {
+    "label": "Nach Priorität filtern",
+    "all": "Alle Prioritäten",
+    "none": "Keine Priorität",
+    "low": "Niedrige Priorität",
+    "medium": "Mittlere Priorität",
+    "high": "Hohe Priorität",
+    "urgent": "Dringend"
   },
   "statuses": {
     "todo": "Offen",
@@ -119,6 +136,7 @@
       "created": "{{actor}} hat die Aufgabe erstellt",
       "attachment_removed": "{{actor}} hat den Anhang {{filename}} entfernt",
       "content_changed": "{{actor}} hat den Aufgabeninhalt geändert",
+      "priority_changed": "{{actor}} hat die Aufgabenpriorität von „{{from}}“ auf „{{to}}“ geändert",
       "dates_changed": "{{actor}} hat die Aufgabendaten angepasst",
       "assignee_changed": "{{actor}} hat die Aufgabe {{assignee}} zugewiesen",
       "status_changed": "{{actor}} hat den Status in „{{status}}“ geändert",

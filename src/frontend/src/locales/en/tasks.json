@@ -12,6 +12,7 @@
     "description": "Description (optional)",
     "descriptionPlaceholder": "Add context or acceptance criteria",
     "assignee": "Assignee",
+    "priority": "Priority",
     "assigneeSelf": "Myself",
     "selectAssignee": "Select assignee",
     "searchAssignee": "Search by name or email…",
@@ -36,6 +37,22 @@
     "starting_today": "Starts today",
     "due_today": "Due today",
     "overdue": "Overdue"
+  },
+  "priorities": {
+    "none": "No priority",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "urgent": "Urgent"
+  },
+  "priorityFilters": {
+    "label": "Filter by priority",
+    "all": "All priorities",
+    "none": "No priority",
+    "low": "Low priority",
+    "medium": "Medium priority",
+    "high": "High priority",
+    "urgent": "Urgent"
   },
   "statuses": {
     "todo": "To do",
@@ -119,6 +136,7 @@
       "created": "{{actor}} created the task",
       "attachment_removed": "{{actor}} removed attachment {{filename}}",
       "content_changed": "{{actor}} updated the task content",
+      "priority_changed": "{{actor}} changed the task priority from “{{from}}” to “{{to}}”",
       "dates_changed": "{{actor}} adjusted the task dates",
       "assignee_changed": "{{actor}} reassigned the task to {{assignee}}",
       "status_changed": "{{actor}} changed the status to “{{status}}”",

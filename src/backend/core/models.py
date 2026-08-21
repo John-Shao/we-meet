@@ -2236,6 +2236,13 @@ class Task(BaseModel):
         COMPLETED = "completed", _("Completed")
         CANCELED = "canceled", _("Canceled")
 
+    class Priority(models.TextChoices):
+        NONE = "none", _("No priority")
+        LOW = "low", _("Low")
+        MEDIUM = "medium", _("Medium")
+        HIGH = "high", _("High")
+        URGENT = "urgent", _("Urgent")
+
     title = models.TextField(_("title"))
     description = models.TextField(_("description"), blank=True, default="")
     creator = models.ForeignKey(
@@ -2265,6 +2272,13 @@ class Task(BaseModel):
         max_length=16,
         choices=Status.choices,
         default=Status.TODO,
+        db_index=True,
+    )
+    priority = models.CharField(
+        _("priority"),
+        max_length=16,
+        choices=Priority.choices,
+        default=Priority.NONE,
         db_index=True,
     )
     start_date = models.DateField(_("start date"), null=True, blank=True, db_index=True)
@@ -2298,6 +2312,7 @@ class TaskActivity(BaseModel):
         DATES_CHANGED = "dates_changed", _("Dates changed")
         ASSIGNEE_CHANGED = "assignee_changed", _("Assignee changed")
         STATUS_CHANGED = "status_changed", _("Status changed")
+        PRIORITY_CHANGED = "priority_changed", _("Priority changed")
         ATTACHMENT_REMOVED = "attachment_removed", _("Attachment removed")
         SOURCE_ACTION_ITEM_CHANGED = (
             "source_action_item_changed",
@@ -2421,6 +2436,7 @@ class TaskImDelivery(BaseModel):
         COMMENTED = "commented", _("Commented")
         DATES_CHANGED = "dates_changed", _("Dates changed")
         STATUS_CHANGED = "status_changed", _("Status changed")
+        PRIORITY_CHANGED = "priority_changed", _("Priority changed")
         STARTING = "starting", _("Starting")
         DUE_TODAY = "due_today", _("Due today")
         OVERDUE = "overdue", _("Overdue")

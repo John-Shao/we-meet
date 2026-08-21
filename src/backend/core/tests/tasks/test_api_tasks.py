@@ -59,6 +59,7 @@ def test_user_creates_personal_task_assigned_to_self():
     assert payload["creator"]["id"] == str(user.id)
     assert payload["assignee"]["id"] == str(user.id)
     assert payload["status"] == Task.Status.TODO
+    assert payload["priority"] == Task.Priority.NONE
     assert payload["start_date"] == "2026-08-20"
     assert payload["due_date"] == "2026-08-31"
     assert payload["source_room_id"] is None
@@ -75,6 +76,29 @@ def test_user_creates_personal_task_assigned_to_self():
     assert activity.actor == user
     assert activity.event == TaskActivity.Event.CREATED
     assert TaskImDelivery.objects.count() == 0
+
+
+def test_task_priority_is_created_validated_and_serialized():
+    user = UserFactory()
+    client = _client(user)
+
+    response = client.post(
+        TASKS_URL,
+        {"title": "Production incident", "priority": Task.Priority.URGENT},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["priority"] == Task.Priority.URGENT
+    assert Task.objects.get().priority == Task.Priority.URGENT
+
+    invalid = client.post(
+        TASKS_URL,
+        {"title": "Invalid priority", "priority": "critical"},
+        format="json",
+    )
+    assert invalid.status_code == 400
+    assert "priority" in invalid.json()
 
 
 def test_task_date_range_must_be_chronological():
@@ -147,6 +171,7 @@ def test_parent_collaborators_create_and_manage_first_level_subtasks():
         {
             "title": "Review launch checklist",
             "assignee_id": str(child_assignee.id),
+            "priority": Task.Priority.HIGH,
             "start_date": "2026-08-24",
             "due_date": "2026-08-28",
         },
@@ -158,6 +183,7 @@ def test_parent_collaborators_create_and_manage_first_level_subtasks():
     assert payload["parent_id"] == str(parent.id)
     assert payload["subtask_count"] == 0
     assert payload["completed_subtask_count"] == 0
+    assert payload["priority"] == Task.Priority.HIGH
     child = Task.objects.get(parent=parent)
     assert child.creator == creator
     assert child.assignee == child_assignee
@@ -323,6 +349,126 @@ def test_task_list_filters_and_serializes_time_state():
     assert client.get(f"{TASKS_URL}?time=tomorrow").status_code == 400
 
 
+def test_task_list_filters_and_orders_by_status_priority_due_date_and_update():
+    user = UserFactory(timezone="UTC")
+    today = timezone.localdate()
+    in_progress = Task.objects.create(
+        title="In progress low",
+        creator=user,
+        assignee=user,
+        status=Task.Status.IN_PROGRESS,
+        priority=Task.Priority.LOW,
+        due_date=today + timedelta(days=8),
+    )
+    urgent = Task.objects.create(
+        title="Todo urgent",
+        creator=user,
+        assignee=user,
+        priority=Task.Priority.URGENT,
+        due_date=today + timedelta(days=9),
+    )
+    high_older = Task.objects.create(
+        title="Todo high older",
+        creator=user,
+        assignee=user,
+        priority=Task.Priority.HIGH,
+        due_date=today + timedelta(days=1),
+    )
+    high_newer = Task.objects.create(
+        title="Todo high newer",
+        creator=user,
+        assignee=user,
+        priority=Task.Priority.HIGH,
+        due_date=today + timedelta(days=1),
+    )
+    tied_high_tasks = [
+        Task.objects.create(
+            title=f"Todo high tied {index}",
+            creator=user,
+            assignee=user,
+            priority=Task.Priority.HIGH,
+            due_date=today + timedelta(days=2),
+        )
+        for index in range(2)
+    ]
+    fixed_updated_at = timezone.now() - timedelta(days=1)
+    Task.objects.filter(pk=high_older.pk).update(
+        updated_at=fixed_updated_at - timedelta(hours=1)
+    )
+    Task.objects.filter(pk=high_newer.pk).update(updated_at=fixed_updated_at)
+    Task.objects.filter(pk__in=[task.pk for task in tied_high_tasks]).update(
+        updated_at=fixed_updated_at
+    )
+    no_priority = Task.objects.create(
+        title="Todo no priority",
+        creator=user,
+        assignee=user,
+    )
+    completed = Task.objects.create(
+        title="Completed urgent",
+        creator=user,
+        assignee=user,
+        status=Task.Status.COMPLETED,
+        priority=Task.Priority.URGENT,
+    )
+    canceled = Task.objects.create(
+        title="Canceled urgent",
+        creator=user,
+        assignee=user,
+        status=Task.Status.CANCELED,
+        priority=Task.Priority.URGENT,
+    )
+
+    response = _client(user).get(f"{TASKS_URL}?scope=all&priority=all")
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["results"]] == [
+        str(in_progress.id),
+        str(urgent.id),
+        str(high_newer.id),
+        str(high_older.id),
+        *sorted(str(task.id) for task in tied_high_tasks),
+        str(no_priority.id),
+        str(completed.id),
+        str(canceled.id),
+    ]
+    high_response = _client(user).get(f"{TASKS_URL}?scope=all&priority=high")
+    assert [item["id"] for item in high_response.json()["results"]] == [
+        str(high_newer.id),
+        str(high_older.id),
+        *sorted(str(task.id) for task in tied_high_tasks),
+    ]
+    invalid = _client(user).get(f"{TASKS_URL}?priority=critical")
+    assert invalid.status_code == 400
+    assert "priority" in invalid.json()
+
+
+def test_task_priority_filter_combines_with_time_filter():
+    user = UserFactory(timezone="UTC")
+    today = timezone.localdate()
+    urgent = Task.objects.create(
+        title="Urgent today",
+        creator=user,
+        assignee=user,
+        priority=Task.Priority.URGENT,
+        due_date=today,
+    )
+    Task.objects.create(
+        title="Low today",
+        creator=user,
+        assignee=user,
+        priority=Task.Priority.LOW,
+        due_date=today,
+    )
+
+    response = _client(user).get(
+        f"{TASKS_URL}?scope=all&time=due_today&priority=urgent"
+    )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["results"]] == [str(urgent.id)]
+
+
 def test_task_time_filter_uses_current_assignee_timezone():
     now = timezone.now()
     creator_today = timezone.localdate(now, timezone=ZoneInfo("UTC"))
@@ -377,6 +523,13 @@ def test_assignee_can_advance_status_but_cannot_edit_content():
     response = client.patch(
         f"{TASKS_URL}{task.id}/",
         {"title": "Changed by assignee"},
+        format="json",
+    )
+    assert response.status_code == 403
+
+    response = client.patch(
+        f"{TASKS_URL}{task.id}/",
+        {"priority": Task.Priority.HIGH},
         format="json",
     )
     assert response.status_code == 403
@@ -481,6 +634,7 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
         {
             "assignee_id": str(next_assignee.id),
             "due_date": "2026-08-30",
+            "priority": Task.Priority.HIGH,
             "status": Task.Status.IN_PROGRESS,
         },
         format="json",
@@ -488,6 +642,7 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
 
     assert response.status_code == 200
     assert response.json()["assignee"]["id"] == str(next_assignee.id)
+    assert response.json()["priority"] == Task.Priority.HIGH
     delivery = TaskImDelivery.objects.get()
     assert delivery.recipient == next_assignee
     assert delivery.event == TaskImDelivery.Event.REASSIGNED
@@ -506,6 +661,18 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
     ).exists()
     assert not TaskImDelivery.objects.filter(
         event=TaskImDelivery.Event.STATUS_CHANGED
+    ).exists()
+    assert not TaskImDelivery.objects.filter(
+        event=TaskImDelivery.Event.PRIORITY_CHANGED
+    ).exists()
+    assert TaskActivity.objects.filter(
+        event=TaskActivity.Event.PRIORITY_CHANGED,
+        changes={
+            "priority": {
+                "from": Task.Priority.NONE,
+                "to": Task.Priority.HIGH,
+            }
+        },
     ).exists()
     assert TaskActivity.objects.filter(
         event=TaskActivity.Event.STATUS_CHANGED,
@@ -562,6 +729,45 @@ def test_creator_edits_content_and_completion_timestamp():
     assert unchanged.status_code == 200
     assert TaskActivity.objects.count() == activity_count
     assert TaskImDelivery.objects.count() == 0
+
+
+def test_creator_priority_change_records_history_and_notifies_assignee(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = Task.objects.create(
+        title="Escalate customer issue",
+        creator=creator,
+        assignee=assignee,
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        changed = _client(creator).patch(
+            f"{TASKS_URL}{task.id}/",
+            {"priority": Task.Priority.URGENT},
+            format="json",
+        )
+        unchanged = _client(creator).patch(
+            f"{TASKS_URL}{task.id}/",
+            {"priority": Task.Priority.URGENT},
+            format="json",
+        )
+
+    assert changed.status_code == 200
+    assert changed.json()["priority"] == Task.Priority.URGENT
+    assert unchanged.status_code == 200
+    activity = TaskActivity.objects.get(event=TaskActivity.Event.PRIORITY_CHANGED)
+    assert activity.changes == {
+        "priority": {"from": Task.Priority.NONE, "to": Task.Priority.URGENT}
+    }
+    delivery = TaskImDelivery.objects.get(activity=activity)
+    assert delivery.recipient == assignee
+    assert delivery.event == TaskImDelivery.Event.PRIORITY_CHANGED
+    enqueue.assert_called_once_with(delivery.id)
 
 
 def test_creator_date_change_notifies_other_assignee(

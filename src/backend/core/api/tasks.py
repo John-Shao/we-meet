@@ -1,7 +1,7 @@
 """Minimal standalone task API."""
 
 from django.db import transaction
-from django.db.models import Count, F, Q
+from django.db.models import Case, Count, F, IntegerField, Q, Value, When
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -29,11 +29,96 @@ from core.services.task_notifications import (
     record_task_assignment,
     record_task_comment,
     record_task_date_change,
+    record_task_priority_change,
     record_task_status_change,
 )
 from core.services.task_time import TIME_FILTERS, annotate_assignee_local_date
 from core.services.tasks import TaskAssigneeError, ensure_task_assignee_allowed
 from core.tasks.file import process_file_deletion
+
+
+def _order_tasks(queryset):
+    """Keep top-level and subtask lists on the same deterministic order."""
+
+    status_rank = Case(
+        When(status=models.Task.Status.IN_PROGRESS, then=Value(0)),
+        When(status=models.Task.Status.TODO, then=Value(1)),
+        When(status=models.Task.Status.COMPLETED, then=Value(2)),
+        When(status=models.Task.Status.CANCELED, then=Value(3)),
+        default=Value(4),
+        output_field=IntegerField(),
+    )
+    priority_rank = Case(
+        When(priority=models.Task.Priority.URGENT, then=Value(0)),
+        When(priority=models.Task.Priority.HIGH, then=Value(1)),
+        When(priority=models.Task.Priority.MEDIUM, then=Value(2)),
+        When(priority=models.Task.Priority.LOW, then=Value(3)),
+        When(priority=models.Task.Priority.NONE, then=Value(4)),
+        default=Value(5),
+        output_field=IntegerField(),
+    )
+    return queryset.order_by(
+        status_rank,
+        priority_rank,
+        F("due_date").asc(nulls_last=True),
+        "-updated_at",
+        "id",
+    )
+
+
+def _filter_task_list(queryset, *, request, user):
+    """Apply validated list filters without growing the viewset branch count."""
+
+    queryset = queryset.filter(parent__isnull=True)
+    scope = request.query_params.get("scope", "assigned")
+    if scope == "assigned":
+        queryset = queryset.filter(assignee=user)
+    elif scope == "created":
+        queryset = queryset.filter(creator=user)
+    elif scope != "all":
+        raise serializers.ValidationError({"scope": "Use assigned, created, or all."})
+
+    status_filter = request.query_params.get("status", "all")
+    if status_filter == "open":
+        queryset = queryset.exclude(
+            status__in=[models.Task.Status.COMPLETED, models.Task.Status.CANCELED]
+        )
+    elif status_filter != "all":
+        valid_statuses = {choice for choice, _label in models.Task.Status.choices}
+        if status_filter not in valid_statuses:
+            raise serializers.ValidationError(
+                {"status": "Use open, all, or a task status."}
+            )
+        queryset = queryset.filter(status=status_filter)
+
+    priority_filter = request.query_params.get("priority", "all")
+    if priority_filter != "all":
+        valid_priorities = {choice for choice, _label in models.Task.Priority.choices}
+        if priority_filter not in valid_priorities:
+            raise serializers.ValidationError(
+                {"priority": "Use all, none, low, medium, high, or urgent."}
+            )
+        queryset = queryset.filter(priority=priority_filter)
+
+    time_filter = request.query_params.get("time", "all")
+    if time_filter not in TIME_FILTERS:
+        raise serializers.ValidationError(
+            {"time": "Use all, starting_today, due_today, or overdue."}
+        )
+    if time_filter == "all":
+        return queryset
+
+    queryset = queryset.filter(
+        status__in=[models.Task.Status.TODO, models.Task.Status.IN_PROGRESS],
+        assignee__isnull=False,
+    )
+    if time_filter == "starting_today":
+        return queryset.filter(start_date=F("_assignee_local_date")).exclude(
+            due_date=F("_assignee_local_date")
+        )
+    if time_filter == "due_today":
+        return queryset.filter(due_date=F("_assignee_local_date"))
+    return queryset.filter(due_date__lt=F("_assignee_local_date"))
 
 
 class TaskAssigneeValidationMixin:
@@ -57,6 +142,11 @@ class TaskCreateSerializer(TaskAssigneeValidationMixin, serializers.Serializer):
     )
     start_date = serializers.DateField(required=False, allow_null=True)
     due_date = serializers.DateField(required=False, allow_null=True)
+    priority = serializers.ChoiceField(
+        choices=models.Task.Priority.choices,
+        required=False,
+        default=models.Task.Priority.NONE,
+    )
     assignee_id = serializers.PrimaryKeyRelatedField(
         source="assignee",
         queryset=models.User.objects.all(),
@@ -110,6 +200,7 @@ class TaskUpdateSerializer(TaskAssigneeValidationMixin, serializers.ModelSeriali
             "description",
             "start_date",
             "due_date",
+            "priority",
             "assignee_id",
             "status",
         ]
@@ -212,57 +303,12 @@ class TaskViewSet(
         )
         queryset = annotate_assignee_local_date(queryset)
         if self.action == "list":
-            queryset = queryset.filter(parent__isnull=True)
-            scope = self.request.query_params.get("scope", "assigned")
-            if scope == "assigned":
-                queryset = queryset.filter(assignee=user)
-            elif scope == "created":
-                queryset = queryset.filter(creator=user)
-            elif scope != "all":
-                raise serializers.ValidationError(
-                    {"scope": "Use assigned, created, or all."}
-                )
-
-            status_filter = self.request.query_params.get("status", "all")
-            if status_filter == "open":
-                queryset = queryset.exclude(
-                    status__in=[
-                        models.Task.Status.COMPLETED,
-                        models.Task.Status.CANCELED,
-                    ]
-                )
-            elif status_filter != "all":
-                valid_statuses = {
-                    choice for choice, _label in models.Task.Status.choices
-                }
-                if status_filter not in valid_statuses:
-                    raise serializers.ValidationError(
-                        {"status": "Use open, all, or a task status."}
-                    )
-                queryset = queryset.filter(status=status_filter)
-
-            time_filter = self.request.query_params.get("time", "all")
-            if time_filter not in TIME_FILTERS:
-                raise serializers.ValidationError(
-                    {"time": "Use all, starting_today, due_today, or overdue."}
-                )
-            if time_filter != "all":
-                queryset = queryset.filter(
-                    status__in=[
-                        models.Task.Status.TODO,
-                        models.Task.Status.IN_PROGRESS,
-                    ],
-                    assignee__isnull=False,
-                )
-                if time_filter == "starting_today":
-                    queryset = queryset.filter(
-                        start_date=F("_assignee_local_date")
-                    ).exclude(due_date=F("_assignee_local_date"))
-                elif time_filter == "due_today":
-                    queryset = queryset.filter(due_date=F("_assignee_local_date"))
-                else:
-                    queryset = queryset.filter(due_date__lt=F("_assignee_local_date"))
-        return queryset.order_by("-updated_at")
+            queryset = _filter_task_list(
+                queryset,
+                request=self.request,
+                user=user,
+            )
+        return _order_tasks(queryset)
 
     def create(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         serializer = TaskCreateSerializer(
@@ -314,6 +360,7 @@ class TaskViewSet(
                 "description",
                 "start_date",
                 "due_date",
+                "priority",
                 "assignee_id",
                 "status",
             }
@@ -372,6 +419,16 @@ class TaskViewSet(
                     record_task_date_change(activity=date_activity)
                 if status_activity is not None:
                     record_task_status_change(activity=status_activity)
+                priority_activity = next(
+                    (
+                        activity
+                        for activity in activities
+                        if activity.event == models.TaskActivity.Event.PRIORITY_CHANGED
+                    ),
+                    None,
+                )
+                if priority_activity is not None:
+                    record_task_priority_change(activity=priority_activity)
             response_data = TaskSerializer(task, context={"request": request}).data
         return Response(response_data)
 
@@ -385,14 +442,13 @@ class TaskViewSet(
     def subtasks(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         parent = self.get_object()
         if request.method == "GET":
-            subtasks = (
+            subtasks = _order_tasks(
                 parent.subtasks.select_related(
                     "creator",
                     "assignee",
                     "parent__creator",
                     "parent__assignee",
-                )
-                .annotate(
+                ).annotate(
                     _subtask_count=Count("subtasks", distinct=True),
                     _completed_subtask_count=Count(
                         "subtasks",
@@ -400,7 +456,6 @@ class TaskViewSet(
                         distinct=True,
                     ),
                 )
-                .order_by("-updated_at")
             )
             return Response(
                 TaskSerializer(

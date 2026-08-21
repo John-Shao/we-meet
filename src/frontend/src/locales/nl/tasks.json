@@ -12,6 +12,7 @@
     "description": "Beschrijving (optioneel)",
     "descriptionPlaceholder": "Voeg context of acceptatiecriteria toe",
     "assignee": "Verantwoordelijke",
+    "priority": "Prioriteit",
     "assigneeSelf": "Ikzelf",
     "selectAssignee": "Verantwoordelijke kiezen",
     "searchAssignee": "Zoeken op naam of e-mail…",
@@ -36,6 +37,22 @@
     "starting_today": "Begint vandaag",
     "due_today": "Vandaag aflopend",
     "overdue": "Te laat"
+  },
+  "priorities": {
+    "none": "Geen prioriteit",
+    "low": "Laag",
+    "medium": "Gemiddeld",
+    "high": "Hoog",
+    "urgent": "Dringend"
+  },
+  "priorityFilters": {
+    "label": "Filter op prioriteit",
+    "all": "Alle prioriteiten",
+    "none": "Geen prioriteit",
+    "low": "Lage prioriteit",
+    "medium": "Gemiddelde prioriteit",
+    "high": "Hoge prioriteit",
+    "urgent": "Dringend"
   },
   "statuses": {
     "todo": "Te doen",
@@ -119,6 +136,7 @@
       "created": "{{actor}} heeft de taak gemaakt",
       "attachment_removed": "{{actor}} heeft bijlage {{filename}} verwijderd",
       "content_changed": "{{actor}} heeft de taakinhoud bijgewerkt",
+      "priority_changed": "{{actor}} heeft de taakprioriteit gewijzigd van ‘{{from}}’ naar ‘{{to}}’",
       "dates_changed": "{{actor}} heeft de taakdatums aangepast",
       "assignee_changed": "{{actor}} heeft de taak toegewezen aan {{assignee}}",
       "status_changed": "{{actor}} heeft de status gewijzigd in ‘{{status}}’",

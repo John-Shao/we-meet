@@ -19,6 +19,7 @@ from core.services.task_notifications import (
     record_task_assignment,
     record_task_comment,
     record_task_date_change,
+    record_task_priority_change,
     record_task_status_change,
 )
 from core.tasks.task_notifications import deliver_task_assignment
@@ -26,7 +27,12 @@ from core.tasks.task_notifications import deliver_task_assignment
 pytestmark = pytest.mark.django_db
 
 
-def _delivery(*, event=models.TaskImDelivery.Event.ASSIGNED, source=False):
+def _delivery(
+    *,
+    event=models.TaskImDelivery.Event.ASSIGNED,
+    source=False,
+    priority=models.Task.Priority.NONE,
+):
     creator = UserFactory(full_name="创建人")
     recipient = UserFactory(full_name="负责人")
     source_item = None
@@ -49,6 +55,7 @@ def _delivery(*, event=models.TaskImDelivery.Event.ASSIGNED, source=False):
         assignee=recipient,
         start_date="2026-08-20",
         due_date="2026-08-25",
+        priority=priority,
         source_action_item=source_item,
     )
     delivery = models.TaskImDelivery.objects.create(
@@ -108,6 +115,30 @@ def test_successful_delivery_uses_task_assistant_rich_card_once(settings):
         "action": "url",
         "url": "https://meet.example.test/tasks",
     }
+
+
+def test_assignment_card_displays_non_empty_priority(settings):
+    settings.JUSI_IM_CONFIGURATION = {
+        "api_url": "https://im.example.test",
+        "admin_hmac_secret": "s" * 32,
+    }
+    delivery = _delivery(priority=models.Task.Priority.URGENT)
+
+    with (
+        mock.patch(
+            "core.services.task_notifications.im_bots.get_builtin",
+            return_value=mock.Mock(),
+        ),
+        mock.patch(
+            "core.services.task_notifications.im_bots.post_direct",
+            return_value=("direct-cid", mock.Mock()),
+        ) as post_direct,
+    ):
+        assert deliver_task_assignment(str(delivery.id)) == "delivered"
+
+    card = json.loads(post_direct.call_args.args[3])
+    fields = {item["label"]: item["value"] for item in card["blocks"][2]["items"]}
+    assert fields["优先级"] == "紧急"
 
 
 def test_successful_comment_delivery_uses_task_assistant_comment_card(settings):
@@ -233,6 +264,24 @@ def test_reassignment_supersedes_pending_old_recipient(
         event=models.TaskImDelivery.Event.ASSIGNED,
         next_attempt_at=timezone.now(),
     )
+    priority_activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=models.TaskActivity.Event.PRIORITY_CHANGED,
+        changes={
+            "priority": {
+                "from": models.Task.Priority.NONE,
+                "to": models.Task.Priority.HIGH,
+            }
+        },
+    )
+    old_priority = models.TaskImDelivery.objects.create(
+        task=task,
+        activity=priority_activity,
+        recipient=previous,
+        event=models.TaskImDelivery.Event.PRIORITY_CHANGED,
+        next_attempt_at=timezone.now(),
+    )
     task.assignee = next_recipient
     task.save(update_fields=["assignee", "updated_at"])
 
@@ -246,7 +295,9 @@ def test_reassignment_supersedes_pending_old_recipient(
         )
 
     old.refresh_from_db()
+    old_priority.refresh_from_db()
     assert old.status == models.TaskImDelivery.Status.SUPERSEDED
+    assert old_priority.status == models.TaskImDelivery.Status.SUPERSEDED
     assert old.next_attempt_at is None
     assert new is not None
     assert new.recipient == next_recipient
@@ -424,6 +475,7 @@ def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
         assignee=recipient,
         start_date=date(2026, 8, 20),
         due_date=date(2026, 8, 22),
+        priority=models.Task.Priority.HIGH,
     )
     delivery = models.TaskImDelivery.objects.create(
         task=task,
@@ -452,6 +504,10 @@ def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
     card = json.loads(post_direct.call_args.args[3])
     assert card["header"] == {"title": "任务今天截止", "theme": "warning"}
     assert card["plain"] == "任务今天截止：提交发布材料"
+    assert card["blocks"][1]["items"][0] == {
+        "label": "优先级",
+        "value": "高",
+    }
     assert card["blocks"][-1]["buttons"][0]["url"] == (
         "https://meet.example.test/tasks"
     )
@@ -713,6 +769,139 @@ def test_record_task_status_change_notifies_other_collaborator_once(
     assert delivery.event == models.TaskImDelivery.Event.STATUS_CHANGED
     assert models.TaskImDelivery.objects.filter(activity=activity).count() == 1
     enqueue.assert_called_once_with(delivery.id)
+
+
+def test_record_task_priority_change_is_idempotent_and_supersedes_stale(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = models.Task.objects.create(
+        title="Escalate issue",
+        creator=creator,
+        assignee=assignee,
+        priority=models.Task.Priority.URGENT,
+    )
+    stale_activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=models.TaskActivity.Event.PRIORITY_CHANGED,
+        changes={
+            "priority": {
+                "from": models.Task.Priority.NONE,
+                "to": models.Task.Priority.HIGH,
+            }
+        },
+    )
+    stale = models.TaskImDelivery.objects.create(
+        task=task,
+        activity=stale_activity,
+        recipient=assignee,
+        event=models.TaskImDelivery.Event.PRIORITY_CHANGED,
+        next_attempt_at=timezone.now(),
+    )
+    activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=models.TaskActivity.Event.PRIORITY_CHANGED,
+        changes={
+            "priority": {
+                "from": models.Task.Priority.HIGH,
+                "to": models.Task.Priority.URGENT,
+            }
+        },
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        delivery = record_task_priority_change(activity=activity)
+        duplicate = record_task_priority_change(activity=activity)
+
+    assert delivery is not None
+    assert duplicate == delivery
+    assert delivery.recipient == assignee
+    assert delivery.event == models.TaskImDelivery.Event.PRIORITY_CHANGED
+    stale.refresh_from_db()
+    assert stale.status == models.TaskImDelivery.Status.SUPERSEDED
+    enqueue.assert_called_once_with(delivery.id)
+
+
+def test_priority_change_to_self_stays_silent():
+    user = UserFactory()
+    task = models.Task.objects.create(
+        title="Personal task",
+        creator=user,
+        assignee=user,
+        priority=models.Task.Priority.LOW,
+    )
+    activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=user,
+        event=models.TaskActivity.Event.PRIORITY_CHANGED,
+        changes={
+            "priority": {
+                "from": models.Task.Priority.NONE,
+                "to": models.Task.Priority.LOW,
+            }
+        },
+    )
+
+    assert record_task_priority_change(activity=activity) is None
+    assert not models.TaskImDelivery.objects.filter(activity=activity).exists()
+
+
+def test_priority_change_card_preserves_transition_and_actor(settings):
+    settings.JUSI_IM_CONFIGURATION = {
+        "api_url": "https://im.example.test",
+        "admin_hmac_secret": "s" * 32,
+    }
+    creator = UserFactory(full_name="创建人")
+    assignee = UserFactory(full_name="负责人")
+    task = models.Task.objects.create(
+        title="处理客户故障",
+        creator=creator,
+        assignee=assignee,
+        priority=models.Task.Priority.URGENT,
+    )
+    activity = models.TaskActivity.objects.create(
+        task=task,
+        actor=creator,
+        event=models.TaskActivity.Event.PRIORITY_CHANGED,
+        changes={
+            "priority": {
+                "from": models.Task.Priority.NONE,
+                "to": models.Task.Priority.URGENT,
+            }
+        },
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        activity=activity,
+        recipient=assignee,
+        event=models.TaskImDelivery.Event.PRIORITY_CHANGED,
+        next_attempt_at=timezone.now(),
+    )
+
+    with (
+        mock.patch(
+            "core.services.task_notifications.im_bots.get_builtin",
+            return_value=mock.Mock(),
+        ),
+        mock.patch(
+            "core.services.task_notifications.im_bots.post_direct",
+            return_value=("direct-cid", mock.Mock()),
+        ) as post_direct,
+    ):
+        assert deliver_task_assignment(str(delivery.id)) == "delivered"
+
+    card = json.loads(post_direct.call_args.args[3])
+    assert card["header"] == {"title": "任务优先级已调整", "theme": "warning"}
+    assert card["blocks"][1]["items"] == [
+        {"label": "优先级", "value": "无优先级 → 紧急"},
+        {"label": "修改人", "value": "创建人"},
+    ]
 
 
 def test_status_change_by_parent_collaborator_notifies_both_task_owners(

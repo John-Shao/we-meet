@@ -9,6 +9,7 @@ import { RequireAuth } from '@/components/RequireAuth'
 import { ContactPicker, type DirectoryMember } from '@/features/contacts'
 import { Screen } from '@/layout/Screen'
 import { Button, Input, TextArea } from '@/primitives'
+import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
 import type {
@@ -16,6 +17,8 @@ import type {
   ApiTaskActivity,
   PatchTaskPayload,
   TaskScope,
+  TaskPriority,
+  TaskPriorityFilter,
   TaskStatus,
   TaskTimeFilter,
   TaskTimeState,
@@ -33,8 +36,11 @@ import {
   useTaskSubtasks,
   useTasks,
 } from '../api/fetchTasks'
+import { TaskPriorityBadge } from '../components/TaskPriorityBadge'
 
 const scopes: TaskScope[] = ['assigned', 'created', 'all']
+const priorities: TaskPriority[] = ['urgent', 'high', 'medium', 'low', 'none']
+const priorityFilters: TaskPriorityFilter[] = ['all', ...priorities]
 const timeFilters: TaskTimeFilter[] = [
   'all',
   'starting_today',
@@ -102,6 +108,8 @@ const TasksAuthenticated = () => {
   const { t, i18n } = useTranslation('tasks')
   const [scope, setScope] = useState<TaskScope>('assigned')
   const [timeFilter, setTimeFilter] = useState<TaskTimeFilter>('all')
+  const [priorityFilter, setPriorityFilter] =
+    useState<TaskPriorityFilter>('all')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [createAssignee, setCreateAssignee] = useState<DirectoryMember | null>(
@@ -109,6 +117,7 @@ const TasksAuthenticated = () => {
   )
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [createPriority, setCreatePriority] = useState<TaskPriority>('none')
   const [editing, setEditing] = useState<ApiTask | null>(null)
   const [expandedActivities, setExpandedActivities] = useState<Set<string>>(
     () => new Set()
@@ -125,7 +134,7 @@ const TasksAuthenticated = () => {
   const [assigneePicker, setAssigneePicker] = useState<
     'create' | 'edit' | null
   >(null)
-  const { data, isLoading, error } = useTasks(scope, timeFilter)
+  const { data, isLoading, error } = useTasks(scope, timeFilter, priorityFilter)
   const createMutation = useCreateTask()
   const patchMutation = usePatchTask()
 
@@ -140,12 +149,14 @@ const TasksAuthenticated = () => {
         assignee_id: createAssignee?.id,
         start_date: startDate || null,
         due_date: dueDate || null,
+        priority: createPriority,
       })
       setTitle('')
       setDescription('')
       setCreateAssignee(null)
       setStartDate('')
       setDueDate('')
+      setCreatePriority('none')
     } catch {
       // The mutation error is rendered below the form.
     }
@@ -199,6 +210,7 @@ const TasksAuthenticated = () => {
       ...(editing.assignee ? { assignee_id: editing.assignee.id } : {}),
       start_date: editing.start_date,
       due_date: editing.due_date,
+      priority: editing.priority,
     }
     try {
       await patchMutation.mutateAsync({ taskId: editing.id, patch })
@@ -265,7 +277,7 @@ const TasksAuthenticated = () => {
           gridTemplateColumns: {
             base: '1fr',
             md: 'repeat(2, 1fr)',
-            lg: '2fr 1.25fr 1fr 1fr auto',
+            lg: '2fr 1.25fr 0.9fr 1fr 1fr auto',
           },
           gap: '0.75rem',
           padding: '1rem',
@@ -300,6 +312,19 @@ const TasksAuthenticated = () => {
               : t('form.assigneeSelf')}
           </Button>
         </label>
+        <Select
+          className={labelCss}
+          label={t('form.priority')}
+          aria-label={t('form.priority')}
+          items={priorities.map((value) => ({
+            value,
+            label: t(`priorities.${value}`),
+          }))}
+          selectedKey={createPriority}
+          onSelectionChange={(key) =>
+            setCreatePriority(String(key) as TaskPriority)
+          }
+        />
         <label className={labelCss}>
           {t('form.startDate')}
           <Input
@@ -331,7 +356,7 @@ const TasksAuthenticated = () => {
         <label
           className={`${labelCss} ${css({
             md: { gridColumn: '1 / -1' },
-            lg: { gridColumn: '1 / 5' },
+            lg: { gridColumn: '1 / 6' },
           })}`}
         >
           {t('form.description')}
@@ -399,6 +424,21 @@ const TasksAuthenticated = () => {
             {t(`timeFilters.${value}`)}
           </Button>
         ))}
+      </div>
+
+      <div className={css({ width: { base: '100%', sm: '12rem' } })}>
+        <Select
+          label={t('priorityFilters.label')}
+          aria-label={t('priorityFilters.label')}
+          items={priorityFilters.map((value) => ({
+            value,
+            label: t(`priorityFilters.${value}`),
+          }))}
+          selectedKey={priorityFilter}
+          onSelectionChange={(key) =>
+            setPriorityFilter(String(key) as TaskPriorityFilter)
+          }
+        />
       </div>
 
       {(error || mutationError) && (
@@ -477,6 +517,22 @@ const TasksAuthenticated = () => {
                       {displayName(editing.assignee)}
                     </Button>
                   </label>
+                  <Select
+                    className={labelCss}
+                    label={t('form.priority')}
+                    aria-label={t('form.priority')}
+                    items={priorities.map((value) => ({
+                      value,
+                      label: t(`priorities.${value}`),
+                    }))}
+                    selectedKey={editing.priority}
+                    onSelectionChange={(key) =>
+                      setEditing({
+                        ...editing,
+                        priority: String(key) as TaskPriority,
+                      })
+                    }
+                  />
                   <div
                     className={css({
                       display: 'grid',
@@ -579,6 +635,7 @@ const TasksAuthenticated = () => {
                           {t(`timeStates.${task.time_state}`)}
                         </span>
                       )}
+                      <TaskPriorityBadge priority={task.priority} />
                       <span className={statusCss(task.status)}>
                         {t(`statuses.${task.status}`)}
                       </span>
@@ -767,6 +824,7 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
   const [assignee, setAssignee] = useState<DirectoryMember | null>(null)
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [priority, setPriority] = useState<TaskPriority>('none')
   const [pickerOpen, setPickerOpen] = useState(false)
   const { data, isLoading, error } = useTaskSubtasks(taskId)
   const createMutation = useCreateTaskSubtask()
@@ -791,12 +849,14 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
           assignee_id: assignee?.id,
           start_date: startDate || null,
           due_date: dueDate || null,
+          priority,
         },
       })
       setTitle('')
       setAssignee(null)
       setStartDate('')
       setDueDate('')
+      setPriority('none')
     } catch {
       // Keep the form values available so the user can retry.
     }
@@ -829,7 +889,7 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
           display: 'grid',
           gridTemplateColumns: {
             base: '1fr',
-            md: '1.5fr 1fr 1fr 1fr auto',
+            md: '1.5fr 1fr 0.9fr 1fr 1fr auto',
           },
           gap: '0.625rem',
           alignItems: 'end',
@@ -858,6 +918,17 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
             {assignee ? displayName(assignee) : t('form.assigneeSelf')}
           </Button>
         </label>
+        <Select
+          className={labelCss}
+          label={t('form.priority')}
+          aria-label={t('form.priority')}
+          items={priorities.map((value) => ({
+            value,
+            label: t(`priorities.${value}`),
+          }))}
+          selectedKey={priority}
+          onSelectionChange={(key) => setPriority(String(key) as TaskPriority)}
+        />
         <label className={labelCss}>
           {t('form.startDate')}
           <Input
@@ -944,6 +1015,7 @@ const TaskSubtasks = ({ taskId }: { taskId: string }) => {
                   <span className={statusCss(subtask.status)}>
                     {t(`statuses.${subtask.status}`)}
                   </span>
+                  <TaskPriorityBadge priority={subtask.priority} />
                 </div>
                 <p
                   className={css({
@@ -1456,6 +1528,14 @@ const taskActivityMessage = (
       return t('history.events.status_changed_aligned', { base, sourceStatus })
     }
     return t('history.events.status_changed_conflict', { base, sourceStatus })
+  }
+  if (activity.event === 'priority_changed') {
+    const priority = activity.changes.priority
+    return t('history.events.priority_changed', {
+      actor,
+      from: priority ? t(`priorities.${priority.from}`) : '—',
+      to: priority ? t(`priorities.${priority.to}`) : '—',
+    })
   }
   if (activity.event === 'assignee_changed') {
     const assignee = activity.changes.assignee

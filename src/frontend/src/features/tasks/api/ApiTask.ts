@@ -1,4 +1,6 @@
 export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'canceled'
+export type TaskPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
+export type TaskPriorityFilter = 'all' | TaskPriority
 export type TaskTimeState = 'starting_today' | 'due_today' | 'overdue'
 export type TaskTimeFilter = 'all' | TaskTimeState
 
@@ -16,6 +18,7 @@ export interface ApiTask {
   creator: ApiTaskUser
   assignee: ApiTaskUser | null
   status: TaskStatus
+  priority: TaskPriority
   start_date: string | null
   due_date: string | null
   completed_at: string | null
@@ -38,6 +41,7 @@ export type TaskActivityEvent =
   | 'dates_changed'
   | 'assignee_changed'
   | 'status_changed'
+  | 'priority_changed'
   | 'attachment_removed'
   | 'source_action_item_changed'
 
@@ -71,6 +75,7 @@ export interface ApiTaskActivity {
           to: ApiTaskActivityUserSnapshot | null
         }
     status?: { from: TaskStatus; to: TaskStatus }
+    priority?: { from: TaskPriority; to: TaskPriority }
     attachment?: { id: string; filename: string }
     source_action_item_sync?: {
       action_item_id: string
@@ -131,6 +136,7 @@ export interface CreateTaskPayload {
   assignee_id?: string
   start_date?: string | null
   due_date?: string | null
+  priority?: TaskPriority
 }
 
 export interface PatchTaskPayload {
@@ -139,5 +145,6 @@ export interface PatchTaskPayload {
   assignee_id?: string
   start_date?: string | null
   due_date?: string | null
+  priority?: TaskPriority
   status?: TaskStatus
 }

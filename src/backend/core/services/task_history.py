@@ -16,6 +16,7 @@ class TaskHistorySnapshot:
     due_date: date | None
     assignee: dict | None
     status: str
+    priority: str
 
 
 def snapshot_task(task: models.Task) -> TaskHistorySnapshot:
@@ -28,6 +29,7 @@ def snapshot_task(task: models.Task) -> TaskHistorySnapshot:
         due_date=task.due_date,
         assignee=_user_snapshot(task.assignee),
         status=task.status,
+        priority=task.priority,
     )
 
 
@@ -105,6 +107,16 @@ def record_task_changes(
                 actor=actor,
                 event=models.TaskActivity.Event.STATUS_CHANGED,
                 changes={"status": {"from": before.status, "to": task.status}},
+            )
+        )
+
+    if task.priority != before.priority:
+        activities.append(
+            _activity(
+                task=task,
+                actor=actor,
+                event=models.TaskActivity.Event.PRIORITY_CHANGED,
+                changes={"priority": {"from": before.priority, "to": task.priority}},
             )
         )
 
