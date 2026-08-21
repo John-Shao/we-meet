@@ -15,6 +15,7 @@ from core.services.jusi_im import JusiImBadResponseError, JusiImUnreachableError
 from core.services.task_notifications import (
     enqueue_due_task_assignments,
     record_task_assignment,
+    record_task_comment,
 )
 from core.tasks.task_notifications import deliver_task_assignment
 
@@ -105,6 +106,59 @@ def test_successful_delivery_uses_task_assistant_rich_card_once(settings):
     }
 
 
+def test_successful_comment_delivery_uses_task_assistant_comment_card(settings):
+    settings.JUSI_IM_CONFIGURATION = {
+        "api_url": "https://im.example.test",
+        "admin_hmac_secret": "s" * 32,
+    }
+    settings.APPLICATION_BASE_URL = "https://meet.example.test"
+    creator = UserFactory(full_name="创建人")
+    recipient = UserFactory(full_name="负责人")
+    task = models.Task.objects.create(
+        title="复核发布清单",
+        creator=creator,
+        assignee=recipient,
+    )
+    comment = models.TaskComment.objects.create(
+        task=task,
+        author=creator,
+        content="请重点确认回滚步骤。",
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        comment=comment,
+        recipient=recipient,
+        event=models.TaskImDelivery.Event.COMMENTED,
+        next_attempt_at=timezone.now(),
+    )
+
+    with (
+        mock.patch(
+            "core.services.task_notifications.im_bots.get_builtin",
+            return_value=mock.Mock(),
+        ),
+        mock.patch(
+            "core.services.task_notifications.im_bots.post_direct",
+            return_value=("direct-cid", mock.Mock()),
+        ) as post_direct,
+    ):
+        assert deliver_task_assignment(str(delivery.id)) == "delivered"
+
+    card = json.loads(post_direct.call_args.args[3])
+    assert card["header"] == {"title": "任务有新评论", "theme": "info"}
+    assert card["plain"] == "创建人 评论了任务：复核发布清单"
+    assert card["blocks"][0]["spans"][0]["text"] == "复核发布清单"
+    assert card["blocks"][1]["spans"][0]["text"] == "请重点确认回滚步骤。"
+    assert card["blocks"][2]["items"] == [{"label": "评论人", "value": "创建人"}]
+    assert card["blocks"][-1]["buttons"][0] == {
+        "id": "open-task-comment",
+        "text": "查看评论",
+        "style": "primary",
+        "action": "url",
+        "url": "https://meet.example.test/tasks",
+    }
+
+
 def test_transient_failure_stays_pending_and_schedules_backoff(settings):
     settings.JUSI_IM_CONFIGURATION = {
         "api_url": "https://im.example.test",
@@ -178,9 +232,10 @@ def test_reassignment_supersedes_pending_old_recipient(
     task.assignee = next_recipient
     task.save(update_fields=["assignee", "updated_at"])
 
-    with mock.patch(
-        "core.services.task_notifications._enqueue_delivery"
-    ) as enqueue, django_capture_on_commit_callbacks(execute=True):
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
         new = record_task_assignment(
             task=task,
             event=models.TaskImDelivery.Event.REASSIGNED,
@@ -192,6 +247,73 @@ def test_reassignment_supersedes_pending_old_recipient(
     assert new is not None
     assert new.recipient == next_recipient
     enqueue.assert_called_once_with(new.id)
+
+
+def test_reassignment_supersedes_pending_comment_for_previous_assignee():
+    creator = UserFactory()
+    previous = UserFactory()
+    next_recipient = UserFactory()
+    task = models.Task.objects.create(
+        title="handoff",
+        creator=creator,
+        assignee=previous,
+    )
+    comment = models.TaskComment.objects.create(
+        task=task,
+        author=creator,
+        content="Before handoff",
+    )
+    pending_comment = models.TaskImDelivery.objects.create(
+        task=task,
+        comment=comment,
+        recipient=previous,
+        event=models.TaskImDelivery.Event.COMMENTED,
+        next_attempt_at=timezone.now(),
+    )
+    task.assignee = next_recipient
+    task.save(update_fields=["assignee", "updated_at"])
+
+    with mock.patch("core.services.task_notifications._enqueue_delivery"):
+        record_task_assignment(
+            task=task,
+            event=models.TaskImDelivery.Event.REASSIGNED,
+        )
+
+    pending_comment.refresh_from_db()
+    assert pending_comment.status == models.TaskImDelivery.Status.SUPERSEDED
+    assert pending_comment.next_attempt_at is None
+
+
+def test_record_task_comment_notifies_only_the_other_collaborator(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    assignee = UserFactory()
+    task = models.Task.objects.create(
+        title="collaborate",
+        creator=creator,
+        assignee=assignee,
+    )
+    comment = models.TaskComment.objects.create(
+        task=task,
+        author=assignee,
+        content="Ready for review",
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        delivery = record_task_comment(comment=comment)
+        duplicate = record_task_comment(comment=comment)
+
+    assert delivery is not None
+    assert duplicate == delivery
+    assert delivery.recipient == creator
+    assert delivery.comment == comment
+    assert delivery.event == models.TaskImDelivery.Event.COMMENTED
+    assert models.TaskImDelivery.objects.filter(comment=comment).count() == 1
+    enqueue.assert_called_once_with(delivery.id)
 
 
 def test_recovery_scan_enqueues_only_due_pending_rows():

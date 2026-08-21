@@ -2324,11 +2324,12 @@ class TaskComment(BaseModel):
 
 
 class TaskImDelivery(BaseModel):
-    """Durable delivery ledger for task-assignment assistant messages."""
+    """Durable delivery ledger for Task Assistant messages."""
 
     class Event(models.TextChoices):
         ASSIGNED = "assigned", _("Assigned")
         REASSIGNED = "reassigned", _("Reassigned")
+        COMMENTED = "commented", _("Commented")
 
     class Status(models.TextChoices):
         PENDING = "pending", _("Pending")
@@ -2341,6 +2342,14 @@ class TaskImDelivery(BaseModel):
         on_delete=models.CASCADE,
         related_name="im_deliveries",
         verbose_name=_("task"),
+    )
+    comment = models.ForeignKey(
+        TaskComment,
+        on_delete=models.CASCADE,
+        related_name="im_deliveries",
+        null=True,
+        blank=True,
+        verbose_name=_("comment"),
     )
     recipient = models.ForeignKey(
         User,
@@ -2373,6 +2382,12 @@ class TaskImDelivery(BaseModel):
         verbose_name = _("task IM delivery")
         verbose_name_plural = _("task IM deliveries")
         ordering = ("created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("comment", "recipient"),
+                name="task_im_comment_recipient_uniq",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"TaskImDelivery({self.task_id}, {self.recipient_id}, {self.event})"

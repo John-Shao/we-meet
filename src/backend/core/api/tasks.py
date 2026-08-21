@@ -22,7 +22,7 @@ from core.services.task_history import (
     record_task_created,
     snapshot_task,
 )
-from core.services.task_notifications import record_task_assignment
+from core.services.task_notifications import record_task_assignment, record_task_comment
 from core.services.tasks import TaskAssigneeError, ensure_task_assignee_allowed
 
 
@@ -271,5 +271,7 @@ class TaskViewSet(
 
         serializer = TaskCommentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        comment = serializer.save(task=task, author=request.user)
+        with transaction.atomic():
+            comment = serializer.save(task=task, author=request.user)
+            record_task_comment(comment=comment)
         return Response(TaskCommentSerializer(comment).data, status=201)

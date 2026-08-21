@@ -1,4 +1,4 @@
-"""Reliable Task Assistant notifications for task assignments."""
+"""Reliable Task Assistant notifications."""
 
 import json
 import logging
@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
 
 from core import models
@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 # A claimed row is hidden from the recovery scan while one worker talks to IM.
 # If that worker dies, the production maintenance CronJob can claim it again.
 CLAIM_TTL = timedelta(minutes=2)
+ASSIGNMENT_EVENTS = (
+    models.TaskImDelivery.Event.ASSIGNED,
+    models.TaskImDelivery.Event.REASSIGNED,
+)
 
 
 class TaskImNotificationUnavailable(RuntimeError):
@@ -33,10 +37,20 @@ def record_task_assignment(
     supersedes a pending notification for the previous assignee.
     """
 
-    models.TaskImDelivery.objects.filter(
+    pending = models.TaskImDelivery.objects.filter(
         task=task,
         status=models.TaskImDelivery.Status.PENDING,
-    ).exclude(recipient_id=task.assignee_id).update(
+    )
+    pending.filter(event__in=ASSIGNMENT_EVENTS).exclude(
+        recipient_id=task.assignee_id
+    ).update(
+        status=models.TaskImDelivery.Status.SUPERSEDED,
+        next_attempt_at=None,
+        last_error="",
+    )
+    pending.filter(event=models.TaskImDelivery.Event.COMMENTED).exclude(
+        Q(recipient_id=task.creator_id) | Q(recipient_id=task.assignee_id)
+    ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
         last_error="",
@@ -52,6 +66,34 @@ def record_task_assignment(
         next_attempt_at=timezone.now(),
     )
     transaction.on_commit(lambda: _enqueue_delivery(delivery.id))
+    return delivery
+
+
+def record_task_comment(*, comment: models.TaskComment) -> models.TaskImDelivery | None:
+    """Notify the other current collaborator about a newly posted comment."""
+
+    task = comment.task
+    if comment.author_id == task.creator_id:
+        recipient_id = task.assignee_id
+    elif comment.author_id == task.assignee_id:
+        recipient_id = task.creator_id
+    else:  # Defensive: the API only permits current collaborators to comment.
+        return None
+
+    if recipient_id is None or recipient_id == comment.author_id:
+        return None
+
+    delivery, created = models.TaskImDelivery.objects.get_or_create(
+        task=task,
+        comment=comment,
+        recipient_id=recipient_id,
+        defaults={
+            "event": models.TaskImDelivery.Event.COMMENTED,
+            "next_attempt_at": timezone.now(),
+        },
+    )
+    if created:
+        transaction.on_commit(lambda: _enqueue_delivery(delivery.id))
     return delivery
 
 
@@ -105,13 +147,14 @@ def claim_task_assignment(delivery_id) -> models.TaskImDelivery | None:
             "task__creator",
             "task__assignee",
             "task__source_action_item__room",
+            "comment__author",
         )
         .filter(pk=delivery_id)
         .first()
     )
     if delivery is None:
         return None
-    if delivery.task.assignee_id != delivery.recipient_id:
+    if not _recipient_can_receive(delivery):
         models.TaskImDelivery.objects.filter(pk=delivery.pk).update(
             status=models.TaskImDelivery.Status.SUPERSEDED,
             next_attempt_at=None,
@@ -141,7 +184,7 @@ def deliver_claimed_task_assignment(delivery: models.TaskImDelivery) -> None:
         client,
         assistant,
         delivery.recipient,
-        json.dumps(_assignment_card(delivery), ensure_ascii=False),
+        json.dumps(_notification_card(delivery), ensure_ascii=False),
         content_type=im_cards.RICH_CARD,
     )
     if result is None:
@@ -246,5 +289,74 @@ def _assignment_card(delivery: models.TaskImDelivery) -> dict:
     )
 
 
+def _comment_card(delivery: models.TaskImDelivery) -> dict:
+    task = delivery.task
+    comment = delivery.comment
+    author_name = _display_name(comment.author)
+    blocks = [
+        {
+            "type": im_cards.CARD_BLOCK_TEXT,
+            "spans": [{"tag": im_cards.RICH_TAG_TEXT, "text": task.title, "b": True}],
+        },
+        {
+            "type": im_cards.CARD_BLOCK_TEXT,
+            "spans": [
+                {
+                    "tag": im_cards.RICH_TAG_TEXT,
+                    "text": comment.content.strip()[:500],
+                }
+            ],
+        },
+        {
+            "type": im_cards.CARD_BLOCK_FIELDS,
+            "items": [{"label": "评论人", "value": author_name}],
+        },
+    ]
+    base_url = str(getattr(settings, "APPLICATION_BASE_URL", "") or "").rstrip("/")
+    if base_url:
+        blocks.append(
+            {
+                "type": im_cards.CARD_BLOCK_ACTIONS,
+                "resolve": im_cards.CARD_RESOLVE_EACH,
+                "buttons": [
+                    {
+                        "id": "open-task-comment",
+                        "text": "查看评论",
+                        "style": "primary",
+                        "action": "url",
+                        "url": f"{base_url}/tasks",
+                    }
+                ],
+            }
+        )
+    return im_cards.build_rich_card(
+        header={"title": "任务有新评论", "theme": "info"},
+        blocks=blocks,
+        plain=f"{author_name} 评论了任务：{task.title}",
+    )
+
+
+def _notification_card(delivery: models.TaskImDelivery) -> dict:
+    if delivery.event == models.TaskImDelivery.Event.COMMENTED:
+        return _comment_card(delivery)
+    return _assignment_card(delivery)
+
+
+def _recipient_can_receive(delivery: models.TaskImDelivery) -> bool:
+    task = delivery.task
+    if delivery.event in ASSIGNMENT_EVENTS:
+        return task.assignee_id == delivery.recipient_id
+    if delivery.event == models.TaskImDelivery.Event.COMMENTED:
+        comment = delivery.comment
+        return bool(
+            comment is not None
+            and delivery.recipient_id in {task.creator_id, task.assignee_id}
+            and delivery.recipient_id != comment.author_id
+        )
+    return False
+
+
 def _display_name(user) -> str:
+    if user is None:
+        return ""
     return (user.full_name or user.short_name or user.email or "").strip()

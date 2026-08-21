@@ -1,4 +1,4 @@
-"""Retryable task-assignment IM delivery orchestration."""
+"""Retryable Task Assistant IM delivery orchestration."""
 
 import logging
 
@@ -21,7 +21,7 @@ MAX_ATTEMPTS = len(RETRY_DELAYS_SECONDS) + 1
 
 @task(bind=False)
 def deliver_task_assignment(delivery_id: str):
-    """Deliver one ledger row; duplicate jobs and stale assignments are no-ops."""
+    """Deliver one ledger row; duplicate jobs and stale recipients are no-ops."""
 
     delivery = claim_task_assignment(delivery_id)
     if delivery is None:
@@ -65,7 +65,7 @@ def deliver_task_assignment(delivery_id: str):
         return "failed"
 
     logger.info(
-        "Task assignment delivered by Meeting Assistant task=%s recipient=%s event=%s",
+        "Task notification delivered by Task Assistant task=%s recipient=%s event=%s",
         delivery.task_id,
         delivery.recipient_id,
         delivery.event,

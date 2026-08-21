@@ -378,6 +378,29 @@ def test_creator_and_assignee_can_post_and_list_task_comments():
         "Initial context",
         "I will follow up.",
     ]
+    assert list(
+        TaskImDelivery.objects.order_by("created_at").values_list(
+            "event", "recipient_id", "comment__content"
+        )
+    ) == [
+        (TaskImDelivery.Event.COMMENTED, assignee.id, "Initial context"),
+        (TaskImDelivery.Event.COMMENTED, creator.id, "I will follow up."),
+    ]
+
+
+def test_personal_task_comment_does_not_notify_the_author():
+    user = UserFactory()
+    task = Task.objects.create(title="Private notes", creator=user, assignee=user)
+
+    response = _client(user).post(
+        f"{TASKS_URL}{task.id}/comments/",
+        {"content": "Remember the acceptance criteria."},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert TaskComment.objects.count() == 1
+    assert TaskImDelivery.objects.count() == 0
 
 
 def test_task_comments_reject_blank_content_and_outsiders():
