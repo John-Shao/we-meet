@@ -698,6 +698,49 @@ def test_task_attachment_url_and_download_access_follow_current_assignee():
         assert response["Location"] == "https://storage.example.test/signed"
 
 
+def test_current_task_collaborator_removes_attachment_and_queues_bucket_cleanup(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    assignee = UserFactory()
+    former_assignee = UserFactory()
+    outsider = UserFactory()
+    task = Task.objects.create(title="Clean up", creator=creator, assignee=assignee)
+    file = FileFactory(
+        creator=creator,
+        type=FileTypeChoices.TASK_ATTACHMENT,
+        filename="obsolete.pdf",
+        storage_bucket="we-task-attachment",
+        update_upload_state=FileUploadStateChoices.READY,
+    )
+    attachment = TaskAttachment.objects.create(task=task, file=file, uploader=creator)
+    attachment_id = attachment.id
+    url = f"{TASKS_URL}{task.id}/attachments/{attachment_id}/"
+
+    with mock.patch(
+        "core.api.tasks.process_file_deletion.delay"
+    ) as deletion, django_capture_on_commit_callbacks(execute=True):
+        response = _client(assignee).delete(url)
+
+    assert response.status_code == 204
+    assert not TaskAttachment.objects.filter(id=attachment_id).exists()
+    file.refresh_from_db()
+    assert file.deleted_at is not None
+    assert file.hard_deleted_at is not None
+    deletion.assert_called_once_with(file.id)
+    activity = TaskActivity.objects.get(task=task)
+    assert activity.actor == assignee
+    assert activity.event == TaskActivity.Event.ATTACHMENT_REMOVED
+    assert activity.changes == {
+        "attachment": {"id": str(attachment_id), "filename": "obsolete.pdf"}
+    }
+
+    task.assignee = former_assignee
+    task.save(update_fields=["assignee", "updated_at"])
+    assert _client(assignee).delete(url).status_code == 404
+    assert _client(outsider).delete(url).status_code == 404
+
+
 def test_meeting_task_exposes_source_room():
     owner = UserFactory()
     assignee = UserFactory()

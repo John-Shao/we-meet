@@ -22,6 +22,7 @@ import {
   useCreateTaskAttachment,
   useCreateTask,
   useCreateTaskSubtask,
+  useDeleteTaskAttachment,
   usePatchTask,
   useTaskActivities,
   useTaskAttachments,
@@ -955,6 +956,7 @@ const TaskAttachments = ({ taskId }: { taskId: string }) => {
   const [progress, setProgress] = useState(0)
   const { data, isLoading, error } = useTaskAttachments(taskId)
   const createMutation = useCreateTaskAttachment()
+  const deleteMutation = useDeleteTaskAttachment()
   const formatDateTime = (value: string) =>
     new Intl.DateTimeFormat(i18n.language, {
       dateStyle: 'medium',
@@ -978,6 +980,15 @@ const TaskAttachments = ({ taskId }: { taskId: string }) => {
         file,
         onProgress: setProgress,
       })
+    } catch {
+      // The mutation error remains visible so the user can retry.
+    }
+  }
+
+  const removeAttachment = async (attachmentId: string) => {
+    if (!window.confirm(t('attachments.removeConfirm'))) return
+    try {
+      await deleteMutation.mutateAsync({ taskId, attachmentId })
     } catch {
       // The mutation error remains visible so the user can retry.
     }
@@ -1032,6 +1043,9 @@ const TaskAttachments = ({ taskId }: { taskId: string }) => {
       </div>
       {createMutation.error && (
         <p className={historyErrorCss}>{t('attachments.uploadError')}</p>
+      )}
+      {deleteMutation.error && (
+        <p className={historyErrorCss}>{t('attachments.removeError')}</p>
       )}
       {isLoading ? (
         <p className={historyHintCss}>{t('attachments.loading')}</p>
@@ -1089,20 +1103,30 @@ const TaskAttachments = ({ taskId }: { taskId: string }) => {
                   })}
                 </p>
               </div>
-              <a
-                href={attachment.url}
-                target="_blank"
-                rel="noreferrer"
-                className={css({
-                  color: 'primary.600',
-                  fontSize: '0.8125rem',
-                  fontWeight: '500',
-                  textDecoration: 'none',
-                  _hover: { textDecoration: 'underline' },
-                })}
-              >
-                {t('attachments.open')}
-              </a>
+              <div className={css({ display: 'flex', gap: '0.5rem' })}>
+                <a
+                  href={attachment.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={css({
+                    color: 'primary.600',
+                    fontSize: '0.8125rem',
+                    fontWeight: '500',
+                    textDecoration: 'none',
+                    _hover: { textDecoration: 'underline' },
+                  })}
+                >
+                  {t('attachments.open')}
+                </a>
+                <Button
+                  variant="danger"
+                  size="dense"
+                  isDisabled={deleteMutation.isPending}
+                  onPress={() => void removeAttachment(attachment.id)}
+                >
+                  {t('attachments.remove')}
+                </Button>
+              </div>
             </li>
           ))}
         </ul>
@@ -1365,6 +1389,12 @@ const taskActivityMessage = (
     return t('history.events.assignee_changed', {
       actor,
       assignee: target || '—',
+    })
+  }
+  if (activity.event === 'attachment_removed') {
+    return t('history.events.attachment_removed', {
+      actor,
+      filename: activity.changes.attachment?.filename || '—',
     })
   }
   return t(`history.events.${activity.event}`, { actor })

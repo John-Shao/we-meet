@@ -84,6 +84,9 @@
     "uploading": "上传中 {{progress}}%",
     "uploadError": "附件上传失败，请重试。",
     "open": "查看",
+    "remove": "删除",
+    "removeConfirm": "确定删除此附件吗？此操作不可恢复。",
+    "removeError": "附件删除失败，请重试。",
     "unknownSize": "未知大小",
     "meta": "{{name}} · {{size}} · {{date}}"
   },
@@ -96,6 +99,7 @@
     "error": "操作历史加载失败，请稍后重试。",
     "events": {
       "created": "{{actor}} 创建了任务",
+      "attachment_removed": "{{actor}} 删除了附件 {{filename}}",
       "content_changed": "{{actor}} 修改了任务内容",
       "dates_changed": "{{actor}} 调整了任务日期",
       "assignee_changed": "{{actor}} 将负责人转交给 {{assignee}}",

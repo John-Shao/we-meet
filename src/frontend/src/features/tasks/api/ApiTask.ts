@@ -35,6 +35,7 @@ export type TaskActivityEvent =
   | 'dates_changed'
   | 'assignee_changed'
   | 'status_changed'
+  | 'attachment_removed'
 
 export interface ApiTaskActivityUserSnapshot {
   id: string
@@ -60,6 +61,7 @@ export interface ApiTaskActivity {
           to: ApiTaskActivityUserSnapshot | null
         }
     status?: { from: TaskStatus; to: TaskStatus }
+    attachment?: { id: string; filename: string }
   }
   created_at: string
 }

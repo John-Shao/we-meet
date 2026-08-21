@@ -122,6 +122,28 @@ export const useCreateTaskAttachment = () => {
   })
 }
 
+const deleteTaskAttachment = (taskId: string, attachmentId: string) =>
+  fetchApi<void>(
+    `tasks/${encodeURIComponent(taskId)}/attachments/${encodeURIComponent(attachmentId)}/`,
+    { method: 'DELETE' }
+  )
+
+export const useDeleteTaskAttachment = () => {
+  const queryClient = useQueryClient()
+  return useMutation<void, ApiError, { taskId: string; attachmentId: string }>({
+    mutationFn: ({ taskId, attachmentId }) =>
+      deleteTaskAttachment(taskId, attachmentId),
+    onSuccess: (_result, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ['tasks', variables.taskId, 'attachments'],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['tasks', variables.taskId, 'activities'],
+      })
+    },
+  })
+}
+
 const createTask = (payload: CreateTaskPayload) =>
   fetchApi<ApiTask>('tasks/', {
     method: 'POST',

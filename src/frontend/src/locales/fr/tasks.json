@@ -84,6 +84,9 @@
     "uploading": "Envoi {{progress}} %",
     "uploadError": "Impossible d’envoyer la pièce jointe. Veuillez réessayer.",
     "open": "Voir",
+    "remove": "Supprimer",
+    "removeConfirm": "Supprimer cette pièce jointe ? Cette action est irréversible.",
+    "removeError": "La pièce jointe n’a pas pu être supprimée. Veuillez réessayer.",
     "unknownSize": "Taille inconnue",
     "meta": "{{name}} · {{size}} · {{date}}"
   },
@@ -96,6 +99,7 @@
     "error": "Impossible de charger l’historique. Veuillez réessayer.",
     "events": {
       "created": "{{actor}} a créé la tâche",
+      "attachment_removed": "{{actor}} a supprimé la pièce jointe {{filename}}",
       "content_changed": "{{actor}} a modifié le contenu de la tâche",
       "dates_changed": "{{actor}} a ajusté les dates de la tâche",
       "assignee_changed": "{{actor}} a réattribué la tâche à {{assignee}}",

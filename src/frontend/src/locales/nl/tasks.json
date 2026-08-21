@@ -84,6 +84,9 @@
     "uploading": "Uploaden {{progress}}%",
     "uploadError": "De bijlage kon niet worden geüpload. Probeer het opnieuw.",
     "open": "Bekijken",
+    "remove": "Verwijderen",
+    "removeConfirm": "Deze bijlage verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "removeError": "De bijlage kon niet worden verwijderd. Probeer het opnieuw.",
     "unknownSize": "Onbekende grootte",
     "meta": "{{name}} · {{size}} · {{date}}"
   },
@@ -96,6 +99,7 @@
     "error": "De activiteitengeschiedenis kon niet worden geladen.",
     "events": {
       "created": "{{actor}} heeft de taak gemaakt",
+      "attachment_removed": "{{actor}} heeft bijlage {{filename}} verwijderd",
       "content_changed": "{{actor}} heeft de taakinhoud bijgewerkt",
       "dates_changed": "{{actor}} heeft de taakdatums aangepast",
       "assignee_changed": "{{actor}} heeft de taak toegewezen aan {{assignee}}",

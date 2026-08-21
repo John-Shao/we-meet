@@ -26,6 +26,7 @@ from core.services.task_history import (
 )
 from core.services.task_notifications import record_task_assignment, record_task_comment
 from core.services.tasks import TaskAssigneeError, ensure_task_assignee_allowed
+from core.tasks.file import process_file_deletion
 
 
 class TaskAssigneeValidationMixin:
@@ -423,3 +424,37 @@ class TaskViewSet(
             status=302,
             headers={"Location": utils.generate_file_download_url(attachment.file)},
         )
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"attachments/(?P<attachment_id>[^/.]+)",
+    )
+    def attachment_remove(self, request, attachment_id=None, *args, **kwargs):
+        """Remove an attachment and queue deletion from its persisted bucket."""
+        task = self.get_object()
+        attachment = get_object_or_404(
+            task.attachments.select_related("file"),
+            id=attachment_id,
+            file__deleted_at__isnull=True,
+            file__hard_deleted_at__isnull=True,
+        )
+        attachment_id = attachment.id
+        file = attachment.file
+        with transaction.atomic():
+            attachment.delete()
+            file.soft_delete()
+            file.hard_delete()
+            models.TaskActivity.objects.create(
+                task=task,
+                actor=request.user,
+                event=models.TaskActivity.Event.ATTACHMENT_REMOVED,
+                changes={
+                    "attachment": {
+                        "id": str(attachment_id),
+                        "filename": file.filename,
+                    }
+                },
+            )
+            transaction.on_commit(lambda: process_file_deletion.delay(file.id))
+        return Response(status=204)

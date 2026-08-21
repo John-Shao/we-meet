@@ -2285,6 +2285,7 @@ class TaskActivity(BaseModel):
         DATES_CHANGED = "dates_changed", _("Dates changed")
         ASSIGNEE_CHANGED = "assignee_changed", _("Assignee changed")
         STATUS_CHANGED = "status_changed", _("Status changed")
+        ATTACHMENT_REMOVED = "attachment_removed", _("Attachment removed")
 
     task = models.ForeignKey(
         Task,

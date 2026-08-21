@@ -84,6 +84,9 @@
     "uploading": "Upload {{progress}} %",
     "uploadError": "Der Anhang konnte nicht hochgeladen werden. Bitte erneut versuchen.",
     "open": "Anzeigen",
+    "remove": "Entfernen",
+    "removeConfirm": "Diesen Anhang entfernen? Dies kann nicht rückgängig gemacht werden.",
+    "removeError": "Der Anhang konnte nicht entfernt werden. Bitte erneut versuchen.",
     "unknownSize": "Unbekannte Größe",
     "meta": "{{name}} · {{size}} · {{date}}"
   },
@@ -96,6 +99,7 @@
     "error": "Der Aktivitätsverlauf konnte nicht geladen werden.",
     "events": {
       "created": "{{actor}} hat die Aufgabe erstellt",
+      "attachment_removed": "{{actor}} hat den Anhang {{filename}} entfernt",
       "content_changed": "{{actor}} hat den Aufgabeninhalt geändert",
       "dates_changed": "{{actor}} hat die Aufgabendaten angepasst",
       "assignee_changed": "{{actor}} hat die Aufgabe {{assignee}} zugewiesen",
