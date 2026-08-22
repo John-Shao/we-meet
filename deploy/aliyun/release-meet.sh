@@ -208,12 +208,6 @@ fi
 helm "${helm_args[@]}"
 
 if contains_module backend; then
-  echo "==> Running database migrations"
-  kubectl -n "$NAMESPACE" exec "deployment/$RELEASE-backend" -- \
-    python manage.py migrate --no-input
-fi
-
-if contains_module backend; then
   wait_for_deployment "$RELEASE-backend"
   wait_for_deployment "$RELEASE-celery-backend"
 fi

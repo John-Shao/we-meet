@@ -428,7 +428,7 @@ sudo -E env KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
 > kubectl -n meet rollout restart deploy/meet-backend
 > ```
 
-> ⚠️ **migrate / createsuperuser 没自动跑**：chart 的 migrate Job 在 backend 因 DB 错连接失败后会 `BackoffLimitExceeded`，TTL 一过就清掉，helm upgrade 不会重新创建。**手动跑**：
+> ⚠️ **migrate / createsuperuser 没自动跑**：对于尚未包含 Helm hook 修复的旧 chart，migrate Job 在 backend 因 DB 错连接失败后会 `BackoffLimitExceeded`，TTL 一过就清掉，helm upgrade 不会重新创建。升级到包含该修复的 chart 后，两个 Job 会在每次 install/upgrade 前自动重建。旧版本可手动跑：
 > ```bash
 > POD=$(kubectl -n meet get pods -l app.kubernetes.io/component=backend --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
 > kubectl -n meet exec "$POD" -c meet -- python manage.py migrate --no-input
@@ -1062,7 +1062,7 @@ helm -n meet uninstall meet        # 旧机
 
 ### 14.6 全新部署（无旧数据可迁）
 
-如果新机器是全新部署（没有旧 PostgreSQL 数据要迁移），跳过 §14.3，但需额外跑 Django migrate 和 createsuperuser（因为 chart 的 migrate Job 在 DB 错连失败后不会自动重建）：
+如果新机器是全新部署（没有旧 PostgreSQL 数据要迁移），跳过 §14.3。当前 chart 会在 install/upgrade 前自动运行 Django migrate 和 createsuperuser；若使用不含 Helm hook 修复的旧 chart，才需额外手动运行：
 
 ```bash
 kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --noinput
