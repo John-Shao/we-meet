@@ -6,6 +6,53 @@
   "error": "De taakactie is mislukt. Probeer het opnieuw.",
   "meeting": "Vergadering",
   "sourceMeeting": "Bronvergadering: {{name}}",
+  "workspace": {
+    "navigation": "Taakweergaven",
+    "views": {
+      "assigned": "Aan mij toegewezen",
+      "created": "Door mij gemaakt",
+      "all": "Alle betrokken",
+      "completed": "Voltooid"
+    },
+    "mobileView": "Taakweergave",
+    "resultCount": "{{count}} taken",
+    "newTask": "Nieuwe taak",
+    "filters": "Taakfilters",
+    "statusFilter": "Status",
+    "statusOptions": { "open": "Open", "all": "Alle statussen" },
+    "clearFilters": "Filters wissen",
+    "manageLabels": "Labels beheren",
+    "columns": {
+      "status": "Status",
+      "title": "Taaktitel",
+      "assignee": "Verantwoordelijke",
+      "priority": "Prioriteit",
+      "startDate": "Startdatum",
+      "dueDate": "Deadline",
+      "labels": "Labels",
+      "creator": "Maker",
+      "updatedAt": "Bijgewerkt"
+    },
+    "openTask": "Taak openen: {{title}}",
+    "quickComplete": "Taak voltooien: {{title}}",
+    "quickReopen": "Taak heropenen: {{title}}",
+    "loadMore": "Meer laden",
+    "loadingMore": "Laden…",
+    "createTitle": "Nieuwe taak",
+    "details": "Taakdetails",
+    "detailError": "Deze taak kon niet worden geladen. De taak bestaat mogelijk niet meer of je hebt geen toegang.",
+    "detailSections": "Secties met taakdetails",
+    "emptyDescription": "Geen beschrijving",
+    "closePanel": "Taakpaneel sluiten",
+    "closeLabelManager": "Labelbeheer sluiten",
+    "tabs": {
+      "overview": "Details",
+      "subtasks": "Subtaken",
+      "comments": "Opmerkingen",
+      "attachments": "Bijlagen",
+      "history": "Geschiedenis"
+    }
+  },
   "form": {
     "title": "Taaktitel",
     "titlePlaceholder": "Wat moet er als volgende gebeuren",

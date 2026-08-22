@@ -1,0 +1,88 @@
+import type {
+  TaskPriorityFilter,
+  TaskScope,
+  TaskStatusFilter,
+  TaskTimeFilter,
+} from './api/ApiTask'
+
+export type TaskWorkspaceView = 'assigned' | 'created' | 'all' | 'completed'
+
+export interface TaskWorkspaceState {
+  scope: TaskScope
+  status: TaskStatusFilter
+  time: TaskTimeFilter
+  priority: TaskPriorityFilter
+  label: string
+  task?: string
+}
+
+export const taskViewPresets: Record<
+  TaskWorkspaceView,
+  Pick<TaskWorkspaceState, 'scope' | 'status'>
+> = {
+  assigned: { scope: 'assigned', status: 'open' },
+  created: { scope: 'created', status: 'open' },
+  all: { scope: 'all', status: 'open' },
+  completed: { scope: 'all', status: 'completed' },
+}
+
+const oneOf = <T extends string>(
+  value: string | null,
+  values: readonly T[],
+  fallback: T
+): T => (value && values.includes(value as T) ? (value as T) : fallback)
+
+export const parseTaskWorkspaceState = (
+  params: URLSearchParams
+): TaskWorkspaceState => ({
+  scope: oneOf(params.get('scope'), ['assigned', 'created', 'all'], 'assigned'),
+  status: oneOf(
+    params.get('status'),
+    ['open', 'all', 'todo', 'in_progress', 'completed', 'canceled'],
+    'open'
+  ),
+  time: oneOf(
+    params.get('time'),
+    ['all', 'starting_today', 'due_today', 'overdue'],
+    'all'
+  ),
+  priority: oneOf(
+    params.get('priority'),
+    ['all', 'none', 'low', 'medium', 'high', 'urgent'],
+    'all'
+  ),
+  label: params.get('label') || 'all',
+  task: params.get('task') || undefined,
+})
+
+export const stateForView = (
+  state: TaskWorkspaceState,
+  view: TaskWorkspaceView
+): TaskWorkspaceState => {
+  const preset = taskViewPresets[view]
+  return {
+    ...state,
+    ...preset,
+    time: preset.status === 'open' ? state.time : 'all',
+  }
+}
+
+export const stateWithStatus = (
+  state: TaskWorkspaceState,
+  status: TaskStatusFilter
+): TaskWorkspaceState => ({
+  ...state,
+  status,
+  time: status === 'completed' || status === 'canceled' ? 'all' : state.time,
+})
+
+export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
+  const params = new URLSearchParams()
+  params.set('scope', state.scope)
+  params.set('status', state.status)
+  params.set('time', state.time)
+  params.set('priority', state.priority)
+  params.set('label', state.label)
+  if (state.task) params.set('task', state.task)
+  return params.toString()
+}

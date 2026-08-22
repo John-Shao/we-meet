@@ -6,6 +6,53 @@
   "error": "Die Aufgabenaktion ist fehlgeschlagen. Bitte erneut versuchen.",
   "meeting": "Meeting",
   "sourceMeeting": "Quell-Meeting: {{name}}",
+  "workspace": {
+    "navigation": "Aufgabenansichten",
+    "views": {
+      "assigned": "Mir zugewiesen",
+      "created": "Von mir erstellt",
+      "all": "Alle zugehörigen",
+      "completed": "Abgeschlossen"
+    },
+    "mobileView": "Aufgabenansicht",
+    "resultCount": "{{count}} Aufgaben",
+    "newTask": "Neue Aufgabe",
+    "filters": "Aufgabenfilter",
+    "statusFilter": "Status",
+    "statusOptions": { "open": "Offen", "all": "Alle Status" },
+    "clearFilters": "Filter löschen",
+    "manageLabels": "Labels verwalten",
+    "columns": {
+      "status": "Status",
+      "title": "Aufgabentitel",
+      "assignee": "Verantwortlich",
+      "priority": "Priorität",
+      "startDate": "Startdatum",
+      "dueDate": "Fälligkeitsdatum",
+      "labels": "Labels",
+      "creator": "Erstellt von",
+      "updatedAt": "Aktualisiert"
+    },
+    "openTask": "Aufgabe öffnen: {{title}}",
+    "quickComplete": "Aufgabe abschließen: {{title}}",
+    "quickReopen": "Aufgabe erneut öffnen: {{title}}",
+    "loadMore": "Mehr laden",
+    "loadingMore": "Wird geladen…",
+    "createTitle": "Neue Aufgabe",
+    "details": "Aufgabendetails",
+    "detailError": "Diese Aufgabe konnte nicht geladen werden. Sie existiert möglicherweise nicht mehr oder du hast keinen Zugriff.",
+    "detailSections": "Bereiche der Aufgabendetails",
+    "emptyDescription": "Keine Beschreibung",
+    "closePanel": "Aufgabenbereich schließen",
+    "closeLabelManager": "Labelverwaltung schließen",
+    "tabs": {
+      "overview": "Details",
+      "subtasks": "Unteraufgaben",
+      "comments": "Kommentare",
+      "attachments": "Anhänge",
+      "history": "Verlauf"
+    }
+  },
   "form": {
     "title": "Aufgabentitel",
     "titlePlaceholder": "Was als Nächstes erledigt werden muss",

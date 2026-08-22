@@ -24,7 +24,13 @@ const colors: TaskLabelColor[] = [
   'purple',
 ]
 
-export const TaskLabelManager = ({ labels }: { labels: ApiTaskLabel[] }) => {
+export const TaskLabelManager = ({
+  labels,
+  standalone = false,
+}: {
+  labels: ApiTaskLabel[]
+  standalone?: boolean
+}) => {
   const { t } = useTranslation('tasks')
   const { confirm } = useConfirm()
   const createMutation = useCreateTaskLabel()
@@ -70,24 +76,8 @@ export const TaskLabelManager = ({ labels }: { labels: ApiTaskLabel[] }) => {
     if (accepted) deleteMutation.mutate(label.id)
   }
 
-  return (
-    <details
-      className={css({
-        border: '1px solid token(colors.greyscale.200)',
-        borderRadius: '10px',
-        padding: '0.75rem',
-        backgroundColor: 'greyscale.50',
-      })}
-    >
-      <summary
-        className={css({
-          cursor: 'pointer',
-          color: 'default.text',
-          fontWeight: '600',
-        })}
-      >
-        {t('labels.manage')}
-      </summary>
+  const content = (
+    <>
       <form
         onSubmit={(event) => void submitCreate(event)}
         className={css({
@@ -95,7 +85,7 @@ export const TaskLabelManager = ({ labels }: { labels: ApiTaskLabel[] }) => {
           gridTemplateColumns: { base: '1fr', sm: '2fr 1fr auto' },
           alignItems: 'end',
           gap: '0.5rem',
-          marginTop: '0.75rem',
+          marginTop: standalone ? 0 : '0.75rem',
         })}
       >
         <label className={fieldCss}>
@@ -213,6 +203,30 @@ export const TaskLabelManager = ({ labels }: { labels: ApiTaskLabel[] }) => {
           {t('labels.error')}
         </p>
       )}
+    </>
+  )
+
+  if (standalone) return <div>{content}</div>
+
+  return (
+    <details
+      className={css({
+        border: '1px solid token(colors.greyscale.200)',
+        borderRadius: '10px',
+        padding: '0.75rem',
+        backgroundColor: 'greyscale.50',
+      })}
+    >
+      <summary
+        className={css({
+          cursor: 'pointer',
+          color: 'default.text',
+          fontWeight: '600',
+        })}
+      >
+        {t('labels.manage')}
+      </summary>
+      {content}
     </details>
   )
 }

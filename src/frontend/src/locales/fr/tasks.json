@@ -6,6 +6,53 @@
   "error": "L’opération a échoué. Veuillez réessayer.",
   "meeting": "Réunion",
   "sourceMeeting": "Réunion source : {{name}}",
+  "workspace": {
+    "navigation": "Vues des tâches",
+    "views": {
+      "assigned": "Mes tâches",
+      "created": "Créées par moi",
+      "all": "Toutes associées",
+      "completed": "Terminées"
+    },
+    "mobileView": "Vue des tâches",
+    "resultCount": "{{count}} tâches",
+    "newTask": "Nouvelle tâche",
+    "filters": "Filtres des tâches",
+    "statusFilter": "Statut",
+    "statusOptions": { "open": "Ouvertes", "all": "Tous les statuts" },
+    "clearFilters": "Effacer les filtres",
+    "manageLabels": "Gérer les étiquettes",
+    "columns": {
+      "status": "Statut",
+      "title": "Titre",
+      "assignee": "Responsable",
+      "priority": "Priorité",
+      "startDate": "Date de début",
+      "dueDate": "Échéance",
+      "labels": "Étiquettes",
+      "creator": "Créateur",
+      "updatedAt": "Mise à jour"
+    },
+    "openTask": "Ouvrir la tâche : {{title}}",
+    "quickComplete": "Terminer la tâche : {{title}}",
+    "quickReopen": "Rouvrir la tâche : {{title}}",
+    "loadMore": "Charger plus",
+    "loadingMore": "Chargement…",
+    "createTitle": "Nouvelle tâche",
+    "details": "Détails de la tâche",
+    "detailError": "Impossible de charger cette tâche. Elle n’existe peut-être plus ou vous n’y avez plus accès.",
+    "detailSections": "Sections des détails de la tâche",
+    "emptyDescription": "Aucune description",
+    "closePanel": "Fermer le panneau de tâche",
+    "closeLabelManager": "Fermer la gestion des étiquettes",
+    "tabs": {
+      "overview": "Détails",
+      "subtasks": "Sous-tâches",
+      "comments": "Commentaires",
+      "attachments": "Pièces jointes",
+      "history": "Historique"
+    }
+  },
   "form": {
     "title": "Titre de la tâche",
     "titlePlaceholder": "Prochaine action à réaliser",

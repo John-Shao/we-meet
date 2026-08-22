@@ -1,9 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import type { Paginated } from '@/api/Paginated'
 import { createFile } from '@/features/files/api/createFile'
+import { toApiPath } from '@/features/contacts/api/fetchDirectoryMembers'
 
 import type {
   ApiTask,
@@ -15,34 +21,67 @@ import type {
   PatchTaskPayload,
   TaskScope,
   TaskPriorityFilter,
+  TaskStatusFilter,
   TaskTimeFilter,
   TaskLabelColor,
 } from './ApiTask'
 
 export const buildTasksUrl = (
   scope: TaskScope,
+  status: TaskStatusFilter,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
   label: string
 ) =>
-  `tasks/?scope=${scope}&time=${time}&priority=${priority}&label=${encodeURIComponent(label)}&page_size=100`
+  `tasks/?scope=${scope}&status=${status}&time=${time}&priority=${priority}&label=${encodeURIComponent(label)}&page_size=50`
 
 const fetchTasks = (
   scope: TaskScope,
+  status: TaskStatusFilter,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  label: string
-) => fetchApi<Paginated<ApiTask>>(buildTasksUrl(scope, time, priority, label))
+  label: string,
+  pageUrl?: string
+) =>
+  fetchApi<Paginated<ApiTask>>(
+    pageUrl
+      ? toApiPath(pageUrl)
+      : buildTasksUrl(scope, status, time, priority, label)
+  )
+
+export const getNextTasksPageParam = (lastPage: Paginated<ApiTask>) =>
+  lastPage.next ?? undefined
 
 export const useTasks = (
   scope: TaskScope,
+  status: TaskStatusFilter,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
   label: string
 ) =>
-  useQuery<Paginated<ApiTask>, ApiError>({
-    queryKey: ['tasks', scope, time, priority, label],
-    queryFn: () => fetchTasks(scope, time, priority, label),
+  useInfiniteQuery<Paginated<ApiTask>, ApiError>({
+    queryKey: ['tasks', scope, status, time, priority, label],
+    queryFn: ({ pageParam }) =>
+      fetchTasks(
+        scope,
+        status,
+        time,
+        priority,
+        label,
+        pageParam as string | undefined
+      ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: getNextTasksPageParam,
+  })
+
+const fetchTask = (taskId: string) =>
+  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/`)
+
+export const useTask = (taskId?: string) =>
+  useQuery<ApiTask, ApiError>({
+    queryKey: ['tasks', 'detail', taskId],
+    queryFn: () => fetchTask(taskId!),
+    enabled: Boolean(taskId),
   })
 
 const fetchTaskLabels = () => fetchApi<ApiTaskLabel[]>('task-labels/')
@@ -242,7 +281,10 @@ export const useCreateTask = () => {
   const queryClient = useQueryClient()
   return useMutation<ApiTask, ApiError, CreateTaskPayload>({
     mutationFn: createTask,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: (task) => {
+      queryClient.setQueryData(['tasks', 'detail', task.id], task)
+      return queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
   })
 }
 
@@ -260,7 +302,8 @@ export const useCreateTaskSubtask = () => {
     { taskId: string; payload: CreateTaskPayload }
   >({
     mutationFn: ({ taskId, payload }) => createTaskSubtask(taskId, payload),
-    onSuccess: (_task, variables) => {
+    onSuccess: (task, variables) => {
+      queryClient.setQueryData(['tasks', 'detail', task.id], task)
       void queryClient.invalidateQueries({ queryKey: ['tasks'] })
       void queryClient.invalidateQueries({
         queryKey: ['tasks', variables.taskId, 'subtasks'],
@@ -283,7 +326,8 @@ export const usePatchTask = () => {
     { taskId: string; patch: PatchTaskPayload }
   >({
     mutationFn: ({ taskId, patch }) => patchTask(taskId, patch),
-    onSuccess: (_task, variables) => {
+    onSuccess: (task, variables) => {
+      queryClient.setQueryData(['tasks', 'detail', task.id], task)
       void queryClient.invalidateQueries({ queryKey: ['tasks'] })
       void queryClient.invalidateQueries({
         queryKey: ['tasks', variables.taskId, 'activities'],

@@ -6,6 +6,53 @@
   "error": "任务操作失败，请稍后重试。",
   "meeting": "会议",
   "sourceMeeting": "来源会议：{{name}}",
+  "workspace": {
+    "navigation": "任务视图",
+    "views": {
+      "assigned": "我负责的",
+      "created": "我创建的",
+      "all": "全部相关",
+      "completed": "已完成"
+    },
+    "mobileView": "任务视图",
+    "resultCount": "{{count}} 个任务",
+    "newTask": "新建任务",
+    "filters": "任务筛选",
+    "statusFilter": "状态",
+    "statusOptions": { "open": "未关闭", "all": "全部状态" },
+    "clearFilters": "清除筛选",
+    "manageLabels": "标签管理",
+    "columns": {
+      "status": "状态",
+      "title": "任务标题",
+      "assignee": "负责人",
+      "priority": "优先级",
+      "startDate": "开始日期",
+      "dueDate": "截止日期",
+      "labels": "标签",
+      "creator": "创建人",
+      "updatedAt": "更新时间"
+    },
+    "openTask": "打开任务：{{title}}",
+    "quickComplete": "完成任务：{{title}}",
+    "quickReopen": "重新打开任务：{{title}}",
+    "loadMore": "加载更多",
+    "loadingMore": "正在加载…",
+    "createTitle": "新建任务",
+    "details": "任务详情",
+    "detailError": "无法加载该任务，任务可能不存在或你已没有访问权限。",
+    "detailSections": "任务详情分区",
+    "emptyDescription": "暂无任务说明",
+    "closePanel": "关闭任务面板",
+    "closeLabelManager": "关闭标签管理",
+    "tabs": {
+      "overview": "详情",
+      "subtasks": "子任务",
+      "comments": "评论",
+      "attachments": "附件",
+      "history": "历史"
+    }
+  },
   "form": {
     "title": "任务标题",
     "titlePlaceholder": "准备下一步要完成的工作",

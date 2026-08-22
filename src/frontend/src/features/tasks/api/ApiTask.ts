@@ -1,4 +1,5 @@
 export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'canceled'
+export type TaskStatusFilter = 'open' | 'all' | TaskStatus
 export type TaskPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 export type TaskPriorityFilter = 'all' | TaskPriority
 export type TaskTimeState = 'starting_today' | 'due_today' | 'overdue'

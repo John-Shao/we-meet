@@ -6,6 +6,53 @@
   "error": "The task operation failed. Please try again.",
   "meeting": "Meeting",
   "sourceMeeting": "Source meeting: {{name}}",
+  "workspace": {
+    "navigation": "Task views",
+    "views": {
+      "assigned": "Assigned to me",
+      "created": "Created by me",
+      "all": "All related",
+      "completed": "Completed"
+    },
+    "mobileView": "Task view",
+    "resultCount": "{{count}} tasks",
+    "newTask": "New task",
+    "filters": "Task filters",
+    "statusFilter": "Status",
+    "statusOptions": { "open": "Open", "all": "All statuses" },
+    "clearFilters": "Clear filters",
+    "manageLabels": "Manage labels",
+    "columns": {
+      "status": "Status",
+      "title": "Task title",
+      "assignee": "Assignee",
+      "priority": "Priority",
+      "startDate": "Start date",
+      "dueDate": "Due date",
+      "labels": "Labels",
+      "creator": "Creator",
+      "updatedAt": "Updated"
+    },
+    "openTask": "Open task: {{title}}",
+    "quickComplete": "Complete task: {{title}}",
+    "quickReopen": "Reopen task: {{title}}",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…",
+    "createTitle": "New task",
+    "details": "Task details",
+    "detailError": "This task could not be loaded. It may no longer exist or you may not have access.",
+    "detailSections": "Task detail sections",
+    "emptyDescription": "No description",
+    "closePanel": "Close task panel",
+    "closeLabelManager": "Close label manager",
+    "tabs": {
+      "overview": "Details",
+      "subtasks": "Subtasks",
+      "comments": "Comments",
+      "attachments": "Attachments",
+      "history": "History"
+    }
+  },
   "form": {
     "title": "Task title",
     "titlePlaceholder": "What needs to happen next",
