@@ -37,7 +37,11 @@ from core.services.task_notifications import (
     record_task_priority_change,
     record_task_status_change,
 )
-from core.services.task_time import TIME_FILTERS, annotate_assignee_local_date
+from core.services.task_time import (
+    TIME_FILTERS,
+    annotate_assignee_local_date,
+    local_date_for_user,
+)
 from core.services.tasks import TaskAssigneeError, ensure_task_assignee_allowed
 from core.tasks.file import process_file_deletion
 
@@ -335,6 +339,8 @@ class TaskCreateSerializer(
 
     def validate(self, attrs):
         attrs = self.validate_placement(attrs)
+        if attrs.get("start_date") is None:
+            attrs["start_date"] = local_date_for_user(self.context["request"].user)
         if (
             attrs.get("start_date")
             and attrs.get("due_date")

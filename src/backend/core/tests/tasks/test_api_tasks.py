@@ -324,6 +324,20 @@ def test_user_creates_personal_task_assigned_to_self():
     assert TaskImDelivery.objects.count() == 0
 
 
+def test_task_without_start_date_defaults_to_creator_current_date():
+    user = UserFactory(timezone="UTC")
+
+    response = _client(user).post(
+        TASKS_URL,
+        {"title": "Start today", "start_date": None},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["start_date"] == timezone.localdate().isoformat()
+    assert Task.objects.get().start_date == timezone.localdate()
+
+
 def test_task_priority_is_created_validated_and_serialized():
     user = UserFactory()
     client = _client(user)
