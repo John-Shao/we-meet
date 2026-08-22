@@ -23,8 +23,8 @@ export const menuRecipe = sva({
         },
       },
       '&[data-focused]': {
-        color: 'primary.text',
-        backgroundColor: 'primaryDark.100',
+        color: 'greyscale.900!',
+        backgroundColor: 'greyscale.100!',
         outline: 'none!',
       },
       '&[data-hovered]': {
@@ -36,17 +36,7 @@ export const menuRecipe = sva({
   },
   variants: {
     variant: {
-      light: {
-        item: {
-          '&[data-focused]': {
-            backgroundColor: 'primary.800',
-          },
-          '&[data-hovered]': {
-            color: 'greyscale.900!',
-            backgroundColor: 'greyscale.100!',
-          },
-        },
-      },
+      light: {},
       dark: {
         item: {
           color: 'white',
