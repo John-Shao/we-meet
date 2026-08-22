@@ -179,9 +179,15 @@ export const TaskDetailPanel = ({
               </TaskProperty>
               <TaskProperty
                 icon={<RiCalendarLine size={18} />}
-                label={`${t('meta.startDate')} / ${t('meta.dueDate')}`}
+                label={t('meta.startDate')}
               >
-                {formatDate(task.start_date)} — {formatDate(task.due_date)}
+                {formatDate(task.start_date)}
+              </TaskProperty>
+              <TaskProperty
+                icon={<RiCalendarLine size={18} />}
+                label={t('meta.dueDate')}
+              >
+                {formatDate(task.due_date)}
               </TaskProperty>
               <TaskProperty
                 icon={<RiFlagLine size={18} />}
