@@ -19,45 +19,33 @@ import type {
   ApiTaskUser,
   TaskPriority,
 } from '../api/ApiTask'
-import { useCreateTask, usePatchTask } from '../api/fetchTasks'
+import { useCreateTask } from '../api/fetchTasks'
 import { taskDisplayName } from '../taskUi'
 import { TaskLabelSelector } from './TaskLabelSelector'
 
 const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
 
 export const TaskForm = ({
-  mode,
-  task,
   labels,
   titleInputRef,
   onCancel,
   onSaved,
 }: {
-  mode: 'create' | 'edit'
-  task?: ApiTask
   labels: ApiTaskLabel[]
   titleInputRef?: RefObject<HTMLInputElement>
   onCancel: () => void
   onSaved: (task: ApiTask) => void
 }) => {
   const { t } = useTranslation('tasks')
-  const [title, setTitle] = useState(task?.title || '')
-  const [description, setDescription] = useState(task?.description || '')
-  const [assignee, setAssignee] = useState<ApiTaskUser | null>(
-    task?.assignee || null
-  )
-  const [priority, setPriority] = useState<TaskPriority>(
-    task?.priority || 'none'
-  )
-  const [labelIds, setLabelIds] = useState<string[]>(
-    task?.labels.map((label) => label.id) || []
-  )
-  const [startDate, setStartDate] = useState(task?.start_date || '')
-  const [dueDate, setDueDate] = useState(task?.due_date || '')
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [assignee, setAssignee] = useState<ApiTaskUser | null>(null)
+  const [priority, setPriority] = useState<TaskPriority>('none')
+  const [labelIds, setLabelIds] = useState<string[]>([])
+  const [startDate, setStartDate] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const createMutation = useCreateTask()
-  const patchMutation = usePatchTask()
-  const mutation = mode === 'create' ? createMutation : patchMutation
   const today = dateInputValue(new Date())
   const tomorrowDate = new Date()
   tomorrowDate.setDate(tomorrowDate.getDate() + 1)
@@ -77,13 +65,7 @@ export const TaskForm = ({
         start_date: startDate || null,
         due_date: dueDate || null,
       }
-      const saved =
-        mode === 'create'
-          ? await createMutation.mutateAsync(payload)
-          : await patchMutation.mutateAsync({
-              taskId: task!.id,
-              patch: payload,
-            })
+      const saved = await createMutation.mutateAsync(payload)
       onSaved(saved)
     } catch {
       // Preserve the draft so the user can correct it or retry.
@@ -108,268 +90,149 @@ export const TaskForm = ({
     />
   )
 
-  if (mode === 'create') {
-    return (
-      <form onSubmit={(event) => void submit(event)} className={createFormCss}>
-        <div className={createFormBodyCss}>
-          <label className="sr-only" htmlFor="new-task-title">
-            {t('form.title')}
-          </label>
-          <Input
-            id="new-task-title"
-            ref={titleInputRef}
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder={t('form.createTitlePlaceholder')}
-            maxLength={500}
-            required
-          />
-
-          <div className={createPropertyListCss}>
-            <div className={createPropertyRowCss}>
-              <RiUser3Line size={19} aria-hidden="true" />
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className={assigneeButtonCss}
-                onPress={() => setPickerOpen(true)}
-              >
-                {assignee ? taskDisplayName(assignee) : t('form.assigneeSelf')}
-              </Button>
-            </div>
-
-            <div className={createPropertyRowCss}>
-              <RiCalendarLine size={19} aria-hidden="true" />
-              <div className={dateControlsCss}>
-                <button
-                  type="button"
-                  className={
-                    dueDate === today ? dateChipSelectedCss : dateChipCss
-                  }
-                  onClick={() => setDueDate(today)}
-                >
-                  {t('form.today')}
-                </button>
-                <button
-                  type="button"
-                  className={
-                    dueDate === tomorrow ? dateChipSelectedCss : dateChipCss
-                  }
-                  onClick={() => setDueDate(tomorrow)}
-                >
-                  {t('form.tomorrow')}
-                </button>
-                <label className={datePickerCss}>
-                  <span className="sr-only">{t('form.dueDate')}</span>
-                  <Input
-                    type="date"
-                    value={dueDate}
-                    min={startDate || undefined}
-                    onChange={(event) => setDueDate(event.target.value)}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className={createPropertyRowCss}>
-              <RiFlagLine size={19} aria-hidden="true" />
-              <div className={createSelectCss}>
-                <Select
-                  label={<span className="sr-only">{t('form.priority')}</span>}
-                  aria-label={t('form.priority')}
-                  items={priorities.map((value) => ({
-                    value,
-                    label: t(`priorities.${value}`),
-                  }))}
-                  selectedKey={priority}
-                  onSelectionChange={(key) =>
-                    setPriority(String(key) as TaskPriority)
-                  }
-                />
-              </div>
-            </div>
-
-            {labels.length > 0 && (
-              <div className={createPropertyRowCss} data-align-start>
-                <RiPriceTag3Line size={19} aria-hidden="true" />
-                <TaskLabelSelector
-                  compact
-                  labels={labels}
-                  selectedIds={labelIds}
-                  onChange={setLabelIds}
-                />
-              </div>
-            )}
-
-            <label className={createPropertyRowCss} data-align-start>
-              <RiFileTextLine size={19} aria-hidden="true" />
-              <span className="sr-only">{t('form.description')}</span>
-              <TextArea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder={t('form.createDescriptionPlaceholder')}
-                rows={3}
-              />
-            </label>
-
-            <details className={startDateDisclosureCss}>
-              <summary>{t('form.startDate')}</summary>
-              <Input
-                type="date"
-                value={startDate}
-                max={dueDate || undefined}
-                onChange={(event) => setStartDate(event.target.value)}
-              />
-            </details>
-          </div>
-
-          {mutation.error && (
-            <p role="alert" className={errorCss}>
-              {t('error')}
-            </p>
-          )}
-        </div>
-        <div className={createActionsCss}>
-          <Button
-            type="button"
-            size="action"
-            variant="secondary"
-            onPress={onCancel}
-          >
-            {t('workspace.createCancel')}
-          </Button>
-          <Button
-            type="submit"
-            size="action"
-            loading={mutation.isPending}
-            isDisabled={!title.trim()}
-          >
-            {t('workspace.createSubmit')}
-          </Button>
-        </div>
-        {picker}
-      </form>
-    )
-  }
-
   return (
-    <form onSubmit={(event) => void submit(event)} className={formCss}>
-      <label className={fieldCss}>
-        {t('form.title')}
+    <form onSubmit={(event) => void submit(event)} className={createFormCss}>
+      <div className={createFormBodyCss}>
+        <label className="sr-only" htmlFor="new-task-title">
+          {t('form.title')}
+        </label>
         <Input
+          id="new-task-title"
           ref={titleInputRef}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder={t('form.titlePlaceholder')}
+          placeholder={t('form.createTitlePlaceholder')}
           maxLength={500}
           required
         />
-      </label>
-      <label className={fieldCss}>
-        {t('form.description')}
-        <TextArea
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          placeholder={t('form.descriptionPlaceholder')}
-          rows={5}
-        />
-      </label>
-      <label className={fieldCss}>
-        {t('form.assignee')}
+
+        <div className={createPropertyListCss}>
+          <div className={createPropertyRowCss}>
+            <RiUser3Line size={19} aria-hidden="true" />
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className={assigneeButtonCss}
+              onPress={() => setPickerOpen(true)}
+            >
+              {assignee ? taskDisplayName(assignee) : t('form.assigneeSelf')}
+            </Button>
+          </div>
+
+          <div className={createPropertyRowCss}>
+            <RiCalendarLine size={19} aria-hidden="true" />
+            <div className={dateControlsCss}>
+              <button
+                type="button"
+                className={
+                  dueDate === today ? dateChipSelectedCss : dateChipCss
+                }
+                onClick={() => setDueDate(today)}
+              >
+                {t('form.today')}
+              </button>
+              <button
+                type="button"
+                className={
+                  dueDate === tomorrow ? dateChipSelectedCss : dateChipCss
+                }
+                onClick={() => setDueDate(tomorrow)}
+              >
+                {t('form.tomorrow')}
+              </button>
+              <label className={datePickerCss}>
+                <span className="sr-only">{t('form.dueDate')}</span>
+                <Input
+                  type="date"
+                  value={dueDate}
+                  min={startDate || undefined}
+                  onChange={(event) => setDueDate(event.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className={createPropertyRowCss}>
+            <RiFlagLine size={19} aria-hidden="true" />
+            <div className={createSelectCss}>
+              <Select
+                label={<span className="sr-only">{t('form.priority')}</span>}
+                aria-label={t('form.priority')}
+                items={priorities.map((value) => ({
+                  value,
+                  label: t(`priorities.${value}`),
+                }))}
+                selectedKey={priority}
+                onSelectionChange={(key) =>
+                  setPriority(String(key) as TaskPriority)
+                }
+              />
+            </div>
+          </div>
+
+          {labels.length > 0 && (
+            <div className={createPropertyRowCss} data-align-start>
+              <RiPriceTag3Line size={19} aria-hidden="true" />
+              <TaskLabelSelector
+                compact
+                labels={labels}
+                selectedIds={labelIds}
+                onChange={setLabelIds}
+              />
+            </div>
+          )}
+
+          <label className={createPropertyRowCss} data-align-start>
+            <RiFileTextLine size={19} aria-hidden="true" />
+            <span className="sr-only">{t('form.description')}</span>
+            <TextArea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder={t('form.createDescriptionPlaceholder')}
+              rows={3}
+            />
+          </label>
+
+          <details className={startDateDisclosureCss}>
+            <summary>{t('form.startDate')}</summary>
+            <Input
+              type="date"
+              value={startDate}
+              max={dueDate || undefined}
+              onChange={(event) => setStartDate(event.target.value)}
+            />
+          </details>
+        </div>
+
+        {createMutation.error && (
+          <p role="alert" className={errorCss}>
+            {t('error')}
+          </p>
+        )}
+      </div>
+      <div className={createActionsCss}>
         <Button
           type="button"
+          size="action"
           variant="secondary"
-          className={css({ width: '100%', justifyContent: 'flex-start' })}
-          onPress={() => setPickerOpen(true)}
+          onPress={onCancel}
         >
-          {assignee ? taskDisplayName(assignee) : t('form.assigneeSelf')}
-        </Button>
-      </label>
-      <Select
-        label={t('form.priority')}
-        aria-label={t('form.priority')}
-        items={priorities.map((value) => ({
-          value,
-          label: t(`priorities.${value}`),
-        }))}
-        selectedKey={priority}
-        onSelectionChange={(key) => setPriority(String(key) as TaskPriority)}
-      />
-      <TaskLabelSelector
-        labels={labels}
-        selectedIds={labelIds}
-        onChange={setLabelIds}
-      />
-      <div className={twoColumnsCss}>
-        <label className={fieldCss}>
-          {t('form.startDate')}
-          <Input
-            type="date"
-            value={startDate}
-            max={dueDate || undefined}
-            onChange={(event) => setStartDate(event.target.value)}
-          />
-        </label>
-        <label className={fieldCss}>
-          {t('form.dueDate')}
-          <Input
-            type="date"
-            value={dueDate}
-            min={startDate || undefined}
-            onChange={(event) => setDueDate(event.target.value)}
-          />
-        </label>
-      </div>
-      {mutation.error && (
-        <p role="alert" className={errorCss}>
-          {t('error')}
-        </p>
-      )}
-      <div className={actionsCss}>
-        <Button type="button" variant="secondary" onPress={onCancel}>
-          {t('actions.cancelEdit')}
+          {t('workspace.createCancel')}
         </Button>
         <Button
           type="submit"
-          loading={mutation.isPending}
+          size="action"
+          loading={createMutation.isPending}
           isDisabled={!title.trim()}
         >
-          {t('actions.save')}
+          {t('workspace.createSubmit')}
         </Button>
       </div>
       {picker}
     </form>
   )
 }
-
-const formCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1rem',
-  padding: '1rem',
-})
-
-const fieldCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.375rem',
-  color: 'default.text',
-  fontSize: '0.875rem',
-})
-
-const twoColumnsCss = css({
-  display: 'grid',
-  gridTemplateColumns: { base: '1fr', sm: '1fr 1fr' },
-  gap: '0.75rem',
-})
-
-const actionsCss = css({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: '0.625rem',
-  paddingTop: '0.25rem',
-})
 const errorCss = css({ margin: 0, color: 'danger.subtle-text' })
 
 const dateInputValue = (date: Date) =>

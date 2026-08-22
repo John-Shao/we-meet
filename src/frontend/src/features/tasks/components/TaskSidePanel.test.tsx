@@ -1,8 +1,13 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiTask } from '../api/ApiTask'
 import { TaskDetailPanel } from './TaskSidePanel'
+
+const { mutate, mutateAsync } = vi.hoisted(() => ({
+  mutate: vi.fn(),
+  mutateAsync: vi.fn().mockResolvedValue(undefined),
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -13,7 +18,12 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../api/fetchTasks', () => ({
   useTask: () => ({ data: undefined, isLoading: false, error: null }),
-  usePatchTask: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  usePatchTask: () => ({
+    mutate,
+    mutateAsync,
+    isPending: false,
+    error: null,
+  }),
 }))
 
 vi.mock('./TaskCollaborationSections', () => ({
@@ -49,6 +59,11 @@ const task: ApiTask = {
 }
 
 describe('TaskDetailPanel', () => {
+  beforeEach(() => {
+    mutate.mockClear()
+    mutateAsync.mockClear()
+  })
+
   it('renders start and due dates as separate properties', () => {
     render(
       <TaskDetailPanel
@@ -69,5 +84,55 @@ describe('TaskDetailPanel', () => {
     expect(
       screen.queryByText('meta.startDate / meta.dueDate')
     ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /^actions\.edit / })
+    ).not.toBeInTheDocument()
+  })
+
+  it('edits each creator-managed field inline without a global edit page', async () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{ ...task, can_edit: true }}
+        labels={[]}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'actions.edit' })
+    ).not.toBeInTheDocument()
+    const editableFields = [
+      'form.title',
+      'meta.assignee',
+      'meta.startDate',
+      'meta.dueDate',
+      'form.priority',
+      'labels.field',
+      'form.description',
+    ]
+    editableFields.forEach((field) => {
+      expect(
+        screen.getByRole('button', { name: `actions.edit ${field}` })
+      ).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByRole('button', { name: 'actions.edit meta.creator' })
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'actions.edit form.title' })
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'form.title' }), {
+      target: { value: 'Ship release' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'actions.save' }))
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: task.id,
+        patch: { title: 'Ship release' },
+      })
+    )
   })
 })
