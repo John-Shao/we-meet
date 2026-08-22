@@ -525,7 +525,7 @@ const useIsNarrow = () => {
 
 const workspaceCss = css({
   width: '100%',
-  height: 'calc(100dvh - 64px)',
+  height: '100%',
   minHeight: 0,
   display: 'flex',
   overflow: 'hidden',
