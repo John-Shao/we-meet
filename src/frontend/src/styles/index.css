@@ -160,6 +160,22 @@ select {
 select option {
   background-color: var(--colors-greyscale-000);
   color: var(--colors-greyscale-900);
+  font: inherit;
+  font-size: var(--font-sizes-14);
+  padding: 0.125rem 0.5rem 0.125rem 1.5rem;
+}
+
+/*
+ * 与任务清单颜色 Select 的 menuRecipe 对齐。原生下拉的弹出层由浏览器绘制，
+ * 因而不同平台对 option 的 padding / checked 样式支持程度不一；这些规则为
+ * 支持的浏览器提供相同的深蓝背景、白字和文本边距，未支持的平台仍由
+ * color-scheme 交给系统绘制，从而保持可读性。
+ */
+select option:checked,
+select option:focus,
+select option:hover {
+  background-color: var(--colors-primary-800);
+  color: var(--colors-primary-text);
 }
 
 @media (prefers-reduced-motion: reduce) {
