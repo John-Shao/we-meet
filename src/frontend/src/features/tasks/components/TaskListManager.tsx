@@ -23,9 +23,11 @@ const colors: TaskLabelColor[] = [
 export const TaskListManager = ({
   taskLists,
   onCreated,
+  onCancel,
 }: {
   taskLists: ApiTaskList[]
   onCreated?: (taskList: ApiTaskList) => void
+  onCancel: () => void
 }) => {
   const { t } = useTranslation('tasks')
   const { confirm } = useConfirm()
@@ -66,11 +68,16 @@ export const TaskListManager = ({
   return (
     <div className={managerCss}>
       <form className={formCss} onSubmit={(event) => void submit(event)}>
+        <div className={formHeadingCss}>
+          <h3>{t('taskLists.create')}</h3>
+          <p>{t('taskLists.createHint')}</p>
+        </div>
         <label className={fieldCss}>
           {t('taskLists.name')}
           <Input
             value={name}
             maxLength={80}
+            placeholder={t('taskLists.namePlaceholder')}
             onChange={(event) => setName(event.target.value)}
           />
         </label>
@@ -79,71 +86,83 @@ export const TaskListManager = ({
           <TextArea
             value={description}
             rows={2}
+            placeholder={t('taskLists.descriptionPlaceholder')}
             onChange={(event) => setDescription(event.target.value)}
           />
         </label>
+        <Select
+          label={t('labels.color')}
+          aria-label={t('labels.color')}
+          items={colors.map((value) => ({
+            value,
+            label: t(`labels.colors.${value}`),
+          }))}
+          selectedKey={color}
+          onSelectionChange={(key) => setColor(String(key) as TaskLabelColor)}
+        />
+        {createMutation.error && (
+          <p role="alert" className={errorCss}>
+            {t('taskLists.error')}
+          </p>
+        )}
         <div className={formActionsCss}>
-          <Select
-            label={t('labels.color')}
-            aria-label={t('labels.color')}
-            items={colors.map((value) => ({
-              value,
-              label: t(`labels.colors.${value}`),
-            }))}
-            selectedKey={color}
-            onSelectionChange={(key) =>
-              setColor(String(key) as TaskLabelColor)
-            }
-          />
+          <Button
+            type="button"
+            size="action"
+            variant="secondary"
+            onPress={onCancel}
+          >
+            {t('workspace.createCancel')}
+          </Button>
           <Button
             type="submit"
-            size="dense"
+            size="action"
             loading={createMutation.isPending}
             isDisabled={!name.trim()}
           >
             {t('taskLists.create')}
           </Button>
         </div>
-        {createMutation.error && (
-          <p role="alert" className={errorCss}>
-            {t('taskLists.error')}
-          </p>
-        )}
       </form>
 
-      <ul className={listCss}>
-        {taskLists.map((taskList) => (
-          <li key={taskList.id}>
-            <RiListCheck
-              size={19}
-              data-color={taskList.color}
-              className={iconCss}
-            />
-            <div>
-              <strong>{taskList.name}</strong>
-              <span>
-                {t('taskLists.taskCount', { count: taskList.task_count })}
-              </span>
-            </div>
-            {taskList.can_manage && (
-              <Button
-                variant="quaternaryDanger"
-                size="icon28"
-                aria-label={t('taskLists.deleteNamed', {
-                  name: taskList.name,
-                })}
-                loading={
-                  deleteMutation.isPending &&
-                  deleteMutation.variables === taskList.id
-                }
-                onPress={() => void remove(taskList)}
-              >
-                <RiDeleteBinLine size={16} />
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
+      {taskLists.length > 0 && (
+        <section className={existingListsCss}>
+          <h3>{t('taskLists.title')}</h3>
+          <ul className={listCss}>
+            {taskLists.map((taskList) => (
+              <li key={taskList.id}>
+                <RiListCheck
+                  size={19}
+                  data-color={taskList.color}
+                  className={iconCss}
+                />
+                <div>
+                  <strong>{taskList.name}</strong>
+                  <span>
+                    {t('taskLists.taskCount', { count: taskList.task_count })}
+                  </span>
+                </div>
+                {taskList.can_manage && (
+                  <Button
+                    variant="quaternaryDanger"
+                    size="icon28"
+                    aria-label={t('taskLists.deleteNamed', {
+                      name: taskList.name,
+                    })}
+                    loading={
+                      deleteMutation.isPending &&
+                      deleteMutation.variables === taskList.id
+                    }
+                    onPress={() => void remove(taskList)}
+                  >
+                    <RiDeleteBinLine size={16} />
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   )
 }
@@ -152,16 +171,26 @@ const managerCss = css({
   minHeight: 0,
   display: 'flex',
   flexDirection: 'column',
-  gap: '1rem',
-  padding: '1rem',
+  gap: '1.25rem',
+  padding: '1.25rem',
   overflowY: 'auto',
   fontSize: '0.8125rem',
 })
 const formCss = css({
-  display: 'grid',
-  gridTemplateColumns: { base: '1fr', md: '1fr 1.5fr auto' },
-  alignItems: 'end',
-  gap: '0.75rem',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '1rem',
+  padding: '1.25rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '0.75rem',
+  backgroundColor: 'greyscale.050',
+})
+const formHeadingCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+  '& h3': { margin: 0, color: 'default.text', fontSize: '0.9375rem' },
+  '& p': { margin: 0, color: 'default.subtle-text', fontSize: '0.75rem' },
 })
 const fieldCss = css({
   display: 'flex',
@@ -172,8 +201,15 @@ const fieldCss = css({
 })
 const formActionsCss = css({
   display: 'flex',
-  alignItems: 'end',
+  justifyContent: 'flex-end',
   gap: '0.5rem',
+  paddingTop: '0.25rem',
+})
+const existingListsCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.625rem',
+  '& > h3': { margin: 0, color: 'default.text', fontSize: '0.875rem' },
 })
 const listCss = css({
   display: 'flex',

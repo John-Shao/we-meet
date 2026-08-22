@@ -408,6 +408,7 @@ const TasksAuthenticated = () => {
           </div>
           <TaskListManager
             taskLists={taskLists}
+            onCancel={() => setTaskListManagerOpen(false)}
             onCreated={(taskList) => {
               setTaskListManagerOpen(false)
               changeTaskList(taskList.id)
