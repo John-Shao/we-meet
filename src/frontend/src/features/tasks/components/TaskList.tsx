@@ -9,7 +9,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { RiArrowDownSLine, RiArrowRightSLine } from '@remixicon/react'
 
-import { Button, Menu, MenuList } from '@/primitives'
+import { Menu, MenuList } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 import type { ApiTask, ApiTaskGroup } from '../api/ApiTask'
@@ -685,11 +685,12 @@ const GroupMoreMenu = ({
   const { t } = useTranslation('tasks')
   return (
     <Menu placement="bottom">
-      <Button className={groupMoreButtonCss} size="dense" variant="tertiary">
+      <button type="button" className={groupCreateTaskCss}>
         {t('groups.more')}
-      </Button>
+      </button>
       <MenuList
         aria-label={t('groups.more')}
+        className={groupMoreMenuCss}
         items={[
           { value: 'rename', label: t('groups.rename') },
           {
@@ -790,10 +791,12 @@ const groupCreateTaskCss = css({
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.100' },
 })
-const groupMoreButtonCss = css({
-  paddingX: '0.5rem!',
-  color: 'greyscale.700!',
-  fontSize: '0.75rem!',
+const groupMoreMenuCss = css({
+  '& [role="menuitem"]': {
+    paddingY: '0.25rem',
+    fontSize: '0.75rem',
+    lineHeight: '1rem',
+  },
 })
 const subtaskStateRowCss = css({
   color: 'default.subtle-text',

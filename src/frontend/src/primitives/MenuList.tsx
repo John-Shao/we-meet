@@ -3,6 +3,7 @@ import { Menu, MenuProps, MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { VisuallyHidden } from '@/styled-system/jsx'
 import { menuRecipe } from '@/primitives/menuRecipe.ts'
+import { cx } from '@/styled-system/css'
 import type { RecipeVariantProps } from '@/styled-system/types'
 
 type MenuListItem<T extends string | number> =
@@ -24,6 +25,7 @@ export const MenuList = <T extends string | number = string>({
   items: MenuListItem<T>[]
 } & MenuProps<unknown> &
   RecipeVariantProps<typeof menuRecipe>) => {
+  const { className, ...remainingMenuProps } = menuProps
   const [variantProps] = menuRecipe.splitVariantProps(menuProps)
   const { t } = useTranslation('global')
   const classes = menuRecipe({
@@ -38,8 +40,8 @@ export const MenuList = <T extends string | number = string>({
       disabledKeys={items.flatMap((item) =>
         typeof item !== 'string' && item.isDisabled ? [item.value] : []
       )}
-      className={classes.root}
-      {...menuProps}
+      className={cx(classes.root, className)}
+      {...remainingMenuProps}
     >
       {items.map((item) => {
         const value = typeof item === 'string' ? item : item.value
