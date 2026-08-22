@@ -68,10 +68,6 @@ export const TaskListManager = ({
   return (
     <div className={managerCss}>
       <form className={formCss} onSubmit={(event) => void submit(event)}>
-        <div className={formHeadingCss}>
-          <h3>{t('taskLists.create')}</h3>
-          <p>{t('taskLists.createHint')}</p>
-        </div>
         <label className={fieldCss}>
           {t('taskLists.name')}
           <Input
@@ -120,7 +116,7 @@ export const TaskListManager = ({
             loading={createMutation.isPending}
             isDisabled={!name.trim()}
           >
-            {t('taskLists.create')}
+            {t('workspace.createSubmit')}
           </Button>
         </div>
       </form>
@@ -172,25 +168,14 @@ const managerCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '1.25rem',
-  padding: '1.25rem',
+  padding: '1rem',
   overflowY: 'auto',
-  fontSize: '0.8125rem',
+  fontSize: '0.875rem',
 })
 const formCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '1rem',
-  padding: '1.25rem',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '0.75rem',
-  backgroundColor: 'greyscale.050',
-})
-const formHeadingCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.25rem',
-  '& h3': { margin: 0, color: 'default.text', fontSize: '0.9375rem' },
-  '& p': { margin: 0, color: 'default.subtle-text', fontSize: '0.75rem' },
+  gap: '0.875rem',
 })
 const fieldCss = css({
   display: 'flex',

@@ -395,12 +395,12 @@ const TasksAuthenticated = () => {
       )}
       {taskListManagerOpen && (
         <Modal
-          ariaLabel={t('taskLists.manage')}
+          ariaLabel={t('taskLists.create')}
           onClose={() => setTaskListManagerOpen(false)}
-          maxWidth="760px"
+          maxWidth="560px"
         >
           <div className={modalHeaderCss}>
-            <h2 className={modalTitleCss}>{t('taskLists.manage')}</h2>
+            <h2 className={modalTitleCss}>{t('taskLists.create')}</h2>
             <ModalCloseButton
               label={t('taskLists.closeManager')}
               onClose={() => setTaskListManagerOpen(false)}
