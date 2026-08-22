@@ -60,7 +60,6 @@ export const TaskFilterToolbar = ({
     <div className={toolbarCss} aria-label={t('workspace.filters')}>
       <Select
         className={filterSelectCss}
-        menuClassName={filterMenuCss}
         label={t('workspace.statusFilter')}
         aria-label={t('workspace.statusFilter')}
         items={statusFilters.map((value) => ({
@@ -77,7 +76,6 @@ export const TaskFilterToolbar = ({
       />
       <Select
         className={filterSelectCss}
-        menuClassName={filterMenuCss}
         label={t('timeFilters.label')}
         aria-label={t('timeFilters.label')}
         items={timeFilters.map((value) => ({
@@ -90,7 +88,6 @@ export const TaskFilterToolbar = ({
       />
       <Select
         className={filterSelectCss}
-        menuClassName={filterMenuCss}
         label={t('priorityFilters.label')}
         aria-label={t('priorityFilters.label')}
         items={priorityFilters.map((value) => ({
@@ -104,7 +101,6 @@ export const TaskFilterToolbar = ({
       />
       <Select
         className={filterSelectCss}
-        menuClassName={filterMenuCss}
         label={t('labels.filter')}
         aria-label={t('labels.filter')}
         items={[
@@ -144,33 +140,6 @@ const filterSelectCss = css({
   flexDirection: 'column',
   gap: '0.25rem',
   minWidth: { base: 'calc(50% - 0.25rem)', sm: '8rem' },
-  fontSize: '0.8125rem',
-  '& button': {
-    height: 'control.md',
-    minHeight: 'control.md',
-    paddingBlock: 0,
-    paddingX: '0.625rem',
-    border: '1px solid token(colors.greyscale.300)',
-    borderRadius: 4,
-    boxShadow: 'none',
-    fontSize: '0.8125rem',
-  },
-})
-const filterMenuCss = css({
-  fontSize: '0.8125rem',
-  '& [role="option"]': {
-    minHeight: 'control.md',
-    paddingY: '0.25rem',
-    fontSize: '0.8125rem',
-  },
-  '& [data-selected]': {
-    color: 'greyscale.900!',
-    backgroundColor: 'greyscale.100!',
-  },
-  '& [data-focused], & [data-hovered]': {
-    color: 'greyscale.900!',
-    backgroundColor: 'greyscale.200!',
-  },
 })
 const toolbarActionsCss = css({
   display: 'flex',

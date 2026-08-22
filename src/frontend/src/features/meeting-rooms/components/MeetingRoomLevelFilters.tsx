@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { selectChrome } from '@/primitives/selectChrome'
-import { css, cx } from '@/styled-system/css'
+import { Select } from '@/primitives/Select'
+import { css } from '@/styled-system/css'
 
 import {
   MEETING_ROOM_LEVEL_TYPES,
@@ -38,30 +38,31 @@ export const MeetingRoomLevelFilters = ({
         )
 
         return (
-          <select
+          <Select
             key={levelType}
-            className={cx(selectChrome, selectCls)}
-            value={selection[levelType] ?? ''}
-            disabled={!enabled}
+            className={selectCls}
+            selectedKey={selection[levelType] ?? ''}
+            isDisabled={!enabled}
             aria-label={t(`filters.levelTypes.${levelType}`)}
             data-testid={`mr-filter-level-${levelType}`}
-            onChange={(event) => {
-              const nodeId = event.target.value
+            onSelectionChange={(key) => {
+              const nodeId = String(key)
               if (nodeId) onChange(nodeId)
               else onChange(index === 0 ? null : (parentId ?? null))
             }}
-          >
-            <option value="">
-              {t('filters.levelAllOf', {
-                level: t(`filters.levelTypes.${levelType}`),
-              })}
-            </option>
-            {options.map((node) => (
-              <option key={node.id} value={node.id}>
-                {node.name}
-              </option>
-            ))}
-          </select>
+            items={[
+              {
+                value: '',
+                label: t('filters.levelAllOf', {
+                  level: t(`filters.levelTypes.${levelType}`),
+                }),
+              },
+              ...options.map((node) => ({
+                value: node.id,
+                label: node.name,
+              })),
+            ]}
+          />
         )
       })}
     </div>
@@ -81,7 +82,4 @@ const cascadeCls = css({
 const selectCls = css({
   minWidth: '7.25rem',
   maxWidth: '11rem',
-  fontSize: '0.8125rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: 4,
 })

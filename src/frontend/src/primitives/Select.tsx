@@ -121,7 +121,8 @@ export type SelectProps<T> = Omit<
   'items' | 'label' | 'errors'
 > & {
   iconComponent?: RemixiconComponentType
-  label: ReactNode
+  /** Visual label. Omit it for compact filter controls that use aria-label. */
+  label?: ReactNode
   items: Array<{ value: T; label: ReactNode }>
   errors?: ReactNode
   placement?: Placement

@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
-import { css, cx } from '@/styled-system/css'
-import { selectChrome } from '@/primitives/selectChrome'
+import { Select } from '@/primitives/Select'
+import { css } from '@/styled-system/css'
 
 import type { RoomFilters } from '../api/ApiMeetingRoom'
 import {
@@ -66,20 +66,22 @@ export const MeetingRoomFilters = ({
       )}
 
       {compact ? (
-        <select
-          className={cx(selectChrome, selectCls)}
-          value={value.node ?? ''}
-          onChange={(e) => onChange({ ...value, node: e.target.value || null })}
+        <Select
+          className={selectCls}
+          selectedKey={value.node ?? ''}
+          onSelectionChange={(key) =>
+            onChange({ ...value, node: String(key) || null })
+          }
           aria-label={t('filters.level')}
           data-testid="mr-filter-level"
-        >
-          <option value="">{t('filters.levelAll')}</option>
-          {flattenTree(nodes).map(({ node, indent }) => (
-            <option key={node.id} value={node.id}>
-              {`${indent}${node.name}`}
-            </option>
-          ))}
-        </select>
+          items={[
+            { value: '', label: t('filters.levelAll') },
+            ...flattenTree(nodes).map(({ node, indent }) => ({
+              value: node.id,
+              label: `${indent}${node.name}`,
+            })),
+          ]}
+        />
       ) : (
         <MeetingRoomLevelFilters
           nodes={nodes}
@@ -88,25 +90,25 @@ export const MeetingRoomFilters = ({
         />
       )}
 
-      <select
-        className={cx(selectChrome, selectCls)}
-        value={value.capacityMin ?? ''}
-        onChange={(e) =>
+      <Select
+        className={selectCls}
+        selectedKey={String(value.capacityMin ?? '')}
+        onSelectionChange={(key) =>
           onChange({
             ...value,
-            capacityMin: e.target.value ? Number(e.target.value) : null,
+            capacityMin: key ? Number(key) : null,
           })
         }
         aria-label={t('filters.capacity')}
         data-testid="mr-filter-capacity"
-      >
-        <option value="">{t('filters.capacityAny')}</option>
-        {CAPACITY_STEPS.map((n) => (
-          <option key={n} value={n}>
-            {t('filters.capacityAtLeast', { count: n })}
-          </option>
-        ))}
-      </select>
+        items={[
+          { value: '', label: t('filters.capacityAny') },
+          ...CAPACITY_STEPS.map((n) => ({
+            value: String(n),
+            label: t('filters.capacityAtLeast', { count: n }),
+          })),
+        ]}
+      />
 
       {facilities.length > 0 && (
         <div className={facilityRowCls}>
@@ -163,10 +165,7 @@ const rowCls = css({
  * styles/index.css 的统一焦点描边)得有一条边框可染,没有边框就只剩一圈悬空光环。
  */
 const selectCls = css({
-  fontSize: '0.8125rem',
   minWidth: '8rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: 4,
 })
 /**
  * 搜索框。
