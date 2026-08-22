@@ -18,8 +18,7 @@ import { css } from '@/styled-system/css'
 
 import type { ApiTask, ApiTaskGroup } from '../api/ApiTask'
 import { usePatchTask, useTaskSubtasks } from '../api/fetchTasks'
-import { quickTaskStatus, taskDisplayName } from '../taskUi'
-import { TaskLabelBadge } from './TaskLabelBadge'
+import { taskDisplayName } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 
 type ListProps = {
@@ -40,8 +39,6 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
   t: TFunction<'tasks'>
   formatDate: (value: string | null) => string
   formatDateTime: (value: string) => string
-  quickStatusPending: boolean
-  onQuickStatus: (task: ApiTask) => void
 }
 
 export const TaskList = ({
@@ -90,12 +87,6 @@ export const TaskList = ({
       timeStyle: 'short',
     }).format(new Date(value))
 
-  const updateQuickStatus = (task: ApiTask) => {
-    const status = quickTaskStatus(task)
-    if (!status) return
-    patchMutation.mutate({ taskId: task.id, patch: { status } })
-  }
-
   const moveToGroup = (taskId: string, groupId?: string) => {
     patchMutation.mutate({
       taskId,
@@ -110,8 +101,6 @@ export const TaskList = ({
     t,
     formatDate,
     formatDateTime,
-    quickStatusPending: patchMutation.isPending,
-    onQuickStatus: updateQuickStatus,
   }
 
   return (
@@ -119,7 +108,6 @@ export const TaskList = ({
       <table className={tableCss}>
         <thead>
           <tr>
-            <th className={statusColumnCss}>{t('workspace.columns.status')}</th>
             <th>{t('workspace.columns.title')}</th>
             <th>{t('workspace.columns.assignee')}</th>
             <th>{t('workspace.columns.priority')}</th>
@@ -127,7 +115,7 @@ export const TaskList = ({
               {t('workspace.columns.startDate')}
             </th>
             <th>{t('workspace.columns.dueDate')}</th>
-            <th>{t('workspace.columns.labels')}</th>
+            <th>{t('workspace.columns.status')}</th>
             <th className={secondaryColumnCss}>
               {t('workspace.columns.creator')}
             </th>
@@ -216,12 +204,12 @@ const DesktopTaskGroup = (props: GroupProps) => {
       />
       {expanded && subtasks.isLoading && (
         <tr className={subtaskStateRowCss}>
-          <td colSpan={9}>{t('subtasks.loading')}</td>
+          <td colSpan={8}>{t('subtasks.loading')}</td>
         </tr>
       )}
       {expanded && subtasks.error && (
         <tr className={subtaskStateRowCss}>
-          <td colSpan={9}>{t('subtasks.error')}</td>
+          <td colSpan={8}>{t('subtasks.error')}</td>
         </tr>
       )}
       {expanded &&
@@ -245,8 +233,6 @@ const DesktopTaskRow = ({
   t,
   formatDate,
   formatDateTime,
-  quickStatusPending,
-  onQuickStatus,
   isSubtask = false,
   expandable = false,
   expanded = false,
@@ -269,14 +255,6 @@ const DesktopTaskRow = ({
     onClick={() => onOpen(task)}
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
-    <td className={statusColumnCss}>
-      <StatusButton
-        task={task}
-        pending={quickStatusPending}
-        onQuickStatus={onQuickStatus}
-        t={t}
-      />
-    </td>
     <td>
       <TaskTitle
         task={task}
@@ -297,9 +275,7 @@ const DesktopTaskRow = ({
     >
       {formatDate(task.due_date)}
     </td>
-    <td>
-      <TaskLabels task={task} />
-    </td>
+    <td>{t(`statuses.${task.status}`)}</td>
     <td className={secondaryColumnCss}>{taskDisplayName(task.creator)}</td>
     <td className={wideColumnCss}>{formatDateTime(task.updated_at)}</td>
   </tr>
@@ -343,8 +319,6 @@ const MobileTaskCard = ({
   registerRow,
   t,
   formatDate,
-  quickStatusPending,
-  onQuickStatus,
   isSubtask = false,
   expandable = false,
   expanded = false,
@@ -369,12 +343,6 @@ const MobileTaskCard = ({
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
     <div className={mobileTitleRowCss}>
-      <StatusButton
-        task={task}
-        pending={quickStatusPending}
-        onQuickStatus={onQuickStatus}
-        t={t}
-      />
       <TaskTitle
         task={task}
         isSubtask={isSubtask}
@@ -386,6 +354,10 @@ const MobileTaskCard = ({
     </div>
     <dl className={mobileMetaCss}>
       <div>
+        <dt>{t('workspace.columns.status')}</dt>
+        <dd>{t(`statuses.${task.status}`)}</dd>
+      </div>
+      <div>
         <dt>{t('workspace.columns.assignee')}</dt>
         <dd>{taskDisplayName(task.assignee)}</dd>
       </div>
@@ -396,42 +368,8 @@ const MobileTaskCard = ({
         </dd>
       </div>
     </dl>
-    <TaskLabels task={task} />
   </div>
 )
-
-const StatusButton = ({
-  task,
-  pending,
-  onQuickStatus,
-  t,
-}: {
-  task: ApiTask
-  pending: boolean
-  onQuickStatus: (task: ApiTask) => void
-  t: TFunction<'tasks'>
-}) => {
-  const quickStatus = quickTaskStatus(task)
-  return (
-    <button
-      type="button"
-      className={statusButtonCss}
-      data-complete={task.status === 'completed' || undefined}
-      disabled={!quickStatus || pending}
-      aria-label={
-        quickStatus === 'completed'
-          ? t('workspace.quickComplete', { title: task.title })
-          : t('workspace.quickReopen', { title: task.title })
-      }
-      onClick={(event) => {
-        event.stopPropagation()
-        onQuickStatus(task)
-      }}
-    >
-      {task.status === 'completed' ? '\u2713' : ''}
-    </button>
-  )
-}
 
 const TaskTitle = ({
   task,
@@ -479,30 +417,21 @@ const TaskTitle = ({
         ) : null}
         <strong>{task.title}</strong>
       </div>
-      <span className={titleMetaCss}>
-        {t(`statuses.${task.status}`)}
-        {task.subtask_count > 0 &&
-          ` · ${t('subtasks.show', {
-            completed: task.completed_subtask_count,
-            total: task.subtask_count,
-          })}`}
-        {task.source_room_name &&
-          ` · ${t('sourceMeeting', { name: task.source_room_name })}`}
-      </span>
+      {(task.subtask_count > 0 || task.source_room_name) && (
+        <span className={titleMetaCss}>
+          {task.subtask_count > 0 &&
+            t('subtasks.show', {
+              completed: task.completed_subtask_count,
+              total: task.subtask_count,
+            })}
+          {task.subtask_count > 0 && task.source_room_name && ' · '}
+          {task.source_room_name &&
+            t('sourceMeeting', { name: task.source_room_name })}
+        </span>
+      )}
     </div>
   )
 }
-
-const TaskLabels = ({ task }: { task: ApiTask }) => (
-  <div className={labelsCss}>
-    {task.labels.slice(0, 2).map((label) => (
-      <TaskLabelBadge key={label.id} label={label} />
-    ))}
-    {task.labels.length > 2 && (
-      <span className={moreCss}>+{task.labels.length - 2}</span>
-    )}
-  </div>
-)
 
 const openOnEnter = (
   event: KeyboardEvent<HTMLElement>,
@@ -577,7 +506,7 @@ const DesktopGroupHeader = ({
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => dropTask(event, section.group?.id, onMoveTask)}
     >
-      <td colSpan={9}>
+      <td colSpan={8}>
         <div className={groupHeaderCss}>
           <button
             type="button"
@@ -765,7 +694,7 @@ const tableCss = css({
     whiteSpace: 'nowrap',
     fontSize: '0.8125rem',
   },
-  '& th:nth-child(2)': { width: '30%' },
+  '& th:first-child': { width: '30%' },
 })
 const rowCss = css({
   cursor: 'pointer',
@@ -824,26 +753,8 @@ const subtaskStateRowCss = css({
   color: 'default.subtle-text',
   '& td': { paddingLeft: '4.75rem!', fontSize: '0.75rem!' },
 })
-const statusColumnCss = css({ width: '3rem' })
 const secondaryColumnCss = css({ display: { md: 'none', lg: 'table-cell' } })
 const wideColumnCss = css({ display: { md: 'none', xl: 'table-cell' } })
-const statusButtonCss = css({
-  width: '1.25rem',
-  height: '1.25rem',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: '1px solid token(colors.greyscale.400)',
-  borderRadius: '999px',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.000',
-  cursor: 'pointer',
-  '&[data-complete]': {
-    borderColor: 'success.500',
-    backgroundColor: 'success.500',
-  },
-  _disabled: { cursor: 'default', opacity: 0.6 },
-})
 const titleCellCss = css({
   minWidth: 0,
   display: 'flex',
@@ -888,8 +799,6 @@ const titleMetaCss = css({
   fontSize: '0.6875rem',
   textOverflow: 'ellipsis',
 })
-const labelsCss = css({ display: 'flex', gap: '0.25rem', overflow: 'hidden' })
-const moreCss = css({ color: 'default.subtle-text', fontSize: '0.75rem' })
 const dueDateCss = css({
   '&[data-overdue]': { color: 'danger.600', fontWeight: '600' },
 })
@@ -951,7 +860,7 @@ const mobileCardCss = css({
 })
 const mobileTitleRowCss = css({
   display: 'grid',
-  gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
   alignItems: 'start',
   gap: '0.625rem',
 })

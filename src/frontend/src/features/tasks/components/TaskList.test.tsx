@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ApiTask } from '../api/ApiTask'
@@ -70,13 +70,35 @@ describe('TaskList', () => {
   it('renders desktop and mobile task representations with semantic metadata', () => {
     render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
+    const table = screen.getByRole('table')
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent)
+    ).toEqual([
+      'workspace.columns.title',
+      'workspace.columns.assignee',
+      'workspace.columns.priority',
+      'workspace.columns.startDate',
+      'workspace.columns.dueDate',
+      'workspace.columns.status',
+      'workspace.columns.creator',
+      'workspace.columns.updatedAt',
+    ])
+    expect(within(table).getAllByText('statuses.todo')).toHaveLength(2)
+    expect(
+      screen.queryByText('workspace.columns.labels')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Release')).not.toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('workspace.quickComplete')
+    ).not.toBeInTheDocument()
     expect(screen.getAllByText('Prepare release')).toHaveLength(2)
     expect(screen.getAllByText('Write changelog')).toHaveLength(2)
     expect(screen.getAllByText('priorities.high')).toHaveLength(4)
-    expect(screen.getAllByText('Release')).toHaveLength(4)
   })
 
-  it('opens a focused row with Enter and performs its permitted quick action', () => {
+  it('opens a focused row with Enter', () => {
     const onOpen = vi.fn()
     render(<TaskList tasks={[task]} onOpen={onOpen} registerRow={vi.fn()} />)
 
@@ -84,12 +106,6 @@ describe('TaskList', () => {
       key: 'Enter',
     })
     expect(onOpen).toHaveBeenCalledWith(task)
-
-    fireEvent.click(screen.getAllByLabelText('workspace.quickComplete')[0])
-    expect(mutate).toHaveBeenCalledWith({
-      taskId: 'task-1',
-      patch: { status: 'completed' },
-    })
   })
 
   it('renders task-list groups and creates a task in the selected group', () => {
