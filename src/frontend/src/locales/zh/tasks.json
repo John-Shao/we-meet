@@ -91,7 +91,14 @@
     "expand": "展开分组",
     "create": "新建分组",
     "error": "分组创建失败，请稍后重试。",
-    "closeCreate": "关闭新建分组弹窗"
+    "closeCreate": "关闭新建分组弹窗",
+    "more": "更多…",
+    "rename": "重命名",
+    "renameError": "分组重命名失败，请稍后重试。",
+    "closeRename": "关闭重命名分组弹窗",
+    "delete": "删除",
+    "deleteTitle": "删除分组",
+    "deleteDescription": "确定删除“{{name}}”吗？只有空分组才能删除。"
   },
   "board": {
     "title": "任务看板",

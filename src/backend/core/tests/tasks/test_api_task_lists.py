@@ -183,6 +183,34 @@ def test_task_placement_rejects_cross_list_and_cross_organization_groups():
     assert not Task.objects.exists()
 
 
+def test_task_groups_can_only_be_deleted_when_empty():
+    organization, creator = _organization_user()
+    task_list = TaskList.objects.create(
+        organization=organization,
+        creator=creator,
+        name="Delivery",
+    )
+    occupied = TaskGroup.objects.create(task_list=task_list, name="In progress")
+    empty = TaskGroup.objects.create(task_list=task_list, name="Ready")
+    Task.objects.create(
+        organization=organization,
+        creator=creator,
+        title="Prepare rollout",
+        task_list=task_list,
+        group=occupied,
+    )
+    client = _client(creator)
+
+    listed = client.get(TASK_LISTS_URL).json()[0]["groups"]
+    can_delete = {group["id"]: group["can_delete"] for group in listed}
+    assert can_delete[str(occupied.id)] is False
+    assert can_delete[str(empty.id)] is True
+    assert (
+        client.delete(f"/api/v1.0/task-groups/{occupied.id}/").status_code == 400
+    )
+    assert client.delete(f"/api/v1.0/task-groups/{empty.id}/").status_code == 204
+
+
 def test_statistics_report_visible_summary_and_assignee_workload_only():
     organization, creator = _organization_user()
     _, assignee = _organization_user(organization=organization)

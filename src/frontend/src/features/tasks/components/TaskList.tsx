@@ -9,6 +9,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { RiArrowDownSLine, RiArrowRightSLine } from '@remixicon/react'
 
+import { Button, Menu, MenuList } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 import type { ApiTask, ApiTaskGroup } from '../api/ApiTask'
@@ -25,6 +26,9 @@ type ListProps = {
   onOpen: (task: ApiTask) => void
   registerRow: (taskId: string, element: HTMLElement | null) => void
   onCreateTaskInGroup?: (groupId?: string) => void
+  canManageGroups?: boolean
+  onRenameGroup?: (group: ApiTaskGroup) => void
+  onDeleteGroup?: (group: ApiTaskGroup) => void
 }
 
 type GroupProps = Omit<ListProps, 'tasks'> & {
@@ -44,6 +48,9 @@ export const TaskList = ({
   onOpen,
   registerRow,
   onCreateTaskInGroup,
+  canManageGroups = false,
+  onRenameGroup,
+  onDeleteGroup,
 }: ListProps) => {
   const { t, i18n } = useTranslation('tasks')
   const patchMutation = usePatchTask()
@@ -136,6 +143,9 @@ export const TaskList = ({
                     collapsed={collapsed}
                     onToggle={() => toggleSection(section.key)}
                     onCreateTask={onCreateTaskInGroup}
+                    canManageGroups={canManageGroups}
+                    onRenameGroup={onRenameGroup}
+                    onDeleteGroup={onDeleteGroup}
                     onMoveTask={moveToGroup}
                   />
                 )}
@@ -163,6 +173,9 @@ export const TaskList = ({
                   collapsed={collapsed}
                   onToggle={() => toggleSection(section.key)}
                   onCreateTask={onCreateTaskInGroup}
+                  canManageGroups={canManageGroups}
+                  onRenameGroup={onRenameGroup}
+                  onDeleteGroup={onDeleteGroup}
                   onMoveTask={moveToGroup}
                 />
               )}
@@ -539,12 +552,18 @@ const DesktopGroupHeader = ({
   collapsed,
   onToggle,
   onCreateTask,
+  canManageGroups,
+  onRenameGroup,
+  onDeleteGroup,
   onMoveTask,
 }: {
   section: TaskSection
   collapsed: boolean
   onToggle: () => void
   onCreateTask?: (groupId?: string) => void
+  canManageGroups: boolean
+  onRenameGroup?: (group: ApiTaskGroup) => void
+  onDeleteGroup?: (group: ApiTaskGroup) => void
   onMoveTask: (taskId: string, groupId?: string) => void
 }) => {
   const { t } = useTranslation('tasks')
@@ -580,6 +599,13 @@ const DesktopGroupHeader = ({
               + {t('groups.addTask')}
             </button>
           )}
+          {canManageGroups && section.group && onRenameGroup && onDeleteGroup && (
+            <GroupMoreMenu
+              group={section.group}
+              onRename={onRenameGroup}
+              onDelete={onDeleteGroup}
+            />
+          )}
         </div>
       </td>
     </tr>
@@ -591,12 +617,18 @@ const MobileGroupHeader = ({
   collapsed,
   onToggle,
   onCreateTask,
+  canManageGroups,
+  onRenameGroup,
+  onDeleteGroup,
   onMoveTask,
 }: {
   section: TaskSection
   collapsed: boolean
   onToggle: () => void
   onCreateTask?: (groupId?: string) => void
+  canManageGroups: boolean
+  onRenameGroup?: (group: ApiTaskGroup) => void
+  onDeleteGroup?: (group: ApiTaskGroup) => void
   onMoveTask: (taskId: string, groupId?: string) => void
 }) => {
   const { t } = useTranslation('tasks')
@@ -630,7 +662,48 @@ const MobileGroupHeader = ({
           + {t('groups.addTask')}
         </button>
       )}
+      {canManageGroups && section.group && onRenameGroup && onDeleteGroup && (
+        <GroupMoreMenu
+          group={section.group}
+          onRename={onRenameGroup}
+          onDelete={onDeleteGroup}
+        />
+      )}
     </div>
+  )
+}
+
+const GroupMoreMenu = ({
+  group,
+  onRename,
+  onDelete,
+}: {
+  group: ApiTaskGroup
+  onRename: (group: ApiTaskGroup) => void
+  onDelete: (group: ApiTaskGroup) => void
+}) => {
+  const { t } = useTranslation('tasks')
+  return (
+    <Menu placement="bottom">
+      <Button className={groupMoreButtonCss} size="dense" variant="tertiary">
+        {t('groups.more')}
+      </Button>
+      <MenuList
+        aria-label={t('groups.more')}
+        items={[
+          { value: 'rename', label: t('groups.rename') },
+          {
+            value: 'delete',
+            label: t('groups.delete'),
+            isDisabled: !group.can_delete,
+          },
+        ]}
+        onAction={(action) => {
+          if (action === 'rename') onRename(group)
+          if (action === 'delete') onDelete(group)
+        }}
+      />
+    </Menu>
   )
 }
 
@@ -716,6 +789,11 @@ const groupCreateTaskCss = css({
   fontSize: '0.75rem',
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.100' },
+})
+const groupMoreButtonCss = css({
+  paddingX: '0.5rem!',
+  color: 'greyscale.700!',
+  fontSize: '0.75rem!',
 })
 const subtaskStateRowCss = css({
   color: 'default.subtle-text',

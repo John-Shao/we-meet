@@ -650,6 +650,10 @@ class TaskGroupViewSet(
     def destroy(self, request, *args, **kwargs):
         group = self.get_object()
         self._ensure_can_manage(group)
+        if group.tasks.exists():
+            raise serializers.ValidationError(
+                {"detail": "Only empty task groups can be deleted."}
+            )
         group.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

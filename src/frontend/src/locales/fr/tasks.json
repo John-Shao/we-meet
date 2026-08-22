@@ -91,7 +91,14 @@
     "expand": "Développer le groupe",
     "create": "Nouveau groupe",
     "error": "Impossible de créer le groupe. Veuillez réessayer.",
-    "closeCreate": "Fermer la création du groupe"
+    "closeCreate": "Fermer la création du groupe",
+    "more": "Plus…",
+    "rename": "Renommer",
+    "renameError": "Impossible de renommer le groupe. Veuillez réessayer.",
+    "closeRename": "Fermer le renommage du groupe",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer le groupe",
+    "deleteDescription": "Supprimer « {{name}} » ? Seuls les groupes vides peuvent être supprimés."
   },
   "board": {
     "title": "Tableau des tâches",

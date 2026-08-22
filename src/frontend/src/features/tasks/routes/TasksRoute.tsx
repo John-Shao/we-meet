@@ -13,18 +13,26 @@ import { ResizablePanel } from '@/components/ResizablePanel'
 import { StateHint } from '@/components/StateHint'
 import { Screen } from '@/layout/Screen'
 import { Button } from '@/primitives'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { css } from '@/styled-system/css'
 
 import type {
+  ApiTaskGroup,
   TaskPriorityFilter,
   TaskStatusFilter,
   TaskTimeFilter,
 } from '../api/ApiTask'
-import { useTaskLabels, useTaskLists, useTasks } from '../api/fetchTasks'
+import {
+  useDeleteTaskGroup,
+  useTaskLabels,
+  useTaskLists,
+  useTasks,
+} from '../api/fetchTasks'
 import { TaskAnalytics } from '../components/TaskAnalytics'
 import { TaskBoard } from '../components/TaskBoard'
 import { TaskFilterToolbar } from '../components/TaskFilterToolbar'
 import { TaskGroupForm } from '../components/TaskGroupForm'
+import { TaskGroupRenameForm } from '../components/TaskGroupRenameForm'
 import { TaskLabelManager } from '../components/TaskLabelManager'
 import { TaskList } from '../components/TaskList'
 import { TaskListManager } from '../components/TaskListManager'
@@ -62,11 +70,15 @@ const TasksAuthenticated = () => {
   const [labelManagerOpen, setLabelManagerOpen] = useState(false)
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
   const [groupCreating, setGroupCreating] = useState(false)
+  const [groupRenaming, setGroupRenaming] = useState<ApiTaskGroup | null>(null)
   const isNarrow = useIsNarrow()
   const rowRefs = useRef(new Map<string, HTMLElement>())
   const newButtonRef = useRef<HTMLButtonElement>(null)
   const createTitleRef = useRef<HTMLInputElement>(null)
   const groupNameRef = useRef<HTMLInputElement>(null)
+  const groupRenameRef = useRef<HTMLInputElement>(null)
+  const { confirm } = useConfirm()
+  const deleteGroupMutation = useDeleteTaskGroup()
   const { data: labels = [] } = useTaskLabels()
   const { data: taskLists = [] } = useTaskLists()
   const {
@@ -94,6 +106,17 @@ const TasksAuthenticated = () => {
     (taskList) => taskList.id === state.taskList
   )
   const panelOpen = Boolean(state.task)
+
+  const deleteGroup = async (group: ApiTaskGroup) => {
+    if (!group.can_delete) return
+    const accepted = await confirm({
+      title: t('groups.deleteTitle'),
+      message: t('groups.deleteDescription', { name: group.name }),
+      confirmLabel: t('groups.delete'),
+      danger: true,
+    })
+    if (accepted) deleteGroupMutation.mutate(group.id)
+  }
 
   const navigateState = (
     next: TaskWorkspaceState,
@@ -328,6 +351,9 @@ const TasksAuthenticated = () => {
                       }
                     : undefined
                 }
+                canManageGroups={Boolean(selectedTaskList?.can_manage)}
+                onRenameGroup={setGroupRenaming}
+                onDeleteGroup={(group) => void deleteGroup(group)}
               />
               {hasNextPage && (
                 <LoadMoreTasks
@@ -435,6 +461,28 @@ const TasksAuthenticated = () => {
             inputRef={groupNameRef}
             onCancel={() => setGroupCreating(false)}
             onCreated={() => setGroupCreating(false)}
+          />
+        </Modal>
+      )}
+      {groupRenaming && (
+        <Modal
+          ariaLabel={t('groups.rename')}
+          onClose={() => setGroupRenaming(null)}
+          initialFocusRef={groupRenameRef}
+          maxWidth="440px"
+        >
+          <div className={modalHeaderCss}>
+            <h2 className={modalTitleCss}>{t('groups.rename')}</h2>
+            <ModalCloseButton
+              label={t('groups.closeRename')}
+              onClose={() => setGroupRenaming(null)}
+            />
+          </div>
+          <TaskGroupRenameForm
+            group={groupRenaming}
+            inputRef={groupRenameRef}
+            onCancel={() => setGroupRenaming(null)}
+            onRenamed={() => setGroupRenaming(null)}
           />
         </Modal>
       )}

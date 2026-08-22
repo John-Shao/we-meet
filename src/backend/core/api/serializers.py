@@ -576,6 +576,10 @@ class TaskGroupSerializer(serializers.ModelSerializer):
     """Serialize a custom section inside a task list."""
 
     task_count = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
+
+    def get_can_delete(self, obj):
+        return not obj.tasks.exists()
 
     def get_task_count(self, obj):
         annotated = getattr(obj, "_task_count", None)
@@ -594,7 +598,15 @@ class TaskGroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.TaskGroup
-        fields = ["id", "name", "sort_order", "task_count", "created_at", "updated_at"]
+        fields = [
+            "id",
+            "name",
+            "sort_order",
+            "task_count",
+            "can_delete",
+            "created_at",
+            "updated_at",
+        ]
         read_only_fields = ["id", "task_count", "created_at", "updated_at"]
 
 

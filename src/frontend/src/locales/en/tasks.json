@@ -91,7 +91,14 @@
     "expand": "Expand group",
     "create": "New group",
     "error": "The group could not be created. Please try again.",
-    "closeCreate": "Close new group dialog"
+    "closeCreate": "Close new group dialog",
+    "more": "More…",
+    "rename": "Rename",
+    "renameError": "The group could not be renamed. Please try again.",
+    "closeRename": "Close rename group dialog",
+    "delete": "Delete",
+    "deleteTitle": "Delete group",
+    "deleteDescription": "Delete “{{name}}”? Only empty groups can be deleted."
   },
   "board": {
     "title": "Task board",

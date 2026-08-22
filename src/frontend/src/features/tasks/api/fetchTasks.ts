@@ -172,6 +172,37 @@ export const useCreateTaskGroup = () => {
   })
 }
 
+const updateTaskGroup = (groupId: string, patch: { name?: string }) =>
+  fetchApi<ApiTaskGroup>(`task-groups/${encodeURIComponent(groupId)}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+
+export const useUpdateTaskGroup = () => {
+  const queryClient = useQueryClient()
+  return useMutation<ApiTaskGroup, ApiError, { groupId: string; name: string }>({
+    mutationFn: ({ groupId, name }) => updateTaskGroup(groupId, { name }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['task-lists'] }),
+  })
+}
+
+const deleteTaskGroup = (groupId: string) =>
+  fetchApi<void>(`task-groups/${encodeURIComponent(groupId)}/`, {
+    method: 'DELETE',
+  })
+
+export const useDeleteTaskGroup = () => {
+  const queryClient = useQueryClient()
+  return useMutation<void, ApiError, string>({
+    mutationFn: deleteTaskGroup,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
 const fetchTaskStatistics = (
   scope: TaskScope,
   time: TaskTimeFilter,

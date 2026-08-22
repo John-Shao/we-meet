@@ -27,6 +27,7 @@ export interface ApiTaskGroup {
   name: string
   sort_order: number
   task_count: number
+  can_delete: boolean
   created_at: string
   updated_at: string
 }

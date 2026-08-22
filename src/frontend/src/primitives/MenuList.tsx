@@ -5,6 +5,10 @@ import { VisuallyHidden } from '@/styled-system/jsx'
 import { menuRecipe } from '@/primitives/menuRecipe.ts'
 import type { RecipeVariantProps } from '@/styled-system/types'
 
+type MenuListItem<T extends string | number> =
+  | string
+  | { value: T; label: ReactNode; isDisabled?: boolean }
+
 /**
  * render a Button primitive that shows a popover showing a list of pressable items
  */
@@ -17,7 +21,7 @@ export const MenuList = <T extends string | number = string>({
 }: {
   onAction: (key: T) => void
   selectedItem?: T
-  items: Array<string | { value: T; label: ReactNode }>
+  items: MenuListItem<T>[]
 } & MenuProps<unknown> &
   RecipeVariantProps<typeof menuRecipe>) => {
   const [variantProps] = menuRecipe.splitVariantProps(menuProps)
@@ -31,17 +35,22 @@ export const MenuList = <T extends string | number = string>({
     <Menu
       selectionMode={selectedItem !== undefined ? 'single' : undefined}
       selectedKeys={selectedItem !== undefined ? [selectedItem] : undefined}
+      disabledKeys={items.flatMap((item) =>
+        typeof item !== 'string' && item.isDisabled ? [item.value] : []
+      )}
       className={classes.root}
       {...menuProps}
     >
       {items.map((item) => {
         const value = typeof item === 'string' ? item : item.value
         const label = typeof item === 'string' ? item : item.label
+        const isDisabled = typeof item !== 'string' && item.isDisabled
         return (
           <MenuItem
             className={classes.item}
             key={value}
             id={value as string}
+            isDisabled={isDisabled}
             textValue={typeof label === 'string' ? label : undefined}
             onAction={() => {
               onAction(value as T)
