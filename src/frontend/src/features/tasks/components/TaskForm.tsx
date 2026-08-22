@@ -1,5 +1,12 @@
 import { useState, type FormEvent, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  RiCalendarLine,
+  RiFileTextLine,
+  RiFlagLine,
+  RiPriceTag3Line,
+  RiUser3Line,
+} from '@remixicon/react'
 
 import { ContactPicker, type DirectoryMember } from '@/features/contacts'
 import { Button, Input, TextArea } from '@/primitives'
@@ -51,6 +58,10 @@ export const TaskForm = ({
   const createMutation = useCreateTask()
   const patchMutation = usePatchTask()
   const mutation = mode === 'create' ? createMutation : patchMutation
+  const today = dateInputValue(new Date())
+  const tomorrowDate = new Date()
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+  const tomorrow = dateInputValue(tomorrowDate)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -77,6 +88,169 @@ export const TaskForm = ({
     } catch {
       // Preserve the draft so the user can correct it or retry.
     }
+  }
+
+  const picker = pickerOpen && (
+    <ContactPicker
+      includeSelf
+      title={t('form.selectAssignee')}
+      searchPlaceholder={t('form.searchAssignee')}
+      onClose={() => setPickerOpen(false)}
+      onSelect={(member: DirectoryMember) => {
+        setAssignee({
+          id: member.id,
+          full_name: member.full_name,
+          short_name: member.short_name,
+          email: member.email,
+        })
+        setPickerOpen(false)
+      }}
+    />
+  )
+
+  if (mode === 'create') {
+    return (
+      <form onSubmit={(event) => void submit(event)} className={createFormCss}>
+        <div className={createFormBodyCss}>
+          <label className="sr-only" htmlFor="new-task-title">
+            {t('form.title')}
+          </label>
+          <Input
+            id="new-task-title"
+            ref={titleInputRef}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder={t('form.createTitlePlaceholder')}
+            maxLength={500}
+            required
+          />
+
+          <div className={createPropertyListCss}>
+            <div className={createPropertyRowCss}>
+              <RiUser3Line size={19} aria-hidden="true" />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className={assigneeButtonCss}
+                onPress={() => setPickerOpen(true)}
+              >
+                {assignee ? taskDisplayName(assignee) : t('form.assigneeSelf')}
+              </Button>
+            </div>
+
+            <div className={createPropertyRowCss}>
+              <RiCalendarLine size={19} aria-hidden="true" />
+              <div className={dateControlsCss}>
+                <button
+                  type="button"
+                  className={
+                    dueDate === today ? dateChipSelectedCss : dateChipCss
+                  }
+                  onClick={() => setDueDate(today)}
+                >
+                  {t('form.today')}
+                </button>
+                <button
+                  type="button"
+                  className={
+                    dueDate === tomorrow ? dateChipSelectedCss : dateChipCss
+                  }
+                  onClick={() => setDueDate(tomorrow)}
+                >
+                  {t('form.tomorrow')}
+                </button>
+                <label className={datePickerCss}>
+                  <span className="sr-only">{t('form.dueDate')}</span>
+                  <Input
+                    type="date"
+                    value={dueDate}
+                    min={startDate || undefined}
+                    onChange={(event) => setDueDate(event.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className={createPropertyRowCss}>
+              <RiFlagLine size={19} aria-hidden="true" />
+              <div className={createSelectCss}>
+                <Select
+                  label={<span className="sr-only">{t('form.priority')}</span>}
+                  aria-label={t('form.priority')}
+                  items={priorities.map((value) => ({
+                    value,
+                    label: t(`priorities.${value}`),
+                  }))}
+                  selectedKey={priority}
+                  onSelectionChange={(key) =>
+                    setPriority(String(key) as TaskPriority)
+                  }
+                />
+              </div>
+            </div>
+
+            {labels.length > 0 && (
+              <div className={createPropertyRowCss} data-align-start>
+                <RiPriceTag3Line size={19} aria-hidden="true" />
+                <TaskLabelSelector
+                  compact
+                  labels={labels}
+                  selectedIds={labelIds}
+                  onChange={setLabelIds}
+                />
+              </div>
+            )}
+
+            <label className={createPropertyRowCss} data-align-start>
+              <RiFileTextLine size={19} aria-hidden="true" />
+              <span className="sr-only">{t('form.description')}</span>
+              <TextArea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder={t('form.createDescriptionPlaceholder')}
+                rows={3}
+              />
+            </label>
+
+            <details className={startDateDisclosureCss}>
+              <summary>{t('form.startDate')}</summary>
+              <Input
+                type="date"
+                value={startDate}
+                max={dueDate || undefined}
+                onChange={(event) => setStartDate(event.target.value)}
+              />
+            </details>
+          </div>
+
+          {mutation.error && (
+            <p role="alert" className={errorCss}>
+              {t('error')}
+            </p>
+          )}
+        </div>
+        <div className={createActionsCss}>
+          <Button
+            type="button"
+            size="action"
+            variant="secondary"
+            onPress={onCancel}
+          >
+            {t('form.cancel')}
+          </Button>
+          <Button
+            type="submit"
+            size="action"
+            loading={mutation.isPending}
+            isDisabled={!title.trim()}
+          >
+            {t('form.create')}
+          </Button>
+        </div>
+        {picker}
+      </form>
+    )
   }
 
   return (
@@ -161,26 +335,10 @@ export const TaskForm = ({
           loading={mutation.isPending}
           isDisabled={!title.trim()}
         >
-          {mode === 'create' ? t('form.create') : t('actions.save')}
+          {t('actions.save')}
         </Button>
       </div>
-      {pickerOpen && (
-        <ContactPicker
-          includeSelf
-          title={t('form.selectAssignee')}
-          searchPlaceholder={t('form.searchAssignee')}
-          onClose={() => setPickerOpen(false)}
-          onSelect={(member: DirectoryMember) => {
-            setAssignee({
-              id: member.id,
-              full_name: member.full_name,
-              short_name: member.short_name,
-              email: member.email,
-            })
-            setPickerOpen(false)
-          }}
-        />
-      )}
+      {picker}
     </form>
   )
 }
@@ -213,3 +371,96 @@ const actionsCss = css({
   paddingTop: '0.25rem',
 })
 const errorCss = css({ margin: 0, color: 'danger.subtle-text' })
+
+const dateInputValue = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate()
+  ).padStart(2, '0')}`
+
+const createFormCss = css({
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  color: 'greyscale.900',
+  fontSize: '0.875rem',
+})
+const createFormBodyCss = css({
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.875rem',
+  padding: '1rem',
+  overflowY: 'auto',
+})
+const createPropertyListCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+})
+const createPropertyRowCss = css({
+  minHeight: '3rem',
+  display: 'grid',
+  gridTemplateColumns: '1.5rem minmax(0, 1fr)',
+  alignItems: 'center',
+  gap: '0.75rem',
+  padding: '0.375rem 0',
+  color: 'greyscale.500',
+  '&[data-align-start]': { alignItems: 'start', paddingTop: '0.75rem' },
+})
+const assigneeButtonCss = css({
+  justifySelf: 'start',
+  fontSize: '0.875rem',
+})
+const dateControlsCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: '0.5rem',
+})
+const dateChipBase = {
+  minHeight: '2rem',
+  paddingX: '0.75rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '8px',
+  fontSize: '0.875rem',
+  cursor: 'pointer',
+} as const
+const dateChipCss = css({
+  ...dateChipBase,
+  backgroundColor: 'greyscale.50',
+  color: 'greyscale.800',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+const dateChipSelectedCss = css({
+  ...dateChipBase,
+  borderColor: 'selected.accent',
+  backgroundColor: 'selected.bg',
+  color: 'selected.text',
+})
+const datePickerCss = css({
+  width: '9.75rem',
+  '& input': { fontSize: '0.8125rem' },
+})
+const createSelectCss = css({
+  width: '11rem',
+  fontSize: '0.875rem',
+})
+const startDateDisclosureCss = css({
+  marginLeft: '2.25rem',
+  color: 'greyscale.500',
+  fontSize: '0.8125rem',
+  '& summary': { cursor: 'pointer' },
+  '& input': { width: '10rem', marginTop: '0.5rem' },
+})
+const createActionsCss = css({
+  flexShrink: 0,
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: '0.625rem',
+  paddingX: '1rem',
+  paddingY: '0.75rem',
+  borderTop: '1px solid token(colors.greyscale.200)',
+  backgroundColor: 'greyscale.000',
+})

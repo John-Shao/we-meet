@@ -56,16 +56,21 @@
   "form": {
     "title": "Titre de la tâche",
     "titlePlaceholder": "Prochaine action à réaliser",
+    "createTitlePlaceholder": "Saisissez un titre, puis appuyez sur Entrée",
     "description": "Description (facultatif)",
     "descriptionPlaceholder": "Ajoutez du contexte ou des critères",
+    "createDescriptionPlaceholder": "Ajouter une description",
     "assignee": "Responsable",
     "priority": "Priorité",
     "assigneeSelf": "Moi-même",
     "selectAssignee": "Choisir un responsable",
     "searchAssignee": "Rechercher par nom ou e-mail…",
+    "today": "Aujourd’hui",
+    "tomorrow": "Demain",
     "startDate": "Date de début (facultatif)",
     "dueDate": "Date d’échéance (facultatif)",
-    "create": "Créer la tâche"
+    "cancel": "Annuler",
+    "create": "Créer"
   },
   "scopes": {
     "label": "Périmètre des tâches",

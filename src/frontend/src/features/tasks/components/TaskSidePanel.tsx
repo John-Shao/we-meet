@@ -40,24 +40,19 @@ export const CreateTaskPanel = ({
 }) => {
   const { t } = useTranslation('tasks')
   return (
-    <div className={createDialogCss}>
+    <>
       <header className={createDialogHeaderCss}>
-        <div>
-          <h2 className={createDialogTitleCss}>{t('workspace.createTitle')}</h2>
-          <p className={createDialogHintCss}>{t('form.titlePlaceholder')}</p>
-        </div>
+        <h2>{t('workspace.createTitle')}</h2>
         <ModalCloseButton label={t('workspace.closePanel')} onClose={onClose} />
       </header>
-      <div className={createDialogBodyCss}>
-        <TaskForm
-          mode="create"
-          labels={labels}
-          titleInputRef={titleInputRef}
-          onCancel={onClose}
-          onSaved={onCreated}
-        />
-      </div>
-    </div>
+      <TaskForm
+        mode="create"
+        labels={labels}
+        titleInputRef={titleInputRef}
+        onCancel={onClose}
+        onSaved={onCreated}
+      />
+    </>
   )
 }
 
@@ -323,31 +318,21 @@ const panelCss = css({
   borderLeft: '1px solid token(colors.greyscale.200)',
   color: 'default.text',
 })
-const createDialogCss = css({
-  minHeight: 0,
-  display: 'flex',
-  flexDirection: 'column',
-})
 const createDialogHeaderCss = css({
   display: 'flex',
-  alignItems: 'flex-start',
+  flexShrink: 0,
+  alignItems: 'center',
   justifyContent: 'space-between',
-  gap: '1rem',
-  padding: '1.25rem 1.5rem 1rem',
+  paddingX: '1rem',
+  paddingY: '0.75rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
+  '& h2': {
+    margin: 0,
+    color: 'greyscale.900',
+    fontSize: '1rem',
+    fontWeight: 'bold',
+  },
 })
-const createDialogTitleCss = css({
-  margin: 0,
-  color: 'greyscale.900',
-  fontSize: '1.125rem',
-  fontWeight: '600',
-})
-const createDialogHintCss = css({
-  margin: '0.25rem 0 0',
-  color: 'greyscale.500',
-  fontSize: '0.75rem',
-})
-const createDialogBodyCss = css({ minHeight: 0, overflowY: 'auto' })
 const panelHeaderCss = css({
   minHeight: '4rem',
   display: 'flex',

@@ -56,16 +56,21 @@
   "form": {
     "title": "Task title",
     "titlePlaceholder": "What needs to happen next",
+    "createTitlePlaceholder": "Enter a title, then press Enter",
     "description": "Description (optional)",
     "descriptionPlaceholder": "Add context or acceptance criteria",
+    "createDescriptionPlaceholder": "Add description",
     "assignee": "Assignee",
     "priority": "Priority",
     "assigneeSelf": "Myself",
     "selectAssignee": "Select assignee",
     "searchAssignee": "Search by name or email…",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
     "startDate": "Start date (optional)",
     "dueDate": "Due date (optional)",
-    "create": "Create task"
+    "cancel": "Cancel",
+    "create": "Create"
   },
   "scopes": {
     "label": "Task scope",

@@ -56,16 +56,21 @@
   "form": {
     "title": "Aufgabentitel",
     "titlePlaceholder": "Was als Nächstes erledigt werden muss",
+    "createTitlePlaceholder": "Titel eingeben und Enter drücken",
     "description": "Beschreibung (optional)",
     "descriptionPlaceholder": "Kontext oder Abnahmekriterien ergänzen",
+    "createDescriptionPlaceholder": "Beschreibung hinzufügen",
     "assignee": "Verantwortlich",
     "priority": "Priorität",
     "assigneeSelf": "Ich selbst",
     "selectAssignee": "Verantwortliche Person auswählen",
     "searchAssignee": "Nach Name oder E-Mail suchen…",
+    "today": "Heute",
+    "tomorrow": "Morgen",
     "startDate": "Startdatum (optional)",
     "dueDate": "Fälligkeitsdatum (optional)",
-    "create": "Aufgabe erstellen"
+    "cancel": "Abbrechen",
+    "create": "Erstellen"
   },
   "scopes": {
     "label": "Aufgabenbereich",

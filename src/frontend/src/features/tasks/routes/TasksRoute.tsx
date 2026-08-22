@@ -250,8 +250,8 @@ const TasksAuthenticated = () => {
           ariaLabel={t('workspace.createTitle')}
           onClose={() => setCreating(false)}
           initialFocusRef={createTitleRef}
-          maxWidth="720px"
-          maxHeight="88vh"
+          maxWidth="560px"
+          maxHeight="82vh"
         >
           <CreateTaskPanel
             labels={labels}

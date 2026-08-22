@@ -10,31 +10,20 @@ export const TaskLabelSelector = ({
   selectedIds,
   onChange,
   max = 5,
+  compact = false,
 }: {
   labels: ApiTaskLabel[]
   selectedIds: string[]
   onChange: (ids: string[]) => void
   max?: number
+  compact?: boolean
 }) => {
   const { t } = useTranslation('tasks')
   const selected = new Set(selectedIds)
 
   return (
-    <fieldset
-      className={css({
-        minWidth: 0,
-        margin: 0,
-        padding: 0,
-        border: 0,
-      })}
-    >
-      <legend
-        className={css({
-          marginBottom: '0.375rem',
-          fontSize: '0.875rem',
-          color: 'default.text',
-        })}
-      >
+    <fieldset className={compact ? compactFieldsetCss : fieldsetCss}>
+      <legend className={compact ? 'sr-only' : legendCss}>
         {t('labels.field')} ({selectedIds.length}/{max})
       </legend>
       {labels.length === 0 ? (
@@ -60,15 +49,12 @@ export const TaskLabelSelector = ({
             return (
               <label
                 key={label.id}
-                className={css({
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  opacity: disabled ? 0.5 : 1,
-                })}
+                className={compact ? compactLabelCss : labelCss}
+                data-selected={(compact && checked) || undefined}
+                data-disabled={(compact && disabled) || undefined}
               >
                 <input
+                  className={compact ? 'sr-only' : undefined}
                   type="checkbox"
                   checked={checked}
                   disabled={disabled}
@@ -89,3 +75,43 @@ export const TaskLabelSelector = ({
     </fieldset>
   )
 }
+
+const fieldsetCss = css({
+  minWidth: 0,
+  margin: 0,
+  padding: 0,
+  border: 0,
+})
+const compactFieldsetCss = css({
+  minWidth: 0,
+  margin: 0,
+  padding: 0,
+  border: 0,
+  color: 'greyscale.700',
+  fontSize: '0.8125rem',
+})
+const legendCss = css({
+  marginBottom: '0.375rem',
+  fontSize: '0.875rem',
+  color: 'default.text',
+})
+const labelCss = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.25rem',
+  cursor: 'pointer',
+  '&:has(input:disabled)': { cursor: 'not-allowed', opacity: 0.5 },
+})
+const compactLabelCss = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '0.125rem',
+  border: '1px solid transparent',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  '&[data-selected]': {
+    borderColor: 'selected.accent',
+    backgroundColor: 'selected.bg',
+  },
+  '&[data-disabled]': { cursor: 'not-allowed', opacity: 0.5 },
+})
