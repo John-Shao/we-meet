@@ -119,6 +119,49 @@ main#main-content :is(h1, h2, h3)[tabindex='-1']:focus {
   outline-offset: 2px;
 }
 
+/* ===== 统一下拉框(原生 <select>)外观 ======================================
+ * 基准 = 「系统设置 → 通用 → 语言」下拉(SettingsDialog.selectCls +
+ * primitives/selectChrome)。把散在 55 个 <select> 上的多套长相(边框 4px/6px/8px、
+ * 字号 12/13/14px、边框色 control.border vs greyscale.300、左内边距
+ * 0.375~0.875rem、有/无自绘箭头)收口成这一处:
+ *
+ *   - 字体:继承应用字体(panda preflight 给表单控件写了 font: inherit),字号 14px;
+ *   - 几何:高 32px(control.md),8px 圆角,1px 灰描边(greyscale.300,随主题翻转);
+ *   - 文字边距:左 0.875rem、右 2rem(箭头留位)、上下 0(钉高后清掉 padding-block,
+ *     否则文字被切,见 primitives/selectChrome 的注释);
+ *   - 箭头:隐藏系统箭头,自绘中性灰(#7C7C7C = greyscale.500,深浅色同值)下拉箭头;
+ *   - 展开列表:option 白底深字(随主题翻转),深色下不回落到系统白底;
+ *   - 焦点描边:由上面「统一焦点描边」①给出(蓝描边 + 柔光环),这里不重复;
+ *     列表项的选中高亮仍由系统绘制,靠 root 上的 color-scheme 跟随主题。
+ *
+ * 为什么写在这里(未分层)而不是各组件里:与焦点描边同理 —— 未分层规则优先于
+ * panda utilities 层,一次盖住各调用点自己写的 border/圆角/字号/边距,不用逐个去
+ * 对齐;也只有这样,那两个没套 selectChrome 的下拉(邀请页状态筛选、日历参与者
+ * 角色)才跟得上一套外观。selectChrome 仍保留:它的 paddingBlock / paddingRight
+ * 是 `!important`,与这里的值一致;箭头与 option 上色也与此处同源,互不冲突。
+ */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: var(--sizes-control-md);
+  min-height: var(--sizes-control-md);
+  border: 1px solid var(--colors-greyscale-300);
+  border-radius: 0.5rem;
+  background-color: var(--colors-greyscale-000);
+  color: var(--colors-greyscale-900);
+  font-size: var(--font-sizes-14);
+  padding: 0 2rem 0 0.875rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237C7C7C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+}
+
+select option {
+  background-color: var(--colors-greyscale-000);
+  color: var(--colors-greyscale-900);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;

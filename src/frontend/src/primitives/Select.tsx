@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { styled, VisuallyHidden } from '@/styled-system/jsx'
-import { RemixiconComponentType, RiArrowDropDownLine } from '@remixicon/react'
+import type { RemixiconComponentType } from '@remixicon/react'
 import {
   Button,
   ListBox,
@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { Box } from './Box'
 import { StyledPopover } from './Popover'
 import { menuRecipe } from '@/primitives/menuRecipe.ts'
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
 import type { Placement } from '@react-types/overlays'
 
 const StyledButton = styled(Button, {
@@ -26,13 +26,18 @@ const StyledButton = styled(Button, {
     // 原先 30px,是这批控件里最矮的一个。内容由上面的 flex 居中。
     height: 'control.md',
     minHeight: 'control.md',
-    paddingY: 0.125,
-    paddingX: 0.25,
+    paddingY: 0,
+    // 与「系统设置 → 语言」下拉(selectChrome)同款:文字左起 0.875rem,
+    // 右侧箭头距右 0.625rem(space-between 已把文字与箭头隔开)。
+    paddingLeft: '0.875rem',
+    paddingRight: '0.625rem',
     border: '1px solid',
-    borderColor: 'control.border',
-    color: 'control.text',
-    borderRadius: 4,
-    boxShadow: '0 1px 2px rgba(0 0 0 / 0.1)',
+    borderColor: 'greyscale.300',
+    backgroundColor: 'greyscale.000',
+    color: 'greyscale.900',
+    fontSize: '0.875rem',
+    borderRadius: 8,
+    cursor: 'pointer',
     '&[data-focus-visible], &[data-focused]': {
       // 「选择框」归输入类:焦点态与输入框同款 —— 蓝描边 + 柔光环,见
       // styles/index.css 的「统一焦点描边」。原先这里是 2px 焦点环 + offset -1px,
@@ -56,7 +61,6 @@ const StyledButton = styled(Button, {
     '&[data-disabled]': {
       color: 'default.subtle-text',
       borderColor: 'greyscale.200',
-      boxShadow: '0 1px 2px rgba(0 0 0 / 0.02)',
     },
   },
   variants: {
@@ -66,6 +70,9 @@ const StyledButton = styled(Button, {
         backgroundColor: 'primaryDark.100',
         fontWeight: 'medium !important',
         color: 'white',
+        // 深色舞台(会中设备选择)保留固定灰描边:基类的 greyscale.300 随主题
+        // 翻成深灰,压在 primaryDark 蓝底上几乎看不见。
+        borderColor: 'control.border',
         '&[data-pressed]': {
           backgroundColor: 'primaryDark.900',
           color: 'primaryDark.100',
@@ -105,6 +112,10 @@ const StyledIcon = styled('div', {
   },
 })
 
+// 展开列表与收起控件同为 14px;popover 渲染在 portal 里,不显式给会继承 body 的
+// 16px,和上面的 button 对不齐。
+const menuListCls = css({ fontSize: '0.875rem' })
+
 export type SelectProps<T> = Omit<
   RACSelectProps<object>,
   'items' | 'label' | 'errors'
@@ -141,14 +152,25 @@ export const Select = <T extends string | number>({
           </StyledIcon>
         )}
         <StyledSelectValue />
-        <RiArrowDropDownLine
+        {/* 与原生 select 的 selectChrome 同款尖角箭头(16×16、stroke #7C7C7C)。 */}
+        <svg
+          width={16}
+          height={16}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#7C7C7C"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
           aria-hidden="true"
           className={css({ flexShrink: 0 })}
-        />
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
       </StyledButton>
       <StyledPopover placement={placement}>
         <Box size="sm" type="popover" variant={variant}>
-          <ListBox className={menuClassName}>
+          <ListBox className={cx(menuListCls, menuClassName)}>
             {items.map((item) => (
               <ListBoxItem
                 className={
