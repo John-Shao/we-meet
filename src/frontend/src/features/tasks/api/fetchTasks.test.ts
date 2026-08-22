@@ -3,11 +3,18 @@ import { describe, expect, it } from 'vitest'
 import { buildTasksUrl, getNextTasksPageParam } from './fetchTasks'
 
 describe('buildTasksUrl', () => {
-  it('combines scope, status, time, priority and label filters', () => {
+  it('combines workspace and task list filters', () => {
     expect(
-      buildTasksUrl('created', 'open', 'due_today', 'urgent', 'label/id')
+      buildTasksUrl(
+        'created',
+        'open',
+        'due_today',
+        'urgent',
+        'label/id',
+        'list/id'
+      )
     ).toBe(
-      'tasks/?scope=created&status=open&time=due_today&priority=urgent&label=label%2Fid&page_size=50'
+      'tasks/?scope=created&status=open&time=due_today&priority=urgent&label=label%2Fid&task_list=list%2Fid&page_size=50'
     )
   })
 })

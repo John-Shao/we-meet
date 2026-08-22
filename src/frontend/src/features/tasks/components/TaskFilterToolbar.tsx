@@ -101,7 +101,7 @@ export const TaskFilterToolbar = ({
         aria-label={t('labels.filter')}
         items={[
           { value: 'all', label: t('labels.all') },
-          { value: 'none', label: t('labels.unlabeled') },
+          { value: 'unlabeled', label: t('labels.unlabeled') },
           ...labels.map((label) => ({ value: label.id, label: label.name })),
         ]}
         selectedKey={state.label}

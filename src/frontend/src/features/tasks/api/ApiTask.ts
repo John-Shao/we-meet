@@ -22,6 +22,29 @@ export interface ApiTaskLabel {
   updated_at: string
 }
 
+export interface ApiTaskGroup {
+  id: string
+  name: string
+  sort_order: number
+  task_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ApiTaskList {
+  id: string
+  name: string
+  description: string
+  color: TaskLabelColor
+  creator: ApiTaskUser | null
+  is_archived: boolean
+  can_manage: boolean
+  task_count: number
+  groups: ApiTaskGroup[]
+  created_at: string
+  updated_at: string
+}
+
 export interface ApiTaskUser {
   id: string
   full_name: string | null
@@ -38,6 +61,9 @@ export interface ApiTask {
   status: TaskStatus
   priority: TaskPriority
   labels: ApiTaskLabel[]
+  task_list: Pick<ApiTaskList, 'id' | 'name' | 'color'> | null
+  group: Pick<ApiTaskGroup, 'id' | 'name' | 'sort_order'> | null
+  position: number
   start_date: string | null
   due_date: string | null
   completed_at: string | null
@@ -62,6 +88,7 @@ export type TaskActivityEvent =
   | 'status_changed'
   | 'priority_changed'
   | 'labels_changed'
+  | 'placement_changed'
   | 'attachment_removed'
   | 'source_action_item_changed'
 
@@ -97,6 +124,10 @@ export interface ApiTaskActivity {
     status?: { from: TaskStatus; to: TaskStatus }
     priority?: { from: TaskPriority; to: TaskPriority }
     labels?: { from: ApiTaskLabel[]; to: ApiTaskLabel[] }
+    placement?: {
+      from: ApiTaskPlacementSnapshot
+      to: ApiTaskPlacementSnapshot
+    }
     attachment?: { id: string; filename: string }
     source_action_item_sync?: {
       action_item_id: string
@@ -151,6 +182,40 @@ export interface ApiTaskAttachment {
 
 export type TaskScope = 'assigned' | 'created' | 'all'
 
+export interface ApiTaskPlacementSnapshot {
+  task_list: Pick<ApiTaskList, 'id' | 'name' | 'color'> | null
+  group: Pick<ApiTaskGroup, 'id' | 'name'> | null
+  position: number
+}
+
+export interface ApiTaskStatistics {
+  summary: {
+    total: number
+    open: number
+    completed: number
+    canceled: number
+    overdue: number
+    completion_rate: number
+  }
+  workload: Array<{
+    assignee_id: string
+    assignee__full_name: string | null
+    assignee__short_name: string | null
+    assignee__email: string | null
+    total: number
+    open: number
+    completed: number
+    overdue: number
+  }>
+  groups: Array<{
+    group_id: string | null
+    group__name: string | null
+    group__sort_order: number | null
+    total: number
+    completed: number
+  }>
+}
+
 export interface CreateTaskPayload {
   title: string
   description?: string
@@ -159,6 +224,9 @@ export interface CreateTaskPayload {
   due_date?: string | null
   priority?: TaskPriority
   label_ids?: string[]
+  task_list_id?: string | null
+  group_id?: string | null
+  position?: number
 }
 
 export interface PatchTaskPayload {
@@ -169,5 +237,8 @@ export interface PatchTaskPayload {
   due_date?: string | null
   priority?: TaskPriority
   label_ids?: string[]
+  task_list_id?: string | null
+  group_id?: string | null
+  position?: number
   status?: TaskStatus
 }

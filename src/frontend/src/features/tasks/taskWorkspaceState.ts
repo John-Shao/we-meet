@@ -6,6 +6,7 @@ import type {
 } from './api/ApiTask'
 
 export type TaskWorkspaceView = 'assigned' | 'created' | 'all' | 'completed'
+export type TaskWorkspaceMode = 'list' | 'board' | 'analytics'
 
 export interface TaskWorkspaceState {
   scope: TaskScope
@@ -13,6 +14,8 @@ export interface TaskWorkspaceState {
   time: TaskTimeFilter
   priority: TaskPriorityFilter
   label: string
+  taskList: string
+  mode: TaskWorkspaceMode
   task?: string
 }
 
@@ -52,6 +55,8 @@ export const parseTaskWorkspaceState = (
     'all'
   ),
   label: params.get('label') || 'all',
+  taskList: params.get('task_list') || 'all',
+  mode: oneOf(params.get('view'), ['list', 'board', 'analytics'], 'list'),
   task: params.get('task') || undefined,
 })
 
@@ -63,9 +68,22 @@ export const stateForView = (
   return {
     ...state,
     ...preset,
+    taskList: 'all',
     time: preset.status === 'open' ? state.time : 'all',
   }
 }
+
+export const stateForTaskList = (
+  state: TaskWorkspaceState,
+  taskList: string
+): TaskWorkspaceState => ({
+  ...state,
+  scope: 'all',
+  status: state.mode === 'list' ? 'open' : 'all',
+  time: 'all',
+  taskList,
+  task: undefined,
+})
 
 export const stateWithStatus = (
   state: TaskWorkspaceState,
@@ -83,6 +101,8 @@ export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
   params.set('time', state.time)
   params.set('priority', state.priority)
   params.set('label', state.label)
+  params.set('task_list', state.taskList)
+  params.set('view', state.mode)
   if (state.task) params.set('task', state.task)
   return params.toString()
 }

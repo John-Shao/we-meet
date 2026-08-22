@@ -8,6 +8,7 @@
   "sourceMeeting": "Source meeting: {{name}}",
   "workspace": {
     "navigation": "Task views",
+    "quickAccess": "Quick access",
     "views": {
       "assigned": "Assigned to me",
       "created": "Created by me",
@@ -54,6 +55,63 @@
       "attachments": "Attachments",
       "history": "History"
     }
+  },
+  "modes": {
+    "label": "Task display",
+    "list": "List",
+    "board": "Board",
+    "analytics": "Analytics"
+  },
+  "taskLists": {
+    "title": "Task lists",
+    "field": "Task list",
+    "none": "No task list",
+    "empty": "No task lists yet",
+    "manage": "Manage task lists",
+    "create": "Create task list",
+    "name": "List name",
+    "description": "Description (optional)",
+    "taskCount": "{{count}} tasks",
+    "deleteTitle": "Delete task list",
+    "deleteDescription": "Delete \"{{name}}\"? Its tasks will remain without a task list.",
+    "deleteConfirm": "Delete",
+    "deleteNamed": "Delete task list: {{name}}",
+    "error": "The task list operation failed. Please try again.",
+    "closeManager": "Close task list manager"
+  },
+  "groups": {
+    "field": "Group",
+    "name": "Group name",
+    "ungrouped": "Ungrouped",
+    "addTask": "Add task",
+    "collapse": "Collapse group",
+    "expand": "Expand group",
+    "create": "New group",
+    "error": "The group could not be created. Please try again.",
+    "closeCreate": "Close new group dialog"
+  },
+  "board": {
+    "title": "Task board",
+    "emptyColumn": "No tasks"
+  },
+  "analytics": {
+    "loading": "Loading task analytics…",
+    "error": "Task analytics could not be loaded.",
+    "summary": "Task summary",
+    "cards": {
+      "total": "Total",
+      "open": "Open",
+      "completed": "Completed",
+      "overdue": "Overdue",
+      "completionRate": "Completion rate"
+    },
+    "workload": "Assignee workload",
+    "workloadHint": "Open tasks and delivery risk by assignee",
+    "workloadMeta": "{{open}} open · {{overdue}} overdue · {{completed}} completed",
+    "groupProgress": "Group progress",
+    "groupProgressHint": "Completion by custom group",
+    "groupMeta": "{{completed}} / {{total}} completed",
+    "empty": "No data for the current filters"
   },
   "form": {
     "title": "Task title",
@@ -219,6 +277,7 @@
       "content_changed": "{{actor}} updated the task content",
       "priority_changed": "{{actor}} changed the task priority from “{{from}}” to “{{to}}”",
       "labels_changed": "{{actor}} changed the task labels from “{{from}}” to “{{to}}”",
+      "placement_changed": "{{actor}} moved the task from “{{from}}” to “{{to}}”",
       "dates_changed": "{{actor}} adjusted the task dates",
       "assignee_changed": "{{actor}} reassigned the task to {{assignee}}",
       "status_changed": "{{actor}} changed the status to “{{status}}”",

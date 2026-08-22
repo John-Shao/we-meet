@@ -24,7 +24,14 @@ vi.mock('../api/fetchTasks', () => ({
 
 describe('TaskForm create mode', () => {
   it('uses the compact create labels and supports quick due dates', () => {
-    render(<TaskForm labels={[]} onCancel={vi.fn()} onSaved={vi.fn()} />)
+    render(
+      <TaskForm
+        labels={[]}
+        taskLists={[]}
+        onCancel={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
 
     expect(
       screen.getByPlaceholderText('form.createTitlePlaceholder')

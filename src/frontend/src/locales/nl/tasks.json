@@ -8,6 +8,7 @@
   "sourceMeeting": "Bronvergadering: {{name}}",
   "workspace": {
     "navigation": "Taakweergaven",
+    "quickAccess": "Snelle toegang",
     "views": {
       "assigned": "Aan mij toegewezen",
       "created": "Door mij gemaakt",
@@ -54,6 +55,63 @@
       "attachments": "Bijlagen",
       "history": "Geschiedenis"
     }
+  },
+  "modes": {
+    "label": "Taakweergave",
+    "list": "Lijst",
+    "board": "Bord",
+    "analytics": "Statistieken"
+  },
+  "taskLists": {
+    "title": "Takenlijsten",
+    "field": "Takenlijst",
+    "none": "Geen takenlijst",
+    "empty": "Nog geen takenlijsten",
+    "manage": "Takenlijsten beheren",
+    "create": "Takenlijst maken",
+    "name": "Lijstnaam",
+    "description": "Beschrijving (optioneel)",
+    "taskCount": "{{count}} taken",
+    "deleteTitle": "Takenlijst verwijderen",
+    "deleteDescription": "‘{{name}}’ verwijderen? De taken blijven zonder lijst bestaan.",
+    "deleteConfirm": "Verwijderen",
+    "deleteNamed": "Takenlijst verwijderen: {{name}}",
+    "error": "De lijstactie is mislukt. Probeer het opnieuw.",
+    "closeManager": "Takenlijstbeheer sluiten"
+  },
+  "groups": {
+    "field": "Groep",
+    "name": "Groepsnaam",
+    "ungrouped": "Niet gegroepeerd",
+    "addTask": "Taak toevoegen",
+    "collapse": "Groep samenvouwen",
+    "expand": "Groep uitvouwen",
+    "create": "Nieuwe groep",
+    "error": "De groep kon niet worden gemaakt. Probeer het opnieuw.",
+    "closeCreate": "Dialoog voor nieuwe groep sluiten"
+  },
+  "board": {
+    "title": "Takenbord",
+    "emptyColumn": "Geen taken"
+  },
+  "analytics": {
+    "loading": "Taakstatistieken laden…",
+    "error": "De taakstatistieken konden niet worden geladen.",
+    "summary": "Takenoverzicht",
+    "cards": {
+      "total": "Totaal",
+      "open": "Open",
+      "completed": "Voltooid",
+      "overdue": "Te laat",
+      "completionRate": "Voltooiingspercentage"
+    },
+    "workload": "Werkbelasting per verantwoordelijke",
+    "workloadHint": "Open taken en risico per verantwoordelijke",
+    "workloadMeta": "{{open}} open · {{overdue}} te laat · {{completed}} voltooid",
+    "groupProgress": "Groepsvoortgang",
+    "groupProgressHint": "Voltooiing per aangepaste groep",
+    "groupMeta": "{{completed}} / {{total}} voltooid",
+    "empty": "Geen gegevens voor de huidige filters"
   },
   "form": {
     "title": "Taaktitel",
@@ -219,6 +277,7 @@
       "content_changed": "{{actor}} heeft de taakinhoud bijgewerkt",
       "priority_changed": "{{actor}} heeft de taakprioriteit gewijzigd van ‘{{from}}’ naar ‘{{to}}’",
       "labels_changed": "{{actor}} heeft de taaklabels gewijzigd van ‘{{from}}’ naar ‘{{to}}’",
+      "placement_changed": "{{actor}} heeft de taak verplaatst van ‘{{from}}’ naar ‘{{to}}’",
       "dates_changed": "{{actor}} heeft de taakdatums aangepast",
       "assignee_changed": "{{actor}} heeft de taak toegewezen aan {{assignee}}",
       "status_changed": "{{actor}} heeft de status gewijzigd in ‘{{status}}’",

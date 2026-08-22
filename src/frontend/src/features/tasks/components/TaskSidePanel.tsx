@@ -12,6 +12,7 @@ import {
   RiEditLine,
   RiFileTextLine,
   RiFlagLine,
+  RiListCheck3,
   RiPriceTag3Line,
   RiUser3Line,
   RiUserAddLine,
@@ -26,6 +27,7 @@ import { css } from '@/styled-system/css'
 import type {
   ApiTask,
   ApiTaskLabel,
+  ApiTaskList,
   PatchTaskPayload,
   TaskPriority,
 } from '../api/ApiTask'
@@ -50,15 +52,22 @@ type EditableTaskField =
   | 'dueDate'
   | 'priority'
   | 'labels'
+  | 'placement'
   | 'description'
 
 export const CreateTaskPanel = ({
   labels,
+  taskLists,
+  defaultTaskListId,
+  defaultGroupId,
   titleInputRef,
   onClose,
   onCreated,
 }: {
   labels: ApiTaskLabel[]
+  taskLists: ApiTaskList[]
+  defaultTaskListId?: string
+  defaultGroupId?: string
   titleInputRef?: RefObject<HTMLInputElement>
   onClose: () => void
   onCreated: (task: ApiTask) => void
@@ -72,6 +81,9 @@ export const CreateTaskPanel = ({
       </header>
       <TaskForm
         labels={labels}
+        taskLists={taskLists}
+        defaultTaskListId={defaultTaskListId}
+        defaultGroupId={defaultGroupId}
         titleInputRef={titleInputRef}
         onCancel={onClose}
         onSaved={onCreated}
@@ -84,11 +96,13 @@ export const TaskDetailPanel = ({
   taskId,
   fallbackTask,
   labels,
+  taskLists,
   onClose,
 }: {
   taskId: string
   fallbackTask?: ApiTask
   labels: ApiTaskLabel[]
+  taskLists: ApiTaskList[]
   onClose: () => void
 }) => {
   const { t, i18n } = useTranslation('tasks')
@@ -101,6 +115,8 @@ export const TaskDetailPanel = ({
   const [draftDate, setDraftDate] = useState('')
   const [draftPriority, setDraftPriority] = useState<TaskPriority>('none')
   const [draftLabelIds, setDraftLabelIds] = useState<string[]>([])
+  const [draftTaskListId, setDraftTaskListId] = useState('')
+  const [draftGroupId, setDraftGroupId] = useState('')
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
   const patchMutation = usePatchTask()
   const focusInput = useCallback((element: HTMLInputElement | null) => {
@@ -151,6 +167,10 @@ export const TaskDetailPanel = ({
     if (field === 'labels') {
       setDraftLabelIds(task.labels.map((label) => label.id))
     }
+    if (field === 'placement') {
+      setDraftTaskListId(task.task_list?.id || '')
+      setDraftGroupId(task.group?.id || '')
+    }
   }
 
   const saveField = async (patch: PatchTaskPayload) => {
@@ -163,6 +183,9 @@ export const TaskDetailPanel = ({
   }
 
   const editLabel = (label: string) => `${t('actions.edit')} ${label}`
+  const selectedDraftTaskList = taskLists.find(
+    (taskList) => taskList.id === draftTaskListId
+  )
 
   return (
     <PanelShell title={t('workspace.details')} onClose={onClose}>
@@ -265,6 +288,76 @@ export const TaskDetailPanel = ({
               label={t('meta.creator')}
             >
               {taskDisplayName(task.creator)}
+            </TaskProperty>
+            <TaskProperty
+              icon={<RiListCheck3 size={18} />}
+              label={t('taskLists.field')}
+              editLabel={editLabel(t('taskLists.field'))}
+              isDisabled={patchMutation.isPending}
+              isEditing={editingField === 'placement'}
+              alignStart={editingField === 'placement'}
+              onEdit={
+                task.can_edit ? () => beginEditing('placement') : undefined
+              }
+            >
+              {editingField === 'placement' ? (
+                <div className={inlineEditorCss}>
+                  <div className={placementEditorCss}>
+                    <Select
+                      label={
+                        <span className="sr-only">{t('taskLists.field')}</span>
+                      }
+                      aria-label={t('taskLists.field')}
+                      items={[
+                        { value: '', label: t('taskLists.none') },
+                        ...taskLists.map((taskList) => ({
+                          value: taskList.id,
+                          label: taskList.name,
+                        })),
+                      ]}
+                      selectedKey={draftTaskListId}
+                      onSelectionChange={(key) => {
+                        setDraftTaskListId(String(key))
+                        setDraftGroupId('')
+                      }}
+                    />
+                    {selectedDraftTaskList &&
+                      selectedDraftTaskList.groups.length > 0 && (
+                        <Select
+                          label={
+                            <span className="sr-only">{t('groups.field')}</span>
+                          }
+                          aria-label={t('groups.field')}
+                          items={[
+                            { value: '', label: t('groups.ungrouped') },
+                            ...selectedDraftTaskList.groups.map((group) => ({
+                              value: group.id,
+                              label: group.name,
+                            })),
+                          ]}
+                          selectedKey={draftGroupId}
+                          onSelectionChange={(key) =>
+                            setDraftGroupId(String(key))
+                          }
+                        />
+                      )}
+                  </div>
+                  <InlineEditorActions
+                    loading={patchMutation.isPending}
+                    onCancel={() => setEditingField(null)}
+                    onSave={() =>
+                      void saveField({
+                        task_list_id: draftTaskListId || null,
+                        group_id: draftGroupId || null,
+                      })
+                    }
+                  />
+                </div>
+              ) : task.task_list ? (
+                `${task.task_list.name}${task.group ? ` / ${task.group.name}` : ''}`
+              ) : (
+                t('taskLists.none')
+              )}
             </TaskProperty>
             <TaskProperty
               icon={<RiCalendarLine size={18} />}
@@ -802,6 +895,11 @@ const inlineEditorActionsCss = css({
   gap: '0.5rem',
 })
 const inlineSelectCss = css({ width: '100%' })
+const placementEditorCss = css({
+  display: 'grid',
+  gridTemplateColumns: { base: '1fr', sm: '1fr 1fr' },
+  gap: '0.5rem',
+})
 const sourceLinkCss = css({ color: 'primary.600', textDecoration: 'none' })
 const actionsCss = css({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' })
 const inlineErrorCss = css({ margin: 0, color: 'danger.subtle-text' })

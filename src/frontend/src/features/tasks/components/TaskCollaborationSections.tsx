@@ -522,6 +522,16 @@ const taskActivityMessage = (
       to: labels ? names(labels.to) : '—',
     })
   }
+  if (activity.event === 'placement_changed') {
+    const placement = activity.changes.placement
+    const from = placement?.from.task_list
+      ? `${placement.from.task_list.name}${placement.from.group ? ` / ${placement.from.group.name}` : ''}`
+      : t('taskLists.none')
+    const to = placement?.to.task_list
+      ? `${placement.to.task_list.name}${placement.to.group ? ` / ${placement.to.group.name}` : ''}`
+      : t('taskLists.none')
+    return t('history.events.placement_changed', { actor, from, to })
+  }
   if (activity.event === 'assignee_changed') {
     const assignee = activity.changes.assignee
     const target = assignee && 'to' in assignee ? assignee.to?.name : null

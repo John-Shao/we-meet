@@ -14,6 +14,9 @@ import { toApiPath } from '@/features/contacts/api/fetchDirectoryMembers'
 import type {
   ApiTask,
   ApiTaskLabel,
+  ApiTaskList,
+  ApiTaskGroup,
+  ApiTaskStatistics,
   ApiTaskActivity,
   ApiTaskAttachment,
   ApiTaskComment,
@@ -31,9 +34,10 @@ export const buildTasksUrl = (
   status: TaskStatusFilter,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  label: string
+  label: string,
+  taskList: string
 ) =>
-  `tasks/?scope=${scope}&status=${status}&time=${time}&priority=${priority}&label=${encodeURIComponent(label)}&page_size=50`
+  `tasks/?scope=${scope}&status=${status}&time=${time}&priority=${priority}&label=${encodeURIComponent(label)}&task_list=${encodeURIComponent(taskList)}&page_size=50`
 
 const fetchTasks = (
   scope: TaskScope,
@@ -41,12 +45,13 @@ const fetchTasks = (
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
   label: string,
+  taskList: string,
   pageUrl?: string
 ) =>
   fetchApi<Paginated<ApiTask>>(
     pageUrl
       ? toApiPath(pageUrl)
-      : buildTasksUrl(scope, status, time, priority, label)
+      : buildTasksUrl(scope, status, time, priority, label, taskList)
   )
 
 export const getNextTasksPageParam = (lastPage: Paginated<ApiTask>) =>
@@ -57,10 +62,11 @@ export const useTasks = (
   status: TaskStatusFilter,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  label: string
+  label: string,
+  taskList: string
 ) =>
   useInfiniteQuery<Paginated<ApiTask>, ApiError>({
-    queryKey: ['tasks', scope, status, time, priority, label],
+    queryKey: ['tasks', scope, status, time, priority, label, taskList],
     queryFn: ({ pageParam }) =>
       fetchTasks(
         scope,
@@ -68,6 +74,7 @@ export const useTasks = (
         time,
         priority,
         label,
+        taskList,
         pageParam as string | undefined
       ),
     initialPageParam: undefined as string | undefined,
@@ -90,6 +97,104 @@ export const useTaskLabels = () =>
   useQuery<ApiTaskLabel[], ApiError>({
     queryKey: ['task-labels'],
     queryFn: fetchTaskLabels,
+  })
+
+const fetchTaskLists = () => fetchApi<ApiTaskList[]>('task-lists/')
+
+export const useTaskLists = () =>
+  useQuery<ApiTaskList[], ApiError>({
+    queryKey: ['task-lists'],
+    queryFn: fetchTaskLists,
+  })
+
+const createTaskList = (payload: {
+  name: string
+  description?: string
+  color: ApiTaskList['color']
+}) =>
+  fetchApi<ApiTaskList>('task-lists/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const useCreateTaskList = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskList,
+    ApiError,
+    { name: string; description?: string; color: ApiTaskList['color'] }
+  >({
+    mutationFn: createTaskList,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['task-lists'] }),
+  })
+}
+
+const deleteTaskList = (taskListId: string) =>
+  fetchApi<void>(`task-lists/${encodeURIComponent(taskListId)}/`, {
+    method: 'DELETE',
+  })
+
+export const useDeleteTaskList = () => {
+  const queryClient = useQueryClient()
+  return useMutation<void, ApiError, string>({
+    mutationFn: deleteTaskList,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+const createTaskGroup = (
+  taskListId: string,
+  payload: { name: string; sort_order?: number }
+) =>
+  fetchApi<ApiTaskGroup>(
+    `task-lists/${encodeURIComponent(taskListId)}/groups/`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  )
+
+export const useCreateTaskGroup = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskGroup,
+    ApiError,
+    { taskListId: string; name: string; sort_order?: number }
+  >({
+    mutationFn: ({ taskListId, ...payload }) =>
+      createTaskGroup(taskListId, payload),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['task-lists'] }),
+  })
+}
+
+const fetchTaskStatistics = (
+  scope: TaskScope,
+  time: TaskTimeFilter,
+  priority: TaskPriorityFilter,
+  label: string,
+  taskList: string
+) =>
+  fetchApi<ApiTaskStatistics>(
+    `tasks/statistics/?scope=${scope}&status=all&time=${time}&priority=${priority}&label=${encodeURIComponent(label)}&task_list=${encodeURIComponent(taskList)}`
+  )
+
+export const useTaskStatistics = (
+  scope: TaskScope,
+  time: TaskTimeFilter,
+  priority: TaskPriorityFilter,
+  label: string,
+  taskList: string,
+  enabled = true
+) =>
+  useQuery<ApiTaskStatistics, ApiError>({
+    queryKey: ['tasks', 'statistics', scope, time, priority, label, taskList],
+    queryFn: () => fetchTaskStatistics(scope, time, priority, label, taskList),
+    enabled,
   })
 
 const createTaskLabel = (payload: { name: string; color: TaskLabelColor }) =>
@@ -284,6 +389,7 @@ export const useCreateTask = () => {
     mutationFn: createTask,
     onSuccess: (task) => {
       queryClient.setQueryData(['tasks', 'detail', task.id], task)
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
       return queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
   })
@@ -305,6 +411,7 @@ export const useCreateTaskSubtask = () => {
     mutationFn: ({ taskId, payload }) => createTaskSubtask(taskId, payload),
     onSuccess: (task, variables) => {
       queryClient.setQueryData(['tasks', 'detail', task.id], task)
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
       void queryClient.invalidateQueries({ queryKey: ['tasks'] })
       void queryClient.invalidateQueries({
         queryKey: ['tasks', variables.taskId, 'subtasks'],
@@ -329,6 +436,7 @@ export const usePatchTask = () => {
     mutationFn: ({ taskId, patch }) => patchTask(taskId, patch),
     onSuccess: (task, variables) => {
       queryClient.setQueryData(['tasks', 'detail', task.id], task)
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
       void queryClient.invalidateQueries({ queryKey: ['tasks'] })
       void queryClient.invalidateQueries({
         queryKey: ['tasks', variables.taskId, 'activities'],

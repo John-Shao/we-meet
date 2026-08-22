@@ -18,7 +18,9 @@ from core.api.serializers import (
     TaskActivitySerializer,
     TaskAttachmentSerializer,
     TaskCommentSerializer,
+    TaskGroupSerializer,
     TaskLabelSerializer,
+    TaskListSerializer,
     TaskSerializer,
 )
 from core.api.viewsets import Pagination
@@ -108,6 +110,11 @@ def _filter_task_list(queryset, *, request, user):
         label_filter=request.query_params.get("label", "all"),
         user=user,
     )
+    queryset = _filter_by_task_list(
+        queryset,
+        task_list_filter=request.query_params.get("task_list", "all"),
+        user=user,
+    )
 
     time_filter = request.query_params.get("time", "all")
     if time_filter not in TIME_FILTERS:
@@ -154,6 +161,49 @@ def _filter_by_label(queryset, *, label_filter, user):
     return queryset.filter(labels=label)
 
 
+def _filter_by_task_list(queryset, *, task_list_filter, user):
+    """Filter by one active task list without crossing organizations."""
+
+    if task_list_filter == "unassigned":
+        return queryset.filter(task_list__isnull=True)
+    if task_list_filter == "all":
+        return queryset
+    organization = get_caller_organization(user)
+    try:
+        task_list = models.TaskList.objects.get(
+            id=task_list_filter,
+            organization=organization,
+            is_archived=False,
+        )
+    except (
+        ValueError,
+        DjangoValidationError,
+        models.TaskList.DoesNotExist,
+    ) as exc:
+        raise serializers.ValidationError(
+            {
+                "task_list": (
+                    "Use all, unassigned, or an active task list from your "
+                    "organization."
+                )
+            }
+        ) from exc
+    return queryset.filter(task_list=task_list)
+
+
+def _validate_unique_task_group_name(name, task_list, exclude=None):
+    queryset = models.TaskGroup.objects.filter(
+        task_list=task_list,
+        name__iexact=name,
+    )
+    if exclude is not None:
+        queryset = queryset.exclude(pk=exclude.pk)
+    if queryset.exists():
+        raise serializers.ValidationError(
+            {"name": "This task list already has a group with this name."}
+        )
+
+
 class TaskAssigneeValidationMixin:
     """Validate assignees against the caller's organization directory."""
 
@@ -191,7 +241,52 @@ class TaskLabelsValidationMixin:
         return labels
 
 
+class TaskPlacementValidationMixin:
+    """Validate task-list and group placement as one organization-scoped pair."""
+
+    def validate_task_list_id(self, task_list):
+        if task_list is None:
+            return None
+        organization = (
+            self.instance.organization
+            if getattr(self, "instance", None) is not None
+            else get_caller_organization(self.context["request"].user)
+        )
+        if (
+            organization is None
+            or task_list.organization_id != organization.id
+            or task_list.is_archived
+        ):
+            raise serializers.ValidationError(
+                "Choose an active task list from the task organization."
+            )
+        return task_list
+
+    def validate_group_id(self, group):
+        return group
+
+    def validate_placement(self, attrs):
+        current_task_list = getattr(self.instance, "task_list", None)
+        task_list = attrs.get("task_list", current_task_list)
+        group = attrs.get("group", getattr(self.instance, "group", None))
+        if (
+            "task_list" in attrs
+            and "group" not in attrs
+            and getattr(current_task_list, "id", None) != getattr(task_list, "id", None)
+        ):
+            attrs["group"] = None
+            group = None
+        if group is not None and (
+            task_list is None or group.task_list_id != task_list.id
+        ):
+            raise serializers.ValidationError(
+                {"group_id": "Choose a group from the selected task list."}
+            )
+        return attrs
+
+
 class TaskCreateSerializer(
+    TaskPlacementValidationMixin,
     TaskLabelsValidationMixin,
     TaskAssigneeValidationMixin,
     serializers.Serializer,
@@ -222,8 +317,24 @@ class TaskCreateSerializer(
         required=False,
         write_only=True,
     )
+    task_list_id = serializers.PrimaryKeyRelatedField(
+        source="task_list",
+        queryset=models.TaskList.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+    group_id = serializers.PrimaryKeyRelatedField(
+        source="group",
+        queryset=models.TaskGroup.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+    position = serializers.IntegerField(required=False, min_value=0, default=0)
 
     def validate(self, attrs):
+        attrs = self.validate_placement(attrs)
         if (
             attrs.get("start_date")
             and attrs.get("due_date")
@@ -236,6 +347,7 @@ class TaskCreateSerializer(
 
 
 class TaskUpdateSerializer(
+    TaskPlacementValidationMixin,
     TaskLabelsValidationMixin,
     TaskAssigneeValidationMixin,
     serializers.ModelSerializer,
@@ -272,6 +384,20 @@ class TaskUpdateSerializer(
         required=False,
         write_only=True,
     )
+    task_list_id = serializers.PrimaryKeyRelatedField(
+        source="task_list",
+        queryset=models.TaskList.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+    group_id = serializers.PrimaryKeyRelatedField(
+        source="group",
+        queryset=models.TaskGroup.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
 
     class Meta:
         model = models.Task
@@ -282,12 +408,16 @@ class TaskUpdateSerializer(
             "due_date",
             "priority",
             "label_ids",
+            "task_list_id",
+            "group_id",
+            "position",
             "assignee_id",
             "status",
         ]
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        attrs = self.validate_placement(attrs)
         start_date = attrs.get("start_date", self.instance.start_date)
         due_date = attrs.get("due_date", self.instance.due_date)
         if start_date and due_date and start_date > due_date:
@@ -388,6 +518,151 @@ class TaskLabelViewSet(
             )
 
 
+class TaskListViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Organization task lists that contain ordered custom groups."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = TaskListSerializer
+    pagination_class = None
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["can_manage_all_task_lists"] = is_caller_org_admin(self.request.user)
+        return context
+
+    def get_queryset(self):
+        organization = get_caller_organization(self.request.user)
+        if organization is None:
+            return models.TaskList.objects.none()
+        queryset = models.TaskList.objects.filter(organization=organization)
+        if self.request.query_params.get("archived") != "true":
+            queryset = queryset.filter(is_archived=False)
+        return queryset.select_related("creator").prefetch_related("groups")
+
+    def perform_create(self, serializer):
+        organization = get_caller_organization(self.request.user)
+        if organization is None:
+            raise serializers.ValidationError(
+                {"detail": "Join an organization before creating a task list."}
+            )
+        self._validate_unique_name(serializer.validated_data["name"], organization)
+        serializer.save(organization=organization, creator=self.request.user)
+
+    def perform_update(self, serializer):
+        task_list = self.get_object()
+        self._ensure_can_manage(task_list)
+        name = serializer.validated_data.get("name", task_list.name)
+        self._validate_unique_name(name, task_list.organization, exclude=task_list)
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        task_list = self.get_object()
+        self._ensure_can_manage(task_list)
+        task_list.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["get", "post"])
+    def groups(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        task_list = self.get_object()
+        if request.method == "GET":
+            return Response(
+                TaskGroupSerializer(
+                    task_list.groups.all(),
+                    many=True,
+                    context={"request": request},
+                ).data
+            )
+        self._ensure_can_manage(task_list)
+        serializer = TaskGroupSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        _validate_unique_task_group_name(serializer.validated_data["name"], task_list)
+        group = serializer.save(task_list=task_list)
+        return Response(
+            TaskGroupSerializer(group, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def _ensure_can_manage(self, task_list):
+        if task_list.creator_id != self.request.user.id and not is_caller_org_admin(
+            self.request.user
+        ):
+            raise PermissionDenied(
+                "Only the task-list creator or an organization administrator can manage it."
+            )
+
+    @staticmethod
+    def _validate_unique_name(name, organization, exclude=None):
+        queryset = models.TaskList.objects.filter(
+            organization=organization,
+            name__iexact=name,
+        )
+        if exclude is not None:
+            queryset = queryset.exclude(pk=exclude.pk)
+        if queryset.exists():
+            raise serializers.ValidationError(
+                {"name": "This organization already has a task list with this name."}
+            )
+
+
+class TaskGroupViewSet(
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Rename, reorder, or remove a group from an organization task list."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = TaskGroupSerializer
+    pagination_class = None
+    http_method_names = ["patch", "delete", "head", "options"]
+
+    def get_queryset(self):
+        organization = get_caller_organization(self.request.user)
+        if organization is None:
+            return models.TaskGroup.objects.none()
+        return models.TaskGroup.objects.filter(
+            task_list__organization=organization,
+            task_list__is_archived=False,
+        ).select_related("task_list", "task_list__creator")
+
+    def perform_update(self, serializer):
+        group = self.get_object()
+        self._ensure_can_manage(group)
+        name = serializer.validated_data.get("name", group.name)
+        _validate_unique_task_group_name(
+            name,
+            group.task_list,
+            exclude=group,
+        )
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        group = self.get_object()
+        self._ensure_can_manage(group)
+        group.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _ensure_can_manage(self, group):
+        if (
+            group.task_list.creator_id != self.request.user.id
+            and not is_caller_org_admin(self.request.user)
+        ):
+            raise PermissionDenied(
+                "Only the task-list creator or an organization administrator can manage its groups."
+            )
+
+
 class TaskAttachmentCreateSerializer(serializers.Serializer):
     """Attach one completed upload owned by the caller to a task."""
 
@@ -440,6 +715,8 @@ class TaskViewSet(
             .select_related(
                 "creator",
                 "assignee",
+                "task_list",
+                "group",
                 "parent__creator",
                 "parent__assignee",
                 "source_action_item__room",
@@ -502,6 +779,8 @@ class TaskViewSet(
                 .select_related(
                     "creator",
                     "assignee",
+                    "task_list",
+                    "group",
                     "parent__creator",
                     "parent__assignee",
                     "source_action_item__room",
@@ -519,6 +798,9 @@ class TaskViewSet(
                 "due_date",
                 "priority",
                 "label_ids",
+                "task_list_id",
+                "group_id",
+                "position",
                 "assignee_id",
                 "status",
             }
@@ -596,6 +878,74 @@ class TaskViewSet(
         activities = task.activities.select_related("actor").order_by("-created_at")
         return Response(TaskActivitySerializer(activities, many=True).data)
 
+    @action(detail=False, methods=["get"])
+    def statistics(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """Aggregate the same task set the caller is already allowed to list."""
+
+        queryset = _filter_task_list(
+            self.get_queryset(),
+            request=request,
+            user=request.user,
+        )
+        open_statuses = [models.Task.Status.TODO, models.Task.Status.IN_PROGRESS]
+        overdue_filter = Q(
+            status__in=open_statuses,
+            assignee__isnull=False,
+            due_date__lt=F("_assignee_local_date"),
+        )
+        summary = queryset.aggregate(
+            total=Count("id", distinct=True),
+            open=Count("id", filter=Q(status__in=open_statuses), distinct=True),
+            completed=Count(
+                "id",
+                filter=Q(status=models.Task.Status.COMPLETED),
+                distinct=True,
+            ),
+            canceled=Count(
+                "id",
+                filter=Q(status=models.Task.Status.CANCELED),
+                distinct=True,
+            ),
+            overdue=Count("id", filter=overdue_filter, distinct=True),
+        )
+        eligible = summary["total"] - summary["canceled"]
+        summary["completion_rate"] = (
+            round(summary["completed"] * 100 / eligible) if eligible else 0
+        )
+        workload = list(
+            queryset.filter(assignee__isnull=False)
+            .values(
+                "assignee_id",
+                "assignee__full_name",
+                "assignee__short_name",
+                "assignee__email",
+            )
+            .annotate(
+                total=Count("id", distinct=True),
+                open=Count("id", filter=Q(status__in=open_statuses), distinct=True),
+                completed=Count(
+                    "id",
+                    filter=Q(status=models.Task.Status.COMPLETED),
+                    distinct=True,
+                ),
+                overdue=Count("id", filter=overdue_filter, distinct=True),
+            )
+            .order_by("-open", "assignee__full_name", "assignee_id")
+        )
+        groups = list(
+            queryset.values("group_id", "group__name", "group__sort_order")
+            .annotate(
+                total=Count("id", distinct=True),
+                completed=Count(
+                    "id",
+                    filter=Q(status=models.Task.Status.COMPLETED),
+                    distinct=True,
+                ),
+            )
+            .order_by("group__sort_order", "group__name", "group_id")
+        )
+        return Response({"summary": summary, "workload": workload, "groups": groups})
+
     @action(detail=True, methods=["get", "post"])
     def subtasks(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         parent = self.get_object()
@@ -604,6 +954,8 @@ class TaskViewSet(
                 parent.subtasks.select_related(
                     "creator",
                     "assignee",
+                    "task_list",
+                    "group",
                     "parent__creator",
                     "parent__assignee",
                 )
@@ -638,6 +990,9 @@ class TaskViewSet(
         validated_data = dict(serializer.validated_data)
         assignee = validated_data.pop("assignee", request.user)
         labels = validated_data.pop("labels", [])
+        validated_data.pop("task_list", None)
+        validated_data.pop("group", None)
+        validated_data.pop("position", None)
         with transaction.atomic():
             subtask = models.Task.objects.create(
                 parent=parent,
@@ -645,6 +1000,8 @@ class TaskViewSet(
                 assignee=assignee,
                 organization=parent.organization
                 or get_caller_organization(request.user),
+                task_list=parent.task_list,
+                group=parent.group,
                 **validated_data,
             )
             subtask.labels.set(labels)

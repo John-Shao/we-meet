@@ -26,6 +26,9 @@ const task: ApiTask = {
   assignee: { id: 'assignee', full_name: 'Assignee', short_name: null },
   status: 'todo',
   priority: 'high',
+  task_list: null,
+  group: null,
+  position: 0,
   labels: [
     {
       id: 'label-1',
@@ -87,5 +90,46 @@ describe('TaskList', () => {
       taskId: 'task-1',
       patch: { status: 'completed' },
     })
+  })
+
+  it('renders task-list groups and creates a task in the selected group', () => {
+    const onCreateTaskInGroup = vi.fn()
+    render(
+      <TaskList
+        tasks={[
+          {
+            ...task,
+            group: {
+              id: 'group-1',
+              name: 'Analysis',
+              sort_order: 0,
+            },
+          },
+        ]}
+        groups={[
+          {
+            id: 'group-1',
+            name: 'Analysis',
+            sort_order: 0,
+            task_count: 1,
+            created_at: '2026-08-21T08:00:00Z',
+            updated_at: '2026-08-21T08:00:00Z',
+          },
+        ]}
+        grouped
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+        onCreateTaskInGroup={onCreateTaskInGroup}
+      />
+    )
+
+    expect(screen.getAllByText('Analysis')).toHaveLength(2)
+    fireEvent.click(screen.getAllByText('+ groups.addTask')[0])
+    expect(onCreateTaskInGroup).toHaveBeenCalledWith('group-1')
+
+    const collapseButtons = screen.getAllByLabelText('groups.collapse')
+    fireEvent.click(collapseButtons[0])
+    expect(collapseButtons[0]).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getAllByLabelText('groups.expand')).toHaveLength(2)
   })
 })

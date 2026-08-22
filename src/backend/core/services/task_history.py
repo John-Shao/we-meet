@@ -18,6 +18,9 @@ class TaskHistorySnapshot:
     status: str
     priority: str
     labels: tuple[dict, ...]
+    task_list: dict | None
+    group: dict | None
+    position: int
 
 
 def snapshot_task(task: models.Task) -> TaskHistorySnapshot:
@@ -32,6 +35,9 @@ def snapshot_task(task: models.Task) -> TaskHistorySnapshot:
         status=task.status,
         priority=task.priority,
         labels=_label_snapshots(task.labels.all()),
+        task_list=_task_list_snapshot(task.task_list),
+        group=_task_group_snapshot(task.group),
+        position=task.position,
     )
 
 
@@ -133,6 +139,35 @@ def record_task_changes(
             )
         )
 
+    task_list = _task_list_snapshot(task.task_list)
+    group = _task_group_snapshot(task.group)
+    if (
+        task_list != before.task_list
+        or group != before.group
+        or task.position != before.position
+    ):
+        activities.append(
+            _activity(
+                task=task,
+                actor=actor,
+                event=models.TaskActivity.Event.PLACEMENT_CHANGED,
+                changes={
+                    "placement": {
+                        "from": {
+                            "task_list": before.task_list,
+                            "group": before.group,
+                            "position": before.position,
+                        },
+                        "to": {
+                            "task_list": task_list,
+                            "group": group,
+                            "position": task.position,
+                        },
+                    }
+                },
+            )
+        )
+
     return activities
 
 
@@ -171,3 +206,19 @@ def _label_snapshots(labels) -> tuple[dict, ...]:
             labels, key=lambda item: (item.name.casefold(), str(item.id))
         )
     )
+
+
+def _task_list_snapshot(task_list) -> dict | None:
+    if task_list is None:
+        return None
+    return {
+        "id": str(task_list.id),
+        "name": task_list.name,
+        "color": task_list.color,
+    }
+
+
+def _task_group_snapshot(group) -> dict | None:
+    if group is None:
+        return None
+    return {"id": str(group.id), "name": group.name}

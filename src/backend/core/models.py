@@ -578,22 +578,18 @@ class Room(Resource):
     @property
     def summary(self):
         """Return the latest session summary for legacy Room read paths."""
-        return (
-            self.summaries.order_by(
-                models.F("session__started_at").desc(nulls_last=True),
-                "-updated_at",
-            ).first()
-        )
+        return self.summaries.order_by(
+            models.F("session__started_at").desc(nulls_last=True),
+            "-updated_at",
+        ).first()
 
     @property
     def meeting_doc(self):
         """Return the latest session document for legacy Room read paths."""
-        return (
-            self.meeting_docs.order_by(
-                models.F("session__started_at").desc(nulls_last=True),
-                "-created_at",
-            ).first()
-        )
+        return self.meeting_docs.order_by(
+            models.F("session__started_at").desc(nulls_last=True),
+            "-created_at",
+        ).first()
 
     @staticmethod
     def generate_unique_slug(length=8, max_retries=10):
@@ -1963,9 +1959,7 @@ class Summary(BaseModel):
         verbose_name_plural = _("meeting summaries")
         ordering = ("-updated_at",)
         indexes = [
-            models.Index(
-                fields=["room", "-updated_at"], name="meet_sum_room_upd_idx"
-            )
+            models.Index(fields=["room", "-updated_at"], name="meet_sum_room_upd_idx")
         ]
 
     @property
@@ -2278,6 +2272,88 @@ class TaskLabel(BaseModel):
         return self.name
 
 
+class TaskList(BaseModel):
+    """An organization-scoped task list, comparable to a lightweight project."""
+
+    class Color(models.TextChoices):
+        GREY = "grey", _("Grey")
+        BLUE = "blue", _("Blue")
+        GREEN = "green", _("Green")
+        YELLOW = "yellow", _("Yellow")
+        ORANGE = "orange", _("Orange")
+        RED = "red", _("Red")
+        PURPLE = "purple", _("Purple")
+
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        related_name="task_lists",
+        verbose_name=_("organization"),
+    )
+    name = models.CharField(_("name"), max_length=80)
+    description = models.TextField(_("description"), blank=True, default="")
+    color = models.CharField(
+        _("color"),
+        max_length=16,
+        choices=Color.choices,
+        default=Color.BLUE,
+    )
+    creator = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="created_task_lists",
+        null=True,
+        blank=True,
+        verbose_name=_("creator"),
+    )
+    is_archived = models.BooleanField(_("archived"), default=False)
+
+    class Meta:
+        db_table = "meet_task_list"
+        verbose_name = _("task list")
+        verbose_name_plural = _("task lists")
+        ordering = ("name", "id")
+        constraints = [
+            models.UniqueConstraint(
+                models.functions.Lower("name"),
+                "organization",
+                name="task_list_name_ci_unique_org",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class TaskGroup(BaseModel):
+    """A custom ordered section inside a task list."""
+
+    task_list = models.ForeignKey(
+        TaskList,
+        on_delete=models.CASCADE,
+        related_name="groups",
+        verbose_name=_("task list"),
+    )
+    name = models.CharField(_("name"), max_length=80)
+    sort_order = models.PositiveIntegerField(_("sort order"), default=0)
+
+    class Meta:
+        db_table = "meet_task_group"
+        verbose_name = _("task group")
+        verbose_name_plural = _("task groups")
+        ordering = ("sort_order", "created_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                models.functions.Lower("name"),
+                "task_list",
+                name="task_group_name_ci_unique_list",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Task(BaseModel):
     """A durable work item, optionally created from a meeting action item."""
 
@@ -2346,6 +2422,23 @@ class Task(BaseModel):
         blank=True,
         verbose_name=_("labels"),
     )
+    task_list = models.ForeignKey(
+        TaskList,
+        on_delete=models.SET_NULL,
+        related_name="tasks",
+        null=True,
+        blank=True,
+        verbose_name=_("task list"),
+    )
+    group = models.ForeignKey(
+        TaskGroup,
+        on_delete=models.SET_NULL,
+        related_name="tasks",
+        null=True,
+        blank=True,
+        verbose_name=_("task group"),
+    )
+    position = models.PositiveIntegerField(_("position"), default=0)
     start_date = models.DateField(_("start date"), null=True, blank=True, db_index=True)
     due_date = models.DateField(_("due date"), null=True, blank=True, db_index=True)
     completed_at = models.DateTimeField(_("completed at"), null=True, blank=True)
@@ -2379,6 +2472,7 @@ class TaskActivity(BaseModel):
         STATUS_CHANGED = "status_changed", _("Status changed")
         PRIORITY_CHANGED = "priority_changed", _("Priority changed")
         LABELS_CHANGED = "labels_changed", _("Labels changed")
+        PLACEMENT_CHANGED = "placement_changed", _("Placement changed")
         ATTACHMENT_REMOVED = "attachment_removed", _("Attachment removed")
         SOURCE_ACTION_ITEM_CHANGED = (
             "source_action_item_changed",
@@ -2905,7 +2999,9 @@ class MeetingDoc(BaseModel):
 
     def __str__(self) -> str:
         room_repr = str(self.room_id) if self.room_id else "<orphan>"
-        return f"MeetingDoc room={room_repr} session={self.session_id} doc={self.doc_id}"
+        return (
+            f"MeetingDoc room={room_repr} session={self.session_id} doc={self.doc_id}"
+        )
 
     def clean(self):
         """Reject a document assigned to a session from another room."""
@@ -3886,7 +3982,9 @@ class Calendar(BaseModel):
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(kind=CalendarKindChoices.RESOURCE, meeting_room__isnull=False)
+                    models.Q(
+                        kind=CalendarKindChoices.RESOURCE, meeting_room__isnull=False
+                    )
                     | ~models.Q(kind=CalendarKindChoices.RESOURCE)
                 ),
                 name="calendar_resource_has_room",
@@ -4193,9 +4291,7 @@ class CalendarEvent(BaseModel):
     title = models.CharField(_("title"), max_length=255)
     description = models.TextField(_("description"), blank=True, default="")
     location = models.CharField(_("location"), max_length=512, blank=True, default="")
-    attachment_names = models.JSONField(
-        _("attachment names"), blank=True, default=list
-    )
+    attachment_names = models.JSONField(_("attachment names"), blank=True, default=list)
     start_at = models.DateTimeField(_("start at"))
     end_at = models.DateTimeField(_("end at"))
     # Canonical half-open civil-date range for all-day events.  ``start_at`` /
@@ -4293,6 +4389,7 @@ class CalendarEvent(BaseModel):
             "pushed back to it (best-effort)."
         ),
     )
+
     class Meta:
         db_table = "meet_calendar_event"
         ordering = ("start_at",)
@@ -4332,11 +4429,7 @@ class CalendarEvent(BaseModel):
 
     def save(self, *args, **kwargs):
         """Keep non-API legacy writers compatible with the unified model."""
-        if (
-            not self.source_calendar_id
-            and self.organization_id
-            and self.organizer_id
-        ):
+        if not self.source_calendar_id and self.organization_id and self.organizer_id:
             self.source_calendar, _ = Calendar.objects.get_or_create(
                 organization_id=self.organization_id,
                 owner_id=self.organizer_id,

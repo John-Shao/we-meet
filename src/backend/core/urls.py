@@ -97,7 +97,12 @@ from core.api.search import (
     GlobalAskStreamView,
     GlobalAskView,
 )
-from core.api.tasks import TaskLabelViewSet, TaskViewSet
+from core.api.tasks import (
+    TaskGroupViewSet,
+    TaskLabelViewSet,
+    TaskListViewSet,
+    TaskViewSet,
+)
 from core.external_api import viewsets as external_viewsets
 
 # - Main endpoints
@@ -253,6 +258,8 @@ router.register(
 router.register("approvals", ApprovalInstanceViewSet, basename="approvals")
 router.register("tasks", TaskViewSet, basename="tasks")
 router.register("task-labels", TaskLabelViewSet, basename="task_labels")
+router.register("task-lists", TaskListViewSet, basename="task_lists")
+router.register("task-groups", TaskGroupViewSet, basename="task_groups")
 
 # - External API
 external_router = SimpleRouter()

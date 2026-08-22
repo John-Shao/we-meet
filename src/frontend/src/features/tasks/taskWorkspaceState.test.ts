@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildTaskWorkspaceSearch,
   parseTaskWorkspaceState,
+  stateForTaskList,
   stateForView,
   stateWithStatus,
   taskViewPresets,
@@ -25,11 +26,13 @@ describe('task workspace state', () => {
       time: 'all',
       priority: 'all',
       label: 'all',
+      taskList: 'all',
+      mode: 'list',
     })
     expect(
       parseTaskWorkspaceState(
         new URLSearchParams(
-          'scope=created&status=todo&time=overdue&priority=high&label=abc&task=42'
+          'scope=created&status=todo&time=overdue&priority=high&label=abc&task_list=list-1&view=board&task=42'
         )
       )
     ).toEqual({
@@ -38,6 +41,8 @@ describe('task workspace state', () => {
       time: 'overdue',
       priority: 'high',
       label: 'abc',
+      taskList: 'list-1',
+      mode: 'board',
       task: '42',
     })
   })
@@ -54,6 +59,12 @@ describe('task workspace state', () => {
       label: 'abc',
     })
     expect(stateWithStatus(state, 'canceled').time).toBe('all')
+    expect(stateForTaskList(state, 'list-1')).toMatchObject({
+      scope: 'all',
+      status: 'open',
+      taskList: 'list-1',
+      mode: 'list',
+    })
   })
 
   it('serializes deep links with every workbench filter', () => {
@@ -64,10 +75,12 @@ describe('task workspace state', () => {
         time: 'all',
         priority: 'low',
         label: 'label/id',
+        taskList: 'list/id',
+        mode: 'board',
         task: 'task-id',
       })
     ).toBe(
-      'scope=all&status=completed&time=all&priority=low&label=label%2Fid&task=task-id'
+      'scope=all&status=completed&time=all&priority=low&label=label%2Fid&task_list=list%2Fid&view=board&task=task-id'
     )
   })
 })

@@ -70,6 +70,27 @@ class MembershipFactory(factory.django.DjangoModelFactory):
     )
 
 
+class TaskListFactory(factory.django.DjangoModelFactory):
+    """Create a fake organization task list."""
+
+    class Meta:
+        model = models.TaskList
+
+    organization = factory.SubFactory(OrganizationFactory)
+    creator = factory.SubFactory(UserFactory)
+    name = factory.Sequence(lambda n: f"Task list {n!s}")
+
+
+class TaskGroupFactory(factory.django.DjangoModelFactory):
+    """Create a fake ordered group within a task list."""
+
+    class Meta:
+        model = models.TaskGroup
+
+    task_list = factory.SubFactory(TaskListFactory)
+    name = factory.Sequence(lambda n: f"Task group {n!s}")
+
+
 class ResourceFactory(factory.django.DjangoModelFactory):
     """Create fake resources for testing."""
 

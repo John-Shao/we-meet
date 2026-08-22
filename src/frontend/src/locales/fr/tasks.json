@@ -8,6 +8,7 @@
   "sourceMeeting": "Réunion source : {{name}}",
   "workspace": {
     "navigation": "Vues des tâches",
+    "quickAccess": "Accès rapide",
     "views": {
       "assigned": "Mes tâches",
       "created": "Créées par moi",
@@ -54,6 +55,63 @@
       "attachments": "Pièces jointes",
       "history": "Historique"
     }
+  },
+  "modes": {
+    "label": "Affichage des tâches",
+    "list": "Liste",
+    "board": "Tableau",
+    "analytics": "Statistiques"
+  },
+  "taskLists": {
+    "title": "Listes de tâches",
+    "field": "Liste de tâches",
+    "none": "Aucune liste",
+    "empty": "Aucune liste de tâches",
+    "manage": "Gérer les listes de tâches",
+    "create": "Créer une liste",
+    "name": "Nom de la liste",
+    "description": "Description (facultatif)",
+    "taskCount": "{{count}} tâches",
+    "deleteTitle": "Supprimer la liste",
+    "deleteDescription": "Supprimer « {{name}} » ? Ses tâches seront conservées sans liste.",
+    "deleteConfirm": "Supprimer",
+    "deleteNamed": "Supprimer la liste : {{name}}",
+    "error": "L’opération sur la liste a échoué. Veuillez réessayer.",
+    "closeManager": "Fermer la gestion des listes"
+  },
+  "groups": {
+    "field": "Groupe",
+    "name": "Nom du groupe",
+    "ungrouped": "Sans groupe",
+    "addTask": "Ajouter une tâche",
+    "collapse": "Réduire le groupe",
+    "expand": "Développer le groupe",
+    "create": "Nouveau groupe",
+    "error": "Impossible de créer le groupe. Veuillez réessayer.",
+    "closeCreate": "Fermer la création du groupe"
+  },
+  "board": {
+    "title": "Tableau des tâches",
+    "emptyColumn": "Aucune tâche"
+  },
+  "analytics": {
+    "loading": "Chargement des statistiques…",
+    "error": "Impossible de charger les statistiques.",
+    "summary": "Résumé des tâches",
+    "cards": {
+      "total": "Total",
+      "open": "Ouvertes",
+      "completed": "Terminées",
+      "overdue": "En retard",
+      "completionRate": "Taux d’achèvement"
+    },
+    "workload": "Charge par responsable",
+    "workloadHint": "Tâches ouvertes et risques par responsable",
+    "workloadMeta": "{{open}} ouvertes · {{overdue}} en retard · {{completed}} terminées",
+    "groupProgress": "Progression des groupes",
+    "groupProgressHint": "Achèvement par groupe personnalisé",
+    "groupMeta": "{{completed}} / {{total}} terminées",
+    "empty": "Aucune donnée pour les filtres actuels"
   },
   "form": {
     "title": "Titre de la tâche",
@@ -219,6 +277,7 @@
       "content_changed": "{{actor}} a modifié le contenu de la tâche",
       "priority_changed": "{{actor}} a modifié la priorité de « {{from}} » à « {{to}} »",
       "labels_changed": "{{actor}} a modifié les étiquettes de « {{from}} » à « {{to}} »",
+      "placement_changed": "{{actor}} a déplacé la tâche de « {{from}} » vers « {{to}} »",
       "dates_changed": "{{actor}} a ajusté les dates de la tâche",
       "assignee_changed": "{{actor}} a réattribué la tâche à {{assignee}}",
       "status_changed": "{{actor}} a changé le statut en « {{status}} »",

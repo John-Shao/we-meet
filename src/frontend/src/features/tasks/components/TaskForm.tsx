@@ -4,6 +4,7 @@ import {
   RiCalendarLine,
   RiFileTextLine,
   RiFlagLine,
+  RiListCheck3,
   RiPriceTag3Line,
   RiUser3Line,
 } from '@remixicon/react'
@@ -16,6 +17,7 @@ import { css } from '@/styled-system/css'
 import type {
   ApiTask,
   ApiTaskLabel,
+  ApiTaskList,
   ApiTaskUser,
   TaskPriority,
 } from '../api/ApiTask'
@@ -27,11 +29,17 @@ const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
 
 export const TaskForm = ({
   labels,
+  taskLists,
+  defaultTaskListId,
+  defaultGroupId,
   titleInputRef,
   onCancel,
   onSaved,
 }: {
   labels: ApiTaskLabel[]
+  taskLists: ApiTaskList[]
+  defaultTaskListId?: string
+  defaultGroupId?: string
   titleInputRef?: RefObject<HTMLInputElement>
   onCancel: () => void
   onSaved: (task: ApiTask) => void
@@ -42,6 +50,8 @@ export const TaskForm = ({
   const [assignee, setAssignee] = useState<ApiTaskUser | null>(null)
   const [priority, setPriority] = useState<TaskPriority>('none')
   const [labelIds, setLabelIds] = useState<string[]>([])
+  const [taskListId, setTaskListId] = useState(defaultTaskListId || '')
+  const [groupId, setGroupId] = useState(defaultGroupId || '')
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -50,6 +60,7 @@ export const TaskForm = ({
   const tomorrowDate = new Date()
   tomorrowDate.setDate(tomorrowDate.getDate() + 1)
   const tomorrow = dateInputValue(tomorrowDate)
+  const selectedTaskList = taskLists.find((item) => item.id === taskListId)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -62,6 +73,8 @@ export const TaskForm = ({
         assignee_id: assignee?.id,
         priority,
         label_ids: labelIds,
+        task_list_id: taskListId || null,
+        group_id: groupId || null,
         start_date: startDate || null,
         due_date: dueDate || null,
       }
@@ -119,6 +132,47 @@ export const TaskForm = ({
               {assignee ? taskDisplayName(assignee) : t('form.assigneeSelf')}
             </Button>
           </div>
+
+          {taskLists.length > 0 && (
+            <div className={createPropertyRowCss} data-align-start>
+              <RiListCheck3 size={19} aria-hidden="true" />
+              <div className={placementControlsCss}>
+                <Select
+                  label={
+                    <span className="sr-only">{t('taskLists.field')}</span>
+                  }
+                  aria-label={t('taskLists.field')}
+                  items={[
+                    { value: '', label: t('taskLists.none') },
+                    ...taskLists.map((taskList) => ({
+                      value: taskList.id,
+                      label: taskList.name,
+                    })),
+                  ]}
+                  selectedKey={taskListId}
+                  onSelectionChange={(key) => {
+                    setTaskListId(String(key))
+                    setGroupId('')
+                  }}
+                />
+                {selectedTaskList && selectedTaskList.groups.length > 0 && (
+                  <Select
+                    label={<span className="sr-only">{t('groups.field')}</span>}
+                    aria-label={t('groups.field')}
+                    items={[
+                      { value: '', label: t('groups.ungrouped') },
+                      ...selectedTaskList.groups.map((group) => ({
+                        value: group.id,
+                        label: group.name,
+                      })),
+                    ]}
+                    selectedKey={groupId}
+                    onSelectionChange={(key) => setGroupId(String(key))}
+                  />
+                )}
+              </div>
+            </div>
+          )}
 
           <div className={createPropertyRowCss}>
             <RiCalendarLine size={19} aria-hidden="true" />
@@ -309,6 +363,13 @@ const datePickerCss = css({
 const createSelectCss = css({
   width: '11rem',
   fontSize: '0.875rem',
+})
+const placementControlsCss = css({
+  width: '100%',
+  display: 'grid',
+  gridTemplateColumns: { base: '1fr', sm: '1fr 1fr' },
+  gap: '0.5rem',
+  fontSize: '0.8125rem',
 })
 const startDateDisclosureCss = css({
   marginLeft: '2.25rem',

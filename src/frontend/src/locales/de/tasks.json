@@ -8,6 +8,7 @@
   "sourceMeeting": "Quell-Meeting: {{name}}",
   "workspace": {
     "navigation": "Aufgabenansichten",
+    "quickAccess": "Schnellzugriff",
     "views": {
       "assigned": "Mir zugewiesen",
       "created": "Von mir erstellt",
@@ -54,6 +55,63 @@
       "attachments": "Anhänge",
       "history": "Verlauf"
     }
+  },
+  "modes": {
+    "label": "Aufgabendarstellung",
+    "list": "Liste",
+    "board": "Board",
+    "analytics": "Statistik"
+  },
+  "taskLists": {
+    "title": "Aufgabenlisten",
+    "field": "Aufgabenliste",
+    "none": "Keine Aufgabenliste",
+    "empty": "Noch keine Aufgabenlisten",
+    "manage": "Aufgabenlisten verwalten",
+    "create": "Aufgabenliste erstellen",
+    "name": "Listenname",
+    "description": "Beschreibung (optional)",
+    "taskCount": "{{count}} Aufgaben",
+    "deleteTitle": "Aufgabenliste löschen",
+    "deleteDescription": "„{{name}}“ löschen? Die Aufgaben bleiben ohne Liste erhalten.",
+    "deleteConfirm": "Löschen",
+    "deleteNamed": "Aufgabenliste löschen: {{name}}",
+    "error": "Die Listenaktion ist fehlgeschlagen. Bitte erneut versuchen.",
+    "closeManager": "Aufgabenlistenverwaltung schließen"
+  },
+  "groups": {
+    "field": "Gruppe",
+    "name": "Gruppenname",
+    "ungrouped": "Nicht gruppiert",
+    "addTask": "Aufgabe hinzufügen",
+    "collapse": "Gruppe einklappen",
+    "expand": "Gruppe ausklappen",
+    "create": "Neue Gruppe",
+    "error": "Die Gruppe konnte nicht erstellt werden. Bitte erneut versuchen.",
+    "closeCreate": "Dialog für neue Gruppe schließen"
+  },
+  "board": {
+    "title": "Aufgabenboard",
+    "emptyColumn": "Keine Aufgaben"
+  },
+  "analytics": {
+    "loading": "Aufgabenstatistik wird geladen…",
+    "error": "Die Aufgabenstatistik konnte nicht geladen werden.",
+    "summary": "Aufgabenübersicht",
+    "cards": {
+      "total": "Gesamt",
+      "open": "Offen",
+      "completed": "Abgeschlossen",
+      "overdue": "Überfällig",
+      "completionRate": "Abschlussquote"
+    },
+    "workload": "Arbeitslast nach Verantwortlichen",
+    "workloadHint": "Offene Aufgaben und Risiken pro Person",
+    "workloadMeta": "{{open}} offen · {{overdue}} überfällig · {{completed}} abgeschlossen",
+    "groupProgress": "Gruppenfortschritt",
+    "groupProgressHint": "Abschluss nach benutzerdefinierter Gruppe",
+    "groupMeta": "{{completed}} / {{total}} abgeschlossen",
+    "empty": "Keine Daten für die aktuellen Filter"
   },
   "form": {
     "title": "Aufgabentitel",
@@ -219,6 +277,7 @@
       "content_changed": "{{actor}} hat den Aufgabeninhalt geändert",
       "priority_changed": "{{actor}} hat die Aufgabenpriorität von „{{from}}“ auf „{{to}}“ geändert",
       "labels_changed": "{{actor}} hat die Aufgabenlabels von „{{from}}“ auf „{{to}}“ geändert",
+      "placement_changed": "{{actor}} hat die Aufgabe von „{{from}}“ nach „{{to}}“ verschoben",
       "dates_changed": "{{actor}} hat die Aufgabendaten angepasst",
       "assignee_changed": "{{actor}} hat die Aufgabe {{assignee}} zugewiesen",
       "status_changed": "{{actor}} hat den Status in „{{status}}“ geändert",

@@ -1,0 +1,215 @@
+import { type DragEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { css } from '@/styled-system/css'
+
+import type { ApiTask, TaskStatus } from '../api/ApiTask'
+import { usePatchTask } from '../api/fetchTasks'
+import { taskDisplayName } from '../taskUi'
+import { TaskLabelBadge } from './TaskLabelBadge'
+import { TaskPriorityBadge } from './TaskPriorityBadge'
+
+const statuses: TaskStatus[] = [
+  'todo',
+  'in_progress',
+  'completed',
+  'canceled',
+]
+
+const transitions: Record<TaskStatus, TaskStatus[]> = {
+  todo: ['in_progress', 'completed', 'canceled'],
+  in_progress: ['todo', 'completed', 'canceled'],
+  completed: ['todo'],
+  canceled: ['todo'],
+}
+
+export const TaskBoard = ({
+  tasks,
+  selectedTaskId,
+  onOpen,
+}: {
+  tasks: ApiTask[]
+  selectedTaskId?: string
+  onOpen: (task: ApiTask) => void
+}) => {
+  const { t, i18n } = useTranslation('tasks')
+  const patchMutation = usePatchTask()
+
+  const moveTask = (task: ApiTask, status: TaskStatus) => {
+    if (
+      !task.can_update_status ||
+      ((task.status === 'canceled' || status === 'canceled') &&
+        !task.can_edit) ||
+      task.status === status ||
+      !transitions[task.status].includes(status)
+    ) {
+      return
+    }
+    patchMutation.mutate({ taskId: task.id, patch: { status } })
+  }
+
+  return (
+    <div className={boardCss} aria-label={t('board.title')}>
+      {statuses.map((status) => {
+        const statusTasks = tasks.filter((task) => task.status === status)
+        return (
+          <section
+            key={status}
+            className={columnCss}
+            data-status={status}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              const taskId = event.dataTransfer.getData(
+                'application/x-we-meet-task'
+              )
+              const task = tasks.find((item) => item.id === taskId)
+              if (task) moveTask(task, status)
+            }}
+          >
+            <header className={columnHeaderCss}>
+              <span className={statusDotCss} />
+              <strong>{t(`statuses.${status}`)}</strong>
+              <span>{statusTasks.length}</span>
+            </header>
+            <div className={cardsCss}>
+              {statusTasks.map((task) => (
+                <button
+                  key={task.id}
+                  type="button"
+                  className={cardCss}
+                  data-selected={selectedTaskId === task.id || undefined}
+                  draggable={
+                    task.can_update_status &&
+                    (task.status !== 'canceled' || task.can_edit)
+                  }
+                  onDragStart={(event) => startTaskDrag(event, task)}
+                  onClick={() => onOpen(task)}
+                >
+                  <strong>{task.title}</strong>
+                  <div className={badgesCss}>
+                    <TaskPriorityBadge priority={task.priority} />
+                    {task.labels.slice(0, 2).map((label) => (
+                      <TaskLabelBadge key={label.id} label={label} />
+                    ))}
+                  </div>
+                  <div className={cardMetaCss}>
+                    <span>{taskDisplayName(task.assignee)}</span>
+                    <span>
+                      {task.due_date
+                        ? new Intl.DateTimeFormat(i18n.language, {
+                            month: 'short',
+                            day: 'numeric',
+                          }).format(new Date(`${task.due_date}T00:00:00`))
+                        : t('meta.none')}
+                    </span>
+                  </div>
+                </button>
+              ))}
+              {statusTasks.length === 0 && (
+                <p className={emptyCss}>{t('board.emptyColumn')}</p>
+              )}
+            </div>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+const startTaskDrag = (
+  event: DragEvent<HTMLButtonElement>,
+  task: ApiTask
+) => {
+  if (
+    !task.can_update_status ||
+    (task.status === 'canceled' && !task.can_edit)
+  ) {
+    event.preventDefault()
+    return
+  }
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('application/x-we-meet-task', task.id)
+}
+
+const boardCss = css({
+  minWidth: 'max-content',
+  minHeight: '100%',
+  display: 'grid',
+  gridTemplateColumns: {
+    base: 'minmax(17rem, 1fr)',
+    md: 'repeat(4, minmax(17rem, 1fr))',
+  },
+  alignItems: 'start',
+  gap: '0.75rem',
+  padding: '0.875rem',
+  backgroundColor: 'greyscale.50',
+})
+const columnCss = css({
+  minHeight: '12rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '10px',
+  backgroundColor: 'greyscale.000',
+  '&[data-status="in_progress"]': {
+    '& header span:first-child': { backgroundColor: 'primary.500' },
+  },
+  '&[data-status="completed"]': {
+    '& header span:first-child': { backgroundColor: 'success.500' },
+  },
+  '&[data-status="canceled"]': {
+    '& header span:first-child': { backgroundColor: 'greyscale.400' },
+  },
+})
+const columnHeaderCss = css({
+  height: '3rem',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  paddingX: '0.75rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+  fontSize: '0.8125rem',
+  '& > span:last-child': { marginLeft: 'auto', color: 'greyscale.500' },
+})
+const statusDotCss = css({
+  width: '0.5rem',
+  height: '0.5rem',
+  borderRadius: '999px',
+  backgroundColor: 'warning.500',
+})
+const cardsCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.625rem',
+  padding: '0.625rem',
+})
+const cardCss = css({
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.625rem',
+  padding: '0.75rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '8px',
+  backgroundColor: 'greyscale.000',
+  color: 'default.text',
+  textAlign: 'left',
+  cursor: 'pointer',
+  '&[data-selected]': {
+    borderColor: 'selected.accent',
+    backgroundColor: 'selected.bg',
+  },
+  _hover: { borderColor: 'greyscale.400' },
+})
+const badgesCss = css({ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' })
+const cardMetaCss = css({
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: '0.5rem',
+  color: 'default.subtle-text',
+  fontSize: '0.75rem',
+})
+const emptyCss = css({
+  margin: '1.5rem 0',
+  color: 'greyscale.400',
+  fontSize: '0.75rem',
+  textAlign: 'center',
+})

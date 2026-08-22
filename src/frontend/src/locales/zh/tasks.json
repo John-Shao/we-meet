@@ -8,6 +8,7 @@
   "sourceMeeting": "来源会议：{{name}}",
   "workspace": {
     "navigation": "任务视图",
+    "quickAccess": "快速访问",
     "views": {
       "assigned": "我负责的",
       "created": "我创建的",
@@ -54,6 +55,63 @@
       "attachments": "附件",
       "history": "历史"
     }
+  },
+  "modes": {
+    "label": "任务展示方式",
+    "list": "列表",
+    "board": "看板",
+    "analytics": "统计"
+  },
+  "taskLists": {
+    "title": "任务清单",
+    "field": "任务清单",
+    "none": "未加入任务清单",
+    "empty": "暂无任务清单",
+    "manage": "管理任务清单",
+    "create": "新建任务清单",
+    "name": "清单名称",
+    "description": "说明（可选）",
+    "taskCount": "{{count}} 个任务",
+    "deleteTitle": "删除任务清单",
+    "deleteDescription": "确定删除“{{name}}”吗？清单内的任务会保留，但不再归属该清单。",
+    "deleteConfirm": "删除",
+    "deleteNamed": "删除任务清单：{{name}}",
+    "error": "任务清单操作失败，请稍后重试。",
+    "closeManager": "关闭任务清单管理"
+  },
+  "groups": {
+    "field": "分组",
+    "name": "分组名称",
+    "ungrouped": "未分组",
+    "addTask": "新建任务",
+    "collapse": "收起分组",
+    "expand": "展开分组",
+    "create": "新建分组",
+    "error": "分组创建失败，请稍后重试。",
+    "closeCreate": "关闭新建分组弹窗"
+  },
+  "board": {
+    "title": "任务看板",
+    "emptyColumn": "暂无任务"
+  },
+  "analytics": {
+    "loading": "正在加载任务统计…",
+    "error": "无法加载任务统计，请稍后重试。",
+    "summary": "任务概览",
+    "cards": {
+      "total": "任务总数",
+      "open": "未完成",
+      "completed": "已完成",
+      "overdue": "已逾期",
+      "completionRate": "完成率"
+    },
+    "workload": "负责人工作量",
+    "workloadHint": "按负责人查看待办数量与交付风险",
+    "workloadMeta": "待办 {{open}} · 逾期 {{overdue}} · 完成 {{completed}}",
+    "groupProgress": "分组进度",
+    "groupProgressHint": "按自定义分组查看完成情况",
+    "groupMeta": "已完成 {{completed}} / {{total}}",
+    "empty": "当前筛选条件下暂无数据"
   },
   "form": {
     "title": "任务标题",
@@ -219,6 +277,7 @@
       "content_changed": "{{actor}} 修改了任务内容",
       "priority_changed": "{{actor}} 将任务优先级从“{{from}}”调整为“{{to}}”",
       "labels_changed": "{{actor}} 将任务标签从“{{from}}”调整为“{{to}}”",
+      "placement_changed": "{{actor}} 将任务从“{{from}}”移动到“{{to}}”",
       "dates_changed": "{{actor}} 调整了任务日期",
       "assignee_changed": "{{actor}} 将负责人转交给 {{assignee}}",
       "status_changed": "{{actor}} 将任务状态改为“{{status}}”",

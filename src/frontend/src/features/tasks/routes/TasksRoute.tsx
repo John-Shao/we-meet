@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'wouter'
 import { useTranslation } from 'react-i18next'
+import {
+  RiBarChartBoxLine,
+  RiKanbanView2,
+  RiListCheck3,
+} from '@remixicon/react'
 
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { RequireAuth } from '@/components/RequireAuth'
@@ -15,17 +20,23 @@ import type {
   TaskStatusFilter,
   TaskTimeFilter,
 } from '../api/ApiTask'
-import { useTaskLabels, useTasks } from '../api/fetchTasks'
+import { useTaskLabels, useTaskLists, useTasks } from '../api/fetchTasks'
+import { TaskAnalytics } from '../components/TaskAnalytics'
+import { TaskBoard } from '../components/TaskBoard'
 import { TaskFilterToolbar } from '../components/TaskFilterToolbar'
+import { TaskGroupForm } from '../components/TaskGroupForm'
 import { TaskLabelManager } from '../components/TaskLabelManager'
 import { TaskList } from '../components/TaskList'
+import { TaskListManager } from '../components/TaskListManager'
 import { CreateTaskPanel, TaskDetailPanel } from '../components/TaskSidePanel'
 import { TaskWorkspaceNavigation } from '../components/TaskWorkspaceNavigation'
 import {
   buildTaskWorkspaceSearch,
   parseTaskWorkspaceState,
   stateForView,
+  stateForTaskList,
   stateWithStatus,
+  type TaskWorkspaceMode,
   type TaskWorkspaceState,
   type TaskWorkspaceView,
 } from '../taskWorkspaceState'
@@ -47,12 +58,17 @@ const TasksAuthenticated = () => {
     [searchParams]
   )
   const [creating, setCreating] = useState(false)
+  const [createGroupId, setCreateGroupId] = useState<string>()
   const [labelManagerOpen, setLabelManagerOpen] = useState(false)
+  const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
+  const [groupCreating, setGroupCreating] = useState(false)
   const isNarrow = useIsNarrow()
   const rowRefs = useRef(new Map<string, HTMLElement>())
   const newButtonRef = useRef<HTMLButtonElement>(null)
   const createTitleRef = useRef<HTMLInputElement>(null)
+  const groupNameRef = useRef<HTMLInputElement>(null)
   const { data: labels = [] } = useTaskLabels()
+  const { data: taskLists = [] } = useTaskLists()
   const {
     data,
     isLoading,
@@ -65,7 +81,8 @@ const TasksAuthenticated = () => {
     state.status,
     state.time,
     state.priority,
-    state.label
+    state.label,
+    state.taskList
   )
   const tasks = useMemo(
     () => data?.pages.flatMap((page) => page.results) || [],
@@ -73,6 +90,9 @@ const TasksAuthenticated = () => {
   )
   const count = data?.pages[0]?.count || 0
   const selectedTask = tasks.find((task) => task.id === state.task)
+  const selectedTaskList = taskLists.find(
+    (taskList) => taskList.id === state.taskList
+  )
   const panelOpen = Boolean(state.task)
 
   const navigateState = (
@@ -107,6 +127,22 @@ const TasksAuthenticated = () => {
     navigateState({ ...stateForView(state, view), task: undefined })
   }
 
+  const changeTaskList = (taskListId: string) => {
+    setCreating(false)
+    navigateState(stateForTaskList(state, taskListId))
+  }
+
+  const changeMode = (mode: TaskWorkspaceMode) => {
+    setCreating(false)
+    navigateState({
+      ...state,
+      mode,
+      status: mode === 'list' ? state.status : 'all',
+      time: mode === 'analytics' ? 'all' : state.time,
+      task: undefined,
+    })
+  }
+
   const changeStatus = (status: TaskStatusFilter) => {
     setCreating(false)
     navigateState({ ...stateWithStatus(state, status), task: undefined })
@@ -124,12 +160,14 @@ const TasksAuthenticated = () => {
       taskId={state.task}
       fallbackTask={selectedTask}
       labels={labels}
+      taskLists={taskLists}
       onClose={closePanel}
     />
   ) : null
 
-  const currentViewName =
-    state.scope === 'all' && state.status === 'completed'
+  const currentViewName = selectedTaskList
+    ? selectedTaskList.name
+    : state.scope === 'all' && state.status === 'completed'
       ? t('workspace.views.completed')
       : t(`workspace.views.${state.scope}`)
 
@@ -145,7 +183,10 @@ const TasksAuthenticated = () => {
           <TaskWorkspaceNavigation
             state={state}
             count={count}
+            taskLists={taskLists}
             onChange={changeView}
+            onTaskListChange={changeTaskList}
+            onCreateTaskList={() => setTaskListManagerOpen(true)}
           />
         </ResizablePanel>
       </div>
@@ -154,7 +195,10 @@ const TasksAuthenticated = () => {
           <TaskWorkspaceNavigation
             state={state}
             count={count}
+            taskLists={taskLists}
             onChange={changeView}
+            onTaskListChange={changeTaskList}
+            onCreateTaskList={() => setTaskListManagerOpen(true)}
           />
         </div>
         <header className={headerCss}>
@@ -162,48 +206,111 @@ const TasksAuthenticated = () => {
             <h1 className={headingCss}>{currentViewName}</h1>
             <p className={countCss}>{t('workspace.resultCount', { count })}</p>
           </div>
-          <Button
-            ref={newButtonRef}
-            onPress={() => {
-              navigateState({ ...state, task: undefined })
-              setCreating(true)
-            }}
-          >
-            {t('workspace.newTask')}
-          </Button>
+          <div className={headerActionsCss}>
+            {selectedTaskList && state.mode === 'list' && (
+              <Button
+                variant="secondary"
+                size="action"
+                onPress={() => setGroupCreating(true)}
+              >
+                {t('groups.create')}
+              </Button>
+            )}
+            <Button
+              ref={newButtonRef}
+              size="action"
+              onPress={() => {
+                navigateState({ ...state, task: undefined })
+                setCreateGroupId(undefined)
+                setCreating(true)
+              }}
+            >
+              {t('workspace.newTask')}
+            </Button>
+          </div>
         </header>
-        <TaskFilterToolbar
-          state={state}
-          labels={labels}
-          onStatusChange={changeStatus}
-          onTimeChange={(time: TaskTimeFilter) => updateFilter({ time })}
-          onPriorityChange={(priority: TaskPriorityFilter) =>
-            updateFilter({ priority })
-          }
-          onLabelChange={(label) => updateFilter({ label })}
-          onClear={() =>
-            navigateState({
-              ...state,
-              status: 'open',
-              time: 'all',
-              priority: 'all',
-              label: 'all',
-              task: undefined,
-            })
-          }
-          onManageLabels={() => setLabelManagerOpen(true)}
-        />
+        <div
+          className={modeTabsCss}
+          role="tablist"
+          aria-label={t('modes.label')}
+        >
+          {(['list', 'board', 'analytics'] as TaskWorkspaceMode[]).map(
+            (mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={state.mode === mode}
+                data-active={state.mode === mode || undefined}
+                onClick={() => changeMode(mode)}
+              >
+                {mode === 'list' ? (
+                  <RiListCheck3 size={17} />
+                ) : mode === 'board' ? (
+                  <RiKanbanView2 size={17} />
+                ) : (
+                  <RiBarChartBoxLine size={17} />
+                )}
+                {t(`modes.${mode}`)}
+              </button>
+            )
+          )}
+        </div>
+        {state.mode !== 'analytics' && (
+          <TaskFilterToolbar
+            state={state}
+            labels={labels}
+            onStatusChange={changeStatus}
+            onTimeChange={(time: TaskTimeFilter) => updateFilter({ time })}
+            onPriorityChange={(priority: TaskPriorityFilter) =>
+              updateFilter({ priority })
+            }
+            onLabelChange={(label) => updateFilter({ label })}
+            onClear={() =>
+              navigateState({
+                ...state,
+                status: state.mode === 'board' ? 'all' : 'open',
+                time: 'all',
+                priority: 'all',
+                label: 'all',
+                task: undefined,
+              })
+            }
+            onManageLabels={() => setLabelManagerOpen(true)}
+          />
+        )}
         <div className={listRegionCss}>
-          {isLoading ? (
+          {state.mode === 'analytics' ? (
+            <TaskAnalytics state={state} />
+          ) : isLoading ? (
             <StateHint loading>{t('loading')}</StateHint>
           ) : error ? (
             <StateHint>{t('error')}</StateHint>
-          ) : tasks.length === 0 ? (
+          ) : tasks.length === 0 && !selectedTaskList ? (
             <StateHint>{t('empty')}</StateHint>
+          ) : state.mode === 'board' ? (
+            <>
+              <TaskBoard
+                tasks={tasks}
+                selectedTaskId={state.task}
+                onOpen={(task) => {
+                  setCreating(false)
+                  navigateState({ ...state, task: task.id })
+                }}
+              />
+              {hasNextPage && (
+                <LoadMoreTasks
+                  loading={isFetchingNextPage}
+                  onLoad={() => void fetchNextPage()}
+                />
+              )}
+            </>
           ) : (
             <>
               <TaskList
                 tasks={tasks}
+                groups={selectedTaskList?.groups}
+                grouped={Boolean(selectedTaskList)}
                 selectedTaskId={state.task}
                 onOpen={(task) => {
                   setCreating(false)
@@ -213,19 +320,20 @@ const TasksAuthenticated = () => {
                   if (element) rowRefs.current.set(taskId, element)
                   else rowRefs.current.delete(taskId)
                 }}
+                onCreateTaskInGroup={
+                  selectedTaskList
+                    ? (groupId) => {
+                        setCreateGroupId(groupId)
+                        setCreating(true)
+                      }
+                    : undefined
+                }
               />
               {hasNextPage && (
-                <div className={loadMoreCss}>
-                  <Button
-                    variant="secondary"
-                    loading={isFetchingNextPage}
-                    onPress={() => void fetchNextPage()}
-                  >
-                    {isFetchingNextPage
-                      ? t('workspace.loadingMore')
-                      : t('workspace.loadMore')}
-                  </Button>
-                </div>
+                <LoadMoreTasks
+                  loading={isFetchingNextPage}
+                  onLoad={() => void fetchNextPage()}
+                />
               )}
             </>
           )}
@@ -255,6 +363,9 @@ const TasksAuthenticated = () => {
         >
           <CreateTaskPanel
             labels={labels}
+            taskLists={taskLists}
+            defaultTaskListId={selectedTaskList?.id}
+            defaultGroupId={createGroupId}
             titleInputRef={createTitleRef}
             onClose={() => setCreating(false)}
             onCreated={(task) => {
@@ -282,6 +393,67 @@ const TasksAuthenticated = () => {
           </div>
         </Modal>
       )}
+      {taskListManagerOpen && (
+        <Modal
+          ariaLabel={t('taskLists.manage')}
+          onClose={() => setTaskListManagerOpen(false)}
+          maxWidth="760px"
+        >
+          <div className={modalHeaderCss}>
+            <h2 className={modalTitleCss}>{t('taskLists.manage')}</h2>
+            <ModalCloseButton
+              label={t('taskLists.closeManager')}
+              onClose={() => setTaskListManagerOpen(false)}
+            />
+          </div>
+          <TaskListManager
+            taskLists={taskLists}
+            onCreated={(taskList) => {
+              setTaskListManagerOpen(false)
+              changeTaskList(taskList.id)
+            }}
+          />
+        </Modal>
+      )}
+      {groupCreating && selectedTaskList && (
+        <Modal
+          ariaLabel={t('groups.create')}
+          onClose={() => setGroupCreating(false)}
+          initialFocusRef={groupNameRef}
+          maxWidth="440px"
+        >
+          <div className={modalHeaderCss}>
+            <h2 className={modalTitleCss}>{t('groups.create')}</h2>
+            <ModalCloseButton
+              label={t('groups.closeCreate')}
+              onClose={() => setGroupCreating(false)}
+            />
+          </div>
+          <TaskGroupForm
+            taskListId={selectedTaskList.id}
+            inputRef={groupNameRef}
+            onCancel={() => setGroupCreating(false)}
+            onCreated={() => setGroupCreating(false)}
+          />
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+const LoadMoreTasks = ({
+  loading,
+  onLoad,
+}: {
+  loading: boolean
+  onLoad: () => void
+}) => {
+  const { t } = useTranslation('tasks')
+  return (
+    <div className={loadMoreCss}>
+      <Button variant="secondary" loading={loading} onPress={onLoad}>
+        {loading ? t('workspace.loadingMore') : t('workspace.loadMore')}
+      </Button>
     </div>
   )
 }
@@ -345,6 +517,37 @@ const countCss = css({
   margin: 0,
   color: 'default.subtle-text',
   fontSize: '0.75rem',
+})
+const headerActionsCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
+})
+const modeTabsCss = css({
+  minHeight: '2.75rem',
+  display: 'flex',
+  alignItems: 'end',
+  gap: '1.25rem',
+  paddingX: '1rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+  '& button': {
+    height: '2.75rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    padding: 0,
+    border: 0,
+    borderBottom: '2px solid transparent',
+    backgroundColor: 'transparent',
+    color: 'greyscale.600',
+    fontSize: '0.8125rem',
+    cursor: 'pointer',
+  },
+  '& button[data-active]': {
+    borderBottomColor: 'primary.500',
+    color: 'primary.700',
+    fontWeight: '500',
+  },
 })
 const listRegionCss = css({ flex: 1, minHeight: 0, overflow: 'auto' })
 const loadMoreCss = css({

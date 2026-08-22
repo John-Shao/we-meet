@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
+from django.db.models import Q
 from django.utils import timezone
 
 # pylint: disable=abstract-method,no-name-in-module
@@ -571,6 +572,108 @@ class TaskLabelSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
+class TaskGroupSerializer(serializers.ModelSerializer):
+    """Serialize a custom section inside a task list."""
+
+    task_count = serializers.SerializerMethodField()
+
+    def get_task_count(self, obj):
+        annotated = getattr(obj, "_task_count", None)
+        if annotated is not None:
+            return annotated
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return 0
+        return (
+            obj.tasks.filter(parent__isnull=True)
+            .filter(Q(creator=user) | Q(assignee=user))
+            .distinct()
+            .count()
+        )
+
+    class Meta:
+        model = models.TaskGroup
+        fields = ["id", "name", "sort_order", "task_count", "created_at", "updated_at"]
+        read_only_fields = ["id", "task_count", "created_at", "updated_at"]
+
+
+class TaskListSerializer(serializers.ModelSerializer):
+    """Serialize an organization task list and its ordered groups."""
+
+    creator = UserLightSerializer(read_only=True)
+    groups = TaskGroupSerializer(many=True, read_only=True)
+    can_manage = serializers.SerializerMethodField()
+    task_count = serializers.SerializerMethodField()
+
+    def get_can_manage(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return bool(
+            user
+            and user.is_authenticated
+            and (
+                obj.creator_id == user.id
+                or self.context.get("can_manage_all_task_lists", False)
+            )
+        )
+
+    def get_task_count(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return 0
+        return (
+            obj.tasks.filter(parent__isnull=True)
+            .filter(Q(creator=user) | Q(assignee=user))
+            .distinct()
+            .count()
+        )
+
+    class Meta:
+        model = models.TaskList
+        fields = [
+            "id",
+            "name",
+            "description",
+            "color",
+            "creator",
+            "is_archived",
+            "can_manage",
+            "task_count",
+            "groups",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "creator",
+            "can_manage",
+            "task_count",
+            "groups",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class TaskListSummarySerializer(serializers.ModelSerializer):
+    """Compact task-list reference embedded in a task."""
+
+    class Meta:
+        model = models.TaskList
+        fields = ["id", "name", "color"]
+        read_only_fields = fields
+
+
+class TaskGroupSummarySerializer(serializers.ModelSerializer):
+    """Compact group reference embedded in a task."""
+
+    class Meta:
+        model = models.TaskGroup
+        fields = ["id", "name", "sort_order"]
+        read_only_fields = fields
+
+
 class TaskSerializer(serializers.ModelSerializer):
     """Serialize a durable task for the task center and meeting detail."""
 
@@ -586,6 +689,8 @@ class TaskSerializer(serializers.ModelSerializer):
     can_update_status = serializers.SerializerMethodField()
     time_state = serializers.SerializerMethodField()
     labels = TaskLabelSerializer(many=True, read_only=True)
+    task_list = TaskListSummarySerializer(read_only=True)
+    group = TaskGroupSummarySerializer(read_only=True)
 
     def _request_user(self):
         request = self.context.get("request")
@@ -662,6 +767,9 @@ class TaskSerializer(serializers.ModelSerializer):
             "status",
             "priority",
             "labels",
+            "task_list",
+            "group",
+            "position",
             "start_date",
             "due_date",
             "completed_at",

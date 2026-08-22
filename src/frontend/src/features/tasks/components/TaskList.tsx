@@ -1,11 +1,17 @@
-import { useState, type KeyboardEvent } from 'react'
+import {
+  Fragment,
+  useMemo,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+} from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { RiArrowDownSLine, RiArrowRightSLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 
-import type { ApiTask } from '../api/ApiTask'
+import type { ApiTask, ApiTaskGroup } from '../api/ApiTask'
 import { usePatchTask, useTaskSubtasks } from '../api/fetchTasks'
 import { quickTaskStatus, taskDisplayName } from '../taskUi'
 import { TaskLabelBadge } from './TaskLabelBadge'
@@ -13,9 +19,12 @@ import { TaskPriorityBadge } from './TaskPriorityBadge'
 
 type ListProps = {
   tasks: ApiTask[]
+  groups?: ApiTaskGroup[]
+  grouped?: boolean
   selectedTaskId?: string
   onOpen: (task: ApiTask) => void
   registerRow: (taskId: string, element: HTMLElement | null) => void
+  onCreateTaskInGroup?: (groupId?: string) => void
 }
 
 type GroupProps = Omit<ListProps, 'tasks'> & {
@@ -29,12 +38,31 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
 
 export const TaskList = ({
   tasks,
+  groups = [],
+  grouped = false,
   selectedTaskId,
   onOpen,
   registerRow,
+  onCreateTaskInGroup,
 }: ListProps) => {
   const { t, i18n } = useTranslation('tasks')
   const patchMutation = usePatchTask()
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
+    () => new Set()
+  )
+  const sections = useMemo(
+    () => buildSections(tasks, groups, grouped),
+    [grouped, groups, tasks]
+  )
+
+  const toggleSection = (sectionKey: string) => {
+    setCollapsedSections((current) => {
+      const next = new Set(current)
+      if (next.has(sectionKey)) next.delete(sectionKey)
+      else next.add(sectionKey)
+      return next
+    })
+  }
 
   const formatDate = (value: string | null) => {
     if (!value) return '—'
@@ -55,6 +83,13 @@ export const TaskList = ({
     const status = quickTaskStatus(task)
     if (!status) return
     patchMutation.mutate({ taskId: task.id, patch: { status } })
+  }
+
+  const moveToGroup = (taskId: string, groupId?: string) => {
+    patchMutation.mutate({
+      taskId,
+      patch: { group_id: groupId || null },
+    })
   }
 
   const groupProps = {
@@ -91,15 +126,60 @@ export const TaskList = ({
           </tr>
         </thead>
         <tbody>
-          {tasks.map((task) => (
-            <DesktopTaskGroup key={task.id} task={task} {...groupProps} />
-          ))}
+          {sections.map((section) => {
+            const collapsed = collapsedSections.has(section.key)
+            return (
+              <Fragment key={section.key}>
+                {grouped && (
+                  <DesktopGroupHeader
+                    section={section}
+                    collapsed={collapsed}
+                    onToggle={() => toggleSection(section.key)}
+                    onCreateTask={onCreateTaskInGroup}
+                    onMoveTask={moveToGroup}
+                  />
+                )}
+                {!collapsed &&
+                  section.tasks.map((task) => (
+                    <DesktopTaskGroup
+                      key={task.id}
+                      task={task}
+                      {...groupProps}
+                    />
+                  ))}
+              </Fragment>
+            )
+          })}
         </tbody>
       </table>
       <ul className={mobileListCss}>
-        {tasks.map((task) => (
-          <MobileTaskGroup key={task.id} task={task} {...groupProps} />
-        ))}
+        {sections.map((section) => {
+          const collapsed = collapsedSections.has(section.key)
+          return (
+            <li key={section.key} className={mobileSectionCss}>
+              {grouped && (
+                <MobileGroupHeader
+                  section={section}
+                  collapsed={collapsed}
+                  onToggle={() => toggleSection(section.key)}
+                  onCreateTask={onCreateTaskInGroup}
+                  onMoveTask={moveToGroup}
+                />
+              )}
+              {!collapsed && (
+                <ul className={mobileSectionTasksCss}>
+                  {section.tasks.map((task) => (
+                    <MobileTaskGroup
+                      key={task.id}
+                      task={task}
+                      {...groupProps}
+                    />
+                  ))}
+                </ul>
+              )}
+            </li>
+          )
+        })}
       </ul>
     </>
   )
@@ -167,6 +247,8 @@ const DesktopTaskRow = ({
     data-selected={selectedTaskId === task.id || undefined}
     data-subtask={isSubtask || undefined}
     className={rowCss}
+    draggable={!isSubtask && task.can_edit}
+    onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
@@ -264,6 +346,8 @@ const MobileTaskCard = ({
     data-selected={selectedTaskId === task.id || undefined}
     data-subtask={isSubtask || undefined}
     className={mobileCardCss}
+    draggable={!isSubtask && task.can_edit}
+    onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
@@ -415,6 +499,160 @@ const openOnEnter = (
   }
 }
 
+type TaskSection = {
+  key: string
+  group?: ApiTaskGroup
+  name: string
+  tasks: ApiTask[]
+}
+
+const buildSections = (
+  tasks: ApiTask[],
+  groups: ApiTaskGroup[],
+  grouped: boolean
+): TaskSection[] => {
+  if (!grouped) return [{ key: 'all', name: '', tasks }]
+  const knownGroupIds = new Set(groups.map((group) => group.id))
+  const sections: TaskSection[] = [...groups]
+    .sort((left, right) =>
+      left.sort_order === right.sort_order
+        ? left.created_at.localeCompare(right.created_at)
+        : left.sort_order - right.sort_order
+    )
+    .map((group) => ({
+      key: group.id,
+      group,
+      name: group.name,
+      tasks: tasks.filter((task) => task.group?.id === group.id),
+    }))
+  const ungrouped = tasks.filter(
+    (task) => !task.group || !knownGroupIds.has(task.group.id)
+  )
+  if (ungrouped.length > 0 || groups.length === 0) {
+    sections.push({ key: 'ungrouped', name: '', tasks: ungrouped })
+  }
+  return sections
+}
+
+const DesktopGroupHeader = ({
+  section,
+  collapsed,
+  onToggle,
+  onCreateTask,
+  onMoveTask,
+}: {
+  section: TaskSection
+  collapsed: boolean
+  onToggle: () => void
+  onCreateTask?: (groupId?: string) => void
+  onMoveTask: (taskId: string, groupId?: string) => void
+}) => {
+  const { t } = useTranslation('tasks')
+  return (
+    <tr
+      className={groupHeaderRowCss}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => dropTask(event, section.group?.id, onMoveTask)}
+    >
+      <td colSpan={9}>
+        <div className={groupHeaderCss}>
+          <button
+            type="button"
+            className={expandButtonCss}
+            aria-label={t(collapsed ? 'groups.expand' : 'groups.collapse')}
+            aria-expanded={!collapsed}
+            onClick={onToggle}
+          >
+            {collapsed ? (
+              <RiArrowRightSLine size={16} />
+            ) : (
+              <RiArrowDownSLine size={16} />
+            )}
+          </button>
+          <strong>{section.name || t('groups.ungrouped')}</strong>
+          <span>{section.tasks.length}</span>
+          {onCreateTask && (
+            <button
+              type="button"
+              className={groupCreateTaskCss}
+              onClick={() => onCreateTask(section.group?.id)}
+            >
+              + {t('groups.addTask')}
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+const MobileGroupHeader = ({
+  section,
+  collapsed,
+  onToggle,
+  onCreateTask,
+  onMoveTask,
+}: {
+  section: TaskSection
+  collapsed: boolean
+  onToggle: () => void
+  onCreateTask?: (groupId?: string) => void
+  onMoveTask: (taskId: string, groupId?: string) => void
+}) => {
+  const { t } = useTranslation('tasks')
+  return (
+    <div
+      className={mobileGroupHeaderCss}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => dropTask(event, section.group?.id, onMoveTask)}
+    >
+      <button
+        type="button"
+        className={expandButtonCss}
+        aria-label={t(collapsed ? 'groups.expand' : 'groups.collapse')}
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+      >
+        {collapsed ? (
+          <RiArrowRightSLine size={16} />
+        ) : (
+          <RiArrowDownSLine size={16} />
+        )}
+      </button>
+      <strong>{section.name || t('groups.ungrouped')}</strong>
+      <span>{section.tasks.length}</span>
+      {onCreateTask && (
+        <button
+          type="button"
+          className={groupCreateTaskCss}
+          onClick={() => onCreateTask(section.group?.id)}
+        >
+          + {t('groups.addTask')}
+        </button>
+      )}
+    </div>
+  )
+}
+
+const startTaskDrag = (event: DragEvent<HTMLElement>, task: ApiTask) => {
+  if (!task.can_edit) {
+    event.preventDefault()
+    return
+  }
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('application/x-we-meet-task', task.id)
+}
+
+const dropTask = (
+  event: DragEvent<HTMLElement>,
+  groupId: string | undefined,
+  onMoveTask: (taskId: string, groupId?: string) => void
+) => {
+  event.preventDefault()
+  const taskId = event.dataTransfer.getData('application/x-we-meet-task')
+  if (taskId) onMoveTask(taskId, groupId)
+}
+
 const tableCss = css({
   display: { base: 'none', md: 'table' },
   width: '100%',
@@ -451,6 +689,33 @@ const rowCss = css({
   '&[data-selected]': { backgroundColor: 'selected.bg' },
   '&[data-subtask]': { backgroundColor: 'greyscale.50' },
   '&[data-subtask][data-selected]': { backgroundColor: 'selected.bg' },
+})
+const groupHeaderRowCss = css({
+  '& td': {
+    padding: '0.875rem 0.75rem 0.375rem!',
+    borderBottom: '0!important',
+    overflow: 'visible!important',
+  },
+})
+const groupHeaderCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  minHeight: '2rem',
+  color: 'greyscale.700',
+  '& strong': { fontSize: '0.875rem' },
+  '& > span': { color: 'greyscale.500', fontSize: '0.75rem' },
+})
+const groupCreateTaskCss = css({
+  marginLeft: 'auto',
+  padding: '0.25rem 0.5rem',
+  border: 0,
+  borderRadius: '6px',
+  backgroundColor: 'transparent',
+  color: 'primary.700',
+  fontSize: '0.75rem',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100' },
 })
 const subtaskStateRowCss = css({
   color: 'default.subtle-text',
@@ -532,6 +797,23 @@ const mobileListCss = css({
   listStyle: 'none',
   margin: 0,
   padding: '0.75rem',
+})
+const mobileSectionCss = css({ listStyle: 'none' })
+const mobileSectionTasksCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.625rem',
+  margin: 0,
+  padding: 0,
+  listStyle: 'none',
+})
+const mobileGroupHeaderCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  minHeight: '2.5rem',
+  '& strong': { fontSize: '0.875rem' },
+  '& > span': { color: 'greyscale.500', fontSize: '0.75rem' },
 })
 const mobileSubtaskListCss = css({
   display: 'flex',
