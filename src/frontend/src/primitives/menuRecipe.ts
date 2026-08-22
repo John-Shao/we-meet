@@ -28,8 +28,8 @@ export const menuRecipe = sva({
         outline: 'none!',
       },
       '&[data-hovered]': {
-        color: 'primary.text',
-        backgroundColor: 'primaryDark.100',
+        color: 'greyscale.900',
+        backgroundColor: 'greyscale.100',
         outline: 'none!',
       },
     },
@@ -42,7 +42,8 @@ export const menuRecipe = sva({
             backgroundColor: 'primary.800',
           },
           '&[data-hovered]': {
-            backgroundColor: 'primary.800',
+            color: 'greyscale.900',
+            backgroundColor: 'greyscale.100',
           },
         },
       },
