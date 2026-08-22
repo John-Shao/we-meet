@@ -96,7 +96,7 @@
     "rename": "重命名",
     "renameError": "分组重命名失败，请稍后重试。",
     "closeRename": "关闭重命名分组弹窗",
-    "delete": "删除",
+    "delete": "删除分组",
     "deleteTitle": "删除分组",
     "deleteDescription": "确定删除“{{name}}”吗？只有空分组才能删除。"
   },

@@ -96,7 +96,7 @@
     "rename": "Renommer",
     "renameError": "Impossible de renommer le groupe. Veuillez réessayer.",
     "closeRename": "Fermer le renommage du groupe",
-    "delete": "Supprimer",
+    "delete": "Supprimer le groupe",
     "deleteTitle": "Supprimer le groupe",
     "deleteDescription": "Supprimer « {{name}} » ? Seuls les groupes vides peuvent être supprimés."
   },

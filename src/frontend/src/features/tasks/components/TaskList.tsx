@@ -603,13 +603,16 @@ const DesktopGroupHeader = ({
               + {t('groups.addTask')}
             </button>
           )}
-          {canManageGroups && section.group && onRenameGroup && onDeleteGroup && (
-            <GroupMoreMenu
-              group={section.group}
-              onRename={onRenameGroup}
-              onDelete={onDeleteGroup}
-            />
-          )}
+          {canManageGroups &&
+            section.group &&
+            onRenameGroup &&
+            onDeleteGroup && (
+              <GroupMoreMenu
+                group={section.group}
+                onRename={onRenameGroup}
+                onDelete={onDeleteGroup}
+              />
+            )}
         </div>
       </td>
     </tr>
@@ -805,6 +808,10 @@ const groupMoreMenuCss = css({
     paddingY: '0.25rem',
     fontSize: '0.75rem',
     lineHeight: '1rem',
+  },
+  '& [role="menuitem"][data-disabled]': {
+    color: 'greyscale.400!',
+    cursor: 'default',
   },
 })
 const groupMoreButtonCss = css({

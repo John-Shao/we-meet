@@ -96,7 +96,7 @@
     "rename": "Hernoemen",
     "renameError": "De groep kon niet worden hernoemd. Probeer het opnieuw.",
     "closeRename": "Dialoog voor groep hernoemen sluiten",
-    "delete": "Verwijderen",
+    "delete": "Groep verwijderen",
     "deleteTitle": "Groep verwijderen",
     "deleteDescription": "‘{{name}}’ verwijderen? Alleen lege groepen kunnen worden verwijderd."
   },

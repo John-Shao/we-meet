@@ -96,7 +96,7 @@
     "rename": "Rename",
     "renameError": "The group could not be renamed. Please try again.",
     "closeRename": "Close rename group dialog",
-    "delete": "Delete",
+    "delete": "Delete group",
     "deleteTitle": "Delete group",
     "deleteDescription": "Delete “{{name}}”? Only empty groups can be deleted."
   },

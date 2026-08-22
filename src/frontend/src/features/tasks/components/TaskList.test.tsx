@@ -133,4 +133,35 @@ describe('TaskList', () => {
     expect(collapseButtons[0]).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getAllByLabelText('groups.expand')).toHaveLength(2)
   })
+
+  it('disables the delete-group action for a non-empty group', () => {
+    render(
+      <TaskList
+        tasks={[task]}
+        groups={[
+          {
+            id: 'group-1',
+            name: 'Analysis',
+            sort_order: 0,
+            task_count: 1,
+            can_delete: false,
+            created_at: '2026-08-21T08:00:00Z',
+            updated_at: '2026-08-21T08:00:00Z',
+          },
+        ]}
+        grouped
+        canManageGroups
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'groups.more' })[0])
+
+    expect(
+      screen.getByRole('menuitem', { name: 'groups.delete' })
+    ).toHaveAttribute('data-disabled', 'true')
+  })
 })
