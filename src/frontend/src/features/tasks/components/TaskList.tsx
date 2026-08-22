@@ -7,7 +7,11 @@ import {
 } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { RiArrowDownSLine, RiArrowRightSLine } from '@remixicon/react'
+import {
+  RiArrowDownSLine,
+  RiArrowRightSLine,
+  RiMoreLine,
+} from '@remixicon/react'
 
 import { Button, Menu, MenuList } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -686,11 +690,12 @@ const GroupMoreMenu = ({
   return (
     <Menu placement="bottom">
       <Button
+        aria-label={t('groups.more')}
         className={groupMoreButtonCss}
-        size="dense"
-        variant="secondaryText"
+        size="icon24"
+        variant="quaternaryText"
       >
-        {t('groups.more')}
+        <RiMoreLine size={16} />
       </Button>
       <MenuList
         aria-label={t('groups.more')}
@@ -804,14 +809,9 @@ const groupMoreMenuCss = css({
 })
 const groupMoreButtonCss = css({
   marginLeft: '0!',
-  padding: '0.25rem 0.5rem!',
-  border: '0!',
-  borderRadius: '6px!',
-  backgroundColor: 'transparent!',
   color: 'primary.700!',
-  fontSize: '0.75rem!',
-  lineHeight: 'normal!',
-  _hover: { backgroundColor: 'greyscale.100!' },
+  flexShrink: 0,
+  '&[data-hovered], &[data-pressed]': { color: 'primary.700!' },
 })
 const subtaskStateRowCss = css({
   color: 'default.subtle-text',
