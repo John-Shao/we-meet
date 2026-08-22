@@ -1,4 +1,10 @@
 import { useTranslation } from 'react-i18next'
+import {
+  RiCheckboxCircleLine,
+  RiFileAddLine,
+  RiListCheck3,
+  RiUserLine,
+} from '@remixicon/react'
 
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
@@ -40,7 +46,18 @@ export const TaskWorkspaceNavigation = ({
               data-active={current === view || undefined}
               onClick={() => onChange(view)}
             >
-              <span>{t(`workspace.views.${view}`)}</span>
+              <span className={navLabelCss}>
+                {view === 'assigned' ? (
+                  <RiUserLine size={18} />
+                ) : view === 'created' ? (
+                  <RiFileAddLine size={18} />
+                ) : view === 'completed' ? (
+                  <RiCheckboxCircleLine size={18} />
+                ) : (
+                  <RiListCheck3 size={18} />
+                )}
+                <span>{t(`workspace.views.${view}`)}</span>
+              </span>
               {current === view && (
                 <span aria-label={t('workspace.resultCount', { count })}>
                   {count}
@@ -70,19 +87,21 @@ export const TaskWorkspaceNavigation = ({
 
 const desktopNavCss = css({
   display: { base: 'none', md: 'flex' },
-  width: '224px',
-  flexShrink: 0,
+  width: '100%',
+  height: '100%',
   flexDirection: 'column',
-  gap: '1rem',
+  gap: '0.25rem',
   padding: '1rem 0.75rem',
   borderRight: '1px solid token(colors.greyscale.200)',
-  backgroundColor: 'greyscale.50',
+  backgroundColor: 'greyscale.000',
+  overflowY: 'auto',
 })
 const navTitleCss = css({
-  margin: 0,
-  paddingX: '0.75rem',
-  color: 'default.text',
-  fontSize: '1.25rem',
+  margin: '0 0 0.5rem',
+  paddingX: '0.5rem',
+  color: 'greyscale.900',
+  fontSize: '1.125rem',
+  fontWeight: 'bold',
 })
 const navListCss = css({
   display: 'flex',
@@ -97,17 +116,25 @@ const navButtonCss = css({
   gap: '0.75rem',
   border: 0,
   borderRadius: '8px',
-  padding: '0.75rem',
+  paddingX: '0.625rem',
+  paddingY: '0.5rem',
   backgroundColor: 'transparent',
-  color: 'default.text',
+  color: 'greyscale.700',
   cursor: 'pointer',
   textAlign: 'left',
+  fontSize: '0.875rem',
   '&[data-active]': {
-    backgroundColor: 'primary.50',
-    color: 'primary.700',
-    fontWeight: '600',
+    backgroundColor: 'selected.bg',
+    color: 'selected.text',
+    fontWeight: '500',
   },
   _hover: { backgroundColor: 'greyscale.100' },
+})
+const navLabelCss = css({
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
 })
 const mobileNavCss = css({
   display: { base: 'block', md: 'none' },

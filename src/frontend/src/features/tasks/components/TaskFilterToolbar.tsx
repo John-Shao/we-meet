@@ -127,6 +127,9 @@ const toolbarCss = css({
   padding: '0.75rem 1rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
   backgroundColor: 'greyscale.000',
+  fontSize: '0.8125rem',
+  '& label': { fontSize: '0.75rem' },
+  '& button': { fontSize: '0.8125rem' },
   '& > *': { minWidth: { base: 'calc(50% - 0.5rem)', sm: '140px' } },
 })
 const toolbarActionsCss = css({

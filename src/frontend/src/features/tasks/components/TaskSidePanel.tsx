@@ -1,7 +1,16 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode, type RefObject } from 'react'
 import { Link } from 'wouter'
 import { useTranslation } from 'react-i18next'
+import {
+  RiCalendarLine,
+  RiFileTextLine,
+  RiFlagLine,
+  RiPriceTag3Line,
+  RiUser3Line,
+  RiUserAddLine,
+} from '@remixicon/react'
 
+import { ModalCloseButton } from '@/components/Modal'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 
@@ -18,40 +27,37 @@ import {
   TaskSubtasksSection,
 } from './TaskCollaborationSections'
 
-type DetailTab =
-  | 'overview'
-  | 'subtasks'
-  | 'comments'
-  | 'attachments'
-  | 'history'
-
-const detailTabs: DetailTab[] = [
-  'overview',
-  'subtasks',
-  'comments',
-  'attachments',
-  'history',
-]
-
 export const CreateTaskPanel = ({
   labels,
+  titleInputRef,
   onClose,
   onCreated,
 }: {
   labels: ApiTaskLabel[]
+  titleInputRef?: RefObject<HTMLInputElement>
   onClose: () => void
   onCreated: (task: ApiTask) => void
 }) => {
   const { t } = useTranslation('tasks')
   return (
-    <PanelShell title={t('workspace.createTitle')} onClose={onClose}>
-      <TaskForm
-        mode="create"
-        labels={labels}
-        onCancel={onClose}
-        onSaved={onCreated}
-      />
-    </PanelShell>
+    <div className={createDialogCss}>
+      <header className={createDialogHeaderCss}>
+        <div>
+          <h2 className={createDialogTitleCss}>{t('workspace.createTitle')}</h2>
+          <p className={createDialogHintCss}>{t('form.titlePlaceholder')}</p>
+        </div>
+        <ModalCloseButton label={t('workspace.closePanel')} onClose={onClose} />
+      </header>
+      <div className={createDialogBodyCss}>
+        <TaskForm
+          mode="create"
+          labels={labels}
+          titleInputRef={titleInputRef}
+          onCancel={onClose}
+          onSaved={onCreated}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -69,12 +75,10 @@ export const TaskDetailPanel = ({
   const { t, i18n } = useTranslation('tasks')
   const { data, isLoading, error } = useTask(taskId)
   const task = data || fallbackTask
-  const [tab, setTab] = useState<DetailTab>('overview')
   const [editing, setEditing] = useState(false)
   const patchMutation = usePatchTask()
 
   useEffect(() => {
-    setTab('overview')
     setEditing(false)
   }, [taskId])
 
@@ -104,24 +108,7 @@ export const TaskDetailPanel = ({
   }
 
   return (
-    <PanelShell title={task.title} onClose={onClose}>
-      <nav aria-label={t('workspace.detailSections')} className={tabsCss}>
-        {detailTabs.map((value) => (
-          <button
-            key={value}
-            type="button"
-            aria-current={tab === value ? 'page' : undefined}
-            className={tabButtonCss}
-            data-active={tab === value || undefined}
-            onClick={() => {
-              setEditing(false)
-              setTab(value)
-            }}
-          >
-            {t(`workspace.tabs.${value}`)}
-          </button>
-        ))}
-      </nav>
+    <PanelShell title={t('workspace.details')} onClose={onClose}>
       <div className={panelBodyCss}>
         {editing ? (
           <TaskForm
@@ -132,58 +119,28 @@ export const TaskDetailPanel = ({
             onCancel={() => setEditing(false)}
             onSaved={() => setEditing(false)}
           />
-        ) : tab === 'overview' ? (
-          <div className={overviewCss}>
-            <div className={betweenCss}>
-              <span className={statusCss}>{t(`statuses.${task.status}`)}</span>
-              <TaskPriorityBadge priority={task.priority} />
-            </div>
-            <p className={descriptionCss}>
-              {task.description || t('workspace.emptyDescription')}
-            </p>
-            <div className={labelRowCss}>
-              {task.labels.map((label) => (
-                <TaskLabelBadge key={label.id} label={label} />
-              ))}
-            </div>
-            <dl className={metaGridCss}>
-              <TaskMeta
-                label={t('meta.assignee')}
-                value={taskDisplayName(task.assignee)}
-              />
-              <TaskMeta
-                label={t('meta.creator')}
-                value={taskDisplayName(task.creator)}
-              />
-              <TaskMeta
-                label={t('meta.startDate')}
-                value={formatDate(task.start_date)}
-              />
-              <TaskMeta
-                label={t('meta.dueDate')}
-                value={formatDate(task.due_date)}
-              />
-            </dl>
-            {task.source_room_id && (
-              <Link
-                href={`/meetings/${task.source_room_id}`}
-                className={sourceLinkCss}
+        ) : (
+          <div className={detailContentCss}>
+            <div className={taskTitleRowCss}>
+              <span
+                className={titleStatusCss}
+                data-complete={task.status === 'completed' || undefined}
+                aria-hidden="true"
               >
-                {t('sourceMeeting', {
-                  name: task.source_room_name || t('meeting'),
-                })}
-              </Link>
-            )}
+                {task.status === 'completed' ? '✓' : ''}
+              </span>
+              <div className={taskTitleTextCss}>
+                <h2>{task.title}</h2>
+                <span>{t(`statuses.${task.status}`)}</span>
+              </div>
+            </div>
+
             <div className={actionsCss}>
-              {task.can_edit && (
-                <Button variant="secondary" onPress={() => setEditing(true)}>
-                  {t('actions.edit')}
-                </Button>
-              )}
               {task.can_update_status &&
                 nextTaskStatuses(task).map((status) => (
                   <Button
                     key={status}
+                    size="dense"
                     variant={status === 'completed' ? 'primary' : 'secondary'}
                     isDisabled={patchMutation.isPending}
                     onPress={() =>
@@ -196,21 +153,100 @@ export const TaskDetailPanel = ({
                     {t(`actions.to_${status}`)}
                   </Button>
                 ))}
+              {task.can_edit && (
+                <Button
+                  size="dense"
+                  variant="secondary"
+                  onPress={() => setEditing(true)}
+                >
+                  {t('actions.edit')}
+                </Button>
+              )}
             </div>
             {patchMutation.error && (
-              <p role="alert" className={errorCss}>
+              <p role="alert" className={inlineErrorCss}>
                 {t('error')}
               </p>
             )}
+
+            <dl className={propertyListCss}>
+              <TaskProperty
+                icon={<RiUser3Line size={18} />}
+                label={t('meta.assignee')}
+              >
+                {taskDisplayName(task.assignee)}
+              </TaskProperty>
+              <TaskProperty
+                icon={<RiUserAddLine size={18} />}
+                label={t('meta.creator')}
+              >
+                {taskDisplayName(task.creator)}
+              </TaskProperty>
+              <TaskProperty
+                icon={<RiCalendarLine size={18} />}
+                label={`${t('meta.startDate')} / ${t('meta.dueDate')}`}
+              >
+                {formatDate(task.start_date)} — {formatDate(task.due_date)}
+              </TaskProperty>
+              <TaskProperty
+                icon={<RiFlagLine size={18} />}
+                label={t('form.priority')}
+              >
+                <TaskPriorityBadge priority={task.priority} />
+              </TaskProperty>
+              <TaskProperty
+                icon={<RiPriceTag3Line size={18} />}
+                label={t('labels.field')}
+              >
+                <span className={labelRowCss}>
+                  {task.labels.length > 0
+                    ? task.labels.map((label) => (
+                        <TaskLabelBadge key={label.id} label={label} />
+                      ))
+                    : t('labels.none')}
+                </span>
+              </TaskProperty>
+              <TaskProperty
+                icon={<RiFileTextLine size={18} />}
+                label={t('form.description')}
+                alignStart
+              >
+                <span className={descriptionCss}>
+                  {task.description || t('workspace.emptyDescription')}
+                </span>
+              </TaskProperty>
+            </dl>
+
+            {task.source_room_id && (
+              <Link
+                href={`/meetings/${task.source_room_id}`}
+                className={sourceLinkCss}
+              >
+                {t('sourceMeeting', {
+                  name: task.source_room_name || t('meeting'),
+                })}
+              </Link>
+            )}
+
+            <DetailSection title={t('subtasks.title')}>
+              <TaskSubtasksSection taskId={task.id} />
+            </DetailSection>
+            <DetailSection title={t('comments.title')}>
+              <TaskCommentsSection taskId={task.id} />
+            </DetailSection>
+            <details className={disclosureCss}>
+              <summary>{t('attachments.title')}</summary>
+              <div className={disclosureBodyCss}>
+                <TaskAttachmentsSection taskId={task.id} />
+              </div>
+            </details>
+            <details className={disclosureCss}>
+              <summary>{t('history.title')}</summary>
+              <div className={disclosureBodyCss}>
+                <TaskHistorySection taskId={task.id} />
+              </div>
+            </details>
           </div>
-        ) : tab === 'subtasks' ? (
-          <TaskSubtasksSection taskId={task.id} />
-        ) : tab === 'comments' ? (
-          <TaskCommentsSection taskId={task.id} />
-        ) : tab === 'attachments' ? (
-          <TaskAttachmentsSection taskId={task.id} />
-        ) : (
-          <TaskHistorySection taskId={task.id} />
         )}
       </div>
     </PanelShell>
@@ -245,11 +281,37 @@ const PanelShell = ({
   )
 }
 
-const TaskMeta = ({ label, value }: { label: string; value: string }) => (
-  <div>
-    <dt className={metaLabelCss}>{label}</dt>
-    <dd className={metaValueCss}>{value}</dd>
+const TaskProperty = ({
+  icon,
+  label,
+  children,
+  alignStart = false,
+}: {
+  icon: ReactNode
+  label: string
+  children: ReactNode
+  alignStart?: boolean
+}) => (
+  <div className={propertyRowCss} data-align-start={alignStart || undefined}>
+    <span className={propertyIconCss} aria-hidden="true">
+      {icon}
+    </span>
+    <dt>{label}</dt>
+    <dd>{children}</dd>
   </div>
+)
+
+const DetailSection = ({
+  title,
+  children,
+}: {
+  title: string
+  children: ReactNode
+}) => (
+  <section className={detailSectionCss}>
+    <h3>{title}</h3>
+    {children}
+  </section>
 )
 
 const panelCss = css({
@@ -261,6 +323,31 @@ const panelCss = css({
   borderLeft: '1px solid token(colors.greyscale.200)',
   color: 'default.text',
 })
+const createDialogCss = css({
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+})
+const createDialogHeaderCss = css({
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  gap: '1rem',
+  padding: '1.25rem 1.5rem 1rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+})
+const createDialogTitleCss = css({
+  margin: 0,
+  color: 'greyscale.900',
+  fontSize: '1.125rem',
+  fontWeight: '600',
+})
+const createDialogHintCss = css({
+  margin: '0.25rem 0 0',
+  color: 'greyscale.500',
+  fontSize: '0.75rem',
+})
+const createDialogBodyCss = css({ minHeight: 0, overflowY: 'auto' })
 const panelHeaderCss = css({
   minHeight: '4rem',
   display: 'flex',
@@ -287,66 +374,110 @@ const closeCss = css({
   fontSize: '1.5rem',
   lineHeight: 1,
 })
-const tabsCss = css({
-  display: 'flex',
-  gap: '0.25rem',
-  overflowX: 'auto',
-  padding: '0.5rem 0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-const tabButtonCss = css({
-  flexShrink: 0,
-  border: 0,
-  borderRadius: '6px',
-  padding: '0.5rem 0.625rem',
-  backgroundColor: 'transparent',
-  color: 'default.subtle-text',
-  cursor: 'pointer',
-  fontSize: '0.8125rem',
-  '&[data-active]': {
-    backgroundColor: 'primary.50',
-    color: 'primary.700',
-    fontWeight: '600',
-  },
-})
 const panelBodyCss = css({ flex: 1, minHeight: 0, overflowY: 'auto' })
-const overviewCss = css({
+const detailContentCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '1rem',
-  padding: '1rem',
+  gap: '1.25rem',
+  padding: '1.25rem 1.25rem 1.5rem',
+  fontSize: '0.875rem',
 })
-const betweenCss = css({
+const taskTitleRowCss = css({
   display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
+  alignItems: 'flex-start',
   gap: '0.75rem',
 })
-const statusCss = css({
+const titleStatusCss = css({
+  width: '1.375rem',
+  height: '1.375rem',
+  marginTop: '0.125rem',
+  flexShrink: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: '1px solid token(colors.greyscale.400)',
   borderRadius: '999px',
-  paddingX: '0.625rem',
-  paddingY: '0.25rem',
-  backgroundColor: 'primary.50',
-  color: 'primary.700',
+  color: 'white',
   fontSize: '0.75rem',
-  fontWeight: '600',
+  '&[data-complete]': {
+    borderColor: 'success.500',
+    backgroundColor: 'success.500',
+  },
+})
+const taskTitleTextCss = css({
+  minWidth: 0,
+  flex: 1,
+  '& h2': {
+    margin: 0,
+    color: 'greyscale.900',
+    fontSize: '1.125rem',
+    fontWeight: '600',
+    lineHeight: 1.45,
+    overflowWrap: 'anywhere',
+  },
+  '& span': { color: 'greyscale.500', fontSize: '0.75rem' },
 })
 const descriptionCss = css({
-  margin: 0,
+  display: 'block',
   color: 'default.text',
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
 })
 const labelRowCss = css({ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' })
-const metaGridCss = css({
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: '1rem',
+const propertyListCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
   margin: 0,
 })
-const metaLabelCss = css({ color: 'default.subtle-text', fontSize: '0.75rem' })
-const metaValueCss = css({ margin: 0, color: 'default.text' })
+const propertyRowCss = css({
+  minHeight: '2.5rem',
+  display: 'grid',
+  gridTemplateColumns: '1.5rem 6.5rem minmax(0, 1fr)',
+  alignItems: 'center',
+  gap: '0.5rem',
+  padding: '0.375rem 0.5rem',
+  borderRadius: '6px',
+  _hover: { backgroundColor: 'greyscale.50' },
+  '&[data-align-start]': { alignItems: 'start' },
+  '& dt': { color: 'greyscale.500', fontSize: '0.8125rem' },
+  '& dd': {
+    minWidth: 0,
+    margin: 0,
+    color: 'greyscale.900',
+    fontSize: '0.875rem',
+  },
+})
+const propertyIconCss = css({
+  display: 'inline-flex',
+  color: 'greyscale.500',
+})
 const sourceLinkCss = css({ color: 'primary.600', textDecoration: 'none' })
 const actionsCss = css({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' })
+const inlineErrorCss = css({ margin: 0, color: 'danger.subtle-text' })
+const detailSectionCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.75rem',
+  paddingTop: '1rem',
+  borderTop: '1px solid token(colors.greyscale.200)',
+  '& h3': {
+    margin: 0,
+    color: 'greyscale.900',
+    fontSize: '0.875rem',
+    fontWeight: '600',
+  },
+})
+const disclosureCss = css({
+  borderTop: '1px solid token(colors.greyscale.200)',
+  '& summary': {
+    paddingTop: '1rem',
+    color: 'greyscale.900',
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+})
+const disclosureBodyCss = css({ paddingTop: '0.75rem' })
 const stateCss = css({ margin: '1rem', color: 'default.subtle-text' })
 const errorCss = css({ margin: '1rem', color: 'danger.subtle-text' })

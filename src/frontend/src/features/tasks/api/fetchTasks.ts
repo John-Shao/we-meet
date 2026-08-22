@@ -154,10 +154,11 @@ export const useDeleteTaskLabel = () => {
 const fetchTaskSubtasks = (taskId: string) =>
   fetchApi<ApiTask[]>(`tasks/${encodeURIComponent(taskId)}/subtasks/`)
 
-export const useTaskSubtasks = (taskId: string) =>
+export const useTaskSubtasks = (taskId: string, enabled = true) =>
   useQuery<ApiTask[], ApiError>({
     queryKey: ['tasks', taskId, 'subtasks'],
     queryFn: () => fetchTaskSubtasks(taskId),
+    enabled,
   })
 
 const fetchTaskActivities = (taskId: string) =>

@@ -51,6 +51,7 @@ const TasksAuthenticated = () => {
   const isNarrow = useIsNarrow()
   const rowRefs = useRef(new Map<string, HTMLElement>())
   const newButtonRef = useRef<HTMLButtonElement>(null)
+  const createTitleRef = useRef<HTMLInputElement>(null)
   const { data: labels = [] } = useTaskLabels()
   const {
     data,
@@ -72,7 +73,7 @@ const TasksAuthenticated = () => {
   )
   const count = data?.pages[0]?.count || 0
   const selectedTask = tasks.find((task) => task.id === state.task)
-  const panelOpen = creating || Boolean(state.task)
+  const panelOpen = Boolean(state.task)
 
   const navigateState = (
     next: TaskWorkspaceState,
@@ -85,7 +86,6 @@ const TasksAuthenticated = () => {
     const returnTarget = state.task
       ? rowRefs.current.get(state.task)
       : newButtonRef.current
-    setCreating(false)
     navigateState({ ...state, task: undefined }, { replace: true })
     window.setTimeout(() => returnTarget?.focus(), 0)
   }
@@ -119,16 +119,7 @@ const TasksAuthenticated = () => {
     navigateState({ ...state, ...patch, task: undefined })
   }
 
-  const panel = creating ? (
-    <CreateTaskPanel
-      labels={labels}
-      onClose={closePanel}
-      onCreated={(task) => {
-        setCreating(false)
-        navigateState({ ...state, task: task.id })
-      }}
-    />
-  ) : state.task ? (
+  const panel = state.task ? (
     <TaskDetailPanel
       taskId={state.task}
       fallbackTask={selectedTask}
@@ -145,11 +136,18 @@ const TasksAuthenticated = () => {
   return (
     <div className={workspaceCss}>
       <div className={desktopNavigationHolderCss}>
-        <TaskWorkspaceNavigation
-          state={state}
-          count={count}
-          onChange={changeView}
-        />
+        <ResizablePanel
+          storageKey="we-meet:task-sidebar-width"
+          defaultWidth={230}
+          min={200}
+          max={400}
+        >
+          <TaskWorkspaceNavigation
+            state={state}
+            count={count}
+            onChange={changeView}
+          />
+        </ResizablePanel>
       </div>
       <main className={mainCss}>
         <div className={mobileNavigationHolderCss}>
@@ -247,6 +245,25 @@ const TasksAuthenticated = () => {
             {panel}
           </ResizablePanel>
         ))}
+      {creating && (
+        <Modal
+          ariaLabel={t('workspace.createTitle')}
+          onClose={() => setCreating(false)}
+          initialFocusRef={createTitleRef}
+          maxWidth="720px"
+          maxHeight="88vh"
+        >
+          <CreateTaskPanel
+            labels={labels}
+            titleInputRef={createTitleRef}
+            onClose={() => setCreating(false)}
+            onCreated={(task) => {
+              setCreating(false)
+              navigateState({ ...state, task: task.id })
+            }}
+          />
+        </Modal>
+      )}
       {labelManagerOpen && (
         <Modal
           ariaLabel={t('labels.manage')}
@@ -294,7 +311,9 @@ const workspaceCss = css({
   backgroundColor: 'greyscale.000',
 })
 const desktopNavigationHolderCss = css({
-  display: { base: 'none', md: 'contents' },
+  display: { base: 'none', md: 'block' },
+  height: '100%',
+  flexShrink: 0,
 })
 const mainCss = css({
   flex: 1,

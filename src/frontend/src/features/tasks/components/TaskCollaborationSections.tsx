@@ -47,6 +47,7 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
   const [priority, setPriority] = useState<TaskPriority>('none')
   const [labelIds, setLabelIds] = useState<string[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [adding, setAdding] = useState(false)
   const { data, isLoading, error } = useTaskSubtasks(taskId)
   const { data: labels = [] } = useTaskLabels()
   const createMutation = useCreateTaskSubtask()
@@ -73,6 +74,7 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
       setDueDate('')
       setPriority('none')
       setLabelIds([])
+      setAdding(false)
     } catch {
       // Keep the entered values available for retry.
     }
@@ -88,74 +90,6 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
 
   return (
     <section aria-label={t('subtasks.title')} className={sectionCss}>
-      <form onSubmit={(event) => void submit(event)} className={stackCss}>
-        <label className={fieldCss}>
-          {t('subtasks.titleLabel')}
-          <Input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder={t('subtasks.titlePlaceholder')}
-            maxLength={500}
-            required
-          />
-        </label>
-        <Button
-          type="button"
-          variant="secondary"
-          className={css({ justifyContent: 'flex-start' })}
-          onPress={() => setPickerOpen(true)}
-        >
-          {assignee ? taskDisplayName(assignee) : t('form.assigneeSelf')}
-        </Button>
-        <Select
-          label={t('form.priority')}
-          aria-label={t('form.priority')}
-          items={priorities.map((value) => ({
-            value,
-            label: t(`priorities.${value}`),
-          }))}
-          selectedKey={priority}
-          onSelectionChange={(key) => setPriority(String(key) as TaskPriority)}
-        />
-        <TaskLabelSelector
-          labels={labels}
-          selectedIds={labelIds}
-          onChange={setLabelIds}
-        />
-        <div className={dateGridCss}>
-          <label className={fieldCss}>
-            {t('form.startDate')}
-            <Input
-              type="date"
-              value={startDate}
-              max={dueDate || undefined}
-              onChange={(event) => setStartDate(event.target.value)}
-            />
-          </label>
-          <label className={fieldCss}>
-            {t('form.dueDate')}
-            <Input
-              type="date"
-              value={dueDate}
-              min={startDate || undefined}
-              onChange={(event) => setDueDate(event.target.value)}
-            />
-          </label>
-        </div>
-        {createMutation.error && (
-          <p role="alert" className={errorCss}>
-            {t('subtasks.createError')}
-          </p>
-        )}
-        <Button
-          type="submit"
-          size="sm"
-          loading={createMutation.isPending}
-          isDisabled={!title.trim()}
-        >
-          {t('subtasks.create')}
-        </Button>
-      </form>
       <AsyncState
         loading={isLoading}
         error={Boolean(error)}
@@ -164,9 +98,9 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
         errorText={t('subtasks.error')}
         emptyText={t('subtasks.empty')}
       >
-        <ul className={listCss}>
+        <ul className={subtaskListCss}>
           {data?.map((subtask) => (
-            <li key={subtask.id} className={itemCss}>
+            <li key={subtask.id} className={subtaskItemCss}>
               <div className={inlineCss}>
                 <strong>{subtask.title}</strong>
                 <span className={statusBadgeCss}>
@@ -210,6 +144,102 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
           ))}
         </ul>
       </AsyncState>
+      {adding ? (
+        <form
+          onSubmit={(event) => void submit(event)}
+          className={subtaskFormCss}
+        >
+          <label className={fieldCss}>
+            {t('subtasks.titleLabel')}
+            <Input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder={t('subtasks.titlePlaceholder')}
+              maxLength={500}
+              required
+            />
+          </label>
+          <div className={subtaskOptionsCss}>
+            <Button
+              type="button"
+              size="dense"
+              variant="secondary"
+              className={css({ justifyContent: 'flex-start' })}
+              onPress={() => setPickerOpen(true)}
+            >
+              {assignee ? taskDisplayName(assignee) : t('form.assigneeSelf')}
+            </Button>
+            <Select
+              label={t('form.priority')}
+              aria-label={t('form.priority')}
+              items={priorities.map((value) => ({
+                value,
+                label: t(`priorities.${value}`),
+              }))}
+              selectedKey={priority}
+              onSelectionChange={(key) =>
+                setPriority(String(key) as TaskPriority)
+              }
+            />
+          </div>
+          <TaskLabelSelector
+            labels={labels}
+            selectedIds={labelIds}
+            onChange={setLabelIds}
+          />
+          <div className={dateGridCss}>
+            <label className={fieldCss}>
+              {t('form.startDate')}
+              <Input
+                type="date"
+                value={startDate}
+                max={dueDate || undefined}
+                onChange={(event) => setStartDate(event.target.value)}
+              />
+            </label>
+            <label className={fieldCss}>
+              {t('form.dueDate')}
+              <Input
+                type="date"
+                value={dueDate}
+                min={startDate || undefined}
+                onChange={(event) => setDueDate(event.target.value)}
+              />
+            </label>
+          </div>
+          {createMutation.error && (
+            <p role="alert" className={errorCss}>
+              {t('subtasks.createError')}
+            </p>
+          )}
+          <div className={subtaskFormActionsCss}>
+            <Button
+              type="button"
+              size="dense"
+              variant="secondary"
+              onPress={() => setAdding(false)}
+            >
+              {t('actions.cancelEdit')}
+            </Button>
+            <Button
+              type="submit"
+              size="dense"
+              loading={createMutation.isPending}
+              isDisabled={!title.trim()}
+            >
+              {t('subtasks.create')}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <button
+          type="button"
+          className={addSubtaskCss}
+          onClick={() => setAdding(true)}
+        >
+          + {t('subtasks.create')}
+        </button>
+      )}
       {pickerOpen && (
         <ContactPicker
           includeSelf
@@ -570,6 +600,36 @@ const stackCss = css({
   flexDirection: 'column',
   gap: '0.75rem',
 })
+const subtaskFormCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.75rem',
+  padding: '0.75rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '8px',
+  backgroundColor: 'greyscale.50',
+})
+const subtaskOptionsCss = css({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+  alignItems: 'end',
+  gap: '0.5rem',
+  fontSize: '0.8125rem',
+})
+const subtaskFormActionsCss = css({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: '0.5rem',
+})
+const addSubtaskCss = css({
+  alignSelf: 'flex-start',
+  border: 0,
+  backgroundColor: 'transparent',
+  color: 'primary.600',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+  _dark: { color: 'primaryDark.700' },
+})
 const fieldCss = css({
   display: 'flex',
   flexDirection: 'column',
@@ -589,6 +649,23 @@ const listCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.625rem',
+})
+const subtaskListCss = css({
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+  display: 'flex',
+  flexDirection: 'column',
+})
+const subtaskItemCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.375rem',
+  padding: '0.625rem 0.25rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+  color: 'default.text',
+  fontSize: '0.8125rem',
+  _first: { paddingTop: '0.25rem' },
 })
 const itemCss = css({
   display: 'flex',

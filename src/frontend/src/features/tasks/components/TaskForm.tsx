@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ContactPicker, type DirectoryMember } from '@/features/contacts'
@@ -22,12 +22,14 @@ export const TaskForm = ({
   mode,
   task,
   labels,
+  titleInputRef,
   onCancel,
   onSaved,
 }: {
   mode: 'create' | 'edit'
   task?: ApiTask
   labels: ApiTaskLabel[]
+  titleInputRef?: RefObject<HTMLInputElement>
   onCancel: () => void
   onSaved: (task: ApiTask) => void
 }) => {
@@ -82,6 +84,7 @@ export const TaskForm = ({
       <label className={fieldCss}>
         {t('form.title')}
         <Input
+          ref={titleInputRef}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           placeholder={t('form.titlePlaceholder')}
@@ -150,15 +153,15 @@ export const TaskForm = ({
         </p>
       )}
       <div className={actionsCss}>
+        <Button type="button" variant="secondary" onPress={onCancel}>
+          {t('actions.cancelEdit')}
+        </Button>
         <Button
           type="submit"
           loading={mutation.isPending}
           isDisabled={!title.trim()}
         >
           {mode === 'create' ? t('form.create') : t('actions.save')}
-        </Button>
-        <Button type="button" variant="secondary" onPress={onCancel}>
-          {t('actions.cancelEdit')}
         </Button>
       </div>
       {pickerOpen && (
@@ -203,5 +206,10 @@ const twoColumnsCss = css({
   gap: '0.75rem',
 })
 
-const actionsCss = css({ display: 'flex', gap: '0.625rem' })
+const actionsCss = css({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: '0.625rem',
+  paddingTop: '0.25rem',
+})
 const errorCss = css({ margin: 0, color: 'danger.subtle-text' })

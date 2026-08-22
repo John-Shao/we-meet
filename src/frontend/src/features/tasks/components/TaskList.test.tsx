@@ -15,6 +15,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../api/fetchTasks', () => ({
   usePatchTask: () => ({ mutate, isPending: false }),
+  useTaskSubtasks: () => ({ data: [subtask], isLoading: false, error: null }),
 }))
 
 const task: ApiTask = {
@@ -51,13 +52,25 @@ const task: ApiTask = {
   updated_at: '2026-08-21T09:00:00Z',
 }
 
+const subtask: ApiTask = {
+  ...task,
+  id: 'subtask-1',
+  title: 'Write changelog',
+  parent_id: task.id,
+  subtask_count: 0,
+  completed_subtask_count: 0,
+  source_room_id: null,
+  source_room_name: null,
+}
+
 describe('TaskList', () => {
   it('renders desktop and mobile task representations with semantic metadata', () => {
     render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
     expect(screen.getAllByText('Prepare release')).toHaveLength(2)
-    expect(screen.getAllByText('priorities.high')).toHaveLength(2)
-    expect(screen.getAllByText('Release')).toHaveLength(2)
+    expect(screen.getAllByText('Write changelog')).toHaveLength(2)
+    expect(screen.getAllByText('priorities.high')).toHaveLength(4)
+    expect(screen.getAllByText('Release')).toHaveLength(4)
   })
 
   it('opens a focused row with Enter and performs its permitted quick action', () => {
