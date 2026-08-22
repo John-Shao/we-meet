@@ -115,6 +115,8 @@ export type SelectProps<T> = Omit<
   errors?: ReactNode
   placement?: Placement
   variant?: 'light' | 'dark'
+  /** Optional local styling for the expanded option list. */
+  menuClassName?: string
 }
 
 export const Select = <T extends string | number>({
@@ -124,6 +126,7 @@ export const Select = <T extends string | number>({
   errors,
   placement,
   variant = 'light',
+  menuClassName,
   ...props
 }: SelectProps<T>) => {
   const IconComponent = iconComponent
@@ -145,7 +148,7 @@ export const Select = <T extends string | number>({
       </StyledButton>
       <StyledPopover placement={placement}>
         <Box size="sm" type="popover" variant={variant}>
-          <ListBox>
+          <ListBox className={menuClassName}>
             {items.map((item) => (
               <ListBoxItem
                 className={
