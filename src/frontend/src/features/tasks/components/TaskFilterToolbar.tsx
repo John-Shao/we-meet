@@ -59,6 +59,7 @@ export const TaskFilterToolbar = ({
   return (
     <div className={toolbarCss} aria-label={t('workspace.filters')}>
       <Select
+        className={filterSelectCss}
         label={t('workspace.statusFilter')}
         aria-label={t('workspace.statusFilter')}
         items={statusFilters.map((value) => ({
@@ -74,6 +75,7 @@ export const TaskFilterToolbar = ({
         }
       />
       <Select
+        className={filterSelectCss}
         label={t('timeFilters.label')}
         aria-label={t('timeFilters.label')}
         items={timeFilters.map((value) => ({
@@ -85,6 +87,7 @@ export const TaskFilterToolbar = ({
         onSelectionChange={(key) => onTimeChange(String(key) as TaskTimeFilter)}
       />
       <Select
+        className={filterSelectCss}
         label={t('priorityFilters.label')}
         aria-label={t('priorityFilters.label')}
         items={priorityFilters.map((value) => ({
@@ -97,6 +100,7 @@ export const TaskFilterToolbar = ({
         }
       />
       <Select
+        className={filterSelectCss}
         label={t('labels.filter')}
         aria-label={t('labels.filter')}
         items={[
@@ -123,17 +127,38 @@ const toolbarCss = css({
   display: 'flex',
   flexWrap: 'wrap',
   alignItems: 'end',
-  gap: '0.625rem',
+  gap: '0.5rem',
   padding: '0.75rem 1rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
   backgroundColor: 'greyscale.000',
   fontSize: '0.8125rem',
-  '& label': { fontSize: '0.75rem' },
+  '& label': { fontSize: '0.8125rem', fontWeight: 'medium' },
   '& button': { fontSize: '0.8125rem' },
-  '& > *': { minWidth: { base: 'calc(50% - 0.5rem)', sm: '140px' } },
+})
+const filterSelectCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+  minWidth: { base: 'calc(50% - 0.25rem)', sm: '8rem' },
+  fontSize: '0.8125rem',
+  '& button': {
+    height: 'control.md',
+    minHeight: 'control.md',
+    paddingBlock: 0,
+    paddingX: '0.625rem',
+    border: '1px solid token(colors.greyscale.300)',
+    borderRadius: 4,
+    boxShadow: 'none',
+    fontSize: '0.8125rem',
+  },
 })
 const toolbarActionsCss = css({
   display: 'flex',
   gap: '0.5rem',
   minWidth: 'auto!important',
+  '& button': {
+    height: 'control.md',
+    minHeight: 'control.md',
+    paddingX: '0.75rem',
+  },
 })
