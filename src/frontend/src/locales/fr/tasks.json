@@ -39,6 +39,8 @@
     "loadMore": "Charger plus",
     "loadingMore": "Chargement…",
     "createTitle": "Nouvelle tâche",
+    "createCancel": "Annuler",
+    "createSubmit": "Créer",
     "details": "Détails de la tâche",
     "detailError": "Impossible de charger cette tâche. Elle n’existe peut-être plus ou vous n’y avez plus accès.",
     "detailSections": "Sections des détails de la tâche",

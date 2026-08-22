@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import zhTasks from '@/locales/zh/tasks.json'
+
 import { TaskForm } from './TaskForm'
 
 vi.mock('react-i18next', () => ({
@@ -38,14 +40,21 @@ describe('TaskForm create mode', () => {
       screen.getByPlaceholderText('form.createDescriptionPlaceholder')
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'form.cancel' })
+      screen.getByRole('button', { name: 'workspace.createCancel' })
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'form.create' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'workspace.createSubmit' })
+    ).toBeDisabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'form.today' }))
     expect(screen.getByLabelText('form.dueDate')).toHaveValue(
       localDateValue(new Date())
     )
+  })
+
+  it('uses the expected Chinese create action labels', () => {
+    expect(zhTasks.workspace.createCancel).toBe('取消')
+    expect(zhTasks.workspace.createSubmit).toBe('新建')
   })
 })
 

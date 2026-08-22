@@ -237,7 +237,7 @@ export const TaskForm = ({
             variant="secondary"
             onPress={onCancel}
           >
-            {t('form.cancel')}
+            {t('workspace.createCancel')}
           </Button>
           <Button
             type="submit"
@@ -245,7 +245,7 @@ export const TaskForm = ({
             loading={mutation.isPending}
             isDisabled={!title.trim()}
           >
-            {t('form.create')}
+            {t('workspace.createSubmit')}
           </Button>
         </div>
         {picker}

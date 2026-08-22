@@ -39,6 +39,8 @@
     "loadMore": "Load more",
     "loadingMore": "Loading…",
     "createTitle": "New task",
+    "createCancel": "Cancel",
+    "createSubmit": "Create",
     "details": "Task details",
     "detailError": "This task could not be loaded. It may no longer exist or you may not have access.",
     "detailSections": "Task detail sections",

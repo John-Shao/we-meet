@@ -39,6 +39,8 @@
     "loadMore": "加载更多",
     "loadingMore": "正在加载…",
     "createTitle": "新建任务",
+    "createCancel": "取消",
+    "createSubmit": "新建",
     "details": "任务详情",
     "detailError": "无法加载该任务，任务可能不存在或你已没有访问权限。",
     "detailSections": "任务详情分区",
@@ -70,7 +72,7 @@
     "startDate": "开始日期（可选）",
     "dueDate": "截止日期（可选）",
     "cancel": "取消",
-    "create": "创建"
+    "create": "新建"
   },
   "scopes": {
     "label": "任务范围",

@@ -39,6 +39,8 @@
     "loadMore": "Meer laden",
     "loadingMore": "Laden…",
     "createTitle": "Nieuwe taak",
+    "createCancel": "Annuleren",
+    "createSubmit": "Maken",
     "details": "Taakdetails",
     "detailError": "Deze taak kon niet worden geladen. De taak bestaat mogelijk niet meer of je hebt geen toegang.",
     "detailSections": "Secties met taakdetails",

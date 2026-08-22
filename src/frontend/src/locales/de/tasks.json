@@ -39,6 +39,8 @@
     "loadMore": "Mehr laden",
     "loadingMore": "Wird geladen…",
     "createTitle": "Neue Aufgabe",
+    "createCancel": "Abbrechen",
+    "createSubmit": "Erstellen",
     "details": "Aufgabendetails",
     "detailError": "Diese Aufgabe konnte nicht geladen werden. Sie existiert möglicherweise nicht mehr oder du hast keinen Zugriff.",
     "detailSections": "Bereiche der Aufgabendetails",
