@@ -18,14 +18,16 @@ export const MenuList = <T extends string | number = string>({
   selectedItem,
   items = [],
   variant = 'light',
+  menuClassName,
   ...menuProps
 }: {
   onAction: (key: T) => void
   selectedItem?: T
   items: MenuListItem<T>[]
+  /** Static class appended to the menu root. */
+  menuClassName?: string
 } & MenuProps<unknown> &
   RecipeVariantProps<typeof menuRecipe>) => {
-  const { className, ...remainingMenuProps } = menuProps
   const [variantProps] = menuRecipe.splitVariantProps(menuProps)
   const { t } = useTranslation('global')
   const classes = menuRecipe({
@@ -40,8 +42,8 @@ export const MenuList = <T extends string | number = string>({
       disabledKeys={items.flatMap((item) =>
         typeof item !== 'string' && item.isDisabled ? [item.value] : []
       )}
-      className={cx(classes.root, className)}
-      {...remainingMenuProps}
+      className={cx(classes.root, menuClassName)}
+      {...menuProps}
     >
       {items.map((item) => {
         const value = typeof item === 'string' ? item : item.value

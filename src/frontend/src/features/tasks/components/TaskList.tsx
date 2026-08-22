@@ -690,7 +690,7 @@ const GroupMoreMenu = ({
       </button>
       <MenuList
         aria-label={t('groups.more')}
-        className={groupMoreMenuCss}
+        menuClassName={groupMoreMenuCss}
         items={[
           { value: 'rename', label: t('groups.rename') },
           {
