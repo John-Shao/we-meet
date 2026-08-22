@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/primitives'
-import { css, cx } from '@/styled-system/css'
-import { selectChrome } from '@/primitives/selectChrome'
+import { Select } from '@/primitives/Select'
+import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { Switch } from '@/primitives/Switch'
@@ -431,21 +431,17 @@ export const CreateEventDialog = ({
       <div className={scrollBodyCls}>
         <div className={formStackCls}>
           {!isEdit && writableCalendars.length > 0 && (
-            <label className={fieldCls} htmlFor="event-calendar">
-              <span className={labelCls}>{t('form.calendar')}</span>
-              <select
-                id="event-calendar"
-                value={selectedCalendarId}
-                onChange={(event) => setCalendarId(event.target.value)}
-                className={cx(inputCls, selectChrome)}
-              >
-                {writableCalendars.map((calendar) => (
-                  <option key={calendar.id} value={calendar.id}>
-                    {calendar.display_name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              className={eventSelectCls}
+              label={<span className={labelCls}>{t('form.calendar')}</span>}
+              aria-label={t('form.calendar')}
+              selectedKey={selectedCalendarId}
+              onSelectionChange={(key) => setCalendarId(String(key))}
+              items={writableCalendars.map((calendar) => ({
+                value: calendar.id,
+                label: calendar.display_name,
+              }))}
+            />
           )}
           <input
             ref={titleRef}
@@ -503,28 +499,31 @@ export const CreateEventDialog = ({
             </label>
           </div>
 
-          <label className={fieldCls} htmlFor="event-timezone">
-            <span className={labelCls}>{t('form.timezone')}</span>
-            <select
-              id="event-timezone"
-              value={eventTimezone}
-              onChange={(event) => setEventTimezone(event.target.value)}
+          <div className={fieldCls}>
+            <Select
+              className={eventSelectCls}
+              label={<span className={labelCls}>{t('form.timezone')}</span>}
+              aria-label={t('form.timezone')}
+              selectedKey={eventTimezone}
+              onSelectionChange={(key) => setEventTimezone(String(key))}
               data-testid="event-timezone"
-              className={cx(inputCls, selectChrome)}
-            >
-              {!timezoneOptions.some(
-                (option) => option.zone === eventTimezone
-              ) && <option value={eventTimezone}>{eventTimezone}</option>}
-              {timezoneOptions.map((option) => (
-                <option key={option.zone} value={option.zone}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              menuClassName={timezoneMenuCls}
+              items={[
+                ...(!timezoneOptions.some(
+                  (option) => option.zone === eventTimezone
+                )
+                  ? [{ value: eventTimezone, label: eventTimezone }]
+                  : []),
+                ...timezoneOptions.map((option) => ({
+                  value: option.zone,
+                  label: option.label,
+                })),
+              ]}
+            />
             {allDay && (
               <div className={videoHintCls}>{t('form.allDayTimezoneHint')}</div>
             )}
-          </label>
+          </div>
 
           {/* 提醒 —— 与下面的「重复」同构(标签 + 满宽 select)。原来它和「全天」
             复选框挤在一行,select 一撑就把「全天」挤到下一行去,布局散架。 */}
@@ -539,23 +538,22 @@ export const CreateEventDialog = ({
             })}
           >
             <span>{t('form.reminder')}</span>
-            <select
-              value={reminder == null ? '' : String(reminder)}
-              onChange={(e) =>
-                setReminder(
-                  e.target.value === '' ? null : Number(e.target.value)
-                )
+            <Select
+              className={inlineEventSelectCls}
+              aria-label={t('form.reminder')}
+              selectedKey={reminder == null ? '' : String(reminder)}
+              onSelectionChange={(key) =>
+                setReminder(key === '' ? null : Number(key))
               }
               data-testid="event-reminder"
-              className={cx(inputCls, selectChrome)}
-            >
-              <option value="">{t('form.reminderNone')}</option>
-              {reminderOptions.map((m) => (
-                <option key={m} value={String(m)}>
-                  {reminderOptionLabel(t, m)}
-                </option>
-              ))}
-            </select>
+              items={[
+                { value: '', label: t('form.reminderNone') },
+                ...reminderOptions.map((m) => ({
+                  value: String(m),
+                  label: reminderOptionLabel(t, m),
+                })),
+              ]}
+            />
           </div>
 
           {/* P2-M1 重复 — 创建时可选;编辑重复规则属 M2 三选语义,编辑态隐藏。 */}
@@ -571,18 +569,20 @@ export const CreateEventDialog = ({
               })}
             >
               <span>{t('form.repeat')}</span>
-              <select
-                value={repeat}
-                onChange={(e) => setRepeat(e.target.value)}
+              <Select
+                className={inlineEventSelectCls}
+                aria-label={t('form.repeat')}
+                selectedKey={repeat}
+                onSelectionChange={(key) => setRepeat(String(key))}
                 data-testid="event-repeat"
-                className={cx(inputCls, selectChrome)}
-              >
-                <option value="">{t('form.repeatNone')}</option>
-                <option value="DAILY">{t('form.repeatDaily')}</option>
-                <option value="WEEKDAYS">{t('form.repeatWeekdays')}</option>
-                <option value="WEEKLY">{t('form.repeatWeekly')}</option>
-                <option value="MONTHLY">{t('form.repeatMonthly')}</option>
-              </select>
+                items={[
+                  { value: '', label: t('form.repeatNone') },
+                  { value: 'DAILY', label: t('form.repeatDaily') },
+                  { value: 'WEEKDAYS', label: t('form.repeatWeekdays') },
+                  { value: 'WEEKLY', label: t('form.repeatWeekly') },
+                  { value: 'MONTHLY', label: t('form.repeatMonthly') },
+                ]}
+              />
               {repeat && (
                 <label
                   className={css({
@@ -605,22 +605,21 @@ export const CreateEventDialog = ({
           )}
 
           <div className={fieldCls}>
-            <label className={labelCls} htmlFor="event-visibility">
-              {t('visibility.label')}
-            </label>
-            <select
-              id="event-visibility"
-              value={visibility}
-              onChange={(event) =>
-                setVisibility(event.target.value as EventVisibility)
+            <Select
+              className={eventSelectCls}
+              label={<span className={labelCls}>{t('visibility.label')}</span>}
+              aria-label={t('visibility.label')}
+              selectedKey={visibility}
+              onSelectionChange={(key) =>
+                setVisibility(String(key) as EventVisibility)
               }
               data-testid="event-visibility"
-              className={cx(inputCls, selectChrome)}
-            >
-              <option value="default">{t('visibility.default')}</option>
-              <option value="public">{t('visibility.public')}</option>
-              <option value="private">{t('visibility.private')}</option>
-            </select>
+              items={[
+                { value: 'default', label: t('visibility.default') },
+                { value: 'public', label: t('visibility.public') },
+                { value: 'private', label: t('visibility.private') },
+              ]}
+            />
             <div className={videoHintCls}>
               {t(`visibility.hint.${visibility}`)}
             </div>
@@ -732,6 +731,20 @@ const formStackCls = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.875rem',
+})
+const eventSelectCls = css({
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+})
+const inlineEventSelectCls = css({
+  flex: 1,
+  minWidth: '12rem',
+})
+const timezoneMenuCls = css({
+  maxHeight: '20rem',
+  overflowY: 'auto',
 })
 const textareaCls = css({
   width: '100%',

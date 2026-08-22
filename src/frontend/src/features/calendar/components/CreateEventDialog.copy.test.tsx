@@ -155,7 +155,9 @@ describe('CreateEventDialog copy mode', () => {
     expect(screen.getByTestId('event-description')).toHaveValue(
       'Review the proposal'
     )
-    expect(screen.getByTestId('event-repeat')).toHaveValue('')
+    expect(screen.getByTestId('event-repeat')).toHaveTextContent(
+      'form.repeatNone'
+    )
 
     fireEvent.click(screen.getByTestId('event-create'))
 
