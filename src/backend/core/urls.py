@@ -99,7 +99,6 @@ from core.api.search import (
 )
 from core.api.tasks import (
     TaskGroupViewSet,
-    TaskLabelViewSet,
     TaskListViewSet,
     TaskViewSet,
 )
@@ -257,7 +256,6 @@ router.register(
 )
 router.register("approvals", ApprovalInstanceViewSet, basename="approvals")
 router.register("tasks", TaskViewSet, basename="tasks")
-router.register("task-labels", TaskLabelViewSet, basename="task_labels")
 router.register("task-lists", TaskListViewSet, basename="task_lists")
 router.register("task-groups", TaskGroupViewSet, basename="task_groups")
 

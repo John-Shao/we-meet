@@ -4,7 +4,7 @@ export type TaskPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 export type TaskPriorityFilter = 'all' | TaskPriority
 export type TaskTimeState = 'starting_today' | 'due_today' | 'overdue'
 export type TaskTimeFilter = 'all' | TaskTimeState
-export type TaskLabelColor =
+export type TaskColor =
   | 'grey'
   | 'blue'
   | 'green'
@@ -12,15 +12,6 @@ export type TaskLabelColor =
   | 'orange'
   | 'red'
   | 'purple'
-
-export interface ApiTaskLabel {
-  id: string
-  name: string
-  color: TaskLabelColor
-  can_manage: boolean
-  created_at: string
-  updated_at: string
-}
 
 export interface ApiTaskGroup {
   id: string
@@ -36,7 +27,7 @@ export interface ApiTaskList {
   id: string
   name: string
   description: string
-  color: TaskLabelColor
+  color: TaskColor
   creator: ApiTaskUser | null
   is_archived: boolean
   can_manage: boolean
@@ -61,7 +52,6 @@ export interface ApiTask {
   assignee: ApiTaskUser | null
   status: TaskStatus
   priority: TaskPriority
-  labels: ApiTaskLabel[]
   task_list: Pick<ApiTaskList, 'id' | 'name' | 'color'> | null
   group: Pick<ApiTaskGroup, 'id' | 'name' | 'sort_order'> | null
   position: number
@@ -88,7 +78,6 @@ export type TaskActivityEvent =
   | 'assignee_changed'
   | 'status_changed'
   | 'priority_changed'
-  | 'labels_changed'
   | 'placement_changed'
   | 'attachment_removed'
   | 'source_action_item_changed'
@@ -124,7 +113,6 @@ export interface ApiTaskActivity {
         }
     status?: { from: TaskStatus; to: TaskStatus }
     priority?: { from: TaskPriority; to: TaskPriority }
-    labels?: { from: ApiTaskLabel[]; to: ApiTaskLabel[] }
     placement?: {
       from: ApiTaskPlacementSnapshot
       to: ApiTaskPlacementSnapshot
@@ -224,7 +212,6 @@ export interface CreateTaskPayload {
   start_date?: string | null
   due_date?: string | null
   priority?: TaskPriority
-  label_ids?: string[]
   task_list_id?: string | null
   group_id?: string | null
   position?: number
@@ -237,7 +224,6 @@ export interface PatchTaskPayload {
   start_date?: string | null
   due_date?: string | null
   priority?: TaskPriority
-  label_ids?: string[]
   task_list_id?: string | null
   group_id?: string | null
   position?: number

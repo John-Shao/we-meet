@@ -13,7 +13,6 @@ export interface TaskWorkspaceState {
   status: TaskStatusFilter
   time: TaskTimeFilter
   priority: TaskPriorityFilter
-  label: string
   taskList: string
   mode: TaskWorkspaceMode
   task?: string
@@ -54,7 +53,6 @@ export const parseTaskWorkspaceState = (
     ['all', 'none', 'low', 'medium', 'high', 'urgent'],
     'all'
   ),
-  label: params.get('label') || 'all',
   taskList: params.get('task_list') || 'all',
   mode: oneOf(params.get('view'), ['list', 'board', 'analytics'], 'list'),
   task: params.get('task') || undefined,
@@ -100,7 +98,6 @@ export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
   params.set('status', state.status)
   params.set('time', state.time)
   params.set('priority', state.priority)
-  params.set('label', state.label)
   params.set('task_list', state.taskList)
   params.set('view', state.mode)
   if (state.task) params.set('task', state.task)

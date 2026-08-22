@@ -13,7 +13,6 @@ import { toApiPath } from '@/features/contacts/api/fetchDirectoryMembers'
 
 import type {
   ApiTask,
-  ApiTaskLabel,
   ApiTaskList,
   ApiTaskGroup,
   ApiTaskStatistics,
@@ -26,7 +25,6 @@ import type {
   TaskPriorityFilter,
   TaskStatusFilter,
   TaskTimeFilter,
-  TaskLabelColor,
 } from './ApiTask'
 
 export const buildTasksUrl = (
@@ -34,24 +32,22 @@ export const buildTasksUrl = (
   status: TaskStatusFilter,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  label: string,
   taskList: string
 ) =>
-  `tasks/?scope=${scope}&status=${status}&time=${time}&priority=${priority}&label=${encodeURIComponent(label)}&task_list=${encodeURIComponent(taskList)}&page_size=50`
+  `tasks/?scope=${scope}&status=${status}&time=${time}&priority=${priority}&task_list=${encodeURIComponent(taskList)}&page_size=50`
 
 const fetchTasks = (
   scope: TaskScope,
   status: TaskStatusFilter,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  label: string,
   taskList: string,
   pageUrl?: string
 ) =>
   fetchApi<Paginated<ApiTask>>(
     pageUrl
       ? toApiPath(pageUrl)
-      : buildTasksUrl(scope, status, time, priority, label, taskList)
+      : buildTasksUrl(scope, status, time, priority, taskList)
   )
 
 export const getNextTasksPageParam = (lastPage: Paginated<ApiTask>) =>
@@ -62,18 +58,16 @@ export const useTasks = (
   status: TaskStatusFilter,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  label: string,
   taskList: string
 ) =>
   useInfiniteQuery<Paginated<ApiTask>, ApiError>({
-    queryKey: ['tasks', scope, status, time, priority, label, taskList],
+    queryKey: ['tasks', scope, status, time, priority, taskList],
     queryFn: ({ pageParam }) =>
       fetchTasks(
         scope,
         status,
         time,
         priority,
-        label,
         taskList,
         pageParam as string | undefined
       ),
@@ -89,14 +83,6 @@ export const useTask = (taskId?: string) =>
     queryKey: ['tasks', 'detail', taskId],
     queryFn: () => fetchTask(taskId!),
     enabled: Boolean(taskId),
-  })
-
-const fetchTaskLabels = () => fetchApi<ApiTaskLabel[]>('task-labels/')
-
-export const useTaskLabels = () =>
-  useQuery<ApiTaskLabel[], ApiError>({
-    queryKey: ['task-labels'],
-    queryFn: fetchTaskLabels,
   })
 
 const fetchTaskLists = () => fetchApi<ApiTaskList[]>('task-lists/')
@@ -180,11 +166,13 @@ const updateTaskGroup = (groupId: string, patch: { name?: string }) =>
 
 export const useUpdateTaskGroup = () => {
   const queryClient = useQueryClient()
-  return useMutation<ApiTaskGroup, ApiError, { groupId: string; name: string }>({
-    mutationFn: ({ groupId, name }) => updateTaskGroup(groupId, { name }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['task-lists'] }),
-  })
+  return useMutation<ApiTaskGroup, ApiError, { groupId: string; name: string }>(
+    {
+      mutationFn: ({ groupId, name }) => updateTaskGroup(groupId, { name }),
+      onSuccess: () =>
+        queryClient.invalidateQueries({ queryKey: ['task-lists'] }),
+    }
+  )
 }
 
 const deleteTaskGroup = (groupId: string) =>
@@ -207,85 +195,24 @@ const fetchTaskStatistics = (
   scope: TaskScope,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  label: string,
   taskList: string
 ) =>
   fetchApi<ApiTaskStatistics>(
-    `tasks/statistics/?scope=${scope}&status=all&time=${time}&priority=${priority}&label=${encodeURIComponent(label)}&task_list=${encodeURIComponent(taskList)}`
+    `tasks/statistics/?scope=${scope}&status=all&time=${time}&priority=${priority}&task_list=${encodeURIComponent(taskList)}`
   )
 
 export const useTaskStatistics = (
   scope: TaskScope,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  label: string,
   taskList: string,
   enabled = true
 ) =>
   useQuery<ApiTaskStatistics, ApiError>({
-    queryKey: ['tasks', 'statistics', scope, time, priority, label, taskList],
-    queryFn: () => fetchTaskStatistics(scope, time, priority, label, taskList),
+    queryKey: ['tasks', 'statistics', scope, time, priority, taskList],
+    queryFn: () => fetchTaskStatistics(scope, time, priority, taskList),
     enabled,
   })
-
-const createTaskLabel = (payload: { name: string; color: TaskLabelColor }) =>
-  fetchApi<ApiTaskLabel>('task-labels/', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
-
-export const useCreateTaskLabel = () => {
-  const queryClient = useQueryClient()
-  return useMutation<
-    ApiTaskLabel,
-    ApiError,
-    { name: string; color: TaskLabelColor }
-  >({
-    mutationFn: createTaskLabel,
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['task-labels'] }),
-  })
-}
-
-const updateTaskLabel = (
-  labelId: string,
-  patch: { name?: string; color?: TaskLabelColor }
-) =>
-  fetchApi<ApiTaskLabel>(`task-labels/${encodeURIComponent(labelId)}/`, {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
-  })
-
-export const useUpdateTaskLabel = () => {
-  const queryClient = useQueryClient()
-  return useMutation<
-    ApiTaskLabel,
-    ApiError,
-    { labelId: string; patch: { name?: string; color?: TaskLabelColor } }
-  >({
-    mutationFn: ({ labelId, patch }) => updateTaskLabel(labelId, patch),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['task-labels'] })
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
-    },
-  })
-}
-
-const deleteTaskLabel = (labelId: string) =>
-  fetchApi<void>(`task-labels/${encodeURIComponent(labelId)}/`, {
-    method: 'DELETE',
-  })
-
-export const useDeleteTaskLabel = () => {
-  const queryClient = useQueryClient()
-  return useMutation<void, ApiError, string>({
-    mutationFn: deleteTaskLabel,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['task-labels'] })
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
-    },
-  })
-}
 
 const fetchTaskSubtasks = (taskId: string) =>
   fetchApi<ApiTask[]>(`tasks/${encodeURIComponent(taskId)}/subtasks/`)

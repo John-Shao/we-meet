@@ -5,7 +5,6 @@ import {
   RiFileTextLine,
   RiFlagLine,
   RiListCheck3,
-  RiPriceTag3Line,
   RiUser3Line,
 } from '@remixicon/react'
 
@@ -16,19 +15,16 @@ import { css } from '@/styled-system/css'
 
 import type {
   ApiTask,
-  ApiTaskLabel,
   ApiTaskList,
   ApiTaskUser,
   TaskPriority,
 } from '../api/ApiTask'
 import { useCreateTask } from '../api/fetchTasks'
 import { taskDisplayName } from '../taskUi'
-import { TaskLabelSelector } from './TaskLabelSelector'
 
 const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
 
 export const TaskForm = ({
-  labels,
   taskLists,
   defaultTaskListId,
   defaultGroupId,
@@ -36,7 +32,6 @@ export const TaskForm = ({
   onCancel,
   onSaved,
 }: {
-  labels: ApiTaskLabel[]
   taskLists: ApiTaskList[]
   defaultTaskListId?: string
   defaultGroupId?: string
@@ -49,7 +44,6 @@ export const TaskForm = ({
   const [description, setDescription] = useState('')
   const [assignee, setAssignee] = useState<ApiTaskUser | null>(null)
   const [priority, setPriority] = useState<TaskPriority>('none')
-  const [labelIds, setLabelIds] = useState<string[]>([])
   const [taskListId, setTaskListId] = useState(defaultTaskListId || '')
   const [groupId, setGroupId] = useState(defaultGroupId || '')
   const [startDate, setStartDate] = useState('')
@@ -72,7 +66,6 @@ export const TaskForm = ({
         description: description.trim(),
         assignee_id: assignee?.id,
         priority,
-        label_ids: labelIds,
         task_list_id: taskListId || null,
         group_id: groupId || null,
         start_date: startDate || null,
@@ -224,18 +217,6 @@ export const TaskForm = ({
               />
             </div>
           </div>
-
-          {labels.length > 0 && (
-            <div className={createPropertyRowCss} data-align-start>
-              <RiPriceTag3Line size={19} aria-hidden="true" />
-              <TaskLabelSelector
-                compact
-                labels={labels}
-                selectedIds={labelIds}
-                onChange={setLabelIds}
-              />
-            </div>
-          )}
 
           <label className={createPropertyRowCss} data-align-start>
             <RiFileTextLine size={19} aria-hidden="true" />

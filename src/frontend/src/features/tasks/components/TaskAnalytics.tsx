@@ -12,7 +12,6 @@ export const TaskAnalytics = ({ state }: { state: TaskWorkspaceState }) => {
     state.scope,
     state.time,
     state.priority,
-    state.label,
     state.taskList
   )
 
@@ -226,7 +225,11 @@ const workloadContentCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.5rem',
-  '& > div': { display: 'flex', justifyContent: 'space-between', gap: '0.75rem' },
+  '& > div': {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
   '& strong': { fontSize: '0.8125rem' },
   '& span': { color: 'default.subtle-text', fontSize: '0.6875rem' },
 })

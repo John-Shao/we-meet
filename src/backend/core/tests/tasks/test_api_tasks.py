@@ -26,13 +26,11 @@ from core.models import (
     TaskAttachment,
     TaskComment,
     TaskImDelivery,
-    TaskLabel,
 )
 
 pytestmark = pytest.mark.django_db
 
 TASKS_URL = "/api/v1.0/tasks/"
-TASK_LABELS_URL = "/api/v1.0/task-labels/"
 
 
 def _client(user):
@@ -41,248 +39,10 @@ def _client(user):
     return client
 
 
-def test_task_labels_are_organization_scoped_and_case_insensitively_unique():
-    organization = OrganizationFactory()
-    other_organization = OrganizationFactory()
-    user = UserFactory()
-    other_user = UserFactory()
-    MembershipFactory(organization=organization, user=user, is_primary=True)
-    MembershipFactory(
-        organization=other_organization,
-        user=other_user,
-        is_primary=True,
-    )
-    other_label = TaskLabel.objects.create(
-        organization=other_organization,
-        creator=other_user,
-        name="Hidden",
-        color=TaskLabel.Color.RED,
-    )
-    client = _client(user)
+def test_task_labels_api_is_removed():
+    response = _client(UserFactory()).get("/api/v1.0/task-labels/")
 
-    response = client.post(
-        TASK_LABELS_URL,
-        {"name": "  Customer  ", "color": TaskLabel.Color.BLUE},
-        format="json",
-    )
-
-    assert response.status_code == 201
-    label = TaskLabel.objects.get(organization=organization)
-    assert label.name == "Customer"
-    assert label.creator == user
-    assert response.json()["color"] == TaskLabel.Color.BLUE
-    assert client.get(TASK_LABELS_URL).json() == [response.json()]
-    assert str(other_label.id) not in str(client.get(TASK_LABELS_URL).json())
-
-    duplicate = client.post(
-        TASK_LABELS_URL,
-        {"name": "customer", "color": TaskLabel.Color.GREEN},
-        format="json",
-    )
-    assert duplicate.status_code == 400
-    assert "name" in duplicate.json()
-
-    invalid = client.post(
-        TASK_LABELS_URL,
-        {"name": "Invalid", "color": "pink"},
-        format="json",
-    )
-    assert invalid.status_code == 400
-    assert "color" in invalid.json()
-
-
-def test_only_label_creator_or_org_admin_can_update_or_delete_label():
-    organization = OrganizationFactory()
-    creator = UserFactory()
-    colleague = UserFactory()
-    admin = UserFactory()
-    MembershipFactory(organization=organization, user=creator, is_primary=True)
-    MembershipFactory(organization=organization, user=colleague, is_primary=True)
-    MembershipFactory(
-        organization=organization,
-        user=admin,
-        is_primary=True,
-        org_role="administrator",
-    )
-    label = TaskLabel.objects.create(
-        organization=organization,
-        creator=creator,
-        name="Initial",
-    )
-    url = f"{TASK_LABELS_URL}{label.id}/"
-
-    assert (
-        _client(colleague).patch(url, {"name": "Denied"}, format="json").status_code
-        == 403
-    )
-    updated = _client(creator).patch(
-        url,
-        {"name": "Renamed", "color": TaskLabel.Color.PURPLE},
-        format="json",
-    )
-    assert updated.status_code == 200
-    assert updated.json()["name"] == "Renamed"
-    assert _client(admin).delete(url).status_code == 204
-    assert not TaskLabel.objects.filter(pk=label.pk).exists()
-
-
-def test_task_creation_and_update_validate_labels_and_record_history():
-    organization = OrganizationFactory()
-    other_organization = OrganizationFactory()
-    creator = UserFactory()
-    assignee = UserFactory()
-    outsider = UserFactory()
-    MembershipFactory(organization=organization, user=creator, is_primary=True)
-    MembershipFactory(organization=organization, user=assignee, is_primary=True)
-    MembershipFactory(
-        organization=other_organization,
-        user=outsider,
-        is_primary=True,
-    )
-    first = TaskLabel.objects.create(
-        organization=organization,
-        creator=creator,
-        name="Customer",
-        color=TaskLabel.Color.BLUE,
-    )
-    second = TaskLabel.objects.create(
-        organization=organization,
-        creator=creator,
-        name="Backend",
-        color=TaskLabel.Color.GREEN,
-    )
-    foreign = TaskLabel.objects.create(
-        organization=other_organization,
-        creator=outsider,
-        name="Foreign",
-    )
-    client = _client(creator)
-
-    created = client.post(
-        TASKS_URL,
-        {
-            "title": "Prepare release",
-            "assignee_id": str(assignee.id),
-            "label_ids": [str(first.id)],
-        },
-        format="json",
-    )
-
-    assert created.status_code == 201
-    task = Task.objects.get()
-    assert task.organization == organization
-    assert created.json()["labels"] == [
-        {
-            "id": str(first.id),
-            "name": "Customer",
-            "color": TaskLabel.Color.BLUE,
-            "can_manage": True,
-            "created_at": mock.ANY,
-            "updated_at": mock.ANY,
-        }
-    ]
-
-    changed = client.patch(
-        f"{TASKS_URL}{task.id}/",
-        {"label_ids": [str(second.id)]},
-        format="json",
-    )
-    assert changed.status_code == 200
-    activity = TaskActivity.objects.get(
-        task=task,
-        event=TaskActivity.Event.LABELS_CHANGED,
-    )
-    assert activity.changes["labels"]["from"][0]["name"] == "Customer"
-    assert activity.changes["labels"]["to"][0]["name"] == "Backend"
-
-    activity_count = TaskActivity.objects.filter(task=task).count()
-    unchanged = client.patch(
-        f"{TASKS_URL}{task.id}/",
-        {"label_ids": [str(second.id)]},
-        format="json",
-    )
-    assert unchanged.status_code == 200
-    assert TaskActivity.objects.filter(task=task).count() == activity_count
-
-    forbidden = _client(assignee).patch(
-        f"{TASKS_URL}{task.id}/",
-        {"label_ids": [str(first.id)]},
-        format="json",
-    )
-    assert forbidden.status_code == 403
-
-    foreign_response = client.patch(
-        f"{TASKS_URL}{task.id}/",
-        {"label_ids": [str(foreign.id)]},
-        format="json",
-    )
-    assert foreign_response.status_code == 400
-    assert "label_ids" in foreign_response.json()
-
-    too_many = [
-        TaskLabel.objects.create(
-            organization=organization,
-            creator=creator,
-            name=f"Extra {index}",
-        )
-        for index in range(6)
-    ]
-    limit_response = client.patch(
-        f"{TASKS_URL}{task.id}/",
-        {"label_ids": [str(label.id) for label in too_many]},
-        format="json",
-    )
-    assert limit_response.status_code == 400
-    assert "label_ids" in limit_response.json()
-
-
-def test_task_label_filter_combines_with_scope_and_supports_unlabeled():
-    organization = OrganizationFactory()
-    user = UserFactory()
-    colleague = UserFactory()
-    MembershipFactory(organization=organization, user=user, is_primary=True)
-    MembershipFactory(organization=organization, user=colleague, is_primary=True)
-    label = TaskLabel.objects.create(
-        organization=organization,
-        creator=user,
-        name="Release",
-    )
-    labeled = Task.objects.create(
-        title="Labeled",
-        creator=user,
-        assignee=user,
-        organization=organization,
-        priority=Task.Priority.HIGH,
-    )
-    labeled.labels.add(label)
-    Task.objects.create(
-        title="Unlabeled",
-        creator=user,
-        assignee=user,
-        organization=organization,
-        priority=Task.Priority.HIGH,
-    )
-    other_scope = Task.objects.create(
-        title="Created but assigned away",
-        creator=user,
-        assignee=colleague,
-        organization=organization,
-        priority=Task.Priority.HIGH,
-    )
-    other_scope.labels.add(label)
-    client = _client(user)
-
-    filtered = client.get(f"{TASKS_URL}?scope=assigned&priority=high&label={label.id}")
-    assert filtered.status_code == 200
-    assert [item["title"] for item in filtered.json()["results"]] == ["Labeled"]
-
-    unlabeled = client.get(f"{TASKS_URL}?scope=assigned&label=unlabeled")
-    assert unlabeled.status_code == 200
-    assert [item["title"] for item in unlabeled.json()["results"]] == ["Unlabeled"]
-
-    invalid = client.get(f"{TASKS_URL}?label=not-a-uuid")
-    assert invalid.status_code == 400
-    assert "label" in invalid.json()
+    assert response.status_code == 404
 
 
 def test_user_creates_personal_task_assigned_to_self():
@@ -306,6 +66,7 @@ def test_user_creates_personal_task_assigned_to_self():
     assert payload["assignee"]["id"] == str(user.id)
     assert payload["status"] == Task.Status.TODO
     assert payload["priority"] == Task.Priority.NONE
+    assert "labels" not in payload
     assert payload["start_date"] == "2026-08-20"
     assert payload["due_date"] == "2026-08-31"
     assert payload["source_room_id"] is None

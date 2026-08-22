@@ -123,24 +123,6 @@ def test_assignment_card_displays_non_empty_priority(settings):
         "admin_hmac_secret": "s" * 32,
     }
     delivery = _delivery(priority=models.Task.Priority.URGENT)
-    organization = OrganizationFactory()
-    task = delivery.task
-    task.organization = organization
-    task.save(update_fields=["organization", "updated_at"])
-    task.labels.add(
-        models.TaskLabel.objects.create(
-            organization=organization,
-            creator=task.creator,
-            name="客户",
-            color=models.TaskLabel.Color.BLUE,
-        ),
-        models.TaskLabel.objects.create(
-            organization=organization,
-            creator=task.creator,
-            name="发布",
-            color=models.TaskLabel.Color.RED,
-        ),
-    )
 
     with (
         mock.patch(
@@ -157,7 +139,6 @@ def test_assignment_card_displays_non_empty_priority(settings):
     card = json.loads(post_direct.call_args.args[3])
     fields = {item["label"]: item["value"] for item in card["blocks"][2]["items"]}
     assert fields["优先级"] == "紧急"
-    assert fields["标签"] == "发布、客户"
 
 
 def test_successful_comment_delivery_uses_task_assistant_comment_card(settings):
@@ -496,12 +477,6 @@ def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
         due_date=date(2026, 8, 22),
         priority=models.Task.Priority.HIGH,
     )
-    label = models.TaskLabel.objects.create(
-        organization=OrganizationFactory(),
-        creator=creator,
-        name="发布",
-    )
-    task.labels.add(label)
     delivery = models.TaskImDelivery.objects.create(
         task=task,
         recipient=recipient,
@@ -534,8 +509,8 @@ def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
         "value": "高",
     }
     assert card["blocks"][1]["items"][1] == {
-        "label": "标签",
-        "value": "发布",
+        "label": "开始日期",
+        "value": "2026-08-20",
     }
     assert card["blocks"][-1]["buttons"][0]["url"] == (
         "https://meet.example.test/tasks"
@@ -621,13 +596,6 @@ def test_date_change_card_preserves_old_and_new_dates(settings):
         start_date=date(2026, 8, 23),
         due_date=date(2026, 8, 31),
     )
-    task.labels.add(
-        models.TaskLabel.objects.create(
-            organization=OrganizationFactory(),
-            creator=creator,
-            name="发布",
-        )
-    )
     activity = models.TaskActivity.objects.create(
         task=task,
         actor=creator,
@@ -673,10 +641,7 @@ def test_date_change_card_preserves_old_and_new_dates(settings):
         },
         {
             "type": "fields",
-            "items": [
-                {"label": "标签", "value": "发布"},
-                {"label": "修改人", "value": "创建人"},
-            ],
+            "items": [{"label": "修改人", "value": "创建人"}],
         },
     ]
     assert card["blocks"][-1]["buttons"][0]["url"] == (
@@ -988,7 +953,6 @@ def test_status_change_by_parent_collaborator_notifies_both_task_owners(
             [
                 {"label": "状态", "value": "进行中 → 已完成"},
                 {"label": "操作人", "value": "负责人"},
-                {"label": "标签", "value": "发布"},
             ],
         ),
         (
@@ -1002,7 +966,6 @@ def test_status_change_by_parent_collaborator_notifies_both_task_owners(
                 {"label": "状态", "value": "进行中 → 已完成"},
                 {"label": "操作人", "value": "负责人"},
                 {"label": "来源", "value": "会议行动项"},
-                {"label": "标签", "value": "发布"},
             ],
         ),
     ],
@@ -1024,13 +987,6 @@ def test_status_change_card_preserves_transition_actor_and_origin(
         creator=creator,
         assignee=assignee,
         status=models.Task.Status.COMPLETED,
-    )
-    task.labels.add(
-        models.TaskLabel.objects.create(
-            organization=OrganizationFactory(),
-            creator=creator,
-            name="发布",
-        )
     )
     activity = models.TaskActivity.objects.create(
         task=task,

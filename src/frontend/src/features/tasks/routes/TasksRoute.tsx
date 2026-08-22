@@ -22,18 +22,12 @@ import type {
   TaskStatusFilter,
   TaskTimeFilter,
 } from '../api/ApiTask'
-import {
-  useDeleteTaskGroup,
-  useTaskLabels,
-  useTaskLists,
-  useTasks,
-} from '../api/fetchTasks'
+import { useDeleteTaskGroup, useTaskLists, useTasks } from '../api/fetchTasks'
 import { TaskAnalytics } from '../components/TaskAnalytics'
 import { TaskBoard } from '../components/TaskBoard'
 import { TaskFilterToolbar } from '../components/TaskFilterToolbar'
 import { TaskGroupForm } from '../components/TaskGroupForm'
 import { TaskGroupRenameForm } from '../components/TaskGroupRenameForm'
-import { TaskLabelManager } from '../components/TaskLabelManager'
 import { TaskList } from '../components/TaskList'
 import { TaskListManager } from '../components/TaskListManager'
 import { CreateTaskPanel, TaskDetailPanel } from '../components/TaskSidePanel'
@@ -67,7 +61,6 @@ const TasksAuthenticated = () => {
   )
   const [creating, setCreating] = useState(false)
   const [createGroupId, setCreateGroupId] = useState<string>()
-  const [labelManagerOpen, setLabelManagerOpen] = useState(false)
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
   const [groupCreating, setGroupCreating] = useState(false)
   const [groupRenaming, setGroupRenaming] = useState<ApiTaskGroup | null>(null)
@@ -79,7 +72,6 @@ const TasksAuthenticated = () => {
   const groupRenameRef = useRef<HTMLInputElement>(null)
   const { confirm } = useConfirm()
   const deleteGroupMutation = useDeleteTaskGroup()
-  const { data: labels = [] } = useTaskLabels()
   const { data: taskLists = [] } = useTaskLists()
   const {
     data,
@@ -93,7 +85,6 @@ const TasksAuthenticated = () => {
     state.status,
     state.time,
     state.priority,
-    state.label,
     state.taskList
   )
   const tasks = useMemo(
@@ -172,7 +163,7 @@ const TasksAuthenticated = () => {
   }
 
   const updateFilter = (
-    patch: Partial<Pick<TaskWorkspaceState, 'time' | 'priority' | 'label'>>
+    patch: Partial<Pick<TaskWorkspaceState, 'time' | 'priority'>>
   ) => {
     setCreating(false)
     navigateState({ ...state, ...patch, task: undefined })
@@ -182,7 +173,6 @@ const TasksAuthenticated = () => {
     <TaskDetailPanel
       taskId={state.task}
       fallbackTask={selectedTask}
-      labels={labels}
       taskLists={taskLists}
       onClose={closePanel}
     />
@@ -282,24 +272,20 @@ const TasksAuthenticated = () => {
         {state.mode !== 'analytics' && (
           <TaskFilterToolbar
             state={state}
-            labels={labels}
             onStatusChange={changeStatus}
             onTimeChange={(time: TaskTimeFilter) => updateFilter({ time })}
             onPriorityChange={(priority: TaskPriorityFilter) =>
               updateFilter({ priority })
             }
-            onLabelChange={(label) => updateFilter({ label })}
             onClear={() =>
               navigateState({
                 ...state,
                 status: state.mode === 'board' ? 'all' : 'open',
                 time: 'all',
                 priority: 'all',
-                label: 'all',
                 task: undefined,
               })
             }
-            onManageLabels={() => setLabelManagerOpen(true)}
           />
         )}
         <div className={listRegionCss}>
@@ -388,7 +374,6 @@ const TasksAuthenticated = () => {
           maxHeight="82vh"
         >
           <CreateTaskPanel
-            labels={labels}
             taskLists={taskLists}
             defaultTaskListId={selectedTaskList?.id}
             defaultGroupId={createGroupId}
@@ -399,24 +384,6 @@ const TasksAuthenticated = () => {
               navigateState({ ...state, task: task.id })
             }}
           />
-        </Modal>
-      )}
-      {labelManagerOpen && (
-        <Modal
-          ariaLabel={t('labels.manage')}
-          onClose={() => setLabelManagerOpen(false)}
-          maxWidth="720px"
-        >
-          <div className={modalHeaderCss}>
-            <h2 className={modalTitleCss}>{t('labels.manage')}</h2>
-            <ModalCloseButton
-              label={t('workspace.closeLabelManager')}
-              onClose={() => setLabelManagerOpen(false)}
-            />
-          </div>
-          <div className={modalBodyCss}>
-            <TaskLabelManager labels={labels} standalone />
-          </div>
         </Modal>
       )}
       {taskListManagerOpen && (
@@ -623,4 +590,3 @@ const modalTitleCss = css({
   color: 'default.text',
   fontSize: '1rem',
 })
-const modalBodyCss = css({ padding: '1rem', overflowY: 'auto' })

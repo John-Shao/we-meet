@@ -17,7 +17,6 @@ class TaskHistorySnapshot:
     assignee: dict | None
     status: str
     priority: str
-    labels: tuple[dict, ...]
     task_list: dict | None
     group: dict | None
     position: int
@@ -34,7 +33,6 @@ def snapshot_task(task: models.Task) -> TaskHistorySnapshot:
         assignee=_user_snapshot(task.assignee),
         status=task.status,
         priority=task.priority,
-        labels=_label_snapshots(task.labels.all()),
         task_list=_task_list_snapshot(task.task_list),
         group=_task_group_snapshot(task.group),
         position=task.position,
@@ -128,17 +126,6 @@ def record_task_changes(
             )
         )
 
-    labels = _label_snapshots(task.labels.all())
-    if labels != before.labels:
-        activities.append(
-            _activity(
-                task=task,
-                actor=actor,
-                event=models.TaskActivity.Event.LABELS_CHANGED,
-                changes={"labels": {"from": before.labels, "to": labels}},
-            )
-        )
-
     task_list = _task_list_snapshot(task.task_list)
     group = _task_group_snapshot(task.group)
     if (
@@ -193,19 +180,6 @@ def _user_snapshot(user) -> dict | None:
             user.full_name or user.short_name or user.email or str(user.id)
         ).strip(),
     }
-
-
-def _label_snapshots(labels) -> tuple[dict, ...]:
-    return tuple(
-        {
-            "id": str(label.id),
-            "name": label.name,
-            "color": label.color,
-        }
-        for label in sorted(
-            labels, key=lambda item: (item.name.casefold(), str(item.id))
-        )
-    )
 
 
 def _task_list_snapshot(task_list) -> dict | None:

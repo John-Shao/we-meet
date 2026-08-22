@@ -44,7 +44,6 @@ const task: ApiTask = {
   task_list: null,
   group: null,
   position: 0,
-  labels: [],
   start_date: '2026-08-21',
   due_date: '2026-08-31',
   completed_at: null,
@@ -72,7 +71,6 @@ describe('TaskDetailPanel', () => {
       <TaskDetailPanel
         taskId={task.id}
         fallbackTask={task}
-        labels={[]}
         taskLists={[]}
         onClose={vi.fn()}
       />
@@ -98,7 +96,6 @@ describe('TaskDetailPanel', () => {
       <TaskDetailPanel
         taskId={task.id}
         fallbackTask={{ ...task, can_edit: true }}
-        labels={[]}
         taskLists={[]}
         onClose={vi.fn()}
       />
@@ -113,7 +110,6 @@ describe('TaskDetailPanel', () => {
       'meta.startDate',
       'meta.dueDate',
       'form.priority',
-      'labels.field',
       'form.description',
       'taskLists.field',
     ]

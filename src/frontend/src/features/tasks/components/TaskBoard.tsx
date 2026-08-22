@@ -6,15 +6,9 @@ import { css } from '@/styled-system/css'
 import type { ApiTask, TaskStatus } from '../api/ApiTask'
 import { usePatchTask } from '../api/fetchTasks'
 import { taskDisplayName } from '../taskUi'
-import { TaskLabelBadge } from './TaskLabelBadge'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 
-const statuses: TaskStatus[] = [
-  'todo',
-  'in_progress',
-  'completed',
-  'canceled',
-]
+const statuses: TaskStatus[] = ['todo', 'in_progress', 'completed', 'canceled']
 
 const transitions: Record<TaskStatus, TaskStatus[]> = {
   todo: ['in_progress', 'completed', 'canceled'],
@@ -88,9 +82,6 @@ export const TaskBoard = ({
                   <strong>{task.title}</strong>
                   <div className={badgesCss}>
                     <TaskPriorityBadge priority={task.priority} />
-                    {task.labels.slice(0, 2).map((label) => (
-                      <TaskLabelBadge key={label.id} label={label} />
-                    ))}
                   </div>
                   <div className={cardMetaCss}>
                     <span>{taskDisplayName(task.assignee)}</span>
@@ -116,10 +107,7 @@ export const TaskBoard = ({
   )
 }
 
-const startTaskDrag = (
-  event: DragEvent<HTMLButtonElement>,
-  task: ApiTask
-) => {
+const startTaskDrag = (event: DragEvent<HTMLButtonElement>, task: ApiTask) => {
   if (
     !task.can_update_status ||
     (task.status === 'canceled' && !task.can_edit)

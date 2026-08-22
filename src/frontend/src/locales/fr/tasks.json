@@ -22,7 +22,6 @@
     "statusFilter": "Statut",
     "statusOptions": { "open": "Ouvertes", "all": "Tous les statuts" },
     "clearFilters": "Effacer les filtres",
-    "manageLabels": "Gérer les étiquettes",
     "columns": {
       "status": "Statut",
       "title": "Titre",
@@ -30,7 +29,6 @@
       "priority": "Priorité",
       "startDate": "Date de début",
       "dueDate": "Échéance",
-      "labels": "Étiquettes",
       "creator": "Créateur",
       "updatedAt": "Mise à jour"
     },
@@ -47,7 +45,6 @@
     "detailSections": "Sections des détails de la tâche",
     "emptyDescription": "Aucune description",
     "closePanel": "Fermer le panneau de tâche",
-    "closeLabelManager": "Fermer la gestion des étiquettes",
     "tabs": {
       "overview": "Détails",
       "subtasks": "Sous-tâches",
@@ -80,7 +77,17 @@
     "deleteConfirm": "Supprimer",
     "deleteNamed": "Supprimer la liste : {{name}}",
     "error": "L’opération sur la liste a échoué. Veuillez réessayer.",
-    "closeManager": "Fermer la gestion des listes"
+    "closeManager": "Fermer la gestion des listes",
+    "color": "Couleur",
+    "colors": {
+      "grey": "Gris",
+      "blue": "Bleu",
+      "green": "Vert",
+      "yellow": "Jaune",
+      "orange": "Orange",
+      "red": "Rouge",
+      "purple": "Violet"
+    }
   },
   "groups": {
     "field": "Groupe",
@@ -176,33 +183,6 @@
     "high": "Priorité élevée",
     "urgent": "Urgente"
   },
-  "labels": {
-    "manage": "Gérer les étiquettes de tâche",
-    "field": "Étiquettes",
-    "filter": "Filtrer par étiquette",
-    "all": "Toutes les étiquettes",
-    "unlabeled": "Sans étiquette",
-    "none": "Aucune étiquette",
-    "empty": "Créez une étiquette d’organisation pour l’utiliser sur les tâches.",
-    "name": "Nom de l’étiquette",
-    "color": "Couleur",
-    "create": "Créer l’étiquette",
-    "rename": "Modifier",
-    "delete": "Supprimer",
-    "deleteTitle": "Supprimer l’étiquette de tâche",
-    "deleteDescription": "Supprimer l’étiquette « {{name}} » ? Elle sera retirée de toutes les tâches.",
-    "deleteConfirm": "Supprimer l’étiquette",
-    "error": "L’opération sur l’étiquette a échoué. Veuillez réessayer.",
-    "colors": {
-      "grey": "Gris",
-      "blue": "Bleu",
-      "green": "Vert",
-      "yellow": "Jaune",
-      "orange": "Orange",
-      "red": "Rouge",
-      "purple": "Violet"
-    }
-  },
   "statuses": {
     "todo": "À faire",
     "in_progress": "En cours",
@@ -286,7 +266,6 @@
       "attachment_removed": "{{actor}} a supprimé la pièce jointe {{filename}}",
       "content_changed": "{{actor}} a modifié le contenu de la tâche",
       "priority_changed": "{{actor}} a modifié la priorité de « {{from}} » à « {{to}} »",
-      "labels_changed": "{{actor}} a modifié les étiquettes de « {{from}} » à « {{to}} »",
       "placement_changed": "{{actor}} a déplacé la tâche de « {{from}} » vers « {{to}} »",
       "dates_changed": "{{actor}} a ajusté les dates de la tâche",
       "assignee_changed": "{{actor}} a réattribué la tâche à {{assignee}}",

@@ -29,16 +29,6 @@ const task: ApiTask = {
   task_list: null,
   group: null,
   position: 0,
-  labels: [
-    {
-      id: 'label-1',
-      name: 'Release',
-      color: 'blue',
-      can_manage: true,
-      created_at: '2026-08-21T08:00:00Z',
-      updated_at: '2026-08-21T08:00:00Z',
-    },
-  ],
   start_date: '2026-08-21',
   due_date: '2026-08-22',
   completed_at: null,
@@ -86,10 +76,6 @@ describe('TaskList', () => {
       'workspace.columns.updatedAt',
     ])
     expect(within(table).getAllByText('statuses.todo')).toHaveLength(2)
-    expect(
-      screen.queryByText('workspace.columns.labels')
-    ).not.toBeInTheDocument()
-    expect(screen.queryByText('Release')).not.toBeInTheDocument()
     expect(
       screen.queryByLabelText('workspace.quickComplete')
     ).not.toBeInTheDocument()

@@ -384,7 +384,6 @@ def claim_task_assignment(delivery_id) -> models.TaskImDelivery | None:
             "comment__author",
             "activity__actor",
         )
-        .prefetch_related("task__labels")
         .filter(pk=delivery_id)
         .first()
     )
@@ -494,8 +493,6 @@ def _assignment_card(delivery: models.TaskImDelivery) -> dict:
     fields = [{"label": "创建人", "value": _display_name(task.creator)}]
     if task.priority != models.Task.Priority.NONE:
         fields.append({"label": "优先级", "value": _priority_label(task.priority)})
-    if task.labels.exists():
-        fields.append({"label": "标签", "value": _task_labels_value(task)})
     if task.start_date is not None:
         fields.append({"label": "开始日期", "value": task.start_date.isoformat()})
     if task.due_date is not None:
@@ -587,8 +584,6 @@ def _reminder_card(delivery: models.TaskImDelivery) -> dict:
     fields = []
     if task.priority != models.Task.Priority.NONE:
         fields.append({"label": "优先级", "value": _priority_label(task.priority)})
-    if task.labels.exists():
-        fields.append({"label": "标签", "value": _task_labels_value(task)})
     if task.start_date is not None:
         fields.append({"label": "开始日期", "value": task.start_date.isoformat()})
     if task.due_date is not None:
@@ -652,11 +647,6 @@ def _date_change_card(delivery: models.TaskImDelivery) -> dict:
         {
             "type": im_cards.CARD_BLOCK_FIELDS,
             "items": [
-                *(
-                    [{"label": "标签", "value": _task_labels_value(task)}]
-                    if task.labels.exists()
-                    else []
-                ),
                 {"label": "修改人", "value": _display_name(activity.actor)},
             ],
         }
@@ -714,8 +704,6 @@ def _status_change_card(delivery: models.TaskImDelivery) -> dict:
     ]
     if activity.changes.get("source_action_item_origin"):
         fields.append({"label": "来源", "value": "会议行动项"})
-    if task.labels.exists():
-        fields.append({"label": "标签", "value": _task_labels_value(task)})
     blocks = [
         {
             "type": im_cards.CARD_BLOCK_TEXT,
@@ -913,10 +901,6 @@ def _priority_label(value: str | None) -> str:
         models.Task.Priority.HIGH: "高",
         models.Task.Priority.URGENT: "紧急",
     }.get(value, value or "未知")
-
-
-def _task_labels_value(task: models.Task) -> str:
-    return "、".join(label.name for label in task.labels.all())
 
 
 def _display_name(user) -> str:

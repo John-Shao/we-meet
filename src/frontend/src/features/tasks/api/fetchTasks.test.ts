@@ -5,16 +5,9 @@ import { buildTasksUrl, getNextTasksPageParam } from './fetchTasks'
 describe('buildTasksUrl', () => {
   it('combines workspace and task list filters', () => {
     expect(
-      buildTasksUrl(
-        'created',
-        'open',
-        'due_today',
-        'urgent',
-        'label/id',
-        'list/id'
-      )
+      buildTasksUrl('created', 'open', 'due_today', 'urgent', 'list/id')
     ).toBe(
-      'tasks/?scope=created&status=open&time=due_today&priority=urgent&label=label%2Fid&task_list=list%2Fid&page_size=50'
+      'tasks/?scope=created&status=open&time=due_today&priority=urgent&task_list=list%2Fid&page_size=50'
     )
   })
 })

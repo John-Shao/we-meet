@@ -7,10 +7,10 @@ import { Button, Input, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
-import type { ApiTaskList, TaskLabelColor } from '../api/ApiTask'
+import type { ApiTaskList, TaskColor } from '../api/ApiTask'
 import { useCreateTaskList, useDeleteTaskList } from '../api/fetchTasks'
 
-const colors: TaskLabelColor[] = [
+const colors: TaskColor[] = [
   'grey',
   'blue',
   'green',
@@ -35,7 +35,7 @@ export const TaskListManager = ({
   const deleteMutation = useDeleteTaskList()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [color, setColor] = useState<TaskLabelColor>('blue')
+  const [color, setColor] = useState<TaskColor>('blue')
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -87,14 +87,14 @@ export const TaskListManager = ({
           />
         </label>
         <Select
-          label={t('labels.color')}
-          aria-label={t('labels.color')}
+          label={t('taskLists.color')}
+          aria-label={t('taskLists.color')}
           items={colors.map((value) => ({
             value,
-            label: t(`labels.colors.${value}`),
+            label: t(`taskLists.colors.${value}`),
           }))}
           selectedKey={color}
-          onSelectionChange={(key) => setColor(String(key) as TaskLabelColor)}
+          onSelectionChange={(key) => setColor(String(key) as TaskColor)}
         />
         {createMutation.error && (
           <p role="alert" className={errorCss}>

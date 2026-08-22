@@ -14,11 +14,7 @@ import { Button, Input, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
-import type {
-  ApiTaskActivity,
-  ApiTaskLabel,
-  TaskPriority,
-} from '../api/ApiTask'
+import type { ApiTaskActivity, TaskPriority } from '../api/ApiTask'
 import {
   useCreateTaskAttachment,
   useCreateTaskComment,
@@ -28,12 +24,9 @@ import {
   useTaskActivities,
   useTaskAttachments,
   useTaskComments,
-  useTaskLabels,
   useTaskSubtasks,
 } from '../api/fetchTasks'
 import { nextTaskStatuses, taskDisplayName } from '../taskUi'
-import { TaskLabelBadge } from './TaskLabelBadge'
-import { TaskLabelSelector } from './TaskLabelSelector'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 
 const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
@@ -45,11 +38,9 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('none')
-  const [labelIds, setLabelIds] = useState<string[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [adding, setAdding] = useState(false)
   const { data, isLoading, error } = useTaskSubtasks(taskId)
-  const { data: labels = [] } = useTaskLabels()
   const createMutation = useCreateTaskSubtask()
   const patchMutation = usePatchTask()
 
@@ -65,7 +56,6 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
           start_date: startDate || null,
           due_date: dueDate || null,
           priority,
-          label_ids: labelIds,
         },
       })
       setTitle('')
@@ -73,7 +63,6 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
       setStartDate('')
       setDueDate('')
       setPriority('none')
-      setLabelIds([])
       setAdding(false)
     } catch {
       // Keep the entered values available for retry.
@@ -107,11 +96,6 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
                   {t(`statuses.${subtask.status}`)}
                 </span>
                 <TaskPriorityBadge priority={subtask.priority} />
-              </div>
-              <div className={inlineCss}>
-                {subtask.labels.map((label) => (
-                  <TaskLabelBadge key={label.id} label={label} />
-                ))}
               </div>
               <p className={metaCss}>
                 {t('subtasks.meta', {
@@ -182,11 +166,6 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
               }
             />
           </div>
-          <TaskLabelSelector
-            labels={labels}
-            selectedIds={labelIds}
-            onChange={setLabelIds}
-          />
           <div className={dateGridCss}>
             <label className={fieldCss}>
               {t('form.startDate')}
@@ -508,18 +487,6 @@ const taskActivityMessage = (
       actor,
       from: priority ? t(`priorities.${priority.from}`) : '—',
       to: priority ? t(`priorities.${priority.to}`) : '—',
-    })
-  }
-  if (activity.event === 'labels_changed') {
-    const names = (value: ApiTaskLabel[]) =>
-      value.length
-        ? value.map((label) => label.name).join(', ')
-        : t('labels.none')
-    const labels = activity.changes.labels
-    return t('history.events.labels_changed', {
-      actor,
-      from: labels ? names(labels.from) : '—',
-      to: labels ? names(labels.to) : '—',
     })
   }
   if (activity.event === 'placement_changed') {

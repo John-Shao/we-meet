@@ -13,7 +13,6 @@ import {
   RiFileTextLine,
   RiFlagLine,
   RiListCheck3,
-  RiPriceTag3Line,
   RiUser3Line,
   RiUserAddLine,
 } from '@remixicon/react'
@@ -26,15 +25,12 @@ import { css } from '@/styled-system/css'
 
 import type {
   ApiTask,
-  ApiTaskLabel,
   ApiTaskList,
   PatchTaskPayload,
   TaskPriority,
 } from '../api/ApiTask'
 import { usePatchTask, useTask } from '../api/fetchTasks'
 import { nextTaskStatuses, taskDisplayName } from '../taskUi'
-import { TaskLabelBadge } from './TaskLabelBadge'
-import { TaskLabelSelector } from './TaskLabelSelector'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskForm } from './TaskForm'
 import {
@@ -51,12 +47,10 @@ type EditableTaskField =
   | 'startDate'
   | 'dueDate'
   | 'priority'
-  | 'labels'
   | 'placement'
   | 'description'
 
 export const CreateTaskPanel = ({
-  labels,
   taskLists,
   defaultTaskListId,
   defaultGroupId,
@@ -64,7 +58,6 @@ export const CreateTaskPanel = ({
   onClose,
   onCreated,
 }: {
-  labels: ApiTaskLabel[]
   taskLists: ApiTaskList[]
   defaultTaskListId?: string
   defaultGroupId?: string
@@ -80,7 +73,6 @@ export const CreateTaskPanel = ({
         <ModalCloseButton label={t('workspace.closePanel')} onClose={onClose} />
       </header>
       <TaskForm
-        labels={labels}
         taskLists={taskLists}
         defaultTaskListId={defaultTaskListId}
         defaultGroupId={defaultGroupId}
@@ -95,13 +87,11 @@ export const CreateTaskPanel = ({
 export const TaskDetailPanel = ({
   taskId,
   fallbackTask,
-  labels,
   taskLists,
   onClose,
 }: {
   taskId: string
   fallbackTask?: ApiTask
-  labels: ApiTaskLabel[]
   taskLists: ApiTaskList[]
   onClose: () => void
 }) => {
@@ -114,7 +104,6 @@ export const TaskDetailPanel = ({
   const [draftText, setDraftText] = useState('')
   const [draftDate, setDraftDate] = useState('')
   const [draftPriority, setDraftPriority] = useState<TaskPriority>('none')
-  const [draftLabelIds, setDraftLabelIds] = useState<string[]>([])
   const [draftTaskListId, setDraftTaskListId] = useState('')
   const [draftGroupId, setDraftGroupId] = useState('')
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
@@ -164,9 +153,6 @@ export const TaskDetailPanel = ({
     if (field === 'startDate') setDraftDate(task.start_date || '')
     if (field === 'dueDate') setDraftDate(task.due_date || '')
     if (field === 'priority') setDraftPriority(task.priority)
-    if (field === 'labels') {
-      setDraftLabelIds(task.labels.map((label) => label.id))
-    }
     if (field === 'placement') {
       setDraftTaskListId(task.task_list?.id || '')
       setDraftGroupId(task.group?.id || '')
@@ -460,39 +446,6 @@ export const TaskDetailPanel = ({
                 </div>
               ) : (
                 <TaskPriorityBadge priority={task.priority} />
-              )}
-            </TaskProperty>
-            <TaskProperty
-              icon={<RiPriceTag3Line size={18} />}
-              label={t('labels.field')}
-              editLabel={editLabel(t('labels.field'))}
-              isDisabled={patchMutation.isPending}
-              isEditing={editingField === 'labels'}
-              alignStart={editingField === 'labels'}
-              onEdit={task.can_edit ? () => beginEditing('labels') : undefined}
-            >
-              {editingField === 'labels' ? (
-                <div className={inlineEditorCss}>
-                  <TaskLabelSelector
-                    compact
-                    labels={labels}
-                    selectedIds={draftLabelIds}
-                    onChange={setDraftLabelIds}
-                  />
-                  <InlineEditorActions
-                    loading={patchMutation.isPending}
-                    onCancel={() => setEditingField(null)}
-                    onSave={() => void saveField({ label_ids: draftLabelIds })}
-                  />
-                </div>
-              ) : (
-                <span className={labelRowCss}>
-                  {task.labels.length > 0
-                    ? task.labels.map((label) => (
-                        <TaskLabelBadge key={label.id} label={label} />
-                      ))
-                    : t('labels.none')}
-                </span>
               )}
             </TaskProperty>
             <TaskProperty
@@ -830,7 +783,6 @@ const descriptionCss = css({
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
 })
-const labelRowCss = css({ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' })
 const propertyListCss = css({
   display: 'flex',
   flexDirection: 'column',

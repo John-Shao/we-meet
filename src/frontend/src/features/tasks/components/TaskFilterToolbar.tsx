@@ -5,7 +5,6 @@ import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
 import type {
-  ApiTaskLabel,
   TaskPriorityFilter,
   TaskStatusFilter,
   TaskTimeFilter,
@@ -37,22 +36,16 @@ const priorityFilters: TaskPriorityFilter[] = [
 
 export const TaskFilterToolbar = ({
   state,
-  labels,
   onStatusChange,
   onTimeChange,
   onPriorityChange,
-  onLabelChange,
   onClear,
-  onManageLabels,
 }: {
   state: TaskWorkspaceState
-  labels: ApiTaskLabel[]
   onStatusChange: (value: TaskStatusFilter) => void
   onTimeChange: (value: TaskTimeFilter) => void
   onPriorityChange: (value: TaskPriorityFilter) => void
-  onLabelChange: (value: string) => void
   onClear: () => void
-  onManageLabels: () => void
 }) => {
   const { t } = useTranslation('tasks')
   const isClosed = state.status === 'completed' || state.status === 'canceled'
@@ -99,24 +92,9 @@ export const TaskFilterToolbar = ({
           onPriorityChange(String(key) as TaskPriorityFilter)
         }
       />
-      <Select
-        className={filterSelectCss}
-        label={t('labels.filter')}
-        aria-label={t('labels.filter')}
-        items={[
-          { value: 'all', label: t('labels.all') },
-          { value: 'unlabeled', label: t('labels.unlabeled') },
-          ...labels.map((label) => ({ value: label.id, label: label.name })),
-        ]}
-        selectedKey={state.label}
-        onSelectionChange={(key) => onLabelChange(String(key))}
-      />
       <div className={toolbarActionsCss}>
         <Button variant="secondary" size="dense" onPress={onClear}>
           {t('workspace.clearFilters')}
-        </Button>
-        <Button variant="secondary" size="dense" onPress={onManageLabels}>
-          {t('workspace.manageLabels')}
         </Button>
       </div>
     </div>

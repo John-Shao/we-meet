@@ -22,7 +22,6 @@
     "statusFilter": "状态",
     "statusOptions": { "open": "未关闭", "all": "全部状态" },
     "clearFilters": "清除筛选",
-    "manageLabels": "标签管理",
     "columns": {
       "status": "状态",
       "title": "任务标题",
@@ -30,7 +29,6 @@
       "priority": "优先级",
       "startDate": "开始日期",
       "dueDate": "截止日期",
-      "labels": "标签",
       "creator": "创建人",
       "updatedAt": "更新时间"
     },
@@ -47,7 +45,6 @@
     "detailSections": "任务详情分区",
     "emptyDescription": "暂无任务说明",
     "closePanel": "关闭任务面板",
-    "closeLabelManager": "关闭标签管理",
     "tabs": {
       "overview": "详情",
       "subtasks": "子任务",
@@ -80,7 +77,17 @@
     "deleteConfirm": "删除",
     "deleteNamed": "删除任务清单：{{name}}",
     "error": "任务清单操作失败，请稍后重试。",
-    "closeManager": "关闭任务清单管理"
+    "closeManager": "关闭任务清单管理",
+    "color": "颜色",
+    "colors": {
+      "grey": "灰色",
+      "blue": "蓝色",
+      "green": "绿色",
+      "yellow": "黄色",
+      "orange": "橙色",
+      "red": "红色",
+      "purple": "紫色"
+    }
   },
   "groups": {
     "field": "分组",
@@ -176,33 +183,6 @@
     "high": "高优先级",
     "urgent": "紧急"
   },
-  "labels": {
-    "manage": "管理任务标签",
-    "field": "标签",
-    "filter": "按标签筛选",
-    "all": "全部标签",
-    "unlabeled": "无标签",
-    "none": "无标签",
-    "empty": "请先创建组织任务标签。",
-    "name": "标签名称",
-    "color": "颜色",
-    "create": "创建标签",
-    "rename": "编辑",
-    "delete": "删除",
-    "deleteTitle": "删除任务标签",
-    "deleteDescription": "确定删除标签“{{name}}”吗？该标签将从所有任务中移除。",
-    "deleteConfirm": "删除标签",
-    "error": "标签操作失败，请稍后重试。",
-    "colors": {
-      "grey": "灰色",
-      "blue": "蓝色",
-      "green": "绿色",
-      "yellow": "黄色",
-      "orange": "橙色",
-      "red": "红色",
-      "purple": "紫色"
-    }
-  },
   "statuses": {
     "todo": "待处理",
     "in_progress": "进行中",
@@ -286,7 +266,6 @@
       "attachment_removed": "{{actor}} 删除了附件 {{filename}}",
       "content_changed": "{{actor}} 修改了任务内容",
       "priority_changed": "{{actor}} 将任务优先级从“{{from}}”调整为“{{to}}”",
-      "labels_changed": "{{actor}} 将任务标签从“{{from}}”调整为“{{to}}”",
       "placement_changed": "{{actor}} 将任务从“{{from}}”移动到“{{to}}”",
       "dates_changed": "{{actor}} 调整了任务日期",
       "assignee_changed": "{{actor}} 将负责人转交给 {{assignee}}",
