@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -262,7 +263,7 @@ export const MeetingRoomDetail = ({
               />
             </Row>
             <Row label={t('meetingRooms.parentLevel')}>
-              <select
+              <SelectCompat
                 value={draft.node}
                 aria-label={t('meetingRooms.parentLevel')}
                 className={cx(selectChrome, selectCls)}
@@ -273,7 +274,7 @@ export const MeetingRoomDetail = ({
                     {pathLabelOf(nodes, n.id)}
                   </option>
                 ))}
-              </select>
+              </SelectCompat>
             </Row>
             <Row label={t('meetingRooms.capacity')}>
               <Input
@@ -307,7 +308,7 @@ export const MeetingRoomDetail = ({
             innerRef={(el) => (sectionRefs.current.status = el)}
           >
             <Row label={t('meetingRooms.colStatus')}>
-              <select
+              <SelectCompat
                 value={draft.is_active ? '1' : '0'}
                 aria-label={t('meetingRooms.colStatus')}
                 className={cx(selectChrome, selectCls)}
@@ -315,7 +316,7 @@ export const MeetingRoomDetail = ({
               >
                 <option value="1">{t('meetingRooms.statusActive')}</option>
                 <option value="0">{t('meetingRooms.statusDisabled')}</option>
-              </select>
+              </SelectCompat>
             </Row>
             {!draft.is_active && (
               <Row
@@ -366,7 +367,7 @@ export const MeetingRoomDetail = ({
               label={t('meetingRooms.bookingScope')}
               hint={t('meetingRooms.bookingScopeHint')}
             >
-              <select
+              <SelectCompat
                 value={draft.booking_scope}
                 aria-label={t('meetingRooms.bookingScope')}
                 className={cx(selectChrome, selectCls)}
@@ -378,7 +379,7 @@ export const MeetingRoomDetail = ({
                 <option value="departments">
                   {t('meetingRooms.scopeDepartments')}
                 </option>
-              </select>
+              </SelectCompat>
             </Row>
             {draft.booking_scope === 'departments' && (
               <Row label={t('meetingRooms.bookableDepartments')}>

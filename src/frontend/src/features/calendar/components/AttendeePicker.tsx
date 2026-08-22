@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -214,7 +215,7 @@ export const AttendeePicker = ({
                     {busy ? t('freebusy.busy') : t('freebusy.free')}
                   </span>
                 )}
-                <select
+                <SelectCompat
                   value={roles.get(id) ?? 'required'}
                   onChange={(e) =>
                     onRoleChange(id, e.target.value as AttendeeRole)
@@ -225,7 +226,7 @@ export const AttendeePicker = ({
                 >
                   <option value="required">{t('form.required')}</option>
                   <option value="optional">{t('form.optional')}</option>
-                </select>
+                </SelectCompat>
                 <button
                   type="button"
                   onClick={() => onToggle(id, label)}

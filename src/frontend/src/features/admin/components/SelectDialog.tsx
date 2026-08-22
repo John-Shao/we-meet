@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -67,7 +68,7 @@ export const SelectDialog = ({
             {label}
           </span>
         )}
-        <select
+        <SelectCompat
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className={cx(
@@ -88,7 +89,7 @@ export const SelectDialog = ({
               {o.label}
             </option>
           ))}
-        </select>
+        </SelectCompat>
       </label>
       <div
         className={css({

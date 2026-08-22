@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -68,7 +69,7 @@ export const DeleteDepartmentDialog = ({
         <span className={css({ display: 'block', marginBottom: '0.375rem' })}>
           {t('org.reassignLabel')}
         </span>
-        <select
+        <SelectCompat
           value={reassignTo}
           onChange={(e) => setReassignTo(e.target.value)}
           className={cx(
@@ -90,7 +91,7 @@ export const DeleteDepartmentDialog = ({
               {d.name}
             </option>
           ))}
-        </select>
+        </SelectCompat>
       </label>
       <div
         className={css({

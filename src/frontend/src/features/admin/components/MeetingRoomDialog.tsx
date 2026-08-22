@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,7 +31,7 @@ export interface MeetingRoomValues {
  * Add / edit a bookable room (P9) — the 「添加会议室」 dialog.
  *
  * Fields mirror the Feishu console: level, name, capacity, status, facilities.
- * The level list is a flat indented `<select>` rather than a tree picker; a
+ * The level list is a flat indented `<SelectCompat>` rather than a tree picker; a
  * building hierarchy is small enough that a second tree widget would cost more
  * than it explains.
  */
@@ -182,7 +183,7 @@ export const MeetingRoomDialog = ({
             {t('meetingRooms.parentLevel')}
           </label>
           {room ? (
-            <select
+            <SelectCompat
               id="mr-room-node"
               className={cx(selectChrome, selectCls)}
               value={nodeId}
@@ -194,7 +195,7 @@ export const MeetingRoomDialog = ({
                   {pathLabelOf(nodes, n.id)}
                 </option>
               ))}
-            </select>
+            </SelectCompat>
           ) : (
             <div id="mr-room-node" className={readOnlyCls}>
               {nodeId ? pathLabelOf(nodes, nodeId) : ''}

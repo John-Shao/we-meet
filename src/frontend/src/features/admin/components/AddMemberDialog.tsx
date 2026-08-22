@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -138,7 +139,7 @@ export const AddMemberDialog = ({
         </label>
         <label className={fieldLabel}>
           <span>{t('invite.department')}</span>
-          <select
+          <SelectCompat
             value={department}
             onChange={(e) => setDepartment(e.target.value)}
             className={selectCss}
@@ -149,11 +150,11 @@ export const AddMemberDialog = ({
                 {d.name}
               </option>
             ))}
-          </select>
+          </SelectCompat>
         </label>
         <label className={fieldLabel}>
           <span>{t('invite.role')}</span>
-          <select
+          <SelectCompat
             value={orgRole}
             onChange={(e) => setOrgRole(e.target.value)}
             className={selectCss}
@@ -163,7 +164,7 @@ export const AddMemberDialog = ({
                 {t(`role.${r}`, { defaultValue: r })}
               </option>
             ))}
-          </select>
+          </SelectCompat>
         </label>
         <label className={fieldLabel}>
           <span>{t('invite.jobTitle')}</span>

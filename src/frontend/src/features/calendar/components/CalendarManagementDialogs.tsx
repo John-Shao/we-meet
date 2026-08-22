@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { type ReactNode, type RefObject, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -387,7 +388,7 @@ export const AddCalendarDialog = ({
             <span className={eventLabelCls}>
               {t('manage.organizationDefaultAccess')}
             </span>
-            <select
+            <SelectCompat
               className={cx(eventInputCls, selectChrome)}
               value={defaultAccess}
               onChange={(e) =>
@@ -397,7 +398,7 @@ export const AddCalendarDialog = ({
               <option value="none">{t('manage.access.none')}</option>
               <option value="free_busy">{t('manage.access.freeBusy')}</option>
               <option value="details">{t('manage.access.details')}</option>
-            </select>
+            </SelectCompat>
           </label>
           <h3 className={sectionTitleCls}>{t('manage.sharedMembers')}</h3>
           {[...members.entries()].map(([id, member]) => (
@@ -505,7 +506,7 @@ const RoleSelect = ({
 }) => {
   const { t } = useTranslation('calendar')
   return (
-    <select
+    <SelectCompat
       className={cx(eventInputCls, selectChrome)}
       value={value}
       disabled={readOnly}
@@ -518,7 +519,7 @@ const RoleSelect = ({
           {t(`manage.role.${roleKeys[role]}`)}
         </option>
       ))}
-    </select>
+    </SelectCompat>
   )
 }
 
@@ -639,7 +640,7 @@ export const CalendarSettingsDialog = ({
             <span className={eventLabelCls}>
               {t('manage.organizationDefaultAccess')}
             </span>
-            <select
+            <SelectCompat
               className={cx(eventInputCls, selectChrome)}
               value={defaultAccess}
               onChange={(e) =>
@@ -649,7 +650,7 @@ export const CalendarSettingsDialog = ({
               <option value="none">{t('manage.access.none')}</option>
               <option value="free_busy">{t('manage.access.freeBusy')}</option>
               <option value="details">{t('manage.access.details')}</option>
-            </select>
+            </SelectCompat>
           </label>
           <p className={mutedCls}>{t('manage.externalDefaultHint')}</p>
           <h3 className={sectionTitleCls}>{t('manage.sharedMembers')}</h3>

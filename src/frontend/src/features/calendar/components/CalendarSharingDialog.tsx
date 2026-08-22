@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -135,7 +136,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
             <label className={labelCls} htmlFor="calendar-default-access">
               {t('sharing.organizationDefault')}
             </label>
-            <select
+            <SelectCompat
               id="calendar-default-access"
               value={mine?.organization_default_access ?? 'free_busy'}
               onChange={(event) =>
@@ -147,7 +148,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
               <option value="none">{t('sharing.none')}</option>
               <option value="free_busy">{t('sharing.freeBusy')}</option>
               <option value="details">{t('sharing.details')}</option>
-            </select>
+            </SelectCompat>
           </div>
 
           <div className={tabsCls}>
@@ -166,7 +167,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
               </button>
             ))}
             {mode === 'share' && (
-              <select
+              <SelectCompat
                 value={permission}
                 onChange={(event) =>
                   setPermission(event.target.value as 'free_busy' | 'details')
@@ -175,7 +176,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
               >
                 <option value="free_busy">{t('sharing.freeBusy')}</option>
                 <option value="details">{t('sharing.details')}</option>
-              </select>
+              </SelectCompat>
             )}
           </div>
 

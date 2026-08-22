@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
@@ -117,7 +118,7 @@ export const AdminAudit = () => {
             alignItems: 'center',
           })}
         >
-          <select
+          <SelectCompat
             value={action}
             onChange={(e) => resetPageThen(() => setAction(e.target.value))}
             className={cx(filterControl, selectChrome)}
@@ -135,7 +136,7 @@ export const AdminAudit = () => {
                 ))}
               </optgroup>
             ))}
-          </select>
+          </SelectCompat>
           <label className={dateLabel}>
             {t('audit.dateFrom')}
             <input

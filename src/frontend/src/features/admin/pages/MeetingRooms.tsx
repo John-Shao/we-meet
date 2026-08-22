@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
@@ -461,7 +462,7 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
               </div>
 
               <div className={toolbarCls}>
-                <select
+                <SelectCompat
                   value={status}
                   onChange={(e) => resetPage(setStatus)(e.target.value)}
                   aria-label={t('meetingRooms.colStatus')}
@@ -470,8 +471,8 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
                   <option value="">{t('meetingRooms.filterAllStatus')}</option>
                   <option value="1">{t('meetingRooms.statusActive')}</option>
                   <option value="0">{t('meetingRooms.statusDisabled')}</option>
-                </select>
-                <select
+                </SelectCompat>
+                <SelectCompat
                   value={capacityMin}
                   onChange={(e) => resetPage(setCapacityMin)(e.target.value)}
                   aria-label={t('meetingRooms.capacity')}
@@ -485,7 +486,7 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
                       {t('meetingRooms.filterCapacityAtLeast', { count: n })}
                     </option>
                   ))}
-                </select>
+                </SelectCompat>
                 <form
                   className={searchFormCls}
                   onSubmit={(e) => {

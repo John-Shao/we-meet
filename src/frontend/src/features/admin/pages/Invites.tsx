@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -253,7 +254,7 @@ export const AdminInvites = () => {
 
         <h2 className={sectionCls}>{t('invites.requests')}</h2>
         <div className={css({ marginBottom: '0.75rem' })}>
-          <select
+          <SelectCompat
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className={selectCls}
@@ -263,7 +264,7 @@ export const AdminInvites = () => {
                 {t(`invites.status.${s}`)}
               </option>
             ))}
-          </select>
+          </SelectCompat>
         </div>
 
         {requests.length === 0 ? (

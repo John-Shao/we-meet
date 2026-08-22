@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -47,7 +48,7 @@ export const SubmitApprovalDialog = ({
   initialTemplateId,
 }: Props) => {
   const { t } = useTranslation('approval')
-  const firstFieldRef = useRef<HTMLSelectElement>(null)
+  const firstFieldRef = useRef<HTMLButtonElement>(null)
   const [templateId, setTemplateId] = useState(initialTemplateId ?? '')
   const [formData, setFormData] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -107,7 +108,7 @@ export const SubmitApprovalDialog = ({
           <label htmlFor="approval-template" className={labelCss}>
             {t('form.template')}
           </label>
-          <select
+          <SelectCompat
             id="approval-template"
             ref={firstFieldRef}
             value={templateId}
@@ -123,7 +124,7 @@ export const SubmitApprovalDialog = ({
                 {tpl.name}
               </option>
             ))}
-          </select>
+          </SelectCompat>
           {!isLoading && templates.length === 0 && (
             <p
               className={css({

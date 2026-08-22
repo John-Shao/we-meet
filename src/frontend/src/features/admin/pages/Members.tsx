@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -428,7 +429,7 @@ export const AdminMembers = () => {
               alignItems: 'center',
             })}
           >
-            <select
+            <SelectCompat
               value={status}
               onChange={(e) => {
                 setStatus(e.target.value)
@@ -442,8 +443,8 @@ export const AdminMembers = () => {
                   {statusLabel(s)}
                 </option>
               ))}
-            </select>
-            <select
+            </SelectCompat>
+            <SelectCompat
               value={department}
               onChange={(e) => {
                 setDepartment(e.target.value)
@@ -457,8 +458,8 @@ export const AdminMembers = () => {
                   {d.name}
                 </option>
               ))}
-            </select>
-            <select
+            </SelectCompat>
+            <SelectCompat
               value={employeeType}
               onChange={(e) => {
                 setEmployeeType(e.target.value)
@@ -472,7 +473,7 @@ export const AdminMembers = () => {
                   {d.label}
                 </option>
               ))}
-            </select>
+            </SelectCompat>
             <form
               onSubmit={(e) => {
                 e.preventDefault()

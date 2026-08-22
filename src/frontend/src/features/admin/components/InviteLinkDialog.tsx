@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -89,7 +90,7 @@ export const InviteLinkDialog = ({
       >
         <label className={fieldLabel}>
           <span>{t('invites.configDepartment')}</span>
-          <select
+          <SelectCompat
             value={department}
             onChange={(e) => setDepartment(e.target.value)}
             className={selectCss}
@@ -100,12 +101,12 @@ export const InviteLinkDialog = ({
                 {d.name}
               </option>
             ))}
-          </select>
+          </SelectCompat>
         </label>
 
         <label className={fieldLabel}>
           <span>{t('invite.role')}</span>
-          <select
+          <SelectCompat
             value={orgRole}
             onChange={(e) => setOrgRole(e.target.value)}
             className={selectCss}
@@ -115,12 +116,12 @@ export const InviteLinkDialog = ({
                 {t(`role.${r}`, { defaultValue: r })}
               </option>
             ))}
-          </select>
+          </SelectCompat>
         </label>
 
         <label className={fieldLabel}>
           <span>{t('invites.configExpiry')}</span>
-          <select
+          <SelectCompat
             value={expiresInDays}
             onChange={(e) => setExpiresInDays(Number(e.target.value))}
             className={selectCss}
@@ -130,7 +131,7 @@ export const InviteLinkDialog = ({
                 {t('invites.expiryDays', { count: d })}
               </option>
             ))}
-          </select>
+          </SelectCompat>
         </label>
 
         <label className={fieldLabel}>

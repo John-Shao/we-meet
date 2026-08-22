@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -110,7 +111,7 @@ export const OffboardDialog = ({
         {headsDepartments && (
           <label className={fieldCls}>
             <span className={labelCls}>{t('members.transferHeadTo')}</span>
-            <select
+            <SelectCompat
               value={successor}
               onChange={(e) => setSuccessor(e.target.value)}
               className={cx(inputCls, selectChrome)}
@@ -121,7 +122,7 @@ export const OffboardDialog = ({
                   {m.full_name || m.email || m.id}
                 </option>
               ))}
-            </select>
+            </SelectCompat>
           </label>
         )}
 

@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -96,7 +97,7 @@ export const RoleAssignDialog = ({ role, onDone, onClose }: Props) => {
       <div className={css({ width: 'min(32rem, calc(100vw - 6rem))' })}>
         <label className={fieldCls}>
           <span className={labelCls}>{t('roles.member')}</span>
-          <select
+          <SelectCompat
             value={membership}
             onChange={(e) => setMembership(e.target.value)}
             className={selectCls}
@@ -107,12 +108,12 @@ export const RoleAssignDialog = ({ role, onDone, onClose }: Props) => {
                 {m.full_name || m.short_name || m.email}
               </option>
             ))}
-          </select>
+          </SelectCompat>
         </label>
 
         <label className={fieldCls}>
           <span className={labelCls}>{t('roles.scope')}</span>
-          <select
+          <SelectCompat
             value={scopeType}
             onChange={(e) =>
               setScopeType(e.target.value as 'all' | 'departments')
@@ -121,7 +122,7 @@ export const RoleAssignDialog = ({ role, onDone, onClose }: Props) => {
           >
             <option value="all">{t('roles.scopeAll')}</option>
             <option value="departments">{t('roles.scopeDepartments')}</option>
-          </select>
+          </SelectCompat>
         </label>
 
         {scopeType === 'departments' && (

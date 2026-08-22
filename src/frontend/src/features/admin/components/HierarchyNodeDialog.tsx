@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -101,7 +102,7 @@ export const HierarchyNodeDialog = ({
             {t('meetingRooms.parentLevel')}
           </label>
           {node && node.depth > 0 ? (
-            <select
+            <SelectCompat
               id="mr-node-parent"
               className={cx(selectChrome, selectCls)}
               value={parentId}
@@ -113,7 +114,7 @@ export const HierarchyNodeDialog = ({
                   {n.name}
                 </option>
               ))}
-            </select>
+            </SelectCompat>
           ) : (
             <div id="mr-node-parent" className={readOnlyCls}>
               {parent?.name ?? t('meetingRooms.topLevel')}
@@ -143,7 +144,7 @@ export const HierarchyNodeDialog = ({
             <label className={labelCls} htmlFor="mr-node-tz">
               {t('meetingRooms.cityTimezone')}
             </label>
-            <select
+            <SelectCompat
               id="mr-node-tz"
               className={cx(selectChrome, selectCls)}
               value={timezone}
@@ -156,7 +157,7 @@ export const HierarchyNodeDialog = ({
                   {label}
                 </option>
               ))}
-            </select>
+            </SelectCompat>
           </div>
         )}
 

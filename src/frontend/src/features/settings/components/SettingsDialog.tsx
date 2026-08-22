@@ -19,8 +19,8 @@ import type { RemixiconComponentType } from '@remixicon/react'
 import { css, cx } from '@/styled-system/css'
 import { useLanguageLabels } from '@/i18n/useLanguageLabels'
 import { type DialogProps } from '@/primitives'
+import { Select } from '@/primitives/Select'
 import { Switch } from '@/primitives/Switch'
-import { selectChrome } from '@/primitives/selectChrome'
 import { useUser } from '@/features/auth'
 import { useInlineEdit } from '@/hooks/useInlineEdit'
 import { updateEmail, updateNickname } from '@/features/auth/api/updateProfile'
@@ -218,18 +218,16 @@ const GeneralPanel = () => {
 
       <div className={rowCls}>
         <span className={fieldLabelCls}>{t('language.heading')}</span>
-        <select
-          value={currentLanguage.key}
-          onChange={(e) => void i18n.changeLanguage(e.target.value)}
+        <Select
+          selectedKey={currentLanguage.key}
+          onSelectionChange={(key) => void i18n.changeLanguage(String(key))}
           aria-label={t('language.label')}
           className={selectCls}
-        >
-          {languagesList.map((l) => (
-            <option key={l.key} value={l.value}>
-              {l.label}
-            </option>
-          ))}
-        </select>
+          items={languagesList.map((language) => ({
+            value: language.value,
+            label: language.label,
+          }))}
+        />
       </div>
     </>
   )
@@ -253,21 +251,19 @@ const MeetingPanel = () => {
         <span className={infoKeyCls}>
           {t('systemSettings.meeting.videoCodec')}
         </span>
-        <select
-          value={videoPublishCodec ?? 'vp9'}
-          onChange={(e) => {
-            userChoicesStore.videoPublishCodec = e.target.value as VideoCodec
+        <Select
+          selectedKey={videoPublishCodec ?? 'vp9'}
+          onSelectionChange={(key) => {
+            userChoicesStore.videoPublishCodec = String(key) as VideoCodec
           }}
           aria-label={t('systemSettings.meeting.videoCodec')}
           data-testid="meeting-settings-codec"
           className={selectCls}
-        >
-          {VIDEO_PUBLISH_CODECS.map((codec) => (
-            <option key={codec} value={codec}>
-              {codecLabel(codec)}
-            </option>
-          ))}
-        </select>
+          items={VIDEO_PUBLISH_CODECS.map((codec) => ({
+            value: codec,
+            label: codecLabel(codec),
+          }))}
+        />
       </div>
       <p
         className={css({
@@ -329,36 +325,42 @@ const CalendarPanel = () => {
     <div>
       <div className={infoRowCls}>
         <span className={infoKeyCls}>{t('settings.timezone')}</span>
-        <select
-          value={timezoneMode}
-          onChange={(event) =>
-            setTimezoneMode(event.target.value as CalendarTimezoneMode)
+        <Select
+          selectedKey={timezoneMode}
+          onSelectionChange={(key) =>
+            setTimezoneMode(String(key) as CalendarTimezoneMode)
           }
+          aria-label={t('settings.timezone')}
           data-testid="calendar-settings-timezone-mode"
           className={selectCls}
-        >
-          <option value="auto">{t('settings.timezoneAuto')}</option>
-          <option value="fixed">{t('settings.timezoneFixed')}</option>
-        </select>
+          items={[
+            { value: 'auto', label: t('settings.timezoneAuto') },
+            { value: 'fixed', label: t('settings.timezoneFixed') },
+          ]}
+        />
       </div>
       {timezoneMode === 'fixed' && (
         <div className={infoRowCls}>
           <span className={infoKeyCls}>{t('settings.fixedTimezone')}</span>
-          <select
-            value={fixedTimezone}
-            onChange={(event) => setFixedTimezone(event.target.value)}
+          <Select
+            selectedKey={fixedTimezone}
+            onSelectionChange={(key) => setFixedTimezone(String(key))}
+            aria-label={t('settings.fixedTimezone')}
             data-testid="calendar-settings-timezone"
             className={selectCls}
-          >
-            {!timezoneOptions.some(
-              (option) => option.zone === fixedTimezone
-            ) && <option value={fixedTimezone}>{fixedTimezone}</option>}
-            {timezoneOptions.map((option) => (
-              <option key={option.zone} value={option.zone}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            menuClassName={longSelectMenuCls}
+            items={[
+              ...(!timezoneOptions.some(
+                (option) => option.zone === fixedTimezone
+              )
+                ? [{ value: fixedTimezone, label: fixedTimezone }]
+                : []),
+              ...timezoneOptions.map((option) => ({
+                value: option.zone,
+                label: option.label,
+              })),
+            ]}
+          />
         </div>
       )}
       {/* 布尔偏好用开关(对标飞书),整行可点;标签作为 Switch 子节点 →
@@ -397,48 +399,38 @@ const CalendarPanel = () => {
             gap: '0.5rem',
           })}
         >
-          <select
-            value={workingHours.startMin}
-            onChange={(e) => changeWorkStart(Number(e.target.value))}
+          <Select
+            selectedKey={workingHours.startMin}
+            onSelectionChange={(key) => changeWorkStart(Number(key))}
             aria-label={t('settings.workStart')}
             data-testid="calendar-settings-work-start"
             className={selectCls}
-          >
-            {WORKING_TIME_OPTIONS.slice(0, -1).map((min) => (
-              <option
-                key={min}
-                value={min}
-                disabled={min > 24 * 60 - MIN_WORKING_DURATION_MIN}
-              >
-                {formatMinutes(min)}
-              </option>
-            ))}
-          </select>
+            menuClassName={longSelectMenuCls}
+            items={WORKING_TIME_OPTIONS.slice(0, -1).map((min) => ({
+              value: min,
+              label: formatMinutes(min),
+              isDisabled: min > 24 * 60 - MIN_WORKING_DURATION_MIN,
+            }))}
+          />
           <span className={css({ color: 'greyscale.500' })}>–</span>
-          <select
-            value={workingHours.endMin}
-            onChange={(e) =>
-              setWorkingHours(workingHours.startMin, Number(e.target.value))
+          <Select
+            selectedKey={workingHours.endMin}
+            onSelectionChange={(key) =>
+              setWorkingHours(workingHours.startMin, Number(key))
             }
             aria-label={t('settings.workEnd')}
             data-testid="calendar-settings-work-end"
             className={selectCls}
-          >
-            {WORKING_TIME_OPTIONS.slice(1).map((min) => (
-              <option
-                key={min}
-                value={min}
-                disabled={
-                  !isValidWorkingHours({
-                    startMin: workingHours.startMin,
-                    endMin: min,
-                  })
-                }
-              >
-                {formatMinutes(min)}
-              </option>
-            ))}
-          </select>
+            menuClassName={longSelectMenuCls}
+            items={WORKING_TIME_OPTIONS.slice(1).map((min) => ({
+              value: min,
+              label: formatMinutes(min),
+              isDisabled: !isValidWorkingHours({
+                startMin: workingHours.startMin,
+                endMin: min,
+              }),
+            }))}
+          />
         </div>
       </div>
       <p
@@ -454,85 +446,88 @@ const CalendarPanel = () => {
       </p>
       <div className={infoRowCls}>
         <span className={infoKeyCls}>{t('settings.calendarTimeRange')}</span>
-        <select
-          value={calendarTimeRangeMode}
-          onChange={(e) =>
-            setCalendarTimeRangeMode(e.target.value as TimeRangeMode)
+        <Select
+          selectedKey={calendarTimeRangeMode}
+          onSelectionChange={(key) =>
+            setCalendarTimeRangeMode(String(key) as TimeRangeMode)
           }
           aria-label={t('settings.calendarTimeRange')}
           data-testid="calendar-settings-calendar-time-range"
           className={selectCls}
-        >
-          <option value="work">{t('grid.workTime')}</option>
-          <option value="full">{t('grid.fullDay')}</option>
-        </select>
+          items={[
+            { value: 'work', label: t('grid.workTime') },
+            { value: 'full', label: t('grid.fullDay') },
+          ]}
+        />
       </div>
       <div className={infoRowCls}>
         <span className={infoKeyCls}>
           {t('settings.meetingRoomsTimeRange')}
         </span>
-        <select
-          value={meetingRoomsTimeRangeMode}
-          onChange={(e) =>
-            setMeetingRoomsTimeRangeMode(e.target.value as TimeRangeMode)
+        <Select
+          selectedKey={meetingRoomsTimeRangeMode}
+          onSelectionChange={(key) =>
+            setMeetingRoomsTimeRangeMode(String(key) as TimeRangeMode)
           }
           aria-label={t('settings.meetingRoomsTimeRange')}
           data-testid="calendar-settings-meeting-rooms-time-range"
           className={selectCls}
-        >
-          <option value="work">{t('grid.workTime')}</option>
-          <option value="full">{t('grid.fullDay')}</option>
-        </select>
+          items={[
+            { value: 'work', label: t('grid.workTime') },
+            { value: 'full', label: t('grid.fullDay') },
+          ]}
+        />
       </div>
       <div className={infoRowCls}>
         <span className={infoKeyCls}>{t('settings.weekStart')}</span>
-        <select
-          value={weekStart}
-          onChange={(e) => setWeekStart(e.target.value as WeekStartPref)}
+        <Select
+          selectedKey={weekStart}
+          onSelectionChange={(key) =>
+            setWeekStart(String(key) as WeekStartPref)
+          }
           aria-label={t('settings.weekStart')}
           data-testid="calendar-settings-week-start"
           className={selectCls}
-        >
-          <option value="mon">{t('settings.weekStartMon')}</option>
-          <option value="sun">{t('settings.weekStartSun')}</option>
-        </select>
+          items={[
+            { value: 'mon', label: t('settings.weekStartMon') },
+            { value: 'sun', label: t('settings.weekStartSun') },
+          ]}
+        />
       </div>
       <div className={infoRowCls}>
         <span className={infoKeyCls}>{t('settings.defaultDuration')}</span>
-        <select
-          value={defaultDurationMin}
-          onChange={(e) => setDefaultDuration(Number(e.target.value))}
+        <Select
+          selectedKey={defaultDurationMin}
+          onSelectionChange={(key) => setDefaultDuration(Number(key))}
           aria-label={t('settings.defaultDuration')}
           data-testid="calendar-settings-duration"
           className={selectCls}
-        >
-          {DURATION_OPTIONS.map((min) => (
-            <option key={min} value={min}>
-              {t('settings.minutes', { count: min })}
-            </option>
-          ))}
-        </select>
+          items={DURATION_OPTIONS.map((min) => ({
+            value: min,
+            label: t('settings.minutes', { count: min }),
+          }))}
+        />
       </div>
       <div className={infoRowCls}>
         <span className={infoKeyCls}>{t('settings.defaultReminder')}</span>
-        <select
-          value={defaultReminderMin ?? 'none'}
-          onChange={(e) =>
-            setDefaultReminder(
-              e.target.value === 'none' ? null : Number(e.target.value)
-            )
+        <Select
+          selectedKey={
+            defaultReminderMin == null ? 'none' : String(defaultReminderMin)
+          }
+          onSelectionChange={(key) =>
+            setDefaultReminder(key === 'none' ? null : Number(key))
           }
           aria-label={t('settings.defaultReminder')}
           data-testid="calendar-settings-reminder-min"
           className={selectCls}
-        >
-          <option value="none">{t('form.reminderNone')}</option>
-          {REMINDER_OPTIONS.map((min) => (
-            <option key={min} value={min}>
-              {reminderOptionLabel(t, min)}
-            </option>
-          ))}
-        </select>
+          items={[
+            { value: 'none', label: t('form.reminderNone') },
+            ...REMINDER_OPTIONS.map((min) => ({
+              value: String(min),
+              label: reminderOptionLabel(t, min),
+            })),
+          ]}
+        />
       </div>
     </div>
   )
@@ -844,21 +839,11 @@ const rowCls = css({
   justifyContent: 'space-between',
   gap: '1rem',
 })
-const selectCls = cx(
-  css({
-    minWidth: '10rem',
-    paddingX: '0.875rem',
-    paddingY: '0.5rem',
-    border: '1px solid token(colors.greyscale.300)',
-    // 标准:表单控件用 8px 圆角,不用胶囊(胶囊只留搜索框/chip/头像)。
-    borderRadius: '0.5rem',
-    backgroundColor: 'greyscale.000',
-    color: 'greyscale.900',
-    fontSize: '0.875rem',
-    cursor: 'pointer',
-  }),
-  selectChrome
-)
+const selectCls = css({ minWidth: '10rem' })
+const longSelectMenuCls = css({
+  maxHeight: '16rem',
+  overflowY: 'auto',
+})
 const infoRowCls = css({
   display: 'flex',
   alignItems: 'center',

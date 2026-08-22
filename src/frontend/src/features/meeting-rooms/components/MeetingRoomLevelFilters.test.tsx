@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -53,7 +54,8 @@ describe('MeetingRoomLevelFilters', () => {
     })
   })
 
-  it('enables each level from its parent and filters child options', () => {
+  it('enables each level from its parent and filters child options', async () => {
+    const user = userEvent.setup()
     const onChange = vi.fn()
     render(
       <MeetingRoomLevelFilters
@@ -64,16 +66,23 @@ describe('MeetingRoomLevelFilters', () => {
     )
 
     const city = screen.getByTestId('mr-filter-level-city')
-    expect(city).not.toBeDisabled()
-    expect(city).toHaveTextContent('Shenzhen')
-    expect(city).not.toHaveTextContent('San Francisco')
-    expect(screen.getByTestId('mr-filter-level-campus')).toBeDisabled()
+    const cityButton = within(city).getByRole('button')
+    expect(cityButton).not.toBeDisabled()
+    expect(
+      within(screen.getByTestId('mr-filter-level-campus')).getByRole('button')
+    ).toBeDisabled()
 
-    fireEvent.change(city, { target: { value: 'sz' } })
+    await user.click(cityButton)
+    expect(screen.getByRole('option', { name: 'Shenzhen' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: 'San Francisco' })
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: 'Shenzhen' }))
     expect(onChange).toHaveBeenCalledWith('sz')
   })
 
-  it('falls back to the parent when a level is cleared', () => {
+  it('falls back to the parent when a level is cleared', async () => {
+    const user = userEvent.setup()
     const onChange = vi.fn()
     render(
       <MeetingRoomLevelFilters
@@ -83,9 +92,12 @@ describe('MeetingRoomLevelFilters', () => {
       />
     )
 
-    fireEvent.change(screen.getByTestId('mr-filter-level-campus'), {
-      target: { value: '' },
-    })
+    await user.click(
+      within(screen.getByTestId('mr-filter-level-campus')).getByRole('button')
+    )
+    await user.click(
+      screen.getByRole('option', { name: /filters\.levelAllOf/ })
+    )
     expect(onChange).toHaveBeenCalledWith('sz')
   })
 })

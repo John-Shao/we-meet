@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, type Ref } from 'react'
 import { styled, VisuallyHidden } from '@/styled-system/jsx'
 import type { RemixiconComponentType } from '@remixicon/react'
 import {
@@ -123,10 +123,11 @@ export type SelectProps<T> = Omit<
   iconComponent?: RemixiconComponentType
   /** Visual label. Omit it for compact filter controls that use aria-label. */
   label?: ReactNode
-  items: Array<{ value: T; label: ReactNode }>
+  items: Array<{ value: T; label: ReactNode; isDisabled?: boolean }>
   errors?: ReactNode
   placement?: Placement
   variant?: 'light' | 'dark'
+  triggerRef?: Ref<HTMLButtonElement>
   /** Optional local styling for the expanded option list. */
   menuClassName?: string
 }
@@ -138,6 +139,7 @@ export const Select = <T extends string | number>({
   errors,
   placement,
   variant = 'light',
+  triggerRef,
   menuClassName,
   ...props
 }: SelectProps<T>) => {
@@ -146,7 +148,7 @@ export const Select = <T extends string | number>({
   return (
     <RACSelect {...props}>
       {label}
-      <StyledButton variant={variant}>
+      <StyledButton ref={triggerRef} variant={variant}>
         {!!IconComponent && (
           <StyledIcon>
             <IconComponent size={18} />
@@ -182,6 +184,7 @@ export const Select = <T extends string | number>({
                 }
                 id={item.value}
                 key={item.value}
+                isDisabled={item.isDisabled}
                 textValue={
                   typeof item.label === 'string' ? item.label : undefined
                 }

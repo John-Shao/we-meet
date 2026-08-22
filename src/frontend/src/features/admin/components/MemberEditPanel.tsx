@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -344,7 +345,7 @@ const SelectRow = ({
   options: { value: string; label: string }[]
 }) => (
   <Row label={label} hint={hint}>
-    <select
+    <SelectCompat
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={cx(inputCls, selectChrome)}
@@ -354,7 +355,7 @@ const SelectRow = ({
           {o.label}
         </option>
       ))}
-    </select>
+    </SelectCompat>
   </Row>
 )
 

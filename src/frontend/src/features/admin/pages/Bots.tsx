@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -135,7 +136,7 @@ export const AdminBots = () => {
             className={filterControl}
             data-testid="admin-bots-search"
           />
-          <select
+          <SelectCompat
             value={kind}
             onChange={(e) =>
               resetPageThen(() => setKind(e.target.value as typeof kind))
@@ -146,8 +147,8 @@ export const AdminBots = () => {
             <option value="">{t('bots.filterCustom')}</option>
             <option value="builtin">{t('bots.filterBuiltin')}</option>
             <option value="custom">{t('bots.filterCustomOnly')}</option>
-          </select>
-          <select
+          </SelectCompat>
+          <SelectCompat
             value={active}
             onChange={(e) =>
               resetPageThen(() => setActive(e.target.value as typeof active))
@@ -157,7 +158,7 @@ export const AdminBots = () => {
             <option value="">{t('bots.filterAllStates')}</option>
             <option value="1">{t('bots.filterActive')}</option>
             <option value="0">{t('bots.filterDisabled')}</option>
-          </select>
+          </SelectCompat>
         </div>
       </div>
 
