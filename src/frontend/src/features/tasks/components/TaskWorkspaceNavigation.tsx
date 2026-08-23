@@ -228,8 +228,8 @@ const listIconCss = css({
   color: 'primary.500',
   '&[data-color="grey"]': { color: 'greyscale.500' },
   '&[data-color="green"]': { color: 'success.500' },
-  '&[data-color="yellow"]': { color: 'warning.500' },
-  '&[data-color="orange"]': { color: 'warning.600' },
+  '&[data-color="yellow"]': { color: 'amber.500' },
+  '&[data-color="orange"]': { color: 'amber.600' },
   '&[data-color="red"]': { color: 'danger.500' },
   '&[data-color="purple"]': { color: 'purple.500' },
 })

@@ -161,7 +161,7 @@ const statusDotCss = css({
   width: '0.5rem',
   height: '0.5rem',
   borderRadius: '999px',
-  backgroundColor: 'warning.500',
+  backgroundColor: 'warning',
 })
 const cardsCss = css({
   display: 'flex',

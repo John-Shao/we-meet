@@ -20,19 +20,19 @@ export const TaskPriorityBadge = ({ priority }: { priority: TaskPriority }) => {
         fontWeight: '600',
         color:
           priority === 'urgent'
-            ? 'danger.700'
+            ? 'danger.subtle-text'
             : priority === 'high'
-              ? 'warning.700'
+              ? 'warning.subtle-text'
               : priority === 'medium'
-                ? 'primary.700'
+                ? 'primary.subtle-text'
                 : 'greyscale.600',
         backgroundColor:
           priority === 'urgent'
-            ? 'danger.50'
+            ? 'danger.subtle'
             : priority === 'high'
-              ? 'warning.50'
+              ? 'warning.subtle'
               : priority === 'medium'
-                ? 'primary.50'
+                ? 'primary.subtle'
                 : 'greyscale.100',
       })}
     >
