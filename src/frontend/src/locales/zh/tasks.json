@@ -31,7 +31,7 @@
       "startDate": "开始日期",
       "dueDate": "截止日期",
       "creator": "创建人",
-      "updatedAt": "更新时间"
+      "createdAt": "创建时间"
     },
     "openTask": "打开任务：{{title}}",
     "quickComplete": "完成任务：{{title}}",

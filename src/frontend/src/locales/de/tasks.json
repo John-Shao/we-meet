@@ -31,7 +31,7 @@
       "startDate": "Startdatum",
       "dueDate": "Fälligkeitsdatum",
       "creator": "Erstellt von",
-      "updatedAt": "Aktualisiert"
+      "createdAt": "Erstellt"
     },
     "openTask": "Aufgabe öffnen: {{title}}",
     "quickComplete": "Aufgabe abschließen: {{title}}",

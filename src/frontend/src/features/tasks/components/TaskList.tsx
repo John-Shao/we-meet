@@ -26,14 +26,14 @@ import { TaskPriorityBadge } from './TaskPriorityBadge'
 const COLUMN_WIDTHS_STORAGE_KEY = 'we-meet:task-list-column-widths:v1'
 
 const TASK_COLUMNS = [
-  { id: 'title', defaultWidth: 280, minWidth: 200, maxWidth: 720 },
-  { id: 'assignee', defaultWidth: 120, minWidth: 88, maxWidth: 320 },
-  { id: 'priority', defaultWidth: 100, minWidth: 80, maxWidth: 240 },
-  { id: 'startDate', defaultWidth: 120, minWidth: 96, maxWidth: 280 },
-  { id: 'dueDate', defaultWidth: 120, minWidth: 96, maxWidth: 280 },
-  { id: 'status', defaultWidth: 100, minWidth: 80, maxWidth: 240 },
-  { id: 'creator', defaultWidth: 120, minWidth: 88, maxWidth: 320 },
-  { id: 'updatedAt', defaultWidth: 160, minWidth: 128, maxWidth: 360 },
+  { id: 'title', defaultWidth: 280, minWidth: 120, maxWidth: 720 },
+  { id: 'assignee', defaultWidth: 120, minWidth: 60, maxWidth: 320 },
+  { id: 'priority', defaultWidth: 100, minWidth: 40, maxWidth: 240 },
+  { id: 'startDate', defaultWidth: 120, minWidth: 60, maxWidth: 280 },
+  { id: 'dueDate', defaultWidth: 120, minWidth: 60, maxWidth: 280 },
+  { id: 'status', defaultWidth: 100, minWidth: 40, maxWidth: 240 },
+  { id: 'creator', defaultWidth: 120, minWidth: 60, maxWidth: 320 },
+  { id: 'createdAt', defaultWidth: 160, minWidth: 80, maxWidth: 360 },
 ] as const
 const DESKTOP_TABLE_COLUMN_COUNT = TASK_COLUMNS.length + 1
 
@@ -55,9 +55,11 @@ const readColumnWidths = (): TaskColumnWidths => {
   try {
     const stored = JSON.parse(
       localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY) || '{}'
-    ) as Partial<Record<TaskColumnId, unknown>>
+    ) as Partial<Record<TaskColumnId | 'updatedAt', unknown>>
     for (const column of TASK_COLUMNS) {
-      const value = stored[column.id]
+      const value =
+        stored[column.id] ??
+        (column.id === 'createdAt' ? stored.updatedAt : undefined)
       if (typeof value === 'number' && Number.isFinite(value)) {
         defaults[column.id] = clampColumnWidth(column.id, value)
       }
@@ -417,7 +419,7 @@ const DesktopTaskRow = ({
     </td>
     <td>{t(`statuses.${task.status}`)}</td>
     <td className={secondaryColumnCss}>{taskDisplayName(task.creator)}</td>
-    <td className={wideColumnCss}>{formatDateTime(task.updated_at)}</td>
+    <td className={wideColumnCss}>{formatDateTime(task.created_at)}</td>
     <td aria-hidden="true" className={tableGutterCellCss} />
   </tr>
 )
@@ -813,16 +815,16 @@ const columnClassName = (columnId: TaskColumnId) => {
   if (columnId === 'startDate' || columnId === 'creator') {
     return secondaryColumnCss
   }
-  if (columnId === 'updatedAt') return wideColumnCss
+  if (columnId === 'createdAt') return wideColumnCss
   return undefined
 }
 
 const tableCss = css({
   display: { base: 'none', md: 'table' },
   width: {
-    md: 'max(100%, 728px)',
-    lg: 'max(100%, 968px)',
-    xl: 'max(100%, 1128px)',
+    md: 'max(100%, 328px)',
+    lg: 'max(100%, 448px)',
+    xl: 'max(100%, 528px)',
   },
   borderCollapse: 'collapse',
   tableLayout: 'fixed',

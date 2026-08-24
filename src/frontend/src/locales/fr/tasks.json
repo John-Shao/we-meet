@@ -31,7 +31,7 @@
       "startDate": "Date de début",
       "dueDate": "Échéance",
       "creator": "Créateur",
-      "updatedAt": "Mise à jour"
+      "createdAt": "Création"
     },
     "openTask": "Ouvrir la tâche : {{title}}",
     "quickComplete": "Terminer la tâche : {{title}}",

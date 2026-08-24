@@ -31,7 +31,7 @@
       "startDate": "Startdatum",
       "dueDate": "Deadline",
       "creator": "Maker",
-      "updatedAt": "Bijgewerkt"
+      "createdAt": "Aangemaakt"
     },
     "openTask": "Taak openen: {{title}}",
     "quickComplete": "Taak voltooien: {{title}}",

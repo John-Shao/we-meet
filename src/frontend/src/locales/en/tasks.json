@@ -31,7 +31,7 @@
       "startDate": "Start date",
       "dueDate": "Due date",
       "creator": "Creator",
-      "updatedAt": "Updated"
+      "createdAt": "Created"
     },
     "openTask": "Open task: {{title}}",
     "quickComplete": "Complete task: {{title}}",

@@ -79,7 +79,7 @@ describe('TaskList', () => {
       'workspace.columns.dueDate',
       'workspace.columns.status',
       'workspace.columns.creator',
-      'workspace.columns.updatedAt',
+      'workspace.columns.createdAt',
     ])
     expect(within(table).getAllByText('statuses.todo')).toHaveLength(2)
     expect(
@@ -88,6 +88,17 @@ describe('TaskList', () => {
     expect(screen.getAllByText('Prepare release')).toHaveLength(2)
     expect(screen.getAllByText('Write changelog')).toHaveLength(2)
     expect(screen.getAllByText('priorities.high')).toHaveLength(4)
+    const formatDateTime = (value: string) =>
+      new Intl.DateTimeFormat('en', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(new Date(value))
+    expect(
+      within(table).getAllByText(formatDateTime(task.created_at))
+    ).toHaveLength(2)
+    expect(
+      within(table).queryByText(formatDateTime(task.updated_at))
+    ).not.toBeInTheDocument()
   })
 
   it('opens a focused row with Enter', () => {
@@ -144,14 +155,27 @@ describe('TaskList', () => {
     for (let index = 0; index < 10; index += 1) {
       fireEvent.keyDown(priorityHandle, { key: 'ArrowLeft' })
     }
-    expect(priorityHeader).toHaveStyle({ width: '80px' })
+    expect(priorityHeader).toHaveStyle({ width: '40px' })
+  })
+
+  it('keeps the saved width when replacing updated time with created time', () => {
+    localStorage.setItem(
+      'we-meet:task-list-column-widths:v1',
+      JSON.stringify({ updatedAt: 224 })
+    )
+
+    render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
+
+    expect(
+      screen.getByRole('table').querySelector('th[data-column="createdAt"]')
+    ).toHaveStyle({ width: '224px' })
   })
 
   it('keeps a gutter after double-line resize handles', () => {
     render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
     const table = screen.getByRole('table')
-    const lastHeader = table.querySelector('th[data-column="updatedAt"]')!
+    const lastHeader = table.querySelector('th[data-column="createdAt"]')!
     const gutterHeader = lastHeader.nextElementSibling
 
     expect(gutterHeader).toHaveAttribute('aria-hidden', 'true')
