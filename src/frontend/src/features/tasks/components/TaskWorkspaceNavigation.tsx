@@ -566,6 +566,9 @@ const listGroupHeaderCss = css({
   _focusWithin: {
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
+  "&:has([aria-expanded='true'])": {
+    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
+  },
   '& > button:first-child': {
     minWidth: 0,
     flex: 1,
@@ -638,6 +641,10 @@ const taskListRowCss = css({
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
   _focusWithin: {
+    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
+  },
+  "&:has([aria-expanded='true'])": {
+    backgroundColor: 'greyscale.100',
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
   '& > button:first-child': {

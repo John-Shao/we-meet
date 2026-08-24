@@ -144,12 +144,13 @@ describe('TaskWorkspaceNavigation', () => {
     )
     expect(screen.queryByText('Hiring')).not.toBeInTheDocument()
 
-    const openGroupMenu = () =>
-      fireEvent.click(
-        screen.getByRole('button', { name: 'taskListGroups.more' })
-      )
+    const groupMenuButton = screen.getByRole('button', {
+      name: 'taskListGroups.more',
+    })
+    const openGroupMenu = () => fireEvent.click(groupMenuButton)
 
     openGroupMenu()
+    expect(groupMenuButton).toHaveAttribute('aria-expanded', 'true')
     fireEvent.click(screen.getByRole('menuitem', { name: 'taskLists.create' }))
     expect(onCreateTaskList).toHaveBeenCalledWith(listGroup.id)
 
