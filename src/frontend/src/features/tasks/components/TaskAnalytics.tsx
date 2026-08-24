@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { StateHint } from '@/components/StateHint'
+import { MemberAvatar } from '@/features/contacts'
 import { css } from '@/styled-system/css'
 
 import { useTaskStatistics } from '../api/fetchTasks'
@@ -65,9 +66,11 @@ export const TaskAnalytics = ({ state }: { state: TaskWorkspaceState }) => {
                 )
                 return (
                   <article key={item.assignee_id} className={workloadRowCss}>
-                    <div className={avatarCss} aria-hidden="true">
-                      {name.slice(0, 1).toUpperCase()}
-                    </div>
+                    <MemberAvatar
+                      name={name}
+                      src={item.assignee__avatar_url}
+                      size="2rem"
+                    />
                     <div className={workloadContentCss}>
                       <div>
                         <strong>{name}</strong>
@@ -207,18 +210,6 @@ const workloadRowCss = css({
   gap: '0.75rem',
   paddingY: '0.75rem',
   borderTop: '1px solid token(colors.greyscale.100)',
-})
-const avatarCss = css({
-  width: '2rem',
-  height: '2rem',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: '999px',
-  backgroundColor: 'selected.bg',
-  color: 'selected.text',
-  fontSize: '0.75rem',
-  fontWeight: '600',
 })
 const workloadContentCss = css({
   minWidth: 0,

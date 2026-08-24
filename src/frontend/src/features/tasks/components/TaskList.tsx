@@ -26,8 +26,8 @@ import type {
   TaskOrderingField,
 } from '../api/ApiTask'
 import { usePatchTask, useTaskSubtasks } from '../api/fetchTasks'
-import { taskDisplayName } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
+import { TaskUserDisplay } from './TaskUserDisplay'
 
 const COLUMN_WIDTHS_STORAGE_KEY = 'we-meet:task-list-column-widths:v1'
 
@@ -465,7 +465,9 @@ const DesktopTaskRow = ({
         onToggle={onToggle}
       />
     </td>
-    <td>{taskDisplayName(task.assignee)}</td>
+    <td>
+      <TaskUserDisplay user={task.assignee} />
+    </td>
     <td>
       <TaskPriorityBadge priority={task.priority} />
     </td>
@@ -477,7 +479,9 @@ const DesktopTaskRow = ({
       {formatDate(task.due_date)}
     </td>
     <td>{t(`statuses.${task.status}`)}</td>
-    <td className={secondaryColumnCss}>{taskDisplayName(task.creator)}</td>
+    <td className={secondaryColumnCss}>
+      <TaskUserDisplay user={task.creator} />
+    </td>
     <td className={wideColumnCss}>{formatDateTime(task.created_at)}</td>
     <td aria-hidden="true" className={tableGutterCellCss} />
   </tr>
@@ -561,7 +565,9 @@ const MobileTaskCard = ({
       </div>
       <div>
         <dt>{t('workspace.columns.assignee')}</dt>
-        <dd>{taskDisplayName(task.assignee)}</dd>
+        <dd>
+          <TaskUserDisplay user={task.assignee} />
+        </dd>
       </div>
       <div>
         <dt>{t('workspace.columns.dueDate')}</dt>

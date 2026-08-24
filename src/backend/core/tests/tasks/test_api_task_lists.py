@@ -270,6 +270,7 @@ def test_statistics_report_visible_summary_and_assignee_workload_only():
     }
     assert len(payload["workload"]) == 1
     assert payload["workload"][0]["assignee_id"] == str(assignee.id)
+    assert payload["workload"][0]["assignee__avatar_url"] == ""
     assert payload["workload"][0]["total"] == 2
     assert payload["workload"][0]["open"] == 1
     assert payload["workload"][0]["completed"] == 1

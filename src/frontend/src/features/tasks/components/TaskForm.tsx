@@ -20,7 +20,7 @@ import type {
   TaskPriority,
 } from '../api/ApiTask'
 import { useCreateTask } from '../api/fetchTasks'
-import { taskDisplayName } from '../taskUi'
+import { TaskUserDisplay } from './TaskUserDisplay'
 
 const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
 
@@ -90,6 +90,7 @@ export const TaskForm = ({
           full_name: member.full_name,
           short_name: member.short_name,
           email: member.email,
+          avatar_url: member.avatar_url,
         })
         setPickerOpen(false)
       }}
@@ -122,7 +123,11 @@ export const TaskForm = ({
               className={assigneeButtonCss}
               onPress={() => setPickerOpen(true)}
             >
-              {assignee ? taskDisplayName(assignee) : t('form.assigneeSelf')}
+              {assignee ? (
+                <TaskUserDisplay user={assignee} />
+              ) : (
+                t('form.assigneeSelf')
+              )}
             </Button>
           </div>
 

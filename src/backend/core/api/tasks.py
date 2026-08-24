@@ -841,6 +841,7 @@ class TaskViewSet(
                 "assignee__full_name",
                 "assignee__short_name",
                 "assignee__email",
+                "assignee__avatar_key",
             )
             .annotate(
                 total=Count("id", distinct=True),
@@ -854,6 +855,10 @@ class TaskViewSet(
             )
             .order_by("-open", "assignee__full_name", "assignee_id")
         )
+        for item in workload:
+            item["assignee__avatar_url"] = utils.generate_profile_image_get_url(
+                "avatar", item.pop("assignee__avatar_key")
+            )
         groups = list(
             queryset.values("group_id", "group__name", "group__sort_order")
             .annotate(

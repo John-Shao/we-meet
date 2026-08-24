@@ -30,9 +30,10 @@ import type {
   TaskPriority,
 } from '../api/ApiTask'
 import { usePatchTask, useTask } from '../api/fetchTasks'
-import { nextTaskStatuses, taskDisplayName } from '../taskUi'
+import { nextTaskStatuses } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskForm } from './TaskForm'
+import { TaskUserDisplay } from './TaskUserDisplay'
 import {
   TaskAttachmentsSection,
   TaskCommentsSection,
@@ -267,13 +268,13 @@ export const TaskDetailPanel = ({
                 task.can_edit ? () => setAssigneePickerOpen(true) : undefined
               }
             >
-              {taskDisplayName(task.assignee)}
+              <TaskUserDisplay user={task.assignee} />
             </TaskProperty>
             <TaskProperty
               icon={<RiUserAddLine size={18} />}
               label={t('meta.creator')}
             >
-              {taskDisplayName(task.creator)}
+              <TaskUserDisplay user={task.creator} />
             </TaskProperty>
             <TaskProperty
               icon={<RiListCheck3 size={18} />}

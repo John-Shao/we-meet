@@ -37,8 +37,18 @@ const task: ApiTask = {
   id: 'task-1',
   title: 'Prepare release',
   description: 'Run the release checks',
-  creator: { id: 'creator', full_name: 'Creator', short_name: null },
-  assignee: { id: 'assignee', full_name: 'Assignee', short_name: null },
+  creator: {
+    id: 'creator',
+    full_name: 'Creator',
+    short_name: null,
+    avatar_url: '/creator.png',
+  },
+  assignee: {
+    id: 'assignee',
+    full_name: 'Assignee',
+    short_name: null,
+    avatar_url: '/assignee.png',
+  },
   status: 'todo',
   priority: 'high',
   task_list: null,
@@ -67,7 +77,7 @@ describe('TaskDetailPanel', () => {
   })
 
   it('renders start and due dates as separate properties', () => {
-    render(
+    const { container } = render(
       <TaskDetailPanel
         taskId={task.id}
         fallbackTask={task}
@@ -89,6 +99,8 @@ describe('TaskDetailPanel', () => {
     expect(
       screen.queryByRole('button', { name: /^actions\.edit / })
     ).not.toBeInTheDocument()
+    expect(container.querySelector('img[src="/assignee.png"]')).toBeTruthy()
+    expect(container.querySelector('img[src="/creator.png"]')).toBeTruthy()
   })
 
   it('edits each creator-managed field inline without a global edit page', async () => {

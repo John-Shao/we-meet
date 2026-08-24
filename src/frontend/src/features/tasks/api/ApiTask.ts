@@ -51,6 +51,7 @@ export interface ApiTaskUser {
   full_name: string | null
   short_name: string | null
   email?: string | null
+  avatar_url: string
 }
 
 export interface ApiTask {
@@ -200,6 +201,7 @@ export interface ApiTaskStatistics {
     assignee__full_name: string | null
     assignee__short_name: string | null
     assignee__email: string | null
+    assignee__avatar_url: string
     total: number
     open: number
     completed: number

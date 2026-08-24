@@ -28,6 +28,7 @@ import {
 } from '../api/fetchTasks'
 import { nextTaskStatuses, taskDisplayName } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
+import { TaskUserAvatar, TaskUserDisplay } from './TaskUserDisplay'
 
 const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
 
@@ -97,13 +98,16 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
                 </span>
                 <TaskPriorityBadge priority={subtask.priority} />
               </div>
-              <p className={metaCss}>
-                {t('subtasks.meta', {
-                  assignee: taskDisplayName(subtask.assignee),
-                  start: formatDate(subtask.start_date),
-                  due: formatDate(subtask.due_date),
-                })}
-              </p>
+              <div className={userMetaCss}>
+                <TaskUserAvatar user={subtask.assignee} size="1.25rem" />
+                <p className={metaCss}>
+                  {t('subtasks.meta', {
+                    assignee: taskDisplayName(subtask.assignee),
+                    start: formatDate(subtask.start_date),
+                    due: formatDate(subtask.due_date),
+                  })}
+                </p>
+              </div>
               {subtask.can_update_status && (
                 <div className={inlineCss}>
                   {nextTaskStatuses(subtask).map((status) => (
@@ -151,7 +155,11 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
               className={css({ justifyContent: 'flex-start' })}
               onPress={() => setPickerOpen(true)}
             >
-              {assignee ? taskDisplayName(assignee) : t('form.assigneeSelf')}
+              {assignee ? (
+                <TaskUserDisplay user={assignee} />
+              ) : (
+                t('form.assigneeSelf')
+              )}
             </Button>
             <Select
               label={t('form.priority')}
@@ -266,7 +274,9 @@ export const TaskCommentsSection = ({ taskId }: { taskId: string }) => {
           {data?.map((comment) => (
             <li key={comment.id} className={itemCss}>
               <div className={betweenCss}>
-                <strong>{taskDisplayName(comment.author)}</strong>
+                <strong>
+                  <TaskUserDisplay user={comment.author} />
+                </strong>
                 <time className={metaCss} dateTime={comment.created_at}>
                   {new Intl.DateTimeFormat(i18n.language, {
                     dateStyle: 'medium',
@@ -391,16 +401,19 @@ export const TaskAttachmentsSection = ({ taskId }: { taskId: string }) => {
               <strong className={css({ overflowWrap: 'anywhere' })}>
                 {attachment.filename}
               </strong>
-              <p className={metaCss}>
-                {t('attachments.meta', {
-                  name: taskDisplayName(attachment.uploader),
-                  size: formatSize(attachment.size),
-                  date: new Intl.DateTimeFormat(i18n.language, {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  }).format(new Date(attachment.created_at)),
-                })}
-              </p>
+              <div className={userMetaCss}>
+                <TaskUserAvatar user={attachment.uploader} size="1.25rem" />
+                <p className={metaCss}>
+                  {t('attachments.meta', {
+                    name: taskDisplayName(attachment.uploader),
+                    size: formatSize(attachment.size),
+                    date: new Intl.DateTimeFormat(i18n.language, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    }).format(new Date(attachment.created_at)),
+                  })}
+                </p>
+              </div>
               <div className={inlineCss}>
                 <a
                   href={attachment.url}
@@ -443,7 +456,10 @@ export const TaskHistorySection = ({ taskId }: { taskId: string }) => {
         <ol className={timelineCss}>
           {data?.map((activity) => (
             <li key={activity.id} className={timelineItemCss}>
-              <p className={bodyCss}>{taskActivityMessage(activity, t)}</p>
+              <div className={userMetaCss}>
+                <TaskUserAvatar user={activity.actor} size="1.25rem" />
+                <p className={bodyCss}>{taskActivityMessage(activity, t)}</p>
+              </div>
               <time className={metaCss} dateTime={activity.created_at}>
                 {new Intl.DateTimeFormat(i18n.language, {
                   dateStyle: 'medium',
@@ -665,6 +681,13 @@ const betweenCss = css({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '0.75rem',
+})
+const userMetaCss = css({
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  '& > p': { minWidth: 0 },
 })
 const statusBadgeCss = css({
   borderRadius: '999px',

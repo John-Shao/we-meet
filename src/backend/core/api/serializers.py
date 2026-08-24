@@ -74,6 +74,19 @@ class UserLightSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "full_name", "short_name"]
 
 
+class TaskUserSerializer(UserLightSerializer):
+    """Serialize task participants with their display avatar."""
+
+    avatar_url = serializers.SerializerMethodField()
+
+    class Meta(UserLightSerializer.Meta):
+        fields = [*UserLightSerializer.Meta.fields, "avatar_url"]
+        read_only_fields = fields
+
+    def get_avatar_url(self, instance):
+        return utils.generate_profile_image_get_url("avatar", instance.avatar_key)
+
+
 class ActionItemAssigneeSerializer(UserLightSerializer):
     """Serialize users that a meeting manager can assign action items to."""
 
@@ -492,7 +505,7 @@ class ActionItemSerializer(serializers.ModelSerializer):
 class TaskActivitySerializer(serializers.ModelSerializer):
     """Serialize one immutable task operation for the activity timeline."""
 
-    actor = UserLightSerializer(read_only=True)
+    actor = TaskUserSerializer(read_only=True)
 
     class Meta:
         model = models.TaskActivity
@@ -503,7 +516,7 @@ class TaskActivitySerializer(serializers.ModelSerializer):
 class TaskCommentSerializer(serializers.ModelSerializer):
     """Serialize and validate one immutable task comment."""
 
-    author = UserLightSerializer(read_only=True)
+    author = TaskUserSerializer(read_only=True)
     content = serializers.CharField(max_length=2000, trim_whitespace=True)
 
     class Meta:
@@ -520,7 +533,7 @@ class TaskAttachmentSerializer(serializers.ModelSerializer):
     filename = serializers.CharField(source="file.filename", read_only=True)
     mimetype = serializers.CharField(source="file.mimetype", read_only=True)
     size = serializers.IntegerField(source="file.size", read_only=True)
-    uploader = UserLightSerializer(read_only=True)
+    uploader = TaskUserSerializer(read_only=True)
     url = serializers.SerializerMethodField()
 
     def get_url(self, obj):
@@ -583,7 +596,7 @@ class TaskGroupSerializer(serializers.ModelSerializer):
 class TaskListSerializer(serializers.ModelSerializer):
     """Serialize an organization task list and its ordered groups."""
 
-    creator = UserLightSerializer(read_only=True)
+    creator = TaskUserSerializer(read_only=True)
     groups = TaskGroupSerializer(many=True, read_only=True)
     can_manage = serializers.SerializerMethodField()
     task_count = serializers.SerializerMethodField()
@@ -659,8 +672,8 @@ class TaskGroupSummarySerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.ModelSerializer):
     """Serialize a durable task for the task center and meeting detail."""
 
-    creator = UserLightSerializer(read_only=True)
-    assignee = UserLightSerializer(read_only=True)
+    creator = TaskUserSerializer(read_only=True)
+    assignee = TaskUserSerializer(read_only=True)
     parent_id = serializers.UUIDField(read_only=True)
     subtask_count = serializers.SerializerMethodField()
     completed_subtask_count = serializers.SerializerMethodField()

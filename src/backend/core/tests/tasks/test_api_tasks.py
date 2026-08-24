@@ -63,7 +63,9 @@ def test_user_creates_personal_task_assigned_to_self():
     payload = response.json()
     assert payload["title"] == "Prepare launch"
     assert payload["creator"]["id"] == str(user.id)
+    assert payload["creator"]["avatar_url"] == ""
     assert payload["assignee"]["id"] == str(user.id)
+    assert payload["assignee"]["avatar_url"] == ""
     assert payload["status"] == Task.Status.TODO
     assert payload["priority"] == Task.Priority.NONE
     assert "labels" not in payload

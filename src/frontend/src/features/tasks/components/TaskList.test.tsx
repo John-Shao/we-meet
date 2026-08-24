@@ -28,8 +28,18 @@ const task: ApiTask = {
   id: 'task-1',
   title: 'Prepare release',
   description: 'Run the release checks',
-  creator: { id: 'creator', full_name: 'Creator', short_name: null },
-  assignee: { id: 'assignee', full_name: 'Assignee', short_name: null },
+  creator: {
+    id: 'creator',
+    full_name: 'Creator',
+    short_name: null,
+    avatar_url: '/creator.png',
+  },
+  assignee: {
+    id: 'assignee',
+    full_name: 'Assignee',
+    short_name: null,
+    avatar_url: '/assignee.png',
+  },
   status: 'todo',
   priority: 'high',
   task_list: null,
@@ -64,7 +74,9 @@ const subtask: ApiTask = {
 
 describe('TaskList', () => {
   it('renders desktop and mobile task representations with semantic metadata', () => {
-    render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
+    const { container } = render(
+      <TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />
+    )
 
     const table = screen.getByRole('table')
     expect(
@@ -99,6 +111,8 @@ describe('TaskList', () => {
     expect(
       within(table).queryByText(formatDateTime(task.updated_at))
     ).not.toBeInTheDocument()
+    expect(container.querySelector('img[src="/assignee.png"]')).toBeTruthy()
+    expect(container.querySelector('img[src="/creator.png"]')).toBeTruthy()
   })
 
   it('opens a focused row with Enter', () => {
