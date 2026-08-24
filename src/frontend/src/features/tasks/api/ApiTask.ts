@@ -64,6 +64,10 @@ export interface ApiTaskList {
   updated_at: string
 }
 
+export interface ApiStandaloneTaskCount {
+  count: number
+}
+
 export type TaskListAccessRole = 'viewer' | 'editor' | 'owner'
 
 export interface ApiTaskListAccess {

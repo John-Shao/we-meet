@@ -29,6 +29,7 @@ import {
   useDeleteTaskListGroup,
   useLeaveTaskList,
   useMoveTaskListToGroup,
+  useStandaloneTaskCount,
   useTaskListGroups,
   useTaskLists,
   useUpdateTaskList,
@@ -113,6 +114,7 @@ const TasksAuthenticated = () => {
   const leaveTaskListMutation = useLeaveTaskList()
   const { data: taskLists = [] } = useTaskLists()
   const { data: taskListGroups = [] } = useTaskListGroups()
+  const { data: standaloneTaskCountData } = useStandaloneTaskCount()
   const {
     data,
     isLoading,
@@ -133,6 +135,7 @@ const TasksAuthenticated = () => {
     [data]
   )
   const count = data?.pages[0]?.count || 0
+  const standaloneTaskCount = standaloneTaskCountData?.count || 0
   const selectedTask = tasks.find((task) => task.id === state.task)
   const selectedTaskList = taskLists.find(
     (taskList) => taskList.id === state.taskList
@@ -264,9 +267,11 @@ const TasksAuthenticated = () => {
 
   const currentViewName = selectedTaskList
     ? selectedTaskList.name
-    : state.scope === 'all' && state.status === 'completed'
-      ? t('workspace.views.completed')
-      : t(`workspace.views.${state.scope}`)
+    : state.taskList === 'unassigned'
+      ? t('taskLists.standalone')
+      : state.scope === 'all' && state.status === 'completed'
+        ? t('workspace.views.completed')
+        : t(`workspace.views.${state.scope}`)
 
   return (
     <div className={workspaceCss}>
@@ -282,6 +287,7 @@ const TasksAuthenticated = () => {
             count={count}
             taskLists={taskLists}
             taskListGroups={taskListGroups}
+            standaloneTaskCount={standaloneTaskCount}
             onChange={changeView}
             onTaskListChange={changeTaskList}
             onCreateTaskList={openTaskListManager}
@@ -307,6 +313,7 @@ const TasksAuthenticated = () => {
             count={count}
             taskLists={taskLists}
             taskListGroups={taskListGroups}
+            standaloneTaskCount={standaloneTaskCount}
             onChange={changeView}
             onTaskListChange={changeTaskList}
             onCreateTaskList={openTaskListManager}

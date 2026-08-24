@@ -26,6 +26,7 @@ from core.models import (
     TaskAttachment,
     TaskComment,
     TaskImDelivery,
+    TaskList,
 )
 
 pytestmark = pytest.mark.django_db
@@ -222,6 +223,35 @@ def test_list_scopes_tasks_to_creator_and_assignee():
         str(personal.id),
     }
     assert outsider_results["results"] == []
+
+
+def test_standalone_count_includes_all_visible_tasks_without_a_task_list():
+    creator = UserFactory()
+    assignee = UserFactory()
+    outsider = UserFactory()
+    task_list = TaskList.objects.create(
+        organization=OrganizationFactory(),
+        creator=creator,
+        name="Listed work",
+    )
+    Task.objects.create(title="Created standalone", creator=creator)
+    Task.objects.create(
+        title="Assigned completed standalone",
+        creator=assignee,
+        assignee=creator,
+        status=Task.Status.COMPLETED,
+    )
+    Task.objects.create(title="Outsider standalone", creator=outsider)
+    Task.objects.create(
+        title="Listed task",
+        creator=creator,
+        task_list=task_list,
+    )
+
+    response = _client(creator).get(f"{TASKS_URL}standalone-count/")
+
+    assert response.status_code == 200
+    assert response.json() == {"count": 2}
 
 
 def test_task_list_filters_and_serializes_time_state():

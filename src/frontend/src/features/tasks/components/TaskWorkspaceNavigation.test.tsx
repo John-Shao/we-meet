@@ -57,7 +57,8 @@ const taskList = (
   ...overrides,
 })
 
-const renderNavigation = (navigationState = state) => {
+const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
+  const onTaskListChange = vi.fn()
   const onCreateTaskList = vi.fn()
   const onCreateTaskListGroup = vi.fn()
   const onMoveTaskList = vi.fn()
@@ -82,8 +83,9 @@ const renderNavigation = (navigationState = state) => {
         taskList('list-2', 'Requirements', null),
       ]}
       taskListGroups={[listGroup]}
+      standaloneTaskCount={standaloneTaskCount}
       onChange={vi.fn()}
-      onTaskListChange={vi.fn()}
+      onTaskListChange={onTaskListChange}
       onCreateTaskList={onCreateTaskList}
       onCreateTaskListGroup={onCreateTaskListGroup}
       onMoveTaskList={onMoveTaskList}
@@ -98,6 +100,7 @@ const renderNavigation = (navigationState = state) => {
     />
   )
   return {
+    onTaskListChange,
     onCreateTaskList,
     onCreateTaskListGroup,
     onMoveTaskList,
@@ -238,6 +241,7 @@ describe('TaskWorkspaceNavigation', () => {
           }),
         ]}
         taskListGroups={[]}
+        standaloneTaskCount={0}
         onChange={vi.fn()}
         onTaskListChange={vi.fn()}
         onCreateTaskList={vi.fn()}
@@ -260,6 +264,28 @@ describe('TaskWorkspaceNavigation', () => {
     expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent(
       'Hiring'
     )
+  })
+
+  it('shows standalone tasks at the bottom without a task-list action menu', () => {
+    const { onTaskListChange } = renderNavigation(state, 2)
+
+    const standalone = screen.getByRole('button', {
+      name: 'taskLists.standalone',
+    })
+    fireEvent.click(standalone)
+
+    expect(onTaskListChange).toHaveBeenCalledWith('unassigned')
+    expect(
+      screen.getAllByRole('button', { name: 'taskLists.more' })
+    ).toHaveLength(2)
+  })
+
+  it('hides the standalone task list when there are no standalone tasks', () => {
+    renderNavigation()
+
+    expect(
+      screen.queryByRole('button', { name: 'taskLists.standalone' })
+    ).not.toBeInTheDocument()
   })
 })
 

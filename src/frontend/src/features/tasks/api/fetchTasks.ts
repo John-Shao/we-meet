@@ -13,6 +13,7 @@ import { toApiPath } from '@/features/contacts/api/fetchDirectoryMembers'
 
 import type {
   ApiTask,
+  ApiStandaloneTaskCount,
   ApiTaskList,
   ApiTaskListAccess,
   ApiTaskListGroup,
@@ -90,6 +91,15 @@ export const useTask = (taskId?: string) =>
     queryKey: ['tasks', 'detail', taskId],
     queryFn: () => fetchTask(taskId!),
     enabled: Boolean(taskId),
+  })
+
+const fetchStandaloneTaskCount = () =>
+  fetchApi<ApiStandaloneTaskCount>('tasks/standalone-count/')
+
+export const useStandaloneTaskCount = () =>
+  useQuery<ApiStandaloneTaskCount, ApiError>({
+    queryKey: ['tasks', 'standalone-count'],
+    queryFn: fetchStandaloneTaskCount,
   })
 
 const fetchTaskLists = (archived = false) =>

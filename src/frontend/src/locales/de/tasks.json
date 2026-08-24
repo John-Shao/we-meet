@@ -63,6 +63,7 @@
     "title": "Aufgabenlisten",
     "field": "Aufgabenliste",
     "none": "Keine Aufgabenliste",
+    "standalone": "Eigenständige Aufgaben",
     "empty": "Noch keine Aufgabenlisten",
     "manage": "Aufgabenlisten verwalten",
     "create": "Aufgabenliste erstellen",

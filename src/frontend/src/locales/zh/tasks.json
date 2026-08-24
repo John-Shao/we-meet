@@ -63,6 +63,7 @@
     "title": "任务清单",
     "field": "任务清单",
     "none": "未加入任务清单",
+    "standalone": "独立任务",
     "empty": "暂无任务清单",
     "manage": "管理任务清单",
     "create": "新建任务清单",

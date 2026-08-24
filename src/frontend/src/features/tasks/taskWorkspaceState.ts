@@ -98,8 +98,9 @@ export const stateForTaskList = (
 ): TaskWorkspaceState => ({
   ...state,
   scope: 'all',
-  status: state.mode === 'list' ? 'open' : 'all',
+  status: taskList === 'unassigned' || state.mode !== 'list' ? 'all' : 'open',
   time: 'all',
+  priority: taskList === 'unassigned' ? 'all' : state.priority,
   taskList,
   task: undefined,
 })

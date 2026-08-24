@@ -63,6 +63,7 @@
     "title": "Task lists",
     "field": "Task list",
     "none": "No task list",
+    "standalone": "Stand‑alone tasks",
     "empty": "No task lists yet",
     "manage": "Manage task lists",
     "create": "Create task list",

@@ -27,6 +27,7 @@ import {
   taskNavigationMenuItemLabelCss,
 } from './TaskWorkspaceNavigationStyles'
 import {
+  StandaloneTaskListNavigationRow,
   TaskListGroupNavigationNode,
   TaskListNavigationRow,
 } from './TaskWorkspaceNavigationNodes'
@@ -43,6 +44,7 @@ export const TaskWorkspaceNavigation = ({
   count,
   taskLists,
   taskListGroups,
+  standaloneTaskCount,
   onChange,
   onTaskListChange,
   onCreateTaskList,
@@ -61,6 +63,7 @@ export const TaskWorkspaceNavigation = ({
   count: number
   taskLists: ApiTaskList[]
   taskListGroups: ApiTaskListGroup[]
+  standaloneTaskCount: number
   onChange: (view: TaskWorkspaceView) => void
   onTaskListChange: (taskListId: string) => void
   onCreateTaskList: (listGroupId?: string) => void
@@ -258,7 +261,9 @@ export const TaskWorkspaceNavigation = ({
               </Menu>
             </div>
           </div>
-          {taskLists.length === 0 && taskListGroups.length === 0 ? (
+          {taskLists.length === 0 &&
+          taskListGroups.length === 0 &&
+          standaloneTaskCount === 0 ? (
             <p className={emptyListsCss}>{t('taskLists.empty')}</p>
           ) : (
             <>
@@ -283,6 +288,12 @@ export const TaskWorkspaceNavigation = ({
                   </TaskListGroupNavigationNode>
                 )
               })}
+              {standaloneTaskCount > 0 && (
+                <StandaloneTaskListNavigationRow
+                  active={state.taskList === 'unassigned'}
+                  onSelect={() => onTaskListChange('unassigned')}
+                />
+              )}
             </>
           )}
         </nav>
@@ -302,6 +313,14 @@ export const TaskWorkspaceNavigation = ({
                 ? `${taskList.list_group.name} / ${taskList.name}`
                 : taskList.name,
             })),
+            ...(standaloneTaskCount > 0
+              ? [
+                  {
+                    value: 'list:unassigned',
+                    label: t('taskLists.standalone'),
+                  },
+                ]
+              : []),
           ]}
           selectedKey={
             state.taskList === 'all'

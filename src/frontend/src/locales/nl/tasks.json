@@ -63,6 +63,7 @@
     "title": "Takenlijsten",
     "field": "Takenlijst",
     "none": "Geen takenlijst",
+    "standalone": "Zelfstandige taken",
     "empty": "Nog geen takenlijsten",
     "manage": "Takenlijsten beheren",
     "create": "Takenlijst maken",

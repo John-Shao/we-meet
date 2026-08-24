@@ -71,6 +71,13 @@ describe('task workspace state', () => {
       taskList: 'list-1',
       mode: 'list',
     })
+    expect(stateForTaskList(state, 'unassigned')).toMatchObject({
+      scope: 'all',
+      status: 'all',
+      priority: 'all',
+      taskList: 'unassigned',
+      mode: 'list',
+    })
   })
 
   it('serializes deep links with every workbench filter', () => {

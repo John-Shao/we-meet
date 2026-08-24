@@ -1085,6 +1085,15 @@ class TaskViewSet(
         activities = task.activities.select_related("actor").order_by("-created_at")
         return Response(TaskActivitySerializer(activities, many=True).data)
 
+    @action(detail=False, methods=["get"], url_path="standalone-count")
+    def standalone_count(
+        self, request, *args, **kwargs
+    ):  # pylint: disable=unused-argument
+        """Return the number of visible tasks that do not belong to a task list."""
+
+        count = self.get_queryset().filter(task_list__isnull=True).count()
+        return Response({"count": count})
+
     @action(detail=False, methods=["get"])
     def statistics(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         """Aggregate the same task set the caller is already allowed to list."""

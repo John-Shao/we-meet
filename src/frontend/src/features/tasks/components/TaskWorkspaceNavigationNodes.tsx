@@ -154,6 +154,31 @@ export const TaskListNavigationRow = ({
   )
 }
 
+export const StandaloneTaskListNavigationRow = ({
+  active,
+  onSelect,
+}: {
+  active: boolean
+  onSelect: () => void
+}) => {
+  const { t } = useTranslation('tasks')
+
+  return (
+    <div className={taskListRowCss} data-active={active || undefined}>
+      <button
+        type="button"
+        aria-current={active ? 'page' : undefined}
+        onClick={onSelect}
+      >
+        <span className={navLabelCss}>
+          <RiListCheck size={16} data-color="grey" className={listIconCss} />
+          <span>{t('taskLists.standalone')}</span>
+        </span>
+      </button>
+    </div>
+  )
+}
+
 export const TaskListGroupNavigationNode = ({
   group,
   collapsed,

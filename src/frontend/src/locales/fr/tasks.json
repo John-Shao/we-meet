@@ -63,6 +63,7 @@
     "title": "Listes de tâches",
     "field": "Liste de tâches",
     "none": "Aucune liste",
+    "standalone": "Tâches autonomes",
     "empty": "Aucune liste de tâches",
     "manage": "Gérer les listes de tâches",
     "create": "Créer une liste",
