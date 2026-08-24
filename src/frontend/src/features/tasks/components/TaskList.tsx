@@ -12,13 +12,19 @@ import { useTranslation } from 'react-i18next'
 import {
   RiArrowDownSLine,
   RiArrowRightSLine,
+  RiArrowUpSLine,
   RiMoreLine,
 } from '@remixicon/react'
 
 import { Button, Menu, MenuList } from '@/primitives'
 import { css } from '@/styled-system/css'
 
-import type { ApiTask, ApiTaskGroup } from '../api/ApiTask'
+import type {
+  ApiTask,
+  ApiTaskGroup,
+  TaskOrdering,
+  TaskOrderingField,
+} from '../api/ApiTask'
 import { usePatchTask, useTaskSubtasks } from '../api/fetchTasks'
 import { taskDisplayName } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
@@ -39,6 +45,25 @@ const DESKTOP_TABLE_COLUMN_COUNT = TASK_COLUMNS.length + 1
 
 type TaskColumnId = (typeof TASK_COLUMNS)[number]['id']
 type TaskColumnWidths = Record<TaskColumnId, number>
+
+const ORDERING_BY_COLUMN: Partial<Record<TaskColumnId, TaskOrderingField>> = {
+  assignee: 'assignee',
+  priority: 'priority',
+  startDate: 'start_date',
+  dueDate: 'due_date',
+  status: 'status',
+  creator: 'creator',
+  createdAt: 'created_at',
+}
+
+const nextOrdering = (
+  current: TaskOrdering,
+  field: TaskOrderingField
+): TaskOrdering => {
+  if (current === field) return `-${field}`
+  if (current === `-${field}`) return ''
+  return field
+}
 
 const defaultColumnWidths = (): TaskColumnWidths =>
   Object.fromEntries(
@@ -82,6 +107,8 @@ type ListProps = {
   tasks: ApiTask[]
   groups?: ApiTaskGroup[]
   grouped?: boolean
+  ordering?: TaskOrdering
+  onOrderingChange?: (ordering: TaskOrdering) => void
   selectedTaskId?: string
   onOpen: (task: ApiTask) => void
   registerRow: (taskId: string, element: HTMLElement | null) => void
@@ -102,6 +129,8 @@ export const TaskList = ({
   tasks,
   groups = [],
   grouped = false,
+  ordering = '',
+  onOrderingChange,
   selectedTaskId,
   onOpen,
   registerRow,
@@ -228,14 +257,44 @@ export const TaskList = ({
           <tr>
             {TASK_COLUMNS.map((column) => {
               const label = t(`workspace.columns.${column.id}`)
+              const orderingField = ORDERING_BY_COLUMN[column.id]
+              const sortDirection =
+                ordering === orderingField
+                  ? 'ascending'
+                  : orderingField && ordering === `-${orderingField}`
+                    ? 'descending'
+                    : undefined
               return (
                 <th
                   key={column.id}
                   data-column={column.id}
                   className={columnClassName(column.id)}
                   style={{ width: columnWidths[column.id] }}
+                  aria-sort={
+                    orderingField && onOrderingChange
+                      ? sortDirection || 'none'
+                      : undefined
+                  }
                 >
-                  {label}
+                  {orderingField && onOrderingChange ? (
+                    <button
+                      type="button"
+                      className={columnSortButtonCss}
+                      onClick={() =>
+                        onOrderingChange(nextOrdering(ordering, orderingField))
+                      }
+                    >
+                      <span>{label}</span>
+                      {sortDirection === 'ascending' && (
+                        <RiArrowUpSLine aria-hidden="true" size={16} />
+                      )}
+                      {sortDirection === 'descending' && (
+                        <RiArrowDownSLine aria-hidden="true" size={16} />
+                      )}
+                    </button>
+                  ) : (
+                    label
+                  )}
                   <button
                     type="button"
                     role="slider"
@@ -856,6 +915,30 @@ const tableGutterCellCss = css({
   minWidth: '0.5rem',
   padding: '0!important',
   pointerEvents: 'none',
+})
+const columnSortButtonCss = css({
+  maxWidth: 'calc(100% - 0.5rem)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.125rem',
+  padding: 0,
+  border: 0,
+  backgroundColor: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  fontWeight: 'inherit',
+  cursor: 'pointer',
+  '& span': {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  '& svg': { flexShrink: 0 },
+  _hover: { color: 'primary.600' },
+  _focusVisible: {
+    outline: '2px solid token(colors.primary.500)',
+    outlineOffset: '2px',
+  },
 })
 const columnResizeHandleCss = css({
   position: 'absolute',

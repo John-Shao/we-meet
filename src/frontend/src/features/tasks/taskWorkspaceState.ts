@@ -1,5 +1,6 @@
 import type {
   TaskPriorityFilter,
+  TaskOrdering,
   TaskScope,
   TaskStatusFilter,
   TaskTimeFilter,
@@ -13,6 +14,7 @@ export interface TaskWorkspaceState {
   status: TaskStatusFilter
   time: TaskTimeFilter
   priority: TaskPriorityFilter
+  ordering: TaskOrdering
   taskList: string
   mode: TaskWorkspaceMode
   task?: string
@@ -34,6 +36,24 @@ const oneOf = <T extends string>(
   fallback: T
 ): T => (value && values.includes(value as T) ? (value as T) : fallback)
 
+const TASK_ORDERINGS: readonly TaskOrdering[] = [
+  '',
+  'assignee',
+  '-assignee',
+  'priority',
+  '-priority',
+  'start_date',
+  '-start_date',
+  'due_date',
+  '-due_date',
+  'status',
+  '-status',
+  'creator',
+  '-creator',
+  'created_at',
+  '-created_at',
+]
+
 export const parseTaskWorkspaceState = (
   params: URLSearchParams
 ): TaskWorkspaceState => ({
@@ -53,6 +73,7 @@ export const parseTaskWorkspaceState = (
     ['all', 'none', 'low', 'medium', 'high', 'urgent'],
     'all'
   ),
+  ordering: oneOf(params.get('ordering'), TASK_ORDERINGS, ''),
   taskList: params.get('task_list') || 'all',
   mode: oneOf(params.get('view'), ['list', 'board', 'analytics'], 'list'),
   task: params.get('task') || undefined,
@@ -98,6 +119,7 @@ export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
   params.set('status', state.status)
   params.set('time', state.time)
   params.set('priority', state.priority)
+  if (state.ordering) params.set('ordering', state.ordering)
   params.set('task_list', state.taskList)
   params.set('view', state.mode)
   if (state.task) params.set('task', state.task)

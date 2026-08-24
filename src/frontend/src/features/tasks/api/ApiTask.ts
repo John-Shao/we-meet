@@ -4,6 +4,15 @@ export type TaskPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 export type TaskPriorityFilter = 'all' | TaskPriority
 export type TaskTimeState = 'starting_today' | 'due_today' | 'overdue'
 export type TaskTimeFilter = 'all' | TaskTimeState
+export type TaskOrderingField =
+  | 'assignee'
+  | 'priority'
+  | 'start_date'
+  | 'due_date'
+  | 'status'
+  | 'creator'
+  | 'created_at'
+export type TaskOrdering = '' | TaskOrderingField | `-${TaskOrderingField}`
 export type TaskColor =
   | 'grey'
   | 'blue'

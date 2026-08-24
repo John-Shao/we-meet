@@ -111,6 +111,63 @@ describe('TaskList', () => {
     expect(onOpen).toHaveBeenCalledWith(task)
   })
 
+  it('cycles sortable headers independently from the resize handle', () => {
+    const onOrderingChange = vi.fn()
+    const { rerender } = render(
+      <TaskList
+        tasks={[task]}
+        ordering=""
+        onOrderingChange={onOrderingChange}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    const assigneeHeader = screen
+      .getByRole('table')
+      .querySelector<HTMLElement>('th[data-column="assignee"]')!
+    const sortButton = within(assigneeHeader).getByRole('button', {
+      name: 'workspace.columns.assignee',
+    })
+    const resizeHandle = within(assigneeHeader).getByRole('slider')
+
+    expect(assigneeHeader).toHaveAttribute('aria-sort', 'none')
+    fireEvent.click(sortButton)
+    expect(onOrderingChange).toHaveBeenLastCalledWith('assignee')
+    fireEvent.pointerDown(resizeHandle, { clientX: 100 })
+    fireEvent.pointerUp(window)
+    expect(onOrderingChange).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <TaskList
+        tasks={[task]}
+        ordering="assignee"
+        onOrderingChange={onOrderingChange}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+    expect(assigneeHeader).toHaveAttribute('aria-sort', 'ascending')
+    fireEvent.click(sortButton)
+    expect(onOrderingChange).toHaveBeenLastCalledWith('-assignee')
+
+    rerender(
+      <TaskList
+        tasks={[task]}
+        ordering="-assignee"
+        onOrderingChange={onOrderingChange}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+    expect(assigneeHeader).toHaveAttribute('aria-sort', 'descending')
+    fireEvent.click(sortButton)
+    expect(onOrderingChange).toHaveBeenLastCalledWith('')
+    expect(
+      screen.getByRole('table').querySelector('th[data-column="title"]')
+    ).not.toHaveAttribute('aria-sort')
+  })
+
   it('resizes a desktop column and restores the saved width', () => {
     const { unmount } = render(
       <TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />

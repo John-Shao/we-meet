@@ -2,7 +2,8 @@
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Case, Count, F, IntegerField, Q, Value, When
+from django.db.models import Case, CharField, Count, F, IntegerField, Q, Value, When
+from django.db.models.functions import Coalesce, Lower, NullIf
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -44,8 +45,31 @@ from core.services.task_time import (
 from core.services.tasks import TaskAssigneeError, ensure_task_assignee_allowed
 from core.tasks.file import process_file_deletion
 
+TASK_ORDERING_FIELDS = {
+    "assignee",
+    "priority",
+    "start_date",
+    "due_date",
+    "status",
+    "creator",
+    "created_at",
+}
 
-def _order_tasks(queryset):
+
+def _person_name_expression(relation):
+    """Match the user name fallback used by the task list UI."""
+
+    return Lower(
+        Coalesce(
+            NullIf(F(f"{relation}__full_name"), Value("")),
+            NullIf(F(f"{relation}__short_name"), Value("")),
+            NullIf(F(f"{relation}__email"), Value("")),
+            output_field=CharField(),
+        )
+    )
+
+
+def _order_tasks(queryset, ordering=""):
     """Keep top-level and subtask lists on the same deterministic order."""
 
     status_rank = Case(
@@ -61,13 +85,44 @@ def _order_tasks(queryset):
         When(priority=models.Task.Priority.HIGH, then=Value(1)),
         When(priority=models.Task.Priority.MEDIUM, then=Value(2)),
         When(priority=models.Task.Priority.LOW, then=Value(3)),
-        When(priority=models.Task.Priority.NONE, then=Value(4)),
-        default=Value(5),
+        default=Value(None),
         output_field=IntegerField(),
     )
+    if ordering:
+        descending = ordering.startswith("-")
+        field = ordering.removeprefix("-")
+        if field not in TASK_ORDERING_FIELDS:
+            raise serializers.ValidationError(
+                {"ordering": "Use a sortable task column."}
+            )
+
+        if field == "assignee":
+            queryset = queryset.annotate(
+                _task_ordering_value=_person_name_expression("assignee")
+            )
+            expression = F("_task_ordering_value")
+        elif field == "creator":
+            queryset = queryset.annotate(
+                _task_ordering_value=_person_name_expression("creator")
+            )
+            expression = F("_task_ordering_value")
+        elif field == "priority":
+            expression = priority_rank
+        elif field == "status":
+            expression = status_rank
+        else:
+            expression = F(field)
+
+        ordered_expression = (
+            expression.desc(nulls_last=True)
+            if descending
+            else expression.asc(nulls_last=True)
+        )
+        return queryset.order_by(ordered_expression, "id")
+
     return queryset.order_by(
         status_rank,
-        priority_rank,
+        priority_rank.asc(nulls_last=True),
         F("due_date").asc(nulls_last=True),
         "-updated_at",
         "id",
@@ -604,7 +659,12 @@ class TaskViewSet(
                 request=self.request,
                 user=user,
             )
-        return _order_tasks(queryset)
+        ordering = (
+            self.request.query_params.get("ordering", "")
+            if self.action == "list"
+            else ""
+        )
+        return _order_tasks(queryset, ordering)
 
     def create(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         serializer = TaskCreateSerializer(

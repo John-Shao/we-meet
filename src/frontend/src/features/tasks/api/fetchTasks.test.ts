@@ -10,6 +10,14 @@ describe('buildTasksUrl', () => {
       'tasks/?scope=created&status=open&time=due_today&priority=urgent&task_list=list%2Fid&page_size=50'
     )
   })
+
+  it('adds a validated ordering to the first page request', () => {
+    expect(
+      buildTasksUrl('all', 'open', 'all', 'all', 'all', '-created_at')
+    ).toBe(
+      'tasks/?scope=all&status=open&time=all&priority=all&task_list=all&ordering=-created_at&page_size=50'
+    )
+  })
 })
 
 describe('getNextTasksPageParam', () => {

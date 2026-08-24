@@ -85,7 +85,8 @@ const TasksAuthenticated = () => {
     state.status,
     state.time,
     state.priority,
-    state.taskList
+    state.taskList,
+    state.ordering
   )
   const tasks = useMemo(
     () => data?.pages.flatMap((page) => page.results) || [],
@@ -318,6 +319,10 @@ const TasksAuthenticated = () => {
             <>
               <TaskList
                 tasks={tasks}
+                ordering={state.ordering}
+                onOrderingChange={(ordering) =>
+                  navigateState({ ...state, ordering, task: undefined })
+                }
                 groups={selectedTaskList?.groups}
                 grouped={Boolean(selectedTaskList)}
                 selectedTaskId={state.task}

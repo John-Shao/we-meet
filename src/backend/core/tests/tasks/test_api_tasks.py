@@ -464,6 +464,152 @@ def test_task_list_filters_and_orders_by_status_priority_due_date_and_update():
     assert "priority" in invalid.json()
 
 
+def test_task_list_orders_priority_and_status_by_business_rank():
+    user = UserFactory()
+    priorities = {
+        priority: Task.objects.create(
+            title=priority,
+            creator=user,
+            assignee=user,
+            priority=priority,
+        )
+        for priority in Task.Priority.values
+    }
+
+    client = _client(user)
+    ascending = client.get(f"{TASKS_URL}?scope=all&ordering=priority")
+    descending = client.get(f"{TASKS_URL}?scope=all&ordering=-priority")
+
+    assert ascending.status_code == 200
+    assert [item["id"] for item in ascending.json()["results"]] == [
+        str(priorities[Task.Priority.URGENT].id),
+        str(priorities[Task.Priority.HIGH].id),
+        str(priorities[Task.Priority.MEDIUM].id),
+        str(priorities[Task.Priority.LOW].id),
+        str(priorities[Task.Priority.NONE].id),
+    ]
+    assert [item["id"] for item in descending.json()["results"]] == [
+        str(priorities[Task.Priority.LOW].id),
+        str(priorities[Task.Priority.MEDIUM].id),
+        str(priorities[Task.Priority.HIGH].id),
+        str(priorities[Task.Priority.URGENT].id),
+        str(priorities[Task.Priority.NONE].id),
+    ]
+
+    Task.objects.all().delete()
+    statuses = {
+        task_status: Task.objects.create(
+            title=task_status,
+            creator=user,
+            assignee=user,
+            status=task_status,
+        )
+        for task_status in Task.Status.values
+    }
+    ascending = client.get(f"{TASKS_URL}?scope=all&ordering=status")
+    descending = client.get(f"{TASKS_URL}?scope=all&ordering=-status")
+
+    assert [item["id"] for item in ascending.json()["results"]] == [
+        str(statuses[Task.Status.IN_PROGRESS].id),
+        str(statuses[Task.Status.TODO].id),
+        str(statuses[Task.Status.COMPLETED].id),
+        str(statuses[Task.Status.CANCELED].id),
+    ]
+    assert [item["id"] for item in descending.json()["results"]] == [
+        str(statuses[Task.Status.CANCELED].id),
+        str(statuses[Task.Status.COMPLETED].id),
+        str(statuses[Task.Status.TODO].id),
+        str(statuses[Task.Status.IN_PROGRESS].id),
+    ]
+
+
+def test_task_list_orders_people_by_display_name_with_empty_values_last():
+    viewer = UserFactory(full_name="Viewer")
+    alpha = UserFactory(full_name="", short_name="Alpha")
+    zulu = UserFactory(full_name="zulu")
+    assigned_alpha = Task.objects.create(
+        title="Assigned Alpha", creator=viewer, assignee=alpha
+    )
+    assigned_zulu = Task.objects.create(
+        title="Assigned Zulu", creator=viewer, assignee=zulu
+    )
+    unassigned = Task.objects.create(title="Unassigned", creator=viewer)
+    created_alpha = Task.objects.create(
+        title="Created Alpha", creator=alpha, assignee=viewer
+    )
+    created_zulu = Task.objects.create(
+        title="Created Zulu", creator=zulu, assignee=viewer
+    )
+
+    client = _client(viewer)
+    assignees = client.get(f"{TASKS_URL}?scope=created&ordering=assignee")
+    creators = client.get(f"{TASKS_URL}?scope=assigned&ordering=-creator")
+
+    assert assignees.status_code == 200
+    assert [item["id"] for item in assignees.json()["results"]] == [
+        str(assigned_alpha.id),
+        str(assigned_zulu.id),
+        str(unassigned.id),
+    ]
+    assert [item["id"] for item in creators.json()["results"]] == [
+        str(created_zulu.id),
+        str(created_alpha.id),
+    ]
+
+
+def test_task_list_orders_dates_with_empty_values_last_and_validates_field():
+    user = UserFactory()
+    today = timezone.localdate()
+    early = Task.objects.create(
+        title="Early",
+        creator=user,
+        assignee=user,
+        start_date=today,
+        due_date=today + timedelta(days=1),
+    )
+    late = Task.objects.create(
+        title="Late",
+        creator=user,
+        assignee=user,
+        start_date=today + timedelta(days=2),
+        due_date=today + timedelta(days=3),
+    )
+    empty = Task.objects.create(
+        title="Empty", creator=user, assignee=user, start_date=None, due_date=None
+    )
+    Task.objects.filter(pk=early.pk).update(
+        created_at=timezone.now() - timedelta(days=2)
+    )
+    Task.objects.filter(pk=late.pk).update(
+        created_at=timezone.now() - timedelta(days=1)
+    )
+
+    client = _client(user)
+    for field in ("start_date", "due_date"):
+        ascending = client.get(f"{TASKS_URL}?scope=all&ordering={field}")
+        descending = client.get(f"{TASKS_URL}?scope=all&ordering=-{field}")
+        assert [item["id"] for item in ascending.json()["results"]] == [
+            str(early.id),
+            str(late.id),
+            str(empty.id),
+        ]
+        assert [item["id"] for item in descending.json()["results"]] == [
+            str(late.id),
+            str(early.id),
+            str(empty.id),
+        ]
+
+    newest = client.get(f"{TASKS_URL}?scope=all&ordering=-created_at")
+    assert [item["id"] for item in newest.json()["results"]] == [
+        str(empty.id),
+        str(late.id),
+        str(early.id),
+    ]
+    invalid = client.get(f"{TASKS_URL}?scope=all&ordering=-updated_at")
+    assert invalid.status_code == 400
+    assert "ordering" in invalid.json()
+
+
 def test_task_priority_filter_combines_with_time_filter():
     user = UserFactory(timezone="UTC")
     today = timezone.localdate()

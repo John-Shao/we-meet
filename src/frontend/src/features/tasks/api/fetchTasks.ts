@@ -23,6 +23,7 @@ import type {
   PatchTaskPayload,
   TaskScope,
   TaskPriorityFilter,
+  TaskOrdering,
   TaskStatusFilter,
   TaskTimeFilter,
 } from './ApiTask'
@@ -32,9 +33,10 @@ export const buildTasksUrl = (
   status: TaskStatusFilter,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  taskList: string
+  taskList: string,
+  ordering: TaskOrdering = ''
 ) =>
-  `tasks/?scope=${scope}&status=${status}&time=${time}&priority=${priority}&task_list=${encodeURIComponent(taskList)}&page_size=50`
+  `tasks/?scope=${scope}&status=${status}&time=${time}&priority=${priority}&task_list=${encodeURIComponent(taskList)}${ordering ? `&ordering=${encodeURIComponent(ordering)}` : ''}&page_size=50`
 
 const fetchTasks = (
   scope: TaskScope,
@@ -42,12 +44,13 @@ const fetchTasks = (
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
   taskList: string,
+  ordering: TaskOrdering,
   pageUrl?: string
 ) =>
   fetchApi<Paginated<ApiTask>>(
     pageUrl
       ? toApiPath(pageUrl)
-      : buildTasksUrl(scope, status, time, priority, taskList)
+      : buildTasksUrl(scope, status, time, priority, taskList, ordering)
   )
 
 export const getNextTasksPageParam = (lastPage: Paginated<ApiTask>) =>
@@ -58,10 +61,11 @@ export const useTasks = (
   status: TaskStatusFilter,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  taskList: string
+  taskList: string,
+  ordering: TaskOrdering = ''
 ) =>
   useInfiniteQuery<Paginated<ApiTask>, ApiError>({
-    queryKey: ['tasks', scope, status, time, priority, taskList],
+    queryKey: ['tasks', scope, status, time, priority, taskList, ordering],
     queryFn: ({ pageParam }) =>
       fetchTasks(
         scope,
@@ -69,6 +73,7 @@ export const useTasks = (
         time,
         priority,
         taskList,
+        ordering,
         pageParam as string | undefined
       ),
     initialPageParam: undefined as string | undefined,
