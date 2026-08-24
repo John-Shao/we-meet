@@ -158,7 +158,7 @@ describe('TaskList', () => {
     expect(gutterHeader).toHaveStyle({ width: '8px' })
     expect(within(gutterHeader as HTMLElement).queryByRole('slider')).toBeNull()
     for (const handle of within(table).getAllByRole('slider')) {
-      expect(handle.children).toHaveLength(2)
+      expect(handle.children).toHaveLength(1)
     }
   })
 

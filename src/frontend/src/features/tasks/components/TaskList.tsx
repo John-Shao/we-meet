@@ -252,14 +252,7 @@ export const TaskList = ({
                     }
                     onDoubleClick={() => resetColumnWidth(column.id)}
                   >
-                    <span
-                      aria-hidden="true"
-                      className={columnResizeGripLineCss}
-                    />
-                    <span
-                      aria-hidden="true"
-                      className={columnResizeGripLineCss}
-                    />
+                    <span aria-hidden="true" className={columnResizeGripCss} />
                   </button>
                 </th>
               )
@@ -868,16 +861,16 @@ const columnResizeHandleCss = css({
   // Keep both rails inside the table cell. Collapsed table borders can clip
   // content that straddles the next column, making the outer rail disappear.
   right: 0,
-  width: '0.875rem',
+  width: '0.5rem',
   height: '100%',
   zIndex: 2,
   boxSizing: 'border-box',
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between',
+  justifyContent: 'center',
   cursor: 'col-resize',
   touchAction: 'none',
-  padding: '0 0.0625rem',
+  padding: 0,
   border: 0,
   backgroundColor: 'transparent',
   color: 'greyscale.400',
@@ -894,12 +887,14 @@ const columnResizeHandleCss = css({
     color: 'primary.500',
   },
 })
-const columnResizeGripLineCss = css({
-  width: '1px',
+const columnResizeGripCss = css({
+  boxSizing: 'border-box',
+  width: '4px',
   height: '60%',
   flexShrink: 0,
   borderRadius: 'full',
-  backgroundColor: 'currentColor',
+  borderLeft: '1px solid currentColor',
+  borderRight: '1px solid currentColor',
 })
 const rowCss = css({
   cursor: 'pointer',
