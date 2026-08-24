@@ -148,7 +148,6 @@ export const TaskWorkspaceNavigation = ({
           />
           <span>{taskList.name}</span>
         </span>
-        <span>{taskList.task_count}</span>
       </button>
       <div className={nodeActionsCss} data-node-actions>
         <Menu placement="bottom">
