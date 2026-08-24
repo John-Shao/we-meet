@@ -277,7 +277,7 @@ export const TaskWorkspaceNavigation = ({
             }
           >
             <span>{t('taskLists.title')}</span>
-            <div className={nodeActionsCss} data-node-actions>
+            <div className={persistentNodeActionsCss} data-node-actions>
               <Menu placement="bottom">
                 <Button
                   variant="tertiary"
@@ -670,6 +670,12 @@ const nodeActionsCss = css({
   pointerEvents: { base: 'auto', md: 'none' },
   transition: 'opacity 120ms ease',
   _focusWithin: { opacity: 1, pointerEvents: 'auto' },
+})
+const persistentNodeActionsCss = css({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.125rem',
 })
 const nodeActionButtonCss = css({
   backgroundColor: 'transparent!',
