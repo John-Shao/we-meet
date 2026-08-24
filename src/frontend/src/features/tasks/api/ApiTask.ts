@@ -51,9 +51,25 @@ export interface ApiTaskList {
   creator: ApiTaskUser | null
   list_group: Pick<ApiTaskListGroup, 'id' | 'name' | 'sort_order'> | null
   is_archived: boolean
+  access_role: TaskListAccessRole
   can_manage: boolean
+  can_share: boolean
+  can_archive: boolean
+  can_remove: boolean
+  can_delete: boolean
+  can_create_tasks: boolean
   task_count: number
   groups: ApiTaskGroup[]
+  created_at: string
+  updated_at: string
+}
+
+export type TaskListAccessRole = 'viewer' | 'editor' | 'owner'
+
+export interface ApiTaskListAccess {
+  id: string
+  user: ApiTaskUser
+  role: TaskListAccessRole
   created_at: string
   updated_at: string
 }

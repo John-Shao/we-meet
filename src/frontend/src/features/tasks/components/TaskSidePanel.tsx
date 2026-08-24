@@ -514,12 +514,18 @@ export const TaskDetailPanel = ({
             <TaskSubtasksSection taskId={task.id} />
           </DetailSection>
           <DetailSection title={t('comments.title')}>
-            <TaskCommentsSection taskId={task.id} />
+            <TaskCommentsSection
+              taskId={task.id}
+              readOnly={!task.can_edit && !task.can_update_status}
+            />
           </DetailSection>
           <details className={disclosureCss}>
             <summary>{t('attachments.title')}</summary>
             <div className={disclosureBodyCss}>
-              <TaskAttachmentsSection taskId={task.id} />
+              <TaskAttachmentsSection
+                taskId={task.id}
+                readOnly={!task.can_edit && !task.can_update_status}
+              />
             </div>
           </details>
           <details className={disclosureCss}>

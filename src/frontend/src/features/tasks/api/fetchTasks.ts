@@ -14,6 +14,7 @@ import { toApiPath } from '@/features/contacts/api/fetchDirectoryMembers'
 import type {
   ApiTask,
   ApiTaskList,
+  ApiTaskListAccess,
   ApiTaskListGroup,
   ApiTaskGroup,
   ApiTaskStatistics,
@@ -91,12 +92,20 @@ export const useTask = (taskId?: string) =>
     enabled: Boolean(taskId),
   })
 
-const fetchTaskLists = () => fetchApi<ApiTaskList[]>('task-lists/')
+const fetchTaskLists = (archived = false) =>
+  fetchApi<ApiTaskList[]>(`task-lists/${archived ? '?archived=true' : ''}`)
 
 export const useTaskLists = () =>
   useQuery<ApiTaskList[], ApiError>({
     queryKey: ['task-lists'],
-    queryFn: fetchTaskLists,
+    queryFn: () => fetchTaskLists(),
+  })
+
+export const useArchivedTaskLists = (enabled = true) =>
+  useQuery<ApiTaskList[], ApiError>({
+    queryKey: ['task-lists', 'archived'],
+    queryFn: () => fetchTaskLists(true),
+    enabled,
   })
 
 const fetchTaskListGroups = () =>
@@ -207,6 +216,141 @@ export const useDeleteTaskList = () => {
   const queryClient = useQueryClient()
   return useMutation<void, ApiError, string>({
     mutationFn: deleteTaskList,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['task-list-groups'] })
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+const updateTaskList = (
+  taskListId: string,
+  patch: { name?: string; is_archived?: boolean },
+  archived = false
+) =>
+  fetchApi<ApiTaskList>(
+    `task-lists/${encodeURIComponent(taskListId)}/${archived ? '?archived=true' : ''}`,
+    { method: 'PATCH', body: JSON.stringify(patch) }
+  )
+
+export const useUpdateTaskList = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskList,
+    ApiError,
+    {
+      taskListId: string
+      patch: { name?: string; is_archived?: boolean }
+      archived?: boolean
+    }
+  >({
+    mutationFn: ({ taskListId, patch, archived }) =>
+      updateTaskList(taskListId, patch, archived),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+const fetchTaskListShares = (taskListId: string) =>
+  fetchApi<ApiTaskListAccess[]>(
+    `task-lists/${encodeURIComponent(taskListId)}/shares/`
+  )
+
+export const useTaskListShares = (taskListId?: string) =>
+  useQuery<ApiTaskListAccess[], ApiError>({
+    queryKey: ['task-lists', taskListId, 'shares'],
+    queryFn: () => fetchTaskListShares(taskListId!),
+    enabled: Boolean(taskListId),
+  })
+
+export const useShareTaskList = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskListAccess,
+    ApiError,
+    { taskListId: string; userId: string; role: 'viewer' | 'editor' }
+  >({
+    mutationFn: ({ taskListId, userId, role }) =>
+      fetchApi<ApiTaskListAccess>(
+        `task-lists/${encodeURIComponent(taskListId)}/shares/`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ user_id: userId, role }),
+        }
+      ),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ['task-lists', variables.taskListId, 'shares'],
+      })
+    },
+  })
+}
+
+export const useUpdateTaskListShare = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskListAccess,
+    ApiError,
+    { taskListId: string; userId: string; role: 'viewer' | 'editor' }
+  >({
+    mutationFn: ({ taskListId, userId, role }) =>
+      fetchApi<ApiTaskListAccess>(
+        `task-lists/${encodeURIComponent(taskListId)}/shares/${encodeURIComponent(userId)}/`,
+        { method: 'PATCH', body: JSON.stringify({ role }) }
+      ),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ['task-lists', variables.taskListId, 'shares'],
+      })
+    },
+  })
+}
+
+export const useRemoveTaskListShare = () => {
+  const queryClient = useQueryClient()
+  return useMutation<void, ApiError, { taskListId: string; userId: string }>({
+    mutationFn: ({ taskListId, userId }) =>
+      fetchApi<void>(
+        `task-lists/${encodeURIComponent(taskListId)}/shares/${encodeURIComponent(userId)}/`,
+        { method: 'DELETE' }
+      ),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ['task-lists', variables.taskListId, 'shares'],
+      })
+    },
+  })
+}
+
+export const useLeaveTaskList = () => {
+  const queryClient = useQueryClient()
+  return useMutation<void, ApiError, string>({
+    mutationFn: (taskListId) =>
+      fetchApi<void>(`task-lists/${encodeURIComponent(taskListId)}/leave/`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+export const useDestroyTaskList = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    void,
+    ApiError,
+    { taskListId: string; deleteUnassigned: boolean }
+  >({
+    mutationFn: ({ taskListId, deleteUnassigned }) =>
+      fetchApi<void>(
+        `task-lists/${encodeURIComponent(taskListId)}/?delete_unassigned=${deleteUnassigned}`,
+        { method: 'DELETE' }
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
       void queryClient.invalidateQueries({ queryKey: ['task-list-groups'] })

@@ -1407,11 +1407,20 @@ class File(BaseModel):
         is_task_collaborator = bool(
             user.is_authenticated
             and task_attachment
-            and user.id
-            in {
-                task_attachment.task.creator_id,
-                task_attachment.task.assignee_id,
-            }
+            and (
+                user.id
+                in {
+                    task_attachment.task.creator_id,
+                    task_attachment.task.assignee_id,
+                }
+                or (
+                    task_attachment.task.task_list_id
+                    and TaskListAccess.objects.filter(
+                        task_list_id=task_attachment.task.task_list_id,
+                        user=user,
+                    ).exists()
+                )
+            )
             and self.upload_state == FileUploadStateChoices.READY
         )
         retrieve = is_creator or is_task_collaborator
@@ -2317,6 +2326,44 @@ class TaskList(BaseModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class TaskListAccess(BaseModel):
+    """One member's collaboration permission on a task list."""
+
+    class Role(models.TextChoices):
+        VIEWER = "viewer", _("Can view")
+        EDITOR = "editor", _("Can edit")
+        OWNER = "owner", _("Owner")
+
+    task_list = models.ForeignKey(
+        TaskList,
+        on_delete=models.CASCADE,
+        related_name="accesses",
+        verbose_name=_("task list"),
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="task_list_accesses",
+        verbose_name=_("user"),
+    )
+    role = models.CharField(_("role"), max_length=16, choices=Role.choices)
+
+    class Meta:
+        db_table = "meet_task_list_access"
+        verbose_name = _("task list access")
+        verbose_name_plural = _("task list accesses")
+        ordering = ("created_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("task_list", "user"),
+                name="task_list_access_unique_user",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.task_list_id}:{self.user_id}:{self.role}"
 
 
 class TaskGroup(BaseModel):

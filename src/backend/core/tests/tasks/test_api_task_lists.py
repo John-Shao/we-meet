@@ -8,7 +8,14 @@ import pytest
 from rest_framework.test import APIClient
 
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
-from core.models import Task, TaskActivity, TaskGroup, TaskList, TaskListGroup
+from core.models import (
+    Task,
+    TaskActivity,
+    TaskGroup,
+    TaskList,
+    TaskListAccess,
+    TaskListGroup,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -51,6 +58,7 @@ def test_task_lists_and_groups_are_scoped_and_managed_by_their_creator():
     task_list = TaskList.objects.get()
     assert task_list.organization == organization
     assert task_list.creator == creator
+    assert TaskListAccess.objects.get(task_list=task_list, user=creator).role == "owner"
     assert task_list.name == "Product launch"
     assert created.json()["can_manage"] is True
     assert created.json()["list_group"] is None
@@ -84,6 +92,181 @@ def test_task_lists_and_groups_are_scoped_and_managed_by_their_creator():
     )
     assert _client(outsider).get(TASK_LISTS_URL).json() == []
     assert task_list.organization != other_organization
+
+
+def test_task_list_sharing_enforces_viewer_and_editor_permissions():
+    organization, owner = _organization_user()
+    _, colleague = _organization_user(organization=organization)
+    _, outsider = _organization_user()
+    owner_client = _client(owner)
+    task_list_id = owner_client.post(
+        TASK_LISTS_URL, {"name": "Shared delivery", "color": "blue"}, format="json"
+    ).json()["id"]
+    task = Task.objects.create(
+        organization=organization,
+        creator=owner,
+        title="Visible through list access",
+        task_list_id=task_list_id,
+    )
+
+    shared = owner_client.post(
+        f"{TASK_LISTS_URL}{task_list_id}/shares/",
+        {"user_id": str(colleague.id), "role": "viewer"},
+        format="json",
+    )
+    assert shared.status_code == 201
+    assert shared.json()["role"] == "viewer"
+    assert (
+        owner_client.post(
+            f"{TASK_LISTS_URL}{task_list_id}/shares/",
+            {"user_id": str(outsider.id), "role": "viewer"},
+            format="json",
+        ).status_code
+        == 400
+    )
+
+    colleague_client = _client(colleague)
+    listed = colleague_client.get(TASK_LISTS_URL).json()[0]
+    assert listed["access_role"] == "viewer"
+    assert listed["can_manage"] is False
+    assert listed["can_delete"] is False
+    visible_tasks = colleague_client.get(
+        TASKS_URL,
+        {"scope": "all", "task_list": task_list_id},
+    )
+    assert [item["id"] for item in visible_tasks.json()["results"]] == [str(task.id)]
+    assert (
+        colleague_client.post(
+            TASKS_URL,
+            {"title": "Denied", "task_list_id": task_list_id},
+            format="json",
+        ).status_code
+        == 400
+    )
+    assert (
+        colleague_client.patch(
+            f"{TASKS_URL}{task.id}/", {"title": "Denied"}, format="json"
+        ).status_code
+        == 403
+    )
+    assert (
+        colleague_client.patch(
+            f"{TASKS_URL}{task.id}/", {"status": "completed"}, format="json"
+        ).status_code
+        == 403
+    )
+    assert (
+        colleague_client.post(
+            f"{TASKS_URL}{task.id}/comments/",
+            {"content": "Denied"},
+            format="json",
+        ).status_code
+        == 403
+    )
+
+    changed = owner_client.patch(
+        f"{TASK_LISTS_URL}{task_list_id}/shares/{colleague.id}/",
+        {"role": "editor"},
+        format="json",
+    )
+    assert changed.status_code == 200
+    assert changed.json()["role"] == "editor"
+    assert (
+        colleague_client.patch(
+            f"{TASKS_URL}{task.id}/", {"title": "Edited"}, format="json"
+        ).status_code
+        == 200
+    )
+
+
+def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks():
+    organization, owner = _organization_user()
+    _, editor = _organization_user(organization=organization)
+    owner_client = _client(owner)
+    created = owner_client.post(
+        TASK_LISTS_URL, {"name": "Project archive", "color": "blue"}, format="json"
+    ).json()
+    task_list_id = created["id"]
+    owner_client.post(
+        f"{TASK_LISTS_URL}{task_list_id}/shares/",
+        {"user_id": str(editor.id), "role": "editor"},
+        format="json",
+    )
+    assigned = Task.objects.create(
+        organization=organization,
+        creator=owner,
+        assignee=editor,
+        title="Keep assigned",
+        task_list_id=task_list_id,
+    )
+    orphan = Task.objects.create(
+        organization=organization,
+        creator=owner,
+        title="Delete orphan",
+        task_list_id=task_list_id,
+    )
+    retained_parent = Task.objects.create(
+        organization=organization,
+        creator=owner,
+        title="Parent required by assigned subtask",
+        task_list_id=task_list_id,
+    )
+    assigned_subtask = Task.objects.create(
+        organization=organization,
+        creator=owner,
+        assignee=editor,
+        parent=retained_parent,
+        title="Keep assigned subtask",
+        task_list_id=task_list_id,
+    )
+
+    editor_client = _client(editor)
+    archived = editor_client.patch(
+        f"{TASK_LISTS_URL}{task_list_id}/",
+        {"is_archived": True},
+        format="json",
+    )
+    assert archived.status_code == 200
+    assert editor_client.get(TASK_LISTS_URL).json() == []
+    assert editor_client.get(TASK_LISTS_URL, {"archived": "true"}).json()[0][
+        "is_archived"
+    ] is True
+    assert (
+        editor_client.post(
+            TASKS_URL,
+            {"title": "No new work", "task_list_id": task_list_id},
+            format="json",
+        ).status_code
+        == 400
+    )
+    assert (
+        editor_client.patch(
+            f"{TASKS_URL}{assigned.id}/", {"title": "Still editable"}, format="json"
+        ).status_code
+        == 200
+    )
+    assert (
+        editor_client.patch(
+            f"{TASK_LISTS_URL}{task_list_id}/?archived=true",
+            {"is_archived": False},
+            format="json",
+        ).status_code
+        == 200
+    )
+    assert editor_client.post(f"{TASK_LISTS_URL}{task_list_id}/leave/").status_code == 204
+    assert editor_client.get(TASK_LISTS_URL).json() == []
+
+    deleted = owner_client.delete(
+        f"{TASK_LISTS_URL}{task_list_id}/?delete_unassigned=true"
+    )
+    assert deleted.status_code == 204
+    assigned.refresh_from_db()
+    retained_parent.refresh_from_db()
+    assigned_subtask.refresh_from_db()
+    assert assigned.task_list is None
+    assert retained_parent.task_list is None
+    assert assigned_subtask.task_list is None
+    assert not Task.objects.filter(id=orphan.id).exists()
 
 
 def test_task_list_groups_organize_lists_and_enforce_management_permissions():

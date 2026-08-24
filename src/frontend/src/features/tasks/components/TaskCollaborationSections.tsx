@@ -243,7 +243,13 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
   )
 }
 
-export const TaskCommentsSection = ({ taskId }: { taskId: string }) => {
+export const TaskCommentsSection = ({
+  taskId,
+  readOnly = false,
+}: {
+  taskId: string
+  readOnly?: boolean
+}) => {
   const { t, i18n } = useTranslation('tasks')
   const [content, setContent] = useState('')
   const { data, isLoading, error } = useTaskComments(taskId)
@@ -289,36 +295,44 @@ export const TaskCommentsSection = ({ taskId }: { taskId: string }) => {
           ))}
         </ul>
       </AsyncState>
-      <form onSubmit={(event) => void submit(event)} className={stackCss}>
-        <label className={fieldCss}>
-          {t('comments.inputLabel')}
-          <TextArea
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            placeholder={t('comments.placeholder')}
-            maxLength={2000}
-            rows={3}
-          />
-        </label>
-        {createMutation.error && (
-          <p role="alert" className={errorCss}>
-            {t('comments.postError')}
-          </p>
-        )}
-        <Button
-          type="submit"
-          size="dense"
-          loading={createMutation.isPending}
-          isDisabled={!content.trim()}
-        >
-          {t('comments.submit')}
-        </Button>
-      </form>
+      {!readOnly && (
+        <form onSubmit={(event) => void submit(event)} className={stackCss}>
+          <label className={fieldCss}>
+            {t('comments.inputLabel')}
+            <TextArea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              placeholder={t('comments.placeholder')}
+              maxLength={2000}
+              rows={3}
+            />
+          </label>
+          {createMutation.error && (
+            <p role="alert" className={errorCss}>
+              {t('comments.postError')}
+            </p>
+          )}
+          <Button
+            type="submit"
+            size="dense"
+            loading={createMutation.isPending}
+            isDisabled={!content.trim()}
+          >
+            {t('comments.submit')}
+          </Button>
+        </form>
+      )}
     </section>
   )
 }
 
-export const TaskAttachmentsSection = ({ taskId }: { taskId: string }) => {
+export const TaskAttachmentsSection = ({
+  taskId,
+  readOnly = false,
+}: {
+  taskId: string
+  readOnly?: boolean
+}) => {
   const { t, i18n } = useTranslation('tasks')
   const { confirm } = useConfirm()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -370,16 +384,18 @@ export const TaskAttachmentsSection = ({ taskId }: { taskId: string }) => {
         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpeg,.jpg,.png,.gif,.webp,.zip"
         onChange={(event) => void selectFile(event)}
       />
-      <Button
-        variant="secondary"
-        size="sm"
-        isDisabled={createMutation.isPending}
-        onPress={() => inputRef.current?.click()}
-      >
-        {createMutation.isPending
-          ? t('attachments.uploading', { progress })
-          : t('attachments.upload')}
-      </Button>
+      {!readOnly && (
+        <Button
+          variant="secondary"
+          size="sm"
+          isDisabled={createMutation.isPending}
+          onPress={() => inputRef.current?.click()}
+        >
+          {createMutation.isPending
+            ? t('attachments.uploading', { progress })
+            : t('attachments.upload')}
+        </Button>
+      )}
       {(createMutation.error || deleteMutation.error) && (
         <p role="alert" className={errorCss}>
           {createMutation.error
@@ -423,14 +439,16 @@ export const TaskAttachmentsSection = ({ taskId }: { taskId: string }) => {
                 >
                   {t('attachments.open')}
                 </a>
-                <Button
-                  variant="danger"
-                  size="dense"
-                  isDisabled={deleteMutation.isPending}
-                  onPress={() => void remove(attachment.id)}
-                >
-                  {t('attachments.remove')}
-                </Button>
+                {!readOnly && (
+                  <Button
+                    variant="danger"
+                    size="dense"
+                    isDisabled={deleteMutation.isPending}
+                    onPress={() => void remove(attachment.id)}
+                  >
+                    {t('attachments.remove')}
+                  </Button>
+                )}
               </div>
             </li>
           ))}

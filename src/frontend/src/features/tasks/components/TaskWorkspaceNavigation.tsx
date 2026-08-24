@@ -4,15 +4,19 @@ import {
   RiAddLine,
   RiArrowDownSLine,
   RiArrowRightSLine,
+  RiArchiveLine,
   RiCheckboxCircleLine,
   RiDeleteBinLine,
   RiEditLine,
   RiFileAddLine,
   RiFolderAddLine,
   RiFolderLine,
+  RiHistoryLine,
   RiListCheck3,
   RiListCheck,
   RiMoreLine,
+  RiLogoutBoxRLine,
+  RiShareLine,
   RiUserLine,
 } from '@remixicon/react'
 
@@ -45,6 +49,12 @@ export const TaskWorkspaceNavigation = ({
   onMoveTaskList,
   onRenameTaskListGroup,
   onDeleteTaskListGroup,
+  onShareTaskList,
+  onRenameTaskList,
+  onArchiveTaskList,
+  onLeaveTaskList,
+  onDeleteTaskList,
+  onOpenArchivedTaskLists,
 }: {
   state: TaskWorkspaceState
   count: number
@@ -57,6 +67,12 @@ export const TaskWorkspaceNavigation = ({
   onMoveTaskList: (taskListId: string, listGroupId: string | null) => void
   onRenameTaskListGroup: (group: ApiTaskListGroup) => void
   onDeleteTaskListGroup: (group: ApiTaskListGroup) => void
+  onShareTaskList?: (taskList: ApiTaskList) => void
+  onRenameTaskList?: (taskList: ApiTaskList) => void
+  onArchiveTaskList?: (taskList: ApiTaskList) => void
+  onLeaveTaskList?: (taskList: ApiTaskList) => void
+  onDeleteTaskList?: (taskList: ApiTaskList) => void
+  onOpenArchivedTaskLists?: () => void
 }) => {
   const { t } = useTranslation('tasks')
   const current = activeView(state)
@@ -111,27 +127,104 @@ export const TaskWorkspaceNavigation = ({
     onMoveTaskList(taskListId, listGroupId)
   }
   const renderTaskList = (taskList: ApiTaskList) => (
-    <button
+    <div
       key={taskList.id}
-      type="button"
       aria-current={state.taskList === taskList.id ? 'page' : undefined}
-      className={navButtonCss}
+      className={taskListRowCss}
       data-active={state.taskList === taskList.id ? true : undefined}
-      draggable={taskList.can_manage}
-      onDragStart={(event) => startListDrag(event, taskList)}
-      onDragEnd={() => setDraggedTaskListId(undefined)}
-      onClick={() => onTaskListChange(taskList.id)}
     >
-      <span className={navLabelCss}>
-        <RiListCheck
-          size={18}
-          data-color={taskList.color}
-          className={listIconCss}
+      <button
+        type="button"
+        draggable={taskList.can_manage}
+        onDragStart={(event) => startListDrag(event, taskList)}
+        onDragEnd={() => setDraggedTaskListId(undefined)}
+        onClick={() => onTaskListChange(taskList.id)}
+      >
+        <span className={navLabelCss}>
+          <RiListCheck
+            size={18}
+            data-color={taskList.color}
+            className={listIconCss}
+          />
+          <span>{taskList.name}</span>
+        </span>
+        <span>{taskList.task_count}</span>
+      </button>
+      <Menu placement="bottom">
+        <Button
+          variant="tertiary"
+          size="icon24"
+          aria-label={t('taskLists.more', { name: taskList.name })}
+        >
+          <RiMoreLine size={16} />
+        </Button>
+        <MenuList
+          aria-label={t('taskLists.more', { name: taskList.name })}
+          menuClassName={createMenuCss}
+          items={[
+            {
+              value: 'share',
+              label: (
+                <span className={menuItemLabelCss}>
+                  <RiShareLine size={16} />
+                  {t('taskLists.share')}
+                </span>
+              ),
+              isDisabled: !taskList.can_share,
+            },
+            {
+              value: 'rename',
+              label: (
+                <span className={menuItemLabelCss}>
+                  <RiEditLine size={16} />
+                  {t('taskLists.rename')}
+                </span>
+              ),
+              isDisabled: !taskList.can_manage,
+            },
+            {
+              value: 'archive',
+              label: (
+                <span className={menuItemLabelCss}>
+                  <RiArchiveLine size={16} />
+                  {t('taskLists.archive')}
+                </span>
+              ),
+              isDisabled: !taskList.can_archive,
+            },
+            {
+              value: 'leave',
+              label: (
+                <span className={menuItemLabelCss}>
+                  <RiLogoutBoxRLine size={16} />
+                  {t('taskLists.leave')}
+                </span>
+              ),
+            },
+            ...(taskList.can_delete
+              ? [
+                  {
+                    value: 'delete',
+                    label: (
+                      <span className={menuItemLabelCss}>
+                        <RiDeleteBinLine size={16} />
+                        {t('taskLists.delete')}
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+          onAction={(action) => {
+            if (action === 'share') onShareTaskList?.(taskList)
+            if (action === 'rename') onRenameTaskList?.(taskList)
+            if (action === 'archive') onArchiveTaskList?.(taskList)
+            if (action === 'leave') onLeaveTaskList?.(taskList)
+            if (action === 'delete') onDeleteTaskList?.(taskList)
+          }}
         />
-        <span>{taskList.name}</span>
-      </span>
-      <span>{taskList.task_count}</span>
-    </button>
+      </Menu>
+    </div>
   )
   return (
     <>
@@ -211,10 +304,20 @@ export const TaskWorkspaceNavigation = ({
                       </span>
                     ),
                   },
+                  {
+                    value: 'archived',
+                    label: (
+                      <span className={menuItemLabelCss}>
+                        <RiHistoryLine size={16} />
+                        {t('taskLists.archivedTitle')}
+                      </span>
+                    ),
+                  },
                 ]}
                 onAction={(action) => {
                   if (action === 'list') onCreateTaskList()
                   if (action === 'group') onCreateTaskListGroup()
+                  if (action === 'archived') onOpenArchivedTaskLists?.()
                 }}
               />
             </Menu>
@@ -484,6 +587,34 @@ const navButtonCss = css({
   cursor: 'pointer',
   textAlign: 'left',
   fontSize: '0.875rem',
+  '&[data-active]': {
+    backgroundColor: 'selected.bg',
+    color: 'selected.text',
+    fontWeight: '500',
+  },
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+const taskListRowCss = css({
+  width: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  borderRadius: '8px',
+  color: 'greyscale.700',
+  '& > button:first-child': {
+    minWidth: 0,
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    border: 0,
+    padding: '0.5rem 0.25rem 0.5rem 0.625rem',
+    backgroundColor: 'transparent',
+    color: 'inherit',
+    cursor: 'pointer',
+    textAlign: 'left',
+    fontSize: '0.875rem',
+  },
   '&[data-active]': {
     backgroundColor: 'selected.bg',
     color: 'selected.text',

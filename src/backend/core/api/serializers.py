@@ -662,32 +662,63 @@ class TaskListSerializer(serializers.ModelSerializer):
         write_only=True,
     )
     groups = TaskGroupSerializer(many=True, read_only=True)
+    access_role = serializers.SerializerMethodField()
     can_manage = serializers.SerializerMethodField()
+    can_share = serializers.SerializerMethodField()
+    can_archive = serializers.SerializerMethodField()
+    can_remove = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
+    can_create_tasks = serializers.SerializerMethodField()
     task_count = serializers.SerializerMethodField()
 
-    def get_can_manage(self, obj):
+    def _access_role(self, obj):
         request = self.context.get("request")
         user = getattr(request, "user", None)
-        return bool(
-            user
-            and user.is_authenticated
-            and (
-                obj.creator_id == user.id
-                or self.context.get("can_manage_all_task_lists", False)
+        if user is None or not user.is_authenticated:
+            return None
+        prefetched = getattr(obj, "_current_user_accesses", None)
+        if prefetched is not None:
+            role = prefetched[0].role if prefetched else None
+        else:
+            role = (
+                obj.accesses.filter(user=user)
+                .values_list("role", flat=True)
+                .first()
             )
-        )
+        if role is None and obj.creator_id == user.id:
+            return models.TaskListAccess.Role.OWNER
+        return role
+
+    def get_access_role(self, obj):
+        return self._access_role(obj)
+
+    def get_can_manage(self, obj):
+        return self._access_role(obj) in {
+            models.TaskListAccess.Role.EDITOR,
+            models.TaskListAccess.Role.OWNER,
+        }
+
+    def get_can_share(self, obj):
+        return self.get_can_manage(obj)
+
+    def get_can_archive(self, obj):
+        return self.get_can_manage(obj)
+
+    def get_can_remove(self, obj):
+        return self._access_role(obj) is not None
+
+    def get_can_delete(self, obj):
+        return self._access_role(obj) == models.TaskListAccess.Role.OWNER
+
+    def get_can_create_tasks(self, obj):
+        return self.get_can_manage(obj) and not obj.is_archived
 
     def get_task_count(self, obj):
         request = self.context.get("request")
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
             return 0
-        return (
-            obj.tasks.filter(parent__isnull=True)
-            .filter(Q(creator=user) | Q(assignee=user))
-            .distinct()
-            .count()
-        )
+        return obj.tasks.filter(parent__isnull=True).count()
 
     class Meta:
         model = models.TaskList
@@ -700,7 +731,13 @@ class TaskListSerializer(serializers.ModelSerializer):
             "list_group",
             "list_group_id",
             "is_archived",
+            "access_role",
             "can_manage",
+            "can_share",
+            "can_archive",
+            "can_remove",
+            "can_delete",
+            "can_create_tasks",
             "task_count",
             "groups",
             "created_at",
@@ -710,12 +747,29 @@ class TaskListSerializer(serializers.ModelSerializer):
             "id",
             "creator",
             "list_group",
+            "access_role",
             "can_manage",
+            "can_share",
+            "can_archive",
+            "can_remove",
+            "can_delete",
+            "can_create_tasks",
             "task_count",
             "groups",
             "created_at",
             "updated_at",
         ]
+
+
+class TaskListAccessSerializer(serializers.ModelSerializer):
+    """Serialize one task-list collaborator and their permission level."""
+
+    user = TaskUserSerializer(read_only=True)
+
+    class Meta:
+        model = models.TaskListAccess
+        fields = ["id", "user", "role", "created_at", "updated_at"]
+        read_only_fields = ["id", "user", "created_at", "updated_at"]
 
 
 class TaskListSummarySerializer(serializers.ModelSerializer):
@@ -759,7 +813,20 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_can_edit(self, obj):
         user = self._request_user()
-        return bool(user and user.is_authenticated and obj.creator_id == user.id)
+        if not user or not user.is_authenticated:
+            return False
+        if obj.creator_id == user.id:
+            return True
+        return bool(
+            obj.task_list_id
+            and obj.task_list.accesses.filter(
+                user=user,
+                role__in=[
+                    models.TaskListAccess.Role.EDITOR,
+                    models.TaskListAccess.Role.OWNER,
+                ],
+            ).exists()
+        )
 
     def get_can_update_status(self, obj):
         user = self._request_user()
@@ -769,6 +836,16 @@ class TaskSerializer(serializers.ModelSerializer):
             and user.is_authenticated
             and (
                 user.id in {obj.creator_id, obj.assignee_id}
+                or (
+                    obj.task_list_id
+                    and obj.task_list.accesses.filter(
+                        user=user,
+                        role__in=[
+                            models.TaskListAccess.Role.EDITOR,
+                            models.TaskListAccess.Role.OWNER,
+                        ],
+                    ).exists()
+                )
                 or (
                     parent is not None
                     and user.id in {parent.creator_id, parent.assignee_id}

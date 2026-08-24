@@ -18,6 +18,7 @@ import { css } from '@/styled-system/css'
 
 import type {
   ApiTaskGroup,
+  ApiTaskList,
   ApiTaskListGroup,
   TaskPriorityFilter,
   TaskStatusFilter,
@@ -26,9 +27,11 @@ import type {
 import {
   useDeleteTaskGroup,
   useDeleteTaskListGroup,
+  useLeaveTaskList,
   useMoveTaskListToGroup,
   useTaskListGroups,
   useTaskLists,
+  useUpdateTaskList,
   useTasks,
 } from '../api/fetchTasks'
 import { TaskAnalytics } from '../components/TaskAnalytics'
@@ -40,6 +43,12 @@ import { TaskList } from '../components/TaskList'
 import { TaskListGroupForm } from '../components/TaskListGroupForm'
 import { TaskListGroupRenameForm } from '../components/TaskListGroupRenameForm'
 import { TaskListManager } from '../components/TaskListManager'
+import {
+  ArchivedTaskListsDialog,
+  TaskListDeleteDialog,
+  TaskListRenameDialog,
+  TaskListSharingDialog,
+} from '../components/TaskListDialogs'
 import { CreateTaskPanel, TaskDetailPanel } from '../components/TaskSidePanel'
 import { TaskWorkspaceNavigation } from '../components/TaskWorkspaceNavigation'
 import {
@@ -74,6 +83,16 @@ const TasksAuthenticated = () => {
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
   const [taskListCreateGroupId, setTaskListCreateGroupId] = useState<string>()
   const [taskListGroupCreating, setTaskListGroupCreating] = useState(false)
+  const [taskListSharing, setTaskListSharing] = useState<ApiTaskList | null>(
+    null
+  )
+  const [taskListRenaming, setTaskListRenaming] = useState<ApiTaskList | null>(
+    null
+  )
+  const [taskListDeleting, setTaskListDeleting] = useState<ApiTaskList | null>(
+    null
+  )
+  const [archivedTaskListsOpen, setArchivedTaskListsOpen] = useState(false)
   const [taskListGroupRenaming, setTaskListGroupRenaming] =
     useState<ApiTaskListGroup | null>(null)
   const [groupCreating, setGroupCreating] = useState(false)
@@ -90,6 +109,8 @@ const TasksAuthenticated = () => {
   const deleteGroupMutation = useDeleteTaskGroup()
   const deleteTaskListGroupMutation = useDeleteTaskListGroup()
   const moveTaskListMutation = useMoveTaskListToGroup()
+  const updateTaskListMutation = useUpdateTaskList()
+  const leaveTaskListMutation = useLeaveTaskList()
   const { data: taskLists = [] } = useTaskLists()
   const { data: taskListGroups = [] } = useTaskListGroups()
   const {
@@ -138,6 +159,33 @@ const TasksAuthenticated = () => {
       danger: true,
     })
     if (accepted) deleteTaskListGroupMutation.mutate(group.id)
+  }
+
+  const archiveTaskList = async (taskList: ApiTaskList) => {
+    if (!taskList.can_archive) return
+    const accepted = await confirm({
+      title: t('taskLists.archiveTitle'),
+      message: t('taskLists.archiveDescription', { name: taskList.name }),
+      confirmLabel: t('taskLists.archive'),
+    })
+    if (!accepted) return
+    await updateTaskListMutation.mutateAsync({
+      taskListId: taskList.id,
+      patch: { is_archived: true },
+    })
+    if (state.taskList === taskList.id) changeView('all')
+  }
+
+  const leaveTaskList = async (taskList: ApiTaskList) => {
+    const accepted = await confirm({
+      title: t('taskLists.leaveTitle'),
+      message: t('taskLists.leaveDescription', { name: taskList.name }),
+      confirmLabel: t('taskLists.leave'),
+      danger: true,
+    })
+    if (!accepted) return
+    await leaveTaskListMutation.mutateAsync(taskList.id)
+    if (state.taskList === taskList.id) changeView('all')
   }
 
   const navigateState = (
@@ -243,6 +291,12 @@ const TasksAuthenticated = () => {
             }
             onRenameTaskListGroup={setTaskListGroupRenaming}
             onDeleteTaskListGroup={(group) => void deleteTaskListGroup(group)}
+            onShareTaskList={setTaskListSharing}
+            onRenameTaskList={setTaskListRenaming}
+            onArchiveTaskList={(taskList) => void archiveTaskList(taskList)}
+            onLeaveTaskList={(taskList) => void leaveTaskList(taskList)}
+            onDeleteTaskList={setTaskListDeleting}
+            onOpenArchivedTaskLists={() => setArchivedTaskListsOpen(true)}
           />
         </ResizablePanel>
       </div>
@@ -262,6 +316,12 @@ const TasksAuthenticated = () => {
             }
             onRenameTaskListGroup={setTaskListGroupRenaming}
             onDeleteTaskListGroup={(group) => void deleteTaskListGroup(group)}
+            onShareTaskList={setTaskListSharing}
+            onRenameTaskList={setTaskListRenaming}
+            onArchiveTaskList={(taskList) => void archiveTaskList(taskList)}
+            onLeaveTaskList={(taskList) => void leaveTaskList(taskList)}
+            onDeleteTaskList={setTaskListDeleting}
+            onOpenArchivedTaskLists={() => setArchivedTaskListsOpen(true)}
           />
         </div>
         <header className={headerCss}>
@@ -270,7 +330,7 @@ const TasksAuthenticated = () => {
             <p className={countCss}>{t('workspace.resultCount', { count })}</p>
           </div>
           <div className={headerActionsCss}>
-            {selectedTaskList && state.mode === 'list' && (
+            {selectedTaskList?.can_manage && state.mode === 'list' && (
               <Button
                 variant="secondary"
                 size="action"
@@ -282,6 +342,9 @@ const TasksAuthenticated = () => {
             <Button
               ref={newButtonRef}
               size="action"
+              isDisabled={Boolean(
+                selectedTaskList && !selectedTaskList.can_create_tasks
+              )}
               onPress={() => {
                 navigateState({ ...state, task: undefined })
                 setCreateGroupId(undefined)
@@ -384,7 +447,7 @@ const TasksAuthenticated = () => {
                   else rowRefs.current.delete(taskId)
                 }}
                 onCreateTaskInGroup={
-                  selectedTaskList
+                  selectedTaskList?.can_create_tasks
                     ? (groupId) => {
                         setCreateGroupId(groupId)
                         setCreating(true)
@@ -428,7 +491,9 @@ const TasksAuthenticated = () => {
           maxHeight="82vh"
         >
           <CreateTaskPanel
-            taskLists={taskLists}
+            taskLists={taskLists.filter(
+              (taskList) => taskList.can_create_tasks
+            )}
             defaultTaskListId={selectedTaskList?.id}
             defaultGroupId={createGroupId}
             titleInputRef={createTitleRef}
@@ -463,6 +528,34 @@ const TasksAuthenticated = () => {
             }}
           />
         </Modal>
+      )}
+      {taskListSharing && (
+        <TaskListSharingDialog
+          taskList={taskListSharing}
+          onClose={() => setTaskListSharing(null)}
+        />
+      )}
+      {taskListRenaming && (
+        <TaskListRenameDialog
+          taskList={taskListRenaming}
+          onClose={() => setTaskListRenaming(null)}
+        />
+      )}
+      {taskListDeleting && (
+        <TaskListDeleteDialog
+          taskList={taskListDeleting}
+          onClose={() => setTaskListDeleting(null)}
+          onDeleted={() => {
+            const deletedId = taskListDeleting.id
+            setTaskListDeleting(null)
+            if (state.taskList === deletedId) changeView('all')
+          }}
+        />
+      )}
+      {archivedTaskListsOpen && (
+        <ArchivedTaskListsDialog
+          onClose={() => setArchivedTaskListsOpen(false)}
+        />
       )}
       {taskListGroupCreating && (
         <Modal

@@ -2,7 +2,17 @@
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Case, CharField, Count, F, IntegerField, Q, Value, When
+from django.db.models import (
+    Case,
+    CharField,
+    Count,
+    F,
+    IntegerField,
+    Prefetch,
+    Q,
+    Value,
+    When,
+)
 from django.db.models.functions import Coalesce, Lower, NullIf
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -20,6 +30,7 @@ from core.api.serializers import (
     TaskAttachmentSerializer,
     TaskCommentSerializer,
     TaskGroupSerializer,
+    TaskListAccessSerializer,
     TaskListGroupSerializer,
     TaskListSerializer,
     TaskSerializer,
@@ -55,6 +66,28 @@ TASK_ORDERING_FIELDS = {
     "creator",
     "created_at",
 }
+
+TASK_LIST_EDIT_ROLES = {
+    models.TaskListAccess.Role.EDITOR,
+    models.TaskListAccess.Role.OWNER,
+}
+
+
+def _task_list_role(task_list, user):
+    if task_list is None or user is None or not user.is_authenticated:
+        return None
+    role = (
+        models.TaskListAccess.objects.filter(task_list=task_list, user=user)
+        .values_list("role", flat=True)
+        .first()
+    )
+    if role is None and task_list.creator_id == user.id:
+        return models.TaskListAccess.Role.OWNER
+    return role
+
+
+def _can_edit_task_list(task_list, user):
+    return _task_list_role(task_list, user) in TASK_LIST_EDIT_ROLES
 
 
 def _person_name_expression(relation):
@@ -200,11 +233,11 @@ def _filter_by_task_list(queryset, *, task_list_filter, user):
         return queryset
     organization = get_caller_organization(user)
     try:
-        task_list = models.TaskList.objects.get(
+        task_list = models.TaskList.objects.filter(
             id=task_list_filter,
             organization=organization,
             is_archived=False,
-        )
+        ).filter(Q(accesses__user=user) | Q(creator=user)).get()
     except (
         ValueError,
         DjangoValidationError,
@@ -261,9 +294,10 @@ class TaskPlacementValidationMixin:
             organization is None
             or task_list.organization_id != organization.id
             or task_list.is_archived
+            or not _can_edit_task_list(task_list, self.context["request"].user)
         ):
             raise serializers.ValidationError(
-                "Choose an active task list from the task organization."
+                "Choose an active task list you can edit from the task organization."
             )
         return task_list
 
@@ -466,7 +500,10 @@ class TaskListGroupViewSet(
             .annotate(
                 _list_count=Count(
                     "task_lists",
-                    filter=Q(task_lists__is_archived=False),
+                    filter=Q(
+                        task_lists__is_archived=False,
+                        task_lists__accesses__user=self.request.user,
+                    ),
                     distinct=True,
                 )
             )
@@ -540,11 +577,21 @@ class TaskListViewSet(
         organization = get_caller_organization(self.request.user)
         if organization is None:
             return models.TaskList.objects.none()
-        queryset = models.TaskList.objects.filter(organization=organization)
-        if self.request.query_params.get("archived") != "true":
-            queryset = queryset.filter(is_archived=False)
+        queryset = models.TaskList.objects.filter(organization=organization).filter(
+            Q(accesses__user=self.request.user) | Q(creator=self.request.user)
+        ).distinct()
+        queryset = queryset.filter(
+            is_archived=self.request.query_params.get("archived") == "true"
+        )
         return queryset.select_related("creator", "list_group").prefetch_related(
-            "groups"
+            "groups",
+            Prefetch(
+                "accesses",
+                queryset=models.TaskListAccess.objects.filter(
+                    user=self.request.user
+                ),
+                to_attr="_current_user_accesses",
+            ),
         )
 
     def perform_create(self, serializer):
@@ -557,7 +604,15 @@ class TaskListViewSet(
             serializer.validated_data.get("list_group"), organization
         )
         self._validate_unique_name(serializer.validated_data["name"], organization)
-        serializer.save(organization=organization, creator=self.request.user)
+        with transaction.atomic():
+            task_list = serializer.save(
+                organization=organization, creator=self.request.user
+            )
+            models.TaskListAccess.objects.create(
+                task_list=task_list,
+                user=self.request.user,
+                role=models.TaskListAccess.Role.OWNER,
+            )
 
     def perform_update(self, serializer):
         task_list = self.get_object()
@@ -572,8 +627,108 @@ class TaskListViewSet(
 
     def destroy(self, request, *args, **kwargs):
         task_list = self.get_object()
+        self._ensure_is_owner(task_list)
+        with transaction.atomic():
+            if request.query_params.get("delete_unassigned") == "true":
+                unassigned = task_list.tasks.filter(assignee__isnull=True)
+                unassigned.filter(parent__isnull=False).delete()
+                unassigned.filter(parent__isnull=True).exclude(
+                    subtasks__assignee__isnull=False
+                ).delete()
+            task_list.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["get", "post"])
+    def shares(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        task_list = self.get_object()
         self._ensure_can_manage(task_list)
-        task_list.delete()
+        if request.method == "GET":
+            accesses = models.TaskListAccess.objects.filter(
+                task_list=task_list
+            ).select_related("user")
+            return Response(
+                TaskListAccessSerializer(
+                    accesses, many=True, context={"request": request}
+                ).data
+            )
+
+        user_id = request.data.get("user_id")
+        role = request.data.get("role")
+        if role not in {
+            models.TaskListAccess.Role.VIEWER,
+            models.TaskListAccess.Role.EDITOR,
+        }:
+            raise serializers.ValidationError(
+                {"role": "Use viewer or editor when sharing a task list."}
+            )
+        user = get_object_or_404(models.User, pk=user_id)
+        try:
+            ensure_task_assignee_allowed(creator=request.user, assignee=user)
+        except TaskAssigneeError as exc:
+            raise serializers.ValidationError({"user_id": str(exc)}) from exc
+        existing_access = models.TaskListAccess.objects.filter(
+            task_list=task_list, user=user
+        ).first()
+        if user.id == request.user.id:
+            raise PermissionDenied("Use the remove action to leave a task list.")
+        if (
+            existing_access is not None
+            and existing_access.role == models.TaskListAccess.Role.OWNER
+        ):
+            raise PermissionDenied("The task-list owner's role cannot be changed.")
+        access, created = models.TaskListAccess.objects.update_or_create(
+            task_list=task_list,
+            user=user,
+            defaults={"role": role},
+        )
+        return Response(
+            TaskListAccessSerializer(access, context={"request": request}).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=["patch", "delete"],
+        url_path=r"shares/(?P<user_id>[^/.]+)",
+    )
+    def share_detail(self, request, user_id=None, *args, **kwargs):
+        task_list = self.get_object()
+        self._ensure_can_manage(task_list)
+        access = get_object_or_404(
+            models.TaskListAccess.objects.select_related("user"),
+            task_list=task_list,
+            user_id=user_id,
+        )
+        if access.user_id == request.user.id:
+            raise PermissionDenied("Use the remove action to leave a task list.")
+        if access.role == models.TaskListAccess.Role.OWNER:
+            raise PermissionDenied("The task-list owner cannot be changed here.")
+        if request.method == "DELETE":
+            access.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        role = request.data.get("role")
+        if role not in {
+            models.TaskListAccess.Role.VIEWER,
+            models.TaskListAccess.Role.EDITOR,
+        }:
+            raise serializers.ValidationError({"role": "Use viewer or editor."})
+        access.role = role
+        access.save(update_fields=["role", "updated_at"])
+        return Response(
+            TaskListAccessSerializer(access, context={"request": request}).data
+        )
+
+    @action(detail=True, methods=["post"])
+    def leave(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        task_list = self.get_object()
+        access = get_object_or_404(
+            models.TaskListAccess, task_list=task_list, user=request.user
+        )
+        with transaction.atomic():
+            if access.role == models.TaskListAccess.Role.OWNER:
+                task_list.creator = None
+                task_list.save(update_fields=["creator", "updated_at"])
+            access.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["get", "post"])
@@ -601,12 +756,17 @@ class TaskListViewSet(
         )
 
     def _ensure_can_manage(self, task_list):
-        if task_list.creator_id != self.request.user.id and not is_caller_org_admin(
-            self.request.user
-        ):
+        if not _can_edit_task_list(task_list, self.request.user):
             raise PermissionDenied(
-                "Only the task-list creator or an organization administrator can manage it."
+                "Only task-list editors and the owner can manage it."
             )
+
+    def _ensure_is_owner(self, task_list):
+        if (
+            _task_list_role(task_list, self.request.user)
+            != models.TaskListAccess.Role.OWNER
+        ):
+            raise PermissionDenied("Only the task-list owner can delete it.")
 
     @staticmethod
     def _validate_list_group(group, organization):
@@ -672,12 +832,9 @@ class TaskGroupViewSet(
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def _ensure_can_manage(self, group):
-        if (
-            group.task_list.creator_id != self.request.user.id
-            and not is_caller_org_admin(self.request.user)
-        ):
+        if not _can_edit_task_list(group.task_list, self.request.user):
             raise PermissionDenied(
-                "Only the task-list creator or an organization administrator can manage its groups."
+                "Only task-list editors and the owner can manage its groups."
             )
 
 
@@ -728,6 +885,8 @@ class TaskViewSet(
                 | Q(assignee=user)
                 | Q(parent__creator=user)
                 | Q(parent__assignee=user)
+                | Q(task_list__accesses__user=user)
+                | Q(parent__task_list__accesses__user=user)
             )
             .distinct()
             .select_related(
@@ -826,9 +985,24 @@ class TaskViewSet(
                 raise serializers.ValidationError(
                     {"detail": "Provide only editable task fields."}
                 )
-            if task.creator_id != request.user.id and requested_fields != {"status"}:
+            can_edit_list = _can_edit_task_list(task.task_list, request.user)
+            parent = task.parent
+            can_update_status_directly = request.user.id in {
+                task.creator_id,
+                task.assignee_id,
+                getattr(parent, "creator_id", None),
+                getattr(parent, "assignee_id", None),
+            }
+            if (
+                task.creator_id != request.user.id
+                and not can_edit_list
+                and (
+                    requested_fields != {"status"}
+                    or not can_update_status_directly
+                )
+            ):
                 raise PermissionDenied("Assignees can only update the task status.")
-            if task.creator_id != request.user.id and (
+            if task.creator_id != request.user.id and not can_edit_list and (
                 task.status == models.Task.Status.CANCELED
                 or request.data.get("status") == models.Task.Status.CANCELED
             ):
@@ -1003,6 +1177,12 @@ class TaskViewSet(
             raise serializers.ValidationError(
                 {"parent": "Subtasks can only be created under a top-level task."}
             )
+        if parent.task_list_id and not _can_edit_task_list(
+            parent.task_list, request.user
+        ):
+            raise PermissionDenied(
+                "Only task-list editors and the owner can create subtasks."
+            )
 
         serializer = TaskCreateSerializer(
             data=request.data,
@@ -1042,6 +1222,11 @@ class TaskViewSet(
             comments = task.comments.select_related("author").order_by("created_at")
             return Response(TaskCommentSerializer(comments, many=True).data)
 
+        if task.task_list_id and not _can_edit_task_list(task.task_list, request.user):
+            raise PermissionDenied(
+                "Only task-list editors and the owner can add comments."
+            )
+
         serializer = TaskCommentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
@@ -1063,6 +1248,11 @@ class TaskViewSet(
                 .order_by("created_at")
             )
             return Response(TaskAttachmentSerializer(attachments, many=True).data)
+
+        if task.task_list_id and not _can_edit_task_list(task.task_list, request.user):
+            raise PermissionDenied(
+                "Only task-list editors and the owner can add attachments."
+            )
 
         serializer = TaskAttachmentCreateSerializer(
             data=request.data,
@@ -1104,6 +1294,10 @@ class TaskViewSet(
     def attachment_remove(self, request, attachment_id=None, *args, **kwargs):
         """Remove an attachment and queue deletion from its persisted bucket."""
         task = self.get_object()
+        if task.task_list_id and not _can_edit_task_list(task.task_list, request.user):
+            raise PermissionDenied(
+                "Only task-list editors and the owner can remove attachments."
+            )
         attachment = get_object_or_404(
             task.attachments.select_related("file"),
             id=attachment_id,
