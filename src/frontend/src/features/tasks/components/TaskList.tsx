@@ -865,7 +865,9 @@ const tableGutterCellCss = css({
 const columnResizeHandleCss = css({
   position: 'absolute',
   top: 0,
-  right: '-0.25rem',
+  // Keep both rails inside the table cell. Collapsed table borders can clip
+  // content that straddles the next column, making the outer rail disappear.
+  right: 0,
   width: '0.875rem',
   height: '100%',
   zIndex: 2,
