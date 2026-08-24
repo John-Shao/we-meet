@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 import pytest
@@ -92,6 +94,47 @@ def test_task_lists_and_groups_are_scoped_and_managed_by_their_creator():
     )
     assert _client(outsider).get(TASK_LISTS_URL).json() == []
     assert task_list.organization != other_organization
+
+
+def test_task_list_counts_do_not_add_queries_per_list():
+    organization, owner = _organization_user()
+    client = _client(owner)
+
+    def create_list(name):
+        task_list = TaskList.objects.create(
+            organization=organization,
+            creator=owner,
+            name=name,
+        )
+        TaskListAccess.objects.create(
+            task_list=task_list,
+            user=owner,
+            role=TaskListAccess.Role.OWNER,
+        )
+        Task.objects.create(
+            organization=organization,
+            creator=owner,
+            task_list=task_list,
+            title=f"{name} task",
+        )
+        return task_list
+
+    create_list("First")
+    client.get(TASK_LISTS_URL)
+    with CaptureQueriesContext(connection) as single_list_queries:
+        single_response = client.get(TASK_LISTS_URL)
+
+    create_list("Second")
+    create_list("Third")
+    create_list("Fourth")
+    with CaptureQueriesContext(connection) as multiple_list_queries:
+        multiple_response = client.get(TASK_LISTS_URL)
+
+    assert single_response.status_code == 200
+    assert multiple_response.status_code == 200
+    assert [item["task_count"] for item in single_response.json()] == [1]
+    assert [item["task_count"] for item in multiple_response.json()] == [1, 1, 1, 1]
+    assert len(multiple_list_queries) == len(single_list_queries)
 
 
 def test_task_list_sharing_enforces_viewer_and_editor_permissions():

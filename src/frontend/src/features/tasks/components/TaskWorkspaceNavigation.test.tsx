@@ -57,7 +57,7 @@ const taskList = (
   ...overrides,
 })
 
-const renderNavigation = () => {
+const renderNavigation = (navigationState = state) => {
   const onCreateTaskList = vi.fn()
   const onCreateTaskListGroup = vi.fn()
   const onMoveTaskList = vi.fn()
@@ -71,7 +71,7 @@ const renderNavigation = () => {
   const onOpenArchivedTaskLists = vi.fn()
   render(
     <TaskWorkspaceNavigation
-      state={state}
+      state={navigationState}
       count={4}
       taskLists={[
         taskList('list-1', 'Hiring', {
@@ -139,14 +139,17 @@ describe('TaskWorkspaceNavigation', () => {
     )
     expect(onCreateTaskList).toHaveBeenCalledWith(listGroup.id)
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'taskListGroups.collapse' })
-    )
+    const collapseButton = screen.getByRole('button', {
+      name: 'taskListGroups.collapse',
+    })
+    expect(collapseButton).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(collapseButton)
     expect(screen.queryByText('Hiring')).not.toBeInTheDocument()
 
     const groupMenuButton = screen.getByRole('button', {
       name: 'taskListGroups.more',
     })
+    expect(groupMenuButton).toHaveAttribute('aria-haspopup', 'true')
     const openGroupMenu = () => fireEvent.click(groupMenuButton)
 
     openGroupMenu()
@@ -246,6 +249,14 @@ describe('TaskWorkspaceNavigation', () => {
     expect(
       screen.queryByRole('menuitem', { name: 'taskLists.delete' })
     ).not.toBeInTheDocument()
+  })
+
+  it('marks only the selected task list as the current page', () => {
+    renderNavigation({ ...state, taskList: 'list-1' })
+
+    expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent(
+      'Hiring'
+    )
   })
 })
 

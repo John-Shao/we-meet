@@ -2,21 +2,12 @@ import { useState, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RiAddLine,
-  RiArrowDownSLine,
-  RiArrowRightSLine,
-  RiArchiveLine,
   RiCheckboxCircleLine,
-  RiDeleteBinLine,
-  RiEditLine,
   RiFileAddLine,
   RiFolderAddLine,
-  RiFolderLine,
   RiHistoryLine,
   RiListCheck3,
   RiListCheck,
-  RiMoreLine,
-  RiLogoutBoxRLine,
-  RiShareLine,
   RiUserLine,
 } from '@remixicon/react'
 
@@ -29,6 +20,16 @@ import type {
   TaskWorkspaceState,
   TaskWorkspaceView,
 } from '../taskWorkspaceState'
+import {
+  taskNavigationActionButtonCss,
+  taskNavigationActionsCss,
+  taskNavigationMenuCss,
+  taskNavigationMenuItemLabelCss,
+} from './TaskWorkspaceNavigationStyles'
+import {
+  TaskListGroupNavigationNode,
+  TaskListNavigationRow,
+} from './TaskWorkspaceNavigationNodes'
 
 const views: TaskWorkspaceView[] = ['assigned', 'created', 'all', 'completed']
 
@@ -78,11 +79,17 @@ export const TaskWorkspaceNavigation = ({
   const current = activeView(state)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [draggedTaskListId, setDraggedTaskListId] = useState<string>()
-  const knownGroupIds = new Set(taskListGroups.map((group) => group.id))
-  const ungroupedLists = taskLists.filter(
-    (taskList) =>
-      !taskList.list_group || !knownGroupIds.has(taskList.list_group.id)
+  const taskListsByGroup = new Map(
+    taskListGroups.map((group) => [group.id, [] as ApiTaskList[]])
   )
+  const ungroupedLists: ApiTaskList[] = []
+  taskLists.forEach((taskList) => {
+    const groupedLists = taskList.list_group
+      ? taskListsByGroup.get(taskList.list_group.id)
+      : undefined
+    if (groupedLists) groupedLists.push(taskList)
+    else ungroupedLists.push(taskList)
+  })
   const toggleGroup = (groupId: string) => {
     setCollapsedGroups((currentGroups) => {
       const nextGroups = new Set(currentGroups)
@@ -127,106 +134,21 @@ export const TaskWorkspaceNavigation = ({
     onMoveTaskList(taskListId, listGroupId)
   }
   const renderTaskList = (taskList: ApiTaskList) => (
-    <div
+    <TaskListNavigationRow
       key={taskList.id}
-      aria-current={state.taskList === taskList.id ? 'page' : undefined}
-      className={taskListRowCss}
-      data-active={state.taskList === taskList.id ? true : undefined}
-    >
-      <button
-        type="button"
-        draggable={taskList.can_manage}
-        onDragStart={(event) => startListDrag(event, taskList)}
-        onDragEnd={() => setDraggedTaskListId(undefined)}
-        onClick={() => onTaskListChange(taskList.id)}
-      >
-        <span className={navLabelCss}>
-          <RiListCheck
-            size={16}
-            data-color={taskList.color}
-            className={listIconCss}
-          />
-          <span>{taskList.name}</span>
-        </span>
-      </button>
-      <div className={nodeActionsCss} data-node-actions>
-        <Menu placement="bottom">
-          <Button
-            variant="tertiary"
-            size="icon24"
-            className={nodeActionButtonCss}
-            aria-label={t('taskLists.more', { name: taskList.name })}
-          >
-            <RiMoreLine size={16} />
-          </Button>
-          <MenuList
-            aria-label={t('taskLists.more', { name: taskList.name })}
-            menuClassName={createMenuCss}
-            items={[
-              {
-                value: 'share',
-                label: (
-                  <span className={menuItemLabelCss}>
-                    <RiShareLine size={16} />
-                    {t('taskLists.share')}
-                  </span>
-                ),
-                isDisabled: !taskList.can_share,
-              },
-              {
-                value: 'rename',
-                label: (
-                  <span className={menuItemLabelCss}>
-                    <RiEditLine size={16} />
-                    {t('taskLists.rename')}
-                  </span>
-                ),
-                isDisabled: !taskList.can_manage,
-              },
-              {
-                value: 'archive',
-                label: (
-                  <span className={menuItemLabelCss}>
-                    <RiArchiveLine size={16} />
-                    {t('taskLists.archive')}
-                  </span>
-                ),
-                isDisabled: !taskList.can_archive,
-              },
-              {
-                value: 'leave',
-                label: (
-                  <span className={menuItemLabelCss}>
-                    <RiLogoutBoxRLine size={16} />
-                    {t('taskLists.leave')}
-                  </span>
-                ),
-              },
-              ...(taskList.can_delete
-                ? [
-                    {
-                      value: 'delete',
-                      label: (
-                        <span className={menuItemLabelCss}>
-                          <RiDeleteBinLine size={16} />
-                          {t('taskLists.delete')}
-                        </span>
-                      ),
-                    },
-                  ]
-                : []),
-            ]}
-            onAction={(action) => {
-              if (action === 'share') onShareTaskList?.(taskList)
-              if (action === 'rename') onRenameTaskList?.(taskList)
-              if (action === 'archive') onArchiveTaskList?.(taskList)
-              if (action === 'leave') onLeaveTaskList?.(taskList)
-              if (action === 'delete') onDeleteTaskList?.(taskList)
-            }}
-          />
-        </Menu>
-      </div>
-    </div>
+      taskList={taskList}
+      active={state.taskList === taskList.id}
+      onSelect={() => onTaskListChange(taskList.id)}
+      onDragStart={(event) => startListDrag(event, taskList)}
+      onDragEnd={() => setDraggedTaskListId(undefined)}
+      onShare={onShareTaskList ? () => onShareTaskList(taskList) : undefined}
+      onRename={onRenameTaskList ? () => onRenameTaskList(taskList) : undefined}
+      onArchive={
+        onArchiveTaskList ? () => onArchiveTaskList(taskList) : undefined
+      }
+      onLeave={onLeaveTaskList ? () => onLeaveTaskList(taskList) : undefined}
+      onDelete={onDeleteTaskList ? () => onDeleteTaskList(taskList) : undefined}
+    />
   )
   return (
     <>
@@ -238,7 +160,11 @@ export const TaskWorkspaceNavigation = ({
             <button
               key={view}
               type="button"
-              aria-current={current === view ? 'page' : undefined}
+              aria-current={
+                state.taskList === 'all' && current === view
+                  ? 'page'
+                  : undefined
+              }
               className={navButtonCss}
               data-active={
                 state.taskList === 'all' && current === view ? true : undefined
@@ -276,24 +202,29 @@ export const TaskWorkspaceNavigation = ({
             }
           >
             <span>{t('taskLists.title')}</span>
-            <div className={persistentNodeActionsCss} data-node-actions>
+            <div
+              className={taskNavigationActionsCss({
+                visibility: 'persistent',
+              })}
+              data-node-actions
+            >
               <Menu placement="bottom">
                 <Button
                   variant="tertiary"
                   size="icon24"
-                  className={nodeActionButtonCss}
+                  className={taskNavigationActionButtonCss}
                   aria-label={t('taskLists.title')}
                 >
                   <RiAddLine size={17} />
                 </Button>
                 <MenuList
                   aria-label={t('taskLists.title')}
-                  menuClassName={createMenuCss}
+                  menuClassName={taskNavigationMenuCss}
                   items={[
                     {
                       value: 'list',
                       label: (
-                        <span className={menuItemLabelCss}>
+                        <span className={taskNavigationMenuItemLabelCss}>
                           <RiListCheck size={16} />
                           {t('taskLists.create')}
                         </span>
@@ -302,7 +233,7 @@ export const TaskWorkspaceNavigation = ({
                     {
                       value: 'group',
                       label: (
-                        <span className={menuItemLabelCss}>
+                        <span className={taskNavigationMenuItemLabelCss}>
                           <RiFolderAddLine size={16} />
                           {t('taskListGroups.create')}
                         </span>
@@ -311,7 +242,7 @@ export const TaskWorkspaceNavigation = ({
                     {
                       value: 'archived',
                       label: (
-                        <span className={menuItemLabelCss}>
+                        <span className={taskNavigationMenuItemLabelCss}>
                           <RiHistoryLine size={16} />
                           {t('taskLists.archivedTitle')}
                         </span>
@@ -334,119 +265,22 @@ export const TaskWorkspaceNavigation = ({
               {ungroupedLists.map(renderTaskList)}
               {taskListGroups.map((group) => {
                 const collapsed = collapsedGroups.has(group.id)
-                const lists = taskLists.filter(
-                  (taskList) => taskList.list_group?.id === group.id
-                )
+                const lists = taskListsByGroup.get(group.id) || []
                 return (
-                  <section
+                  <TaskListGroupNavigationNode
                     key={group.id}
-                    className={listGroupCss}
+                    group={group}
+                    collapsed={collapsed}
+                    isEmpty={lists.length === 0}
+                    onToggle={() => toggleGroup(group.id)}
                     onDragOver={allowListDrop}
                     onDrop={(event) => dropList(event, group.id)}
+                    onCreateTaskList={() => onCreateTaskList(group.id)}
+                    onRename={() => onRenameTaskListGroup(group)}
+                    onDelete={() => onDeleteTaskListGroup(group)}
                   >
-                    <div className={listGroupHeaderCss}>
-                      <button
-                        type="button"
-                        aria-expanded={!collapsed}
-                        aria-label={t(
-                          collapsed
-                            ? 'taskListGroups.expand'
-                            : 'taskListGroups.collapse',
-                          { name: group.name }
-                        )}
-                        onClick={() => toggleGroup(group.id)}
-                      >
-                        {collapsed ? (
-                          <RiArrowRightSLine size={17} />
-                        ) : (
-                          <RiArrowDownSLine size={17} />
-                        )}
-                        <RiFolderLine size={16} />
-                        <span>{group.name}</span>
-                      </button>
-                      <div className={groupNodeActionsCss} data-node-actions>
-                        <Button
-                          variant="tertiary"
-                          size="icon24"
-                          className={nodeActionButtonCss}
-                          aria-label={t('taskListGroups.createListIn', {
-                            name: group.name,
-                          })}
-                          onPress={() => onCreateTaskList(group.id)}
-                        >
-                          <RiAddLine size={16} />
-                        </Button>
-                        <Menu placement="bottom">
-                          <Button
-                            variant="tertiary"
-                            size="icon24"
-                            className={nodeActionButtonCss}
-                            aria-label={t('taskListGroups.more', {
-                              name: group.name,
-                            })}
-                          >
-                            <RiMoreLine size={16} />
-                          </Button>
-                          <MenuList
-                            aria-label={t('taskListGroups.more', {
-                              name: group.name,
-                            })}
-                            menuClassName={createMenuCss}
-                            items={[
-                              {
-                                value: 'create',
-                                label: (
-                                  <span className={menuItemLabelCss}>
-                                    <RiAddLine size={16} />
-                                    {t('taskLists.create')}
-                                  </span>
-                                ),
-                              },
-                              {
-                                value: 'rename',
-                                label: (
-                                  <span className={menuItemLabelCss}>
-                                    <RiEditLine size={16} />
-                                    {t('taskListGroups.rename')}
-                                  </span>
-                                ),
-                                isDisabled: !group.can_manage,
-                              },
-                              {
-                                value: 'delete',
-                                label: (
-                                  <span className={menuItemLabelCss}>
-                                    <RiDeleteBinLine size={16} />
-                                    {t('taskListGroups.delete')}
-                                  </span>
-                                ),
-                                isDisabled: !group.can_manage,
-                              },
-                            ]}
-                            onAction={(action) => {
-                              if (action === 'create')
-                                onCreateTaskList(group.id)
-                              if (action === 'rename')
-                                onRenameTaskListGroup(group)
-                              if (action === 'delete')
-                                onDeleteTaskListGroup(group)
-                            }}
-                          />
-                        </Menu>
-                      </div>
-                    </div>
-                    {!collapsed && (
-                      <div className={groupListsCss}>
-                        {lists.length > 0 ? (
-                          lists.map(renderTaskList)
-                        ) : (
-                          <p className={emptyGroupCss}>
-                            {t('taskListGroups.empty')}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </section>
+                    {lists.map(renderTaskList)}
+                  </TaskListGroupNavigationNode>
                 )
               })}
             </>
@@ -528,74 +362,11 @@ const sectionHeaderCss = css({
   color: 'greyscale.700',
   fontSize: '0.8125rem',
   fontWeight: '600',
-  _hover: {
-    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
-  },
-  '&:has(:focus-visible)': {
-    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
-  },
   '&[data-list-drop-target]': {
     outline: '1px dashed token(colors.primary.400)',
     outlineOffset: '-2px',
     backgroundColor: 'selected.bg',
   },
-})
-const createMenuCss = css({ minWidth: '10rem', fontSize: '0.875rem' })
-const menuItemLabelCss = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-})
-const listGroupCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.125rem',
-})
-const listGroupHeaderCss = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.25rem',
-  marginTop: '0.25rem',
-  borderRadius: '8px',
-  color: 'greyscale.700',
-  _hover: {
-    backgroundColor: 'greyscale.100',
-    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
-  },
-  '& > button:first-child': {
-    minWidth: 0,
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.25rem',
-    padding: '0.5rem 0.25rem 0.5rem 0.625rem',
-    border: 0,
-    backgroundColor: 'transparent',
-    color: 'inherit',
-    cursor: 'pointer',
-    textAlign: 'left',
-    fontSize: '0.875rem',
-    fontWeight: '600',
-  },
-  '& span': {
-    minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-})
-const groupListsCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.125rem',
-  paddingLeft: '0.75rem',
-})
-const emptyGroupCss = css({
-  margin: 0,
-  padding: '0.25rem 0.625rem 0.5rem',
-  color: 'greyscale.500',
-  fontSize: '0.6875rem',
 })
 const emptyListsCss = css({
   margin: '0.25rem 0.5rem',
@@ -624,90 +395,11 @@ const navButtonCss = css({
   },
   _hover: { backgroundColor: 'greyscale.100' },
 })
-const taskListRowCss = css({
-  width: '100%',
-  display: 'flex',
-  alignItems: 'center',
-  borderRadius: '8px',
-  color: 'greyscale.700',
-  _hover: {
-    backgroundColor: 'greyscale.100',
-    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
-  },
-  '&:has(:focus-visible)': {
-    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
-  },
-  "&:has([aria-expanded='true'])": {
-    backgroundColor: 'greyscale.100',
-    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
-  },
-  '& > button:first-child': {
-    minWidth: 0,
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '0.75rem',
-    border: 0,
-    padding: '0.5rem 0.25rem 0.5rem 0.625rem',
-    backgroundColor: 'transparent',
-    color: 'inherit',
-    cursor: 'pointer',
-    textAlign: 'left',
-    fontSize: '0.875rem',
-  },
-  '&[data-active]': {
-    backgroundColor: 'selected.bg',
-    color: 'selected.text',
-    fontWeight: '500',
-  },
-})
-const nodeActionsCss = css({
-  flexShrink: 0,
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.125rem',
-  opacity: { base: 1, md: 0 },
-  pointerEvents: { base: 'auto', md: 'none' },
-  transition: 'opacity 120ms ease',
-  '&:has(:focus-visible)': { opacity: 1, pointerEvents: 'auto' },
-})
-const groupNodeActionsCss = css({
-  flexShrink: 0,
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.125rem',
-  opacity: { base: 1, md: 0 },
-  pointerEvents: { base: 'auto', md: 'none' },
-  transition: 'opacity 120ms ease',
-})
-const persistentNodeActionsCss = css({
-  flexShrink: 0,
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.125rem',
-})
-const nodeActionButtonCss = css({
-  backgroundColor: 'transparent!',
-  boxShadow: 'none!',
-  _hover: { backgroundColor: 'transparent!' },
-  _focus: { backgroundColor: 'transparent!' },
-  '&[data-pressed]': { backgroundColor: 'transparent!' },
-})
 const navLabelCss = css({
   minWidth: 0,
   display: 'flex',
   alignItems: 'center',
   gap: '0.625rem',
-})
-const listIconCss = css({
-  color: 'primary.500',
-  '&[data-color="grey"]': { color: 'greyscale.500' },
-  '&[data-color="green"]': { color: 'success.500' },
-  '&[data-color="yellow"]': { color: 'amber.500' },
-  '&[data-color="orange"]': { color: 'amber.600' },
-  '&[data-color="red"]': { color: 'danger.500' },
-  '&[data-color="purple"]': { color: 'purple.500' },
 })
 const mobileNavCss = css({
   display: { base: 'block', md: 'none' },

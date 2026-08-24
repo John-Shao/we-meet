@@ -582,6 +582,12 @@ class TaskListViewSet(
         ).distinct()
         queryset = queryset.filter(
             is_archived=self.request.query_params.get("archived") == "true"
+        ).annotate(
+            _task_count=Count(
+                "tasks",
+                filter=Q(tasks__parent__isnull=True),
+                distinct=True,
+            )
         )
         return queryset.select_related("creator", "list_group").prefetch_related(
             "groups",

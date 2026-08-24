@@ -714,6 +714,9 @@ class TaskListSerializer(serializers.ModelSerializer):
         return self.get_can_manage(obj) and not obj.is_archived
 
     def get_task_count(self, obj):
+        annotated = getattr(obj, "_task_count", None)
+        if annotated is not None:
+            return annotated
         request = self.context.get("request")
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
