@@ -878,17 +878,17 @@ const columnResizeHandleCss = css({
     opacity: 1,
     color: 'primary.500',
   },
-  '&::after': {
+  '&::before, &::after': {
     content: '""',
     position: 'absolute',
     top: '20%',
-    right: '0.125rem',
-    width: '4px',
+    width: '1px',
     height: '60%',
     borderRadius: 'full',
-    borderLeft: '1px solid currentColor',
-    borderRight: '1px solid currentColor',
+    backgroundColor: 'currentColor',
   },
+  '&::before': { left: '0.0625rem' },
+  '&::after': { right: '0.0625rem' },
 })
 const rowCss = css({
   cursor: 'pointer',
