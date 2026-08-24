@@ -531,7 +531,7 @@ const sectionHeaderCss = css({
   _hover: {
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
-  _focusWithin: {
+  '&:has(:focus-visible)': {
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
   '&[data-list-drop-target]': {
@@ -558,14 +558,18 @@ const listGroupHeaderCss = css({
   justifyContent: 'space-between',
   gap: '0.25rem',
   marginTop: '0.25rem',
+  borderRadius: '8px',
   color: 'greyscale.700',
   _hover: {
+    backgroundColor: 'greyscale.100',
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
-  _focusWithin: {
+  '&:has(:focus-visible)': {
+    backgroundColor: 'greyscale.100',
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
   "&:has([aria-expanded='true'])": {
+    backgroundColor: 'greyscale.100',
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
   '& > button:first-child': {
@@ -639,7 +643,7 @@ const taskListRowCss = css({
     backgroundColor: 'greyscale.100',
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
-  _focusWithin: {
+  '&:has(:focus-visible)': {
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
   "&:has([aria-expanded='true'])": {
@@ -675,7 +679,7 @@ const nodeActionsCss = css({
   opacity: { base: 1, md: 0 },
   pointerEvents: { base: 'auto', md: 'none' },
   transition: 'opacity 120ms ease',
-  _focusWithin: { opacity: 1, pointerEvents: 'auto' },
+  '&:has(:focus-visible)': { opacity: 1, pointerEvents: 'auto' },
 })
 const persistentNodeActionsCss = css({
   flexShrink: 0,
