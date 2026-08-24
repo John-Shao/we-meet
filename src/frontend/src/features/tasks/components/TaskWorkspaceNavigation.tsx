@@ -142,7 +142,7 @@ export const TaskWorkspaceNavigation = ({
       >
         <span className={navLabelCss}>
           <RiListCheck
-            size={18}
+            size={16}
             data-color={taskList.color}
             className={listIconCss}
           />
