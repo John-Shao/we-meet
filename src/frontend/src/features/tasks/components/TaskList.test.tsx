@@ -147,6 +147,18 @@ describe('TaskList', () => {
     expect(priorityHeader).toHaveStyle({ width: '80px' })
   })
 
+  it('keeps a non-interactive gutter after the last resizable column', () => {
+    render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
+
+    const table = screen.getByRole('table')
+    const lastHeader = table.querySelector('th[data-column="updatedAt"]')!
+    const gutterHeader = lastHeader.nextElementSibling
+
+    expect(gutterHeader).toHaveAttribute('aria-hidden', 'true')
+    expect(gutterHeader).toHaveStyle({ width: '16px' })
+    expect(within(gutterHeader as HTMLElement).queryByRole('slider')).toBeNull()
+  })
+
   it('renders task-list groups and creates a task in the selected group', () => {
     const onCreateTaskInGroup = vi.fn()
     render(

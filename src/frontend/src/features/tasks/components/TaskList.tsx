@@ -35,6 +35,7 @@ const TASK_COLUMNS = [
   { id: 'creator', defaultWidth: 120, minWidth: 88, maxWidth: 320 },
   { id: 'updatedAt', defaultWidth: 160, minWidth: 128, maxWidth: 360 },
 ] as const
+const DESKTOP_TABLE_COLUMN_COUNT = TASK_COLUMNS.length + 1
 
 type TaskColumnId = (typeof TASK_COLUMNS)[number]['id']
 type TaskColumnWidths = Record<TaskColumnId, number>
@@ -254,6 +255,11 @@ export const TaskList = ({
                 </th>
               )
             })}
+            <th
+              aria-hidden="true"
+              className={tableGutterCellCss}
+              style={{ width: 16 }}
+            />
           </tr>
         </thead>
         <tbody>
@@ -336,12 +342,12 @@ const DesktopTaskGroup = (props: GroupProps) => {
       />
       {expanded && subtasks.isLoading && (
         <tr className={subtaskStateRowCss}>
-          <td colSpan={8}>{t('subtasks.loading')}</td>
+          <td colSpan={DESKTOP_TABLE_COLUMN_COUNT}>{t('subtasks.loading')}</td>
         </tr>
       )}
       {expanded && subtasks.error && (
         <tr className={subtaskStateRowCss}>
-          <td colSpan={8}>{t('subtasks.error')}</td>
+          <td colSpan={DESKTOP_TABLE_COLUMN_COUNT}>{t('subtasks.error')}</td>
         </tr>
       )}
       {expanded &&
@@ -410,6 +416,7 @@ const DesktopTaskRow = ({
     <td>{t(`statuses.${task.status}`)}</td>
     <td className={secondaryColumnCss}>{taskDisplayName(task.creator)}</td>
     <td className={wideColumnCss}>{formatDateTime(task.updated_at)}</td>
+    <td aria-hidden="true" className={tableGutterCellCss} />
   </tr>
 )
 
@@ -638,7 +645,7 @@ const DesktopGroupHeader = ({
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => dropTask(event, section.group?.id, onMoveTask)}
     >
-      <td colSpan={8}>
+      <td colSpan={DESKTOP_TABLE_COLUMN_COUNT}>
         <div className={groupHeaderCss}>
           <button
             type="button"
@@ -811,9 +818,9 @@ const columnClassName = (columnId: TaskColumnId) => {
 const tableCss = css({
   display: { base: 'none', md: 'table' },
   width: {
-    md: 'max(100%, 720px)',
-    lg: 'max(100%, 960px)',
-    xl: 'max(100%, 1120px)',
+    md: 'max(100%, 736px)',
+    lg: 'max(100%, 976px)',
+    xl: 'max(100%, 1136px)',
   },
   borderCollapse: 'collapse',
   tableLayout: 'fixed',
@@ -839,6 +846,12 @@ const tableCss = css({
     whiteSpace: 'nowrap',
     fontSize: '0.8125rem',
   },
+})
+const tableGutterCellCss = css({
+  width: '1rem',
+  minWidth: '1rem',
+  padding: '0!important',
+  pointerEvents: 'none',
 })
 const columnResizeHandleCss = css({
   position: 'absolute',
