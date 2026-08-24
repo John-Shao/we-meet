@@ -1,14 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiDeleteBinLine, RiListCheck } from '@remixicon/react'
 
-import { useConfirm } from '@/components/ConfirmProvider'
 import { Button, Input, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
 import type { ApiTaskList, ApiTaskListGroup, TaskColor } from '../api/ApiTask'
-import { useCreateTaskList, useDeleteTaskList } from '../api/fetchTasks'
+import { useCreateTaskList } from '../api/fetchTasks'
 
 const colors: TaskColor[] = [
   'grey',
@@ -21,22 +19,18 @@ const colors: TaskColor[] = [
 ]
 
 export const TaskListManager = ({
-  taskLists,
   taskListGroups,
   defaultListGroupId,
   onCreated,
   onCancel,
 }: {
-  taskLists: ApiTaskList[]
   taskListGroups: ApiTaskListGroup[]
   defaultListGroupId?: string
   onCreated?: (taskList: ApiTaskList) => void
   onCancel: () => void
 }) => {
   const { t } = useTranslation('tasks')
-  const { confirm } = useConfirm()
   const createMutation = useCreateTaskList()
-  const deleteMutation = useDeleteTaskList()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [color, setColor] = useState<TaskColor>('blue')
@@ -59,16 +53,6 @@ export const TaskListManager = ({
     } catch {
       // Keep the draft visible for correction or retry.
     }
-  }
-
-  const remove = async (taskList: ApiTaskList) => {
-    const accepted = await confirm({
-      title: t('taskLists.deleteTitle'),
-      message: t('taskLists.deleteDescription', { name: taskList.name }),
-      confirmLabel: t('taskLists.deleteConfirm'),
-      danger: true,
-    })
-    if (accepted) deleteMutation.mutate(taskList.id)
   }
 
   return (
@@ -139,45 +123,6 @@ export const TaskListManager = ({
           </Button>
         </div>
       </form>
-
-      {taskLists.length > 0 && (
-        <section className={existingListsCss}>
-          <h3>{t('taskLists.title')}</h3>
-          <ul className={listCss}>
-            {taskLists.map((taskList) => (
-              <li key={taskList.id}>
-                <RiListCheck
-                  size={19}
-                  data-color={taskList.color}
-                  className={iconCss}
-                />
-                <div>
-                  <strong>{taskList.name}</strong>
-                  <span>
-                    {t('taskLists.taskCount', { count: taskList.task_count })}
-                  </span>
-                </div>
-                {taskList.can_manage && (
-                  <Button
-                    variant="quaternaryDanger"
-                    size="icon28"
-                    aria-label={t('taskLists.deleteNamed', {
-                      name: taskList.name,
-                    })}
-                    loading={
-                      deleteMutation.isPending &&
-                      deleteMutation.variables === taskList.id
-                    }
-                    onPress={() => void remove(taskList)}
-                  >
-                    <RiDeleteBinLine size={16} />
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   )
 }
@@ -209,33 +154,6 @@ const formActionsCss = css({
   gap: '0.5rem',
   paddingTop: '0.25rem',
 })
-const existingListsCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.625rem',
-  '& > h3': { margin: 0, color: 'default.text', fontSize: '0.875rem' },
-})
-const listCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.5rem',
-  margin: 0,
-  padding: 0,
-  listStyle: 'none',
-  '& li': {
-    display: 'grid',
-    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
-    alignItems: 'center',
-    gap: '0.75rem',
-    padding: '0.75rem',
-    border: '1px solid token(colors.greyscale.200)',
-    borderRadius: '8px',
-  },
-  '& li > div': { display: 'flex', flexDirection: 'column' },
-  '& strong': { fontSize: '0.8125rem' },
-  '& span': { color: 'default.subtle-text', fontSize: '0.6875rem' },
-})
-const iconCss = css({ color: 'primary.500' })
 const errorCss = css({
   gridColumn: '1 / -1',
   margin: 0,

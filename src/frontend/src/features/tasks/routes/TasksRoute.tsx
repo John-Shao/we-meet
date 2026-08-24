@@ -454,7 +454,6 @@ const TasksAuthenticated = () => {
             />
           </div>
           <TaskListManager
-            taskLists={taskLists}
             taskListGroups={taskListGroups}
             defaultListGroupId={taskListCreateGroupId}
             onCancel={() => setTaskListManagerOpen(false)}
