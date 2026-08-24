@@ -101,6 +101,9 @@ export interface ApiTask {
   source_room_name: string | null
   can_edit: boolean
   can_update_status: boolean
+  can_cancel: boolean
+  can_comment: boolean
+  can_manage_attachments: boolean
   time_state: TaskTimeState | null
   created_at: string
   updated_at: string

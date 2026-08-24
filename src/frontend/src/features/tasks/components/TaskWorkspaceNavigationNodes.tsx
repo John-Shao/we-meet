@@ -124,7 +124,7 @@ export const TaskListNavigationRow = ({
                     {t('taskLists.leave')}
                   </span>
                 ),
-                isDisabled: !onLeave,
+                isDisabled: !taskList.can_remove || !onLeave,
               },
               ...(taskList.can_delete && onDelete
                 ? [

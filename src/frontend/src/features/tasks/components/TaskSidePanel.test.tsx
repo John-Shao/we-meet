@@ -27,8 +27,12 @@ vi.mock('../api/fetchTasks', () => ({
 }))
 
 vi.mock('./TaskCollaborationSections', () => ({
-  TaskAttachmentsSection: () => null,
-  TaskCommentsSection: () => null,
+  TaskAttachmentsSection: ({ readOnly }: { readOnly?: boolean }) => (
+    <div data-testid="attachments" data-read-only={String(Boolean(readOnly))} />
+  ),
+  TaskCommentsSection: ({ readOnly }: { readOnly?: boolean }) => (
+    <div data-testid="comments" data-read-only={String(Boolean(readOnly))} />
+  ),
   TaskHistorySection: () => null,
 }))
 
@@ -61,6 +65,9 @@ const task: ApiTask = {
   source_room_name: null,
   can_edit: false,
   can_update_status: false,
+  can_cancel: false,
+  can_comment: false,
+  can_manage_attachments: false,
   time_state: null,
   created_at: '2026-08-21T08:00:00Z',
   updated_at: '2026-08-21T09:00:00Z',
@@ -143,6 +150,31 @@ describe('TaskDetailPanel', () => {
         taskId: task.id,
         patch: { title: 'Ship release' },
       })
+    )
+  })
+
+  it('uses dedicated collaboration capabilities for comments and attachments', () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{
+          ...task,
+          can_update_status: true,
+          can_comment: true,
+          can_manage_attachments: false,
+        }}
+        taskLists={[]}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('comments')).toHaveAttribute(
+      'data-read-only',
+      'false'
+    )
+    expect(screen.getByTestId('attachments')).toHaveAttribute(
+      'data-read-only',
+      'true'
     )
   })
 })

@@ -1,6 +1,7 @@
 """Task-list, custom-group, and workload API coverage."""
 
 from datetime import timedelta
+from unittest import mock
 
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -9,10 +10,18 @@ from django.utils import timezone
 import pytest
 from rest_framework.test import APIClient
 
-from core.factories import MembershipFactory, OrganizationFactory, UserFactory
+from core.factories import (
+    FileFactory,
+    MembershipFactory,
+    OrganizationFactory,
+    UserFactory,
+)
 from core.models import (
+    FileTypeChoices,
+    FileUploadStateChoices,
     Task,
     TaskActivity,
+    TaskAttachment,
     TaskGroup,
     TaskList,
     TaskListAccess,
@@ -65,6 +74,7 @@ def test_task_lists_and_groups_are_scoped_and_managed_by_their_creator():
     assert created.json()["can_manage"] is True
     assert created.json()["list_group"] is None
     assert created.json()["groups"] == []
+    assert created.json()["can_remove"] is False
 
     group = client.post(
         f"{TASK_LISTS_URL}{task_list.id}/groups/",
@@ -151,6 +161,12 @@ def test_task_list_sharing_enforces_viewer_and_editor_permissions():
         title="Visible through list access",
         task_list_id=task_list_id,
     )
+    group = TaskGroup.objects.create(
+        task_list_id=task_list_id,
+        name="Shared group",
+    )
+    task.group = group
+    task.save(update_fields=["group", "updated_at"])
 
     shared = owner_client.post(
         f"{TASK_LISTS_URL}{task_list_id}/shares/",
@@ -181,6 +197,7 @@ def test_task_list_sharing_enforces_viewer_and_editor_permissions():
     assert listed["access_role"] == "viewer"
     assert listed["can_manage"] is False
     assert listed["can_delete"] is False
+    assert listed["groups"][0]["task_count"] == 1
     visible_tasks = colleague_client.get(
         TASKS_URL,
         {"scope": "all", "task_list": task_list_id},
@@ -200,6 +217,7 @@ def test_task_list_sharing_enforces_viewer_and_editor_permissions():
         ).status_code
         == 403
     )
+
     assert (
         colleague_client.patch(
             f"{TASKS_URL}{task.id}/", {"status": "completed"}, format="json"
@@ -215,6 +233,21 @@ def test_task_list_sharing_enforces_viewer_and_editor_permissions():
         == 403
     )
 
+    task.assignee = colleague
+    task.save(update_fields=["assignee", "updated_at"])
+    collaborator_detail = colleague_client.get(f"{TASKS_URL}{task.id}/")
+    assert collaborator_detail.json()["can_comment"] is True
+    assert collaborator_detail.json()["can_manage_attachments"] is True
+    assert collaborator_detail.json()["can_cancel"] is False
+    assert (
+        colleague_client.post(
+            f"{TASKS_URL}{task.id}/comments/",
+            {"content": "Allowed for the assignee"},
+            format="json",
+        ).status_code
+        == 201
+    )
+
     changed = owner_client.patch(
         f"{TASK_LISTS_URL}{task_list_id}/shares/{colleague.id}/",
         {"role": "editor"},
@@ -228,9 +261,38 @@ def test_task_list_sharing_enforces_viewer_and_editor_permissions():
         ).status_code
         == 200
     )
+    assert (
+        colleague_client.patch(
+            f"{TASKS_URL}{task.id}/",
+            {"status": Task.Status.CANCELED},
+            format="json",
+        ).status_code
+        == 403
+    )
+    assert (
+        owner_client.patch(
+            f"{TASKS_URL}{task.id}/",
+            {"status": Task.Status.CANCELED},
+            format="json",
+        ).status_code
+        == 200
+    )
+    canceled_detail = colleague_client.get(f"{TASKS_URL}{task.id}/").json()
+    assert canceled_detail["can_update_status"] is False
+    assert canceled_detail["can_cancel"] is False
+    assert (
+        colleague_client.patch(
+            f"{TASKS_URL}{task.id}/",
+            {"status": Task.Status.TODO},
+            format="json",
+        ).status_code
+        == 403
+    )
 
 
-def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks():
+def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks(
+    django_capture_on_commit_callbacks,
+):
     organization, owner = _organization_user()
     _, editor = _organization_user(organization=organization)
     owner_client = _client(owner)
@@ -256,6 +318,12 @@ def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks():
         title="Delete orphan",
         task_list_id=task_list_id,
     )
+    file = FileFactory(
+        creator=owner,
+        type=FileTypeChoices.TASK_ATTACHMENT,
+        update_upload_state=FileUploadStateChoices.READY,
+    )
+    TaskAttachment.objects.create(task=orphan, file=file, uploader=owner)
 
     editor_client = _client(editor)
     archived = editor_client.patch(
@@ -293,13 +361,79 @@ def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks():
     assert editor_client.post(f"{TASK_LISTS_URL}{task_list_id}/leave/").status_code == 204
     assert editor_client.get(TASK_LISTS_URL).json() == []
 
-    deleted = owner_client.delete(
-        f"{TASK_LISTS_URL}{task_list_id}/?delete_unassigned=true"
+    assert (
+        owner_client.post(f"{TASK_LISTS_URL}{task_list_id}/leave/").status_code == 403
     )
+    assert TaskListAccess.objects.filter(
+        task_list_id=task_list_id,
+        user=owner,
+        role=TaskListAccess.Role.OWNER,
+    ).exists()
+
+    with (
+        mock.patch("core.api.tasks.process_file_deletion.delay") as deletion,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        deleted = owner_client.delete(
+            f"{TASK_LISTS_URL}{task_list_id}/?delete_unassigned=true"
+        )
     assert deleted.status_code == 204
     assigned.refresh_from_db()
     assert assigned.task_list is None
     assert not Task.objects.filter(id=orphan.id).exists()
+    file.refresh_from_db()
+    assert file.deleted_at is not None
+    assert file.hard_deleted_at is not None
+    deletion.assert_called_once_with(file.id)
+
+
+def test_shared_task_permissions_do_not_add_queries_per_task():
+    organization, owner = _organization_user()
+    _, editor = _organization_user(organization=organization)
+    task_list = TaskList.objects.create(
+        organization=organization,
+        creator=owner,
+        name="Query count",
+    )
+    TaskListAccess.objects.bulk_create(
+        [
+            TaskListAccess(
+                task_list=task_list,
+                user=owner,
+                role=TaskListAccess.Role.OWNER,
+            ),
+            TaskListAccess(
+                task_list=task_list,
+                user=editor,
+                role=TaskListAccess.Role.EDITOR,
+            ),
+        ]
+    )
+
+    def create_task(index):
+        return Task.objects.create(
+            organization=organization,
+            creator=owner,
+            title=f"Shared task {index}",
+            task_list=task_list,
+        )
+
+    create_task(1)
+    client = _client(editor)
+    params = {"scope": "all", "task_list": str(task_list.id)}
+    client.get(TASKS_URL, params)
+    with CaptureQueriesContext(connection) as single_task_queries:
+        single_response = client.get(TASKS_URL, params)
+
+    for index in range(2, 6):
+        create_task(index)
+    with CaptureQueriesContext(connection) as multiple_task_queries:
+        multiple_response = client.get(TASKS_URL, params)
+
+    assert single_response.status_code == 200
+    assert multiple_response.status_code == 200
+    assert multiple_response.json()["count"] == 5
+    assert len(multiple_task_queries) == len(single_task_queries)
 
 
 def test_task_list_groups_organize_lists_and_enforce_management_permissions():

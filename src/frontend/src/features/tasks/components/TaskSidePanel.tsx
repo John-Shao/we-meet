@@ -512,7 +512,7 @@ export const TaskDetailPanel = ({
           <DetailSection title={t('comments.title')}>
             <TaskCommentsSection
               taskId={task.id}
-              readOnly={!task.can_edit && !task.can_update_status}
+              readOnly={!task.can_comment}
             />
           </DetailSection>
           <details className={disclosureCss}>
@@ -520,7 +520,7 @@ export const TaskDetailPanel = ({
             <div className={disclosureBodyCss}>
               <TaskAttachmentsSection
                 taskId={task.id}
-                readOnly={!task.can_edit && !task.can_update_status}
+                readOnly={!task.can_manage_attachments}
               />
             </div>
           </details>

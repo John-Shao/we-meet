@@ -33,7 +33,7 @@ export const TaskBoard = ({
     if (
       !task.can_update_status ||
       ((task.status === 'canceled' || status === 'canceled') &&
-        !task.can_edit) ||
+        !task.can_cancel) ||
       task.status === status ||
       !transitions[task.status].includes(status)
     ) {
@@ -74,7 +74,7 @@ export const TaskBoard = ({
                   data-selected={selectedTaskId === task.id || undefined}
                   draggable={
                     task.can_update_status &&
-                    (task.status !== 'canceled' || task.can_edit)
+                    (task.status !== 'canceled' || task.can_cancel)
                   }
                   onDragStart={(event) => startTaskDrag(event, task)}
                   onClick={() => onOpen(task)}
@@ -110,7 +110,7 @@ export const TaskBoard = ({
 const startTaskDrag = (event: DragEvent<HTMLButtonElement>, task: ApiTask) => {
   if (
     !task.can_update_status ||
-    (task.status === 'canceled' && !task.can_edit)
+    (task.status === 'canceled' && !task.can_cancel)
   ) {
     event.preventDefault()
     return

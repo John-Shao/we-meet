@@ -47,7 +47,7 @@ const taskList = (
   can_manage: true,
   can_share: true,
   can_archive: true,
-  can_remove: true,
+  can_remove: false,
   can_delete: true,
   can_create_tasks: true,
   task_count: 2,
@@ -210,13 +210,16 @@ describe('TaskWorkspaceNavigation', () => {
       ['taskLists.share', onShareTaskList],
       ['taskLists.rename', onRenameTaskList],
       ['taskLists.archive', onArchiveTaskList],
-      ['taskLists.leave', onLeaveTaskList],
       ['taskLists.delete', onDeleteTaskList],
     ] as const) {
       openListMenu()
       fireEvent.click(screen.getByRole('menuitem', { name: action }))
       expect(callback).toHaveBeenCalledOnce()
     }
+
+    openListMenu()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'taskLists.leave' }))
+    expect(onLeaveTaskList).not.toHaveBeenCalled()
   })
 
   it('does not expose delete to a non-owner', () => {

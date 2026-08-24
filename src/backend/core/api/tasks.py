@@ -6,8 +6,10 @@ from django.db.models import (
     Case,
     CharField,
     Count,
+    Exists,
     F,
     IntegerField,
+    OuterRef,
     Prefetch,
     Q,
     Value,
@@ -88,6 +90,29 @@ def _task_list_role(task_list, user):
 
 def _can_edit_task_list(task_list, user):
     return _task_list_role(task_list, user) in TASK_LIST_EDIT_ROLES
+
+
+def _can_collaborate_on_task(task, user):
+    return user.id in {task.creator_id, task.assignee_id} or _can_edit_task_list(
+        task.task_list, user
+    )
+
+
+def _delete_tasks_with_attachments(queryset):
+    """Delete tasks while applying the normal persisted-file cleanup lifecycle."""
+
+    files = list(
+        models.File.objects.filter(task_attachment__task__in=queryset).distinct()
+    )
+    for file in files:
+        if file.deleted_at is None:
+            file.soft_delete()
+        if file.hard_deleted_at is None:
+            file.hard_delete()
+        transaction.on_commit(
+            lambda file_id=file.id: process_file_deletion.delay(file_id)
+        )
+    queryset.delete()
 
 
 def _person_name_expression(relation):
@@ -583,7 +608,12 @@ class TaskListViewSet(
             is_archived=self.request.query_params.get("archived") == "true"
         ).annotate(_task_count=Count("tasks", distinct=True))
         return queryset.select_related("creator", "list_group").prefetch_related(
-            "groups",
+            Prefetch(
+                "groups",
+                queryset=models.TaskGroup.objects.annotate(
+                    _task_count=Count("tasks", distinct=True)
+                ),
+            ),
             Prefetch(
                 "accesses",
                 queryset=models.TaskListAccess.objects.filter(
@@ -629,7 +659,9 @@ class TaskListViewSet(
         self._ensure_is_owner(task_list)
         with transaction.atomic():
             if request.query_params.get("delete_unassigned") == "true":
-                task_list.tasks.filter(assignee__isnull=True).delete()
+                _delete_tasks_with_attachments(
+                    task_list.tasks.filter(assignee__isnull=True)
+                )
             task_list.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -719,11 +751,11 @@ class TaskListViewSet(
         access = get_object_or_404(
             models.TaskListAccess, task_list=task_list, user=request.user
         )
-        with transaction.atomic():
-            if access.role == models.TaskListAccess.Role.OWNER:
-                task_list.creator = None
-                task_list.save(update_fields=["creator", "updated_at"])
-            access.delete()
+        if access.role == models.TaskListAccess.Role.OWNER:
+            raise PermissionDenied(
+                "The task-list owner must delete the task list instead of leaving it."
+            )
+        access.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["get", "post"])
@@ -732,7 +764,9 @@ class TaskListViewSet(
         if request.method == "GET":
             return Response(
                 TaskGroupSerializer(
-                    task_list.groups.all(),
+                    task_list.groups.annotate(
+                        _task_count=Count("tasks", distinct=True)
+                    ),
                     many=True,
                     context={"request": request},
                 ).data
@@ -879,6 +913,15 @@ class TaskViewSet(
                 Q(creator=user) | Q(assignee=user) | Q(task_list__accesses__user=user)
             )
             .distinct()
+            .annotate(
+                _can_edit_task_list=Exists(
+                    models.TaskListAccess.objects.filter(
+                        task_list_id=OuterRef("task_list_id"),
+                        user=user,
+                        role__in=TASK_LIST_EDIT_ROLES,
+                    )
+                )
+            )
             .select_related(
                 "creator",
                 "assignee",
@@ -974,13 +1017,9 @@ class TaskViewSet(
                 and (requested_fields != {"status"} or not can_update_status_directly)
             ):
                 raise PermissionDenied("Assignees can only update the task status.")
-            if (
-                task.creator_id != request.user.id
-                and not can_edit_list
-                and (
-                    task.status == models.Task.Status.CANCELED
-                    or request.data.get("status") == models.Task.Status.CANCELED
-                )
+            if task.creator_id != request.user.id and (
+                task.status == models.Task.Status.CANCELED
+                or request.data.get("status") == models.Task.Status.CANCELED
             ):
                 raise PermissionDenied(
                     "Only the task creator can cancel or reopen a canceled task."
@@ -1126,10 +1165,8 @@ class TaskViewSet(
             comments = task.comments.select_related("author").order_by("created_at")
             return Response(TaskCommentSerializer(comments, many=True).data)
 
-        if task.task_list_id and not _can_edit_task_list(task.task_list, request.user):
-            raise PermissionDenied(
-                "Only task-list editors and the owner can add comments."
-            )
+        if not _can_collaborate_on_task(task, request.user):
+            raise PermissionDenied("Only task collaborators can add comments.")
 
         serializer = TaskCommentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -1153,10 +1190,8 @@ class TaskViewSet(
             )
             return Response(TaskAttachmentSerializer(attachments, many=True).data)
 
-        if task.task_list_id and not _can_edit_task_list(task.task_list, request.user):
-            raise PermissionDenied(
-                "Only task-list editors and the owner can add attachments."
-            )
+        if not _can_collaborate_on_task(task, request.user):
+            raise PermissionDenied("Only task collaborators can add attachments.")
 
         serializer = TaskAttachmentCreateSerializer(
             data=request.data,
@@ -1198,10 +1233,8 @@ class TaskViewSet(
     def attachment_remove(self, request, attachment_id=None, *args, **kwargs):
         """Remove an attachment and queue deletion from its persisted bucket."""
         task = self.get_object()
-        if task.task_list_id and not _can_edit_task_list(task.task_list, request.user):
-            raise PermissionDenied(
-                "Only task-list editors and the owner can remove attachments."
-            )
+        if not _can_collaborate_on_task(task, request.user):
+            raise PermissionDenied("Only task collaborators can remove attachments.")
         attachment = get_object_or_404(
             task.attachments.select_related("file"),
             id=attachment_id,

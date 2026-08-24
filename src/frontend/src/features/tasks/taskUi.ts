@@ -11,20 +11,20 @@ const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
 }
 
 export const nextTaskStatuses = (
-  task: Pick<ApiTask, 'status' | 'can_edit'>
+  task: Pick<ApiTask, 'status' | 'can_cancel'>
 ): TaskStatus[] => {
-  if (task.status === 'canceled' && !task.can_edit) return []
+  if (task.status === 'canceled' && !task.can_cancel) return []
   return statusTransitions[task.status].filter(
-    (status) => status !== 'canceled' || task.can_edit
+    (status) => status !== 'canceled' || task.can_cancel
   )
 }
 
 export const quickTaskStatus = (
-  task: Pick<ApiTask, 'status' | 'can_edit' | 'can_update_status'>
+  task: Pick<ApiTask, 'status' | 'can_cancel' | 'can_update_status'>
 ): TaskStatus | undefined => {
   if (!task.can_update_status) return undefined
   if (task.status === 'todo' || task.status === 'in_progress')
     return 'completed'
   if (task.status === 'completed') return 'todo'
-  return task.can_edit ? 'todo' : undefined
+  return task.can_cancel ? 'todo' : undefined
 }

@@ -617,18 +617,16 @@ class TaskGroupSerializer(serializers.ModelSerializer):
     task_count = serializers.SerializerMethodField()
     can_delete = serializers.SerializerMethodField()
 
+    @staticmethod
+    def _task_count(obj):
+        annotated = getattr(obj, "_task_count", None)
+        return annotated if annotated is not None else obj.tasks.count()
+
     def get_can_delete(self, obj):
-        return not obj.tasks.exists()
+        return self._task_count(obj) == 0
 
     def get_task_count(self, obj):
-        annotated = getattr(obj, "_task_count", None)
-        if annotated is not None:
-            return annotated
-        request = self.context.get("request")
-        user = getattr(request, "user", None)
-        if user is None or not user.is_authenticated:
-            return 0
-        return obj.tasks.filter(Q(creator=user) | Q(assignee=user)).distinct().count()
+        return self._task_count(obj)
 
     class Meta:
         model = models.TaskGroup
@@ -700,7 +698,8 @@ class TaskListSerializer(serializers.ModelSerializer):
         return self.get_can_manage(obj)
 
     def get_can_remove(self, obj):
-        return self._access_role(obj) is not None
+        role = self._access_role(obj)
+        return role is not None and role != models.TaskListAccess.Role.OWNER
 
     def get_can_delete(self, obj):
         return self._access_role(obj) == models.TaskListAccess.Role.OWNER
@@ -798,6 +797,9 @@ class TaskSerializer(serializers.ModelSerializer):
     source_room_name = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     can_update_status = serializers.SerializerMethodField()
+    can_cancel = serializers.SerializerMethodField()
+    can_comment = serializers.SerializerMethodField()
+    can_manage_attachments = serializers.SerializerMethodField()
     time_state = serializers.SerializerMethodField()
     task_list = TaskListSummarySerializer(read_only=True)
     group = TaskGroupSummarySerializer(read_only=True)
@@ -812,15 +814,31 @@ class TaskSerializer(serializers.ModelSerializer):
             return False
         if obj.creator_id == user.id:
             return True
+        return self._can_edit_task_list(obj, user)
+
+    @staticmethod
+    def _can_edit_task_list(obj, user):
+        if not obj.task_list_id:
+            return False
+        annotated = getattr(obj, "_can_edit_task_list", None)
+        if annotated is not None:
+            return bool(annotated)
+        return obj.task_list.accesses.filter(
+            user=user,
+            role__in=[
+                models.TaskListAccess.Role.EDITOR,
+                models.TaskListAccess.Role.OWNER,
+            ],
+        ).exists()
+
+    def _can_collaborate(self, obj, user):
         return bool(
-            obj.task_list_id
-            and obj.task_list.accesses.filter(
-                user=user,
-                role__in=[
-                    models.TaskListAccess.Role.EDITOR,
-                    models.TaskListAccess.Role.OWNER,
-                ],
-            ).exists()
+            user
+            and user.is_authenticated
+            and (
+                user.id in {obj.creator_id, obj.assignee_id}
+                or self._can_edit_task_list(obj, user)
+            )
         )
 
     def get_can_update_status(self, obj):
@@ -830,16 +848,7 @@ class TaskSerializer(serializers.ModelSerializer):
             and user.is_authenticated
             and (
                 user.id in {obj.creator_id, obj.assignee_id}
-                or (
-                    obj.task_list_id
-                    and obj.task_list.accesses.filter(
-                        user=user,
-                        role__in=[
-                            models.TaskListAccess.Role.EDITOR,
-                            models.TaskListAccess.Role.OWNER,
-                        ],
-                    ).exists()
-                )
+                or self._can_edit_task_list(obj, user)
             )
         )
         if (
@@ -849,6 +858,16 @@ class TaskSerializer(serializers.ModelSerializer):
         ):
             return False
         return can_update
+
+    def get_can_cancel(self, obj):
+        user = self._request_user()
+        return bool(user and user.is_authenticated and obj.creator_id == user.id)
+
+    def get_can_comment(self, obj):
+        return self._can_collaborate(obj, self._request_user())
+
+    def get_can_manage_attachments(self, obj):
+        return self._can_collaborate(obj, self._request_user())
 
     def get_time_state(self, obj):
         user = self._request_user()
@@ -890,6 +909,9 @@ class TaskSerializer(serializers.ModelSerializer):
             "source_room_name",
             "can_edit",
             "can_update_status",
+            "can_cancel",
+            "can_comment",
+            "can_manage_attachments",
             "time_state",
             "created_at",
             "updated_at",

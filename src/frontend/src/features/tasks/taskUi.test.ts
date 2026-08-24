@@ -5,9 +5,9 @@ import { nextTaskStatuses, quickTaskStatus } from './taskUi'
 
 const permissions = (
   status: ApiTask['status'],
-  canEdit: boolean,
+  canCancel: boolean,
   canUpdateStatus = true
-) => ({ status, can_edit: canEdit, can_update_status: canUpdateStatus })
+) => ({ status, can_cancel: canCancel, can_update_status: canUpdateStatus })
 
 describe('task workbench status actions', () => {
   it('keeps cancellation exclusive to the creator', () => {
@@ -16,6 +16,8 @@ describe('task workbench status actions', () => {
       'completed',
     ])
     expect(nextTaskStatuses(permissions('todo', true))).toContain('canceled')
+    expect(nextTaskStatuses(permissions('canceled', false))).toEqual([])
+    expect(nextTaskStatuses(permissions('canceled', true))).toEqual(['todo'])
   })
 
   it('only exposes a quick status action when the API grants permission', () => {
