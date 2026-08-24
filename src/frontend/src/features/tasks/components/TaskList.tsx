@@ -251,7 +251,16 @@ export const TaskList = ({
                       resizeColumnWithKeyboard(column.id, event)
                     }
                     onDoubleClick={() => resetColumnWidth(column.id)}
-                  />
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={columnResizeGripLineCss}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className={columnResizeGripLineCss}
+                    />
+                  </button>
                 </th>
               )
             })}
@@ -857,12 +866,16 @@ const columnResizeHandleCss = css({
   position: 'absolute',
   top: 0,
   right: '-0.25rem',
-  width: '0.5rem',
+  width: '0.875rem',
   height: '100%',
   zIndex: 2,
+  boxSizing: 'border-box',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
   cursor: 'col-resize',
   touchAction: 'none',
-  padding: 0,
+  padding: '0 0.0625rem',
   border: 0,
   backgroundColor: 'transparent',
   color: 'greyscale.400',
@@ -878,17 +891,13 @@ const columnResizeHandleCss = css({
     opacity: 1,
     color: 'primary.500',
   },
-  '&::before, &::after': {
-    content: '""',
-    position: 'absolute',
-    top: '20%',
-    width: '1px',
-    height: '60%',
-    borderRadius: 'full',
-    backgroundColor: 'currentColor',
-  },
-  '&::before': { left: '0.0625rem' },
-  '&::after': { right: '0.0625rem' },
+})
+const columnResizeGripLineCss = css({
+  width: '1px',
+  height: '60%',
+  flexShrink: 0,
+  borderRadius: 'full',
+  backgroundColor: 'currentColor',
 })
 const rowCss = css({
   cursor: 'pointer',

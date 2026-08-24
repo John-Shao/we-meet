@@ -147,7 +147,7 @@ describe('TaskList', () => {
     expect(priorityHeader).toHaveStyle({ width: '80px' })
   })
 
-  it('keeps a non-interactive gutter after the last resizable column', () => {
+  it('keeps a gutter after double-line resize handles', () => {
     render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
     const table = screen.getByRole('table')
@@ -157,6 +157,9 @@ describe('TaskList', () => {
     expect(gutterHeader).toHaveAttribute('aria-hidden', 'true')
     expect(gutterHeader).toHaveStyle({ width: '8px' })
     expect(within(gutterHeader as HTMLElement).queryByRole('slider')).toBeNull()
+    for (const handle of within(table).getAllByRole('slider')) {
+      expect(handle.children).toHaveLength(2)
+    }
   })
 
   it('renders task-list groups and creates a task in the selected group', () => {
