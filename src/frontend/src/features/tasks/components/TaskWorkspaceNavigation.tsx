@@ -150,80 +150,83 @@ export const TaskWorkspaceNavigation = ({
         </span>
         <span>{taskList.task_count}</span>
       </button>
-      <Menu placement="bottom">
-        <Button
-          variant="tertiary"
-          size="icon24"
-          aria-label={t('taskLists.more', { name: taskList.name })}
-        >
-          <RiMoreLine size={16} />
-        </Button>
-        <MenuList
-          aria-label={t('taskLists.more', { name: taskList.name })}
-          menuClassName={createMenuCss}
-          items={[
-            {
-              value: 'share',
-              label: (
-                <span className={menuItemLabelCss}>
-                  <RiShareLine size={16} />
-                  {t('taskLists.share')}
-                </span>
-              ),
-              isDisabled: !taskList.can_share,
-            },
-            {
-              value: 'rename',
-              label: (
-                <span className={menuItemLabelCss}>
-                  <RiEditLine size={16} />
-                  {t('taskLists.rename')}
-                </span>
-              ),
-              isDisabled: !taskList.can_manage,
-            },
-            {
-              value: 'archive',
-              label: (
-                <span className={menuItemLabelCss}>
-                  <RiArchiveLine size={16} />
-                  {t('taskLists.archive')}
-                </span>
-              ),
-              isDisabled: !taskList.can_archive,
-            },
-            {
-              value: 'leave',
-              label: (
-                <span className={menuItemLabelCss}>
-                  <RiLogoutBoxRLine size={16} />
-                  {t('taskLists.leave')}
-                </span>
-              ),
-            },
-            ...(taskList.can_delete
-              ? [
-                  {
-                    value: 'delete',
-                    label: (
-                      <span className={menuItemLabelCss}>
-                        <RiDeleteBinLine size={16} />
-                        {t('taskLists.delete')}
-                      </span>
-                    ),
-                  },
-                ]
-              : []),
-          ]}
-          onAction={(action) => {
-            if (action === 'share') onShareTaskList?.(taskList)
-            if (action === 'rename') onRenameTaskList?.(taskList)
-            if (action === 'archive') onArchiveTaskList?.(taskList)
-            if (action === 'leave') onLeaveTaskList?.(taskList)
-            if (action === 'delete') onDeleteTaskList?.(taskList)
-          }}
-        />
-      </Menu>
+      <div className={nodeActionsCss} data-node-actions>
+        <Menu placement="bottom">
+          <Button
+            variant="tertiary"
+            size="icon24"
+            className={nodeActionButtonCss}
+            aria-label={t('taskLists.more', { name: taskList.name })}
+          >
+            <RiMoreLine size={16} />
+          </Button>
+          <MenuList
+            aria-label={t('taskLists.more', { name: taskList.name })}
+            menuClassName={createMenuCss}
+            items={[
+              {
+                value: 'share',
+                label: (
+                  <span className={menuItemLabelCss}>
+                    <RiShareLine size={16} />
+                    {t('taskLists.share')}
+                  </span>
+                ),
+                isDisabled: !taskList.can_share,
+              },
+              {
+                value: 'rename',
+                label: (
+                  <span className={menuItemLabelCss}>
+                    <RiEditLine size={16} />
+                    {t('taskLists.rename')}
+                  </span>
+                ),
+                isDisabled: !taskList.can_manage,
+              },
+              {
+                value: 'archive',
+                label: (
+                  <span className={menuItemLabelCss}>
+                    <RiArchiveLine size={16} />
+                    {t('taskLists.archive')}
+                  </span>
+                ),
+                isDisabled: !taskList.can_archive,
+              },
+              {
+                value: 'leave',
+                label: (
+                  <span className={menuItemLabelCss}>
+                    <RiLogoutBoxRLine size={16} />
+                    {t('taskLists.leave')}
+                  </span>
+                ),
+              },
+              ...(taskList.can_delete
+                ? [
+                    {
+                      value: 'delete',
+                      label: (
+                        <span className={menuItemLabelCss}>
+                          <RiDeleteBinLine size={16} />
+                          {t('taskLists.delete')}
+                        </span>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+            onAction={(action) => {
+              if (action === 'share') onShareTaskList?.(taskList)
+              if (action === 'rename') onRenameTaskList?.(taskList)
+              if (action === 'archive') onArchiveTaskList?.(taskList)
+              if (action === 'leave') onLeaveTaskList?.(taskList)
+              if (action === 'delete') onDeleteTaskList?.(taskList)
+            }}
+          />
+        </Menu>
+      </div>
     </div>
   )
   return (
@@ -274,53 +277,56 @@ export const TaskWorkspaceNavigation = ({
             }
           >
             <span>{t('taskLists.title')}</span>
-            <Menu placement="bottom">
-              <Button
-                variant="tertiary"
-                size="sm"
-                aria-label={t('taskLists.title')}
-              >
-                <RiAddLine size={17} />
-              </Button>
-              <MenuList
-                aria-label={t('taskLists.title')}
-                menuClassName={createMenuCss}
-                items={[
-                  {
-                    value: 'list',
-                    label: (
-                      <span className={menuItemLabelCss}>
-                        <RiListCheck size={16} />
-                        {t('taskLists.create')}
-                      </span>
-                    ),
-                  },
-                  {
-                    value: 'group',
-                    label: (
-                      <span className={menuItemLabelCss}>
-                        <RiFolderAddLine size={16} />
-                        {t('taskListGroups.create')}
-                      </span>
-                    ),
-                  },
-                  {
-                    value: 'archived',
-                    label: (
-                      <span className={menuItemLabelCss}>
-                        <RiHistoryLine size={16} />
-                        {t('taskLists.archivedTitle')}
-                      </span>
-                    ),
-                  },
-                ]}
-                onAction={(action) => {
-                  if (action === 'list') onCreateTaskList()
-                  if (action === 'group') onCreateTaskListGroup()
-                  if (action === 'archived') onOpenArchivedTaskLists?.()
-                }}
-              />
-            </Menu>
+            <div className={nodeActionsCss} data-node-actions>
+              <Menu placement="bottom">
+                <Button
+                  variant="tertiary"
+                  size="icon24"
+                  className={nodeActionButtonCss}
+                  aria-label={t('taskLists.title')}
+                >
+                  <RiAddLine size={17} />
+                </Button>
+                <MenuList
+                  aria-label={t('taskLists.title')}
+                  menuClassName={createMenuCss}
+                  items={[
+                    {
+                      value: 'list',
+                      label: (
+                        <span className={menuItemLabelCss}>
+                          <RiListCheck size={16} />
+                          {t('taskLists.create')}
+                        </span>
+                      ),
+                    },
+                    {
+                      value: 'group',
+                      label: (
+                        <span className={menuItemLabelCss}>
+                          <RiFolderAddLine size={16} />
+                          {t('taskListGroups.create')}
+                        </span>
+                      ),
+                    },
+                    {
+                      value: 'archived',
+                      label: (
+                        <span className={menuItemLabelCss}>
+                          <RiHistoryLine size={16} />
+                          {t('taskLists.archivedTitle')}
+                        </span>
+                      ),
+                    },
+                  ]}
+                  onAction={(action) => {
+                    if (action === 'list') onCreateTaskList()
+                    if (action === 'group') onCreateTaskListGroup()
+                    if (action === 'archived') onOpenArchivedTaskLists?.()
+                  }}
+                />
+              </Menu>
+            </div>
           </div>
           {taskLists.length === 0 && taskListGroups.length === 0 ? (
             <p className={emptyListsCss}>{t('taskLists.empty')}</p>
@@ -359,61 +365,76 @@ export const TaskWorkspaceNavigation = ({
                         <RiFolderLine size={16} />
                         <span>{group.name}</span>
                       </button>
-                      <Menu placement="bottom">
+                      <div className={nodeActionsCss} data-node-actions>
                         <Button
                           variant="tertiary"
                           size="icon24"
-                          aria-label={t('taskListGroups.more', {
+                          className={nodeActionButtonCss}
+                          aria-label={t('taskListGroups.createListIn', {
                             name: group.name,
                           })}
+                          onPress={() => onCreateTaskList(group.id)}
                         >
-                          <RiMoreLine size={16} />
+                          <RiAddLine size={16} />
                         </Button>
-                        <MenuList
-                          aria-label={t('taskListGroups.more', {
-                            name: group.name,
-                          })}
-                          menuClassName={createMenuCss}
-                          items={[
-                            {
-                              value: 'create',
-                              label: (
-                                <span className={menuItemLabelCss}>
-                                  <RiAddLine size={16} />
-                                  {t('taskLists.create')}
-                                </span>
-                              ),
-                            },
-                            {
-                              value: 'rename',
-                              label: (
-                                <span className={menuItemLabelCss}>
-                                  <RiEditLine size={16} />
-                                  {t('taskListGroups.rename')}
-                                </span>
-                              ),
-                              isDisabled: !group.can_manage,
-                            },
-                            {
-                              value: 'delete',
-                              label: (
-                                <span className={menuItemLabelCss}>
-                                  <RiDeleteBinLine size={16} />
-                                  {t('taskListGroups.delete')}
-                                </span>
-                              ),
-                              isDisabled: !group.can_manage,
-                            },
-                          ]}
-                          onAction={(action) => {
-                            if (action === 'create') onCreateTaskList(group.id)
-                            if (action === 'rename')
-                              onRenameTaskListGroup(group)
-                            if (action === 'delete')
-                              onDeleteTaskListGroup(group)
-                          }}
-                        />
-                      </Menu>
+                        <Menu placement="bottom">
+                          <Button
+                            variant="tertiary"
+                            size="icon24"
+                            className={nodeActionButtonCss}
+                            aria-label={t('taskListGroups.more', {
+                              name: group.name,
+                            })}
+                          >
+                            <RiMoreLine size={16} />
+                          </Button>
+                          <MenuList
+                            aria-label={t('taskListGroups.more', {
+                              name: group.name,
+                            })}
+                            menuClassName={createMenuCss}
+                            items={[
+                              {
+                                value: 'create',
+                                label: (
+                                  <span className={menuItemLabelCss}>
+                                    <RiAddLine size={16} />
+                                    {t('taskLists.create')}
+                                  </span>
+                                ),
+                              },
+                              {
+                                value: 'rename',
+                                label: (
+                                  <span className={menuItemLabelCss}>
+                                    <RiEditLine size={16} />
+                                    {t('taskListGroups.rename')}
+                                  </span>
+                                ),
+                                isDisabled: !group.can_manage,
+                              },
+                              {
+                                value: 'delete',
+                                label: (
+                                  <span className={menuItemLabelCss}>
+                                    <RiDeleteBinLine size={16} />
+                                    {t('taskListGroups.delete')}
+                                  </span>
+                                ),
+                                isDisabled: !group.can_manage,
+                              },
+                            ]}
+                            onAction={(action) => {
+                              if (action === 'create')
+                                onCreateTaskList(group.id)
+                              if (action === 'rename')
+                                onRenameTaskListGroup(group)
+                              if (action === 'delete')
+                                onDeleteTaskListGroup(group)
+                            }}
+                          />
+                        </Menu>
+                      </div>
                     </div>
                     {!collapsed && (
                       <div className={groupListsCss}>
@@ -508,6 +529,12 @@ const sectionHeaderCss = css({
   color: 'greyscale.700',
   fontSize: '0.8125rem',
   fontWeight: '600',
+  _hover: {
+    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
+  },
+  _focusWithin: {
+    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
+  },
   '&[data-list-drop-target]': {
     outline: '1px dashed token(colors.primary.400)',
     outlineOffset: '-2px',
@@ -533,6 +560,12 @@ const listGroupHeaderCss = css({
   gap: '0.25rem',
   marginTop: '0.25rem',
   color: 'greyscale.700',
+  _hover: {
+    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
+  },
+  _focusWithin: {
+    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
+  },
   '& > button:first-child': {
     minWidth: 0,
     flex: 1,
@@ -600,6 +633,13 @@ const taskListRowCss = css({
   alignItems: 'center',
   borderRadius: '8px',
   color: 'greyscale.700',
+  _hover: {
+    backgroundColor: 'greyscale.100',
+    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
+  },
+  _focusWithin: {
+    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
+  },
   '& > button:first-child': {
     minWidth: 0,
     flex: 1,
@@ -620,7 +660,23 @@ const taskListRowCss = css({
     color: 'selected.text',
     fontWeight: '500',
   },
-  _hover: { backgroundColor: 'greyscale.100' },
+})
+const nodeActionsCss = css({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.125rem',
+  opacity: { base: 1, md: 0 },
+  pointerEvents: { base: 'auto', md: 'none' },
+  transition: 'opacity 120ms ease',
+  _focusWithin: { opacity: 1, pointerEvents: 'auto' },
+})
+const nodeActionButtonCss = css({
+  backgroundColor: 'transparent!',
+  boxShadow: 'none!',
+  _hover: { backgroundColor: 'transparent!' },
+  _focus: { backgroundColor: 'transparent!' },
+  '&[data-pressed]': { backgroundColor: 'transparent!' },
 })
 const navLabelCss = css({
   minWidth: 0,

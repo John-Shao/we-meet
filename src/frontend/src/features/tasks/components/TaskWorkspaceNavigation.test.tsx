@@ -135,6 +135,11 @@ describe('TaskWorkspaceNavigation', () => {
     expect(onMoveTaskList).toHaveBeenCalledWith('list-2', listGroup.id)
 
     fireEvent.click(
+      screen.getByRole('button', { name: 'taskListGroups.createListIn' })
+    )
+    expect(onCreateTaskList).toHaveBeenCalledWith(listGroup.id)
+
+    fireEvent.click(
       screen.getByRole('button', { name: 'taskListGroups.collapse' })
     )
     expect(screen.queryByText('Hiring')).not.toBeInTheDocument()
