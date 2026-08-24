@@ -258,7 +258,7 @@ export const TaskList = ({
             <th
               aria-hidden="true"
               className={tableGutterCellCss}
-              style={{ width: 16 }}
+              style={{ width: 8 }}
             />
           </tr>
         </thead>
@@ -818,9 +818,9 @@ const columnClassName = (columnId: TaskColumnId) => {
 const tableCss = css({
   display: { base: 'none', md: 'table' },
   width: {
-    md: 'max(100%, 736px)',
-    lg: 'max(100%, 976px)',
-    xl: 'max(100%, 1136px)',
+    md: 'max(100%, 728px)',
+    lg: 'max(100%, 968px)',
+    xl: 'max(100%, 1128px)',
   },
   borderCollapse: 'collapse',
   tableLayout: 'fixed',
@@ -848,8 +848,8 @@ const tableCss = css({
   },
 })
 const tableGutterCellCss = css({
-  width: '1rem',
-  minWidth: '1rem',
+  width: '0.5rem',
+  minWidth: '0.5rem',
   padding: '0!important',
   pointerEvents: 'none',
 })
@@ -865,28 +865,29 @@ const columnResizeHandleCss = css({
   padding: 0,
   border: 0,
   backgroundColor: 'transparent',
+  color: 'greyscale.400',
   outline: 'none',
   opacity: 0,
-  transition: 'opacity token(durations.fast)',
-  _hover: { '&::after': { backgroundColor: 'primary.500' } },
+  transition: 'opacity token(durations.fast), color token(durations.fast)',
+  _hover: { color: 'primary.500' },
   _focusVisible: {
     opacity: 1,
-    '&::after': { backgroundColor: 'primary.500' },
+    color: 'primary.500',
   },
   '&[data-resizing]': {
     opacity: 1,
-    '&::after': { backgroundColor: 'primary.500' },
+    color: 'primary.500',
   },
   '&::after': {
     content: '""',
     position: 'absolute',
     top: '20%',
-    right: '0.1875rem',
-    width: '2px',
+    right: '0.125rem',
+    width: '4px',
     height: '60%',
     borderRadius: 'full',
-    backgroundColor: 'greyscale.400',
-    transition: 'background-color token(durations.fast)',
+    borderLeft: '1px solid currentColor',
+    borderRight: '1px solid currentColor',
   },
 })
 const rowCss = css({

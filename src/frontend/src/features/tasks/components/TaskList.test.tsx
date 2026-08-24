@@ -155,7 +155,7 @@ describe('TaskList', () => {
     const gutterHeader = lastHeader.nextElementSibling
 
     expect(gutterHeader).toHaveAttribute('aria-hidden', 'true')
-    expect(gutterHeader).toHaveStyle({ width: '16px' })
+    expect(gutterHeader).toHaveStyle({ width: '8px' })
     expect(within(gutterHeader as HTMLElement).queryByRole('slider')).toBeNull()
   })
 
