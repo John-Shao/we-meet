@@ -830,6 +830,7 @@ const tableCss = css({
     fontWeight: '500',
     textAlign: 'left',
   },
+  '& th:hover > [role="slider"]': { opacity: 1 },
   '& td': {
     padding: '0.625rem 0.75rem',
     borderBottom: '1px solid token(colors.greyscale.200)',
@@ -852,9 +853,17 @@ const columnResizeHandleCss = css({
   border: 0,
   backgroundColor: 'transparent',
   outline: 'none',
+  opacity: 0,
+  transition: 'opacity token(durations.fast)',
   _hover: { '&::after': { backgroundColor: 'primary.500' } },
-  _focusVisible: { '&::after': { backgroundColor: 'primary.500' } },
-  '&[data-resizing]::after': { backgroundColor: 'primary.500' },
+  _focusVisible: {
+    opacity: 1,
+    '&::after': { backgroundColor: 'primary.500' },
+  },
+  '&[data-resizing]': {
+    opacity: 1,
+    '&::after': { backgroundColor: 'primary.500' },
+  },
   '&::after': {
     content: '""',
     position: 'absolute',
@@ -863,7 +872,7 @@ const columnResizeHandleCss = css({
     width: '2px',
     height: '60%',
     borderRadius: 'full',
-    backgroundColor: 'transparent',
+    backgroundColor: 'greyscale.400',
     transition: 'background-color token(durations.fast)',
   },
 })
