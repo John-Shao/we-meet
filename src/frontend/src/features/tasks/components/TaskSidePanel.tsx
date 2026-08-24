@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
   type RefObject,
@@ -17,7 +18,7 @@ import {
   RiUserAddLine,
 } from '@remixicon/react'
 
-import { ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalCloseButton } from '@/components/Modal'
 import { ContactPicker, type DirectoryMember } from '@/features/contacts'
 import { Button, Input, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
@@ -53,6 +54,7 @@ type EditableTaskField =
 
 export const CreateTaskPanel = ({
   taskLists,
+  parentTaskId,
   defaultTaskListId,
   defaultGroupId,
   titleInputRef,
@@ -60,6 +62,7 @@ export const CreateTaskPanel = ({
   onCreated,
 }: {
   taskLists: ApiTaskList[]
+  parentTaskId?: string
   defaultTaskListId?: string
   defaultGroupId?: string
   titleInputRef?: RefObject<HTMLInputElement>
@@ -67,14 +70,16 @@ export const CreateTaskPanel = ({
   onCreated: (task: ApiTask) => void
 }) => {
   const { t } = useTranslation('tasks')
+  const title = t(parentTaskId ? 'subtasks.create' : 'workspace.createTitle')
   return (
     <>
       <header className={createDialogHeaderCss}>
-        <h2>{t('workspace.createTitle')}</h2>
+        <h2>{title}</h2>
         <ModalCloseButton label={t('workspace.closePanel')} onClose={onClose} />
       </header>
       <TaskForm
         taskLists={taskLists}
+        parentTaskId={parentTaskId}
         defaultTaskListId={defaultTaskListId}
         defaultGroupId={defaultGroupId}
         titleInputRef={titleInputRef}
@@ -108,6 +113,8 @@ export const TaskDetailPanel = ({
   const [draftTaskListId, setDraftTaskListId] = useState('')
   const [draftGroupId, setDraftGroupId] = useState('')
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
+  const [creatingSubtask, setCreatingSubtask] = useState(false)
+  const subtaskTitleRef = useRef<HTMLInputElement>(null)
   const patchMutation = usePatchTask()
   const focusInput = useCallback((element: HTMLInputElement | null) => {
     element?.focus()
@@ -119,6 +126,7 @@ export const TaskDetailPanel = ({
   useEffect(() => {
     setEditingField(null)
     setAssigneePickerOpen(false)
+    setCreatingSubtask(false)
   }, [taskId])
 
   if (!task && isLoading) {
@@ -511,7 +519,10 @@ export const TaskDetailPanel = ({
           )}
 
           <DetailSection title={t('subtasks.title')}>
-            <TaskSubtasksSection taskId={task.id} />
+            <TaskSubtasksSection
+              taskId={task.id}
+              onCreate={() => setCreatingSubtask(true)}
+            />
           </DetailSection>
           <DetailSection title={t('comments.title')}>
             <TaskCommentsSection
@@ -536,6 +547,23 @@ export const TaskDetailPanel = ({
           </details>
         </div>
       </div>
+      {creatingSubtask && (
+        <Modal
+          ariaLabel={t('subtasks.create')}
+          onClose={() => setCreatingSubtask(false)}
+          initialFocusRef={subtaskTitleRef}
+          maxWidth="560px"
+          maxHeight="82vh"
+        >
+          <CreateTaskPanel
+            taskLists={taskLists}
+            parentTaskId={task.id}
+            titleInputRef={subtaskTitleRef}
+            onClose={() => setCreatingSubtask(false)}
+            onCreated={() => setCreatingSubtask(false)}
+          />
+        </Modal>
+      )}
     </PanelShell>
   )
 }

@@ -9,16 +9,13 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { useConfirm } from '@/components/ConfirmProvider'
-import { ContactPicker, type DirectoryMember } from '@/features/contacts'
-import { Button, Input, TextArea } from '@/primitives'
-import { Select } from '@/primitives/Select'
+import { Button, TextArea } from '@/primitives'
 import { css } from '@/styled-system/css'
 
-import type { ApiTaskActivity, TaskPriority } from '../api/ApiTask'
+import type { ApiTaskActivity } from '../api/ApiTask'
 import {
   useCreateTaskAttachment,
   useCreateTaskComment,
-  useCreateTaskSubtask,
   useDeleteTaskAttachment,
   usePatchTask,
   useTaskActivities,
@@ -30,45 +27,16 @@ import { nextTaskStatuses, taskDisplayName } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskUserAvatar, TaskUserDisplay } from './TaskUserDisplay'
 
-const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
-
-export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
+export const TaskSubtasksSection = ({
+  taskId,
+  onCreate,
+}: {
+  taskId: string
+  onCreate: () => void
+}) => {
   const { t, i18n } = useTranslation('tasks')
-  const [title, setTitle] = useState('')
-  const [assignee, setAssignee] = useState<DirectoryMember | null>(null)
-  const [startDate, setStartDate] = useState('')
-  const [dueDate, setDueDate] = useState('')
-  const [priority, setPriority] = useState<TaskPriority>('none')
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [adding, setAdding] = useState(false)
   const { data, isLoading, error } = useTaskSubtasks(taskId)
-  const createMutation = useCreateTaskSubtask()
   const patchMutation = usePatchTask()
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!title.trim()) return
-    try {
-      await createMutation.mutateAsync({
-        taskId,
-        payload: {
-          title: title.trim(),
-          assignee_id: assignee?.id,
-          start_date: startDate || null,
-          due_date: dueDate || null,
-          priority,
-        },
-      })
-      setTitle('')
-      setAssignee(null)
-      setStartDate('')
-      setDueDate('')
-      setPriority('none')
-      setAdding(false)
-    } catch {
-      // Keep the entered values available for retry.
-    }
-  }
 
   const formatDate = (value: string | null) => {
     if (!value) return t('meta.none')
@@ -132,113 +100,9 @@ export const TaskSubtasksSection = ({ taskId }: { taskId: string }) => {
           ))}
         </ul>
       </AsyncState>
-      {adding ? (
-        <form
-          onSubmit={(event) => void submit(event)}
-          className={subtaskFormCss}
-        >
-          <label className={fieldCss}>
-            {t('subtasks.titleLabel')}
-            <Input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder={t('subtasks.titlePlaceholder')}
-              maxLength={500}
-              required
-            />
-          </label>
-          <div className={subtaskOptionsCss}>
-            <Button
-              type="button"
-              size="dense"
-              variant="secondary"
-              className={css({ justifyContent: 'flex-start' })}
-              onPress={() => setPickerOpen(true)}
-            >
-              {assignee ? (
-                <TaskUserDisplay user={assignee} />
-              ) : (
-                t('form.assigneeSelf')
-              )}
-            </Button>
-            <Select
-              label={t('form.priority')}
-              aria-label={t('form.priority')}
-              items={priorities.map((value) => ({
-                value,
-                label: t(`priorities.${value}`),
-              }))}
-              selectedKey={priority}
-              onSelectionChange={(key) =>
-                setPriority(String(key) as TaskPriority)
-              }
-            />
-          </div>
-          <div className={dateGridCss}>
-            <label className={fieldCss}>
-              {t('form.startDate')}
-              <Input
-                type="date"
-                value={startDate}
-                max={dueDate || undefined}
-                onChange={(event) => setStartDate(event.target.value)}
-              />
-            </label>
-            <label className={fieldCss}>
-              {t('form.dueDate')}
-              <Input
-                type="date"
-                value={dueDate}
-                min={startDate || undefined}
-                onChange={(event) => setDueDate(event.target.value)}
-              />
-            </label>
-          </div>
-          {createMutation.error && (
-            <p role="alert" className={errorCss}>
-              {t('subtasks.createError')}
-            </p>
-          )}
-          <div className={subtaskFormActionsCss}>
-            <Button
-              type="button"
-              size="dense"
-              variant="secondary"
-              onPress={() => setAdding(false)}
-            >
-              {t('actions.cancelEdit')}
-            </Button>
-            <Button
-              type="submit"
-              size="dense"
-              loading={createMutation.isPending}
-              isDisabled={!title.trim()}
-            >
-              {t('subtasks.create')}
-            </Button>
-          </div>
-        </form>
-      ) : (
-        <button
-          type="button"
-          className={addSubtaskCss}
-          onClick={() => setAdding(true)}
-        >
-          + {t('subtasks.create')}
-        </button>
-      )}
-      {pickerOpen && (
-        <ContactPicker
-          includeSelf
-          title={t('form.selectAssignee')}
-          searchPlaceholder={t('form.searchAssignee')}
-          onClose={() => setPickerOpen(false)}
-          onSelect={(member) => {
-            setAssignee(member)
-            setPickerOpen(false)
-          }}
-        />
-      )}
+      <button type="button" className={addSubtaskCss} onClick={onCreate}>
+        + {t('subtasks.create')}
+      </button>
     </section>
   )
 }
@@ -611,27 +475,6 @@ const stackCss = css({
   flexDirection: 'column',
   gap: '0.75rem',
 })
-const subtaskFormCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.75rem',
-  padding: '0.75rem',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '8px',
-  backgroundColor: 'greyscale.50',
-})
-const subtaskOptionsCss = css({
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-  alignItems: 'end',
-  gap: '0.5rem',
-  fontSize: '0.8125rem',
-})
-const subtaskFormActionsCss = css({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: '0.5rem',
-})
 const addSubtaskCss = css({
   alignSelf: 'flex-start',
   border: 0,
@@ -647,11 +490,6 @@ const fieldCss = css({
   gap: '0.375rem',
   color: 'default.text',
   fontSize: '0.875rem',
-})
-const dateGridCss = css({
-  display: 'grid',
-  gridTemplateColumns: { base: '1fr', sm: '1fr 1fr' },
-  gap: '0.75rem',
 })
 const listCss = css({
   listStyle: 'none',

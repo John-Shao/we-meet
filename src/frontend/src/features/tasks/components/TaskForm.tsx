@@ -19,13 +19,14 @@ import type {
   ApiTaskUser,
   TaskPriority,
 } from '../api/ApiTask'
-import { useCreateTask } from '../api/fetchTasks'
+import { useCreateTask, useCreateTaskSubtask } from '../api/fetchTasks'
 import { TaskUserDisplay } from './TaskUserDisplay'
 
 const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
 
 export const TaskForm = ({
   taskLists,
+  parentTaskId,
   defaultTaskListId,
   defaultGroupId,
   titleInputRef,
@@ -33,6 +34,7 @@ export const TaskForm = ({
   onSaved,
 }: {
   taskLists: ApiTaskList[]
+  parentTaskId?: string
   defaultTaskListId?: string
   defaultGroupId?: string
   titleInputRef?: RefObject<HTMLInputElement>
@@ -50,6 +52,7 @@ export const TaskForm = ({
   const [dueDate, setDueDate] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const createMutation = useCreateTask()
+  const createSubtaskMutation = useCreateTaskSubtask()
   const today = dateInputValue(new Date())
   const tomorrowDate = new Date()
   tomorrowDate.setDate(tomorrowDate.getDate() + 1)
@@ -71,7 +74,12 @@ export const TaskForm = ({
         start_date: startDate || null,
         due_date: dueDate || null,
       }
-      const saved = await createMutation.mutateAsync(payload)
+      const saved = parentTaskId
+        ? await createSubtaskMutation.mutateAsync({
+            taskId: parentTaskId,
+            payload,
+          })
+        : await createMutation.mutateAsync(payload)
       onSaved(saved)
     } catch {
       // Preserve the draft so the user can correct it or retry.
@@ -131,7 +139,7 @@ export const TaskForm = ({
             </Button>
           </div>
 
-          {taskLists.length > 0 && (
+          {!parentTaskId && taskLists.length > 0 && (
             <div className={createPropertyRowCss} data-align-start>
               <RiListCheck3 size={19} aria-hidden="true" />
               <div className={placementControlsCss}>
@@ -245,9 +253,9 @@ export const TaskForm = ({
           </details>
         </div>
 
-        {createMutation.error && (
+        {(createMutation.error || createSubtaskMutation.error) && (
           <p role="alert" className={errorCss}>
-            {t('error')}
+            {t(parentTaskId ? 'subtasks.createError' : 'error')}
           </p>
         )}
       </div>
@@ -263,10 +271,10 @@ export const TaskForm = ({
         <Button
           type="submit"
           size="action"
-          loading={createMutation.isPending}
+          loading={createMutation.isPending || createSubtaskMutation.isPending}
           isDisabled={!title.trim()}
         >
-          {t('workspace.createSubmit')}
+          {t(parentTaskId ? 'subtasks.create' : 'workspace.createSubmit')}
         </Button>
       </div>
       {picker}
