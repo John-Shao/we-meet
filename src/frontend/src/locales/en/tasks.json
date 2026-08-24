@@ -90,6 +90,21 @@
       "purple": "Purple"
     }
   },
+  "taskListGroups": {
+    "title": "List groups",
+    "field": "List group",
+    "none": "No group",
+    "create": "New list group",
+    "name": "Group name",
+    "namePlaceholder": "For example: Team management",
+    "createListIn": "Create a task list in {{name}}",
+    "empty": "Drag a task list here or use + to create one",
+    "moveToUngrouped": "Move task list out of its group",
+    "collapse": "Collapse {{name}}",
+    "expand": "Expand {{name}}",
+    "error": "The list group could not be created. Please try again.",
+    "closeCreate": "Close new list group dialog"
+  },
   "groups": {
     "field": "Group",
     "name": "Group name",

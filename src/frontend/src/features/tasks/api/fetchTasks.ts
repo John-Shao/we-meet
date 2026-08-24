@@ -14,6 +14,7 @@ import { toApiPath } from '@/features/contacts/api/fetchDirectoryMembers'
 import type {
   ApiTask,
   ApiTaskList,
+  ApiTaskListGroup,
   ApiTaskGroup,
   ApiTaskStatistics,
   ApiTaskActivity,
@@ -98,10 +99,39 @@ export const useTaskLists = () =>
     queryFn: fetchTaskLists,
   })
 
+const fetchTaskListGroups = () =>
+  fetchApi<ApiTaskListGroup[]>('task-list-groups/')
+
+export const useTaskListGroups = () =>
+  useQuery<ApiTaskListGroup[], ApiError>({
+    queryKey: ['task-list-groups'],
+    queryFn: fetchTaskListGroups,
+  })
+
+const createTaskListGroup = (payload: { name: string; sort_order?: number }) =>
+  fetchApi<ApiTaskListGroup>('task-list-groups/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const useCreateTaskListGroup = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskListGroup,
+    ApiError,
+    { name: string; sort_order?: number }
+  >({
+    mutationFn: createTaskListGroup,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['task-list-groups'] }),
+  })
+}
+
 const createTaskList = (payload: {
   name: string
   description?: string
   color: ApiTaskList['color']
+  list_group_id?: string | null
 }) =>
   fetchApi<ApiTaskList>('task-lists/', {
     method: 'POST',
@@ -113,11 +143,18 @@ export const useCreateTaskList = () => {
   return useMutation<
     ApiTaskList,
     ApiError,
-    { name: string; description?: string; color: ApiTaskList['color'] }
+    {
+      name: string
+      description?: string
+      color: ApiTaskList['color']
+      list_group_id?: string | null
+    }
   >({
     mutationFn: createTaskList,
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['task-lists'] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['task-list-groups'] })
+    },
   })
 }
 
@@ -132,7 +169,35 @@ export const useDeleteTaskList = () => {
     mutationFn: deleteTaskList,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['task-list-groups'] })
       void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+const moveTaskListToGroup = ({
+  taskListId,
+  listGroupId,
+}: {
+  taskListId: string
+  listGroupId: string | null
+}) =>
+  fetchApi<ApiTaskList>(`task-lists/${encodeURIComponent(taskListId)}/`, {
+    method: 'PATCH',
+    body: JSON.stringify({ list_group_id: listGroupId }),
+  })
+
+export const useMoveTaskListToGroup = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskList,
+    ApiError,
+    { taskListId: string; listGroupId: string | null }
+  >({
+    mutationFn: moveTaskListToGroup,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['task-list-groups'] })
     },
   })
 }

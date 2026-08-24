@@ -1,18 +1,23 @@
+import { useState, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RiAddLine,
+  RiArrowDownSLine,
+  RiArrowRightSLine,
   RiCheckboxCircleLine,
   RiFileAddLine,
+  RiFolderAddLine,
+  RiFolderLine,
   RiListCheck3,
   RiListCheck,
   RiUserLine,
 } from '@remixicon/react'
 
-import { Button } from '@/primitives'
+import { Button, Menu, MenuList } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
-import type { ApiTaskList } from '../api/ApiTask'
+import type { ApiTaskList, ApiTaskListGroup } from '../api/ApiTask'
 import type {
   TaskWorkspaceState,
   TaskWorkspaceView,
@@ -29,19 +34,98 @@ export const TaskWorkspaceNavigation = ({
   state,
   count,
   taskLists,
+  taskListGroups,
   onChange,
   onTaskListChange,
   onCreateTaskList,
+  onCreateTaskListGroup,
+  onMoveTaskList,
 }: {
   state: TaskWorkspaceState
   count: number
   taskLists: ApiTaskList[]
+  taskListGroups: ApiTaskListGroup[]
   onChange: (view: TaskWorkspaceView) => void
   onTaskListChange: (taskListId: string) => void
-  onCreateTaskList: () => void
+  onCreateTaskList: (listGroupId?: string) => void
+  onCreateTaskListGroup: () => void
+  onMoveTaskList: (taskListId: string, listGroupId: string | null) => void
 }) => {
   const { t } = useTranslation('tasks')
   const current = activeView(state)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [draggedTaskListId, setDraggedTaskListId] = useState<string>()
+  const knownGroupIds = new Set(taskListGroups.map((group) => group.id))
+  const ungroupedLists = taskLists.filter(
+    (taskList) =>
+      !taskList.list_group || !knownGroupIds.has(taskList.list_group.id)
+  )
+  const toggleGroup = (groupId: string) => {
+    setCollapsedGroups((currentGroups) => {
+      const nextGroups = new Set(currentGroups)
+      if (nextGroups.has(groupId)) nextGroups.delete(groupId)
+      else nextGroups.add(groupId)
+      return nextGroups
+    })
+  }
+  const startListDrag = (
+    event: DragEvent<HTMLButtonElement>,
+    taskList: ApiTaskList
+  ) => {
+    if (!taskList.can_manage) {
+      event.preventDefault()
+      return
+    }
+    setDraggedTaskListId(taskList.id)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('application/x-we-meet-task-list', taskList.id)
+  }
+  const allowListDrop = (event: DragEvent<HTMLElement>) => {
+    if (!draggedTaskListId) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+  }
+  const dropList = (
+    event: DragEvent<HTMLElement>,
+    listGroupId: string | null
+  ) => {
+    event.preventDefault()
+    const taskListId =
+      event.dataTransfer.getData('application/x-we-meet-task-list') ||
+      draggedTaskListId
+    setDraggedTaskListId(undefined)
+    if (!taskListId) return
+    const taskList = taskLists.find((item) => item.id === taskListId)
+    if (
+      !taskList?.can_manage ||
+      (taskList.list_group?.id || null) === listGroupId
+    )
+      return
+    onMoveTaskList(taskListId, listGroupId)
+  }
+  const renderTaskList = (taskList: ApiTaskList) => (
+    <button
+      key={taskList.id}
+      type="button"
+      aria-current={state.taskList === taskList.id ? 'page' : undefined}
+      className={navButtonCss}
+      data-active={state.taskList === taskList.id ? true : undefined}
+      draggable={taskList.can_manage}
+      onDragStart={(event) => startListDrag(event, taskList)}
+      onDragEnd={() => setDraggedTaskListId(undefined)}
+      onClick={() => onTaskListChange(taskList.id)}
+    >
+      <span className={navLabelCss}>
+        <RiListCheck
+          size={18}
+          data-color={taskList.color}
+          className={listIconCss}
+        />
+        <span>{taskList.name}</span>
+      </span>
+      <span>{taskList.task_count}</span>
+    </button>
+  )
   return (
     <>
       <aside className={desktopNavCss} aria-label={t('workspace.navigation')}>
@@ -78,42 +162,119 @@ export const TaskWorkspaceNavigation = ({
               )}
             </button>
           ))}
-          <div className={sectionHeaderCss}>
+          <div
+            className={sectionHeaderCss}
+            data-list-drop-target={draggedTaskListId ? true : undefined}
+            onDragOver={allowListDrop}
+            onDrop={(event) => dropList(event, null)}
+            title={
+              draggedTaskListId
+                ? t('taskListGroups.moveToUngrouped')
+                : undefined
+            }
+          >
             <span>{t('taskLists.title')}</span>
-            <Button
-              variant="tertiary"
-              size="sm"
-              aria-label={t('taskLists.create')}
-              onPress={onCreateTaskList}
-            >
-              <RiAddLine size={17} />
-            </Button>
+            <Menu placement="bottom">
+              <Button
+                variant="tertiary"
+                size="sm"
+                aria-label={t('taskLists.title')}
+              >
+                <RiAddLine size={17} />
+              </Button>
+              <MenuList
+                aria-label={t('taskLists.title')}
+                menuClassName={createMenuCss}
+                items={[
+                  {
+                    value: 'list',
+                    label: (
+                      <span className={menuItemLabelCss}>
+                        <RiListCheck size={16} />
+                        {t('taskLists.create')}
+                      </span>
+                    ),
+                  },
+                  {
+                    value: 'group',
+                    label: (
+                      <span className={menuItemLabelCss}>
+                        <RiFolderAddLine size={16} />
+                        {t('taskListGroups.create')}
+                      </span>
+                    ),
+                  },
+                ]}
+                onAction={(action) => {
+                  if (action === 'list') onCreateTaskList()
+                  if (action === 'group') onCreateTaskListGroup()
+                }}
+              />
+            </Menu>
           </div>
-          {taskLists.length === 0 ? (
+          {taskLists.length === 0 && taskListGroups.length === 0 ? (
             <p className={emptyListsCss}>{t('taskLists.empty')}</p>
           ) : (
-            taskLists.map((taskList) => (
-              <button
-                key={taskList.id}
-                type="button"
-                aria-current={
-                  state.taskList === taskList.id ? 'page' : undefined
-                }
-                className={navButtonCss}
-                data-active={state.taskList === taskList.id ? true : undefined}
-                onClick={() => onTaskListChange(taskList.id)}
-              >
-                <span className={navLabelCss}>
-                  <RiListCheck
-                    size={18}
-                    data-color={taskList.color}
-                    className={listIconCss}
-                  />
-                  <span>{taskList.name}</span>
-                </span>
-                <span>{taskList.task_count}</span>
-              </button>
-            ))
+            <>
+              {ungroupedLists.map(renderTaskList)}
+              {taskListGroups.map((group) => {
+                const collapsed = collapsedGroups.has(group.id)
+                const lists = taskLists.filter(
+                  (taskList) => taskList.list_group?.id === group.id
+                )
+                return (
+                  <section
+                    key={group.id}
+                    className={listGroupCss}
+                    onDragOver={allowListDrop}
+                    onDrop={(event) => dropList(event, group.id)}
+                  >
+                    <div className={listGroupHeaderCss}>
+                      <button
+                        type="button"
+                        aria-expanded={!collapsed}
+                        aria-label={t(
+                          collapsed
+                            ? 'taskListGroups.expand'
+                            : 'taskListGroups.collapse',
+                          { name: group.name }
+                        )}
+                        onClick={() => toggleGroup(group.id)}
+                      >
+                        {collapsed ? (
+                          <RiArrowRightSLine size={17} />
+                        ) : (
+                          <RiArrowDownSLine size={17} />
+                        )}
+                        <RiFolderLine size={16} />
+                        <span>{group.name}</span>
+                      </button>
+                      <Button
+                        variant="tertiary"
+                        size="icon24"
+                        aria-label={t('taskListGroups.createListIn', {
+                          name: group.name,
+                        })}
+                        onPress={() => onCreateTaskList(group.id)}
+                      >
+                        <RiAddLine size={15} />
+                      </Button>
+                    </div>
+                    {!collapsed && (
+                      <div className={groupListsCss}>
+                        {lists.length > 0 ? (
+                          lists.map(renderTaskList)
+                        ) : (
+                          <p className={emptyGroupCss}>
+                            {t('taskListGroups.empty')}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </section>
+                )
+              })}
+            </>
           )}
         </nav>
       </aside>
@@ -128,7 +289,9 @@ export const TaskWorkspaceNavigation = ({
             })),
             ...taskLists.map((taskList) => ({
               value: `list:${taskList.id}`,
-              label: taskList.name,
+              label: taskList.list_group
+                ? `${taskList.list_group.name} / ${taskList.name}`
+                : taskList.name,
             })),
           ]}
           selectedKey={
@@ -190,6 +353,64 @@ const sectionHeaderCss = css({
   color: 'greyscale.700',
   fontSize: '0.8125rem',
   fontWeight: '600',
+  '&[data-list-drop-target]': {
+    outline: '1px dashed token(colors.primary.400)',
+    outlineOffset: '-2px',
+    backgroundColor: 'selected.bg',
+  },
+})
+const createMenuCss = css({ minWidth: '10rem' })
+const menuItemLabelCss = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+})
+const listGroupCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.125rem',
+})
+const listGroupHeaderCss = css({
+  minHeight: '2rem',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.25rem',
+  marginTop: '0.25rem',
+  color: 'greyscale.700',
+  '& > button:first-child': {
+    minWidth: 0,
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    padding: '0.25rem 0.375rem',
+    border: 0,
+    backgroundColor: 'transparent',
+    color: 'inherit',
+    cursor: 'pointer',
+    textAlign: 'left',
+    fontSize: '0.8125rem',
+    fontWeight: '600',
+  },
+  '& span': {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+})
+const groupListsCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.125rem',
+  paddingLeft: '0.75rem',
+})
+const emptyGroupCss = css({
+  margin: 0,
+  padding: '0.25rem 0.625rem 0.5rem',
+  color: 'greyscale.500',
+  fontSize: '0.6875rem',
 })
 const emptyListsCss = css({
   margin: '0.25rem 0.5rem',

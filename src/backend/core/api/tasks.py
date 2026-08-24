@@ -20,6 +20,7 @@ from core.api.serializers import (
     TaskAttachmentSerializer,
     TaskCommentSerializer,
     TaskGroupSerializer,
+    TaskListGroupSerializer,
     TaskListSerializer,
     TaskSerializer,
 )
@@ -436,6 +437,85 @@ class TaskUpdateSerializer(
         return instance
 
 
+class TaskListGroupViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Organization sections used to group task lists in navigation."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = TaskListGroupSerializer
+    pagination_class = None
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["can_manage_all_task_lists"] = is_caller_org_admin(self.request.user)
+        return context
+
+    def get_queryset(self):
+        organization = get_caller_organization(self.request.user)
+        if organization is None:
+            return models.TaskListGroup.objects.none()
+        return (
+            models.TaskListGroup.objects.filter(organization=organization)
+            .select_related("creator")
+            .annotate(
+                _list_count=Count(
+                    "task_lists",
+                    filter=Q(task_lists__is_archived=False),
+                    distinct=True,
+                )
+            )
+        )
+
+    def perform_create(self, serializer):
+        organization = get_caller_organization(self.request.user)
+        if organization is None:
+            raise serializers.ValidationError(
+                {"detail": "Join an organization before creating a task-list group."}
+            )
+        self._validate_unique_name(serializer.validated_data["name"], organization)
+        serializer.save(organization=organization, creator=self.request.user)
+
+    def perform_update(self, serializer):
+        group = self.get_object()
+        self._ensure_can_manage(group)
+        name = serializer.validated_data.get("name", group.name)
+        self._validate_unique_name(name, group.organization, exclude=group)
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        group = self.get_object()
+        self._ensure_can_manage(group)
+        group.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _ensure_can_manage(self, group):
+        if group.creator_id != self.request.user.id and not is_caller_org_admin(
+            self.request.user
+        ):
+            raise PermissionDenied(
+                "Only the task-list group creator or an organization administrator can manage it."
+            )
+
+    @staticmethod
+    def _validate_unique_name(name, organization, exclude=None):
+        queryset = models.TaskListGroup.objects.filter(
+            organization=organization,
+            name__iexact=name,
+        )
+        if exclude is not None:
+            queryset = queryset.exclude(pk=exclude.pk)
+        if queryset.exists():
+            raise serializers.ValidationError(
+                {"name": "This organization already has a task-list group with this name."}
+            )
+
+
 class TaskListViewSet(
     mixins.CreateModelMixin,
     mixins.ListModelMixin,
@@ -463,7 +543,9 @@ class TaskListViewSet(
         queryset = models.TaskList.objects.filter(organization=organization)
         if self.request.query_params.get("archived") != "true":
             queryset = queryset.filter(is_archived=False)
-        return queryset.select_related("creator").prefetch_related("groups")
+        return queryset.select_related("creator", "list_group").prefetch_related(
+            "groups"
+        )
 
     def perform_create(self, serializer):
         organization = get_caller_organization(self.request.user)
@@ -471,6 +553,9 @@ class TaskListViewSet(
             raise serializers.ValidationError(
                 {"detail": "Join an organization before creating a task list."}
             )
+        self._validate_list_group(
+            serializer.validated_data.get("list_group"), organization
+        )
         self._validate_unique_name(serializer.validated_data["name"], organization)
         serializer.save(organization=organization, creator=self.request.user)
 
@@ -478,6 +563,10 @@ class TaskListViewSet(
         task_list = self.get_object()
         self._ensure_can_manage(task_list)
         name = serializer.validated_data.get("name", task_list.name)
+        if "list_group" in serializer.validated_data:
+            self._validate_list_group(
+                serializer.validated_data["list_group"], task_list.organization
+            )
         self._validate_unique_name(name, task_list.organization, exclude=task_list)
         serializer.save()
 
@@ -517,6 +606,13 @@ class TaskListViewSet(
         ):
             raise PermissionDenied(
                 "Only the task-list creator or an organization administrator can manage it."
+            )
+
+    @staticmethod
+    def _validate_list_group(group, organization):
+        if group is not None and group.organization_id != organization.id:
+            raise serializers.ValidationError(
+                {"list_group_id": "The task-list group belongs to another organization."}
             )
 
     @staticmethod

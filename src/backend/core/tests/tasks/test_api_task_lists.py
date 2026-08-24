@@ -8,12 +8,13 @@ import pytest
 from rest_framework.test import APIClient
 
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
-from core.models import Task, TaskActivity, TaskGroup, TaskList
+from core.models import Task, TaskActivity, TaskGroup, TaskList, TaskListGroup
 
 pytestmark = pytest.mark.django_db
 
 TASKS_URL = "/api/v1.0/tasks/"
 TASK_LISTS_URL = "/api/v1.0/task-lists/"
+TASK_LIST_GROUPS_URL = "/api/v1.0/task-list-groups/"
 
 
 def _client(user):
@@ -52,6 +53,7 @@ def test_task_lists_and_groups_are_scoped_and_managed_by_their_creator():
     assert task_list.creator == creator
     assert task_list.name == "Product launch"
     assert created.json()["can_manage"] is True
+    assert created.json()["list_group"] is None
     assert created.json()["groups"] == []
 
     group = client.post(
@@ -82,6 +84,100 @@ def test_task_lists_and_groups_are_scoped_and_managed_by_their_creator():
     )
     assert _client(outsider).get(TASK_LISTS_URL).json() == []
     assert task_list.organization != other_organization
+
+
+def test_task_list_groups_organize_lists_and_enforce_management_permissions():
+    organization, creator = _organization_user()
+    _, colleague = _organization_user(organization=organization)
+    _, outsider = _organization_user()
+    client = _client(creator)
+
+    created_group = client.post(
+        TASK_LIST_GROUPS_URL,
+        {"name": "  Product development  ", "sort_order": 10},
+        format="json",
+    )
+
+    assert created_group.status_code == 201
+    group_payload = created_group.json()
+    group = TaskListGroup.objects.get()
+    assert group.name == "Product development"
+    assert group.organization == organization
+    assert group.creator == creator
+    assert group_payload["can_manage"] is True
+    assert group_payload["list_count"] == 0
+
+    created_list = client.post(
+        TASK_LISTS_URL,
+        {
+            "name": "Roadmap",
+            "color": "blue",
+            "list_group_id": str(group.id),
+        },
+        format="json",
+    )
+    assert created_list.status_code == 201
+    assert created_list.json()["list_group"] == {
+        "id": str(group.id),
+        "name": "Product development",
+        "sort_order": 10,
+    }
+    assert TaskList.objects.get().list_group == group
+    assert client.get(TASK_LIST_GROUPS_URL).json()[0]["list_count"] == 1
+
+    duplicate = client.post(
+        TASK_LIST_GROUPS_URL,
+        {"name": "product development"},
+        format="json",
+    )
+    assert duplicate.status_code == 400
+    assert (
+        _client(colleague)
+        .patch(
+            f"{TASK_LIST_GROUPS_URL}{group.id}/",
+            {"name": "Denied"},
+            format="json",
+        )
+        .status_code
+        == 403
+    )
+    assert _client(outsider).get(TASK_LIST_GROUPS_URL).json() == []
+
+
+def test_deleting_task_list_group_keeps_lists_and_cross_org_assignment_is_rejected():
+    organization, creator = _organization_user()
+    group = TaskListGroup.objects.create(
+        organization=organization,
+        creator=creator,
+        name="Team management",
+    )
+    task_list = TaskList.objects.create(
+        organization=organization,
+        creator=creator,
+        list_group=group,
+        name="Hiring",
+    )
+    other_organization, outsider = _organization_user()
+    outside_group = TaskListGroup.objects.create(
+        organization=other_organization,
+        creator=outsider,
+        name="Outside",
+    )
+    client = _client(creator)
+
+    cross_org = client.patch(
+        f"{TASK_LISTS_URL}{task_list.id}/",
+        {"list_group_id": str(outside_group.id)},
+        format="json",
+    )
+    assert cross_org.status_code == 400
+    assert "list_group_id" in cross_org.json()
+
+    deleted = client.delete(f"{TASK_LIST_GROUPS_URL}{group.id}/")
+    assert deleted.status_code == 204
+    task_list.refresh_from_db()
+    assert task_list.list_group is None
+    assert TaskList.objects.filter(id=task_list.id).exists()
 
 
 def test_task_placement_filter_and_history_keep_list_and_group_consistent():

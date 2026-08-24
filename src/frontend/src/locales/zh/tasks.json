@@ -90,6 +90,21 @@
       "purple": "紫色"
     }
   },
+  "taskListGroups": {
+    "title": "清单分组",
+    "field": "清单分组",
+    "none": "未分组",
+    "create": "新建清单分组",
+    "name": "分组名称",
+    "namePlaceholder": "例如：团队管理、产品研发",
+    "createListIn": "在“{{name}}”中新建任务清单",
+    "empty": "可拖拽清单加入该分组，或点击 + 新建",
+    "moveToUngrouped": "移至未分组清单",
+    "collapse": "收起“{{name}}”",
+    "expand": "展开“{{name}}”",
+    "error": "清单分组创建失败，请稍后重试。",
+    "closeCreate": "关闭新建清单分组弹窗"
+  },
   "groups": {
     "field": "分组",
     "name": "分组名称",

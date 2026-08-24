@@ -22,13 +22,20 @@ import type {
   TaskStatusFilter,
   TaskTimeFilter,
 } from '../api/ApiTask'
-import { useDeleteTaskGroup, useTaskLists, useTasks } from '../api/fetchTasks'
+import {
+  useDeleteTaskGroup,
+  useMoveTaskListToGroup,
+  useTaskListGroups,
+  useTaskLists,
+  useTasks,
+} from '../api/fetchTasks'
 import { TaskAnalytics } from '../components/TaskAnalytics'
 import { TaskBoard } from '../components/TaskBoard'
 import { TaskFilterToolbar } from '../components/TaskFilterToolbar'
 import { TaskGroupForm } from '../components/TaskGroupForm'
 import { TaskGroupRenameForm } from '../components/TaskGroupRenameForm'
 import { TaskList } from '../components/TaskList'
+import { TaskListGroupForm } from '../components/TaskListGroupForm'
 import { TaskListManager } from '../components/TaskListManager'
 import { CreateTaskPanel, TaskDetailPanel } from '../components/TaskSidePanel'
 import { TaskWorkspaceNavigation } from '../components/TaskWorkspaceNavigation'
@@ -62,6 +69,8 @@ const TasksAuthenticated = () => {
   const [creating, setCreating] = useState(false)
   const [createGroupId, setCreateGroupId] = useState<string>()
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
+  const [taskListCreateGroupId, setTaskListCreateGroupId] = useState<string>()
+  const [taskListGroupCreating, setTaskListGroupCreating] = useState(false)
   const [groupCreating, setGroupCreating] = useState(false)
   const [groupRenaming, setGroupRenaming] = useState<ApiTaskGroup | null>(null)
   const isNarrow = useIsNarrow()
@@ -70,9 +79,12 @@ const TasksAuthenticated = () => {
   const createTitleRef = useRef<HTMLInputElement>(null)
   const groupNameRef = useRef<HTMLInputElement>(null)
   const groupRenameRef = useRef<HTMLInputElement>(null)
+  const taskListGroupNameRef = useRef<HTMLInputElement>(null)
   const { confirm } = useConfirm()
   const deleteGroupMutation = useDeleteTaskGroup()
+  const moveTaskListMutation = useMoveTaskListToGroup()
   const { data: taskLists = [] } = useTaskLists()
+  const { data: taskListGroups = [] } = useTaskListGroups()
   const {
     data,
     isLoading,
@@ -147,6 +159,11 @@ const TasksAuthenticated = () => {
     navigateState(stateForTaskList(state, taskListId))
   }
 
+  const openTaskListManager = (listGroupId?: string) => {
+    setTaskListCreateGroupId(listGroupId)
+    setTaskListManagerOpen(true)
+  }
+
   const changeMode = (mode: TaskWorkspaceMode) => {
     setCreating(false)
     navigateState({
@@ -198,9 +215,14 @@ const TasksAuthenticated = () => {
             state={state}
             count={count}
             taskLists={taskLists}
+            taskListGroups={taskListGroups}
             onChange={changeView}
             onTaskListChange={changeTaskList}
-            onCreateTaskList={() => setTaskListManagerOpen(true)}
+            onCreateTaskList={openTaskListManager}
+            onCreateTaskListGroup={() => setTaskListGroupCreating(true)}
+            onMoveTaskList={(taskListId, listGroupId) =>
+              moveTaskListMutation.mutate({ taskListId, listGroupId })
+            }
           />
         </ResizablePanel>
       </div>
@@ -210,9 +232,14 @@ const TasksAuthenticated = () => {
             state={state}
             count={count}
             taskLists={taskLists}
+            taskListGroups={taskListGroups}
             onChange={changeView}
             onTaskListChange={changeTaskList}
-            onCreateTaskList={() => setTaskListManagerOpen(true)}
+            onCreateTaskList={openTaskListManager}
+            onCreateTaskListGroup={() => setTaskListGroupCreating(true)}
+            onMoveTaskList={(taskListId, listGroupId) =>
+              moveTaskListMutation.mutate({ taskListId, listGroupId })
+            }
           />
         </div>
         <header className={headerCss}>
@@ -406,11 +433,34 @@ const TasksAuthenticated = () => {
           </div>
           <TaskListManager
             taskLists={taskLists}
+            taskListGroups={taskListGroups}
+            defaultListGroupId={taskListCreateGroupId}
             onCancel={() => setTaskListManagerOpen(false)}
             onCreated={(taskList) => {
               setTaskListManagerOpen(false)
               changeTaskList(taskList.id)
             }}
+          />
+        </Modal>
+      )}
+      {taskListGroupCreating && (
+        <Modal
+          ariaLabel={t('taskListGroups.create')}
+          onClose={() => setTaskListGroupCreating(false)}
+          initialFocusRef={taskListGroupNameRef}
+          maxWidth="440px"
+        >
+          <div className={modalHeaderCss}>
+            <h2 className={modalTitleCss}>{t('taskListGroups.create')}</h2>
+            <ModalCloseButton
+              label={t('taskListGroups.closeCreate')}
+              onClose={() => setTaskListGroupCreating(false)}
+            />
+          </div>
+          <TaskListGroupForm
+            inputRef={taskListGroupNameRef}
+            onCancel={() => setTaskListGroupCreating(false)}
+            onCreated={() => setTaskListGroupCreating(false)}
           />
         </Modal>
       )}

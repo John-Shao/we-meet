@@ -90,6 +90,21 @@
       "purple": "Violett"
     }
   },
+  "taskListGroups": {
+    "title": "Listengruppen",
+    "field": "Listengruppe",
+    "none": "Keine Gruppe",
+    "create": "Neue Listengruppe",
+    "name": "Gruppenname",
+    "namePlaceholder": "Zum Beispiel: Teamverwaltung",
+    "createListIn": "Aufgabenliste in {{name}} erstellen",
+    "empty": "Liste hierher ziehen oder mit + erstellen",
+    "moveToUngrouped": "Aufgabenliste aus der Gruppe verschieben",
+    "collapse": "{{name}} einklappen",
+    "expand": "{{name}} ausklappen",
+    "error": "Die Listengruppe konnte nicht erstellt werden.",
+    "closeCreate": "Dialog für neue Listengruppe schließen"
+  },
   "groups": {
     "field": "Gruppe",
     "name": "Gruppenname",

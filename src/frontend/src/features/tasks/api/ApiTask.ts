@@ -32,12 +32,24 @@ export interface ApiTaskGroup {
   updated_at: string
 }
 
+export interface ApiTaskListGroup {
+  id: string
+  name: string
+  sort_order: number
+  creator: ApiTaskUser | null
+  can_manage: boolean
+  list_count: number
+  created_at: string
+  updated_at: string
+}
+
 export interface ApiTaskList {
   id: string
   name: string
   description: string
   color: TaskColor
   creator: ApiTaskUser | null
+  list_group: Pick<ApiTaskListGroup, 'id' | 'name' | 'sort_order'> | null
   is_archived: boolean
   can_manage: boolean
   task_count: number

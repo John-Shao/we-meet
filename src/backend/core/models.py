@@ -2221,6 +2221,43 @@ class ActionItem(BaseModel):
             )
 
 
+class TaskListGroup(BaseModel):
+    """An organization-scoped section used to organize task lists."""
+
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        related_name="task_list_groups",
+        verbose_name=_("organization"),
+    )
+    name = models.CharField(_("name"), max_length=80)
+    sort_order = models.PositiveIntegerField(_("sort order"), default=0)
+    creator = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="created_task_list_groups",
+        null=True,
+        blank=True,
+        verbose_name=_("creator"),
+    )
+
+    class Meta:
+        db_table = "meet_task_list_group"
+        verbose_name = _("task list group")
+        verbose_name_plural = _("task list groups")
+        ordering = ("sort_order", "created_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                models.functions.Lower("name"),
+                "organization",
+                name="task_list_group_name_ci_unique_org",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class TaskList(BaseModel):
     """An organization-scoped task list, comparable to a lightweight project."""
 
@@ -2254,6 +2291,14 @@ class TaskList(BaseModel):
         null=True,
         blank=True,
         verbose_name=_("creator"),
+    )
+    list_group = models.ForeignKey(
+        TaskListGroup,
+        on_delete=models.SET_NULL,
+        related_name="task_lists",
+        null=True,
+        blank=True,
+        verbose_name=_("task list group"),
     )
     is_archived = models.BooleanField(_("archived"), default=False)
 

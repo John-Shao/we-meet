@@ -7,7 +7,7 @@ import { Button, Input, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
-import type { ApiTaskList, TaskColor } from '../api/ApiTask'
+import type { ApiTaskList, ApiTaskListGroup, TaskColor } from '../api/ApiTask'
 import { useCreateTaskList, useDeleteTaskList } from '../api/fetchTasks'
 
 const colors: TaskColor[] = [
@@ -22,10 +22,14 @@ const colors: TaskColor[] = [
 
 export const TaskListManager = ({
   taskLists,
+  taskListGroups,
+  defaultListGroupId,
   onCreated,
   onCancel,
 }: {
   taskLists: ApiTaskList[]
+  taskListGroups: ApiTaskListGroup[]
+  defaultListGroupId?: string
   onCreated?: (taskList: ApiTaskList) => void
   onCancel: () => void
 }) => {
@@ -36,6 +40,7 @@ export const TaskListManager = ({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [color, setColor] = useState<TaskColor>('blue')
+  const [listGroupId, setListGroupId] = useState(defaultListGroupId || '')
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -45,6 +50,7 @@ export const TaskListManager = ({
         name: name.trim(),
         description: description.trim(),
         color,
+        list_group_id: listGroupId || null,
       })
       setName('')
       setDescription('')
@@ -86,6 +92,19 @@ export const TaskListManager = ({
             onChange={(event) => setDescription(event.target.value)}
           />
         </label>
+        <Select
+          label={t('taskListGroups.field')}
+          aria-label={t('taskListGroups.field')}
+          items={[
+            { value: '', label: t('taskListGroups.none') },
+            ...taskListGroups.map((group) => ({
+              value: group.id,
+              label: group.name,
+            })),
+          ]}
+          selectedKey={listGroupId}
+          onSelectionChange={(key) => setListGroupId(String(key))}
+        />
         <Select
           label={t('taskLists.color')}
           aria-label={t('taskLists.color')}

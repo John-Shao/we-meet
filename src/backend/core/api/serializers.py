@@ -555,6 +555,62 @@ class TaskAttachmentSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class TaskListGroupSummarySerializer(serializers.ModelSerializer):
+    """Compact task-list group reference embedded in a task list."""
+
+    class Meta:
+        model = models.TaskListGroup
+        fields = ["id", "name", "sort_order"]
+        read_only_fields = fields
+
+
+class TaskListGroupSerializer(serializers.ModelSerializer):
+    """Serialize an organization section that contains task lists."""
+
+    creator = TaskUserSerializer(read_only=True)
+    can_manage = serializers.SerializerMethodField()
+    list_count = serializers.SerializerMethodField()
+
+    def get_can_manage(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return bool(
+            user
+            and user.is_authenticated
+            and (
+                obj.creator_id == user.id
+                or self.context.get("can_manage_all_task_lists", False)
+            )
+        )
+
+    def get_list_count(self, obj):
+        annotated = getattr(obj, "_list_count", None)
+        if annotated is not None:
+            return annotated
+        return obj.task_lists.filter(is_archived=False).count()
+
+    class Meta:
+        model = models.TaskListGroup
+        fields = [
+            "id",
+            "name",
+            "sort_order",
+            "creator",
+            "can_manage",
+            "list_count",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "creator",
+            "can_manage",
+            "list_count",
+            "created_at",
+            "updated_at",
+        ]
+
+
 class TaskGroupSerializer(serializers.ModelSerializer):
     """Serialize a custom section inside a task list."""
 
@@ -597,6 +653,14 @@ class TaskListSerializer(serializers.ModelSerializer):
     """Serialize an organization task list and its ordered groups."""
 
     creator = TaskUserSerializer(read_only=True)
+    list_group = TaskListGroupSummarySerializer(read_only=True)
+    list_group_id = serializers.PrimaryKeyRelatedField(
+        source="list_group",
+        queryset=models.TaskListGroup.objects.all(),
+        allow_null=True,
+        required=False,
+        write_only=True,
+    )
     groups = TaskGroupSerializer(many=True, read_only=True)
     can_manage = serializers.SerializerMethodField()
     task_count = serializers.SerializerMethodField()
@@ -633,6 +697,8 @@ class TaskListSerializer(serializers.ModelSerializer):
             "description",
             "color",
             "creator",
+            "list_group",
+            "list_group_id",
             "is_archived",
             "can_manage",
             "task_count",
@@ -643,6 +709,7 @@ class TaskListSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "creator",
+            "list_group",
             "can_manage",
             "task_count",
             "groups",
