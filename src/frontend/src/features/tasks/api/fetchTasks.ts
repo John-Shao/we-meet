@@ -127,6 +127,46 @@ export const useCreateTaskListGroup = () => {
   })
 }
 
+const updateTaskListGroup = (groupId: string, patch: { name: string }) =>
+  fetchApi<ApiTaskListGroup>(
+    `task-list-groups/${encodeURIComponent(groupId)}/`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }
+  )
+
+export const useUpdateTaskListGroup = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskListGroup,
+    ApiError,
+    { groupId: string; name: string }
+  >({
+    mutationFn: ({ groupId, name }) => updateTaskListGroup(groupId, { name }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-list-groups'] })
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+    },
+  })
+}
+
+const deleteTaskListGroup = (groupId: string) =>
+  fetchApi<void>(`task-list-groups/${encodeURIComponent(groupId)}/`, {
+    method: 'DELETE',
+  })
+
+export const useDeleteTaskListGroup = () => {
+  const queryClient = useQueryClient()
+  return useMutation<void, ApiError, string>({
+    mutationFn: deleteTaskListGroup,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-list-groups'] })
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+    },
+  })
+}
+
 const createTaskList = (payload: {
   name: string
   description?: string

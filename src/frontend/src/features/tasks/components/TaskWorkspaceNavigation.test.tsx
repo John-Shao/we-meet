@@ -53,6 +53,8 @@ const renderNavigation = () => {
   const onCreateTaskList = vi.fn()
   const onCreateTaskListGroup = vi.fn()
   const onMoveTaskList = vi.fn()
+  const onRenameTaskListGroup = vi.fn()
+  const onDeleteTaskListGroup = vi.fn()
   render(
     <TaskWorkspaceNavigation
       state={state}
@@ -71,14 +73,27 @@ const renderNavigation = () => {
       onCreateTaskList={onCreateTaskList}
       onCreateTaskListGroup={onCreateTaskListGroup}
       onMoveTaskList={onMoveTaskList}
+      onRenameTaskListGroup={onRenameTaskListGroup}
+      onDeleteTaskListGroup={onDeleteTaskListGroup}
     />
   )
-  return { onCreateTaskList, onCreateTaskListGroup, onMoveTaskList }
+  return {
+    onCreateTaskList,
+    onCreateTaskListGroup,
+    onMoveTaskList,
+    onRenameTaskListGroup,
+    onDeleteTaskListGroup,
+  }
 }
 
 describe('TaskWorkspaceNavigation', () => {
-  it('groups task lists, supports collapsing, and creates a list in a group', () => {
-    const { onCreateTaskList, onMoveTaskList } = renderNavigation()
+  it('groups task lists, supports collapsing, dragging, and group actions', () => {
+    const {
+      onCreateTaskList,
+      onMoveTaskList,
+      onRenameTaskListGroup,
+      onDeleteTaskListGroup,
+    } = renderNavigation()
 
     expect(screen.getAllByText('Requirements')).not.toHaveLength(0)
     expect(screen.getByText('Team management')).toBeInTheDocument()
@@ -98,10 +113,26 @@ describe('TaskWorkspaceNavigation', () => {
     )
     expect(screen.queryByText('Hiring')).not.toBeInTheDocument()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'taskListGroups.createListIn' })
-    )
+    const openGroupMenu = () =>
+      fireEvent.click(
+        screen.getByRole('button', { name: 'taskListGroups.more' })
+      )
+
+    openGroupMenu()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'taskLists.create' }))
     expect(onCreateTaskList).toHaveBeenCalledWith(listGroup.id)
+
+    openGroupMenu()
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'taskListGroups.rename' })
+    )
+    expect(onRenameTaskListGroup).toHaveBeenCalledWith(listGroup)
+
+    openGroupMenu()
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'taskListGroups.delete' })
+    )
+    expect(onDeleteTaskListGroup).toHaveBeenCalledWith(listGroup)
   })
 
   it('offers separate actions for creating a task list and a list group', async () => {

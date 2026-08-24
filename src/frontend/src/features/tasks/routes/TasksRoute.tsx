@@ -18,12 +18,14 @@ import { css } from '@/styled-system/css'
 
 import type {
   ApiTaskGroup,
+  ApiTaskListGroup,
   TaskPriorityFilter,
   TaskStatusFilter,
   TaskTimeFilter,
 } from '../api/ApiTask'
 import {
   useDeleteTaskGroup,
+  useDeleteTaskListGroup,
   useMoveTaskListToGroup,
   useTaskListGroups,
   useTaskLists,
@@ -36,6 +38,7 @@ import { TaskGroupForm } from '../components/TaskGroupForm'
 import { TaskGroupRenameForm } from '../components/TaskGroupRenameForm'
 import { TaskList } from '../components/TaskList'
 import { TaskListGroupForm } from '../components/TaskListGroupForm'
+import { TaskListGroupRenameForm } from '../components/TaskListGroupRenameForm'
 import { TaskListManager } from '../components/TaskListManager'
 import { CreateTaskPanel, TaskDetailPanel } from '../components/TaskSidePanel'
 import { TaskWorkspaceNavigation } from '../components/TaskWorkspaceNavigation'
@@ -71,6 +74,8 @@ const TasksAuthenticated = () => {
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
   const [taskListCreateGroupId, setTaskListCreateGroupId] = useState<string>()
   const [taskListGroupCreating, setTaskListGroupCreating] = useState(false)
+  const [taskListGroupRenaming, setTaskListGroupRenaming] =
+    useState<ApiTaskListGroup | null>(null)
   const [groupCreating, setGroupCreating] = useState(false)
   const [groupRenaming, setGroupRenaming] = useState<ApiTaskGroup | null>(null)
   const isNarrow = useIsNarrow()
@@ -80,8 +85,10 @@ const TasksAuthenticated = () => {
   const groupNameRef = useRef<HTMLInputElement>(null)
   const groupRenameRef = useRef<HTMLInputElement>(null)
   const taskListGroupNameRef = useRef<HTMLInputElement>(null)
+  const taskListGroupRenameRef = useRef<HTMLInputElement>(null)
   const { confirm } = useConfirm()
   const deleteGroupMutation = useDeleteTaskGroup()
+  const deleteTaskListGroupMutation = useDeleteTaskListGroup()
   const moveTaskListMutation = useMoveTaskListToGroup()
   const { data: taskLists = [] } = useTaskLists()
   const { data: taskListGroups = [] } = useTaskListGroups()
@@ -120,6 +127,17 @@ const TasksAuthenticated = () => {
       danger: true,
     })
     if (accepted) deleteGroupMutation.mutate(group.id)
+  }
+
+  const deleteTaskListGroup = async (group: ApiTaskListGroup) => {
+    if (!group.can_manage) return
+    const accepted = await confirm({
+      title: t('taskListGroups.deleteTitle'),
+      message: t('taskListGroups.deleteDescription', { name: group.name }),
+      confirmLabel: t('taskListGroups.delete'),
+      danger: true,
+    })
+    if (accepted) deleteTaskListGroupMutation.mutate(group.id)
   }
 
   const navigateState = (
@@ -223,6 +241,8 @@ const TasksAuthenticated = () => {
             onMoveTaskList={(taskListId, listGroupId) =>
               moveTaskListMutation.mutate({ taskListId, listGroupId })
             }
+            onRenameTaskListGroup={setTaskListGroupRenaming}
+            onDeleteTaskListGroup={(group) => void deleteTaskListGroup(group)}
           />
         </ResizablePanel>
       </div>
@@ -240,6 +260,8 @@ const TasksAuthenticated = () => {
             onMoveTaskList={(taskListId, listGroupId) =>
               moveTaskListMutation.mutate({ taskListId, listGroupId })
             }
+            onRenameTaskListGroup={setTaskListGroupRenaming}
+            onDeleteTaskListGroup={(group) => void deleteTaskListGroup(group)}
           />
         </div>
         <header className={headerCss}>
@@ -461,6 +483,28 @@ const TasksAuthenticated = () => {
             inputRef={taskListGroupNameRef}
             onCancel={() => setTaskListGroupCreating(false)}
             onCreated={() => setTaskListGroupCreating(false)}
+          />
+        </Modal>
+      )}
+      {taskListGroupRenaming && (
+        <Modal
+          ariaLabel={t('taskListGroups.rename')}
+          onClose={() => setTaskListGroupRenaming(null)}
+          initialFocusRef={taskListGroupRenameRef}
+          maxWidth="440px"
+        >
+          <div className={modalHeaderCss}>
+            <h2 className={modalTitleCss}>{t('taskListGroups.rename')}</h2>
+            <ModalCloseButton
+              label={t('taskListGroups.closeRename')}
+              onClose={() => setTaskListGroupRenaming(null)}
+            />
+          </div>
+          <TaskListGroupRenameForm
+            group={taskListGroupRenaming}
+            inputRef={taskListGroupRenameRef}
+            onCancel={() => setTaskListGroupRenaming(null)}
+            onRenamed={() => setTaskListGroupRenaming(null)}
           />
         </Modal>
       )}

@@ -5,11 +5,14 @@ import {
   RiArrowDownSLine,
   RiArrowRightSLine,
   RiCheckboxCircleLine,
+  RiDeleteBinLine,
+  RiEditLine,
   RiFileAddLine,
   RiFolderAddLine,
   RiFolderLine,
   RiListCheck3,
   RiListCheck,
+  RiMoreLine,
   RiUserLine,
 } from '@remixicon/react'
 
@@ -40,6 +43,8 @@ export const TaskWorkspaceNavigation = ({
   onCreateTaskList,
   onCreateTaskListGroup,
   onMoveTaskList,
+  onRenameTaskListGroup,
+  onDeleteTaskListGroup,
 }: {
   state: TaskWorkspaceState
   count: number
@@ -50,6 +55,8 @@ export const TaskWorkspaceNavigation = ({
   onCreateTaskList: (listGroupId?: string) => void
   onCreateTaskListGroup: () => void
   onMoveTaskList: (taskListId: string, listGroupId: string | null) => void
+  onRenameTaskListGroup: (group: ApiTaskListGroup) => void
+  onDeleteTaskListGroup: (group: ApiTaskListGroup) => void
 }) => {
   const { t } = useTranslation('tasks')
   const current = activeView(state)
@@ -249,16 +256,61 @@ export const TaskWorkspaceNavigation = ({
                         <RiFolderLine size={16} />
                         <span>{group.name}</span>
                       </button>
-                      <Button
-                        variant="tertiary"
-                        size="icon24"
-                        aria-label={t('taskListGroups.createListIn', {
-                          name: group.name,
-                        })}
-                        onPress={() => onCreateTaskList(group.id)}
-                      >
-                        <RiAddLine size={15} />
-                      </Button>
+                      <Menu placement="bottom">
+                        <Button
+                          variant="tertiary"
+                          size="icon24"
+                          aria-label={t('taskListGroups.more', {
+                            name: group.name,
+                          })}
+                        >
+                          <RiMoreLine size={16} />
+                        </Button>
+                        <MenuList
+                          aria-label={t('taskListGroups.more', {
+                            name: group.name,
+                          })}
+                          menuClassName={createMenuCss}
+                          items={[
+                            {
+                              value: 'create',
+                              label: (
+                                <span className={menuItemLabelCss}>
+                                  <RiAddLine size={16} />
+                                  {t('taskLists.create')}
+                                </span>
+                              ),
+                            },
+                            {
+                              value: 'rename',
+                              label: (
+                                <span className={menuItemLabelCss}>
+                                  <RiEditLine size={16} />
+                                  {t('taskListGroups.rename')}
+                                </span>
+                              ),
+                              isDisabled: !group.can_manage,
+                            },
+                            {
+                              value: 'delete',
+                              label: (
+                                <span className={menuItemLabelCss}>
+                                  <RiDeleteBinLine size={16} />
+                                  {t('taskListGroups.delete')}
+                                </span>
+                              ),
+                              isDisabled: !group.can_manage,
+                            },
+                          ]}
+                          onAction={(action) => {
+                            if (action === 'create') onCreateTaskList(group.id)
+                            if (action === 'rename')
+                              onRenameTaskListGroup(group)
+                            if (action === 'delete')
+                              onDeleteTaskListGroup(group)
+                          }}
+                        />
+                      </Menu>
                     </div>
                     {!collapsed && (
                       <div className={groupListsCss}>
