@@ -888,13 +888,12 @@ const columnResizeHandleCss = css({
   },
 })
 const columnResizeGripCss = css({
-  boxSizing: 'border-box',
   width: '4px',
-  height: '60%',
+  height: '0.875rem',
   flexShrink: 0,
-  borderRadius: 'full',
-  borderLeft: '1px solid currentColor',
-  borderRight: '1px solid currentColor',
+  backgroundImage:
+    'linear-gradient(to right, currentColor 0 1px, transparent 1px 3px, currentColor 3px 4px)',
+  backgroundRepeat: 'no-repeat',
 })
 const rowCss = css({
   cursor: 'pointer',
