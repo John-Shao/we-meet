@@ -99,6 +99,7 @@ describe('TaskList', () => {
     ).not.toBeInTheDocument()
     expect(screen.getAllByText('Prepare release')).toHaveLength(2)
     expect(screen.getAllByText('Write changelog')).toHaveLength(2)
+    expect(screen.queryByText('subtasks.show')).not.toBeInTheDocument()
     expect(screen.getAllByText('priorities.high')).toHaveLength(4)
     const formatDateTime = (value: string) =>
       new Intl.DateTimeFormat('en', {

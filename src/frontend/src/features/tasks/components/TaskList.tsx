@@ -625,16 +625,9 @@ const TaskTitle = ({
         ) : null}
         <strong>{task.title}</strong>
       </div>
-      {(task.subtask_count > 0 || task.source_room_name) && (
+      {task.source_room_name && (
         <span className={titleMetaCss}>
-          {task.subtask_count > 0 &&
-            t('subtasks.show', {
-              completed: task.completed_subtask_count,
-              total: task.subtask_count,
-            })}
-          {task.subtask_count > 0 && task.source_room_name && ' · '}
-          {task.source_room_name &&
-            t('sourceMeeting', { name: task.source_room_name })}
+          {t('sourceMeeting', { name: task.source_room_name })}
         </span>
       )}
     </div>
