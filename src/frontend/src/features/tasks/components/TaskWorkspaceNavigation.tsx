@@ -552,7 +552,6 @@ const listGroupCss = css({
   gap: '0.125rem',
 })
 const listGroupHeaderCss = css({
-  minHeight: '2rem',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -565,11 +564,9 @@ const listGroupHeaderCss = css({
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
   '&:has(:focus-visible)': {
-    backgroundColor: 'greyscale.100',
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
   "&:has([aria-expanded='true'])": {
-    backgroundColor: 'greyscale.100',
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
   '& > button:first-child': {
@@ -578,13 +575,13 @@ const listGroupHeaderCss = css({
     display: 'flex',
     alignItems: 'center',
     gap: '0.25rem',
-    padding: '0.25rem 0.375rem',
+    padding: '0.5rem 0.25rem 0.5rem 0.625rem',
     border: 0,
     backgroundColor: 'transparent',
     color: 'inherit',
     cursor: 'pointer',
     textAlign: 'left',
-    fontSize: '0.8125rem',
+    fontSize: '0.875rem',
     fontWeight: '600',
   },
   '& span': {
