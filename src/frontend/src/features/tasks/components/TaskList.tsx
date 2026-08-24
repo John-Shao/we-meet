@@ -888,11 +888,11 @@ const columnResizeHandleCss = css({
   },
 })
 const columnResizeGripCss = css({
-  width: '4px',
+  width: '6px',
   height: '0.875rem',
   flexShrink: 0,
   backgroundImage:
-    'linear-gradient(to right, currentColor 0 1px, transparent 1px 3px, currentColor 3px 4px)',
+    'linear-gradient(to right, currentColor 0 2px, transparent 2px 4px, currentColor 4px 6px)',
   backgroundRepeat: 'no-repeat',
 })
 const rowCss = css({
