@@ -48,7 +48,6 @@
     "closePanel": "关闭任务面板",
     "tabs": {
       "overview": "详情",
-      "subtasks": "子任务",
       "comments": "评论",
       "attachments": "附件",
       "history": "历史"
@@ -256,19 +255,6 @@
     "edit": "编辑",
     "save": "保存",
     "cancelEdit": "放弃修改"
-  },
-  "subtasks": {
-    "title": "子任务",
-    "show": "子任务 {{completed}}/{{total}}",
-    "hide": "收起子任务",
-    "loading": "正在加载子任务…",
-    "empty": "暂无子任务。",
-    "error": "子任务加载失败，请稍后重试。",
-    "createError": "子任务创建失败，请重试。",
-    "titleLabel": "子任务标题",
-    "titlePlaceholder": "添加一个具体的下一步",
-    "create": "添加子任务",
-    "meta": "负责人：{{assignee}} · 开始：{{start}} · 截止：{{due}}"
   },
   "comments": {
     "title": "评论",

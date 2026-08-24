@@ -15,7 +15,6 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../api/fetchTasks', () => ({
   usePatchTask: () => ({ mutate, isPending: false }),
-  useTaskSubtasks: () => ({ data: [subtask], isLoading: false, error: null }),
 }))
 
 beforeAll(() => {
@@ -51,25 +50,11 @@ const task: ApiTask = {
   source_action_item_id: null,
   source_room_id: 'meeting-1',
   source_room_name: 'Weekly sync',
-  parent_id: null,
-  subtask_count: 2,
-  completed_subtask_count: 1,
   can_edit: false,
   can_update_status: true,
   time_state: null,
   created_at: '2026-08-21T08:00:00Z',
   updated_at: '2026-08-21T09:00:00Z',
-}
-
-const subtask: ApiTask = {
-  ...task,
-  id: 'subtask-1',
-  title: 'Write changelog',
-  parent_id: task.id,
-  subtask_count: 0,
-  completed_subtask_count: 0,
-  source_room_id: null,
-  source_room_name: null,
 }
 
 describe('TaskList', () => {
@@ -93,14 +78,12 @@ describe('TaskList', () => {
       'workspace.columns.creator',
       'workspace.columns.createdAt',
     ])
-    expect(within(table).getAllByText('statuses.todo')).toHaveLength(2)
+    expect(within(table).getAllByText('statuses.todo')).toHaveLength(1)
     expect(
       screen.queryByLabelText('workspace.quickComplete')
     ).not.toBeInTheDocument()
     expect(screen.getAllByText('Prepare release')).toHaveLength(2)
-    expect(screen.getAllByText('Write changelog')).toHaveLength(2)
-    expect(screen.queryByText('subtasks.show')).not.toBeInTheDocument()
-    expect(screen.getAllByText('priorities.high')).toHaveLength(4)
+    expect(screen.getAllByText('priorities.high')).toHaveLength(2)
     const formatDateTime = (value: string) =>
       new Intl.DateTimeFormat('en', {
         dateStyle: 'short',
@@ -108,7 +91,7 @@ describe('TaskList', () => {
       }).format(new Date(value))
     expect(
       within(table).getAllByText(formatDateTime(task.created_at))
-    ).toHaveLength(2)
+    ).toHaveLength(1)
     expect(
       within(table).queryByText(formatDateTime(task.updated_at))
     ).not.toBeInTheDocument()

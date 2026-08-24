@@ -17,95 +17,12 @@ import {
   useCreateTaskAttachment,
   useCreateTaskComment,
   useDeleteTaskAttachment,
-  usePatchTask,
   useTaskActivities,
   useTaskAttachments,
   useTaskComments,
-  useTaskSubtasks,
 } from '../api/fetchTasks'
-import { nextTaskStatuses, taskDisplayName } from '../taskUi'
-import { TaskPriorityBadge } from './TaskPriorityBadge'
+import { taskDisplayName } from '../taskUi'
 import { TaskUserAvatar, TaskUserDisplay } from './TaskUserDisplay'
-
-export const TaskSubtasksSection = ({
-  taskId,
-  onCreate,
-}: {
-  taskId: string
-  onCreate: () => void
-}) => {
-  const { t, i18n } = useTranslation('tasks')
-  const { data, isLoading, error } = useTaskSubtasks(taskId)
-  const patchMutation = usePatchTask()
-
-  const formatDate = (value: string | null) => {
-    if (!value) return t('meta.none')
-    const [year, month, day] = value.split('-').map(Number)
-    return new Intl.DateTimeFormat(i18n.language, {
-      dateStyle: 'medium',
-    }).format(new Date(year, month - 1, day))
-  }
-
-  return (
-    <section aria-label={t('subtasks.title')} className={sectionCss}>
-      <AsyncState
-        loading={isLoading}
-        error={Boolean(error)}
-        empty={!data?.length}
-        loadingText={t('subtasks.loading')}
-        errorText={t('subtasks.error')}
-        emptyText={t('subtasks.empty')}
-      >
-        <ul className={subtaskListCss}>
-          {data?.map((subtask) => (
-            <li key={subtask.id} className={subtaskItemCss}>
-              <div className={inlineCss}>
-                <strong>{subtask.title}</strong>
-                <span className={statusBadgeCss}>
-                  {t(`statuses.${subtask.status}`)}
-                </span>
-                <TaskPriorityBadge priority={subtask.priority} />
-              </div>
-              <div className={userMetaCss}>
-                <TaskUserAvatar user={subtask.assignee} size="1.25rem" />
-                <p className={metaCss}>
-                  {t('subtasks.meta', {
-                    assignee: taskDisplayName(subtask.assignee),
-                    start: formatDate(subtask.start_date),
-                    due: formatDate(subtask.due_date),
-                  })}
-                </p>
-              </div>
-              {subtask.can_update_status && (
-                <div className={inlineCss}>
-                  {nextTaskStatuses(subtask).map((status) => (
-                    <Button
-                      key={status}
-                      variant={status === 'completed' ? 'primary' : 'secondary'}
-                      size="dense"
-                      isDisabled={patchMutation.isPending}
-                      onPress={() =>
-                        patchMutation.mutate({
-                          taskId: subtask.id,
-                          patch: { status },
-                        })
-                      }
-                    >
-                      {t(`actions.to_${status}`)}
-                    </Button>
-                  ))}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      </AsyncState>
-      <button type="button" className={addSubtaskCss} onClick={onCreate}>
-        + {t('subtasks.create')}
-      </button>
-    </section>
-  )
-}
 
 export const TaskCommentsSection = ({
   taskId,
@@ -475,15 +392,6 @@ const stackCss = css({
   flexDirection: 'column',
   gap: '0.75rem',
 })
-const addSubtaskCss = css({
-  alignSelf: 'flex-start',
-  border: 0,
-  backgroundColor: 'transparent',
-  color: 'primary.600',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-  _dark: { color: 'primaryDark.700' },
-})
 const fieldCss = css({
   display: 'flex',
   flexDirection: 'column',
@@ -498,23 +406,6 @@ const listCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.625rem',
-})
-const subtaskListCss = css({
-  listStyle: 'none',
-  margin: 0,
-  padding: 0,
-  display: 'flex',
-  flexDirection: 'column',
-})
-const subtaskItemCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.375rem',
-  padding: '0.625rem 0.25rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-  color: 'default.text',
-  fontSize: '0.8125rem',
-  _first: { paddingTop: '0.25rem' },
 })
 const itemCss = css({
   display: 'flex',
@@ -544,15 +435,6 @@ const userMetaCss = css({
   alignItems: 'center',
   gap: '0.375rem',
   '& > p': { minWidth: 0 },
-})
-const statusBadgeCss = css({
-  borderRadius: '999px',
-  paddingX: '0.5rem',
-  paddingY: '0.125rem',
-  backgroundColor: 'primary.50',
-  color: 'primary.700',
-  fontSize: '0.75rem',
-  fontWeight: '600',
 })
 const metaCss = css({
   margin: 0,

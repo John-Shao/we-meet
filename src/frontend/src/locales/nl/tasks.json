@@ -48,7 +48,6 @@
     "closePanel": "Taakpaneel sluiten",
     "tabs": {
       "overview": "Details",
-      "subtasks": "Subtaken",
       "comments": "Opmerkingen",
       "attachments": "Bijlagen",
       "history": "Geschiedenis"
@@ -260,19 +259,6 @@
     "edit": "Bewerken",
     "save": "Opslaan",
     "cancelEdit": "Wijzigingen negeren"
-  },
-  "subtasks": {
-    "title": "Subtaken",
-    "show": "Subtaken {{completed}}/{{total}}",
-    "hide": "Subtaken verbergen",
-    "loading": "Subtaken laden…",
-    "empty": "Nog geen subtaken.",
-    "error": "Subtaken konden niet worden geladen.",
-    "createError": "De subtaak kon niet worden gemaakt.",
-    "titleLabel": "Titel van subtaak",
-    "titlePlaceholder": "Voeg een concrete volgende stap toe",
-    "create": "Subtaak toevoegen",
-    "meta": "Verantwoordelijke: {{assignee}} · Start: {{start}} · Deadline: {{due}}"
   },
   "comments": {
     "title": "Opmerkingen",

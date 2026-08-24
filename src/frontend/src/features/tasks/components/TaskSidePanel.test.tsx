@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiTask } from '../api/ApiTask'
@@ -30,27 +24,12 @@ vi.mock('../api/fetchTasks', () => ({
     isPending: false,
     error: null,
   }),
-  useCreateTask: () => ({
-    mutateAsync: vi.fn(),
-    isPending: false,
-    error: null,
-  }),
-  useCreateTaskSubtask: () => ({
-    mutateAsync: vi.fn(),
-    isPending: false,
-    error: null,
-  }),
 }))
 
 vi.mock('./TaskCollaborationSections', () => ({
   TaskAttachmentsSection: () => null,
   TaskCommentsSection: () => null,
   TaskHistorySection: () => null,
-  TaskSubtasksSection: ({ onCreate }: { onCreate: () => void }) => (
-    <button type="button" onClick={onCreate}>
-      subtasks.create
-    </button>
-  ),
 }))
 
 const task: ApiTask = {
@@ -80,9 +59,6 @@ const task: ApiTask = {
   source_action_item_id: null,
   source_room_id: null,
   source_room_name: null,
-  parent_id: null,
-  subtask_count: 0,
-  completed_subtask_count: 0,
   can_edit: false,
   can_update_status: false,
   time_state: null,
@@ -168,26 +144,5 @@ describe('TaskDetailPanel', () => {
         patch: { title: 'Ship release' },
       })
     )
-  })
-
-  it('opens the shared task dialog when adding a subtask', () => {
-    render(
-      <TaskDetailPanel
-        taskId={task.id}
-        fallbackTask={task}
-        taskLists={[]}
-        onClose={vi.fn()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'subtasks.create' }))
-
-    const dialog = screen.getByRole('dialog', { name: 'subtasks.create' })
-    expect(
-      within(dialog).getByPlaceholderText('form.createTitlePlaceholder')
-    ).toBeInTheDocument()
-    expect(
-      within(dialog).getByRole('button', { name: 'subtasks.create' })
-    ).toBeDisabled()
   })
 })

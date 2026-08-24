@@ -25,7 +25,7 @@ import type {
   TaskOrdering,
   TaskOrderingField,
 } from '../api/ApiTask'
-import { usePatchTask, useTaskSubtasks } from '../api/fetchTasks'
+import { usePatchTask } from '../api/fetchTasks'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskUserDisplay } from './TaskUserDisplay'
 
@@ -391,40 +391,7 @@ export const TaskList = ({
   )
 }
 
-const DesktopTaskGroup = (props: GroupProps) => {
-  const { task, t } = props
-  const [expanded, setExpanded] = useState(task.subtask_count > 0)
-  const subtasks = useTaskSubtasks(task.id, expanded && task.subtask_count > 0)
-  return (
-    <>
-      <DesktopTaskRow
-        {...props}
-        expandable={task.subtask_count > 0}
-        expanded={expanded}
-        onToggle={() => setExpanded((value) => !value)}
-      />
-      {expanded && subtasks.isLoading && (
-        <tr className={subtaskStateRowCss}>
-          <td colSpan={DESKTOP_TABLE_COLUMN_COUNT}>{t('subtasks.loading')}</td>
-        </tr>
-      )}
-      {expanded && subtasks.error && (
-        <tr className={subtaskStateRowCss}>
-          <td colSpan={DESKTOP_TABLE_COLUMN_COUNT}>{t('subtasks.error')}</td>
-        </tr>
-      )}
-      {expanded &&
-        subtasks.data?.map((subtask) => (
-          <DesktopTaskRow
-            key={subtask.id}
-            {...props}
-            task={subtask}
-            isSubtask
-          />
-        ))}
-    </>
-  )
-}
+const DesktopTaskGroup = (props: GroupProps) => <DesktopTaskRow {...props} />
 
 const DesktopTaskRow = ({
   task,
@@ -434,36 +401,20 @@ const DesktopTaskRow = ({
   t,
   formatDate,
   formatDateTime,
-  isSubtask = false,
-  expandable = false,
-  expanded = false,
-  onToggle,
-}: GroupProps & {
-  isSubtask?: boolean
-  expandable?: boolean
-  expanded?: boolean
-  onToggle?: () => void
-}) => (
+}: GroupProps) => (
   <tr
     ref={(element) => registerRow(task.id, element)}
     tabIndex={0}
     aria-label={t('workspace.openTask', { title: task.title })}
     data-selected={selectedTaskId === task.id || undefined}
-    data-subtask={isSubtask || undefined}
     className={rowCss}
-    draggable={!isSubtask && task.can_edit}
+    draggable={task.can_edit}
     onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
     <td>
-      <TaskTitle
-        task={task}
-        isSubtask={isSubtask}
-        expandable={expandable}
-        expanded={expanded}
-        onToggle={onToggle}
-      />
+      <TaskTitle task={task} />
     </td>
     <td>
       <TaskUserDisplay user={task.assignee} />
@@ -488,32 +439,9 @@ const DesktopTaskRow = ({
 )
 
 const MobileTaskGroup = (props: GroupProps) => {
-  const { task, t } = props
-  const [expanded, setExpanded] = useState(task.subtask_count > 0)
-  const subtasks = useTaskSubtasks(task.id, expanded && task.subtask_count > 0)
   return (
     <li>
-      <MobileTaskCard
-        {...props}
-        expandable={task.subtask_count > 0}
-        expanded={expanded}
-        onToggle={() => setExpanded((value) => !value)}
-      />
-      {expanded && subtasks.isLoading && (
-        <p className={mobileSubtaskStateCss}>{t('subtasks.loading')}</p>
-      )}
-      {expanded && subtasks.error && (
-        <p className={mobileSubtaskStateCss}>{t('subtasks.error')}</p>
-      )}
-      {expanded && subtasks.data && subtasks.data.length > 0 && (
-        <ul className={mobileSubtaskListCss}>
-          {subtasks.data.map((subtask) => (
-            <li key={subtask.id}>
-              <MobileTaskCard {...props} task={subtask} isSubtask />
-            </li>
-          ))}
-        </ul>
-      )}
+      <MobileTaskCard {...props} />
     </li>
   )
 }
@@ -525,37 +453,21 @@ const MobileTaskCard = ({
   registerRow,
   t,
   formatDate,
-  isSubtask = false,
-  expandable = false,
-  expanded = false,
-  onToggle,
-}: GroupProps & {
-  isSubtask?: boolean
-  expandable?: boolean
-  expanded?: boolean
-  onToggle?: () => void
-}) => (
+}: GroupProps) => (
   <div
     ref={(element) => registerRow(task.id, element)}
     tabIndex={0}
     role="button"
     aria-label={t('workspace.openTask', { title: task.title })}
     data-selected={selectedTaskId === task.id || undefined}
-    data-subtask={isSubtask || undefined}
     className={mobileCardCss}
-    draggable={!isSubtask && task.can_edit}
+    draggable={task.can_edit}
     onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
     <div className={mobileTitleRowCss}>
-      <TaskTitle
-        task={task}
-        isSubtask={isSubtask}
-        expandable={expandable}
-        expanded={expanded}
-        onToggle={onToggle}
-      />
+      <TaskTitle task={task} />
       <TaskPriorityBadge priority={task.priority} />
     </div>
     <dl className={mobileMetaCss}>
@@ -579,50 +491,11 @@ const MobileTaskCard = ({
   </div>
 )
 
-const TaskTitle = ({
-  task,
-  isSubtask,
-  expandable,
-  expanded,
-  onToggle,
-}: {
-  task: ApiTask
-  isSubtask: boolean
-  expandable: boolean
-  expanded: boolean
-  onToggle?: () => void
-}) => {
+const TaskTitle = ({ task }: { task: ApiTask }) => {
   const { t } = useTranslation('tasks')
   return (
-    <div className={titleCellCss} data-subtask={isSubtask || undefined}>
+    <div className={titleCellCss}>
       <div className={titleLineCss}>
-        {expandable ? (
-          <button
-            type="button"
-            className={expandButtonCss}
-            aria-expanded={expanded}
-            aria-label={
-              expanded
-                ? t('subtasks.hide')
-                : t('subtasks.show', {
-                    completed: task.completed_subtask_count,
-                    total: task.subtask_count,
-                  })
-            }
-            onClick={(event) => {
-              event.stopPropagation()
-              onToggle?.()
-            }}
-          >
-            {expanded ? (
-              <RiArrowDownSLine size={16} />
-            ) : (
-              <RiArrowRightSLine size={16} />
-            )}
-          </button>
-        ) : isSubtask ? (
-          <span className={subtaskConnectorCss} aria-hidden="true" />
-        ) : null}
         <strong>{task.title}</strong>
       </div>
       {task.source_room_name && (
@@ -985,8 +858,6 @@ const rowCss = css({
   _hover: { backgroundColor: 'greyscale.50' },
   _focusVisible: { boxShadow: 'inset 0 0 0 2px token(colors.primary.500)' },
   '&[data-selected]': { backgroundColor: 'selected.bg' },
-  '&[data-subtask]': { backgroundColor: 'greyscale.50' },
-  '&[data-subtask][data-selected]': { backgroundColor: 'selected.bg' },
 })
 const groupHeaderRowCss = css({
   '& td': {
@@ -1032,10 +903,6 @@ const groupMoreButtonCss = css({
   flexShrink: 0,
   '&[data-hovered], &[data-pressed]': { color: 'primary.700!' },
 })
-const subtaskStateRowCss = css({
-  color: 'default.subtle-text',
-  '& td': { paddingLeft: '4.75rem!', fontSize: '0.75rem!' },
-})
 const secondaryColumnCss = css({ display: { md: 'none', lg: 'table-cell' } })
 const wideColumnCss = css({ display: { md: 'none', xl: 'table-cell' } })
 const titleCellCss = css({
@@ -1044,7 +911,6 @@ const titleCellCss = css({
   flexDirection: 'column',
   gap: '0.125rem',
   overflow: 'hidden',
-  '&[data-subtask]': { paddingLeft: '1rem' },
 })
 const titleLineCss = css({
   minWidth: 0,
@@ -1067,14 +933,6 @@ const expandButtonCss = css({
   color: 'greyscale.600',
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.200' },
-})
-const subtaskConnectorCss = css({
-  width: '1rem',
-  height: '0.75rem',
-  flexShrink: 0,
-  borderLeft: '1px solid token(colors.greyscale.300)',
-  borderBottom: '1px solid token(colors.greyscale.300)',
-  borderBottomLeftRadius: '6px',
 })
 const titleMetaCss = css({
   overflow: 'hidden',
@@ -1110,19 +968,6 @@ const mobileGroupHeaderCss = css({
   '& strong': { fontSize: '0.875rem' },
   '& > span': { color: 'greyscale.500', fontSize: '0.75rem' },
 })
-const mobileSubtaskListCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.5rem',
-  listStyle: 'none',
-  margin: '0.5rem 0 0 1rem',
-  padding: 0,
-})
-const mobileSubtaskStateCss = css({
-  margin: '0.5rem 0 0 1rem',
-  color: 'default.subtle-text',
-  fontSize: '0.75rem',
-})
 const mobileCardCss = css({
   display: 'flex',
   flexDirection: 'column',
@@ -1134,7 +979,6 @@ const mobileCardCss = css({
   color: 'default.text',
   cursor: 'pointer',
   outline: 'none',
-  '&[data-subtask]': { backgroundColor: 'greyscale.50' },
   '&[data-selected]': {
     borderColor: 'selected.accent',
     backgroundColor: 'selected.bg',

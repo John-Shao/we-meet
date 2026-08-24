@@ -48,7 +48,6 @@
     "closePanel": "Aufgabenbereich schließen",
     "tabs": {
       "overview": "Details",
-      "subtasks": "Unteraufgaben",
       "comments": "Kommentare",
       "attachments": "Anhänge",
       "history": "Verlauf"
@@ -260,19 +259,6 @@
     "edit": "Bearbeiten",
     "save": "Speichern",
     "cancelEdit": "Änderungen verwerfen"
-  },
-  "subtasks": {
-    "title": "Unteraufgaben",
-    "show": "Unteraufgaben {{completed}}/{{total}}",
-    "hide": "Unteraufgaben ausblenden",
-    "loading": "Unteraufgaben werden geladen…",
-    "empty": "Noch keine Unteraufgaben.",
-    "error": "Unteraufgaben konnten nicht geladen werden.",
-    "createError": "Die Unteraufgabe konnte nicht erstellt werden.",
-    "titleLabel": "Titel der Unteraufgabe",
-    "titlePlaceholder": "Einen konkreten nächsten Schritt hinzufügen",
-    "create": "Unteraufgabe hinzufügen",
-    "meta": "Verantwortlich: {{assignee}} · Start: {{start}} · Fällig: {{due}}"
   },
   "comments": {
     "title": "Kommentare",

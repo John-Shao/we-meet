@@ -48,7 +48,6 @@
     "closePanel": "Fermer le panneau de tâche",
     "tabs": {
       "overview": "Détails",
-      "subtasks": "Sous-tâches",
       "comments": "Commentaires",
       "attachments": "Pièces jointes",
       "history": "Historique"
@@ -260,19 +259,6 @@
     "edit": "Modifier",
     "save": "Enregistrer",
     "cancelEdit": "Ignorer les modifications"
-  },
-  "subtasks": {
-    "title": "Sous-tâches",
-    "show": "Sous-tâches {{completed}}/{{total}}",
-    "hide": "Masquer les sous-tâches",
-    "loading": "Chargement des sous-tâches…",
-    "empty": "Aucune sous-tâche.",
-    "error": "Impossible de charger les sous-tâches.",
-    "createError": "Impossible de créer la sous-tâche.",
-    "titleLabel": "Titre de la sous-tâche",
-    "titlePlaceholder": "Ajouter une prochaine étape concrète",
-    "create": "Ajouter une sous-tâche",
-    "meta": "Responsable : {{assignee}} · Début : {{start}} · Échéance : {{due}}"
   },
   "comments": {
     "title": "Commentaires",

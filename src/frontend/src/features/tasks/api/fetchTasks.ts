@@ -468,16 +468,6 @@ export const useTaskStatistics = (
     enabled,
   })
 
-const fetchTaskSubtasks = (taskId: string) =>
-  fetchApi<ApiTask[]>(`tasks/${encodeURIComponent(taskId)}/subtasks/`)
-
-export const useTaskSubtasks = (taskId: string, enabled = true) =>
-  useQuery<ApiTask[], ApiError>({
-    queryKey: ['tasks', taskId, 'subtasks'],
-    queryFn: () => fetchTaskSubtasks(taskId),
-    enabled,
-  })
-
 const fetchTaskActivities = (taskId: string) =>
   fetchApi<ApiTaskActivity[]>(`tasks/${encodeURIComponent(taskId)}/activities/`)
 
@@ -603,31 +593,6 @@ export const useCreateTask = () => {
       queryClient.setQueryData(['tasks', 'detail', task.id], task)
       void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
       return queryClient.invalidateQueries({ queryKey: ['tasks'] })
-    },
-  })
-}
-
-const createTaskSubtask = (taskId: string, payload: CreateTaskPayload) =>
-  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/subtasks/`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
-
-export const useCreateTaskSubtask = () => {
-  const queryClient = useQueryClient()
-  return useMutation<
-    ApiTask,
-    ApiError,
-    { taskId: string; payload: CreateTaskPayload }
-  >({
-    mutationFn: ({ taskId, payload }) => createTaskSubtask(taskId, payload),
-    onSuccess: (task, variables) => {
-      queryClient.setQueryData(['tasks', 'detail', task.id], task)
-      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
-      void queryClient.invalidateQueries({
-        queryKey: ['tasks', variables.taskId, 'subtasks'],
-      })
     },
   })
 }

@@ -48,7 +48,6 @@
     "closePanel": "Close task panel",
     "tabs": {
       "overview": "Details",
-      "subtasks": "Subtasks",
       "comments": "Comments",
       "attachments": "Attachments",
       "history": "History"
@@ -256,19 +255,6 @@
     "edit": "Edit",
     "save": "Save",
     "cancelEdit": "Discard changes"
-  },
-  "subtasks": {
-    "title": "Subtasks",
-    "show": "Subtasks {{completed}}/{{total}}",
-    "hide": "Hide subtasks",
-    "loading": "Loading subtasks…",
-    "empty": "No subtasks yet.",
-    "error": "Subtasks could not be loaded. Please try again.",
-    "createError": "The subtask could not be created. Please try again.",
-    "titleLabel": "Subtask title",
-    "titlePlaceholder": "Add a concrete next step",
-    "create": "Add subtask",
-    "meta": "Assignee: {{assignee}} · Start: {{start}} · Due: {{due}}"
   },
   "comments": {
     "title": "Comments",

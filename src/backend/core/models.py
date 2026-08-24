@@ -2435,14 +2435,6 @@ class Task(BaseModel):
         blank=True,
         verbose_name=_("assignee"),
     )
-    parent = models.ForeignKey(
-        "self",
-        on_delete=models.CASCADE,
-        related_name="subtasks",
-        null=True,
-        blank=True,
-        verbose_name=_("parent task"),
-    )
     status = models.CharField(
         _("status"),
         max_length=16,

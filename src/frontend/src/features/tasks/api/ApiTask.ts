@@ -99,9 +99,6 @@ export interface ApiTask {
   source_action_item_id: string | null
   source_room_id: string | null
   source_room_name: string | null
-  parent_id: string | null
-  subtask_count: number
-  completed_subtask_count: number
   can_edit: boolean
   can_update_status: boolean
   time_state: TaskTimeState | null

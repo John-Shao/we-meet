@@ -256,20 +256,6 @@ def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks():
         title="Delete orphan",
         task_list_id=task_list_id,
     )
-    retained_parent = Task.objects.create(
-        organization=organization,
-        creator=owner,
-        title="Parent required by assigned subtask",
-        task_list_id=task_list_id,
-    )
-    assigned_subtask = Task.objects.create(
-        organization=organization,
-        creator=owner,
-        assignee=editor,
-        parent=retained_parent,
-        title="Keep assigned subtask",
-        task_list_id=task_list_id,
-    )
 
     editor_client = _client(editor)
     archived = editor_client.patch(
@@ -312,11 +298,7 @@ def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks():
     )
     assert deleted.status_code == 204
     assigned.refresh_from_db()
-    retained_parent.refresh_from_db()
-    assigned_subtask.refresh_from_db()
     assert assigned.task_list is None
-    assert retained_parent.task_list is None
-    assert assigned_subtask.task_list is None
     assert not Task.objects.filter(id=orphan.id).exists()
 
 

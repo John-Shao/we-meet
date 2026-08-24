@@ -104,7 +104,7 @@ def _person_name_expression(relation):
 
 
 def _order_tasks(queryset, ordering=""):
-    """Keep top-level and subtask lists on the same deterministic order."""
+    """Keep task lists on the same deterministic order."""
 
     status_rank = Case(
         When(status=models.Task.Status.IN_PROGRESS, then=Value(0)),
@@ -166,7 +166,6 @@ def _order_tasks(queryset, ordering=""):
 def _filter_task_list(queryset, *, request, user):
     """Apply validated list filters without growing the viewset branch count."""
 
-    queryset = queryset.filter(parent__isnull=True)
     scope = request.query_params.get("scope", "assigned")
     if scope == "assigned":
         queryset = queryset.filter(assignee=user)
@@ -582,13 +581,7 @@ class TaskListViewSet(
         ).distinct()
         queryset = queryset.filter(
             is_archived=self.request.query_params.get("archived") == "true"
-        ).annotate(
-            _task_count=Count(
-                "tasks",
-                filter=Q(tasks__parent__isnull=True),
-                distinct=True,
-            )
-        )
+        ).annotate(_task_count=Count("tasks", distinct=True))
         return queryset.select_related("creator", "list_group").prefetch_related(
             "groups",
             Prefetch(
@@ -636,11 +629,7 @@ class TaskListViewSet(
         self._ensure_is_owner(task_list)
         with transaction.atomic():
             if request.query_params.get("delete_unassigned") == "true":
-                unassigned = task_list.tasks.filter(assignee__isnull=True)
-                unassigned.filter(parent__isnull=False).delete()
-                unassigned.filter(parent__isnull=True).exclude(
-                    subtasks__assignee__isnull=False
-                ).delete()
+                task_list.tasks.filter(assignee__isnull=True).delete()
             task_list.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -876,7 +865,7 @@ class TaskViewSet(
     mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Tasks visible to direct or inherited parent collaborators."""
+    """Tasks visible to their direct collaborators."""
 
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = TaskSerializer
@@ -887,12 +876,7 @@ class TaskViewSet(
         user = self.request.user
         queryset = (
             models.Task.objects.filter(
-                Q(creator=user)
-                | Q(assignee=user)
-                | Q(parent__creator=user)
-                | Q(parent__assignee=user)
-                | Q(task_list__accesses__user=user)
-                | Q(parent__task_list__accesses__user=user)
+                Q(creator=user) | Q(assignee=user) | Q(task_list__accesses__user=user)
             )
             .distinct()
             .select_related(
@@ -900,17 +884,7 @@ class TaskViewSet(
                 "assignee",
                 "task_list",
                 "group",
-                "parent__creator",
-                "parent__assignee",
                 "source_action_item__room",
-            )
-            .annotate(
-                _subtask_count=Count("subtasks", distinct=True),
-                _completed_subtask_count=Count(
-                    "subtasks",
-                    filter=Q(subtasks__status=models.Task.Status.COMPLETED),
-                    distinct=True,
-                ),
             )
         )
         queryset = annotate_assignee_local_date(queryset)
@@ -966,8 +940,6 @@ class TaskViewSet(
                     "assignee",
                     "task_list",
                     "group",
-                    "parent__creator",
-                    "parent__assignee",
                     "source_action_item__room",
                 )
                 .get(pk=task.pk)
@@ -992,25 +964,23 @@ class TaskViewSet(
                     {"detail": "Provide only editable task fields."}
                 )
             can_edit_list = _can_edit_task_list(task.task_list, request.user)
-            parent = task.parent
             can_update_status_directly = request.user.id in {
                 task.creator_id,
                 task.assignee_id,
-                getattr(parent, "creator_id", None),
-                getattr(parent, "assignee_id", None),
             }
             if (
                 task.creator_id != request.user.id
                 and not can_edit_list
-                and (
-                    requested_fields != {"status"}
-                    or not can_update_status_directly
-                )
+                and (requested_fields != {"status"} or not can_update_status_directly)
             ):
                 raise PermissionDenied("Assignees can only update the task status.")
-            if task.creator_id != request.user.id and not can_edit_list and (
-                task.status == models.Task.Status.CANCELED
-                or request.data.get("status") == models.Task.Status.CANCELED
+            if (
+                task.creator_id != request.user.id
+                and not can_edit_list
+                and (
+                    task.status == models.Task.Status.CANCELED
+                    or request.data.get("status") == models.Task.Status.CANCELED
+                )
             ):
                 raise PermissionDenied(
                     "Only the task creator can cancel or reopen a canceled task."
@@ -1148,78 +1118,6 @@ class TaskViewSet(
             .order_by("group__sort_order", "group__name", "group_id")
         )
         return Response({"summary": summary, "workload": workload, "groups": groups})
-
-    @action(detail=True, methods=["get", "post"])
-    def subtasks(self, request, *args, **kwargs):  # pylint: disable=unused-argument
-        parent = self.get_object()
-        if request.method == "GET":
-            subtasks = _order_tasks(
-                parent.subtasks.select_related(
-                    "creator",
-                    "assignee",
-                    "task_list",
-                    "group",
-                    "parent__creator",
-                    "parent__assignee",
-                )
-                .annotate(
-                    _subtask_count=Count("subtasks", distinct=True),
-                    _completed_subtask_count=Count(
-                        "subtasks",
-                        filter=Q(subtasks__status=models.Task.Status.COMPLETED),
-                        distinct=True,
-                    ),
-                )
-            )
-            return Response(
-                TaskSerializer(
-                    subtasks,
-                    many=True,
-                    context={"request": request},
-                ).data
-            )
-
-        if parent.parent_id is not None:
-            raise serializers.ValidationError(
-                {"parent": "Subtasks can only be created under a top-level task."}
-            )
-        if parent.task_list_id and not _can_edit_task_list(
-            parent.task_list, request.user
-        ):
-            raise PermissionDenied(
-                "Only task-list editors and the owner can create subtasks."
-            )
-
-        serializer = TaskCreateSerializer(
-            data=request.data,
-            context={"request": request},
-        )
-        serializer.is_valid(raise_exception=True)
-        validated_data = dict(serializer.validated_data)
-        assignee = validated_data.pop("assignee", request.user)
-        validated_data.pop("task_list", None)
-        validated_data.pop("group", None)
-        validated_data.pop("position", None)
-        with transaction.atomic():
-            subtask = models.Task.objects.create(
-                parent=parent,
-                creator=request.user,
-                assignee=assignee,
-                organization=parent.organization
-                or get_caller_organization(request.user),
-                task_list=parent.task_list,
-                group=parent.group,
-                **validated_data,
-            )
-            record_task_created(task=subtask, actor=request.user)
-            record_task_assignment(
-                task=subtask,
-                event=models.TaskImDelivery.Event.ASSIGNED,
-            )
-        return Response(
-            TaskSerializer(subtask, context={"request": request}).data,
-            status=201,
-        )
 
     @action(detail=True, methods=["get", "post"])
     def comments(self, request, *args, **kwargs):  # pylint: disable=unused-argument
