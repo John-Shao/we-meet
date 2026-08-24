@@ -41,7 +41,11 @@ const task: ApiTask = {
   },
   status: 'todo',
   priority: 'high',
-  task_list: null,
+  task_list: {
+    id: 'list-1',
+    name: 'Release work',
+    color: 'blue',
+  },
   group: null,
   position: 0,
   start_date: '2026-08-21',
@@ -78,6 +82,7 @@ describe('TaskList', () => {
       'workspace.columns.startDate',
       'workspace.columns.dueDate',
       'workspace.columns.status',
+      'workspace.columns.taskList',
       'workspace.columns.creator',
       'workspace.columns.createdAt',
     ])
@@ -100,6 +105,21 @@ describe('TaskList', () => {
     ).not.toBeInTheDocument()
     expect(container.querySelector('img[src="/assignee.png"]')).toBeTruthy()
     expect(container.querySelector('img[src="/creator.png"]')).toBeTruthy()
+    expect(within(table).getByText('Release work')).toBeInTheDocument()
+  })
+
+  it('labels tasks without a task list as standalone', () => {
+    render(
+      <TaskList
+        tasks={[{ ...task, task_list: null }]}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    expect(
+      within(screen.getByRole('table')).getByText('taskLists.standalone')
+    ).toBeInTheDocument()
   })
 
   it('opens a focused row with Enter', () => {

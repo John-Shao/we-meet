@@ -38,6 +38,7 @@ const TASK_COLUMNS = [
   { id: 'startDate', defaultWidth: 120, minWidth: 60, maxWidth: 280 },
   { id: 'dueDate', defaultWidth: 120, minWidth: 60, maxWidth: 280 },
   { id: 'status', defaultWidth: 100, minWidth: 40, maxWidth: 240 },
+  { id: 'taskList', defaultWidth: 140, minWidth: 80, maxWidth: 320 },
   { id: 'creator', defaultWidth: 120, minWidth: 60, maxWidth: 320 },
   { id: 'createdAt', defaultWidth: 160, minWidth: 80, maxWidth: 360 },
 ] as const
@@ -431,6 +432,9 @@ const DesktopTaskRow = ({
     </td>
     <td>{t(`statuses.${task.status}`)}</td>
     <td className={secondaryColumnCss}>
+      {task.task_list?.name || t('taskLists.standalone')}
+    </td>
+    <td className={secondaryColumnCss}>
       <TaskUserDisplay user={task.creator} />
     </td>
     <td className={wideColumnCss}>{formatDateTime(task.created_at)}</td>
@@ -743,7 +747,11 @@ const dropTask = (
 }
 
 const columnClassName = (columnId: TaskColumnId) => {
-  if (columnId === 'startDate' || columnId === 'creator') {
+  if (
+    columnId === 'startDate' ||
+    columnId === 'taskList' ||
+    columnId === 'creator'
+  ) {
     return secondaryColumnCss
   }
   if (columnId === 'createdAt') return wideColumnCss

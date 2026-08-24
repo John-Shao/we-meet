@@ -30,6 +30,7 @@
       "priority": "Prioriteit",
       "startDate": "Startdatum",
       "dueDate": "Deadline",
+      "taskList": "Takenlijst",
       "creator": "Maker",
       "createdAt": "Aangemaakt"
     },

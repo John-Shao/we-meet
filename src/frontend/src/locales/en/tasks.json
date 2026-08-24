@@ -30,6 +30,7 @@
       "priority": "Priority",
       "startDate": "Start date",
       "dueDate": "Due date",
+      "taskList": "Task list",
       "creator": "Creator",
       "createdAt": "Created"
     },

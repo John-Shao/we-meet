@@ -30,6 +30,7 @@
       "priority": "Priorität",
       "startDate": "Startdatum",
       "dueDate": "Fälligkeitsdatum",
+      "taskList": "Aufgabenliste",
       "creator": "Erstellt von",
       "createdAt": "Erstellt"
     },

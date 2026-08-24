@@ -30,6 +30,7 @@
       "priority": "Priorité",
       "startDate": "Date de début",
       "dueDate": "Échéance",
+      "taskList": "Liste de tâches",
       "creator": "Créateur",
       "createdAt": "Création"
     },
