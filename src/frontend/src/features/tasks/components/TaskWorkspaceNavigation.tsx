@@ -540,7 +540,7 @@ const sectionHeaderCss = css({
     backgroundColor: 'selected.bg',
   },
 })
-const createMenuCss = css({ minWidth: '10rem' })
+const createMenuCss = css({ minWidth: '10rem', fontSize: '0.875rem' })
 const menuItemLabelCss = css({
   display: 'inline-flex',
   alignItems: 'center',
