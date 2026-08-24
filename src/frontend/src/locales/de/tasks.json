@@ -22,6 +22,7 @@
     "statusFilter": "Status",
     "statusOptions": { "open": "Offen", "all": "Alle Status" },
     "clearFilters": "Filter löschen",
+    "resizeColumn": "Breite der Spalte {{column}} ändern",
     "columns": {
       "status": "Status",
       "title": "Aufgabentitel",

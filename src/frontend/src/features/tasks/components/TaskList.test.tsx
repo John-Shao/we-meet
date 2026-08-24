@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type { ApiTask } from '../api/ApiTask'
 import { TaskList } from './TaskList'
@@ -17,6 +17,12 @@ vi.mock('../api/fetchTasks', () => ({
   usePatchTask: () => ({ mutate, isPending: false }),
   useTaskSubtasks: () => ({ data: [subtask], isLoading: false, error: null }),
 }))
+
+beforeAll(() => {
+  if (!window.PointerEvent) {
+    window.PointerEvent = MouseEvent as typeof PointerEvent
+  }
+})
 
 const task: ApiTask = {
   id: 'task-1',
@@ -92,6 +98,53 @@ describe('TaskList', () => {
       key: 'Enter',
     })
     expect(onOpen).toHaveBeenCalledWith(task)
+  })
+
+  it('resizes a desktop column and restores the saved width', () => {
+    const { unmount } = render(
+      <TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />
+    )
+
+    const titleHeader = screen
+      .getByRole('table')
+      .querySelector<HTMLElement>('th[data-column="title"]')!
+    const titleHandle = within(titleHeader).getByRole('slider')
+
+    expect(titleHeader).toHaveStyle({ width: '280px' })
+    fireEvent.pointerDown(titleHandle, { clientX: 100 })
+    fireEvent.pointerMove(window, { clientX: 164 })
+    fireEvent.pointerUp(window)
+
+    expect(titleHeader).toHaveStyle({ width: '344px' })
+    expect(
+      JSON.parse(
+        localStorage.getItem('we-meet:task-list-column-widths:v1') || '{}'
+      )
+    ).toMatchObject({ title: 344 })
+
+    unmount()
+    render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
+
+    expect(
+      screen.getByRole('table').querySelector('th[data-column="title"]')
+    ).toHaveStyle({ width: '344px' })
+  })
+
+  it('supports keyboard column resizing within the configured limits', () => {
+    render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
+
+    const priorityHeader = screen
+      .getByRole('table')
+      .querySelector<HTMLElement>('th[data-column="priority"]')!
+    const priorityHandle = within(priorityHeader).getByRole('slider')
+
+    fireEvent.keyDown(priorityHandle, { key: 'ArrowRight' })
+    expect(priorityHeader).toHaveStyle({ width: '116px' })
+
+    for (let index = 0; index < 10; index += 1) {
+      fireEvent.keyDown(priorityHandle, { key: 'ArrowLeft' })
+    }
+    expect(priorityHeader).toHaveStyle({ width: '80px' })
   })
 
   it('renders task-list groups and creates a task in the selected group', () => {

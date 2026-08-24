@@ -22,6 +22,7 @@
     "statusFilter": "Status",
     "statusOptions": { "open": "Open", "all": "All statuses" },
     "clearFilters": "Clear filters",
+    "resizeColumn": "Resize {{column}} column",
     "columns": {
       "status": "Status",
       "title": "Task title",

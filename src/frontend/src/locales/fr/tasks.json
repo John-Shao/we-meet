@@ -22,6 +22,7 @@
     "statusFilter": "Statut",
     "statusOptions": { "open": "Ouvertes", "all": "Tous les statuts" },
     "clearFilters": "Effacer les filtres",
+    "resizeColumn": "Redimensionner la colonne {{column}}",
     "columns": {
       "status": "Statut",
       "title": "Titre",

@@ -1,9 +1,11 @@
 import {
   Fragment,
   useMemo,
+  useRef,
   useState,
   type DragEvent,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
@@ -20,6 +22,58 @@ import type { ApiTask, ApiTaskGroup } from '../api/ApiTask'
 import { usePatchTask, useTaskSubtasks } from '../api/fetchTasks'
 import { taskDisplayName } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
+
+const COLUMN_WIDTHS_STORAGE_KEY = 'we-meet:task-list-column-widths:v1'
+
+const TASK_COLUMNS = [
+  { id: 'title', defaultWidth: 280, minWidth: 200, maxWidth: 720 },
+  { id: 'assignee', defaultWidth: 120, minWidth: 88, maxWidth: 320 },
+  { id: 'priority', defaultWidth: 100, minWidth: 80, maxWidth: 240 },
+  { id: 'startDate', defaultWidth: 120, minWidth: 96, maxWidth: 280 },
+  { id: 'dueDate', defaultWidth: 120, minWidth: 96, maxWidth: 280 },
+  { id: 'status', defaultWidth: 100, minWidth: 80, maxWidth: 240 },
+  { id: 'creator', defaultWidth: 120, minWidth: 88, maxWidth: 320 },
+  { id: 'updatedAt', defaultWidth: 160, minWidth: 128, maxWidth: 360 },
+] as const
+
+type TaskColumnId = (typeof TASK_COLUMNS)[number]['id']
+type TaskColumnWidths = Record<TaskColumnId, number>
+
+const defaultColumnWidths = (): TaskColumnWidths =>
+  Object.fromEntries(
+    TASK_COLUMNS.map((column) => [column.id, column.defaultWidth])
+  ) as TaskColumnWidths
+
+const clampColumnWidth = (columnId: TaskColumnId, value: number) => {
+  const column = TASK_COLUMNS.find((candidate) => candidate.id === columnId)!
+  return Math.min(column.maxWidth, Math.max(column.minWidth, value))
+}
+
+const readColumnWidths = (): TaskColumnWidths => {
+  const defaults = defaultColumnWidths()
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY) || '{}'
+    ) as Partial<Record<TaskColumnId, unknown>>
+    for (const column of TASK_COLUMNS) {
+      const value = stored[column.id]
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        defaults[column.id] = clampColumnWidth(column.id, value)
+      }
+    }
+  } catch {
+    // A malformed or unavailable local preference falls back to defaults.
+  }
+  return defaults
+}
+
+const persistColumnWidths = (widths: TaskColumnWidths) => {
+  try {
+    localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(widths))
+  } catch {
+    // Resizing still works for the current session in restricted storage modes.
+  }
+}
 
 type ListProps = {
   tasks: ApiTask[]
@@ -55,6 +109,10 @@ export const TaskList = ({
 }: ListProps) => {
   const { t, i18n } = useTranslation('tasks')
   const patchMutation = usePatchTask()
+  const [columnWidths, setColumnWidths] =
+    useState<TaskColumnWidths>(readColumnWidths)
+  const columnWidthsRef = useRef(columnWidths)
+  const [resizingColumn, setResizingColumn] = useState<TaskColumnId>()
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
     () => new Set()
   )
@@ -94,6 +152,63 @@ export const TaskList = ({
     })
   }
 
+  const setColumnWidth = (columnId: TaskColumnId, value: number) => {
+    const next = {
+      ...columnWidthsRef.current,
+      [columnId]: clampColumnWidth(columnId, value),
+    }
+    columnWidthsRef.current = next
+    setColumnWidths(next)
+  }
+
+  const beginColumnResize = (
+    columnId: TaskColumnId,
+    event: ReactPointerEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault()
+    const originX = event.clientX
+    const originWidth = columnWidthsRef.current[columnId]
+    setResizingColumn(columnId)
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'col-resize'
+
+    const onMove = (pointer: PointerEvent) => {
+      setColumnWidth(columnId, originWidth + pointer.clientX - originX)
+    }
+    const finish = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      setResizingColumn(undefined)
+      persistColumnWidths(columnWidthsRef.current)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', finish)
+  }
+
+  const resizeColumnWithKeyboard = (
+    columnId: TaskColumnId,
+    event: KeyboardEvent<HTMLButtonElement>
+  ) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    setColumnWidth(
+      columnId,
+      columnWidthsRef.current[columnId] + (event.key === 'ArrowLeft' ? -16 : 16)
+    )
+    persistColumnWidths(columnWidthsRef.current)
+  }
+
+  const resetColumnWidth = (columnId: TaskColumnId) => {
+    const column = TASK_COLUMNS.find((candidate) => candidate.id === columnId)!
+    setColumnWidth(columnId, column.defaultWidth)
+    persistColumnWidths(columnWidthsRef.current)
+  }
+
   const groupProps = {
     selectedTaskId,
     onOpen,
@@ -108,20 +223,37 @@ export const TaskList = ({
       <table className={tableCss}>
         <thead>
           <tr>
-            <th>{t('workspace.columns.title')}</th>
-            <th>{t('workspace.columns.assignee')}</th>
-            <th>{t('workspace.columns.priority')}</th>
-            <th className={secondaryColumnCss}>
-              {t('workspace.columns.startDate')}
-            </th>
-            <th>{t('workspace.columns.dueDate')}</th>
-            <th>{t('workspace.columns.status')}</th>
-            <th className={secondaryColumnCss}>
-              {t('workspace.columns.creator')}
-            </th>
-            <th className={wideColumnCss}>
-              {t('workspace.columns.updatedAt')}
-            </th>
+            {TASK_COLUMNS.map((column) => {
+              const label = t(`workspace.columns.${column.id}`)
+              return (
+                <th
+                  key={column.id}
+                  data-column={column.id}
+                  className={columnClassName(column.id)}
+                  style={{ width: columnWidths[column.id] }}
+                >
+                  {label}
+                  <button
+                    type="button"
+                    role="slider"
+                    aria-label={t('workspace.resizeColumn', { column: label })}
+                    aria-orientation="horizontal"
+                    aria-valuemin={column.minWidth}
+                    aria-valuemax={column.maxWidth}
+                    aria-valuenow={columnWidths[column.id]}
+                    data-resizing={resizingColumn === column.id || undefined}
+                    className={columnResizeHandleCss}
+                    onPointerDown={(event) =>
+                      beginColumnResize(column.id, event)
+                    }
+                    onKeyDown={(event) =>
+                      resizeColumnWithKeyboard(column.id, event)
+                    }
+                    onDoubleClick={() => resetColumnWidth(column.id)}
+                  />
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
@@ -668,9 +800,21 @@ const dropTask = (
   if (taskId) onMoveTask(taskId, groupId)
 }
 
+const columnClassName = (columnId: TaskColumnId) => {
+  if (columnId === 'startDate' || columnId === 'creator') {
+    return secondaryColumnCss
+  }
+  if (columnId === 'updatedAt') return wideColumnCss
+  return undefined
+}
+
 const tableCss = css({
   display: { base: 'none', md: 'table' },
-  width: '100%',
+  width: {
+    md: 'max(100%, 720px)',
+    lg: 'max(100%, 960px)',
+    xl: 'max(100%, 1120px)',
+  },
   borderCollapse: 'collapse',
   tableLayout: 'fixed',
   color: 'default.text',
@@ -694,7 +838,34 @@ const tableCss = css({
     whiteSpace: 'nowrap',
     fontSize: '0.8125rem',
   },
-  '& th:first-child': { width: '30%' },
+})
+const columnResizeHandleCss = css({
+  position: 'absolute',
+  top: 0,
+  right: '-0.25rem',
+  width: '0.5rem',
+  height: '100%',
+  zIndex: 2,
+  cursor: 'col-resize',
+  touchAction: 'none',
+  padding: 0,
+  border: 0,
+  backgroundColor: 'transparent',
+  outline: 'none',
+  _hover: { '&::after': { backgroundColor: 'primary.500' } },
+  _focusVisible: { '&::after': { backgroundColor: 'primary.500' } },
+  '&[data-resizing]::after': { backgroundColor: 'primary.500' },
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    top: '20%',
+    right: '0.1875rem',
+    width: '2px',
+    height: '60%',
+    borderRadius: 'full',
+    backgroundColor: 'transparent',
+    transition: 'background-color token(durations.fast)',
+  },
 })
 const rowCss = css({
   cursor: 'pointer',

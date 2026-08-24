@@ -22,6 +22,7 @@
     "statusFilter": "状态",
     "statusOptions": { "open": "未关闭", "all": "全部状态" },
     "clearFilters": "清除筛选",
+    "resizeColumn": "调整“{{column}}”列宽",
     "columns": {
       "status": "状态",
       "title": "任务标题",

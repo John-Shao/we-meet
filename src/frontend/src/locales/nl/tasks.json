@@ -22,6 +22,7 @@
     "statusFilter": "Status",
     "statusOptions": { "open": "Open", "all": "Alle statussen" },
     "clearFilters": "Filters wissen",
+    "resizeColumn": "Breedte van kolom {{column}} aanpassen",
     "columns": {
       "status": "Status",
       "title": "Taaktitel",
