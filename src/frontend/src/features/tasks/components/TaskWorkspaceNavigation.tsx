@@ -364,7 +364,7 @@ export const TaskWorkspaceNavigation = ({
                         <RiFolderLine size={16} />
                         <span>{group.name}</span>
                       </button>
-                      <div className={nodeActionsCss} data-node-actions>
+                      <div className={groupNodeActionsCss} data-node-actions>
                         <Button
                           variant="tertiary"
                           size="icon24"
@@ -563,12 +563,6 @@ const listGroupHeaderCss = css({
     backgroundColor: 'greyscale.100',
     '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
   },
-  '&:has(:focus-visible)': {
-    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
-  },
-  "&:has([aria-expanded='true'])": {
-    '& [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
-  },
   '& > button:first-child': {
     minWidth: 0,
     flex: 1,
@@ -677,6 +671,15 @@ const nodeActionsCss = css({
   pointerEvents: { base: 'auto', md: 'none' },
   transition: 'opacity 120ms ease',
   '&:has(:focus-visible)': { opacity: 1, pointerEvents: 'auto' },
+})
+const groupNodeActionsCss = css({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.125rem',
+  opacity: { base: 1, md: 0 },
+  pointerEvents: { base: 'auto', md: 'none' },
+  transition: 'opacity 120ms ease',
 })
 const persistentNodeActionsCss = css({
   flexShrink: 0,
