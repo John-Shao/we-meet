@@ -237,7 +237,7 @@ def _filter_by_task_list(queryset, *, task_list_filter, user):
             id=task_list_filter,
             organization=organization,
             is_archived=False,
-        ).filter(Q(accesses__user=user) | Q(creator=user)).get()
+        ).filter(Q(accesses__user=user) | Q(creator=user)).distinct().get()
     except (
         ValueError,
         DjangoValidationError,

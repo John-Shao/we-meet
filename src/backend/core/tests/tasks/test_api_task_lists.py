@@ -116,6 +116,14 @@ def test_task_list_sharing_enforces_viewer_and_editor_permissions():
     )
     assert shared.status_code == 201
     assert shared.json()["role"] == "viewer"
+    owner_visible_tasks = owner_client.get(
+        TASKS_URL,
+        {"scope": "all", "task_list": task_list_id},
+    )
+    assert owner_visible_tasks.status_code == 200
+    assert [item["id"] for item in owner_visible_tasks.json()["results"]] == [
+        str(task.id)
+    ]
     assert (
         owner_client.post(
             f"{TASK_LISTS_URL}{task_list_id}/shares/",
