@@ -13,6 +13,7 @@ import {
   RiArrowDownSLine,
   RiArrowRightSLine,
   RiArrowUpSLine,
+  RiCheckLine,
   RiMoreLine,
 } from '@remixicon/react'
 
@@ -42,7 +43,6 @@ const TASK_COLUMNS = [
   { id: 'creator', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
   { id: 'createdAt', defaultWidth: 80, minWidth: 40, maxWidth: 160 },
 ] as const
-const DESKTOP_TABLE_COLUMN_COUNT = TASK_COLUMNS.length + 1
 
 type TaskColumnId = (typeof TASK_COLUMNS)[number]['id']
 type TaskColumnWidths = Record<TaskColumnId, number>
@@ -121,6 +121,7 @@ type ListProps = {
 
 type GroupProps = Omit<ListProps, 'tasks'> & {
   task: ApiTask
+  isLastInGroup?: boolean
   t: TFunction<'tasks'>
   formatDate: (value: string | null) => string
   formatDateTime: (value: string) => string
@@ -153,6 +154,10 @@ export const TaskList = ({
     () => buildSections(tasks, groups, grouped),
     [grouped, groups, tasks]
   )
+  const visibleColumns = grouped
+    ? TASK_COLUMNS.filter((column) => column.id !== 'taskList')
+    : TASK_COLUMNS
+  const desktopColumnCount = visibleColumns.length + 1
 
   const toggleSection = (sectionKey: string) => {
     setCollapsedSections((current) => {
@@ -243,6 +248,7 @@ export const TaskList = ({
   }
 
   const groupProps = {
+    grouped,
     selectedTaskId,
     onOpen,
     registerRow,
@@ -253,10 +259,10 @@ export const TaskList = ({
 
   return (
     <>
-      <table className={tableCss}>
+      <table className={tableCss} data-grouped={grouped || undefined}>
         <thead>
           <tr>
-            {TASK_COLUMNS.map((column) => {
+            {visibleColumns.map((column) => {
               const label = t(`workspace.columns.${column.id}`)
               const orderingField = ORDERING_BY_COLUMN[column.id]
               const sortDirection =
@@ -341,13 +347,23 @@ export const TaskList = ({
                     onRenameGroup={onRenameGroup}
                     onDeleteGroup={onDeleteGroup}
                     onMoveTask={moveToGroup}
+                    columnCount={desktopColumnCount}
+                  />
+                )}
+                {!collapsed && section.tasks.length === 0 && (
+                  <DesktopEmptyGroupRow
+                    section={section}
+                    columnCount={desktopColumnCount}
+                    canCreateTask={Boolean(onCreateTaskInGroup)}
+                    onMoveTask={moveToGroup}
                   />
                 )}
                 {!collapsed &&
-                  section.tasks.map((task) => (
+                  section.tasks.map((task, taskIndex) => (
                     <DesktopTaskGroup
                       key={task.id}
                       task={task}
+                      isLastInGroup={taskIndex === section.tasks.length - 1}
                       {...groupProps}
                     />
                   ))}
@@ -374,7 +390,17 @@ export const TaskList = ({
                 />
               )}
               {!collapsed && (
-                <ul className={mobileSectionTasksCss}>
+                <ul
+                  className={mobileSectionTasksCss}
+                  data-grouped={grouped || undefined}
+                >
+                  {section.tasks.length === 0 && (
+                    <MobileEmptyGroup
+                      section={section}
+                      canCreateTask={Boolean(onCreateTaskInGroup)}
+                      onMoveTask={moveToGroup}
+                    />
+                  )}
                   {section.tasks.map((task) => (
                     <MobileTaskGroup
                       key={task.id}
@@ -396,6 +422,8 @@ const DesktopTaskGroup = (props: GroupProps) => <DesktopTaskRow {...props} />
 
 const DesktopTaskRow = ({
   task,
+  grouped,
+  isLastInGroup,
   selectedTaskId,
   onOpen,
   registerRow,
@@ -408,14 +436,30 @@ const DesktopTaskRow = ({
     tabIndex={0}
     aria-label={t('workspace.openTask', { title: task.title })}
     data-selected={selectedTaskId === task.id || undefined}
+    data-grouped={grouped || undefined}
+    data-group-last={grouped && isLastInGroup ? true : undefined}
     className={rowCss}
     draggable={task.can_edit}
     onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
-    <td>
-      <TaskTitle task={task} />
+    <td
+      className={grouped ? groupedTaskTitleCellCss : undefined}
+      data-group-last={grouped && isLastInGroup ? true : undefined}
+    >
+      <div className={grouped ? groupedTaskTitleContentCss : undefined}>
+        {grouped && (
+          <span
+            aria-hidden="true"
+            className={taskStateDotCss}
+            data-status={task.status}
+          >
+            {task.status === 'completed' && <RiCheckLine size={10} />}
+          </span>
+        )}
+        <TaskTitle task={task} />
+      </div>
     </td>
     <td>
       <TaskUserDisplay user={task.assignee} />
@@ -431,9 +475,11 @@ const DesktopTaskRow = ({
       {formatDate(task.due_date)}
     </td>
     <td>{t(`statuses.${task.status}`)}</td>
-    <td className={secondaryColumnCss}>
-      {task.task_list?.name || t('taskLists.standalone')}
-    </td>
+    {!grouped && (
+      <td className={secondaryColumnCss}>
+        {task.task_list?.name || t('taskLists.standalone')}
+      </td>
+    )}
     <td className={secondaryColumnCss}>
       <TaskUserDisplay user={task.creator} />
     </td>
@@ -567,6 +613,7 @@ const DesktopGroupHeader = ({
   onRenameGroup,
   onDeleteGroup,
   onMoveTask,
+  columnCount,
 }: {
   section: TaskSection
   collapsed: boolean
@@ -576,15 +623,17 @@ const DesktopGroupHeader = ({
   onRenameGroup?: (group: ApiTaskGroup) => void
   onDeleteGroup?: (group: ApiTaskGroup) => void
   onMoveTask: (taskId: string, groupId?: string) => void
+  columnCount: number
 }) => {
   const { t } = useTranslation('tasks')
   return (
     <tr
       className={groupHeaderRowCss}
-      onDragOver={(event) => event.preventDefault()}
+      onDragOver={markTaskDropTarget}
+      onDragLeave={leaveTaskDropTarget}
       onDrop={(event) => dropTask(event, section.group?.id, onMoveTask)}
     >
-      <td colSpan={DESKTOP_TABLE_COLUMN_COUNT}>
+      <td colSpan={columnCount}>
         <div className={groupHeaderCss}>
           <button
             type="button"
@@ -600,26 +649,28 @@ const DesktopGroupHeader = ({
             )}
           </button>
           <strong>{section.name || t('groups.ungrouped')}</strong>
-          <span>{section.tasks.length}</span>
-          {onCreateTask && (
-            <button
-              type="button"
-              className={groupCreateTaskCss}
-              onClick={() => onCreateTask(section.group?.id)}
-            >
-              + {t('groups.addTask')}
-            </button>
-          )}
-          {canManageGroups &&
-            section.group &&
-            onRenameGroup &&
-            onDeleteGroup && (
-              <GroupMoreMenu
-                group={section.group}
-                onRename={onRenameGroup}
-                onDelete={onDeleteGroup}
-              />
+          <span>{t('groups.taskCount', { count: section.tasks.length })}</span>
+          <div className={groupActionsCss}>
+            {onCreateTask && (
+              <button
+                type="button"
+                className={groupCreateTaskCss}
+                onClick={() => onCreateTask(section.group?.id)}
+              >
+                + {t('groups.addTask')}
+              </button>
             )}
+            {canManageGroups &&
+              section.group &&
+              onRenameGroup &&
+              onDeleteGroup && (
+                <GroupMoreMenu
+                  group={section.group}
+                  onRename={onRenameGroup}
+                  onDelete={onDeleteGroup}
+                />
+              )}
+          </div>
         </div>
       </td>
     </tr>
@@ -649,7 +700,8 @@ const MobileGroupHeader = ({
   return (
     <div
       className={mobileGroupHeaderCss}
-      onDragOver={(event) => event.preventDefault()}
+      onDragOver={markTaskDropTarget}
+      onDragLeave={leaveTaskDropTarget}
       onDrop={(event) => dropTask(event, section.group?.id, onMoveTask)}
     >
       <button
@@ -666,24 +718,74 @@ const MobileGroupHeader = ({
         )}
       </button>
       <strong>{section.name || t('groups.ungrouped')}</strong>
-      <span>{section.tasks.length}</span>
-      {onCreateTask && (
-        <button
-          type="button"
-          className={groupCreateTaskCss}
-          onClick={() => onCreateTask(section.group?.id)}
-        >
-          + {t('groups.addTask')}
-        </button>
-      )}
-      {canManageGroups && section.group && onRenameGroup && onDeleteGroup && (
-        <GroupMoreMenu
-          group={section.group}
-          onRename={onRenameGroup}
-          onDelete={onDeleteGroup}
-        />
-      )}
+      <span>{t('groups.taskCount', { count: section.tasks.length })}</span>
+      <div className={groupActionsCss}>
+        {onCreateTask && (
+          <button
+            type="button"
+            className={groupCreateTaskCss}
+            onClick={() => onCreateTask(section.group?.id)}
+          >
+            + {t('groups.addTask')}
+          </button>
+        )}
+        {canManageGroups && section.group && onRenameGroup && onDeleteGroup && (
+          <GroupMoreMenu
+            group={section.group}
+            onRename={onRenameGroup}
+            onDelete={onDeleteGroup}
+          />
+        )}
+      </div>
     </div>
+  )
+}
+
+const DesktopEmptyGroupRow = ({
+  section,
+  columnCount,
+  canCreateTask,
+  onMoveTask,
+}: {
+  section: TaskSection
+  columnCount: number
+  canCreateTask: boolean
+  onMoveTask: (taskId: string, groupId?: string) => void
+}) => {
+  const { t } = useTranslation('tasks')
+  return (
+    <tr
+      className={emptyGroupRowCss}
+      onDragOver={markTaskDropTarget}
+      onDragLeave={leaveTaskDropTarget}
+      onDrop={(event) => dropTask(event, section.group?.id, onMoveTask)}
+    >
+      <td colSpan={columnCount}>
+        {t(canCreateTask ? 'groups.empty' : 'groups.emptyReadOnly')}
+      </td>
+    </tr>
+  )
+}
+
+const MobileEmptyGroup = ({
+  section,
+  canCreateTask,
+  onMoveTask,
+}: {
+  section: TaskSection
+  canCreateTask: boolean
+  onMoveTask: (taskId: string, groupId?: string) => void
+}) => {
+  const { t } = useTranslation('tasks')
+  return (
+    <li
+      className={mobileEmptyGroupCss}
+      onDragOver={markTaskDropTarget}
+      onDragLeave={leaveTaskDropTarget}
+      onDrop={(event) => dropTask(event, section.group?.id, onMoveTask)}
+    >
+      {t(canCreateTask ? 'groups.empty' : 'groups.emptyReadOnly')}
+    </li>
   )
 }
 
@@ -736,12 +838,26 @@ const startTaskDrag = (event: DragEvent<HTMLElement>, task: ApiTask) => {
   event.dataTransfer.setData('application/x-we-meet-task', task.id)
 }
 
+const markTaskDropTarget = (event: DragEvent<HTMLElement>) => {
+  event.preventDefault()
+  event.currentTarget.setAttribute('data-drag-over', 'true')
+}
+
+const leaveTaskDropTarget = (event: DragEvent<HTMLElement>) => {
+  const nextTarget = event.relatedTarget
+  if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+    return
+  }
+  event.currentTarget.removeAttribute('data-drag-over')
+}
+
 const dropTask = (
   event: DragEvent<HTMLElement>,
   groupId: string | undefined,
   onMoveTask: (taskId: string, groupId?: string) => void
 ) => {
   event.preventDefault()
+  event.currentTarget.removeAttribute('data-drag-over')
   const taskId = event.dataTransfer.getData('application/x-we-meet-task')
   if (taskId) onMoveTask(taskId, groupId)
 }
@@ -863,15 +979,22 @@ const columnResizeGripCss = css({
 const rowCss = css({
   cursor: 'pointer',
   outline: 'none',
+  transition: 'background-color token(durations.fast)',
   _hover: { backgroundColor: 'greyscale.50' },
   _focusVisible: { boxShadow: 'inset 0 0 0 2px token(colors.primary.500)' },
   '&[data-selected]': { backgroundColor: 'selected.bg' },
 })
 const groupHeaderRowCss = css({
   '& td': {
-    padding: '0.875rem 0.75rem 0.375rem!',
-    borderBottom: '0!important',
+    padding: '0.25rem 0.75rem!important',
+    borderTop: '0.5rem solid token(colors.greyscale.000)!important',
+    borderBottom: '1px solid token(colors.greyscale.200)!important',
+    backgroundColor: 'greyscale.50',
     overflow: 'visible!important',
+  },
+  '&[data-drag-over] td': {
+    backgroundColor: 'selected.bg',
+    boxShadow: 'inset 3px 0 0 token(colors.primary.500)',
   },
 })
 const groupHeaderCss = css({
@@ -880,17 +1003,24 @@ const groupHeaderCss = css({
   gap: '0.5rem',
   minHeight: '2rem',
   color: 'greyscale.700',
-  '& strong': { fontSize: '0.875rem' },
+  '& strong': { fontSize: '0.875rem', fontWeight: '600' },
   '& > span': { color: 'greyscale.500', fontSize: '0.75rem' },
 })
-const groupCreateTaskCss = css({
+const groupActionsCss = css({
   marginLeft: 'auto',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.125rem',
+  flexShrink: 0,
+})
+const groupCreateTaskCss = css({
   padding: '0.25rem 0.5rem',
   border: 0,
   borderRadius: '6px',
   backgroundColor: 'transparent',
-  color: 'primary.700',
+  color: 'primary.600',
   fontSize: '0.75rem',
+  lineHeight: '1rem',
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.100' },
 })
@@ -907,9 +1037,75 @@ const groupMoreMenuCss = css({
 })
 const groupMoreButtonCss = css({
   marginLeft: '0!',
-  color: 'primary.700!',
+  color: 'primary.600!',
   flexShrink: 0,
-  '&[data-hovered], &[data-pressed]': { color: 'primary.700!' },
+  '&[data-hovered], &[data-pressed]': { color: 'primary.600!' },
+})
+const groupedTaskTitleCellCss = css({
+  position: 'relative',
+  paddingLeft: '3.25rem!important',
+  overflow: 'visible!important',
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '2.5rem',
+    width: '1px',
+    backgroundColor: 'greyscale.200',
+  },
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    top: '50%',
+    left: '2.5rem',
+    width: '0.75rem',
+    height: '1px',
+    backgroundColor: 'greyscale.200',
+  },
+  '&[data-group-last]::before': { bottom: '50%' },
+})
+const groupedTaskTitleContentCss = css({
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+})
+const taskStateDotCss = css({
+  width: '0.875rem',
+  height: '0.875rem',
+  flexShrink: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: '1px solid token(colors.greyscale.400)',
+  borderRadius: '999px',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.000',
+  '&[data-status="in_progress"]': { borderColor: 'primary.500' },
+  '&[data-status="completed"]': {
+    borderColor: 'success.500',
+    backgroundColor: 'success.500',
+  },
+  '&[data-status="canceled"]': {
+    borderColor: 'greyscale.300',
+    backgroundColor: 'greyscale.200',
+  },
+})
+const emptyGroupRowCss = css({
+  '& td': {
+    height: '2.75rem',
+    padding: '0.5rem 1rem 0.5rem 4rem!important',
+    borderBottom: '1px solid token(colors.greyscale.200)!important',
+    backgroundColor: 'greyscale.000',
+    color: 'default.subtle-text',
+    fontSize: '0.75rem',
+  },
+  '&[data-drag-over] td': {
+    backgroundColor: 'selected.bg',
+    color: 'primary.700',
+    boxShadow: 'inset 3px 0 0 token(colors.primary.500)',
+  },
 })
 const secondaryColumnCss = css({ display: { md: 'none', lg: 'table-cell' } })
 const wideColumnCss = css({ display: { md: 'none', xl: 'table-cell' } })
@@ -967,14 +1163,40 @@ const mobileSectionTasksCss = css({
   margin: 0,
   padding: 0,
   listStyle: 'none',
+  '&[data-grouped]': {
+    marginLeft: '1.25rem',
+    paddingLeft: '0.75rem',
+    borderLeft: '1px solid token(colors.greyscale.200)',
+  },
 })
 const mobileGroupHeaderCss = css({
   display: 'flex',
   alignItems: 'center',
   gap: '0.5rem',
   minHeight: '2.5rem',
+  paddingX: '0.5rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '6px',
+  backgroundColor: 'greyscale.50',
   '& strong': { fontSize: '0.875rem' },
   '& > span': { color: 'greyscale.500', fontSize: '0.75rem' },
+  '&[data-drag-over]': {
+    borderColor: 'primary.500',
+    backgroundColor: 'selected.bg',
+  },
+})
+const mobileEmptyGroupCss = css({
+  padding: '0.75rem',
+  border: '1px dashed token(colors.greyscale.300)',
+  borderRadius: '6px',
+  color: 'default.subtle-text',
+  fontSize: '0.75rem',
+  listStyle: 'none',
+  '&[data-drag-over]': {
+    borderColor: 'primary.500',
+    backgroundColor: 'selected.bg',
+    color: 'primary.700',
+  },
 })
 const mobileCardCss = css({
   display: 'flex',

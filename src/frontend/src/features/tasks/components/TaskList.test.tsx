@@ -328,6 +328,20 @@ describe('TaskList', () => {
     )
 
     expect(screen.getAllByText('Analysis')).toHaveLength(2)
+    const groupedTable = screen.getByRole('table')
+    expect(
+      within(groupedTable).queryByRole('columnheader', {
+        name: 'workspace.columns.taskList',
+      })
+    ).not.toBeInTheDocument()
+    const groupedTaskRow = within(groupedTable).getByLabelText(
+      'workspace.openTask'
+    )
+    expect(groupedTaskRow).toHaveAttribute('data-grouped', 'true')
+    expect(groupedTaskRow).toHaveAttribute('data-group-last', 'true')
+    expect(
+      groupedTaskRow.querySelector('[data-status="todo"]')
+    ).toBeInTheDocument()
     fireEvent.click(screen.getAllByText('+ groups.addTask')[0])
     expect(onCreateTaskInGroup).toHaveBeenCalledWith('group-1')
 
@@ -335,6 +349,40 @@ describe('TaskList', () => {
     fireEvent.click(collapseButtons[0])
     expect(collapseButtons[0]).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getAllByLabelText('groups.expand')).toHaveLength(2)
+  })
+
+  it('shows an actionable drop target for an empty task group', () => {
+    render(
+      <TaskList
+        tasks={[]}
+        groups={[
+          {
+            id: 'group-1',
+            name: 'Development',
+            sort_order: 0,
+            task_count: 0,
+            can_delete: true,
+            created_at: '2026-08-21T08:00:00Z',
+            updated_at: '2026-08-21T08:00:00Z',
+          },
+        ]}
+        grouped
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+        onCreateTaskInGroup={vi.fn()}
+      />
+    )
+
+    expect(screen.getAllByText('groups.empty')).toHaveLength(2)
+    expect(screen.getAllByText('groups.taskCount')).toHaveLength(2)
+
+    const desktopDropTarget = within(screen.getByRole('table'))
+      .getByText('groups.empty')
+      .closest('tr')!
+    fireEvent.dragOver(desktopDropTarget)
+    expect(desktopDropTarget).toHaveAttribute('data-drag-over', 'true')
+    fireEvent.dragLeave(desktopDropTarget)
+    expect(desktopDropTarget).not.toHaveAttribute('data-drag-over')
   })
 
   it('disables the delete-group action for a non-empty group', () => {
