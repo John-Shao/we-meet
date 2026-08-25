@@ -42,7 +42,6 @@ const TASK_COLUMNS = [
   { id: 'priority', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
   { id: 'startDate', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
   { id: 'dueDate', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
-  { id: 'status', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
   { id: 'taskList', defaultWidth: 60, minWidth: 30, maxWidth: 180 },
   { id: 'creator', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
   { id: 'createdAt', defaultWidth: 80, minWidth: 40, maxWidth: 160 },
@@ -56,7 +55,6 @@ const ORDERING_BY_COLUMN: Partial<Record<TaskColumnId, TaskOrderingField>> = {
   priority: 'priority',
   startDate: 'start_date',
   dueDate: 'due_date',
-  status: 'status',
   creator: 'creator',
   createdAt: 'created_at',
 }
@@ -545,7 +543,7 @@ const DesktopTaskRow = ({
           pending={statusPending}
           onToggle={onToggleStatus}
         />
-        <TaskTitle task={task} />
+        <TaskTitle task={task} status={statusOverride ?? task.status} />
       </div>
     </td>
     <td>
@@ -561,7 +559,6 @@ const DesktopTaskRow = ({
     >
       {formatDate(task.due_date)}
     </td>
-    <td>{t(`statuses.${statusOverride ?? task.status}`)}</td>
     {!grouped && (
       <td className={secondaryColumnCss}>
         {task.task_list?.name || t('taskLists.standalone')}
@@ -613,14 +610,10 @@ const MobileTaskCard = ({
         pending={statusPending}
         onToggle={onToggleStatus}
       />
-      <TaskTitle task={task} />
+      <TaskTitle task={task} status={statusOverride ?? task.status} />
       <TaskPriorityBadge priority={task.priority} />
     </div>
     <dl className={mobileMetaCss}>
-      <div>
-        <dt>{t('workspace.columns.status')}</dt>
-        <dd>{t(`statuses.${statusOverride ?? task.status}`)}</dd>
-      </div>
       <div>
         <dt>{t('workspace.columns.assignee')}</dt>
         <dd>
@@ -694,10 +687,13 @@ const TaskStatusButton = ({
   )
 }
 
-const TaskTitle = ({ task }: { task: ApiTask }) => {
+const TaskTitle = ({ task, status }: { task: ApiTask; status: TaskStatus }) => {
   const { t } = useTranslation('tasks')
   return (
-    <div className={titleCellCss}>
+    <div
+      className={titleCellCss}
+      data-completed={status === 'completed' || undefined}
+    >
       <div className={titleLineCss}>
         <strong>{task.title}</strong>
       </div>
@@ -1309,6 +1305,7 @@ const titleCellCss = css({
   flexDirection: 'column',
   gap: '0.125rem',
   overflow: 'hidden',
+  '&[data-completed] strong': { color: 'default.subtle-text' },
 })
 const titleLineCss = css({
   minWidth: 0,

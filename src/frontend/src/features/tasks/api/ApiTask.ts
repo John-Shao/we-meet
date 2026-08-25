@@ -10,7 +10,6 @@ export type TaskOrderingField =
   | 'priority'
   | 'start_date'
   | 'due_date'
-  | 'status'
   | 'creator'
   | 'created_at'
 export type TaskOrdering = '' | TaskOrderingField | `-${TaskOrderingField}`

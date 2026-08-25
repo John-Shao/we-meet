@@ -46,8 +46,6 @@ const TASK_ORDERINGS: readonly TaskOrdering[] = [
   '-start_date',
   'due_date',
   '-due_date',
-  'status',
-  '-status',
   'creator',
   '-creator',
   'created_at',

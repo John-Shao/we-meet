@@ -53,6 +53,9 @@ describe('task workspace state', () => {
         .ordering
     ).toBe('')
     expect(
+      parseTaskWorkspaceState(new URLSearchParams('ordering=status')).ordering
+    ).toBe('')
+    expect(
       parseTaskWorkspaceState(new URLSearchParams('priority=none')).priority
     ).toBe('all')
   })

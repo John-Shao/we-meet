@@ -94,12 +94,11 @@ describe('TaskList', () => {
       'workspace.columns.priority',
       'workspace.columns.startDate',
       'workspace.columns.dueDate',
-      'workspace.columns.status',
       'workspace.columns.taskList',
       'workspace.columns.creator',
       'workspace.columns.createdAt',
     ])
-    expect(within(table).getAllByText('statuses.todo')).toHaveLength(1)
+    expect(screen.queryByText('statuses.todo')).not.toBeInTheDocument()
     expect(screen.getAllByLabelText('workspace.quickComplete')).toHaveLength(2)
     expect(screen.getAllByText('Prepare release')).toHaveLength(2)
     expect(screen.getAllByText('priorities.high')).toHaveLength(2)
@@ -139,6 +138,11 @@ describe('TaskList', () => {
     await waitFor(() =>
       expect(screen.getAllByLabelText('workspace.quickReopen')).toHaveLength(2)
     )
+    expect(
+      screen
+        .getAllByText('Prepare release')
+        .every((title) => title.closest('[data-completed]'))
+    ).toBe(true)
 
     mutateAsync.mockResolvedValueOnce({ ...task, status: 'todo' })
     fireEvent.click(screen.getAllByLabelText('workspace.quickReopen')[0])
@@ -146,6 +150,11 @@ describe('TaskList', () => {
       taskId: task.id,
       patch: { status: 'todo' },
     })
+    expect(
+      screen
+        .getAllByText('Prepare release')
+        .every((title) => !title.closest('[data-completed]'))
+    ).toBe(true)
   })
 
   it('restores the previous status and reports a failed quick action', async () => {
@@ -266,7 +275,6 @@ describe('TaskList', () => {
       priority: [60, 30, 120],
       startDate: [60, 30, 120],
       dueDate: [60, 30, 120],
-      status: [60, 30, 120],
       taskList: [60, 30, 180],
       creator: [60, 30, 120],
       createdAt: [80, 40, 160],
