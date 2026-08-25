@@ -68,7 +68,7 @@ def test_user_creates_personal_task_assigned_to_self():
     assert payload["assignee"]["id"] == str(user.id)
     assert payload["assignee"]["avatar_url"] == ""
     assert payload["status"] == Task.Status.TODO
-    assert payload["priority"] == Task.Priority.NONE
+    assert payload["priority"] == Task.Priority.MEDIUM
     assert "labels" not in payload
     assert payload["start_date"] == "2026-08-20"
     assert payload["due_date"] == "2026-08-31"
@@ -123,6 +123,14 @@ def test_task_priority_is_created_validated_and_serialized():
     )
     assert invalid.status_code == 400
     assert "priority" in invalid.json()
+
+    no_priority = client.post(
+        TASKS_URL,
+        {"title": "No priority is no longer assignable", "priority": "none"},
+        format="json",
+    )
+    assert no_priority.status_code == 400
+    assert "priority" in no_priority.json()
 
 
 def test_task_date_range_must_be_chronological():

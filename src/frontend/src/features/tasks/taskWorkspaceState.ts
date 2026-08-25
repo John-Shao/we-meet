@@ -70,7 +70,7 @@ export const parseTaskWorkspaceState = (
   ),
   priority: oneOf(
     params.get('priority'),
-    ['all', 'none', 'low', 'medium', 'high', 'urgent'],
+    ['all', 'low', 'medium', 'high', 'urgent'],
     'all'
   ),
   ordering: oneOf(params.get('ordering'), TASK_ORDERINGS, ''),

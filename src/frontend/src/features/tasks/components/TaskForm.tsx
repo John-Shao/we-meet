@@ -22,7 +22,7 @@ import type {
 import { useCreateTask } from '../api/fetchTasks'
 import { TaskUserDisplay } from './TaskUserDisplay'
 
-const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
+const priorities: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
 
 export const TaskForm = ({
   taskLists,
@@ -43,7 +43,7 @@ export const TaskForm = ({
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [assignee, setAssignee] = useState<ApiTaskUser | null>(null)
-  const [priority, setPriority] = useState<TaskPriority>('none')
+  const [priority, setPriority] = useState<TaskPriority>('medium')
   const [taskListId, setTaskListId] = useState(defaultTaskListId || '')
   const [groupId, setGroupId] = useState(defaultGroupId || '')
   const [startDate, setStartDate] = useState('')
@@ -141,7 +141,7 @@ export const TaskForm = ({
                   }
                   aria-label={t('taskLists.field')}
                   items={[
-                    { value: '', label: t('taskLists.none') },
+                    { value: '', label: t('taskLists.standalone') },
                     ...taskLists.map((taskList) => ({
                       value: taskList.id,
                       label: taskList.name,

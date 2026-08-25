@@ -33,6 +33,8 @@ describe('TaskForm create mode', () => {
     expect(
       screen.getByRole('button', { name: 'workspace.createSubmit' })
     ).toBeDisabled()
+    expect(screen.getAllByText('priorities.medium')).toHaveLength(2)
+    expect(screen.queryByText('priorities.none')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'form.today' }))
     expect(screen.getByLabelText('form.dueDate')).toHaveValue(
@@ -43,6 +45,7 @@ describe('TaskForm create mode', () => {
   it('uses the expected Chinese create action labels', () => {
     expect(zhTasks.workspace.createCancel).toBe('取消')
     expect(zhTasks.workspace.createSubmit).toBe('新建')
+    expect(zhTasks.taskLists.none).toBe('独立任务')
   })
 })
 

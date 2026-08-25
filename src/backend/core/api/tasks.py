@@ -74,6 +74,12 @@ TASK_LIST_EDIT_ROLES = {
     models.TaskListAccess.Role.OWNER,
 }
 
+ASSIGNABLE_TASK_PRIORITY_CHOICES = [
+    choice
+    for choice in models.Task.Priority.choices
+    if choice[0] != models.Task.Priority.NONE
+]
+
 
 def _task_list_role(task_list, user):
     if task_list is None or user is None or not user.is_authenticated:
@@ -362,9 +368,9 @@ class TaskCreateSerializer(
     start_date = serializers.DateField(required=False, allow_null=True)
     due_date = serializers.DateField(required=False, allow_null=True)
     priority = serializers.ChoiceField(
-        choices=models.Task.Priority.choices,
+        choices=ASSIGNABLE_TASK_PRIORITY_CHOICES,
         required=False,
-        default=models.Task.Priority.NONE,
+        default=models.Task.Priority.MEDIUM,
     )
     assignee_id = serializers.PrimaryKeyRelatedField(
         source="assignee",
@@ -427,6 +433,10 @@ class TaskUpdateSerializer(
 
     title = serializers.CharField(max_length=500, trim_whitespace=True)
     description = serializers.CharField(allow_blank=True, max_length=5000)
+    priority = serializers.ChoiceField(
+        choices=ASSIGNABLE_TASK_PRIORITY_CHOICES,
+        required=False,
+    )
     assignee_id = serializers.PrimaryKeyRelatedField(
         source="assignee",
         queryset=models.User.objects.all(),

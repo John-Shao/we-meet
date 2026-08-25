@@ -52,6 +52,9 @@ describe('task workspace state', () => {
       parseTaskWorkspaceState(new URLSearchParams('ordering=-updated_at'))
         .ordering
     ).toBe('')
+    expect(
+      parseTaskWorkspaceState(new URLSearchParams('priority=none')).priority
+    ).toBe('all')
   })
 
   it('preserves priority while resetting time for closed views', () => {

@@ -40,7 +40,7 @@ import {
   TaskHistorySection,
 } from './TaskCollaborationSections'
 
-const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
+const priorities: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
 
 type EditableTaskField =
   | 'title'
@@ -103,7 +103,7 @@ export const TaskDetailPanel = ({
   )
   const [draftText, setDraftText] = useState('')
   const [draftDate, setDraftDate] = useState('')
-  const [draftPriority, setDraftPriority] = useState<TaskPriority>('none')
+  const [draftPriority, setDraftPriority] = useState<TaskPriority>('medium')
   const [draftTaskListId, setDraftTaskListId] = useState('')
   const [draftGroupId, setDraftGroupId] = useState('')
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
@@ -152,7 +152,9 @@ export const TaskDetailPanel = ({
     if (field === 'description') setDraftText(task.description)
     if (field === 'startDate') setDraftDate(task.start_date || '')
     if (field === 'dueDate') setDraftDate(task.due_date || '')
-    if (field === 'priority') setDraftPriority(task.priority)
+    if (field === 'priority') {
+      setDraftPriority(task.priority === 'none' ? 'medium' : task.priority)
+    }
     if (field === 'placement') {
       setDraftTaskListId(task.task_list?.id || '')
       setDraftGroupId(task.group?.id || '')
@@ -295,7 +297,7 @@ export const TaskDetailPanel = ({
                       }
                       aria-label={t('taskLists.field')}
                       items={[
-                        { value: '', label: t('taskLists.none') },
+                        { value: '', label: t('taskLists.standalone') },
                         ...taskLists.map((taskList) => ({
                           value: taskList.id,
                           label: taskList.name,
@@ -342,7 +344,7 @@ export const TaskDetailPanel = ({
               ) : task.task_list ? (
                 `${task.task_list.name}${task.group ? ` / ${task.group.name}` : ''}`
               ) : (
-                t('taskLists.none')
+                t('taskLists.standalone')
               )}
             </TaskProperty>
             <TaskProperty

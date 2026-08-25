@@ -2446,7 +2446,7 @@ class Task(BaseModel):
         _("priority"),
         max_length=16,
         choices=Priority.choices,
-        default=Priority.NONE,
+        default=Priority.MEDIUM,
         db_index=True,
     )
     task_list = models.ForeignKey(
