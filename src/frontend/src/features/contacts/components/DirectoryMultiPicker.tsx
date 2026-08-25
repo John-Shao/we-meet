@@ -36,6 +36,8 @@ interface Props {
   /** Calendar/IM pickers may include already accepted external accounts. */
   includeExternal?: boolean
   externalLabel?: string
+  /** Flows such as task followers may allow selecting the current user. */
+  includeSelf?: boolean
 }
 
 /**
@@ -57,6 +59,7 @@ export const DirectoryMultiPicker = ({
   searchTestId,
   includeExternal = false,
   externalLabel = 'External',
+  includeSelf = false,
 }: Props) => {
   const {
     query,
@@ -66,7 +69,7 @@ export const DirectoryMultiPicker = ({
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useDirectoryMemberSearch()
+  } = useDirectoryMemberSearch({ includeSelf })
   const { data: externalContacts = [], isFetching: isFetchingExternal } =
     useQuery({
       queryKey: ['directory', 'external-contacts'],

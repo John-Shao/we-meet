@@ -49,6 +49,7 @@ import {
 } from '../api/fetchTasks'
 import { nextTaskStatuses } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
+import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
 import { TaskForm } from './TaskForm'
 import { TaskUserDisplay } from './TaskUserDisplay'
 import {
@@ -658,20 +659,18 @@ export const TaskDetailPanel = ({
             />
           )}
           {followerPickerOpen && (
-            <ContactPicker
-              includeSelf
-              title={t('followers.select')}
-              searchPlaceholder={t('followers.search')}
+            <TaskFollowerPickerDialog
+              initial={[]}
+              excludeIds={
+                new Set(task.followers.map((follower) => follower.id))
+              }
               onClose={() => setFollowerPickerOpen(false)}
-              onSelect={(member: DirectoryMember) => {
+              onConfirm={(followers) => {
                 setFollowerPickerOpen(false)
-                if (
-                  task.followers.some((follower) => follower.id === member.id)
-                )
-                  return
+                if (followers.length === 0) return
                 addFollowersMutation.mutate({
                   taskId: task.id,
-                  followerIds: [member.id],
+                  followerIds: followers.map((follower) => follower.id),
                 })
               }}
             />

@@ -22,6 +22,7 @@ import type {
   TaskPriority,
 } from '../api/ApiTask'
 import { useCreateTask } from '../api/fetchTasks'
+import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
 import { TaskUserDisplay } from './TaskUserDisplay'
 
 const priorities: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
@@ -96,18 +97,11 @@ export const TaskForm = ({
     />
   )
   const followerPicker = followerPickerOpen && (
-    <ContactPicker
-      includeSelf
-      title={t('followers.select')}
-      searchPlaceholder={t('followers.search')}
+    <TaskFollowerPickerDialog
+      initial={followers}
       onClose={() => setFollowerPickerOpen(false)}
-      onSelect={(member: DirectoryMember) => {
-        const follower = directoryMemberToTaskUser(member)
-        setFollowers((current) =>
-          current.some((item) => item.id === follower.id)
-            ? current
-            : [...current, follower]
-        )
+      onConfirm={(selectedFollowers) => {
+        setFollowers(selectedFollowers)
         setFollowerPickerOpen(false)
       }}
     />
