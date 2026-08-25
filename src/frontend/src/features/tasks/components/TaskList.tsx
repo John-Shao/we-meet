@@ -650,7 +650,7 @@ const DesktopGroupHeader = ({
           </button>
           <strong>{section.name || t('groups.ungrouped')}</strong>
           <span>{t('groups.taskCount', { count: section.tasks.length })}</span>
-          <div className={groupActionsCss}>
+          <div className={groupActionsCss} data-group-actions>
             {onCreateTask && (
               <button
                 type="button"
@@ -989,8 +989,23 @@ const groupHeaderRowCss = css({
     padding: '0.25rem 0.75rem!important',
     borderTop: '0.5rem solid token(colors.greyscale.000)!important',
     borderBottom: '1px solid token(colors.greyscale.200)!important',
-    backgroundColor: 'greyscale.50',
+    backgroundColor: 'greyscale.000',
     overflow: 'visible!important',
+    transition: 'background-color token(durations.fast)',
+  },
+  '& [data-group-actions]': {
+    opacity: 0,
+    visibility: 'hidden',
+    pointerEvents: 'none',
+    transition: 'opacity token(durations.fast)',
+  },
+  '&:hover td, &:focus-within td': {
+    backgroundColor: 'greyscale.50',
+  },
+  '&:hover [data-group-actions], &:focus-within [data-group-actions]': {
+    opacity: 1,
+    visibility: 'visible',
+    pointerEvents: 'auto',
   },
   '&[data-drag-over] td': {
     backgroundColor: 'selected.bg',
