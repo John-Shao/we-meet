@@ -189,6 +189,37 @@ describe('TaskList', () => {
     ).not.toHaveAttribute('aria-sort')
   })
 
+  it('uses the configured default and resize limits for every column', () => {
+    render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
+
+    const expectedWidths = {
+      title: [120, 60, 360],
+      assignee: [60, 30, 120],
+      priority: [60, 30, 120],
+      startDate: [60, 30, 120],
+      dueDate: [60, 30, 120],
+      status: [60, 30, 120],
+      taskList: [60, 30, 180],
+      creator: [60, 30, 120],
+      createdAt: [80, 40, 160],
+    }
+    const table = screen.getByRole('table')
+
+    for (const [columnId, [defaultWidth, minWidth, maxWidth]] of Object.entries(
+      expectedWidths
+    )) {
+      const header = table.querySelector<HTMLElement>(
+        `th[data-column="${columnId}"]`
+      )!
+      const handle = within(header).getByRole('slider')
+
+      expect(header).toHaveStyle({ width: `${defaultWidth}px` })
+      expect(handle).toHaveAttribute('aria-valuemin', String(minWidth))
+      expect(handle).toHaveAttribute('aria-valuemax', String(maxWidth))
+      expect(handle).toHaveAttribute('aria-valuenow', String(defaultWidth))
+    }
+  })
+
   it('resizes a desktop column and restores the saved width', () => {
     const { unmount } = render(
       <TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />
@@ -199,24 +230,24 @@ describe('TaskList', () => {
       .querySelector<HTMLElement>('th[data-column="title"]')!
     const titleHandle = within(titleHeader).getByRole('slider')
 
-    expect(titleHeader).toHaveStyle({ width: '280px' })
+    expect(titleHeader).toHaveStyle({ width: '120px' })
     fireEvent.pointerDown(titleHandle, { clientX: 100 })
     fireEvent.pointerMove(window, { clientX: 164 })
     fireEvent.pointerUp(window)
 
-    expect(titleHeader).toHaveStyle({ width: '344px' })
+    expect(titleHeader).toHaveStyle({ width: '184px' })
     expect(
       JSON.parse(
-        localStorage.getItem('we-meet:task-list-column-widths:v1') || '{}'
+        localStorage.getItem('we-meet:task-list-column-widths:v2') || '{}'
       )
-    ).toMatchObject({ title: 344 })
+    ).toMatchObject({ title: 184 })
 
     unmount()
     render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
     expect(
       screen.getByRole('table').querySelector('th[data-column="title"]')
-    ).toHaveStyle({ width: '344px' })
+    ).toHaveStyle({ width: '184px' })
   })
 
   it('supports keyboard column resizing within the configured limits', () => {
@@ -228,25 +259,25 @@ describe('TaskList', () => {
     const priorityHandle = within(priorityHeader).getByRole('slider')
 
     fireEvent.keyDown(priorityHandle, { key: 'ArrowRight' })
-    expect(priorityHeader).toHaveStyle({ width: '116px' })
+    expect(priorityHeader).toHaveStyle({ width: '76px' })
 
     for (let index = 0; index < 10; index += 1) {
       fireEvent.keyDown(priorityHandle, { key: 'ArrowLeft' })
     }
-    expect(priorityHeader).toHaveStyle({ width: '40px' })
+    expect(priorityHeader).toHaveStyle({ width: '30px' })
   })
 
   it('keeps the saved width when replacing updated time with created time', () => {
     localStorage.setItem(
-      'we-meet:task-list-column-widths:v1',
-      JSON.stringify({ updatedAt: 224 })
+      'we-meet:task-list-column-widths:v2',
+      JSON.stringify({ updatedAt: 112 })
     )
 
     render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
     expect(
       screen.getByRole('table').querySelector('th[data-column="createdAt"]')
-    ).toHaveStyle({ width: '224px' })
+    ).toHaveStyle({ width: '112px' })
   })
 
   it('keeps a gutter after double-line resize handles', () => {

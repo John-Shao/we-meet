@@ -29,18 +29,18 @@ import { usePatchTask } from '../api/fetchTasks'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskUserDisplay } from './TaskUserDisplay'
 
-const COLUMN_WIDTHS_STORAGE_KEY = 'we-meet:task-list-column-widths:v1'
+const COLUMN_WIDTHS_STORAGE_KEY = 'we-meet:task-list-column-widths:v2'
 
 const TASK_COLUMNS = [
-  { id: 'title', defaultWidth: 280, minWidth: 120, maxWidth: 720 },
-  { id: 'assignee', defaultWidth: 120, minWidth: 60, maxWidth: 320 },
-  { id: 'priority', defaultWidth: 100, minWidth: 40, maxWidth: 240 },
-  { id: 'startDate', defaultWidth: 120, minWidth: 60, maxWidth: 280 },
-  { id: 'dueDate', defaultWidth: 120, minWidth: 60, maxWidth: 280 },
-  { id: 'status', defaultWidth: 100, minWidth: 40, maxWidth: 240 },
-  { id: 'taskList', defaultWidth: 140, minWidth: 80, maxWidth: 320 },
-  { id: 'creator', defaultWidth: 120, minWidth: 60, maxWidth: 320 },
-  { id: 'createdAt', defaultWidth: 160, minWidth: 80, maxWidth: 360 },
+  { id: 'title', defaultWidth: 120, minWidth: 60, maxWidth: 360 },
+  { id: 'assignee', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
+  { id: 'priority', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
+  { id: 'startDate', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
+  { id: 'dueDate', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
+  { id: 'status', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
+  { id: 'taskList', defaultWidth: 60, minWidth: 30, maxWidth: 180 },
+  { id: 'creator', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
+  { id: 'createdAt', defaultWidth: 80, minWidth: 40, maxWidth: 160 },
 ] as const
 const DESKTOP_TABLE_COLUMN_COUNT = TASK_COLUMNS.length + 1
 
