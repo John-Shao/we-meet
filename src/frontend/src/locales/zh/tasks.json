@@ -253,9 +253,9 @@
     "none": "未设置"
   },
   "actions": {
-    "to_todo": "重新打开",
+    "to_todo": "重启任务",
     "to_in_progress": "开始处理",
-    "to_completed": "完成",
+    "to_completed": "完成任务",
     "to_canceled": "取消任务",
     "edit": "编辑",
     "save": "保存",
