@@ -1097,14 +1097,9 @@ const taskStateDotCss = css({
   borderRadius: '999px',
   backgroundColor: 'greyscale.000',
   color: 'greyscale.000',
-  '&[data-status="in_progress"]': { borderColor: 'primary.500' },
   '&[data-status="completed"]': {
     borderColor: 'success.500',
     backgroundColor: 'success.500',
-  },
-  '&[data-status="canceled"]': {
-    borderColor: 'greyscale.300',
-    backgroundColor: 'greyscale.200',
   },
 })
 const emptyGroupRowCss = css({

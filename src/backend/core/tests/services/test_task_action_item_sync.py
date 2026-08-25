@@ -180,8 +180,6 @@ def test_task_completion_records_conflict_without_overwriting_manual_status(
 
 def test_action_item_completion_completes_open_task_and_notifies_creator():
     creator, assignee, action_item, task = _linked_pair()
-    task.status = models.Task.Status.IN_PROGRESS
-    task.save(update_fields=["status", "updated_at"])
     source_activity = _source_status_activity(
         action_item=action_item,
         task=task,
@@ -203,7 +201,7 @@ def test_action_item_completion_completes_open_task_and_notifies_creator():
     assert status_activity.actor == assignee
     assert status_activity.changes == {
         "status": {
-            "from": models.Task.Status.IN_PROGRESS,
+            "from": models.Task.Status.TODO,
             "to": models.Task.Status.COMPLETED,
         },
         "source_action_item_origin": {
@@ -241,36 +239,6 @@ def test_action_item_reopen_reopens_completed_task():
     assert result["to"] == models.Task.Status.TODO
     assert task.status == models.Task.Status.TODO
     assert task.completed_at is None
-
-
-def test_action_item_status_does_not_override_canceled_task():
-    creator, _assignee, action_item, task = _linked_pair()
-    task.status = models.Task.Status.CANCELED
-    task.save(update_fields=["status", "updated_at"])
-    source_activity = _source_status_activity(
-        action_item=action_item,
-        task=task,
-        actor=creator,
-        before=models.ActionItem.Status.CONFIRMED,
-        after=models.ActionItem.Status.COMPLETED,
-    )
-
-    result = sync_task_from_action_item_status(activity=source_activity)
-
-    task.refresh_from_db()
-    assert result == {
-        "task_id": str(task.id),
-        "result": "skipped_conflict",
-        "from": models.Task.Status.CANCELED,
-        "to": models.Task.Status.CANCELED,
-        "reason": "task_canceled",
-    }
-    assert task.status == models.Task.Status.CANCELED
-    assert not models.TaskActivity.objects.filter(
-        task=task,
-        event=models.TaskActivity.Event.STATUS_CHANGED,
-    ).exists()
-    assert not models.TaskImDelivery.objects.filter(task=task).exists()
 
 
 @pytest.mark.parametrize(

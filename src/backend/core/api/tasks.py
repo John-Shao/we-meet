@@ -138,11 +138,9 @@ def _order_tasks(queryset, ordering=""):
     """Keep task lists on the same deterministic order."""
 
     status_rank = Case(
-        When(status=models.Task.Status.IN_PROGRESS, then=Value(0)),
-        When(status=models.Task.Status.TODO, then=Value(1)),
-        When(status=models.Task.Status.COMPLETED, then=Value(2)),
-        When(status=models.Task.Status.CANCELED, then=Value(3)),
-        default=Value(4),
+        When(status=models.Task.Status.TODO, then=Value(0)),
+        When(status=models.Task.Status.COMPLETED, then=Value(1)),
+        default=Value(2),
         output_field=IntegerField(),
     )
     priority_rank = Case(
@@ -207,9 +205,7 @@ def _filter_task_list(queryset, *, request, user):
 
     status_filter = request.query_params.get("status", "all")
     if status_filter == "open":
-        queryset = queryset.exclude(
-            status__in=[models.Task.Status.COMPLETED, models.Task.Status.CANCELED]
-        )
+        queryset = queryset.filter(status=models.Task.Status.TODO)
     elif status_filter != "all":
         valid_statuses = {choice for choice, _label in models.Task.Status.choices}
         if status_filter not in valid_statuses:
@@ -242,7 +238,7 @@ def _filter_task_list(queryset, *, request, user):
         return queryset
 
     queryset = queryset.filter(
-        status__in=[models.Task.Status.TODO, models.Task.Status.IN_PROGRESS],
+        status=models.Task.Status.TODO,
         assignee__isnull=False,
     )
     if time_filter == "starting_today":
@@ -417,18 +413,8 @@ class TaskUpdateSerializer(
     """Editable fields and state-machine validation for one task."""
 
     _TRANSITIONS = {
-        models.Task.Status.TODO: {
-            models.Task.Status.IN_PROGRESS,
-            models.Task.Status.COMPLETED,
-            models.Task.Status.CANCELED,
-        },
-        models.Task.Status.IN_PROGRESS: {
-            models.Task.Status.TODO,
-            models.Task.Status.COMPLETED,
-            models.Task.Status.CANCELED,
-        },
+        models.Task.Status.TODO: {models.Task.Status.COMPLETED},
         models.Task.Status.COMPLETED: {models.Task.Status.TODO},
-        models.Task.Status.CANCELED: {models.Task.Status.TODO},
     }
 
     title = serializers.CharField(max_length=500, trim_whitespace=True)
@@ -907,6 +893,7 @@ class TaskViewSet(
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
     mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
     """Tasks visible to their direct collaborators."""
@@ -1027,14 +1014,6 @@ class TaskViewSet(
                 and (requested_fields != {"status"} or not can_update_status_directly)
             ):
                 raise PermissionDenied("Assignees can only update the task status.")
-            if task.creator_id != request.user.id and (
-                task.status == models.Task.Status.CANCELED
-                or request.data.get("status") == models.Task.Status.CANCELED
-            ):
-                raise PermissionDenied(
-                    "Only the task creator can cancel or reopen a canceled task."
-                )
-
             serializer = TaskUpdateSerializer(
                 task,
                 data=request.data,
@@ -1089,6 +1068,20 @@ class TaskViewSet(
             response_data = TaskSerializer(task, context={"request": request}).data
         return Response(response_data)
 
+    def destroy(self, request, *args, **kwargs):
+        with transaction.atomic():
+            task = self.get_object()
+            if task.creator_id != request.user.id and not _can_edit_task_list(
+                task.task_list, request.user
+            ):
+                raise PermissionDenied("Only task editors can delete this task.")
+            if task.source_action_item_id is not None:
+                models.ActionItem.objects.filter(pk=task.source_action_item_id).update(
+                    task_id=None
+                )
+            _delete_tasks_with_attachments(models.Task.objects.filter(pk=task.pk))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=["get"])
     def activities(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         task = self.get_object()
@@ -1113,7 +1106,7 @@ class TaskViewSet(
             request=request,
             user=request.user,
         )
-        open_statuses = [models.Task.Status.TODO, models.Task.Status.IN_PROGRESS]
+        open_statuses = [models.Task.Status.TODO]
         overdue_filter = Q(
             status__in=open_statuses,
             assignee__isnull=False,
@@ -1127,16 +1120,12 @@ class TaskViewSet(
                 filter=Q(status=models.Task.Status.COMPLETED),
                 distinct=True,
             ),
-            canceled=Count(
-                "id",
-                filter=Q(status=models.Task.Status.CANCELED),
-                distinct=True,
-            ),
             overdue=Count("id", filter=overdue_filter, distinct=True),
         )
-        eligible = summary["total"] - summary["canceled"]
         summary["completion_rate"] = (
-            round(summary["completed"] * 100 / eligible) if eligible else 0
+            round(summary["completed"] * 100 / summary["total"])
+            if summary["total"]
+            else 0
         )
         workload = list(
             queryset.filter(assignee__isnull=False)

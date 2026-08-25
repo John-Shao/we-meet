@@ -8,13 +8,11 @@ import { usePatchTask } from '../api/fetchTasks'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskUserDisplay } from './TaskUserDisplay'
 
-const statuses: TaskStatus[] = ['todo', 'in_progress', 'completed', 'canceled']
+const statuses: TaskStatus[] = ['todo', 'completed']
 
 const transitions: Record<TaskStatus, TaskStatus[]> = {
-  todo: ['in_progress', 'completed', 'canceled'],
-  in_progress: ['todo', 'completed', 'canceled'],
+  todo: ['completed'],
   completed: ['todo'],
-  canceled: ['todo'],
 }
 
 export const TaskBoard = ({
@@ -32,8 +30,6 @@ export const TaskBoard = ({
   const moveTask = (task: ApiTask, status: TaskStatus) => {
     if (
       !task.can_update_status ||
-      ((task.status === 'canceled' || status === 'canceled') &&
-        !task.can_cancel) ||
       task.status === status ||
       !transitions[task.status].includes(status)
     ) {
@@ -72,10 +68,7 @@ export const TaskBoard = ({
                   type="button"
                   className={cardCss}
                   data-selected={selectedTaskId === task.id || undefined}
-                  draggable={
-                    task.can_update_status &&
-                    (task.status !== 'canceled' || task.can_cancel)
-                  }
+                  draggable={task.can_update_status}
                   onDragStart={(event) => startTaskDrag(event, task)}
                   onClick={() => onOpen(task)}
                 >
@@ -108,10 +101,7 @@ export const TaskBoard = ({
 }
 
 const startTaskDrag = (event: DragEvent<HTMLButtonElement>, task: ApiTask) => {
-  if (
-    !task.can_update_status ||
-    (task.status === 'canceled' && !task.can_cancel)
-  ) {
+  if (!task.can_update_status) {
     event.preventDefault()
     return
   }
@@ -125,7 +115,7 @@ const boardCss = css({
   display: 'grid',
   gridTemplateColumns: {
     base: 'minmax(17rem, 1fr)',
-    md: 'repeat(4, minmax(17rem, 1fr))',
+    md: 'repeat(2, minmax(17rem, 1fr))',
   },
   alignItems: 'start',
   gap: '0.75rem',
@@ -137,14 +127,8 @@ const columnCss = css({
   border: '1px solid token(colors.greyscale.200)',
   borderRadius: '10px',
   backgroundColor: 'greyscale.000',
-  '&[data-status="in_progress"]': {
-    '& header span:first-child': { backgroundColor: 'primary.500' },
-  },
   '&[data-status="completed"]': {
     '& header span:first-child': { backgroundColor: 'success.500' },
-  },
-  '&[data-status="canceled"]': {
-    '& header span:first-child': { backgroundColor: 'greyscale.400' },
   },
 })
 const columnHeaderCss = css({

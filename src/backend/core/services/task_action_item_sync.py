@@ -27,10 +27,10 @@ def sync_action_item_from_task_status(*, activity: models.TaskActivity) -> dict 
     current_task_status = task_change.get("to")
     if current_task_status == models.Task.Status.COMPLETED:
         return _complete_action_item(task=task, activity=activity)
-    if previous_task_status == models.Task.Status.COMPLETED and current_task_status in {
-        models.Task.Status.TODO,
-        models.Task.Status.IN_PROGRESS,
-    }:
+    if (
+        previous_task_status == models.Task.Status.COMPLETED
+        and current_task_status == models.Task.Status.TODO
+    ):
         return _reopen_action_item(task=task, activity=activity)
     return None
 
@@ -108,19 +108,10 @@ def _set_task_status_from_action_item(
     )
     previous_status = task.status
 
-    if previous_status == models.Task.Status.CANCELED:
-        return _record_reverse_sync_result(
-            source_activity=source_activity,
-            task=task,
-            result="skipped_conflict",
-            previous_status=previous_status,
-            reason="task_canceled",
-        )
-
-    if target_status == models.Task.Status.TODO and previous_status in {
-        models.Task.Status.TODO,
-        models.Task.Status.IN_PROGRESS,
-    }:
+    if (
+        target_status == models.Task.Status.TODO
+        and previous_status == models.Task.Status.TODO
+    ):
         return _record_reverse_sync_result(
             source_activity=source_activity,
             task=task,
@@ -136,10 +127,10 @@ def _set_task_status_from_action_item(
             previous_status=previous_status,
         )
 
-    if target_status == models.Task.Status.COMPLETED and previous_status not in {
-        models.Task.Status.TODO,
-        models.Task.Status.IN_PROGRESS,
-    }:
+    if (
+        target_status == models.Task.Status.COMPLETED
+        and previous_status != models.Task.Status.TODO
+    ):
         return _record_reverse_sync_result(
             source_activity=source_activity,
             task=task,

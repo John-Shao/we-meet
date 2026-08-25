@@ -4,27 +4,16 @@ export const taskDisplayName = (user: ApiTask['creator'] | null) =>
   user?.full_name || user?.short_name || user?.email || '—'
 
 const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
-  todo: ['in_progress', 'completed', 'canceled'],
-  in_progress: ['todo', 'completed', 'canceled'],
+  todo: ['completed'],
   completed: ['todo'],
-  canceled: ['todo'],
 }
 
-export const nextTaskStatuses = (
-  task: Pick<ApiTask, 'status' | 'can_cancel'>
-): TaskStatus[] => {
-  if (task.status === 'canceled' && !task.can_cancel) return []
-  return statusTransitions[task.status].filter(
-    (status) => status !== 'canceled' || task.can_cancel
-  )
-}
+export const nextTaskStatuses = (task: Pick<ApiTask, 'status'>): TaskStatus[] =>
+  statusTransitions[task.status]
 
 export const quickTaskStatus = (
-  task: Pick<ApiTask, 'status' | 'can_cancel' | 'can_update_status'>
+  task: Pick<ApiTask, 'status' | 'can_update_status'>
 ): TaskStatus | undefined => {
   if (!task.can_update_status) return undefined
-  if (task.status === 'todo' || task.status === 'in_progress')
-    return 'completed'
-  if (task.status === 'completed') return 'todo'
-  return task.can_cancel ? 'todo' : undefined
+  return task.status === 'todo' ? 'completed' : 'todo'
 }

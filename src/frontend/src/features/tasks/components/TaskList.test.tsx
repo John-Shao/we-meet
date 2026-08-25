@@ -56,7 +56,7 @@ const task: ApiTask = {
   source_room_name: 'Weekly sync',
   can_edit: false,
   can_update_status: true,
-  can_cancel: false,
+  can_delete: false,
   can_comment: true,
   can_manage_attachments: true,
   time_state: null,

@@ -11,14 +11,7 @@ import type {
 } from '../api/ApiTask'
 import type { TaskWorkspaceState } from '../taskWorkspaceState'
 
-const statusFilters: TaskStatusFilter[] = [
-  'open',
-  'all',
-  'todo',
-  'in_progress',
-  'completed',
-  'canceled',
-]
+const statusFilters: TaskStatusFilter[] = ['open', 'completed', 'all']
 const timeFilters: TaskTimeFilter[] = [
   'all',
   'starting_today',
@@ -47,7 +40,7 @@ export const TaskFilterToolbar = ({
   onClear: () => void
 }) => {
   const { t } = useTranslation('tasks')
-  const isClosed = state.status === 'completed' || state.status === 'canceled'
+  const isClosed = state.status === 'completed'
   return (
     <div className={toolbarCss} aria-label={t('workspace.filters')}>
       <Select

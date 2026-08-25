@@ -752,7 +752,7 @@ def test_record_task_status_change_notifies_other_collaborator_once(
         event=models.TaskActivity.Event.STATUS_CHANGED,
         changes={
             "status": {
-                "from": models.Task.Status.IN_PROGRESS,
+                "from": "in_progress",
                 "to": models.Task.Status.COMPLETED,
             }
         },
@@ -918,7 +918,7 @@ def test_status_change_by_parent_collaborator_notifies_both_task_owners(
         title="Child progress",
         creator=creator,
         assignee=assignee,
-        status=models.Task.Status.IN_PROGRESS,
+        status=models.Task.Status.COMPLETED,
     )
     activity = models.TaskActivity.objects.create(
         task=task,
@@ -927,7 +927,7 @@ def test_status_change_by_parent_collaborator_notifies_both_task_owners(
         changes={
             "status": {
                 "from": models.Task.Status.TODO,
-                "to": models.Task.Status.IN_PROGRESS,
+                "to": models.Task.Status.COMPLETED,
             }
         },
     )
@@ -994,7 +994,7 @@ def test_status_change_card_preserves_transition_actor_and_origin(
         event=models.TaskActivity.Event.STATUS_CHANGED,
         changes={
             "status": {
-                "from": models.Task.Status.IN_PROGRESS,
+                "from": "in_progress",
                 "to": models.Task.Status.COMPLETED,
             },
             **origin,
@@ -1052,7 +1052,7 @@ def test_latest_status_change_supersedes_stale_change_and_closed_reminders(
         changes={
             "status": {
                 "from": models.Task.Status.TODO,
-                "to": models.Task.Status.IN_PROGRESS,
+                "to": "in_progress",
             }
         },
     )
@@ -1089,7 +1089,7 @@ def test_latest_status_change_supersedes_stale_change_and_closed_reminders(
         event=models.TaskActivity.Event.STATUS_CHANGED,
         changes={
             "status": {
-                "from": models.Task.Status.IN_PROGRESS,
+                "from": "in_progress",
                 "to": models.Task.Status.COMPLETED,
             }
         },
@@ -1123,7 +1123,7 @@ def test_stale_status_change_is_superseded_before_delivery():
         event=models.TaskActivity.Event.STATUS_CHANGED,
         changes={
             "status": {
-                "from": models.Task.Status.IN_PROGRESS,
+                "from": "in_progress",
                 "to": models.Task.Status.COMPLETED,
             }
         },

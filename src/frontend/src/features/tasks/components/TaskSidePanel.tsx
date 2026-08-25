@@ -9,6 +9,7 @@ import { Link } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import {
   RiCalendarLine,
+  RiDeleteBinLine,
   RiEditLine,
   RiFileTextLine,
   RiFlagLine,
@@ -18,6 +19,7 @@ import {
 } from '@remixicon/react'
 
 import { ModalCloseButton } from '@/components/Modal'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { ContactPicker, type DirectoryMember } from '@/features/contacts'
 import { Button, Input, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
@@ -29,7 +31,7 @@ import type {
   PatchTaskPayload,
   TaskPriority,
 } from '../api/ApiTask'
-import { usePatchTask, useTask } from '../api/fetchTasks'
+import { useDeleteTask, usePatchTask, useTask } from '../api/fetchTasks'
 import { nextTaskStatuses } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskForm } from './TaskForm'
@@ -108,6 +110,8 @@ export const TaskDetailPanel = ({
   const [draftGroupId, setDraftGroupId] = useState('')
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
   const patchMutation = usePatchTask()
+  const deleteMutation = useDeleteTask()
+  const { confirm } = useConfirm()
   const focusInput = useCallback((element: HTMLInputElement | null) => {
     element?.focus()
   }, [])
@@ -174,6 +178,21 @@ export const TaskDetailPanel = ({
   const selectedDraftTaskList = taskLists.find(
     (taskList) => taskList.id === draftTaskListId
   )
+  const deleteTask = async () => {
+    const accepted = await confirm({
+      title: t('actions.deleteTitle'),
+      message: t('actions.deleteDescription', { title: task.title }),
+      confirmLabel: t('actions.delete'),
+      danger: true,
+    })
+    if (!accepted) return
+    try {
+      await deleteMutation.mutateAsync(task.id)
+      onClose()
+    } catch {
+      // Keep the panel open so the mutation error remains visible.
+    }
+  }
 
   return (
     <PanelShell title={t('workspace.details')} onClose={onClose}>
@@ -233,27 +252,43 @@ export const TaskDetailPanel = ({
             </div>
           </div>
 
-          {task.can_update_status && (
+          {(task.can_update_status || task.can_delete) && (
             <div className={actionsCss}>
-              {nextTaskStatuses(task).map((status) => (
+              {task.can_update_status &&
+                nextTaskStatuses(task).map((status) => (
+                  <Button
+                    key={status}
+                    size="dense"
+                    variant={status === 'completed' ? 'primary' : 'secondary'}
+                    isDisabled={
+                      patchMutation.isPending || deleteMutation.isPending
+                    }
+                    onPress={() =>
+                      patchMutation.mutate({
+                        taskId: task.id,
+                        patch: { status },
+                      })
+                    }
+                  >
+                    {t(`actions.to_${status}`)}
+                  </Button>
+                ))}
+              {task.can_delete && (
                 <Button
-                  key={status}
                   size="dense"
-                  variant={status === 'completed' ? 'primary' : 'secondary'}
-                  isDisabled={patchMutation.isPending}
-                  onPress={() =>
-                    patchMutation.mutate({
-                      taskId: task.id,
-                      patch: { status },
-                    })
+                  variant="danger"
+                  isDisabled={
+                    patchMutation.isPending || deleteMutation.isPending
                   }
+                  onPress={() => void deleteTask()}
                 >
-                  {t(`actions.to_${status}`)}
+                  <RiDeleteBinLine size={16} aria-hidden="true" />
+                  {t('actions.delete')}
                 </Button>
-              ))}
+              )}
             </div>
           )}
-          {patchMutation.error && (
+          {(patchMutation.error || deleteMutation.error) && (
             <p role="alert" className={inlineErrorCss}>
               {t('error')}
             </p>

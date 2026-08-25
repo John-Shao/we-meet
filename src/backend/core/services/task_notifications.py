@@ -681,15 +681,15 @@ def _status_change_card(delivery: models.TaskImDelivery) -> dict:
     status_change = activity.changes.get("status", {})
     labels = {
         models.Task.Status.TODO: "待处理",
-        models.Task.Status.IN_PROGRESS: "进行中",
+        "in_progress": "进行中",
         models.Task.Status.COMPLETED: "已完成",
-        models.Task.Status.CANCELED: "已取消",
+        "canceled": "已取消",
     }
     presentation = {
         models.Task.Status.TODO: ("任务已重新打开", "info"),
-        models.Task.Status.IN_PROGRESS: ("任务已开始处理", "info"),
+        "in_progress": ("任务已开始处理", "info"),
         models.Task.Status.COMPLETED: ("任务已完成", "success"),
-        models.Task.Status.CANCELED: ("任务已取消", "warning"),
+        "canceled": ("任务已取消", "warning"),
     }
     before = status_change.get("from")
     after = status_change.get("to")

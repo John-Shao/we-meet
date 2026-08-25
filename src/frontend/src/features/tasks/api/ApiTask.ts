@@ -1,4 +1,5 @@
-export type TaskStatus = 'todo' | 'in_progress' | 'completed' | 'canceled'
+export type TaskStatus = 'todo' | 'completed'
+export type TaskStatusSnapshot = TaskStatus | 'in_progress' | 'canceled'
 export type TaskStatusFilter = 'open' | 'all' | TaskStatus
 export type TaskPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 export type TaskPriorityFilter = 'all' | TaskPriority
@@ -105,7 +106,7 @@ export interface ApiTask {
   source_room_name: string | null
   can_edit: boolean
   can_update_status: boolean
-  can_cancel: boolean
+  can_delete: boolean
   can_comment: boolean
   can_manage_attachments: boolean
   time_state: TaskTimeState | null
@@ -153,7 +154,7 @@ export interface ApiTaskActivity {
           from: ApiTaskActivityUserSnapshot | null
           to: ApiTaskActivityUserSnapshot | null
         }
-    status?: { from: TaskStatus; to: TaskStatus }
+    status?: { from: TaskStatusSnapshot; to: TaskStatusSnapshot }
     priority?: { from: TaskPriority; to: TaskPriority }
     placement?: {
       from: ApiTaskPlacementSnapshot
@@ -179,8 +180,8 @@ export interface ApiTaskActivity {
     linked_task_sync?: {
       task_id: string
       result: 'updated' | 'already_aligned' | 'skipped_conflict'
-      from: TaskStatus
-      to: TaskStatus
+      from: TaskStatusSnapshot
+      to: TaskStatusSnapshot
       reason?: string
       status_activity_id?: string
     }
@@ -224,7 +225,6 @@ export interface ApiTaskStatistics {
     total: number
     open: number
     completed: number
-    canceled: number
     overdue: number
     completion_rate: number
   }

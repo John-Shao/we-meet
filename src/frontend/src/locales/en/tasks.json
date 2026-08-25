@@ -20,7 +20,7 @@
     "newTask": "New task",
     "filters": "Task filters",
     "statusFilter": "Status",
-    "statusOptions": { "open": "Open", "all": "All statuses" },
+    "statusOptions": { "open": "Incomplete", "all": "All statuses" },
     "clearFilters": "Clear filters",
     "resizeColumn": "Resize {{column}} column",
     "columns": {
@@ -233,7 +233,7 @@
     "urgent": "Urgent"
   },
   "statuses": {
-    "todo": "To do",
+    "todo": "Incomplete",
     "in_progress": "In progress",
     "completed": "Completed",
     "canceled": "Canceled"
@@ -259,7 +259,10 @@
     "to_canceled": "Cancel task",
     "edit": "Edit",
     "save": "Save",
-    "cancelEdit": "Discard changes"
+    "cancelEdit": "Discard changes",
+    "delete": "Delete task",
+    "deleteTitle": "Delete task",
+    "deleteDescription": "Delete “{{title}}”? This action cannot be undone."
   },
   "comments": {
     "title": "Comments",

@@ -20,7 +20,7 @@
     "newTask": "新建任务",
     "filters": "任务筛选",
     "statusFilter": "状态",
-    "statusOptions": { "open": "未关闭", "all": "全部状态" },
+    "statusOptions": { "open": "未完成", "all": "全部状态" },
     "clearFilters": "清除筛选",
     "resizeColumn": "调整“{{column}}”列宽",
     "columns": {
@@ -233,7 +233,7 @@
     "urgent": "紧急"
   },
   "statuses": {
-    "todo": "待处理",
+    "todo": "未完成",
     "in_progress": "进行中",
     "completed": "已完成",
     "canceled": "已取消"
@@ -259,7 +259,10 @@
     "to_canceled": "取消任务",
     "edit": "编辑",
     "save": "保存",
-    "cancelEdit": "放弃修改"
+    "cancelEdit": "放弃修改",
+    "delete": "删除任务",
+    "deleteTitle": "删除任务",
+    "deleteDescription": "确定删除“{{title}}”吗？此操作无法撤销。"
   },
   "comments": {
     "title": "评论",

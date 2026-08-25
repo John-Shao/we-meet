@@ -238,7 +238,7 @@ def test_task_list_sharing_enforces_viewer_and_editor_permissions():
     collaborator_detail = colleague_client.get(f"{TASKS_URL}{task.id}/")
     assert collaborator_detail.json()["can_comment"] is True
     assert collaborator_detail.json()["can_manage_attachments"] is True
-    assert collaborator_detail.json()["can_cancel"] is False
+    assert collaborator_detail.json()["can_delete"] is False
     assert (
         colleague_client.post(
             f"{TASKS_URL}{task.id}/comments/",
@@ -261,33 +261,11 @@ def test_task_list_sharing_enforces_viewer_and_editor_permissions():
         ).status_code
         == 200
     )
-    assert (
-        colleague_client.patch(
-            f"{TASKS_URL}{task.id}/",
-            {"status": Task.Status.CANCELED},
-            format="json",
-        ).status_code
-        == 403
-    )
-    assert (
-        owner_client.patch(
-            f"{TASKS_URL}{task.id}/",
-            {"status": Task.Status.CANCELED},
-            format="json",
-        ).status_code
-        == 200
-    )
-    canceled_detail = colleague_client.get(f"{TASKS_URL}{task.id}/").json()
-    assert canceled_detail["can_update_status"] is False
-    assert canceled_detail["can_cancel"] is False
-    assert (
-        colleague_client.patch(
-            f"{TASKS_URL}{task.id}/",
-            {"status": Task.Status.TODO},
-            format="json",
-        ).status_code
-        == 403
-    )
+    editor_detail = colleague_client.get(f"{TASKS_URL}{task.id}/").json()
+    assert editor_detail["can_update_status"] is True
+    assert editor_detail["can_delete"] is True
+    assert colleague_client.delete(f"{TASKS_URL}{task.id}/").status_code == 204
+    assert not Task.objects.filter(pk=task.pk).exists()
 
 
 def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks(
@@ -710,7 +688,6 @@ def test_statistics_report_visible_summary_and_assignee_workload_only():
         "total": 2,
         "open": 1,
         "completed": 1,
-        "canceled": 0,
         "overdue": 1,
         "completion_rate": 50,
     }

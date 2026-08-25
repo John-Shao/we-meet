@@ -20,7 +20,7 @@
     "newTask": "Nieuwe taak",
     "filters": "Taakfilters",
     "statusFilter": "Status",
-    "statusOptions": { "open": "Open", "all": "Alle statussen" },
+    "statusOptions": { "open": "Onvoltooid", "all": "Alle statussen" },
     "clearFilters": "Filters wissen",
     "resizeColumn": "Breedte van kolom {{column}} aanpassen",
     "columns": {
@@ -234,7 +234,7 @@
     "urgent": "Dringend"
   },
   "statuses": {
-    "todo": "Te doen",
+    "todo": "Onvoltooid",
     "in_progress": "Bezig",
     "completed": "Voltooid",
     "canceled": "Geannuleerd"
@@ -260,7 +260,10 @@
     "to_canceled": "Taak annuleren",
     "edit": "Bewerken",
     "save": "Opslaan",
-    "cancelEdit": "Wijzigingen negeren"
+    "cancelEdit": "Wijzigingen negeren",
+    "delete": "Taak verwijderen",
+    "deleteTitle": "Taak verwijderen",
+    "deleteDescription": "‘{{title}}’ verwijderen? Dit kan niet ongedaan worden gemaakt."
   },
   "comments": {
     "title": "Opmerkingen",

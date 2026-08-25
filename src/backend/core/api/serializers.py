@@ -797,7 +797,7 @@ class TaskSerializer(serializers.ModelSerializer):
     source_room_name = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     can_update_status = serializers.SerializerMethodField()
-    can_cancel = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
     can_comment = serializers.SerializerMethodField()
     can_manage_attachments = serializers.SerializerMethodField()
     time_state = serializers.SerializerMethodField()
@@ -843,7 +843,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_can_update_status(self, obj):
         user = self._request_user()
-        can_update = bool(
+        return bool(
             user
             and user.is_authenticated
             and (
@@ -851,17 +851,9 @@ class TaskSerializer(serializers.ModelSerializer):
                 or self._can_edit_task_list(obj, user)
             )
         )
-        if (
-            can_update
-            and obj.status == models.Task.Status.CANCELED
-            and obj.creator_id != user.id
-        ):
-            return False
-        return can_update
 
-    def get_can_cancel(self, obj):
-        user = self._request_user()
-        return bool(user and user.is_authenticated and obj.creator_id == user.id)
+    def get_can_delete(self, obj):
+        return self.get_can_edit(obj)
 
     def get_can_comment(self, obj):
         return self._can_collaborate(obj, self._request_user())
@@ -909,7 +901,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "source_room_name",
             "can_edit",
             "can_update_status",
-            "can_cancel",
+            "can_delete",
             "can_comment",
             "can_manage_attachments",
             "time_state",

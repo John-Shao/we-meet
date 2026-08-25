@@ -20,7 +20,7 @@
     "newTask": "Neue Aufgabe",
     "filters": "Aufgabenfilter",
     "statusFilter": "Status",
-    "statusOptions": { "open": "Offen", "all": "Alle Status" },
+    "statusOptions": { "open": "Nicht erledigt", "all": "Alle Status" },
     "clearFilters": "Filter löschen",
     "resizeColumn": "Breite der Spalte {{column}} ändern",
     "columns": {
@@ -234,7 +234,7 @@
     "urgent": "Dringend"
   },
   "statuses": {
-    "todo": "Offen",
+    "todo": "Nicht erledigt",
     "in_progress": "In Arbeit",
     "completed": "Erledigt",
     "canceled": "Abgebrochen"
@@ -260,7 +260,10 @@
     "to_canceled": "Aufgabe abbrechen",
     "edit": "Bearbeiten",
     "save": "Speichern",
-    "cancelEdit": "Änderungen verwerfen"
+    "cancelEdit": "Änderungen verwerfen",
+    "delete": "Aufgabe löschen",
+    "deleteTitle": "Aufgabe löschen",
+    "deleteDescription": "„{{title}}“ löschen? Diese Aktion kann nicht rückgängig gemacht werden."
   },
   "comments": {
     "title": "Kommentare",

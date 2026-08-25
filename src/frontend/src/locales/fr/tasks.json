@@ -20,7 +20,7 @@
     "newTask": "Nouvelle tâche",
     "filters": "Filtres des tâches",
     "statusFilter": "Statut",
-    "statusOptions": { "open": "Ouvertes", "all": "Tous les statuts" },
+    "statusOptions": { "open": "Non terminées", "all": "Tous les statuts" },
     "clearFilters": "Effacer les filtres",
     "resizeColumn": "Redimensionner la colonne {{column}}",
     "columns": {
@@ -234,7 +234,7 @@
     "urgent": "Urgente"
   },
   "statuses": {
-    "todo": "À faire",
+    "todo": "Non terminée",
     "in_progress": "En cours",
     "completed": "Terminée",
     "canceled": "Annulée"
@@ -260,7 +260,10 @@
     "to_canceled": "Annuler la tâche",
     "edit": "Modifier",
     "save": "Enregistrer",
-    "cancelEdit": "Ignorer les modifications"
+    "cancelEdit": "Ignorer les modifications",
+    "delete": "Supprimer la tâche",
+    "deleteTitle": "Supprimer la tâche",
+    "deleteDescription": "Supprimer « {{title}} » ? Cette action est irréversible."
   },
   "comments": {
     "title": "Commentaires",

@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiTask } from '../api/ApiTask'
 import { TaskDetailPanel } from './TaskSidePanel'
 
-const { mutate, mutateAsync } = vi.hoisted(() => ({
+const { confirm, deleteMutateAsync, mutate, mutateAsync } = vi.hoisted(() => ({
+  confirm: vi.fn().mockResolvedValue(true),
+  deleteMutateAsync: vi.fn().mockResolvedValue(undefined),
   mutate: vi.fn(),
   mutateAsync: vi.fn().mockResolvedValue(undefined),
 }))
@@ -18,12 +20,21 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../api/fetchTasks', () => ({
   useTask: () => ({ data: undefined, isLoading: false, error: null }),
+  useDeleteTask: () => ({
+    mutateAsync: deleteMutateAsync,
+    isPending: false,
+    error: null,
+  }),
   usePatchTask: () => ({
     mutate,
     mutateAsync,
     isPending: false,
     error: null,
   }),
+}))
+
+vi.mock('@/components/ConfirmProvider', () => ({
+  useConfirm: () => ({ confirm }),
 }))
 
 vi.mock('./TaskCollaborationSections', () => ({
@@ -65,7 +76,7 @@ const task: ApiTask = {
   source_room_name: null,
   can_edit: false,
   can_update_status: false,
-  can_cancel: false,
+  can_delete: false,
   can_comment: false,
   can_manage_attachments: false,
   time_state: null,
@@ -77,6 +88,8 @@ describe('TaskDetailPanel', () => {
   beforeEach(() => {
     mutate.mockClear()
     mutateAsync.mockClear()
+    deleteMutateAsync.mockClear()
+    confirm.mockClear()
   })
 
   it('renders start and due dates as separate properties', () => {
@@ -176,5 +189,23 @@ describe('TaskDetailPanel', () => {
       'data-read-only',
       'true'
     )
+  })
+
+  it('deletes an editable task after confirmation', async () => {
+    const onClose = vi.fn()
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{ ...task, can_delete: true }}
+        taskLists={[]}
+        onClose={onClose}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'actions.delete' }))
+
+    await waitFor(() => expect(confirm).toHaveBeenCalledOnce())
+    await waitFor(() => expect(deleteMutateAsync).toHaveBeenCalledWith(task.id))
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })

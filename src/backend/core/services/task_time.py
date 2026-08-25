@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from core import models
 
-OPEN_TASK_STATUSES = (models.Task.Status.TODO, models.Task.Status.IN_PROGRESS)
+OPEN_TASK_STATUSES = (models.Task.Status.TODO,)
 TIME_FILTERS = {"all", "starting_today", "due_today", "overdue"}
 
 

@@ -631,3 +631,20 @@ export const usePatchTask = () => {
     },
   })
 }
+
+const deleteTask = (taskId: string) =>
+  fetchApi<void>(`tasks/${encodeURIComponent(taskId)}/`, {
+    method: 'DELETE',
+  })
+
+export const useDeleteTask = () => {
+  const queryClient = useQueryClient()
+  return useMutation<void, ApiError, string>({
+    mutationFn: deleteTask,
+    onSuccess: (_result, taskId) => {
+      queryClient.removeQueries({ queryKey: ['tasks', 'detail', taskId] })
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      return queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}

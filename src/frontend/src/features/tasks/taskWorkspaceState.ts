@@ -60,7 +60,7 @@ export const parseTaskWorkspaceState = (
   scope: oneOf(params.get('scope'), ['assigned', 'created', 'all'], 'assigned'),
   status: oneOf(
     params.get('status'),
-    ['open', 'all', 'todo', 'in_progress', 'completed', 'canceled'],
+    ['open', 'all', 'todo', 'completed'],
     'open'
   ),
   time: oneOf(
@@ -111,7 +111,7 @@ export const stateWithStatus = (
 ): TaskWorkspaceState => ({
   ...state,
   status,
-  time: status === 'completed' || status === 'canceled' ? 'all' : state.time,
+  time: status === 'completed' ? 'all' : state.time,
 })
 
 export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {

@@ -67,7 +67,7 @@ describe('task workspace state', () => {
       time: 'all',
       priority: 'urgent',
     })
-    expect(stateWithStatus(state, 'canceled').time).toBe('all')
+    expect(stateWithStatus(state, 'completed').time).toBe('all')
     expect(stateForTaskList(state, 'list-1')).toMatchObject({
       scope: 'all',
       status: 'open',

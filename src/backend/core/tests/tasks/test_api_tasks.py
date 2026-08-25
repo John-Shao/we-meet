@@ -76,6 +76,7 @@ def test_user_creates_personal_task_assigned_to_self():
     assert payload["source_room_name"] is None
     assert payload["can_edit"] is True
     assert payload["can_update_status"] is True
+    assert payload["can_delete"] is True
     task = Task.objects.get()
     assert task.creator == user
     assert task.assignee == user
@@ -320,14 +321,6 @@ def test_task_list_filters_and_serializes_time_state():
 def test_task_list_filters_and_orders_by_status_priority_due_date_and_update():
     user = UserFactory(timezone="UTC")
     today = timezone.localdate()
-    in_progress = Task.objects.create(
-        title="In progress low",
-        creator=user,
-        assignee=user,
-        status=Task.Status.IN_PROGRESS,
-        priority=Task.Priority.LOW,
-        due_date=today + timedelta(days=8),
-    )
     urgent = Task.objects.create(
         title="Todo urgent",
         creator=user,
@@ -379,26 +372,16 @@ def test_task_list_filters_and_orders_by_status_priority_due_date_and_update():
         status=Task.Status.COMPLETED,
         priority=Task.Priority.URGENT,
     )
-    canceled = Task.objects.create(
-        title="Canceled urgent",
-        creator=user,
-        assignee=user,
-        status=Task.Status.CANCELED,
-        priority=Task.Priority.URGENT,
-    )
-
     response = _client(user).get(f"{TASKS_URL}?scope=all&priority=all")
 
     assert response.status_code == 200
     assert [item["id"] for item in response.json()["results"]] == [
-        str(in_progress.id),
         str(urgent.id),
         str(high_newer.id),
         str(high_older.id),
         *sorted(str(task.id) for task in tied_high_tasks),
         str(no_priority.id),
         str(completed.id),
-        str(canceled.id),
     ]
     high_response = _client(user).get(f"{TASKS_URL}?scope=all&priority=high")
     assert [item["id"] for item in high_response.json()["results"]] == [
@@ -457,16 +440,12 @@ def test_task_list_orders_priority_and_status_by_business_rank():
     descending = client.get(f"{TASKS_URL}?scope=all&ordering=-status")
 
     assert [item["id"] for item in ascending.json()["results"]] == [
-        str(statuses[Task.Status.IN_PROGRESS].id),
         str(statuses[Task.Status.TODO].id),
         str(statuses[Task.Status.COMPLETED].id),
-        str(statuses[Task.Status.CANCELED].id),
     ]
     assert [item["id"] for item in descending.json()["results"]] == [
-        str(statuses[Task.Status.CANCELED].id),
         str(statuses[Task.Status.COMPLETED].id),
         str(statuses[Task.Status.TODO].id),
-        str(statuses[Task.Status.IN_PROGRESS].id),
     ]
 
 
@@ -617,18 +596,18 @@ def test_assignee_can_advance_status_but_cannot_edit_content():
 
     response = client.patch(
         f"{TASKS_URL}{task.id}/",
-        {"status": Task.Status.IN_PROGRESS},
+        {"status": Task.Status.COMPLETED},
         format="json",
     )
     assert response.status_code == 200
-    assert response.json()["status"] == Task.Status.IN_PROGRESS
+    assert response.json()["status"] == Task.Status.COMPLETED
     assert response.json()["can_edit"] is False
     assert response.json()["can_update_status"] is True
     activity = TaskActivity.objects.get()
     assert activity.actor == assignee
     assert activity.event == TaskActivity.Event.STATUS_CHANGED
     assert activity.changes == {
-        "status": {"from": Task.Status.TODO, "to": Task.Status.IN_PROGRESS}
+        "status": {"from": Task.Status.TODO, "to": Task.Status.COMPLETED}
     }
     delivery = TaskImDelivery.objects.get(activity=activity)
     assert delivery.recipient == creator
@@ -656,56 +635,68 @@ def test_assignee_can_advance_status_but_cannot_edit_content():
     assert response.status_code == 403
 
 
-def test_assignee_cannot_cancel_or_reopen_canceled_task():
+def test_assignee_cannot_delete_task():
     creator = UserFactory()
     assignee = UserFactory()
     task = Task.objects.create(
-        title="Creator-controlled cancellation",
+        title="Creator-controlled deletion",
         creator=creator,
         assignee=assignee,
     )
     client = _client(assignee)
 
-    cancel_response = client.patch(
-        f"{TASKS_URL}{task.id}/",
-        {"status": Task.Status.CANCELED},
-        format="json",
+    response = client.delete(f"{TASKS_URL}{task.id}/")
+
+    assert response.status_code == 403
+    assert Task.objects.filter(pk=task.pk).exists()
+
+
+def test_creator_can_delete_task():
+    creator = UserFactory()
+    task = Task.objects.create(title="Delete duplicate", creator=creator)
+
+    response = _client(creator).delete(f"{TASKS_URL}{task.id}/")
+
+    assert response.status_code == 204
+    assert not Task.objects.filter(pk=task.pk).exists()
+
+
+def test_deleting_linked_task_clears_action_item_link():
+    creator = UserFactory()
+    action_item = ActionItem.objects.create(
+        room=RoomFactory(users=[(creator, "owner")]),
+        content="Publish decisions",
+        status=ActionItem.Status.CONFIRMED,
+        assignee=creator,
     )
-
-    assert cancel_response.status_code == 403
-    task.refresh_from_db()
-    assert task.status == Task.Status.TODO
-    assert not TaskActivity.objects.filter(task=task).exists()
-
-    task.status = Task.Status.CANCELED
-    task.save(update_fields=["status", "updated_at"])
-    reopen_response = client.patch(
-        f"{TASKS_URL}{task.id}/",
-        {"status": Task.Status.TODO},
-        format="json",
+    task = Task.objects.create(
+        title=action_item.content,
+        creator=creator,
+        assignee=creator,
+        source_action_item=action_item,
     )
+    action_item.task_id = task.id
+    action_item.save(update_fields=["task_id", "updated_at"])
 
-    assert reopen_response.status_code == 403
-    task.refresh_from_db()
-    assert task.status == Task.Status.CANCELED
-    assert not TaskActivity.objects.filter(task=task).exists()
-    detail_response = client.get(f"{TASKS_URL}{task.id}/")
-    assert detail_response.status_code == 200
-    assert detail_response.json()["can_update_status"] is False
+    response = _client(creator).delete(f"{TASKS_URL}{task.id}/")
+
+    assert response.status_code == 204
+    action_item.refresh_from_db()
+    assert action_item.task_id is None
 
 
 def test_creator_status_change_notifies_other_assignee():
     creator = UserFactory()
     assignee = UserFactory()
     task = Task.objects.create(
-        title="Cancel duplicate work",
+        title="Complete duplicate work",
         creator=creator,
         assignee=assignee,
     )
 
     response = _client(creator).patch(
         f"{TASKS_URL}{task.id}/",
-        {"status": Task.Status.CANCELED},
+        {"status": Task.Status.COMPLETED},
         format="json",
     )
 
@@ -749,7 +740,7 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
             "assignee_id": str(next_assignee.id),
             "due_date": "2026-08-30",
             "priority": Task.Priority.HIGH,
-            "status": Task.Status.IN_PROGRESS,
+            "status": Task.Status.COMPLETED,
         },
         format="json",
     )
@@ -790,7 +781,7 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
     ).exists()
     assert TaskActivity.objects.filter(
         event=TaskActivity.Event.STATUS_CHANGED,
-        changes={"status": {"from": Task.Status.TODO, "to": Task.Status.IN_PROGRESS}},
+        changes={"status": {"from": Task.Status.TODO, "to": Task.Status.COMPLETED}},
     ).exists()
     assert _client(previous_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 404
     assert _client(next_assignee).get(f"{TASKS_URL}{task.id}/").status_code == 200
@@ -936,7 +927,7 @@ def test_invalid_status_transition_is_rejected():
 
     response = _client(user).patch(
         f"{TASKS_URL}{task.id}/",
-        {"status": Task.Status.IN_PROGRESS},
+        {"status": "in_progress"},
         format="json",
     )
 

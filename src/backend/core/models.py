@@ -2400,9 +2400,7 @@ class Task(BaseModel):
 
     class Status(models.TextChoices):
         TODO = "todo", _("To do")
-        IN_PROGRESS = "in_progress", _("In progress")
         COMPLETED = "completed", _("Completed")
-        CANCELED = "canceled", _("Canceled")
 
     class Priority(models.TextChoices):
         NONE = "none", _("No priority")

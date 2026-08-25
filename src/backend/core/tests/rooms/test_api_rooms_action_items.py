@@ -383,7 +383,7 @@ def test_manual_action_item_completion_completes_linked_task():
         title=item.content,
         creator=owner,
         assignee=assignee,
-        status=Task.Status.IN_PROGRESS,
+        status=Task.Status.TODO,
         source_action_item=item,
     )
     item.task_id = task.id
