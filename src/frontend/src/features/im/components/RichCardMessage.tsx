@@ -1,12 +1,22 @@
+import { useTranslation } from 'react-i18next'
+
+import {
+  useFollowTask,
+  useTask,
+  useUnfollowTask,
+} from '@/features/tasks/api/fetchTasks'
 import { css } from '@/styled-system/css'
 
 import type { CardState } from '../api/cardStates'
 import {
   actionsBlockKey,
   parseRichCard,
+  type CardButton,
   type CardSpan,
   type CardTheme,
 } from './richCard'
+
+const TASK_FOLLOW_BUTTON_PREFIX = 'follow-task:'
 
 /**
  * `rich-card` 气泡内容(群机器人经 webhook 发来的块级卡片)。
@@ -78,6 +88,52 @@ const BUTTON_CLS = {
     _hover: { borderColor: 'danger.500' },
   }),
 } as const
+
+const TaskFollowCardButton = ({ button }: { button: CardButton }) => {
+  const { t } = useTranslation('tasks')
+  const taskId = button.id.slice(TASK_FOLLOW_BUTTON_PREFIX.length)
+  const { data: task, isLoading, error } = useTask(taskId)
+  const followMutation = useFollowTask()
+  const unfollowMutation = useUnfollowTask()
+  const pending = followMutation.isPending || unfollowMutation.isPending
+
+  if (error) {
+    return (
+      <a
+        href={button.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-testid={`card-button-${button.id}`}
+        className={`${buttonBaseCls} ${BUTTON_CLS[button.style]}`}
+      >
+        {button.text}
+      </a>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={!task || isLoading || pending}
+      aria-pressed={task?.is_following || false}
+      onClick={() => {
+        if (!task) return
+        if (task.is_following) unfollowMutation.mutate(task.id)
+        else followMutation.mutate(task.id)
+      }}
+      data-testid={`card-button-${button.id}`}
+      className={`${buttonBaseCls} ${BUTTON_CLS[button.style]} ${
+        !task || isLoading || pending
+          ? css({ opacity: 0.5, cursor: 'default' })
+          : ''
+      }`}
+    >
+      {task?.is_following
+        ? t('followers.cardFollowing')
+        : t('followers.cardFollow')}
+    </button>
+  )
+}
 
 const shellCls = css({
   display: 'flex',
@@ -292,7 +348,10 @@ export const RichCardMessage = ({
           return (
             <div key={bi} className={actionsCls}>
               {block.buttons.map((button) =>
-                button.action === 'url' ? (
+                button.action === 'url' &&
+                button.id.startsWith(TASK_FOLLOW_BUTTON_PREFIX) ? (
+                  <TaskFollowCardButton key={button.id} button={button} />
+                ) : button.action === 'url' ? (
                   <a
                     key={button.id}
                     href={button.url}

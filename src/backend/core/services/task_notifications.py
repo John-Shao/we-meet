@@ -31,6 +31,7 @@ REMINDER_EVENTS = (
 DATE_CHANGE_EVENTS = (models.TaskImDelivery.Event.DATES_CHANGED,)
 STATUS_CHANGE_EVENTS = (models.TaskImDelivery.Event.STATUS_CHANGED,)
 PRIORITY_CHANGE_EVENTS = (models.TaskImDelivery.Event.PRIORITY_CHANGED,)
+DELETION_EVENTS = (models.TaskImDelivery.Event.DELETED,)
 
 
 class TaskImNotificationUnavailable(RuntimeError):
@@ -78,8 +79,13 @@ def record_task_assignment(
         next_attempt_at=None,
         last_error="",
     )
+    status_recipient_ids = set(task.followers.values_list("id", flat=True)) | {
+        task.creator_id,
+        task.assignee_id,
+    }
+    status_recipient_ids.discard(None)
     pending.filter(event__in=STATUS_CHANGE_EVENTS).exclude(
-        Q(recipient_id=task.creator_id) | Q(recipient_id=task.assignee_id)
+        recipient_id__in=status_recipient_ids
     ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
@@ -200,11 +206,12 @@ def record_task_status_change(
             last_error="",
         )
 
-    recipient_ids = {
+    recipient_ids = set(task.followers.values_list("id", flat=True)) | {
         recipient_id
         for recipient_id in (task.creator_id, task.assignee_id)
         if recipient_id is not None and recipient_id != activity.actor_id
     }
+    recipient_ids.discard(activity.actor_id)
     deliveries = []
     for recipient_id in recipient_ids:
         delivery, created = models.TaskImDelivery.objects.get_or_create(
@@ -219,6 +226,32 @@ def record_task_status_change(
         deliveries.append(delivery)
         if created:
             transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
+    return deliveries
+
+
+def record_task_deletion(
+    *, task: models.Task, actor: models.User
+) -> list[models.TaskImDelivery]:
+    """Persist follower deletion notices before the task is removed.
+
+    The delivery keeps a title/actor snapshot and its nullable task foreign key
+    becomes ``NULL`` during deletion, so retries remain possible afterwards.
+    """
+
+    recipient_ids = set(task.followers.values_list("id", flat=True))
+    recipient_ids.discard(actor.id)
+    deliveries = []
+    for recipient_id in recipient_ids:
+        delivery = models.TaskImDelivery.objects.create(
+            task=task,
+            task_title=task.title,
+            actor_name=_display_name(actor),
+            recipient_id=recipient_id,
+            event=models.TaskImDelivery.Event.DELETED,
+            next_attempt_at=timezone.now(),
+        )
+        deliveries.append(delivery)
+        transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
     return deliveries
 
 
@@ -384,6 +417,7 @@ def claim_task_assignment(delivery_id) -> models.TaskImDelivery | None:
             "comment__author",
             "activity__actor",
         )
+        .prefetch_related("task__followers")
         .filter(pk=delivery_id)
         .first()
     )
@@ -467,6 +501,38 @@ def mark_task_assignment_failed(
     )
 
 
+def _task_card_buttons(
+    *,
+    task: models.Task,
+    base_url: str,
+    open_button_id: str,
+    open_text: str = "查看任务",
+) -> list[dict]:
+    """Build task-card actions with a web-enhanced follow toggle.
+
+    Other clients treat both as ordinary URLs. The Web client recognizes the
+    stable ``follow-task:`` id and upgrades the second action in place.
+    """
+
+    task_url = f"{base_url}/tasks?task={task.id}"
+    return [
+        {
+            "id": open_button_id,
+            "text": open_text,
+            "style": "primary",
+            "action": "url",
+            "url": task_url,
+        },
+        {
+            "id": f"follow-task:{task.id}",
+            "text": "关注",
+            "style": "default",
+            "action": "url",
+            "url": task_url,
+        },
+    ]
+
+
 def _assignment_card(delivery: models.TaskImDelivery) -> dict:
     task = delivery.task
     reassigned = delivery.event == models.TaskImDelivery.Event.REASSIGNED
@@ -508,15 +574,11 @@ def _assignment_card(delivery: models.TaskImDelivery) -> dict:
             {
                 "type": im_cards.CARD_BLOCK_ACTIONS,
                 "resolve": im_cards.CARD_RESOLVE_EACH,
-                "buttons": [
-                    {
-                        "id": "open-task-center",
-                        "text": "查看任务",
-                        "style": "primary",
-                        "action": "url",
-                        "url": f"{base_url}/tasks",
-                    }
-                ],
+                "buttons": _task_card_buttons(
+                    task=task,
+                    base_url=base_url,
+                    open_button_id="open-task-center",
+                ),
             }
         )
     return im_cards.build_rich_card(
@@ -555,15 +617,12 @@ def _comment_card(delivery: models.TaskImDelivery) -> dict:
             {
                 "type": im_cards.CARD_BLOCK_ACTIONS,
                 "resolve": im_cards.CARD_RESOLVE_EACH,
-                "buttons": [
-                    {
-                        "id": "open-task-comment",
-                        "text": "查看评论",
-                        "style": "primary",
-                        "action": "url",
-                        "url": f"{base_url}/tasks",
-                    }
-                ],
+                "buttons": _task_card_buttons(
+                    task=task,
+                    base_url=base_url,
+                    open_button_id="open-task-comment",
+                    open_text="查看评论",
+                ),
             }
         )
     return im_cards.build_rich_card(
@@ -601,15 +660,11 @@ def _reminder_card(delivery: models.TaskImDelivery) -> dict:
             {
                 "type": im_cards.CARD_BLOCK_ACTIONS,
                 "resolve": im_cards.CARD_RESOLVE_EACH,
-                "buttons": [
-                    {
-                        "id": "open-task-reminder",
-                        "text": "查看任务",
-                        "style": "primary",
-                        "action": "url",
-                        "url": f"{base_url}/tasks",
-                    }
-                ],
+                "buttons": _task_card_buttons(
+                    task=task,
+                    base_url=base_url,
+                    open_button_id="open-task-reminder",
+                ),
             }
         )
     return im_cards.build_rich_card(
@@ -657,15 +712,11 @@ def _date_change_card(delivery: models.TaskImDelivery) -> dict:
             {
                 "type": im_cards.CARD_BLOCK_ACTIONS,
                 "resolve": im_cards.CARD_RESOLVE_EACH,
-                "buttons": [
-                    {
-                        "id": "open-task-date-change",
-                        "text": "查看任务",
-                        "style": "primary",
-                        "action": "url",
-                        "url": f"{base_url}/tasks",
-                    }
-                ],
+                "buttons": _task_card_buttons(
+                    task=task,
+                    base_url=base_url,
+                    open_button_id="open-task-date-change",
+                ),
             }
         )
     return im_cards.build_rich_card(
@@ -717,15 +768,11 @@ def _status_change_card(delivery: models.TaskImDelivery) -> dict:
             {
                 "type": im_cards.CARD_BLOCK_ACTIONS,
                 "resolve": im_cards.CARD_RESOLVE_EACH,
-                "buttons": [
-                    {
-                        "id": "open-task-status-change",
-                        "text": "查看任务",
-                        "style": "primary",
-                        "action": "url",
-                        "url": f"{base_url}/tasks",
-                    }
-                ],
+                "buttons": _task_card_buttons(
+                    task=task,
+                    base_url=base_url,
+                    open_button_id="open-task-status-change",
+                ),
             }
         )
     return im_cards.build_rich_card(
@@ -763,15 +810,11 @@ def _priority_change_card(delivery: models.TaskImDelivery) -> dict:
             {
                 "type": im_cards.CARD_BLOCK_ACTIONS,
                 "resolve": im_cards.CARD_RESOLVE_EACH,
-                "buttons": [
-                    {
-                        "id": "open-task-priority-change",
-                        "text": "查看任务",
-                        "style": "primary",
-                        "action": "url",
-                        "url": f"{base_url}/tasks",
-                    }
-                ],
+                "buttons": _task_card_buttons(
+                    task=task,
+                    base_url=base_url,
+                    open_button_id="open-task-priority-change",
+                ),
             }
         )
     return im_cards.build_rich_card(
@@ -781,7 +824,28 @@ def _priority_change_card(delivery: models.TaskImDelivery) -> dict:
     )
 
 
-def _notification_card(delivery: models.TaskImDelivery) -> dict:
+def _deletion_card(delivery: models.TaskImDelivery) -> dict:
+    title = delivery.task_title or "已删除的任务"
+    actor_name = delivery.actor_name or "任务成员"
+    return im_cards.build_rich_card(
+        header={"title": "任务已删除", "theme": "warning"},
+        blocks=[
+            {
+                "type": im_cards.CARD_BLOCK_TEXT,
+                "spans": [{"tag": im_cards.RICH_TAG_TEXT, "text": title, "b": True}],
+            },
+            {
+                "type": im_cards.CARD_BLOCK_FIELDS,
+                "items": [{"label": "操作人", "value": actor_name}],
+            },
+        ],
+        plain=f"任务已删除：{title}",
+    )
+
+
+def _notification_card(delivery: models.TaskImDelivery) -> dict:  # noqa: PLR0911
+    if delivery.event == models.TaskImDelivery.Event.DELETED:
+        return _deletion_card(delivery)
     if delivery.event == models.TaskImDelivery.Event.COMMENTED:
         return _comment_card(delivery)
     if delivery.event == models.TaskImDelivery.Event.DATES_CHANGED:
@@ -795,8 +859,14 @@ def _notification_card(delivery: models.TaskImDelivery) -> dict:
     return _assignment_card(delivery)
 
 
-def _recipient_can_receive(delivery: models.TaskImDelivery) -> bool:
+def _recipient_can_receive(  # noqa: PLR0912
+    delivery: models.TaskImDelivery,
+) -> bool:
     task = delivery.task
+    if delivery.event == models.TaskImDelivery.Event.DELETED:
+        return bool(delivery.task_title)
+    if task is None:
+        return False
     if delivery.event in ASSIGNMENT_EVENTS:
         allowed = task.assignee_id == delivery.recipient_id
     elif delivery.event == models.TaskImDelivery.Event.COMMENTED:
@@ -819,11 +889,20 @@ def _recipient_can_receive(delivery: models.TaskImDelivery) -> bool:
         )
     elif delivery.event == models.TaskImDelivery.Event.STATUS_CHANGED:
         activity = delivery.activity
+        prefetched_followers = getattr(task, "_prefetched_objects_cache", {}).get(
+            "followers"
+        )
+        follower_ids = (
+            {follower.id for follower in prefetched_followers}
+            if prefetched_followers is not None
+            else set(task.followers.values_list("id", flat=True))
+        )
         allowed = bool(
             activity is not None
             and activity.task_id == task.id
             and activity.event == models.TaskActivity.Event.STATUS_CHANGED
-            and delivery.recipient_id in {task.creator_id, task.assignee_id}
+            and delivery.recipient_id
+            in ({task.creator_id, task.assignee_id} | follower_ids)
             and activity.actor_id != delivery.recipient_id
             and _status_change_matches_task(activity=activity, task=task)
         )

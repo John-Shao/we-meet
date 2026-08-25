@@ -234,6 +234,165 @@ def test_list_scopes_tasks_to_creator_and_assignee():
     assert outsider_results["results"] == []
 
 
+def test_task_followers_are_visible_read_only_collaborators_who_can_comment():
+    organization = OrganizationFactory()
+    creator = UserFactory()
+    assignee = UserFactory()
+    follower = UserFactory()
+    for user in (creator, assignee, follower):
+        MembershipFactory(
+            organization=organization,
+            user=user,
+            is_primary=True,
+        )
+
+    created = _client(creator).post(
+        TASKS_URL,
+        {
+            "title": "Publish release notes",
+            "assignee_id": str(assignee.id),
+            "follower_ids": [str(follower.id)],
+        },
+        format="json",
+    )
+
+    assert created.status_code == 201
+    task_id = created.json()["id"]
+    assert [item["id"] for item in created.json()["followers"]] == [str(follower.id)]
+
+    detail = _client(follower).get(f"{TASKS_URL}{task_id}/")
+    assert detail.status_code == 200
+    assert detail.json()["is_following"] is True
+    assert detail.json()["can_edit"] is False
+    assert detail.json()["can_update_status"] is False
+    assert detail.json()["can_delete"] is False
+    assert detail.json()["can_comment"] is True
+    assert detail.json()["can_manage_attachments"] is False
+    assert detail.json()["can_manage_followers"] is False
+
+    following = _client(follower).get(f"{TASKS_URL}?scope=following&status=open")
+    assert [item["id"] for item in following.json()["results"]] == [task_id]
+    assert (
+        _client(follower)
+        .patch(
+            f"{TASKS_URL}{task_id}/",
+            {"title": "Follower edit"},
+            format="json",
+        )
+        .status_code
+        == 403
+    )
+    assert (
+        _client(follower)
+        .patch(
+            f"{TASKS_URL}{task_id}/",
+            {"status": Task.Status.COMPLETED},
+            format="json",
+        )
+        .status_code
+        == 403
+    )
+    comment = _client(follower).post(
+        f"{TASKS_URL}{task_id}/comments/",
+        {"content": "Looks good to me."},
+        format="json",
+    )
+    assert comment.status_code == 201
+
+
+def test_creator_and_assignee_manage_followers_and_self_follow_is_toggleable():
+    organization = OrganizationFactory()
+    creator = UserFactory()
+    assignee = UserFactory()
+    follower = UserFactory()
+    other = UserFactory()
+    for user in (creator, assignee, follower, other):
+        MembershipFactory(organization=organization, user=user, is_primary=True)
+    task = Task.objects.create(
+        title="Review launch plan",
+        creator=creator,
+        assignee=assignee,
+        organization=organization,
+    )
+
+    added = _client(creator).post(
+        f"{TASKS_URL}{task.id}/followers/",
+        {"follower_ids": [str(follower.id)]},
+        format="json",
+    )
+    assert added.status_code == 200
+    assert task.followers.filter(id=follower.id).exists()
+
+    denied = _client(follower).post(
+        f"{TASKS_URL}{task.id}/followers/",
+        {"follower_ids": [str(other.id)]},
+        format="json",
+    )
+    assert denied.status_code == 403
+
+    removed = _client(assignee).delete(f"{TASKS_URL}{task.id}/followers/{follower.id}/")
+    assert removed.status_code == 204
+    assert not task.followers.filter(id=follower.id).exists()
+
+    followed = _client(assignee).post(f"{TASKS_URL}{task.id}/follow/")
+    assert followed.status_code == 200
+    assert followed.json()["is_following"] is True
+    unfollowed = _client(assignee).delete(f"{TASKS_URL}{task.id}/follow/")
+    assert unfollowed.status_code == 200
+    assert unfollowed.json()["is_following"] is False
+
+
+def test_followers_receive_status_and_durable_deletion_notices_only_while_following():
+    creator = UserFactory()
+    assignee = UserFactory()
+    follower = UserFactory()
+    task = Task.objects.create(
+        title="Ship the release",
+        creator=creator,
+        assignee=assignee,
+    )
+    task.followers.add(follower)
+
+    completed = _client(creator).patch(
+        f"{TASKS_URL}{task.id}/",
+        {"status": Task.Status.COMPLETED},
+        format="json",
+    )
+    assert completed.status_code == 200
+    assert set(
+        TaskImDelivery.objects.filter(
+            event=TaskImDelivery.Event.STATUS_CHANGED
+        ).values_list("recipient_id", flat=True)
+    ) == {assignee.id, follower.id}
+
+    _client(follower).delete(f"{TASKS_URL}{task.id}/follow/")
+    reopened = _client(creator).patch(
+        f"{TASKS_URL}{task.id}/",
+        {"status": Task.Status.TODO},
+        format="json",
+    )
+    assert reopened.status_code == 200
+    latest_activity = TaskActivity.objects.filter(
+        task=task,
+        event=TaskActivity.Event.STATUS_CHANGED,
+    ).latest("created_at")
+    assert not TaskImDelivery.objects.filter(
+        activity=latest_activity,
+        recipient=follower,
+    ).exists()
+
+    task.followers.add(follower)
+    deleted = _client(creator).delete(f"{TASKS_URL}{task.id}/")
+    assert deleted.status_code == 204
+    deletion = TaskImDelivery.objects.get(
+        event=TaskImDelivery.Event.DELETED,
+        recipient=follower,
+    )
+    assert deletion.task_id is None
+    assert deletion.task_title == "Ship the release"
+    assert deletion.actor_name
+
+
 def test_standalone_count_includes_all_visible_tasks_without_a_task_list():
     creator = UserFactory()
     assignee = UserFactory()
@@ -588,7 +747,7 @@ def test_task_time_filter_uses_current_assignee_timezone():
     ] == [(str(task.id), "starting_today")]
 
 
-def test_assignee_can_advance_status_but_cannot_edit_content():
+def test_assignee_can_advance_status_and_edit_task_details():
     creator = UserFactory()
     assignee = UserFactory()
     task = Task.objects.create(title="Follow up", creator=creator, assignee=assignee)
@@ -601,7 +760,7 @@ def test_assignee_can_advance_status_but_cannot_edit_content():
     )
     assert response.status_code == 200
     assert response.json()["status"] == Task.Status.COMPLETED
-    assert response.json()["can_edit"] is False
+    assert response.json()["can_edit"] is True
     assert response.json()["can_update_status"] is True
     activity = TaskActivity.objects.get()
     assert activity.actor == assignee
@@ -618,21 +777,16 @@ def test_assignee_can_advance_status_but_cannot_edit_content():
         {"title": "Changed by assignee"},
         format="json",
     )
-    assert response.status_code == 403
+    assert response.status_code == 200
+    assert response.json()["title"] == "Changed by assignee"
 
     response = client.patch(
         f"{TASKS_URL}{task.id}/",
         {"priority": Task.Priority.HIGH},
         format="json",
     )
-    assert response.status_code == 403
-
-    response = client.patch(
-        f"{TASKS_URL}{task.id}/",
-        {"assignee_id": str(creator.id)},
-        format="json",
-    )
-    assert response.status_code == 403
+    assert response.status_code == 200
+    assert response.json()["priority"] == Task.Priority.HIGH
 
 
 def test_assignee_cannot_delete_task():

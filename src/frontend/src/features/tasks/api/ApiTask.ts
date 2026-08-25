@@ -92,6 +92,7 @@ export interface ApiTask {
   description: string
   creator: ApiTaskUser
   assignee: ApiTaskUser | null
+  followers: ApiTaskUser[]
   status: TaskStatus
   priority: TaskPriority
   task_list: Pick<ApiTaskList, 'id' | 'name' | 'color'> | null
@@ -108,6 +109,8 @@ export interface ApiTask {
   can_delete: boolean
   can_comment: boolean
   can_manage_attachments: boolean
+  can_manage_followers: boolean
+  is_following: boolean
   time_state: TaskTimeState | null
   created_at: string
   updated_at: string
@@ -211,7 +214,7 @@ export interface ApiTaskAttachment {
   created_at: string
 }
 
-export type TaskScope = 'assigned' | 'created' | 'all'
+export type TaskScope = 'assigned' | 'created' | 'following' | 'all'
 
 export interface ApiTaskPlacementSnapshot {
   task_list: Pick<ApiTaskList, 'id' | 'name' | 'color'> | null
@@ -251,6 +254,7 @@ export interface CreateTaskPayload {
   title: string
   description?: string
   assignee_id?: string
+  follower_ids?: string[]
   start_date?: string | null
   due_date?: string | null
   priority?: TaskPriority

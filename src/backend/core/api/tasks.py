@@ -48,6 +48,7 @@ from core.services.task_notifications import (
     record_task_assignment,
     record_task_comment,
     record_task_date_change,
+    record_task_deletion,
     record_task_priority_change,
     record_task_status_change,
 )
@@ -98,18 +99,24 @@ def _can_edit_task_list(task_list, user):
     return _task_list_role(task_list, user) in TASK_LIST_EDIT_ROLES
 
 
-def _can_collaborate_on_task(task, user):
+def _can_manage_task_content(task, user):
     return user.id in {task.creator_id, task.assignee_id} or _can_edit_task_list(
         task.task_list, user
     )
 
 
-def _delete_tasks_with_attachments(queryset):
+def _can_comment_on_task(task, user):
+    return (
+        _can_manage_task_content(task, user)
+        or task.followers.filter(id=user.id).exists()
+    )
+
+
+def _delete_tasks_with_attachments(queryset, *, actor):
     """Delete tasks while applying the normal persisted-file cleanup lifecycle."""
 
-    files = list(
-        models.File.objects.filter(task_attachment__task__in=queryset).distinct()
-    )
+    tasks = list(queryset.prefetch_related("followers"))
+    files = list(models.File.objects.filter(task_attachment__task__in=tasks).distinct())
     for file in files:
         if file.deleted_at is None:
             file.soft_delete()
@@ -118,7 +125,9 @@ def _delete_tasks_with_attachments(queryset):
         transaction.on_commit(
             lambda file_id=file.id: process_file_deletion.delay(file_id)
         )
-    queryset.delete()
+    for task in tasks:
+        record_task_deletion(task=task, actor=actor)
+    models.Task.objects.filter(pk__in=[task.pk for task in tasks]).delete()
 
 
 def _person_name_expression(relation):
@@ -192,7 +201,7 @@ def _order_tasks(queryset, ordering=""):
     )
 
 
-def _filter_task_list(queryset, *, request, user):
+def _filter_task_list(queryset, *, request, user):  # noqa: PLR0912
     """Apply validated list filters without growing the viewset branch count."""
 
     scope = request.query_params.get("scope", "assigned")
@@ -200,8 +209,12 @@ def _filter_task_list(queryset, *, request, user):
         queryset = queryset.filter(assignee=user)
     elif scope == "created":
         queryset = queryset.filter(creator=user)
+    elif scope == "following":
+        queryset = queryset.filter(followers=user)
     elif scope != "all":
-        raise serializers.ValidationError({"scope": "Use assigned, created, or all."})
+        raise serializers.ValidationError(
+            {"scope": "Use assigned, created, following, or all."}
+        )
 
     status_filter = request.query_params.get("status", "all")
     if status_filter == "open":
@@ -305,6 +318,19 @@ class TaskAssigneeValidationMixin:
         return assignee
 
 
+class TaskFollowerValidationMixin:
+    """Validate followers against the caller's organization directory."""
+
+    def validate_follower_ids(self, followers):
+        request = self.context["request"]
+        for follower in followers:
+            try:
+                ensure_task_assignee_allowed(creator=request.user, assignee=follower)
+            except TaskAssigneeError as exc:
+                raise serializers.ValidationError(str(exc)) from exc
+        return followers
+
+
 class TaskPlacementValidationMixin:
     """Validate task-list and group placement as one organization-scoped pair."""
 
@@ -353,6 +379,7 @@ class TaskPlacementValidationMixin:
 class TaskCreateSerializer(
     TaskPlacementValidationMixin,
     TaskAssigneeValidationMixin,
+    TaskFollowerValidationMixin,
     serializers.Serializer,
 ):
     """Input for a task created by the caller and assigned to a colleague."""
@@ -371,6 +398,13 @@ class TaskCreateSerializer(
     assignee_id = serializers.PrimaryKeyRelatedField(
         source="assignee",
         queryset=models.User.objects.all(),
+        required=False,
+        write_only=True,
+    )
+    follower_ids = serializers.PrimaryKeyRelatedField(
+        source="followers",
+        queryset=models.User.objects.all(),
+        many=True,
         required=False,
         write_only=True,
     )
@@ -489,6 +523,20 @@ class TaskUpdateSerializer(
         )
         instance.save(update_fields=["completed_at", "updated_at"])
         return instance
+
+
+class TaskFollowerSerializer(
+    TaskFollowerValidationMixin,
+    serializers.Serializer,
+):
+    """One organization member to add to a task's followers."""
+
+    follower_ids = serializers.PrimaryKeyRelatedField(
+        source="followers",
+        queryset=models.User.objects.all(),
+        many=True,
+        write_only=True,
+    )
 
 
 class TaskListGroupViewSet(
@@ -656,7 +704,8 @@ class TaskListViewSet(
         with transaction.atomic():
             if request.query_params.get("delete_unassigned") == "true":
                 _delete_tasks_with_attachments(
-                    task_list.tasks.filter(assignee__isnull=True)
+                    task_list.tasks.filter(assignee__isnull=True),
+                    actor=request.user,
                 )
             task_list.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -907,7 +956,10 @@ class TaskViewSet(
         user = self.request.user
         queryset = (
             models.Task.objects.filter(
-                Q(creator=user) | Q(assignee=user) | Q(task_list__accesses__user=user)
+                Q(creator=user)
+                | Q(assignee=user)
+                | Q(followers=user)
+                | Q(task_list__accesses__user=user)
             )
             .distinct()
             .annotate(
@@ -926,6 +978,7 @@ class TaskViewSet(
                 "group",
                 "source_action_item__room",
             )
+            .prefetch_related("followers")
         )
         queryset = annotate_assignee_local_date(queryset)
         if self.action == "list":
@@ -949,6 +1002,7 @@ class TaskViewSet(
         serializer.is_valid(raise_exception=True)
         validated_data = dict(serializer.validated_data)
         assignee = validated_data.pop("assignee", request.user)
+        followers = validated_data.pop("followers", [])
         with transaction.atomic():
             task = models.Task.objects.create(
                 creator=request.user,
@@ -956,6 +1010,7 @@ class TaskViewSet(
                 organization=get_caller_organization(request.user),
                 **validated_data,
             )
+            task.followers.set(followers)
             record_task_created(task=task, actor=request.user)
             record_task_assignment(
                 task=task,
@@ -1004,16 +1059,9 @@ class TaskViewSet(
                     {"detail": "Provide only editable task fields."}
                 )
             can_edit_list = _can_edit_task_list(task.task_list, request.user)
-            can_update_status_directly = request.user.id in {
-                task.creator_id,
-                task.assignee_id,
-            }
-            if (
-                task.creator_id != request.user.id
-                and not can_edit_list
-                and (requested_fields != {"status"} or not can_update_status_directly)
-            ):
-                raise PermissionDenied("Assignees can only update the task status.")
+            if task.creator_id != request.user.id and not can_edit_list:
+                if task.assignee_id != request.user.id:
+                    raise PermissionDenied("Only task editors can update this task.")
             serializer = TaskUpdateSerializer(
                 task,
                 data=request.data,
@@ -1079,7 +1127,10 @@ class TaskViewSet(
                 models.ActionItem.objects.filter(pk=task.source_action_item_id).update(
                     task_id=None
                 )
-            _delete_tasks_with_attachments(models.Task.objects.filter(pk=task.pk))
+            _delete_tasks_with_attachments(
+                models.Task.objects.filter(pk=task.pk),
+                actor=request.user,
+            )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["get"])
@@ -1087,6 +1138,51 @@ class TaskViewSet(
         task = self.get_object()
         activities = task.activities.select_related("actor").order_by("-created_at")
         return Response(TaskActivitySerializer(activities, many=True).data)
+
+    @action(detail=True, methods=["post", "delete"])
+    def follow(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """Let a visible task's current viewer follow or unfollow it."""
+
+        task = self.get_object()
+        if request.method == "DELETE":
+            task.followers.remove(request.user)
+            return Response(TaskSerializer(task, context={"request": request}).data)
+
+        task.followers.add(request.user)
+        return Response(TaskSerializer(task, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"], url_path="followers")
+    def follower_add(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """Add one or more followers as the creator or current assignee."""
+
+        task = self.get_object()
+        if request.user.id not in {task.creator_id, task.assignee_id}:
+            raise PermissionDenied(
+                "Only the task creator or assignee can manage followers."
+            )
+        serializer = TaskFollowerSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        task.followers.add(*serializer.validated_data["followers"])
+        return Response(TaskSerializer(task, context={"request": request}).data)
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"followers/(?P<follower_id>[^/.]+)",
+    )
+    def follower_remove(self, request, follower_id=None, *args, **kwargs):  # pylint: disable=unused-argument
+        """Remove one follower as the creator or current assignee."""
+
+        task = self.get_object()
+        if request.user.id not in {task.creator_id, task.assignee_id}:
+            raise PermissionDenied(
+                "Only the task creator or assignee can manage followers."
+            )
+        task.followers.remove(follower_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], url_path="standalone-count")
     def standalone_count(
@@ -1173,7 +1269,7 @@ class TaskViewSet(
             comments = task.comments.select_related("author").order_by("created_at")
             return Response(TaskCommentSerializer(comments, many=True).data)
 
-        if not _can_collaborate_on_task(task, request.user):
+        if not _can_comment_on_task(task, request.user):
             raise PermissionDenied("Only task collaborators can add comments.")
 
         serializer = TaskCommentSerializer(data=request.data)
@@ -1198,7 +1294,7 @@ class TaskViewSet(
             )
             return Response(TaskAttachmentSerializer(attachments, many=True).data)
 
-        if not _can_collaborate_on_task(task, request.user):
+        if not _can_manage_task_content(task, request.user):
             raise PermissionDenied("Only task collaborators can add attachments.")
 
         serializer = TaskAttachmentCreateSerializer(
@@ -1241,7 +1337,7 @@ class TaskViewSet(
     def attachment_remove(self, request, attachment_id=None, *args, **kwargs):
         """Remove an attachment and queue deletion from its persisted bucket."""
         task = self.get_object()
-        if not _can_collaborate_on_task(task, request.user):
+        if not _can_manage_task_content(task, request.user):
             raise PermissionDenied("Only task collaborators can remove attachments.")
         attachment = get_object_or_404(
             task.attachments.select_related("file"),

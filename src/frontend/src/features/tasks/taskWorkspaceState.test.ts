@@ -10,10 +10,11 @@ import {
 } from './taskWorkspaceState'
 
 describe('task workspace state', () => {
-  it('maps the four quick views to scope and status', () => {
+  it('maps the five quick views to scope and status', () => {
     expect(taskViewPresets).toEqual({
       assigned: { scope: 'assigned', status: 'open' },
       created: { scope: 'created', status: 'open' },
+      following: { scope: 'following', status: 'open' },
       all: { scope: 'all', status: 'open' },
       completed: { scope: 'all', status: 'completed' },
     })

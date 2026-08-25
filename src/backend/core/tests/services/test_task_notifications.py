@@ -113,8 +113,47 @@ def test_successful_delivery_uses_task_assistant_rich_card_once(settings):
         "text": "查看任务",
         "style": "primary",
         "action": "url",
-        "url": "https://meet.example.test/tasks",
+        "url": f"https://meet.example.test/tasks?task={delivery.task_id}",
     }
+    assert card["blocks"][-1]["buttons"][1] == {
+        "id": f"follow-task:{delivery.task_id}",
+        "text": "关注",
+        "style": "default",
+        "action": "url",
+        "url": f"https://meet.example.test/tasks?task={delivery.task_id}",
+    }
+
+
+def test_deleted_task_delivery_uses_snapshot_after_task_is_gone(settings):
+    settings.JUSI_IM_CONFIGURATION = {
+        "api_url": "https://im.example.test",
+        "admin_hmac_secret": "s" * 32,
+    }
+    recipient = UserFactory(full_name="关注人")
+    delivery = models.TaskImDelivery.objects.create(
+        task=None,
+        task_title="发布复盘",
+        actor_name="创建人",
+        recipient=recipient,
+        event=models.TaskImDelivery.Event.DELETED,
+        next_attempt_at=timezone.now(),
+    )
+
+    with (
+        mock.patch(
+            "core.services.task_notifications.im_bots.get_builtin",
+            return_value=mock.Mock(name="task-assistant"),
+        ),
+        mock.patch(
+            "core.services.task_notifications.im_bots.post_direct",
+            return_value=("direct-cid", mock.Mock()),
+        ) as post_direct,
+    ):
+        assert deliver_task_assignment(str(delivery.id)) == "delivered"
+
+    card = json.loads(post_direct.call_args.args[3])
+    assert card["header"] == {"title": "任务已删除", "theme": "warning"}
+    assert card["plain"] == "任务已删除：发布复盘"
 
 
 def test_assignment_card_displays_non_empty_priority(settings):
@@ -190,7 +229,7 @@ def test_successful_comment_delivery_uses_task_assistant_comment_card(settings):
         "text": "查看评论",
         "style": "primary",
         "action": "url",
-        "url": "https://meet.example.test/tasks",
+        "url": f"https://meet.example.test/tasks?task={task.id}",
     }
 
 
@@ -411,6 +450,8 @@ def test_task_date_reminders_respect_assignee_timezone_and_are_idempotent(
         assignee=shanghai,
         due_date=date(2026, 8, 22),
     )
+    follower = UserFactory(timezone="Asia/Shanghai")
+    due.followers.add(follower)
     overdue = models.Task.objects.create(
         title="Shanghai overdue",
         creator=creator,
@@ -459,6 +500,7 @@ def test_task_date_reminders_respect_assignee_timezone_and_are_idempotent(
         ),
     }
     assert enqueue.call_count == 5
+    assert not models.TaskImDelivery.objects.filter(recipient=follower).exists()
 
 
 def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
@@ -513,7 +555,7 @@ def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
         "value": "2026-08-20",
     }
     assert card["blocks"][-1]["buttons"][0]["url"] == (
-        "https://meet.example.test/tasks"
+        f"https://meet.example.test/tasks?task={task.id}"
     )
 
 
@@ -645,7 +687,7 @@ def test_date_change_card_preserves_old_and_new_dates(settings):
         },
     ]
     assert card["blocks"][-1]["buttons"][0]["url"] == (
-        "https://meet.example.test/tasks"
+        f"https://meet.example.test/tasks?task={task.id}"
     )
 
 
@@ -1029,7 +1071,7 @@ def test_status_change_card_preserves_transition_actor_and_origin(
         "text": "查看任务",
         "style": "primary",
         "action": "url",
-        "url": "https://meet.example.test/tasks",
+        "url": f"https://meet.example.test/tasks?task={task.id}",
     }
 
 

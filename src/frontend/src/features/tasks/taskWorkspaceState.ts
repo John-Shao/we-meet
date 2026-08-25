@@ -6,7 +6,12 @@ import type {
   TaskTimeFilter,
 } from './api/ApiTask'
 
-export type TaskWorkspaceView = 'assigned' | 'created' | 'all' | 'completed'
+export type TaskWorkspaceView =
+  | 'assigned'
+  | 'created'
+  | 'following'
+  | 'all'
+  | 'completed'
 export type TaskWorkspaceMode = 'list' | 'board' | 'analytics'
 
 export interface TaskWorkspaceState {
@@ -26,6 +31,7 @@ export const taskViewPresets: Record<
 > = {
   assigned: { scope: 'assigned', status: 'open' },
   created: { scope: 'created', status: 'open' },
+  following: { scope: 'following', status: 'open' },
   all: { scope: 'all', status: 'open' },
   completed: { scope: 'all', status: 'completed' },
 }
@@ -55,7 +61,11 @@ const TASK_ORDERINGS: readonly TaskOrdering[] = [
 export const parseTaskWorkspaceState = (
   params: URLSearchParams
 ): TaskWorkspaceState => ({
-  scope: oneOf(params.get('scope'), ['assigned', 'created', 'all'], 'assigned'),
+  scope: oneOf(
+    params.get('scope'),
+    ['assigned', 'created', 'following', 'all'],
+    'assigned'
+  ),
   status: oneOf(
     params.get('status'),
     ['open', 'all', 'todo', 'completed'],

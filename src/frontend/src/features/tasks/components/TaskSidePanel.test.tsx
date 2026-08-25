@@ -10,12 +10,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiTask } from '../api/ApiTask'
 import { TaskDetailPanel } from './TaskSidePanel'
 
-const { confirm, deleteMutateAsync, mutate, mutateAsync } = vi.hoisted(() => ({
-  confirm: vi.fn().mockResolvedValue(true),
-  deleteMutateAsync: vi.fn().mockResolvedValue(undefined),
-  mutate: vi.fn(),
-  mutateAsync: vi.fn().mockResolvedValue(undefined),
-}))
+const { confirm, deleteMutateAsync, followMutate, mutate, mutateAsync } =
+  vi.hoisted(() => ({
+    confirm: vi.fn().mockResolvedValue(true),
+    deleteMutateAsync: vi.fn().mockResolvedValue(undefined),
+    followMutate: vi.fn(),
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+  }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -34,6 +36,22 @@ vi.mock('../api/fetchTasks', () => ({
   usePatchTask: () => ({
     mutate,
     mutateAsync,
+    isPending: false,
+    error: null,
+  }),
+  useFollowTask: () => ({
+    mutate: followMutate,
+    isPending: false,
+    error: null,
+  }),
+  useUnfollowTask: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  useAddTaskFollowers: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    error: null,
+  }),
+  useRemoveTaskFollower: () => ({
+    mutate: vi.fn(),
     isPending: false,
     error: null,
   }),
@@ -69,6 +87,7 @@ const task: ApiTask = {
     short_name: null,
     avatar_url: '/assignee.png',
   },
+  followers: [],
   status: 'todo',
   priority: 'high',
   task_list: null,
@@ -85,6 +104,8 @@ const task: ApiTask = {
   can_delete: false,
   can_comment: false,
   can_manage_attachments: false,
+  can_manage_followers: false,
+  is_following: false,
   time_state: null,
   created_at: '2026-08-21T08:00:00Z',
   updated_at: '2026-08-21T09:00:00Z',
@@ -95,6 +116,7 @@ describe('TaskDetailPanel', () => {
     mutate.mockClear()
     mutateAsync.mockClear()
     deleteMutateAsync.mockClear()
+    followMutate.mockClear()
     confirm.mockClear()
   })
 
@@ -224,7 +246,12 @@ describe('TaskDetailPanel', () => {
         .map(
           (button) => button.getAttribute('aria-label') || button.textContent
         )
-    ).toEqual(['actions.to_completed', 'actions.more', 'workspace.closePanel'])
+    ).toEqual([
+      'actions.to_completed',
+      'followers.follow',
+      'actions.more',
+      'workspace.closePanel',
+    ])
     expect(screen.queryByText('statuses.todo')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('menuitem', { name: 'actions.delete' })
@@ -237,6 +264,11 @@ describe('TaskDetailPanel', () => {
       taskId: task.id,
       patch: { status: 'completed' },
     })
+
+    fireEvent.click(
+      within(header).getByRole('button', { name: 'followers.follow' })
+    )
+    expect(followMutate).toHaveBeenCalledWith(task.id)
 
     fireEvent.click(
       within(header).getByRole('button', { name: 'actions.more' })

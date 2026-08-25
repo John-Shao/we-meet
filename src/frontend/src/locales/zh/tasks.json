@@ -11,6 +11,7 @@
     "quickAccess": "快速访问",
     "views": {
       "assigned": "我负责的",
+      "following": "我关注的",
       "created": "我创建的",
       "all": "全部相关",
       "completed": "已完成"
@@ -201,8 +202,21 @@
   "scopes": {
     "label": "任务范围",
     "assigned": "我负责的",
+    "following": "我关注的",
     "created": "我创建的",
     "all": "全部相关"
+  },
+  "followers": {
+    "title": "关注人",
+    "add": "添加关注人",
+    "select": "选择关注人",
+    "search": "搜索姓名或邮箱…",
+    "empty": "暂无关注人",
+    "follow": "关注任务",
+    "unfollow": "取消关注",
+    "cardFollow": "关注",
+    "cardFollowing": "已关注",
+    "remove": "移除关注人 {{name}}"
   },
   "timeFilters": {
     "label": "时间筛选",

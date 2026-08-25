@@ -11,6 +11,7 @@
     "quickAccess": "Snelle toegang",
     "views": {
       "assigned": "Aan mij toegewezen",
+      "following": "Door mij gevolgd",
       "created": "Door mij gemaakt",
       "all": "Alle betrokken",
       "completed": "Voltooid"
@@ -202,8 +203,21 @@
   "scopes": {
     "label": "Taakbereik",
     "assigned": "Aan mij toegewezen",
+    "following": "Door mij gevolgd",
     "created": "Door mij gemaakt",
     "all": "Alle relevante"
+  },
+  "followers": {
+    "title": "Volgers",
+    "add": "Volgers toevoegen",
+    "select": "Volgers selecteren",
+    "search": "Zoeken op naam of e-mail…",
+    "empty": "Geen volgers",
+    "follow": "Taak volgen",
+    "unfollow": "Taak niet meer volgen",
+    "cardFollow": "Volgen",
+    "cardFollowing": "Gevolgd",
+    "remove": "Volger {{name}} verwijderen"
   },
   "timeFilters": {
     "label": "Tijdfilter",

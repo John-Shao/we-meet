@@ -792,6 +792,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
     creator = TaskUserSerializer(read_only=True)
     assignee = TaskUserSerializer(read_only=True)
+    followers = TaskUserSerializer(many=True, read_only=True)
     source_action_item_id = serializers.UUIDField(read_only=True)
     source_room_id = serializers.SerializerMethodField()
     source_room_name = serializers.SerializerMethodField()
@@ -800,6 +801,8 @@ class TaskSerializer(serializers.ModelSerializer):
     can_delete = serializers.SerializerMethodField()
     can_comment = serializers.SerializerMethodField()
     can_manage_attachments = serializers.SerializerMethodField()
+    can_manage_followers = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
     time_state = serializers.SerializerMethodField()
     task_list = TaskListSummarySerializer(read_only=True)
     group = TaskGroupSummarySerializer(read_only=True)
@@ -812,7 +815,7 @@ class TaskSerializer(serializers.ModelSerializer):
         user = self._request_user()
         if not user or not user.is_authenticated:
             return False
-        if obj.creator_id == user.id:
+        if user.id in {obj.creator_id, obj.assignee_id}:
             return True
         return self._can_edit_task_list(obj, user)
 
@@ -837,9 +840,17 @@ class TaskSerializer(serializers.ModelSerializer):
             and user.is_authenticated
             and (
                 user.id in {obj.creator_id, obj.assignee_id}
+                or self._is_follower(obj, user)
                 or self._can_edit_task_list(obj, user)
             )
         )
+
+    @staticmethod
+    def _is_follower(obj, user):
+        followers = getattr(obj, "_prefetched_objects_cache", {}).get("followers")
+        if followers is not None:
+            return any(follower.id == user.id for follower in followers)
+        return obj.followers.filter(id=user.id).exists()
 
     def get_can_update_status(self, obj):
         user = self._request_user()
@@ -853,13 +864,38 @@ class TaskSerializer(serializers.ModelSerializer):
         )
 
     def get_can_delete(self, obj):
-        return self.get_can_edit(obj)
+        user = self._request_user()
+        return bool(
+            user
+            and user.is_authenticated
+            and (obj.creator_id == user.id or self._can_edit_task_list(obj, user))
+        )
 
     def get_can_comment(self, obj):
         return self._can_collaborate(obj, self._request_user())
 
     def get_can_manage_attachments(self, obj):
-        return self._can_collaborate(obj, self._request_user())
+        user = self._request_user()
+        return bool(
+            user
+            and user.is_authenticated
+            and (
+                user.id in {obj.creator_id, obj.assignee_id}
+                or self._can_edit_task_list(obj, user)
+            )
+        )
+
+    def get_can_manage_followers(self, obj):
+        user = self._request_user()
+        return bool(
+            user
+            and user.is_authenticated
+            and user.id in {obj.creator_id, obj.assignee_id}
+        )
+
+    def get_is_following(self, obj):
+        user = self._request_user()
+        return bool(user and user.is_authenticated and self._is_follower(obj, user))
 
     def get_time_state(self, obj):
         user = self._request_user()
@@ -888,6 +924,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "description",
             "creator",
             "assignee",
+            "followers",
             "status",
             "priority",
             "task_list",
@@ -904,6 +941,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "can_delete",
             "can_comment",
             "can_manage_attachments",
+            "can_manage_followers",
+            "is_following",
             "time_state",
             "created_at",
             "updated_at",

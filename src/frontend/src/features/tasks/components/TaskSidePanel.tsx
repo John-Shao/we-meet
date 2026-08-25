@@ -9,6 +9,8 @@ import { Link } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import {
   RiCalendarLine,
+  RiBookmarkFill,
+  RiBookmarkLine,
   RiCheckLine,
   RiCloseLine,
   RiDeleteBinLine,
@@ -20,6 +22,7 @@ import {
   RiRestartLine,
   RiUser3Line,
   RiUserAddLine,
+  RiUserFollowLine,
 } from '@remixicon/react'
 
 import { ModalCloseButton } from '@/components/Modal'
@@ -35,7 +38,15 @@ import type {
   PatchTaskPayload,
   TaskPriority,
 } from '../api/ApiTask'
-import { useDeleteTask, usePatchTask, useTask } from '../api/fetchTasks'
+import {
+  useAddTaskFollowers,
+  useDeleteTask,
+  useFollowTask,
+  usePatchTask,
+  useRemoveTaskFollower,
+  useTask,
+  useUnfollowTask,
+} from '../api/fetchTasks'
 import { nextTaskStatuses } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskForm } from './TaskForm'
@@ -113,8 +124,13 @@ export const TaskDetailPanel = ({
   const [draftTaskListId, setDraftTaskListId] = useState('')
   const [draftGroupId, setDraftGroupId] = useState('')
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
+  const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const patchMutation = usePatchTask()
   const deleteMutation = useDeleteTask()
+  const followMutation = useFollowTask()
+  const unfollowMutation = useUnfollowTask()
+  const addFollowersMutation = useAddTaskFollowers()
+  const removeFollowerMutation = useRemoveTaskFollower()
   const { confirm } = useConfirm()
   const focusInput = useCallback((element: HTMLInputElement | null) => {
     element?.focus()
@@ -126,6 +142,7 @@ export const TaskDetailPanel = ({
   useEffect(() => {
     setEditingField(null)
     setAssigneePickerOpen(false)
+    setFollowerPickerOpen(false)
   }, [taskId])
 
   if (!task && isLoading) {
@@ -238,35 +255,58 @@ export const TaskDetailPanel = ({
         )
       }
       actions={
-        task.can_delete ? (
-          <Menu placement="bottom">
-            <Button
-              size="icon28"
-              variant="quaternaryText"
-              aria-label={t('actions.more')}
-              isDisabled={patchMutation.isPending || deleteMutation.isPending}
-            >
-              <RiMoreLine size={18} aria-hidden="true" />
-            </Button>
-            <MenuList
-              aria-label={t('actions.more')}
-              items={[
-                {
-                  value: 'delete',
-                  label: (
-                    <span className={headerMenuItemCss}>
-                      <RiDeleteBinLine size={16} aria-hidden="true" />
-                      {t('actions.delete')}
-                    </span>
-                  ),
-                },
-              ]}
-              onAction={(action) => {
-                if (action === 'delete') void deleteTask()
-              }}
-            />
-          </Menu>
-        ) : undefined
+        <>
+          <Button
+            size="icon28"
+            variant="quaternaryText"
+            aria-label={
+              task.is_following
+                ? t('followers.unfollow')
+                : t('followers.follow')
+            }
+            isDisabled={followMutation.isPending || unfollowMutation.isPending}
+            onPress={() =>
+              task.is_following
+                ? unfollowMutation.mutate(task.id)
+                : followMutation.mutate(task.id)
+            }
+          >
+            {task.is_following ? (
+              <RiBookmarkFill size={18} aria-hidden="true" />
+            ) : (
+              <RiBookmarkLine size={18} aria-hidden="true" />
+            )}
+          </Button>
+          {task.can_delete && (
+            <Menu placement="bottom">
+              <Button
+                size="icon28"
+                variant="quaternaryText"
+                aria-label={t('actions.more')}
+                isDisabled={patchMutation.isPending || deleteMutation.isPending}
+              >
+                <RiMoreLine size={18} aria-hidden="true" />
+              </Button>
+              <MenuList
+                aria-label={t('actions.more')}
+                items={[
+                  {
+                    value: 'delete',
+                    label: (
+                      <span className={headerMenuItemCss}>
+                        <RiDeleteBinLine size={16} aria-hidden="true" />
+                        {t('actions.delete')}
+                      </span>
+                    ),
+                  },
+                ]}
+                onAction={(action) => {
+                  if (action === 'delete') void deleteTask()
+                }}
+              />
+            </Menu>
+          )}
+        </>
       }
     >
       <div className={panelBodyCss}>
@@ -316,7 +356,12 @@ export const TaskDetailPanel = ({
               )}
             </div>
           </div>
-          {(patchMutation.error || deleteMutation.error) && (
+          {(patchMutation.error ||
+            deleteMutation.error ||
+            followMutation.error ||
+            unfollowMutation.error ||
+            addFollowersMutation.error ||
+            removeFollowerMutation.error) && (
             <p role="alert" className={inlineErrorCss}>
               {t('error')}
             </p>
@@ -339,6 +384,56 @@ export const TaskDetailPanel = ({
               label={t('meta.creator')}
             >
               <TaskUserDisplay user={task.creator} />
+            </TaskProperty>
+            <TaskProperty
+              icon={<RiUserFollowLine size={18} />}
+              label={t('followers.title')}
+              alignStart
+            >
+              <div className={detailFollowersCss}>
+                {task.followers.length === 0 && (
+                  <span className={emptyFollowersCss}>
+                    {t('followers.empty')}
+                  </span>
+                )}
+                {task.followers.map((follower) => (
+                  <span key={follower.id} className={detailFollowerChipCss}>
+                    <TaskUserDisplay user={follower} />
+                    {task.can_manage_followers && (
+                      <button
+                        type="button"
+                        aria-label={t('followers.remove', {
+                          name:
+                            follower.full_name ||
+                            follower.short_name ||
+                            follower.email ||
+                            '',
+                        })}
+                        disabled={removeFollowerMutation.isPending}
+                        onClick={() =>
+                          removeFollowerMutation.mutate({
+                            taskId: task.id,
+                            followerId: follower.id,
+                          })
+                        }
+                      >
+                        <RiCloseLine size={14} aria-hidden="true" />
+                      </button>
+                    )}
+                  </span>
+                ))}
+                {task.can_manage_followers && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="quaternaryText"
+                    isDisabled={addFollowersMutation.isPending}
+                    onPress={() => setFollowerPickerOpen(true)}
+                  >
+                    {t('followers.add')}
+                  </Button>
+                )}
+              </div>
             </TaskProperty>
             <TaskProperty
               icon={<RiListCheck3 size={18} />}
@@ -559,6 +654,25 @@ export const TaskDetailPanel = ({
               onSelect={(member: DirectoryMember) => {
                 setAssigneePickerOpen(false)
                 void saveField({ assignee_id: member.id })
+              }}
+            />
+          )}
+          {followerPickerOpen && (
+            <ContactPicker
+              includeSelf
+              title={t('followers.select')}
+              searchPlaceholder={t('followers.search')}
+              onClose={() => setFollowerPickerOpen(false)}
+              onSelect={(member: DirectoryMember) => {
+                setFollowerPickerOpen(false)
+                if (
+                  task.followers.some((follower) => follower.id === member.id)
+                )
+                  return
+                addFollowersMutation.mutate({
+                  taskId: task.id,
+                  followerIds: [member.id],
+                })
               }}
             />
           )}
@@ -909,6 +1023,36 @@ const propertyEditButtonCss = css({
   _focusVisible: { '& > svg': { opacity: 1 } },
   _disabled: { cursor: 'default' },
 })
+const detailFollowersCss = css({
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: '0.375rem',
+})
+const detailFollowerChipCss = css({
+  minWidth: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.25rem',
+  paddingY: '0.25rem',
+  paddingLeft: '0.375rem',
+  paddingRight: '0.25rem',
+  borderRadius: '999px',
+  backgroundColor: 'greyscale.100',
+  '& button': {
+    display: 'inline-flex',
+    padding: '0.125rem',
+    border: 0,
+    borderRadius: '999px',
+    backgroundColor: 'transparent',
+    color: 'greyscale.500',
+    cursor: 'pointer',
+    _hover: { backgroundColor: 'greyscale.200' },
+    _disabled: { cursor: 'default', opacity: 0.5 },
+  },
+})
+const emptyFollowersCss = css({ color: 'default.subtle-text' })
 const inlineEditorCss = css({
   width: '100%',
   display: 'flex',

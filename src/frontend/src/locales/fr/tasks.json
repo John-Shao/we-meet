@@ -11,6 +11,7 @@
     "quickAccess": "Accès rapide",
     "views": {
       "assigned": "Mes tâches",
+      "following": "Tâches suivies",
       "created": "Créées par moi",
       "all": "Toutes associées",
       "completed": "Terminées"
@@ -202,8 +203,21 @@
   "scopes": {
     "label": "Périmètre des tâches",
     "assigned": "À faire par moi",
+    "following": "Tâches suivies",
     "created": "Créées par moi",
     "all": "Toutes"
+  },
+  "followers": {
+    "title": "Abonnés",
+    "add": "Ajouter des abonnés",
+    "select": "Sélectionner des abonnés",
+    "search": "Rechercher par nom ou e-mail…",
+    "empty": "Aucun abonné",
+    "follow": "Suivre la tâche",
+    "unfollow": "Ne plus suivre",
+    "cardFollow": "Suivre",
+    "cardFollowing": "Suivie",
+    "remove": "Retirer {{name}} des abonnés"
   },
   "timeFilters": {
     "label": "Filtre temporel",

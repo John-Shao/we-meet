@@ -11,6 +11,7 @@
     "quickAccess": "Quick access",
     "views": {
       "assigned": "Assigned to me",
+      "following": "Following",
       "created": "Created by me",
       "all": "All related",
       "completed": "Completed"
@@ -201,8 +202,21 @@
   "scopes": {
     "label": "Task scope",
     "assigned": "Assigned to me",
+    "following": "Following",
     "created": "Created by me",
     "all": "All related"
+  },
+  "followers": {
+    "title": "Followers",
+    "add": "Add followers",
+    "select": "Select followers",
+    "search": "Search by name or email…",
+    "empty": "No followers",
+    "follow": "Follow task",
+    "unfollow": "Unfollow task",
+    "cardFollow": "Follow",
+    "cardFollowing": "Following",
+    "remove": "Remove follower {{name}}"
   },
   "timeFilters": {
     "label": "Time filter",

@@ -2,10 +2,12 @@ import { useState, type FormEvent, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RiCalendarLine,
+  RiCloseLine,
   RiFileTextLine,
   RiFlagLine,
   RiListCheck3,
   RiUser3Line,
+  RiUserFollowLine,
 } from '@remixicon/react'
 
 import { ContactPicker, type DirectoryMember } from '@/features/contacts'
@@ -43,12 +45,14 @@ export const TaskForm = ({
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [assignee, setAssignee] = useState<ApiTaskUser | null>(null)
+  const [followers, setFollowers] = useState<ApiTaskUser[]>([])
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [taskListId, setTaskListId] = useState(defaultTaskListId || '')
   const [groupId, setGroupId] = useState(defaultGroupId || '')
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const createMutation = useCreateTask()
   const today = dateInputValue(new Date())
   const tomorrowDate = new Date()
@@ -65,6 +69,7 @@ export const TaskForm = ({
         title: cleanTitle,
         description: description.trim(),
         assignee_id: assignee?.id,
+        follower_ids: followers.map((follower) => follower.id),
         priority,
         task_list_id: taskListId || null,
         group_id: groupId || null,
@@ -85,14 +90,25 @@ export const TaskForm = ({
       searchPlaceholder={t('form.searchAssignee')}
       onClose={() => setPickerOpen(false)}
       onSelect={(member: DirectoryMember) => {
-        setAssignee({
-          id: member.id,
-          full_name: member.full_name,
-          short_name: member.short_name,
-          email: member.email,
-          avatar_url: member.avatar_url,
-        })
+        setAssignee(directoryMemberToTaskUser(member))
         setPickerOpen(false)
+      }}
+    />
+  )
+  const followerPicker = followerPickerOpen && (
+    <ContactPicker
+      includeSelf
+      title={t('followers.select')}
+      searchPlaceholder={t('followers.search')}
+      onClose={() => setFollowerPickerOpen(false)}
+      onSelect={(member: DirectoryMember) => {
+        const follower = directoryMemberToTaskUser(member)
+        setFollowers((current) =>
+          current.some((item) => item.id === follower.id)
+            ? current
+            : [...current, follower]
+        )
+        setFollowerPickerOpen(false)
       }}
     />
   )
@@ -129,6 +145,42 @@ export const TaskForm = ({
                 t('form.assigneeSelf')
               )}
             </Button>
+          </div>
+
+          <div className={createPropertyRowCss} data-align-start>
+            <RiUserFollowLine size={19} aria-hidden="true" />
+            <div className={followersEditorCss}>
+              {followers.map((follower) => (
+                <span key={follower.id} className={followerChipCss}>
+                  <TaskUserDisplay user={follower} />
+                  <button
+                    type="button"
+                    aria-label={t('followers.remove', {
+                      name:
+                        follower.full_name ||
+                        follower.short_name ||
+                        follower.email ||
+                        '',
+                    })}
+                    onClick={() =>
+                      setFollowers((current) =>
+                        current.filter((item) => item.id !== follower.id)
+                      )
+                    }
+                  >
+                    <RiCloseLine size={14} aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+              <Button
+                type="button"
+                size="sm"
+                variant="quaternaryText"
+                onPress={() => setFollowerPickerOpen(true)}
+              >
+                {t('followers.add')}
+              </Button>
+            </div>
           </div>
 
           {taskLists.length > 0 && (
@@ -270,9 +322,18 @@ export const TaskForm = ({
         </Button>
       </div>
       {picker}
+      {followerPicker}
     </form>
   )
 }
+
+const directoryMemberToTaskUser = (member: DirectoryMember): ApiTaskUser => ({
+  id: member.id,
+  full_name: member.full_name,
+  short_name: member.short_name,
+  email: member.email,
+  avatar_url: member.avatar_url,
+})
 const errorCss = css({ margin: 0, color: 'danger.subtle-text' })
 
 const dateInputValue = (date: Date) =>
@@ -315,6 +376,35 @@ const createPropertyRowCss = css({
 const assigneeButtonCss = css({
   justifySelf: 'start',
   fontSize: '0.875rem',
+})
+const followersEditorCss = css({
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: '0.375rem',
+})
+const followerChipCss = css({
+  minWidth: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.25rem',
+  paddingY: '0.25rem',
+  paddingLeft: '0.375rem',
+  paddingRight: '0.25rem',
+  borderRadius: '999px',
+  backgroundColor: 'greyscale.100',
+  color: 'greyscale.800',
+  '& button': {
+    display: 'inline-flex',
+    padding: '0.125rem',
+    border: 0,
+    borderRadius: '999px',
+    backgroundColor: 'transparent',
+    color: 'greyscale.500',
+    cursor: 'pointer',
+    _hover: { backgroundColor: 'greyscale.200' },
+  },
 })
 const dateControlsCss = css({
   display: 'flex',

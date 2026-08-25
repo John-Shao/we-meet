@@ -2433,6 +2433,12 @@ class Task(BaseModel):
         blank=True,
         verbose_name=_("assignee"),
     )
+    followers = models.ManyToManyField(
+        User,
+        related_name="followed_tasks",
+        blank=True,
+        verbose_name=_("followers"),
+    )
     status = models.CharField(
         _("status"),
         max_length=16,
@@ -2621,6 +2627,7 @@ class TaskImDelivery(BaseModel):
         DATES_CHANGED = "dates_changed", _("Dates changed")
         STATUS_CHANGED = "status_changed", _("Status changed")
         PRIORITY_CHANGED = "priority_changed", _("Priority changed")
+        DELETED = "deleted", _("Deleted")
         STARTING = "starting", _("Starting")
         DUE_TODAY = "due_today", _("Due today")
         OVERDUE = "overdue", _("Overdue")
@@ -2633,9 +2640,15 @@ class TaskImDelivery(BaseModel):
 
     task = models.ForeignKey(
         Task,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="im_deliveries",
+        null=True,
+        blank=True,
         verbose_name=_("task"),
+    )
+    task_title = models.TextField(_("task title"), blank=True, default="")
+    actor_name = models.CharField(
+        _("actor name"), max_length=255, blank=True, default=""
     )
     comment = models.ForeignKey(
         TaskComment,

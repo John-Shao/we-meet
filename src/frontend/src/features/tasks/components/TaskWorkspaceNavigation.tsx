@@ -8,6 +8,7 @@ import {
   RiHistoryLine,
   RiListCheck3,
   RiListCheck,
+  RiBookmarkLine,
   RiUserLine,
 } from '@remixicon/react'
 
@@ -32,7 +33,13 @@ import {
   TaskListNavigationRow,
 } from './TaskWorkspaceNavigationNodes'
 
-const views: TaskWorkspaceView[] = ['assigned', 'created', 'all', 'completed']
+const views: TaskWorkspaceView[] = [
+  'assigned',
+  'following',
+  'created',
+  'all',
+  'completed',
+]
 
 const activeView = (state: TaskWorkspaceState): TaskWorkspaceView => {
   if (state.scope === 'all' && state.status === 'completed') return 'completed'
@@ -177,6 +184,8 @@ export const TaskWorkspaceNavigation = ({
               <span className={navLabelCss}>
                 {view === 'assigned' ? (
                   <RiUserLine size={18} />
+                ) : view === 'following' ? (
+                  <RiBookmarkLine size={18} />
                 ) : view === 'created' ? (
                   <RiFileAddLine size={18} />
                 ) : view === 'completed' ? (

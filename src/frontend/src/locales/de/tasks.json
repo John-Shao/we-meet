@@ -11,6 +11,7 @@
     "quickAccess": "Schnellzugriff",
     "views": {
       "assigned": "Mir zugewiesen",
+      "following": "Von mir verfolgt",
       "created": "Von mir erstellt",
       "all": "Alle zugehörigen",
       "completed": "Abgeschlossen"
@@ -202,8 +203,21 @@
   "scopes": {
     "label": "Aufgabenbereich",
     "assigned": "Mir zugewiesen",
+    "following": "Von mir verfolgt",
     "created": "Von mir erstellt",
     "all": "Alle relevanten"
+  },
+  "followers": {
+    "title": "Beobachter",
+    "add": "Beobachter hinzufügen",
+    "select": "Beobachter auswählen",
+    "search": "Nach Name oder E-Mail suchen…",
+    "empty": "Keine Beobachter",
+    "follow": "Aufgabe verfolgen",
+    "unfollow": "Nicht mehr verfolgen",
+    "cardFollow": "Verfolgen",
+    "cardFollowing": "Wird verfolgt",
+    "remove": "Beobachter {{name}} entfernen"
   },
   "timeFilters": {
     "label": "Zeitfilter",

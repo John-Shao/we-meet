@@ -46,6 +46,7 @@ const task: ApiTask = {
     short_name: null,
     avatar_url: '/assignee.png',
   },
+  followers: [],
   status: 'todo',
   priority: 'high',
   task_list: {
@@ -66,6 +67,8 @@ const task: ApiTask = {
   can_delete: false,
   can_comment: true,
   can_manage_attachments: true,
+  can_manage_followers: true,
+  is_following: false,
   time_state: null,
   created_at: '2026-08-21T08:00:00Z',
   updated_at: '2026-08-21T09:00:00Z',

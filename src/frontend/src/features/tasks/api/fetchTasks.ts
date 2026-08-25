@@ -4,6 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
@@ -629,6 +630,86 @@ export const usePatchTask = () => {
         queryKey: ['tasks', variables.taskId, 'activities'],
       })
     },
+  })
+}
+
+const followTask = (taskId: string) =>
+  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/follow/`, {
+    method: 'POST',
+  })
+
+const unfollowTask = (taskId: string) =>
+  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/follow/`, {
+    method: 'DELETE',
+  })
+
+const refreshTaskFollowers = (taskId: string, followerIds: string[]) =>
+  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/followers/`, {
+    method: 'POST',
+    body: JSON.stringify({ follower_ids: followerIds }),
+  })
+
+const removeTaskFollower = (taskId: string, followerId: string) =>
+  fetchApi<void>(
+    `tasks/${encodeURIComponent(taskId)}/followers/${encodeURIComponent(followerId)}/`,
+    { method: 'DELETE' }
+  )
+
+const invalidateFollowerQueries = (
+  queryClient: QueryClient,
+  taskId: string
+) => {
+  void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+  return queryClient.invalidateQueries({
+    queryKey: ['tasks', 'detail', taskId],
+  })
+}
+
+export const useFollowTask = () => {
+  const queryClient = useQueryClient()
+  return useMutation<ApiTask, ApiError, string>({
+    mutationFn: followTask,
+    onSuccess: (task) => {
+      queryClient.setQueryData(['tasks', 'detail', task.id], task)
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+export const useUnfollowTask = () => {
+  const queryClient = useQueryClient()
+  return useMutation<ApiTask, ApiError, string>({
+    mutationFn: unfollowTask,
+    onSuccess: (task) => {
+      queryClient.setQueryData(['tasks', 'detail', task.id], task)
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+export const useAddTaskFollowers = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTask,
+    ApiError,
+    { taskId: string; followerIds: string[] }
+  >({
+    mutationFn: ({ taskId, followerIds }) =>
+      refreshTaskFollowers(taskId, followerIds),
+    onSuccess: (task) => {
+      queryClient.setQueryData(['tasks', 'detail', task.id], task)
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+export const useRemoveTaskFollower = () => {
+  const queryClient = useQueryClient()
+  return useMutation<void, ApiError, { taskId: string; followerId: string }>({
+    mutationFn: ({ taskId, followerId }) =>
+      removeTaskFollower(taskId, followerId),
+    onSuccess: (_result, variables) =>
+      invalidateFollowerQueries(queryClient, variables.taskId),
   })
 }
 
