@@ -261,6 +261,7 @@
     "edit": "Modifier",
     "save": "Enregistrer",
     "cancelEdit": "Ignorer les modifications",
+    "more": "Plus d’actions",
     "delete": "Supprimer la tâche",
     "deleteTitle": "Supprimer la tâche",
     "deleteDescription": "Supprimer « {{title}} » ? Cette action est irréversible."

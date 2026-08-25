@@ -261,6 +261,7 @@
     "edit": "Bewerken",
     "save": "Opslaan",
     "cancelEdit": "Wijzigingen negeren",
+    "more": "Meer acties",
     "delete": "Taak verwijderen",
     "deleteTitle": "Taak verwijderen",
     "deleteDescription": "‘{{title}}’ verwijderen? Dit kan niet ongedaan worden gemaakt."

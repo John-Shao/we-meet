@@ -260,6 +260,7 @@
     "edit": "Edit",
     "save": "Save",
     "cancelEdit": "Discard changes",
+    "more": "More actions",
     "delete": "Delete task",
     "deleteTitle": "Delete task",
     "deleteDescription": "Delete “{{title}}”? This action cannot be undone."

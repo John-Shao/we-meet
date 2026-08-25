@@ -9,11 +9,15 @@ import { Link } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import {
   RiCalendarLine,
+  RiCheckLine,
+  RiCloseLine,
   RiDeleteBinLine,
   RiEditLine,
   RiFileTextLine,
   RiFlagLine,
   RiListCheck3,
+  RiMoreLine,
+  RiRestartLine,
   RiUser3Line,
   RiUserAddLine,
 } from '@remixicon/react'
@@ -21,7 +25,7 @@ import {
 import { ModalCloseButton } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ContactPicker, type DirectoryMember } from '@/features/contacts'
-import { Button, Input, TextArea } from '@/primitives'
+import { Button, Input, Menu, MenuList, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
@@ -178,6 +182,7 @@ export const TaskDetailPanel = ({
   const selectedDraftTaskList = taskLists.find(
     (taskList) => taskList.id === draftTaskListId
   )
+  const nextStatus = nextTaskStatuses(task)[0]
   const deleteTask = async () => {
     const accepted = await confirm({
       title: t('actions.deleteTitle'),
@@ -195,17 +200,78 @@ export const TaskDetailPanel = ({
   }
 
   return (
-    <PanelShell title={t('workspace.details')} onClose={onClose}>
+    <PanelShell
+      title={t('workspace.details')}
+      onClose={onClose}
+      startAction={
+        task.can_update_status && nextStatus ? (
+          <Button
+            size="dense"
+            variant="secondary"
+            icon={
+              nextStatus === 'completed' ? (
+                <RiCheckLine size={16} aria-hidden="true" />
+              ) : (
+                <RiRestartLine size={16} aria-hidden="true" />
+              )
+            }
+            isDisabled={patchMutation.isPending || deleteMutation.isPending}
+            onPress={() =>
+              patchMutation.mutate({
+                taskId: task.id,
+                patch: { status: nextStatus },
+              })
+            }
+          >
+            {t(`actions.to_${nextStatus}`)}
+          </Button>
+        ) : (
+          <span
+            className={headerStatusCss}
+            data-completed={task.status === 'completed' || undefined}
+          >
+            {task.status === 'completed' && (
+              <RiCheckLine size={15} aria-hidden="true" />
+            )}
+            {t(`statuses.${task.status}`)}
+          </span>
+        )
+      }
+      actions={
+        task.can_delete ? (
+          <Menu placement="bottom">
+            <Button
+              size="icon28"
+              variant="quaternaryText"
+              aria-label={t('actions.more')}
+              isDisabled={patchMutation.isPending || deleteMutation.isPending}
+            >
+              <RiMoreLine size={18} aria-hidden="true" />
+            </Button>
+            <MenuList
+              aria-label={t('actions.more')}
+              items={[
+                {
+                  value: 'delete',
+                  label: (
+                    <span className={headerMenuItemCss}>
+                      <RiDeleteBinLine size={16} aria-hidden="true" />
+                      {t('actions.delete')}
+                    </span>
+                  ),
+                },
+              ]}
+              onAction={(action) => {
+                if (action === 'delete') void deleteTask()
+              }}
+            />
+          </Menu>
+        ) : undefined
+      }
+    >
       <div className={panelBodyCss}>
         <div className={detailContentCss}>
           <div className={taskTitleRowCss}>
-            <span
-              className={titleStatusCss}
-              data-complete={task.status === 'completed' || undefined}
-              aria-hidden="true"
-            >
-              {task.status === 'completed' ? '✓' : ''}
-            </span>
             <div className={taskTitleTextCss}>
               {editingField === 'title' ? (
                 <div className={titleEditorCss}>
@@ -248,46 +314,8 @@ export const TaskDetailPanel = ({
                   )}
                 </h2>
               )}
-              <span>{t(`statuses.${task.status}`)}</span>
             </div>
           </div>
-
-          {(task.can_update_status || task.can_delete) && (
-            <div className={actionsCss}>
-              {task.can_update_status &&
-                nextTaskStatuses(task).map((status) => (
-                  <Button
-                    key={status}
-                    size="dense"
-                    variant={status === 'completed' ? 'primary' : 'secondary'}
-                    isDisabled={
-                      patchMutation.isPending || deleteMutation.isPending
-                    }
-                    onPress={() =>
-                      patchMutation.mutate({
-                        taskId: task.id,
-                        patch: { status },
-                      })
-                    }
-                  >
-                    {t(`actions.to_${status}`)}
-                  </Button>
-                ))}
-              {task.can_delete && (
-                <Button
-                  size="dense"
-                  variant="danger"
-                  isDisabled={
-                    patchMutation.isPending || deleteMutation.isPending
-                  }
-                  onPress={() => void deleteTask()}
-                >
-                  <RiDeleteBinLine size={16} aria-hidden="true" />
-                  {t('actions.delete')}
-                </Button>
-              )}
-            </div>
-          )}
           {(patchMutation.error || deleteMutation.error) && (
             <p role="alert" className={inlineErrorCss}>
               {t('error')}
@@ -576,25 +604,34 @@ export const TaskDetailPanel = ({
 const PanelShell = ({
   title,
   onClose,
+  startAction,
+  actions,
   children,
 }: {
   title: string
   onClose: () => void
+  startAction?: ReactNode
+  actions?: ReactNode
   children: ReactNode
 }) => {
   const { t } = useTranslation('tasks')
   return (
     <aside aria-label={title} className={panelCss}>
       <header className={panelHeaderCss}>
-        <h2 className={panelTitleCss}>{title}</h2>
-        <button
-          type="button"
-          className={closeCss}
-          aria-label={t('workspace.closePanel')}
-          onClick={onClose}
-        >
-          ×
-        </button>
+        <div className={panelHeaderStartCss}>
+          {startAction || <h2 className={panelTitleCss}>{title}</h2>}
+        </div>
+        <div className={panelHeaderActionsCss}>
+          {actions}
+          <Button
+            size="icon28"
+            variant="quaternaryText"
+            aria-label={t('workspace.closePanel')}
+            onPress={onClose}
+          >
+            <RiCloseLine size={19} aria-hidden="true" />
+          </Button>
+        </div>
       </header>
       {children}
     </aside>
@@ -718,13 +755,35 @@ const createDialogHeaderCss = css({
   },
 })
 const panelHeaderCss = css({
-  minHeight: '4rem',
+  minHeight: '3.25rem',
   display: 'flex',
+  flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '1rem',
   paddingX: '1rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
+})
+const panelHeaderStartCss = css({ minWidth: 0 })
+const panelHeaderActionsCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.25rem',
+})
+const headerStatusCss = css({
+  minHeight: '1.75rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  paddingX: '0.625rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '6px',
+  color: 'default.subtle-text',
+  fontSize: '0.8125rem',
+  '&[data-completed]': {
+    borderColor: 'success.200',
+    color: 'success.700',
+  },
 })
 const panelTitleCss = css({
   margin: 0,
@@ -734,14 +793,6 @@ const panelTitleCss = css({
   whiteSpace: 'nowrap',
   fontSize: '1rem',
   fontWeight: '600',
-})
-const closeCss = css({
-  border: 0,
-  background: 'transparent',
-  color: 'default.subtle-text',
-  cursor: 'pointer',
-  fontSize: '1.5rem',
-  lineHeight: 1,
 })
 const panelBodyCss = css({ flex: 1, minHeight: 0, overflowY: 'auto' })
 const detailContentCss = css({
@@ -756,23 +807,6 @@ const taskTitleRowCss = css({
   alignItems: 'flex-start',
   gap: '0.75rem',
 })
-const titleStatusCss = css({
-  width: '1.375rem',
-  height: '1.375rem',
-  marginTop: '0.125rem',
-  flexShrink: 0,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: '1px solid token(colors.greyscale.400)',
-  borderRadius: '999px',
-  color: 'white',
-  fontSize: '0.75rem',
-  '&[data-complete]': {
-    borderColor: 'success.500',
-    backgroundColor: 'success.500',
-  },
-})
 const taskTitleTextCss = css({
   minWidth: 0,
   flex: 1,
@@ -784,7 +818,6 @@ const taskTitleTextCss = css({
     lineHeight: 1.45,
     overflowWrap: 'anywhere',
   },
-  '& > span': { color: 'greyscale.500', fontSize: '0.75rem' },
 })
 const titleEditButtonCss = css({
   width: '100%',
@@ -894,7 +927,12 @@ const placementEditorCss = css({
   gap: '0.5rem',
 })
 const sourceLinkCss = css({ color: 'primary.600', textDecoration: 'none' })
-const actionsCss = css({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' })
+const headerMenuItemCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  color: 'danger.600',
+})
 const inlineErrorCss = css({ margin: 0, color: 'danger.subtle-text' })
 const detailSectionCss = css({
   display: 'flex',

@@ -261,6 +261,7 @@
     "edit": "Bearbeiten",
     "save": "Speichern",
     "cancelEdit": "Änderungen verwerfen",
+    "more": "Weitere Aktionen",
     "delete": "Aufgabe löschen",
     "deleteTitle": "Aufgabe löschen",
     "deleteDescription": "„{{title}}“ löschen? Diese Aktion kann nicht rückgängig gemacht werden."

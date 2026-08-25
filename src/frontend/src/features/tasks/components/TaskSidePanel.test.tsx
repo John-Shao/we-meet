@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiTask } from '../api/ApiTask'
@@ -115,6 +121,11 @@ describe('TaskDetailPanel', () => {
     expect(
       screen.queryByRole('button', { name: /^actions\.edit / })
     ).not.toBeInTheDocument()
+    expect(
+      within(
+        screen.getByLabelText('workspace.details').querySelector('header')!
+      ).getByText('statuses.todo')
+    ).toBeInTheDocument()
     expect(container.querySelector('img[src="/assignee.png"]')).toBeTruthy()
     expect(container.querySelector('img[src="/creator.png"]')).toBeTruthy()
   })
@@ -191,6 +202,50 @@ describe('TaskDetailPanel', () => {
     )
   })
 
+  it('places the status action first and secondary actions in the panel header', () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{
+          ...task,
+          can_update_status: true,
+          can_delete: true,
+        }}
+        taskLists={[]}
+        onClose={vi.fn()}
+      />
+    )
+
+    const panel = screen.getByLabelText('workspace.details')
+    const header = panel.querySelector('header')!
+    expect(
+      within(header)
+        .getAllByRole('button')
+        .map(
+          (button) => button.getAttribute('aria-label') || button.textContent
+        )
+    ).toEqual(['actions.to_completed', 'actions.more', 'workspace.closePanel'])
+    expect(screen.queryByText('statuses.todo')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('menuitem', { name: 'actions.delete' })
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(
+      within(header).getByRole('button', { name: 'actions.to_completed' })
+    )
+    expect(mutate).toHaveBeenCalledWith({
+      taskId: task.id,
+      patch: { status: 'completed' },
+    })
+
+    fireEvent.click(
+      within(header).getByRole('button', { name: 'actions.more' })
+    )
+    expect(
+      screen.getByRole('menuitem', { name: 'actions.delete' })
+    ).toBeInTheDocument()
+  })
+
   it('deletes an editable task after confirmation', async () => {
     const onClose = vi.fn()
     render(
@@ -202,7 +257,8 @@ describe('TaskDetailPanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'actions.delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'actions.more' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'actions.delete' }))
 
     await waitFor(() => expect(confirm).toHaveBeenCalledOnce())
     await waitFor(() => expect(deleteMutateAsync).toHaveBeenCalledWith(task.id))
