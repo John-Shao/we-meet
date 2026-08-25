@@ -1,10 +1,17 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiTask } from '../api/ApiTask'
 import { TaskList } from './TaskList'
 
 const mutate = vi.fn()
+const mutateAsync = vi.fn()
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -14,7 +21,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../api/fetchTasks', () => ({
-  usePatchTask: () => ({ mutate, isPending: false }),
+  usePatchTask: () => ({ mutate, mutateAsync, isPending: false }),
 }))
 
 beforeAll(() => {
@@ -64,6 +71,12 @@ const task: ApiTask = {
   updated_at: '2026-08-21T09:00:00Z',
 }
 
+beforeEach(() => {
+  mutate.mockReset()
+  mutateAsync.mockReset()
+  mutateAsync.mockResolvedValue({ ...task, status: 'completed' })
+})
+
 describe('TaskList', () => {
   it('renders desktop and mobile task representations with semantic metadata', () => {
     const { container } = render(
@@ -87,9 +100,7 @@ describe('TaskList', () => {
       'workspace.columns.createdAt',
     ])
     expect(within(table).getAllByText('statuses.todo')).toHaveLength(1)
-    expect(
-      screen.queryByLabelText('workspace.quickComplete')
-    ).not.toBeInTheDocument()
+    expect(screen.getAllByLabelText('workspace.quickComplete')).toHaveLength(2)
     expect(screen.getAllByText('Prepare release')).toHaveLength(2)
     expect(screen.getAllByText('priorities.high')).toHaveLength(2)
     const formatDateTime = (value: string) =>
@@ -106,6 +117,63 @@ describe('TaskList', () => {
     expect(container.querySelector('img[src="/assignee.png"]')).toBeTruthy()
     expect(container.querySelector('img[src="/creator.png"]')).toBeTruthy()
     expect(within(table).getByText('Release work')).toBeInTheDocument()
+  })
+
+  it('quickly completes and reopens a task without opening its details', async () => {
+    const onOpen = vi.fn()
+    render(<TaskList tasks={[task]} onOpen={onOpen} registerRow={vi.fn()} />)
+
+    const completeButton = screen.getAllByLabelText(
+      'workspace.quickComplete'
+    )[0]
+    fireEvent.mouseEnter(completeButton.parentElement!)
+    expect(screen.getByText('actions.to_completed')).toBeInTheDocument()
+    fireEvent.mouseLeave(completeButton.parentElement!)
+    fireEvent.click(completeButton)
+
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(mutateAsync).toHaveBeenCalledWith({
+      taskId: task.id,
+      patch: { status: 'completed' },
+    })
+    await waitFor(() =>
+      expect(screen.getAllByLabelText('workspace.quickReopen')).toHaveLength(2)
+    )
+
+    mutateAsync.mockResolvedValueOnce({ ...task, status: 'todo' })
+    fireEvent.click(screen.getAllByLabelText('workspace.quickReopen')[0])
+    expect(mutateAsync).toHaveBeenLastCalledWith({
+      taskId: task.id,
+      patch: { status: 'todo' },
+    })
+  })
+
+  it('restores the previous status and reports a failed quick action', async () => {
+    mutateAsync.mockRejectedValueOnce(new Error('network error'))
+    render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
+
+    fireEvent.click(screen.getAllByLabelText('workspace.quickComplete')[0])
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('error')
+    expect(screen.getAllByLabelText('workspace.quickComplete')).toHaveLength(2)
+  })
+
+  it('shows status without allowing the quick action when permission is missing', () => {
+    render(
+      <TaskList
+        tasks={[{ ...task, can_update_status: false }]}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    const statusButtons = screen.getAllByLabelText(
+      'statuses.todo: Prepare release'
+    )
+    expect(statusButtons).toHaveLength(2)
+    expect(statusButtons[0]).toBeDisabled()
+    fireEvent.click(statusButtons[0])
+    expect(mutateAsync).not.toHaveBeenCalled()
   })
 
   it('labels tasks without a task list as standalone', () => {
@@ -334,9 +402,8 @@ describe('TaskList', () => {
         name: 'workspace.columns.taskList',
       })
     ).not.toBeInTheDocument()
-    const groupedTaskRow = within(groupedTable).getByLabelText(
-      'workspace.openTask'
-    )
+    const groupedTaskRow =
+      within(groupedTable).getByLabelText('workspace.openTask')
     expect(groupedTaskRow).toHaveAttribute('data-grouped', 'true')
     expect(groupedTaskRow).toHaveAttribute('data-group-last', 'true')
     expect(

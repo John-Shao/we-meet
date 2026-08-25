@@ -1,5 +1,6 @@
 import {
   Fragment,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -14,10 +15,12 @@ import {
   RiArrowRightSLine,
   RiArrowUpSLine,
   RiCheckLine,
+  RiLoader4Line,
   RiMoreLine,
 } from '@remixicon/react'
 
 import { Button, Menu, MenuList } from '@/primitives'
+import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { css } from '@/styled-system/css'
 
 import type {
@@ -25,6 +28,7 @@ import type {
   ApiTaskGroup,
   TaskOrdering,
   TaskOrderingField,
+  TaskStatus,
 } from '../api/ApiTask'
 import { usePatchTask } from '../api/fetchTasks'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
@@ -125,6 +129,15 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
   t: TFunction<'tasks'>
   formatDate: (value: string | null) => string
   formatDateTime: (value: string) => string
+  statusOverride?: TaskStatus
+  statusPending: boolean
+  onToggleStatus: (task: ApiTask) => void
+}
+
+type StatusOverride = {
+  status: TaskStatus
+  pending: boolean
+  baseUpdatedAt: string
 }
 
 export const TaskList = ({
@@ -143,6 +156,10 @@ export const TaskList = ({
 }: ListProps) => {
   const { t, i18n } = useTranslation('tasks')
   const patchMutation = usePatchTask()
+  const [statusOverrides, setStatusOverrides] = useState<
+    Record<string, StatusOverride>
+  >({})
+  const [statusError, setStatusError] = useState(false)
   const [columnWidths, setColumnWidths] =
     useState<TaskColumnWidths>(readColumnWidths)
   const columnWidthsRef = useRef(columnWidths)
@@ -188,6 +205,66 @@ export const TaskList = ({
       taskId,
       patch: { group_id: groupId || null },
     })
+  }
+
+  useEffect(() => {
+    setStatusOverrides((current) => {
+      let changed = false
+      const next = { ...current }
+      const visibleTaskIds = new Set(tasks.map((task) => task.id))
+      for (const [taskId, override] of Object.entries(next)) {
+        if (!override.pending && !visibleTaskIds.has(taskId)) {
+          delete next[taskId]
+          changed = true
+        }
+      }
+      for (const task of tasks) {
+        const override = next[task.id]
+        if (
+          override &&
+          !override.pending &&
+          (task.status === override.status ||
+            task.updated_at !== override.baseUpdatedAt)
+        ) {
+          delete next[task.id]
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [statusOverrides, tasks])
+
+  const toggleTaskStatus = async (task: ApiTask) => {
+    const currentOverride = statusOverrides[task.id]
+    if (!task.can_update_status || currentOverride?.pending) return
+
+    const currentStatus = currentOverride?.status ?? task.status
+    const status: TaskStatus =
+      currentStatus === 'completed' ? 'todo' : 'completed'
+    setStatusError(false)
+    setStatusOverrides((current) => ({
+      ...current,
+      [task.id]: {
+        status,
+        pending: true,
+        baseUpdatedAt: task.updated_at,
+      },
+    }))
+
+    try {
+      await patchMutation.mutateAsync({ taskId: task.id, patch: { status } })
+      setStatusOverrides((current) => ({
+        ...current,
+        [task.id]: { ...current[task.id], pending: false },
+      }))
+    } catch {
+      setStatusOverrides((current) => {
+        const next = { ...current }
+        delete next[task.id]
+        return next
+      })
+      setStatusError(true)
+    }
   }
 
   const setColumnWidth = (columnId: TaskColumnId, value: number) => {
@@ -255,10 +332,16 @@ export const TaskList = ({
     t,
     formatDate,
     formatDateTime,
+    onToggleStatus: (task: ApiTask) => void toggleTaskStatus(task),
   }
 
   return (
     <>
+      {statusError && (
+        <p role="alert" className={statusErrorCss}>
+          {t('error')}
+        </p>
+      )}
       <table className={tableCss} data-grouped={grouped || undefined}>
         <thead>
           <tr>
@@ -364,6 +447,8 @@ export const TaskList = ({
                       key={task.id}
                       task={task}
                       isLastInGroup={taskIndex === section.tasks.length - 1}
+                      statusOverride={statusOverrides[task.id]?.status}
+                      statusPending={Boolean(statusOverrides[task.id]?.pending)}
                       {...groupProps}
                     />
                   ))}
@@ -405,6 +490,8 @@ export const TaskList = ({
                     <MobileTaskGroup
                       key={task.id}
                       task={task}
+                      statusOverride={statusOverrides[task.id]?.status}
+                      statusPending={Boolean(statusOverrides[task.id]?.pending)}
                       {...groupProps}
                     />
                   ))}
@@ -430,6 +517,9 @@ const DesktopTaskRow = ({
   t,
   formatDate,
   formatDateTime,
+  statusOverride,
+  statusPending,
+  onToggleStatus,
 }: GroupProps) => (
   <tr
     ref={(element) => registerRow(task.id, element)}
@@ -448,16 +538,13 @@ const DesktopTaskRow = ({
       className={grouped ? groupedTaskTitleCellCss : undefined}
       data-group-last={grouped && isLastInGroup ? true : undefined}
     >
-      <div className={grouped ? groupedTaskTitleContentCss : undefined}>
-        {grouped && (
-          <span
-            aria-hidden="true"
-            className={taskStateDotCss}
-            data-status={task.status}
-          >
-            {task.status === 'completed' && <RiCheckLine size={10} />}
-          </span>
-        )}
+      <div className={taskTitleContentCss}>
+        <TaskStatusButton
+          task={task}
+          status={statusOverride ?? task.status}
+          pending={statusPending}
+          onToggle={onToggleStatus}
+        />
         <TaskTitle task={task} />
       </div>
     </td>
@@ -474,7 +561,7 @@ const DesktopTaskRow = ({
     >
       {formatDate(task.due_date)}
     </td>
-    <td>{t(`statuses.${task.status}`)}</td>
+    <td>{t(`statuses.${statusOverride ?? task.status}`)}</td>
     {!grouped && (
       <td className={secondaryColumnCss}>
         {task.task_list?.name || t('taskLists.standalone')}
@@ -503,6 +590,9 @@ const MobileTaskCard = ({
   registerRow,
   t,
   formatDate,
+  statusOverride,
+  statusPending,
+  onToggleStatus,
 }: GroupProps) => (
   <div
     ref={(element) => registerRow(task.id, element)}
@@ -517,13 +607,19 @@ const MobileTaskCard = ({
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
     <div className={mobileTitleRowCss}>
+      <TaskStatusButton
+        task={task}
+        status={statusOverride ?? task.status}
+        pending={statusPending}
+        onToggle={onToggleStatus}
+      />
       <TaskTitle task={task} />
       <TaskPriorityBadge priority={task.priority} />
     </div>
     <dl className={mobileMetaCss}>
       <div>
         <dt>{t('workspace.columns.status')}</dt>
-        <dd>{t(`statuses.${task.status}`)}</dd>
+        <dd>{t(`statuses.${statusOverride ?? task.status}`)}</dd>
       </div>
       <div>
         <dt>{t('workspace.columns.assignee')}</dt>
@@ -540,6 +636,63 @@ const MobileTaskCard = ({
     </dl>
   </div>
 )
+
+const TaskStatusButton = ({
+  task,
+  status,
+  pending,
+  onToggle,
+}: {
+  task: ApiTask
+  status: TaskStatus
+  pending: boolean
+  onToggle: (task: ApiTask) => void
+}) => {
+  const { t } = useTranslation('tasks')
+  const targetStatus = status === 'completed' ? 'todo' : 'completed'
+  const actionLabel = t(`actions.to_${targetStatus}`)
+  const accessibleLabel = task.can_update_status
+    ? t(
+        status === 'completed'
+          ? 'workspace.quickReopen'
+          : 'workspace.quickComplete',
+        { title: task.title }
+      )
+    : `${t(`statuses.${status}`)}: ${task.title}`
+
+  return (
+    <div className={taskStatusControlCss}>
+      <VisualOnlyTooltip
+        tooltip={task.can_update_status ? actionLabel : t(`statuses.${status}`)}
+        ariaLabel={accessibleLabel}
+      >
+        <button
+          type="button"
+          className={taskStatusButtonCss}
+          data-status={status}
+          data-pending={pending || undefined}
+          aria-busy={pending || undefined}
+          disabled={!task.can_update_status || pending}
+          draggable={false}
+          onPointerDown={(event) => event.stopPropagation()}
+          onDragStart={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggle(task)
+          }}
+        >
+          {pending ? (
+            <RiLoader4Line aria-hidden="true" size={12} />
+          ) : (
+            status === 'completed' && (
+              <RiCheckLine aria-hidden="true" size={10} />
+            )
+          )}
+        </button>
+      </VisualOnlyTooltip>
+    </div>
+  )
+}
 
 const TaskTitle = ({ task }: { task: ApiTask }) => {
   const { t } = useTranslation('tasks')
@@ -1080,27 +1233,58 @@ const groupedTaskTitleCellCss = css({
   },
   '&[data-group-last]::before': { bottom: '50%' },
 })
-const groupedTaskTitleContentCss = css({
+const taskTitleContentCss = css({
   minWidth: 0,
   display: 'flex',
   alignItems: 'center',
   gap: '0.5rem',
 })
-const taskStateDotCss = css({
+const taskStatusControlCss = css({
+  flexShrink: 0,
+  '& > div': { display: 'flex' },
+})
+const taskStatusButtonCss = css({
   width: '0.875rem',
   height: '0.875rem',
-  flexShrink: 0,
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
+  padding: 0,
   border: '1px solid token(colors.greyscale.400)',
   borderRadius: '999px',
   backgroundColor: 'greyscale.000',
   color: 'greyscale.000',
+  cursor: 'pointer',
+  transition: 'border-color 120ms, background-color 120ms, box-shadow 120ms',
+  '&:not(:disabled):hover': {
+    borderColor: 'primary.500',
+    boxShadow: '0 0 0 2px token(colors.primary.100)',
+  },
+  _focusVisible: {
+    outline: '2px solid token(colors.primary.500)',
+    outlineOffset: '2px',
+  },
+  _disabled: { cursor: 'default', pointerEvents: 'none' },
   '&[data-status="completed"]': {
     borderColor: 'success.500',
     backgroundColor: 'success.500',
+    '&:not(:disabled):hover': {
+      borderColor: 'success.600',
+      backgroundColor: 'success.600',
+      boxShadow: '0 0 0 2px token(colors.success.100)',
+    },
   },
+  '&[data-pending] svg': {
+    animation: 'rotate 700ms linear infinite',
+  },
+})
+const statusErrorCss = css({
+  margin: 0,
+  padding: '0.5rem 1rem',
+  borderBottom: '1px solid token(colors.danger.200)',
+  backgroundColor: 'danger.50',
+  color: 'danger.700',
+  fontSize: '0.75rem',
 })
 const emptyGroupRowCss = css({
   '& td': {
@@ -1227,8 +1411,8 @@ const mobileCardCss = css({
 })
 const mobileTitleRowCss = css({
   display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) auto',
-  alignItems: 'start',
+  gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+  alignItems: 'center',
   gap: '0.625rem',
 })
 const mobileMetaCss = css({

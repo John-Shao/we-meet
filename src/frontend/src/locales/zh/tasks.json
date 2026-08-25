@@ -36,7 +36,7 @@
     },
     "openTask": "打开任务：{{title}}",
     "quickComplete": "完成任务：{{title}}",
-    "quickReopen": "重新打开任务：{{title}}",
+    "quickReopen": "重启任务：{{title}}",
     "loadMore": "加载更多",
     "loadingMore": "正在加载…",
     "createTitle": "新建任务",
