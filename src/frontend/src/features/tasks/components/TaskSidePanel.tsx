@@ -200,6 +200,9 @@ export const TaskDetailPanel = ({
     (taskList) => taskList.id === draftTaskListId
   )
   const nextStatus = nextTaskStatuses(task)[0]
+  const followActionLabel = task.is_following
+    ? t('followers.unfollow')
+    : t('followers.follow')
   const deleteTask = async () => {
     const accepted = await confirm({
       title: t('actions.deleteTitle'),
@@ -259,11 +262,8 @@ export const TaskDetailPanel = ({
           <Button
             size="icon28"
             variant="quaternaryText"
-            aria-label={
-              task.is_following
-                ? t('followers.unfollow')
-                : t('followers.follow')
-            }
+            aria-label={followActionLabel}
+            tooltip={followActionLabel}
             isDisabled={followMutation.isPending || unfollowMutation.isPending}
             onPress={() =>
               task.is_following
