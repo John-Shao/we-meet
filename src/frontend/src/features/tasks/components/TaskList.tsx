@@ -1203,31 +1203,39 @@ const InlineDateEditor = ({
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => inputRef.current?.focus(), [])
   return (
-    <input
-      ref={inputRef}
-      type="date"
-      className={inlineCellInputCss}
-      aria-label={label}
-      value={value}
-      min={min}
-      max={max}
-      disabled={pending}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-      onChange={(event) => onChange(event.target.value)}
-      onBlur={() => onSave(value)}
-      onKeyDown={(event) => {
-        event.stopPropagation()
-        if (event.key === 'Enter') {
-          event.preventDefault()
-          event.currentTarget.blur()
-        }
-        if (event.key === 'Escape') {
-          event.preventDefault()
-          onCancel()
-        }
-      }}
-    />
+    <span className={inlineDateEditorCss}>
+      <input
+        ref={inputRef}
+        type="date"
+        className={inlineCellInputCss}
+        aria-label={label}
+        value={value}
+        min={min}
+        max={max}
+        disabled={pending}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={() => onSave(value)}
+        onKeyDown={(event) => {
+          event.stopPropagation()
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            event.currentTarget.blur()
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            onCancel()
+          }
+        }}
+      />
+      <RiCalendarLine
+        aria-hidden="true"
+        size={16}
+        data-inline-date-icon
+        className={inlineDateEditorIconCss}
+      />
+    </span>
   )
 }
 
@@ -1851,13 +1859,33 @@ const inlineCellInputCss = css({
   font: 'inherit',
   outline: 'none',
   boxShadow: '0 0 0 1px token(colors.primary.200)',
+  '&[type="date"]': { paddingRight: '1.75rem' },
+  '&[type="date"]::-webkit-calendar-picker-indicator': {
+    opacity: 0,
+    cursor: 'pointer',
+  },
   '&:disabled': { cursor: 'wait', opacity: 0.7 },
 })
 const inlineSelectCss = css({ width: '100%', minWidth: 0 })
 const inlineControlIconCss = css({
   flexShrink: 0,
+  color: 'greyscale.600',
   opacity: 0,
   transition: 'opacity token(durations.fast)',
+})
+const inlineDateEditorCss = css({
+  position: 'relative',
+  width: '100%',
+  minWidth: 0,
+  display: 'block',
+})
+const inlineDateEditorIconCss = css({
+  position: 'absolute',
+  top: '50%',
+  right: '0.375rem',
+  color: 'greyscale.600',
+  pointerEvents: 'none',
+  transform: 'translateY(-50%)',
 })
 const inlineCellSpinnerCss = css({
   flexShrink: 0,
