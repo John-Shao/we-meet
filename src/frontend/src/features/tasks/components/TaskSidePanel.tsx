@@ -412,11 +412,6 @@ export const TaskDetailPanel = ({
               alignStart
             >
               <div className={detailFollowersCss}>
-                {task.followers.length === 0 && (
-                  <span className={emptyFollowersCss}>
-                    {t('followers.empty')}
-                  </span>
-                )}
                 {task.followers.map((follower) => (
                   <span key={follower.id} className={detailFollowerChipCss}>
                     <TaskUserDisplay user={follower} />
@@ -1080,7 +1075,6 @@ const detailFollowerChipCss = css({
     _disabled: { cursor: 'default', opacity: 0.5 },
   },
 })
-const emptyFollowersCss = css({ color: 'default.subtle-text' })
 const inlineEditorCss = css({
   width: '100%',
   display: 'flex',

@@ -254,6 +254,7 @@ describe('TaskDetailPanel', () => {
       'workspace.closePanel',
     ])
     expect(screen.queryByText('statuses.todo')).not.toBeInTheDocument()
+    expect(screen.queryByText('followers.empty')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('menuitem', { name: 'actions.delete' })
     ).not.toBeInTheDocument()
