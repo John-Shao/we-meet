@@ -1851,9 +1851,22 @@ const inlineCellInputCss = css({
   font: 'inherit',
   outline: 'none',
   boxShadow: '0 0 0 1px token(colors.primary.200)',
+  '&[type="date"]': {
+    boxSizing: 'border-box',
+    marginY: '-0.25rem',
+  },
   '&:disabled': { cursor: 'wait', opacity: 0.7 },
 })
-const inlineSelectCss = css({ width: '100%', minWidth: 0 })
+const inlineSelectCss = css({
+  width: '100%',
+  minWidth: 0,
+  marginY: '-0.25rem',
+  '& button': {
+    height: '1.75rem!',
+    minHeight: '1.75rem!',
+    fontSize: '0.8125rem',
+  },
+})
 const inlineControlIconCss = css({
   flexShrink: 0,
   color: 'greyscale.600',
