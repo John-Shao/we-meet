@@ -265,6 +265,34 @@ describe('TaskList', () => {
     ).toBeVisible()
   })
 
+  it('presents non-title editable cells with their control affordance', () => {
+    const editableTask = { ...task, can_edit: true }
+    render(
+      <TaskList tasks={[editableTask]} onOpen={vi.fn()} registerRow={vi.fn()} />
+    )
+
+    const table = within(screen.getByRole('table'))
+    for (const column of ['assignee', 'priority', 'taskList']) {
+      const button = table.getByRole('button', {
+        name: `actions.edit workspace.columns.${column}`,
+      })
+      expect(button).toHaveAttribute('data-select', 'true')
+      expect(button.querySelector('[data-inline-select-chevron]')).toBeTruthy()
+    }
+    for (const column of ['startDate', 'dueDate']) {
+      const button = table.getByRole('button', {
+        name: `actions.edit workspace.columns.${column}`,
+      })
+      expect(button).toHaveAttribute('data-date', 'true')
+      expect(button.querySelector('[data-inline-date-icon]')).toBeTruthy()
+    }
+    expect(
+      table.getByRole('button', {
+        name: 'actions.edit workspace.columns.title',
+      })
+    ).not.toHaveAttribute('data-select')
+  })
+
   it('edits priority and dates from their table cells', async () => {
     const editableTask = { ...task, can_edit: true }
     mutateAsync

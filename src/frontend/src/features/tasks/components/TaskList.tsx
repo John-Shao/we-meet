@@ -16,6 +16,7 @@ import {
   RiArrowDownSLine,
   RiArrowRightSLine,
   RiArrowUpSLine,
+  RiCalendarLine,
   RiCheckLine,
   RiDeleteBinLine,
   RiLoader4Line,
@@ -803,6 +804,7 @@ const DesktopTaskRow = ({
       <InlineEditButton
         task={task}
         fieldLabel={t('workspace.columns.assignee')}
+        select
         pending={
           inlinePending &&
           editingCell?.taskId === task.id &&
@@ -827,6 +829,7 @@ const DesktopTaskRow = ({
         <InlineEditButton
           task={task}
           fieldLabel={t('workspace.columns.priority')}
+          select
           pending={
             inlinePending &&
             editingCell?.taskId === task.id &&
@@ -855,6 +858,7 @@ const DesktopTaskRow = ({
         <InlineEditButton
           task={task}
           fieldLabel={t('workspace.columns.startDate')}
+          date
           onEdit={() => onBeginInlineEdit(task, 'startDate')}
         >
           {formatDate(task.start_date)}
@@ -881,6 +885,7 @@ const DesktopTaskRow = ({
         <InlineEditButton
           task={task}
           fieldLabel={t('workspace.columns.dueDate')}
+          date
           onEdit={() => onBeginInlineEdit(task, 'dueDate')}
         >
           {formatDate(task.due_date)}
@@ -908,6 +913,7 @@ const DesktopTaskRow = ({
           <InlineEditButton
             task={task}
             fieldLabel={t('workspace.columns.taskList')}
+            select
             onEdit={() => onBeginInlineEdit(task, 'taskList')}
           >
             {task.task_list?.name || t('taskLists.standalone')}
@@ -926,12 +932,16 @@ const DesktopTaskRow = ({
 const InlineEditButton = ({
   task,
   fieldLabel,
+  select = false,
+  date = false,
   pending = false,
   onEdit,
   children,
 }: {
   task: ApiTask
   fieldLabel: string
+  select?: boolean
+  date?: boolean
   pending?: boolean
   onEdit: () => void
   children: ReactNode
@@ -944,6 +954,8 @@ const InlineEditButton = ({
     <button
       type="button"
       className={inlineCellButtonCss}
+      data-select={select || undefined}
+      data-date={date || undefined}
       aria-label={`${t('actions.edit')} ${fieldLabel}`}
       aria-busy={pending || undefined}
       disabled={pending}
@@ -956,6 +968,33 @@ const InlineEditButton = ({
       }}
     >
       <span className={inlineCellValueCss}>{children}</span>
+      {select && !pending && (
+        <svg
+          width={16}
+          height={16}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#7C7C7C"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          data-inline-select-chevron
+          data-inline-control-icon
+          className={inlineControlIconCss}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      )}
+      {date && !pending && (
+        <RiCalendarLine
+          aria-hidden="true"
+          size={16}
+          data-inline-date-icon
+          data-inline-control-icon
+          className={inlineControlIconCss}
+        />
+      )}
       {pending && (
         <RiLoader4Line
           aria-hidden="true"
@@ -1780,6 +1819,12 @@ const inlineCellButtonCss = css({
     borderColor: 'primary.500',
     boxShadow: '0 0 0 1px token(colors.primary.200)',
   },
+  '&[data-select], &[data-date]': {
+    borderRadius: '8px',
+    cursor: 'pointer',
+  },
+  '&[data-select]:hover [data-inline-control-icon], &[data-select]:focus-visible [data-inline-control-icon], &[data-date]:hover [data-inline-control-icon], &[data-date]:focus-visible [data-inline-control-icon]':
+    { opacity: 1 },
   _disabled: { cursor: 'wait' },
 })
 const inlineCellReadOnlyCss = css({
@@ -1809,6 +1854,11 @@ const inlineCellInputCss = css({
   '&:disabled': { cursor: 'wait', opacity: 0.7 },
 })
 const inlineSelectCss = css({ width: '100%', minWidth: 0 })
+const inlineControlIconCss = css({
+  flexShrink: 0,
+  opacity: 0,
+  transition: 'opacity token(durations.fast)',
+})
 const inlineCellSpinnerCss = css({
   flexShrink: 0,
   color: 'primary.500',
