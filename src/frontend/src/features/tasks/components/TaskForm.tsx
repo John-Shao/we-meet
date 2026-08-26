@@ -12,6 +12,7 @@ import {
 
 import { Button, Input, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
+import { useUser } from '@/features/auth'
 import { css } from '@/styled-system/css'
 
 import type {
@@ -43,9 +44,12 @@ export const TaskForm = ({
   onSaved: (task: ApiTask) => void
 }) => {
   const { t } = useTranslation('tasks')
+  const { user: currentUser } = useUser()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [assignees, setAssignees] = useState<ApiTaskUser[]>([])
+  const [selectedAssignees, setSelectedAssignees] = useState<
+    ApiTaskUser[] | null
+  >(null)
   const [followers, setFollowers] = useState<ApiTaskUser[]>([])
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [taskListId, setTaskListId] = useState(defaultTaskListId || '')
@@ -60,6 +64,19 @@ export const TaskForm = ({
   tomorrowDate.setDate(tomorrowDate.getDate() + 1)
   const tomorrow = dateInputValue(tomorrowDate)
   const selectedTaskList = taskLists.find((item) => item.id === taskListId)
+  const assignees =
+    selectedAssignees ||
+    (currentUser
+      ? [
+          {
+            id: currentUser.id,
+            full_name: currentUser.full_name,
+            short_name: null,
+            email: currentUser.email,
+            avatar_url: currentUser.avatar_url || '',
+          },
+        ]
+      : [])
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -92,7 +109,7 @@ export const TaskForm = ({
       initial={assignees}
       onClose={() => setPickerOpen(false)}
       onConfirm={(selectedAssignees) => {
-        setAssignees(selectedAssignees)
+        setSelectedAssignees(selectedAssignees)
         setPickerOpen(false)
       }}
     />
@@ -128,10 +145,10 @@ export const TaskForm = ({
           <div className={createPropertyRowCss} data-align-start>
             <RiUser3Line size={19} aria-hidden="true" />
             <div className={memberEditorCss}>
-              {assignees.length > 0 ? (
-                assignees.map((assignee) => (
-                  <span key={assignee.id} className={memberChipCss}>
-                    <TaskUserDisplay user={assignee} />
+              {assignees.map((assignee) => (
+                <span key={assignee.id} className={memberChipCss}>
+                  <TaskUserDisplay user={assignee} />
+                  {assignees.length > 1 && (
                     <button
                       type="button"
                       aria-label={t('assignees.remove', {
@@ -142,18 +159,16 @@ export const TaskForm = ({
                           '',
                       })}
                       onClick={() =>
-                        setAssignees((current) =>
-                          current.filter((item) => item.id !== assignee.id)
+                        setSelectedAssignees(
+                          assignees.filter((item) => item.id !== assignee.id)
                         )
                       }
                     >
                       <RiCloseLine size={14} aria-hidden="true" />
                     </button>
-                  </span>
-                ))
-              ) : (
-                <span className={memberChipCss}>{t('form.assigneeSelf')}</span>
-              )}
+                  )}
+                </span>
+              ))}
               {assignees.length < 10 && (
                 <Button
                   type="button"

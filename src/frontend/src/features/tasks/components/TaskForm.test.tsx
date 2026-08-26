@@ -17,9 +17,22 @@ vi.mock('../api/fetchTasks', () => ({
   }),
 }))
 
+vi.mock('@/features/auth', () => ({
+  useUser: () => ({
+    user: {
+      id: 'current-user',
+      full_name: 'W009',
+      email: 'w009@example.com',
+      avatar_url: '/me.png',
+    },
+  }),
+}))
+
 describe('TaskForm create mode', () => {
   it('uses the compact create labels and supports quick due dates', () => {
-    render(<TaskForm taskLists={[]} onCancel={vi.fn()} onSaved={vi.fn()} />)
+    const { container } = render(
+      <TaskForm taskLists={[]} onCancel={vi.fn()} onSaved={vi.fn()} />
+    )
 
     expect(
       screen.getByPlaceholderText('form.createTitlePlaceholder')
@@ -35,7 +48,9 @@ describe('TaskForm create mode', () => {
     ).toBeDisabled()
     expect(screen.getAllByText('priorities.medium')).toHaveLength(2)
     expect(screen.queryByText('priorities.none')).not.toBeInTheDocument()
-    expect(screen.getByText('form.assigneeSelf')).toBeInTheDocument()
+    expect(screen.queryByText('form.assigneeSelf')).not.toBeInTheDocument()
+    expect(screen.getByText('W009')).toBeInTheDocument()
+    expect(container.querySelector('img[src="/me.png"]')).toBeTruthy()
     expect(
       screen.getByRole('button', { name: 'assignees.add' })
     ).toBeInTheDocument()
