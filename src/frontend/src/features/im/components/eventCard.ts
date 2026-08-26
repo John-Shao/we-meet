@@ -124,3 +124,7 @@ export const parseEventCard = (raw: string): EventCardBody | null => {
     return null
   }
 }
+
+/** Human-readable one-line projection for compact surfaces such as forwarding. */
+export const eventCardPreview = (raw: string): string =>
+  parseEventCard(raw)?.title.trim() ?? ''

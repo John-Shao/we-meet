@@ -25,6 +25,7 @@ import { fetchImToken } from '../api/fetchImToken'
 import { readLocalDrafts } from '../api/inputSync'
 import { richTextPreview } from '../components/richText'
 import { richCardPreview, stripActions } from '../components/richCard'
+import { eventCardPreview } from '../components/eventCard'
 import { defuseMentions, mentionScan } from '../mentions'
 import { ChatPane } from './ChatPane'
 import { AddMemberDialog } from '../components/AddMemberDialog'
@@ -498,6 +499,8 @@ const ImAuthenticated = () => {
     if (m.content_type === 'merged') return t('preview.merged')
     if (m.content_type === 'doc-card') return t('preview.doc')
     if (m.content_type === 'calendar-card') return t('preview.calendar')
+    if (m.content_type === 'event-card')
+      return eventCardPreview(m.body) || t('preview.event')
     if (m.content_type === 'rich-text')
       return richTextPreview(m.body) || t('preview.richText')
     if (m.content_type === 'rich-card')

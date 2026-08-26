@@ -6,7 +6,11 @@ import { parseDocCard } from './docCard'
 import { parseCalendarCard } from './calendarCard'
 import type { CalendarEvent } from '@/features/calendar'
 
-import { buildEventCardBody, parseEventCard } from './eventCard'
+import {
+  buildEventCardBody,
+  eventCardPreview,
+  parseEventCard,
+} from './eventCard'
 import { parseMeetingCard } from './meetingCard'
 import { parseRichText, richTextPlain } from './richText'
 
@@ -41,6 +45,14 @@ describe('IM card golden fixtures', () => {
       expect(card?.kind).toBe('created')
       expect(card?.title).toBe('季度评审')
       expect(card?.attendee_count).toBe(4)
+    })
+
+    it('projects a safe forwarding preview without exposing card JSON', () => {
+      expect(eventCardPreview(load('event_card_created'))).toBe(
+        parseEventCard(load('event_card_created'))?.title
+      )
+      expect(eventCardPreview(load('event_card_private'))).toBe('')
+      expect(eventCardPreview('{ malformed card JSON')).toBe('')
     })
 
     it('parses canonical dates from an all-day card', () => {
