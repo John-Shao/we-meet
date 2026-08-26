@@ -215,9 +215,12 @@ describe('TaskDetailPanel', () => {
         name: 'actions.edit meta.startDate',
       })
     )
-    fireEvent.change(screen.getByLabelText('meta.startDate'), {
+    const startDateInput = screen.getByLabelText('meta.startDate')
+    fireEvent.change(startDateInput, {
       target: { value: '2026-08-22' },
     })
+    expect(mutateAsync).toHaveBeenCalledTimes(1)
+    fireEvent.blur(startDateInput)
 
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenCalledWith({
@@ -225,6 +228,13 @@ describe('TaskDetailPanel', () => {
         patch: { start_date: '2026-08-22' },
       })
     )
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'actions.edit taskLists.field',
+      })
+    )
+    expect(await screen.findByRole('listbox')).toBeInTheDocument()
   })
 
   it('shows assignees as removable member chips like followers', async () => {

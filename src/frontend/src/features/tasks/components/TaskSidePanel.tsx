@@ -10,6 +10,7 @@ import { Link } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import {
   RiCalendarLine,
+  RiCalendar2Line,
   RiBookmarkFill,
   RiBookmarkLine,
   RiCheckLine,
@@ -513,6 +514,7 @@ export const TaskDetailPanel = ({
               icon={<RiListCheck3 size={18} />}
               label={t('taskLists.field')}
               editLabel={editLabel(t('taskLists.field'))}
+              control="select"
               isDisabled={patchMutation.isPending}
               isEditing={editingField === 'placement'}
               alignStart={editingField === 'placement'}
@@ -522,12 +524,14 @@ export const TaskDetailPanel = ({
             >
               {editingField === 'placement' ? (
                 <div ref={placementEditorRef} className={inlineEditorCss}>
-                  <div className={placementEditorCss}>
-                    <Select
-                      label={
-                        <span className="sr-only">{t('taskLists.field')}</span>
-                      }
-                      aria-label={t('taskLists.field')}
+                  <div
+                    className={placementEditorCss}
+                    data-has-group={
+                      selectedDraftTaskList?.groups.length ? true : undefined
+                    }
+                  >
+                    <DetailInlineSelect
+                      label={t('taskLists.field')}
                       items={[
                         { value: '', label: t('taskLists.standalone') },
                         ...taskLists.map((taskList) => ({
@@ -535,10 +539,14 @@ export const TaskDetailPanel = ({
                           label: taskList.name,
                         })),
                       ]}
-                      selectedKey={draftTaskListId}
-                      isDisabled={patchMutation.isPending}
-                      onSelectionChange={(key) => {
-                        const taskListId = String(key)
+                      value={draftTaskListId}
+                      disabled={patchMutation.isPending}
+                      onCancel={() => {
+                        if (!selectedDraftTaskList?.groups.length) {
+                          setEditingField(null)
+                        }
+                      }}
+                      onChange={(taskListId) => {
                         const taskList = taskLists.find(
                           (item) => item.id === taskListId
                         )
@@ -555,11 +563,9 @@ export const TaskDetailPanel = ({
                     />
                     {selectedDraftTaskList &&
                       selectedDraftTaskList.groups.length > 0 && (
-                        <Select
-                          label={
-                            <span className="sr-only">{t('groups.field')}</span>
-                          }
-                          aria-label={t('groups.field')}
+                        <DetailInlineSelect
+                          label={t('groups.field')}
+                          autoOpen={false}
                           items={[
                             { value: '', label: t('groups.ungrouped') },
                             ...selectedDraftTaskList.groups.map((group) => ({
@@ -567,10 +573,10 @@ export const TaskDetailPanel = ({
                               label: group.name,
                             })),
                           ]}
-                          selectedKey={draftGroupId}
-                          isDisabled={patchMutation.isPending}
-                          onSelectionChange={(key) => {
-                            const groupId = String(key)
+                          value={draftGroupId}
+                          disabled={patchMutation.isPending}
+                          onCancel={() => setEditingField(null)}
+                          onChange={(groupId) => {
                             setDraftGroupId(groupId)
                             void saveField({
                               task_list_id: draftTaskListId,
@@ -591,6 +597,7 @@ export const TaskDetailPanel = ({
               icon={<RiCalendarLine size={18} />}
               label={t('meta.startDate')}
               editLabel={editLabel(t('meta.startDate'))}
+              control="date"
               isDisabled={patchMutation.isPending}
               isEditing={editingField === 'startDate'}
               alignStart={editingField === 'startDate'}
@@ -600,21 +607,16 @@ export const TaskDetailPanel = ({
             >
               {editingField === 'startDate' ? (
                 <div className={inlineEditorCss}>
-                  <Input
-                    ref={focusInput}
-                    type="date"
-                    aria-label={t('meta.startDate')}
+                  <DetailInlineDateEditor
+                    label={t('meta.startDate')}
                     value={draftDate}
                     max={task.due_date || undefined}
-                    disabled={patchMutation.isPending}
-                    onChange={(event) => {
-                      const startDate = event.target.value
-                      setDraftDate(startDate)
+                    pending={patchMutation.isPending}
+                    onChange={setDraftDate}
+                    onSave={(startDate) =>
                       void saveField({ start_date: startDate || null })
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') setEditingField(null)
-                    }}
+                    }
+                    onCancel={() => setEditingField(null)}
                   />
                 </div>
               ) : (
@@ -625,6 +627,7 @@ export const TaskDetailPanel = ({
               icon={<RiCalendarLine size={18} />}
               label={t('meta.dueDate')}
               editLabel={editLabel(t('meta.dueDate'))}
+              control="date"
               isDisabled={patchMutation.isPending}
               isEditing={editingField === 'dueDate'}
               alignStart={editingField === 'dueDate'}
@@ -632,21 +635,16 @@ export const TaskDetailPanel = ({
             >
               {editingField === 'dueDate' ? (
                 <div className={inlineEditorCss}>
-                  <Input
-                    ref={focusInput}
-                    type="date"
-                    aria-label={t('meta.dueDate')}
+                  <DetailInlineDateEditor
+                    label={t('meta.dueDate')}
                     value={draftDate}
                     min={task.start_date || undefined}
-                    disabled={patchMutation.isPending}
-                    onChange={(event) => {
-                      const dueDate = event.target.value
-                      setDraftDate(dueDate)
+                    pending={patchMutation.isPending}
+                    onChange={setDraftDate}
+                    onSave={(dueDate) =>
                       void saveField({ due_date: dueDate || null })
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') setEditingField(null)
-                    }}
+                    }
+                    onCancel={() => setEditingField(null)}
                   />
                 </div>
               ) : (
@@ -657,6 +655,7 @@ export const TaskDetailPanel = ({
               icon={<RiFlagLine size={18} />}
               label={t('form.priority')}
               editLabel={editLabel(t('form.priority'))}
+              control="select"
               isDisabled={patchMutation.isPending}
               isEditing={editingField === 'priority'}
               alignStart={editingField === 'priority'}
@@ -667,19 +666,17 @@ export const TaskDetailPanel = ({
               {editingField === 'priority' ? (
                 <div className={inlineEditorCss}>
                   <div className={inlineSelectCss}>
-                    <Select
-                      label={
-                        <span className="sr-only">{t('form.priority')}</span>
-                      }
-                      aria-label={t('form.priority')}
+                    <DetailInlineSelect
+                      label={t('form.priority')}
                       items={priorities.map((value) => ({
                         value,
                         label: t(`priorities.${value}`),
                       }))}
-                      selectedKey={draftPriority}
-                      isDisabled={patchMutation.isPending}
-                      onSelectionChange={(key) => {
-                        const priority = String(key) as TaskPriority
+                      value={draftPriority}
+                      disabled={patchMutation.isPending}
+                      onCancel={() => setEditingField(null)}
+                      onChange={(value) => {
+                        const priority = value as TaskPriority
                         setDraftPriority(priority)
                         void saveField({ priority })
                       }}
@@ -850,6 +847,7 @@ const TaskProperty = ({
   label,
   children,
   editLabel,
+  control = 'text',
   onEdit,
   isDisabled = false,
   isEditing = false,
@@ -859,6 +857,7 @@ const TaskProperty = ({
   label: string
   children: ReactNode
   editLabel?: string
+  control?: 'text' | 'select' | 'date'
   onEdit?: () => void
   isDisabled?: boolean
   isEditing?: boolean
@@ -874,12 +873,31 @@ const TaskProperty = ({
         <button
           type="button"
           className={propertyEditButtonCss}
+          data-control={control}
           aria-label={editLabel}
           disabled={isDisabled}
           onClick={onEdit}
         >
           <span>{children}</span>
-          <RiEditLine size={15} aria-hidden="true" />
+          {control === 'select' ? (
+            <svg
+              width={16}
+              height={16}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          ) : control === 'date' ? (
+            <RiCalendar2Line size={14} aria-hidden="true" />
+          ) : (
+            <RiEditLine size={15} aria-hidden="true" />
+          )}
         </button>
       ) : (
         children
@@ -887,6 +905,104 @@ const TaskProperty = ({
     </dd>
   </div>
 )
+
+const DetailInlineSelect = ({
+  label,
+  value,
+  disabled,
+  autoOpen = true,
+  items,
+  onChange,
+  onCancel,
+}: {
+  label: string
+  value: string
+  disabled: boolean
+  autoOpen?: boolean
+  items: Array<{ value: string; label: ReactNode }>
+  onChange: (value: string) => void
+  onCancel: () => void
+}) => {
+  const { t } = useTranslation('tasks')
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const selectionCommitted = useRef(false)
+  const [isOpen, setIsOpen] = useState(autoOpen)
+
+  useEffect(() => {
+    if (autoOpen) triggerRef.current?.focus()
+  }, [autoOpen])
+
+  return (
+    <Select
+      aria-label={`${t('actions.edit')} ${label}`}
+      className={detailInlineSelectCss}
+      triggerRef={triggerRef}
+      items={items}
+      selectedKey={value}
+      isDisabled={disabled}
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open)
+        if (!open) {
+          window.setTimeout(() => {
+            if (!selectionCommitted.current) onCancel()
+          })
+        }
+      }}
+      onSelectionChange={(key) => {
+        selectionCommitted.current = true
+        onChange(String(key))
+      }}
+    />
+  )
+}
+
+const DetailInlineDateEditor = ({
+  label,
+  value,
+  min,
+  max,
+  pending,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  label: string
+  value: string
+  min?: string
+  max?: string
+  pending: boolean
+  onChange: (value: string) => void
+  onSave: (value: string) => void
+  onCancel: () => void
+}) => {
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => inputRef.current?.focus(), [])
+  return (
+    <input
+      ref={inputRef}
+      type="date"
+      className={detailInlineInputCss}
+      aria-label={label}
+      value={value}
+      min={min}
+      max={max}
+      disabled={pending}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={() => onSave(value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          event.currentTarget.blur()
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onCancel()
+        }
+      }}
+    />
+  )
+}
 
 const DetailSection = ({
   title,
@@ -1077,6 +1193,19 @@ const propertyEditButtonCss = css({
     backgroundColor: 'greyscale.100',
     '& > svg': { opacity: 1 },
   },
+  '&[data-control="select"], &[data-control="date"]': {
+    minHeight: '1.75rem',
+    margin: '-0.25rem',
+    padding: '0.25rem',
+    border: '1px solid transparent',
+    borderRadius: '8px',
+    cursor: 'pointer',
+  },
+  '&[data-control="select"]:hover, &[data-control="select"]:focus-visible, &[data-control="date"]:hover, &[data-control="date"]:focus-visible':
+    {
+      borderColor: 'greyscale.300',
+      backgroundColor: 'greyscale.000',
+    },
   _focusVisible: { '& > svg': { opacity: 1 } },
   _disabled: { cursor: 'default' },
 })
@@ -1116,10 +1245,39 @@ const inlineEditorCss = css({
   gap: '0.5rem',
 })
 const inlineSelectCss = css({ width: '100%' })
+const detailInlineInputCss = css({
+  width: '100%',
+  minWidth: 0,
+  height: '1.75rem',
+  paddingX: '0.375rem',
+  border: '1px solid token(colors.primary.500)',
+  borderRadius: '4px',
+  backgroundColor: 'greyscale.000',
+  color: 'default.text',
+  font: 'inherit',
+  outline: 'none',
+  boxShadow: '0 0 0 1px token(colors.primary.200)',
+  boxSizing: 'border-box',
+  marginY: '-0.25rem',
+  '&:disabled': { cursor: 'wait', opacity: 0.7 },
+})
+const detailInlineSelectCss = css({
+  width: '100%',
+  minWidth: 0,
+  marginY: '-0.25rem',
+  '& button': {
+    height: '1.75rem!',
+    minHeight: '1.75rem!',
+    fontSize: '0.8125rem',
+  },
+})
 const placementEditorCss = css({
   display: 'grid',
-  gridTemplateColumns: { base: '1fr', sm: '1fr 1fr' },
+  gridTemplateColumns: '1fr',
   gap: '0.5rem',
+  '&[data-has-group]': {
+    gridTemplateColumns: { base: '1fr', sm: '1fr 1fr' },
+  },
 })
 const sourceLinkCss = css({ color: 'primary.600', textDecoration: 'none' })
 const headerMenuItemCss = css({
