@@ -20,23 +20,23 @@ export const CalendarColorPicker = ({
 }) => {
   const { t } = useTranslation('calendar')
   return (
-  <Popover aria-label={t('color.pickerTitle')} withArrow={false}>
-    <AriaButton
-      className={compact ? compactTriggerCls : triggerCls}
-      style={{ backgroundColor: value }}
-      aria-label={label}
-      data-color={value}
-    />
-    {({ close }) => (
-      <CalendarColorPalette
-        value={value}
-        onChange={(color) => {
-          onChange(color)
-          close()
-        }}
+    <Popover aria-label={t('color.pickerTitle')} withArrow={false}>
+      <AriaButton
+        className={compact ? compactTriggerCls : triggerCls}
+        style={{ backgroundColor: value }}
+        aria-label={label}
+        data-color={value}
       />
-    )}
-  </Popover>
+      {({ close }) => (
+        <CalendarColorPalette
+          value={value}
+          onChange={(color) => {
+            onChange(color)
+            close()
+          }}
+        />
+      )}
+    </Popover>
   )
 }
 
@@ -49,29 +49,33 @@ export const CalendarColorPalette = ({
 }) => {
   const { t } = useTranslation('calendar')
   return (
-  <div className={pickerCls}>
-    <strong className={titleCls}>{t('color.pickerTitle')}</strong>
-    <div className={paletteCls} role="radiogroup" aria-label={t('color.pickerTitle')}>
-      {CALENDAR_COLOR_PALETTE.map((color) => {
-        const selected = color.toLowerCase() === value.toLowerCase()
-        return (
-          <button
-            key={color}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            aria-label={t('color.select', { color })}
-            title={color}
-            className={swatchCls}
-            style={{ backgroundColor: color }}
-            onClick={() => onChange(color)}
-          >
-            {selected && <RiCheckLine aria-hidden="true" size={22} />}
-          </button>
-        )
-      })}
+    <div className={pickerCls}>
+      <strong className={titleCls}>{t('color.pickerTitle')}</strong>
+      <div
+        className={paletteCls}
+        role="radiogroup"
+        aria-label={t('color.pickerTitle')}
+      >
+        {CALENDAR_COLOR_PALETTE.map((color) => {
+          const selected = color.toLowerCase() === value.toLowerCase()
+          return (
+            <button
+              key={color}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              aria-label={t('color.select', { color })}
+              title={color}
+              className={swatchCls}
+              style={{ backgroundColor: color }}
+              onClick={() => onChange(color)}
+            >
+              {selected && <RiCheckLine aria-hidden="true" size={22} />}
+            </button>
+          )
+        })}
+      </div>
     </div>
-  </div>
   )
 }
 

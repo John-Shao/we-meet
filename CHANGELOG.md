@@ -18,6 +18,7 @@ and this project adheres to
 
 ### Changed 
 
+- 📝(docs) add a prioritized task module gap analysis and incremental roadmap
 - 📝(docs) align task module documentation with the current implementation
 - ♻️(fullstack) simplify source serialization
 - ✨(backend) expose room configuration to all API consumers

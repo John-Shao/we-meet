@@ -120,7 +120,9 @@ describe('AddCalendarDialog calendar discovery', () => {
     fireEvent.keyDown(palette, { key: 'Escape' })
 
     await waitFor(() =>
-      expect(screen.queryByRole('radiogroup', { name: 'color.pickerTitle' })).toBeNull()
+      expect(
+        screen.queryByRole('radiogroup', { name: 'color.pickerTitle' })
+      ).toBeNull()
     )
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -140,9 +142,13 @@ describe('AddCalendarDialog calendar discovery', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'manage.tabCreate' }))
     expect(screen.getByText('manage.sharedMembers')).toBeVisible()
-    expect(screen.queryByRole('dialog', { name: 'manage.addSharedMember' })).toBeNull()
+    expect(
+      screen.queryByRole('dialog', { name: 'manage.addSharedMember' })
+    ).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'manage.addSharedMember' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'manage.addSharedMember' })
+    )
     fireEvent.click(
       await screen.findByRole('button', { name: '确认选择共享人' })
     )
@@ -287,7 +293,9 @@ describe('AddCalendarDialog calendar discovery', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'manage.discoverRoom' }))
     expect(await screen.findByText('1602 (Overlook)')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'manage.subscribe' })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'manage.subscribe' })
+    ).toBeEnabled()
   })
 
   it('keeps contact rows visible while adding a subscription', async () => {
@@ -382,6 +390,8 @@ describe('AddCalendarDialog calendar discovery', () => {
         { ...subscribedCalendar, subscribed: false, enabled: false },
       ])
     })
-    expect(await screen.findByRole('button', { name: 'manage.subscribe' })).toBeEnabled()
+    expect(
+      await screen.findByRole('button', { name: 'manage.subscribe' })
+    ).toBeEnabled()
   })
 })

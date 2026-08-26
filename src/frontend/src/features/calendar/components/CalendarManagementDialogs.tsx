@@ -90,7 +90,9 @@ const copyQrImage = async () => {
     const png = await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
         (value) =>
-          value ? resolve(value) : reject(new Error('QR code generation failed')),
+          value
+            ? resolve(value)
+            : reject(new Error('QR code generation failed')),
         'image/png'
       )
     )
@@ -492,12 +494,10 @@ const RoleSelect = ({
   value,
   onChange,
   readOnly = false,
-  allowedRoles = [
-    'free_busy',
-    'details',
-    'writer',
-    'admin',
-  ] as Exclude<CalendarRole, 'none'>[],
+  allowedRoles = ['free_busy', 'details', 'writer', 'admin'] as Exclude<
+    CalendarRole,
+    'none'
+  >[],
 }: {
   value: Exclude<CalendarRole, 'none'>
   onChange: (role: Exclude<CalendarRole, 'none'>) => void
@@ -859,7 +859,9 @@ export const CalendarShareDialog = ({
                   variant="secondary"
                   size="action"
                   onPress={() =>
-                    void copyQrImage().catch(() => setError(t('manage.qrFailed')))
+                    void copyQrImage().catch(() =>
+                      setError(t('manage.qrFailed'))
+                    )
                   }
                 >
                   {t('manage.copyQr')}

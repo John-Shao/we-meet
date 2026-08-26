@@ -17,11 +17,13 @@ const eventStreamResponse = (...frames: string[]): Response => {
     ok: true,
     body: {
       getReader: () => ({
-        read: vi.fn().mockImplementation(async () =>
-          index < chunks.length
-            ? { done: false, value: chunks[index++] }
-            : { done: true, value: undefined }
-        ),
+        read: vi
+          .fn()
+          .mockImplementation(async () =>
+            index < chunks.length
+              ? { done: false, value: chunks[index++] }
+              : { done: true, value: undefined }
+          ),
       }),
     },
   } as unknown as Response
@@ -37,9 +39,7 @@ describe('sseStream authentication fallback', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(unauthorizedResponse())
-      .mockResolvedValueOnce(
-        eventStreamResponse('data: {"type":"done"}\n\n')
-      )
+      .mockResolvedValueOnce(eventStreamResponse('data: {"type":"done"}\n\n'))
     vi.stubGlobal('fetch', fetchMock)
 
     const events = []

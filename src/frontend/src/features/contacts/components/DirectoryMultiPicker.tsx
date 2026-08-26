@@ -332,47 +332,47 @@ const Chip = ({
 }) => {
   const { t } = useTranslation('contacts')
   return (
-  <li
-    className={css({
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '0.5rem',
-      paddingX: '0.5rem',
-      paddingY: '0.375rem',
-      borderRadius: '0.375rem',
-      _hover: { backgroundColor: 'greyscale.50' },
-    })}
-  >
-    <span
+    <li
       className={css({
-        fontSize: '0.8125rem',
-        color: 'greyscale.800',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '0.5rem',
+        paddingX: '0.5rem',
+        paddingY: '0.375rem',
+        borderRadius: '0.375rem',
+        _hover: { backgroundColor: 'greyscale.50' },
       })}
     >
-      {label}
-    </span>
-    {onRemove ? (
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={t('picker.remove')}
+      <span
         className={css({
-          flexShrink: 0,
-          border: 'none',
-          background: 'transparent',
-          color: 'greyscale.500',
-          cursor: 'pointer',
-          fontSize: '0.875rem',
-          _hover: { color: 'error.500' },
+          fontSize: '0.8125rem',
+          color: 'greyscale.800',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
         })}
       >
-        ×
-      </button>
-    ) : null}
-  </li>
+        {label}
+      </span>
+      {onRemove ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={t('picker.remove')}
+          className={css({
+            flexShrink: 0,
+            border: 'none',
+            background: 'transparent',
+            color: 'greyscale.500',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            _hover: { color: 'error.500' },
+          })}
+        >
+          ×
+        </button>
+      ) : null}
+    </li>
   )
 }

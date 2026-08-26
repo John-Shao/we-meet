@@ -2,7 +2,7 @@
 
 本文描述任务模块的当前实现。数据模型、序列化器、接口权限和数据库迁移是事实来源；历史活动仍可能保存旧状态快照，但不能据此推断当前可写能力。
 
-时间提醒见 [task_time_reminders.md](./task_time_reminders.md)，优先级见 [task_priority.md](./task_priority.md)，清单、分组、看板和统计见 [task_lists_boards_statistics.md](./task_lists_boards_statistics.md)，会议行动项联动见 [task_action_item_sync.md](./task_action_item_sync.md)，浏览器测试见 [task_e2e_testing.md](./task_e2e_testing.md)。
+时间提醒见 [task_time_reminders.md](./task_time_reminders.md)，优先级见 [task_priority.md](./task_priority.md)，清单、分组、看板和统计见 [task_lists_boards_statistics.md](./task_lists_boards_statistics.md)，会议行动项联动见 [task_action_item_sync.md](./task_action_item_sync.md)，浏览器测试见 [task_e2e_testing.md](./task_e2e_testing.md)，后续能力取舍见 [task_module_gap_analysis.md](./task_module_gap_analysis.md)。
 
 ## 功能概览
 

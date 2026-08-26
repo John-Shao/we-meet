@@ -50,7 +50,12 @@ export const TaskGroupRenameForm = ({
         </p>
       )}
       <div className={actionsCss}>
-        <Button type="button" size="action" variant="secondary" onPress={onCancel}>
+        <Button
+          type="button"
+          size="action"
+          variant="secondary"
+          onPress={onCancel}
+        >
           {t('workspace.createCancel')}
         </Button>
         <Button

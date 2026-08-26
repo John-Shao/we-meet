@@ -61,7 +61,9 @@ const SubscribeCard = () => {
             </button>
           </>
         ) : (
-          <p>{loadError ? apiErrorMessage(loadError) : t('subscribe.loading')}</p>
+          <p>
+            {loadError ? apiErrorMessage(loadError) : t('subscribe.loading')}
+          </p>
         )}
         {error && <p className={errorCls}>{error}</p>}
       </section>

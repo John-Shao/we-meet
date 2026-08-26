@@ -112,12 +112,7 @@ export const fetchApi = async <T = Record<string, unknown>>(
       response = await fetch(target, {
         credentials: 'include',
         ...options,
-        headers: buildHeaders(
-          null,
-          csrfToken,
-          options?.headers,
-          options?.body
-        ),
+        headers: buildHeaders(null, csrfToken, options?.headers, options?.body),
       })
     }
   }

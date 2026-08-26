@@ -130,87 +130,87 @@ export const EmojiPicker = ({
 }: Props) => {
   const { t } = useTranslation('im')
   return (
-  <div
-    className={css({
-      width: '17rem',
-      maxHeight: '15rem',
-      overflowY: 'auto',
-      padding: '0.25rem',
-    })}
-    data-testid="emoji-picker"
-  >
-    {recent.length > 0 && (
-      <EmojiSection title={t('emoji.recent')}>
-        {recent.map((entry) =>
-          entry.kind === 'unicode' ? (
-            <EmojiButton
-              key={`u-${entry.value}`}
-              emoji={entry.value}
-              onPick={onPick}
-            />
-          ) : (
-            <CustomEmojiButton
-              key={`c-${entry.id}`}
-              emoji={custom.find((item) => item.id === entry.id)}
-              onPick={onPickCustom}
-            />
-          )
-        )}
-      </EmojiSection>
-    )}
     <div
       className={css({
-        fontSize: '0.75rem',
-        color: 'greyscale.500',
+        width: '17rem',
+        maxHeight: '15rem',
+        overflowY: 'auto',
         padding: '0.25rem',
       })}
+      data-testid="emoji-picker"
     >
-      {t('emoji.system')}
-    </div>
-    {GROUPS.map((g) => (
-      <div key={g.key}>
-        <div
-          className={css({
-            display: 'grid',
-            gridTemplateColumns: 'repeat(8, 1fr)',
-            gap: '0.125rem',
-          })}
-        >
-          {g.emojis.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => onPick(emoji)}
-              data-testid={`emoji-${emoji}`}
-              className={css({
-                border: 'none',
-                background: 'transparent',
-                borderRadius: '0.375rem',
-                fontSize: '1.25rem',
-                lineHeight: 1,
-                aspectRatio: '1',
-                cursor: 'pointer',
-                _hover: { backgroundColor: 'greyscale.100' },
-              })}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
+      {recent.length > 0 && (
+        <EmojiSection title={t('emoji.recent')}>
+          {recent.map((entry) =>
+            entry.kind === 'unicode' ? (
+              <EmojiButton
+                key={`u-${entry.value}`}
+                emoji={entry.value}
+                onPick={onPick}
+              />
+            ) : (
+              <CustomEmojiButton
+                key={`c-${entry.id}`}
+                emoji={custom.find((item) => item.id === entry.id)}
+                onPick={onPickCustom}
+              />
+            )
+          )}
+        </EmojiSection>
+      )}
+      <div
+        className={css({
+          fontSize: '0.75rem',
+          color: 'greyscale.500',
+          padding: '0.25rem',
+        })}
+      >
+        {t('emoji.system')}
       </div>
-    ))}
-    {custom.length > 0 && onPickCustom && (
-      <EmojiSection title={t('emoji.org')}>
-        {custom.map((emoji) => (
-          <CustomEmojiButton
-            key={emoji.id}
-            emoji={emoji}
-            onPick={onPickCustom}
-          />
-        ))}
-      </EmojiSection>
-    )}
-  </div>
+      {GROUPS.map((g) => (
+        <div key={g.key}>
+          <div
+            className={css({
+              display: 'grid',
+              gridTemplateColumns: 'repeat(8, 1fr)',
+              gap: '0.125rem',
+            })}
+          >
+            {g.emojis.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => onPick(emoji)}
+                data-testid={`emoji-${emoji}`}
+                className={css({
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: '0.375rem',
+                  fontSize: '1.25rem',
+                  lineHeight: 1,
+                  aspectRatio: '1',
+                  cursor: 'pointer',
+                  _hover: { backgroundColor: 'greyscale.100' },
+                })}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {custom.length > 0 && onPickCustom && (
+        <EmojiSection title={t('emoji.org')}>
+          {custom.map((emoji) => (
+            <CustomEmojiButton
+              key={emoji.id}
+              emoji={emoji}
+              onPick={onPickCustom}
+            />
+          ))}
+        </EmojiSection>
+      )}
+    </div>
   )
 }
 
