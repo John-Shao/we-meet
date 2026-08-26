@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
   type RefObject,
@@ -131,6 +132,7 @@ export const TaskDetailPanel = ({
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const placementEditorRef = useRef<HTMLDivElement>(null)
   const patchMutation = usePatchTask()
   const deleteMutation = useDeleteTask()
   const followMutation = useFollowTask()
@@ -151,6 +153,21 @@ export const TaskDetailPanel = ({
     setFollowerPickerOpen(false)
     setShareOpen(false)
   }, [taskId])
+
+  useEffect(() => {
+    if (editingField !== 'placement') return
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (placementEditorRef.current?.contains(target)) return
+      if (target instanceof Element && target.closest('[role="listbox"]'))
+        return
+      setEditingField(null)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePress, true)
+    return () =>
+      document.removeEventListener('pointerdown', closeOnOutsidePress, true)
+  }, [editingField])
 
   if (!task && isLoading) {
     return (
@@ -193,10 +210,13 @@ export const TaskDetailPanel = ({
     }
   }
 
-  const saveField = async (patch: PatchTaskPayload) => {
+  const saveField = async (
+    patch: PatchTaskPayload,
+    options: { keepEditing?: boolean } = {}
+  ) => {
     try {
       await patchMutation.mutateAsync({ taskId: task.id, patch })
-      setEditingField(null)
+      if (!options.keepEditing) setEditingField(null)
     } catch {
       // Keep the field open so the user can correct it or retry.
     }
@@ -343,6 +363,14 @@ export const TaskDetailPanel = ({
                     value={draftText}
                     maxLength={500}
                     onChange={(event) => setDraftText(event.target.value)}
+                    onBlur={() => {
+                      const title = draftText.trim()
+                      if (!title || title === task.title) {
+                        setEditingField(null)
+                        return
+                      }
+                      void saveField({ title })
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' && draftText.trim()) {
                         event.preventDefault()
@@ -350,12 +378,6 @@ export const TaskDetailPanel = ({
                       }
                       if (event.key === 'Escape') setEditingField(null)
                     }}
-                  />
-                  <InlineEditorActions
-                    loading={patchMutation.isPending}
-                    saveDisabled={!draftText.trim()}
-                    onCancel={() => setEditingField(null)}
-                    onSave={() => void saveField({ title: draftText.trim() })}
                   />
                 </div>
               ) : (
@@ -499,7 +521,7 @@ export const TaskDetailPanel = ({
               }
             >
               {editingField === 'placement' ? (
-                <div className={inlineEditorCss}>
+                <div ref={placementEditorRef} className={inlineEditorCss}>
                   <div className={placementEditorCss}>
                     <Select
                       label={
@@ -514,9 +536,21 @@ export const TaskDetailPanel = ({
                         })),
                       ]}
                       selectedKey={draftTaskListId}
+                      isDisabled={patchMutation.isPending}
                       onSelectionChange={(key) => {
-                        setDraftTaskListId(String(key))
+                        const taskListId = String(key)
+                        const taskList = taskLists.find(
+                          (item) => item.id === taskListId
+                        )
+                        setDraftTaskListId(taskListId)
                         setDraftGroupId('')
+                        void saveField(
+                          {
+                            task_list_id: taskListId || null,
+                            group_id: null,
+                          },
+                          { keepEditing: Boolean(taskList?.groups.length) }
+                        )
                       }}
                     />
                     {selectedDraftTaskList &&
@@ -534,22 +568,18 @@ export const TaskDetailPanel = ({
                             })),
                           ]}
                           selectedKey={draftGroupId}
-                          onSelectionChange={(key) =>
-                            setDraftGroupId(String(key))
-                          }
+                          isDisabled={patchMutation.isPending}
+                          onSelectionChange={(key) => {
+                            const groupId = String(key)
+                            setDraftGroupId(groupId)
+                            void saveField({
+                              task_list_id: draftTaskListId,
+                              group_id: groupId || null,
+                            })
+                          }}
                         />
                       )}
                   </div>
-                  <InlineEditorActions
-                    loading={patchMutation.isPending}
-                    onCancel={() => setEditingField(null)}
-                    onSave={() =>
-                      void saveField({
-                        task_list_id: draftTaskListId || null,
-                        group_id: draftGroupId || null,
-                      })
-                    }
-                  />
                 </div>
               ) : task.task_list ? (
                 `${task.task_list.name}${task.group ? ` / ${task.group.name}` : ''}`
@@ -576,14 +606,15 @@ export const TaskDetailPanel = ({
                     aria-label={t('meta.startDate')}
                     value={draftDate}
                     max={task.due_date || undefined}
-                    onChange={(event) => setDraftDate(event.target.value)}
-                  />
-                  <InlineEditorActions
-                    loading={patchMutation.isPending}
-                    onCancel={() => setEditingField(null)}
-                    onSave={() =>
-                      void saveField({ start_date: draftDate || null })
-                    }
+                    disabled={patchMutation.isPending}
+                    onChange={(event) => {
+                      const startDate = event.target.value
+                      setDraftDate(startDate)
+                      void saveField({ start_date: startDate || null })
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setEditingField(null)
+                    }}
                   />
                 </div>
               ) : (
@@ -607,14 +638,15 @@ export const TaskDetailPanel = ({
                     aria-label={t('meta.dueDate')}
                     value={draftDate}
                     min={task.start_date || undefined}
-                    onChange={(event) => setDraftDate(event.target.value)}
-                  />
-                  <InlineEditorActions
-                    loading={patchMutation.isPending}
-                    onCancel={() => setEditingField(null)}
-                    onSave={() =>
-                      void saveField({ due_date: draftDate || null })
-                    }
+                    disabled={patchMutation.isPending}
+                    onChange={(event) => {
+                      const dueDate = event.target.value
+                      setDraftDate(dueDate)
+                      void saveField({ due_date: dueDate || null })
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setEditingField(null)
+                    }}
                   />
                 </div>
               ) : (
@@ -645,16 +677,14 @@ export const TaskDetailPanel = ({
                         label: t(`priorities.${value}`),
                       }))}
                       selectedKey={draftPriority}
-                      onSelectionChange={(key) =>
-                        setDraftPriority(String(key) as TaskPriority)
-                      }
+                      isDisabled={patchMutation.isPending}
+                      onSelectionChange={(key) => {
+                        const priority = String(key) as TaskPriority
+                        setDraftPriority(priority)
+                        void saveField({ priority })
+                      }}
                     />
                   </div>
-                  <InlineEditorActions
-                    loading={patchMutation.isPending}
-                    onCancel={() => setEditingField(null)}
-                    onSave={() => void saveField({ priority: draftPriority })}
-                  />
                 </div>
               ) : (
                 <TaskPriorityBadge priority={task.priority} />
@@ -680,13 +710,17 @@ export const TaskDetailPanel = ({
                     maxLength={5000}
                     rows={4}
                     onChange={(event) => setDraftText(event.target.value)}
-                  />
-                  <InlineEditorActions
-                    loading={patchMutation.isPending}
-                    onCancel={() => setEditingField(null)}
-                    onSave={() =>
-                      void saveField({ description: draftText.trim() })
-                    }
+                    onBlur={() => {
+                      const description = draftText.trim()
+                      if (description === task.description) {
+                        setEditingField(null)
+                        return
+                      }
+                      void saveField({ description })
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setEditingField(null)
+                    }}
                   />
                 </div>
               ) : (
@@ -853,42 +887,6 @@ const TaskProperty = ({
     </dd>
   </div>
 )
-
-const InlineEditorActions = ({
-  loading,
-  saveDisabled = false,
-  onCancel,
-  onSave,
-}: {
-  loading: boolean
-  saveDisabled?: boolean
-  onCancel: () => void
-  onSave: () => void
-}) => {
-  const { t } = useTranslation('tasks')
-  return (
-    <div className={inlineEditorActionsCss}>
-      <Button
-        type="button"
-        size="dense"
-        variant="secondary"
-        isDisabled={loading}
-        onPress={onCancel}
-      >
-        {t('form.cancel')}
-      </Button>
-      <Button
-        type="button"
-        size="dense"
-        loading={loading}
-        isDisabled={saveDisabled}
-        onPress={onSave}
-      >
-        {t('actions.save')}
-      </Button>
-    </div>
-  )
-}
 
 const DetailSection = ({
   title,
@@ -1115,11 +1113,6 @@ const inlineEditorCss = css({
   width: '100%',
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.5rem',
-})
-const inlineEditorActionsCss = css({
-  display: 'flex',
-  justifyContent: 'flex-end',
   gap: '0.5rem',
 })
 const inlineSelectCss = css({ width: '100%' })

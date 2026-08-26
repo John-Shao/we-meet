@@ -191,15 +191,38 @@ describe('TaskDetailPanel', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'actions.edit form.title' })
     )
-    fireEvent.change(screen.getByRole('textbox', { name: 'form.title' }), {
+    const titleInput = screen.getByRole('textbox', { name: 'form.title' })
+    fireEvent.change(titleInput, {
       target: { value: 'Ship release' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'actions.save' }))
+    expect(
+      screen.queryByRole('button', { name: 'actions.save' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'form.cancel' })
+    ).not.toBeInTheDocument()
+    fireEvent.blur(titleInput)
 
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenCalledWith({
         taskId: task.id,
         patch: { title: 'Ship release' },
+      })
+    )
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'actions.edit meta.startDate',
+      })
+    )
+    fireEvent.change(screen.getByLabelText('meta.startDate'), {
+      target: { value: '2026-08-22' },
+    })
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: task.id,
+        patch: { start_date: '2026-08-22' },
       })
     )
   })
