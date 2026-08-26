@@ -1,5 +1,8 @@
 """Minimal standalone task API."""
 
+import uuid
+from datetime import timedelta
+
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -127,7 +130,9 @@ def _require_conversation_membership(user, cid):
         )
         client.get_members(cid, resolved.token)
     except JusiImUnreachableError as exc:
-        raise PermissionDenied("Conversation membership could not be verified.") from exc
+        raise PermissionDenied(
+            "Conversation membership could not be verified."
+        ) from exc
     except JusiImBadResponseError as exc:
         raise PermissionDenied("You are not a member of this conversation.") from exc
     return cid
@@ -194,7 +199,7 @@ def _person_name_expression(relation):
     )
 
 
-def _order_tasks(queryset, ordering=""):
+def _order_tasks(queryset, ordering="", search_query=""):
     """Keep task lists on the same deterministic order."""
 
     status_rank = Case(
@@ -246,16 +251,108 @@ def _order_tasks(queryset, ordering=""):
         )
         return queryset.order_by(ordered_expression, "id")
 
-    return queryset.order_by(
+    business_order = (
         status_rank,
         priority_rank.asc(nulls_last=True),
         F("due_date").asc(nulls_last=True),
         "-updated_at",
         "id",
     )
+    if search_query:
+        relevance_rank = Case(
+            When(title__iexact=search_query, then=Value(0)),
+            When(title__istartswith=search_query, then=Value(1)),
+            When(title__icontains=search_query, then=Value(2)),
+            default=Value(3),
+            output_field=IntegerField(),
+        )
+        return queryset.order_by(relevance_rank, *business_order)
+    return queryset.order_by(*business_order)
 
 
-def _filter_task_list(queryset, *, request, user):  # noqa: PLR0912
+def _parse_task_person_ids(request, parameter):
+    """Parse one bounded, comma-separated UUID filter."""
+
+    raw_value = request.query_params.get(parameter)
+    if raw_value in (None, ""):
+        return []
+    values = [value.strip() for value in raw_value.split(",") if value.strip()]
+    try:
+        identifiers = list(dict.fromkeys(uuid.UUID(value) for value in values))
+    except ValueError as exc:
+        raise serializers.ValidationError(
+            {parameter: "Use a comma-separated list of valid user IDs."}
+        ) from exc
+    if not identifiers or len(identifiers) > 20:
+        raise serializers.ValidationError({parameter: "Choose between 1 and 20 users."})
+    return identifiers
+
+
+def _filter_task_search(queryset, *, request, user):
+    """Apply global-search filters while preserving task visibility rules."""
+
+    raw_search_query = request.query_params.get("q")
+    search_query = (raw_search_query or "").strip()
+    if raw_search_query is not None:
+        if not 2 <= len(search_query) <= 200:
+            raise serializers.ValidationError(
+                {"q": "Enter between 2 and 200 characters."}
+            )
+        queryset = queryset.filter(
+            Q(title__icontains=search_query) | Q(description__icontains=search_query)
+        )
+
+    creator_ids = _parse_task_person_ids(request, "creator_ids")
+    if creator_ids:
+        queryset = queryset.filter(creator_id__in=creator_ids)
+
+    assignee_ids = _parse_task_person_ids(request, "assignee_ids")
+    if assignee_ids:
+        queryset = queryset.filter(
+            Q(assignees__id__in=assignee_ids) | Q(assignee_id__in=assignee_ids)
+        )
+
+    follower_ids = _parse_task_person_ids(request, "follower_ids")
+    if follower_ids:
+        queryset = queryset.filter(followers__id__in=follower_ids)
+
+    due_filter = request.query_params.get("due", "all")
+    valid_due_filters = {
+        "all",
+        "today",
+        "tomorrow",
+        "this_week",
+        "overdue",
+        "no_date",
+    }
+    if due_filter not in valid_due_filters:
+        raise serializers.ValidationError(
+            {"due": ("Use all, today, tomorrow, this_week, overdue, or no_date.")}
+        )
+    local_today = local_date_for_user(user)
+    if due_filter == "today":
+        queryset = queryset.filter(due_date=local_today)
+    elif due_filter == "tomorrow":
+        queryset = queryset.filter(due_date=local_today + timedelta(days=1))
+    elif due_filter == "this_week":
+        queryset = queryset.filter(
+            due_date__range=(
+                local_today,
+                local_today + timedelta(days=6 - local_today.weekday()),
+            )
+        )
+    elif due_filter == "overdue":
+        queryset = queryset.filter(
+            status=models.Task.Status.TODO,
+            due_date__lt=local_today,
+        )
+    elif due_filter == "no_date":
+        queryset = queryset.filter(due_date__isnull=True)
+
+    return queryset.distinct(), search_query
+
+
+def _filter_task_list(queryset, *, request, user, include_search=True):  # noqa: PLR0912
     """Apply validated list filters without growing the viewset branch count."""
 
     scope = request.query_params.get("scope", "assigned")
@@ -296,24 +393,35 @@ def _filter_task_list(queryset, *, request, user):  # noqa: PLR0912
         user=user,
     )
 
+    search_query = ""
+    if include_search:
+        queryset, search_query = _filter_task_search(
+            queryset,
+            request=request,
+            user=user,
+        )
+
     time_filter = request.query_params.get("time", "all")
     if time_filter not in TIME_FILTERS:
         raise serializers.ValidationError(
             {"time": "Use all, starting_today, due_today, or overdue."}
         )
     if time_filter == "all":
-        return queryset
+        return queryset, search_query
 
     queryset = queryset.filter(status=models.Task.Status.TODO).filter(
         Q(assignees__isnull=False) | Q(assignee__isnull=False)
     )
     if time_filter == "starting_today":
-        return queryset.filter(start_date=F("_assignee_local_date")).exclude(
-            due_date=F("_assignee_local_date")
+        return (
+            queryset.filter(start_date=F("_assignee_local_date")).exclude(
+                due_date=F("_assignee_local_date")
+            ),
+            search_query,
         )
     if time_filter == "due_today":
-        return queryset.filter(due_date=F("_assignee_local_date"))
-    return queryset.filter(due_date__lt=F("_assignee_local_date"))
+        return queryset.filter(due_date=F("_assignee_local_date")), search_query
+    return queryset.filter(due_date__lt=F("_assignee_local_date")), search_query
 
 
 def _filter_by_task_list(queryset, *, task_list_filter, user):
@@ -325,11 +433,16 @@ def _filter_by_task_list(queryset, *, task_list_filter, user):
         return queryset
     organization = get_caller_organization(user)
     try:
-        task_list = models.TaskList.objects.filter(
-            id=task_list_filter,
-            organization=organization,
-            is_archived=False,
-        ).filter(Q(accesses__user=user) | Q(creator=user)).distinct().get()
+        task_list = (
+            models.TaskList.objects.filter(
+                id=task_list_filter,
+                organization=organization,
+                is_archived=False,
+            )
+            .filter(Q(accesses__user=user) | Q(creator=user))
+            .distinct()
+            .get()
+        )
     except (
         ValueError,
         DjangoValidationError,
@@ -724,7 +837,9 @@ class TaskListGroupViewSet(
             queryset = queryset.exclude(pk=exclude.pk)
         if queryset.exists():
             raise serializers.ValidationError(
-                {"name": "This organization already has a task-list group with this name."}
+                {
+                    "name": "This organization already has a task-list group with this name."
+                }
             )
 
 
@@ -752,9 +867,11 @@ class TaskListViewSet(
         organization = get_caller_organization(self.request.user)
         if organization is None:
             return models.TaskList.objects.none()
-        queryset = models.TaskList.objects.filter(organization=organization).filter(
-            Q(accesses__user=self.request.user) | Q(creator=self.request.user)
-        ).distinct()
+        queryset = (
+            models.TaskList.objects.filter(organization=organization)
+            .filter(Q(accesses__user=self.request.user) | Q(creator=self.request.user))
+            .distinct()
+        )
         queryset = queryset.filter(
             is_archived=self.request.query_params.get("archived") == "true"
         ).annotate(_task_count=Count("tasks", distinct=True))
@@ -767,9 +884,7 @@ class TaskListViewSet(
             ),
             Prefetch(
                 "accesses",
-                queryset=models.TaskListAccess.objects.filter(
-                    user=self.request.user
-                ),
+                queryset=models.TaskListAccess.objects.filter(user=self.request.user),
                 to_attr="_current_user_accesses",
             ),
         )
@@ -955,7 +1070,9 @@ class TaskListViewSet(
     def _validate_list_group(group, organization):
         if group is not None and group.organization_id != organization.id:
             raise serializers.ValidationError(
-                {"list_group_id": "The task-list group belongs to another organization."}
+                {
+                    "list_group_id": "The task-list group belongs to another organization."
+                }
             )
 
     @staticmethod
@@ -1097,8 +1214,9 @@ class TaskViewSet(
             .prefetch_related("assignees", "followers")
         )
         queryset = annotate_assignee_local_date(queryset, user=user)
+        search_query = ""
         if self.action == "list":
-            queryset = _filter_task_list(
+            queryset, search_query = _filter_task_list(
                 queryset,
                 request=self.request,
                 user=user,
@@ -1108,7 +1226,7 @@ class TaskViewSet(
             if self.action == "list"
             else ""
         )
-        return _order_tasks(queryset, ordering)
+        return _order_tasks(queryset, ordering, search_query)
 
     @action(detail=True, methods=["post"])
     def share(self, request, *args, **kwargs):  # pylint: disable=unused-argument
@@ -1159,7 +1277,9 @@ class TaskViewSet(
             .order_by("status", "due_date", "-conversation_shares__created_at")
         )
         queryset = annotate_assignee_local_date(queryset, user=request.user)
-        return Response(TaskSerializer(queryset, many=True, context={"request": request}).data)
+        return Response(
+            TaskSerializer(queryset, many=True, context={"request": request}).data
+        )
 
     def create(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         serializer = TaskCreateSerializer(
@@ -1364,9 +1484,7 @@ class TaskViewSet(
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], url_path="standalone-count")
-    def standalone_count(
-        self, request, *args, **kwargs
-    ):  # pylint: disable=unused-argument
+    def standalone_count(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         """Return the number of visible tasks that do not belong to a task list."""
 
         count = self.get_queryset().filter(task_list__isnull=True).count()
@@ -1376,10 +1494,11 @@ class TaskViewSet(
     def statistics(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         """Aggregate the same task set the caller is already allowed to list."""
 
-        queryset = _filter_task_list(
+        queryset, _search_query = _filter_task_list(
             self.get_queryset(),
             request=request,
             user=request.user,
+            include_search=False,
         )
         open_statuses = [models.Task.Status.TODO]
         overdue_filter = (

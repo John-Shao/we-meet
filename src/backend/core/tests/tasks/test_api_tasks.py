@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 from unittest import mock
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from django.utils import timezone
@@ -28,6 +29,7 @@ from core.models import (
     TaskConversationShare,
     TaskImDelivery,
     TaskList,
+    TaskListAccess,
 )
 
 pytestmark = pytest.mark.django_db
@@ -624,6 +626,219 @@ def test_task_list_filters_and_serializes_time_state():
     assert client.get(f"{TASKS_URL}?time=tomorrow").status_code == 400
 
 
+def test_task_global_search_matches_title_and_description_by_relevance(
+    django_assert_max_num_queries,
+):
+    user = UserFactory()
+    description_match = Task.objects.create(
+        title="Prepare launch notes",
+        description="Review the Search Target with the team",
+        creator=user,
+    )
+    title_contains = Task.objects.create(
+        title="A search target review",
+        creator=user,
+    )
+    title_prefix = Task.objects.create(
+        title="Search Target follow-up",
+        creator=user,
+    )
+    title_exact = Task.objects.create(title="search target", creator=user)
+    Task.objects.create(title="Unrelated task", creator=user)
+
+    client = _client(user)
+    with django_assert_max_num_queries(15):
+        response = client.get(
+            TASKS_URL,
+            {"scope": "all", "q": "Search Target"},
+        )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["results"]] == [
+        str(title_exact.id),
+        str(title_prefix.id),
+        str(title_contains.id),
+        str(description_match.id),
+    ]
+
+    explicit_order = client.get(
+        TASKS_URL,
+        {"scope": "all", "q": "search target", "ordering": "created_at"},
+    )
+    assert explicit_order.status_code == 200
+    assert [item["id"] for item in explicit_order.json()["results"]] == [
+        str(description_match.id),
+        str(title_contains.id),
+        str(title_prefix.id),
+        str(title_exact.id),
+    ]
+
+
+def test_task_global_search_person_filters_use_or_within_and_between_fields():
+    viewer = UserFactory()
+    second_creator = UserFactory()
+    first_assignee = UserFactory()
+    second_assignee = UserFactory()
+    follower = UserFactory()
+    matching = Task.objects.create(title="Matching task", creator=viewer)
+    matching.assignees.add(first_assignee)
+    matching.followers.add(follower)
+    legacy = Task.objects.create(
+        title="Legacy matching task",
+        creator=second_creator,
+        assignee=second_assignee,
+    )
+    legacy.followers.add(viewer, follower)
+    Task.objects.create(title="Wrong people", creator=viewer, assignee=viewer)
+
+    response = _client(viewer).get(
+        TASKS_URL,
+        {
+            "scope": "all",
+            "creator_ids": f"{viewer.id},{second_creator.id}",
+            "assignee_ids": f"{first_assignee.id},{second_assignee.id}",
+            "follower_ids": str(follower.id),
+        },
+    )
+
+    assert response.status_code == 200
+    assert {item["id"] for item in response.json()["results"]} == {
+        str(matching.id),
+        str(legacy.id),
+    }
+
+
+def test_task_global_search_due_filters_and_status_composition():
+    user = UserFactory(timezone="Asia/Shanghai")
+    today = timezone.now().astimezone(ZoneInfo("Asia/Shanghai")).date()
+    tasks = {
+        "today": Task.objects.create(title="Due today", creator=user, due_date=today),
+        "tomorrow": Task.objects.create(
+            title="Due tomorrow", creator=user, due_date=today + timedelta(days=1)
+        ),
+        "overdue": Task.objects.create(
+            title="Due overdue", creator=user, due_date=today - timedelta(days=1)
+        ),
+        "completed_overdue": Task.objects.create(
+            title="Completed overdue",
+            creator=user,
+            due_date=today - timedelta(days=1),
+            status=Task.Status.COMPLETED,
+        ),
+        "no_date": Task.objects.create(title="No date", creator=user),
+    }
+    end_of_week = today + timedelta(days=6 - today.weekday())
+    this_week = Task.objects.create(
+        title="This week", creator=user, due_date=end_of_week
+    )
+
+    client = _client(user)
+    assert {
+        item["id"]
+        for item in client.get(TASKS_URL, {"scope": "all", "due": "today"}).json()[
+            "results"
+        ]
+    } == {str(tasks["today"].id)}
+    assert {
+        item["id"]
+        for item in client.get(TASKS_URL, {"scope": "all", "due": "tomorrow"}).json()[
+            "results"
+        ]
+    } == {str(tasks["tomorrow"].id)}
+    assert {
+        item["id"]
+        for item in client.get(TASKS_URL, {"scope": "all", "due": "overdue"}).json()[
+            "results"
+        ]
+    } == {str(tasks["overdue"].id)}
+    assert {
+        item["id"]
+        for item in client.get(TASKS_URL, {"scope": "all", "due": "no_date"}).json()[
+            "results"
+        ]
+    } == {str(tasks["no_date"].id)}
+    assert str(this_week.id) in {
+        item["id"]
+        for item in client.get(
+            TASKS_URL, {"scope": "all", "due": "this_week", "status": "todo"}
+        ).json()["results"]
+    }
+
+
+def test_task_global_search_visibility_includes_list_members_but_not_card_only():
+    organization = OrganizationFactory()
+    creator = UserFactory()
+    viewer = UserFactory()
+    editor = UserFactory()
+    outsider = UserFactory()
+    task_list = TaskList.objects.create(
+        organization=organization,
+        creator=creator,
+        name="Search list",
+    )
+    TaskListAccess.objects.create(
+        task_list=task_list,
+        user=viewer,
+        role=TaskListAccess.Role.VIEWER,
+    )
+    TaskListAccess.objects.create(
+        task_list=task_list,
+        user=editor,
+        role=TaskListAccess.Role.EDITOR,
+    )
+    listed = Task.objects.create(
+        title="Visible search result",
+        creator=creator,
+        task_list=task_list,
+    )
+    card_only = Task.objects.create(
+        title="Visible search card only",
+        creator=creator,
+    )
+    TaskConversationShare.objects.create(
+        task=card_only,
+        cid="search-conversation",
+        shared_by=creator,
+    )
+
+    def search_ids(user):
+        response = _client(user).get(
+            TASKS_URL,
+            {"scope": "all", "q": "Visible search"},
+        )
+        assert response.status_code == 200
+        return {item["id"] for item in response.json()["results"]}
+
+    assert search_ids(viewer) == {str(listed.id)}
+    assert search_ids(editor) == {str(listed.id)}
+    assert search_ids(outsider) == set()
+
+    card_only.followers.add(viewer)
+    assert search_ids(viewer) == {str(listed.id), str(card_only.id)}
+
+
+@pytest.mark.parametrize(
+    ("parameter", "value"),
+    [
+        ("q", "x"),
+        ("q", "  "),
+        ("q", "x" * 201),
+        ("creator_ids", "not-a-uuid"),
+        ("assignee_ids", ",".join(str(uuid4()) for _ in range(21))),
+        ("follower_ids", ","),
+        ("due", "next_month"),
+    ],
+)
+def test_task_global_search_rejects_invalid_parameters(parameter, value):
+    response = _client(UserFactory()).get(
+        TASKS_URL,
+        {"scope": "all", parameter: value},
+    )
+
+    assert response.status_code == 400
+    assert parameter in response.json()
+
+
 def test_task_list_filters_and_orders_by_status_priority_due_date_and_update():
     user = UserFactory(timezone="UTC")
     today = timezone.localdate()
@@ -897,8 +1112,7 @@ def test_task_time_filter_uses_current_viewer_timezone():
     assert creator_response.json()["results"] == []
     assert assignee_response.status_code == 200
     assert [
-        (item["id"], item["time_state"])
-        for item in assignee_response.json()["results"]
+        (item["id"], item["time_state"]) for item in assignee_response.json()["results"]
     ] == [(str(task.id), "starting_today")]
 
 

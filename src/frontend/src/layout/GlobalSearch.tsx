@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
-import { RiSearchLine, RiSparklingLine } from '@remixicon/react'
+import { RiSearchLine, RiSparklingLine, RiTaskLine } from '@remixicon/react'
 import ReactMarkdown from 'react-markdown'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -33,6 +33,18 @@ import {
   useGlobalAsk,
   type GlobalAskCitation,
 } from '@/features/global-ask/useGlobalAsk'
+import {
+  EMPTY_TASK_SEARCH_FILTERS,
+  useTaskSearch,
+  type TaskSearchFilters as TaskSearchFilterValues,
+} from '@/features/tasks/api/searchTasks'
+import type { ApiTask } from '@/features/tasks/api/ApiTask'
+import {
+  TaskSearchFilters,
+  type TaskSearchPeopleFilters,
+} from '@/features/tasks/components/TaskSearchFilters'
+import { buildTaskWorkspaceSearch } from '@/features/tasks/taskWorkspaceState'
+import { taskAssignees, taskDisplayName } from '@/features/tasks/taskUi'
 
 /**
  * Feishu-style global search (Ctrl/Cmd+K). The rail mounts the trigger; the
@@ -159,6 +171,7 @@ const BASE_CATEGORIES: SearchCategory[] = [
   'meetings',
   'messages',
   'docs',
+  'tasks',
 ]
 
 /** 文档命中(后端 /docs/search/ 代理,可见性在 Docs 侧过滤)。 */
@@ -186,7 +199,7 @@ const searchDocs = (q: string, limit: number): Promise<DocsSearchPage> =>
  */
 const DOCS_PAGE_SIZE = 20
 
-const SearchPalette = ({
+export const SearchPalette = ({
   initialCategory = 'all',
   onClose,
 }: {
@@ -199,6 +212,14 @@ const SearchPalette = ({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const [category, setCategory] = useState<SearchCategory>(initialCategory)
+  const [taskFilters, setTaskFilters] = useState<TaskSearchFilterValues>({
+    ...EMPTY_TASK_SEARCH_FILTERS,
+  })
+  const [taskPeople, setTaskPeople] = useState<TaskSearchPeopleFilters>({
+    creators: new Map(),
+    assignees: new Map(),
+    followers: new Map(),
+  })
   const { query, setQuery, selectable, isFetching } = useDirectoryMemberSearch()
   const { data: recent = [] } = useRecentMeetings(true)
   const { data: scheduled = [] } = useScheduledMeetings(true)
@@ -334,6 +355,30 @@ const SearchPalette = ({
   }, [docsSearchEnabled, docsPage, category])
   const docsHasMore = category === 'docs' && !!docsPage?.has_more
 
+  const taskSearchEnabled = rawQ.length >= 2
+  const allTaskSearch = useTaskSearch(
+    rawQ,
+    EMPTY_TASK_SEARCH_FILTERS,
+    5,
+    taskSearchEnabled && category === 'all'
+  )
+  const filteredTaskSearch = useTaskSearch(
+    rawQ,
+    taskFilters,
+    20,
+    taskSearchEnabled && category === 'tasks'
+  )
+  const activeTaskSearch =
+    category === 'tasks' ? filteredTaskSearch : allTaskSearch
+  const taskHits = useMemo(
+    () => (activeTaskSearch.data?.pages ?? []).flatMap((page) => page.results),
+    [activeTaskSearch.data]
+  )
+  const tasksHaveMore =
+    category === 'tasks'
+      ? !!filteredTaskSearch.hasNextPage
+      : (allTaskSearch.data?.pages[0]?.count ?? 0) > taskHits.length
+
   const meetings = useMemo<MeetingResult[]>(() => {
     if (!ql || !showMeetings) return []
     const all: MeetingResult[] = [
@@ -358,11 +403,13 @@ const SearchPalette = ({
     !isFetching &&
     !msgFetching &&
     !docsFetching &&
+    !activeTaskSearch.isFetching &&
     convHits.length === 0 &&
     members.length === 0 &&
     meetings.length === 0 &&
     msgItems.length === 0 &&
-    docsHits.length === 0
+    docsHits.length === 0 &&
+    taskHits.length === 0
 
   const openMember = async (id: string) => {
     try {
@@ -402,6 +449,20 @@ const SearchPalette = ({
   const openDocHit = (hit: DocsSearchHit) => {
     close()
     navigateTo('docs', hit.id)
+  }
+  const openTaskHit = (task: ApiTask) => {
+    close()
+    const search = buildTaskWorkspaceSearch({
+      scope: 'all',
+      status: 'all',
+      time: 'all',
+      priority: 'all',
+      ordering: '',
+      taskList: 'all',
+      mode: 'list',
+      task: task.id,
+    })
+    navigate(`/tasks?${search}`)
   }
   // P1-4 引用 chip 三类跳转(§D4):会议/纪要 → 详情;消息 → IM 定位;
   // 日程 → 日历按日定位(?d,CalendarRoute 新参数)。
@@ -523,6 +584,23 @@ const SearchPalette = ({
           )
         })}
       </div>
+
+      {category === 'tasks' && (
+        <TaskSearchFilters
+          filters={taskFilters}
+          people={taskPeople}
+          onFiltersChange={setTaskFilters}
+          onPeopleChange={setTaskPeople}
+          onClear={() => {
+            setTaskFilters({ ...EMPTY_TASK_SEARCH_FILTERS })
+            setTaskPeople({
+              creators: new Map(),
+              assignees: new Map(),
+              followers: new Map(),
+            })
+          }}
+        />
+      )}
 
       <div
         className={css({
@@ -686,6 +764,70 @@ const SearchPalette = ({
                   </button>
                 )}
               </Group>
+            )}
+
+            {category === 'tasks' && activeTaskSearch.isError && (
+              <div className={taskErrorCls} role="alert">
+                <span>{t('search.taskError')}</span>
+                <button
+                  type="button"
+                  onClick={() => void activeTaskSearch.refetch()}
+                  data-testid="global-search-task-retry"
+                  className={taskRetryCls}
+                >
+                  {t('search.retry')}
+                </button>
+              </div>
+            )}
+
+            {taskHits.length > 0 && (
+              <Group title={t('search.tasks')}>
+                {taskHits.map((task) => (
+                  <ResultRow
+                    key={`task-${task.id}`}
+                    onClick={() => openTaskHit(task)}
+                    testId={`global-search-task-${task.id}`}
+                    avatarText={<RiTaskLine size={18} aria-hidden="true" />}
+                    title={<HighlightedText text={task.title} query={rawQ} />}
+                    description={
+                      task.description ? (
+                        <HighlightedText
+                          text={taskDescriptionSnippet(task.description, rawQ)}
+                          query={rawQ}
+                        />
+                      ) : undefined
+                    }
+                    subtitle={taskResultMetadata(task, t)}
+                  />
+                ))}
+                {category === 'all' && tasksHaveMore && (
+                  <button
+                    type="button"
+                    onClick={() => setCategory('tasks')}
+                    className={moreResultsCls}
+                    data-testid="global-search-tasks-more"
+                  >
+                    {t('search.tasksMore')}
+                  </button>
+                )}
+                {category === 'tasks' && tasksHaveMore && (
+                  <button
+                    type="button"
+                    disabled={filteredTaskSearch.isFetchingNextPage}
+                    onClick={() => void filteredTaskSearch.fetchNextPage()}
+                    className={moreResultsCls}
+                    data-testid="global-search-tasks-load-more"
+                  >
+                    {t('search.tasksLoadMore')}
+                  </button>
+                )}
+              </Group>
+            )}
+
+            {activeTaskSearch.isFetching && taskSearchEnabled && (
+              <p className={visuallyHiddenCls} role="status" aria-live="polite">
+                {t('search.loading')}
+              </p>
             )}
           </>
         )}
@@ -951,12 +1093,111 @@ const aiAnswerCls = css({
   },
 })
 
+const taskDescriptionSnippet = (description: string, query: string) => {
+  const matchIndex = description.toLowerCase().indexOf(query.toLowerCase())
+  const start = Math.max(0, matchIndex >= 0 ? matchIndex - 45 : 0)
+  const end = Math.min(description.length, start + 140)
+  return `${start > 0 ? '…' : ''}${description.slice(start, end)}${
+    end < description.length ? '…' : ''
+  }`
+}
+
+const HighlightedText = ({ text, query }: { text: string; query: string }) => {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return <>{text}</>
+  const nodes: ReactNode[] = []
+  const normalizedText = text.toLowerCase()
+  let cursor = 0
+  let matchIndex = normalizedText.indexOf(normalizedQuery)
+  while (matchIndex >= 0) {
+    if (matchIndex > cursor) nodes.push(text.slice(cursor, matchIndex))
+    const end = matchIndex + normalizedQuery.length
+    nodes.push(
+      <mark key={`${matchIndex}-${end}`} className={highlightCls}>
+        {text.slice(matchIndex, end)}
+      </mark>
+    )
+    cursor = end
+    matchIndex = normalizedText.indexOf(normalizedQuery, cursor)
+  }
+  if (cursor < text.length) nodes.push(text.slice(cursor))
+  return <>{nodes.length ? nodes : text}</>
+}
+
+const taskResultMetadata = (
+  task: ApiTask,
+  t: (key: string, options?: Record<string, unknown>) => string
+) => {
+  const assignees = taskAssignees(task).map(taskDisplayName).join(', ')
+  const due = task.due_date
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
+        new Date(`${task.due_date}T00:00:00`)
+      )
+    : t('search.taskDueNoDate')
+  return [
+    t('search.taskCreatorMeta', { name: taskDisplayName(task.creator) }),
+    t('search.taskAssigneeMeta', {
+      name: assignees || t('search.taskUnassigned'),
+    }),
+    t('search.taskDueMeta', { date: due }),
+  ].join(' · ')
+}
+
 const hintCls = css({
   color: 'greyscale.500',
   fontSize: '0.875rem',
   textAlign: 'center',
   padding: '1.5rem 1rem',
   margin: 0,
+})
+
+const highlightCls = css({
+  backgroundColor: 'yellow.100',
+  color: 'inherit',
+  padding: 0,
+})
+
+const taskErrorCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '0.5rem',
+  padding: '1.5rem 1rem',
+  color: 'danger.600',
+  fontSize: '0.8125rem',
+})
+
+const taskRetryCls = css({
+  border: 'none',
+  background: 'transparent',
+  color: 'primary.500',
+  cursor: 'pointer',
+  textDecoration: 'underline',
+})
+
+const moreResultsCls = css({
+  width: '100%',
+  paddingY: '0.5rem',
+  border: 'none',
+  background: 'transparent',
+  color: 'brand.700',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+  borderRadius: '8px',
+  _hover: { backgroundColor: 'greyscale.100' },
+  _disabled: { cursor: 'default', opacity: 0.6 },
+})
+
+const visuallyHiddenCls = css({
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
 })
 
 const Group = ({
@@ -988,15 +1229,17 @@ const ResultRow = ({
   avatarText,
   avatarSrc,
   title,
+  description,
   subtitle,
   testId,
 }: {
   onClick: () => void
-  avatarText: string
+  avatarText: ReactNode
   /** Uploaded avatar URL (members); when present an image replaces avatarText. */
   avatarSrc?: string | null
-  title: string
-  subtitle?: string
+  title: ReactNode
+  description?: ReactNode
+  subtitle?: ReactNode
   testId?: string
 }) => (
   <button
@@ -1062,6 +1305,20 @@ const ResultRow = ({
       >
         {title}
       </span>
+      {description && (
+        <span
+          className={css({
+            display: 'block',
+            fontSize: '0.75rem',
+            color: 'greyscale.700',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          })}
+        >
+          {description}
+        </span>
+      )}
       {subtitle && (
         <span
           className={css({

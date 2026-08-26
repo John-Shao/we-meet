@@ -23,6 +23,7 @@ export type SearchCategory =
   | 'meetings'
   | 'messages'
   | 'docs'
+  | 'tasks'
   | 'ai'
 
 const OPEN_EVENT = 'we-meet:open-global-search'

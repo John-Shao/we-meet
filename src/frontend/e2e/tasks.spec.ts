@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 
 type TaskUser = {
+  id: string
   full_name: string | null
   short_name: string | null
   email?: string | null
@@ -8,6 +9,7 @@ type TaskUser = {
 
 type CreatedTask = {
   id: string
+  creator: TaskUser
   assignees?: TaskUser[]
   assignee: TaskUser | null
 }
@@ -63,8 +65,8 @@ test('create, edit, persist, and complete a self-assigned task', async ({
   page,
 }) => {
   const title = `E2E 任务 ${Date.now()}`
-  const startDate = await dateInBrowserTimezone(page, 2)
-  const dueDate = await dateInBrowserTimezone(page, 4)
+  const startDate = await dateInBrowserTimezone(page, 0)
+  const dueDate = await dateInBrowserTimezone(page, 1)
 
   await page.goto(
     '/tasks?scope=all&status=open&time=all&priority=all&task_list=all&view=list'
@@ -141,8 +143,51 @@ test('create, edit, persist, and complete a self-assigned task', async ({
   await reloadedDetails.getByLabel('开始日期').press('Enter')
   await persistedDatePatch
 
+  await page.keyboard.press('Control+k')
+  await page.getByTestId('global-search-input').fill(title)
+  await page.getByTestId('global-search-tab-tasks').click()
+  const searchResult = page.getByTestId(`global-search-task-${taskId}`)
+  await expect(searchResult).toBeVisible()
+
+  await page.getByTestId('global-search-task-filter-creator').click()
+  await page
+    .getByTestId(
+      `global-search-task-filter-creator-option-${createdTask.creator.id}`
+    )
+    .click()
+  await page.keyboard.press('Escape')
+
+  await page.getByTestId('global-search-task-filter-assignee').click()
+  await page
+    .getByTestId(`global-search-task-filter-assignee-option-${assignee!.id}`)
+    .click()
+  await page.keyboard.press('Escape')
+
+  await page.getByTestId('global-search-task-filter-status').click()
+  await page.getByTestId('global-search-task-filter-status-todo').click()
+  await page.getByTestId('global-search-task-filter-due').click()
+  await page.getByTestId('global-search-task-filter-due-tomorrow').click()
+  await expect(searchResult).toBeVisible()
+
+  await searchResult.click()
+  await expect(page).toHaveURL(new RegExp(`task=${taskId}`))
+  await expect(
+    page.getByRole('complementary', { name: '任务详情' })
+  ).toBeVisible()
+  await page.reload()
+  await expect(
+    page.getByRole('complementary', { name: '任务详情' })
+  ).toBeVisible()
+  await page.goto(
+    `/tasks?scope=all&status=open&time=all&priority=all&task_list=all&view=list&task=${taskId}`
+  )
+  row = page.getByRole('row', { name: `打开任务：${title}` })
+
   const completePatch = waitForTaskPatch(page, taskId)
-  await reloadedDetails.getByRole('button', { name: '完成任务' }).click()
+  await page
+    .getByRole('complementary', { name: '任务详情' })
+    .getByRole('button', { name: '完成任务' })
+    .click()
   await completePatch
   await expect(row).toHaveCount(0)
 
