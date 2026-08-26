@@ -9,6 +9,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "panda codegen && vitest run",
     "test:watch": "panda codegen && vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "preview": "vite preview",
     "i18n:extract": "npx i18next -c i18next-parser.config.json",
     "format": "prettier --write ./src",
@@ -55,6 +57,7 @@
     "wouter": "3.9.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@douyinfe/semi-vite-plugin": "^2.102.0",
     "@pandacss/dev": "1.11.1",
     "@tanstack/eslint-plugin-query": "5.91.4",

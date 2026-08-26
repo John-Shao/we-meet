@@ -175,10 +175,18 @@ frontend-format: ## run the frontend format
 	cd $(PATH_FRONT) && npm run format
 .PHONY: frontend-format
 
+frontend-test: ## run the frontend unit and component tests
+	cd $(PATH_FRONT) && npm test
+.PHONY: frontend-test
+
 run-frontend-development: ## run the frontend in development mode
 	@$(COMPOSE) stop frontend
 	cd $(PATH_FRONT) && npm run dev
 .PHONY: run-frontend-development
+
+test-e2e: ## run browser E2E tests against an already running development stack
+	cd $(PATH_FRONT) && npm run test:e2e
+.PHONY: test-e2e
 
 # -- Backend
 

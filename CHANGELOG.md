@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(frontend) add real-stack Playwright coverage for the task workflow
 - ✨(fullstack) allow participants to mute others based on room configuration
 - ✨(frontend) add synchronizer for room metadata updates
 - ✨(frontend) make reaction toolbar responsive on small viewports
@@ -17,6 +18,7 @@ and this project adheres to
 
 ### Changed 
 
+- 📝(docs) align task module documentation with the current implementation
 - ♻️(fullstack) simplify source serialization
 - ✨(backend) expose room configuration to all API consumers
 - 🩹(frontend) improve reaction toolbar centering with dynamic positioning

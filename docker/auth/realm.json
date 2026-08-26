@@ -60,7 +60,7 @@
     },
     {
       "username": "user-e2e-chromium",
-      "email": "user@chromium.e2e",
+      "email": "user-e2e-chromium@example.com",
       "firstName": "E2E",
       "lastName": "Chromium",
       "enabled": "true",

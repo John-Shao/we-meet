@@ -1,0 +1,40 @@
+import path from 'node:path'
+import { defineConfig, devices } from '@playwright/test'
+
+const isCI = Boolean(process.env.CI)
+const authState = path.join(process.cwd(), 'playwright/.auth/user.json')
+
+export default defineConfig({
+  testDir: './e2e',
+  outputDir: 'test-results',
+  fullyParallel: false,
+  forbidOnly: isCI,
+  retries: isCI ? 1 : 0,
+  workers: 1,
+  reporter: isCI
+    ? [['line'], ['html', { open: 'never' }]]
+    : [['list'], ['html', { open: 'never' }]],
+  use: {
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
+    locale: 'zh-CN',
+    timezoneId: 'Asia/Shanghai',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+  projects: [
+    {
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/,
+    },
+    {
+      name: 'chromium',
+      dependencies: ['setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: authState,
+        viewport: { width: 1600, height: 900 },
+      },
+    },
+  ],
+})

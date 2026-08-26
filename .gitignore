@@ -72,6 +72,9 @@ src/backend/core/templates/mail/
 .pytest_cache
 db.sqlite3
 .mypy_cache
+src/frontend/playwright/.auth/
+src/frontend/playwright-report/
+src/frontend/test-results/
 
 # Site media
 /data/
