@@ -212,6 +212,28 @@ describe('TaskList', () => {
     expect(onOpen).toHaveBeenCalledWith(task)
   })
 
+  it('shares a task from its row context menu without opening details', () => {
+    const onOpen = vi.fn()
+    const onShare = vi.fn()
+    render(
+      <TaskList
+        tasks={[task]}
+        onOpen={onOpen}
+        onShare={onShare}
+        registerRow={vi.fn()}
+      />
+    )
+
+    fireEvent.contextMenu(
+      within(screen.getByRole('table')).getByLabelText('workspace.openTask'),
+      { clientX: 120, clientY: 80 }
+    )
+    fireEvent.click(screen.getByRole('menuitem', { name: 'share.action' }))
+
+    expect(onShare).toHaveBeenCalledWith(task)
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
   it('cycles sortable headers independently from the resize handle', () => {
     const onOrderingChange = vi.fn()
     const { rerender } = render(

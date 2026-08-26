@@ -26,14 +26,16 @@ import { TaskUserAvatar, TaskUserDisplay } from './TaskUserDisplay'
 
 export const TaskCommentsSection = ({
   taskId,
+  sharedVia,
   readOnly = false,
 }: {
   taskId: string
+  sharedVia?: string
   readOnly?: boolean
 }) => {
   const { t, i18n } = useTranslation('tasks')
   const [content, setContent] = useState('')
-  const { data, isLoading, error } = useTaskComments(taskId)
+  const { data, isLoading, error } = useTaskComments(taskId, sharedVia)
   const createMutation = useCreateTaskComment()
 
   const submit = async (event: FormEvent) => {
@@ -109,16 +111,18 @@ export const TaskCommentsSection = ({
 
 export const TaskAttachmentsSection = ({
   taskId,
+  sharedVia,
   readOnly = false,
 }: {
   taskId: string
+  sharedVia?: string
   readOnly?: boolean
 }) => {
   const { t, i18n } = useTranslation('tasks')
   const { confirm } = useConfirm()
   const inputRef = useRef<HTMLInputElement>(null)
   const [progress, setProgress] = useState(0)
-  const { data, isLoading, error } = useTaskAttachments(taskId)
+  const { data, isLoading, error } = useTaskAttachments(taskId, sharedVia)
   const createMutation = useCreateTaskAttachment()
   const deleteMutation = useDeleteTaskAttachment()
 
@@ -239,9 +243,15 @@ export const TaskAttachmentsSection = ({
   )
 }
 
-export const TaskHistorySection = ({ taskId }: { taskId: string }) => {
+export const TaskHistorySection = ({
+  taskId,
+  sharedVia,
+}: {
+  taskId: string
+  sharedVia?: string
+}) => {
   const { t, i18n } = useTranslation('tasks')
-  const { data, isLoading, error } = useTaskActivities(taskId)
+  const { data, isLoading, error } = useTaskActivities(taskId, sharedVia)
   return (
     <section aria-label={t('history.title')} className={sectionCss}>
       <AsyncState

@@ -502,6 +502,9 @@
       "save": "保存"
     }
   },
+  "tasks": {
+    "open": "任务"
+  },
   "emoji": {
     "recent": "最近",
     "system": "系统表情",

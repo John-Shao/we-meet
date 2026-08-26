@@ -52,7 +52,10 @@ export interface CardButton {
 
 export type CardBlock =
   | { type: 'text'; spans: CardSpan[] }
-  | { type: 'fields'; items: Array<{ label: string; value: string }> }
+  | {
+      type: 'fields'
+      items: Array<{ label: string; value: string; avatar_url?: string }>
+    }
   | { type: 'divider' }
   | { type: 'actions'; resolve: 'once' | 'each'; buttons: CardButton[] }
 
@@ -146,9 +149,20 @@ const normalizeBlock = (raw: unknown): CardBlock | null => {
             return {
               label: typeof f.label === 'string' ? f.label : '',
               value,
+              ...(typeof f.avatar_url === 'string' && f.avatar_url
+                ? { avatar_url: f.avatar_url }
+                : {}),
             }
           })
-          .filter((x): x is { label: string; value: string } => x !== null)
+          .filter(
+            (
+              x
+            ): x is {
+              label: string
+              value: string
+              avatar_url?: string
+            } => x !== null
+          )
       : []
     return items.length ? { type: 'fields', items } : null
   }

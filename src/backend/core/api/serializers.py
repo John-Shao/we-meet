@@ -537,7 +537,14 @@ class TaskAttachmentSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
 
     def get_url(self, obj):
-        return f"/api/v1.0/tasks/{obj.task_id}/attachments/{obj.id}/download/"
+        url = f"/api/v1.0/tasks/{obj.task_id}/attachments/{obj.id}/download/"
+        request = self.context.get("request")
+        shared_via = (
+            request.query_params.get("shared_via") if request is not None else ""
+        )
+        if shared_via:
+            return f"{url}?shared_via={quote(shared_via)}"
+        return url
 
     class Meta:
         model = models.TaskAttachment

@@ -23,6 +23,7 @@ import type {
   ApiTaskActivity,
   ApiTaskAttachment,
   ApiTaskComment,
+  ApiTaskShareResult,
   CreateTaskPayload,
   PatchTaskPayload,
   TaskScope,
@@ -84,15 +85,43 @@ export const useTasks = (
     getNextPageParam: getNextTasksPageParam,
   })
 
-const fetchTask = (taskId: string) =>
-  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/`)
+const sharedViaQuery = (sharedVia?: string) =>
+  sharedVia ? `?shared_via=${encodeURIComponent(sharedVia)}` : ''
 
-export const useTask = (taskId?: string) =>
+const fetchTask = (taskId: string, sharedVia?: string) =>
+  fetchApi<ApiTask>(
+    `tasks/${encodeURIComponent(taskId)}/${sharedViaQuery(sharedVia)}`
+  )
+
+export const useTask = (taskId?: string, sharedVia?: string) =>
   useQuery<ApiTask, ApiError>({
-    queryKey: ['tasks', 'detail', taskId],
-    queryFn: () => fetchTask(taskId!),
+    queryKey: ['tasks', 'detail', taskId, sharedVia],
+    queryFn: () => fetchTask(taskId!, sharedVia),
     enabled: Boolean(taskId),
   })
+
+const fetchConversationTasks = (cid: string) =>
+  fetchApi<ApiTask[]>(`tasks/conversation/?cid=${encodeURIComponent(cid)}`)
+
+export const useConversationTasks = (cid?: string) =>
+  useQuery<ApiTask[], ApiError>({
+    queryKey: ['tasks', 'conversation', cid],
+    queryFn: () => fetchConversationTasks(cid!),
+    enabled: Boolean(cid),
+  })
+
+export const shareTaskToConversations = (
+  taskId: string,
+  conversationIds: string[],
+  sharedVia?: string
+) =>
+  fetchApi<ApiTaskShareResult>(
+    `tasks/${encodeURIComponent(taskId)}/share/${sharedViaQuery(sharedVia)}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ conversation_ids: conversationIds }),
+    }
+  )
 
 const fetchStandaloneTaskCount = () =>
   fetchApi<ApiStandaloneTaskCount>('tasks/standalone-count/')
@@ -479,22 +508,26 @@ export const useTaskStatistics = (
     enabled,
   })
 
-const fetchTaskActivities = (taskId: string) =>
-  fetchApi<ApiTaskActivity[]>(`tasks/${encodeURIComponent(taskId)}/activities/`)
+const fetchTaskActivities = (taskId: string, sharedVia?: string) =>
+  fetchApi<ApiTaskActivity[]>(
+    `tasks/${encodeURIComponent(taskId)}/activities/${sharedViaQuery(sharedVia)}`
+  )
 
-export const useTaskActivities = (taskId: string) =>
+export const useTaskActivities = (taskId: string, sharedVia?: string) =>
   useQuery<ApiTaskActivity[], ApiError>({
-    queryKey: ['tasks', taskId, 'activities'],
-    queryFn: () => fetchTaskActivities(taskId),
+    queryKey: ['tasks', taskId, 'activities', sharedVia],
+    queryFn: () => fetchTaskActivities(taskId, sharedVia),
   })
 
-const fetchTaskComments = (taskId: string) =>
-  fetchApi<ApiTaskComment[]>(`tasks/${encodeURIComponent(taskId)}/comments/`)
+const fetchTaskComments = (taskId: string, sharedVia?: string) =>
+  fetchApi<ApiTaskComment[]>(
+    `tasks/${encodeURIComponent(taskId)}/comments/${sharedViaQuery(sharedVia)}`
+  )
 
-export const useTaskComments = (taskId: string) =>
+export const useTaskComments = (taskId: string, sharedVia?: string) =>
   useQuery<ApiTaskComment[], ApiError>({
-    queryKey: ['tasks', taskId, 'comments'],
-    queryFn: () => fetchTaskComments(taskId),
+    queryKey: ['tasks', taskId, 'comments', sharedVia],
+    queryFn: () => fetchTaskComments(taskId, sharedVia),
   })
 
 const createTaskComment = (taskId: string, content: string) =>
@@ -518,15 +551,15 @@ export const useCreateTaskComment = () => {
   })
 }
 
-const fetchTaskAttachments = (taskId: string) =>
+const fetchTaskAttachments = (taskId: string, sharedVia?: string) =>
   fetchApi<ApiTaskAttachment[]>(
-    `tasks/${encodeURIComponent(taskId)}/attachments/`
+    `tasks/${encodeURIComponent(taskId)}/attachments/${sharedViaQuery(sharedVia)}`
   )
 
-export const useTaskAttachments = (taskId: string) =>
+export const useTaskAttachments = (taskId: string, sharedVia?: string) =>
   useQuery<ApiTaskAttachment[], ApiError>({
-    queryKey: ['tasks', taskId, 'attachments'],
-    queryFn: () => fetchTaskAttachments(taskId),
+    queryKey: ['tasks', taskId, 'attachments', sharedVia],
+    queryFn: () => fetchTaskAttachments(taskId, sharedVia),
   })
 
 const createTaskAttachment = async (
@@ -633,15 +666,30 @@ export const usePatchTask = () => {
   })
 }
 
-const followTask = (taskId: string) =>
-  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/follow/`, {
-    method: 'POST',
-  })
+export type TaskFollowTarget = string | { taskId: string; sharedVia?: string }
 
-const unfollowTask = (taskId: string) =>
-  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/follow/`, {
-    method: 'DELETE',
-  })
+const unpackFollowTarget = (target: TaskFollowTarget) =>
+  typeof target === 'string' ? { taskId: target, sharedVia: undefined } : target
+
+const followTask = (target: TaskFollowTarget) => {
+  const { taskId, sharedVia } = unpackFollowTarget(target)
+  return fetchApi<ApiTask>(
+    `tasks/${encodeURIComponent(taskId)}/follow/${sharedViaQuery(sharedVia)}`,
+    {
+      method: 'POST',
+    }
+  )
+}
+
+const unfollowTask = (target: TaskFollowTarget) => {
+  const { taskId, sharedVia } = unpackFollowTarget(target)
+  return fetchApi<ApiTask>(
+    `tasks/${encodeURIComponent(taskId)}/follow/${sharedViaQuery(sharedVia)}`,
+    {
+      method: 'DELETE',
+    }
+  )
+}
 
 const refreshTaskFollowers = (taskId: string, followerIds: string[]) =>
   fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/followers/`, {
@@ -667,7 +715,7 @@ const invalidateFollowerQueries = (
 
 export const useFollowTask = () => {
   const queryClient = useQueryClient()
-  return useMutation<ApiTask, ApiError, string>({
+  return useMutation<ApiTask, ApiError, TaskFollowTarget>({
     mutationFn: followTask,
     onSuccess: (task) => {
       queryClient.setQueryData(['tasks', 'detail', task.id], task)
@@ -678,7 +726,7 @@ export const useFollowTask = () => {
 
 export const useUnfollowTask = () => {
   const queryClient = useQueryClient()
-  return useMutation<ApiTask, ApiError, string>({
+  return useMutation<ApiTask, ApiError, TaskFollowTarget>({
     mutationFn: unfollowTask,
     onSuccess: (task) => {
       queryClient.setQueryData(['tasks', 'detail', task.id], task)

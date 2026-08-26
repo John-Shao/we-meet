@@ -17,6 +17,7 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { css } from '@/styled-system/css'
 
 import type {
+  ApiTask,
   ApiTaskGroup,
   ApiTaskList,
   ApiTaskListGroup,
@@ -41,6 +42,7 @@ import { TaskFilterToolbar } from '../components/TaskFilterToolbar'
 import { TaskGroupForm } from '../components/TaskGroupForm'
 import { TaskGroupRenameForm } from '../components/TaskGroupRenameForm'
 import { TaskList } from '../components/TaskList'
+import { TaskShareDialog } from '../components/TaskShareDialog'
 import { TaskListGroupForm } from '../components/TaskListGroupForm'
 import { TaskListGroupRenameForm } from '../components/TaskListGroupRenameForm'
 import { TaskListManager } from '../components/TaskListManager'
@@ -87,6 +89,7 @@ const TasksAuthenticated = () => {
   const [taskListSharing, setTaskListSharing] = useState<ApiTaskList | null>(
     null
   )
+  const [taskSharing, setTaskSharing] = useState<ApiTask | null>(null)
   const [taskListRenaming, setTaskListRenaming] = useState<ApiTaskList | null>(
     null
   )
@@ -141,6 +144,7 @@ const TasksAuthenticated = () => {
     (taskList) => taskList.id === state.taskList
   )
   const panelOpen = Boolean(state.task)
+  const sharedVia = searchParams.get('shared_via') || undefined
 
   const deleteGroup = async (group: ApiTaskGroup) => {
     if (!group.can_delete) return
@@ -261,6 +265,7 @@ const TasksAuthenticated = () => {
       taskId={state.task}
       fallbackTask={selectedTask}
       taskLists={taskLists}
+      sharedVia={sharedVia}
       onClose={closePanel}
     />
   ) : null
@@ -449,6 +454,7 @@ const TasksAuthenticated = () => {
                   setCreating(false)
                   navigateState({ ...state, task: task.id })
                 }}
+                onShare={setTaskSharing}
                 registerRow={(taskId, element) => {
                   if (element) rowRefs.current.set(taskId, element)
                   else rowRefs.current.delete(taskId)
@@ -540,6 +546,12 @@ const TasksAuthenticated = () => {
         <TaskListSharingDialog
           taskList={taskListSharing}
           onClose={() => setTaskListSharing(null)}
+        />
+      )}
+      {taskSharing && (
+        <TaskShareDialog
+          task={taskSharing}
+          onClose={() => setTaskSharing(null)}
         />
       )}
       {taskListRenaming && (

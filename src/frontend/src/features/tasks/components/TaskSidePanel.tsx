@@ -20,6 +20,7 @@ import {
   RiListCheck3,
   RiMoreLine,
   RiRestartLine,
+  RiShareForwardLine,
   RiUser3Line,
   RiUserAddLine,
   RiUserFollowLine,
@@ -51,6 +52,7 @@ import { nextTaskStatuses } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
 import { TaskForm } from './TaskForm'
+import { TaskShareDialog } from './TaskShareDialog'
 import { TaskUserDisplay } from './TaskUserDisplay'
 import {
   TaskAttachmentsSection,
@@ -106,15 +108,17 @@ export const TaskDetailPanel = ({
   taskId,
   fallbackTask,
   taskLists,
+  sharedVia,
   onClose,
 }: {
   taskId: string
   fallbackTask?: ApiTask
   taskLists: ApiTaskList[]
+  sharedVia?: string
   onClose: () => void
 }) => {
   const { t, i18n } = useTranslation('tasks')
-  const { data, isLoading, error } = useTask(taskId)
+  const { data, isLoading, error } = useTask(taskId, sharedVia)
   const task = data || fallbackTask
   const [editingField, setEditingField] = useState<EditableTaskField | null>(
     null
@@ -126,6 +130,7 @@ export const TaskDetailPanel = ({
   const [draftGroupId, setDraftGroupId] = useState('')
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const patchMutation = usePatchTask()
   const deleteMutation = useDeleteTask()
   const followMutation = useFollowTask()
@@ -144,6 +149,7 @@ export const TaskDetailPanel = ({
     setEditingField(null)
     setAssigneePickerOpen(false)
     setFollowerPickerOpen(false)
+    setShareOpen(false)
   }, [taskId])
 
   if (!task && isLoading) {
@@ -263,13 +269,26 @@ export const TaskDetailPanel = ({
           <Button
             size="icon28"
             variant="quaternaryText"
+            aria-label={t('share.action')}
+            tooltip={t('share.action')}
+            onPress={() => setShareOpen(true)}
+          >
+            <RiShareForwardLine size={18} aria-hidden="true" />
+          </Button>
+          <Button
+            size="icon28"
+            variant="quaternaryText"
             aria-label={followActionLabel}
             tooltip={followActionLabel}
             isDisabled={followMutation.isPending || unfollowMutation.isPending}
             onPress={() =>
               task.is_following
-                ? unfollowMutation.mutate(task.id)
-                : followMutation.mutate(task.id)
+                ? unfollowMutation.mutate(
+                    sharedVia ? { taskId: task.id, sharedVia } : task.id
+                  )
+                : followMutation.mutate(
+                    sharedVia ? { taskId: task.id, sharedVia } : task.id
+                  )
             }
           >
             {task.is_following ? (
@@ -690,6 +709,7 @@ export const TaskDetailPanel = ({
           <DetailSection title={t('comments.title')}>
             <TaskCommentsSection
               taskId={task.id}
+              sharedVia={sharedVia}
               readOnly={!task.can_comment}
             />
           </DetailSection>
@@ -698,6 +718,7 @@ export const TaskDetailPanel = ({
             <div className={disclosureBodyCss}>
               <TaskAttachmentsSection
                 taskId={task.id}
+                sharedVia={sharedVia}
                 readOnly={!task.can_manage_attachments}
               />
             </div>
@@ -705,11 +726,18 @@ export const TaskDetailPanel = ({
           <details className={disclosureCss}>
             <summary>{t('history.title')}</summary>
             <div className={disclosureBodyCss}>
-              <TaskHistorySection taskId={task.id} />
+              <TaskHistorySection taskId={task.id} sharedVia={sharedVia} />
             </div>
           </details>
         </div>
       </div>
+      {shareOpen && (
+        <TaskShareDialog
+          task={task}
+          sharedVia={sharedVia}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
     </PanelShell>
   )
 }

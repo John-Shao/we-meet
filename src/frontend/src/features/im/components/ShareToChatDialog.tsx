@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { useConfirm } from '@/components/ConfirmProvider'
 
@@ -11,6 +11,8 @@ import { GroupPicker } from './GroupPicker'
 interface Props {
   /** 卡片正文(JSON 字符串),由各业务方自己 build 好后传进来。 */
   body: string
+  /** Build a conversation-specific body (used when card URLs carry the cid). */
+  buildBody?: (cid: string) => string
   /** IM 富消息类型:event-card / meeting-card / doc-card …… */
   contentType: string
   /** 顶部那行「在分享什么」的一句话预览。 */
@@ -20,6 +22,10 @@ interface Props {
   /** 发送成功后的附加动作(如云文档的「分享即精准授权」);失败不触发。
    * 新建群转发时收到的是刚建出来的那个 cid。 */
   onSent?: (cids: string[]) => void
+  beforeSend?: (cids: string[]) => Promise<unknown>
+  title?: string
+  primaryTabLabel?: string
+  secondaryTab?: { label: string; content: ReactNode }
   onClose: () => void
 }
 
@@ -33,10 +39,15 @@ interface Props {
  */
 export const ShareToChatDialog = ({
   body,
+  buildBody,
   contentType,
   previewText,
   errorMessage,
   onSent,
+  beforeSend,
+  title,
+  primaryTabLabel,
+  secondaryTab,
   onClose,
 }: Props) => {
   const { alert } = useConfirm()
@@ -45,7 +56,9 @@ export const ShareToChatDialog = ({
 
   const send = async (cids: string[]) => {
     try {
-      for (const cid of cids) await client.sendText(cid, body, { contentType })
+      await beforeSend?.(cids)
+      for (const cid of cids)
+        await client.sendText(cid, buildBody?.(cid) ?? body, { contentType })
       onSent?.(cids)
       onClose()
     } catch {
@@ -75,6 +88,9 @@ export const ShareToChatDialog = ({
       conversations={conversations}
       isLoading={isLoading}
       previewText={previewText}
+      title={title}
+      primaryTabLabel={primaryTabLabel}
+      secondaryTab={secondaryTab}
       onConfirm={(cids) => void send(cids)}
       onCreateGroupForward={() => setCreatingGroup(true)}
       onClose={onClose}

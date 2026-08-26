@@ -285,6 +285,22 @@
     "deleteTitle": "Delete task",
     "deleteDescription": "Delete “{{title}}”? This action cannot be undone."
   },
+  "share": {
+    "action": "Share task",
+    "title": "Share task “{{title}}”",
+    "toConversation": "Share to chat",
+    "taskLink": "Task link",
+    "linkHint": "Anyone opening this link must sign in and already have read access.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "failed": "The task could not be shared. Please try again.",
+    "cardTitle": "Shared task",
+    "viewDetails": "View details",
+    "conversationTitle": "Chat tasks",
+    "conversationEmpty": "No tasks have been shared to this conversation yet.",
+    "viewMore": "View more",
+    "loading": "Loading chat tasks…"
+  },
   "comments": {
     "title": "Comments",
     "show": "Comments",

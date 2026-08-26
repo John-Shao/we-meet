@@ -502,6 +502,9 @@
       "save": "Save"
     }
   },
+  "tasks": {
+    "open": "Tasks"
+  },
   "emoji": {
     "recent": "Recent",
     "system": "System emojis",

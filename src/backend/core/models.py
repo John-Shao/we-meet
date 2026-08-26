@@ -2492,6 +2492,49 @@ class Task(BaseModel):
         return self.title[:80]
 
 
+class TaskConversationShare(BaseModel):
+    """Read-only task visibility anchored to an IM conversation.
+
+    This is intentionally separate from assignees, followers, and task-list
+    access: sharing a card makes the task visible in that conversation without
+    silently changing anybody's collaboration role.
+    """
+
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="conversation_shares",
+        verbose_name=_("task"),
+    )
+    cid = models.CharField(_("conversation id"), max_length=64, db_index=True)
+    shared_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="shared_task_cards",
+        null=True,
+        blank=True,
+        verbose_name=_("shared by"),
+    )
+
+    class Meta:
+        db_table = "meet_task_conversation_share"
+        ordering = ("-created_at",)
+        verbose_name = _("task conversation share")
+        verbose_name_plural = _("task conversation shares")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["task", "cid"],
+                name="one_task_share_per_conversation",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["cid", "-created_at"], name="task_share_cid_created_idx")
+        ]
+
+    def __str__(self) -> str:
+        return f"TaskConversationShare({self.task_id}, {self.cid})"
+
+
 class TaskActivity(BaseModel):
     """Append-only audit trail for user-visible task operations."""
 

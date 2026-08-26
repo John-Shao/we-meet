@@ -1,5 +1,6 @@
 """Minimal standalone task API."""
 
+from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import (
@@ -38,6 +39,12 @@ from core.api.serializers import (
     TaskSerializer,
 )
 from core.api.viewsets import Pagination
+from core.services.im_provisioning import external_id_for
+from core.services.jusi_im import (
+    JusiImAdminClient,
+    JusiImBadResponseError,
+    JusiImUnreachableError,
+)
 from core.services.task_action_item_sync import sync_action_item_from_task_status
 from core.services.task_history import (
     record_task_changes,
@@ -80,6 +87,43 @@ ASSIGNABLE_TASK_PRIORITY_CHOICES = [
     for choice in models.Task.Priority.choices
     if choice[0] != models.Task.Priority.NONE
 ]
+
+SHARED_TASK_ACTIONS = {
+    "retrieve",
+    "activities",
+    "follow",
+    "comments",
+    "attachments",
+    "attachment_download",
+    "share",
+}
+
+
+def _require_conversation_membership(user, cid):
+    """Prove current IM membership without trusting a client-supplied cid."""
+
+    cid = (cid or "").strip()
+    if not cid or len(cid) > 64:
+        raise serializers.ValidationError({"cid": "Choose a valid conversation."})
+    configuration = getattr(settings, "JUSI_IM_CONFIGURATION", None)
+    if not configuration:
+        raise PermissionDenied("Conversation membership could not be verified.")
+    client = JusiImAdminClient(
+        api_url=str(configuration["api_url"]),
+        admin_hmac_secret=str(configuration["admin_hmac_secret"]),
+        timeout_seconds=float(configuration.get("request_timeout_seconds") or 5),
+    )
+    try:
+        resolved = client.issue_token(
+            external_id=external_id_for(user),
+            ttl_seconds=60,
+        )
+        client.get_members(cid, resolved.token)
+    except JusiImUnreachableError as exc:
+        raise PermissionDenied("Conversation membership could not be verified.") from exc
+    except JusiImBadResponseError as exc:
+        raise PermissionDenied("You are not a member of this conversation.") from exc
+    return cid
 
 
 def _task_list_role(task_list, user):
@@ -539,6 +583,19 @@ class TaskFollowerSerializer(
     )
 
 
+class TaskShareSerializer(serializers.Serializer):
+    """One or more conversations receiving the same task card."""
+
+    conversation_ids = serializers.ListField(
+        child=serializers.CharField(max_length=64, trim_whitespace=True),
+        allow_empty=False,
+        max_length=20,
+    )
+
+    def validate_conversation_ids(self, value):
+        return list(dict.fromkeys(value))
+
+
 class TaskListGroupViewSet(
     mixins.CreateModelMixin,
     mixins.ListModelMixin,
@@ -954,12 +1011,18 @@ class TaskViewSet(
 
     def get_queryset(self):
         user = self.request.user
+        shared_via = ""
+        if self.action in SHARED_TASK_ACTIONS:
+            shared_via = (self.request.query_params.get("shared_via") or "").strip()
+            if shared_via:
+                _require_conversation_membership(user, shared_via)
         queryset = (
             models.Task.objects.filter(
                 Q(creator=user)
                 | Q(assignee=user)
                 | Q(followers=user)
                 | Q(task_list__accesses__user=user)
+                | Q(conversation_shares__cid=shared_via)
             )
             .distinct()
             .annotate(
@@ -993,6 +1056,57 @@ class TaskViewSet(
             else ""
         )
         return _order_tasks(queryset, ordering)
+
+    @action(detail=True, methods=["post"])
+    def share(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """Record card delivery targets without changing task roles."""
+
+        task = self.get_object()
+        serializer = TaskShareSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        cids = [
+            _require_conversation_membership(request.user, cid)
+            for cid in serializer.validated_data["conversation_ids"]
+        ]
+        models.TaskConversationShare.objects.bulk_create(
+            [
+                models.TaskConversationShare(
+                    task=task,
+                    cid=cid,
+                    shared_by=request.user,
+                )
+                for cid in cids
+            ],
+            ignore_conflicts=True,
+        )
+        return Response({"conversation_ids": cids})
+
+    @action(detail=False, methods=["get"], url_path="conversation")
+    def conversation(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """List every task card associated with one current conversation."""
+
+        cid = _require_conversation_membership(
+            request.user,
+            request.query_params.get("cid"),
+        )
+        queryset = (
+            models.Task.objects.filter(conversation_shares__cid=cid)
+            .distinct()
+            .annotate(
+                _can_edit_task_list=Exists(
+                    models.TaskListAccess.objects.filter(
+                        task_list_id=OuterRef("task_list_id"),
+                        user=request.user,
+                        role__in=TASK_LIST_EDIT_ROLES,
+                    )
+                )
+            )
+            .select_related("creator", "assignee", "task_list", "group")
+            .prefetch_related("followers")
+            .order_by("status", "due_date", "-conversation_shares__created_at")
+        )
+        queryset = annotate_assignee_local_date(queryset)
+        return Response(TaskSerializer(queryset, many=True, context={"request": request}).data)
 
     def create(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         serializer = TaskCreateSerializer(
@@ -1292,7 +1406,13 @@ class TaskViewSet(
                 .select_related("file", "uploader")
                 .order_by("created_at")
             )
-            return Response(TaskAttachmentSerializer(attachments, many=True).data)
+            return Response(
+                TaskAttachmentSerializer(
+                    attachments,
+                    many=True,
+                    context={"request": request},
+                ).data
+            )
 
         if not _can_manage_task_content(task, request.user):
             raise PermissionDenied("Only task collaborators can add attachments.")
@@ -1307,7 +1427,10 @@ class TaskViewSet(
             file=serializer.validated_data["file"],
             uploader=request.user,
         )
-        return Response(TaskAttachmentSerializer(attachment).data, status=201)
+        return Response(
+            TaskAttachmentSerializer(attachment, context={"request": request}).data,
+            status=201,
+        )
 
     @action(
         detail=True,

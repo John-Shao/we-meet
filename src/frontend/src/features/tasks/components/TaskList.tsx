@@ -6,6 +6,7 @@ import {
   useState,
   type DragEvent,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import type { TFunction } from 'i18next'
@@ -114,6 +115,7 @@ type ListProps = {
   onOrderingChange?: (ordering: TaskOrdering) => void
   selectedTaskId?: string
   onOpen: (task: ApiTask) => void
+  onShare?: (task: ApiTask) => void
   registerRow: (taskId: string, element: HTMLElement | null) => void
   onCreateTaskInGroup?: (groupId?: string) => void
   canManageGroups?: boolean
@@ -130,6 +132,10 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
   statusOverride?: TaskStatus
   statusPending: boolean
   onToggleStatus: (task: ApiTask) => void
+  onTaskContextMenu: (
+    event: ReactMouseEvent<HTMLElement>,
+    task: ApiTask
+  ) => void
 }
 
 type StatusOverride = {
@@ -146,6 +152,7 @@ export const TaskList = ({
   onOrderingChange,
   selectedTaskId,
   onOpen,
+  onShare,
   registerRow,
   onCreateTaskInGroup,
   canManageGroups = false,
@@ -158,6 +165,11 @@ export const TaskList = ({
     Record<string, StatusOverride>
   >({})
   const [statusError, setStatusError] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{
+    task: ApiTask
+    x: number
+    y: number
+  } | null>(null)
   const [columnWidths, setColumnWidths] =
     useState<TaskColumnWidths>(readColumnWidths)
   const columnWidthsRef = useRef(columnWidths)
@@ -169,6 +181,17 @@ export const TaskList = ({
     () => buildSections(tasks, groups, grouped),
     [grouped, groups, tasks]
   )
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    window.addEventListener('click', close)
+    window.addEventListener('blur', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('blur', close)
+    }
+  }, [contextMenu])
   const visibleColumns = grouped
     ? TASK_COLUMNS.filter((column) => column.id !== 'taskList')
     : TASK_COLUMNS
@@ -322,6 +345,16 @@ export const TaskList = ({
     persistColumnWidths(columnWidthsRef.current)
   }
 
+  const showTaskContextMenu = (
+    event: ReactMouseEvent<HTMLElement>,
+    task: ApiTask
+  ) => {
+    if (!onShare) return
+    event.preventDefault()
+    event.stopPropagation()
+    setContextMenu({ task, x: event.clientX, y: event.clientY })
+  }
+
   const groupProps = {
     grouped,
     selectedTaskId,
@@ -331,6 +364,7 @@ export const TaskList = ({
     formatDate,
     formatDateTime,
     onToggleStatus: (task: ApiTask) => void toggleTaskStatus(task),
+    onTaskContextMenu: showTaskContextMenu,
   }
 
   return (
@@ -499,6 +533,26 @@ export const TaskList = ({
           )
         })}
       </ul>
+      {contextMenu && onShare && (
+        <div
+          role="menu"
+          tabIndex={-1}
+          aria-label={t('actions.more')}
+          className={taskContextMenuCss}
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              onShare(contextMenu.task)
+              setContextMenu(null)
+            }}
+          >
+            {t('share.action')}
+          </button>
+        </div>
+      )}
     </>
   )
 }
@@ -511,6 +565,7 @@ const DesktopTaskRow = ({
   isLastInGroup,
   selectedTaskId,
   onOpen,
+  onTaskContextMenu,
   registerRow,
   t,
   formatDate,
@@ -530,6 +585,7 @@ const DesktopTaskRow = ({
     draggable={task.can_edit}
     onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
+    onContextMenu={(event) => onTaskContextMenu(event, task)}
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
     <td
@@ -584,6 +640,7 @@ const MobileTaskCard = ({
   task,
   selectedTaskId,
   onOpen,
+  onTaskContextMenu,
   registerRow,
   t,
   formatDate,
@@ -601,6 +658,7 @@ const MobileTaskCard = ({
     draggable={task.can_edit}
     onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
+    onContextMenu={(event) => onTaskContextMenu(event, task)}
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
     <div className={mobileTitleRowCss}>
@@ -1132,6 +1190,27 @@ const rowCss = css({
   _hover: { backgroundColor: 'greyscale.50' },
   _focusVisible: { boxShadow: 'inset 0 0 0 2px token(colors.primary.500)' },
   '&[data-selected]': { backgroundColor: 'selected.bg' },
+})
+const taskContextMenuCss = css({
+  position: 'fixed',
+  zIndex: 'popover',
+  minWidth: '9rem',
+  padding: '0.25rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '0.5rem',
+  backgroundColor: 'greyscale.000',
+  boxShadow: 'lg',
+  '& button': {
+    width: '100%',
+    padding: '0.5rem 0.75rem',
+    border: 0,
+    borderRadius: '0.375rem',
+    backgroundColor: 'transparent',
+    color: 'greyscale.900',
+    textAlign: 'left',
+    cursor: 'pointer',
+    _hover: { backgroundColor: 'greyscale.100' },
+  },
 })
 const groupHeaderRowCss = css({
   '& td': {

@@ -248,6 +248,7 @@ describe('TaskDetailPanel', () => {
         )
     ).toEqual([
       'actions.to_completed',
+      'share.action',
       'followers.follow',
       'actions.more',
       'workspace.closePanel',

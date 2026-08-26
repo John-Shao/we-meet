@@ -42,6 +42,7 @@ import { listLater } from '../api/listLater'
 import type { MergedBody } from '../components/MergedRecordDialog'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
+import { ConversationTaskPanel } from '@/features/tasks/components/ConversationTaskPanel'
 
 /**
  * `/im` route — split view: conversation list (left) + chat pane (right).
@@ -128,7 +129,9 @@ const ImAuthenticated = () => {
   // Right-side panel below the chat header: 群聊信息(group)/ 会话设置(direct)
   // / 收起。A single toggle — 群成员与群属性已合并为一个 GroupInfoPanel(对齐 App)。
   // P8: 'calendar' = 会话日程抽屉，与 info 互斥。
-  const [rightPanel, setRightPanel] = useState<'info' | 'calendar' | null>(null)
+  const [rightPanel, setRightPanel] = useState<
+    'info' | 'calendar' | 'tasks' | null
+  >(null)
   // P8「在消息列表提醒日程」:置顶入口点开的日程提醒页(占中栏,与会话互斥)。
   const [reminderOpen, setReminderOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
@@ -873,7 +876,20 @@ const ImAuthenticated = () => {
               onMemberClick={(userId) => navigate(`/contacts?member=${userId}`)}
               infoPanel={
                 // P8-UX:右侧面板统一支持左缘拖拽调宽,宽度按面板类型分别记忆。
-                rightPanel === 'calendar' ? (
+                rightPanel === 'tasks' ? (
+                  <ResizablePanel
+                    side="right"
+                    storageKey="im-right-tasks-w"
+                    defaultWidth={380}
+                    min={320}
+                    max={640}
+                  >
+                    <ConversationTaskPanel
+                      cid={selectedConv.cid}
+                      onClose={() => setRightPanel(null)}
+                    />
+                  </ResizablePanel>
+                ) : rightPanel === 'calendar' ? (
                   <ResizablePanel
                     side="right"
                     storageKey="im-right-calendar-w"
@@ -907,6 +923,7 @@ const ImAuthenticated = () => {
                           setSelectedCID(null)
                         }}
                         onOpenCalendar={() => setRightPanel('calendar')}
+                        onOpenTasks={() => setRightPanel('tasks')}
                         onClose={() => setRightPanel(null)}
                       />
                     ) : (
@@ -917,6 +934,7 @@ const ImAuthenticated = () => {
                         peerAvatarUrl={avatarOf(selectedConv)}
                         onCreateGroup={() => void handleCreateGroupFromDirect()}
                         onOpenCalendar={() => setRightPanel('calendar')}
+                        onOpenTasks={() => setRightPanel('tasks')}
                         onClose={() => setRightPanel(null)}
                       />
                     )}

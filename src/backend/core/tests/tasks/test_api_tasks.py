@@ -25,6 +25,7 @@ from core.models import (
     TaskActivity,
     TaskAttachment,
     TaskComment,
+    TaskConversationShare,
     TaskImDelivery,
     TaskList,
 )
@@ -44,6 +45,77 @@ def test_task_labels_api_is_removed():
     response = _client(UserFactory()).get("/api/v1.0/task-labels/")
 
     assert response.status_code == 404
+
+
+@mock.patch(
+    "core.api.tasks._require_conversation_membership",
+    side_effect=lambda _user, cid: cid,
+)
+def test_task_card_share_grants_conversation_read_without_changing_role(
+    require_membership,
+):
+    creator = UserFactory()
+    viewer = UserFactory()
+    task = Task.objects.create(
+        title="Discuss the launch plan",
+        creator=creator,
+        assignee=creator,
+    )
+    cid = "b9d15e66-71f0-4fad-aac9-86aa4fc55bd1"
+
+    shared = _client(creator).post(
+        f"{TASKS_URL}{task.id}/share/",
+        {"conversation_ids": [cid]},
+        format="json",
+    )
+
+    assert shared.status_code == 200
+    assert shared.json() == {"conversation_ids": [cid]}
+    assert TaskConversationShare.objects.filter(
+        task=task,
+        cid=cid,
+        shared_by=creator,
+    ).exists()
+    assert _client(viewer).get(f"{TASKS_URL}{task.id}/").status_code == 404
+
+    detail = _client(viewer).get(f"{TASKS_URL}{task.id}/?shared_via={cid}")
+    assert detail.status_code == 200
+    assert detail.json()["can_edit"] is False
+    assert detail.json()["can_comment"] is False
+    assert detail.json()["is_following"] is False
+
+    denied_edit = _client(viewer).patch(
+        f"{TASKS_URL}{task.id}/?shared_via={cid}",
+        {"title": "Should not change"},
+        format="json",
+    )
+    assert denied_edit.status_code == 404
+
+    followed = _client(viewer).post(f"{TASKS_URL}{task.id}/follow/?shared_via={cid}")
+    assert followed.status_code == 200
+    assert followed.json()["is_following"] is True
+    assert task.followers.filter(id=viewer.id).exists()
+    assert require_membership.call_count >= 3
+
+
+@mock.patch(
+    "core.api.tasks._require_conversation_membership",
+    side_effect=lambda _user, cid: cid,
+)
+def test_conversation_task_sidebar_lists_only_cards_shared_there(_membership):
+    creator = UserFactory()
+    first = Task.objects.create(title="First", creator=creator, assignee=creator)
+    second = Task.objects.create(title="Second", creator=creator, assignee=creator)
+    TaskConversationShare.objects.create(task=first, cid="conversation-a")
+    TaskConversationShare.objects.create(task=second, cid="conversation-b")
+
+    response = _client(UserFactory()).get(
+        f"{TASKS_URL}conversation/?cid=conversation-a"
+    )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [str(first.id)]
+    assert response.json()[0]["can_edit"] is False
 
 
 def test_user_creates_personal_task_assigned_to_self():

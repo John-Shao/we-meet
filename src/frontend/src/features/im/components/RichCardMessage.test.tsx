@@ -70,4 +70,31 @@ describe('RichCardMessage task follow action', () => {
     fireEvent.click(button)
     expect(unfollowMutate).toHaveBeenCalledWith(taskId)
   })
+
+  it('keeps the source conversation on a shared-card follow request', () => {
+    const cid = '8d42ebf0-0059-47a7-89d0-1bb04d53768d'
+    const sharedRaw = JSON.stringify({
+      v: 1,
+      blocks: [
+        {
+          type: 'actions',
+          resolve: 'each',
+          buttons: [
+            {
+              id: `follow-task:${taskId}:${cid}`,
+              text: '关注',
+              style: 'default',
+              action: 'url',
+              url: `https://meet.example.test/tasks?task=${taskId}&shared_via=${cid}`,
+            },
+          ],
+        },
+      ],
+    })
+
+    render(<RichCardMessage raw={sharedRaw} />)
+    fireEvent.click(screen.getByRole('button', { name: '关注' }))
+
+    expect(followMutate).toHaveBeenCalledWith({ taskId, sharedVia: cid })
+  })
 })

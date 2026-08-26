@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
@@ -37,6 +37,10 @@ interface Props {
   /** Open the create-group flow, then forward into the new group (飞书式)。
    * Omitted (e.g. picker invoked outside the IM route) → row hidden. */
   onCreateGroupForward?: () => void
+  /** Optional business-specific second tab (for example a copy-link view). */
+  secondaryTab?: { label: string; content: ReactNode }
+  primaryTabLabel?: string
+  title?: string
   onClose: () => void
 }
 
@@ -55,6 +59,9 @@ export const ForwardDialog = ({
   previewText,
   onConfirm,
   onCreateGroupForward,
+  secondaryTab,
+  primaryTabLabel,
+  title,
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
@@ -69,6 +76,7 @@ export const ForwardDialog = ({
   )
   const [resolving, setResolving] = useState(false)
   const [resolveFailed, setResolveFailed] = useState(false)
+  const [activeTab, setActiveTab] = useState<'primary' | 'secondary'>('primary')
   const searchRef = useRef<HTMLInputElement>(null)
   const toggle = (cid: string) =>
     setSelected((prev) => {
@@ -129,12 +137,12 @@ export const ForwardDialog = ({
   return (
     <Modal
       onClose={onClose}
-      ariaLabel={t('forward.title')}
+      ariaLabel={title || t('forward.title')}
       initialFocusRef={searchRef}
       maxWidth="420px"
     >
       <div className={headerCls}>
-        <h2 className={titleCls}>{t('forward.title')}</h2>
+        <h2 className={titleCls}>{title || t('forward.title')}</h2>
         <button
           type="button"
           onClick={onClose}
@@ -145,123 +153,164 @@ export const ForwardDialog = ({
         </button>
       </div>
 
-      <div className={previewCls} title={previewText}>
-        {previewText}
-      </div>
-
-      <div className={css({ padding: '0.5rem 1rem' })}>
-        <input
-          ref={searchRef}
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('forward.searchPlaceholder')}
-          data-testid="forward-search"
-          className={inputCls}
-        />
-      </div>
-
-      {onCreateGroupForward && (
-        <button
-          type="button"
-          onClick={onCreateGroupForward}
-          data-testid="forward-create-group"
-          className={createGroupCls}
-        >
-          <span className={nameCls}>{t('forward.createGroup')}</span>
-          <span aria-hidden="true" className={chevronCls}>
-            ›
-          </span>
-        </button>
+      {secondaryTab && (
+        <div className={tabsCls} role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'primary'}
+            data-active={activeTab === 'primary' || undefined}
+            onClick={() => setActiveTab('primary')}
+          >
+            {primaryTabLabel || t('forward.title')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'secondary'}
+            data-active={activeTab === 'secondary' || undefined}
+            onClick={() => setActiveTab('secondary')}
+          >
+            {secondaryTab.label}
+          </button>
+        </div>
       )}
 
-      <div className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem' })}>
-        {filtered.length === 0 && directoryHits.length === 0 ? (
-          <StateHint loading={isLoading}>
-            {isLoading ? t('forward.loading') : t('forward.empty')}
-          </StateHint>
-        ) : (
-          <>
-            {/* 分组标题只在两组都可能出现时才有意义(即正在搜索);不搜索时列表
+      {activeTab === 'secondary' && secondaryTab ? (
+        <div className={secondaryContentCls}>{secondaryTab.content}</div>
+      ) : (
+        <>
+          <div className={previewCls} title={previewText}>
+            {previewText}
+          </div>
+
+          <div className={css({ padding: '0.5rem 1rem' })}>
+            <input
+              ref={searchRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('forward.searchPlaceholder')}
+              data-testid="forward-search"
+              className={inputCls}
+            />
+          </div>
+
+          {onCreateGroupForward && (
+            <button
+              type="button"
+              onClick={onCreateGroupForward}
+              data-testid="forward-create-group"
+              className={createGroupCls}
+            >
+              <span className={nameCls}>{t('forward.createGroup')}</span>
+              <span aria-hidden="true" className={chevronCls}>
+                ›
+              </span>
+            </button>
+          )}
+
+          <div
+            className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem' })}
+          >
+            {filtered.length === 0 && directoryHits.length === 0 ? (
+              <StateHint loading={isLoading}>
+                {isLoading ? t('forward.loading') : t('forward.empty')}
+              </StateHint>
+            ) : (
+              <>
+                {/* 分组标题只在两组都可能出现时才有意义(即正在搜索);不搜索时列表
                 就是「最近会话」,加个标题反而多余。 */}
-            {directoryHits.length > 0 && filtered.length > 0 && (
-              <p className={sectionCls}>{t('forward.sectionConversations')}</p>
-            )}
-            {filtered.map((c) => {
-              const active = selected.has(c.cid)
-              return (
-                <button
-                  key={c.cid}
-                  type="button"
-                  onClick={() => toggle(c.cid)}
-                  aria-pressed={active}
-                  data-testid={`forward-item-${c.cid}`}
-                  className={rowCls(active)}
-                >
-                  <span className={checkboxCls(active)} aria-hidden="true">
-                    {active ? '✓' : ''}
-                  </span>
-                  {c.isGroup ? (
-                    <GroupAvatar members={c.members ?? []} size="2rem" />
-                  ) : (
-                    <MemberAvatar name={c.name} src={c.avatarUrl} size="2rem" />
-                  )}
-                  <span className={nameCls}>{c.name}</span>
-                </button>
-              )
-            })}
+                {directoryHits.length > 0 && filtered.length > 0 && (
+                  <p className={sectionCls}>
+                    {t('forward.sectionConversations')}
+                  </p>
+                )}
+                {filtered.map((c) => {
+                  const active = selected.has(c.cid)
+                  return (
+                    <button
+                      key={c.cid}
+                      type="button"
+                      onClick={() => toggle(c.cid)}
+                      aria-pressed={active}
+                      data-testid={`forward-item-${c.cid}`}
+                      className={rowCls(active)}
+                    >
+                      <span className={checkboxCls(active)} aria-hidden="true">
+                        {active ? '✓' : ''}
+                      </span>
+                      {c.isGroup ? (
+                        <GroupAvatar members={c.members ?? []} size="2rem" />
+                      ) : (
+                        <MemberAvatar
+                          name={c.name}
+                          src={c.avatarUrl}
+                          size="2rem"
+                        />
+                      )}
+                      <span className={nameCls}>{c.name}</span>
+                    </button>
+                  )
+                })}
 
-            {directoryHits.length > 0 && (
-              <p className={sectionCls}>{t('forward.sectionDirectory')}</p>
+                {directoryHits.length > 0 && (
+                  <p className={sectionCls}>{t('forward.sectionDirectory')}</p>
+                )}
+                {directoryHits.map((m) => {
+                  const label = m.full_name || m.short_name || m.email || m.id
+                  const active = selectedUsers.has(m.id)
+                  const sub = [m.title, m.department?.name]
+                    .filter(Boolean)
+                    .join(' · ')
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggleUser(m.id, label)}
+                      aria-pressed={active}
+                      data-testid={`forward-user-${m.id}`}
+                      className={rowCls(active)}
+                    >
+                      <span className={checkboxCls(active)} aria-hidden="true">
+                        {active ? '✓' : ''}
+                      </span>
+                      <MemberAvatar
+                        name={label}
+                        src={m.avatar_url}
+                        size="2rem"
+                      />
+                      <span className={nameColCls}>
+                        <span className={nameCls}>{label}</span>
+                        {sub ? <span className={subCls}>{sub}</span> : null}
+                      </span>
+                    </button>
+                  )
+                })}
+              </>
             )}
-            {directoryHits.map((m) => {
-              const label = m.full_name || m.short_name || m.email || m.id
-              const active = selectedUsers.has(m.id)
-              const sub = [m.title, m.department?.name]
-                .filter(Boolean)
-                .join(' · ')
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => toggleUser(m.id, label)}
-                  aria-pressed={active}
-                  data-testid={`forward-user-${m.id}`}
-                  className={rowCls(active)}
-                >
-                  <span className={checkboxCls(active)} aria-hidden="true">
-                    {active ? '✓' : ''}
-                  </span>
-                  <MemberAvatar name={label} src={m.avatar_url} size="2rem" />
-                  <span className={nameColCls}>
-                    <span className={nameCls}>{label}</span>
-                    {sub ? <span className={subCls}>{sub}</span> : null}
-                  </span>
-                </button>
-              )
-            })}
-          </>
-        )}
-      </div>
+          </div>
 
-      <div className={footerCls}>
-        {resolveFailed && (
-          <span className={errorCls} role="alert">
-            {t('forward.resolveFailed')}
-          </span>
-        )}
-        <button
-          type="button"
-          disabled={totalSelected === 0 || resolving}
-          onClick={() => void confirm()}
-          data-testid="forward-send"
-          className={sendCls(totalSelected > 0 && !resolving)}
-        >
-          {totalSelected > 0
-            ? t('forward.sendCount', { count: totalSelected })
-            : t('forward.send')}
-        </button>
-      </div>
+          <div className={footerCls}>
+            {resolveFailed && (
+              <span className={errorCls} role="alert">
+                {t('forward.resolveFailed')}
+              </span>
+            )}
+            <button
+              type="button"
+              disabled={totalSelected === 0 || resolving}
+              onClick={() => void confirm()}
+              data-testid="forward-send"
+              className={sendCls(totalSelected > 0 && !resolving)}
+            >
+              {totalSelected > 0
+                ? t('forward.sendCount', { count: totalSelected })
+                : t('forward.send')}
+            </button>
+          </div>
+        </>
+      )}
     </Modal>
   )
 }
@@ -280,6 +329,32 @@ const titleCls = css({
   fontSize: '1rem',
   fontWeight: 'bold',
   color: 'greyscale.900',
+})
+
+const tabsCls = css({
+  display: 'flex',
+  gap: '1.25rem',
+  paddingX: '1rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+  '& button': {
+    padding: '0.625rem 0',
+    border: 0,
+    borderBottom: '2px solid transparent',
+    backgroundColor: 'transparent',
+    color: 'greyscale.600',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+  },
+  '& button[data-active]': {
+    borderBottomColor: 'primary.500',
+    color: 'primary.600',
+  },
+})
+
+const secondaryContentCls = css({
+  flex: 1,
+  minHeight: '18rem',
+  padding: '1rem',
 })
 
 const closeCls = css({

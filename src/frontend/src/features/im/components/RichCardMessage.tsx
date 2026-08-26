@@ -5,6 +5,7 @@ import {
   useTask,
   useUnfollowTask,
 } from '@/features/tasks/api/fetchTasks'
+import { MemberAvatar } from '@/features/contacts'
 import { css } from '@/styled-system/css'
 
 import type { CardState } from '../api/cardStates'
@@ -91,8 +92,11 @@ const BUTTON_CLS = {
 
 const TaskFollowCardButton = ({ button }: { button: CardButton }) => {
   const { t } = useTranslation('tasks')
-  const taskId = button.id.slice(TASK_FOLLOW_BUTTON_PREFIX.length)
-  const { data: task, isLoading, error } = useTask(taskId)
+  const target = button.id.slice(TASK_FOLLOW_BUTTON_PREFIX.length)
+  const separator = target.indexOf(':')
+  const taskId = separator === -1 ? target : target.slice(0, separator)
+  const sharedVia = separator === -1 ? undefined : target.slice(separator + 1)
+  const { data: task, isLoading, error } = useTask(taskId, sharedVia)
   const followMutation = useFollowTask()
   const unfollowMutation = useUnfollowTask()
   const pending = followMutation.isPending || unfollowMutation.isPending
@@ -118,8 +122,9 @@ const TaskFollowCardButton = ({ button }: { button: CardButton }) => {
       aria-pressed={task?.is_following || false}
       onClick={() => {
         if (!task) return
-        if (task.is_following) unfollowMutation.mutate(task.id)
-        else followMutation.mutate(task.id)
+        const target = sharedVia ? { taskId: task.id, sharedVia } : task.id
+        if (task.is_following) unfollowMutation.mutate(target)
+        else followMutation.mutate(target)
       }}
       data-testid={`card-button-${button.id}`}
       className={`${buttonBaseCls} ${BUTTON_CLS[button.style]} ${
@@ -173,6 +178,12 @@ const fieldsCls = css({
 const fieldLabelCls = css({
   fontSize: '0.75rem',
   color: 'greyscale.600',
+})
+
+const fieldPersonCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.375rem',
 })
 
 /** 奇数项的最后一项跨列 —— 否则右边空一格,看着像少了内容。 */
@@ -323,7 +334,18 @@ export const RichCardMessage = ({
                     {item.label && (
                       <div className={fieldLabelCls}>{item.label}</div>
                     )}
-                    <div>{item.value}</div>
+                    {item.avatar_url ? (
+                      <div className={fieldPersonCls}>
+                        <MemberAvatar
+                          name={item.value}
+                          src={item.avatar_url}
+                          size="1.25rem"
+                        />
+                        <span>{item.value}</span>
+                      </div>
+                    ) : (
+                      <div>{item.value}</div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
-import { RiCalendarScheduleLine } from '@remixicon/react'
+import { RiCalendarScheduleLine, RiListCheck3 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -32,6 +32,7 @@ interface Props {
   onLeft: () => void
   /** Opens the existing group members' calendar panel. */
   onOpenCalendar: () => void
+  onOpenTasks?: () => void
   onClose: () => void
 }
 
@@ -67,6 +68,7 @@ export const GroupInfoPanel = ({
   onAddMembers,
   onLeft,
   onOpenCalendar,
+  onOpenTasks = () => undefined,
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
@@ -508,44 +510,82 @@ export const GroupInfoPanel = ({
         <div className={css({ marginBottom: '0.75rem' })}>
           <span className={sectionLabel}>{t('manage.apps')}</span>
         </div>
-        <button
-          type="button"
-          onClick={onOpenCalendar}
-          data-testid="group-calendar-entry"
-          aria-label={t('calendar.groupOpen')}
-          className={css({
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '0.375rem',
-            width: '5rem',
-            padding: '0.625rem 0.375rem',
-            border: 'none',
-            borderRadius: '0.625rem',
-            backgroundColor: 'transparent',
-            color: 'greyscale.900',
-            fontSize: '0.8125rem',
-            cursor: 'pointer',
-            _hover: { backgroundColor: 'greyscale.50' },
-          })}
-        >
-          <span
+        <div className={css({ display: 'flex', gap: '0.5rem' })}>
+          <button
+            type="button"
+            onClick={onOpenCalendar}
+            data-testid="group-calendar-entry"
+            aria-label={t('calendar.groupOpen')}
             className={css({
-              display: 'grid',
-              placeItems: 'center',
-              width: '2.75rem',
-              height: '2.75rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.375rem',
+              width: '5rem',
+              padding: '0.625rem 0.375rem',
+              border: 'none',
               borderRadius: '0.625rem',
-              backgroundColor: 'primary.100',
-              color: 'primary.600',
+              backgroundColor: 'transparent',
+              color: 'greyscale.900',
+              fontSize: '0.8125rem',
+              cursor: 'pointer',
+              _hover: { backgroundColor: 'greyscale.50' },
             })}
           >
-            <RiCalendarScheduleLine size={24} />
-          </span>
-          <span className={css({ whiteSpace: 'nowrap' })}>
-            {t('calendar.groupOpen')}
-          </span>
-        </button>
+            <span
+              className={css({
+                display: 'grid',
+                placeItems: 'center',
+                width: '2.75rem',
+                height: '2.75rem',
+                borderRadius: '0.625rem',
+                backgroundColor: 'primary.100',
+                color: 'primary.600',
+              })}
+            >
+              <RiCalendarScheduleLine size={24} />
+            </span>
+            <span className={css({ whiteSpace: 'nowrap' })}>
+              {t('calendar.groupOpen')}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onOpenTasks}
+            data-testid="group-tasks-entry"
+            aria-label={t('tasks.open')}
+            className={css({
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.375rem',
+              width: '5rem',
+              padding: '0.625rem 0.375rem',
+              border: 'none',
+              borderRadius: '0.625rem',
+              backgroundColor: 'transparent',
+              color: 'greyscale.900',
+              fontSize: '0.8125rem',
+              cursor: 'pointer',
+              _hover: { backgroundColor: 'greyscale.50' },
+            })}
+          >
+            <span
+              className={css({
+                display: 'grid',
+                placeItems: 'center',
+                width: '2.75rem',
+                height: '2.75rem',
+                borderRadius: '0.625rem',
+                backgroundColor: 'primary.100',
+                color: 'primary.600',
+              })}
+            >
+              <RiListCheck3 size={24} />
+            </span>
+            <span>{t('tasks.open')}</span>
+          </button>
+        </div>
       </section>
 
       {/* 群成员 —— 放在机器人**上面**:人优先于工具。计数用

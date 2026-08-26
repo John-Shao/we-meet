@@ -68,6 +68,10 @@ export interface ApiStandaloneTaskCount {
   count: number
 }
 
+export interface ApiTaskShareResult {
+  conversation_ids: string[]
+}
+
 export type TaskListAccessRole = 'viewer' | 'editor' | 'owner'
 
 export interface ApiTaskListAccess {

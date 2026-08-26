@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
-import { RiCalendarScheduleLine } from '@remixicon/react'
+import { RiCalendarScheduleLine, RiListCheck3 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -22,6 +22,7 @@ interface Props {
   onCreateGroup: () => void
   /** Opens the existing shared calendar/free-busy panel for this peer. */
   onOpenCalendar: () => void
+  onOpenTasks?: () => void
   onClose: () => void
 }
 
@@ -37,6 +38,7 @@ export const DirectSettingsPanel = ({
   peerAvatarUrl,
   onCreateGroup,
   onOpenCalendar,
+  onOpenTasks = () => undefined,
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
@@ -198,46 +200,85 @@ export const DirectSettingsPanel = ({
           <div className={css({ marginBottom: '0.75rem' })}>
             <span className={sectionLabel}>{t('manage.apps')}</span>
           </div>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onOpenCalendar}
-            data-testid="direct-calendar-entry"
-            aria-label={t('calendar.open')}
-            className={css({
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '0.375rem',
-              width: '5rem',
-              padding: '0.625rem 0.375rem',
-              border: 'none',
-              borderRadius: '0.625rem',
-              backgroundColor: 'transparent',
-              color: 'greyscale.900',
-              fontSize: '0.8125rem',
-              cursor: 'pointer',
-              _hover: { backgroundColor: 'greyscale.50' },
-              _disabled: { cursor: 'not-allowed', opacity: 0.5 },
-            })}
-          >
-            <span
+          <div className={css({ display: 'flex', gap: '0.5rem' })}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onOpenCalendar}
+              data-testid="direct-calendar-entry"
+              aria-label={t('calendar.open')}
               className={css({
-                display: 'grid',
-                placeItems: 'center',
-                width: '2.75rem',
-                height: '2.75rem',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.375rem',
+                width: '5rem',
+                padding: '0.625rem 0.375rem',
+                border: 'none',
                 borderRadius: '0.625rem',
-                backgroundColor: 'primary.100',
-                color: 'primary.600',
+                backgroundColor: 'transparent',
+                color: 'greyscale.900',
+                fontSize: '0.8125rem',
+                cursor: 'pointer',
+                _hover: { backgroundColor: 'greyscale.50' },
+                _disabled: { cursor: 'not-allowed', opacity: 0.5 },
               })}
             >
-              <RiCalendarScheduleLine size={24} />
-            </span>
-            <span className={css({ whiteSpace: 'nowrap' })}>
-              {t('calendar.open')}
-            </span>
-          </button>
+              <span
+                className={css({
+                  display: 'grid',
+                  placeItems: 'center',
+                  width: '2.75rem',
+                  height: '2.75rem',
+                  borderRadius: '0.625rem',
+                  backgroundColor: 'primary.100',
+                  color: 'primary.600',
+                })}
+              >
+                <RiCalendarScheduleLine size={24} />
+              </span>
+              <span className={css({ whiteSpace: 'nowrap' })}>
+                {t('calendar.open')}
+              </span>
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onOpenTasks}
+              data-testid="direct-tasks-entry"
+              aria-label={t('tasks.open')}
+              className={css({
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.375rem',
+                width: '5rem',
+                padding: '0.625rem 0.375rem',
+                border: 'none',
+                borderRadius: '0.625rem',
+                backgroundColor: 'transparent',
+                color: 'greyscale.900',
+                fontSize: '0.8125rem',
+                cursor: 'pointer',
+                _hover: { backgroundColor: 'greyscale.50' },
+              })}
+            >
+              <span
+                className={css({
+                  display: 'grid',
+                  placeItems: 'center',
+                  width: '2.75rem',
+                  height: '2.75rem',
+                  borderRadius: '0.625rem',
+                  backgroundColor: 'primary.100',
+                  color: 'primary.600',
+                })}
+              >
+                <RiListCheck3 size={24} />
+              </span>
+              <span>{t('tasks.open')}</span>
+            </button>
+          </div>
         </section>
 
         {/* Private toggles (P10) */}

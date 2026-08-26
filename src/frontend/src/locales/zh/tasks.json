@@ -285,6 +285,22 @@
     "deleteTitle": "删除任务",
     "deleteDescription": "确定删除“{{title}}”吗？此操作无法撤销。"
   },
+  "share": {
+    "action": "分享任务",
+    "title": "分享任务“{{title}}”",
+    "toConversation": "分享到会话",
+    "taskLink": "任务链接",
+    "linkHint": "获得链接的人仍需登录并具备任务读取权限。",
+    "copy": "复制",
+    "copied": "已复制",
+    "failed": "任务分享失败，请稍后重试。",
+    "cardTitle": "分享任务",
+    "viewDetails": "查看详情",
+    "conversationTitle": "会话任务",
+    "conversationEmpty": "此会话还没有分享过任务。",
+    "viewMore": "查看更多",
+    "loading": "正在加载会话任务…"
+  },
   "comments": {
     "title": "评论",
     "show": "评论",
