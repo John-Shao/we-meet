@@ -20,6 +20,29 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+vi.mock('@/features/contacts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/contacts')>()
+  return {
+    ...actual,
+    ContactPicker: ({
+      onSelect,
+      onClose,
+    }: {
+      onSelect: (member: { id: string }) => void
+      onClose: () => void
+    }) => (
+      <div role="dialog">
+        <button type="button" onClick={() => onSelect({ id: 'member-2' })}>
+          Pick member
+        </button>
+        <button type="button" onClick={onClose}>
+          Cancel picker
+        </button>
+      </div>
+    ),
+  }
+})
+
 vi.mock('../api/fetchTasks', () => ({
   usePatchTask: () => ({ mutate, mutateAsync, isPending: false }),
 }))
@@ -186,6 +209,150 @@ describe('TaskList', () => {
     expect(statusButtons[0]).toBeDisabled()
     fireEvent.click(statusButtons[0])
     expect(mutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('edits a task title in the table with Enter without opening details', async () => {
+    const onOpen = vi.fn()
+    const editableTask = { ...task, can_edit: true }
+    mutateAsync.mockResolvedValueOnce({
+      ...editableTask,
+      title: 'Ship release',
+      updated_at: '2026-08-21T10:00:00Z',
+    })
+    render(
+      <TaskList tasks={[editableTask]} onOpen={onOpen} registerRow={vi.fn()} />
+    )
+
+    fireEvent.click(
+      within(screen.getByRole('table')).getByRole('button', {
+        name: 'actions.edit workspace.columns.title',
+      })
+    )
+    const input = within(screen.getByRole('table')).getByRole('textbox', {
+      name: 'actions.edit workspace.columns.title',
+    })
+    fireEvent.change(input, { target: { value: '  Ship release  ' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: task.id,
+        patch: { title: 'Ship release' },
+      })
+    )
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(await screen.findAllByText('Ship release')).toHaveLength(2)
+  })
+
+  it('cancels a table title edit with Escape', () => {
+    const editableTask = { ...task, can_edit: true }
+    render(
+      <TaskList tasks={[editableTask]} onOpen={vi.fn()} registerRow={vi.fn()} />
+    )
+
+    fireEvent.click(
+      within(screen.getByRole('table')).getByRole('button', {
+        name: 'actions.edit workspace.columns.title',
+      })
+    )
+    const input = within(screen.getByRole('table')).getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'Do not save' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(mutateAsync).not.toHaveBeenCalled()
+    expect(
+      within(screen.getByRole('table')).getByText(task.title)
+    ).toBeVisible()
+  })
+
+  it('edits priority and dates from their table cells', async () => {
+    const editableTask = { ...task, can_edit: true }
+    mutateAsync
+      .mockResolvedValueOnce({
+        ...editableTask,
+        priority: 'urgent',
+        updated_at: '2026-08-21T10:00:00Z',
+      })
+      .mockResolvedValueOnce({
+        ...editableTask,
+        priority: 'urgent',
+        due_date: '2026-08-25',
+        updated_at: '2026-08-21T11:00:00Z',
+      })
+    render(
+      <TaskList tasks={[editableTask]} onOpen={vi.fn()} registerRow={vi.fn()} />
+    )
+
+    fireEvent.click(
+      within(screen.getByRole('table')).getByRole('button', {
+        name: 'actions.edit workspace.columns.priority',
+      })
+    )
+    fireEvent.change(
+      within(screen.getByRole('table')).getByRole('combobox', {
+        name: 'actions.edit workspace.columns.priority',
+      }),
+      { target: { value: 'urgent' } }
+    )
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenLastCalledWith({
+        taskId: task.id,
+        patch: { priority: 'urgent' },
+      })
+    )
+    await screen.findAllByText('priorities.urgent')
+
+    fireEvent.click(
+      within(screen.getByRole('table')).getByRole('button', {
+        name: 'actions.edit workspace.columns.dueDate',
+      })
+    )
+    const dateInput = within(screen.getByRole('table')).getByLabelText(
+      'workspace.columns.dueDate'
+    )
+    fireEvent.change(dateInput, { target: { value: '2026-08-25' } })
+    fireEvent.blur(dateInput)
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenLastCalledWith({
+        taskId: task.id,
+        patch: { due_date: '2026-08-25' },
+      })
+    )
+  })
+
+  it('reassigns a task from its assignee cell', async () => {
+    const editableTask = { ...task, can_edit: true }
+    mutateAsync.mockResolvedValueOnce({
+      ...editableTask,
+      assignee: {
+        id: 'member-2',
+        full_name: 'Jordan',
+        short_name: null,
+        avatar_url: '/jordan.png',
+      },
+      updated_at: '2026-08-21T10:00:00Z',
+    })
+    const onOpen = vi.fn()
+    render(
+      <TaskList tasks={[editableTask]} onOpen={onOpen} registerRow={vi.fn()} />
+    )
+
+    fireEvent.click(
+      within(screen.getByRole('table')).getByRole('button', {
+        name: 'actions.edit workspace.columns.assignee',
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Pick member' }))
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: task.id,
+        patch: { assignee_id: 'member-2' },
+      })
+    )
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(await screen.findAllByText('Jordan')).toHaveLength(2)
   })
 
   it('labels tasks without a task list as standalone', () => {

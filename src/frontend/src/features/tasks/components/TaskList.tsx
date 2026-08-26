@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +23,7 @@ import {
   RiShareForwardLine,
 } from '@remixicon/react'
 
+import { ContactPicker, type DirectoryMember } from '@/features/contacts'
 import { Button, Menu, MenuList } from '@/primitives'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { css } from '@/styled-system/css'
@@ -29,8 +31,11 @@ import { css } from '@/styled-system/css'
 import type {
   ApiTask,
   ApiTaskGroup,
+  ApiTaskList,
+  PatchTaskPayload,
   TaskOrdering,
   TaskOrderingField,
+  TaskPriority,
   TaskStatus,
 } from '../api/ApiTask'
 import { usePatchTask } from '../api/fetchTasks'
@@ -111,6 +116,7 @@ const persistColumnWidths = (widths: TaskColumnWidths) => {
 
 type ListProps = {
   tasks: ApiTask[]
+  taskLists?: ApiTaskList[]
   groups?: ApiTaskGroup[]
   grouped?: boolean
   ordering?: TaskOrdering
@@ -139,6 +145,13 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
     event: ReactMouseEvent<HTMLElement>,
     task: ApiTask
   ) => void
+  editingCell: InlineEditingCell | null
+  inlineDraft: string
+  inlinePending: boolean
+  onBeginInlineEdit: (task: ApiTask, field: InlineEditableField) => void
+  onInlineDraftChange: (value: string) => void
+  onSaveInlineEdit: (task: ApiTask, patch: PatchTaskPayload) => void
+  onCancelInlineEdit: () => void
 }
 
 type StatusOverride = {
@@ -147,8 +160,29 @@ type StatusOverride = {
   baseUpdatedAt: string
 }
 
+type InlineEditableField =
+  | 'title'
+  | 'assignee'
+  | 'priority'
+  | 'startDate'
+  | 'dueDate'
+  | 'taskList'
+
+type InlineEditingCell = {
+  taskId: string
+  field: InlineEditableField
+}
+
+type InlineTaskOverride = {
+  task: ApiTask
+  baseUpdatedAt: string
+}
+
+const priorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent']
+
 export const TaskList = ({
   tasks,
+  taskLists = [],
   groups = [],
   grouped = false,
   ordering = '',
@@ -169,6 +203,14 @@ export const TaskList = ({
     Record<string, StatusOverride>
   >({})
   const [statusError, setStatusError] = useState(false)
+  const [editingCell, setEditingCell] = useState<InlineEditingCell | null>(null)
+  const [inlineDraft, setInlineDraft] = useState('')
+  const [inlinePending, setInlinePending] = useState(false)
+  const [inlineOverrides, setInlineOverrides] = useState<
+    Record<string, InlineTaskOverride>
+  >({})
+  const [assigneeEditingTask, setAssigneeEditingTask] =
+    useState<ApiTask | null>(null)
   const [contextMenu, setContextMenu] = useState<{
     task: ApiTask
     x: number
@@ -181,9 +223,13 @@ export const TaskList = ({
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
     () => new Set()
   )
+  const displayedTasks = useMemo(
+    () => tasks.map((task) => inlineOverrides[task.id]?.task ?? task),
+    [inlineOverrides, tasks]
+  )
   const sections = useMemo(
-    () => buildSections(tasks, groups, grouped),
-    [grouped, groups, tasks]
+    () => buildSections(displayedTasks, groups, grouped),
+    [displayedTasks, grouped, groups]
   )
 
   useEffect(() => {
@@ -258,6 +304,82 @@ export const TaskList = ({
       return changed ? next : current
     })
   }, [statusOverrides, tasks])
+
+  useEffect(() => {
+    setInlineOverrides((current) => {
+      let changed = false
+      const next = { ...current }
+      const visibleTaskIds = new Set(tasks.map((task) => task.id))
+      for (const [taskId, override] of Object.entries(next)) {
+        const task = tasks.find((candidate) => candidate.id === taskId)
+        if (
+          !visibleTaskIds.has(taskId) ||
+          (task && task.updated_at !== override.baseUpdatedAt)
+        ) {
+          delete next[taskId]
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [tasks])
+
+  const beginInlineEdit = (task: ApiTask, field: InlineEditableField) => {
+    if (!task.can_edit || inlinePending || patchMutation.isPending) return
+    setStatusError(false)
+    setEditingCell({ taskId: task.id, field })
+    if (field === 'title') setInlineDraft(task.title)
+    if (field === 'priority') setInlineDraft(task.priority)
+    if (field === 'startDate') setInlineDraft(task.start_date || '')
+    if (field === 'dueDate') setInlineDraft(task.due_date || '')
+    if (field === 'taskList') setInlineDraft(task.task_list?.id || '')
+    if (field === 'assignee') setAssigneeEditingTask(task)
+  }
+
+  const cancelInlineEdit = () => {
+    if (inlinePending) return
+    setEditingCell(null)
+    setAssigneeEditingTask(null)
+  }
+
+  const saveInlineEdit = async (task: ApiTask, patch: PatchTaskPayload) => {
+    const unchanged =
+      (patch.title !== undefined && patch.title === task.title) ||
+      (patch.priority !== undefined && patch.priority === task.priority) ||
+      (patch.start_date !== undefined &&
+        patch.start_date === task.start_date) ||
+      (patch.due_date !== undefined && patch.due_date === task.due_date) ||
+      (patch.task_list_id !== undefined &&
+        (patch.task_list_id || null) === (task.task_list?.id || null) &&
+        (patch.group_id === undefined ||
+          (patch.group_id || null) === (task.group?.id || null))) ||
+      (patch.assignee_id !== undefined &&
+        patch.assignee_id === task.assignee?.id)
+    if (unchanged) {
+      setEditingCell(null)
+      setAssigneeEditingTask(null)
+      return
+    }
+
+    setInlinePending(true)
+    setStatusError(false)
+    try {
+      const updatedTask = await patchMutation.mutateAsync({
+        taskId: task.id,
+        patch,
+      })
+      setInlineOverrides((current) => ({
+        ...current,
+        [task.id]: { task: updatedTask, baseUpdatedAt: task.updated_at },
+      }))
+      setEditingCell(null)
+      setAssigneeEditingTask(null)
+    } catch {
+      setStatusError(true)
+    } finally {
+      setInlinePending(false)
+    }
+  }
 
   const toggleTaskStatus = async (task: ApiTask) => {
     const currentOverride = statusOverrides[task.id]
@@ -361,6 +483,7 @@ export const TaskList = ({
 
   const groupProps = {
     grouped,
+    taskLists,
     selectedTaskId,
     onOpen,
     registerRow,
@@ -369,6 +492,14 @@ export const TaskList = ({
     formatDateTime,
     onToggleStatus: (task: ApiTask) => void toggleTaskStatus(task),
     onTaskContextMenu: showTaskContextMenu,
+    editingCell,
+    inlineDraft,
+    inlinePending,
+    onBeginInlineEdit: beginInlineEdit,
+    onInlineDraftChange: setInlineDraft,
+    onSaveInlineEdit: (task: ApiTask, patch: PatchTaskPayload) =>
+      void saveInlineEdit(task, patch),
+    onCancelInlineEdit: cancelInlineEdit,
   }
 
   return (
@@ -537,6 +668,20 @@ export const TaskList = ({
           )
         })}
       </ul>
+      {assigneeEditingTask && (
+        <ContactPicker
+          includeSelf
+          title={t('form.selectAssignee')}
+          searchPlaceholder={t('form.searchAssignee')}
+          onClose={cancelInlineEdit}
+          onSelect={(member: DirectoryMember) => {
+            setAssigneeEditingTask(null)
+            void saveInlineEdit(assigneeEditingTask, {
+              assignee_id: member.id,
+            })
+          }}
+        />
+      )}
       {contextMenu && (onShare || onDeleteTask) && (
         <div
           role="menu"
@@ -583,6 +728,7 @@ const DesktopTaskGroup = (props: GroupProps) => <DesktopTaskRow {...props} />
 
 const DesktopTaskRow = ({
   task,
+  taskLists = [],
   grouped,
   isLastInGroup,
   selectedTaskId,
@@ -595,6 +741,13 @@ const DesktopTaskRow = ({
   statusOverride,
   statusPending,
   onToggleStatus,
+  editingCell,
+  inlineDraft,
+  inlinePending,
+  onBeginInlineEdit,
+  onInlineDraftChange,
+  onSaveInlineEdit,
+  onCancelInlineEdit,
 }: GroupProps) => (
   <tr
     ref={(element) => registerRow(task.id, element)}
@@ -604,7 +757,7 @@ const DesktopTaskRow = ({
     data-grouped={grouped || undefined}
     data-group-last={grouped && isLastInGroup ? true : undefined}
     className={rowCss}
-    draggable={task.can_edit}
+    draggable={task.can_edit && editingCell?.taskId !== task.id}
     onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
     onContextMenu={(event) => onTaskContextMenu(event, task)}
@@ -621,25 +774,144 @@ const DesktopTaskRow = ({
           pending={statusPending}
           onToggle={onToggleStatus}
         />
-        <TaskTitle task={task} status={statusOverride ?? task.status} />
+        {editingCell?.taskId === task.id && editingCell.field === 'title' ? (
+          <InlineTitleEditor
+            value={inlineDraft}
+            pending={inlinePending}
+            onChange={onInlineDraftChange}
+            onSave={(title) => onSaveInlineEdit(task, { title })}
+            onCancel={onCancelInlineEdit}
+          />
+        ) : (
+          <InlineEditButton
+            task={task}
+            fieldLabel={t('workspace.columns.title')}
+            pending={
+              inlinePending &&
+              editingCell?.taskId === task.id &&
+              editingCell.field === 'title'
+            }
+            onEdit={() => onBeginInlineEdit(task, 'title')}
+          >
+            <TaskTitle task={task} status={statusOverride ?? task.status} />
+          </InlineEditButton>
+        )}
       </div>
     </td>
     <td>
-      <TaskUserDisplay user={task.assignee} />
+      <InlineEditButton
+        task={task}
+        fieldLabel={t('workspace.columns.assignee')}
+        pending={
+          inlinePending &&
+          editingCell?.taskId === task.id &&
+          editingCell.field === 'assignee'
+        }
+        onEdit={() => onBeginInlineEdit(task, 'assignee')}
+      >
+        <TaskUserDisplay user={task.assignee} />
+      </InlineEditButton>
     </td>
     <td>
-      <TaskPriorityBadge priority={task.priority} />
+      {editingCell?.taskId === task.id && editingCell.field === 'priority' ? (
+        <InlinePriorityEditor
+          value={inlineDraft as TaskPriority}
+          pending={inlinePending}
+          label={t('workspace.columns.priority')}
+          onChange={onInlineDraftChange}
+          onSave={(priority) => onSaveInlineEdit(task, { priority })}
+          onCancel={onCancelInlineEdit}
+        />
+      ) : (
+        <InlineEditButton
+          task={task}
+          fieldLabel={t('workspace.columns.priority')}
+          pending={
+            inlinePending &&
+            editingCell?.taskId === task.id &&
+            editingCell.field === 'priority'
+          }
+          onEdit={() => onBeginInlineEdit(task, 'priority')}
+        >
+          <TaskPriorityBadge priority={task.priority} />
+        </InlineEditButton>
+      )}
     </td>
-    <td className={secondaryColumnCss}>{formatDate(task.start_date)}</td>
+    <td className={secondaryColumnCss}>
+      {editingCell?.taskId === task.id && editingCell.field === 'startDate' ? (
+        <InlineDateEditor
+          value={inlineDraft}
+          max={task.due_date || undefined}
+          pending={inlinePending}
+          label={t('workspace.columns.startDate')}
+          onChange={onInlineDraftChange}
+          onSave={(startDate) =>
+            onSaveInlineEdit(task, { start_date: startDate || null })
+          }
+          onCancel={onCancelInlineEdit}
+        />
+      ) : (
+        <InlineEditButton
+          task={task}
+          fieldLabel={t('workspace.columns.startDate')}
+          onEdit={() => onBeginInlineEdit(task, 'startDate')}
+        >
+          {formatDate(task.start_date)}
+        </InlineEditButton>
+      )}
+    </td>
     <td
       data-overdue={task.time_state === 'overdue' || undefined}
       className={dueDateCss}
     >
-      {formatDate(task.due_date)}
+      {editingCell?.taskId === task.id && editingCell.field === 'dueDate' ? (
+        <InlineDateEditor
+          value={inlineDraft}
+          min={task.start_date || undefined}
+          pending={inlinePending}
+          label={t('workspace.columns.dueDate')}
+          onChange={onInlineDraftChange}
+          onSave={(dueDate) =>
+            onSaveInlineEdit(task, { due_date: dueDate || null })
+          }
+          onCancel={onCancelInlineEdit}
+        />
+      ) : (
+        <InlineEditButton
+          task={task}
+          fieldLabel={t('workspace.columns.dueDate')}
+          onEdit={() => onBeginInlineEdit(task, 'dueDate')}
+        >
+          {formatDate(task.due_date)}
+        </InlineEditButton>
+      )}
     </td>
     {!grouped && (
       <td className={secondaryColumnCss}>
-        {task.task_list?.name || t('taskLists.standalone')}
+        {editingCell?.taskId === task.id && editingCell.field === 'taskList' ? (
+          <InlineTaskListEditor
+            value={inlineDraft}
+            pending={inlinePending}
+            label={t('workspace.columns.taskList')}
+            taskLists={taskLists}
+            onChange={onInlineDraftChange}
+            onSave={(taskListId) =>
+              onSaveInlineEdit(task, {
+                task_list_id: taskListId || null,
+                group_id: null,
+              })
+            }
+            onCancel={onCancelInlineEdit}
+          />
+        ) : (
+          <InlineEditButton
+            task={task}
+            fieldLabel={t('workspace.columns.taskList')}
+            onEdit={() => onBeginInlineEdit(task, 'taskList')}
+          >
+            {task.task_list?.name || t('taskLists.standalone')}
+          </InlineEditButton>
+        )}
       </td>
     )}
     <td className={secondaryColumnCss}>
@@ -649,6 +921,254 @@ const DesktopTaskRow = ({
     <td aria-hidden="true" className={tableGutterCellCss} />
   </tr>
 )
+
+const InlineEditButton = ({
+  task,
+  fieldLabel,
+  pending = false,
+  onEdit,
+  children,
+}: {
+  task: ApiTask
+  fieldLabel: string
+  pending?: boolean
+  onEdit: () => void
+  children: ReactNode
+}) => {
+  const { t } = useTranslation('tasks')
+  if (!task.can_edit) {
+    return <div className={inlineCellReadOnlyCss}>{children}</div>
+  }
+  return (
+    <button
+      type="button"
+      className={inlineCellButtonCss}
+      aria-label={`${t('actions.edit')} ${fieldLabel}`}
+      aria-busy={pending || undefined}
+      disabled={pending}
+      draggable={false}
+      onPointerDown={(event) => event.stopPropagation()}
+      onDragStart={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation()
+        onEdit()
+      }}
+    >
+      <span className={inlineCellValueCss}>{children}</span>
+      {pending && (
+        <RiLoader4Line
+          aria-hidden="true"
+          size={14}
+          className={inlineCellSpinnerCss}
+        />
+      )}
+    </button>
+  )
+}
+
+const InlineTitleEditor = ({
+  value,
+  pending,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  value: string
+  pending: boolean
+  onChange: (value: string) => void
+  onSave: (value: string) => void
+  onCancel: () => void
+}) => {
+  const { t } = useTranslation('tasks')
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [])
+  const save = () => {
+    const title = value.trim()
+    if (title) onSave(title)
+    else onCancel()
+  }
+  return (
+    <input
+      ref={inputRef}
+      className={inlineCellInputCss}
+      aria-label={`${t('actions.edit')} ${t('workspace.columns.title')}`}
+      value={value}
+      maxLength={500}
+      disabled={pending}
+      draggable={false}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => onChange(event.target.value)}
+      onFocus={(event) => event.currentTarget.select()}
+      onBlur={save}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          event.currentTarget.blur()
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onCancel()
+        }
+      }}
+    />
+  )
+}
+
+const InlinePriorityEditor = ({
+  value,
+  pending,
+  label,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  value: TaskPriority
+  pending: boolean
+  label: string
+  onChange: (value: string) => void
+  onSave: (value: TaskPriority) => void
+  onCancel: () => void
+}) => {
+  const { t } = useTranslation('tasks')
+  const selectRef = useRef<HTMLSelectElement>(null)
+  useEffect(() => selectRef.current?.focus(), [])
+  return (
+    <select
+      ref={selectRef}
+      className={inlineCellInputCss}
+      aria-label={`${t('actions.edit')} ${label}`}
+      value={value}
+      disabled={pending}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => {
+        const priority = event.target.value as TaskPriority
+        onChange(priority)
+        onSave(priority)
+      }}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onCancel()
+        }
+      }}
+    >
+      {priorities.map((priority) => (
+        <option key={priority} value={priority}>
+          {t(`priorities.${priority}`)}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+const InlineTaskListEditor = ({
+  value,
+  pending,
+  label,
+  taskLists,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  value: string
+  pending: boolean
+  label: string
+  taskLists: ApiTaskList[]
+  onChange: (value: string) => void
+  onSave: (value: string) => void
+  onCancel: () => void
+}) => {
+  const { t } = useTranslation('tasks')
+  const selectRef = useRef<HTMLSelectElement>(null)
+  useEffect(() => selectRef.current?.focus(), [])
+  return (
+    <select
+      ref={selectRef}
+      className={inlineCellInputCss}
+      aria-label={`${t('actions.edit')} ${label}`}
+      value={value}
+      disabled={pending}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => {
+        const taskListId = event.target.value
+        onChange(taskListId)
+        onSave(taskListId)
+      }}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onCancel()
+        }
+      }}
+    >
+      <option value="">{t('taskLists.standalone')}</option>
+      {taskLists.map((taskList) => (
+        <option key={taskList.id} value={taskList.id}>
+          {taskList.name}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+const InlineDateEditor = ({
+  value,
+  min,
+  max,
+  pending,
+  label,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  value: string
+  min?: string
+  max?: string
+  pending: boolean
+  label: string
+  onChange: (value: string) => void
+  onSave: (value: string) => void
+  onCancel: () => void
+}) => {
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => inputRef.current?.focus(), [])
+  return (
+    <input
+      ref={inputRef}
+      type="date"
+      className={inlineCellInputCss}
+      aria-label={label}
+      value={value}
+      min={min}
+      max={max}
+      disabled={pending}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={() => onSave(value)}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          event.currentTarget.blur()
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onCancel()
+        }
+      }}
+    />
+  )
+}
 
 const MobileTaskGroup = (props: GroupProps) => {
   return (
@@ -770,19 +1290,19 @@ const TaskStatusButton = ({
 const TaskTitle = ({ task, status }: { task: ApiTask; status: TaskStatus }) => {
   const { t } = useTranslation('tasks')
   return (
-    <div
+    <span
       className={titleCellCss}
       data-completed={status === 'completed' || undefined}
     >
-      <div className={titleLineCss}>
+      <span className={titleLineCss}>
         <strong>{task.title}</strong>
-      </div>
+      </span>
       {task.source_room_name && (
         <span className={titleMetaCss}>
           {t('sourceMeeting', { name: task.source_room_name })}
         </span>
       )}
-    </div>
+    </span>
   )
 }
 
@@ -1212,6 +1732,64 @@ const rowCss = css({
   _hover: { backgroundColor: 'greyscale.50' },
   _focusVisible: { boxShadow: 'inset 0 0 0 2px token(colors.primary.500)' },
   '&[data-selected]': { backgroundColor: 'selected.bg' },
+})
+const inlineCellButtonCss = css({
+  width: '100%',
+  minWidth: 0,
+  minHeight: '1.75rem',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.25rem',
+  margin: '-0.25rem',
+  padding: '0.25rem',
+  border: '1px solid transparent',
+  borderRadius: '4px',
+  backgroundColor: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  textAlign: 'left',
+  cursor: 'text',
+  outline: 'none',
+  _hover: {
+    borderColor: 'greyscale.300',
+    backgroundColor: 'greyscale.000',
+  },
+  _focusVisible: {
+    borderColor: 'primary.500',
+    boxShadow: '0 0 0 1px token(colors.primary.200)',
+  },
+  _disabled: { cursor: 'wait' },
+})
+const inlineCellReadOnlyCss = css({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+})
+const inlineCellValueCss = css({
+  minWidth: 0,
+  flex: 1,
+  display: 'block',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+})
+const inlineCellInputCss = css({
+  width: '100%',
+  minWidth: 0,
+  height: '1.75rem',
+  paddingX: '0.375rem',
+  border: '1px solid token(colors.primary.500)',
+  borderRadius: '4px',
+  backgroundColor: 'greyscale.000',
+  color: 'default.text',
+  font: 'inherit',
+  outline: 'none',
+  boxShadow: '0 0 0 1px token(colors.primary.200)',
+  '&:disabled': { cursor: 'wait', opacity: 0.7 },
+})
+const inlineCellSpinnerCss = css({
+  flexShrink: 0,
+  color: 'primary.500',
+  animation: 'rotate 700ms linear infinite',
 })
 const taskContextMenuCss = css({
   position: 'fixed',

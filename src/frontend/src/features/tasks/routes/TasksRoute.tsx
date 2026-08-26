@@ -464,6 +464,7 @@ const TasksAuthenticated = () => {
             <>
               <TaskList
                 tasks={tasks}
+                taskLists={taskLists}
                 ordering={state.ordering}
                 onOrderingChange={(ordering) =>
                   navigateState({ ...state, ordering, task: undefined })
