@@ -309,6 +309,7 @@ export const TaskDetailPanel = ({
               </Button>
               <MenuList
                 aria-label={t('actions.more')}
+                menuClassName={headerMenuCss}
                 items={[
                   {
                     value: 'delete',
@@ -1103,6 +1104,13 @@ const headerMenuItemCss = css({
   alignItems: 'center',
   gap: '0.5rem',
   color: 'danger.600',
+})
+const headerMenuCss = css({
+  '& [role="menuitem"]': {
+    paddingY: '0.25rem',
+    fontSize: '0.75rem',
+    lineHeight: '1rem',
+  },
 })
 const inlineErrorCss = css({ margin: 0, color: 'danger.subtle-text' })
 const detailSectionCss = css({
