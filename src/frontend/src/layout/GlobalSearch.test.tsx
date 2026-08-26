@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   taskRefetch: vi.fn(),
   taskFetchNextPage: vi.fn(),
   fetchApi: vi.fn(),
+  searchMessages: vi.fn(),
   abortAsk: vi.fn(),
   taskSearchError: false,
 }))
@@ -55,7 +56,7 @@ vi.mock('@/features/im/api/createDirectConversation', () => ({
   createDirectConversationByUserId: vi.fn(),
 }))
 vi.mock('@/features/im/api/searchImMessages', () => ({
-  searchImMessages: vi.fn().mockResolvedValue({ items: [] }),
+  searchImMessages: mocks.searchMessages,
 }))
 vi.mock('@/features/im/api/resolveImUsers', () => ({
   resolveImUsers: vi.fn().mockResolvedValue({}),
@@ -168,6 +169,10 @@ describe('global task search', () => {
     vi.clearAllMocks()
     mocks.taskSearchError = false
     mocks.fetchApi.mockResolvedValue({ results: [], has_more: false })
+    mocks.searchMessages.mockResolvedValue({
+      items: [],
+      next_before_mid: 0,
+    })
     mocks.taskSearch.mockImplementation((_query, _filters, pageSize, enabled) =>
       searchResult(pageSize, enabled)
     )
@@ -259,5 +264,53 @@ describe('global task search', () => {
     )
     await user.click(screen.getByTestId('global-search-task-retry'))
     expect(mocks.taskRefetch).toHaveBeenCalled()
+  })
+
+  it('projects rich-card message results to readable text without exposing JSON', async () => {
+    mocks.searchMessages.mockResolvedValue({
+      items: [
+        {
+          mid: 101,
+          cid: 'task-assistant',
+          sender_uid: 'bot',
+          seq: 7,
+          content_type: 'rich-card',
+          body: JSON.stringify({
+            plain: '任务今天开始：人员招聘',
+            v: 1,
+            blocks: [
+              {
+                type: 'text',
+                spans: [{ tag: 'text', text: '任务今天开始：人员招聘' }],
+              },
+            ],
+          }),
+          created_at: Date.UTC(2026, 7, 24),
+        },
+        {
+          mid: 102,
+          cid: 'task-assistant',
+          sender_uid: 'bot',
+          seq: 8,
+          content_type: 'rich-card',
+          body: '{ malformed card JSON',
+          created_at: Date.UTC(2026, 7, 24),
+        },
+      ],
+      next_before_mid: 0,
+    })
+
+    const user = userEvent.setup()
+    renderPalette()
+    await user.type(screen.getByTestId('global-search-input'), '招聘')
+
+    const validCard = await screen.findByTestId('global-search-msg-101')
+    expect(validCard).toHaveTextContent('任务今天开始：人员招聘')
+    expect(validCard).not.toHaveTextContent('[rich-card]')
+    expect(validCard).not.toHaveTextContent('"plain"')
+
+    const malformedCard = screen.getByTestId('global-search-msg-102')
+    expect(malformedCard).toHaveTextContent('preview.richCard')
+    expect(malformedCard).not.toHaveTextContent('malformed card JSON')
   })
 })

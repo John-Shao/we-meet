@@ -25,6 +25,7 @@ import {
 } from '@/features/im/api/searchImMessages'
 import { resolveImUsers } from '@/features/im/api/resolveImUsers'
 import { fetchImToken } from '@/features/im/api/fetchImToken'
+import { richCardPreview } from '@/features/im/components/richCard'
 import {
   useRecentMeetings,
   useScheduledMeetings,
@@ -207,6 +208,7 @@ export const SearchPalette = ({
   onClose: () => void
 }) => {
   const { t } = useTranslation('shell')
+  const { t: tIm } = useTranslation('im')
   const [, navigate] = useLocation()
   const { alert: showAlert } = useConfirm()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -491,6 +493,8 @@ export const SearchPalette = ({
         return m.body
       }
     }
+    if (m.content_type === 'rich-card')
+      return richCardPreview(m.body) || tIm('preview.richCard')
     if (m.content_type !== 'text')
       return `[${m.content_type}] ${m.body.slice(0, 40)}`
     return m.body
