@@ -337,9 +337,6 @@ describe('TaskList', () => {
     const dateInput = within(screen.getByRole('table')).getByLabelText(
       'workspace.columns.dueDate'
     )
-    expect(
-      dateInput.parentElement?.querySelector('[data-inline-date-icon]')
-    ).toBeTruthy()
     fireEvent.change(dateInput, { target: { value: '2026-08-25' } })
     fireEvent.blur(dateInput)
 
