@@ -288,11 +288,10 @@ describe('TaskList', () => {
         name: 'actions.edit workspace.columns.priority',
       })
     )
-    fireEvent.change(
-      within(screen.getByRole('table')).getByRole('combobox', {
-        name: 'actions.edit workspace.columns.priority',
-      }),
-      { target: { value: 'urgent' } }
+    fireEvent.click(
+      screen.getByRole('option', {
+        name: 'priorities.urgent',
+      })
     )
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenLastCalledWith({
@@ -318,6 +317,36 @@ describe('TaskList', () => {
         taskId: task.id,
         patch: { due_date: '2026-08-25' },
       })
+    )
+  })
+
+  it('closes a table select editor when clicking outside', async () => {
+    const editableTask = { ...task, can_edit: true }
+    render(
+      <TaskList tasks={[editableTask]} onOpen={vi.fn()} registerRow={vi.fn()} />
+    )
+
+    fireEvent.click(
+      within(screen.getByRole('table')).getByRole('button', {
+        name: 'actions.edit workspace.columns.priority',
+      })
+    )
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+
+    fireEvent.pointerDown(document.body)
+    fireEvent.pointerUp(document.body)
+    fireEvent.click(document.body)
+
+    await waitFor(() =>
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    )
+    expect(mutateAsync).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('table')).getByRole('button', {
+          name: 'actions.edit workspace.columns.priority',
+        })
+      ).toBeInTheDocument()
     )
   })
 

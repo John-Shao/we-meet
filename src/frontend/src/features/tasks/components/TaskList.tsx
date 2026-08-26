@@ -25,6 +25,7 @@ import {
 
 import { ContactPicker, type DirectoryMember } from '@/features/contacts'
 import { Button, Menu, MenuList } from '@/primitives'
+import { Select } from '@/primitives/Select'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { css } from '@/styled-system/css'
 
@@ -1035,36 +1036,21 @@ const InlinePriorityEditor = ({
   onCancel: () => void
 }) => {
   const { t } = useTranslation('tasks')
-  const selectRef = useRef<HTMLSelectElement>(null)
-  useEffect(() => selectRef.current?.focus(), [])
   return (
-    <select
-      ref={selectRef}
-      className={inlineCellInputCss}
-      aria-label={`${t('actions.edit')} ${label}`}
+    <InlineSelectEditor
+      label={`${t('actions.edit')} ${label}`}
       value={value}
       disabled={pending}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-      onChange={(event) => {
-        const priority = event.target.value as TaskPriority
+      items={priorities.map((priority) => ({
+        value: priority,
+        label: t(`priorities.${priority}`),
+      }))}
+      onChange={(priority) => {
         onChange(priority)
-        onSave(priority)
+        onSave(priority as TaskPriority)
       }}
-      onKeyDown={(event) => {
-        event.stopPropagation()
-        if (event.key === 'Escape') {
-          event.preventDefault()
-          onCancel()
-        }
-      }}
-    >
-      {priorities.map((priority) => (
-        <option key={priority} value={priority}>
-          {t(`priorities.${priority}`)}
-        </option>
-      ))}
-    </select>
+      onCancel={onCancel}
+    />
   )
 }
 
@@ -1086,37 +1072,73 @@ const InlineTaskListEditor = ({
   onCancel: () => void
 }) => {
   const { t } = useTranslation('tasks')
-  const selectRef = useRef<HTMLSelectElement>(null)
-  useEffect(() => selectRef.current?.focus(), [])
   return (
-    <select
-      ref={selectRef}
-      className={inlineCellInputCss}
-      aria-label={`${t('actions.edit')} ${label}`}
+    <InlineSelectEditor
+      label={`${t('actions.edit')} ${label}`}
       value={value}
       disabled={pending}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-      onChange={(event) => {
-        const taskListId = event.target.value
+      items={[
+        { value: '', label: t('taskLists.standalone') },
+        ...taskLists.map((taskList) => ({
+          value: taskList.id,
+          label: taskList.name,
+        })),
+      ]}
+      onChange={(taskListId) => {
         onChange(taskListId)
         onSave(taskListId)
       }}
-      onKeyDown={(event) => {
-        event.stopPropagation()
-        if (event.key === 'Escape') {
-          event.preventDefault()
-          onCancel()
+      onCancel={onCancel}
+    />
+  )
+}
+
+const InlineSelectEditor = ({
+  label,
+  value,
+  disabled,
+  items,
+  onChange,
+  onCancel,
+}: {
+  label: string
+  value: string
+  disabled: boolean
+  items: Array<{ value: string; label: ReactNode }>
+  onChange: (value: string) => void
+  onCancel: () => void
+}) => {
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const selectionCommitted = useRef(false)
+  const [isOpen, setIsOpen] = useState(true)
+
+  useEffect(() => triggerRef.current?.focus(), [])
+
+  return (
+    <Select
+      aria-label={label}
+      className={inlineSelectCss}
+      triggerRef={triggerRef}
+      items={items}
+      selectedKey={value}
+      isDisabled={disabled}
+      isOpen={isOpen}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+      onOpenChange={(open) => {
+        setIsOpen(open)
+        if (!open) {
+          window.setTimeout(() => {
+            if (!selectionCommitted.current) onCancel()
+          })
         }
       }}
-    >
-      <option value="">{t('taskLists.standalone')}</option>
-      {taskLists.map((taskList) => (
-        <option key={taskList.id} value={taskList.id}>
-          {taskList.name}
-        </option>
-      ))}
-    </select>
+      onSelectionChange={(key) => {
+        selectionCommitted.current = true
+        onChange(String(key))
+      }}
+    />
   )
 }
 
@@ -1786,6 +1808,7 @@ const inlineCellInputCss = css({
   boxShadow: '0 0 0 1px token(colors.primary.200)',
   '&:disabled': { cursor: 'wait', opacity: 0.7 },
 })
+const inlineSelectCss = css({ width: '100%', minWidth: 0 })
 const inlineCellSpinnerCss = css({
   flexShrink: 0,
   color: 'primary.500',
