@@ -12,6 +12,7 @@ from django.utils import timezone
 from core import models
 from core.services import im_bots, im_cards
 from core.services.jusi_im import JusiImAdminClient
+from core.services.task_assignees import task_assignee_ids, task_assignees
 from core.services.task_time import OPEN_TASK_STATUSES, local_date_for_user
 
 logger = logging.getLogger(__name__)
@@ -39,50 +40,52 @@ class TaskImNotificationUnavailable(RuntimeError):
 
 
 def record_task_assignment(
-    *, task: models.Task, event: str
+    *, task: models.Task, event: str, recipient_ids=None
 ) -> models.TaskImDelivery | None:
-    """Persist and enqueue one assignment event after the surrounding commit.
+    """Persist and enqueue assignment events after the surrounding commit.
 
     Self-assignment intentionally stays silent. Reassigning to self still
     supersedes a pending notification for the previous assignee.
     """
 
+    assignee_ids = task_assignee_ids(task)
     pending = models.TaskImDelivery.objects.filter(
         task=task,
         status=models.TaskImDelivery.Status.PENDING,
     )
     pending.filter(event__in=ASSIGNMENT_EVENTS).exclude(
-        recipient_id=task.assignee_id
+        recipient_id__in=assignee_ids
     ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
         last_error="",
     )
     pending.filter(event=models.TaskImDelivery.Event.COMMENTED).exclude(
-        Q(recipient_id=task.creator_id) | Q(recipient_id=task.assignee_id)
+        Q(recipient_id=task.creator_id) | Q(recipient_id__in=assignee_ids)
     ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
         last_error="",
     )
     pending.filter(event__in=REMINDER_EVENTS).exclude(
-        recipient_id=task.assignee_id
+        recipient_id__in=assignee_ids
     ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
         last_error="",
     )
     pending.filter(event__in=DATE_CHANGE_EVENTS).exclude(
-        recipient_id=task.assignee_id
+        recipient_id__in=assignee_ids
     ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
         last_error="",
     )
-    status_recipient_ids = set(task.followers.values_list("id", flat=True)) | {
-        task.creator_id,
-        task.assignee_id,
-    }
+    status_recipient_ids = (
+        set(task.followers.values_list("id", flat=True))
+        | assignee_ids
+        | {task.creator_id}
+    )
     status_recipient_ids.discard(None)
     pending.filter(event__in=STATUS_CHANGE_EVENTS).exclude(
         recipient_id__in=status_recipient_ids
@@ -92,52 +95,50 @@ def record_task_assignment(
         last_error="",
     )
     pending.filter(event__in=PRIORITY_CHANGE_EVENTS).exclude(
-        recipient_id=task.assignee_id
+        recipient_id__in=assignee_ids
     ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
         last_error="",
     )
 
-    if task.assignee_id is None or task.assignee_id == task.creator_id:
-        return None
-
-    delivery = models.TaskImDelivery.objects.create(
-        task=task,
-        recipient_id=task.assignee_id,
-        event=event,
-        next_attempt_at=timezone.now(),
-    )
-    transaction.on_commit(lambda: _enqueue_delivery(delivery.id))
-    return delivery
+    targets = assignee_ids if recipient_ids is None else set(recipient_ids)
+    targets &= assignee_ids
+    targets.discard(task.creator_id)
+    deliveries = []
+    for recipient_id in targets:
+        delivery = models.TaskImDelivery.objects.create(
+            task=task,
+            recipient_id=recipient_id,
+            event=event,
+            next_attempt_at=timezone.now(),
+        )
+        deliveries.append(delivery)
+        transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
+    return deliveries[0] if deliveries else None
 
 
 def record_task_comment(*, comment: models.TaskComment) -> models.TaskImDelivery | None:
-    """Notify the other current collaborator about a newly posted comment."""
+    """Notify every other directly responsible collaborator about a comment."""
 
     task = comment.task
-    if comment.author_id == task.creator_id:
-        recipient_id = task.assignee_id
-    elif comment.author_id == task.assignee_id:
-        recipient_id = task.creator_id
-    else:  # Defensive: the API only permits current collaborators to comment.
-        return None
-
-    if recipient_id is None or recipient_id == comment.author_id:
-        return None
-
-    delivery, created = models.TaskImDelivery.objects.get_or_create(
-        task=task,
-        comment=comment,
-        recipient_id=recipient_id,
-        defaults={
-            "event": models.TaskImDelivery.Event.COMMENTED,
-            "next_attempt_at": timezone.now(),
-        },
-    )
-    if created:
-        transaction.on_commit(lambda: _enqueue_delivery(delivery.id))
-    return delivery
+    recipient_ids = task_assignee_ids(task) | {task.creator_id}
+    recipient_ids.discard(comment.author_id)
+    deliveries = []
+    for recipient_id in recipient_ids:
+        delivery, created = models.TaskImDelivery.objects.get_or_create(
+            task=task,
+            comment=comment,
+            recipient_id=recipient_id,
+            defaults={
+                "event": models.TaskImDelivery.Event.COMMENTED,
+                "next_attempt_at": timezone.now(),
+            },
+        )
+        deliveries.append(delivery)
+        if created:
+            transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
+    return deliveries[0] if deliveries else None
 
 
 def record_task_date_change(
@@ -160,25 +161,25 @@ def record_task_date_change(
     )
     _supersede_stale_reminders(pending=pending, task=task)
 
-    if (
-        task.assignee_id is None
-        or task.assignee_id == activity.actor_id
-        or task.status not in OPEN_TASK_STATUSES
-    ):
+    recipient_ids = task_assignee_ids(task) - {activity.actor_id}
+    if not recipient_ids or task.status not in OPEN_TASK_STATUSES:
         return None
 
-    delivery, created = models.TaskImDelivery.objects.get_or_create(
-        task=task,
-        activity=activity,
-        recipient_id=task.assignee_id,
-        defaults={
-            "event": models.TaskImDelivery.Event.DATES_CHANGED,
-            "next_attempt_at": timezone.now(),
-        },
-    )
-    if created:
-        transaction.on_commit(lambda: _enqueue_delivery(delivery.id))
-    return delivery
+    deliveries = []
+    for recipient_id in recipient_ids:
+        delivery, created = models.TaskImDelivery.objects.get_or_create(
+            task=task,
+            activity=activity,
+            recipient_id=recipient_id,
+            defaults={
+                "event": models.TaskImDelivery.Event.DATES_CHANGED,
+                "next_attempt_at": timezone.now(),
+            },
+        )
+        deliveries.append(delivery)
+        if created:
+            transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
+    return deliveries[0]
 
 
 def record_task_status_change(
@@ -206,11 +207,11 @@ def record_task_status_change(
             last_error="",
         )
 
-    recipient_ids = set(task.followers.values_list("id", flat=True)) | {
-        recipient_id
-        for recipient_id in (task.creator_id, task.assignee_id)
-        if recipient_id is not None and recipient_id != activity.actor_id
-    }
+    recipient_ids = (
+        set(task.followers.values_list("id", flat=True))
+        | task_assignee_ids(task)
+        | {task.creator_id}
+    )
     recipient_ids.discard(activity.actor_id)
     deliveries = []
     for recipient_id in recipient_ids:
@@ -238,7 +239,9 @@ def record_task_deletion(
     becomes ``NULL`` during deletion, so retries remain possible afterwards.
     """
 
-    recipient_ids = set(task.followers.values_list("id", flat=True))
+    recipient_ids = set(
+        task.followers.values_list("id", flat=True)
+    ) | task_assignee_ids(task)
     recipient_ids.discard(actor.id)
     deliveries = []
     for recipient_id in recipient_ids:
@@ -274,21 +277,25 @@ def record_task_priority_change(
         last_error="",
     )
 
-    if task.assignee_id is None or task.assignee_id == activity.actor_id:
+    recipient_ids = task_assignee_ids(task) - {activity.actor_id}
+    if not recipient_ids:
         return None
 
-    delivery, created = models.TaskImDelivery.objects.get_or_create(
-        task=task,
-        activity=activity,
-        recipient_id=task.assignee_id,
-        defaults={
-            "event": models.TaskImDelivery.Event.PRIORITY_CHANGED,
-            "next_attempt_at": timezone.now(),
-        },
-    )
-    if created:
-        transaction.on_commit(lambda: _enqueue_delivery(delivery.id))
-    return delivery
+    deliveries = []
+    for recipient_id in recipient_ids:
+        delivery, created = models.TaskImDelivery.objects.get_or_create(
+            task=task,
+            activity=activity,
+            recipient_id=recipient_id,
+            defaults={
+                "event": models.TaskImDelivery.Event.PRIORITY_CHANGED,
+                "next_attempt_at": timezone.now(),
+            },
+        )
+        deliveries.append(delivery)
+        if created:
+            transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
+    return deliveries[0]
 
 
 def _supersede_stale_reminders(*, pending, task: models.Task) -> None:
@@ -333,34 +340,40 @@ def record_due_task_reminders(*, now=None) -> int:
     tasks = (
         models.Task.objects.filter(
             status__in=OPEN_TASK_STATUSES,
-            assignee__isnull=False,
-            assignee__is_active=True,
         )
+        .filter(Q(assignees__is_active=True) | Q(assignee__is_active=True))
         .filter(Q(start_date__isnull=False) | Q(due_date__isnull=False))
+        .distinct()
         .select_related("assignee")
+        .prefetch_related("assignees")
     )
-    for task in tasks.iterator():
-        today = local_date_for_user(task.assignee, now=now)
-        reminders = []
-        # A one-day task gets the more urgent due reminder instead of two cards.
-        if task.start_date == today and task.due_date != today:
-            reminders.append((models.TaskImDelivery.Event.STARTING, task.start_date))
-        if task.due_date == today:
-            reminders.append((models.TaskImDelivery.Event.DUE_TODAY, task.due_date))
-        elif task.due_date is not None and task.due_date < today:
-            reminders.append((models.TaskImDelivery.Event.OVERDUE, task.due_date))
+    for task in tasks:
+        for assignee in task_assignees(task):
+            if not assignee.is_active:
+                continue
+            today = local_date_for_user(assignee, now=now)
+            reminders = []
+            # A one-day task gets the more urgent due reminder instead of two cards.
+            if task.start_date == today and task.due_date != today:
+                reminders.append(
+                    (models.TaskImDelivery.Event.STARTING, task.start_date)
+                )
+            if task.due_date == today:
+                reminders.append((models.TaskImDelivery.Event.DUE_TODAY, task.due_date))
+            elif task.due_date is not None and task.due_date < today:
+                reminders.append((models.TaskImDelivery.Event.OVERDUE, task.due_date))
 
-        for event, reference_date in reminders:
-            delivery, created = models.TaskImDelivery.objects.get_or_create(
-                task=task,
-                recipient_id=task.assignee_id,
-                event=event,
-                reference_date=reference_date,
-                defaults={"next_attempt_at": timezone.now()},
-            )
-            if created:
-                created_count += 1
-                transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
+            for event, reference_date in reminders:
+                delivery, created = models.TaskImDelivery.objects.get_or_create(
+                    task=task,
+                    recipient_id=assignee.id,
+                    event=event,
+                    reference_date=reference_date,
+                    defaults={"next_attempt_at": timezone.now()},
+                )
+                if created:
+                    created_count += 1
+                    transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
     return created_count
 
 
@@ -417,7 +430,7 @@ def claim_task_assignment(delivery_id) -> models.TaskImDelivery | None:
             "comment__author",
             "activity__actor",
         )
-        .prefetch_related("task__followers")
+        .prefetch_related("task__assignees", "task__followers")
         .filter(pk=delivery_id)
         .first()
     )
@@ -867,13 +880,14 @@ def _recipient_can_receive(  # noqa: PLR0912
         return bool(delivery.task_title)
     if task is None:
         return False
+    assignee_ids = task_assignee_ids(task)
     if delivery.event in ASSIGNMENT_EVENTS:
-        allowed = task.assignee_id == delivery.recipient_id
+        allowed = delivery.recipient_id in assignee_ids
     elif delivery.event == models.TaskImDelivery.Event.COMMENTED:
         comment = delivery.comment
         allowed = bool(
             comment is not None
-            and delivery.recipient_id in {task.creator_id, task.assignee_id}
+            and delivery.recipient_id in ({task.creator_id} | assignee_ids)
             and delivery.recipient_id != comment.author_id
         )
     elif delivery.event == models.TaskImDelivery.Event.DATES_CHANGED:
@@ -882,7 +896,7 @@ def _recipient_can_receive(  # noqa: PLR0912
             activity is not None
             and activity.task_id == task.id
             and activity.event == models.TaskActivity.Event.DATES_CHANGED
-            and task.assignee_id == delivery.recipient_id
+            and delivery.recipient_id in assignee_ids
             and activity.actor_id != delivery.recipient_id
             and task.status in OPEN_TASK_STATUSES
             and _date_change_matches_task(activity=activity, task=task)
@@ -902,7 +916,7 @@ def _recipient_can_receive(  # noqa: PLR0912
             and activity.task_id == task.id
             and activity.event == models.TaskActivity.Event.STATUS_CHANGED
             and delivery.recipient_id
-            in ({task.creator_id, task.assignee_id} | follower_ids)
+            in ({task.creator_id} | assignee_ids | follower_ids)
             and activity.actor_id != delivery.recipient_id
             and _status_change_matches_task(activity=activity, task=task)
         )
@@ -912,13 +926,13 @@ def _recipient_can_receive(  # noqa: PLR0912
             activity is not None
             and activity.task_id == task.id
             and activity.event == models.TaskActivity.Event.PRIORITY_CHANGED
-            and task.assignee_id == delivery.recipient_id
+            and delivery.recipient_id in assignee_ids
             and activity.actor_id != delivery.recipient_id
             and _priority_change_matches_task(activity=activity, task=task)
         )
     elif delivery.event in REMINDER_EVENTS:
         if (
-            task.assignee_id != delivery.recipient_id
+            delivery.recipient_id not in assignee_ids
             or task.status not in OPEN_TASK_STATUSES
             or delivery.reference_date is None
         ):

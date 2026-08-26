@@ -10,7 +10,6 @@ import {
   RiUserFollowLine,
 } from '@remixicon/react'
 
-import { ContactPicker, type DirectoryMember } from '@/features/contacts'
 import { Button, Input, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
@@ -22,8 +21,9 @@ import type {
   TaskPriority,
 } from '../api/ApiTask'
 import { useCreateTask } from '../api/fetchTasks'
+import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
-import { TaskUserDisplay } from './TaskUserDisplay'
+import { TaskAssigneesDisplay, TaskUserDisplay } from './TaskUserDisplay'
 
 const priorities: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
 
@@ -45,7 +45,7 @@ export const TaskForm = ({
   const { t } = useTranslation('tasks')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [assignee, setAssignee] = useState<ApiTaskUser | null>(null)
+  const [assignees, setAssignees] = useState<ApiTaskUser[]>([])
   const [followers, setFollowers] = useState<ApiTaskUser[]>([])
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [taskListId, setTaskListId] = useState(defaultTaskListId || '')
@@ -69,7 +69,10 @@ export const TaskForm = ({
       const payload = {
         title: cleanTitle,
         description: description.trim(),
-        assignee_id: assignee?.id,
+        assignee_ids:
+          assignees.length > 0
+            ? assignees.map((assignee) => assignee.id)
+            : undefined,
         follower_ids: followers.map((follower) => follower.id),
         priority,
         task_list_id: taskListId || null,
@@ -85,13 +88,11 @@ export const TaskForm = ({
   }
 
   const picker = pickerOpen && (
-    <ContactPicker
-      includeSelf
-      title={t('form.selectAssignee')}
-      searchPlaceholder={t('form.searchAssignee')}
+    <TaskAssigneePickerDialog
+      initial={assignees}
       onClose={() => setPickerOpen(false)}
-      onSelect={(member: DirectoryMember) => {
-        setAssignee(directoryMemberToTaskUser(member))
+      onConfirm={(selectedAssignees) => {
+        setAssignees(selectedAssignees)
         setPickerOpen(false)
       }}
     />
@@ -133,8 +134,8 @@ export const TaskForm = ({
               className={assigneeButtonCss}
               onPress={() => setPickerOpen(true)}
             >
-              {assignee ? (
-                <TaskUserDisplay user={assignee} />
+              {assignees.length > 0 ? (
+                <TaskAssigneesDisplay users={assignees} />
               ) : (
                 t('form.assigneeSelf')
               )}
@@ -321,13 +322,6 @@ export const TaskForm = ({
   )
 }
 
-const directoryMemberToTaskUser = (member: DirectoryMember): ApiTaskUser => ({
-  id: member.id,
-  full_name: member.full_name,
-  short_name: member.short_name,
-  email: member.email,
-  avatar_url: member.avatar_url,
-})
 const errorCss = css({ margin: 0, color: 'danger.subtle-text' })
 
 const dateInputValue = (date: Date) =>

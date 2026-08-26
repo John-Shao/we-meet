@@ -139,6 +139,7 @@ def test_user_creates_personal_task_assigned_to_self():
     assert payload["creator"]["avatar_url"] == ""
     assert payload["assignee"]["id"] == str(user.id)
     assert payload["assignee"]["avatar_url"] == ""
+    assert [assignee["id"] for assignee in payload["assignees"]] == [str(user.id)]
     assert payload["status"] == Task.Status.TODO
     assert payload["priority"] == Task.Priority.MEDIUM
     assert "labels" not in payload
@@ -152,6 +153,7 @@ def test_user_creates_personal_task_assigned_to_self():
     task = Task.objects.get()
     assert task.creator == user
     assert task.assignee == user
+    assert list(task.assignees.all()) == [user]
     assert task.start_date.isoformat() == "2026-08-20"
     assert task.due_date.isoformat() == "2026-08-31"
     activity = TaskActivity.objects.get()
@@ -251,6 +253,79 @@ def test_creator_assigns_task_to_colleague_from_same_organization():
     assert delivery.recipient == colleague
     assert delivery.event == TaskImDelivery.Event.ASSIGNED
     assert delivery.status == TaskImDelivery.Status.PENDING
+
+
+def test_creator_assigns_task_to_multiple_colleagues():
+    organization = OrganizationFactory()
+    creator = UserFactory()
+    first = UserFactory(full_name="Ada")
+    second = UserFactory(full_name="Grace")
+    for user in (creator, first, second):
+        MembershipFactory(
+            organization=organization,
+            user=user,
+            is_primary=True,
+        )
+
+    response = _client(creator).post(
+        TASKS_URL,
+        {
+            "title": "Ship together",
+            "assignee_ids": [str(first.id), str(second.id)],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    task = Task.objects.get()
+    assert set(task.assignees.values_list("id", flat=True)) == {first.id, second.id}
+    assert {item["id"] for item in response.json()["assignees"]} == {
+        str(first.id),
+        str(second.id),
+    }
+    assert set(TaskImDelivery.objects.values_list("recipient_id", flat=True)) == {
+        first.id,
+        second.id,
+    }
+    assert _client(first).get(f"{TASKS_URL}{task.id}/").status_code == 200
+    assert _client(second).get(f"{TASKS_URL}{task.id}/").status_code == 200
+
+    TaskImDelivery.objects.all().delete()
+    changed = _client(creator).patch(
+        f"{TASKS_URL}{task.id}/",
+        {"priority": Task.Priority.HIGH},
+        format="json",
+    )
+    assert changed.status_code == 200
+    assert set(
+        TaskImDelivery.objects.filter(
+            event=TaskImDelivery.Event.PRIORITY_CHANGED
+        ).values_list("recipient_id", flat=True)
+    ) == {first.id, second.id}
+
+    completed = _client(first).patch(
+        f"{TASKS_URL}{task.id}/",
+        {"status": Task.Status.COMPLETED},
+        format="json",
+    )
+    assert completed.status_code == 200
+    assert completed.json()["status"] == Task.Status.COMPLETED
+
+
+def test_task_rejects_more_than_ten_assignees():
+    creator = UserFactory()
+
+    response = _client(creator).post(
+        TASKS_URL,
+        {
+            "title": "Too many owners",
+            "assignee_ids": [str(creator.id)] * 11,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "assignee_ids" in response.json()
 
 
 def test_creator_cannot_assign_task_outside_organization():
@@ -793,7 +868,7 @@ def test_task_priority_filter_combines_with_time_filter():
     assert [item["id"] for item in response.json()["results"]] == [str(urgent.id)]
 
 
-def test_task_time_filter_uses_current_assignee_timezone():
+def test_task_time_filter_uses_current_viewer_timezone():
     now = timezone.now()
     creator_today = timezone.localdate(now, timezone=ZoneInfo("UTC"))
     assignee_timezone = next(
@@ -811,11 +886,19 @@ def test_task_time_filter_uses_current_assignee_timezone():
         start_date=assignee_today,
     )
 
-    response = _client(creator).get(f"{TASKS_URL}?scope=created&time=starting_today")
+    creator_response = _client(creator).get(
+        f"{TASKS_URL}?scope=created&time=starting_today"
+    )
+    assignee_response = _client(assignee).get(
+        f"{TASKS_URL}?scope=assigned&time=starting_today"
+    )
 
-    assert response.status_code == 200
+    assert creator_response.status_code == 200
+    assert creator_response.json()["results"] == []
+    assert assignee_response.status_code == 200
     assert [
-        (item["id"], item["time_state"]) for item in response.json()["results"]
+        (item["id"], item["time_state"])
+        for item in assignee_response.json()["results"]
     ] == [(str(task.id), "starting_today")]
 
 
@@ -1000,7 +1083,7 @@ def test_creator_reassigns_task_and_visibility_follows_assignee():
         event=TaskActivity.Event.PRIORITY_CHANGED,
         changes={
             "priority": {
-                "from": Task.Priority.NONE,
+                "from": Task.Priority.MEDIUM,
                 "to": Task.Priority.HIGH,
             }
         },
@@ -1093,7 +1176,7 @@ def test_creator_priority_change_records_history_and_notifies_assignee(
     assert unchanged.status_code == 200
     activity = TaskActivity.objects.get(event=TaskActivity.Event.PRIORITY_CHANGED)
     assert activity.changes == {
-        "priority": {"from": Task.Priority.NONE, "to": Task.Priority.URGENT}
+        "priority": {"from": Task.Priority.MEDIUM, "to": Task.Priority.URGENT}
     }
     delivery = TaskImDelivery.objects.get(activity=activity)
     assert delivery.recipient == assignee

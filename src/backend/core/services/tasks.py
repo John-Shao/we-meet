@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from core import models
+from core.services.task_assignees import set_task_assignees
 from core.services.task_history import record_task_created
 from core.services.task_notifications import record_task_assignment
 
@@ -102,6 +103,7 @@ def create_task_from_action_item(*, action_item_id, creator):
         ),
         source_action_item=action_item,
     )
+    set_task_assignees(task, [action_item.assignee])
     action_item.task_id = task.id
     action_item.save(update_fields=["task_id", "updated_at"])
     record_task_created(task=task, actor=creator)

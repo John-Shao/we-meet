@@ -96,6 +96,7 @@ export interface ApiTask {
   description: string
   creator: ApiTaskUser
   assignee: ApiTaskUser | null
+  assignees?: ApiTaskUser[]
   followers: ApiTaskUser[]
   status: TaskStatus
   priority: TaskPriority
@@ -159,6 +160,12 @@ export interface ApiTaskActivity {
       | {
           from: ApiTaskActivityUserSnapshot | null
           to: ApiTaskActivityUserSnapshot | null
+        }
+    assignees?:
+      | ApiTaskActivityUserSnapshot[]
+      | {
+          from: ApiTaskActivityUserSnapshot[]
+          to: ApiTaskActivityUserSnapshot[]
         }
     status?: { from: TaskStatusSnapshot; to: TaskStatusSnapshot }
     priority?: { from: TaskPriority; to: TaskPriority }
@@ -258,6 +265,7 @@ export interface CreateTaskPayload {
   title: string
   description?: string
   assignee_id?: string
+  assignee_ids?: string[]
   follower_ids?: string[]
   start_date?: string | null
   due_date?: string | null
@@ -271,6 +279,7 @@ export interface PatchTaskPayload {
   title?: string
   description?: string
   assignee_id?: string
+  assignee_ids?: string[]
   start_date?: string | null
   due_date?: string | null
   priority?: TaskPriority

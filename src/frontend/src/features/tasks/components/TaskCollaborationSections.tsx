@@ -325,11 +325,16 @@ const taskActivityMessage = (
     return t('history.events.placement_changed', { actor, from, to })
   }
   if (activity.event === 'assignee_changed') {
+    const assignees = activity.changes.assignees
+    const targets =
+      assignees && !Array.isArray(assignees) && 'to' in assignees
+        ? assignees.to.map((assignee) => assignee.name).join('、')
+        : null
     const assignee = activity.changes.assignee
     const target = assignee && 'to' in assignee ? assignee.to?.name : null
     return t('history.events.assignee_changed', {
       actor,
-      assignee: target || '—',
+      assignee: targets || target || '—',
     })
   }
   if (activity.event === 'attachment_removed') {

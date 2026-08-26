@@ -3,7 +3,7 @@
 from datetime import date
 from zoneinfo import ZoneInfo
 
-from django.db.models import DateField, F, Func, QuerySet
+from django.db.models import DateField, F, Func, QuerySet, Value
 from django.db.models.functions import Cast, Now
 from django.utils import timezone
 
@@ -13,8 +13,15 @@ OPEN_TASK_STATUSES = (models.Task.Status.TODO,)
 TIME_FILTERS = {"all", "starting_today", "due_today", "overdue"}
 
 
-def annotate_assignee_local_date(queryset: QuerySet) -> QuerySet:
-    """Annotate each task with today's date in its assignee's timezone."""
+def annotate_assignee_local_date(queryset: QuerySet, *, user=None) -> QuerySet:
+    """Annotate the viewer's local date, falling back to the legacy assignee."""
+
+    if user is not None:
+        return queryset.annotate(
+            _assignee_local_date=Value(
+                local_date_for_user(user), output_field=DateField()
+            )
+        )
 
     local_timestamp = Func(
         F("assignee__timezone"),

@@ -1,7 +1,12 @@
-import type { ApiTask, TaskStatus } from './api/ApiTask'
+import type { ApiTask, ApiTaskUser, TaskStatus } from './api/ApiTask'
 
 export const taskDisplayName = (user: ApiTask['creator'] | null) =>
   user?.full_name || user?.short_name || user?.email || '—'
+
+export const taskAssignees = (task: {
+  assignees?: ApiTaskUser[]
+  assignee: ApiTaskUser | null
+}) => task.assignees ?? (task.assignee ? [task.assignee] : [])
 
 const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
   todo: ['completed'],

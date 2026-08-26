@@ -15,6 +15,7 @@ class TaskHistorySnapshot:
     start_date: date | None
     due_date: date | None
     assignee: dict | None
+    assignees: list[dict]
     status: str
     priority: str
     task_list: dict | None
@@ -31,6 +32,7 @@ def snapshot_task(task: models.Task) -> TaskHistorySnapshot:
         start_date=task.start_date,
         due_date=task.due_date,
         assignee=_user_snapshot(task.assignee),
+        assignees=_assignee_snapshots(task),
         status=task.status,
         priority=task.priority,
         task_list=_task_list_snapshot(task.task_list),
@@ -46,7 +48,10 @@ def record_task_created(*, task: models.Task, actor) -> models.TaskActivity:
         task=task,
         actor=actor,
         event=models.TaskActivity.Event.CREATED,
-        changes={"assignee": _user_snapshot(task.assignee)},
+        changes={
+            "assignee": _user_snapshot(task.assignee),
+            "assignees": _assignee_snapshots(task),
+        },
     )
 
 
@@ -96,13 +101,17 @@ def record_task_changes(
         )
 
     assignee = _user_snapshot(task.assignee)
-    if assignee != before.assignee:
+    assignees = _assignee_snapshots(task)
+    if assignees != before.assignees:
         activities.append(
             _activity(
                 task=task,
                 actor=actor,
                 event=models.TaskActivity.Event.ASSIGNEE_CHANGED,
-                changes={"assignee": {"from": before.assignee, "to": assignee}},
+                changes={
+                    "assignee": {"from": before.assignee, "to": assignee},
+                    "assignees": {"from": before.assignees, "to": assignees},
+                },
             )
         )
 
@@ -180,6 +189,17 @@ def _user_snapshot(user) -> dict | None:
             user.full_name or user.short_name or user.email or str(user.id)
         ).strip(),
     }
+
+
+def _assignee_snapshots(task) -> list[dict]:
+    prefetched = getattr(task, "_prefetched_objects_cache", {}).get("assignees")
+    assignees = (
+        list(prefetched) if prefetched is not None else list(task.assignees.all())
+    )
+    if not assignees and task.assignee is not None:
+        assignees = [task.assignee]
+    snapshots = [_user_snapshot(assignee) for assignee in assignees]
+    return sorted(snapshots, key=lambda item: item["id"])
 
 
 def _task_list_snapshot(task_list) -> dict | None:

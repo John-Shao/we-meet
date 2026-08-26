@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next'
 
 import type { ApiTask } from '../api/ApiTask'
+import { taskAssignees } from '../taskUi'
 
 const taskUrl = (taskId: string, cid?: string) => {
   const url = new URL('/tasks', window.location.origin)
@@ -18,12 +19,14 @@ export const buildTaskCardBody = (
   locale: string
 ) => {
   const detailUrl = taskUrl(task.id, cid)
-  const assignee = task.assignee
-    ? task.assignee.full_name ||
-      task.assignee.short_name ||
-      task.assignee.email ||
-      t('meta.none')
-    : t('meta.none')
+  const assignees = taskAssignees(task)
+  const assignee =
+    assignees
+      .map(
+        (user) =>
+          user.full_name || user.short_name || user.email || t('meta.none')
+      )
+      .join('、') || t('meta.none')
   const dueDate = task.due_date
     ? new Intl.DateTimeFormat(locale, {
         year: 'numeric',
@@ -47,7 +50,7 @@ export const buildTaskCardBody = (
           {
             label: t('meta.assignee'),
             value: assignee,
-            avatar_url: task.assignee?.avatar_url || undefined,
+            avatar_url: assignees[0]?.avatar_url || undefined,
           },
           { label: t('meta.dueDate'), value: dueDate },
         ],

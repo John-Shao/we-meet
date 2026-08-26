@@ -10,6 +10,7 @@ from django.db.models import (
     Exists,
     F,
     IntegerField,
+    Min,
     OuterRef,
     Prefetch,
     Q,
@@ -46,6 +47,12 @@ from core.services.jusi_im import (
     JusiImUnreachableError,
 )
 from core.services.task_action_item_sync import sync_action_item_from_task_status
+from core.services.task_assignees import (
+    MAX_TASK_ASSIGNEES,
+    is_task_assignee,
+    set_task_assignees,
+    task_assignee_ids,
+)
 from core.services.task_history import (
     record_task_changes,
     record_task_created,
@@ -144,9 +151,9 @@ def _can_edit_task_list(task_list, user):
 
 
 def _can_manage_task_content(task, user):
-    return user.id in {task.creator_id, task.assignee_id} or _can_edit_task_list(
-        task.task_list, user
-    )
+    return (
+        task.creator_id == user.id or is_task_assignee(task, user)
+    ) or _can_edit_task_list(task.task_list, user)
 
 
 def _can_comment_on_task(task, user):
@@ -214,7 +221,10 @@ def _order_tasks(queryset, ordering=""):
 
         if field == "assignee":
             queryset = queryset.annotate(
-                _task_ordering_value=_person_name_expression("assignee")
+                _task_ordering_value=Coalesce(
+                    Min(_person_name_expression("assignees")),
+                    _person_name_expression("assignee"),
+                )
             )
             expression = F("_task_ordering_value")
         elif field == "creator":
@@ -250,7 +260,7 @@ def _filter_task_list(queryset, *, request, user):  # noqa: PLR0912
 
     scope = request.query_params.get("scope", "assigned")
     if scope == "assigned":
-        queryset = queryset.filter(assignee=user)
+        queryset = queryset.filter(Q(assignees=user) | Q(assignee=user)).distinct()
     elif scope == "created":
         queryset = queryset.filter(creator=user)
     elif scope == "following":
@@ -294,9 +304,8 @@ def _filter_task_list(queryset, *, request, user):  # noqa: PLR0912
     if time_filter == "all":
         return queryset
 
-    queryset = queryset.filter(
-        status=models.Task.Status.TODO,
-        assignee__isnull=False,
+    queryset = queryset.filter(status=models.Task.Status.TODO).filter(
+        Q(assignees__isnull=False) | Q(assignee__isnull=False)
     )
     if time_filter == "starting_today":
         return queryset.filter(start_date=F("_assignee_local_date")).exclude(
@@ -353,13 +362,23 @@ def _validate_unique_task_group_name(name, task_list, exclude=None):
 class TaskAssigneeValidationMixin:
     """Validate assignees against the caller's organization directory."""
 
-    def validate_assignee_id(self, assignee):
+    def _validate_assignee(self, assignee):
         request = self.context["request"]
         try:
             ensure_task_assignee_allowed(creator=request.user, assignee=assignee)
         except TaskAssigneeError as exc:
             raise serializers.ValidationError(str(exc)) from exc
         return assignee
+
+    def validate_assignee_id(self, assignee):
+        return self._validate_assignee(assignee)
+
+    def validate_assignee_ids(self, assignees):
+        if len({assignee.id for assignee in assignees}) != len(assignees):
+            raise serializers.ValidationError("Choose each assignee only once.")
+        for assignee in assignees:
+            self._validate_assignee(assignee)
+        return assignees
 
 
 class TaskFollowerValidationMixin:
@@ -445,6 +464,14 @@ class TaskCreateSerializer(
         required=False,
         write_only=True,
     )
+    assignee_ids = serializers.ListField(
+        source="assignees",
+        child=serializers.PrimaryKeyRelatedField(queryset=models.User.objects.all()),
+        required=False,
+        allow_empty=False,
+        max_length=MAX_TASK_ASSIGNEES,
+        write_only=True,
+    )
     follower_ids = serializers.PrimaryKeyRelatedField(
         source="followers",
         queryset=models.User.objects.all(),
@@ -469,6 +496,10 @@ class TaskCreateSerializer(
     position = serializers.IntegerField(required=False, min_value=0, default=0)
 
     def validate(self, attrs):
+        if "assignee_id" in self.initial_data and "assignee_ids" in self.initial_data:
+            raise serializers.ValidationError(
+                {"assignee_ids": "Use assignee_ids instead of assignee_id."}
+            )
         attrs = self.validate_placement(attrs)
         if attrs.get("start_date") is None:
             attrs["start_date"] = local_date_for_user(self.context["request"].user)
@@ -507,6 +538,14 @@ class TaskUpdateSerializer(
         required=False,
         write_only=True,
     )
+    assignee_ids = serializers.ListField(
+        source="assignees",
+        child=serializers.PrimaryKeyRelatedField(queryset=models.User.objects.all()),
+        required=False,
+        allow_empty=False,
+        max_length=MAX_TASK_ASSIGNEES,
+        write_only=True,
+    )
     task_list_id = serializers.PrimaryKeyRelatedField(
         source="task_list",
         queryset=models.TaskList.objects.all(),
@@ -534,10 +573,15 @@ class TaskUpdateSerializer(
             "group_id",
             "position",
             "assignee_id",
+            "assignee_ids",
             "status",
         ]
 
     def validate(self, attrs):
+        if "assignee_id" in self.initial_data and "assignee_ids" in self.initial_data:
+            raise serializers.ValidationError(
+                {"assignee_ids": "Use assignee_ids instead of assignee_id."}
+            )
         attrs = super().validate(attrs)
         attrs = self.validate_placement(attrs)
         start_date = attrs.get("start_date", self.instance.start_date)
@@ -558,8 +602,14 @@ class TaskUpdateSerializer(
         return value
 
     def update(self, instance, validated_data):
+        assignees = validated_data.pop("assignees", None)
+        legacy_assignee = validated_data.get("assignee")
+        if legacy_assignee is not None:
+            assignees = [legacy_assignee]
         previous_status = instance.status
         instance = super().update(instance, validated_data)
+        if assignees is not None:
+            set_task_assignees(instance, assignees)
         if instance.status == previous_status:
             return instance
         instance.completed_at = (
@@ -761,7 +811,9 @@ class TaskListViewSet(
         with transaction.atomic():
             if request.query_params.get("delete_unassigned") == "true":
                 _delete_tasks_with_attachments(
-                    task_list.tasks.filter(assignee__isnull=True),
+                    task_list.tasks.filter(
+                        assignees__isnull=True, assignee__isnull=True
+                    ),
                     actor=request.user,
                 )
             task_list.delete()
@@ -1019,6 +1071,7 @@ class TaskViewSet(
         queryset = (
             models.Task.objects.filter(
                 Q(creator=user)
+                | Q(assignees=user)
                 | Q(assignee=user)
                 | Q(followers=user)
                 | Q(task_list__accesses__user=user)
@@ -1041,9 +1094,9 @@ class TaskViewSet(
                 "group",
                 "source_action_item__room",
             )
-            .prefetch_related("followers")
+            .prefetch_related("assignees", "followers")
         )
-        queryset = annotate_assignee_local_date(queryset)
+        queryset = annotate_assignee_local_date(queryset, user=user)
         if self.action == "list":
             queryset = _filter_task_list(
                 queryset,
@@ -1102,10 +1155,10 @@ class TaskViewSet(
                 )
             )
             .select_related("creator", "assignee", "task_list", "group")
-            .prefetch_related("followers")
+            .prefetch_related("assignees", "followers")
             .order_by("status", "due_date", "-conversation_shares__created_at")
         )
-        queryset = annotate_assignee_local_date(queryset)
+        queryset = annotate_assignee_local_date(queryset, user=request.user)
         return Response(TaskSerializer(queryset, many=True, context={"request": request}).data)
 
     def create(self, request, *args, **kwargs):  # pylint: disable=unused-argument
@@ -1115,15 +1168,19 @@ class TaskViewSet(
         )
         serializer.is_valid(raise_exception=True)
         validated_data = dict(serializer.validated_data)
-        assignee = validated_data.pop("assignee", request.user)
+        assignees = validated_data.pop("assignees", None)
+        legacy_assignee = validated_data.pop("assignee", None)
+        if assignees is None:
+            assignees = [legacy_assignee or request.user]
         followers = validated_data.pop("followers", [])
         with transaction.atomic():
             task = models.Task.objects.create(
                 creator=request.user,
-                assignee=assignee,
+                assignee=assignees[0],
                 organization=get_caller_organization(request.user),
                 **validated_data,
             )
+            set_task_assignees(task, assignees)
             task.followers.set(followers)
             record_task_created(task=task, actor=request.user)
             record_task_assignment(
@@ -1151,10 +1208,11 @@ class TaskViewSet(
                     "group",
                     "source_action_item__room",
                 )
+                .prefetch_related("assignees")
                 .get(pk=task.pk)
             )
             history_snapshot = snapshot_task(task)
-            previous_assignee_id = task.assignee_id
+            previous_assignee_ids = task_assignee_ids(task)
             requested_fields = set(request.data)
             allowed_fields = {
                 "title",
@@ -1166,6 +1224,7 @@ class TaskViewSet(
                 "group_id",
                 "position",
                 "assignee_id",
+                "assignee_ids",
                 "status",
             }
             if not requested_fields or not requested_fields <= allowed_fields:
@@ -1174,7 +1233,7 @@ class TaskViewSet(
                 )
             can_edit_list = _can_edit_task_list(task.task_list, request.user)
             if task.creator_id != request.user.id and not can_edit_list:
-                if task.assignee_id != request.user.id:
+                if not is_task_assignee(task, request.user):
                     raise PermissionDenied("Only task editors can update this task.")
             serializer = TaskUpdateSerializer(
                 task,
@@ -1199,10 +1258,12 @@ class TaskViewSet(
             )
             if status_activity is not None:
                 sync_action_item_from_task_status(activity=status_activity)
-            if task.assignee_id != previous_assignee_id:
+            current_assignee_ids = task_assignee_ids(task)
+            if current_assignee_ids != previous_assignee_ids:
                 record_task_assignment(
                     task=task,
                     event=models.TaskImDelivery.Event.REASSIGNED,
+                    recipient_ids=current_assignee_ids - previous_assignee_ids,
                 )
             else:
                 date_activity = next(
@@ -1270,7 +1331,9 @@ class TaskViewSet(
         """Add one or more followers as the creator or current assignee."""
 
         task = self.get_object()
-        if request.user.id not in {task.creator_id, task.assignee_id}:
+        if task.creator_id != request.user.id and not is_task_assignee(
+            task, request.user
+        ):
             raise PermissionDenied(
                 "Only the task creator or assignee can manage followers."
             )
@@ -1291,7 +1354,9 @@ class TaskViewSet(
         """Remove one follower as the creator or current assignee."""
 
         task = self.get_object()
-        if request.user.id not in {task.creator_id, task.assignee_id}:
+        if task.creator_id != request.user.id and not is_task_assignee(
+            task, request.user
+        ):
             raise PermissionDenied(
                 "Only the task creator or assignee can manage followers."
             )
@@ -1317,10 +1382,10 @@ class TaskViewSet(
             user=request.user,
         )
         open_statuses = [models.Task.Status.TODO]
-        overdue_filter = Q(
-            status__in=open_statuses,
-            assignee__isnull=False,
-            due_date__lt=F("_assignee_local_date"),
+        overdue_filter = (
+            Q(status__in=open_statuses)
+            & (Q(assignees__isnull=False) | Q(assignee__isnull=False))
+            & Q(due_date__lt=F("_assignee_local_date"))
         )
         summary = queryset.aggregate(
             total=Count("id", distinct=True),
@@ -1337,31 +1402,48 @@ class TaskViewSet(
             if summary["total"]
             else 0
         )
-        workload = list(
-            queryset.filter(assignee__isnull=False)
-            .values(
-                "assignee_id",
-                "assignee__full_name",
-                "assignee__short_name",
-                "assignee__email",
-                "assignee__avatar_key",
-            )
-            .annotate(
-                total=Count("id", distinct=True),
-                open=Count("id", filter=Q(status__in=open_statuses), distinct=True),
-                completed=Count(
-                    "id",
-                    filter=Q(status=models.Task.Status.COMPLETED),
-                    distinct=True,
-                ),
-                overdue=Count("id", filter=overdue_filter, distinct=True),
-            )
-            .order_by("-open", "assignee__full_name", "assignee_id")
+        workload_by_id = {}
+        for task in queryset.select_related("assignee").prefetch_related("assignees"):
+            assignees = list(task.assignees.all())
+            if not assignees and task.assignee is not None:
+                assignees = [task.assignee]
+            for assignee in assignees:
+                item = workload_by_id.setdefault(
+                    assignee.id,
+                    {
+                        "assignee_id": str(assignee.id),
+                        "assignee__full_name": assignee.full_name,
+                        "assignee__short_name": assignee.short_name,
+                        "assignee__email": assignee.email,
+                        "assignee__avatar_url": utils.generate_profile_image_get_url(
+                            "avatar", assignee.avatar_key
+                        ),
+                        "total": 0,
+                        "open": 0,
+                        "completed": 0,
+                        "overdue": 0,
+                    },
+                )
+                item["total"] += 1
+                if task.status == models.Task.Status.COMPLETED:
+                    item["completed"] += 1
+                else:
+                    item["open"] += 1
+                    if (
+                        task.due_date is not None
+                        and task.due_date < local_date_for_user(assignee)
+                    ):
+                        item["overdue"] += 1
+        workload = sorted(
+            workload_by_id.values(),
+            key=lambda item: (
+                -item["open"],
+                item["assignee__full_name"]
+                or item["assignee__short_name"]
+                or item["assignee__email"]
+                or item["assignee_id"],
+            ),
         )
-        for item in workload:
-            item["assignee__avatar_url"] = utils.generate_profile_image_get_url(
-                "avatar", item.pop("assignee__avatar_key")
-            )
         groups = list(
             queryset.values("group_id", "group__name", "group__sort_order")
             .annotate(

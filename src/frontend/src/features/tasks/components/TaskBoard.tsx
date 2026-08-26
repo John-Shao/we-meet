@@ -5,8 +5,9 @@ import { css } from '@/styled-system/css'
 
 import type { ApiTask, TaskStatus } from '../api/ApiTask'
 import { usePatchTask } from '../api/fetchTasks'
+import { taskAssignees } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
-import { TaskUserDisplay } from './TaskUserDisplay'
+import { TaskAssigneesDisplay } from './TaskUserDisplay'
 
 const statuses: TaskStatus[] = ['todo', 'completed']
 
@@ -77,7 +78,7 @@ export const TaskBoard = ({
                     <TaskPriorityBadge priority={task.priority} />
                   </div>
                   <div className={cardMetaCss}>
-                    <TaskUserDisplay user={task.assignee} />
+                    <TaskAssigneesDisplay users={taskAssignees(task)} />
                     <span>
                       {task.due_date
                         ? new Intl.DateTimeFormat(i18n.language, {

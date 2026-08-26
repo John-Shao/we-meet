@@ -224,6 +224,11 @@
     "cardFollowing": "Following",
     "remove": "Remove follower {{name}}"
   },
+  "assignees": {
+    "select": "Select assignees",
+    "selected": "{{count}} of 10 selected",
+    "limit": "Choose up to 10 equally responsible people."
+  },
   "timeFilters": {
     "label": "Time filter",
     "all": "All dates",

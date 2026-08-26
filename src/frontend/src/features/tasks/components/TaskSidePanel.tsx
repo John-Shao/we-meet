@@ -28,7 +28,6 @@ import {
 
 import { ModalCloseButton } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
-import { ContactPicker, type DirectoryMember } from '@/features/contacts'
 import { Button, Input, Menu, MenuList, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
@@ -48,12 +47,13 @@ import {
   useTask,
   useUnfollowTask,
 } from '../api/fetchTasks'
-import { nextTaskStatuses } from '../taskUi'
+import { nextTaskStatuses, taskAssignees } from '../taskUi'
+import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
 import { TaskForm } from './TaskForm'
 import { TaskShareDialog } from './TaskShareDialog'
-import { TaskUserDisplay } from './TaskUserDisplay'
+import { TaskAssigneesDisplay, TaskUserDisplay } from './TaskUserDisplay'
 import {
   TaskAttachmentsSection,
   TaskCommentsSection,
@@ -398,7 +398,7 @@ export const TaskDetailPanel = ({
                 task.can_edit ? () => setAssigneePickerOpen(true) : undefined
               }
             >
-              <TaskUserDisplay user={task.assignee} />
+              <TaskAssigneesDisplay users={taskAssignees(task)} />
             </TaskProperty>
             <TaskProperty
               icon={<RiUserAddLine size={18} />}
@@ -662,14 +662,14 @@ export const TaskDetailPanel = ({
           </dl>
 
           {assigneePickerOpen && (
-            <ContactPicker
-              includeSelf
-              title={t('form.selectAssignee')}
-              searchPlaceholder={t('form.searchAssignee')}
+            <TaskAssigneePickerDialog
+              initial={taskAssignees(task)}
               onClose={() => setAssigneePickerOpen(false)}
-              onSelect={(member: DirectoryMember) => {
+              onConfirm={(assignees) => {
                 setAssigneePickerOpen(false)
-                void saveField({ assignee_id: member.id })
+                void saveField({
+                  assignee_ids: assignees.map((assignee) => assignee.id),
+                })
               }}
             />
           )}

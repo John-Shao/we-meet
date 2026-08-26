@@ -24,7 +24,6 @@ import {
   RiShareForwardLine,
 } from '@remixicon/react'
 
-import { ContactPicker, type DirectoryMember } from '@/features/contacts'
 import { Button, Menu, MenuList } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
@@ -41,8 +40,10 @@ import type {
   TaskStatus,
 } from '../api/ApiTask'
 import { usePatchTask } from '../api/fetchTasks'
+import { taskAssignees } from '../taskUi'
+import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
-import { TaskUserDisplay } from './TaskUserDisplay'
+import { TaskAssigneesDisplay, TaskUserDisplay } from './TaskUserDisplay'
 
 const COLUMN_WIDTHS_STORAGE_KEY = 'we-meet:task-list-column-widths:v2'
 
@@ -76,6 +77,12 @@ const nextOrdering = (
   if (current === field) return `-${field}`
   if (current === `-${field}`) return ''
   return field
+}
+
+const sameIds = (left: string[], right: string[]) => {
+  if (left.length !== right.length) return false
+  const sortedRight = [...right].sort()
+  return [...left].sort().every((id, index) => id === sortedRight[index])
 }
 
 const defaultColumnWidths = (): TaskColumnWidths =>
@@ -355,8 +362,11 @@ export const TaskList = ({
         (patch.task_list_id || null) === (task.task_list?.id || null) &&
         (patch.group_id === undefined ||
           (patch.group_id || null) === (task.group?.id || null))) ||
-      (patch.assignee_id !== undefined &&
-        patch.assignee_id === task.assignee?.id)
+      (patch.assignee_ids !== undefined &&
+        sameIds(
+          patch.assignee_ids,
+          taskAssignees(task).map((assignee) => assignee.id)
+        ))
     if (unchanged) {
       setEditingCell(null)
       setAssigneeEditingTask(null)
@@ -671,15 +681,13 @@ export const TaskList = ({
         })}
       </ul>
       {assigneeEditingTask && (
-        <ContactPicker
-          includeSelf
-          title={t('form.selectAssignee')}
-          searchPlaceholder={t('form.searchAssignee')}
+        <TaskAssigneePickerDialog
+          initial={taskAssignees(assigneeEditingTask)}
           onClose={cancelInlineEdit}
-          onSelect={(member: DirectoryMember) => {
+          onConfirm={(assignees) => {
             setAssigneeEditingTask(null)
             void saveInlineEdit(assigneeEditingTask, {
-              assignee_id: member.id,
+              assignee_ids: assignees.map((assignee) => assignee.id),
             })
           }}
         />
@@ -812,7 +820,7 @@ const DesktopTaskRow = ({
         }
         onEdit={() => onBeginInlineEdit(task, 'assignee')}
       >
-        <TaskUserDisplay user={task.assignee} />
+        <TaskAssigneesDisplay users={taskAssignees(task)} />
       </InlineEditButton>
     </td>
     <td>
@@ -1278,7 +1286,7 @@ const MobileTaskCard = ({
       <div>
         <dt>{t('workspace.columns.assignee')}</dt>
         <dd>
-          <TaskUserDisplay user={task.assignee} />
+          <TaskAssigneesDisplay users={taskAssignees(task)} />
         </dd>
       </div>
       <div>

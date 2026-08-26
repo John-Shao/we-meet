@@ -31,6 +31,30 @@ export const TaskUserDisplay = ({ user, size = '1.375rem' }: Props) => {
   )
 }
 
+export const TaskAssigneesDisplay = ({
+  users,
+  size = '1.375rem',
+}: {
+  users: ApiTaskUser[]
+  size?: string
+}) => {
+  if (users.length === 0) return <span>—</span>
+  const names = users.map(taskDisplayName)
+  return (
+    <span className={assigneesCss} title={names.join('、')}>
+      <span className={avatarStackCss}>
+        {users.slice(0, 3).map((user) => (
+          <span key={user.id} className={stackedAvatarCss}>
+            <TaskUserAvatar user={user} size={size} />
+          </span>
+        ))}
+      </span>
+      <span className={nameCss}>{names[0]}</span>
+      {users.length > 1 && <span className={moreCss}>+{users.length - 1}</span>}
+    </span>
+  )
+}
+
 const userCss = css({
   minWidth: 0,
   maxWidth: '100%',
@@ -45,4 +69,30 @@ const nameCss = css({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+})
+
+const assigneesCss = css({
+  minWidth: 0,
+  maxWidth: '100%',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+})
+
+const avatarStackCss = css({
+  display: 'inline-flex',
+  flexShrink: 0,
+  '& > span:not(:first-child)': { marginLeft: '-0.45rem' },
+})
+
+const stackedAvatarCss = css({
+  display: 'inline-flex',
+  border: '1px solid token(colors.greyscale.000)',
+  borderRadius: '999px',
+})
+
+const moreCss = css({
+  flexShrink: 0,
+  color: 'greyscale.600',
+  fontSize: '0.75rem',
 })

@@ -20,28 +20,36 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-vi.mock('@/features/contacts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/features/contacts')>()
-  return {
-    ...actual,
-    ContactPicker: ({
-      onSelect,
-      onClose,
-    }: {
-      onSelect: (member: { id: string }) => void
-      onClose: () => void
-    }) => (
-      <div role="dialog">
-        <button type="button" onClick={() => onSelect({ id: 'member-2' })}>
-          Pick member
-        </button>
-        <button type="button" onClick={onClose}>
-          Cancel picker
-        </button>
-      </div>
-    ),
-  }
-})
+vi.mock('./TaskAssigneePickerDialog', () => ({
+  TaskAssigneePickerDialog: ({
+    onConfirm,
+    onClose,
+  }: {
+    onConfirm: (members: NonNullable<ApiTask['assignees']>) => void
+    onClose: () => void
+  }) => (
+    <div role="dialog">
+      <button
+        type="button"
+        onClick={() =>
+          onConfirm([
+            {
+              id: 'member-2',
+              full_name: 'Jordan',
+              short_name: null,
+              avatar_url: '/jordan.png',
+            },
+          ])
+        }
+      >
+        Pick member
+      </button>
+      <button type="button" onClick={onClose}>
+        Cancel picker
+      </button>
+    </div>
+  ),
+}))
 
 vi.mock('../api/fetchTasks', () => ({
   usePatchTask: () => ({ mutate, mutateAsync, isPending: false }),
@@ -388,6 +396,14 @@ describe('TaskList', () => {
         short_name: null,
         avatar_url: '/jordan.png',
       },
+      assignees: [
+        {
+          id: 'member-2',
+          full_name: 'Jordan',
+          short_name: null,
+          avatar_url: '/jordan.png',
+        },
+      ],
       updated_at: '2026-08-21T10:00:00Z',
     })
     const onOpen = vi.fn()
@@ -405,7 +421,7 @@ describe('TaskList', () => {
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenCalledWith({
         taskId: task.id,
-        patch: { assignee_id: 'member-2' },
+        patch: { assignee_ids: ['member-2'] },
       })
     )
     expect(onOpen).not.toHaveBeenCalled()

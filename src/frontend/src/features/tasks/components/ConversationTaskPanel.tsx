@@ -13,8 +13,9 @@ import { css } from '@/styled-system/css'
 
 import type { ApiTask } from '../api/ApiTask'
 import { useConversationTasks } from '../api/fetchTasks'
+import { taskAssignees } from '../taskUi'
 import { TaskShareDialog } from './TaskShareDialog'
-import { TaskUserDisplay } from './TaskUserDisplay'
+import { TaskAssigneesDisplay } from './TaskUserDisplay'
 
 export const ConversationTaskPanel = ({
   cid,
@@ -66,7 +67,7 @@ export const ConversationTaskPanel = ({
                   <strong>{task.title}</strong>
                   <span>
                     <RiUser3Line size={14} />
-                    <TaskUserDisplay user={task.assignee} />
+                    <TaskAssigneesDisplay users={taskAssignees(task)} />
                   </span>
                   <span>
                     <RiCalendarLine size={14} />

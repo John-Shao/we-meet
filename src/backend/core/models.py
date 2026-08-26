@@ -1408,11 +1408,9 @@ class File(BaseModel):
             user.is_authenticated
             and task_attachment
             and (
-                user.id
-                in {
-                    task_attachment.task.creator_id,
-                    task_attachment.task.assignee_id,
-                }
+                task_attachment.task.creator_id == user.id
+                or task_attachment.task.assignees.filter(id=user.id).exists()
+                or task_attachment.task.assignee_id == user.id
                 or (
                     task_attachment.task.task_list_id
                     and TaskListAccess.objects.filter(
@@ -2432,6 +2430,12 @@ class Task(BaseModel):
         null=True,
         blank=True,
         verbose_name=_("assignee"),
+    )
+    assignees = models.ManyToManyField(
+        User,
+        related_name="coassigned_tasks",
+        blank=True,
+        verbose_name=_("assignees"),
     )
     followers = models.ManyToManyField(
         User,

@@ -25,6 +25,7 @@ from core import models, utils
 from core.services.task_action_item_sync import (
     record_manual_action_item_status_change,
 )
+from core.services.task_assignees import is_task_assignee
 from core.services.task_time import local_date_for_user, task_time_state
 
 logger = logging.getLogger(__name__)
@@ -799,6 +800,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
     creator = TaskUserSerializer(read_only=True)
     assignee = TaskUserSerializer(read_only=True)
+    assignees = serializers.SerializerMethodField()
     followers = TaskUserSerializer(many=True, read_only=True)
     source_action_item_id = serializers.UUIDField(read_only=True)
     source_room_id = serializers.SerializerMethodField()
@@ -822,7 +824,7 @@ class TaskSerializer(serializers.ModelSerializer):
         user = self._request_user()
         if not user or not user.is_authenticated:
             return False
-        if user.id in {obj.creator_id, obj.assignee_id}:
+        if obj.creator_id == user.id or is_task_assignee(obj, user):
             return True
         return self._can_edit_task_list(obj, user)
 
@@ -846,7 +848,7 @@ class TaskSerializer(serializers.ModelSerializer):
             user
             and user.is_authenticated
             and (
-                user.id in {obj.creator_id, obj.assignee_id}
+                (obj.creator_id == user.id or is_task_assignee(obj, user))
                 or self._is_follower(obj, user)
                 or self._can_edit_task_list(obj, user)
             )
@@ -865,7 +867,7 @@ class TaskSerializer(serializers.ModelSerializer):
             user
             and user.is_authenticated
             and (
-                user.id in {obj.creator_id, obj.assignee_id}
+                (obj.creator_id == user.id or is_task_assignee(obj, user))
                 or self._can_edit_task_list(obj, user)
             )
         )
@@ -887,7 +889,7 @@ class TaskSerializer(serializers.ModelSerializer):
             user
             and user.is_authenticated
             and (
-                user.id in {obj.creator_id, obj.assignee_id}
+                (obj.creator_id == user.id or is_task_assignee(obj, user))
                 or self._can_edit_task_list(obj, user)
             )
         )
@@ -897,8 +899,22 @@ class TaskSerializer(serializers.ModelSerializer):
         return bool(
             user
             and user.is_authenticated
-            and user.id in {obj.creator_id, obj.assignee_id}
+            and (obj.creator_id == user.id or is_task_assignee(obj, user))
         )
+
+    def get_assignees(self, obj):
+        prefetched = getattr(obj, "_prefetched_objects_cache", {}).get("assignees")
+        assignees = (
+            list(prefetched) if prefetched is not None else list(obj.assignees.all())
+        )
+        if not assignees and obj.assignee is not None:
+            assignees = [obj.assignee]
+        assignees.sort(
+            key=lambda user: (
+                user.full_name or user.short_name or user.email or str(user.id)
+            ).casefold()
+        )
+        return TaskUserSerializer(assignees, many=True).data
 
     def get_is_following(self, obj):
         user = self._request_user()
@@ -910,7 +926,7 @@ class TaskSerializer(serializers.ModelSerializer):
             return None
         today = getattr(obj, "_assignee_local_date", None)
         if today is None:
-            today = local_date_for_user(obj.assignee or user)
+            today = local_date_for_user(user)
         return task_time_state(obj, today=today)
 
     def get_source_room_id(self, obj):
@@ -931,6 +947,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "description",
             "creator",
             "assignee",
+            "assignees",
             "followers",
             "status",
             "priority",
