@@ -163,13 +163,22 @@ const TasksAuthenticated = () => {
     if (!task.can_delete) return
     const accepted = await confirm({
       title: t('actions.deleteTitle'),
-      message: t('actions.deleteDescription', { title: task.title }),
+      message:
+        task.descendant_progress.total > 0
+          ? t('actions.deleteSubtreeDescription', {
+              title: task.title,
+              count: task.descendant_progress.total,
+            })
+          : t('actions.deleteDescription', { title: task.title }),
       confirmLabel: t('actions.delete'),
       danger: true,
     })
     if (!accepted) return
     try {
-      await deleteTaskMutation.mutateAsync(task.id)
+      await deleteTaskMutation.mutateAsync({
+        taskId: task.id,
+        confirmSubtreeNodeCount: task.descendant_progress.total + 1,
+      })
       if (state.task === task.id) {
         navigateState({ ...state, task: undefined }, { replace: true })
       }

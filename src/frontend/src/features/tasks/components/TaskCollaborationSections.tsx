@@ -324,6 +324,14 @@ const taskActivityMessage = (
       : t('taskLists.standalone')
     return t('history.events.placement_changed', { actor, from, to })
   }
+  if (activity.event === 'hierarchy_changed') {
+    const parent = activity.changes.parent
+    return t('history.events.hierarchy_changed', {
+      actor,
+      from: parent?.from?.title || t('subtasks.rootTask'),
+      to: parent?.to?.title || t('subtasks.rootTask'),
+    })
+  }
   if (activity.event === 'assignee_changed') {
     const assignees = activity.changes.assignees
     const targets =

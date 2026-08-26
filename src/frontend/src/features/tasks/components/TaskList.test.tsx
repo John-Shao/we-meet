@@ -86,6 +86,11 @@ const task: ApiTask = {
     color: 'blue',
   },
   group: null,
+  parent_id: null,
+  depth: 0,
+  ancestor_path: [{ id: 'task-1', title: 'Prepare release', depth: 0 }],
+  descendant_progress: { completed: 0, total: 0 },
+  can_create_subtasks: false,
   position: 0,
   start_date: '2026-08-21',
   due_date: '2026-08-22',
@@ -150,6 +155,27 @@ describe('TaskList', () => {
     expect(container.querySelector('img[src="/assignee.png"]')).toBeTruthy()
     expect(container.querySelector('img[src="/creator.png"]')).toBeTruthy()
     expect(within(table).getByText('Release work')).toBeInTheDocument()
+  })
+
+  it('shows the complete ancestor chain for a subtask row', () => {
+    const subtask = {
+      ...task,
+      parent_id: 'parent-1',
+      depth: 2,
+      ancestor_path: [
+        { id: 'root-1', title: 'Release', depth: 0 },
+        { id: 'parent-1', title: 'Backend', depth: 1 },
+        { id: task.id, title: task.title, depth: 2 },
+      ],
+    }
+
+    render(
+      <TaskList tasks={[subtask]} onOpen={vi.fn()} registerRow={vi.fn()} />
+    )
+
+    expect(
+      screen.getAllByText('Release › Backend › Prepare release')
+    ).toHaveLength(2)
   })
 
   it('quickly completes and reopens a task without opening its details', async () => {

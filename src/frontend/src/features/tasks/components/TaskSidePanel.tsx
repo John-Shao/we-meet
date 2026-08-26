@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import {
   RiCalendarLine,
   RiCalendar2Line,
+  RiAddLine,
   RiBookmarkFill,
   RiBookmarkLine,
   RiCheckLine,
@@ -19,6 +20,7 @@ import {
   RiEditLine,
   RiFileTextLine,
   RiFlagLine,
+  RiGitBranchLine,
   RiListCheck3,
   RiMoreLine,
   RiRestartLine,
@@ -42,11 +44,15 @@ import type {
 } from '../api/ApiTask'
 import {
   useAddTaskFollowers,
+  useCreateTask,
   useDeleteTask,
   useFollowTask,
   usePatchTask,
   useRemoveTaskFollower,
   useTask,
+  useTaskParentCandidates,
+  useTaskSubtasks,
+  useTaskSubtreeImpact,
   useUnfollowTask,
 } from '../api/fetchTasks'
 import { nextTaskStatuses, taskAssignees } from '../taskUi'
@@ -70,6 +76,7 @@ type EditableTaskField =
   | 'dueDate'
   | 'priority'
   | 'placement'
+  | 'parent'
   | 'description'
 
 export const CreateTaskPanel = ({
@@ -121,6 +128,10 @@ export const TaskDetailPanel = ({
 }) => {
   const { t, i18n } = useTranslation('tasks')
   const { data, isLoading, error } = useTask(taskId, sharedVia)
+  const { data: subtasks = [], isLoading: subtasksLoading } =
+    useTaskSubtasks(taskId)
+  const { data: subtreeImpact } = useTaskSubtreeImpact(taskId)
+  const { data: parentCandidates = [] } = useTaskParentCandidates(taskId)
   const task = data || fallbackTask
   const [editingField, setEditingField] = useState<EditableTaskField | null>(
     null
@@ -130,12 +141,15 @@ export const TaskDetailPanel = ({
   const [draftPriority, setDraftPriority] = useState<TaskPriority>('medium')
   const [draftTaskListId, setDraftTaskListId] = useState('')
   const [draftGroupId, setDraftGroupId] = useState('')
+  const [draftParentId, setDraftParentId] = useState('')
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
   const placementEditorRef = useRef<HTMLDivElement>(null)
   const patchMutation = usePatchTask()
   const deleteMutation = useDeleteTask()
+  const createMutation = useCreateTask()
   const followMutation = useFollowTask()
   const unfollowMutation = useUnfollowTask()
   const addFollowersMutation = useAddTaskFollowers()
@@ -153,6 +167,7 @@ export const TaskDetailPanel = ({
     setAssigneePickerOpen(false)
     setFollowerPickerOpen(false)
     setShareOpen(false)
+    setNewSubtaskTitle('')
   }, [taskId])
 
   useEffect(() => {
@@ -209,6 +224,7 @@ export const TaskDetailPanel = ({
       setDraftTaskListId(task.task_list?.id || '')
       setDraftGroupId(task.group?.id || '')
     }
+    if (field === 'parent') setDraftParentId(task.parent_id || '')
   }
 
   const saveField = async (
@@ -235,17 +251,67 @@ export const TaskDetailPanel = ({
   const deleteTask = async () => {
     const accepted = await confirm({
       title: t('actions.deleteTitle'),
-      message: t('actions.deleteDescription', { title: task.title }),
+      message:
+        subtreeImpact && subtreeImpact.descendant_count > 0
+          ? t('actions.deleteSubtreeDescription', {
+              title: task.title,
+              count: subtreeImpact.descendant_count,
+            })
+          : t('actions.deleteDescription', { title: task.title }),
       confirmLabel: t('actions.delete'),
       danger: true,
     })
     if (!accepted) return
     try {
-      await deleteMutation.mutateAsync(task.id)
+      await deleteMutation.mutateAsync({
+        taskId: task.id,
+        confirmSubtreeNodeCount: subtreeImpact?.node_count,
+      })
       onClose()
     } catch {
       // Keep the panel open so the mutation error remains visible.
     }
+  }
+
+  const createSubtask = async () => {
+    const title = newSubtaskTitle.trim()
+    if (!title || !task.can_create_subtasks || createMutation.isPending) return
+    try {
+      await createMutation.mutateAsync({
+        title,
+        parent_id: task.id,
+        task_list_id: task.task_list?.id || null,
+        group_id: task.group?.id || null,
+      })
+      setNewSubtaskTitle('')
+    } catch {
+      // Keep the title so the user can retry or correct the request.
+    }
+  }
+
+  const moveTask = async (parentId: string) => {
+    if ((task.parent_id || '') === parentId) {
+      setEditingField(null)
+      return
+    }
+    if (subtreeImpact && subtreeImpact.descendant_count > 0) {
+      const accepted = await confirm({
+        title: t('subtasks.moveTitle'),
+        message: t('subtasks.moveSubtreeDescription', {
+          count: subtreeImpact.node_count,
+        }),
+        confirmLabel: t('subtasks.move'),
+      })
+      if (!accepted) {
+        setEditingField(null)
+        return
+      }
+    }
+    setDraftParentId(parentId)
+    await saveField({
+      parent_id: parentId || null,
+      confirm_subtree_node_count: subtreeImpact?.node_count,
+    })
   }
 
   return (
@@ -354,6 +420,28 @@ export const TaskDetailPanel = ({
     >
       <div className={panelBodyCss}>
         <div className={detailContentCss}>
+          {task.ancestor_path.length > 1 && (
+            <nav
+              aria-label={t('subtasks.parentChain')}
+              className={breadcrumbCss}
+            >
+              {task.ancestor_path.map((node, index) => {
+                const isCurrent = index === task.ancestor_path.length - 1
+                return (
+                  <span key={node.id}>
+                    {index > 0 && <span aria-hidden="true">/</span>}
+                    {isCurrent ? (
+                      <span aria-current="page">{node.title}</span>
+                    ) : (
+                      <Link href={`/tasks?task=${encodeURIComponent(node.id)}`}>
+                        {node.title}
+                      </Link>
+                    )}
+                  </span>
+                )
+              })}
+            </nav>
+          )}
           <div className={taskTitleRowCss}>
             <div className={taskTitleTextCss}>
               {editingField === 'title' ? (
@@ -624,6 +712,40 @@ export const TaskDetailPanel = ({
               )}
             </TaskProperty>
             <TaskProperty
+              icon={<RiGitBranchLine size={18} />}
+              label={t('subtasks.parent')}
+              editLabel={editLabel(t('subtasks.parent'))}
+              control="select"
+              isDisabled={patchMutation.isPending}
+              isEditing={editingField === 'parent'}
+              alignStart={editingField === 'parent'}
+              onEdit={task.can_edit ? () => beginEditing('parent') : undefined}
+            >
+              {editingField === 'parent' ? (
+                <div className={inlineEditorCss}>
+                  <DetailInlineSelect
+                    label={t('subtasks.parent')}
+                    items={[
+                      { value: '', label: t('subtasks.rootTask') },
+                      ...parentCandidates.map((candidate) => ({
+                        value: candidate.id,
+                        label:
+                          `${'—'.repeat(candidate.depth)} ${candidate.title}`.trim(),
+                      })),
+                    ]}
+                    value={draftParentId}
+                    disabled={patchMutation.isPending}
+                    onCancel={() => setEditingField(null)}
+                    onChange={(parentId) => void moveTask(parentId)}
+                  />
+                </div>
+              ) : task.parent_id ? (
+                task.ancestor_path.at(-2)?.title || t('subtasks.parent')
+              ) : (
+                t('subtasks.rootTask')
+              )}
+            </TaskProperty>
+            <TaskProperty
               icon={<RiCalendarLine size={18} />}
               label={t('meta.dueDate')}
               editLabel={editLabel(t('meta.dueDate'))}
@@ -768,6 +890,92 @@ export const TaskDetailPanel = ({
               })}
             </Link>
           )}
+
+          <DetailSection title={t('subtasks.title')}>
+            <div className={subtasksSectionCss}>
+              {task.descendant_progress.total > 0 && (
+                <div className={subtaskProgressCss}>
+                  <span>
+                    {t('subtasks.progress', {
+                      completed: task.descendant_progress.completed,
+                      total: task.descendant_progress.total,
+                    })}
+                  </span>
+                  <progress
+                    aria-label={t('subtasks.progressLabel')}
+                    value={task.descendant_progress.completed}
+                    max={task.descendant_progress.total}
+                  />
+                </div>
+              )}
+              {subtasksLoading ? (
+                <p className={subtaskEmptyCss}>{t('subtasks.loading')}</p>
+              ) : subtasks.length > 0 ? (
+                <ul className={subtaskListCss}>
+                  {subtasks.map((subtask) => (
+                    <li key={subtask.id}>
+                      <span
+                        className={subtaskStatusCss}
+                        data-completed={
+                          subtask.status === 'completed' || undefined
+                        }
+                      >
+                        {subtask.status === 'completed' && (
+                          <RiCheckLine size={14} aria-hidden="true" />
+                        )}
+                      </span>
+                      <Link
+                        href={`/tasks?task=${encodeURIComponent(subtask.id)}`}
+                      >
+                        {subtask.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className={subtaskEmptyCss}>{t('subtasks.empty')}</p>
+              )}
+              {task.can_create_subtasks ? (
+                <form
+                  className={subtaskCreateCss}
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void createSubtask()
+                  }}
+                >
+                  <Input
+                    aria-label={t('subtasks.newTitle')}
+                    placeholder={t('subtasks.placeholder')}
+                    value={newSubtaskTitle}
+                    maxLength={500}
+                    disabled={createMutation.isPending}
+                    onChange={(event) => setNewSubtaskTitle(event.target.value)}
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="secondary"
+                    icon={<RiAddLine size={16} aria-hidden="true" />}
+                    isDisabled={
+                      !newSubtaskTitle.trim() || createMutation.isPending
+                    }
+                  >
+                    {t('subtasks.add')}
+                  </Button>
+                </form>
+              ) : (
+                <p className={subtaskEmptyCss}>
+                  <RiGitBranchLine size={15} aria-hidden="true" />{' '}
+                  {t('subtasks.limitReached')}
+                </p>
+              )}
+              {createMutation.error && (
+                <p role="alert" className={inlineErrorCss}>
+                  {t('subtasks.createError')}
+                </p>
+              )}
+            </div>
+          </DetailSection>
 
           <DetailSection title={t('comments.title')}>
             <TaskCommentsSection
@@ -1094,6 +1302,15 @@ const taskTitleRowCss = css({
   alignItems: 'flex-start',
   gap: '0.75rem',
 })
+const breadcrumbCss = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '0.375rem',
+  color: 'greyscale.500',
+  fontSize: '0.75rem',
+  '& span': { display: 'inline-flex', gap: '0.375rem' },
+  '& a': { color: 'primary.600', textDecoration: 'none' },
+})
 const taskTitleTextCss = css({
   minWidth: 0,
   flex: 1,
@@ -1142,6 +1359,51 @@ const descriptionCss = css({
   color: 'default.text',
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
+})
+const subtasksSectionCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.75rem',
+})
+const subtaskProgressCss = css({
+  display: 'grid',
+  gap: '0.375rem',
+  color: 'default.subtle-text',
+  fontSize: '0.8125rem',
+  '& progress': { width: '100%', height: '0.375rem' },
+})
+const subtaskListCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.375rem',
+  margin: 0,
+  padding: 0,
+  listStyle: 'none',
+  '& li': { display: 'flex', alignItems: 'center', gap: '0.5rem' },
+  '& a': { color: 'default.text', textDecoration: 'none' },
+})
+const subtaskStatusCss = css({
+  width: '1rem',
+  height: '1rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '4px',
+  color: 'success.700',
+  '&[data-completed]': { borderColor: 'success.300' },
+})
+const subtaskCreateCss = css({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  alignItems: 'center',
+  gap: '0.5rem',
+})
+const subtaskEmptyCss = css({
+  margin: 0,
+  color: 'default.subtle-text',
+  fontSize: '0.8125rem',
 })
 const propertyListCss = css({
   display: 'flex',

@@ -28,6 +28,21 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../api/fetchTasks', () => ({
   useTask: () => ({ data: undefined, isLoading: false, error: null }),
+  useTaskSubtasks: () => ({ data: [], isLoading: false, error: null }),
+  useTaskParentCandidates: () => ({ data: [] }),
+  useTaskSubtreeImpact: () => ({
+    data: {
+      task_id: 'task-1',
+      node_count: 1,
+      descendant_count: 0,
+      maximum_depth: 0,
+    },
+  }),
+  useCreateTask: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+    error: null,
+  }),
   useDeleteTask: () => ({
     mutateAsync: deleteMutateAsync,
     isPending: false,
@@ -92,6 +107,11 @@ const task: ApiTask = {
   priority: 'high',
   task_list: null,
   group: null,
+  parent_id: null,
+  depth: 0,
+  ancestor_path: [{ id: 'task-1', title: 'Prepare release', depth: 0 }],
+  descendant_progress: { completed: 0, total: 0 },
+  can_create_subtasks: false,
   position: 0,
   start_date: '2026-08-21',
   due_date: '2026-08-31',
@@ -367,7 +387,12 @@ describe('TaskDetailPanel', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'actions.delete' }))
 
     await waitFor(() => expect(confirm).toHaveBeenCalledOnce())
-    await waitFor(() => expect(deleteMutateAsync).toHaveBeenCalledWith(task.id))
+    await waitFor(() =>
+      expect(deleteMutateAsync).toHaveBeenCalledWith({
+        taskId: task.id,
+        confirmSubtreeNodeCount: 1,
+      })
+    )
     expect(onClose).toHaveBeenCalledOnce()
   })
 })

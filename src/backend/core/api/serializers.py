@@ -26,6 +26,10 @@ from core.services.task_action_item_sync import (
     record_manual_action_item_status_change,
 )
 from core.services.task_assignees import is_task_assignee
+from core.services.task_hierarchy import (
+    get_task_hierarchy_limits,
+    prepare_task_hierarchy_data,
+)
 from core.services.task_time import local_date_for_user, task_time_state
 
 logger = logging.getLogger(__name__)
@@ -815,6 +819,11 @@ class TaskSerializer(serializers.ModelSerializer):
     time_state = serializers.SerializerMethodField()
     task_list = TaskListSummarySerializer(read_only=True)
     group = TaskGroupSummarySerializer(read_only=True)
+    parent_id = serializers.UUIDField(read_only=True)
+    depth = serializers.SerializerMethodField()
+    ancestor_path = serializers.SerializerMethodField()
+    descendant_progress = serializers.SerializerMethodField()
+    can_create_subtasks = serializers.SerializerMethodField()
 
     def _request_user(self):
         request = self.context.get("request")
@@ -929,6 +938,41 @@ class TaskSerializer(serializers.ModelSerializer):
             today = local_date_for_user(user)
         return task_time_state(obj, today=today)
 
+    def _hierarchy_data(self, obj):
+        cache = self.context.setdefault("_task_hierarchy_cache", {})
+        if obj.pk in cache:
+            return cache[obj.pk]
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        shared_via = ""
+        if request is not None:
+            shared_via = (request.query_params.get("shared_via") or "").strip()
+        cache.update(prepare_task_hierarchy_data([obj], user, shared_via=shared_via))
+        return cache[obj.pk]
+
+    def get_depth(self, obj):
+        return self._hierarchy_data(obj)["depth"]
+
+    def get_ancestor_path(self, obj):
+        return self._hierarchy_data(obj)["path"]
+
+    def get_descendant_progress(self, obj):
+        return self._hierarchy_data(obj)["progress"]
+
+    def get_can_create_subtasks(self, obj):
+        if not self.get_can_edit(obj):
+            return False
+        hierarchy = self._hierarchy_data(obj)
+        limits = get_task_hierarchy_limits()
+        direct_subtask_count = getattr(obj, "_direct_subtask_count", None)
+        if direct_subtask_count is None:
+            direct_subtask_count = obj.subtasks.count()
+        return bool(
+            hierarchy["depth"] < limits.max_depth
+            and direct_subtask_count < limits.max_direct_children
+            and hierarchy["impact"]["node_count"] < limits.max_tree_nodes
+        )
+
     def get_source_room_id(self, obj):
         if obj.source_action_item_id is None:
             return None
@@ -953,6 +997,11 @@ class TaskSerializer(serializers.ModelSerializer):
             "priority",
             "task_list",
             "group",
+            "parent_id",
+            "depth",
+            "ancestor_path",
+            "descendant_progress",
+            "can_create_subtasks",
             "position",
             "start_date",
             "due_date",

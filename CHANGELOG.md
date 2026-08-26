@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(fullstack) add bounded recursive subtasks with secure parent chains and subtree confirmations
 - ✨(fullstack) add task results and task-specific filters to global search
 - ✨(frontend) add real-stack Playwright coverage for the task workflow
 - ✨(fullstack) allow participants to mute others based on room configuration

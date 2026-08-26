@@ -44,12 +44,18 @@ const deleteCreatedTask = async (context: BrowserContext) => {
   const csrfCookie = (await context.cookies(taskApiOrigin)).find(
     (cookie) => cookie.name === 'csrftoken'
   )
-  const response = await context.request.delete(
-    `${taskApiOrigin}/api/v1.0/tasks/${encodeURIComponent(taskId)}/`,
-    {
-      headers: csrfCookie ? { 'X-CSRFToken': csrfCookie.value } : undefined,
-    }
-  )
+  const taskUrl =
+    taskApiOrigin + '/api/v1.0/tasks/' + encodeURIComponent(taskId) + '/'
+  const impactResponse = await context.request.get(taskUrl + 'subtree-impact/')
+  const impact = impactResponse.ok()
+    ? ((await impactResponse.json()) as { node_count: number })
+    : undefined
+  const deleteUrl = impact
+    ? taskUrl + '?confirm_subtree_node_count=' + impact.node_count
+    : taskUrl
+  const response = await context.request.delete(deleteUrl, {
+    headers: csrfCookie ? { 'X-CSRFToken': csrfCookie.value } : undefined,
+  })
   if (response.status() !== 204 && response.status() !== 404) {
     throw new Error(`Task cleanup failed with HTTP ${response.status()}`)
   }
@@ -203,4 +209,79 @@ test('create, edit, persist, and complete a self-assigned task', async ({
   await row.getByRole('button', { name: '编辑 截止日期' }).click()
   await expect(row.getByLabel('截止日期')).toHaveValue(dueDate)
   await row.getByLabel('截止日期').press('Escape')
+})
+
+test('create recursive subtasks, keep status independent, and show parent chains', async ({
+  page,
+}) => {
+  const suffix = Date.now()
+  const rootTitle = 'E2E 根任务 ' + suffix
+  const childTitle = 'E2E 子任务 ' + suffix
+  const leafTitle = 'E2E 叶任务 ' + suffix
+
+  await page.goto(
+    '/tasks?scope=all&status=open&time=all&priority=all&task_list=all&view=list'
+  )
+  await page.getByRole('button', { name: '新建任务' }).click()
+  await page.getByPlaceholder('输入标题，回车确认').fill(rootTitle)
+  const rootResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().endsWith('/api/v1.0/tasks/') &&
+      response.ok()
+  )
+  await page.getByRole('button', { name: '新建', exact: true }).click()
+  const rootResponse = await rootResponsePromise
+  const root = (await rootResponse.json()) as CreatedTask
+  taskId = root.id
+  taskApiOrigin = new URL(rootResponse.url()).origin
+
+  await page.getByRole('button', { name: '关闭任务面板' }).click()
+  await page.getByRole('row', { name: '打开任务：' + rootTitle }).press('Enter')
+  let details = page.getByRole('complementary', { name: '任务详情' })
+
+  const childResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().endsWith('/api/v1.0/tasks/') &&
+      response.ok()
+  )
+  await details.getByLabel('子任务标题').fill(childTitle)
+  await details.getByRole('button', { name: '添加', exact: true }).click()
+  const child = (await (await childResponsePromise).json()) as CreatedTask
+  await details.getByRole('link', { name: childTitle }).click()
+
+  details = page.getByRole('complementary', { name: '任务详情' })
+  const leafResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().endsWith('/api/v1.0/tasks/') &&
+      response.ok()
+  )
+  await details.getByLabel('子任务标题').fill(leafTitle)
+  await details.getByRole('button', { name: '添加', exact: true }).click()
+  const leaf = (await (await leafResponsePromise).json()) as CreatedTask
+  await details.getByRole('link', { name: leafTitle }).click()
+
+  details = page.getByRole('complementary', { name: '任务详情' })
+  await expect(
+    details.getByRole('navigation', { name: '任务父链' })
+  ).toContainText(rootTitle + '/' + childTitle + '/' + leafTitle)
+  const completePatch = waitForTaskPatch(page, leaf.id)
+  await details.getByRole('button', { name: '完成任务' }).click()
+  await completePatch
+
+  await page.goto('/tasks?scope=all&status=all&task=' + root.id)
+  details = page.getByRole('complementary', { name: '任务详情' })
+  await expect(details).toContainText('已完成 1 / 2')
+  await expect(details.getByRole('button', { name: '完成任务' })).toBeVisible()
+
+  await page.keyboard.press('Control+k')
+  await page.getByTestId('global-search-input').fill(leafTitle)
+  await page.getByTestId('global-search-tab-tasks').click()
+  await expect(page.getByTestId('global-search-task-' + leaf.id)).toContainText(
+    rootTitle + ' › ' + childTitle + ' › ' + leafTitle
+  )
+
+  expect(child.id).not.toBe(root.id)
 })

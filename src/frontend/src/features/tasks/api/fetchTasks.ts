@@ -18,12 +18,14 @@ import type {
   ApiTaskList,
   ApiTaskListAccess,
   ApiTaskListGroup,
+  ApiTaskParentCandidate,
   ApiTaskGroup,
   ApiTaskStatistics,
   ApiTaskActivity,
   ApiTaskAttachment,
   ApiTaskComment,
   ApiTaskShareResult,
+  ApiTaskSubtreeImpact,
   CreateTaskPayload,
   PatchTaskPayload,
   TaskScope,
@@ -97,6 +99,40 @@ export const useTask = (taskId?: string, sharedVia?: string) =>
   useQuery<ApiTask, ApiError>({
     queryKey: ['tasks', 'detail', taskId, sharedVia],
     queryFn: () => fetchTask(taskId!, sharedVia),
+    enabled: Boolean(taskId),
+  })
+
+const fetchTaskSubtasks = (taskId: string) =>
+  fetchApi<ApiTask[]>(`tasks/${encodeURIComponent(taskId)}/subtasks/`)
+
+export const useTaskSubtasks = (taskId?: string) =>
+  useQuery<ApiTask[], ApiError>({
+    queryKey: ['tasks', taskId, 'subtasks'],
+    queryFn: () => fetchTaskSubtasks(taskId!),
+    enabled: Boolean(taskId),
+  })
+
+const fetchTaskSubtreeImpact = (taskId: string) =>
+  fetchApi<ApiTaskSubtreeImpact>(
+    `tasks/${encodeURIComponent(taskId)}/subtree-impact/`
+  )
+
+export const useTaskSubtreeImpact = (taskId?: string) =>
+  useQuery<ApiTaskSubtreeImpact, ApiError>({
+    queryKey: ['tasks', taskId, 'subtree-impact'],
+    queryFn: () => fetchTaskSubtreeImpact(taskId!),
+    enabled: Boolean(taskId),
+  })
+
+const fetchTaskParentCandidates = (taskId: string) =>
+  fetchApi<ApiTaskParentCandidate[]>(
+    `tasks/${encodeURIComponent(taskId)}/parent-candidates/`
+  )
+
+export const useTaskParentCandidates = (taskId?: string) =>
+  useQuery<ApiTaskParentCandidate[], ApiError>({
+    queryKey: ['tasks', taskId, 'parent-candidates'],
+    queryFn: () => fetchTaskParentCandidates(taskId!),
     enabled: Boolean(taskId),
   })
 
@@ -492,7 +528,7 @@ const fetchTaskStatistics = (
   taskList: string
 ) =>
   fetchApi<ApiTaskStatistics>(
-    `tasks/statistics/?scope=${scope}&status=all&time=${time}&priority=${priority}&task_list=${encodeURIComponent(taskList)}`
+    `tasks/statistics/?scope=${scope}&status=all&time=${time}&priority=${priority}&task_list=${encodeURIComponent(taskList)}&hierarchy=include_descendants`
   )
 
 export const useTaskStatistics = (
@@ -635,6 +671,14 @@ export const useCreateTask = () => {
     mutationFn: createTask,
     onSuccess: (task) => {
       queryClient.setQueryData(['tasks', 'detail', task.id], task)
+      if (task.parent_id) {
+        void queryClient.invalidateQueries({
+          queryKey: ['tasks', task.parent_id, 'subtasks'],
+        })
+        void queryClient.invalidateQueries({
+          queryKey: ['tasks', 'detail', task.parent_id],
+        })
+      }
       void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
       return queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
@@ -761,16 +805,28 @@ export const useRemoveTaskFollower = () => {
   })
 }
 
-const deleteTask = (taskId: string) =>
-  fetchApi<void>(`tasks/${encodeURIComponent(taskId)}/`, {
-    method: 'DELETE',
-  })
+export type DeleteTaskTarget = {
+  taskId: string
+  confirmSubtreeNodeCount?: number
+}
+
+const deleteTask = ({ taskId, confirmSubtreeNodeCount }: DeleteTaskTarget) =>
+  fetchApi<void>(
+    `tasks/${encodeURIComponent(taskId)}/${
+      confirmSubtreeNodeCount
+        ? `?confirm_subtree_node_count=${confirmSubtreeNodeCount}`
+        : ''
+    }`,
+    {
+      method: 'DELETE',
+    }
+  )
 
 export const useDeleteTask = () => {
   const queryClient = useQueryClient()
-  return useMutation<void, ApiError, string>({
+  return useMutation<void, ApiError, DeleteTaskTarget>({
     mutationFn: deleteTask,
-    onSuccess: (_result, taskId) => {
+    onSuccess: (_result, { taskId }) => {
       queryClient.removeQueries({ queryKey: ['tasks', 'detail', taskId] })
       void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
       return queryClient.invalidateQueries({ queryKey: ['tasks'] })

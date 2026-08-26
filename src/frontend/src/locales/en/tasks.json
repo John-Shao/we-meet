@@ -290,7 +290,26 @@
     "more": "More actions",
     "delete": "Delete task",
     "deleteTitle": "Delete task",
-    "deleteDescription": "Delete “{{title}}”? This action cannot be undone."
+    "deleteDescription": "Delete “{{title}}”? This action cannot be undone.",
+    "deleteSubtreeDescription": "Delete “{{title}}” and its {{count}} subtasks? The complete subtree will be permanently deleted."
+  },
+  "subtasks": {
+    "title": "Subtasks",
+    "parent": "Parent task",
+    "rootTask": "Make root task",
+    "parentChain": "Task parent chain",
+    "progress": "{{completed}} of {{total}} completed",
+    "progressLabel": "Subtask completion progress",
+    "loading": "Loading subtasks…",
+    "empty": "No subtasks yet.",
+    "newTitle": "Subtask title",
+    "placeholder": "Add a subtask",
+    "add": "Add",
+    "move": "Move task",
+    "moveTitle": "Move task subtree",
+    "moveSubtreeDescription": "This will move the complete subtree of {{count}} tasks. Continue?",
+    "limitReached": "The hierarchy or node limit was reached, or you cannot create here.",
+    "createError": "The subtask could not be created. Check hierarchy limits and permissions, then try again."
   },
   "share": {
     "action": "Share task",
@@ -350,6 +369,7 @@
       "content_changed": "{{actor}} updated the task content",
       "priority_changed": "{{actor}} changed the task priority from “{{from}}” to “{{to}}”",
       "placement_changed": "{{actor}} moved the task from “{{from}}” to “{{to}}”",
+      "hierarchy_changed": "{{actor}} changed the parent task from “{{from}}” to “{{to}}”",
       "dates_changed": "{{actor}} adjusted the task dates",
       "assignee_changed": "{{actor}} reassigned the task to {{assignee}}",
       "status_changed": "{{actor}} changed the status to “{{status}}”",

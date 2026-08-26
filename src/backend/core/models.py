@@ -2423,6 +2423,14 @@ class Task(BaseModel):
         blank=True,
         verbose_name=_("organization"),
     )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="subtasks",
+        null=True,
+        blank=True,
+        verbose_name=_("parent task"),
+    )
     assignee = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -2491,6 +2499,12 @@ class Task(BaseModel):
         verbose_name = _("task")
         verbose_name_plural = _("tasks")
         ordering = ("status", "due_date", "created_at")
+        indexes = [
+            models.Index(
+                fields=["organization", "parent", "position"],
+                name="task_org_parent_pos_idx",
+            )
+        ]
 
     def __str__(self) -> str:
         return self.title[:80]
@@ -2550,6 +2564,7 @@ class TaskActivity(BaseModel):
         STATUS_CHANGED = "status_changed", _("Status changed")
         PRIORITY_CHANGED = "priority_changed", _("Priority changed")
         PLACEMENT_CHANGED = "placement_changed", _("Placement changed")
+        HIERARCHY_CHANGED = "hierarchy_changed", _("Hierarchy changed")
         ATTACHMENT_REMOVED = "attachment_removed", _("Attachment removed")
         SOURCE_ACTION_ITEM_CHANGED = (
             "source_action_item_changed",

@@ -110,6 +110,17 @@ const task = (index: number): ApiTask =>
     priority: 'medium',
     task_list: null,
     group: null,
+    parent_id: null,
+    depth: 0,
+    ancestor_path: [
+      {
+        id: `00000000-0000-0000-0000-00000000000${index}`,
+        title: `Launch plan ${index}`,
+        depth: 0,
+      },
+    ],
+    descendant_progress: { completed: 0, total: 0 },
+    can_create_subtasks: true,
     position: 0,
     start_date: null,
     due_date: null,
@@ -167,6 +178,11 @@ const renderPalette = () => {
 describe('global task search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    tasks[0].parent_id = null
+    tasks[0].depth = 0
+    tasks[0].ancestor_path = [
+      { id: tasks[0].id, title: tasks[0].title, depth: 0 },
+    ]
     mocks.taskSearchError = false
     mocks.fetchApi.mockResolvedValue({ results: [], has_more: false })
     mocks.searchMessages.mockResolvedValue({
@@ -250,6 +266,24 @@ describe('global task search', () => {
 
     expect(within(row).getAllByText(/launch/i)).toHaveLength(2)
     expect(within(row).getAllByText(/launch/i)[0].tagName).toBe('MARK')
+  })
+
+  it('shows the complete ancestor chain for a matching subtask', async () => {
+    tasks[0].parent_id = 'root'
+    tasks[0].depth = 2
+    tasks[0].ancestor_path = [
+      { id: 'root', title: 'Release', depth: 0 },
+      { id: 'parent', title: 'Backend', depth: 1 },
+      { id: tasks[0].id, title: tasks[0].title, depth: 2 },
+    ]
+    const user = userEvent.setup()
+    renderPalette()
+
+    await user.type(screen.getByTestId('global-search-input'), 'Launch')
+
+    expect(
+      await screen.findByTestId(`global-search-task-${tasks[0].id}`)
+    ).toHaveTextContent('Release › Backend › Launch plan 1')
   })
 
   it('isolates a task-source failure and offers retry in the task tab', async () => {

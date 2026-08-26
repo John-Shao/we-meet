@@ -284,7 +284,26 @@
     "more": "Plus d’actions",
     "delete": "Supprimer la tâche",
     "deleteTitle": "Supprimer la tâche",
-    "deleteDescription": "Supprimer « {{title}} » ? Cette action est irréversible."
+    "deleteDescription": "Supprimer « {{title}} » ? Cette action est irréversible.",
+    "deleteSubtreeDescription": "Supprimer « {{title}} » et ses {{count}} sous-tâches ? L’arborescence entière sera supprimée définitivement."
+  },
+  "subtasks": {
+    "title": "Sous-tâches",
+    "parent": "Tâche parente",
+    "rootTask": "Définir comme tâche racine",
+    "parentChain": "Hiérarchie de la tâche",
+    "progress": "{{completed}} sur {{total}} terminées",
+    "progressLabel": "Progression des sous-tâches",
+    "loading": "Chargement des sous-tâches…",
+    "empty": "Aucune sous-tâche.",
+    "newTitle": "Titre de la sous-tâche",
+    "placeholder": "Ajouter une sous-tâche",
+    "add": "Ajouter",
+    "move": "Déplacer la tâche",
+    "moveTitle": "Déplacer l’arborescence",
+    "moveSubtreeDescription": "Cette action déplacera toute l’arborescence de {{count}} tâches. Continuer ?",
+    "limitReached": "La limite de hiérarchie ou de tâches est atteinte, ou vous ne pouvez pas créer ici.",
+    "createError": "Impossible de créer la sous-tâche. Vérifiez les limites et les permissions."
   },
   "comments": {
     "title": "Commentaires",
@@ -328,6 +347,7 @@
       "content_changed": "{{actor}} a modifié le contenu de la tâche",
       "priority_changed": "{{actor}} a modifié la priorité de « {{from}} » à « {{to}} »",
       "placement_changed": "{{actor}} a déplacé la tâche de « {{from}} » vers « {{to}} »",
+      "hierarchy_changed": "{{actor}} a changé la tâche parente de « {{from}} » vers « {{to}} »",
       "dates_changed": "{{actor}} a ajusté les dates de la tâche",
       "assignee_changed": "{{actor}} a réattribué la tâche à {{assignee}}",
       "status_changed": "{{actor}} a changé le statut en « {{status}} »",

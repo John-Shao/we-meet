@@ -26,7 +26,7 @@ from django.utils import timezone
 
 from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.response import Response
 
 from core import models, utils
@@ -55,6 +55,16 @@ from core.services.task_assignees import (
     is_task_assignee,
     set_task_assignees,
     task_assignee_ids,
+)
+from core.services.task_hierarchy import (
+    TaskHierarchyError,
+    filter_visible_task_hierarchy,
+    get_task_hierarchy_limits,
+    prepare_task_hierarchy_data,
+    prepare_task_hierarchy_visibility,
+    task_subtree,
+    validate_task_parent_change,
+    visible_task_ancestor_path,
 )
 from core.services.task_history import (
     record_task_changes,
@@ -92,6 +102,16 @@ TASK_LIST_EDIT_ROLES = {
     models.TaskListAccess.Role.OWNER,
 }
 
+
+def _task_parent_select_fields():
+    fields = []
+    field = "parent"
+    for _index in range(get_task_hierarchy_limits().max_depth):
+        fields.append(field)
+        field = f"{field}__parent"
+    return fields
+
+
 ASSIGNABLE_TASK_PRIORITY_CHOICES = [
     choice
     for choice in models.Task.Priority.choices
@@ -106,6 +126,8 @@ SHARED_TASK_ACTIONS = {
     "attachments",
     "attachment_download",
     "share",
+    "subtasks",
+    "subtree_impact",
 }
 
 
@@ -165,6 +187,12 @@ def _can_comment_on_task(task, user):
     return (
         _can_manage_task_content(task, user)
         or task.followers.filter(id=user.id).exists()
+    )
+
+
+def _task_hierarchy_validation_error(exc):
+    return serializers.ValidationError(
+        {"parent_id": {"code": exc.code, "detail": str(exc)}}
     )
 
 
@@ -607,6 +635,28 @@ class TaskCreateSerializer(
         write_only=True,
     )
     position = serializers.IntegerField(required=False, min_value=0, default=0)
+    parent_id = serializers.PrimaryKeyRelatedField(
+        source="parent",
+        queryset=models.Task.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+
+    def validate_parent_id(self, parent):
+        if parent is None:
+            return None
+        request = self.context["request"]
+        if not _can_manage_task_content(parent, request.user):
+            raise serializers.ValidationError(
+                "Choose a parent task you can edit.", code="task_parent_forbidden"
+            )
+        if visible_task_ancestor_path(parent, request.user) is None:
+            raise serializers.ValidationError(
+                "The complete parent chain must be visible.",
+                code="task_parent_chain_hidden",
+            )
+        return parent
 
     def validate(self, attrs):
         if "assignee_id" in self.initial_data and "assignee_ids" in self.initial_data:
@@ -673,6 +723,16 @@ class TaskUpdateSerializer(
         allow_null=True,
         write_only=True,
     )
+    parent_id = serializers.PrimaryKeyRelatedField(
+        source="parent",
+        queryset=models.Task.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+    confirm_subtree_node_count = serializers.IntegerField(
+        required=False, min_value=1, write_only=True
+    )
 
     class Meta:
         model = models.Task
@@ -684,6 +744,8 @@ class TaskUpdateSerializer(
             "priority",
             "task_list_id",
             "group_id",
+            "parent_id",
+            "confirm_subtree_node_count",
             "position",
             "assignee_id",
             "assignee_ids",
@@ -714,7 +776,23 @@ class TaskUpdateSerializer(
             )
         return value
 
+    def validate_parent_id(self, parent):
+        if parent is None:
+            return None
+        request = self.context["request"]
+        if not _can_manage_task_content(parent, request.user):
+            raise serializers.ValidationError(
+                "Choose a parent task you can edit.", code="task_parent_forbidden"
+            )
+        if visible_task_ancestor_path(parent, request.user) is None:
+            raise serializers.ValidationError(
+                "The complete parent chain must be visible.",
+                code="task_parent_chain_hidden",
+            )
+        return parent
+
     def update(self, instance, validated_data):
+        validated_data.pop("confirm_subtree_node_count", None)
         assignees = validated_data.pop("assignees", None)
         legacy_assignee = validated_data.get("assignee")
         if legacy_assignee is not None:
@@ -1178,8 +1256,22 @@ class TaskViewSet(
     pagination_class = Pagination
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
+    def get_object(self):
+        task = super().get_object()
+        shared_via = (self.request.query_params.get("shared_via") or "").strip()
+        prepare_task_hierarchy_visibility(
+            [task], self.request.user, shared_via=shared_via
+        )
+        if (
+            visible_task_ancestor_path(task, self.request.user, shared_via=shared_via)
+            is None
+        ):
+            raise NotFound()
+        return task
+
     def get_queryset(self):
         user = self.request.user
+        parent_fields = _task_parent_select_fields()
         shared_via = ""
         if self.action in SHARED_TASK_ACTIONS:
             shared_via = (self.request.query_params.get("shared_via") or "").strip()
@@ -1202,17 +1294,21 @@ class TaskViewSet(
                         user=user,
                         role__in=TASK_LIST_EDIT_ROLES,
                     )
-                )
+                ),
+                _direct_subtask_count=Count("subtasks", distinct=True),
             )
             .select_related(
                 "creator",
                 "assignee",
+                "parent",
                 "task_list",
                 "group",
                 "source_action_item__room",
+                *parent_fields,
             )
             .prefetch_related("assignees", "followers")
         )
+        queryset = filter_visible_task_hierarchy(queryset, user, shared_via=shared_via)
         queryset = annotate_assignee_local_date(queryset, user=user)
         search_query = ""
         if self.action == "list":
@@ -1227,6 +1323,25 @@ class TaskViewSet(
             else ""
         )
         return _order_tasks(queryset, ordering, search_query)
+
+    def list(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        tasks = list(page if page is not None else queryset)
+        hierarchy_data = prepare_task_hierarchy_data(tasks, request.user)
+        tasks = [
+            task
+            for task in tasks
+            if visible_task_ancestor_path(task, request.user) is not None
+        ]
+        payload = TaskSerializer(
+            tasks,
+            many=True,
+            context={"request": request, "_task_hierarchy_cache": hierarchy_data},
+        ).data
+        if page is not None:
+            return self.get_paginated_response(payload)
+        return Response(payload)
 
     @action(detail=True, methods=["post"])
     def share(self, request, *args, **kwargs):  # pylint: disable=unused-argument
@@ -1270,15 +1385,40 @@ class TaskViewSet(
                         user=request.user,
                         role__in=TASK_LIST_EDIT_ROLES,
                     )
-                )
+                ),
+                _direct_subtask_count=Count("subtasks", distinct=True),
             )
-            .select_related("creator", "assignee", "task_list", "group")
+            .select_related(
+                "creator",
+                "assignee",
+                "task_list",
+                "group",
+                *_task_parent_select_fields(),
+            )
             .prefetch_related("assignees", "followers")
             .order_by("status", "due_date", "-conversation_shares__created_at")
         )
+        queryset = filter_visible_task_hierarchy(queryset, request.user, shared_via=cid)
         queryset = annotate_assignee_local_date(queryset, user=request.user)
+        tasks = list(queryset)
+        hierarchy_data = prepare_task_hierarchy_data(
+            tasks, request.user, shared_via=cid
+        )
+        tasks = [
+            task
+            for task in tasks
+            if visible_task_ancestor_path(task, request.user, shared_via=cid)
+            is not None
+        ]
         return Response(
-            TaskSerializer(queryset, many=True, context={"request": request}).data
+            TaskSerializer(
+                tasks,
+                many=True,
+                context={
+                    "request": request,
+                    "_task_hierarchy_cache": hierarchy_data,
+                },
+            ).data
         )
 
     def create(self, request, *args, **kwargs):  # pylint: disable=unused-argument
@@ -1293,11 +1433,22 @@ class TaskViewSet(
         if assignees is None:
             assignees = [legacy_assignee or request.user]
         followers = validated_data.pop("followers", [])
+        parent = validated_data.pop("parent", None)
+        organization = get_caller_organization(request.user)
         with transaction.atomic():
+            try:
+                validate_task_parent_change(
+                    task=None,
+                    parent=parent,
+                    organization=organization,
+                )
+            except TaskHierarchyError as exc:
+                raise _task_hierarchy_validation_error(exc) from exc
             task = models.Task.objects.create(
                 creator=request.user,
                 assignee=assignees[0],
-                organization=get_caller_organization(request.user),
+                organization=organization,
+                parent=parent,
                 **validated_data,
             )
             set_task_assignees(task, assignees)
@@ -1312,7 +1463,7 @@ class TaskViewSet(
             status=201,
         )
 
-    def partial_update(self, request, *args, **kwargs):
+    def partial_update(self, request, *args, **kwargs):  # noqa: PLR0912
         with transaction.atomic():
             task = self.get_object()
             if task.source_action_item_id is not None:
@@ -1324,6 +1475,7 @@ class TaskViewSet(
                 .select_related(
                     "creator",
                     "assignee",
+                    "parent",
                     "task_list",
                     "group",
                     "source_action_item__room",
@@ -1342,6 +1494,8 @@ class TaskViewSet(
                 "priority",
                 "task_list_id",
                 "group_id",
+                "parent_id",
+                "confirm_subtree_node_count",
                 "position",
                 "assignee_id",
                 "assignee_ids",
@@ -1362,6 +1516,38 @@ class TaskViewSet(
                 context={"request": request},
             )
             serializer.is_valid(raise_exception=True)
+            if "parent" in serializer.validated_data:
+                moved_nodes = task_subtree(task, for_update=True)
+                if any(
+                    not _can_manage_task_content(node, request.user)
+                    for node in moved_nodes
+                ):
+                    raise PermissionDenied(
+                        "You must be able to edit every task in the moved subtree."
+                    )
+                if len(moved_nodes) > 1 and serializer.validated_data.get(
+                    "confirm_subtree_node_count"
+                ) != len(moved_nodes):
+                    raise serializers.ValidationError(
+                        {
+                            "confirm_subtree_node_count": {
+                                "code": "task_subtree_confirmation_required",
+                                "detail": (
+                                    "Confirm the current subtree node count before "
+                                    "moving a parent task."
+                                ),
+                                "expected": len(moved_nodes),
+                            }
+                        }
+                    )
+                try:
+                    validate_task_parent_change(
+                        task=task,
+                        parent=serializer.validated_data["parent"],
+                        organization=task.organization,
+                    )
+                except TaskHierarchyError as exc:
+                    raise _task_hierarchy_validation_error(exc) from exc
             serializer.save()
             activities = record_task_changes(
                 task=task,
@@ -1414,19 +1600,123 @@ class TaskViewSet(
     def destroy(self, request, *args, **kwargs):
         with transaction.atomic():
             task = self.get_object()
-            if task.creator_id != request.user.id and not _can_edit_task_list(
-                task.task_list, request.user
+            subtree = task_subtree(task, for_update=True)
+            if any(
+                node.creator_id != request.user.id
+                and not _can_edit_task_list(node.task_list, request.user)
+                for node in subtree
             ):
-                raise PermissionDenied("Only task editors can delete this task.")
-            if task.source_action_item_id is not None:
-                models.ActionItem.objects.filter(pk=task.source_action_item_id).update(
+                raise PermissionDenied(
+                    "You must be able to delete every task in the subtree."
+                )
+            if len(subtree) > 1:
+                try:
+                    confirmed_count = int(
+                        request.query_params.get("confirm_subtree_node_count", "")
+                    )
+                except ValueError:
+                    confirmed_count = 0
+                if confirmed_count != len(subtree):
+                    raise serializers.ValidationError(
+                        {
+                            "confirm_subtree_node_count": {
+                                "code": "task_subtree_confirmation_required",
+                                "detail": (
+                                    "Confirm the current subtree node count before "
+                                    "deleting a parent task."
+                                ),
+                                "expected": len(subtree),
+                            }
+                        }
+                    )
+            action_item_ids = [
+                node.source_action_item_id
+                for node in subtree
+                if node.source_action_item_id is not None
+            ]
+            if action_item_ids:
+                models.ActionItem.objects.filter(pk__in=action_item_ids).update(
                     task_id=None
                 )
             _delete_tasks_with_attachments(
-                models.Task.objects.filter(pk=task.pk),
+                models.Task.objects.filter(pk__in=[node.pk for node in subtree]),
                 actor=request.user,
             )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["get"], url_path="subtree-impact")
+    def subtree_impact(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        task = self.get_object()
+        subtree = task_subtree(task)
+        shared_via = (request.query_params.get("shared_via") or "").strip()
+        chains = prepare_task_hierarchy_visibility(
+            subtree, request.user, shared_via=shared_via
+        )
+        if any(
+            visible_task_ancestor_path(node, request.user, shared_via=shared_via)
+            is None
+            for node in subtree
+        ):
+            raise PermissionDenied("The complete task subtree must be visible.")
+        return Response(
+            {
+                "task_id": str(task.pk),
+                "node_count": len(subtree),
+                "descendant_count": len(subtree) - 1,
+                "maximum_depth": max(len(chain) - 1 for chain in chains.values()),
+            }
+        )
+
+    @action(detail=True, methods=["get"])
+    def subtasks(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        parent = self.get_object()
+        queryset = (
+            self.get_queryset().filter(parent=parent).order_by("position", "created_at")
+        )
+        candidates = list(queryset)
+        hierarchy_data = prepare_task_hierarchy_data(candidates, request.user)
+        children = [
+            task
+            for task in candidates
+            if visible_task_ancestor_path(task, request.user) is not None
+        ]
+        return Response(
+            TaskSerializer(
+                children,
+                many=True,
+                context={
+                    "request": request,
+                    "_task_hierarchy_cache": hierarchy_data,
+                },
+            ).data
+        )
+
+    @action(detail=True, methods=["get"], url_path="parent-candidates")
+    def parent_candidates(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        task = self.get_object()
+        excluded_ids = {node.pk for node in task_subtree(task)}
+        query = (request.query_params.get("q") or "").strip()
+        candidates = self.get_queryset().filter(organization=task.organization)
+        if query:
+            candidates = candidates.filter(title__icontains=query)
+        candidates = list(
+            candidates.exclude(pk__in=excluded_ids).order_by("title")[:20]
+        )
+        prepare_task_hierarchy_visibility(candidates, request.user)
+        payload = []
+        for candidate in candidates:
+            path = visible_task_ancestor_path(candidate, request.user)
+            if path is None or not _can_manage_task_content(candidate, request.user):
+                continue
+            payload.append(
+                {
+                    "id": str(candidate.pk),
+                    "title": candidate.title,
+                    "depth": len(path) - 1,
+                    "ancestor_path": path,
+                }
+            )
+        return Response(payload)
 
     @action(detail=True, methods=["get"])
     def activities(self, request, *args, **kwargs):  # pylint: disable=unused-argument
@@ -1494,12 +1784,19 @@ class TaskViewSet(
     def statistics(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         """Aggregate the same task set the caller is already allowed to list."""
 
+        hierarchy_scope = request.query_params.get("hierarchy", "include_descendants")
+        if hierarchy_scope not in {"include_descendants", "roots_only"}:
+            raise serializers.ValidationError(
+                {"hierarchy": ("Choose either include_descendants or roots_only.")}
+            )
         queryset, _search_query = _filter_task_list(
             self.get_queryset(),
             request=request,
             user=request.user,
             include_search=False,
         )
+        if hierarchy_scope == "roots_only":
+            queryset = queryset.filter(parent__isnull=True)
         open_statuses = [models.Task.Status.TODO]
         overdue_filter = (
             Q(status__in=open_statuses)
@@ -1575,7 +1872,14 @@ class TaskViewSet(
             )
             .order_by("group__sort_order", "group__name", "group_id")
         )
-        return Response({"summary": summary, "workload": workload, "groups": groups})
+        return Response(
+            {
+                "hierarchy_scope": hierarchy_scope,
+                "summary": summary,
+                "workload": workload,
+                "groups": groups,
+            }
+        )
 
     @action(detail=True, methods=["get", "post"])
     def comments(self, request, *args, **kwargs):  # pylint: disable=unused-argument

@@ -1139,12 +1139,17 @@ const taskResultMetadata = (
       )
     : t('search.taskDueNoDate')
   return [
+    task.ancestor_path.length > 1
+      ? task.ancestor_path.map((node) => node.title).join(' › ')
+      : null,
     t('search.taskCreatorMeta', { name: taskDisplayName(task.creator) }),
     t('search.taskAssigneeMeta', {
       name: assignees || t('search.taskUnassigned'),
     }),
     t('search.taskDueMeta', { date: due }),
-  ].join(' · ')
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 const hintCls = css({

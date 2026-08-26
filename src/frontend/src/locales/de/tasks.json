@@ -284,7 +284,26 @@
     "more": "Weitere Aktionen",
     "delete": "Aufgabe löschen",
     "deleteTitle": "Aufgabe löschen",
-    "deleteDescription": "„{{title}}“ löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+    "deleteDescription": "„{{title}}“ löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+    "deleteSubtreeDescription": "„{{title}}“ und {{count}} Unteraufgaben löschen? Der gesamte Teilbaum wird dauerhaft gelöscht."
+  },
+  "subtasks": {
+    "title": "Unteraufgaben",
+    "parent": "Übergeordnete Aufgabe",
+    "rootTask": "Als Stammaufgabe festlegen",
+    "parentChain": "Aufgabenpfad",
+    "progress": "{{completed}} von {{total}} abgeschlossen",
+    "progressLabel": "Fortschritt der Unteraufgaben",
+    "loading": "Unteraufgaben werden geladen…",
+    "empty": "Noch keine Unteraufgaben.",
+    "newTitle": "Titel der Unteraufgabe",
+    "placeholder": "Unteraufgabe hinzufügen",
+    "add": "Hinzufügen",
+    "move": "Aufgabe verschieben",
+    "moveTitle": "Aufgaben-Teilbaum verschieben",
+    "moveSubtreeDescription": "Der gesamte Teilbaum mit {{count}} Aufgaben wird verschoben. Fortfahren?",
+    "limitReached": "Die Hierarchie- oder Aufgabenbegrenzung ist erreicht oder Sie dürfen hier nichts erstellen.",
+    "createError": "Die Unteraufgabe konnte nicht erstellt werden. Prüfen Sie Begrenzungen und Berechtigungen."
   },
   "comments": {
     "title": "Kommentare",
@@ -328,6 +347,7 @@
       "content_changed": "{{actor}} hat den Aufgabeninhalt geändert",
       "priority_changed": "{{actor}} hat die Aufgabenpriorität von „{{from}}“ auf „{{to}}“ geändert",
       "placement_changed": "{{actor}} hat die Aufgabe von „{{from}}“ nach „{{to}}“ verschoben",
+      "hierarchy_changed": "{{actor}} hat die übergeordnete Aufgabe von „{{from}}“ nach „{{to}}“ geändert",
       "dates_changed": "{{actor}} hat die Aufgabendaten angepasst",
       "assignee_changed": "{{actor}} hat die Aufgabe {{assignee}} zugewiesen",
       "status_changed": "{{actor}} hat den Status in „{{status}}“ geändert",

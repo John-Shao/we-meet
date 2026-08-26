@@ -176,6 +176,17 @@ class Base(Configuration):
         environ_name="AWS_STORAGE_BUCKET_NAME_TASK_ATTACHMENT",
         environ_prefix=None,
     )
+    # Bounded recursive task hierarchy. These stay in application settings so
+    # increasing a validated product limit never requires a schema migration.
+    TASK_MAX_SUBTASK_DEPTH = values.PositiveIntegerValue(
+        5, environ_name="TASK_MAX_SUBTASK_DEPTH", environ_prefix=None
+    )
+    TASK_MAX_DIRECT_CHILDREN = values.PositiveIntegerValue(
+        100, environ_name="TASK_MAX_DIRECT_CHILDREN", environ_prefix=None
+    )
+    TASK_MAX_TREE_NODES = values.PositiveIntegerValue(
+        500, environ_name="TASK_MAX_TREE_NODES", environ_prefix=None
+    )
     AWS_S3_SIGNATURE_VERSION = values.Value(
         "s3v4",
         environ_name="AWS_S3_SIGNATURE_VERSION",

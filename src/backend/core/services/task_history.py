@@ -21,6 +21,7 @@ class TaskHistorySnapshot:
     task_list: dict | None
     group: dict | None
     position: int
+    parent: dict | None
 
 
 def snapshot_task(task: models.Task) -> TaskHistorySnapshot:
@@ -38,6 +39,7 @@ def snapshot_task(task: models.Task) -> TaskHistorySnapshot:
         task_list=_task_list_snapshot(task.task_list),
         group=_task_group_snapshot(task.group),
         position=task.position,
+        parent=_task_parent_snapshot(task.parent),
     )
 
 
@@ -164,6 +166,17 @@ def record_task_changes(
             )
         )
 
+    parent = _task_parent_snapshot(task.parent)
+    if parent != before.parent:
+        activities.append(
+            _activity(
+                task=task,
+                actor=actor,
+                event=models.TaskActivity.Event.HIERARCHY_CHANGED,
+                changes={"parent": {"from": before.parent, "to": parent}},
+            )
+        )
+
     return activities
 
 
@@ -216,3 +229,9 @@ def _task_group_snapshot(group) -> dict | None:
     if group is None:
         return None
     return {"id": str(group.id), "name": group.name}
+
+
+def _task_parent_snapshot(parent) -> dict | None:
+    if parent is None:
+        return None
+    return {"id": str(parent.id), "title": parent.title}

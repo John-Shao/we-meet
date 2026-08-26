@@ -1366,6 +1366,11 @@ const TaskTitle = ({ task, status }: { task: ApiTask; status: TaskStatus }) => {
       <span className={titleLineCss}>
         <strong>{task.title}</strong>
       </span>
+      {task.ancestor_path.length > 1 && (
+        <span className={titleMetaCss}>
+          {task.ancestor_path.map((node) => node.title).join(' › ')}
+        </span>
+      )}
       {task.source_room_name && (
         <span className={titleMetaCss}>
           {t('sourceMeeting', { name: task.source_room_name })}

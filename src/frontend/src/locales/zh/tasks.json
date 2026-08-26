@@ -290,7 +290,26 @@
     "more": "更多操作",
     "delete": "删除任务",
     "deleteTitle": "删除任务",
-    "deleteDescription": "确定删除“{{title}}”吗？此操作无法撤销。"
+    "deleteDescription": "确定删除“{{title}}”吗？此操作无法撤销。",
+    "deleteSubtreeDescription": "确定删除“{{title}}”及其 {{count}} 个子任务吗？整棵子树将被永久删除，且无法撤销。"
+  },
+  "subtasks": {
+    "title": "子任务",
+    "parent": "父任务",
+    "rootTask": "设为根任务",
+    "parentChain": "任务父链",
+    "progress": "已完成 {{completed}} / {{total}}",
+    "progressLabel": "子任务完成进度",
+    "loading": "正在加载子任务…",
+    "empty": "暂无子任务。",
+    "newTitle": "子任务标题",
+    "placeholder": "添加子任务",
+    "add": "添加",
+    "move": "移动任务",
+    "moveTitle": "移动任务子树",
+    "moveSubtreeDescription": "此次移动会同时移动整棵子树，共 {{count}} 个任务。是否继续？",
+    "limitReached": "已达到层级或数量上限，或你没有创建权限。",
+    "createError": "子任务创建失败，请检查层级、数量和权限后重试。"
   },
   "share": {
     "action": "分享任务",
@@ -350,6 +369,7 @@
       "content_changed": "{{actor}} 修改了任务内容",
       "priority_changed": "{{actor}} 将任务优先级从“{{from}}”调整为“{{to}}”",
       "placement_changed": "{{actor}} 将任务从“{{from}}”移动到“{{to}}”",
+      "hierarchy_changed": "{{actor}} 将父任务从“{{from}}”调整为“{{to}}”",
       "dates_changed": "{{actor}} 调整了任务日期",
       "assignee_changed": "{{actor}} 将负责人转交给 {{assignee}}",
       "status_changed": "{{actor}} 将任务状态改为“{{status}}”",

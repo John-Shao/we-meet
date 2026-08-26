@@ -90,6 +90,26 @@ export interface ApiTaskUser {
   avatar_url: string
 }
 
+export interface ApiTaskAncestor {
+  id: string
+  title: string
+  depth: number
+}
+
+export interface ApiTaskSubtreeImpact {
+  task_id: string
+  node_count: number
+  descendant_count: number
+  maximum_depth: number
+}
+
+export interface ApiTaskParentCandidate {
+  id: string
+  title: string
+  depth: number
+  ancestor_path: ApiTaskAncestor[]
+}
+
 export interface ApiTask {
   id: string
   title: string
@@ -102,6 +122,11 @@ export interface ApiTask {
   priority: TaskPriority
   task_list: Pick<ApiTaskList, 'id' | 'name' | 'color'> | null
   group: Pick<ApiTaskGroup, 'id' | 'name' | 'sort_order'> | null
+  parent_id: string | null
+  depth: number
+  ancestor_path: ApiTaskAncestor[]
+  descendant_progress: { completed: number; total: number }
+  can_create_subtasks: boolean
   position: number
   start_date: string | null
   due_date: string | null
@@ -129,6 +154,7 @@ export type TaskActivityEvent =
   | 'status_changed'
   | 'priority_changed'
   | 'placement_changed'
+  | 'hierarchy_changed'
   | 'attachment_removed'
   | 'source_action_item_changed'
 
@@ -172,6 +198,10 @@ export interface ApiTaskActivity {
     placement?: {
       from: ApiTaskPlacementSnapshot
       to: ApiTaskPlacementSnapshot
+    }
+    parent?: {
+      from: { id: string; title: string } | null
+      to: { id: string; title: string } | null
     }
     attachment?: { id: string; filename: string }
     source_action_item_sync?: {
@@ -234,6 +264,7 @@ export interface ApiTaskPlacementSnapshot {
 }
 
 export interface ApiTaskStatistics {
+  hierarchy_scope: 'include_descendants' | 'roots_only'
   summary: {
     total: number
     open: number
@@ -273,6 +304,7 @@ export interface CreateTaskPayload {
   task_list_id?: string | null
   group_id?: string | null
   position?: number
+  parent_id?: string | null
 }
 
 export interface PatchTaskPayload {
@@ -286,5 +318,7 @@ export interface PatchTaskPayload {
   task_list_id?: string | null
   group_id?: string | null
   position?: number
+  parent_id?: string | null
+  confirm_subtree_node_count?: number
   status?: TaskStatus
 }

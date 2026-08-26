@@ -284,7 +284,26 @@
     "more": "Meer acties",
     "delete": "Taak verwijderen",
     "deleteTitle": "Taak verwijderen",
-    "deleteDescription": "‘{{title}}’ verwijderen? Dit kan niet ongedaan worden gemaakt."
+    "deleteDescription": "‘{{title}}’ verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "deleteSubtreeDescription": "‘{{title}}’ en {{count}} subtaken verwijderen? De volledige substructuur wordt permanent verwijderd."
+  },
+  "subtasks": {
+    "title": "Subtaken",
+    "parent": "Bovenliggende taak",
+    "rootTask": "Instellen als hoofdtaak",
+    "parentChain": "Taakpad",
+    "progress": "{{completed}} van {{total}} voltooid",
+    "progressLabel": "Voortgang van subtaken",
+    "loading": "Subtaken laden…",
+    "empty": "Nog geen subtaken.",
+    "newTitle": "Titel van subtaak",
+    "placeholder": "Subtaak toevoegen",
+    "add": "Toevoegen",
+    "move": "Taak verplaatsen",
+    "moveTitle": "Taakstructuur verplaatsen",
+    "moveSubtreeDescription": "De volledige substructuur van {{count}} taken wordt verplaatst. Doorgaan?",
+    "limitReached": "De hiërarchie- of taaklimiet is bereikt, of je kunt hier niet aanmaken.",
+    "createError": "De subtaak kon niet worden aangemaakt. Controleer limieten en rechten."
   },
   "comments": {
     "title": "Opmerkingen",
@@ -328,6 +347,7 @@
       "content_changed": "{{actor}} heeft de taakinhoud bijgewerkt",
       "priority_changed": "{{actor}} heeft de taakprioriteit gewijzigd van ‘{{from}}’ naar ‘{{to}}’",
       "placement_changed": "{{actor}} heeft de taak verplaatst van ‘{{from}}’ naar ‘{{to}}’",
+      "hierarchy_changed": "{{actor}} heeft de bovenliggende taak gewijzigd van ‘{{from}}’ naar ‘{{to}}’",
       "dates_changed": "{{actor}} heeft de taakdatums aangepast",
       "assignee_changed": "{{actor}} heeft de taak toegewezen aan {{assignee}}",
       "status_changed": "{{actor}} heeft de status gewijzigd in ‘{{status}}’",
