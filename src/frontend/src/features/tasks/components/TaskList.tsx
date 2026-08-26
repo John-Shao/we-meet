@@ -16,8 +16,10 @@ import {
   RiArrowRightSLine,
   RiArrowUpSLine,
   RiCheckLine,
+  RiDeleteBinLine,
   RiLoader4Line,
   RiMoreLine,
+  RiShareForwardLine,
 } from '@remixicon/react'
 
 import { Button, Menu, MenuList } from '@/primitives'
@@ -116,6 +118,7 @@ type ListProps = {
   selectedTaskId?: string
   onOpen: (task: ApiTask) => void
   onShare?: (task: ApiTask) => void
+  onDeleteTask?: (task: ApiTask) => void
   registerRow: (taskId: string, element: HTMLElement | null) => void
   onCreateTaskInGroup?: (groupId?: string) => void
   canManageGroups?: boolean
@@ -153,6 +156,7 @@ export const TaskList = ({
   selectedTaskId,
   onOpen,
   onShare,
+  onDeleteTask,
   registerRow,
   onCreateTaskInGroup,
   canManageGroups = false,
@@ -349,7 +353,7 @@ export const TaskList = ({
     event: ReactMouseEvent<HTMLElement>,
     task: ApiTask
   ) => {
-    if (!onShare) return
+    if (!onShare && !onDeleteTask) return
     event.preventDefault()
     event.stopPropagation()
     setContextMenu({ task, x: event.clientX, y: event.clientY })
@@ -533,7 +537,7 @@ export const TaskList = ({
           )
         })}
       </ul>
-      {contextMenu && onShare && (
+      {contextMenu && (onShare || onDeleteTask) && (
         <div
           role="menu"
           tabIndex={-1}
@@ -541,16 +545,34 @@ export const TaskList = ({
           className={taskContextMenuCss}
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              onShare(contextMenu.task)
-              setContextMenu(null)
-            }}
-          >
-            {t('share.action')}
-          </button>
+          {onShare && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onShare(contextMenu.task)
+                setContextMenu(null)
+              }}
+            >
+              <RiShareForwardLine size={16} aria-hidden="true" />
+              <span>{t('share.action')}</span>
+            </button>
+          )}
+          {onDeleteTask && (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={!contextMenu.task.can_delete}
+              className={taskContextDeleteCss}
+              onClick={() => {
+                onDeleteTask(contextMenu.task)
+                setContextMenu(null)
+              }}
+            >
+              <RiDeleteBinLine size={16} aria-hidden="true" />
+              <span>{t('actions.delete')}</span>
+            </button>
+          )}
         </div>
       )}
     </>
@@ -1194,25 +1216,36 @@ const rowCss = css({
 const taskContextMenuCss = css({
   position: 'fixed',
   zIndex: 'popover',
-  minWidth: '9rem',
+  minWidth: '10rem',
   padding: '0.25rem',
   border: '1px solid token(colors.greyscale.200)',
   borderRadius: '0.5rem',
   backgroundColor: 'greyscale.000',
   boxShadow: 'lg',
+  fontSize: '0.875rem',
   '& button': {
     width: '100%',
-    padding: '0.25rem 0.75rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.125rem 0.5rem',
     border: 0,
     borderRadius: '0.375rem',
     backgroundColor: 'transparent',
     color: 'greyscale.900',
-    fontSize: '0.75rem',
-    lineHeight: '1rem',
     textAlign: 'left',
     cursor: 'pointer',
     _hover: { backgroundColor: 'greyscale.100' },
+    _disabled: {
+      color: 'greyscale.400',
+      cursor: 'not-allowed',
+      backgroundColor: 'transparent',
+    },
   },
+})
+const taskContextDeleteCss = css({
+  color: 'danger.600!',
+  _disabled: { color: 'greyscale.400!' },
 })
 const groupHeaderRowCss = css({
   '& td': {

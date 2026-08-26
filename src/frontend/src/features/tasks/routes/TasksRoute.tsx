@@ -26,6 +26,7 @@ import type {
   TaskTimeFilter,
 } from '../api/ApiTask'
 import {
+  useDeleteTask,
   useDeleteTaskGroup,
   useDeleteTaskListGroup,
   useLeaveTaskList,
@@ -112,6 +113,7 @@ const TasksAuthenticated = () => {
   const { confirm } = useConfirm()
   const deleteGroupMutation = useDeleteTaskGroup()
   const deleteTaskListGroupMutation = useDeleteTaskListGroup()
+  const deleteTaskMutation = useDeleteTask()
   const moveTaskListMutation = useMoveTaskListToGroup()
   const updateTaskListMutation = useUpdateTaskList()
   const leaveTaskListMutation = useLeaveTaskList()
@@ -155,6 +157,25 @@ const TasksAuthenticated = () => {
       danger: true,
     })
     if (accepted) deleteGroupMutation.mutate(group.id)
+  }
+
+  const deleteTask = async (task: ApiTask) => {
+    if (!task.can_delete) return
+    const accepted = await confirm({
+      title: t('actions.deleteTitle'),
+      message: t('actions.deleteDescription', { title: task.title }),
+      confirmLabel: t('actions.delete'),
+      danger: true,
+    })
+    if (!accepted) return
+    try {
+      await deleteTaskMutation.mutateAsync(task.id)
+      if (state.task === task.id) {
+        navigateState({ ...state, task: undefined }, { replace: true })
+      }
+    } catch {
+      // Keep the task visible so the user can retry the action.
+    }
   }
 
   const deleteTaskListGroup = async (group: ApiTaskListGroup) => {
@@ -455,6 +476,7 @@ const TasksAuthenticated = () => {
                   navigateState({ ...state, task: task.id })
                 }}
                 onShare={setTaskSharing}
+                onDeleteTask={(task) => void deleteTask(task)}
                 registerRow={(taskId, element) => {
                   if (element) rowRefs.current.set(taskId, element)
                   else rowRefs.current.delete(taskId)

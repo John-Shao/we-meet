@@ -1106,11 +1106,8 @@ const headerMenuItemCss = css({
   color: 'danger.600',
 })
 const headerMenuCss = css({
-  '& [role="menuitem"]': {
-    paddingY: '0.25rem',
-    fontSize: '0.75rem',
-    lineHeight: '1rem',
-  },
+  minWidth: '10rem',
+  fontSize: '0.875rem',
 })
 const inlineErrorCss = css({ margin: 0, color: 'danger.subtle-text' })
 const detailSectionCss = css({

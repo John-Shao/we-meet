@@ -234,6 +234,35 @@ describe('TaskList', () => {
     expect(onOpen).not.toHaveBeenCalled()
   })
 
+  it('shows icons and deletes an editable task from the row context menu', () => {
+    const onOpen = vi.fn()
+    const onShare = vi.fn()
+    const onDeleteTask = vi.fn()
+    render(
+      <TaskList
+        tasks={[{ ...task, can_delete: true }]}
+        onOpen={onOpen}
+        onShare={onShare}
+        onDeleteTask={onDeleteTask}
+        registerRow={vi.fn()}
+      />
+    )
+
+    fireEvent.contextMenu(
+      within(screen.getByRole('table')).getByLabelText('workspace.openTask')
+    )
+    const menu = screen.getByRole('menu')
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(2)
+    expect(menu.querySelectorAll('svg')).toHaveLength(2)
+    fireEvent.click(
+      within(menu).getByRole('menuitem', { name: 'actions.delete' })
+    )
+
+    expect(onDeleteTask).toHaveBeenCalledWith({ ...task, can_delete: true })
+    expect(onShare).not.toHaveBeenCalled()
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
   it('cycles sortable headers independently from the resize handle', () => {
     const onOrderingChange = vi.fn()
     const { rerender } = render(
