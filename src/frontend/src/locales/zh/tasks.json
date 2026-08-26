@@ -225,9 +225,11 @@
     "remove": "移除关注人 {{name}}"
   },
   "assignees": {
+    "add": "添加负责人",
     "select": "选择负责人",
     "selected": "已选择 {{count}}/10 人",
-    "limit": "最多选择 10 位共同负责人。"
+    "limit": "最多选择 10 位共同负责人。",
+    "remove": "移除负责人 {{name}}"
   },
   "timeFilters": {
     "label": "时间筛选",

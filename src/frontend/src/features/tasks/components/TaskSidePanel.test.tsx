@@ -167,7 +167,6 @@ describe('TaskDetailPanel', () => {
     ).not.toBeInTheDocument()
     const editableFields = [
       'form.title',
-      'meta.assignee',
       'meta.startDate',
       'meta.dueDate',
       'form.priority',
@@ -182,6 +181,12 @@ describe('TaskDetailPanel', () => {
     expect(
       screen.queryByRole('button', { name: 'actions.edit meta.creator' })
     ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'actions.edit meta.assignee' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'assignees.add' })
+    ).toBeInTheDocument()
 
     fireEvent.click(
       screen.getByRole('button', { name: 'actions.edit form.title' })
@@ -195,6 +200,40 @@ describe('TaskDetailPanel', () => {
       expect(mutateAsync).toHaveBeenCalledWith({
         taskId: task.id,
         patch: { title: 'Ship release' },
+      })
+    )
+  })
+
+  it('shows assignees as removable member chips like followers', async () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{
+          ...task,
+          can_edit: true,
+          assignees: [
+            task.assignee!,
+            {
+              id: 'assignee-2',
+              full_name: 'Second assignee',
+              short_name: null,
+              avatar_url: '/assignee-2.png',
+            },
+          ],
+        }}
+        taskLists={[]}
+        onClose={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'assignees.remove' })[1]
+    )
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: task.id,
+        patch: { assignee_ids: ['assignee'] },
       })
     )
   })

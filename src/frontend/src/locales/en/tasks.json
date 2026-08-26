@@ -225,9 +225,11 @@
     "remove": "Remove follower {{name}}"
   },
   "assignees": {
+    "add": "Add assignee",
     "select": "Select assignees",
     "selected": "{{count}} of 10 selected",
-    "limit": "Choose up to 10 equally responsible people."
+    "limit": "Choose up to 10 equally responsible people.",
+    "remove": "Remove assignee {{name}}"
   },
   "timeFilters": {
     "label": "Time filter",

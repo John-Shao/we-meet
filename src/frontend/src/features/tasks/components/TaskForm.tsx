@@ -23,7 +23,7 @@ import type {
 import { useCreateTask } from '../api/fetchTasks'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
-import { TaskAssigneesDisplay, TaskUserDisplay } from './TaskUserDisplay'
+import { TaskUserDisplay } from './TaskUserDisplay'
 
 const priorities: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
 
@@ -125,28 +125,53 @@ export const TaskForm = ({
         />
 
         <div className={createPropertyListCss}>
-          <div className={createPropertyRowCss}>
+          <div className={createPropertyRowCss} data-align-start>
             <RiUser3Line size={19} aria-hidden="true" />
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className={assigneeButtonCss}
-              onPress={() => setPickerOpen(true)}
-            >
+            <div className={memberEditorCss}>
               {assignees.length > 0 ? (
-                <TaskAssigneesDisplay users={assignees} />
+                assignees.map((assignee) => (
+                  <span key={assignee.id} className={memberChipCss}>
+                    <TaskUserDisplay user={assignee} />
+                    <button
+                      type="button"
+                      aria-label={t('assignees.remove', {
+                        name:
+                          assignee.full_name ||
+                          assignee.short_name ||
+                          assignee.email ||
+                          '',
+                      })}
+                      onClick={() =>
+                        setAssignees((current) =>
+                          current.filter((item) => item.id !== assignee.id)
+                        )
+                      }
+                    >
+                      <RiCloseLine size={14} aria-hidden="true" />
+                    </button>
+                  </span>
+                ))
               ) : (
-                t('form.assigneeSelf')
+                <span className={memberChipCss}>{t('form.assigneeSelf')}</span>
               )}
-            </Button>
+              {assignees.length < 10 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="quaternaryText"
+                  onPress={() => setPickerOpen(true)}
+                >
+                  {t('assignees.add')}
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className={createPropertyRowCss} data-align-start>
             <RiUserFollowLine size={19} aria-hidden="true" />
-            <div className={followersEditorCss}>
+            <div className={memberEditorCss}>
               {followers.map((follower) => (
-                <span key={follower.id} className={followerChipCss}>
+                <span key={follower.id} className={memberChipCss}>
                   <TaskUserDisplay user={follower} />
                   <button
                     type="button"
@@ -361,18 +386,14 @@ const createPropertyRowCss = css({
   color: 'greyscale.500',
   '&[data-align-start]': { alignItems: 'start', paddingTop: '0.75rem' },
 })
-const assigneeButtonCss = css({
-  justifySelf: 'start',
-  fontSize: '0.875rem',
-})
-const followersEditorCss = css({
+const memberEditorCss = css({
   minWidth: 0,
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
   gap: '0.375rem',
 })
-const followerChipCss = css({
+const memberChipCss = css({
   minWidth: 0,
   display: 'inline-flex',
   alignItems: 'center',

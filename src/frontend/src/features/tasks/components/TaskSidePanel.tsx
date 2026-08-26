@@ -53,7 +53,7 @@ import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
 import { TaskForm } from './TaskForm'
 import { TaskShareDialog } from './TaskShareDialog'
-import { TaskAssigneesDisplay, TaskUserDisplay } from './TaskUserDisplay'
+import { TaskUserDisplay } from './TaskUserDisplay'
 import {
   TaskAttachmentsSection,
   TaskCommentsSection,
@@ -206,6 +206,7 @@ export const TaskDetailPanel = ({
   const selectedDraftTaskList = taskLists.find(
     (taskList) => taskList.id === draftTaskListId
   )
+  const currentAssignees = taskAssignees(task)
   const nextStatus = nextTaskStatuses(task)[0]
   const followActionLabel = task.is_following
     ? t('followers.unfollow')
@@ -392,13 +393,48 @@ export const TaskDetailPanel = ({
             <TaskProperty
               icon={<RiUser3Line size={18} />}
               label={t('meta.assignee')}
-              editLabel={editLabel(t('meta.assignee'))}
-              isDisabled={patchMutation.isPending}
-              onEdit={
-                task.can_edit ? () => setAssigneePickerOpen(true) : undefined
-              }
+              alignStart
             >
-              <TaskAssigneesDisplay users={taskAssignees(task)} />
+              <div className={detailMembersCss}>
+                {currentAssignees.map((assignee) => (
+                  <span key={assignee.id} className={detailMemberChipCss}>
+                    <TaskUserDisplay user={assignee} />
+                    {task.can_edit && currentAssignees.length > 1 && (
+                      <button
+                        type="button"
+                        aria-label={t('assignees.remove', {
+                          name:
+                            assignee.full_name ||
+                            assignee.short_name ||
+                            assignee.email ||
+                            '',
+                        })}
+                        disabled={patchMutation.isPending}
+                        onClick={() =>
+                          void saveField({
+                            assignee_ids: currentAssignees
+                              .filter((item) => item.id !== assignee.id)
+                              .map((item) => item.id),
+                          })
+                        }
+                      >
+                        <RiCloseLine size={14} aria-hidden="true" />
+                      </button>
+                    )}
+                  </span>
+                ))}
+                {task.can_edit && currentAssignees.length < 10 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="quaternaryText"
+                    isDisabled={patchMutation.isPending}
+                    onPress={() => setAssigneePickerOpen(true)}
+                  >
+                    {t('assignees.add')}
+                  </Button>
+                )}
+              </div>
             </TaskProperty>
             <TaskProperty
               icon={<RiUserAddLine size={18} />}
@@ -411,9 +447,9 @@ export const TaskDetailPanel = ({
               label={t('followers.title')}
               alignStart
             >
-              <div className={detailFollowersCss}>
+              <div className={detailMembersCss}>
                 {task.followers.map((follower) => (
-                  <span key={follower.id} className={detailFollowerChipCss}>
+                  <span key={follower.id} className={detailMemberChipCss}>
                     <TaskUserDisplay user={follower} />
                     {task.can_manage_followers && (
                       <button
@@ -1046,14 +1082,14 @@ const propertyEditButtonCss = css({
   _focusVisible: { '& > svg': { opacity: 1 } },
   _disabled: { cursor: 'default' },
 })
-const detailFollowersCss = css({
+const detailMembersCss = css({
   minWidth: 0,
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
   gap: '0.375rem',
 })
-const detailFollowerChipCss = css({
+const detailMemberChipCss = css({
   minWidth: 0,
   display: 'inline-flex',
   alignItems: 'center',

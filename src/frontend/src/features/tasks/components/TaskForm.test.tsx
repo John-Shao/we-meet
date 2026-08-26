@@ -35,6 +35,13 @@ describe('TaskForm create mode', () => {
     ).toBeDisabled()
     expect(screen.getAllByText('priorities.medium')).toHaveLength(2)
     expect(screen.queryByText('priorities.none')).not.toBeInTheDocument()
+    expect(screen.getByText('form.assigneeSelf')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'assignees.add' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'followers.add' })
+    ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'form.today' }))
     expect(screen.getByLabelText('form.dueDate')).toHaveValue(
