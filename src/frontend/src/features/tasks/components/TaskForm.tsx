@@ -22,6 +22,7 @@ import type {
   TaskPriority,
 } from '../api/ApiTask'
 import { useCreateTask } from '../api/fetchTasks'
+import { taskAssignees } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
 import { TaskUserDisplay } from './TaskUserDisplay'
@@ -32,6 +33,7 @@ export const TaskForm = ({
   taskLists,
   defaultTaskListId,
   defaultGroupId,
+  parentTask,
   titleInputRef,
   onCancel,
   onSaved,
@@ -39,6 +41,7 @@ export const TaskForm = ({
   taskLists: ApiTaskList[]
   defaultTaskListId?: string
   defaultGroupId?: string
+  parentTask?: ApiTask
   titleInputRef?: RefObject<HTMLInputElement>
   onCancel: () => void
   onSaved: (task: ApiTask) => void
@@ -46,16 +49,24 @@ export const TaskForm = ({
   const { t } = useTranslation('tasks')
   const { user: currentUser } = useUser()
   const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
+  const [description, setDescription] = useState(parentTask?.description || '')
   const [selectedAssignees, setSelectedAssignees] = useState<
     ApiTaskUser[] | null
-  >(null)
-  const [followers, setFollowers] = useState<ApiTaskUser[]>([])
-  const [priority, setPriority] = useState<TaskPriority>('medium')
-  const [taskListId, setTaskListId] = useState(defaultTaskListId || '')
-  const [groupId, setGroupId] = useState(defaultGroupId || '')
-  const [startDate, setStartDate] = useState('')
-  const [dueDate, setDueDate] = useState('')
+  >(() => (parentTask ? [...taskAssignees(parentTask)] : null))
+  const [followers, setFollowers] = useState<ApiTaskUser[]>(() => [
+    ...(parentTask?.followers || []),
+  ])
+  const [priority, setPriority] = useState<TaskPriority>(
+    parentTask?.priority || 'medium'
+  )
+  const [taskListId, setTaskListId] = useState(
+    parentTask?.task_list?.id || defaultTaskListId || ''
+  )
+  const [groupId, setGroupId] = useState(
+    parentTask?.group?.id || defaultGroupId || ''
+  )
+  const [startDate, setStartDate] = useState(parentTask?.start_date || '')
+  const [dueDate, setDueDate] = useState(parentTask?.due_date || '')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const createMutation = useCreateTask()
@@ -96,6 +107,7 @@ export const TaskForm = ({
         group_id: groupId || null,
         start_date: startDate || null,
         due_date: dueDate || null,
+        parent_id: parentTask?.id,
       }
       const saved = await createMutation.mutateAsync(payload)
       onSaved(saved)

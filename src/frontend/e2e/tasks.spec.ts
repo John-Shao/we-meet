@@ -247,10 +247,10 @@ test('create recursive subtasks, keep status independent, and show parent chains
       response.ok()
   )
   await details.getByRole('button', { name: '添加子任务' }).click()
-  await details.getByLabel('子任务标题').fill(childTitle)
-  await details.getByRole('button', { name: '添加', exact: true }).click()
+  let createDialog = page.getByRole('dialog', { name: '新建任务' })
+  await createDialog.getByPlaceholder('输入标题，回车确认').fill(childTitle)
+  await createDialog.getByRole('button', { name: '新建', exact: true }).click()
   const child = (await (await childResponsePromise).json()) as CreatedTask
-  await details.getByRole('link', { name: childTitle }).click()
 
   details = page.getByRole('complementary', { name: '任务详情' })
   const leafResponsePromise = page.waitForResponse(
@@ -260,10 +260,10 @@ test('create recursive subtasks, keep status independent, and show parent chains
       response.ok()
   )
   await details.getByRole('button', { name: '添加子任务' }).click()
-  await details.getByLabel('子任务标题').fill(leafTitle)
-  await details.getByRole('button', { name: '添加', exact: true }).click()
+  createDialog = page.getByRole('dialog', { name: '新建任务' })
+  await createDialog.getByPlaceholder('输入标题，回车确认').fill(leafTitle)
+  await createDialog.getByRole('button', { name: '新建', exact: true }).click()
   const leaf = (await (await leafResponsePromise).json()) as CreatedTask
-  await details.getByRole('link', { name: leafTitle }).click()
 
   details = page.getByRole('complementary', { name: '任务详情' })
   await expect(

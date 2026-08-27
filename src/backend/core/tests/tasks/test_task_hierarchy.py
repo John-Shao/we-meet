@@ -6,7 +6,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
-from core.models import Task
+from core.models import Task, TaskGroup, TaskList, TaskListAccess
 
 pytestmark = pytest.mark.django_db
 
@@ -59,6 +59,62 @@ def test_create_recursive_subtasks_returns_depth_path_progress_and_children():
     children = client.get(f"{TASKS_URL}{root_id}/subtasks/")
     assert children.status_code == 200
     assert [task["title"] for task in children.json()] == ["Backend"]
+
+
+def test_assignee_can_create_subtask_with_inherited_parent_placement():
+    organization = OrganizationFactory()
+    owner = UserFactory()
+    assignee = UserFactory()
+    MembershipFactory(user=owner, organization=organization, is_primary=True)
+    MembershipFactory(user=assignee, organization=organization, is_primary=True)
+    task_list = TaskList.objects.create(
+        organization=organization,
+        creator=owner,
+        name="Delivery",
+    )
+    TaskListAccess.objects.create(
+        task_list=task_list,
+        user=owner,
+        role=TaskListAccess.Role.OWNER,
+    )
+    TaskListAccess.objects.create(
+        task_list=task_list,
+        user=assignee,
+        role=TaskListAccess.Role.VIEWER,
+    )
+    group = TaskGroup.objects.create(task_list=task_list, name="Backend")
+    parent = Task.objects.create(
+        organization=organization,
+        creator=owner,
+        assignee=assignee,
+        title="Parent",
+        task_list=task_list,
+        group=group,
+    )
+    parent.assignees.add(assignee)
+    client = _client(assignee)
+
+    denied_root = client.post(
+        TASKS_URL,
+        {"title": "Root", "task_list_id": str(task_list.id)},
+        format="json",
+    )
+    child = client.post(
+        TASKS_URL,
+        {
+            "title": "Child",
+            "parent_id": str(parent.id),
+            "task_list_id": str(task_list.id),
+            "group_id": str(group.id),
+        },
+        format="json",
+    )
+
+    assert denied_root.status_code == 400
+    assert child.status_code == 201
+    assert child.json()["parent_id"] == str(parent.id)
+    assert child.json()["task_list"]["id"] == str(task_list.id)
+    assert child.json()["group"]["id"] == str(group.id)
 
 
 @override_settings(TASK_MAX_SUBTASK_DEPTH=2)

@@ -84,6 +84,7 @@ const TasksAuthenticated = () => {
   )
   const [creating, setCreating] = useState(false)
   const [createGroupId, setCreateGroupId] = useState<string>()
+  const [createParentTask, setCreateParentTask] = useState<ApiTask | null>(null)
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
   const [taskListCreateGroupId, setTaskListCreateGroupId] = useState<string>()
   const [taskListGroupCreating, setTaskListGroupCreating] = useState(false)
@@ -296,6 +297,11 @@ const TasksAuthenticated = () => {
       fallbackTask={selectedTask}
       taskLists={taskLists}
       sharedVia={sharedVia}
+      onCreateSubtask={(parentTask) => {
+        setCreateParentTask(parentTask)
+        setCreateGroupId(parentTask.group?.id)
+        setCreating(true)
+      }}
       onClose={closePanel}
     />
   ) : null
@@ -389,6 +395,7 @@ const TasksAuthenticated = () => {
               )}
               onPress={() => {
                 navigateState({ ...state, task: undefined })
+                setCreateParentTask(null)
                 setCreateGroupId(undefined)
                 setCreating(true)
               }}
@@ -494,6 +501,7 @@ const TasksAuthenticated = () => {
                 onCreateTaskInGroup={
                   selectedTaskList?.can_create_tasks
                     ? (groupId) => {
+                        setCreateParentTask(null)
                         setCreateGroupId(groupId)
                         setCreating(true)
                       }
@@ -530,21 +538,31 @@ const TasksAuthenticated = () => {
       {creating && (
         <Modal
           ariaLabel={t('workspace.createTitle')}
-          onClose={() => setCreating(false)}
+          onClose={() => {
+            setCreating(false)
+            setCreateParentTask(null)
+          }}
           initialFocusRef={createTitleRef}
           maxWidth="560px"
           maxHeight="82vh"
         >
           <CreateTaskPanel
             taskLists={taskLists.filter(
-              (taskList) => taskList.can_create_tasks
+              (taskList) =>
+                taskList.can_create_tasks ||
+                taskList.id === createParentTask?.task_list?.id
             )}
             defaultTaskListId={selectedTaskList?.id}
             defaultGroupId={createGroupId}
+            parentTask={createParentTask || undefined}
             titleInputRef={createTitleRef}
-            onClose={() => setCreating(false)}
+            onClose={() => {
+              setCreating(false)
+              setCreateParentTask(null)
+            }}
             onCreated={(task) => {
               setCreating(false)
+              setCreateParentTask(null)
               navigateState({ ...state, task: task.id })
             }}
           />

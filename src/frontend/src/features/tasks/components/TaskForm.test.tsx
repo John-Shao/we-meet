@@ -1,9 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import zhTasks from '@/locales/zh/tasks.json'
 
+import type { ApiTask, ApiTaskList } from '../api/ApiTask'
 import { TaskForm } from './TaskForm'
+
+const { createTask } = vi.hoisted(() => ({
+  createTask: vi.fn(),
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -11,7 +16,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../api/fetchTasks', () => ({
   useCreateTask: () => ({
-    mutateAsync: vi.fn(),
+    mutateAsync: createTask,
     error: null,
     isPending: false,
   }),
@@ -29,6 +34,10 @@ vi.mock('@/features/auth', () => ({
 }))
 
 describe('TaskForm create mode', () => {
+  beforeEach(() => {
+    createTask.mockReset()
+  })
+
   it('uses the compact create labels and supports quick due dates', () => {
     const { container } = render(
       <TaskForm taskLists={[]} onCancel={vi.fn()} onSaved={vi.fn()} />
@@ -68,6 +77,84 @@ describe('TaskForm create mode', () => {
     expect(zhTasks.workspace.createCancel).toBe('取消')
     expect(zhTasks.workspace.createSubmit).toBe('新建')
     expect(zhTasks.taskLists.none).toBe('独立任务')
+  })
+
+  it('inherits every editable parameter except the title from its parent', async () => {
+    const parentAssignee = {
+      id: 'parent-assignee',
+      full_name: 'Parent assignee',
+      short_name: null,
+      email: 'assignee@example.com',
+      avatar_url: '/assignee.png',
+    }
+    const parentFollower = {
+      id: 'parent-follower',
+      full_name: 'Parent follower',
+      short_name: null,
+      email: 'follower@example.com',
+      avatar_url: '/follower.png',
+    }
+    const taskLists = [
+      {
+        id: 'list-1',
+        name: 'Product',
+        groups: [{ id: 'group-1', name: 'Delivery', sort_order: 0 }],
+      },
+    ] as ApiTaskList[]
+    const parentTask = {
+      id: 'parent-1',
+      title: 'Parent title must not be inherited',
+      description: 'Inherited description',
+      assignee: parentAssignee,
+      assignees: [parentAssignee],
+      followers: [parentFollower],
+      priority: 'urgent',
+      task_list: { id: 'list-1', name: 'Product', color: 'blue' },
+      group: { id: 'group-1', name: 'Delivery', sort_order: 0 },
+      start_date: '2026-08-25',
+      due_date: '2026-08-30',
+    } as ApiTask
+    createTask.mockResolvedValue(parentTask)
+
+    render(
+      <TaskForm
+        taskLists={taskLists}
+        parentTask={parentTask}
+        onCancel={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+
+    const titleInput = screen.getByPlaceholderText(
+      'form.createTitlePlaceholder'
+    )
+    expect(titleInput).toHaveValue('')
+    expect(
+      screen.getByPlaceholderText('form.createDescriptionPlaceholder')
+    ).toHaveValue('Inherited description')
+    expect(screen.getByText('Parent assignee')).toBeInTheDocument()
+    expect(screen.getByText('Parent follower')).toBeInTheDocument()
+    expect(screen.getByLabelText('form.dueDate')).toHaveValue('2026-08-30')
+
+    fireEvent.change(titleInput, { target: { value: 'Child task' } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'workspace.createSubmit' })
+    )
+
+    await waitFor(() =>
+      expect(createTask).toHaveBeenCalledWith({
+        title: 'Child task',
+        description: 'Inherited description',
+        assignee_ids: ['parent-assignee'],
+        follower_ids: ['parent-follower'],
+        priority: 'urgent',
+        task_list_id: 'list-1',
+        group_id: 'group-1',
+        start_date: '2026-08-25',
+        due_date: '2026-08-30',
+        parent_id: 'parent-1',
+      })
+    )
   })
 })
 

@@ -44,7 +44,6 @@ import type {
 } from '../api/ApiTask'
 import {
   useAddTaskFollowers,
-  useCreateTask,
   useDeleteTask,
   useFollowTask,
   usePatchTask,
@@ -83,6 +82,7 @@ export const CreateTaskPanel = ({
   taskLists,
   defaultTaskListId,
   defaultGroupId,
+  parentTask,
   titleInputRef,
   onClose,
   onCreated,
@@ -90,6 +90,7 @@ export const CreateTaskPanel = ({
   taskLists: ApiTaskList[]
   defaultTaskListId?: string
   defaultGroupId?: string
+  parentTask?: ApiTask
   titleInputRef?: RefObject<HTMLInputElement>
   onClose: () => void
   onCreated: (task: ApiTask) => void
@@ -105,6 +106,7 @@ export const CreateTaskPanel = ({
         taskLists={taskLists}
         defaultTaskListId={defaultTaskListId}
         defaultGroupId={defaultGroupId}
+        parentTask={parentTask}
         titleInputRef={titleInputRef}
         onCancel={onClose}
         onSaved={onCreated}
@@ -118,12 +120,14 @@ export const TaskDetailPanel = ({
   fallbackTask,
   taskLists,
   sharedVia,
+  onCreateSubtask,
   onClose,
 }: {
   taskId: string
   fallbackTask?: ApiTask
   taskLists: ApiTaskList[]
   sharedVia?: string
+  onCreateSubtask: (parentTask: ApiTask) => void
   onClose: () => void
 }) => {
   const { t, i18n } = useTranslation('tasks')
@@ -145,12 +149,9 @@ export const TaskDetailPanel = ({
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
-  const [subtaskComposerOpen, setSubtaskComposerOpen] = useState(false)
   const placementEditorRef = useRef<HTMLDivElement>(null)
   const patchMutation = usePatchTask()
   const deleteMutation = useDeleteTask()
-  const createMutation = useCreateTask()
   const followMutation = useFollowTask()
   const unfollowMutation = useUnfollowTask()
   const addFollowersMutation = useAddTaskFollowers()
@@ -168,8 +169,6 @@ export const TaskDetailPanel = ({
     setAssigneePickerOpen(false)
     setFollowerPickerOpen(false)
     setShareOpen(false)
-    setNewSubtaskTitle('')
-    setSubtaskComposerOpen(false)
   }, [taskId])
 
   useEffect(() => {
@@ -272,23 +271,6 @@ export const TaskDetailPanel = ({
       onClose()
     } catch {
       // Keep the panel open so the mutation error remains visible.
-    }
-  }
-
-  const createSubtask = async () => {
-    const title = newSubtaskTitle.trim()
-    if (!title || !task.can_create_subtasks || createMutation.isPending) return
-    try {
-      await createMutation.mutateAsync({
-        title,
-        parent_id: task.id,
-        task_list_id: task.task_list?.id || null,
-        group_id: task.group?.id || null,
-      })
-      setNewSubtaskTitle('')
-      setSubtaskComposerOpen(false)
-    } catch {
-      // Keep the title so the user can retry or correct the request.
     }
   }
 
@@ -967,50 +949,13 @@ export const TaskDetailPanel = ({
                   ))}
                 </ul>
               ) : null}
-              {task.can_create_subtasks && subtaskComposerOpen && (
-                <form
-                  className={subtaskCreateCss}
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    void createSubtask()
-                  }}
-                >
-                  <Input
-                    ref={focusInput}
-                    aria-label={t('subtasks.newTitle')}
-                    placeholder={t('subtasks.placeholder')}
-                    value={newSubtaskTitle}
-                    maxLength={500}
-                    disabled={createMutation.isPending}
-                    onChange={(event) => setNewSubtaskTitle(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') {
-                        setNewSubtaskTitle('')
-                        setSubtaskComposerOpen(false)
-                      }
-                    }}
-                  />
-                  <Button
-                    type="submit"
-                    size="sm"
-                    variant="secondary"
-                    icon={<RiAddLine size={16} aria-hidden="true" />}
-                    isDisabled={
-                      !newSubtaskTitle.trim() || createMutation.isPending
-                    }
-                  >
-                    {t('subtasks.add')}
-                  </Button>
-                </form>
-              )}
-              {task.can_create_subtasks && !subtaskComposerOpen && (
+              {task.can_create_subtasks && (
                 <Button
                   type="button"
                   size="dense"
                   variant="quaternaryText"
-                  className={subtaskAddActionCss}
                   icon={<RiAddLine size={16} aria-hidden="true" />}
-                  onPress={() => setSubtaskComposerOpen(true)}
+                  onPress={() => onCreateSubtask(task)}
                 >
                   {t('subtasks.addAction')}
                 </Button>
@@ -1019,11 +964,6 @@ export const TaskDetailPanel = ({
                 <p className={subtaskEmptyCss}>
                   <RiGitBranchLine size={15} aria-hidden="true" />{' '}
                   {t('subtasks.limitReached')}
-                </p>
-              )}
-              {createMutation.error && (
-                <p role="alert" className={inlineErrorCss}>
-                  {t('subtasks.createError')}
                 </p>
               )}
             </div>
@@ -1480,30 +1420,6 @@ const subtaskMetaCss = css({
     height: '1.25rem',
     borderRadius: '999px',
     objectFit: 'cover',
-  },
-})
-const subtaskCreateCss = css({
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) auto',
-  alignItems: 'center',
-  gap: '0.5rem',
-})
-const subtaskAddActionCss = css({
-  alignSelf: 'flex-start',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.375rem',
-  padding: '0.25rem 0.5rem',
-  border: 0,
-  borderRadius: '6px',
-  backgroundColor: 'transparent',
-  color: 'greyscale.500',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.50', color: 'primary.600' },
-  _focusVisible: {
-    outline: '2px solid token(colors.primary.500)',
-    outlineOffset: '1px',
   },
 })
 const subtaskEmptyCss = css({

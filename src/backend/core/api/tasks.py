@@ -538,19 +538,36 @@ class TaskFollowerValidationMixin:
 class TaskPlacementValidationMixin:
     """Validate task-list and group placement as one organization-scoped pair."""
 
+    def _inherits_editable_parent_task_list(self, task_list, user):
+        if getattr(self, "instance", None) is not None:
+            return False
+        parent_id = self.initial_data.get("parent_id")
+        if not parent_id:
+            return False
+        parent = models.Task.objects.filter(pk=parent_id).first()
+        return bool(
+            parent
+            and parent.task_list_id == task_list.id
+            and _can_manage_task_content(parent, user)
+        )
+
     def validate_task_list_id(self, task_list):
         if task_list is None:
             return None
+        user = self.context["request"].user
         organization = (
             self.instance.organization
             if getattr(self, "instance", None) is not None
-            else get_caller_organization(self.context["request"].user)
+            else get_caller_organization(user)
         )
         if (
             organization is None
             or task_list.organization_id != organization.id
             or task_list.is_archived
-            or not _can_edit_task_list(task_list, self.context["request"].user)
+            or not (
+                _can_edit_task_list(task_list, user)
+                or self._inherits_editable_parent_task_list(task_list, user)
+            )
         ):
             raise serializers.ValidationError(
                 "Choose an active task list you can edit from the task organization."

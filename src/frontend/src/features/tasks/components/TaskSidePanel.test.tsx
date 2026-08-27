@@ -161,6 +161,7 @@ describe('TaskDetailPanel', () => {
         taskId={task.id}
         fallbackTask={task}
         taskLists={[]}
+        onCreateSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -193,6 +194,7 @@ describe('TaskDetailPanel', () => {
         taskId={task.id}
         fallbackTask={{ ...task, can_edit: true }}
         taskLists={[]}
+        onCreateSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -290,6 +292,7 @@ describe('TaskDetailPanel', () => {
           ],
         }}
         taskLists={[]}
+        onCreateSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -317,6 +320,7 @@ describe('TaskDetailPanel', () => {
           can_manage_attachments: false,
         }}
         taskLists={[]}
+        onCreateSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -341,6 +345,7 @@ describe('TaskDetailPanel', () => {
           can_delete: true,
         }}
         taskLists={[]}
+        onCreateSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -387,7 +392,8 @@ describe('TaskDetailPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses compact interactive subtask rows and opens creation on demand', async () => {
+  it('uses compact subtask rows and delegates creation with the parent task', () => {
+    const onCreateSubtask = vi.fn()
     const child: ApiTask = {
       ...task,
       id: 'child-1',
@@ -410,6 +416,7 @@ describe('TaskDetailPanel', () => {
           descendant_progress: { completed: 0, total: 1 },
         }}
         taskLists={[]}
+        onCreateSubtask={onCreateSubtask}
         onClose={vi.fn()}
       />
     )
@@ -430,25 +437,9 @@ describe('TaskDetailPanel', () => {
       screen.queryByRole('textbox', { name: 'subtasks.newTitle' })
     ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'subtasks.addAction' }))
-    const titleInput = screen.getByRole('textbox', {
-      name: 'subtasks.newTitle',
-    })
-    expect(titleInput).toHaveFocus()
-
-    fireEvent.change(titleInput, { target: { value: 'Write API tests' } })
-    fireEvent.click(screen.getByRole('button', { name: 'subtasks.add' }))
-
-    await waitFor(() =>
-      expect(createMutateAsync).toHaveBeenCalledWith({
-        title: 'Write API tests',
-        parent_id: task.id,
-        task_list_id: null,
-        group_id: null,
-      })
+    expect(onCreateSubtask).toHaveBeenCalledWith(
+      expect.objectContaining({ id: task.id })
     )
-    expect(
-      screen.queryByRole('textbox', { name: 'subtasks.newTitle' })
-    ).not.toBeInTheDocument()
   })
 
   it('opens a subtask in the full task detail with ancestors above its title', () => {
@@ -467,6 +458,7 @@ describe('TaskDetailPanel', () => {
           ],
         }}
         taskLists={[]}
+        onCreateSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -488,6 +480,7 @@ describe('TaskDetailPanel', () => {
         taskId={task.id}
         fallbackTask={{ ...task, can_delete: true }}
         taskLists={[]}
+        onCreateSubtask={vi.fn()}
         onClose={onClose}
       />
     )
