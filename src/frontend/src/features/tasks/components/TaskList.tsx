@@ -17,8 +17,10 @@ import {
   RiArrowRightSLine,
   RiArrowUpSLine,
   RiCalendar2Line,
+  RiCheckLine,
   RiDeleteBinLine,
   RiDraggable,
+  RiFolderTransferLine,
   RiGitBranchLine,
   RiLoader4Line,
   RiMoreLine,
@@ -155,7 +157,6 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
   isSubtasksExpanded: boolean
   showAncestorPath: boolean
   onToggleSubtasks: (taskId: string) => void
-  onMoveTask: (taskId: string, groupId?: string) => void
   isLastInGroup?: boolean
   t: TFunction<'tasks'>
   formatDate: (value: string | null) => string
@@ -242,6 +243,7 @@ export const TaskList = ({
     x: number
     y: number
   } | null>(null)
+  const [groupSubmenuOpen, setGroupSubmenuOpen] = useState(false)
   const [columnWidths, setColumnWidths] =
     useState<TaskColumnWidths>(readColumnWidths)
   const columnWidthsRef = useRef(columnWidths)
@@ -252,6 +254,9 @@ export const TaskList = ({
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(
     () => new Set()
   )
+  const [manuallyCollapsedTaskIds, setManuallyCollapsedTaskIds] = useState<
+    Set<string>
+  >(() => new Set())
   const displayedTasks = useMemo(
     () => tasks.map((task) => inlineOverrides[task.id]?.task ?? task),
     [inlineOverrides, tasks]
@@ -259,6 +264,15 @@ export const TaskList = ({
   const sections = useMemo(
     () => buildSections(displayedTasks, groups, grouped),
     [displayedTasks, grouped, groups]
+  )
+  const orderedGroups = useMemo(
+    () =>
+      [...groups].sort((left, right) =>
+        left.sort_order === right.sort_order
+          ? left.created_at.localeCompare(right.created_at)
+          : left.sort_order - right.sort_order
+      ),
+    [groups]
   )
   const effectiveExpandedTaskIds = useMemo(() => {
     const next = new Set(expandedTaskIds)
@@ -268,10 +282,20 @@ export const TaskList = ({
     if (!selectedTask) return next
     const visibleTaskIds = new Set(displayedTasks.map((task) => task.id))
     selectedTask.ancestor_path.slice(0, -1).forEach((ancestor) => {
-      if (visibleTaskIds.has(ancestor.id)) next.add(ancestor.id)
+      if (
+        visibleTaskIds.has(ancestor.id) &&
+        !manuallyCollapsedTaskIds.has(ancestor.id)
+      ) {
+        next.add(ancestor.id)
+      }
     })
     return next
-  }, [displayedTasks, expandedTaskIds, selectedTaskId])
+  }, [
+    displayedTasks,
+    expandedTaskIds,
+    manuallyCollapsedTaskIds,
+    selectedTaskId,
+  ])
   const treeSections = useMemo(
     () =>
       sections.map((section) => ({
@@ -283,7 +307,10 @@ export const TaskList = ({
 
   useEffect(() => {
     if (!contextMenu) return
-    const close = () => setContextMenu(null)
+    const close = () => {
+      setContextMenu(null)
+      setGroupSubmenuOpen(false)
+    }
     window.addEventListener('click', close)
     window.addEventListener('blur', close)
     return () => {
@@ -291,6 +318,9 @@ export const TaskList = ({
       window.removeEventListener('blur', close)
     }
   }, [contextMenu])
+  useEffect(() => {
+    setManuallyCollapsedTaskIds(new Set())
+  }, [selectedTaskId])
   const visibleColumns = TASK_COLUMNS.filter(
     (column) =>
       (!grouped || column.id !== 'taskList') &&
@@ -309,10 +339,17 @@ export const TaskList = ({
   }
 
   const toggleTaskSubtasks = (taskId: string) => {
+    const currentlyExpanded = effectiveExpandedTaskIds.has(taskId)
     setExpandedTaskIds((current) => {
       const next = new Set(current)
-      if (next.has(taskId)) next.delete(taskId)
+      if (currentlyExpanded) next.delete(taskId)
       else next.add(taskId)
+      return next
+    })
+    setManuallyCollapsedTaskIds((current) => {
+      const next = new Set(current)
+      if (currentlyExpanded) next.add(taskId)
+      else next.delete(taskId)
       return next
     })
   }
@@ -584,7 +621,8 @@ export const TaskList = ({
     event: ReactMouseEvent<HTMLElement>,
     task: ApiTask
   ) => {
-    if (!onShare && !onDeleteTask) return
+    const canSwitchGroup = grouped && task.can_edit && groups.length > 0
+    if (!onShare && !onDeleteTask && !canSwitchGroup) return
     event.preventDefault()
     event.stopPropagation()
     const anchor = event.currentTarget.getBoundingClientRect()
@@ -593,6 +631,7 @@ export const TaskList = ({
       x: event.type === 'click' ? anchor.right : event.clientX,
       y: event.type === 'click' ? anchor.bottom : event.clientY,
     })
+    setGroupSubmenuOpen(false)
   }
 
   const groupProps = {
@@ -618,7 +657,6 @@ export const TaskList = ({
       void saveInlineEdit(task, patch),
     onCancelInlineEdit: cancelInlineEdit,
     onToggleSubtasks: toggleTaskSubtasks,
-    onMoveTask: moveToGroup,
     compact,
   }
 
@@ -764,44 +802,125 @@ export const TaskList = ({
           }}
         />
       )}
-      {contextMenu && (onShare || onDeleteTask) && (
-        <div
-          role="menu"
-          tabIndex={-1}
-          aria-label={t('actions.more')}
-          className={taskContextMenuCss}
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-        >
-          {onShare && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                onShare(contextMenu.task)
-                setContextMenu(null)
-              }}
-            >
-              <RiShareForwardLine size={16} aria-hidden="true" />
-              <span>{t('share.action')}</span>
-            </button>
-          )}
-          {onDeleteTask && (
-            <button
-              type="button"
-              role="menuitem"
-              disabled={!contextMenu.task.can_delete}
-              className={taskContextDeleteCss}
-              onClick={() => {
-                onDeleteTask(contextMenu.task)
-                setContextMenu(null)
-              }}
-            >
-              <RiDeleteBinLine size={16} aria-hidden="true" />
-              <span>{t('actions.delete')}</span>
-            </button>
-          )}
-        </div>
-      )}
+      {contextMenu &&
+        (onShare ||
+          onDeleteTask ||
+          (grouped && contextMenu.task.can_edit && groups.length > 0)) && (
+          <div
+            role="menu"
+            tabIndex={-1}
+            aria-label={t('actions.more')}
+            className={taskContextMenuCss}
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            {onShare && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onShare(contextMenu.task)
+                  setContextMenu(null)
+                }}
+              >
+                <RiShareForwardLine size={16} aria-hidden="true" />
+                <span>{t('share.action')}</span>
+              </button>
+            )}
+            {grouped && contextMenu.task.can_edit && groups.length > 0 && (
+              <div
+                className={taskContextSubmenuTriggerCss}
+                onMouseEnter={() => setGroupSubmenuOpen(true)}
+                onMouseLeave={() => setGroupSubmenuOpen(false)}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-haspopup="menu"
+                  aria-expanded={groupSubmenuOpen}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setGroupSubmenuOpen((current) => !current)
+                  }}
+                  onFocus={() => setGroupSubmenuOpen(true)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'ArrowRight') return
+                    event.preventDefault()
+                    setGroupSubmenuOpen(true)
+                  }}
+                >
+                  <RiFolderTransferLine size={16} aria-hidden="true" />
+                  <span>{t('groups.switch')}</span>
+                  <RiArrowRightSLine
+                    className={taskContextSubmenuArrowCss}
+                    size={16}
+                    aria-hidden="true"
+                  />
+                </button>
+                {groupSubmenuOpen && (
+                  <div
+                    role="menu"
+                    tabIndex={-1}
+                    aria-label={t('groups.switch')}
+                    className={taskContextSubmenuCss}
+                  >
+                    {[
+                      {
+                        id: UNGROUPED_TASK_GROUP,
+                        name: t('groups.ungrouped'),
+                      },
+                      ...orderedGroups,
+                    ].map((group) => {
+                      const currentGroupId =
+                        contextMenu.task.group?.id || UNGROUPED_TASK_GROUP
+                      const selected = group.id === currentGroupId
+                      return (
+                        <button
+                          key={group.id}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={selected}
+                          disabled={selected}
+                          onClick={() => {
+                            moveToGroup(
+                              contextMenu.task.id,
+                              group.id === UNGROUPED_TASK_GROUP
+                                ? undefined
+                                : group.id
+                            )
+                            setContextMenu(null)
+                            setGroupSubmenuOpen(false)
+                          }}
+                        >
+                          <span className={taskContextSelectionCss}>
+                            {selected && (
+                              <RiCheckLine size={16} aria-hidden="true" />
+                            )}
+                          </span>
+                          <span>{group.name}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+            {onDeleteTask && (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!contextMenu.task.can_delete}
+                className={taskContextDeleteCss}
+                onClick={() => {
+                  onDeleteTask(contextMenu.task)
+                  setContextMenu(null)
+                }}
+              >
+                <RiDeleteBinLine size={16} aria-hidden="true" />
+                <span>{t('actions.delete')}</span>
+              </button>
+            )}
+          </div>
+        )}
     </>
   )
 }
@@ -841,7 +960,6 @@ const DesktopTaskRow = ({
   onShare,
   onDeleteTask,
   groups = [],
-  onMoveTask,
 }: GroupProps) => (
   <tr
     ref={(element) => registerRow(task.id, element)}
@@ -871,7 +989,7 @@ const DesktopTaskRow = ({
     >
       <div className={taskTitleContentCss}>
         {grouped && task.can_edit && groups.length > 0 && (
-          <TaskMoveHandle task={task} groups={groups} onMoveTask={onMoveTask} />
+          <TaskMoveHandle task={task} />
         )}
         <TaskHierarchyToggle
           task={task}
@@ -914,7 +1032,9 @@ const DesktopTaskRow = ({
             />
           </InlineEditButton>
         )}
-        {(onShare || onDeleteTask) && (
+        {(onShare ||
+          onDeleteTask ||
+          (grouped && task.can_edit && groups.length > 0)) && (
           <button
             type="button"
             data-row-action=""
@@ -1369,71 +1489,32 @@ const InlineDateEditor = ({
 
 const UNGROUPED_TASK_GROUP = '__ungrouped__'
 
-const TaskMoveHandle = ({
-  task,
-  groups,
-  onMoveTask,
-}: {
-  task: ApiTask
-  groups: ApiTaskGroup[]
-  onMoveTask: (taskId: string, groupId?: string) => void
-}) => {
+const TaskMoveHandle = ({ task }: { task: ApiTask }) => {
   const { t } = useTranslation('tasks')
   const label = t('workspace.dragTask', { title: task.title })
-  const currentGroupId = task.group?.id || UNGROUPED_TASK_GROUP
-  const orderedGroups = [...groups].sort((left, right) =>
-    left.sort_order === right.sort_order
-      ? left.created_at.localeCompare(right.created_at)
-      : left.sort_order - right.sort_order
-  )
 
   return (
-    <Menu placement="bottom">
-      <span
-        className={taskMoveHandleCss}
-        draggable
-        onDragStart={(event) => {
-          event.stopPropagation()
-          startTaskDrag(event, task)
-        }}
-        onDragEnd={(event) => event.stopPropagation()}
-      >
-        <Button
-          type="button"
-          size="icon24"
-          variant="quaternaryText"
-          aria-label={label}
-          tooltip={label}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <RiDraggable size={16} aria-hidden="true" />
-        </Button>
-      </span>
-      <MenuList
+    <span
+      className={taskMoveHandleCss}
+      draggable
+      onDragStart={(event) => {
+        event.stopPropagation()
+        startTaskDrag(event, task)
+      }}
+      onDragEnd={(event) => event.stopPropagation()}
+    >
+      <Button
+        type="button"
+        size="icon24"
+        variant="quaternaryText"
         aria-label={label}
-        selectedItem={currentGroupId}
-        items={[
-          {
-            value: UNGROUPED_TASK_GROUP,
-            label: t('groups.ungrouped'),
-            isDisabled: currentGroupId === UNGROUPED_TASK_GROUP,
-          },
-          ...orderedGroups.map((group) => ({
-            value: group.id,
-            label: group.name,
-            isDisabled: currentGroupId === group.id,
-          })),
-        ]}
-        onAction={(groupId) => {
-          const nextGroupId = String(groupId)
-          onMoveTask(
-            task.id,
-            nextGroupId === UNGROUPED_TASK_GROUP ? undefined : nextGroupId
-          )
-        }}
-      />
-    </Menu>
+        tooltip={label}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <RiDraggable size={16} aria-hidden="true" />
+      </Button>
+    </span>
   )
 }
 
@@ -2126,6 +2207,27 @@ const taskContextMenuCss = css({
 const taskContextDeleteCss = css({
   color: 'danger.600!',
   _disabled: { color: 'greyscale.400!' },
+})
+const taskContextSubmenuTriggerCss = css({ position: 'relative' })
+const taskContextSubmenuArrowCss = css({ marginLeft: 'auto' })
+const taskContextSubmenuCss = css({
+  position: 'absolute',
+  top: '-0.25rem',
+  left: '100%',
+  minWidth: '10rem',
+  padding: '0.25rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '0.5rem',
+  backgroundColor: 'greyscale.000',
+  boxShadow: 'lg',
+})
+const taskContextSelectionCss = css({
+  width: '1rem',
+  height: '1rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
 })
 const groupHeaderRowCss = css({
   '& td': {

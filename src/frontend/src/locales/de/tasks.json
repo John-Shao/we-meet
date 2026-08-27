@@ -164,6 +164,7 @@
     "field": "Gruppe",
     "name": "Gruppenname",
     "ungrouped": "Nicht gruppiert",
+    "switch": "Gruppe wechseln",
     "addTask": "Aufgabe hinzufügen",
     "collapse": "Gruppe einklappen",
     "expand": "Gruppe ausklappen",

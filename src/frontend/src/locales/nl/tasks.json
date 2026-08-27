@@ -164,6 +164,7 @@
     "field": "Groep",
     "name": "Groepsnaam",
     "ungrouped": "Niet gegroepeerd",
+    "switch": "Van groep wisselen",
     "addTask": "Taak toevoegen",
     "collapse": "Groep samenvouwen",
     "expand": "Groep uitvouwen",

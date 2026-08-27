@@ -251,6 +251,11 @@ describe('TaskList', () => {
     )
     expect(screen.getByText('Backend')).toBeInTheDocument()
     expect(container.querySelectorAll('[data-selected]')).toHaveLength(1)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'subtasks.collapseInList' })
+    )
+    expect(screen.queryByText('Backend')).not.toBeInTheDocument()
   })
 
   it('connects child rows and stops at the last sibling', () => {
@@ -1001,7 +1006,7 @@ describe('TaskList', () => {
     expect(desktopDropTarget).not.toHaveAttribute('data-drag-over')
   })
 
-  it('starts group movement only from the drag handle and offers an accessible group menu', async () => {
+  it('starts dragging only from the handle and switches groups from the node submenu', async () => {
     const editableTask = {
       ...task,
       can_edit: true,
@@ -1061,9 +1066,17 @@ describe('TaskList', () => {
     )
 
     fireEvent.click(handle)
-    const moveMenu = await screen.findByRole('menu', {
-      name: 'workspace.dragTask',
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+
+    fireEvent.click(within(table).getByRole('button', { name: 'actions.more' }))
+    const taskMenu = screen.getByRole('menu', { name: 'actions.more' })
+    const switchGroupItem = within(taskMenu).getByRole('menuitem', {
+      name: 'groups.switch',
     })
+    expect(switchGroupItem).toHaveAttribute('aria-haspopup', 'menu')
+    fireEvent.click(switchGroupItem)
+
+    const moveMenu = await screen.findByRole('menu', { name: 'groups.switch' })
     fireEvent.click(
       within(moveMenu).getByRole('menuitemradio', { name: 'Delivery' })
     )

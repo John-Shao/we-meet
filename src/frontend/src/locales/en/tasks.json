@@ -160,6 +160,7 @@
     "field": "Group",
     "name": "Group name",
     "ungrouped": "Ungrouped",
+    "switch": "Switch group",
     "addTask": "Add task",
     "taskCount": "{{count}} tasks",
     "empty": "Drag tasks into this group, or use the action above to add one",

@@ -160,6 +160,7 @@
     "field": "分组",
     "name": "分组名称",
     "ungrouped": "未分组",
+    "switch": "切换分组",
     "addTask": "新建任务",
     "taskCount": "{{count}} 个任务",
     "empty": "将任务拖到此分组，或使用右侧按钮新建任务",

@@ -164,6 +164,7 @@
     "field": "Groupe",
     "name": "Nom du groupe",
     "ungrouped": "Sans groupe",
+    "switch": "Changer de groupe",
     "addTask": "Ajouter une tâche",
     "collapse": "Réduire le groupe",
     "expand": "Développer le groupe",
