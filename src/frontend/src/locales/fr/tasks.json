@@ -57,7 +57,7 @@
     "openTask": "Ouvrir la tâche : {{title}}",
     "quickComplete": "Terminer la tâche : {{title}}",
     "quickReopen": "Rouvrir la tâche : {{title}}",
-    "dragTask": "Faire glisser « {{title}} » ou choisir un groupe pour la déplacer",
+    "dragTask": "Faire glisser « {{title}} » pour la déplacer",
     "loadMore": "Charger plus",
     "loadingMore": "Chargement…",
     "createTitle": "Nouvelle tâche",
