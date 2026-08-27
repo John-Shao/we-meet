@@ -311,15 +311,21 @@
     "delete": "Delete task",
     "deleteTitle": "Delete task",
     "deleteDescription": "Delete “{{title}}”? This action cannot be undone.",
-    "deleteSubtreeDescription": "Delete “{{title}}” and its {{count}} subtasks? The complete subtree will be permanently deleted."
+    "deleteSubtreeDescription": "Delete “{{title}}” and its {{count}} subtasks? The complete subtree will be permanently deleted.",
+    "completeWithOpenSubtasksTitle": "Complete task?",
+    "completeWithOpenSubtasksDescription": "{{count}} subtasks are still incomplete. Completing this task will not change their status.",
+    "completeAnyway": "Complete anyway"
   },
+  "saveState": { "saving": "Saving…", "saved": "Saved" },
   "subtasks": {
     "title": "Subtasks",
     "parent": "Parent task",
     "rootTask": "Make root task",
     "parentChain": "Task parent chain",
     "progress": "{{completed}} of {{total}} completed",
+    "progressSummary": "Subtasks: {{completed}} of {{total}} completed",
     "progressLabel": "Subtask completion progress",
+    "completedWithOpenSubtasks": "Task completed with {{count}} subtasks still incomplete",
     "loading": "Loading subtasks…",
     "empty": "No subtasks yet.",
     "newTitle": "Subtask title",

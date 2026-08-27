@@ -67,6 +67,7 @@ vi.mock('../api/fetchTasks', () => ({
     mutate,
     mutateAsync,
     isPending: false,
+    isSuccess: false,
     error: null,
   }),
   useReorderTaskSubtasks: () => ({
@@ -199,6 +200,7 @@ describe('TaskDetailPanel', () => {
     deleteMutateAsync.mockClear()
     followMutate.mockClear()
     confirm.mockClear()
+    confirm.mockResolvedValue(true)
     subtaskState.current = []
   })
 
@@ -436,7 +438,7 @@ describe('TaskDetailPanel', () => {
     )
   })
 
-  it('places the status action first and secondary actions in the panel header', () => {
+  it('places the status action first and secondary actions in the panel header', async () => {
     render(
       <TaskDetailPanel
         taskId={task.id}
@@ -467,7 +469,7 @@ describe('TaskDetailPanel', () => {
       'actions.more',
       'workspace.closePanel',
     ])
-    expect(screen.queryByText('statuses.todo')).not.toBeInTheDocument()
+    expect(within(header).getByText('statuses.todo')).toBeInTheDocument()
     expect(screen.queryByText('followers.empty')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('menuitem', { name: 'actions.delete' })
@@ -476,10 +478,12 @@ describe('TaskDetailPanel', () => {
     fireEvent.click(
       within(header).getByRole('button', { name: 'actions.to_completed' })
     )
-    expect(mutate).toHaveBeenCalledWith({
-      taskId: task.id,
-      patch: { status: 'completed' },
-    })
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: task.id,
+        patch: { status: 'completed' },
+      })
+    )
 
     fireEvent.click(
       within(header).getByRole('button', { name: 'followers.follow' })
@@ -491,6 +495,60 @@ describe('TaskDetailPanel', () => {
     )
     expect(
       screen.getByRole('menuitem', { name: 'actions.delete' })
+    ).toBeInTheDocument()
+  })
+
+  it('warns before completing a parent with unfinished descendants', async () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{
+          ...task,
+          can_update_status: true,
+          descendant_progress: { completed: 1, total: 3 },
+        }}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'actions.to_completed' })
+    )
+
+    await waitFor(() =>
+      expect(confirm).toHaveBeenCalledWith({
+        title: 'actions.completeWithOpenSubtasksTitle',
+        message: 'actions.completeWithOpenSubtasksDescription',
+        confirmLabel: 'actions.completeAnyway',
+      })
+    )
+    expect(mutateAsync).toHaveBeenCalledWith({
+      taskId: task.id,
+      patch: { status: 'completed' },
+    })
+  })
+
+  it('shows unfinished descendants on an already completed parent', () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{
+          ...task,
+          status: 'completed',
+          descendant_progress: { completed: 1, total: 3 },
+        }}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByText('subtasks.completedWithOpenSubtasks')
     ).toBeInTheDocument()
   })
 
@@ -526,7 +584,7 @@ describe('TaskDetailPanel', () => {
       />
     )
 
-    expect(screen.getByText('0 / 1')).toBeInTheDocument()
+    expect(screen.getByText('subtasks.progressSummary')).toBeInTheDocument()
     const childRow = screen.getByText(child.title).closest('li')!
     expect(within(childRow).queryByRole('link')).not.toBeInTheDocument()
     expect(
@@ -537,10 +595,12 @@ describe('TaskDetailPanel', () => {
     fireEvent.click(
       within(childRow).getByRole('button', { name: 'workspace.quickComplete' })
     )
-    expect(mutate).toHaveBeenCalledWith({
-      taskId: child.id,
-      patch: { status: 'completed' },
-    })
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: child.id,
+        patch: { status: 'completed' },
+      })
+    )
 
     fireEvent.click(
       within(childRow).getByRole('button', {

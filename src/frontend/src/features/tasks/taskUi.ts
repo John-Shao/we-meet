@@ -16,6 +16,14 @@ const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
 export const nextTaskStatuses = (task: Pick<ApiTask, 'status'>): TaskStatus[] =>
   statusTransitions[task.status]
 
+export const incompleteDescendantCount = (
+  task: Pick<ApiTask, 'descendant_progress'>
+) =>
+  Math.max(
+    0,
+    task.descendant_progress.total - task.descendant_progress.completed
+  )
+
 export const quickTaskStatus = (
   task: Pick<ApiTask, 'status' | 'can_update_status'>
 ): TaskStatus | undefined => {

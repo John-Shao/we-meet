@@ -311,15 +311,21 @@
     "delete": "删除任务",
     "deleteTitle": "删除任务",
     "deleteDescription": "确定删除“{{title}}”吗？此操作无法撤销。",
-    "deleteSubtreeDescription": "确定删除“{{title}}”及其 {{count}} 个子任务吗？整棵子树将被永久删除，且无法撤销。"
+    "deleteSubtreeDescription": "确定删除“{{title}}”及其 {{count}} 个子任务吗？整棵子树将被永久删除，且无法撤销。",
+    "completeWithOpenSubtasksTitle": "完成任务？",
+    "completeWithOpenSubtasksDescription": "仍有 {{count}} 个未完成子任务。完成当前任务不会改变这些子任务的状态。",
+    "completeAnyway": "仍然完成"
   },
+  "saveState": { "saving": "保存中…", "saved": "已保存" },
   "subtasks": {
     "title": "子任务",
     "parent": "父任务",
     "rootTask": "设为根任务",
     "parentChain": "任务父链",
     "progress": "已完成 {{completed}} / {{total}}",
+    "progressSummary": "子任务：{{completed}} / {{total}} 已完成",
     "progressLabel": "子任务完成进度",
+    "completedWithOpenSubtasks": "任务已完成，仍有 {{count}} 个未完成子任务",
     "loading": "正在加载子任务…",
     "empty": "暂无子任务。",
     "newTitle": "子任务标题",

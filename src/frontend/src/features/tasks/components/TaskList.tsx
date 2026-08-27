@@ -40,23 +40,23 @@ import type {
 } from '../api/ApiTask'
 import { usePatchTask } from '../api/fetchTasks'
 import { formatTaskCreatedAt, formatTaskDate } from '../taskDateFormat'
-import { taskAssignees } from '../taskUi'
+import { incompleteDescendantCount, taskAssignees } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskCompletionButton } from './TaskCompletionButton'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskAssigneesDisplay, TaskUserDisplay } from './TaskUserDisplay'
 
-const COLUMN_WIDTHS_STORAGE_KEY = 'we-meet:task-list-column-widths:v2'
+const COLUMN_WIDTHS_STORAGE_KEY = 'we-meet:task-list-column-widths:v3'
 
 const TASK_COLUMNS = [
-  { id: 'title', defaultWidth: 120, minWidth: 60, maxWidth: 360 },
-  { id: 'assignee', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
-  { id: 'priority', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
-  { id: 'startDate', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
-  { id: 'dueDate', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
-  { id: 'taskList', defaultWidth: 60, minWidth: 30, maxWidth: 180 },
-  { id: 'creator', defaultWidth: 60, minWidth: 30, maxWidth: 120 },
-  { id: 'createdAt', defaultWidth: 80, minWidth: 40, maxWidth: 160 },
+  { id: 'title', defaultWidth: 360, minWidth: 160, maxWidth: 720 },
+  { id: 'assignee', defaultWidth: 160, minWidth: 96, maxWidth: 240 },
+  { id: 'priority', defaultWidth: 100, minWidth: 72, maxWidth: 140 },
+  { id: 'startDate', defaultWidth: 110, minWidth: 88, maxWidth: 150 },
+  { id: 'dueDate', defaultWidth: 110, minWidth: 88, maxWidth: 150 },
+  { id: 'taskList', defaultWidth: 150, minWidth: 96, maxWidth: 240 },
+  { id: 'creator', defaultWidth: 140, minWidth: 96, maxWidth: 220 },
+  { id: 'createdAt', defaultWidth: 170, minWidth: 128, maxWidth: 220 },
 ] as const
 
 type TaskColumnId = (typeof TASK_COLUMNS)[number]['id']
@@ -129,6 +129,7 @@ type ListProps = {
   taskLists?: ApiTaskList[]
   groups?: ApiTaskGroup[]
   grouped?: boolean
+  compact?: boolean
   ordering?: TaskOrdering
   onOrderingChange?: (ordering: TaskOrdering) => void
   selectedTaskId?: string
@@ -140,6 +141,7 @@ type ListProps = {
   canManageGroups?: boolean
   onRenameGroup?: (group: ApiTaskGroup) => void
   onDeleteGroup?: (group: ApiTaskGroup) => void
+  onConfirmCompleteWithOpenSubtasks?: (task: ApiTask) => Promise<boolean>
 }
 
 type GroupProps = Omit<ListProps, 'tasks'> & {
@@ -163,6 +165,7 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
   editingCell: InlineEditingCell | null
   inlineDraft: string
   inlinePending: boolean
+  compact: boolean
   onBeginInlineEdit: (task: ApiTask, field: InlineEditableField) => void
   onInlineDraftChange: (value: string) => void
   onSaveInlineEdit: (task: ApiTask, patch: PatchTaskPayload) => void
@@ -200,6 +203,7 @@ export const TaskList = ({
   taskLists = [],
   groups = [],
   grouped = false,
+  compact = false,
   ordering = '',
   onOrderingChange,
   selectedTaskId,
@@ -211,6 +215,7 @@ export const TaskList = ({
   canManageGroups = false,
   onRenameGroup,
   onDeleteGroup,
+  onConfirmCompleteWithOpenSubtasks,
 }: ListProps) => {
   const { t, i18n } = useTranslation('tasks')
   const patchMutation = usePatchTask()
@@ -280,9 +285,12 @@ export const TaskList = ({
       window.removeEventListener('blur', close)
     }
   }, [contextMenu])
-  const visibleColumns = grouped
-    ? TASK_COLUMNS.filter((column) => column.id !== 'taskList')
-    : TASK_COLUMNS
+  const visibleColumns = TASK_COLUMNS.filter(
+    (column) =>
+      (!grouped || column.id !== 'taskList') &&
+      (!compact ||
+        ['title', 'assignee', 'priority', 'dueDate'].includes(column.id))
+  )
   const desktopColumnCount = visibleColumns.length + 1
 
   const toggleSection = (sectionKey: string) => {
@@ -429,6 +437,14 @@ export const TaskList = ({
     const currentStatus = currentOverride?.status ?? task.status
     const status: TaskStatus =
       currentStatus === 'completed' ? 'todo' : 'completed'
+    if (
+      status === 'completed' &&
+      incompleteDescendantCount(task) > 0 &&
+      onConfirmCompleteWithOpenSubtasks &&
+      !(await onConfirmCompleteWithOpenSubtasks(task))
+    ) {
+      return
+    }
     setStatusError(false)
     setStatusOverrides((current) => ({
       ...current,
@@ -542,6 +558,7 @@ export const TaskList = ({
       void saveInlineEdit(task, patch),
     onCancelInlineEdit: cancelInlineEdit,
     onToggleSubtasks: toggleTaskSubtasks,
+    compact,
   }
 
   return (
@@ -672,7 +689,7 @@ export const TaskList = ({
           })}
         </tbody>
       </table>
-      <ul className={mobileListCss}>
+      <ul className={mobileListCss} data-task-row-container="">
         {treeSections.map((section) => {
           const collapsed = collapsedSections.has(section.key)
           return (
@@ -805,12 +822,14 @@ const DesktopTaskRow = ({
   onInlineDraftChange,
   onSaveInlineEdit,
   onCancelInlineEdit,
+  compact,
 }: GroupProps) => (
   <tr
     ref={(element) => registerRow(task.id, element)}
     tabIndex={0}
     aria-label={t('workspace.openTask', { title: task.title })}
     data-selected={selectedTaskId === task.id || undefined}
+    data-task-row=""
     data-grouped={grouped || undefined}
     data-group-last={grouped && isLastInGroup ? true : undefined}
     className={rowCss}
@@ -818,7 +837,16 @@ const DesktopTaskRow = ({
     onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
     onContextMenu={(event) => onTaskContextMenu(event, task)}
-    onKeyDown={(event) => openOnEnter(event, task, onOpen)}
+    onKeyDown={(event) =>
+      handleTaskRowKeyDown(event, {
+        task,
+        hasChildren: hasVisibleSubtasks,
+        expanded: isSubtasksExpanded,
+        onOpen,
+        onToggleStatus,
+        onToggleSubtasks,
+      })
+    }
   >
     <td
       className={grouped ? groupedTaskTitleCellCss : undefined}
@@ -907,30 +935,33 @@ const DesktopTaskRow = ({
         </InlineEditButton>
       )}
     </td>
-    <td className={secondaryColumnCss}>
-      {editingCell?.taskId === task.id && editingCell.field === 'startDate' ? (
-        <InlineDateEditor
-          value={inlineDraft}
-          max={task.due_date || undefined}
-          pending={inlinePending}
-          label={t('workspace.columns.startDate')}
-          onChange={onInlineDraftChange}
-          onSave={(startDate) =>
-            onSaveInlineEdit(task, { start_date: startDate || null })
-          }
-          onCancel={onCancelInlineEdit}
-        />
-      ) : (
-        <InlineEditButton
-          task={task}
-          fieldLabel={t('workspace.columns.startDate')}
-          date
-          onEdit={() => onBeginInlineEdit(task, 'startDate')}
-        >
-          {formatDate(task.start_date)}
-        </InlineEditButton>
-      )}
-    </td>
+    {!compact && (
+      <td className={secondaryColumnCss}>
+        {editingCell?.taskId === task.id &&
+        editingCell.field === 'startDate' ? (
+          <InlineDateEditor
+            value={inlineDraft}
+            max={task.due_date || undefined}
+            pending={inlinePending}
+            label={t('workspace.columns.startDate')}
+            onChange={onInlineDraftChange}
+            onSave={(startDate) =>
+              onSaveInlineEdit(task, { start_date: startDate || null })
+            }
+            onCancel={onCancelInlineEdit}
+          />
+        ) : (
+          <InlineEditButton
+            task={task}
+            fieldLabel={t('workspace.columns.startDate')}
+            date
+            onEdit={() => onBeginInlineEdit(task, 'startDate')}
+          >
+            {formatDate(task.start_date)}
+          </InlineEditButton>
+        )}
+      </td>
+    )}
     <td
       data-overdue={task.time_state === 'overdue' || undefined}
       className={dueDateCss}
@@ -958,7 +989,7 @@ const DesktopTaskRow = ({
         </InlineEditButton>
       )}
     </td>
-    {!grouped && (
+    {!compact && !grouped && (
       <td className={secondaryColumnCss}>
         {editingCell?.taskId === task.id && editingCell.field === 'taskList' ? (
           <InlineTaskListEditor
@@ -987,10 +1018,14 @@ const DesktopTaskRow = ({
         )}
       </td>
     )}
-    <td className={secondaryColumnCss}>
-      <TaskUserDisplay user={task.creator} />
-    </td>
-    <td className={wideColumnCss}>{formatDateTime(task.created_at)}</td>
+    {!compact && (
+      <td className={secondaryColumnCss}>
+        <TaskUserDisplay user={task.creator} />
+      </td>
+    )}
+    {!compact && (
+      <td className={wideColumnCss}>{formatDateTime(task.created_at)}</td>
+    )}
     <td aria-hidden="true" className={tableGutterCellCss} />
   </tr>
 )
@@ -1328,13 +1363,23 @@ const MobileTaskCard = ({
     role="button"
     aria-label={t('workspace.openTask', { title: task.title })}
     data-selected={selectedTaskId === task.id || undefined}
+    data-task-row=""
     className={mobileCardCss}
     style={{ marginLeft: `${treeDepth * 1.25}rem` }}
     draggable={task.can_edit}
     onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
     onContextMenu={(event) => onTaskContextMenu(event, task)}
-    onKeyDown={(event) => openOnEnter(event, task, onOpen)}
+    onKeyDown={(event) =>
+      handleTaskRowKeyDown(event, {
+        task,
+        hasChildren: hasVisibleSubtasks,
+        expanded: isSubtasksExpanded,
+        onOpen,
+        onToggleStatus,
+        onToggleSubtasks,
+      })
+    }
   >
     <div className={mobileTitleRowCss}>
       <TaskHierarchyToggle
@@ -1391,7 +1436,7 @@ const TaskHierarchyToggle = ({
   return (
     <span
       className={taskHierarchyLeadCss}
-      style={{ paddingLeft: `${depth * 1.25}rem` }}
+      style={{ paddingLeft: `${depth}rem` }}
     >
       {hasChildren ? (
         <button
@@ -1465,15 +1510,59 @@ const TaskTitle = ({
   )
 }
 
-const openOnEnter = (
+const handleTaskRowKeyDown = (
   event: KeyboardEvent<HTMLElement>,
-  task: ApiTask,
-  onOpen: (task: ApiTask) => void
+  {
+    task,
+    hasChildren,
+    expanded,
+    onOpen,
+    onToggleStatus,
+    onToggleSubtasks,
+  }: {
+    task: ApiTask
+    hasChildren: boolean
+    expanded: boolean
+    onOpen: (task: ApiTask) => void
+    onToggleStatus: (task: ApiTask) => void
+    onToggleSubtasks: (taskId: string) => void
+  }
 ) => {
   if (event.target !== event.currentTarget) return
   if (event.key === 'Enter') {
     event.preventDefault()
     onOpen(task)
+    return
+  }
+  if (event.key === ' ') {
+    event.preventDefault()
+    onToggleStatus(task)
+    return
+  }
+  if (event.key === 'ArrowRight' && hasChildren && !expanded) {
+    event.preventDefault()
+    onToggleSubtasks(task.id)
+    return
+  }
+  if (event.key === 'ArrowLeft' && hasChildren && expanded) {
+    event.preventDefault()
+    onToggleSubtasks(task.id)
+    return
+  }
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    const container = event.currentTarget.closest(
+      'table, [data-task-row-container]'
+    )
+    const rows = Array.from(
+      container?.querySelectorAll<HTMLElement>('[data-task-row]') || []
+    )
+    const currentIndex = rows.indexOf(event.currentTarget)
+    const nextIndex = currentIndex + (event.key === 'ArrowUp' ? -1 : 1)
+    const nextRow = rows[nextIndex]
+    if (nextRow) {
+      event.preventDefault()
+      nextRow.focus()
+    }
   }
 }
 
@@ -1936,7 +2025,10 @@ const rowCss = css({
   transition: 'background-color token(durations.fast)',
   _hover: { backgroundColor: 'greyscale.50' },
   _focusVisible: { boxShadow: 'inset 0 0 0 2px token(colors.primary.500)' },
-  '&[data-selected]': { backgroundColor: 'selected.bg' },
+  '&[data-selected]': {
+    backgroundColor: 'selected.bg',
+    boxShadow: 'inset 3px 0 0 token(colors.selected.accent)',
+  },
 })
 const inlineCellButtonCss = css({
   width: '100%',
@@ -2163,8 +2255,8 @@ const taskHierarchyLeadCss = css({
   flexShrink: 0,
 })
 const taskHierarchyToggleCss = css({
-  width: '1rem',
-  height: '1.25rem',
+  width: '2rem',
+  height: '2rem',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -2180,7 +2272,7 @@ const taskHierarchyToggleCss = css({
     outlineOffset: '1px',
   },
 })
-const taskHierarchySpacerCss = css({ width: '1rem', height: '1.25rem' })
+const taskHierarchySpacerCss = css({ width: '2rem', height: '2rem' })
 const statusErrorCss = css({
   margin: 0,
   padding: '0.5rem 1rem',

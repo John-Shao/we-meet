@@ -309,15 +309,21 @@
     "delete": "Taak verwijderen",
     "deleteTitle": "Taak verwijderen",
     "deleteDescription": "‘{{title}}’ verwijderen? Dit kan niet ongedaan worden gemaakt.",
-    "deleteSubtreeDescription": "‘{{title}}’ en {{count}} subtaken verwijderen? De volledige substructuur wordt permanent verwijderd."
+    "deleteSubtreeDescription": "‘{{title}}’ en {{count}} subtaken verwijderen? De volledige substructuur wordt permanent verwijderd.",
+    "completeWithOpenSubtasksTitle": "Taak voltooien?",
+    "completeWithOpenSubtasksDescription": "{{count}} subtaken zijn nog niet voltooid. Het voltooien van deze taak verandert hun status niet.",
+    "completeAnyway": "Toch voltooien"
   },
+  "saveState": { "saving": "Opslaan…", "saved": "Opgeslagen" },
   "subtasks": {
     "title": "Subtaken",
     "parent": "Bovenliggende taak",
     "rootTask": "Instellen als hoofdtaak",
     "parentChain": "Taakpad",
     "progress": "{{completed}} van {{total}} voltooid",
+    "progressSummary": "Subtaken: {{completed}} van {{total}} voltooid",
     "progressLabel": "Voortgang van subtaken",
+    "completedWithOpenSubtasks": "Taak voltooid · {{count}} subtaken nog niet voltooid",
     "loading": "Subtaken laden…",
     "empty": "Nog geen subtaken.",
     "newTitle": "Titel van subtaak",

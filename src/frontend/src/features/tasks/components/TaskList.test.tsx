@@ -155,6 +155,23 @@ describe('TaskList', () => {
     expect(within(table).getByText('Release work')).toBeInTheDocument()
   })
 
+  it('keeps only the four decision columns while the detail panel is open', () => {
+    render(
+      <TaskList tasks={[task]} compact onOpen={vi.fn()} registerRow={vi.fn()} />
+    )
+
+    expect(
+      within(screen.getByRole('table'))
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent)
+    ).toEqual([
+      'workspace.columns.title',
+      'workspace.columns.assignee',
+      'workspace.columns.priority',
+      'workspace.columns.dueDate',
+    ])
+  })
+
   it('shows the complete ancestor chain for a subtask row', () => {
     const subtask = {
       ...task,
@@ -265,6 +282,36 @@ describe('TaskList', () => {
         .getAllByText('Prepare release')
         .every((title) => !title.closest('[data-completed]'))
     ).toBe(true)
+  })
+
+  it('confirms before completing a task with unfinished descendants', async () => {
+    const onConfirmCompleteWithOpenSubtasks = vi.fn().mockResolvedValue(false)
+    render(
+      <TaskList
+        tasks={[
+          {
+            ...task,
+            descendant_progress: { completed: 1, total: 3 },
+          },
+        ]}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+        onConfirmCompleteWithOpenSubtasks={onConfirmCompleteWithOpenSubtasks}
+      />
+    )
+
+    fireEvent.click(
+      within(screen.getByRole('table')).getByLabelText(
+        'workspace.quickComplete'
+      )
+    )
+
+    await waitFor(() =>
+      expect(onConfirmCompleteWithOpenSubtasks).toHaveBeenCalledWith(
+        expect.objectContaining({ id: task.id })
+      )
+    )
+    expect(mutateAsync).not.toHaveBeenCalled()
   })
 
   it('restores the previous status and reports a failed quick action', async () => {
@@ -528,6 +575,57 @@ describe('TaskList', () => {
     expect(onOpen).toHaveBeenCalledWith(task)
   })
 
+  it('navigates and controls the task tree from the keyboard', async () => {
+    const parent: ApiTask = {
+      ...task,
+      id: 'parent-1',
+      title: 'Release',
+      ancestor_path: [{ id: 'parent-1', title: 'Release', depth: 0 }],
+      descendant_progress: { completed: 0, total: 1 },
+    }
+    const child: ApiTask = {
+      ...task,
+      id: 'child-1',
+      title: 'Backend',
+      parent_id: parent.id,
+      depth: 1,
+      ancestor_path: [
+        { id: parent.id, title: parent.title, depth: 0 },
+        { id: 'child-1', title: 'Backend', depth: 1 },
+      ],
+    }
+    render(
+      <TaskList
+        tasks={[parent, child]}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    const table = screen.getByRole('table')
+    const parentRow = within(table).getByLabelText('workspace.openTask')
+    parentRow.focus()
+    fireEvent.keyDown(parentRow, { key: 'ArrowRight' })
+
+    const rows = within(table).getAllByLabelText('workspace.openTask')
+    expect(rows).toHaveLength(2)
+    fireEvent.keyDown(rows[0], { key: 'ArrowDown' })
+    expect(rows[1]).toHaveFocus()
+
+    fireEvent.keyDown(rows[1], { key: ' ' })
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: child.id,
+        patch: { status: 'completed' },
+      })
+    )
+
+    fireEvent.keyDown(rows[0], { key: 'ArrowLeft' })
+    expect(within(table).getAllByLabelText('workspace.openTask')).toHaveLength(
+      1
+    )
+  })
+
   it('shares a task from its row context menu without opening details', () => {
     const onOpen = vi.fn()
     const onShare = vi.fn()
@@ -640,14 +738,14 @@ describe('TaskList', () => {
     render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
     const expectedWidths = {
-      title: [120, 60, 360],
-      assignee: [60, 30, 120],
-      priority: [60, 30, 120],
-      startDate: [60, 30, 120],
-      dueDate: [60, 30, 120],
-      taskList: [60, 30, 180],
-      creator: [60, 30, 120],
-      createdAt: [80, 40, 160],
+      title: [360, 160, 720],
+      assignee: [160, 96, 240],
+      priority: [100, 72, 140],
+      startDate: [110, 88, 150],
+      dueDate: [110, 88, 150],
+      taskList: [150, 96, 240],
+      creator: [140, 96, 220],
+      createdAt: [170, 128, 220],
     }
     const table = screen.getByRole('table')
 
@@ -676,24 +774,24 @@ describe('TaskList', () => {
       .querySelector<HTMLElement>('th[data-column="title"]')!
     const titleHandle = within(titleHeader).getByRole('slider')
 
-    expect(titleHeader).toHaveStyle({ width: '120px' })
+    expect(titleHeader).toHaveStyle({ width: '360px' })
     fireEvent.pointerDown(titleHandle, { clientX: 100 })
     fireEvent.pointerMove(window, { clientX: 164 })
     fireEvent.pointerUp(window)
 
-    expect(titleHeader).toHaveStyle({ width: '184px' })
+    expect(titleHeader).toHaveStyle({ width: '424px' })
     expect(
       JSON.parse(
-        localStorage.getItem('we-meet:task-list-column-widths:v2') || '{}'
+        localStorage.getItem('we-meet:task-list-column-widths:v3') || '{}'
       )
-    ).toMatchObject({ title: 184 })
+    ).toMatchObject({ title: 424 })
 
     unmount()
     render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
     expect(
       screen.getByRole('table').querySelector('th[data-column="title"]')
-    ).toHaveStyle({ width: '184px' })
+    ).toHaveStyle({ width: '424px' })
   })
 
   it('supports keyboard column resizing within the configured limits', () => {
@@ -705,25 +803,25 @@ describe('TaskList', () => {
     const priorityHandle = within(priorityHeader).getByRole('slider')
 
     fireEvent.keyDown(priorityHandle, { key: 'ArrowRight' })
-    expect(priorityHeader).toHaveStyle({ width: '76px' })
+    expect(priorityHeader).toHaveStyle({ width: '116px' })
 
     for (let index = 0; index < 10; index += 1) {
       fireEvent.keyDown(priorityHandle, { key: 'ArrowLeft' })
     }
-    expect(priorityHeader).toHaveStyle({ width: '30px' })
+    expect(priorityHeader).toHaveStyle({ width: '72px' })
   })
 
-  it('keeps the saved width when replacing updated time with created time', () => {
+  it('restores a saved created-time column width', () => {
     localStorage.setItem(
-      'we-meet:task-list-column-widths:v2',
-      JSON.stringify({ updatedAt: 112 })
+      'we-meet:task-list-column-widths:v3',
+      JSON.stringify({ createdAt: 192 })
     )
 
     render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
     expect(
       screen.getByRole('table').querySelector('th[data-column="createdAt"]')
-    ).toHaveStyle({ width: '112px' })
+    ).toHaveStyle({ width: '192px' })
   })
 
   it('keeps a gutter after double-line resize handles', () => {

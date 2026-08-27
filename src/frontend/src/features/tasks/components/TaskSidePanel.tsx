@@ -64,7 +64,11 @@ import {
   useUpdateTaskRecurrence,
 } from '../api/fetchTasks'
 import { formatTaskDate } from '../taskDateFormat'
-import { nextTaskStatuses, taskAssignees } from '../taskUi'
+import {
+  incompleteDescendantCount,
+  nextTaskStatuses,
+  taskAssignees,
+} from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskCompletionButton } from './TaskCompletionButton'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
@@ -173,6 +177,7 @@ export const TaskDetailPanel = ({
   const [subtaskDraft, setSubtaskDraft] = useState('')
   const [subtaskAssigneeEditing, setSubtaskAssigneeEditing] =
     useState<ApiTask | null>(null)
+  const [showSavedState, setShowSavedState] = useState(false)
   const placementEditorRef = useRef<HTMLDivElement>(null)
   const patchMutation = usePatchTask()
   const reorderSubtasksMutation = useReorderTaskSubtasks()
@@ -183,6 +188,17 @@ export const TaskDetailPanel = ({
   const removeFollowerMutation = useRemoveTaskFollower()
   const updateRecurrenceMutation = useUpdateTaskRecurrence()
   const stopRecurrenceMutation = useStopTaskRecurrence()
+
+  useEffect(() => {
+    if (patchMutation.isPending) {
+      setShowSavedState(false)
+      return
+    }
+    if (!patchMutation.isSuccess) return
+    setShowSavedState(true)
+    const timeout = window.setTimeout(() => setShowSavedState(false), 1600)
+    return () => window.clearTimeout(timeout)
+  }, [patchMutation.isPending, patchMutation.isSuccess])
   const { confirm } = useConfirm()
   const focusInput = useCallback((element: HTMLInputElement | null) => {
     element?.focus()
@@ -291,6 +307,7 @@ export const TaskDetailPanel = ({
   )
   const currentAssignees = taskAssignees(task)
   const nextStatus = nextTaskStatuses(task)[0]
+  const openDescendantCount = incompleteDescendantCount(task)
   const followActionLabel = task.is_following
     ? t('followers.unfollow')
     : t('followers.follow')
@@ -344,14 +361,36 @@ export const TaskDetailPanel = ({
     })
   }
 
+  const changeTaskStatus = async (
+    targetTask: ApiTask,
+    status: ApiTask['status']
+  ) => {
+    if (status === 'completed' && incompleteDescendantCount(targetTask) > 0) {
+      const accepted = await confirm({
+        title: t('actions.completeWithOpenSubtasksTitle'),
+        message: t('actions.completeWithOpenSubtasksDescription', {
+          count: incompleteDescendantCount(targetTask),
+        }),
+        confirmLabel: t('actions.completeAnyway'),
+      })
+      if (!accepted) return
+    }
+    try {
+      await patchMutation.mutateAsync({
+        taskId: targetTask.id,
+        patch: { status },
+      })
+    } catch {
+      // Keep the current state visible and let the shared error surface explain it.
+    }
+  }
+
   const toggleSubtaskStatus = (subtask: ApiTask) => {
     if (!subtask.can_update_status || patchMutation.isPending) return
-    patchMutation.mutate({
-      taskId: subtask.id,
-      patch: {
-        status: subtask.status === 'completed' ? 'todo' : 'completed',
-      },
-    })
+    void changeTaskStatus(
+      subtask,
+      subtask.status === 'completed' ? 'todo' : 'completed'
+    )
   }
 
   const beginSubtaskEdit = (subtask: ApiTask, field: SubtaskEditableField) => {
@@ -411,26 +450,32 @@ export const TaskDetailPanel = ({
       onClose={onClose}
       startAction={
         task.can_update_status && nextStatus ? (
-          <Button
-            size="dense"
-            variant="secondary"
-            icon={
-              nextStatus === 'completed' ? (
-                <RiCheckLine size={16} aria-hidden="true" />
-              ) : (
-                <RiRestartLine size={16} aria-hidden="true" />
-              )
-            }
-            isDisabled={patchMutation.isPending || deleteMutation.isPending}
-            onPress={() =>
-              patchMutation.mutate({
-                taskId: task.id,
-                patch: { status: nextStatus },
-              })
-            }
-          >
-            {t(`actions.to_${nextStatus}`)}
-          </Button>
+          <div className={headerTaskStatusCss}>
+            <span
+              className={headerStatusCss}
+              data-completed={task.status === 'completed' || undefined}
+            >
+              {task.status === 'completed' && (
+                <RiCheckLine size={15} aria-hidden="true" />
+              )}
+              {t(`statuses.${task.status}`)}
+            </span>
+            <Button
+              size="dense"
+              variant="secondary"
+              icon={
+                nextStatus === 'completed' ? (
+                  <RiCheckLine size={16} aria-hidden="true" />
+                ) : (
+                  <RiRestartLine size={16} aria-hidden="true" />
+                )
+              }
+              isDisabled={patchMutation.isPending || deleteMutation.isPending}
+              onPress={() => void changeTaskStatus(task, nextStatus)}
+            >
+              {t(`actions.to_${nextStatus}`)}
+            </Button>
+          </div>
         ) : (
           <span
             className={headerStatusCss}
@@ -573,6 +618,21 @@ export const TaskDetailPanel = ({
               )}
             </div>
           </div>
+          {task.status === 'completed' && openDescendantCount > 0 && (
+            <p role="status" className={completedWithOpenSubtasksCss}>
+              <RiGitBranchLine size={16} aria-hidden="true" />
+              {t('subtasks.completedWithOpenSubtasks', {
+                count: openDescendantCount,
+              })}
+            </p>
+          )}
+          {(patchMutation.isPending || showSavedState) && (
+            <p className={saveStateCss} aria-live="polite">
+              {patchMutation.isPending
+                ? t('saveState.saving')
+                : t('saveState.saved')}
+            </p>
+          )}
           {(patchMutation.error ||
             deleteMutation.error ||
             followMutation.error ||
@@ -1093,8 +1153,10 @@ export const TaskDetailPanel = ({
                       total: task.descendant_progress.total,
                     })}
                   >
-                    {task.descendant_progress.completed} /{' '}
-                    {task.descendant_progress.total}
+                    {t('subtasks.progressSummary', {
+                      completed: task.descendant_progress.completed,
+                      total: task.descendant_progress.total,
+                    })}
                   </span>
                   <progress
                     aria-label={t('subtasks.progressLabel')}
@@ -1234,7 +1296,7 @@ export const TaskDetailPanel = ({
                           }
                           onClick={() => moveSubtask(index, -1)}
                         >
-                          <RiArrowUpSLine size={13} aria-hidden="true" />
+                          <RiArrowUpSLine size={16} aria-hidden="true" />
                         </button>
                         <button
                           type="button"
@@ -1249,7 +1311,7 @@ export const TaskDetailPanel = ({
                           }
                           onClick={() => moveSubtask(index, 1)}
                         >
-                          <RiArrowDownSLine size={13} aria-hidden="true" />
+                          <RiArrowDownSLine size={16} aria-hidden="true" />
                         </button>
                       </span>
                       <Button
@@ -1573,6 +1635,11 @@ const panelHeaderCss = css({
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
 const panelHeaderStartCss = css({ minWidth: 0 })
+const headerTaskStatusCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+})
 const panelHeaderActionsCss = css({
   display: 'flex',
   alignItems: 'center',
@@ -1606,7 +1673,7 @@ const panelBodyCss = css({ flex: 1, minHeight: 0, overflowY: 'auto' })
 const detailContentCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '1.25rem',
+  gap: '1rem',
   padding: '1.25rem 1.25rem 1.5rem',
   fontSize: '0.875rem',
 })
@@ -1614,6 +1681,23 @@ const taskTitleRowCss = css({
   display: 'flex',
   alignItems: 'flex-start',
   gap: '0.75rem',
+})
+const completedWithOpenSubtasksCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  margin: 0,
+  padding: '0.625rem 0.75rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '6px',
+  backgroundColor: 'greyscale.50',
+  color: 'greyscale.700',
+  fontSize: '0.8125rem',
+})
+const saveStateCss = css({
+  margin: '-0.5rem 0 0',
+  color: 'greyscale.500',
+  fontSize: '0.75rem',
 })
 const breadcrumbCss = css({
   display: 'flex',
@@ -1705,7 +1789,7 @@ const subtaskListCss = css({
   '& li': {
     minHeight: '2rem',
     display: 'grid',
-    gridTemplateColumns: '1rem minmax(5rem, 1fr) auto auto 1.5rem 1.75rem',
+    gridTemplateColumns: '1rem minmax(5rem, 1fr) auto auto 3.5rem 1.75rem',
     alignItems: 'center',
     gap: '0.375rem',
     padding: '0.25rem 0.5rem',
@@ -1762,12 +1846,13 @@ const subtaskAssigneesCss = css({
   _disabled: { cursor: 'default', opacity: 1 },
 })
 const subtaskOrderActionsCss = css({
-  width: '1.5rem',
-  display: 'grid',
-  gridTemplateRows: '0.75rem 0.75rem',
+  width: '3.5rem',
+  display: 'flex',
+  opacity: 0.45,
+  transition: 'opacity token(durations.fast)',
   '& button': {
-    width: '1.5rem',
-    height: '0.75rem',
+    width: '1.75rem',
+    height: '1.75rem',
     display: 'grid',
     placeItems: 'center',
     padding: 0,
@@ -1777,8 +1862,14 @@ const subtaskOrderActionsCss = css({
     color: 'greyscale.500',
     cursor: 'pointer',
     _hover: { backgroundColor: 'greyscale.100' },
-    _disabled: { cursor: 'default', opacity: 0.25 },
+    _focusVisible: {
+      outline: '2px solid token(colors.primary.500)',
+      outlineOffset: '-2px',
+    },
+    _disabled: { cursor: 'default', opacity: 0.2 },
   },
+  _hover: { opacity: 1 },
+  _focusWithin: { opacity: 1 },
 })
 const subtaskTitleInputCss = css({
   minWidth: 0,

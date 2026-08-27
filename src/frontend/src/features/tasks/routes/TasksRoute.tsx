@@ -199,6 +199,16 @@ const TasksAuthenticated = () => {
     }
   }
 
+  const confirmCompleteWithOpenSubtasks = (task: ApiTask) =>
+    confirm({
+      title: t('actions.completeWithOpenSubtasksTitle'),
+      message: t('actions.completeWithOpenSubtasksDescription', {
+        count:
+          task.descendant_progress.total - task.descendant_progress.completed,
+      }),
+      confirmLabel: t('actions.completeAnyway'),
+    })
+
   const deleteTaskListGroup = async (group: ApiTaskListGroup) => {
     if (!group.can_manage) return
     const accepted = await confirm({
@@ -504,6 +514,7 @@ const TasksAuthenticated = () => {
             <>
               <TaskList
                 tasks={listTasks}
+                compact={panelOpen}
                 taskLists={taskLists}
                 ordering={state.ordering}
                 onOrderingChange={(ordering) =>
@@ -518,6 +529,9 @@ const TasksAuthenticated = () => {
                 }}
                 onShare={setTaskSharing}
                 onDeleteTask={(task) => void deleteTask(task)}
+                onConfirmCompleteWithOpenSubtasks={
+                  confirmCompleteWithOpenSubtasks
+                }
                 registerRow={(taskId, element) => {
                   if (element) rowRefs.current.set(taskId, element)
                   else rowRefs.current.delete(taskId)

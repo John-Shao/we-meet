@@ -305,15 +305,21 @@
     "delete": "Supprimer la tâche",
     "deleteTitle": "Supprimer la tâche",
     "deleteDescription": "Supprimer « {{title}} » ? Cette action est irréversible.",
-    "deleteSubtreeDescription": "Supprimer « {{title}} » et ses {{count}} sous-tâches ? L’arborescence entière sera supprimée définitivement."
+    "deleteSubtreeDescription": "Supprimer « {{title}} » et ses {{count}} sous-tâches ? L’arborescence entière sera supprimée définitivement.",
+    "completeWithOpenSubtasksTitle": "Terminer la tâche ?",
+    "completeWithOpenSubtasksDescription": "{{count}} sous-tâches ne sont pas terminées. Terminer cette tâche ne modifiera pas leur statut.",
+    "completeAnyway": "Terminer quand même"
   },
+  "saveState": { "saving": "Enregistrement…", "saved": "Enregistré" },
   "subtasks": {
     "title": "Sous-tâches",
     "parent": "Tâche parente",
     "rootTask": "Définir comme tâche racine",
     "parentChain": "Hiérarchie de la tâche",
     "progress": "{{completed}} sur {{total}} terminées",
+    "progressSummary": "Sous-tâches : {{completed}} sur {{total}} terminées",
     "progressLabel": "Progression des sous-tâches",
+    "completedWithOpenSubtasks": "Tâche terminée · {{count}} sous-tâches non terminées",
     "loading": "Chargement des sous-tâches…",
     "empty": "Aucune sous-tâche.",
     "newTitle": "Titre de la sous-tâche",

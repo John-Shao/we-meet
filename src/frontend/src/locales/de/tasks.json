@@ -305,15 +305,21 @@
     "delete": "Aufgabe löschen",
     "deleteTitle": "Aufgabe löschen",
     "deleteDescription": "„{{title}}“ löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-    "deleteSubtreeDescription": "„{{title}}“ und {{count}} Unteraufgaben löschen? Der gesamte Teilbaum wird dauerhaft gelöscht."
+    "deleteSubtreeDescription": "„{{title}}“ und {{count}} Unteraufgaben löschen? Der gesamte Teilbaum wird dauerhaft gelöscht.",
+    "completeWithOpenSubtasksTitle": "Aufgabe abschließen?",
+    "completeWithOpenSubtasksDescription": "{{count}} Unteraufgaben sind noch offen. Das Abschließen dieser Aufgabe ändert ihren Status nicht.",
+    "completeAnyway": "Trotzdem abschließen"
   },
+  "saveState": { "saving": "Speichern…", "saved": "Gespeichert" },
   "subtasks": {
     "title": "Unteraufgaben",
     "parent": "Übergeordnete Aufgabe",
     "rootTask": "Als Stammaufgabe festlegen",
     "parentChain": "Aufgabenpfad",
     "progress": "{{completed}} von {{total}} abgeschlossen",
+    "progressSummary": "Unteraufgaben: {{completed}} von {{total}} abgeschlossen",
     "progressLabel": "Fortschritt der Unteraufgaben",
+    "completedWithOpenSubtasks": "Aufgabe abgeschlossen · {{count}} Unteraufgaben noch offen",
     "loading": "Unteraufgaben werden geladen…",
     "empty": "Noch keine Unteraufgaben.",
     "newTitle": "Titel der Unteraufgabe",
