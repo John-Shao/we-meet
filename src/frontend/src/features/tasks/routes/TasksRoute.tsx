@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useSearchParams } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import {
@@ -612,7 +613,10 @@ const TasksAuthenticated = () => {
       </main>
       {panelOpen &&
         (isNarrow ? (
-          <div className={mobilePanelCss}>{panel}</div>
+          createPortal(
+            <div className={takeoverPanelCss}>{panel}</div>,
+            document.body
+          )
         ) : (
           <ResizablePanel
             storageKey="we-meet-task-panel-width"
@@ -850,10 +854,10 @@ const useIsNarrow = () => {
   const [isNarrow, setIsNarrow] = useState(() =>
     typeof window === 'undefined'
       ? false
-      : window.matchMedia('(max-width: 899px)').matches
+      : window.matchMedia('(max-width: 1439px)').matches
   )
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 899px)')
+    const media = window.matchMedia('(max-width: 1439px)')
     const update = () => setIsNarrow(media.matches)
     update()
     media.addEventListener('change', update)
@@ -974,11 +978,19 @@ const loadMoreCss = css({
   justifyContent: 'center',
   padding: '1rem',
 })
-const mobilePanelCss = css({
+const takeoverPanelCss = css({
   position: 'fixed',
   inset: 0,
-  zIndex: 'modal',
-  backgroundColor: 'greyscale.000',
+  zIndex: 'takeover',
+  display: 'flex',
+  justifyContent: 'center',
+  backgroundColor: 'greyscale.50',
+  '& > aside': {
+    width: '100%',
+    maxWidth: '960px',
+    backgroundColor: 'greyscale.000',
+    boxShadow: '0 0 0 1px token(colors.greyscale.200)',
+  },
 })
 const modalHeaderCss = css({
   display: 'flex',

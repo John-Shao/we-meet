@@ -39,11 +39,23 @@ export default defineConfig({
     {
       name: 'chromium',
       dependencies: ['setup'],
-      testIgnore: /.*\.mobile\.spec\.ts/,
+      testIgnore: [/.*\.mobile\.spec\.ts/, /.*\.responsive\.spec\.ts/],
       use: {
         ...devices['Desktop Chrome'],
         storageState: authState,
         viewport: { width: 1600, height: 900 },
+      },
+    },
+    {
+      name: 'responsive-chromium',
+      dependencies: ['setup'],
+      testMatch: /.*\.responsive\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: authState,
+        viewport: { width: 1600, height: 900 },
+        colorScheme: 'light',
+        reducedMotion: 'reduce',
       },
     },
     {

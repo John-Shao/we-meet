@@ -1,187 +1,18 @@
+import { expect, test } from '@playwright/test'
+
 import {
-  expect,
-  test,
-  type APIResponse,
-  type BrowserContext,
-  type Page,
-} from '@playwright/test'
+  createTaskVisualFixture,
+  deleteTaskVisualFixture,
+  settleTaskVisuals,
+  taskVisualListUrl,
+  type TaskVisualFixture,
+} from './taskVisualFixture'
 
-type CreatedTask = {
-  id: string
-  title: string
-}
-
-type CreatedTaskList = {
-  id: string
-  name: string
-}
-
-type CreatedTaskGroup = {
-  id: string
-  name: string
-}
-
-let apiOrigin: string | undefined
-let taskList: CreatedTaskList | undefined
-let createdTaskIds: string[] = []
-
-const requestHeaders = async (context: BrowserContext) => {
-  if (!apiOrigin) throw new Error('The task API origin is not initialized.')
-  const csrfCookie = (await context.cookies(apiOrigin)).find(
-    (cookie) => cookie.name === 'csrftoken'
-  )
-  return csrfCookie ? { 'X-CSRFToken': csrfCookie.value } : undefined
-}
-
-const expectApiSuccess = async (response: APIResponse, operation: string) => {
-  if (response.ok()) return
-  throw new Error(
-    `${operation} failed with HTTP ${response.status()}: ${await response.text()}`
-  )
-}
-
-const postJson = async <T>(
-  page: Page,
-  path: string,
-  data: Record<string, unknown>
-) => {
-  if (!apiOrigin) throw new Error('The task API origin is not initialized.')
-  const response = await page.request.post(`${apiOrigin}/api/v1.0/${path}`, {
-    data,
-    headers: await requestHeaders(page.context()),
-  })
-  await expectApiSuccess(response, `POST ${path}`)
-  return (await response.json()) as T
-}
-
-const createVisualFixture = async (page: Page) => {
-  const initialTasksResponse = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'GET' &&
-      new URL(response.url()).pathname === '/api/v1.0/tasks/' &&
-      response.ok()
-  )
-  await page.goto(
-    '/tasks?scope=all&status=open&time=all&priority=all&task_list=all&view=list'
-  )
-  apiOrigin = new URL((await initialTasksResponse).url()).origin
-
-  taskList = await postJson<CreatedTaskList>(page, 'task-lists/', {
-    name: 'E2E 移动端视觉回归',
-    description: 'Playwright mobile visual regression fixture',
-    color: 'blue',
-  })
-  const discovery = await postJson<CreatedTaskGroup>(
-    page,
-    `task-lists/${taskList.id}/groups/`,
-    { name: '需求阶段', sort_order: 0 }
-  )
-  const delivery = await postJson<CreatedTaskGroup>(
-    page,
-    `task-lists/${taskList.id}/groups/`,
-    { name: '交付阶段', sort_order: 1 }
-  )
-
-  const root = await postJson<CreatedTask>(page, 'tasks/', {
-    title: '产品发布准备',
-    description: '确认范围、设计、开发与发布安排。',
-    priority: 'high',
-    start_date: '2030-08-26',
-    due_date: '2030-09-01',
-    task_list_id: taskList.id,
-    group_id: discovery.id,
-  })
-  createdTaskIds.push(root.id)
-
-  const research = await postJson<CreatedTask>(page, 'tasks/', {
-    title: '竞品调研',
-    priority: 'medium',
-    due_date: '2030-08-29',
-    task_list_id: taskList.id,
-    group_id: discovery.id,
-    parent_id: root.id,
-  })
-  createdTaskIds.push(research.id)
-
-  const prototype = await postJson<CreatedTask>(page, 'tasks/', {
-    title: '交互原型确认',
-    priority: 'low',
-    due_date: '2030-08-30',
-    task_list_id: taskList.id,
-    group_id: discovery.id,
-    parent_id: root.id,
-  })
-  createdTaskIds.push(prototype.id)
-
-  const implementation = await postJson<CreatedTask>(page, 'tasks/', {
-    title: '移动端适配',
-    priority: 'high',
-    due_date: '2030-09-01',
-    task_list_id: taskList.id,
-    group_id: delivery.id,
-  })
-  createdTaskIds.push(implementation.id)
-
-  const completeResponse = await page.request.patch(
-    `${apiOrigin}/api/v1.0/tasks/${prototype.id}/`,
-    {
-      data: { status: 'completed' },
-      headers: await requestHeaders(page.context()),
-    }
-  )
-  await expectApiSuccess(completeResponse, `complete task ${prototype.id}`)
-
-  return { root, research, prototype, implementation, discovery, delivery }
-}
-
-const deleteVisualFixture = async (context: BrowserContext) => {
-  if (!apiOrigin) return
-  const request = context.request
-  const headers = await requestHeaders(context)
-  for (const taskId of [...createdTaskIds].reverse()) {
-    const taskUrl = `${apiOrigin}/api/v1.0/tasks/${encodeURIComponent(taskId)}/`
-    const impactResponse = await request.get(`${taskUrl}subtree-impact/`)
-    const impact = impactResponse.ok()
-      ? ((await impactResponse.json()) as { node_count: number })
-      : undefined
-    const deleteResponse = await request.delete(
-      impact
-        ? `${taskUrl}?confirm_subtree_node_count=${impact.node_count}`
-        : taskUrl,
-      { headers }
-    )
-    if (deleteResponse.status() !== 204 && deleteResponse.status() !== 404) {
-      throw new Error(
-        `Task cleanup failed with HTTP ${deleteResponse.status()}`
-      )
-    }
-  }
-  if (taskList) {
-    const listResponse = await request.delete(
-      `${apiOrigin}/api/v1.0/task-lists/${encodeURIComponent(taskList.id)}/?delete_unassigned=true`,
-      { headers }
-    )
-    if (listResponse.status() !== 204 && listResponse.status() !== 404) {
-      throw new Error(
-        `Task-list cleanup failed with HTTP ${listResponse.status()}`
-      )
-    }
-  }
-  apiOrigin = undefined
-  taskList = undefined
-  createdTaskIds = []
-}
-
-const settleVisuals = async (page: Page) => {
-  await page.evaluate(async () => {
-    await document.fonts.ready
-    const active = document.activeElement
-    if (active instanceof HTMLElement) active.blur()
-  })
-}
+let visualFixture: TaskVisualFixture | undefined
 
 test.afterEach(async ({ context }) => {
-  await deleteVisualFixture(context)
+  await deleteTaskVisualFixture(context, visualFixture)
+  visualFixture = undefined
 })
 
 test('keeps the task workspace usable and visually stable on mobile', async ({
@@ -191,10 +22,12 @@ test('keeps the task workspace usable and visually stable on mobile', async ({
   await page.addInitScript(() => {
     window.localStorage.removeItem('we-meet:rail-collapsed')
   })
-  const fixture = await createVisualFixture(page)
-  const listUrl =
-    `/tasks?scope=all&status=all&time=all&priority=all&task_list=${taskList!.id}` +
-    '&view=list'
+  const fixture = await createTaskVisualFixture(page, {
+    taskListName: 'E2E 移动端视觉回归',
+    description: 'Playwright mobile visual regression fixture',
+  })
+  visualFixture = fixture
+  const listUrl = taskVisualListUrl(fixture)
 
   await page.goto(listUrl)
   const railToggle = page.getByTestId('rail-collapse-toggle')
@@ -229,7 +62,7 @@ test('keeps the task workspace usable and visually stable on mobile', async ({
     })
   ).toBeVisible()
   await expect(page.getByText('4 个匹配结果')).toBeVisible()
-  await settleVisuals(page)
+  await settleTaskVisuals(page)
   await expect(page).toHaveScreenshot('tasks-mobile-list.png')
 
   const moveHandle = page.getByRole('button', {
@@ -243,7 +76,7 @@ test('keeps the task workspace usable and visually stable on mobile', async ({
   await expect(
     moveMenu.getByRole('menuitemradio', { name: fixture.delivery.name })
   ).toBeVisible()
-  await settleVisuals(page)
+  await settleTaskVisuals(page)
   await expect(page).toHaveScreenshot('tasks-mobile-move-menu.png')
   await page.keyboard.press('Escape')
 
@@ -258,11 +91,11 @@ test('keeps the task workspace usable and visually stable on mobile', async ({
   await expect(
     details.getByRole('button', { name: `上移“${fixture.research.title}”` })
   ).toBeDisabled()
-  await settleVisuals(page)
+  await settleTaskVisuals(page)
   await expect(page).toHaveScreenshot('tasks-mobile-detail.png')
 
   await page.goto(
-    `/tasks?scope=all&status=open&time=all&priority=urgent&task_list=${taskList!.id}&view=list`
+    `/tasks?scope=all&status=open&time=all&priority=urgent&task_list=${fixture.taskList.id}&view=list`
   )
   const emptyState = page.getByRole('status').filter({
     has: page.getByRole('heading', { name: '没有匹配的任务' }),
@@ -271,6 +104,6 @@ test('keeps the task workspace usable and visually stable on mobile', async ({
   await expect(
     emptyState.getByRole('button', { name: '清除筛选' })
   ).toBeVisible()
-  await settleVisuals(page)
+  await settleTaskVisuals(page)
   await expect(page).toHaveScreenshot('tasks-mobile-empty-filter.png')
 })

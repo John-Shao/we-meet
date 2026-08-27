@@ -17,6 +17,7 @@ and this project adheres to
 - ✨(fullstack) add task results and task-specific filters to global search
 - ✨(frontend) add real-stack Playwright coverage for the task workflow
 - ✨(frontend) add Pixel 7 task visual regression baselines and responsive mobile task cards
+- ✅(frontend) add task workspace visual regression across 1024–1600px Web viewports
 - ✨(fullstack) allow participants to mute others based on room configuration
 - ✨(frontend) add synchronizer for room metadata updates
 - ✨(frontend) make reaction toolbar responsive on small viewports
@@ -24,6 +25,7 @@ and this project adheres to
 
 ### Changed
 
+- ✨(frontend) use a centered takeover task detail below 1440px and preserve the split-panel workspace on wider Web viewports
 - ✨(frontend) collapse task filter controls on narrow viewports while keeping active filters visible
 - ✨(frontend) default the primary navigation to compact mode on narrow viewports
 - ✨(frontend) replace whole-row task dragging with dedicated group-move and subtask-reorder handles plus accessible fallback actions
