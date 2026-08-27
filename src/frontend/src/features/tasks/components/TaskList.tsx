@@ -1456,10 +1456,7 @@ const TaskHierarchyToggle = ({
 }) => {
   const { t } = useTranslation('tasks')
   return (
-    <span
-      className={taskHierarchyLeadCss}
-      data-connect-children={hasChildren && expanded ? true : undefined}
-    >
+    <span className={taskHierarchyLeadCss}>
       {ancestorHasNextSiblings.slice(0, -1).map((hasNextSibling, index) => (
         <span
           key={index}
@@ -2262,17 +2259,6 @@ const taskHierarchyLeadCss = css({
   position: 'relative',
   display: 'inline-flex',
   flexShrink: 0,
-  '&[data-connect-children]::after': {
-    content: '""',
-    position: 'absolute',
-    zIndex: 0,
-    top: '50%',
-    bottom: '-0.625rem',
-    left: 'calc(100% - 1rem)',
-    width: '1px',
-    backgroundColor: 'greyscale.300',
-    pointerEvents: 'none',
-  },
 })
 const taskHierarchyAncestorGuideCss = css({
   position: 'relative',

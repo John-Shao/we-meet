@@ -253,7 +253,7 @@ describe('TaskList', () => {
     expect(container.querySelectorAll('[data-selected]')).toHaveLength(1)
   })
 
-  it('connects an expanded parent to its children and stops at the last sibling', () => {
+  it('connects child rows and stops at the last sibling', () => {
     const parent: ApiTask = {
       ...task,
       id: 'parent-1',
@@ -285,7 +285,7 @@ describe('TaskList', () => {
       screen.getByRole('button', { name: 'subtasks.expandInList' })
     )
 
-    expect(container.querySelector('[data-connect-children]')).toBeTruthy()
+    expect(container.querySelector('[data-connect-children]')).toBeNull()
     const branches = container.querySelectorAll('[data-task-hierarchy-branch]')
     expect(branches).toHaveLength(2)
     expect(branches[0]).toHaveAttribute('data-continuing', 'true')
