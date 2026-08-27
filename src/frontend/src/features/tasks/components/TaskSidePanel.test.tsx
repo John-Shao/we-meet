@@ -704,6 +704,33 @@ describe('TaskDetailPanel', () => {
       taskId: task.id,
       taskIds: ['child-2', 'child-1'],
     })
+
+    reorderMutate.mockClear()
+    const secondRow = screen.getByText('Second').closest('li')!
+    const dragHandle = within(firstRow).getByRole('button', {
+      name: 'subtasks.dragToReorder',
+    })
+    let draggedId = ''
+    const dataTransfer = {
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      setData: (_type: string, value: string) => {
+        draggedId = value
+      },
+      getData: () => draggedId,
+    }
+
+    expect(firstRow).not.toHaveAttribute('draggable')
+    expect(dragHandle).toHaveAttribute('draggable', 'true')
+    fireEvent.dragStart(dragHandle, { dataTransfer })
+    fireEvent.dragOver(secondRow, { dataTransfer })
+    expect(secondRow).toHaveAttribute('data-drag-over', 'true')
+    fireEvent.drop(secondRow, { dataTransfer })
+
+    expect(reorderMutate).toHaveBeenCalledWith({
+      taskId: task.id,
+      taskIds: ['child-2', 'child-1'],
+    })
   })
 
   it('opens a subtask in the full task detail with ancestors above its title', () => {

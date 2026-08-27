@@ -951,6 +951,79 @@ describe('TaskList', () => {
     expect(desktopDropTarget).not.toHaveAttribute('data-drag-over')
   })
 
+  it('starts group movement only from the drag handle and offers an accessible group menu', async () => {
+    const editableTask = {
+      ...task,
+      can_edit: true,
+      group: {
+        id: 'group-1',
+        name: 'Analysis',
+        sort_order: 0,
+      },
+    }
+    render(
+      <TaskList
+        tasks={[editableTask]}
+        groups={[
+          {
+            id: 'group-1',
+            name: 'Analysis',
+            sort_order: 0,
+            task_count: 1,
+            can_delete: false,
+            created_at: '2026-08-21T08:00:00Z',
+            updated_at: '2026-08-21T08:00:00Z',
+          },
+          {
+            id: 'group-2',
+            name: 'Delivery',
+            sort_order: 1,
+            task_count: 0,
+            can_delete: true,
+            created_at: '2026-08-21T08:01:00Z',
+            updated_at: '2026-08-21T08:01:00Z',
+          },
+        ]}
+        grouped
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    const table = screen.getByRole('table')
+    const row = within(table).getByLabelText('workspace.openTask')
+    const handle = within(table).getByRole('button', {
+      name: 'workspace.dragTask',
+    })
+    const draggableHandle = handle.parentElement!
+    const dataTransfer = {
+      effectAllowed: 'none',
+      setData: vi.fn(),
+    }
+
+    expect(row).not.toHaveAttribute('draggable')
+    expect(draggableHandle).toHaveAttribute('draggable', 'true')
+    fireEvent.dragStart(draggableHandle, { dataTransfer })
+    expect(dataTransfer.effectAllowed).toBe('move')
+    expect(dataTransfer.setData).toHaveBeenCalledWith(
+      'application/x-we-meet-task',
+      editableTask.id
+    )
+
+    fireEvent.click(handle)
+    const moveMenu = await screen.findByRole('menu', {
+      name: 'workspace.dragTask',
+    })
+    fireEvent.click(
+      within(moveMenu).getByRole('menuitemradio', { name: 'Delivery' })
+    )
+
+    expect(mutate).toHaveBeenCalledWith({
+      taskId: editableTask.id,
+      patch: { group_id: 'group-2' },
+    })
+  })
+
   it('disables the delete-group action for a non-empty group', () => {
     render(
       <TaskList

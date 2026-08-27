@@ -152,6 +152,7 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
   isSubtasksExpanded: boolean
   showAncestorPath: boolean
   onToggleSubtasks: (taskId: string) => void
+  onMoveTask: (taskId: string, groupId?: string) => void
   isLastInGroup?: boolean
   t: TFunction<'tasks'>
   formatDate: (value: string | null) => string
@@ -547,6 +548,7 @@ export const TaskList = ({
   const groupProps = {
     grouped,
     taskLists,
+    groups,
     selectedTaskId,
     onOpen,
     onShare,
@@ -566,6 +568,7 @@ export const TaskList = ({
       void saveInlineEdit(task, patch),
     onCancelInlineEdit: cancelInlineEdit,
     onToggleSubtasks: toggleTaskSubtasks,
+    onMoveTask: moveToGroup,
     compact,
   }
 
@@ -833,6 +836,8 @@ const DesktopTaskRow = ({
   compact,
   onShare,
   onDeleteTask,
+  groups = [],
+  onMoveTask,
 }: GroupProps) => (
   <tr
     ref={(element) => registerRow(task.id, element)}
@@ -843,8 +848,6 @@ const DesktopTaskRow = ({
     data-grouped={grouped || undefined}
     data-group-last={grouped && isLastInGroup ? true : undefined}
     className={rowCss}
-    draggable={task.can_edit && editingCell?.taskId !== task.id}
-    onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
     onContextMenu={(event) => onTaskContextMenu(event, task)}
     onKeyDown={(event) =>
@@ -863,14 +866,8 @@ const DesktopTaskRow = ({
       data-group-last={grouped && isLastInGroup ? true : undefined}
     >
       <div className={taskTitleContentCss}>
-        {task.can_edit && (
-          <span
-            className={taskDragIndicatorCss}
-            title={t('workspace.dragTask')}
-            aria-hidden="true"
-          >
-            <RiDraggable size={16} />
-          </span>
+        {grouped && task.can_edit && groups.length > 0 && (
+          <TaskMoveHandle task={task} groups={groups} onMoveTask={onMoveTask} />
         )}
         <TaskHierarchyToggle
           task={task}
@@ -1390,6 +1387,9 @@ const MobileTaskCard = ({
   onToggleStatus,
   onShare,
   onDeleteTask,
+  grouped,
+  groups = [],
+  onMoveTask,
 }: GroupProps) => (
   <div
     ref={(element) => registerRow(task.id, element)}
@@ -1400,8 +1400,6 @@ const MobileTaskCard = ({
     data-task-row=""
     className={mobileCardCss}
     style={{ marginLeft: `${treeDepth * 1.25}rem` }}
-    draggable={task.can_edit}
-    onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
     onContextMenu={(event) => onTaskContextMenu(event, task)}
     onKeyDown={(event) =>
@@ -1435,6 +1433,14 @@ const MobileTaskCard = ({
         showAncestorPath={showAncestorPath}
       />
       <TaskPriorityBadge priority={task.priority} />
+      {grouped && task.can_edit && groups.length > 0 && (
+        <TaskMoveHandle
+          task={task}
+          groups={groups}
+          onMoveTask={onMoveTask}
+          mobile
+        />
+      )}
       {(onShare || onDeleteTask) && (
         <button
           type="button"
@@ -1464,6 +1470,78 @@ const MobileTaskCard = ({
     </dl>
   </div>
 )
+
+const UNGROUPED_TASK_GROUP = '__ungrouped__'
+
+const TaskMoveHandle = ({
+  task,
+  groups,
+  onMoveTask,
+  mobile = false,
+}: {
+  task: ApiTask
+  groups: ApiTaskGroup[]
+  onMoveTask: (taskId: string, groupId?: string) => void
+  mobile?: boolean
+}) => {
+  const { t } = useTranslation('tasks')
+  const label = t('workspace.dragTask', { title: task.title })
+  const currentGroupId = task.group?.id || UNGROUPED_TASK_GROUP
+  const orderedGroups = [...groups].sort((left, right) =>
+    left.sort_order === right.sort_order
+      ? left.created_at.localeCompare(right.created_at)
+      : left.sort_order - right.sort_order
+  )
+
+  return (
+    <Menu placement="bottom">
+      <span
+        className={mobile ? mobileTaskMoveHandleCss : taskMoveHandleCss}
+        draggable
+        onDragStart={(event) => {
+          event.stopPropagation()
+          startTaskDrag(event, task)
+        }}
+        onDragEnd={(event) => event.stopPropagation()}
+      >
+        <Button
+          type="button"
+          size={mobile ? 'icon28' : 'icon24'}
+          variant="quaternaryText"
+          aria-label={label}
+          tooltip={label}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <RiDraggable size={16} aria-hidden="true" />
+        </Button>
+      </span>
+      <MenuList
+        aria-label={label}
+        selectedItem={currentGroupId}
+        items={[
+          {
+            value: UNGROUPED_TASK_GROUP,
+            label: t('groups.ungrouped'),
+            isDisabled: currentGroupId === UNGROUPED_TASK_GROUP,
+          },
+          ...orderedGroups.map((group) => ({
+            value: group.id,
+            label: group.name,
+            isDisabled: currentGroupId === group.id,
+          })),
+        ]}
+        onAction={(groupId) => {
+          const nextGroupId = String(groupId)
+          onMoveTask(
+            task.id,
+            nextGroupId === UNGROUPED_TASK_GROUP ? undefined : nextGroupId
+          )
+        }}
+      />
+    </Menu>
+  )
+}
 
 const TaskHierarchyToggle = ({
   task,
@@ -2306,13 +2384,31 @@ const taskTitleContentCss = css({
   alignItems: 'center',
   gap: '0.5rem',
 })
-const taskDragIndicatorCss = css({
-  width: '0.75rem',
+const taskMoveHandleCss = css({
+  width: '1.5rem',
+  height: '1.75rem',
   display: 'inline-flex',
-  justifyContent: 'center',
   flexShrink: 0,
+  marginLeft: '-0.375rem',
   color: 'greyscale.400',
   cursor: 'grab',
+  touchAction: 'manipulation',
+  '& > button': {
+    width: '1.5rem!',
+    minWidth: '1.5rem!',
+    height: '1.75rem!',
+    minHeight: '1.75rem!',
+    padding: '0!',
+    color: 'inherit!',
+    cursor: 'inherit!',
+  },
+  _hover: { color: 'primary.600' },
+  '& > button:focus-visible': {
+    color: 'primary.600!',
+    outline: '2px solid token(colors.primary.500)!',
+    outlineOffset: '1px!',
+  },
+  _active: { cursor: 'grabbing' },
 })
 const rowActionButtonCss = css({
   width: '1.75rem',
@@ -2498,9 +2594,32 @@ const mobileCardCss = css({
 })
 const mobileTitleRowCss = css({
   display: 'grid',
-  gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto',
+  gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto auto',
   alignItems: 'center',
   gap: '0.625rem',
+})
+const mobileTaskMoveHandleCss = css({
+  width: '2rem',
+  height: '2rem',
+  display: 'inline-flex',
+  color: 'greyscale.500',
+  cursor: 'grab',
+  touchAction: 'manipulation',
+  '& > button': {
+    width: '2rem!',
+    minWidth: '2rem!',
+    height: '2rem!',
+    minHeight: '2rem!',
+    padding: '0!',
+    color: 'inherit!',
+    cursor: 'inherit!',
+  },
+  _hover: { color: 'primary.600' },
+  '& > button:hover': { backgroundColor: 'greyscale.100!' },
+  '& > button:focus-visible': {
+    outline: '2px solid token(colors.primary.500)!',
+    outlineOffset: '1px!',
+  },
 })
 const mobileRowActionButtonCss = css({
   width: '2rem',

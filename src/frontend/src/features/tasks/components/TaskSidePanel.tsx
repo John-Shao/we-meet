@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type DragEvent,
   type ReactNode,
   type RefObject,
 } from 'react'
@@ -20,6 +21,7 @@ import {
   RiCheckLine,
   RiCloseLine,
   RiDeleteBinLine,
+  RiDraggable,
   RiEditLine,
   RiFileTextLine,
   RiFlagLine,
@@ -177,6 +179,12 @@ export const TaskDetailPanel = ({
   const [subtaskDraft, setSubtaskDraft] = useState('')
   const [subtaskAssigneeEditing, setSubtaskAssigneeEditing] =
     useState<ApiTask | null>(null)
+  const [draggingSubtaskId, setDraggingSubtaskId] = useState<string | null>(
+    null
+  )
+  const [subtaskDropTargetId, setSubtaskDropTargetId] = useState<string | null>(
+    null
+  )
   const [showSavedState, setShowSavedState] = useState(false)
   const placementEditorRef = useRef<HTMLDivElement>(null)
   const patchMutation = usePatchTask()
@@ -214,6 +222,8 @@ export const TaskDetailPanel = ({
     setShareOpen(false)
     setSubtaskEditing(null)
     setSubtaskAssigneeEditing(null)
+    setDraggingSubtaskId(null)
+    setSubtaskDropTargetId(null)
     setRecurrenceEditScope('one')
   }, [taskId])
 
@@ -437,6 +447,59 @@ export const TaskDetailPanel = ({
     }
     const ordered = [...subtasks]
     const [moved] = ordered.splice(index, 1)
+    ordered.splice(targetIndex, 0, moved)
+    reorderSubtasksMutation.mutate({
+      taskId,
+      taskIds: ordered.map((subtask) => subtask.id),
+    })
+  }
+
+  const canReorderSubtasks =
+    task.can_edit &&
+    subtasks.length > 1 &&
+    subtasks.every((subtask) => subtask.can_edit)
+
+  const startSubtaskDrag = (
+    event: DragEvent<HTMLButtonElement>,
+    subtask: ApiTask
+  ) => {
+    if (!canReorderSubtasks || reorderSubtasksMutation.isPending) {
+      event.preventDefault()
+      return
+    }
+    event.stopPropagation()
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('application/x-we-meet-subtask', subtask.id)
+    setDraggingSubtaskId(subtask.id)
+  }
+
+  const dropSubtask = (
+    event: DragEvent<HTMLLIElement>,
+    targetSubtaskId: string
+  ) => {
+    event.preventDefault()
+    const sourceSubtaskId = event.dataTransfer.getData(
+      'application/x-we-meet-subtask'
+    )
+    setDraggingSubtaskId(null)
+    setSubtaskDropTargetId(null)
+    if (
+      !canReorderSubtasks ||
+      reorderSubtasksMutation.isPending ||
+      !sourceSubtaskId ||
+      sourceSubtaskId === targetSubtaskId
+    ) {
+      return
+    }
+    const sourceIndex = subtasks.findIndex(
+      (subtask) => subtask.id === sourceSubtaskId
+    )
+    const targetIndex = subtasks.findIndex(
+      (subtask) => subtask.id === targetSubtaskId
+    )
+    if (sourceIndex < 0 || targetIndex < 0) return
+    const ordered = [...subtasks]
+    const [moved] = ordered.splice(sourceIndex, 1)
     ordered.splice(targetIndex, 0, moved)
     reorderSubtasksMutation.mutate({
       taskId,
@@ -1173,7 +1236,69 @@ export const TaskDetailPanel = ({
               ) : subtasks.length > 0 ? (
                 <ul className={subtaskListCss}>
                   {subtasks.map((subtask, index) => (
-                    <li key={subtask.id}>
+                    <li
+                      key={subtask.id}
+                      data-dragging={
+                        draggingSubtaskId === subtask.id || undefined
+                      }
+                      data-drag-over={
+                        subtaskDropTargetId === subtask.id || undefined
+                      }
+                      onDragOver={(event) => {
+                        if (
+                          !draggingSubtaskId ||
+                          draggingSubtaskId === subtask.id
+                        ) {
+                          return
+                        }
+                        event.preventDefault()
+                        event.dataTransfer.dropEffect = 'move'
+                        setSubtaskDropTargetId(subtask.id)
+                      }}
+                      onDragLeave={(event) => {
+                        const nextTarget = event.relatedTarget
+                        if (
+                          nextTarget instanceof Node &&
+                          event.currentTarget.contains(nextTarget)
+                        ) {
+                          return
+                        }
+                        if (subtaskDropTargetId === subtask.id) {
+                          setSubtaskDropTargetId(null)
+                        }
+                      }}
+                      onDrop={(event) => dropSubtask(event, subtask.id)}
+                    >
+                      {canReorderSubtasks && (
+                        <button
+                          type="button"
+                          className={subtaskDragHandleCss}
+                          aria-label={t('subtasks.dragToReorder', {
+                            title: subtask.title,
+                          })}
+                          title={t('subtasks.dragToReorder', {
+                            title: subtask.title,
+                          })}
+                          draggable
+                          disabled={reorderSubtasksMutation.isPending}
+                          onClick={(event) => event.stopPropagation()}
+                          onDragStart={(event) =>
+                            startSubtaskDrag(event, subtask)
+                          }
+                          onDragEnd={() => {
+                            setDraggingSubtaskId(null)
+                            setSubtaskDropTargetId(null)
+                          }}
+                        >
+                          <RiDraggable size={15} aria-hidden="true" />
+                        </button>
+                      )}
+                      {!canReorderSubtasks && (
+                        <span
+                          className={subtaskDragHandlePlaceholderCss}
+                          aria-hidden="true"
+                        />
+                      )}
                       <TaskCompletionButton
                         task={subtask}
                         status={subtask.status}
@@ -1801,13 +1926,46 @@ const subtaskListCss = css({
   '& li': {
     minHeight: '2rem',
     display: 'grid',
-    gridTemplateColumns: '1rem minmax(5rem, 1fr) auto auto 3.5rem 1.75rem',
+    gridTemplateColumns: {
+      base: '1rem minmax(5rem, 1fr) auto auto 3.5rem 1.75rem',
+      md: '1.5rem 1rem minmax(5rem, 1fr) auto auto 3.5rem 1.75rem',
+    },
     alignItems: 'center',
     gap: '0.375rem',
     padding: '0.25rem 0.5rem',
     borderRadius: '6px',
+    transition:
+      'background-color token(durations.fast), box-shadow token(durations.fast), opacity token(durations.fast)',
     _hover: { backgroundColor: 'greyscale.50' },
+    '&[data-dragging]': { opacity: 0.55 },
+    '&[data-drag-over]': {
+      backgroundColor: 'selected.bg',
+      boxShadow: 'inset 0 2px 0 token(colors.primary.500)',
+    },
   },
+})
+const subtaskDragHandleCss = css({
+  width: '1.5rem',
+  height: '1.75rem',
+  display: { base: 'none', md: 'grid' },
+  placeItems: 'center',
+  padding: 0,
+  border: 0,
+  borderRadius: '4px',
+  backgroundColor: 'transparent',
+  color: 'greyscale.400',
+  cursor: 'grab',
+  _hover: { backgroundColor: 'greyscale.100', color: 'primary.600' },
+  _focusVisible: {
+    outline: '2px solid token(colors.primary.500)',
+    outlineOffset: '-2px',
+  },
+  _active: { cursor: 'grabbing' },
+  _disabled: { cursor: 'wait', opacity: 0.5 },
+})
+const subtaskDragHandlePlaceholderCss = css({
+  display: { base: 'none', md: 'block' },
+  width: '1.5rem',
 })
 const subtaskTitleCss = css({
   minWidth: 0,
