@@ -149,6 +149,8 @@ type ListProps = {
 type GroupProps = Omit<ListProps, 'tasks'> & {
   task: ApiTask
   treeDepth: number
+  ancestorHasNextSiblings: boolean[]
+  isLastSibling: boolean
   hasVisibleSubtasks: boolean
   isSubtasksExpanded: boolean
   showAncestorPath: boolean
@@ -732,6 +734,8 @@ export const TaskList = ({
                       key={row.task.id}
                       task={row.task}
                       treeDepth={row.depth}
+                      ancestorHasNextSiblings={row.ancestorHasNextSiblings}
+                      isLastSibling={row.isLastSibling}
                       hasVisibleSubtasks={row.hasChildren}
                       isSubtasksExpanded={row.expanded}
                       showAncestorPath={row.showAncestorPath}
@@ -807,6 +811,8 @@ const DesktopTaskGroup = (props: GroupProps) => <DesktopTaskRow {...props} />
 const DesktopTaskRow = ({
   task,
   treeDepth,
+  ancestorHasNextSiblings,
+  isLastSibling,
   hasVisibleSubtasks,
   isSubtasksExpanded,
   showAncestorPath,
@@ -870,6 +876,8 @@ const DesktopTaskRow = ({
         <TaskHierarchyToggle
           task={task}
           depth={treeDepth}
+          ancestorHasNextSiblings={ancestorHasNextSiblings}
+          isLastSibling={isLastSibling}
           hasChildren={hasVisibleSubtasks}
           expanded={isSubtasksExpanded}
           onToggle={onToggleSubtasks}
@@ -1432,12 +1440,16 @@ const TaskMoveHandle = ({
 const TaskHierarchyToggle = ({
   task,
   depth,
+  ancestorHasNextSiblings,
+  isLastSibling,
   hasChildren,
   expanded,
   onToggle,
 }: {
   task: ApiTask
   depth: number
+  ancestorHasNextSiblings: boolean[]
+  isLastSibling: boolean
   hasChildren: boolean
   expanded: boolean
   onToggle: (taskId: string) => void
@@ -1446,8 +1458,25 @@ const TaskHierarchyToggle = ({
   return (
     <span
       className={taskHierarchyLeadCss}
-      style={{ paddingLeft: `${depth}rem` }}
+      data-connect-children={hasChildren && expanded ? true : undefined}
     >
+      {ancestorHasNextSiblings.slice(0, -1).map((hasNextSibling, index) => (
+        <span
+          key={index}
+          className={taskHierarchyAncestorGuideCss}
+          data-task-hierarchy-guide=""
+          data-continuing={hasNextSibling || undefined}
+          aria-hidden="true"
+        />
+      ))}
+      {depth > 0 && (
+        <span
+          className={taskHierarchyBranchCss}
+          data-task-hierarchy-branch=""
+          data-continuing={!isLastSibling || undefined}
+          aria-hidden="true"
+        />
+      )}
       {hasChildren ? (
         <button
           type="button"
@@ -1586,6 +1615,8 @@ type TaskSection = {
 type TaskTreeRow = {
   task: ApiTask
   depth: number
+  ancestorHasNextSiblings: boolean[]
+  isLastSibling: boolean
   hasChildren: boolean
   expanded: boolean
   showAncestorPath: boolean
@@ -1606,7 +1637,12 @@ const buildTaskTreeRows = (
 
   const rows: TaskTreeRow[] = []
   const visited = new Set<string>()
-  const append = (task: ApiTask, depth: number) => {
+  const append = (
+    task: ApiTask,
+    depth: number,
+    ancestorHasNextSiblings: boolean[],
+    isLastSibling: boolean
+  ) => {
     if (visited.has(task.id)) return
     visited.add(task.id)
     const children = childrenByParent.get(task.id) || []
@@ -1614,18 +1650,31 @@ const buildTaskTreeRows = (
     rows.push({
       task,
       depth,
+      ancestorHasNextSiblings,
+      isLastSibling,
       hasChildren: children.length > 0,
       expanded,
       showAncestorPath: depth === 0 && Boolean(task.parent_id),
     })
-    if (expanded) children.forEach((child) => append(child, depth + 1))
+    if (expanded) {
+      children.forEach((child, index) =>
+        append(
+          child,
+          depth + 1,
+          [...ancestorHasNextSiblings, !isLastSibling],
+          index === children.length - 1
+        )
+      )
+    }
   }
 
   const roots = tasks.filter(
     (task) => !task.parent_id || !taskIds.has(task.parent_id)
   )
   const rootTasks = roots.length > 0 ? roots : tasks
-  rootTasks.forEach((task) => append(task, 0))
+  rootTasks.forEach((task, index) =>
+    append(task, 0, [], index === rootTasks.length - 1)
+  )
   return rows
 }
 
@@ -2157,25 +2206,6 @@ const groupedTaskTitleCellCss = css({
   position: 'relative',
   paddingLeft: '3.25rem!important',
   overflow: 'visible!important',
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: '2.5rem',
-    width: '1px',
-    backgroundColor: 'greyscale.200',
-  },
-  '&::after': {
-    content: '""',
-    position: 'absolute',
-    top: '50%',
-    left: '2.5rem',
-    width: '0.75rem',
-    height: '1px',
-    backgroundColor: 'greyscale.200',
-  },
-  '&[data-group-last]::before': { bottom: '50%' },
 })
 const taskTitleContentCss = css({
   position: 'relative',
@@ -2229,10 +2259,67 @@ const rowActionButtonCss = css({
   },
 })
 const taskHierarchyLeadCss = css({
+  position: 'relative',
   display: 'inline-flex',
   flexShrink: 0,
+  '&[data-connect-children]::after': {
+    content: '""',
+    position: 'absolute',
+    zIndex: 0,
+    top: '50%',
+    bottom: '-0.625rem',
+    left: 'calc(100% - 1rem)',
+    width: '1px',
+    backgroundColor: 'greyscale.300',
+    pointerEvents: 'none',
+  },
+})
+const taskHierarchyAncestorGuideCss = css({
+  position: 'relative',
+  width: '1rem',
+  height: '2rem',
+  flexShrink: 0,
+  '&[data-continuing]::before': {
+    content: '""',
+    position: 'absolute',
+    top: '-0.625rem',
+    bottom: '-0.625rem',
+    right: 0,
+    width: '1px',
+    backgroundColor: 'greyscale.300',
+    pointerEvents: 'none',
+  },
+})
+const taskHierarchyBranchCss = css({
+  position: 'relative',
+  width: '1rem',
+  height: '2rem',
+  flexShrink: 0,
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: '-0.625rem',
+    bottom: '50%',
+    right: 0,
+    width: '1px',
+    backgroundColor: 'greyscale.300',
+    pointerEvents: 'none',
+  },
+  '&[data-continuing]::before': { bottom: '-0.625rem' },
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    top: '50%',
+    left: '100%',
+    width: '1rem',
+    height: '1px',
+    backgroundColor: 'greyscale.300',
+    pointerEvents: 'none',
+  },
 })
 const taskHierarchyToggleCss = css({
+  position: 'relative',
+  zIndex: 1,
   width: '2rem',
   height: '2rem',
   display: 'inline-flex',

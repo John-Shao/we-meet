@@ -253,6 +253,45 @@ describe('TaskList', () => {
     expect(container.querySelectorAll('[data-selected]')).toHaveLength(1)
   })
 
+  it('connects an expanded parent to its children and stops at the last sibling', () => {
+    const parent: ApiTask = {
+      ...task,
+      id: 'parent-1',
+      title: 'Release',
+      ancestor_path: [{ id: 'parent-1', title: 'Release', depth: 0 }],
+      descendant_progress: { completed: 0, total: 2 },
+    }
+    const children: ApiTask[] = ['Backend', 'Frontend'].map((title, index) => ({
+      ...task,
+      id: `child-${index + 1}`,
+      title,
+      parent_id: parent.id,
+      depth: 1,
+      ancestor_path: [
+        { id: parent.id, title: parent.title, depth: 0 },
+        { id: `child-${index + 1}`, title, depth: 1 },
+      ],
+    }))
+
+    const { container } = render(
+      <TaskList
+        tasks={[parent, ...children]}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'subtasks.expandInList' })
+    )
+
+    expect(container.querySelector('[data-connect-children]')).toBeTruthy()
+    const branches = container.querySelectorAll('[data-task-hierarchy-branch]')
+    expect(branches).toHaveLength(2)
+    expect(branches[0]).toHaveAttribute('data-continuing', 'true')
+    expect(branches[1]).not.toHaveAttribute('data-continuing')
+  })
+
   it('quickly completes and reopens a task without opening its details', async () => {
     const onOpen = vi.fn()
     render(<TaskList tasks={[task]} onOpen={onOpen} registerRow={vi.fn()} />)
