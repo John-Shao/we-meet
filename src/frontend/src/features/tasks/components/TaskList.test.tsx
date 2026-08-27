@@ -13,6 +13,8 @@ import { TaskList } from './TaskList'
 
 const mutate = vi.fn()
 const mutateAsync = vi.fn()
+const notifyAction = vi.fn()
+const notifyFailure = vi.fn()
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -54,6 +56,10 @@ vi.mock('./TaskAssigneePickerDialog', () => ({
 
 vi.mock('../api/fetchTasks', () => ({
   usePatchTask: () => ({ mutate, mutateAsync, isPending: false }),
+}))
+
+vi.mock('./TaskActionFeedbackContext', () => ({
+  useTaskActionFeedback: () => ({ notifyAction, notifyFailure }),
 }))
 
 beforeAll(() => {
@@ -114,6 +120,8 @@ const task: ApiTask = {
 beforeEach(() => {
   mutate.mockReset()
   mutateAsync.mockReset()
+  notifyAction.mockReset()
+  notifyFailure.mockReset()
   mutateAsync.mockResolvedValue({ ...task, status: 'completed' })
 })
 
@@ -263,6 +271,12 @@ describe('TaskList', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('workspace.quickReopen')).toBeInTheDocument()
     )
+    expect(notifyAction).toHaveBeenCalledWith({
+      taskId: task.id,
+      title: task.title,
+      kind: 'completed',
+      undoPatch: { status: 'todo' },
+    })
     expect(
       screen.getByText('Prepare release').closest('[data-completed]')
     ).toBeTruthy()
@@ -538,6 +552,12 @@ describe('TaskList', () => {
         patch: { assignee_ids: ['member-2'] },
       })
     )
+    expect(notifyAction).toHaveBeenCalledWith({
+      taskId: task.id,
+      title: task.title,
+      kind: 'assigneesUpdated',
+      undoPatch: { assignee_ids: ['assignee'] },
+    })
     expect(onOpen).not.toHaveBeenCalled()
     expect(await screen.findByText('Jordan')).toBeInTheDocument()
   })
@@ -1009,9 +1029,17 @@ describe('TaskList', () => {
       within(moveMenu).getByRole('menuitemradio', { name: 'Delivery' })
     )
 
-    expect(mutate).toHaveBeenCalledWith({
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: editableTask.id,
+        patch: { group_id: 'group-2' },
+      })
+    )
+    expect(notifyAction).toHaveBeenCalledWith({
       taskId: editableTask.id,
-      patch: { group_id: 'group-2' },
+      title: editableTask.title,
+      kind: 'moved',
+      undoPatch: { group_id: 'group-1' },
     })
   })
 

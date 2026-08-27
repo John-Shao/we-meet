@@ -4,6 +4,17 @@
   "loading": "正在加载任务…",
   "empty": "这里还没有任务。",
   "error": "任务操作失败，请稍后重试。",
+  "feedback": {
+    "completed": "已完成“{{title}}”",
+    "reopened": "已重新打开“{{title}}”",
+    "assigneesUpdated": "已更新“{{title}}”的负责人",
+    "moved": "已移动“{{title}}”",
+    "undo": "撤销",
+    "undone": "已撤销对“{{title}}”的更改",
+    "updateFailed": "未能更新“{{title}}”，请重试。",
+    "undoFailed": "未能撤销对“{{title}}”的更改，请重试。",
+    "close": "关闭提示"
+  },
   "meeting": "会议",
   "sourceMeeting": "来源会议：{{name}}",
   "workspace": {

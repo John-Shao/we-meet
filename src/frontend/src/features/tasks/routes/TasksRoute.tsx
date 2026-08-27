@@ -43,6 +43,7 @@ import {
   useTasks,
 } from '../api/fetchTasks'
 import { TaskAnalytics } from '../components/TaskAnalytics'
+import { TaskActionFeedbackProvider } from '../components/TaskActionFeedback'
 import { TaskBoard } from '../components/TaskBoard'
 import { TaskFilterToolbar } from '../components/TaskFilterToolbar'
 import { TaskGroupForm } from '../components/TaskGroupForm'
@@ -75,7 +76,9 @@ import {
 export const TasksRoute = () => (
   <RequireAuth>
     <Screen footer={false}>
-      <TasksAuthenticated />
+      <TaskActionFeedbackProvider>
+        <TasksAuthenticated />
+      </TaskActionFeedbackProvider>
     </Screen>
   </RequireAuth>
 )

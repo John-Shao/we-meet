@@ -4,6 +4,17 @@
   "loading": "Chargement des tâches…",
   "empty": "Aucune tâche pour le moment.",
   "error": "L’opération a échoué. Veuillez réessayer.",
+  "feedback": {
+    "completed": "« {{title}} » terminée",
+    "reopened": "« {{title}} » rouverte",
+    "assigneesUpdated": "Responsables mis à jour pour « {{title}} »",
+    "moved": "« {{title}} » déplacée",
+    "undo": "Annuler",
+    "undone": "Modification annulée pour « {{title}} »",
+    "updateFailed": "Impossible de mettre à jour « {{title}} ». Réessayez.",
+    "undoFailed": "Impossible d’annuler la modification de « {{title}} ». Réessayez.",
+    "close": "Fermer la notification"
+  },
   "meeting": "Réunion",
   "sourceMeeting": "Réunion source : {{name}}",
   "workspace": {

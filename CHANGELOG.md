@@ -24,6 +24,7 @@ and this project adheres to
 
 ### Changed
 
+- ✨(frontend) add unified task action feedback with bounded undo for status, assignee, and placement changes
 - ✨(frontend) use a centered takeover task detail below 1440px and preserve the split-panel workspace on wider Web viewports
 - ♻️(frontend) remove unsupported small-screen task fallbacks and keep one desktop Web workspace implementation
 - ✨(frontend) replace whole-row task dragging with dedicated group-move and subtask-reorder handles plus accessible fallback actions

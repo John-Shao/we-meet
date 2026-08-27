@@ -72,6 +72,7 @@ import {
   taskAssignees,
 } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
+import { useTaskActionFeedback } from './TaskActionFeedbackContext'
 import { TaskCompletionButton } from './TaskCompletionButton'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
@@ -188,6 +189,7 @@ export const TaskDetailPanel = ({
   const [showSavedState, setShowSavedState] = useState(false)
   const placementEditorRef = useRef<HTMLDivElement>(null)
   const patchMutation = usePatchTask()
+  const { notifyAction, notifyFailure } = useTaskActionFeedback()
   const reorderSubtasksMutation = useReorderTaskSubtasks()
   const deleteMutation = useDeleteTask()
   const followMutation = useFollowTask()
@@ -305,9 +307,49 @@ export const TaskDetailPanel = ({
         : patch
     try {
       await patchMutation.mutateAsync({ taskId: task.id, patch: scopedPatch })
+      if (patch.assignee_ids !== undefined) {
+        notifyAction({
+          taskId: task.id,
+          title: task.title,
+          kind: 'assigneesUpdated',
+          undoPatch: {
+            assignee_ids: taskAssignees(task).map((assignee) => assignee.id),
+            ...(task.recurrence && affectsFollowingTemplate
+              ? { recurrence_scope: recurrenceEditScope }
+              : {}),
+          },
+        })
+      } else if (
+        patch.task_list_id !== undefined ||
+        patch.group_id !== undefined
+      ) {
+        notifyAction({
+          taskId: task.id,
+          title: task.title,
+          kind: 'moved',
+          undoPatch: {
+            task_list_id: task.task_list?.id || null,
+            group_id: task.group?.id || null,
+            ...(task.recurrence && affectsFollowingTemplate
+              ? { recurrence_scope: recurrenceEditScope }
+              : {}),
+          },
+        })
+      } else if (patch.parent_id !== undefined) {
+        notifyAction({
+          taskId: task.id,
+          title: task.title,
+          kind: 'moved',
+          undoPatch: {
+            parent_id: task.parent_id,
+            confirm_subtree_node_count: subtreeImpact?.node_count,
+          },
+        })
+      }
       if (!options.keepEditing) setEditingField(null)
     } catch {
       // Keep the field open so the user can correct it or retry.
+      notifyFailure({ taskId: task.id, title: task.title })
     }
   }
 
@@ -390,8 +432,17 @@ export const TaskDetailPanel = ({
         taskId: targetTask.id,
         patch: { status },
       })
+      notifyAction({
+        taskId: targetTask.id,
+        title: targetTask.title,
+        kind: status === 'completed' ? 'completed' : 'reopened',
+        undoPatch: targetTask.recurrence
+          ? undefined
+          : { status: targetTask.status },
+      })
     } catch {
       // Keep the current state visible and let the shared error surface explain it.
+      notifyFailure({ taskId: targetTask.id, title: targetTask.title })
     }
   }
 
@@ -429,10 +480,21 @@ export const TaskDetailPanel = ({
     }
     try {
       await patchMutation.mutateAsync({ taskId: subtask.id, patch })
+      if (patch.assignee_ids !== undefined) {
+        notifyAction({
+          taskId: subtask.id,
+          title: subtask.title,
+          kind: 'assigneesUpdated',
+          undoPatch: {
+            assignee_ids: taskAssignees(subtask).map((assignee) => assignee.id),
+          },
+        })
+      }
       setSubtaskEditing(null)
       setSubtaskAssigneeEditing(null)
     } catch {
       // Keep the inline editor open so the user can retry.
+      notifyFailure({ taskId: subtask.id, title: subtask.title })
     }
   }
 

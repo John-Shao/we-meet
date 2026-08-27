@@ -4,6 +4,17 @@
   "loading": "Taken laden…",
   "empty": "Er zijn nog geen taken.",
   "error": "De taakactie is mislukt. Probeer het opnieuw.",
+  "feedback": {
+    "completed": "‘{{title}}’ voltooid",
+    "reopened": "‘{{title}}’ heropend",
+    "assigneesUpdated": "Verantwoordelijken bijgewerkt voor ‘{{title}}’",
+    "moved": "‘{{title}}’ verplaatst",
+    "undo": "Ongedaan maken",
+    "undone": "Wijziging aan ‘{{title}}’ ongedaan gemaakt",
+    "updateFailed": "‘{{title}}’ kon niet worden bijgewerkt. Probeer het opnieuw.",
+    "undoFailed": "De wijziging aan ‘{{title}}’ kon niet ongedaan worden gemaakt. Probeer het opnieuw.",
+    "close": "Melding sluiten"
+  },
   "meeting": "Vergadering",
   "sourceMeeting": "Bronvergadering: {{name}}",
   "workspace": {

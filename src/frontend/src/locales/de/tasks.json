@@ -4,6 +4,17 @@
   "loading": "Aufgaben werden geladen…",
   "empty": "Noch keine Aufgaben vorhanden.",
   "error": "Die Aufgabenaktion ist fehlgeschlagen. Bitte erneut versuchen.",
+  "feedback": {
+    "completed": "„{{title}}“ abgeschlossen",
+    "reopened": "„{{title}}“ wieder geöffnet",
+    "assigneesUpdated": "Verantwortliche für „{{title}}“ aktualisiert",
+    "moved": "„{{title}}“ verschoben",
+    "undo": "Rückgängig",
+    "undone": "Änderung an „{{title}}“ rückgängig gemacht",
+    "updateFailed": "„{{title}}“ konnte nicht aktualisiert werden. Bitte erneut versuchen.",
+    "undoFailed": "Die Änderung an „{{title}}“ konnte nicht rückgängig gemacht werden. Bitte erneut versuchen.",
+    "close": "Benachrichtigung schließen"
+  },
   "meeting": "Meeting",
   "sourceMeeting": "Quell-Meeting: {{name}}",
   "workspace": {

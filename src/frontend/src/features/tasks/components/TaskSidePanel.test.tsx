@@ -17,6 +17,8 @@ const {
   followMutate,
   mutate,
   mutateAsync,
+  notifyAction,
+  notifyFailure,
   reorderMutate,
   subtaskState,
 } = vi.hoisted(() => ({
@@ -26,6 +28,8 @@ const {
   followMutate: vi.fn(),
   mutate: vi.fn(),
   mutateAsync: vi.fn().mockResolvedValue(undefined),
+  notifyAction: vi.fn(),
+  notifyFailure: vi.fn(),
   reorderMutate: vi.fn(),
   subtaskState: { current: [] as ApiTask[] },
 }))
@@ -105,6 +109,10 @@ vi.mock('../api/fetchTasks', () => ({
 
 vi.mock('@/components/ConfirmProvider', () => ({
   useConfirm: () => ({ confirm }),
+}))
+
+vi.mock('./TaskActionFeedbackContext', () => ({
+  useTaskActionFeedback: () => ({ notifyAction, notifyFailure }),
 }))
 
 vi.mock('./TaskCollaborationSections', () => ({
@@ -195,6 +203,8 @@ describe('TaskDetailPanel', () => {
   beforeEach(() => {
     mutate.mockClear()
     mutateAsync.mockClear()
+    notifyAction.mockClear()
+    notifyFailure.mockClear()
     reorderMutate.mockClear()
     createMutateAsync.mockClear()
     deleteMutateAsync.mockClear()
@@ -370,6 +380,12 @@ describe('TaskDetailPanel', () => {
         patch: { assignee_ids: ['assignee'] },
       })
     )
+    expect(notifyAction).toHaveBeenCalledWith({
+      taskId: task.id,
+      title: task.title,
+      kind: 'assigneesUpdated',
+      undoPatch: { assignee_ids: ['assignee', 'assignee-2'] },
+    })
   })
 
   it('sends an explicit scope when editing a recurring task', async () => {
@@ -493,6 +509,12 @@ describe('TaskDetailPanel', () => {
         patch: { status: 'completed' },
       })
     )
+    expect(notifyAction).toHaveBeenCalledWith({
+      taskId: task.id,
+      title: task.title,
+      kind: 'completed',
+      undoPatch: { status: 'todo' },
+    })
 
     fireEvent.click(
       within(header).getByRole('button', { name: 'followers.follow' })

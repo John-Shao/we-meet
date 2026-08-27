@@ -7,6 +7,7 @@ import type { ApiTask, TaskStatus } from '../api/ApiTask'
 import { usePatchTask } from '../api/fetchTasks'
 import { formatTaskDate } from '../taskDateFormat'
 import { taskAssignees } from '../taskUi'
+import { useTaskActionFeedback } from './TaskActionFeedbackContext'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskAssigneesDisplay } from './TaskUserDisplay'
 
@@ -28,8 +29,9 @@ export const TaskBoard = ({
 }) => {
   const { t, i18n } = useTranslation('tasks')
   const patchMutation = usePatchTask()
+  const { notifyAction, notifyFailure } = useTaskActionFeedback()
 
-  const moveTask = (task: ApiTask, status: TaskStatus) => {
+  const moveTask = async (task: ApiTask, status: TaskStatus) => {
     if (
       !task.can_update_status ||
       task.status === status ||
@@ -37,7 +39,17 @@ export const TaskBoard = ({
     ) {
       return
     }
-    patchMutation.mutate({ taskId: task.id, patch: { status } })
+    try {
+      await patchMutation.mutateAsync({ taskId: task.id, patch: { status } })
+      notifyAction({
+        taskId: task.id,
+        title: task.title,
+        kind: status === 'completed' ? 'completed' : 'reopened',
+        undoPatch: task.recurrence ? undefined : { status: task.status },
+      })
+    } catch {
+      notifyFailure({ taskId: task.id, title: task.title })
+    }
   }
 
   return (
@@ -55,7 +67,7 @@ export const TaskBoard = ({
                 'application/x-we-meet-task'
               )
               const task = tasks.find((item) => item.id === taskId)
-              if (task) moveTask(task, status)
+              if (task) void moveTask(task, status)
             }}
           >
             <header className={columnHeaderCss}>

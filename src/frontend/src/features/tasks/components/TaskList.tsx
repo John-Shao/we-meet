@@ -43,6 +43,7 @@ import { usePatchTask } from '../api/fetchTasks'
 import { formatTaskCreatedAt, formatTaskDate } from '../taskDateFormat'
 import { incompleteDescendantCount, taskAssignees } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
+import { useTaskActionFeedback } from './TaskActionFeedbackContext'
 import { TaskCompletionButton } from './TaskCompletionButton'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskAssigneesDisplay, TaskUserDisplay } from './TaskUserDisplay'
@@ -221,6 +222,7 @@ export const TaskList = ({
 }: ListProps) => {
   const { t, i18n } = useTranslation('tasks')
   const patchMutation = usePatchTask()
+  const { notifyAction, notifyFailure } = useTaskActionFeedback()
   const [statusOverrides, setStatusOverrides] = useState<
     Record<string, StatusOverride>
   >({})
@@ -320,10 +322,25 @@ export const TaskList = ({
   const formatDateTime = formatTaskCreatedAt
 
   const moveToGroup = (taskId: string, groupId?: string) => {
-    patchMutation.mutate({
-      taskId,
-      patch: { group_id: groupId || null },
-    })
+    const task = displayedTasks.find((candidate) => candidate.id === taskId)
+    if (
+      !task ||
+      patchMutation.isPending ||
+      (task.group?.id || null) === (groupId || null)
+    ) {
+      return
+    }
+    void patchMutation
+      .mutateAsync({ taskId, patch: { group_id: groupId || null } })
+      .then(() =>
+        notifyAction({
+          taskId,
+          title: task.title,
+          kind: 'moved',
+          undoPatch: { group_id: task.group?.id || null },
+        })
+      )
+      .catch(() => notifyFailure({ taskId, title: task.title }))
   }
 
   useEffect(() => {
@@ -423,10 +440,34 @@ export const TaskList = ({
         ...current,
         [task.id]: { task: updatedTask, baseUpdatedAt: task.updated_at },
       }))
+      if (patch.assignee_ids !== undefined) {
+        notifyAction({
+          taskId: task.id,
+          title: task.title,
+          kind: 'assigneesUpdated',
+          undoPatch: {
+            assignee_ids: taskAssignees(task).map((assignee) => assignee.id),
+          },
+        })
+      } else if (
+        patch.task_list_id !== undefined ||
+        patch.group_id !== undefined
+      ) {
+        notifyAction({
+          taskId: task.id,
+          title: task.title,
+          kind: 'moved',
+          undoPatch: {
+            task_list_id: task.task_list?.id || null,
+            group_id: task.group?.id || null,
+          },
+        })
+      }
       setEditingCell(null)
       setAssigneeEditingTask(null)
     } catch {
       setStatusError(true)
+      notifyFailure({ taskId: task.id, title: task.title })
     } finally {
       setInlinePending(false)
     }
@@ -463,6 +504,12 @@ export const TaskList = ({
         ...current,
         [task.id]: { ...current[task.id], pending: false },
       }))
+      notifyAction({
+        taskId: task.id,
+        title: task.title,
+        kind: status === 'completed' ? 'completed' : 'reopened',
+        undoPatch: task.recurrence ? undefined : { status: currentStatus },
+      })
     } catch {
       setStatusOverrides((current) => {
         const next = { ...current }
@@ -470,6 +517,7 @@ export const TaskList = ({
         return next
       })
       setStatusError(true)
+      notifyFailure({ taskId: task.id, title: task.title })
     }
   }
 

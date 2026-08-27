@@ -4,6 +4,17 @@
   "loading": "Loading tasks…",
   "empty": "No tasks here yet.",
   "error": "The task operation failed. Please try again.",
+  "feedback": {
+    "completed": "“{{title}}” completed",
+    "reopened": "“{{title}}” reopened",
+    "assigneesUpdated": "Assignees updated for “{{title}}”",
+    "moved": "“{{title}}” moved",
+    "undo": "Undo",
+    "undone": "Change undone for “{{title}}”",
+    "updateFailed": "Could not update “{{title}}”. Please try again.",
+    "undoFailed": "Could not undo the change to “{{title}}”. Please try again.",
+    "close": "Close notification"
+  },
   "meeting": "Meeting",
   "sourceMeeting": "Source meeting: {{name}}",
   "workspace": {
