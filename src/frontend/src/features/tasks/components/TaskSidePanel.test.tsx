@@ -90,6 +90,16 @@ vi.mock('../api/fetchTasks', () => ({
     isPending: false,
     error: null,
   }),
+  useUpdateTaskRecurrence: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    error: null,
+  }),
+  useStopTaskRecurrence: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    error: null,
+  }),
 }))
 
 vi.mock('@/components/ConfirmProvider', () => ({
@@ -347,6 +357,54 @@ describe('TaskDetailPanel', () => {
       expect(mutateAsync).toHaveBeenCalledWith({
         taskId: task.id,
         patch: { assignee_ids: ['assignee'] },
+      })
+    )
+  })
+
+  it('sends an explicit scope when editing a recurring task', async () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{
+          ...task,
+          can_edit: true,
+          recurrence: {
+            rule_id: 'rule-1',
+            frequency: 'weekly',
+            interval: 1,
+            timezone: 'Asia/Shanghai',
+            end_date: null,
+            max_occurrences: null,
+            generated_count: 1,
+            next_occurrence_date: '2026-09-07',
+            is_active: true,
+            last_error: '',
+            sequence: 1,
+            can_manage: true,
+          },
+        }}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByLabelText('recurrence.editScope')).toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'actions.edit form.title' })
+    )
+    const input = screen.getByRole('textbox', { name: 'form.title' })
+    fireEvent.change(input, { target: { value: 'Recurring release' } })
+    fireEvent.blur(input)
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: task.id,
+        patch: {
+          title: 'Recurring release',
+          recurrence_scope: 'one',
+        },
       })
     )
   })

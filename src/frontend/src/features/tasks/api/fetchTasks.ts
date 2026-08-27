@@ -28,6 +28,7 @@ import type {
   ApiTaskSubtreeImpact,
   CreateTaskPayload,
   PatchTaskPayload,
+  TaskRecurrencePayload,
   TaskScope,
   TaskPriorityFilter,
   TaskOrdering,
@@ -728,6 +729,52 @@ export const usePatchTask = () => {
         queryKey: ['tasks', variables.taskId, 'activities'],
       })
     },
+  })
+}
+
+const updateTaskRecurrence = (
+  taskId: string,
+  recurrence: TaskRecurrencePayload
+) =>
+  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/recurrence/`, {
+    method: 'PATCH',
+    body: JSON.stringify(recurrence),
+  })
+
+const stopTaskRecurrence = (taskId: string) =>
+  fetchApi<ApiTask>(`tasks/${encodeURIComponent(taskId)}/recurrence/`, {
+    method: 'DELETE',
+  })
+
+const useRecurrenceMutationSuccess = () => {
+  const queryClient = useQueryClient()
+  return (task: ApiTask) => {
+    queryClient.setQueryData(['tasks', 'detail', task.id], task)
+    void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    void queryClient.invalidateQueries({
+      queryKey: ['tasks', task.id, 'activities'],
+    })
+  }
+}
+
+export const useUpdateTaskRecurrence = () => {
+  const onSuccess = useRecurrenceMutationSuccess()
+  return useMutation<
+    ApiTask,
+    ApiError,
+    { taskId: string; recurrence: TaskRecurrencePayload }
+  >({
+    mutationFn: ({ taskId, recurrence }) =>
+      updateTaskRecurrence(taskId, recurrence),
+    onSuccess,
+  })
+}
+
+export const useStopTaskRecurrence = () => {
+  const onSuccess = useRecurrenceMutationSuccess()
+  return useMutation<ApiTask, ApiError, string>({
+    mutationFn: stopTaskRecurrence,
+    onSuccess,
   })
 }
 

@@ -82,6 +82,13 @@ from core.services.task_notifications import (
     record_task_priority_change,
     record_task_status_change,
 )
+from core.services.task_recurrence import (
+    TaskRecurrenceError,
+    create_task_recurrence_rule,
+    deactivate_task_recurrence_rule,
+    materialize_task_recurrence,
+    update_task_recurrence_rule,
+)
 from core.services.task_time import (
     TIME_FILTERS,
     annotate_assignee_local_date,
@@ -196,6 +203,12 @@ def _can_comment_on_task(task, user):
 def _task_hierarchy_validation_error(exc):
     return serializers.ValidationError(
         {"parent_id": {"code": exc.code, "detail": str(exc)}}
+    )
+
+
+def _task_recurrence_validation_error(exc):
+    return serializers.ValidationError(
+        {"recurrence": {"code": exc.code, "detail": str(exc)}}
     )
 
 
@@ -662,6 +675,7 @@ class TaskCreateSerializer(
         allow_null=True,
         write_only=True,
     )
+    recurrence = serializers.JSONField(required=False, write_only=True)
 
     def validate_parent_id(self, parent):
         if parent is None:
@@ -684,6 +698,20 @@ class TaskCreateSerializer(
                 {"assignee_ids": "Use assignee_ids instead of assignee_id."}
             )
         attrs = self.validate_placement(attrs)
+        recurrence = attrs.get("recurrence")
+        if recurrence is not None:
+            recurrence_serializer = TaskRecurrenceInputSerializer(data=recurrence)
+            recurrence_serializer.is_valid(raise_exception=True)
+            attrs["recurrence"] = recurrence_serializer.validated_data
+            if attrs.get("parent") is not None:
+                raise serializers.ValidationError(
+                    {
+                        "recurrence": {
+                            "code": "task_recurrence_hierarchy_forbidden",
+                            "detail": "A recurring task must be a hierarchy root.",
+                        }
+                    }
+                )
         if attrs.get("start_date") is None:
             attrs["start_date"] = local_date_for_user(self.context["request"].user)
         if (
@@ -693,6 +721,30 @@ class TaskCreateSerializer(
         ):
             raise serializers.ValidationError(
                 {"due_date": "Due date cannot be earlier than start date."}
+            )
+        return attrs
+
+
+class TaskRecurrenceInputSerializer(serializers.Serializer):
+    """Validated schedule fields; the timezone always comes from the owner."""
+
+    frequency = serializers.ChoiceField(
+        choices=models.TaskRecurrenceRule.Frequency.choices,
+        required=False,
+    )
+    interval = serializers.IntegerField(required=False, min_value=1, max_value=365)
+    end_date = serializers.DateField(required=False, allow_null=True)
+    max_occurrences = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1, max_value=1000
+    )
+
+    def validate(self, attrs):
+        if (
+            attrs.get("end_date") is not None
+            and attrs.get("max_occurrences") is not None
+        ):
+            raise serializers.ValidationError(
+                "Choose either an end date or a maximum occurrence count."
             )
         return attrs
 
@@ -753,6 +805,9 @@ class TaskUpdateSerializer(
     confirm_subtree_node_count = serializers.IntegerField(
         required=False, min_value=1, write_only=True
     )
+    recurrence_scope = serializers.ChoiceField(
+        choices=["one", "following"], required=False, write_only=True
+    )
 
     class Meta:
         model = models.Task
@@ -770,6 +825,7 @@ class TaskUpdateSerializer(
             "assignee_id",
             "assignee_ids",
             "status",
+            "recurrence_scope",
         ]
 
     def validate(self, attrs):
@@ -813,6 +869,7 @@ class TaskUpdateSerializer(
 
     def update(self, instance, validated_data):
         validated_data.pop("confirm_subtree_node_count", None)
+        validated_data.pop("recurrence_scope", None)
         assignees = validated_data.pop("assignees", None)
         legacy_assignee = validated_data.get("assignee")
         if legacy_assignee is not None:
@@ -1334,6 +1391,7 @@ class TaskViewSet(
             .select_related(
                 "creator",
                 "assignee",
+                "recurrence_rule",
                 "parent",
                 "task_list",
                 "group",
@@ -1475,6 +1533,7 @@ class TaskViewSet(
             assignees = [legacy_assignee or request.user]
         followers = validated_data.pop("followers", [])
         parent = validated_data.pop("parent", None)
+        recurrence = validated_data.pop("recurrence", None)
         organization = get_caller_organization(request.user)
         with transaction.atomic():
             lock_task_hierarchy_scopes(
@@ -1508,6 +1567,16 @@ class TaskViewSet(
                 task=task,
                 event=models.TaskImDelivery.Event.ASSIGNED,
             )
+            if recurrence is not None:
+                try:
+                    create_task_recurrence_rule(
+                        task=task,
+                        owner=request.user,
+                        recurrence=recurrence,
+                    )
+                    task.refresh_from_db()
+                except TaskRecurrenceError as exc:
+                    raise _task_recurrence_validation_error(exc) from exc
         return Response(
             TaskSerializer(task, context={"request": request}).data,
             status=201,
@@ -1542,6 +1611,7 @@ class TaskViewSet(
                 .select_related(
                     "creator",
                     "assignee",
+                    "recurrence_rule",
                     "parent",
                     "task_list",
                     "group",
@@ -1567,6 +1637,7 @@ class TaskViewSet(
                 "assignee_id",
                 "assignee_ids",
                 "status",
+                "recurrence_scope",
             }
             if not requested_fields or not requested_fields <= allowed_fields:
                 raise serializers.ValidationError(
@@ -1583,6 +1654,31 @@ class TaskViewSet(
                 context={"request": request},
             )
             serializer.is_valid(raise_exception=True)
+            recurrence_scope = serializer.validated_data.get("recurrence_scope")
+            inherited_fields = {
+                "title",
+                "description",
+                "start_date",
+                "due_date",
+                "priority",
+                "task_list_id",
+                "group_id",
+                "assignee_id",
+                "assignee_ids",
+            }
+            recurrence_is_active = bool(
+                task.recurrence_rule_id and task.recurrence_rule.is_active
+            )
+            if recurrence_is_active and requested_fields & inherited_fields:
+                if recurrence_scope is None:
+                    raise serializers.ValidationError(
+                        {
+                            "recurrence_scope": (
+                                "Choose whether to change only this task or this "
+                                "and following tasks."
+                            )
+                        }
+                    )
             prospective_parent = serializer.validated_data.get("parent", task.parent)
             prospective_assignees = serializer.validated_data.get("assignees")
             legacy_assignee = serializer.validated_data.get("assignee")
@@ -1639,6 +1735,21 @@ class TaskViewSet(
                 except TaskHierarchyError as exc:
                     raise _task_hierarchy_validation_error(exc) from exc
             serializer.save()
+            if recurrence_scope == "following" and not recurrence_is_active:
+                raise serializers.ValidationError(
+                    {"recurrence_scope": "The recurrence rule is not active."}
+                )
+            if recurrence_scope == "following":
+                try:
+                    update_task_recurrence_rule(
+                        task=task,
+                        actor=request.user,
+                        reset_schedule=bool(
+                            requested_fields & {"start_date", "due_date"}
+                        ),
+                    )
+                except TaskRecurrenceError as exc:
+                    raise _task_recurrence_validation_error(exc) from exc
             activities = record_task_changes(
                 task=task,
                 actor=request.user,
@@ -1684,8 +1795,62 @@ class TaskViewSet(
                 )
                 if priority_activity is not None:
                     record_task_priority_change(activity=priority_activity)
+            if (
+                status_activity is not None
+                and task.status == models.Task.Status.COMPLETED
+                and task.recurrence_rule_id is not None
+            ):
+                materialize_task_recurrence(task.recurrence_rule_id, force=True)
             response_data = TaskSerializer(task, context={"request": request}).data
         return Response(response_data)
+
+    @action(detail=True, methods=["post", "patch", "delete"])
+    def recurrence(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """Create, update or stop the current-and-following recurrence rule."""
+
+        visible_task = self.get_object()
+        if visible_task.creator_id != request.user.id:
+            raise PermissionDenied("Only the task creator can manage recurrence.")
+        if request.method == "DELETE":
+            try:
+                deactivate_task_recurrence_rule(
+                    task=visible_task,
+                    actor=request.user,
+                )
+            except TaskRecurrenceError as exc:
+                raise _task_recurrence_validation_error(exc) from exc
+            visible_task.refresh_from_db()
+            return Response(
+                TaskSerializer(visible_task, context={"request": request}).data
+            )
+
+        serializer = TaskRecurrenceInputSerializer(
+            data=request.data,
+            partial=visible_task.recurrence_rule_id is not None,
+        )
+        serializer.is_valid(raise_exception=True)
+        if (
+            visible_task.recurrence_rule_id is None
+            and "frequency" not in serializer.validated_data
+        ):
+            raise serializers.ValidationError(
+                {"frequency": "This field is required for a new recurrence rule."}
+            )
+        if not serializer.validated_data:
+            raise serializers.ValidationError(
+                {"detail": "Provide at least one recurrence field."}
+            )
+        try:
+            update_task_recurrence_rule(
+                task=visible_task,
+                actor=request.user,
+                recurrence=serializer.validated_data,
+                reset_schedule=True,
+            )
+        except TaskRecurrenceError as exc:
+            raise _task_recurrence_validation_error(exc) from exc
+        visible_task.refresh_from_db()
+        return Response(TaskSerializer(visible_task, context={"request": request}).data)
 
     def destroy(self, request, *args, **kwargs):
         visible_task = self.get_object()
@@ -1734,6 +1899,15 @@ class TaskViewSet(
                 models.ActionItem.objects.filter(pk__in=action_item_ids).update(
                     task_id=None
                 )
+            recurrence_rule_ids = {
+                node.recurrence_rule_id
+                for node in subtree
+                if node.recurrence_rule_id is not None
+            }
+            if recurrence_rule_ids:
+                models.TaskRecurrenceRule.objects.filter(
+                    pk__in=recurrence_rule_ids
+                ).update(is_active=False, next_occurrence_date=None, last_error="")
             _delete_tasks_with_attachments(
                 models.Task.objects.filter(pk__in=[node.pk for node in subtree]),
                 actor=request.user,

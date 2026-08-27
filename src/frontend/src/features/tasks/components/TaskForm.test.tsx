@@ -79,6 +79,47 @@ describe('TaskForm create mode', () => {
     expect(zhTasks.taskLists.none).toBe('独立任务')
   })
 
+  it('serializes an interval and occurrence limit for a recurring task', async () => {
+    createTask.mockResolvedValue({ id: 'recurring-task' })
+    render(<TaskForm taskLists={[]} onCancel={vi.fn()} onSaved={vi.fn()} />)
+
+    fireEvent.change(
+      screen.getByPlaceholderText('form.createTitlePlaceholder'),
+      { target: { value: 'Monthly close' } }
+    )
+    fireEvent.click(screen.getByLabelText('recurrence.label'))
+    fireEvent.click(
+      await screen.findByRole('option', { name: 'recurrence.monthly' })
+    )
+    fireEvent.change(screen.getByRole('spinbutton'), {
+      target: { value: '2' },
+    })
+    fireEvent.click(screen.getByLabelText('recurrence.ends'))
+    fireEvent.click(
+      await screen.findByRole('option', { name: 'recurrence.endCount' })
+    )
+    fireEvent.change(screen.getByLabelText('recurrence.count'), {
+      target: { value: '6' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'workspace.createSubmit' })
+    )
+
+    await waitFor(() =>
+      expect(createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Monthly close',
+          recurrence: {
+            frequency: 'monthly',
+            interval: 2,
+            end_date: null,
+            max_occurrences: 6,
+          },
+        })
+      )
+    )
+  })
+
   it('inherits every editable parameter except the title from its parent', async () => {
     const parentAssignee = {
       id: 'parent-assignee',

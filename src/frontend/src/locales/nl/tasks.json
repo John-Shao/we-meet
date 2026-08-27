@@ -200,6 +200,30 @@
     "cancel": "Annuleren",
     "create": "Maken"
   },
+  "recurrence": {
+    "label": "Terugkerende taak",
+    "none": "Geen herhaling",
+    "daily": "Dagelijks",
+    "weekly": "Wekelijks",
+    "monthly": "Maandelijks",
+    "every": "Elke",
+    "units": {
+      "daily": "dag(en)",
+      "weekly": "week/weken",
+      "monthly": "maand(en)"
+    },
+    "ends": "Eindigt",
+    "endNever": "Nooit",
+    "endDate": "Op een datum",
+    "endCount": "Na een aantal taken",
+    "count": "Aantal",
+    "stopped": "Herhaling gestopt",
+    "next": "Volgende: {{date}}",
+    "intervalSummary": "Elke {{count}} {{unit}}",
+    "editScope": "Wijzigingsbereik",
+    "onlyThis": "Alleen deze taak",
+    "thisAndFollowing": "Deze en volgende"
+  },
   "scopes": {
     "label": "Taakbereik",
     "assigned": "Aan mij toegewezen",
@@ -353,6 +377,7 @@
       "priority_changed": "{{actor}} heeft de taakprioriteit gewijzigd van ‘{{from}}’ naar ‘{{to}}’",
       "placement_changed": "{{actor}} heeft de taak verplaatst van ‘{{from}}’ naar ‘{{to}}’",
       "hierarchy_changed": "{{actor}} heeft de bovenliggende taak gewijzigd van ‘{{from}}’ naar ‘{{to}}’",
+      "recurrence_changed": "{{actor}} heeft de taakherhaling gewijzigd",
       "dates_changed": "{{actor}} heeft de taakdatums aangepast",
       "assignee_changed": "{{actor}} heeft de taak toegewezen aan {{assignee}}",
       "status_changed": "{{actor}} heeft de status gewijzigd in ‘{{status}}’",

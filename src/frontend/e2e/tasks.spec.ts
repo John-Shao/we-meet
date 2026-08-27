@@ -12,6 +12,10 @@ type CreatedTask = {
   creator: TaskUser
   assignees?: TaskUser[]
   assignee: TaskUser | null
+  recurrence?: {
+    sequence: number
+    frequency: 'daily' | 'weekly' | 'monthly'
+  } | null
 }
 
 let taskId: string | undefined
@@ -222,6 +226,64 @@ test('create, edit, persist, and complete a self-assigned task', async ({
   await row.getByRole('button', { name: '编辑 截止日期' }).click()
   await expect(row.getByLabel('截止日期')).toHaveValue(dueDate)
   await row.getByLabel('截止日期').press('Escape')
+})
+
+test('create and advance a recurring task without duplicating its cycle', async ({
+  context,
+  page,
+}) => {
+  test.setTimeout(90_000)
+  const title = `E2E 每日重复任务 ${Date.now()}`
+
+  await page.goto(
+    '/tasks?scope=all&status=open&time=all&priority=all&task_list=all&view=list'
+  )
+  await page.getByRole('button', { name: '新建任务' }).click()
+  const createPanel = page.getByRole('complementary', { name: '新建任务' })
+  await createPanel.getByPlaceholder('输入标题，回车确认').fill(title)
+  await createPanel.getByLabel('重复任务').click()
+  await page.getByRole('option', { name: '每天重复' }).click()
+
+  const createResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().endsWith('/api/v1.0/tasks/') &&
+      response.ok()
+  )
+  await createPanel.getByRole('button', { name: '新建', exact: true }).click()
+  const createResponse = await createResponsePromise
+  const first = (await createResponse.json()) as CreatedTask
+  expect(first.recurrence?.frequency).toBe('daily')
+  expect(first.recurrence?.sequence).toBe(1)
+  taskId = first.id
+  taskApiOrigin = new URL(createResponse.url()).origin
+  cleanupTaskIds.push(first.id)
+
+  const completeResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' &&
+      response.url().endsWith(`/api/v1.0/tasks/${first.id}/`) &&
+      response.ok()
+  )
+  await page
+    .getByRole('complementary', { name: '任务详情' })
+    .getByRole('button', { name: '完成任务', exact: true })
+    .click()
+  await completeResponsePromise
+
+  const openTasksResponse = await context.request.get(
+    `${taskApiOrigin}/api/v1.0/tasks/?scope=all&status=open&q=${encodeURIComponent(title)}&page_size=50`
+  )
+  expect(openTasksResponse.ok()).toBe(true)
+  const openTasksPayload = (await openTasksResponse.json()) as {
+    results: CreatedTask[]
+  }
+  const following = openTasksPayload.results.filter(
+    (candidate) => candidate.id !== first.id
+  )
+  expect(following).toHaveLength(1)
+  expect(following[0].recurrence?.sequence).toBe(2)
+  cleanupTaskIds.push(following[0].id)
 })
 
 test('close the bounded recursive hierarchy through depth, movement, and deletion', async ({

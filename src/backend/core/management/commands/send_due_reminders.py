@@ -20,6 +20,7 @@ from core.services.task_notifications import (
     enqueue_due_task_assignments,
     record_due_task_reminders,
 )
+from core.services.task_recurrence import materialize_due_task_recurrences
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         materialized = materialize_recurrences()
+        task_instances = materialize_due_task_recurrences()
         count = push_due_reminders()
         # Recover existing rows before creating today's rows; newly-created
         # reminders enqueue themselves after their transaction commits.
@@ -37,6 +39,7 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"occurrences materialized: {materialized}, reminders pushed: {count}, "
+                f"task instances materialized: {task_instances}, "
                 f"task notifications queued: {task_notifications}, "
                 f"task reminders created: {task_reminders}"
             )

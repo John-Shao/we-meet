@@ -181,7 +181,8 @@ class ListRoomSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
-            "slug",            "access_level",
+            "slug",
+            "access_level",
             "created_at",
             "closed_at",
             "scheduled_at",
@@ -205,7 +206,8 @@ class RoomSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
-            "slug",            "configuration",
+            "slug",
+            "configuration",
             "access_level",
             "pin_code",
             "created_at",
@@ -222,9 +224,11 @@ class RoomSerializer(serializers.ModelSerializer):
 
     def get_owner(self, instance):
         """Return the display name of the room owner, or None."""
-        owner_access = instance.accesses.filter(
-            role=models.RoleChoices.OWNER
-        ).select_related("user").first()
+        owner_access = (
+            instance.accesses.filter(role=models.RoleChoices.OWNER)
+            .select_related("user")
+            .first()
+        )
         if owner_access is None:
             return None
         user = owner_access.user
@@ -396,11 +400,7 @@ class ActionItemSerializer(serializers.ModelSerializer):
         user = self._request_user()
         return bool(
             self.get_can_manage(instance)
-            or (
-                user
-                and user.is_authenticated
-                and instance.assignee_id == user.id
-            )
+            or (user and user.is_authenticated and instance.assignee_id == user.id)
         )
 
     def validate_assignee_id(self, assignee):
@@ -685,11 +685,7 @@ class TaskListSerializer(serializers.ModelSerializer):
         if prefetched is not None:
             role = prefetched[0].role if prefetched else None
         else:
-            role = (
-                obj.accesses.filter(user=user)
-                .values_list("role", flat=True)
-                .first()
-            )
+            role = obj.accesses.filter(user=user).values_list("role", flat=True).first()
         if role is None and obj.creator_id == user.id:
             return models.TaskListAccess.Role.OWNER
         return role
@@ -824,6 +820,7 @@ class TaskSerializer(serializers.ModelSerializer):
     ancestor_path = serializers.SerializerMethodField()
     descendant_progress = serializers.SerializerMethodField()
     can_create_subtasks = serializers.SerializerMethodField()
+    recurrence = serializers.SerializerMethodField()
 
     def _request_user(self):
         request = self.context.get("request")
@@ -983,6 +980,28 @@ class TaskSerializer(serializers.ModelSerializer):
             return None
         return obj.source_action_item.room.name
 
+    def get_recurrence(self, obj):
+        rule = obj.recurrence_rule
+        if rule is None:
+            return None
+        user = self._request_user()
+        return {
+            "rule_id": str(rule.pk),
+            "frequency": rule.frequency,
+            "interval": rule.interval,
+            "timezone": str(rule.timezone),
+            "end_date": rule.end_date,
+            "max_occurrences": rule.max_occurrences,
+            "generated_count": rule.generated_count,
+            "next_occurrence_date": rule.next_occurrence_date,
+            "is_active": rule.is_active,
+            "last_error": rule.last_error,
+            "sequence": obj.recurrence_sequence,
+            "can_manage": bool(
+                user and user.is_authenticated and rule.owner_id == user.id
+            ),
+        }
+
     class Meta:
         model = models.Task
         fields = [
@@ -1006,6 +1025,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "start_date",
             "due_date",
             "completed_at",
+            "recurrence",
             "source_action_item_id",
             "source_room_id",
             "source_room_name",

@@ -2393,6 +2393,129 @@ class TaskGroup(BaseModel):
         return self.name
 
 
+class TaskRecurrenceRule(BaseModel):
+    """A bounded schedule and template used to materialize task instances."""
+
+    class Frequency(models.TextChoices):
+        DAILY = "daily", _("Daily")
+        WEEKLY = "weekly", _("Weekly")
+        MONTHLY = "monthly", _("Monthly")
+
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="task_recurrence_rules",
+        verbose_name=_("owner"),
+    )
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        related_name="task_recurrence_rules",
+        null=True,
+        blank=True,
+        verbose_name=_("organization"),
+    )
+    frequency = models.CharField(
+        _("frequency"), max_length=16, choices=Frequency.choices
+    )
+    interval = models.PositiveSmallIntegerField(_("interval"), default=1)
+    timezone = TimeZoneField(
+        choices_display="WITH_GMT_OFFSET",
+        use_pytz=False,
+        default=settings.TIME_ZONE,
+        help_text=_("Timezone captured from the rule owner."),
+    )
+    schedule_anchor_date = models.DateField(_("schedule anchor date"))
+    anchor_day = models.PositiveSmallIntegerField(_("anchor day"))
+    anchor_is_month_end = models.BooleanField(_("anchor is month end"), default=False)
+    next_occurrence_date = models.DateField(
+        _("next occurrence date"), null=True, blank=True, db_index=True
+    )
+    end_date = models.DateField(_("end date"), null=True, blank=True)
+    max_occurrences = models.PositiveSmallIntegerField(
+        _("maximum occurrences"), null=True, blank=True
+    )
+    generated_count = models.PositiveSmallIntegerField(
+        _("generated count"), default=1
+    )
+    is_active = models.BooleanField(_("active"), default=True, db_index=True)
+    last_error = models.CharField(_("last error"), max_length=64, blank=True, default="")
+
+    template_title = models.TextField(_("template title"))
+    template_description = models.TextField(
+        _("template description"), blank=True, default=""
+    )
+    template_priority = models.CharField(
+        _("template priority"),
+        max_length=16,
+        choices=[
+            ("none", _("No priority")),
+            ("low", _("Low")),
+            ("medium", _("Medium")),
+            ("high", _("High")),
+            ("urgent", _("Urgent")),
+        ],
+        default="medium",
+    )
+    template_start_offset_days = models.IntegerField(
+        _("template start offset days"), null=True, blank=True
+    )
+    template_due_offset_days = models.IntegerField(
+        _("template due offset days"), null=True, blank=True
+    )
+    task_list = models.ForeignKey(
+        TaskList,
+        on_delete=models.SET_NULL,
+        related_name="recurrence_rules",
+        null=True,
+        blank=True,
+        verbose_name=_("task list"),
+    )
+    group = models.ForeignKey(
+        TaskGroup,
+        on_delete=models.SET_NULL,
+        related_name="recurrence_rules",
+        null=True,
+        blank=True,
+        verbose_name=_("task group"),
+    )
+    assignees = models.ManyToManyField(
+        User,
+        related_name="assigned_task_recurrence_rules",
+        blank=True,
+        verbose_name=_("assignees"),
+    )
+    template_assignee = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="primary_task_recurrence_rules",
+        null=True,
+        blank=True,
+        verbose_name=_("template assignee"),
+    )
+    followers = models.ManyToManyField(
+        User,
+        related_name="followed_task_recurrence_rules",
+        blank=True,
+        verbose_name=_("followers"),
+    )
+
+    class Meta:
+        db_table = "meet_task_recurrence_rule"
+        verbose_name = _("task recurrence rule")
+        verbose_name_plural = _("task recurrence rules")
+        ordering = ("next_occurrence_date", "created_at")
+        indexes = [
+            models.Index(
+                fields=["is_active", "next_occurrence_date"],
+                name="task_recur_due_idx",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"TaskRecurrenceRule({self.frequency}/{self.interval})"
+
+
 class Task(BaseModel):
     """A durable work item, optionally created from a meeting action item."""
 
@@ -2493,6 +2616,20 @@ class Task(BaseModel):
         blank=True,
         verbose_name=_("source action item"),
     )
+    recurrence_rule = models.ForeignKey(
+        TaskRecurrenceRule,
+        on_delete=models.SET_NULL,
+        related_name="instances",
+        null=True,
+        blank=True,
+        verbose_name=_("recurrence rule"),
+    )
+    recurrence_key = models.DateField(
+        _("recurrence key"), null=True, blank=True
+    )
+    recurrence_sequence = models.PositiveSmallIntegerField(
+        _("recurrence sequence"), null=True, blank=True
+    )
 
     class Meta:
         db_table = "meet_task"
@@ -2503,6 +2640,16 @@ class Task(BaseModel):
             models.Index(
                 fields=["organization", "parent", "position"],
                 name="task_org_parent_pos_idx",
+            )
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recurrence_rule", "recurrence_key"],
+                condition=models.Q(
+                    recurrence_rule__isnull=False,
+                    recurrence_key__isnull=False,
+                ),
+                name="task_recurrence_cycle_uniq",
             )
         ]
 
@@ -2565,6 +2712,7 @@ class TaskActivity(BaseModel):
         PRIORITY_CHANGED = "priority_changed", _("Priority changed")
         PLACEMENT_CHANGED = "placement_changed", _("Placement changed")
         HIERARCHY_CHANGED = "hierarchy_changed", _("Hierarchy changed")
+        RECURRENCE_CHANGED = "recurrence_changed", _("Recurrence changed")
         ATTACHMENT_REMOVED = "attachment_removed", _("Attachment removed")
         SOURCE_ACTION_ITEM_CHANGED = (
             "source_action_item_changed",

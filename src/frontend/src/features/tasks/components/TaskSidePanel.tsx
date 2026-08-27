@@ -27,6 +27,7 @@ import {
   RiListCheck3,
   RiMoreLine,
   RiRestartLine,
+  RiRepeatLine,
   RiShareForwardLine,
   RiUser3Line,
   RiUserAddLine,
@@ -44,6 +45,8 @@ import type {
   ApiTaskList,
   PatchTaskPayload,
   TaskPriority,
+  TaskRecurrenceFrequency,
+  TaskRecurrenceScope,
 } from '../api/ApiTask'
 import {
   useAddTaskFollowers,
@@ -56,7 +59,9 @@ import {
   useTaskParentCandidates,
   useTaskSubtasks,
   useTaskSubtreeImpact,
+  useStopTaskRecurrence,
   useUnfollowTask,
+  useUpdateTaskRecurrence,
 } from '../api/fetchTasks'
 import { formatTaskDate } from '../taskDateFormat'
 import { nextTaskStatuses, taskAssignees } from '../taskUi'
@@ -159,6 +164,8 @@ export const TaskDetailPanel = ({
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [recurrenceEditScope, setRecurrenceEditScope] =
+    useState<TaskRecurrenceScope>('one')
   const [subtaskEditing, setSubtaskEditing] = useState<{
     taskId: string
     field: SubtaskEditableField
@@ -174,6 +181,8 @@ export const TaskDetailPanel = ({
   const unfollowMutation = useUnfollowTask()
   const addFollowersMutation = useAddTaskFollowers()
   const removeFollowerMutation = useRemoveTaskFollower()
+  const updateRecurrenceMutation = useUpdateTaskRecurrence()
+  const stopRecurrenceMutation = useStopTaskRecurrence()
   const { confirm } = useConfirm()
   const focusInput = useCallback((element: HTMLInputElement | null) => {
     element?.focus()
@@ -189,6 +198,7 @@ export const TaskDetailPanel = ({
     setShareOpen(false)
     setSubtaskEditing(null)
     setSubtaskAssigneeEditing(null)
+    setRecurrenceEditScope('one')
   }, [taskId])
 
   useEffect(() => {
@@ -249,8 +259,26 @@ export const TaskDetailPanel = ({
     patch: PatchTaskPayload,
     options: { keepEditing?: boolean } = {}
   ) => {
+    const recurrenceTemplateFields = new Set([
+      'title',
+      'description',
+      'start_date',
+      'due_date',
+      'priority',
+      'task_list_id',
+      'group_id',
+      'assignee_id',
+      'assignee_ids',
+    ])
+    const affectsFollowingTemplate = Object.keys(patch).some((field) =>
+      recurrenceTemplateFields.has(field)
+    )
+    const scopedPatch =
+      task.recurrence && affectsFollowingTemplate
+        ? { ...patch, recurrence_scope: recurrenceEditScope }
+        : patch
     try {
-      await patchMutation.mutateAsync({ taskId: task.id, patch })
+      await patchMutation.mutateAsync({ taskId: task.id, patch: scopedPatch })
       if (!options.keepEditing) setEditingField(null)
     } catch {
       // Keep the field open so the user can correct it or retry.
@@ -550,7 +578,9 @@ export const TaskDetailPanel = ({
             followMutation.error ||
             unfollowMutation.error ||
             addFollowersMutation.error ||
-            removeFollowerMutation.error) && (
+            removeFollowerMutation.error ||
+            updateRecurrenceMutation.error ||
+            stopRecurrenceMutation.error) && (
             <p role="alert" className={inlineErrorCss}>
               {t('error')}
             </p>
@@ -603,6 +633,98 @@ export const TaskDetailPanel = ({
                 )}
               </div>
             </TaskProperty>
+            {task.recurrence && (
+              <TaskProperty
+                icon={<RiRepeatLine size={18} />}
+                label={t('recurrence.label')}
+                alignStart
+              >
+                <div className={recurrenceDetailCss}>
+                  {task.recurrence.can_manage ? (
+                    <Select
+                      label={
+                        <span className="sr-only">{t('recurrence.label')}</span>
+                      }
+                      aria-label={t('recurrence.label')}
+                      items={[
+                        { value: 'none', label: t('recurrence.none') },
+                        { value: 'daily', label: t('recurrence.daily') },
+                        { value: 'weekly', label: t('recurrence.weekly') },
+                        { value: 'monthly', label: t('recurrence.monthly') },
+                      ]}
+                      selectedKey={
+                        task.recurrence.is_active
+                          ? task.recurrence.frequency
+                          : 'none'
+                      }
+                      onSelectionChange={(key) => {
+                        const frequency = String(key)
+                        if (frequency === 'none') {
+                          stopRecurrenceMutation.mutate(task.id)
+                          return
+                        }
+                        updateRecurrenceMutation.mutate({
+                          taskId: task.id,
+                          recurrence: {
+                            frequency: frequency as TaskRecurrenceFrequency,
+                            interval: task.recurrence?.interval || 1,
+                            end_date: task.recurrence?.end_date || null,
+                            max_occurrences:
+                              task.recurrence?.max_occurrences || null,
+                          },
+                        })
+                      }}
+                    />
+                  ) : (
+                    <span>
+                      {task.recurrence.is_active
+                        ? t(`recurrence.${task.recurrence.frequency}`)
+                        : t('recurrence.stopped')}
+                    </span>
+                  )}
+                  {task.recurrence.interval > 1 && (
+                    <span>
+                      {t('recurrence.intervalSummary', {
+                        count: task.recurrence.interval,
+                        unit: t(
+                          `recurrence.units.${task.recurrence.frequency}`
+                        ),
+                      })}
+                    </span>
+                  )}
+                  {task.recurrence.next_occurrence_date && (
+                    <span>
+                      {t('recurrence.next', {
+                        date: formatDate(task.recurrence.next_occurrence_date),
+                      })}
+                    </span>
+                  )}
+                  {task.recurrence.is_active && task.recurrence.can_manage && (
+                    <Select
+                      label={
+                        <span className="sr-only">
+                          {t('recurrence.editScope')}
+                        </span>
+                      }
+                      aria-label={t('recurrence.editScope')}
+                      items={[
+                        { value: 'one', label: t('recurrence.onlyThis') },
+                        {
+                          value: 'following',
+                          label: t('recurrence.thisAndFollowing'),
+                        },
+                      ]}
+                      selectedKey={recurrenceEditScope}
+                      onSelectionChange={(key) =>
+                        setRecurrenceEditScope(
+                          String(key) as TaskRecurrenceScope
+                        )
+                      }
+                    />
+                  )}
+                </div>
+              </TaskProperty>
+            )}
             <TaskProperty
               icon={<RiUserAddLine size={18} />}
               label={t('meta.creator')}
@@ -1550,6 +1672,13 @@ const descriptionCss = css({
   color: 'default.text',
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
+})
+const recurrenceDetailCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: '0.5rem',
+  color: 'greyscale.600',
 })
 const subtasksSectionCss = css({
   display: 'flex',

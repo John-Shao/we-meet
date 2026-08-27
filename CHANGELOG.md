@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Added
 
+- ✨(fullstack) add timezone-aware recurring tasks with idempotent daily, weekly, and monthly materialization
+- ✅(fullstack) cover recurring-task month-end, retry, edit-scope, and failure-stop behavior
 - ✨(fullstack) add bounded recursive subtasks with secure parent chains and subtree confirmations
 - ✨(fullstack) add atomic subtask ordering and concurrency-safe hierarchy writes
 - ✨(fullstack) add task results and task-specific filters to global search

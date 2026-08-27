@@ -5,6 +5,8 @@ export type TaskPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 export type TaskPriorityFilter = 'all' | TaskPriority
 export type TaskTimeState = 'starting_today' | 'due_today' | 'overdue'
 export type TaskTimeFilter = 'all' | TaskTimeState
+export type TaskRecurrenceFrequency = 'daily' | 'weekly' | 'monthly'
+export type TaskRecurrenceScope = 'one' | 'following'
 export type TaskOrderingField =
   | 'assignee'
   | 'priority'
@@ -131,6 +133,7 @@ export interface ApiTask {
   start_date: string | null
   due_date: string | null
   completed_at: string | null
+  recurrence?: ApiTaskRecurrence | null
   source_action_item_id: string | null
   source_room_id: string | null
   source_room_name: string | null
@@ -146,6 +149,28 @@ export interface ApiTask {
   updated_at: string
 }
 
+export interface ApiTaskRecurrence {
+  rule_id: string
+  frequency: TaskRecurrenceFrequency
+  interval: number
+  timezone: string
+  end_date: string | null
+  max_occurrences: number | null
+  generated_count: number
+  next_occurrence_date: string | null
+  is_active: boolean
+  last_error: string
+  sequence: number
+  can_manage: boolean
+}
+
+export interface TaskRecurrencePayload {
+  frequency: TaskRecurrenceFrequency
+  interval?: number
+  end_date?: string | null
+  max_occurrences?: number | null
+}
+
 export type TaskActivityEvent =
   | 'created'
   | 'content_changed'
@@ -155,6 +180,7 @@ export type TaskActivityEvent =
   | 'priority_changed'
   | 'placement_changed'
   | 'hierarchy_changed'
+  | 'recurrence_changed'
   | 'attachment_removed'
   | 'source_action_item_changed'
 
@@ -305,6 +331,7 @@ export interface CreateTaskPayload {
   group_id?: string | null
   position?: number
   parent_id?: string | null
+  recurrence?: TaskRecurrencePayload
 }
 
 export interface PatchTaskPayload {
@@ -321,4 +348,5 @@ export interface PatchTaskPayload {
   parent_id?: string | null
   confirm_subtree_node_count?: number
   status?: TaskStatus
+  recurrence_scope?: TaskRecurrenceScope
 }

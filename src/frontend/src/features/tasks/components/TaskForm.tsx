@@ -6,6 +6,7 @@ import {
   RiFileTextLine,
   RiFlagLine,
   RiListCheck3,
+  RiRepeatLine,
   RiUser3Line,
   RiUserFollowLine,
 } from '@remixicon/react'
@@ -20,6 +21,7 @@ import type {
   ApiTaskList,
   ApiTaskUser,
   TaskPriority,
+  TaskRecurrenceFrequency,
 } from '../api/ApiTask'
 import { useCreateTask } from '../api/fetchTasks'
 import { taskAssignees } from '../taskUi'
@@ -67,6 +69,15 @@ export const TaskForm = ({
   )
   const [startDate, setStartDate] = useState(parentTask?.start_date || '')
   const [dueDate, setDueDate] = useState(parentTask?.due_date || '')
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<
+    TaskRecurrenceFrequency | ''
+  >('')
+  const [recurrenceInterval, setRecurrenceInterval] = useState(1)
+  const [recurrenceEnd, setRecurrenceEnd] = useState<
+    'never' | 'date' | 'count'
+  >('never')
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState('')
+  const [recurrenceCount, setRecurrenceCount] = useState(10)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const createMutation = useCreateTask()
@@ -93,6 +104,8 @@ export const TaskForm = ({
     event.preventDefault()
     const cleanTitle = title.trim()
     if (!cleanTitle) return
+    if (recurrenceFrequency && recurrenceEnd === 'date' && !recurrenceEndDate)
+      return
     try {
       const payload = {
         title: cleanTitle,
@@ -108,6 +121,18 @@ export const TaskForm = ({
         start_date: startDate || null,
         due_date: dueDate || null,
         parent_id: parentTask?.id,
+        ...(recurrenceFrequency
+          ? {
+              recurrence: {
+                frequency: recurrenceFrequency,
+                interval: recurrenceInterval,
+                end_date:
+                  recurrenceEnd === 'date' ? recurrenceEndDate || null : null,
+                max_occurrences:
+                  recurrenceEnd === 'count' ? recurrenceCount : null,
+              },
+            }
+          : {}),
       }
       const saved = await createMutation.mutateAsync(payload)
       onSaved(saved)
@@ -304,6 +329,95 @@ export const TaskForm = ({
             </div>
           </div>
 
+          {!parentTask && (
+            <div className={createPropertyRowCss} data-align-start>
+              <RiRepeatLine size={19} aria-hidden="true" />
+              <div className={recurrenceControlsCss}>
+                <Select
+                  label={
+                    <span className="sr-only">{t('recurrence.label')}</span>
+                  }
+                  aria-label={t('recurrence.label')}
+                  items={[
+                    { value: '', label: t('recurrence.none') },
+                    { value: 'daily', label: t('recurrence.daily') },
+                    { value: 'weekly', label: t('recurrence.weekly') },
+                    { value: 'monthly', label: t('recurrence.monthly') },
+                  ]}
+                  selectedKey={recurrenceFrequency}
+                  onSelectionChange={(key) =>
+                    setRecurrenceFrequency(
+                      String(key) as TaskRecurrenceFrequency | ''
+                    )
+                  }
+                />
+                {recurrenceFrequency && (
+                  <div className={recurrenceOptionsCss}>
+                    <label>
+                      <span>{t('recurrence.every')}</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={String(recurrenceInterval)}
+                        onChange={(event) =>
+                          setRecurrenceInterval(
+                            Math.max(1, Number(event.target.value) || 1)
+                          )
+                        }
+                      />
+                      <span>
+                        {t(`recurrence.units.${recurrenceFrequency}`)}
+                      </span>
+                    </label>
+                    <Select
+                      label={
+                        <span className="sr-only">{t('recurrence.ends')}</span>
+                      }
+                      aria-label={t('recurrence.ends')}
+                      items={[
+                        { value: 'never', label: t('recurrence.endNever') },
+                        { value: 'date', label: t('recurrence.endDate') },
+                        { value: 'count', label: t('recurrence.endCount') },
+                      ]}
+                      selectedKey={recurrenceEnd}
+                      onSelectionChange={(key) =>
+                        setRecurrenceEnd(
+                          String(key) as 'never' | 'date' | 'count'
+                        )
+                      }
+                    />
+                    {recurrenceEnd === 'date' && (
+                      <Input
+                        aria-label={t('recurrence.endDate')}
+                        type="date"
+                        min={dueDate || startDate || today}
+                        value={recurrenceEndDate}
+                        onChange={(event) =>
+                          setRecurrenceEndDate(event.target.value)
+                        }
+                      />
+                    )}
+                    {recurrenceEnd === 'count' && (
+                      <Input
+                        aria-label={t('recurrence.count')}
+                        type="number"
+                        min={1}
+                        max={1000}
+                        value={String(recurrenceCount)}
+                        onChange={(event) =>
+                          setRecurrenceCount(
+                            Math.max(1, Number(event.target.value) || 1)
+                          )
+                        }
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className={createPropertyRowCss}>
             <RiFlagLine size={19} aria-hidden="true" />
             <div className={createSelectCss}>
@@ -363,7 +477,14 @@ export const TaskForm = ({
           type="submit"
           size="action"
           loading={createMutation.isPending}
-          isDisabled={!title.trim()}
+          isDisabled={
+            !title.trim() ||
+            Boolean(
+              recurrenceFrequency &&
+              recurrenceEnd === 'date' &&
+              !recurrenceEndDate
+            )
+          }
         >
           {t('workspace.createSubmit')}
         </Button>
@@ -447,6 +568,25 @@ const dateControlsCss = css({
   alignItems: 'center',
   flexWrap: 'wrap',
   gap: '0.5rem',
+})
+const recurrenceControlsCss = css({
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: '0.5rem',
+})
+const recurrenceOptionsCss = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: '0.5rem',
+  '& label': {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+  },
+  '& input[type="number"]': { width: '4.5rem' },
 })
 const dateChipBase = {
   minHeight: '2rem',
