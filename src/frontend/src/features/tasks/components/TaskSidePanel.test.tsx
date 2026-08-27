@@ -171,8 +171,10 @@ describe('TaskDetailPanel', () => {
     })
     const dueDateLabel = screen.getByText('meta.dueDate', { selector: 'dt' })
 
-    expect(startDateLabel.parentElement).toHaveTextContent('Aug 21, 2026')
-    expect(dueDateLabel.parentElement).toHaveTextContent('Aug 31, 2026')
+    expect(startDateLabel.parentElement).toHaveTextContent('Aug 21')
+    expect(startDateLabel.parentElement).not.toHaveTextContent('2026')
+    expect(dueDateLabel.parentElement).toHaveTextContent('Aug 31')
+    expect(dueDateLabel.parentElement).not.toHaveTextContent('2026')
     expect(
       screen.queryByText('meta.startDate / meta.dueDate')
     ).not.toBeInTheDocument()

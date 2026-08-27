@@ -5,6 +5,7 @@ import { css } from '@/styled-system/css'
 
 import type { ApiTask, TaskStatus } from '../api/ApiTask'
 import { usePatchTask } from '../api/fetchTasks'
+import { formatTaskDate } from '../taskDateFormat'
 import { taskAssignees } from '../taskUi'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskAssigneesDisplay } from './TaskUserDisplay'
@@ -81,10 +82,7 @@ export const TaskBoard = ({
                     <TaskAssigneesDisplay users={taskAssignees(task)} />
                     <span>
                       {task.due_date
-                        ? new Intl.DateTimeFormat(i18n.language, {
-                            month: 'short',
-                            day: 'numeric',
-                          }).format(new Date(`${task.due_date}T00:00:00`))
+                        ? formatTaskDate(task.due_date, i18n.language)
                         : t('meta.none')}
                     </span>
                   </div>

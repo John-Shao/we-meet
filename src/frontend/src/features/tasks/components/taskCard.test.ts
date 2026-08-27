@@ -46,6 +46,7 @@ describe('buildTaskCardBody', () => {
       value: 'Ada Lovelace',
       avatar_url: '/ada.png',
     })
+    expect(fields.items[1]).toMatchObject({ value: 'Aug 31' })
     const actions = card.blocks[3]
     if (actions.type !== 'actions') throw new Error('expected actions')
     expect(actions.buttons[0].id).toBe(`follow-task:${task.id}:${cid}`)

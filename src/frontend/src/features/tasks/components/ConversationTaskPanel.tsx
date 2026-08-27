@@ -13,6 +13,7 @@ import { css } from '@/styled-system/css'
 
 import type { ApiTask } from '../api/ApiTask'
 import { useConversationTasks } from '../api/fetchTasks'
+import { formatTaskDate } from '../taskDateFormat'
 import { taskAssignees } from '../taskUi'
 import { TaskShareDialog } from './TaskShareDialog'
 import { TaskAssigneesDisplay } from './TaskUserDisplay'
@@ -72,9 +73,7 @@ export const ConversationTaskPanel = ({
                   <span>
                     <RiCalendarLine size={14} />
                     {task.due_date
-                      ? new Intl.DateTimeFormat(i18n.language, {
-                          dateStyle: 'medium',
-                        }).format(new Date(`${task.due_date}T00:00:00`))
+                      ? formatTaskDate(task.due_date, i18n.language)
                       : t('meta.none')}
                   </span>
                 </button>

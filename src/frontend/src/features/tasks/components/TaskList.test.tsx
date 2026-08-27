@@ -8,6 +8,7 @@ import {
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiTask } from '../api/ApiTask'
+import { formatTaskCreatedAt } from '../taskDateFormat'
 import { TaskList } from './TaskList'
 
 const mutate = vi.fn()
@@ -141,16 +142,13 @@ describe('TaskList', () => {
     expect(screen.getAllByLabelText('workspace.quickComplete')).toHaveLength(2)
     expect(screen.getAllByText('Prepare release')).toHaveLength(2)
     expect(screen.getAllByText('priorities.high')).toHaveLength(2)
-    const formatDateTime = (value: string) =>
-      new Intl.DateTimeFormat('en', {
-        dateStyle: 'short',
-        timeStyle: 'short',
-      }).format(new Date(value))
+    expect(within(table).getByText('Aug 21')).toBeInTheDocument()
+    expect(within(table).getByText('Aug 22')).toBeInTheDocument()
     expect(
-      within(table).getAllByText(formatDateTime(task.created_at))
+      within(table).getAllByText(formatTaskCreatedAt(task.created_at))
     ).toHaveLength(1)
     expect(
-      within(table).queryByText(formatDateTime(task.updated_at))
+      within(table).queryByText(formatTaskCreatedAt(task.updated_at))
     ).not.toBeInTheDocument()
     expect(container.querySelector('img[src="/assignee.png"]')).toBeTruthy()
     expect(container.querySelector('img[src="/creator.png"]')).toBeTruthy()

@@ -54,6 +54,7 @@ import {
   useTaskSubtreeImpact,
   useUnfollowTask,
 } from '../api/fetchTasks'
+import { formatTaskDate } from '../taskDateFormat'
 import { nextTaskStatuses, taskAssignees } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
@@ -205,10 +206,7 @@ export const TaskDetailPanel = ({
 
   const formatDate = (value: string | null) => {
     if (!value) return t('meta.none')
-    const [year, month, day] = value.split('-').map(Number)
-    return new Intl.DateTimeFormat(i18n.language, {
-      dateStyle: 'medium',
-    }).format(new Date(year, month - 1, day))
+    return formatTaskDate(value, i18n.language)
   }
 
   const beginEditing = (field: EditableTaskField) => {

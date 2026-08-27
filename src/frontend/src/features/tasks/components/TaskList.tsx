@@ -41,6 +41,7 @@ import type {
   TaskStatus,
 } from '../api/ApiTask'
 import { usePatchTask } from '../api/fetchTasks'
+import { formatTaskCreatedAt, formatTaskDate } from '../taskDateFormat'
 import { taskAssignees } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
@@ -293,18 +294,9 @@ export const TaskList = ({
 
   const formatDate = (value: string | null) => {
     if (!value) return '—'
-    const [year, month, day] = value.split('-').map(Number)
-    return new Intl.DateTimeFormat(i18n.language, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }).format(new Date(year, month - 1, day))
+    return formatTaskDate(value, i18n.language)
   }
-  const formatDateTime = (value: string) =>
-    new Intl.DateTimeFormat(i18n.language, {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(value))
+  const formatDateTime = formatTaskCreatedAt
 
   const moveToGroup = (taskId: string, groupId?: string) => {
     patchMutation.mutate({

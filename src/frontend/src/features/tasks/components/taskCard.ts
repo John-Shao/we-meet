@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next'
 
 import type { ApiTask } from '../api/ApiTask'
+import { formatTaskDate } from '../taskDateFormat'
 import { taskAssignees } from '../taskUi'
 
 const taskUrl = (taskId: string, cid?: string) => {
@@ -28,11 +29,7 @@ export const buildTaskCardBody = (
       )
       .join('、') || t('meta.none')
   const dueDate = task.due_date
-    ? new Intl.DateTimeFormat(locale, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      }).format(new Date(`${task.due_date}T00:00:00`))
+    ? formatTaskDate(task.due_date, locale)
     : t('meta.none')
 
   return JSON.stringify({
