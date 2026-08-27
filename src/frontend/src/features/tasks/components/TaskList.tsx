@@ -17,7 +17,6 @@ import {
   RiArrowRightSLine,
   RiArrowUpSLine,
   RiCalendar2Line,
-  RiCheckLine,
   RiDeleteBinLine,
   RiGitBranchLine,
   RiLoader4Line,
@@ -27,7 +26,6 @@ import {
 
 import { Button, Menu, MenuList } from '@/primitives'
 import { Select } from '@/primitives/Select'
-import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { css } from '@/styled-system/css'
 
 import type {
@@ -44,6 +42,7 @@ import { usePatchTask } from '../api/fetchTasks'
 import { formatTaskCreatedAt, formatTaskDate } from '../taskDateFormat'
 import { taskAssignees } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
+import { TaskCompletionButton } from './TaskCompletionButton'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskAssigneesDisplay, TaskUserDisplay } from './TaskUserDisplay'
 
@@ -250,13 +249,25 @@ export const TaskList = ({
     () => buildSections(displayedTasks, groups, grouped),
     [displayedTasks, grouped, groups]
   )
+  const effectiveExpandedTaskIds = useMemo(() => {
+    const next = new Set(expandedTaskIds)
+    const selectedTask = displayedTasks.find(
+      (task) => task.id === selectedTaskId
+    )
+    if (!selectedTask) return next
+    const visibleTaskIds = new Set(displayedTasks.map((task) => task.id))
+    selectedTask.ancestor_path.slice(0, -1).forEach((ancestor) => {
+      if (visibleTaskIds.has(ancestor.id)) next.add(ancestor.id)
+    })
+    return next
+  }, [displayedTasks, expandedTaskIds, selectedTaskId])
   const treeSections = useMemo(
     () =>
       sections.map((section) => ({
         ...section,
-        rows: buildTaskTreeRows(section.tasks, expandedTaskIds),
+        rows: buildTaskTreeRows(section.tasks, effectiveExpandedTaskIds),
       })),
-    [expandedTaskIds, sections]
+    [effectiveExpandedTaskIds, sections]
   )
 
   useEffect(() => {
@@ -821,11 +832,11 @@ const DesktopTaskRow = ({
           expanded={isSubtasksExpanded}
           onToggle={onToggleSubtasks}
         />
-        <TaskStatusButton
+        <TaskCompletionButton
           task={task}
           status={statusOverride ?? task.status}
           pending={statusPending}
-          onToggle={onToggleStatus}
+          onToggle={() => onToggleStatus(task)}
         />
         {editingCell?.taskId === task.id && editingCell.field === 'title' ? (
           <InlineTitleEditor
@@ -1333,11 +1344,11 @@ const MobileTaskCard = ({
         expanded={isSubtasksExpanded}
         onToggle={onToggleSubtasks}
       />
-      <TaskStatusButton
+      <TaskCompletionButton
         task={task}
         status={statusOverride ?? task.status}
         pending={statusPending}
-        onToggle={onToggleStatus}
+        onToggle={() => onToggleStatus(task)}
       />
       <TaskTitle
         task={task}
@@ -1406,63 +1417,6 @@ const TaskHierarchyToggle = ({
         <span className={taskHierarchySpacerCss} aria-hidden="true" />
       )}
     </span>
-  )
-}
-
-const TaskStatusButton = ({
-  task,
-  status,
-  pending,
-  onToggle,
-}: {
-  task: ApiTask
-  status: TaskStatus
-  pending: boolean
-  onToggle: (task: ApiTask) => void
-}) => {
-  const { t } = useTranslation('tasks')
-  const targetStatus = status === 'completed' ? 'todo' : 'completed'
-  const actionLabel = t(`actions.to_${targetStatus}`)
-  const accessibleLabel = task.can_update_status
-    ? t(
-        status === 'completed'
-          ? 'workspace.quickReopen'
-          : 'workspace.quickComplete',
-        { title: task.title }
-      )
-    : `${t(`statuses.${status}`)}: ${task.title}`
-
-  return (
-    <div className={taskStatusControlCss}>
-      <VisualOnlyTooltip
-        tooltip={task.can_update_status ? actionLabel : t(`statuses.${status}`)}
-        ariaLabel={accessibleLabel}
-      >
-        <button
-          type="button"
-          className={taskStatusButtonCss}
-          data-status={status}
-          data-pending={pending || undefined}
-          aria-busy={pending || undefined}
-          disabled={!task.can_update_status || pending}
-          draggable={false}
-          onPointerDown={(event) => event.stopPropagation()}
-          onDragStart={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggle(task)
-          }}
-        >
-          {pending ? (
-            <RiLoader4Line aria-hidden="true" size={12} />
-          ) : (
-            status === 'completed' && (
-              <RiCheckLine aria-hidden="true" size={10} />
-            )
-          )}
-        </button>
-      </VisualOnlyTooltip>
-    </div>
   )
 }
 
@@ -2227,45 +2181,6 @@ const taskHierarchyToggleCss = css({
   },
 })
 const taskHierarchySpacerCss = css({ width: '1rem', height: '1.25rem' })
-const taskStatusControlCss = css({
-  flexShrink: 0,
-  '& > div': { display: 'flex' },
-})
-const taskStatusButtonCss = css({
-  width: '0.875rem',
-  height: '0.875rem',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 0,
-  border: '1px solid token(colors.greyscale.400)',
-  borderRadius: '999px',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.000',
-  cursor: 'pointer',
-  transition: 'border-color 120ms, background-color 120ms, box-shadow 120ms',
-  '&:not(:disabled):hover': {
-    borderColor: 'primary.500',
-    boxShadow: '0 0 0 2px token(colors.primary.100)',
-  },
-  _focusVisible: {
-    outline: '2px solid token(colors.primary.500)',
-    outlineOffset: '2px',
-  },
-  _disabled: { cursor: 'default', pointerEvents: 'none' },
-  '&[data-status="completed"]': {
-    borderColor: 'success.500',
-    backgroundColor: 'success.500',
-    '&:not(:disabled):hover': {
-      borderColor: 'success.600',
-      backgroundColor: 'success.600',
-      boxShadow: '0 0 0 2px token(colors.success.100)',
-    },
-  },
-  '&[data-pending] svg': {
-    animation: 'rotate 700ms linear infinite',
-  },
-})
 const statusErrorCss = css({
   margin: 0,
   padding: '0.5rem 1rem',

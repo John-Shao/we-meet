@@ -196,7 +196,7 @@ describe('TaskList', () => {
       ],
     }
 
-    render(
+    const { container, rerender } = render(
       <TaskList
         tasks={[parent, child]}
         onOpen={vi.fn()}
@@ -215,6 +215,17 @@ describe('TaskList', () => {
       screen.getAllByRole('button', { name: 'subtasks.collapseInList' })[0]
     )
     expect(screen.queryByText('Backend')).not.toBeInTheDocument()
+
+    rerender(
+      <TaskList
+        tasks={[parent, child]}
+        selectedTaskId={child.id}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+    expect(screen.getAllByText('Backend')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-selected]')).toHaveLength(2)
   })
 
   it('quickly completes and reopens a task without opening its details', async () => {

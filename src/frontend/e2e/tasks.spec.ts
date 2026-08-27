@@ -278,6 +278,16 @@ test('create recursive subtasks, keep status independent, and show parent chains
   await expect(details).toContainText('已完成 1 / 2')
   await expect(details.getByRole('button', { name: '完成任务' })).toBeVisible()
 
+  const childDetailRow = details
+    .getByRole('listitem')
+    .filter({ hasText: childTitle })
+  await childDetailRow
+    .getByRole('button', { name: '打开任务：' + childTitle })
+    .click()
+  await expect(
+    page.getByRole('row', { name: '打开任务：' + childTitle })
+  ).toHaveAttribute('data-selected', 'true')
+
   await page.keyboard.press('Control+k')
   await page.getByTestId('global-search-input').fill(leafTitle)
   await page.getByTestId('global-search-tab-tasks').click()

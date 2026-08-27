@@ -32,6 +32,7 @@ import {
   useLeaveTaskList,
   useMoveTaskListToGroup,
   useStandaloneTaskCount,
+  useTask,
   useTaskListGroups,
   useTaskLists,
   useUpdateTaskList,
@@ -82,6 +83,7 @@ const TasksAuthenticated = () => {
     () => parseTaskWorkspaceState(searchParams),
     [searchParams]
   )
+  const sharedVia = searchParams.get('shared_via') || undefined
   const [creating, setCreating] = useState(false)
   const [createGroupId, setCreateGroupId] = useState<string>()
   const [createParentTask, setCreateParentTask] = useState<ApiTask | null>(null)
@@ -136,18 +138,27 @@ const TasksAuthenticated = () => {
     state.taskList,
     state.ordering
   )
+  const { data: selectedTaskDetail } = useTask(state.task, sharedVia)
   const tasks = useMemo(
     () => data?.pages.flatMap((page) => page.results) || [],
     [data]
   )
+  const listTasks = useMemo(
+    () =>
+      selectedTaskDetail &&
+      !tasks.some((task) => task.id === selectedTaskDetail.id)
+        ? [selectedTaskDetail, ...tasks]
+        : tasks,
+    [selectedTaskDetail, tasks]
+  )
   const count = data?.pages[0]?.count || 0
   const standaloneTaskCount = standaloneTaskCountData?.count || 0
-  const selectedTask = tasks.find((task) => task.id === state.task)
+  const selectedTask =
+    tasks.find((task) => task.id === state.task) || selectedTaskDetail
   const selectedTaskList = taskLists.find(
     (taskList) => taskList.id === state.taskList
   )
   const panelOpen = Boolean(state.task)
-  const sharedVia = searchParams.get('shared_via') || undefined
 
   const deleteGroup = async (group: ApiTaskGroup) => {
     if (!group.can_delete) return
@@ -301,6 +312,19 @@ const TasksAuthenticated = () => {
         setCreateParentTask(parentTask)
         setCreateGroupId(parentTask.group?.id)
         setCreating(true)
+      }}
+      onOpenSubtask={(subtask) => {
+        setCreating(false)
+        navigateState({
+          ...state,
+          scope: 'all',
+          status: 'all',
+          time: 'all',
+          priority: 'all',
+          taskList: 'all',
+          mode: 'list',
+          task: subtask.id,
+        })
       }}
       onClose={closePanel}
     />
@@ -457,7 +481,7 @@ const TasksAuthenticated = () => {
             <StateHint loading>{t('loading')}</StateHint>
           ) : error ? (
             <StateHint>{t('error')}</StateHint>
-          ) : tasks.length === 0 && !selectedTaskList ? (
+          ) : listTasks.length === 0 && !selectedTaskList ? (
             <StateHint>{t('empty')}</StateHint>
           ) : state.mode === 'board' ? (
             <>
@@ -479,7 +503,7 @@ const TasksAuthenticated = () => {
           ) : (
             <>
               <TaskList
-                tasks={tasks}
+                tasks={listTasks}
                 taskLists={taskLists}
                 ordering={state.ordering}
                 onOrderingChange={(ordering) =>

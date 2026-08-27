@@ -42,6 +42,26 @@ export const TaskAssigneesDisplay = ({
   const names = users.map(taskDisplayName)
   return (
     <span className={assigneesCss} title={names.join('、')}>
+      <TaskAssigneeAvatars users={users} size={size} showCount={false} />
+      <span className={nameCss}>{names[0]}</span>
+      {users.length > 1 && <span className={moreCss}>+{users.length - 1}</span>}
+    </span>
+  )
+}
+
+export const TaskAssigneeAvatars = ({
+  users,
+  size = '1.375rem',
+  showCount = true,
+}: {
+  users: ApiTaskUser[]
+  size?: string
+  showCount?: boolean
+}) => {
+  if (users.length === 0) return <span>—</span>
+  const names = users.map(taskDisplayName)
+  return (
+    <span className={avatarOnlyCss} title={names.join('、')}>
       <span className={avatarStackCss}>
         {users.slice(0, 3).map((user) => (
           <span key={user.id} className={stackedAvatarCss}>
@@ -49,8 +69,9 @@ export const TaskAssigneesDisplay = ({
           </span>
         ))}
       </span>
-      <span className={nameCss}>{names[0]}</span>
-      {users.length > 1 && <span className={moreCss}>+{users.length - 1}</span>}
+      {showCount && users.length > 3 && (
+        <span className={moreCss}>+{users.length - 3}</span>
+      )}
     </span>
   )
 }
@@ -77,6 +98,12 @@ const assigneesCss = css({
   display: 'inline-flex',
   alignItems: 'center',
   gap: '0.375rem',
+})
+
+const avatarOnlyCss = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.25rem',
 })
 
 const avatarStackCss = css({

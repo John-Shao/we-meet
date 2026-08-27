@@ -12,6 +12,7 @@ import {
   RiCalendarLine,
   RiCalendar2Line,
   RiAddLine,
+  RiArrowRightSLine,
   RiBookmarkFill,
   RiBookmarkLine,
   RiCheckLine,
@@ -57,11 +58,12 @@ import {
 import { formatTaskDate } from '../taskDateFormat'
 import { nextTaskStatuses, taskAssignees } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
+import { TaskCompletionButton } from './TaskCompletionButton'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
 import { TaskForm } from './TaskForm'
 import { TaskShareDialog } from './TaskShareDialog'
-import { TaskUserDisplay } from './TaskUserDisplay'
+import { TaskAssigneeAvatars, TaskUserDisplay } from './TaskUserDisplay'
 import {
   TaskAttachmentsSection,
   TaskCommentsSection,
@@ -78,6 +80,8 @@ type EditableTaskField =
   | 'placement'
   | 'parent'
   | 'description'
+
+type SubtaskEditableField = 'title' | 'dueDate'
 
 export const CreateTaskPanel = ({
   taskLists,
@@ -122,6 +126,7 @@ export const TaskDetailPanel = ({
   taskLists,
   sharedVia,
   onCreateSubtask,
+  onOpenSubtask,
   onClose,
 }: {
   taskId: string
@@ -129,6 +134,7 @@ export const TaskDetailPanel = ({
   taskLists: ApiTaskList[]
   sharedVia?: string
   onCreateSubtask: (parentTask: ApiTask) => void
+  onOpenSubtask: (subtask: ApiTask) => void
   onClose: () => void
 }) => {
   const { t, i18n } = useTranslation('tasks')
@@ -150,6 +156,13 @@ export const TaskDetailPanel = ({
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [subtaskEditing, setSubtaskEditing] = useState<{
+    taskId: string
+    field: SubtaskEditableField
+  } | null>(null)
+  const [subtaskDraft, setSubtaskDraft] = useState('')
+  const [subtaskAssigneeEditing, setSubtaskAssigneeEditing] =
+    useState<ApiTask | null>(null)
   const placementEditorRef = useRef<HTMLDivElement>(null)
   const patchMutation = usePatchTask()
   const deleteMutation = useDeleteTask()
@@ -170,6 +183,8 @@ export const TaskDetailPanel = ({
     setAssigneePickerOpen(false)
     setFollowerPickerOpen(false)
     setShareOpen(false)
+    setSubtaskEditing(null)
+    setSubtaskAssigneeEditing(null)
   }, [taskId])
 
   useEffect(() => {
@@ -305,6 +320,39 @@ export const TaskDetailPanel = ({
         status: subtask.status === 'completed' ? 'todo' : 'completed',
       },
     })
+  }
+
+  const beginSubtaskEdit = (subtask: ApiTask, field: SubtaskEditableField) => {
+    if (!subtask.can_edit || patchMutation.isPending) return
+    setSubtaskEditing({ taskId: subtask.id, field })
+    setSubtaskDraft(field === 'title' ? subtask.title : subtask.due_date || '')
+  }
+
+  const saveSubtaskField = async (
+    subtask: ApiTask,
+    patch: PatchTaskPayload
+  ) => {
+    if (patchMutation.isPending) return
+    const unchanged =
+      (patch.title !== undefined && patch.title === subtask.title) ||
+      (patch.due_date !== undefined && patch.due_date === subtask.due_date) ||
+      (patch.assignee_ids !== undefined &&
+        patch.assignee_ids.join(',') ===
+          taskAssignees(subtask)
+            .map((assignee) => assignee.id)
+            .join(','))
+    if (unchanged) {
+      setSubtaskEditing(null)
+      setSubtaskAssigneeEditing(null)
+      return
+    }
+    try {
+      await patchMutation.mutateAsync({ taskId: subtask.id, patch })
+      setSubtaskEditing(null)
+      setSubtaskAssigneeEditing(null)
+    } catch {
+      // Keep the inline editor open so the user can retry.
+    }
   }
 
   return (
@@ -848,6 +896,19 @@ export const TaskDetailPanel = ({
               }}
             />
           )}
+          {subtaskAssigneeEditing && (
+            <TaskAssigneePickerDialog
+              initial={taskAssignees(subtaskAssigneeEditing)}
+              onClose={() => setSubtaskAssigneeEditing(null)}
+              onConfirm={(assignees) => {
+                const subtask = subtaskAssigneeEditing
+                setSubtaskAssigneeEditing(null)
+                void saveSubtaskField(subtask, {
+                  assignee_ids: assignees.map((assignee) => assignee.id),
+                })
+              }}
+            />
+          )}
           {followerPickerOpen && (
             <TaskFollowerPickerDialog
               initial={[]}
@@ -904,45 +965,131 @@ export const TaskDetailPanel = ({
                 <ul className={subtaskListCss}>
                   {subtasks.map((subtask) => (
                     <li key={subtask.id}>
+                      <TaskCompletionButton
+                        task={subtask}
+                        status={subtask.status}
+                        pending={
+                          patchMutation.isPending &&
+                          patchMutation.variables?.taskId === subtask.id
+                        }
+                        onToggle={() => toggleSubtaskStatus(subtask)}
+                      />
+                      {subtaskEditing?.taskId === subtask.id &&
+                      subtaskEditing.field === 'title' ? (
+                        <Input
+                          ref={focusInput}
+                          className={subtaskTitleInputCss}
+                          aria-label={t('form.title')}
+                          value={subtaskDraft}
+                          maxLength={500}
+                          disabled={patchMutation.isPending}
+                          onChange={(event) =>
+                            setSubtaskDraft(event.target.value)
+                          }
+                          onBlur={() => {
+                            const title = subtaskDraft.trim()
+                            if (!title) {
+                              setSubtaskEditing(null)
+                              return
+                            }
+                            void saveSubtaskField(subtask, { title })
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              event.currentTarget.blur()
+                            }
+                            if (event.key === 'Escape') {
+                              setSubtaskEditing(null)
+                            }
+                          }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className={subtaskTitleCss}
+                          data-completed={
+                            subtask.status === 'completed' || undefined
+                          }
+                          aria-label={`${t('actions.edit')} ${t('form.title')}`}
+                          disabled={
+                            !subtask.can_edit || patchMutation.isPending
+                          }
+                          onClick={() => beginSubtaskEdit(subtask, 'title')}
+                        >
+                          {subtask.title}
+                        </button>
+                      )}
+                      {subtaskEditing?.taskId === subtask.id &&
+                      subtaskEditing.field === 'dueDate' ? (
+                        <Input
+                          ref={focusInput}
+                          className={subtaskDateInputCss}
+                          type="date"
+                          aria-label={t('meta.dueDate')}
+                          value={subtaskDraft}
+                          min={subtask.start_date || undefined}
+                          disabled={patchMutation.isPending}
+                          onChange={(event) =>
+                            setSubtaskDraft(event.target.value)
+                          }
+                          onBlur={() =>
+                            void saveSubtaskField(subtask, {
+                              due_date: subtaskDraft || null,
+                            })
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              event.currentTarget.blur()
+                            }
+                            if (event.key === 'Escape') {
+                              setSubtaskEditing(null)
+                            }
+                          }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className={subtaskDueDateCss}
+                          aria-label={`${t('actions.edit')} ${t('meta.dueDate')}`}
+                          disabled={
+                            !subtask.can_edit || patchMutation.isPending
+                          }
+                          onClick={() => beginSubtaskEdit(subtask, 'dueDate')}
+                        >
+                          <RiCalendar2Line size={14} aria-hidden="true" />
+                          {subtask.due_date
+                            ? formatDate(subtask.due_date)
+                            : t('meta.none')}
+                        </button>
+                      )}
                       <button
                         type="button"
-                        className={subtaskStatusCss}
-                        aria-label={t(
-                          subtask.status === 'completed'
-                            ? 'actions.to_todo'
-                            : 'actions.to_completed'
-                        )}
-                        data-completed={
-                          subtask.status === 'completed' || undefined
-                        }
-                        disabled={
-                          !subtask.can_update_status || patchMutation.isPending
-                        }
-                        onClick={() => toggleSubtaskStatus(subtask)}
+                        className={subtaskAssigneesCss}
+                        aria-label={`${t('actions.edit')} ${t('meta.assignee')}`}
+                        disabled={!subtask.can_edit || patchMutation.isPending}
+                        onClick={() => setSubtaskAssigneeEditing(subtask)}
                       >
-                        {subtask.status === 'completed' && (
-                          <RiCheckLine size={14} aria-hidden="true" />
-                        )}
+                        <TaskAssigneeAvatars
+                          users={taskAssignees(subtask)}
+                          size="1.25rem"
+                        />
                       </button>
-                      <Link
-                        href={`/tasks?task=${encodeURIComponent(subtask.id)}`}
+                      <Button
+                        type="button"
+                        size="icon28"
+                        variant="quaternaryText"
+                        aria-label={t('workspace.openTask', {
+                          title: subtask.title,
+                        })}
+                        tooltip={t('workspace.openTask', {
+                          title: subtask.title,
+                        })}
+                        onPress={() => onOpenSubtask(subtask)}
                       >
-                        {subtask.title}
-                      </Link>
-                      <span className={subtaskMetaCss}>
-                        {subtask.due_date && (
-                          <span>{formatDate(subtask.due_date)}</span>
-                        )}
-                        {taskAssignees(subtask)[0]?.avatar_url ? (
-                          <img
-                            src={taskAssignees(subtask)[0].avatar_url}
-                            alt=""
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <RiUser3Line size={15} aria-hidden="true" />
-                        )}
-                      </span>
+                        <RiArrowRightSLine size={17} aria-hidden="true" />
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -1375,50 +1522,73 @@ const subtaskListCss = css({
   '& li': {
     minHeight: '2rem',
     display: 'grid',
-    gridTemplateColumns: '1rem minmax(0, 1fr) auto',
+    gridTemplateColumns: '1rem minmax(5rem, 1fr) auto auto 1.75rem',
     alignItems: 'center',
-    gap: '0.5rem',
+    gap: '0.375rem',
     padding: '0.25rem 0.5rem',
     borderRadius: '6px',
     _hover: { backgroundColor: 'greyscale.50' },
   },
-  '& a': {
-    overflow: 'hidden',
-    color: 'default.text',
-    textDecoration: 'none',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
 })
-const subtaskStatusCss = css({
-  width: '1rem',
-  height: '1rem',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flexShrink: 0,
+const subtaskTitleCss = css({
+  minWidth: 0,
+  overflow: 'hidden',
   padding: 0,
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '999px',
-  backgroundColor: 'greyscale.000',
-  color: 'success.700',
+  border: 0,
+  backgroundColor: 'transparent',
+  color: 'default.text',
+  fontSize: '0.8125rem',
+  textAlign: 'left',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   cursor: 'pointer',
-  _hover: { borderColor: 'primary.500' },
-  _disabled: { cursor: 'default' },
-  '&[data-completed]': { borderColor: 'success.300' },
+  '&[data-completed]': {
+    color: 'default.subtle-text',
+    textDecoration: 'line-through',
+  },
+  _disabled: { cursor: 'default', opacity: 1 },
 })
-const subtaskMetaCss = css({
+const subtaskDueDateCss = css({
   display: 'inline-flex',
   alignItems: 'center',
-  gap: '0.5rem',
+  gap: '0.25rem',
+  padding: '0.125rem 0.25rem',
+  border: 0,
+  borderRadius: '4px',
+  backgroundColor: 'transparent',
   color: 'greyscale.500',
   fontSize: '0.6875rem',
-  '& img': {
-    width: '1.25rem',
-    height: '1.25rem',
-    borderRadius: '999px',
-    objectFit: 'cover',
+  whiteSpace: 'nowrap',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100' },
+  _disabled: { cursor: 'default', opacity: 1 },
+})
+const subtaskAssigneesCss = css({
+  minWidth: '1.25rem',
+  display: 'inline-flex',
+  justifyContent: 'flex-end',
+  padding: 0,
+  border: 0,
+  borderRadius: '999px',
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  _focusVisible: {
+    outline: '2px solid token(colors.primary.500)',
+    outlineOffset: '2px',
   },
+  _disabled: { cursor: 'default', opacity: 1 },
+})
+const subtaskTitleInputCss = css({
+  minWidth: 0,
+  height: '1.75rem',
+  minHeight: '1.75rem',
+  fontSize: '0.8125rem',
+})
+const subtaskDateInputCss = css({
+  width: '8.25rem',
+  height: '1.75rem',
+  minHeight: '1.75rem',
+  fontSize: '0.6875rem',
 })
 const subtaskEmptyCss = css({
   margin: 0,

@@ -99,6 +99,35 @@ vi.mock('./TaskCollaborationSections', () => ({
   TaskHistorySection: () => null,
 }))
 
+vi.mock('./TaskAssigneePickerDialog', () => ({
+  TaskAssigneePickerDialog: ({
+    initial,
+    onConfirm,
+  }: {
+    initial: ApiTask['followers']
+    onConfirm: (assignees: ApiTask['followers']) => void
+  }) => (
+    <div role="dialog" aria-label="assignees.select">
+      <button
+        type="button"
+        onClick={() =>
+          onConfirm([
+            ...initial,
+            {
+              id: 'assignee-2',
+              full_name: 'Second assignee',
+              short_name: null,
+              avatar_url: '/assignee-2.png',
+            },
+          ])
+        }
+      >
+        assignees.confirmTest
+      </button>
+    </div>
+  ),
+}))
+
 const task: ApiTask = {
   id: 'task-1',
   title: 'Prepare release',
@@ -162,6 +191,7 @@ describe('TaskDetailPanel', () => {
         fallbackTask={task}
         taskLists={[]}
         onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -197,6 +227,7 @@ describe('TaskDetailPanel', () => {
         fallbackTask={{ ...task, can_edit: true }}
         taskLists={[]}
         onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -295,6 +326,7 @@ describe('TaskDetailPanel', () => {
         }}
         taskLists={[]}
         onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -323,6 +355,7 @@ describe('TaskDetailPanel', () => {
         }}
         taskLists={[]}
         onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -348,6 +381,7 @@ describe('TaskDetailPanel', () => {
         }}
         taskLists={[]}
         onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -394,8 +428,9 @@ describe('TaskDetailPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses compact subtask rows and delegates creation with the parent task', () => {
+  it('supports every compact subtask action without opening details from the title', async () => {
     const onCreateSubtask = vi.fn()
+    const onOpenSubtask = vi.fn()
     const child: ApiTask = {
       ...task,
       id: 'child-1',
@@ -406,6 +441,7 @@ describe('TaskDetailPanel', () => {
         { id: task.id, title: task.title, depth: 0 },
         { id: 'child-1', title: 'Backend', depth: 1 },
       ],
+      can_edit: true,
       can_update_status: true,
     }
     subtaskState.current = [child]
@@ -419,25 +455,79 @@ describe('TaskDetailPanel', () => {
         }}
         taskLists={[]}
         onCreateSubtask={onCreateSubtask}
+        onOpenSubtask={onOpenSubtask}
         onClose={vi.fn()}
       />
     )
 
     expect(screen.getByText('0 / 1')).toBeInTheDocument()
-    const childRow = screen
-      .getByRole('link', { name: child.title })
-      .closest('li')!
+    const childRow = screen.getByText(child.title).closest('li')!
+    expect(within(childRow).queryByRole('link')).not.toBeInTheDocument()
+    expect(
+      within(childRow).queryByText(task.assignee!.full_name!)
+    ).not.toBeInTheDocument()
+    expect(childRow.querySelector('img[src="/assignee.png"]')).toBeTruthy()
+
     fireEvent.click(
-      within(childRow).getByRole('button', { name: 'actions.to_completed' })
+      within(childRow).getByRole('button', { name: 'workspace.quickComplete' })
     )
     expect(mutate).toHaveBeenCalledWith({
       taskId: child.id,
       patch: { status: 'completed' },
     })
 
-    expect(
-      screen.queryByRole('textbox', { name: 'subtasks.newTitle' })
-    ).not.toBeInTheDocument()
+    fireEvent.click(
+      within(childRow).getByRole('button', {
+        name: 'actions.edit form.title',
+      })
+    )
+    const titleInput = within(childRow).getByRole('textbox', {
+      name: 'form.title',
+    })
+    fireEvent.change(titleInput, { target: { value: 'Backend API' } })
+    fireEvent.blur(titleInput)
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: child.id,
+        patch: { title: 'Backend API' },
+      })
+    )
+
+    fireEvent.click(
+      await within(childRow).findByRole('button', {
+        name: 'actions.edit meta.dueDate',
+      })
+    )
+    const dueDateInput = within(childRow).getByLabelText('meta.dueDate')
+    fireEvent.change(dueDateInput, { target: { value: '2026-09-01' } })
+    fireEvent.blur(dueDateInput)
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: child.id,
+        patch: { due_date: '2026-09-01' },
+      })
+    )
+
+    fireEvent.click(
+      await within(childRow).findByRole('button', {
+        name: 'actions.edit meta.assignee',
+      })
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'assignees.confirmTest' })
+    )
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: child.id,
+        patch: { assignee_ids: ['assignee', 'assignee-2'] },
+      })
+    )
+
+    fireEvent.click(
+      within(childRow).getByRole('button', { name: 'workspace.openTask' })
+    )
+    expect(onOpenSubtask).toHaveBeenCalledWith(child)
+
     fireEvent.click(screen.getByRole('button', { name: 'subtasks.addAction' }))
     expect(onCreateSubtask).toHaveBeenCalledWith(
       expect.objectContaining({ id: task.id })
@@ -461,6 +551,7 @@ describe('TaskDetailPanel', () => {
         }}
         taskLists={[]}
         onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
         onClose={vi.fn()}
       />
     )
@@ -483,6 +574,7 @@ describe('TaskDetailPanel', () => {
         fallbackTask={{ ...task, can_delete: true }}
         taskLists={[]}
         onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
         onClose={onClose}
       />
     )
