@@ -189,7 +189,7 @@ test('keeps the task workspace usable and visually stable on mobile', async ({
 }) => {
   test.setTimeout(120_000)
   await page.addInitScript(() => {
-    window.localStorage.setItem('we-meet:rail-collapsed', '1')
+    window.localStorage.removeItem('we-meet:rail-collapsed')
   })
   const fixture = await createVisualFixture(page)
   const listUrl =
@@ -197,6 +197,12 @@ test('keeps the task workspace usable and visually stable on mobile', async ({
     '&view=list'
 
   await page.goto(listUrl)
+  const railToggle = page.getByTestId('rail-collapse-toggle')
+  await expect(railToggle).toHaveAccessibleName('展开导航栏')
+  await railToggle.click()
+  await expect(railToggle).toHaveAccessibleName('收起导航栏')
+  await railToggle.click()
+  await expect(railToggle).toHaveAccessibleName('展开导航栏')
   const rootCard = page.getByRole('button', {
     name: `打开任务：${fixture.root.title}`,
     exact: true,

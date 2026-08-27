@@ -24,6 +24,7 @@ and this project adheres to
 
 ### Changed
 
+- ✨(frontend) default the primary navigation to compact mode on narrow viewports
 - ✨(frontend) replace whole-row task dragging with dedicated group-move and subtask-reorder handles plus accessible fallback actions
 - ✨(frontend) refine task filters, actionable workspace states, row actions, mobile cards, and detail information hierarchy
 - ✨(frontend) sharpen task hierarchy UX with compact panel-aware columns, explicit status feedback, keyboard tree controls, and unfinished-subtask completion warnings
