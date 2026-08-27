@@ -1432,27 +1432,29 @@ const MobileTaskCard = ({
         status={statusOverride ?? task.status}
         showAncestorPath={showAncestorPath}
       />
-      <TaskPriorityBadge priority={task.priority} />
-      {grouped && task.can_edit && groups.length > 0 && (
-        <TaskMoveHandle
-          task={task}
-          groups={groups}
-          onMoveTask={onMoveTask}
-          mobile
-        />
-      )}
-      {(onShare || onDeleteTask) && (
-        <button
-          type="button"
-          className={mobileRowActionButtonCss}
-          aria-label={t('actions.more')}
-          draggable={false}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => onTaskContextMenu(event, task)}
-        >
-          <RiMoreLine size={18} aria-hidden="true" />
-        </button>
-      )}
+      <div className={mobileTitleActionsCss}>
+        <TaskPriorityBadge priority={task.priority} />
+        {grouped && task.can_edit && groups.length > 0 && (
+          <TaskMoveHandle
+            task={task}
+            groups={groups}
+            onMoveTask={onMoveTask}
+            mobile
+          />
+        )}
+        {(onShare || onDeleteTask) && (
+          <button
+            type="button"
+            className={mobileRowActionButtonCss}
+            aria-label={t('actions.more')}
+            draggable={false}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => onTaskContextMenu(event, task)}
+          >
+            <RiMoreLine size={18} aria-hidden="true" />
+          </button>
+        )}
+      </div>
     </div>
     <dl className={mobileMetaCss}>
       <div>
@@ -2594,9 +2596,19 @@ const mobileCardCss = css({
 })
 const mobileTitleRowCss = css({
   display: 'grid',
-  gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto auto',
+  gridTemplateColumns: {
+    base: 'auto auto minmax(0, 1fr)',
+    sm: 'auto auto minmax(0, 1fr) auto',
+  },
   alignItems: 'center',
   gap: '0.625rem',
+})
+const mobileTitleActionsCss = css({
+  gridColumn: { base: '1 / -1', sm: 'auto' },
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  gap: '0.5rem',
 })
 const mobileTaskMoveHandleCss = css({
   width: '2rem',

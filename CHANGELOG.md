@@ -16,6 +16,7 @@ and this project adheres to
 - ✨(fullstack) add atomic subtask ordering and concurrency-safe hierarchy writes
 - ✨(fullstack) add task results and task-specific filters to global search
 - ✨(frontend) add real-stack Playwright coverage for the task workflow
+- ✨(frontend) add Pixel 7 task visual regression baselines and responsive mobile task cards
 - ✨(fullstack) allow participants to mute others based on room configuration
 - ✨(frontend) add synchronizer for room metadata updates
 - ✨(frontend) make reaction toolbar responsive on small viewports

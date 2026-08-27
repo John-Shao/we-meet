@@ -11,6 +11,8 @@
     "test:watch": "panda codegen && vitest",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
+    "test:e2e:mobile": "playwright test --project=mobile-chromium",
+    "test:e2e:update-mobile": "playwright test --project=mobile-chromium --update-snapshots",
     "preview": "vite preview",
     "i18n:extract": "npx i18next -c i18next-parser.config.json",
     "format": "prettier --write ./src",

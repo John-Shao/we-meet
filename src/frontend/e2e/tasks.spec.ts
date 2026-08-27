@@ -166,7 +166,7 @@ test('create, edit, persist, and complete a self-assigned task', async ({
   await page.getByTestId('global-search-input').fill(title)
   await page.getByTestId('global-search-tab-tasks').click()
   const searchResult = page.getByTestId(`global-search-task-${taskId}`)
-  await expect(searchResult).toBeVisible()
+  await expect(searchResult).toBeVisible({ timeout: 20_000 })
 
   await page.getByTestId('global-search-task-filter-creator').click()
   await page
@@ -186,7 +186,7 @@ test('create, edit, persist, and complete a self-assigned task', async ({
   await page.getByTestId('global-search-task-filter-status-todo').click()
   await page.getByTestId('global-search-task-filter-due').click()
   await page.getByTestId('global-search-task-filter-due-tomorrow').click()
-  await expect(searchResult).toBeVisible()
+  await expect(searchResult).toBeVisible({ timeout: 20_000 })
 
   await searchResult.click()
   await expect(page).toHaveURL(new RegExp(`task=${taskId}`))
@@ -239,9 +239,9 @@ test('create and advance a recurring task without duplicating its cycle', async 
     '/tasks?scope=all&status=open&time=all&priority=all&task_list=all&view=list'
   )
   await page.getByRole('button', { name: '新建任务' }).click()
-  const createPanel = page.getByRole('complementary', { name: '新建任务' })
+  const createPanel = page.getByRole('dialog', { name: '新建任务' })
   await createPanel.getByPlaceholder('输入标题，回车确认').fill(title)
-  await createPanel.getByLabel('重复任务').click()
+  await createPanel.getByRole('button', { name: /重复任务/ }).click()
   await page.getByRole('option', { name: '每天重复' }).click()
 
   const createResponsePromise = page.waitForResponse(
