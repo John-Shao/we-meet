@@ -10,14 +10,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiTask } from '../api/ApiTask'
 import { TaskDetailPanel } from './TaskSidePanel'
 
-const { confirm, deleteMutateAsync, followMutate, mutate, mutateAsync } =
-  vi.hoisted(() => ({
-    confirm: vi.fn().mockResolvedValue(true),
-    deleteMutateAsync: vi.fn().mockResolvedValue(undefined),
-    followMutate: vi.fn(),
-    mutate: vi.fn(),
-    mutateAsync: vi.fn().mockResolvedValue(undefined),
-  }))
+const {
+  confirm,
+  createMutateAsync,
+  deleteMutateAsync,
+  followMutate,
+  mutate,
+  mutateAsync,
+  subtaskState,
+} = vi.hoisted(() => ({
+  confirm: vi.fn().mockResolvedValue(true),
+  createMutateAsync: vi.fn().mockResolvedValue(undefined),
+  deleteMutateAsync: vi.fn().mockResolvedValue(undefined),
+  followMutate: vi.fn(),
+  mutate: vi.fn(),
+  mutateAsync: vi.fn().mockResolvedValue(undefined),
+  subtaskState: { current: [] as ApiTask[] },
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -28,7 +37,11 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../api/fetchTasks', () => ({
   useTask: () => ({ data: undefined, isLoading: false, error: null }),
-  useTaskSubtasks: () => ({ data: [], isLoading: false, error: null }),
+  useTaskSubtasks: () => ({
+    data: subtaskState.current,
+    isLoading: false,
+    error: null,
+  }),
   useTaskParentCandidates: () => ({ data: [] }),
   useTaskSubtreeImpact: () => ({
     data: {
@@ -39,7 +52,7 @@ vi.mock('../api/fetchTasks', () => ({
     },
   }),
   useCreateTask: () => ({
-    mutateAsync: vi.fn(),
+    mutateAsync: createMutateAsync,
     isPending: false,
     error: null,
   }),
@@ -135,9 +148,11 @@ describe('TaskDetailPanel', () => {
   beforeEach(() => {
     mutate.mockClear()
     mutateAsync.mockClear()
+    createMutateAsync.mockClear()
     deleteMutateAsync.mockClear()
     followMutate.mockClear()
     confirm.mockClear()
+    subtaskState.current = []
   })
 
   it('renders start and due dates as separate properties', () => {
@@ -370,6 +385,84 @@ describe('TaskDetailPanel', () => {
     expect(
       screen.getByRole('menuitem', { name: 'actions.delete' })
     ).toBeInTheDocument()
+  })
+
+  it('uses compact interactive subtask rows and opens creation on demand', () => {
+    const child: ApiTask = {
+      ...task,
+      id: 'child-1',
+      title: 'Backend',
+      parent_id: task.id,
+      depth: 1,
+      ancestor_path: [
+        { id: task.id, title: task.title, depth: 0 },
+        { id: 'child-1', title: 'Backend', depth: 1 },
+      ],
+      can_update_status: true,
+    }
+    subtaskState.current = [child]
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{
+          ...task,
+          can_create_subtasks: true,
+          descendant_progress: { completed: 0, total: 1 },
+        }}
+        taskLists={[]}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('0 / 1')).toBeInTheDocument()
+    const childRow = screen
+      .getByRole('link', { name: child.title })
+      .closest('li')!
+    fireEvent.click(
+      within(childRow).getByRole('button', { name: 'actions.to_completed' })
+    )
+    expect(mutate).toHaveBeenCalledWith({
+      taskId: child.id,
+      patch: { status: 'completed' },
+    })
+
+    expect(
+      screen.queryByRole('textbox', { name: 'subtasks.newTitle' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'subtasks.addAction' }))
+    expect(
+      screen.getByRole('textbox', { name: 'subtasks.newTitle' })
+    ).toBeInTheDocument()
+  })
+
+  it('opens a subtask in the full task detail with ancestors above its title', () => {
+    render(
+      <TaskDetailPanel
+        taskId="child-1"
+        fallbackTask={{
+          ...task,
+          id: 'child-1',
+          title: 'Backend',
+          parent_id: task.id,
+          depth: 1,
+          ancestor_path: [
+            { id: task.id, title: task.title, depth: 0 },
+            { id: 'child-1', title: 'Backend', depth: 1 },
+          ],
+        }}
+        taskLists={[]}
+        onClose={vi.fn()}
+      />
+    )
+
+    const parentChain = screen.getByRole('navigation', {
+      name: 'subtasks.parentChain',
+    })
+    expect(within(parentChain).getByText(task.title)).toBeInTheDocument()
+    expect(within(parentChain).queryByText('Backend')).not.toBeInTheDocument()
+    expect(screen.getByText('meta.startDate', { selector: 'dt' })).toBeVisible()
+    expect(screen.getByTestId('comments')).toBeInTheDocument()
+    expect(screen.getByTestId('attachments')).toBeInTheDocument()
   })
 
   it('deletes an editable task after confirmation', async () => {

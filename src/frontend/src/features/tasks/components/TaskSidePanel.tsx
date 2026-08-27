@@ -146,6 +146,7 @@ export const TaskDetailPanel = ({
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
+  const [subtaskComposerOpen, setSubtaskComposerOpen] = useState(false)
   const placementEditorRef = useRef<HTMLDivElement>(null)
   const patchMutation = usePatchTask()
   const deleteMutation = useDeleteTask()
@@ -168,6 +169,7 @@ export const TaskDetailPanel = ({
     setFollowerPickerOpen(false)
     setShareOpen(false)
     setNewSubtaskTitle('')
+    setSubtaskComposerOpen(false)
   }, [taskId])
 
   useEffect(() => {
@@ -284,6 +286,7 @@ export const TaskDetailPanel = ({
         group_id: task.group?.id || null,
       })
       setNewSubtaskTitle('')
+      setSubtaskComposerOpen(false)
     } catch {
       // Keep the title so the user can retry or correct the request.
     }
@@ -311,6 +314,16 @@ export const TaskDetailPanel = ({
     await saveField({
       parent_id: parentId || null,
       confirm_subtree_node_count: subtreeImpact?.node_count,
+    })
+  }
+
+  const toggleSubtaskStatus = (subtask: ApiTask) => {
+    if (!subtask.can_update_status || patchMutation.isPending) return
+    patchMutation.mutate({
+      taskId: subtask.id,
+      patch: {
+        status: subtask.status === 'completed' ? 'todo' : 'completed',
+      },
     })
   }
 
@@ -425,21 +438,14 @@ export const TaskDetailPanel = ({
               aria-label={t('subtasks.parentChain')}
               className={breadcrumbCss}
             >
-              {task.ancestor_path.map((node, index) => {
-                const isCurrent = index === task.ancestor_path.length - 1
-                return (
-                  <span key={node.id}>
-                    {index > 0 && <span aria-hidden="true">/</span>}
-                    {isCurrent ? (
-                      <span aria-current="page">{node.title}</span>
-                    ) : (
-                      <Link href={`/tasks?task=${encodeURIComponent(node.id)}`}>
-                        {node.title}
-                      </Link>
-                    )}
-                  </span>
-                )
-              })}
+              {task.ancestor_path.slice(0, -1).map((node, index) => (
+                <span key={node.id}>
+                  {index > 0 && <span aria-hidden="true">›</span>}
+                  <Link href={`/tasks?task=${encodeURIComponent(node.id)}`}>
+                    {node.title}
+                  </Link>
+                </span>
+              ))}
             </nav>
           )}
           <div className={taskTitleRowCss}>
@@ -895,11 +901,15 @@ export const TaskDetailPanel = ({
             <div className={subtasksSectionCss}>
               {task.descendant_progress.total > 0 && (
                 <div className={subtaskProgressCss}>
-                  <span>
-                    {t('subtasks.progress', {
+                  <RiGitBranchLine size={16} aria-hidden="true" />
+                  <span
+                    aria-label={t('subtasks.progress', {
                       completed: task.descendant_progress.completed,
                       total: task.descendant_progress.total,
                     })}
+                  >
+                    {task.descendant_progress.completed} /{' '}
+                    {task.descendant_progress.total}
                   </span>
                   <progress
                     aria-label={t('subtasks.progressLabel')}
@@ -914,28 +924,50 @@ export const TaskDetailPanel = ({
                 <ul className={subtaskListCss}>
                   {subtasks.map((subtask) => (
                     <li key={subtask.id}>
-                      <span
+                      <button
+                        type="button"
                         className={subtaskStatusCss}
+                        aria-label={t(
+                          subtask.status === 'completed'
+                            ? 'actions.to_todo'
+                            : 'actions.to_completed'
+                        )}
                         data-completed={
                           subtask.status === 'completed' || undefined
                         }
+                        disabled={
+                          !subtask.can_update_status || patchMutation.isPending
+                        }
+                        onClick={() => toggleSubtaskStatus(subtask)}
                       >
                         {subtask.status === 'completed' && (
                           <RiCheckLine size={14} aria-hidden="true" />
                         )}
-                      </span>
+                      </button>
                       <Link
                         href={`/tasks?task=${encodeURIComponent(subtask.id)}`}
                       >
                         {subtask.title}
                       </Link>
+                      <span className={subtaskMetaCss}>
+                        {subtask.due_date && (
+                          <span>{formatDate(subtask.due_date)}</span>
+                        )}
+                        {taskAssignees(subtask)[0]?.avatar_url ? (
+                          <img
+                            src={taskAssignees(subtask)[0].avatar_url}
+                            alt=""
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <RiUser3Line size={15} aria-hidden="true" />
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p className={subtaskEmptyCss}>{t('subtasks.empty')}</p>
-              )}
-              {task.can_create_subtasks ? (
+              ) : null}
+              {task.can_create_subtasks && subtaskComposerOpen && (
                 <form
                   className={subtaskCreateCss}
                   onSubmit={(event) => {
@@ -950,6 +982,12 @@ export const TaskDetailPanel = ({
                     maxLength={500}
                     disabled={createMutation.isPending}
                     onChange={(event) => setNewSubtaskTitle(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        setNewSubtaskTitle('')
+                        setSubtaskComposerOpen(false)
+                      }
+                    }}
                   />
                   <Button
                     type="submit"
@@ -963,7 +1001,18 @@ export const TaskDetailPanel = ({
                     {t('subtasks.add')}
                   </Button>
                 </form>
-              ) : (
+              )}
+              {task.can_create_subtasks && !subtaskComposerOpen && (
+                <button
+                  type="button"
+                  className={subtaskAddActionCss}
+                  onClick={() => setSubtaskComposerOpen(true)}
+                >
+                  <RiAddLine size={16} aria-hidden="true" />
+                  {t('subtasks.addAction')}
+                </button>
+              )}
+              {!task.can_create_subtasks && (
                 <p className={subtaskEmptyCss}>
                   <RiGitBranchLine size={15} aria-hidden="true" />{' '}
                   {t('subtasks.limitReached')}
@@ -1363,24 +1412,42 @@ const descriptionCss = css({
 const subtasksSectionCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.75rem',
+  gap: '0.5rem',
 })
 const subtaskProgressCss = css({
+  minHeight: '1.75rem',
   display: 'grid',
-  gap: '0.375rem',
+  gridTemplateColumns: 'auto auto minmax(3rem, 1fr)',
+  alignItems: 'center',
+  gap: '0.5rem',
   color: 'default.subtle-text',
   fontSize: '0.8125rem',
-  '& progress': { width: '100%', height: '0.375rem' },
+  '& progress': { width: '4rem', height: '0.3rem' },
 })
 const subtaskListCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.375rem',
+  gap: '0.25rem',
   margin: 0,
   padding: 0,
   listStyle: 'none',
-  '& li': { display: 'flex', alignItems: 'center', gap: '0.5rem' },
-  '& a': { color: 'default.text', textDecoration: 'none' },
+  '& li': {
+    minHeight: '2rem',
+    display: 'grid',
+    gridTemplateColumns: '1rem minmax(0, 1fr) auto',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.25rem 0.5rem',
+    borderRadius: '6px',
+    _hover: { backgroundColor: 'greyscale.50' },
+  },
+  '& a': {
+    overflow: 'hidden',
+    color: 'default.text',
+    textDecoration: 'none',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
 })
 const subtaskStatusCss = css({
   width: '1rem',
@@ -1389,16 +1456,52 @@ const subtaskStatusCss = css({
   alignItems: 'center',
   justifyContent: 'center',
   flexShrink: 0,
+  padding: 0,
   border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '4px',
+  borderRadius: '999px',
+  backgroundColor: 'greyscale.000',
   color: 'success.700',
+  cursor: 'pointer',
+  _hover: { borderColor: 'primary.500' },
+  _disabled: { cursor: 'default' },
   '&[data-completed]': { borderColor: 'success.300' },
+})
+const subtaskMetaCss = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  color: 'greyscale.500',
+  fontSize: '0.6875rem',
+  '& img': {
+    width: '1.25rem',
+    height: '1.25rem',
+    borderRadius: '999px',
+    objectFit: 'cover',
+  },
 })
 const subtaskCreateCss = css({
   display: 'grid',
   gridTemplateColumns: 'minmax(0, 1fr) auto',
   alignItems: 'center',
   gap: '0.5rem',
+})
+const subtaskAddActionCss = css({
+  alignSelf: 'flex-start',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  padding: '0.25rem 0.5rem',
+  border: 0,
+  borderRadius: '6px',
+  backgroundColor: 'transparent',
+  color: 'greyscale.500',
+  fontSize: '0.8125rem',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.50', color: 'primary.600' },
+  _focusVisible: {
+    outline: '2px solid token(colors.primary.500)',
+    outlineOffset: '1px',
+  },
 })
 const subtaskEmptyCss = css({
   margin: 0,

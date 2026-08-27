@@ -178,6 +178,47 @@ describe('TaskList', () => {
     ).toHaveLength(2)
   })
 
+  it('collapses and expands nested task rows with progress like Feishu', () => {
+    const parent: ApiTask = {
+      ...task,
+      id: 'parent-1',
+      title: 'Release',
+      ancestor_path: [{ id: 'parent-1', title: 'Release', depth: 0 }],
+      descendant_progress: { completed: 0, total: 1 },
+    }
+    const child: ApiTask = {
+      ...task,
+      id: 'child-1',
+      title: 'Backend',
+      parent_id: parent.id,
+      depth: 1,
+      ancestor_path: [
+        { id: parent.id, title: parent.title, depth: 0 },
+        { id: 'child-1', title: 'Backend', depth: 1 },
+      ],
+    }
+
+    render(
+      <TaskList
+        tasks={[parent, child]}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('Backend')).not.toBeInTheDocument()
+    expect(screen.getAllByText('0/1')).toHaveLength(2)
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'subtasks.expandInList' })[0]
+    )
+    expect(screen.getAllByText('Backend')).toHaveLength(2)
+    expect(screen.queryByText('Release › Backend')).not.toBeInTheDocument()
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'subtasks.collapseInList' })[0]
+    )
+    expect(screen.queryByText('Backend')).not.toBeInTheDocument()
+  })
+
   it('quickly completes and reopens a task without opening its details', async () => {
     const onOpen = vi.fn()
     render(<TaskList tasks={[task]} onOpen={onOpen} registerRow={vi.fn()} />)

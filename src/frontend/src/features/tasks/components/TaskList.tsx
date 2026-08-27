@@ -19,6 +19,7 @@ import {
   RiCalendar2Line,
   RiCheckLine,
   RiDeleteBinLine,
+  RiGitBranchLine,
   RiLoader4Line,
   RiMoreLine,
   RiShareForwardLine,
@@ -143,6 +144,11 @@ type ListProps = {
 
 type GroupProps = Omit<ListProps, 'tasks'> & {
   task: ApiTask
+  treeDepth: number
+  hasVisibleSubtasks: boolean
+  isSubtasksExpanded: boolean
+  showAncestorPath: boolean
+  onToggleSubtasks: (taskId: string) => void
   isLastInGroup?: boolean
   t: TFunction<'tasks'>
   formatDate: (value: string | null) => string
@@ -232,6 +238,9 @@ export const TaskList = ({
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
     () => new Set()
   )
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(
+    () => new Set()
+  )
   const displayedTasks = useMemo(
     () => tasks.map((task) => inlineOverrides[task.id]?.task ?? task),
     [inlineOverrides, tasks]
@@ -239,6 +248,14 @@ export const TaskList = ({
   const sections = useMemo(
     () => buildSections(displayedTasks, groups, grouped),
     [displayedTasks, grouped, groups]
+  )
+  const treeSections = useMemo(
+    () =>
+      sections.map((section) => ({
+        ...section,
+        rows: buildTaskTreeRows(section.tasks, expandedTaskIds),
+      })),
+    [expandedTaskIds, sections]
   )
 
   useEffect(() => {
@@ -261,6 +278,15 @@ export const TaskList = ({
       const next = new Set(current)
       if (next.has(sectionKey)) next.delete(sectionKey)
       else next.add(sectionKey)
+      return next
+    })
+  }
+
+  const toggleTaskSubtasks = (taskId: string) => {
+    setExpandedTaskIds((current) => {
+      const next = new Set(current)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
       return next
     })
   }
@@ -512,6 +538,7 @@ export const TaskList = ({
     onSaveInlineEdit: (task: ApiTask, patch: PatchTaskPayload) =>
       void saveInlineEdit(task, patch),
     onCancelInlineEdit: cancelInlineEdit,
+    onToggleSubtasks: toggleTaskSubtasks,
   }
 
   return (
@@ -595,7 +622,7 @@ export const TaskList = ({
           </tr>
         </thead>
         <tbody>
-          {sections.map((section) => {
+          {treeSections.map((section) => {
             const collapsed = collapsedSections.has(section.key)
             return (
               <Fragment key={section.key}>
@@ -621,13 +648,19 @@ export const TaskList = ({
                   />
                 )}
                 {!collapsed &&
-                  section.tasks.map((task, taskIndex) => (
+                  section.rows.map((row, taskIndex) => (
                     <DesktopTaskGroup
-                      key={task.id}
-                      task={task}
-                      isLastInGroup={taskIndex === section.tasks.length - 1}
-                      statusOverride={statusOverrides[task.id]?.status}
-                      statusPending={Boolean(statusOverrides[task.id]?.pending)}
+                      key={row.task.id}
+                      task={row.task}
+                      treeDepth={row.depth}
+                      hasVisibleSubtasks={row.hasChildren}
+                      isSubtasksExpanded={row.expanded}
+                      showAncestorPath={row.showAncestorPath}
+                      isLastInGroup={taskIndex === section.rows.length - 1}
+                      statusOverride={statusOverrides[row.task.id]?.status}
+                      statusPending={Boolean(
+                        statusOverrides[row.task.id]?.pending
+                      )}
                       {...groupProps}
                     />
                   ))}
@@ -637,7 +670,7 @@ export const TaskList = ({
         </tbody>
       </table>
       <ul className={mobileListCss}>
-        {sections.map((section) => {
+        {treeSections.map((section) => {
           const collapsed = collapsedSections.has(section.key)
           return (
             <li key={section.key} className={mobileSectionCss}>
@@ -665,12 +698,18 @@ export const TaskList = ({
                       onMoveTask={moveToGroup}
                     />
                   )}
-                  {section.tasks.map((task) => (
+                  {section.rows.map((row) => (
                     <MobileTaskGroup
-                      key={task.id}
-                      task={task}
-                      statusOverride={statusOverrides[task.id]?.status}
-                      statusPending={Boolean(statusOverrides[task.id]?.pending)}
+                      key={row.task.id}
+                      task={row.task}
+                      treeDepth={row.depth}
+                      hasVisibleSubtasks={row.hasChildren}
+                      isSubtasksExpanded={row.expanded}
+                      showAncestorPath={row.showAncestorPath}
+                      statusOverride={statusOverrides[row.task.id]?.status}
+                      statusPending={Boolean(
+                        statusOverrides[row.task.id]?.pending
+                      )}
                       {...groupProps}
                     />
                   ))}
@@ -738,6 +777,11 @@ const DesktopTaskGroup = (props: GroupProps) => <DesktopTaskRow {...props} />
 
 const DesktopTaskRow = ({
   task,
+  treeDepth,
+  hasVisibleSubtasks,
+  isSubtasksExpanded,
+  showAncestorPath,
+  onToggleSubtasks,
   taskLists = [],
   grouped,
   isLastInGroup,
@@ -778,6 +822,13 @@ const DesktopTaskRow = ({
       data-group-last={grouped && isLastInGroup ? true : undefined}
     >
       <div className={taskTitleContentCss}>
+        <TaskHierarchyToggle
+          task={task}
+          depth={treeDepth}
+          hasChildren={hasVisibleSubtasks}
+          expanded={isSubtasksExpanded}
+          onToggle={onToggleSubtasks}
+        />
         <TaskStatusButton
           task={task}
           status={statusOverride ?? task.status}
@@ -803,7 +854,11 @@ const DesktopTaskRow = ({
             }
             onEdit={() => onBeginInlineEdit(task, 'title')}
           >
-            <TaskTitle task={task} status={statusOverride ?? task.status} />
+            <TaskTitle
+              task={task}
+              status={statusOverride ?? task.status}
+              showAncestorPath={showAncestorPath}
+            />
           </InlineEditButton>
         )}
       </div>
@@ -1249,6 +1304,11 @@ const MobileTaskGroup = (props: GroupProps) => {
 
 const MobileTaskCard = ({
   task,
+  treeDepth,
+  hasVisibleSubtasks,
+  isSubtasksExpanded,
+  showAncestorPath,
+  onToggleSubtasks,
   selectedTaskId,
   onOpen,
   onTaskContextMenu,
@@ -1266,6 +1326,7 @@ const MobileTaskCard = ({
     aria-label={t('workspace.openTask', { title: task.title })}
     data-selected={selectedTaskId === task.id || undefined}
     className={mobileCardCss}
+    style={{ marginLeft: `${treeDepth * 1.25}rem` }}
     draggable={task.can_edit}
     onDragStart={(event) => startTaskDrag(event, task)}
     onClick={() => onOpen(task)}
@@ -1273,13 +1334,24 @@ const MobileTaskCard = ({
     onKeyDown={(event) => openOnEnter(event, task, onOpen)}
   >
     <div className={mobileTitleRowCss}>
+      <TaskHierarchyToggle
+        task={task}
+        depth={0}
+        hasChildren={hasVisibleSubtasks}
+        expanded={isSubtasksExpanded}
+        onToggle={onToggleSubtasks}
+      />
       <TaskStatusButton
         task={task}
         status={statusOverride ?? task.status}
         pending={statusPending}
         onToggle={onToggleStatus}
       />
-      <TaskTitle task={task} status={statusOverride ?? task.status} />
+      <TaskTitle
+        task={task}
+        status={statusOverride ?? task.status}
+        showAncestorPath={showAncestorPath}
+      />
       <TaskPriorityBadge priority={task.priority} />
     </div>
     <dl className={mobileMetaCss}>
@@ -1298,6 +1370,52 @@ const MobileTaskCard = ({
     </dl>
   </div>
 )
+
+const TaskHierarchyToggle = ({
+  task,
+  depth,
+  hasChildren,
+  expanded,
+  onToggle,
+}: {
+  task: ApiTask
+  depth: number
+  hasChildren: boolean
+  expanded: boolean
+  onToggle: (taskId: string) => void
+}) => {
+  const { t } = useTranslation('tasks')
+  return (
+    <span
+      className={taskHierarchyLeadCss}
+      style={{ paddingLeft: `${depth * 1.25}rem` }}
+    >
+      {hasChildren ? (
+        <button
+          type="button"
+          className={taskHierarchyToggleCss}
+          aria-label={t(
+            expanded ? 'subtasks.collapseInList' : 'subtasks.expandInList',
+            { title: task.title }
+          )}
+          aria-expanded={expanded}
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggle(task.id)
+          }}
+        >
+          {expanded ? (
+            <RiArrowDownSLine size={16} aria-hidden="true" />
+          ) : (
+            <RiArrowRightSLine size={16} aria-hidden="true" />
+          )}
+        </button>
+      ) : (
+        <span className={taskHierarchySpacerCss} aria-hidden="true" />
+      )}
+    </span>
+  )
+}
 
 const TaskStatusButton = ({
   task,
@@ -1356,7 +1474,15 @@ const TaskStatusButton = ({
   )
 }
 
-const TaskTitle = ({ task, status }: { task: ApiTask; status: TaskStatus }) => {
+const TaskTitle = ({
+  task,
+  status,
+  showAncestorPath,
+}: {
+  task: ApiTask
+  status: TaskStatus
+  showAncestorPath: boolean
+}) => {
   const { t } = useTranslation('tasks')
   return (
     <span
@@ -1365,8 +1491,21 @@ const TaskTitle = ({ task, status }: { task: ApiTask; status: TaskStatus }) => {
     >
       <span className={titleLineCss}>
         <strong>{task.title}</strong>
+        {task.descendant_progress.total > 0 && (
+          <span
+            className={taskSubtaskProgressCss}
+            aria-label={t('subtasks.progress', {
+              completed: task.descendant_progress.completed,
+              total: task.descendant_progress.total,
+            })}
+          >
+            <RiGitBranchLine size={12} aria-hidden="true" />
+            {task.descendant_progress.completed}/
+            {task.descendant_progress.total}
+          </span>
+        )}
       </span>
-      {task.ancestor_path.length > 1 && (
+      {showAncestorPath && task.ancestor_path.length > 1 && (
         <span className={titleMetaCss}>
           {task.ancestor_path.map((node) => node.title).join(' › ')}
         </span>
@@ -1397,6 +1536,52 @@ type TaskSection = {
   group?: ApiTaskGroup
   name: string
   tasks: ApiTask[]
+}
+
+type TaskTreeRow = {
+  task: ApiTask
+  depth: number
+  hasChildren: boolean
+  expanded: boolean
+  showAncestorPath: boolean
+}
+
+const buildTaskTreeRows = (
+  tasks: ApiTask[],
+  expandedTaskIds: Set<string>
+): TaskTreeRow[] => {
+  const taskIds = new Set(tasks.map((task) => task.id))
+  const childrenByParent = new Map<string, ApiTask[]>()
+  for (const task of tasks) {
+    if (!task.parent_id || !taskIds.has(task.parent_id)) continue
+    const siblings = childrenByParent.get(task.parent_id) || []
+    siblings.push(task)
+    childrenByParent.set(task.parent_id, siblings)
+  }
+
+  const rows: TaskTreeRow[] = []
+  const visited = new Set<string>()
+  const append = (task: ApiTask, depth: number) => {
+    if (visited.has(task.id)) return
+    visited.add(task.id)
+    const children = childrenByParent.get(task.id) || []
+    const expanded = expandedTaskIds.has(task.id)
+    rows.push({
+      task,
+      depth,
+      hasChildren: children.length > 0,
+      expanded,
+      showAncestorPath: depth === 0 && Boolean(task.parent_id),
+    })
+    if (expanded) children.forEach((child) => append(child, depth + 1))
+  }
+
+  const roots = tasks.filter(
+    (task) => !task.parent_id || !taskIds.has(task.parent_id)
+  )
+  const rootTasks = roots.length > 0 ? roots : tasks
+  rootTasks.forEach((task) => append(task, 0))
+  return rows
 }
 
 const buildSections = (
@@ -2027,6 +2212,29 @@ const taskTitleContentCss = css({
   alignItems: 'center',
   gap: '0.5rem',
 })
+const taskHierarchyLeadCss = css({
+  display: 'inline-flex',
+  flexShrink: 0,
+})
+const taskHierarchyToggleCss = css({
+  width: '1rem',
+  height: '1.25rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
+  border: 0,
+  borderRadius: '4px',
+  backgroundColor: 'transparent',
+  color: 'greyscale.500',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.800' },
+  _focusVisible: {
+    outline: '2px solid token(colors.primary.500)',
+    outlineOffset: '1px',
+  },
+})
+const taskHierarchySpacerCss = css({ width: '1rem', height: '1.25rem' })
 const taskStatusControlCss = css({
   flexShrink: 0,
   '& > div': { display: 'flex' },
@@ -2105,6 +2313,15 @@ const titleLineCss = css({
   alignItems: 'center',
   gap: '0.25rem',
   '& strong': { overflow: 'hidden', textOverflow: 'ellipsis' },
+})
+const taskSubtaskProgressCss = css({
+  flexShrink: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.125rem',
+  color: 'greyscale.500',
+  fontSize: '0.6875rem',
+  fontWeight: 400,
 })
 const expandButtonCss = css({
   width: '1.25rem',

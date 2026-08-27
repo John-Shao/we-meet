@@ -246,6 +246,7 @@ test('create recursive subtasks, keep status independent, and show parent chains
       response.url().endsWith('/api/v1.0/tasks/') &&
       response.ok()
   )
+  await details.getByRole('button', { name: '添加子任务' }).click()
   await details.getByLabel('子任务标题').fill(childTitle)
   await details.getByRole('button', { name: '添加', exact: true }).click()
   const child = (await (await childResponsePromise).json()) as CreatedTask
@@ -258,6 +259,7 @@ test('create recursive subtasks, keep status independent, and show parent chains
       response.url().endsWith('/api/v1.0/tasks/') &&
       response.ok()
   )
+  await details.getByRole('button', { name: '添加子任务' }).click()
   await details.getByLabel('子任务标题').fill(leafTitle)
   await details.getByRole('button', { name: '添加', exact: true }).click()
   const leaf = (await (await leafResponsePromise).json()) as CreatedTask
@@ -266,7 +268,7 @@ test('create recursive subtasks, keep status independent, and show parent chains
   details = page.getByRole('complementary', { name: '任务详情' })
   await expect(
     details.getByRole('navigation', { name: '任务父链' })
-  ).toContainText(rootTitle + '/' + childTitle + '/' + leafTitle)
+  ).toContainText(rootTitle + '›' + childTitle)
   const completePatch = waitForTaskPatch(page, leaf.id)
   await details.getByRole('button', { name: '完成任务' }).click()
   await completePatch
