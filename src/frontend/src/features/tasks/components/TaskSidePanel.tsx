@@ -1926,10 +1926,8 @@ const subtaskListCss = css({
   '& li': {
     minHeight: '2rem',
     display: 'grid',
-    gridTemplateColumns: {
-      base: '1rem minmax(5rem, 1fr) auto auto 3.5rem 1.75rem',
-      md: '1.5rem 1rem minmax(5rem, 1fr) auto auto 3.5rem 1.75rem',
-    },
+    gridTemplateColumns:
+      '1.5rem 1rem minmax(5rem, 1fr) auto auto 3.5rem 1.75rem',
     alignItems: 'center',
     gap: '0.375rem',
     padding: '0.25rem 0.5rem',
@@ -1947,7 +1945,7 @@ const subtaskListCss = css({
 const subtaskDragHandleCss = css({
   width: '1.5rem',
   height: '1.75rem',
-  display: { base: 'none', md: 'grid' },
+  display: 'grid',
   placeItems: 'center',
   padding: 0,
   border: 0,
@@ -1964,7 +1962,7 @@ const subtaskDragHandleCss = css({
   _disabled: { cursor: 'wait', opacity: 0.5 },
 })
 const subtaskDragHandlePlaceholderCss = css({
-  display: { base: 'none', md: 'block' },
+  display: 'block',
   width: '1.5rem',
 })
 const subtaskTitleCss = css({

@@ -110,7 +110,7 @@ const TasksAuthenticated = () => {
     useState<ApiTaskListGroup | null>(null)
   const [groupCreating, setGroupCreating] = useState(false)
   const [groupRenaming, setGroupRenaming] = useState<ApiTaskGroup | null>(null)
-  const isNarrow = useIsNarrow()
+  const usesTakeoverDetail = useUsesTakeoverDetail()
   const rowRefs = useRef(new Map<string, HTMLElement>())
   const newButtonRef = useRef<HTMLButtonElement>(null)
   const createTitleRef = useRef<HTMLInputElement>(null)
@@ -389,30 +389,6 @@ const TasksAuthenticated = () => {
         </ResizablePanel>
       </div>
       <main className={mainCss}>
-        <div className={mobileNavigationHolderCss}>
-          <TaskWorkspaceNavigation
-            state={state}
-            count={count}
-            taskLists={taskLists}
-            taskListGroups={taskListGroups}
-            standaloneTaskCount={standaloneTaskCount}
-            onChange={changeView}
-            onTaskListChange={changeTaskList}
-            onCreateTaskList={openTaskListManager}
-            onCreateTaskListGroup={() => setTaskListGroupCreating(true)}
-            onMoveTaskList={(taskListId, listGroupId) =>
-              moveTaskListMutation.mutate({ taskListId, listGroupId })
-            }
-            onRenameTaskListGroup={setTaskListGroupRenaming}
-            onDeleteTaskListGroup={(group) => void deleteTaskListGroup(group)}
-            onShareTaskList={setTaskListSharing}
-            onRenameTaskList={setTaskListRenaming}
-            onArchiveTaskList={(taskList) => void archiveTaskList(taskList)}
-            onLeaveTaskList={(taskList) => void leaveTaskList(taskList)}
-            onDeleteTaskList={setTaskListDeleting}
-            onOpenArchivedTaskLists={() => setArchivedTaskListsOpen(true)}
-          />
-        </div>
         <header className={headerCss}>
           <div>
             <h1 className={headingCss}>{currentViewName}</h1>
@@ -612,7 +588,7 @@ const TasksAuthenticated = () => {
         </div>
       </main>
       {panelOpen &&
-        (isNarrow ? (
+        (usesTakeoverDetail ? (
           createPortal(
             <div className={takeoverPanelCss}>{panel}</div>,
             document.body
@@ -850,20 +826,20 @@ const TaskWorkspaceStateCard = ({
   </div>
 )
 
-const useIsNarrow = () => {
-  const [isNarrow, setIsNarrow] = useState(() =>
+const useUsesTakeoverDetail = () => {
+  const [usesTakeoverDetail, setUsesTakeoverDetail] = useState(() =>
     typeof window === 'undefined'
       ? false
       : window.matchMedia('(max-width: 1439px)').matches
   )
   useEffect(() => {
     const media = window.matchMedia('(max-width: 1439px)')
-    const update = () => setIsNarrow(media.matches)
+    const update = () => setUsesTakeoverDetail(media.matches)
     update()
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
-  return isNarrow
+  return usesTakeoverDetail
 }
 
 const workspaceCss = css({
@@ -875,7 +851,7 @@ const workspaceCss = css({
   backgroundColor: 'greyscale.000',
 })
 const desktopNavigationHolderCss = css({
-  display: { base: 'none', md: 'block' },
+  display: 'block',
   height: '100%',
   flexShrink: 0,
 })
@@ -885,9 +861,6 @@ const mainCss = css({
   minHeight: 0,
   display: 'flex',
   flexDirection: 'column',
-})
-const mobileNavigationHolderCss = css({
-  display: { base: 'block', md: 'none' },
 })
 const headerCss = css({
   minHeight: '4rem',

@@ -61,11 +61,7 @@ const postJson = async <T>(
 }
 
 export const createTaskVisualFixture = async (
-  page: Page,
-  options: {
-    taskListName?: string
-    description?: string
-  } = {}
+  page: Page
 ): Promise<TaskVisualFixture> => {
   const initialTasksResponse = page.waitForResponse(
     (response) =>
@@ -83,9 +79,8 @@ export const createTaskVisualFixture = async (
     apiOrigin,
     'task-lists/',
     {
-      name: options.taskListName || 'E2E 任务视觉回归',
-      description:
-        options.description || 'Playwright task visual regression fixture',
+      name: 'E2E 任务视觉回归',
+      description: 'Playwright task visual regression fixture',
       color: 'blue',
     }
   )

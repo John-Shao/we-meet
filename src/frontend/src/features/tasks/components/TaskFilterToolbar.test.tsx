@@ -28,31 +28,6 @@ const state: TaskWorkspaceState = {
 }
 
 describe('TaskFilterToolbar', () => {
-  it('keeps mobile filter controls behind an accessible disclosure', () => {
-    render(
-      <TaskFilterToolbar
-        state={state}
-        resultCount={7}
-        onStatusChange={vi.fn()}
-        onTimeChange={vi.fn()}
-        onPriorityChange={vi.fn()}
-        onClear={vi.fn()}
-      />
-    )
-
-    const disclosure = screen.getByRole('button', {
-      name: /workspace.filters/,
-    })
-    const controls = document.getElementById('task-filter-controls')
-    expect(disclosure).toHaveAttribute('aria-expanded', 'false')
-    expect(controls).not.toHaveAttribute('data-mobile-expanded')
-
-    fireEvent.click(disclosure)
-
-    expect(disclosure).toHaveAttribute('aria-expanded', 'true')
-    expect(controls).toHaveAttribute('data-mobile-expanded')
-  })
-
   it('summarizes active filters and removes each one independently', () => {
     const onStatusChange = vi.fn()
     const onTimeChange = vi.fn()

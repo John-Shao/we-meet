@@ -13,7 +13,6 @@ import {
 } from '@remixicon/react'
 
 import { Button, Menu, MenuList } from '@/primitives'
-import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
 import type { ApiTaskList, ApiTaskListGroup } from '../api/ApiTask'
@@ -161,197 +160,152 @@ export const TaskWorkspaceNavigation = ({
     />
   )
   return (
-    <>
-      <aside className={desktopNavCss} aria-label={t('workspace.navigation')}>
-        <h1 className={navTitleCss}>{t('title')}</h1>
-        <nav className={navListCss}>
-          <p className={sectionLabelCss}>{t('workspace.quickAccess')}</p>
-          {views.map((view) => (
-            <button
-              key={view}
-              type="button"
-              aria-current={
-                state.taskList === 'all' && current === view
-                  ? 'page'
-                  : undefined
-              }
-              className={navButtonCss}
-              data-active={
-                state.taskList === 'all' && current === view ? true : undefined
-              }
-              onClick={() => onChange(view)}
-            >
-              <span className={navLabelCss}>
-                {view === 'assigned' ? (
-                  <RiUserLine size={18} />
-                ) : view === 'following' ? (
-                  <RiBookmarkLine size={18} />
-                ) : view === 'created' ? (
-                  <RiFileAddLine size={18} />
-                ) : view === 'completed' ? (
-                  <RiCheckboxCircleLine size={18} />
-                ) : (
-                  <RiListCheck3 size={18} />
-                )}
-                <span>{t(`workspace.views.${view}`)}</span>
-              </span>
-              {state.taskList === 'all' && current === view && (
-                <span aria-label={t('workspace.resultCount', { count })}>
-                  {count}
-                </span>
-              )}
-            </button>
-          ))}
-          <div
-            className={sectionHeaderCss}
-            data-list-drop-target={draggedTaskListId ? true : undefined}
-            onDragOver={allowListDrop}
-            onDrop={(event) => dropList(event, null)}
-            title={
-              draggedTaskListId
-                ? t('taskListGroups.moveToUngrouped')
-                : undefined
+    <aside className={desktopNavCss} aria-label={t('workspace.navigation')}>
+      <h1 className={navTitleCss}>{t('title')}</h1>
+      <nav className={navListCss}>
+        <p className={sectionLabelCss}>{t('workspace.quickAccess')}</p>
+        {views.map((view) => (
+          <button
+            key={view}
+            type="button"
+            aria-current={
+              state.taskList === 'all' && current === view ? 'page' : undefined
             }
+            className={navButtonCss}
+            data-active={
+              state.taskList === 'all' && current === view ? true : undefined
+            }
+            onClick={() => onChange(view)}
           >
-            <span>{t('taskLists.title')}</span>
-            <div
-              className={taskNavigationActionsCss({
-                visibility: 'persistent',
-              })}
-              data-node-actions
-            >
-              <Menu placement="bottom">
-                <Button
-                  variant="tertiary"
-                  size="icon24"
-                  className={taskNavigationActionButtonCss}
-                  aria-label={t('taskLists.title')}
-                >
-                  <RiAddLine size={17} />
-                </Button>
-                <MenuList
-                  aria-label={t('taskLists.title')}
-                  menuClassName={taskNavigationMenuCss}
-                  items={[
-                    {
-                      value: 'list',
-                      label: (
-                        <span className={taskNavigationMenuItemLabelCss}>
-                          <RiListCheck size={16} />
-                          {t('taskLists.create')}
-                        </span>
-                      ),
-                    },
-                    {
-                      value: 'group',
-                      label: (
-                        <span className={taskNavigationMenuItemLabelCss}>
-                          <RiFolderAddLine size={16} />
-                          {t('taskListGroups.create')}
-                        </span>
-                      ),
-                    },
-                    {
-                      value: 'archived',
-                      label: (
-                        <span className={taskNavigationMenuItemLabelCss}>
-                          <RiHistoryLine size={16} />
-                          {t('taskLists.archivedTitle')}
-                        </span>
-                      ),
-                    },
-                  ]}
-                  onAction={(action) => {
-                    if (action === 'list') onCreateTaskList()
-                    if (action === 'group') onCreateTaskListGroup()
-                    if (action === 'archived') onOpenArchivedTaskLists?.()
-                  }}
-                />
-              </Menu>
-            </div>
-          </div>
-          {taskLists.length === 0 &&
-          taskListGroups.length === 0 &&
-          standaloneTaskCount === 0 ? (
-            <p className={emptyListsCss}>{t('taskLists.empty')}</p>
-          ) : (
-            <>
-              {ungroupedLists.map(renderTaskList)}
-              {taskListGroups.map((group) => {
-                const collapsed = collapsedGroups.has(group.id)
-                const lists = taskListsByGroup.get(group.id) || []
-                return (
-                  <TaskListGroupNavigationNode
-                    key={group.id}
-                    group={group}
-                    collapsed={collapsed}
-                    isEmpty={lists.length === 0}
-                    onToggle={() => toggleGroup(group.id)}
-                    onDragOver={allowListDrop}
-                    onDrop={(event) => dropList(event, group.id)}
-                    onCreateTaskList={() => onCreateTaskList(group.id)}
-                    onRename={() => onRenameTaskListGroup(group)}
-                    onDelete={() => onDeleteTaskListGroup(group)}
-                  >
-                    {lists.map(renderTaskList)}
-                  </TaskListGroupNavigationNode>
-                )
-              })}
-              {standaloneTaskCount > 0 && (
-                <StandaloneTaskListNavigationRow
-                  active={state.taskList === 'unassigned'}
-                  onSelect={() => onTaskListChange('unassigned')}
-                />
+            <span className={navLabelCss}>
+              {view === 'assigned' ? (
+                <RiUserLine size={18} />
+              ) : view === 'following' ? (
+                <RiBookmarkLine size={18} />
+              ) : view === 'created' ? (
+                <RiFileAddLine size={18} />
+              ) : view === 'completed' ? (
+                <RiCheckboxCircleLine size={18} />
+              ) : (
+                <RiListCheck3 size={18} />
               )}
-            </>
-          )}
-        </nav>
-      </aside>
-      <div className={mobileNavCss}>
-        <Select
-          label={t('workspace.mobileView')}
-          aria-label={t('workspace.mobileView')}
-          items={[
-            ...views.map((value) => ({
-              value: `view:${value}`,
-              label: t(`workspace.views.${value}`),
-            })),
-            ...taskLists.map((taskList) => ({
-              value: `list:${taskList.id}`,
-              label: taskList.list_group
-                ? `${taskList.list_group.name} / ${taskList.name}`
-                : taskList.name,
-            })),
-            ...(standaloneTaskCount > 0
-              ? [
-                  {
-                    value: 'list:unassigned',
-                    label: t('taskLists.standalone'),
-                  },
-                ]
-              : []),
-          ]}
-          selectedKey={
-            state.taskList === 'all'
-              ? `view:${current}`
-              : `list:${state.taskList}`
+              <span>{t(`workspace.views.${view}`)}</span>
+            </span>
+            {state.taskList === 'all' && current === view && (
+              <span aria-label={t('workspace.resultCount', { count })}>
+                {count}
+              </span>
+            )}
+          </button>
+        ))}
+        <div
+          className={sectionHeaderCss}
+          data-list-drop-target={draggedTaskListId ? true : undefined}
+          onDragOver={allowListDrop}
+          onDrop={(event) => dropList(event, null)}
+          title={
+            draggedTaskListId ? t('taskListGroups.moveToUngrouped') : undefined
           }
-          onSelectionChange={(key) => {
-            const value = String(key)
-            if (value.startsWith('list:')) {
-              onTaskListChange(value.slice(5))
-            } else {
-              onChange(value.slice(5) as TaskWorkspaceView)
-            }
-          }}
-        />
-      </div>
-    </>
+        >
+          <span>{t('taskLists.title')}</span>
+          <div
+            className={taskNavigationActionsCss({
+              visibility: 'persistent',
+            })}
+            data-node-actions
+          >
+            <Menu placement="bottom">
+              <Button
+                variant="tertiary"
+                size="icon24"
+                className={taskNavigationActionButtonCss}
+                aria-label={t('taskLists.title')}
+              >
+                <RiAddLine size={17} />
+              </Button>
+              <MenuList
+                aria-label={t('taskLists.title')}
+                menuClassName={taskNavigationMenuCss}
+                items={[
+                  {
+                    value: 'list',
+                    label: (
+                      <span className={taskNavigationMenuItemLabelCss}>
+                        <RiListCheck size={16} />
+                        {t('taskLists.create')}
+                      </span>
+                    ),
+                  },
+                  {
+                    value: 'group',
+                    label: (
+                      <span className={taskNavigationMenuItemLabelCss}>
+                        <RiFolderAddLine size={16} />
+                        {t('taskListGroups.create')}
+                      </span>
+                    ),
+                  },
+                  {
+                    value: 'archived',
+                    label: (
+                      <span className={taskNavigationMenuItemLabelCss}>
+                        <RiHistoryLine size={16} />
+                        {t('taskLists.archivedTitle')}
+                      </span>
+                    ),
+                  },
+                ]}
+                onAction={(action) => {
+                  if (action === 'list') onCreateTaskList()
+                  if (action === 'group') onCreateTaskListGroup()
+                  if (action === 'archived') onOpenArchivedTaskLists?.()
+                }}
+              />
+            </Menu>
+          </div>
+        </div>
+        {taskLists.length === 0 &&
+        taskListGroups.length === 0 &&
+        standaloneTaskCount === 0 ? (
+          <p className={emptyListsCss}>{t('taskLists.empty')}</p>
+        ) : (
+          <>
+            {ungroupedLists.map(renderTaskList)}
+            {taskListGroups.map((group) => {
+              const collapsed = collapsedGroups.has(group.id)
+              const lists = taskListsByGroup.get(group.id) || []
+              return (
+                <TaskListGroupNavigationNode
+                  key={group.id}
+                  group={group}
+                  collapsed={collapsed}
+                  isEmpty={lists.length === 0}
+                  onToggle={() => toggleGroup(group.id)}
+                  onDragOver={allowListDrop}
+                  onDrop={(event) => dropList(event, group.id)}
+                  onCreateTaskList={() => onCreateTaskList(group.id)}
+                  onRename={() => onRenameTaskListGroup(group)}
+                  onDelete={() => onDeleteTaskListGroup(group)}
+                >
+                  {lists.map(renderTaskList)}
+                </TaskListGroupNavigationNode>
+              )
+            })}
+            {standaloneTaskCount > 0 && (
+              <StandaloneTaskListNavigationRow
+                active={state.taskList === 'unassigned'}
+                onSelect={() => onTaskListChange('unassigned')}
+              />
+            )}
+          </>
+        )}
+      </nav>
+    </aside>
   )
 }
 
 const desktopNavCss = css({
-  display: { base: 'none', md: 'flex' },
+  display: 'flex',
   width: '100%',
   height: '100%',
   flexDirection: 'column',
@@ -428,8 +382,4 @@ const navLabelCss = css({
   display: 'flex',
   alignItems: 'center',
   gap: '0.625rem',
-})
-const mobileNavCss = css({
-  display: { base: 'block', md: 'none' },
-  padding: '0.75rem 1rem 0',
 })

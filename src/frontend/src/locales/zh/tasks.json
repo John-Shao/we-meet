@@ -16,7 +16,6 @@
       "all": "全部相关",
       "completed": "已完成"
     },
-    "mobileView": "任务视图",
     "resultCount": "{{count}} 个任务",
     "newTask": "新建任务",
     "filters": "任务筛选",

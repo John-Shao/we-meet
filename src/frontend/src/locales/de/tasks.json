@@ -16,7 +16,6 @@
       "all": "Alle zugehörigen",
       "completed": "Abgeschlossen"
     },
-    "mobileView": "Aufgabenansicht",
     "resultCount": "{{count}} Aufgaben",
     "newTask": "Neue Aufgabe",
     "filters": "Aufgabenfilter",

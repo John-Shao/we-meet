@@ -1,6 +1,5 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiArrowDownSLine, RiCloseLine, RiFilter3Line } from '@remixicon/react'
+import { RiCloseLine, RiFilter3Line } from '@remixicon/react'
 
 import { Button } from '@/primitives'
 import { Select } from '@/primitives/Select'
@@ -44,7 +43,6 @@ export const TaskFilterToolbar = ({
   onClear: () => void
 }) => {
   const { t } = useTranslation('tasks')
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const isClosed = state.status === 'completed'
   const defaultStatus = state.mode === 'board' ? 'all' : 'open'
   const activeFilters = [
@@ -76,32 +74,7 @@ export const TaskFilterToolbar = ({
 
   return (
     <section className={filterRegionCss} aria-label={t('workspace.filters')}>
-      <button
-        type="button"
-        className={mobileFilterToggleCss}
-        aria-expanded={mobileFiltersOpen}
-        aria-controls="task-filter-controls"
-        onClick={() => setMobileFiltersOpen((open) => !open)}
-      >
-        <span>
-          <RiFilter3Line size={16} aria-hidden="true" />
-          {t('workspace.filters')}
-          {activeFilters.length > 0 && (
-            <span className={mobileFilterCountCss}>{activeFilters.length}</span>
-          )}
-        </span>
-        <RiArrowDownSLine
-          size={18}
-          aria-hidden="true"
-          data-open={mobileFiltersOpen || undefined}
-          className={mobileFilterChevronCss}
-        />
-      </button>
-      <div
-        id="task-filter-controls"
-        className={toolbarCss}
-        data-mobile-expanded={mobileFiltersOpen || undefined}
-      >
+      <div className={toolbarCss}>
         <Select
           className={filterSelectCss}
           label={t('workspace.statusFilter')}
@@ -182,63 +155,20 @@ const filterRegionCss = css({
   backgroundColor: 'greyscale.000',
 })
 const toolbarCss = css({
-  display: { base: 'none', sm: 'flex' },
+  display: 'flex',
   flexWrap: 'wrap',
   alignItems: 'end',
   gap: '0.5rem',
   padding: '0.625rem 1rem',
   fontSize: '0.8125rem',
-  '&[data-mobile-expanded]': { display: 'flex' },
   '& label': { fontSize: '0.8125rem', fontWeight: 'medium' },
   '& button': { fontSize: '0.8125rem' },
-})
-const mobileFilterToggleCss = css({
-  width: '100%',
-  minHeight: '2.75rem',
-  display: { base: 'flex', sm: 'none' },
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.5rem',
-  padding: '0.5rem 1rem',
-  border: 0,
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.8125rem',
-  fontWeight: 'medium',
-  cursor: 'pointer',
-  '& > span': {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.375rem',
-  },
-  _hover: { backgroundColor: 'greyscale.50' },
-  _focusVisible: {
-    outline: '2px solid token(colors.primary.500)',
-    outlineOffset: '-2px',
-  },
-})
-const mobileFilterCountCss = css({
-  minWidth: '1.25rem',
-  height: '1.25rem',
-  display: 'inline-grid',
-  placeItems: 'center',
-  paddingX: '0.25rem',
-  borderRadius: '999px',
-  backgroundColor: 'primary.100',
-  color: 'primary.700',
-  fontSize: '0.6875rem',
-  fontWeight: 'semibold',
-})
-const mobileFilterChevronCss = css({
-  flexShrink: 0,
-  transition: 'transform token(durations.fast)',
-  '&[data-open]': { transform: 'rotate(180deg)' },
 })
 const filterSelectCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.25rem',
-  minWidth: { base: 'calc(50% - 0.25rem)', sm: '8rem' },
+  minWidth: '8rem',
 })
 const activeFiltersCss = css({
   display: 'flex',

@@ -16,7 +16,6 @@
       "all": "Alle betrokken",
       "completed": "Voltooid"
     },
-    "mobileView": "Taakweergave",
     "resultCount": "{{count}} taken",
     "newTask": "Nieuwe taak",
     "filters": "Taakfilters",

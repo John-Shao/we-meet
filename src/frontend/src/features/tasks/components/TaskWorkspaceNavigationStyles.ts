@@ -21,10 +21,9 @@ export const taskNavigationActionsCss = cva({
   variants: {
     visibility: {
       conditional: {
-        opacity: { base: 1, md: 0 },
-        pointerEvents: { base: 'auto', md: 'none' },
+        opacity: 0,
+        pointerEvents: 'none',
         transition: 'opacity 120ms ease',
-        '@media (hover: none)': { opacity: 1, pointerEvents: 'auto' },
         '&:has(:focus-visible)': { opacity: 1, pointerEvents: 'auto' },
       },
       persistent: {},

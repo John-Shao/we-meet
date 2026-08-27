@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { css } from '@/styled-system/css'
 import { Header } from './Header'
 import { layoutStore } from '@/stores/layout'
@@ -10,22 +10,15 @@ import { useUser } from '@/features/auth'
 import { AppRail } from './AppRail'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { ImUnreadProvider } from '@/features/im/components/ImUnreadProvider'
-import { shouldCollapseRailInitially } from './railState'
 
 export type Layout = 'fullpage' | 'centered'
 
-const COMPACT_RAIL_MEDIA_QUERY = '(max-width: 767px)'
-
 const readInitialRailState = () => {
-  let storedPreference: string | null = null
   try {
-    storedPreference = localStorage.getItem('we-meet:rail-collapsed')
+    return localStorage.getItem('we-meet:rail-collapsed') === '1'
   } catch {
-    /* private mode — fall back to the viewport default */
+    return false
   }
-  const compactViewport =
-    window.matchMedia?.(COMPACT_RAIL_MEDIA_QUERY).matches ?? false
-  return shouldCollapseRailInitially(storedPreference, compactViewport)
 }
 
 /**
@@ -40,19 +33,9 @@ export const Layout = ({ children }: { children: ReactNode }) => {
   const showFooter = layoutSnap.showFooter
   const { isLoggedIn } = useUser()
 
-  // P6-e: collapsible primary rail (new-Feishu). Compact viewports default to
-  // the fixed icon strip; wider viewports restore the persisted user choice.
+  // P6-e: collapsible primary rail (new-Feishu). The explicit user preference
+  // is restored without inferring behavior from unsupported mobile widths.
   const [railCollapsed, setRailCollapsed] = useState(readInitialRailState)
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia?.(COMPACT_RAIL_MEDIA_QUERY)
-    if (!mediaQuery) return
-    const collapseWhenNarrow = (event: MediaQueryListEvent) => {
-      if (event.matches) setRailCollapsed(true)
-    }
-    mediaQuery.addEventListener('change', collapseWhenNarrow)
-    return () => mediaQuery.removeEventListener('change', collapseWhenNarrow)
-  }, [])
 
   const toggleRail = () =>
     setRailCollapsed((v) => {

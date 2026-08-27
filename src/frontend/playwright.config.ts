@@ -39,7 +39,7 @@ export default defineConfig({
     {
       name: 'chromium',
       dependencies: ['setup'],
-      testIgnore: [/.*\.mobile\.spec\.ts/, /.*\.responsive\.spec\.ts/],
+      testIgnore: /.*\.responsive\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: authState,
@@ -54,19 +54,6 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: authState,
         viewport: { width: 1600, height: 900 },
-        colorScheme: 'light',
-        reducedMotion: 'reduce',
-      },
-    },
-    {
-      name: 'mobile-chromium',
-      dependencies: ['setup'],
-      testMatch: /.*\.mobile\.spec\.ts/,
-      use: {
-        ...devices['Pixel 7'],
-        storageState: authState,
-        viewport: { width: 390, height: 844 },
-        deviceScaleFactor: 1,
         colorScheme: 'light',
         reducedMotion: 'reduce',
       },

@@ -16,7 +16,6 @@
       "all": "All related",
       "completed": "Completed"
     },
-    "mobileView": "Task view",
     "resultCount": "{{count}} tasks",
     "newTask": "New task",
     "filters": "Task filters",

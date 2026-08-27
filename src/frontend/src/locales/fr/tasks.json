@@ -16,7 +16,6 @@
       "all": "Toutes associées",
       "completed": "Terminées"
     },
-    "mobileView": "Vue des tâches",
     "resultCount": "{{count}} tâches",
     "newTask": "Nouvelle tâche",
     "filters": "Filtres des tâches",

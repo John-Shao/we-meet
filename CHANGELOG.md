@@ -16,7 +16,6 @@ and this project adheres to
 - ✨(fullstack) add atomic subtask ordering and concurrency-safe hierarchy writes
 - ✨(fullstack) add task results and task-specific filters to global search
 - ✨(frontend) add real-stack Playwright coverage for the task workflow
-- ✨(frontend) add Pixel 7 task visual regression baselines and responsive mobile task cards
 - ✅(frontend) add task workspace visual regression across 1024–1600px Web viewports
 - ✨(fullstack) allow participants to mute others based on room configuration
 - ✨(frontend) add synchronizer for room metadata updates
@@ -26,10 +25,9 @@ and this project adheres to
 ### Changed
 
 - ✨(frontend) use a centered takeover task detail below 1440px and preserve the split-panel workspace on wider Web viewports
-- ✨(frontend) collapse task filter controls on narrow viewports while keeping active filters visible
-- ✨(frontend) default the primary navigation to compact mode on narrow viewports
+- ♻️(frontend) remove unsupported small-screen task fallbacks and keep one desktop Web workspace implementation
 - ✨(frontend) replace whole-row task dragging with dedicated group-move and subtask-reorder handles plus accessible fallback actions
-- ✨(frontend) refine task filters, actionable workspace states, row actions, mobile cards, and detail information hierarchy
+- ✨(frontend) refine task filters, actionable workspace states, row actions, and detail information hierarchy
 - ✨(frontend) sharpen task hierarchy UX with compact panel-aware columns, explicit status feedback, keyboard tree controls, and unfinished-subtask completion warnings
 - 🔒️(backend) enforce full parent-chain visibility for task collaboration and notifications
 - 📝(docs) add a prioritized task module gap analysis and incremental roadmap

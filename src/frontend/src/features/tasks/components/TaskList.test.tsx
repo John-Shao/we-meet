@@ -118,7 +118,7 @@ beforeEach(() => {
 })
 
 describe('TaskList', () => {
-  it('renders desktop and mobile task representations with semantic metadata', () => {
+  it('renders the task table with semantic metadata', () => {
     const { container } = render(
       <TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />
     )
@@ -139,9 +139,9 @@ describe('TaskList', () => {
       'workspace.columns.createdAt',
     ])
     expect(screen.queryByText('statuses.todo')).not.toBeInTheDocument()
-    expect(screen.getAllByLabelText('workspace.quickComplete')).toHaveLength(2)
-    expect(screen.getAllByText('Prepare release')).toHaveLength(2)
-    expect(screen.getAllByText('priorities.high')).toHaveLength(2)
+    expect(screen.getByLabelText('workspace.quickComplete')).toBeInTheDocument()
+    expect(screen.getByText('Prepare release')).toBeInTheDocument()
+    expect(screen.getByText('priorities.high')).toBeInTheDocument()
     expect(within(table).getByText('Aug 21')).toBeInTheDocument()
     expect(within(table).getByText('Aug 22')).toBeInTheDocument()
     expect(
@@ -189,8 +189,8 @@ describe('TaskList', () => {
     )
 
     expect(
-      screen.getAllByText('Release › Backend › Prepare release')
-    ).toHaveLength(2)
+      screen.getByText('Release › Backend › Prepare release')
+    ).toBeInTheDocument()
   })
 
   it('collapses and expands nested task rows with progress like Feishu', () => {
@@ -222,14 +222,14 @@ describe('TaskList', () => {
     )
 
     expect(screen.queryByText('Backend')).not.toBeInTheDocument()
-    expect(screen.getAllByText('0/1')).toHaveLength(2)
+    expect(screen.getByText('0/1')).toBeInTheDocument()
     fireEvent.click(
-      screen.getAllByRole('button', { name: 'subtasks.expandInList' })[0]
+      screen.getByRole('button', { name: 'subtasks.expandInList' })
     )
-    expect(screen.getAllByText('Backend')).toHaveLength(2)
+    expect(screen.getByText('Backend')).toBeInTheDocument()
     expect(screen.queryByText('Release › Backend')).not.toBeInTheDocument()
     fireEvent.click(
-      screen.getAllByRole('button', { name: 'subtasks.collapseInList' })[0]
+      screen.getByRole('button', { name: 'subtasks.collapseInList' })
     )
     expect(screen.queryByText('Backend')).not.toBeInTheDocument()
 
@@ -241,17 +241,15 @@ describe('TaskList', () => {
         registerRow={vi.fn()}
       />
     )
-    expect(screen.getAllByText('Backend')).toHaveLength(2)
-    expect(container.querySelectorAll('[data-selected]')).toHaveLength(2)
+    expect(screen.getByText('Backend')).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-selected]')).toHaveLength(1)
   })
 
   it('quickly completes and reopens a task without opening its details', async () => {
     const onOpen = vi.fn()
     render(<TaskList tasks={[task]} onOpen={onOpen} registerRow={vi.fn()} />)
 
-    const completeButton = screen.getAllByLabelText(
-      'workspace.quickComplete'
-    )[0]
+    const completeButton = screen.getByLabelText('workspace.quickComplete')
     fireEvent.mouseEnter(completeButton.parentElement!)
     expect(screen.getByText('actions.to_completed')).toBeInTheDocument()
     fireEvent.mouseLeave(completeButton.parentElement!)
@@ -263,25 +261,21 @@ describe('TaskList', () => {
       patch: { status: 'completed' },
     })
     await waitFor(() =>
-      expect(screen.getAllByLabelText('workspace.quickReopen')).toHaveLength(2)
+      expect(screen.getByLabelText('workspace.quickReopen')).toBeInTheDocument()
     )
     expect(
-      screen
-        .getAllByText('Prepare release')
-        .every((title) => title.closest('[data-completed]'))
-    ).toBe(true)
+      screen.getByText('Prepare release').closest('[data-completed]')
+    ).toBeTruthy()
 
     mutateAsync.mockResolvedValueOnce({ ...task, status: 'todo' })
-    fireEvent.click(screen.getAllByLabelText('workspace.quickReopen')[0])
+    fireEvent.click(screen.getByLabelText('workspace.quickReopen'))
     expect(mutateAsync).toHaveBeenLastCalledWith({
       taskId: task.id,
       patch: { status: 'todo' },
     })
     expect(
-      screen
-        .getAllByText('Prepare release')
-        .every((title) => !title.closest('[data-completed]'))
-    ).toBe(true)
+      screen.getByText('Prepare release').closest('[data-completed]')
+    ).toBeFalsy()
   })
 
   it('confirms before completing a task with unfinished descendants', async () => {
@@ -318,10 +312,10 @@ describe('TaskList', () => {
     mutateAsync.mockRejectedValueOnce(new Error('network error'))
     render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
-    fireEvent.click(screen.getAllByLabelText('workspace.quickComplete')[0])
+    fireEvent.click(screen.getByLabelText('workspace.quickComplete'))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('error')
-    expect(screen.getAllByLabelText('workspace.quickComplete')).toHaveLength(2)
+    expect(screen.getByLabelText('workspace.quickComplete')).toBeInTheDocument()
   })
 
   it('shows status without allowing the quick action when permission is missing', () => {
@@ -333,12 +327,9 @@ describe('TaskList', () => {
       />
     )
 
-    const statusButtons = screen.getAllByLabelText(
-      'statuses.todo: Prepare release'
-    )
-    expect(statusButtons).toHaveLength(2)
-    expect(statusButtons[0]).toBeDisabled()
-    fireEvent.click(statusButtons[0])
+    const statusButton = screen.getByLabelText('statuses.todo: Prepare release')
+    expect(statusButton).toBeDisabled()
+    fireEvent.click(statusButton)
     expect(mutateAsync).not.toHaveBeenCalled()
   })
 
@@ -372,7 +363,7 @@ describe('TaskList', () => {
       })
     )
     expect(onOpen).not.toHaveBeenCalled()
-    expect(await screen.findAllByText('Ship release')).toHaveLength(2)
+    expect(await screen.findByText('Ship release')).toBeInTheDocument()
   })
 
   it('cancels a table title edit with Escape', () => {
@@ -458,7 +449,7 @@ describe('TaskList', () => {
         patch: { priority: 'urgent' },
       })
     )
-    await screen.findAllByText('priorities.urgent')
+    await screen.findByText('priorities.urgent')
 
     fireEvent.click(
       within(screen.getByRole('table')).getByRole('button', {
@@ -548,7 +539,7 @@ describe('TaskList', () => {
       })
     )
     expect(onOpen).not.toHaveBeenCalled()
-    expect(await screen.findAllByText('Jordan')).toHaveLength(2)
+    expect(await screen.findByText('Jordan')).toBeInTheDocument()
   })
 
   it('labels tasks without a task list as standalone', () => {
@@ -569,7 +560,7 @@ describe('TaskList', () => {
     const onOpen = vi.fn()
     render(<TaskList tasks={[task]} onOpen={onOpen} registerRow={vi.fn()} />)
 
-    fireEvent.keyDown(screen.getAllByLabelText('workspace.openTask')[0], {
+    fireEvent.keyDown(screen.getByLabelText('workspace.openTask'), {
       key: 'Enter',
     })
     expect(onOpen).toHaveBeenCalledWith(task)
@@ -894,7 +885,7 @@ describe('TaskList', () => {
       />
     )
 
-    expect(screen.getAllByText('Analysis')).toHaveLength(2)
+    expect(screen.getByText('Analysis')).toBeInTheDocument()
     const groupedTable = screen.getByRole('table')
     expect(
       within(groupedTable).queryByRole('columnheader', {
@@ -908,13 +899,13 @@ describe('TaskList', () => {
     expect(
       groupedTaskRow.querySelector('[data-status="todo"]')
     ).toBeInTheDocument()
-    fireEvent.click(screen.getAllByText('+ groups.addTask')[0])
+    fireEvent.click(screen.getByText('+ groups.addTask'))
     expect(onCreateTaskInGroup).toHaveBeenCalledWith('group-1')
 
-    const collapseButtons = screen.getAllByLabelText('groups.collapse')
-    fireEvent.click(collapseButtons[0])
-    expect(collapseButtons[0]).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getAllByLabelText('groups.expand')).toHaveLength(2)
+    const collapseButton = screen.getByLabelText('groups.collapse')
+    fireEvent.click(collapseButton)
+    expect(collapseButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByLabelText('groups.expand')).toBeInTheDocument()
   })
 
   it('shows an actionable drop target for an empty task group', () => {
@@ -939,8 +930,8 @@ describe('TaskList', () => {
       />
     )
 
-    expect(screen.getAllByText('groups.empty')).toHaveLength(2)
-    expect(screen.getAllByText('groups.taskCount')).toHaveLength(2)
+    expect(screen.getByText('groups.empty')).toBeInTheDocument()
+    expect(screen.getByText('groups.taskCount')).toBeInTheDocument()
 
     const desktopDropTarget = within(screen.getByRole('table'))
       .getByText('groups.empty')
