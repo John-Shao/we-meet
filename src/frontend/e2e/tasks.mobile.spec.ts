@@ -203,6 +203,15 @@ test('keeps the task workspace usable and visually stable on mobile', async ({
   await expect(railToggle).toHaveAccessibleName('收起导航栏')
   await railToggle.click()
   await expect(railToggle).toHaveAccessibleName('展开导航栏')
+  const filterDisclosure = page.getByRole('button', { name: /任务筛选/ })
+  await expect(filterDisclosure).toHaveAttribute('aria-expanded', 'false')
+  await filterDisclosure.click()
+  await expect(filterDisclosure).toHaveAttribute('aria-expanded', 'true')
+  await expect(
+    page.locator('#task-filter-controls').getByRole('button', { name: /状态/ })
+  ).toBeVisible()
+  await filterDisclosure.click()
+  await expect(filterDisclosure).toHaveAttribute('aria-expanded', 'false')
   const rootCard = page.getByRole('button', {
     name: `打开任务：${fixture.root.title}`,
     exact: true,

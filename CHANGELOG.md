@@ -24,6 +24,7 @@ and this project adheres to
 
 ### Changed
 
+- ✨(frontend) collapse task filter controls on narrow viewports while keeping active filters visible
 - ✨(frontend) default the primary navigation to compact mode on narrow viewports
 - ✨(frontend) replace whole-row task dragging with dedicated group-move and subtask-reorder handles plus accessible fallback actions
 - ✨(frontend) refine task filters, actionable workspace states, row actions, mobile cards, and detail information hierarchy
