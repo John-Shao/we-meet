@@ -976,6 +976,7 @@ export const TaskDetailPanel = ({
                   }}
                 >
                   <Input
+                    ref={focusInput}
                     aria-label={t('subtasks.newTitle')}
                     placeholder={t('subtasks.placeholder')}
                     value={newSubtaskTitle}
@@ -1003,14 +1004,16 @@ export const TaskDetailPanel = ({
                 </form>
               )}
               {task.can_create_subtasks && !subtaskComposerOpen && (
-                <button
+                <Button
                   type="button"
+                  size="dense"
+                  variant="quaternaryText"
                   className={subtaskAddActionCss}
-                  onClick={() => setSubtaskComposerOpen(true)}
+                  icon={<RiAddLine size={16} aria-hidden="true" />}
+                  onPress={() => setSubtaskComposerOpen(true)}
                 >
-                  <RiAddLine size={16} aria-hidden="true" />
                   {t('subtasks.addAction')}
-                </button>
+                </Button>
               )}
               {!task.can_create_subtasks && (
                 <p className={subtaskEmptyCss}>

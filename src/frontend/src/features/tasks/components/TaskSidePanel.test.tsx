@@ -387,7 +387,7 @@ describe('TaskDetailPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses compact interactive subtask rows and opens creation on demand', () => {
+  it('uses compact interactive subtask rows and opens creation on demand', async () => {
     const child: ApiTask = {
       ...task,
       id: 'child-1',
@@ -430,9 +430,25 @@ describe('TaskDetailPanel', () => {
       screen.queryByRole('textbox', { name: 'subtasks.newTitle' })
     ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'subtasks.addAction' }))
+    const titleInput = screen.getByRole('textbox', {
+      name: 'subtasks.newTitle',
+    })
+    expect(titleInput).toHaveFocus()
+
+    fireEvent.change(titleInput, { target: { value: 'Write API tests' } })
+    fireEvent.click(screen.getByRole('button', { name: 'subtasks.add' }))
+
+    await waitFor(() =>
+      expect(createMutateAsync).toHaveBeenCalledWith({
+        title: 'Write API tests',
+        parent_id: task.id,
+        task_list_id: null,
+        group_id: null,
+      })
+    )
     expect(
-      screen.getByRole('textbox', { name: 'subtasks.newTitle' })
-    ).toBeInTheDocument()
+      screen.queryByRole('textbox', { name: 'subtasks.newTitle' })
+    ).not.toBeInTheDocument()
   })
 
   it('opens a subtask in the full task detail with ancestors above its title', () => {
