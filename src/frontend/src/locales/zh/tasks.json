@@ -23,6 +23,15 @@
     "statusFilter": "状态",
     "statusOptions": { "open": "未完成", "all": "全部状态" },
     "clearFilters": "清除筛选",
+    "filteredResultCount": "{{count}} 个匹配结果",
+    "removeFilter": "移除筛选：{{filter}}",
+    "errorTitle": "无法加载任务",
+    "errorDescription": "请检查网络连接后重试。",
+    "retry": "重试",
+    "emptyFilteredTitle": "没有匹配的任务",
+    "emptyFilteredDescription": "尝试移除部分筛选条件。",
+    "emptyTitle": "开始创建任务",
+    "emptyWorkspaceDescription": "新建一个任务，安排负责人和截止日期。",
     "resizeColumn": "调整“{{column}}”列宽",
     "columns": {
       "status": "状态",
@@ -38,6 +47,7 @@
     "openTask": "打开任务：{{title}}",
     "quickComplete": "完成任务：{{title}}",
     "quickReopen": "重启任务：{{title}}",
+    "dragTask": "拖拽任务以移动分组",
     "loadMore": "加载更多",
     "loadingMore": "正在加载…",
     "createTitle": "新建任务",
@@ -218,6 +228,11 @@
     "editScope": "重复任务修改范围",
     "onlyThis": "仅本次",
     "thisAndFollowing": "本次及以后"
+  },
+  "detailGroups": {
+    "collaboration": "协作",
+    "planning": "计划与归属",
+    "content": "任务内容"
   },
   "scopes": {
     "label": "任务范围",

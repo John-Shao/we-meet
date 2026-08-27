@@ -18,6 +18,7 @@ import {
   RiArrowUpSLine,
   RiCalendar2Line,
   RiDeleteBinLine,
+  RiDraggable,
   RiGitBranchLine,
   RiLoader4Line,
   RiMoreLine,
@@ -535,7 +536,12 @@ export const TaskList = ({
     if (!onShare && !onDeleteTask) return
     event.preventDefault()
     event.stopPropagation()
-    setContextMenu({ task, x: event.clientX, y: event.clientY })
+    const anchor = event.currentTarget.getBoundingClientRect()
+    setContextMenu({
+      task,
+      x: event.type === 'click' ? anchor.right : event.clientX,
+      y: event.type === 'click' ? anchor.bottom : event.clientY,
+    })
   }
 
   const groupProps = {
@@ -543,6 +549,8 @@ export const TaskList = ({
     taskLists,
     selectedTaskId,
     onOpen,
+    onShare,
+    onDeleteTask,
     registerRow,
     t,
     formatDate,
@@ -823,6 +831,8 @@ const DesktopTaskRow = ({
   onSaveInlineEdit,
   onCancelInlineEdit,
   compact,
+  onShare,
+  onDeleteTask,
 }: GroupProps) => (
   <tr
     ref={(element) => registerRow(task.id, element)}
@@ -853,6 +863,15 @@ const DesktopTaskRow = ({
       data-group-last={grouped && isLastInGroup ? true : undefined}
     >
       <div className={taskTitleContentCss}>
+        {task.can_edit && (
+          <span
+            className={taskDragIndicatorCss}
+            title={t('workspace.dragTask')}
+            aria-hidden="true"
+          >
+            <RiDraggable size={16} />
+          </span>
+        )}
         <TaskHierarchyToggle
           task={task}
           depth={treeDepth}
@@ -891,6 +910,19 @@ const DesktopTaskRow = ({
               showAncestorPath={showAncestorPath}
             />
           </InlineEditButton>
+        )}
+        {(onShare || onDeleteTask) && (
+          <button
+            type="button"
+            data-row-action=""
+            className={rowActionButtonCss}
+            aria-label={t('actions.more')}
+            draggable={false}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => onTaskContextMenu(event, task)}
+          >
+            <RiMoreLine size={17} aria-hidden="true" />
+          </button>
         )}
       </div>
     </td>
@@ -1356,6 +1388,8 @@ const MobileTaskCard = ({
   statusOverride,
   statusPending,
   onToggleStatus,
+  onShare,
+  onDeleteTask,
 }: GroupProps) => (
   <div
     ref={(element) => registerRow(task.id, element)}
@@ -1401,6 +1435,18 @@ const MobileTaskCard = ({
         showAncestorPath={showAncestorPath}
       />
       <TaskPriorityBadge priority={task.priority} />
+      {(onShare || onDeleteTask) && (
+        <button
+          type="button"
+          className={mobileRowActionButtonCss}
+          aria-label={t('actions.more')}
+          draggable={false}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => onTaskContextMenu(event, task)}
+        >
+          <RiMoreLine size={18} aria-hidden="true" />
+        </button>
+      )}
     </div>
     <dl className={mobileMetaCss}>
       <div>
@@ -2029,6 +2075,15 @@ const rowCss = css({
     backgroundColor: 'selected.bg',
     boxShadow: 'inset 3px 0 0 token(colors.selected.accent)',
   },
+  '& [data-row-action]': {
+    opacity: 0,
+    pointerEvents: 'none',
+    transition: 'opacity token(durations.fast)',
+  },
+  '&:hover [data-row-action], &:focus-within [data-row-action]': {
+    opacity: 1,
+    pointerEvents: 'auto',
+  },
 })
 const inlineCellButtonCss = css({
   width: '100%',
@@ -2245,10 +2300,37 @@ const groupedTaskTitleCellCss = css({
   '&[data-group-last]::before': { bottom: '50%' },
 })
 const taskTitleContentCss = css({
+  position: 'relative',
   minWidth: 0,
   display: 'flex',
   alignItems: 'center',
   gap: '0.5rem',
+})
+const taskDragIndicatorCss = css({
+  width: '0.75rem',
+  display: 'inline-flex',
+  justifyContent: 'center',
+  flexShrink: 0,
+  color: 'greyscale.400',
+  cursor: 'grab',
+})
+const rowActionButtonCss = css({
+  width: '1.75rem',
+  height: '1.75rem',
+  display: 'grid',
+  placeItems: 'center',
+  flexShrink: 0,
+  padding: 0,
+  border: 0,
+  borderRadius: '6px',
+  backgroundColor: 'greyscale.000',
+  color: 'greyscale.600',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.900' },
+  _focusVisible: {
+    outline: '2px solid token(colors.primary.500)',
+    outlineOffset: '1px',
+  },
 })
 const taskHierarchyLeadCss = css({
   display: 'inline-flex',
@@ -2416,9 +2498,26 @@ const mobileCardCss = css({
 })
 const mobileTitleRowCss = css({
   display: 'grid',
-  gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+  gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto',
   alignItems: 'center',
   gap: '0.625rem',
+})
+const mobileRowActionButtonCss = css({
+  width: '2rem',
+  height: '2rem',
+  display: 'grid',
+  placeItems: 'center',
+  padding: 0,
+  border: 0,
+  borderRadius: '6px',
+  backgroundColor: 'transparent',
+  color: 'greyscale.600',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100' },
+  _focusVisible: {
+    outline: '2px solid token(colors.primary.500)',
+    outlineOffset: '1px',
+  },
 })
 const mobileMetaCss = css({
   display: 'grid',

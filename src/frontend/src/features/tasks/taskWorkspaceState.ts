@@ -122,6 +122,11 @@ export const stateWithStatus = (
   time: status === 'completed' ? 'all' : state.time,
 })
 
+export const hasActiveTaskFilters = (state: TaskWorkspaceState) =>
+  state.status !== (state.mode === 'board' ? 'all' : 'open') ||
+  state.time !== 'all' ||
+  state.priority !== 'all'
+
 export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
   const params = new URLSearchParams()
   params.set('scope', state.scope)

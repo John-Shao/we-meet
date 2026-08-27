@@ -648,6 +648,29 @@ describe('TaskList', () => {
     expect(onOpen).not.toHaveBeenCalled()
   })
 
+  it('opens row actions from the visible more button', () => {
+    const onOpen = vi.fn()
+    const onShare = vi.fn()
+    render(
+      <TaskList
+        tasks={[task]}
+        onOpen={onOpen}
+        onShare={onShare}
+        registerRow={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      within(screen.getByRole('table')).getByRole('button', {
+        name: 'actions.more',
+      })
+    )
+    fireEvent.click(screen.getByRole('menuitem', { name: 'share.action' }))
+
+    expect(onShare).toHaveBeenCalledWith(task)
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
   it('shows icons and deletes an editable task from the row context menu', () => {
     const onOpen = vi.fn()
     const onShare = vi.fn()

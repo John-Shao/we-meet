@@ -647,6 +647,7 @@ export const TaskDetailPanel = ({
           )}
 
           <dl className={propertyListCss}>
+            <TaskPropertyGroupHeading title={t('detailGroups.collaboration')} />
             <TaskProperty
               icon={<RiUser3Line size={18} />}
               label={t('meta.assignee')}
@@ -836,6 +837,7 @@ export const TaskDetailPanel = ({
                 )}
               </div>
             </TaskProperty>
+            <TaskPropertyGroupHeading title={t('detailGroups.planning')} />
             <TaskProperty
               icon={<RiListCheck3 size={18} />}
               label={t('taskLists.field')}
@@ -1047,6 +1049,7 @@ export const TaskDetailPanel = ({
                 <TaskPriorityBadge priority={task.priority} />
               )}
             </TaskProperty>
+            <TaskPropertyGroupHeading title={t('detailGroups.content')} />
             <TaskProperty
               icon={<RiFileTextLine size={18} />}
               label={t('form.description')}
@@ -1600,6 +1603,15 @@ const DetailSection = ({
   </section>
 )
 
+const TaskPropertyGroupHeading = ({ title }: { title: string }) => (
+  <div className={propertyGroupHeadingCss}>
+    <dt>
+      <h3>{title}</h3>
+    </dt>
+    <dd aria-hidden="true" />
+  </div>
+)
+
 const panelCss = css({
   height: '100%',
   width: '100%',
@@ -1893,6 +1905,22 @@ const propertyListCss = css({
   flexDirection: 'column',
   gap: '0.25rem',
   margin: 0,
+})
+const propertyGroupHeadingCss = css({
+  padding: '0.75rem 0.5rem 0.125rem',
+  '&:not(:first-child)': {
+    marginTop: '0.625rem',
+    borderTop: '1px solid token(colors.greyscale.200)',
+  },
+  '& dt': { margin: 0 },
+  '& dd': { display: 'none' },
+  '& h3': {
+    margin: 0,
+    color: 'greyscale.700',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    letterSpacing: '0.02em',
+  },
 })
 const propertyRowCss = css({
   minHeight: '2.5rem',

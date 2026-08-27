@@ -23,6 +23,15 @@
     "statusFilter": "Status",
     "statusOptions": { "open": "Incomplete", "all": "All statuses" },
     "clearFilters": "Clear filters",
+    "filteredResultCount": "{{count}} matching tasks",
+    "removeFilter": "Remove filter: {{filter}}",
+    "errorTitle": "Tasks could not be loaded",
+    "errorDescription": "Check your connection and try again.",
+    "retry": "Try again",
+    "emptyFilteredTitle": "No matching tasks",
+    "emptyFilteredDescription": "Try removing one or more filters.",
+    "emptyTitle": "Create your first task",
+    "emptyWorkspaceDescription": "Add a task with an owner and a due date to get started.",
     "resizeColumn": "Resize {{column}} column",
     "columns": {
       "status": "Status",
@@ -38,6 +47,7 @@
     "openTask": "Open task: {{title}}",
     "quickComplete": "Complete task: {{title}}",
     "quickReopen": "Reopen task: {{title}}",
+    "dragTask": "Drag task to move it between groups",
     "loadMore": "Load more",
     "loadingMore": "Loading…",
     "createTitle": "New task",
@@ -218,6 +228,11 @@
     "editScope": "Recurring edit scope",
     "onlyThis": "Only this task",
     "thisAndFollowing": "This and following"
+  },
+  "detailGroups": {
+    "collaboration": "Collaboration",
+    "planning": "Planning and placement",
+    "content": "Task content"
   },
   "scopes": {
     "label": "Task scope",

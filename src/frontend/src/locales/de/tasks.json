@@ -23,6 +23,15 @@
     "statusFilter": "Status",
     "statusOptions": { "open": "Nicht erledigt", "all": "Alle Status" },
     "clearFilters": "Filter löschen",
+    "filteredResultCount": "{{count}} passende Aufgaben",
+    "removeFilter": "Filter entfernen: {{filter}}",
+    "errorTitle": "Aufgaben konnten nicht geladen werden",
+    "errorDescription": "Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    "retry": "Erneut versuchen",
+    "emptyFilteredTitle": "Keine passenden Aufgaben",
+    "emptyFilteredDescription": "Entfernen Sie einen oder mehrere Filter.",
+    "emptyTitle": "Erste Aufgabe erstellen",
+    "emptyWorkspaceDescription": "Erstellen Sie eine Aufgabe mit Verantwortlichen und Fälligkeitsdatum.",
     "resizeColumn": "Breite der Spalte {{column}} ändern",
     "columns": {
       "status": "Status",
@@ -38,6 +47,7 @@
     "openTask": "Aufgabe öffnen: {{title}}",
     "quickComplete": "Aufgabe abschließen: {{title}}",
     "quickReopen": "Aufgabe erneut öffnen: {{title}}",
+    "dragTask": "Aufgabe ziehen, um sie zwischen Gruppen zu verschieben",
     "loadMore": "Mehr laden",
     "loadingMore": "Wird geladen…",
     "createTitle": "Neue Aufgabe",
@@ -219,6 +229,11 @@
     "editScope": "Änderungsbereich",
     "onlyThis": "Nur diese Aufgabe",
     "thisAndFollowing": "Diese und folgende"
+  },
+  "detailGroups": {
+    "collaboration": "Zusammenarbeit",
+    "planning": "Planung und Zuordnung",
+    "content": "Aufgabeninhalt"
   },
   "scopes": {
     "label": "Aufgabenbereich",

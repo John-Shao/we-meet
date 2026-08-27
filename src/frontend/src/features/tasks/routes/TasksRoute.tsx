@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useSearchParams } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import {
   RiBarChartBoxLine,
+  RiFilterOffLine,
+  RiInbox2Line,
   RiKanbanView2,
   RiListCheck3,
+  RiRefreshLine,
 } from '@remixicon/react'
 
 import { Modal, ModalCloseButton } from '@/components/Modal'
@@ -58,6 +61,7 @@ import { CreateTaskPanel, TaskDetailPanel } from '../components/TaskSidePanel'
 import { TaskWorkspaceNavigation } from '../components/TaskWorkspaceNavigation'
 import {
   buildTaskWorkspaceSearch,
+  hasActiveTaskFilters,
   parseTaskWorkspaceState,
   stateForView,
   stateForTaskList,
@@ -130,6 +134,7 @@ const TasksAuthenticated = () => {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
+    refetch,
   } = useTasks(
     state.scope,
     state.status,
@@ -159,6 +164,7 @@ const TasksAuthenticated = () => {
     (taskList) => taskList.id === state.taskList
   )
   const panelOpen = Boolean(state.task)
+  const filtersActive = hasActiveTaskFilters(state)
 
   const deleteGroup = async (group: ApiTaskGroup) => {
     if (!group.can_delete) return
@@ -468,6 +474,7 @@ const TasksAuthenticated = () => {
         {state.mode !== 'analytics' && (
           <TaskFilterToolbar
             state={state}
+            resultCount={count}
             onStatusChange={changeStatus}
             onTimeChange={(time: TaskTimeFilter) => updateFilter({ time })}
             onPriorityChange={(priority: TaskPriorityFilter) =>
@@ -490,9 +497,53 @@ const TasksAuthenticated = () => {
           ) : isLoading ? (
             <StateHint loading>{t('loading')}</StateHint>
           ) : error ? (
-            <StateHint>{t('error')}</StateHint>
-          ) : listTasks.length === 0 && !selectedTaskList ? (
-            <StateHint>{t('empty')}</StateHint>
+            <TaskWorkspaceStateCard
+              icon={<RiRefreshLine size={24} aria-hidden="true" />}
+              title={t('workspace.errorTitle')}
+              description={t('workspace.errorDescription')}
+              actionLabel={t('workspace.retry')}
+              onAction={() => void refetch()}
+            />
+          ) : listTasks.length === 0 && (filtersActive || !selectedTaskList) ? (
+            <TaskWorkspaceStateCard
+              icon={
+                filtersActive ? (
+                  <RiFilterOffLine size={24} aria-hidden="true" />
+                ) : (
+                  <RiInbox2Line size={24} aria-hidden="true" />
+                )
+              }
+              title={
+                filtersActive
+                  ? t('workspace.emptyFilteredTitle')
+                  : t('workspace.emptyTitle')
+              }
+              description={
+                filtersActive
+                  ? t('workspace.emptyFilteredDescription')
+                  : t('workspace.emptyWorkspaceDescription')
+              }
+              actionLabel={
+                filtersActive
+                  ? t('workspace.clearFilters')
+                  : t('workspace.newTask')
+              }
+              onAction={() => {
+                if (filtersActive) {
+                  navigateState({
+                    ...state,
+                    status: state.mode === 'board' ? 'all' : 'open',
+                    time: 'all',
+                    priority: 'all',
+                    task: undefined,
+                  })
+                  return
+                }
+                setCreateParentTask(null)
+                setCreateGroupId(undefined)
+                setCreating(true)
+              }}
+            />
           ) : state.mode === 'board' ? (
             <>
               <TaskBoard
@@ -772,6 +823,29 @@ const LoadMoreTasks = ({
   )
 }
 
+const TaskWorkspaceStateCard = ({
+  icon,
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  actionLabel: string
+  onAction: () => void
+}) => (
+  <div className={workspaceStateCss} role="status">
+    <span className={workspaceStateIconCss}>{icon}</span>
+    <h2>{title}</h2>
+    <p>{description}</p>
+    <Button variant="secondary" size="dense" onPress={onAction}>
+      {actionLabel}
+    </Button>
+  </div>
+)
+
 const useIsNarrow = () => {
   const [isNarrow, setIsNarrow] = useState(() =>
     typeof window === 'undefined'
@@ -864,6 +938,37 @@ const modeTabsCss = css({
   },
 })
 const listRegionCss = css({ flex: 1, minHeight: 0, overflow: 'auto' })
+const workspaceStateCss = css({
+  minHeight: '18rem',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '0.5rem',
+  padding: '2rem',
+  textAlign: 'center',
+  '& h2': {
+    margin: '0.25rem 0 0',
+    color: 'greyscale.900',
+    fontSize: '1rem',
+  },
+  '& p': {
+    maxWidth: '28rem',
+    margin: 0,
+    color: 'greyscale.600',
+    fontSize: '0.8125rem',
+  },
+  '& button': { marginTop: '0.5rem' },
+})
+const workspaceStateIconCss = css({
+  width: '3rem',
+  height: '3rem',
+  display: 'grid',
+  placeItems: 'center',
+  borderRadius: '999px',
+  backgroundColor: 'greyscale.100',
+  color: 'greyscale.600',
+})
 const loadMoreCss = css({
   display: 'flex',
   justifyContent: 'center',

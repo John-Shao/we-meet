@@ -238,6 +238,15 @@ describe('TaskDetailPanel', () => {
     ).toBeInTheDocument()
     expect(container.querySelector('img[src="/assignee.png"]')).toBeTruthy()
     expect(container.querySelector('img[src="/creator.png"]')).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { name: 'detailGroups.collaboration' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'detailGroups.planning' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'detailGroups.content' })
+    ).toBeInTheDocument()
   })
 
   it('edits each creator-managed field inline without a global edit page', async () => {

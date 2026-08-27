@@ -23,6 +23,15 @@
     "statusFilter": "Statut",
     "statusOptions": { "open": "Non terminées", "all": "Tous les statuts" },
     "clearFilters": "Effacer les filtres",
+    "filteredResultCount": "{{count}} tâches correspondantes",
+    "removeFilter": "Retirer le filtre : {{filter}}",
+    "errorTitle": "Impossible de charger les tâches",
+    "errorDescription": "Vérifiez votre connexion puis réessayez.",
+    "retry": "Réessayer",
+    "emptyFilteredTitle": "Aucune tâche correspondante",
+    "emptyFilteredDescription": "Essayez de retirer un ou plusieurs filtres.",
+    "emptyTitle": "Créer votre première tâche",
+    "emptyWorkspaceDescription": "Ajoutez une tâche avec un responsable et une échéance pour commencer.",
     "resizeColumn": "Redimensionner la colonne {{column}}",
     "columns": {
       "status": "Statut",
@@ -38,6 +47,7 @@
     "openTask": "Ouvrir la tâche : {{title}}",
     "quickComplete": "Terminer la tâche : {{title}}",
     "quickReopen": "Rouvrir la tâche : {{title}}",
+    "dragTask": "Faire glisser la tâche pour la déplacer entre les groupes",
     "loadMore": "Charger plus",
     "loadingMore": "Chargement…",
     "createTitle": "Nouvelle tâche",
@@ -219,6 +229,11 @@
     "editScope": "Portée de la modification",
     "onlyThis": "Cette tâche uniquement",
     "thisAndFollowing": "Cette tâche et les suivantes"
+  },
+  "detailGroups": {
+    "collaboration": "Collaboration",
+    "planning": "Planification et classement",
+    "content": "Contenu de la tâche"
   },
   "scopes": {
     "label": "Périmètre des tâches",

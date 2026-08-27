@@ -23,6 +23,15 @@
     "statusFilter": "Status",
     "statusOptions": { "open": "Onvoltooid", "all": "Alle statussen" },
     "clearFilters": "Filters wissen",
+    "filteredResultCount": "{{count}} overeenkomende taken",
+    "removeFilter": "Filter verwijderen: {{filter}}",
+    "errorTitle": "Taken konden niet worden geladen",
+    "errorDescription": "Controleer je verbinding en probeer het opnieuw.",
+    "retry": "Opnieuw proberen",
+    "emptyFilteredTitle": "Geen overeenkomende taken",
+    "emptyFilteredDescription": "Verwijder een of meer filters.",
+    "emptyTitle": "Maak je eerste taak",
+    "emptyWorkspaceDescription": "Voeg een taak met een verantwoordelijke en deadline toe om te beginnen.",
     "resizeColumn": "Breedte van kolom {{column}} aanpassen",
     "columns": {
       "status": "Status",
@@ -38,6 +47,7 @@
     "openTask": "Taak openen: {{title}}",
     "quickComplete": "Taak voltooien: {{title}}",
     "quickReopen": "Taak heropenen: {{title}}",
+    "dragTask": "Sleep de taak om deze tussen groepen te verplaatsen",
     "loadMore": "Meer laden",
     "loadingMore": "Laden…",
     "createTitle": "Nieuwe taak",
@@ -223,6 +233,11 @@
     "editScope": "Wijzigingsbereik",
     "onlyThis": "Alleen deze taak",
     "thisAndFollowing": "Deze en volgende"
+  },
+  "detailGroups": {
+    "collaboration": "Samenwerking",
+    "planning": "Planning en plaatsing",
+    "content": "Taakinhoud"
   },
   "scopes": {
     "label": "Taakbereik",
