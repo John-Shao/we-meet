@@ -112,6 +112,27 @@ export const useTaskSubtasks = (taskId?: string) =>
     enabled: Boolean(taskId),
   })
 
+const reorderTaskSubtasks = (taskId: string, taskIds: string[]) =>
+  fetchApi<ApiTask[]>(`tasks/${encodeURIComponent(taskId)}/subtasks/reorder/`, {
+    method: 'POST',
+    body: JSON.stringify({ task_ids: taskIds }),
+  })
+
+export const useReorderTaskSubtasks = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTask[],
+    ApiError,
+    { taskId: string; taskIds: string[] }
+  >({
+    mutationFn: ({ taskId, taskIds }) => reorderTaskSubtasks(taskId, taskIds),
+    onSuccess: (subtasks, { taskId }) => {
+      queryClient.setQueryData(['tasks', taskId, 'subtasks'], subtasks)
+      return queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
 const fetchTaskSubtreeImpact = (taskId: string) =>
   fetchApi<ApiTaskSubtreeImpact>(
     `tasks/${encodeURIComponent(taskId)}/subtree-impact/`

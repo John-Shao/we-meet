@@ -1,6 +1,6 @@
 # 任务模块功能完善实施计划
 
-> 状态：Draft  
+> 状态：Active（阶段 C 已完成）
 > 制定日期：2026-08-26  
 > 事实来源：当前代码、数据库迁移及 `docs/features/task_*.md`  
 > 关联文档：[当前功能说明](../features/task_module_minimum.md)、[功能缺口与增量路线图](../features/task_module_gap_analysis.md)、[长期规划](../research/long-term-plan.md)、[ADR-0001：有界递归子任务层级](../adr/0001-bounded-recursive-task-hierarchy.md)
@@ -161,6 +161,8 @@ POST /api/v1.0/tasks/bulk/
 
 ## 6. 阶段 C：有界递归子任务/检查项
 
+> 状态：Completed（2026-08-27）
+
 ### 6.1 ADR 先行
 
 迁移 `0112_task_parent` 曾引入 `parent`，又由 `0124_remove_task_parent` 删除。模型与 API 实现前必须先评审 [ADR-0001：有界递归子任务层级](../adr/0001-bounded-recursive-task-hierarchy.md)，并以该 ADR 明确以下边界：
@@ -198,6 +200,14 @@ POST /api/v1.0/tasks/bulk/
 - E2E 覆盖五级创建、独立完成状态、完整父链展示，以及删除或移动父任务时的整棵子树影响提示。
 
 验收标准：用户可以把根任务继续拆解到第 5 级并分别指派；第 6 级、循环引用、跨组织挂载、超过直接子任务或整树配额的写入均被服务端稳定拒绝；子任务状态保持独立，搜索和筛选展示完整可见父链，删除与移动提示及结果符合 ADR。
+
+### 6.5 收尾记录
+
+- 模型、迁移、服务端配置、递归查询、稳定错误码、整树移动/删除和完整父链鉴权均已落地；组织级稳定事务锁覆盖并发创建与互相移动竞争。
+- 详情面板支持子任务就地编辑、负责人、截止日期、完成/重开、逐级进入和直接子任务排序；排序通过原子 reorder 接口提交完整同级快照。
+- 通知在入队、领取和到期提醒阶段均复核完整父链，清单成员和会话分享不能造成子任务越权暴露。
+- PostgreSQL 后端层级与任务回归测试 `84 passed`，相关前端单元测试 `45 passed`；TypeScript、ESLint、Prettier 和 Ruff 检查通过。
+- 真实 Keycloak、PostgreSQL、Redis、后端和 Chromium 环境的任务 E2E `3 passed`，其中阶段 C 场景覆盖五层创建、独立状态/进度、父链搜索、子树移动和整树删除确认。
 
 ## 7. 阶段 D：重复任务
 

@@ -308,6 +308,8 @@
     "addAction": "添加子任务",
     "expandInList": "展开“{{title}}”的子任务",
     "collapseInList": "收起“{{title}}”的子任务",
+    "moveUp": "上移“{{title}}”",
+    "moveDown": "下移“{{title}}”",
     "move": "移动任务",
     "moveTitle": "移动任务子树",
     "moveSubtreeDescription": "此次移动会同时移动整棵子树，共 {{count}} 个任务。是否继续？",

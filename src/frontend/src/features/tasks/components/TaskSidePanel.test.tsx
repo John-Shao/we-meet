@@ -17,6 +17,7 @@ const {
   followMutate,
   mutate,
   mutateAsync,
+  reorderMutate,
   subtaskState,
 } = vi.hoisted(() => ({
   confirm: vi.fn().mockResolvedValue(true),
@@ -25,6 +26,7 @@ const {
   followMutate: vi.fn(),
   mutate: vi.fn(),
   mutateAsync: vi.fn().mockResolvedValue(undefined),
+  reorderMutate: vi.fn(),
   subtaskState: { current: [] as ApiTask[] },
 }))
 
@@ -64,6 +66,11 @@ vi.mock('../api/fetchTasks', () => ({
   usePatchTask: () => ({
     mutate,
     mutateAsync,
+    isPending: false,
+    error: null,
+  }),
+  useReorderTaskSubtasks: () => ({
+    mutate: reorderMutate,
     isPending: false,
     error: null,
   }),
@@ -177,6 +184,7 @@ describe('TaskDetailPanel', () => {
   beforeEach(() => {
     mutate.mockClear()
     mutateAsync.mockClear()
+    reorderMutate.mockClear()
     createMutateAsync.mockClear()
     deleteMutateAsync.mockClear()
     followMutate.mockClear()
@@ -532,6 +540,43 @@ describe('TaskDetailPanel', () => {
     expect(onCreateSubtask).toHaveBeenCalledWith(
       expect.objectContaining({ id: task.id })
     )
+  })
+
+  it('reorders direct subtasks from the detail panel', () => {
+    const first = {
+      ...task,
+      id: 'child-1',
+      title: 'First',
+      parent_id: task.id,
+      depth: 1,
+      can_edit: true,
+    }
+    const second = {
+      ...first,
+      id: 'child-2',
+      title: 'Second',
+    }
+    subtaskState.current = [first, second]
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{ ...task, can_edit: true }}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    const firstRow = screen.getByText('First').closest('li')!
+    fireEvent.click(
+      within(firstRow).getByRole('button', { name: 'subtasks.moveDown' })
+    )
+
+    expect(reorderMutate).toHaveBeenCalledWith({
+      taskId: task.id,
+      taskIds: ['child-2', 'child-1'],
+    })
   })
 
   it('opens a subtask in the full task detail with ancestors above its title', () => {

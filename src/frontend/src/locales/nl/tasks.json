@@ -302,6 +302,8 @@
     "addAction": "Subtaak toevoegen",
     "expandInList": "Subtaken van ‘{{title}}’ uitvouwen",
     "collapseInList": "Subtaken van ‘{{title}}’ samenvouwen",
+    "moveUp": "‘{{title}}’ omhoog verplaatsen",
+    "moveDown": "‘{{title}}’ omlaag verplaatsen",
     "move": "Taak verplaatsen",
     "moveTitle": "Taakstructuur verplaatsen",
     "moveSubtreeDescription": "De volledige substructuur van {{count}} taken wordt verplaatst. Doorgaan?",

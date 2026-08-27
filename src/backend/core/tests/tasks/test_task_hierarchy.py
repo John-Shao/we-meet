@@ -1,12 +1,24 @@
 """API coverage for bounded recursive task hierarchies."""
 
+import threading
+from unittest.mock import patch
+
+from django.db import connection
 from django.test import override_settings
 
 import pytest
 from rest_framework.test import APIClient
 
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
-from core.models import Task, TaskGroup, TaskList, TaskListAccess
+from core.models import (
+    Task,
+    TaskConversationShare,
+    TaskGroup,
+    TaskImDelivery,
+    TaskList,
+    TaskListAccess,
+)
+from core.services.task_notifications import record_task_assignment
 
 pytestmark = pytest.mark.django_db
 
@@ -335,3 +347,302 @@ def test_statistics_explicitly_support_roots_or_all_descendants():
     assert roots.status_code == 200
     assert roots.json()["hierarchy_scope"] == "roots_only"
     assert roots.json()["summary"]["total"] == 1
+
+
+@override_settings(TASK_MAX_SUBTASK_DEPTH=2)
+def test_move_rejects_a_subtree_that_would_exceed_depth_limit():
+    user = UserFactory()
+    client = _client(user)
+    source = _create(client, "Source").json()
+    _create(client, "Source child", source["id"])
+    target = _create(client, "Target").json()
+    target_child = _create(client, "Target child", target["id"]).json()
+
+    rejected = client.patch(
+        f"{TASKS_URL}{source['id']}/",
+        {
+            "parent_id": target_child["id"],
+            "confirm_subtree_node_count": 2,
+        },
+        format="json",
+    )
+
+    assert rejected.status_code == 400
+    assert rejected.json()["parent_id"]["code"] == "task_depth_exceeded"
+
+
+@override_settings(TASK_MAX_DIRECT_CHILDREN=1)
+def test_move_rejects_a_full_target_parent():
+    user = UserFactory()
+    client = _client(user)
+    target = _create(client, "Target").json()
+    _create(client, "Existing", target["id"])
+    source = _create(client, "Source").json()
+
+    rejected = client.patch(
+        f"{TASKS_URL}{source['id']}/",
+        {"parent_id": target["id"]},
+        format="json",
+    )
+
+    assert rejected.status_code == 400
+    assert rejected.json()["parent_id"]["code"] == "task_direct_children_exceeded"
+
+
+@override_settings(TASK_MAX_TREE_NODES=3)
+def test_move_counts_the_complete_source_and_target_trees():
+    user = UserFactory()
+    client = _client(user)
+    target = _create(client, "Target").json()
+    _create(client, "Existing", target["id"])
+    source = _create(client, "Source").json()
+    _create(client, "Source child", source["id"])
+
+    rejected = client.patch(
+        f"{TASKS_URL}{source['id']}/",
+        {"parent_id": target["id"], "confirm_subtree_node_count": 2},
+        format="json",
+    )
+
+    assert rejected.status_code == 400
+    assert rejected.json()["parent_id"]["code"] == "task_tree_nodes_exceeded"
+
+
+@pytest.mark.parametrize(
+    "visibility_role",
+    ["creator", "assignee", "follower", "viewer", "editor", "owner"],
+)
+def test_complete_parent_chain_is_visible_to_every_collaborator_role(
+    visibility_role,
+):
+    organization = OrganizationFactory()
+    owner = UserFactory()
+    viewer = UserFactory()
+    MembershipFactory(user=owner, organization=organization)
+    MembershipFactory(user=viewer, organization=organization)
+    task_list = TaskList.objects.create(
+        organization=organization,
+        creator=owner,
+        name="Hierarchy",
+    )
+    TaskListAccess.objects.create(
+        task_list=task_list,
+        user=owner,
+        role=TaskListAccess.Role.OWNER,
+    )
+    creator = viewer if visibility_role == "creator" else owner
+    parent = Task.objects.create(
+        organization=organization,
+        creator=creator,
+        assignee=owner,
+        title="Parent",
+        task_list=task_list
+        if visibility_role in {"viewer", "editor", "owner"}
+        else None,
+    )
+    child = Task.objects.create(
+        organization=organization,
+        creator=creator,
+        assignee=owner,
+        title="Child",
+        parent=parent,
+        task_list=parent.task_list,
+    )
+    if visibility_role == "assignee":
+        parent.assignees.add(viewer)
+        child.assignees.add(viewer)
+    elif visibility_role == "follower":
+        parent.followers.add(viewer)
+        child.followers.add(viewer)
+    elif visibility_role in {"viewer", "editor", "owner"}:
+        TaskListAccess.objects.create(
+            task_list=task_list,
+            user=viewer,
+            role=getattr(TaskListAccess.Role, visibility_role.upper()),
+        )
+
+    client = _client(viewer)
+    detail = client.get(f"{TASKS_URL}{child.id}/")
+    filtered = client.get(
+        TASKS_URL,
+        {"scope": "all", "status": "all", "q": "Child"},
+    )
+    statistics = client.get(
+        f"{TASKS_URL}statistics/",
+        {"scope": "all", "status": "all", "hierarchy": "include_descendants"},
+    )
+
+    assert detail.status_code == 200
+    assert [node["title"] for node in detail.json()["ancestor_path"]] == [
+        "Parent",
+        "Child",
+    ]
+    assert [item["id"] for item in filtered.json()["results"]] == [str(child.id)]
+    assert statistics.json()["summary"]["total"] == 2
+
+
+def test_hidden_parent_chain_is_excluded_from_filters_statistics_and_notifications():
+    parent_owner = UserFactory()
+    child_owner = UserFactory()
+    parent = Task.objects.create(
+        title="Secret parent", creator=parent_owner, assignee=parent_owner
+    )
+    child = Task.objects.create(
+        title="Visible child",
+        creator=parent_owner,
+        assignee=child_owner,
+        parent=parent,
+        due_date="2026-08-27",
+    )
+    child.assignees.add(child_owner)
+    client = _client(child_owner)
+
+    filtered = client.get(
+        TASKS_URL,
+        {"scope": "assigned", "status": "open", "time": "all"},
+    )
+    statistics = client.get(
+        f"{TASKS_URL}statistics/",
+        {"scope": "assigned", "status": "all"},
+    )
+    record_task_assignment(task=child, event=TaskImDelivery.Event.ASSIGNED)
+
+    assert filtered.json()["results"] == []
+    assert statistics.json()["summary"]["total"] == 0
+    assert not TaskImDelivery.objects.filter(
+        task=child,
+        recipient=child_owner,
+    ).exists()
+
+
+@patch(
+    "core.api.tasks._require_conversation_membership",
+    side_effect=lambda _user, cid: cid,
+)
+def test_conversation_share_requires_the_complete_parent_chain(_membership):
+    owner = UserFactory()
+    viewer = UserFactory()
+    parent = Task.objects.create(title="Parent", creator=owner, assignee=owner)
+    child = Task.objects.create(
+        title="Child", creator=owner, assignee=owner, parent=parent
+    )
+    owner_client = _client(owner)
+    viewer_client = _client(viewer)
+
+    rejected = owner_client.post(
+        f"{TASKS_URL}{child.id}/share/",
+        {"conversation_ids": ["hierarchy-chat"]},
+        format="json",
+    )
+    TaskConversationShare.objects.create(
+        task=parent,
+        cid="hierarchy-chat",
+        shared_by=owner,
+    )
+    accepted = owner_client.post(
+        f"{TASKS_URL}{child.id}/share/",
+        {"conversation_ids": ["hierarchy-chat"]},
+        format="json",
+    )
+    detail = viewer_client.get(f"{TASKS_URL}{child.id}/?shared_via=hierarchy-chat")
+
+    assert rejected.status_code == 400
+    assert rejected.json()["parent_id"]["code"] == "task_parent_chain_invisible"
+    assert accepted.status_code == 200
+    assert detail.status_code == 200
+
+
+def test_reorder_subtasks_requires_an_exact_snapshot_and_persists_positions():
+    user = UserFactory()
+    client = _client(user)
+    parent = _create(client, "Parent").json()
+    first = _create(client, "First", parent["id"]).json()
+    second = _create(client, "Second", parent["id"]).json()
+
+    stale = client.post(
+        f"{TASKS_URL}{parent['id']}/subtasks/reorder/",
+        {"task_ids": [second["id"]]},
+        format="json",
+    )
+    reordered = client.post(
+        f"{TASKS_URL}{parent['id']}/subtasks/reorder/",
+        {"task_ids": [second["id"], first["id"]]},
+        format="json",
+    )
+
+    assert stale.status_code == 400
+    assert stale.json()["task_ids"]["code"] == "task_subtask_order_changed"
+    assert reordered.status_code == 200
+    assert [item["id"] for item in reordered.json()] == [second["id"], first["id"]]
+    assert [
+        str(task_id)
+        for task_id in Task.objects.filter(parent_id=parent["id"])
+        .order_by("position")
+        .values_list("id", flat=True)
+    ] == [second["id"], first["id"]]
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(TASK_MAX_DIRECT_CHILDREN=1)
+def test_concurrent_child_creation_cannot_bypass_direct_child_quota():
+    user = UserFactory()
+    parent = _create(_client(user), "Parent").json()
+    barrier = threading.Barrier(2)
+    statuses = []
+
+    def create_child(title):
+        try:
+            client = _client(user)
+            barrier.wait(timeout=10)
+            statuses.append(_create(client, title, parent["id"]).status_code)
+        finally:
+            connection.close()
+
+    threads = [
+        threading.Thread(target=create_child, args=(f"Child {index}",))
+        for index in range(2)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert sorted(statuses) == [201, 400]
+    assert Task.objects.filter(parent_id=parent["id"]).count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_mutual_moves_leave_one_valid_acyclic_tree():
+    user = UserFactory()
+    client = _client(user)
+    first = _create(client, "First").json()
+    second = _create(client, "Second").json()
+    barrier = threading.Barrier(2)
+    statuses = []
+
+    def move(task_id, parent_id):
+        try:
+            thread_client = _client(user)
+            barrier.wait(timeout=10)
+            response = thread_client.patch(
+                f"{TASKS_URL}{task_id}/",
+                {"parent_id": parent_id},
+                format="json",
+            )
+            statuses.append(response.status_code)
+        finally:
+            connection.close()
+
+    threads = [
+        threading.Thread(target=move, args=(first["id"], second["id"])),
+        threading.Thread(target=move, args=(second["id"], first["id"])),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert sorted(statuses) == [200, 400]
+    first_parent = Task.objects.get(pk=first["id"]).parent_id
+    second_parent = Task.objects.get(pk=second["id"]).parent_id
+    assert (first_parent is None) != (second_parent is None)

@@ -308,6 +308,8 @@
     "addAction": "Add subtask",
     "expandInList": "Expand subtasks of “{{title}}”",
     "collapseInList": "Collapse subtasks of “{{title}}”",
+    "moveUp": "Move “{{title}}” up",
+    "moveDown": "Move “{{title}}” down",
     "move": "Move task",
     "moveTitle": "Move task subtree",
     "moveSubtreeDescription": "This will move the complete subtree of {{count}} tasks. Continue?",

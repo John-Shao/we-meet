@@ -13,6 +13,7 @@ from core import models
 from core.services import im_bots, im_cards
 from core.services.jusi_im import JusiImAdminClient
 from core.services.task_assignees import task_assignee_ids, task_assignees
+from core.services.task_hierarchy import visible_task_ancestor_path
 from core.services.task_time import OPEN_TASK_STATUSES, local_date_for_user
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,17 @@ DELETION_EVENTS = (models.TaskImDelivery.Event.DELETED,)
 
 class TaskImNotificationUnavailable(RuntimeError):
     """Raised for configuration/provisioning gaps worth retrying later."""
+
+
+def _visible_hierarchy_recipient_ids(task, recipient_ids):
+    """Keep notifications from exposing a child whose parent chain is hidden."""
+
+    recipients = models.User.objects.filter(pk__in=set(recipient_ids))
+    return {
+        recipient.pk
+        for recipient in recipients
+        if visible_task_ancestor_path(task, recipient) is not None
+    }
 
 
 def record_task_assignment(
@@ -105,6 +117,7 @@ def record_task_assignment(
     targets = assignee_ids if recipient_ids is None else set(recipient_ids)
     targets &= assignee_ids
     targets.discard(task.creator_id)
+    targets = _visible_hierarchy_recipient_ids(task, targets)
     deliveries = []
     for recipient_id in targets:
         delivery = models.TaskImDelivery.objects.create(
@@ -124,6 +137,7 @@ def record_task_comment(*, comment: models.TaskComment) -> models.TaskImDelivery
     task = comment.task
     recipient_ids = task_assignee_ids(task) | {task.creator_id}
     recipient_ids.discard(comment.author_id)
+    recipient_ids = _visible_hierarchy_recipient_ids(task, recipient_ids)
     deliveries = []
     for recipient_id in recipient_ids:
         delivery, created = models.TaskImDelivery.objects.get_or_create(
@@ -162,6 +176,7 @@ def record_task_date_change(
     _supersede_stale_reminders(pending=pending, task=task)
 
     recipient_ids = task_assignee_ids(task) - {activity.actor_id}
+    recipient_ids = _visible_hierarchy_recipient_ids(task, recipient_ids)
     if not recipient_ids or task.status not in OPEN_TASK_STATUSES:
         return None
 
@@ -213,6 +228,7 @@ def record_task_status_change(
         | {task.creator_id}
     )
     recipient_ids.discard(activity.actor_id)
+    recipient_ids = _visible_hierarchy_recipient_ids(task, recipient_ids)
     deliveries = []
     for recipient_id in recipient_ids:
         delivery, created = models.TaskImDelivery.objects.get_or_create(
@@ -243,6 +259,7 @@ def record_task_deletion(
         task.followers.values_list("id", flat=True)
     ) | task_assignee_ids(task)
     recipient_ids.discard(actor.id)
+    recipient_ids = _visible_hierarchy_recipient_ids(task, recipient_ids)
     deliveries = []
     for recipient_id in recipient_ids:
         delivery = models.TaskImDelivery.objects.create(
@@ -278,6 +295,7 @@ def record_task_priority_change(
     )
 
     recipient_ids = task_assignee_ids(task) - {activity.actor_id}
+    recipient_ids = _visible_hierarchy_recipient_ids(task, recipient_ids)
     if not recipient_ids:
         return None
 
@@ -350,6 +368,8 @@ def record_due_task_reminders(*, now=None) -> int:
     for task in tasks:
         for assignee in task_assignees(task):
             if not assignee.is_active:
+                continue
+            if visible_task_ancestor_path(task, assignee) is None:
                 continue
             today = local_date_for_user(assignee, now=now)
             reminders = []
@@ -879,6 +899,8 @@ def _recipient_can_receive(  # noqa: PLR0912
     if delivery.event == models.TaskImDelivery.Event.DELETED:
         return bool(delivery.task_title)
     if task is None:
+        return False
+    if visible_task_ancestor_path(task, delivery.recipient) is None:
         return False
     assignee_ids = task_assignee_ids(task)
     if delivery.event in ASSIGNMENT_EVENTS:

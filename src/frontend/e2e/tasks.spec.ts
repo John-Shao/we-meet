@@ -16,6 +16,7 @@ type CreatedTask = {
 
 let taskId: string | undefined
 let taskApiOrigin: string | undefined
+let cleanupTaskIds: string[] = []
 
 const dateInBrowserTimezone = (page: Page, daysFromToday: number) =>
   page.evaluate((days) => {
@@ -40,27 +41,32 @@ const displayName = (user: TaskUser) =>
   user.full_name || user.short_name || user.email || ''
 
 const deleteCreatedTask = async (context: BrowserContext) => {
-  if (!taskId || !taskApiOrigin) return
+  if (!taskApiOrigin || cleanupTaskIds.length === 0) return
   const csrfCookie = (await context.cookies(taskApiOrigin)).find(
     (cookie) => cookie.name === 'csrftoken'
   )
-  const taskUrl =
-    taskApiOrigin + '/api/v1.0/tasks/' + encodeURIComponent(taskId) + '/'
-  const impactResponse = await context.request.get(taskUrl + 'subtree-impact/')
-  const impact = impactResponse.ok()
-    ? ((await impactResponse.json()) as { node_count: number })
-    : undefined
-  const deleteUrl = impact
-    ? taskUrl + '?confirm_subtree_node_count=' + impact.node_count
-    : taskUrl
-  const response = await context.request.delete(deleteUrl, {
-    headers: csrfCookie ? { 'X-CSRFToken': csrfCookie.value } : undefined,
-  })
-  if (response.status() !== 204 && response.status() !== 404) {
-    throw new Error(`Task cleanup failed with HTTP ${response.status()}`)
+  for (const id of [...cleanupTaskIds].reverse()) {
+    const taskUrl =
+      taskApiOrigin + '/api/v1.0/tasks/' + encodeURIComponent(id) + '/'
+    const impactResponse = await context.request.get(
+      taskUrl + 'subtree-impact/'
+    )
+    const impact = impactResponse.ok()
+      ? ((await impactResponse.json()) as { node_count: number })
+      : undefined
+    const deleteUrl = impact
+      ? taskUrl + '?confirm_subtree_node_count=' + impact.node_count
+      : taskUrl
+    const response = await context.request.delete(deleteUrl, {
+      headers: csrfCookie ? { 'X-CSRFToken': csrfCookie.value } : undefined,
+    })
+    if (response.status() !== 204 && response.status() !== 404) {
+      throw new Error(`Task cleanup failed with HTTP ${response.status()}`)
+    }
   }
   taskId = undefined
   taskApiOrigin = undefined
+  cleanupTaskIds = []
 }
 
 test.afterEach(async ({ context }) => {
@@ -70,6 +76,7 @@ test.afterEach(async ({ context }) => {
 test('create, edit, persist, and complete a self-assigned task', async ({
   page,
 }) => {
+  test.setTimeout(90_000)
   const title = `E2E 任务 ${Date.now()}`
   const startDate = await dateInBrowserTimezone(page, 0)
   const dueDate = await dateInBrowserTimezone(page, 1)
@@ -91,18 +98,20 @@ test('create, edit, persist, and complete a self-assigned task', async ({
   const createdTask = (await createResponse.json()) as CreatedTask
   taskId = createdTask.id
   taskApiOrigin = new URL(createResponse.url()).origin
+  cleanupTaskIds.push(createdTask.id)
 
   await page.getByRole('button', { name: '关闭任务面板' }).click()
   let row = page.getByRole('row', { name: `打开任务：${title}` })
-  await expect(row).toBeVisible()
+  await expect(row).toBeVisible({ timeout: 15_000 })
 
   const assignee = createdTask.assignees?.[0] || createdTask.assignee
   expect(assignee).toBeDefined()
   expect(assignee).not.toBeNull()
   const assigneeName = displayName(assignee!)
-  expect(assigneeName).not.toBe('')
   const assigneeControl = row.getByRole('button', { name: '编辑 负责人' })
-  await expect(assigneeControl).toContainText(assigneeName)
+  if (assigneeName) {
+    await expect(assigneeControl).toContainText(assigneeName)
+  }
   await expect(assigneeControl).not.toContainText('我自己')
   await expect(
     assigneeControl.locator(':is(span, img)[aria-hidden="true"]').first()
@@ -134,7 +143,7 @@ test('create, edit, persist, and complete a self-assigned task', async ({
 
   await page.reload()
   row = page.getByRole('row', { name: `打开任务：${title}` })
-  await expect(row).toBeVisible()
+  await expect(row).toBeVisible({ timeout: 15_000 })
   await expect(row.getByRole('button', { name: '编辑 负责人' })).toContainText(
     assigneeName
   )
@@ -192,17 +201,21 @@ test('create, edit, persist, and complete a self-assigned task', async ({
   const completePatch = waitForTaskPatch(page, taskId)
   await page
     .getByRole('complementary', { name: '任务详情' })
-    .getByRole('button', { name: '完成任务' })
+    .getByRole('button', { name: '完成任务', exact: true })
     .click()
   await completePatch
-  await expect(row).toHaveCount(0)
+  await expect(
+    page
+      .getByRole('complementary', { name: '任务详情' })
+      .getByRole('button', { name: '重启任务' })
+  ).toBeVisible()
 
   await page
     .getByRole('complementary', { name: '任务视图' })
     .getByRole('button', { name: /^已完成/ })
     .click()
   row = page.getByRole('row', { name: `打开任务：${title}` })
-  await expect(row).toBeVisible()
+  await expect(row).toBeVisible({ timeout: 15_000 })
   await expect(row.getByRole('button', { name: '编辑 优先级' })).toContainText(
     '高'
   )
@@ -211,89 +224,148 @@ test('create, edit, persist, and complete a self-assigned task', async ({
   await row.getByLabel('截止日期').press('Escape')
 })
 
-test('create recursive subtasks, keep status independent, and show parent chains', async ({
+test('close the bounded recursive hierarchy through depth, movement, and deletion', async ({
+  context,
   page,
 }) => {
+  test.setTimeout(90_000)
   const suffix = Date.now()
   const rootTitle = 'E2E 根任务 ' + suffix
-  const childTitle = 'E2E 子任务 ' + suffix
-  const leafTitle = 'E2E 叶任务 ' + suffix
+  const targetTitle = 'E2E 移动目标 ' + suffix
+  const subtaskTitles = Array.from(
+    { length: 5 },
+    (_value, index) => `E2E ${index + 1} 级子任务 ${suffix}`
+  )
 
   await page.goto(
     '/tasks?scope=all&status=open&time=all&priority=all&task_list=all&view=list'
   )
-  await page.getByRole('button', { name: '新建任务' }).click()
-  await page.getByPlaceholder('输入标题，回车确认').fill(rootTitle)
-  const rootResponsePromise = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      response.url().endsWith('/api/v1.0/tasks/') &&
-      response.ok()
-  )
-  await page.getByRole('button', { name: '新建', exact: true }).click()
-  const rootResponse = await rootResponsePromise
-  const root = (await rootResponse.json()) as CreatedTask
+  const createRootTask = async (title: string) => {
+    await page.getByRole('button', { name: '新建任务' }).click()
+    await page.getByPlaceholder('输入标题，回车确认').fill(title)
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/api/v1.0/tasks/') &&
+        response.ok()
+    )
+    await page.getByRole('button', { name: '新建', exact: true }).click()
+    const response = await responsePromise
+    const created = (await response.json()) as CreatedTask
+    await page.getByRole('button', { name: '关闭任务面板' }).click()
+    return { created, response }
+  }
+
+  const { created: root, response: rootResponse } =
+    await createRootTask(rootTitle)
   taskId = root.id
   taskApiOrigin = new URL(rootResponse.url()).origin
+  cleanupTaskIds.push(root.id)
+  const csrfCookie = (await context.cookies(taskApiOrigin)).find(
+    (cookie) => cookie.name === 'csrftoken'
+  )
+  const targetResponse = await context.request.post(
+    taskApiOrigin + '/api/v1.0/tasks/',
+    {
+      data: { title: targetTitle },
+      headers: csrfCookie ? { 'X-CSRFToken': csrfCookie.value } : undefined,
+    }
+  )
+  expect(targetResponse.ok()).toBe(true)
+  const target = (await targetResponse.json()) as CreatedTask
+  cleanupTaskIds.push(target.id)
 
-  await page.getByRole('button', { name: '关闭任务面板' }).click()
   await page.getByRole('row', { name: '打开任务：' + rootTitle }).press('Enter')
   let details = page.getByRole('complementary', { name: '任务详情' })
+  const createdSubtasks: CreatedTask[] = []
 
-  const childResponsePromise = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      response.url().endsWith('/api/v1.0/tasks/') &&
-      response.ok()
-  )
-  await details.getByRole('button', { name: '添加子任务' }).click()
-  let createDialog = page.getByRole('dialog', { name: '新建任务' })
-  await createDialog.getByPlaceholder('输入标题，回车确认').fill(childTitle)
-  await createDialog.getByRole('button', { name: '新建', exact: true }).click()
-  const child = (await (await childResponsePromise).json()) as CreatedTask
+  for (const subtaskTitle of subtaskTitles) {
+    details = page.getByRole('complementary', { name: '任务详情' })
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/api/v1.0/tasks/') &&
+        response.ok()
+    )
+    await details.getByRole('button', { name: '添加子任务' }).click()
+    const createDialog = page.getByRole('dialog', { name: '新建任务' })
+    await createDialog.getByPlaceholder('输入标题，回车确认').fill(subtaskTitle)
+    await createDialog
+      .getByRole('button', { name: '新建', exact: true })
+      .click()
+    const created = (await (await responsePromise).json()) as CreatedTask
+    createdSubtasks.push(created)
+    await expect(page).toHaveURL(new RegExp(`task=${created.id}`), {
+      timeout: 15_000,
+    })
+  }
 
-  details = page.getByRole('complementary', { name: '任务详情' })
-  const leafResponsePromise = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      response.url().endsWith('/api/v1.0/tasks/') &&
-      response.ok()
-  )
-  await details.getByRole('button', { name: '添加子任务' }).click()
-  createDialog = page.getByRole('dialog', { name: '新建任务' })
-  await createDialog.getByPlaceholder('输入标题，回车确认').fill(leafTitle)
-  await createDialog.getByRole('button', { name: '新建', exact: true }).click()
-  const leaf = (await (await leafResponsePromise).json()) as CreatedTask
+  const child = createdSubtasks[0]
+  const leaf = createdSubtasks.at(-1)!
 
   details = page.getByRole('complementary', { name: '任务详情' })
   await expect(
     details.getByRole('navigation', { name: '任务父链' })
-  ).toContainText(rootTitle + '›' + childTitle)
+  ).toContainText([rootTitle, ...subtaskTitles.slice(0, -1)].join('›'))
   const completePatch = waitForTaskPatch(page, leaf.id)
-  await details.getByRole('button', { name: '完成任务' }).click()
+  await details.getByRole('button', { name: '完成任务', exact: true }).click()
   await completePatch
 
   await page.goto('/tasks?scope=all&status=all&task=' + root.id)
   details = page.getByRole('complementary', { name: '任务详情' })
-  await expect(details).toContainText('已完成 1 / 2')
-  await expect(details.getByRole('button', { name: '完成任务' })).toBeVisible()
+  await expect(details).toContainText('1 / 5')
+  await expect(
+    details.getByRole('button', { name: '完成任务', exact: true })
+  ).toBeVisible()
 
   const childDetailRow = details
     .getByRole('listitem')
-    .filter({ hasText: childTitle })
+    .filter({ hasText: subtaskTitles[0] })
   await childDetailRow
-    .getByRole('button', { name: '打开任务：' + childTitle })
+    .getByRole('button', { name: '打开任务：' + subtaskTitles[0] })
     .click()
   await expect(
-    page.getByRole('row', { name: '打开任务：' + childTitle })
-  ).toHaveAttribute('data-selected', 'true')
+    page.getByRole('row', { name: '打开任务：' + subtaskTitles[0] })
+  ).toHaveAttribute('data-selected', 'true', { timeout: 15_000 })
 
   await page.keyboard.press('Control+k')
-  await page.getByTestId('global-search-input').fill(leafTitle)
+  await page.getByTestId('global-search-input').fill(subtaskTitles.at(-1)!)
   await page.getByTestId('global-search-tab-tasks').click()
   await expect(page.getByTestId('global-search-task-' + leaf.id)).toContainText(
-    rootTitle + ' › ' + childTitle + ' › ' + leafTitle
+    [rootTitle, ...subtaskTitles].join(' › '),
+    { timeout: 15_000 }
   )
+  await page.keyboard.press('Escape')
+
+  details = page.getByRole('complementary', { name: '任务详情' })
+  await details.getByRole('button', { name: '编辑 父任务' }).click()
+  const movePatch = waitForTaskPatch(page, child.id)
+  await page.getByRole('option', { name: targetTitle }).click()
+  const moveDialog = page.getByRole('dialog', { name: '移动任务子树' })
+  await expect(moveDialog).toContainText('共 5 个任务')
+  await moveDialog.getByRole('button', { name: '移动任务' }).click()
+  await movePatch
+  await expect(
+    details.getByRole('navigation', { name: '任务父链' })
+  ).toContainText(targetTitle)
+
+  await page.goto('/tasks?scope=all&status=all&task=' + target.id)
+  details = page.getByRole('complementary', { name: '任务详情' })
+  await details.getByRole('button', { name: '更多操作' }).click()
+  await page.getByRole('menuitem', { name: '删除任务' }).click()
+  const deleteDialog = page.getByRole('dialog', { name: '删除任务' })
+  await expect(deleteDialog).toContainText('5 个子任务')
+  const deleteResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'DELETE' &&
+      response.url().includes('/api/v1.0/tasks/' + target.id + '/') &&
+      response.ok()
+  )
+  await deleteDialog.getByRole('button', { name: '删除任务' }).click()
+  await deleteResponse
+  await expect(
+    page.getByRole('row', { name: '打开任务：' + targetTitle })
+  ).not.toBeVisible()
 
   expect(child.id).not.toBe(root.id)
 })

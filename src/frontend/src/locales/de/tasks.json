@@ -302,6 +302,8 @@
     "addAction": "Unteraufgabe hinzufügen",
     "expandInList": "Unteraufgaben von „{{title}}“ einblenden",
     "collapseInList": "Unteraufgaben von „{{title}}“ ausblenden",
+    "moveUp": "„{{title}}“ nach oben verschieben",
+    "moveDown": "„{{title}}“ nach unten verschieben",
     "move": "Aufgabe verschieben",
     "moveTitle": "Aufgaben-Teilbaum verschieben",
     "moveSubtreeDescription": "Der gesamte Teilbaum mit {{count}} Aufgaben wird verschoben. Fortfahren?",

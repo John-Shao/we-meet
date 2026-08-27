@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(fullstack) add bounded recursive subtasks with secure parent chains and subtree confirmations
+- ✨(fullstack) add atomic subtask ordering and concurrency-safe hierarchy writes
 - ✨(fullstack) add task results and task-specific filters to global search
 - ✨(frontend) add real-stack Playwright coverage for the task workflow
 - ✨(fullstack) allow participants to mute others based on room configuration
@@ -18,8 +19,9 @@ and this project adheres to
 - ✨(frontend) make reaction toolbar responsive on small viewports
 - ✨(frontend) enable reactions on mobile devices
 
-### Changed 
+### Changed
 
+- 🔒️(backend) enforce full parent-chain visibility for task collaboration and notifications
 - 📝(docs) add a prioritized task module gap analysis and incremental roadmap
 - 📝(docs) align task module documentation with the current implementation
 - ♻️(fullstack) simplify source serialization

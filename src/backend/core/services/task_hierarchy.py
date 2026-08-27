@@ -2,8 +2,10 @@
 
 from collections import deque
 from dataclasses import dataclass
+from hashlib import blake2b
 
 from django.conf import settings
+from django.db import connection
 from django.db.models import Exists, OuterRef, Q
 
 from core import models
@@ -24,6 +26,38 @@ class TaskHierarchyError(ValueError):
     def __init__(self, code: str, message: str):
         self.code = code
         super().__init__(message)
+
+
+def lock_task_hierarchy_scopes(*organization_ids):
+    """Serialize hierarchy writes for every involved organization.
+
+    Moving two trees in opposite directions can otherwise lock their rows in
+    opposite orders.  PostgreSQL transaction advisory locks give hierarchy
+    writes one stable, organization-scoped ordering without persisting a lock
+    model.  ``None`` is a shared scope for personal tasks without an
+    organization.
+    """
+
+    if not connection.in_atomic_block:
+        raise RuntimeError("Task hierarchy scopes require an active transaction.")
+    scope_values = {
+        str(value) if value is not None else "personal" for value in organization_ids
+    }
+    lock_keys = sorted(
+        int.from_bytes(
+            blake2b(
+                f"task-hierarchy:{scope}".encode(),
+                digest_size=8,
+            ).digest(),
+            byteorder="big",
+            signed=True,
+        )
+        for scope in scope_values
+    )
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            for lock_key in lock_keys:
+                cursor.execute("SELECT pg_advisory_xact_lock(%s)", [lock_key])
 
 
 def get_task_hierarchy_limits() -> TaskHierarchyLimits:
@@ -381,3 +415,56 @@ def visible_task_ancestor_path(task, user, *, shared_via=""):
         {"id": str(node.pk), "title": node.title, "depth": depth}
         for depth, node in enumerate(chain)
     ]
+
+
+def validate_parent_visibility_for_collaborators(
+    *, parent, users=(), task_list=None, conversation_ids=()
+):
+    """Reject a placement that would give collaborators a hidden parent chain."""
+
+    if parent is None:
+        return
+    user_ids = {user.pk for user in users if user is not None}
+    if task_list is not None:
+        user_ids.update(task_list.accesses.values_list("user_id", flat=True))
+        user_ids.add(task_list.creator_id)
+    hidden_user_exists = any(
+        visible_task_ancestor_path(parent, user) is None
+        for user in models.User.objects.filter(pk__in=user_ids)
+    )
+    if hidden_user_exists:
+        raise TaskHierarchyError(
+            "task_parent_chain_invisible",
+            "Every task collaborator must be able to view the complete parent chain.",
+        )
+
+    ancestor_ids = [node.pk for node in task_ancestor_chain(parent)]
+    for conversation_id in set(conversation_ids):
+        shared_ancestor_ids = set(
+            models.TaskConversationShare.objects.filter(
+                task_id__in=ancestor_ids,
+                cid=conversation_id,
+            ).values_list("task_id", flat=True)
+        )
+        if shared_ancestor_ids != set(ancestor_ids):
+            raise TaskHierarchyError(
+                "task_parent_chain_invisible",
+                "Every shared conversation must include the complete parent chain.",
+            )
+
+
+def validate_subtree_parent_visibility(*, subtree, parent):
+    """Apply parent-chain visibility rules to every collaborator in a moved tree."""
+
+    if parent is None:
+        return
+    for node in subtree:
+        users = [node.creator, node.assignee]
+        users.extend(node.assignees.all())
+        users.extend(node.followers.all())
+        validate_parent_visibility_for_collaborators(
+            parent=parent,
+            users=users,
+            task_list=node.task_list,
+            conversation_ids=node.conversation_shares.values_list("cid", flat=True),
+        )

@@ -302,6 +302,8 @@
     "addAction": "Ajouter une sous-tâche",
     "expandInList": "Développer les sous-tâches de « {{title}} »",
     "collapseInList": "Réduire les sous-tâches de « {{title}} »",
+    "moveUp": "Déplacer « {{title}} » vers le haut",
+    "moveDown": "Déplacer « {{title}} » vers le bas",
     "move": "Déplacer la tâche",
     "moveTitle": "Déplacer l’arborescence",
     "moveSubtreeDescription": "Cette action déplacera toute l’arborescence de {{count}} tâches. Continuer ?",

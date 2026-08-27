@@ -60,9 +60,12 @@ from core.services.task_hierarchy import (
     TaskHierarchyError,
     filter_visible_task_hierarchy,
     get_task_hierarchy_limits,
+    lock_task_hierarchy_scopes,
     prepare_task_hierarchy_data,
     prepare_task_hierarchy_visibility,
     task_subtree,
+    validate_parent_visibility_for_collaborators,
+    validate_subtree_parent_visibility,
     validate_task_parent_change,
     visible_task_ancestor_path,
 )
@@ -841,6 +844,20 @@ class TaskFollowerSerializer(
     )
 
 
+class TaskSubtaskOrderSerializer(serializers.Serializer):
+    """An exact ordered snapshot of one parent's direct children."""
+
+    task_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=True,
+    )
+
+    def validate_task_ids(self, task_ids):
+        if len(set(task_ids)) != len(task_ids):
+            raise serializers.ValidationError("Choose each subtask only once.")
+        return task_ids
+
+
 class TaskShareSerializer(serializers.Serializer):
     """One or more conversations receiving the same task card."""
 
@@ -1371,6 +1388,13 @@ class TaskViewSet(
             _require_conversation_membership(request.user, cid)
             for cid in serializer.validated_data["conversation_ids"]
         ]
+        try:
+            validate_parent_visibility_for_collaborators(
+                parent=task.parent,
+                conversation_ids=cids,
+            )
+        except TaskHierarchyError as exc:
+            raise _task_hierarchy_validation_error(exc) from exc
         models.TaskConversationShare.objects.bulk_create(
             [
                 models.TaskConversationShare(
@@ -1453,7 +1477,16 @@ class TaskViewSet(
         parent = validated_data.pop("parent", None)
         organization = get_caller_organization(request.user)
         with transaction.atomic():
+            lock_task_hierarchy_scopes(
+                getattr(organization, "id", None),
+                getattr(parent, "organization_id", None),
+            )
             try:
+                validate_parent_visibility_for_collaborators(
+                    parent=parent,
+                    users=[request.user, *assignees, *followers],
+                    task_list=validated_data.get("task_list"),
+                )
                 validate_task_parent_change(
                     task=None,
                     parent=parent,
@@ -1480,9 +1513,26 @@ class TaskViewSet(
             status=201,
         )
 
-    def partial_update(self, request, *args, **kwargs):  # noqa: PLR0912
+    def partial_update(self, request, *args, **kwargs):  # noqa: PLR0912, PLR0915
+        visible_task = self.get_object()
+        scope_ids = [visible_task.organization_id]
+        requested_parent_id = request.data.get("parent_id")
+        try:
+            requested_parent_uuid = (
+                uuid.UUID(str(requested_parent_id)) if requested_parent_id else None
+            )
+        except (TypeError, ValueError, AttributeError):
+            requested_parent_uuid = None
+        if requested_parent_uuid is not None:
+            parent_organization_id = (
+                models.Task.objects.filter(pk=requested_parent_uuid)
+                .values_list("organization_id", flat=True)
+                .first()
+            )
+            scope_ids.append(parent_organization_id)
         with transaction.atomic():
-            task = self.get_object()
+            lock_task_hierarchy_scopes(*scope_ids)
+            task = visible_task
             if task.source_action_item_id is not None:
                 models.ActionItem.objects.select_for_update().get(
                     pk=task.source_action_item_id
@@ -1533,6 +1583,25 @@ class TaskViewSet(
                 context={"request": request},
             )
             serializer.is_valid(raise_exception=True)
+            prospective_parent = serializer.validated_data.get("parent", task.parent)
+            prospective_assignees = serializer.validated_data.get("assignees")
+            legacy_assignee = serializer.validated_data.get("assignee")
+            if prospective_assignees is not None or legacy_assignee is not None:
+                try:
+                    validate_parent_visibility_for_collaborators(
+                        parent=prospective_parent,
+                        users=prospective_assignees or [legacy_assignee],
+                    )
+                except TaskHierarchyError as exc:
+                    raise _task_hierarchy_validation_error(exc) from exc
+            if "task_list" in serializer.validated_data:
+                try:
+                    validate_parent_visibility_for_collaborators(
+                        parent=prospective_parent,
+                        task_list=serializer.validated_data["task_list"],
+                    )
+                except TaskHierarchyError as exc:
+                    raise _task_hierarchy_validation_error(exc) from exc
             if "parent" in serializer.validated_data:
                 moved_nodes = task_subtree(task, for_update=True)
                 if any(
@@ -1558,6 +1627,10 @@ class TaskViewSet(
                         }
                     )
                 try:
+                    validate_subtree_parent_visibility(
+                        subtree=moved_nodes,
+                        parent=serializer.validated_data["parent"],
+                    )
                     validate_task_parent_change(
                         task=task,
                         parent=serializer.validated_data["parent"],
@@ -1615,8 +1688,14 @@ class TaskViewSet(
         return Response(response_data)
 
     def destroy(self, request, *args, **kwargs):
+        visible_task = self.get_object()
         with transaction.atomic():
-            task = self.get_object()
+            lock_task_hierarchy_scopes(visible_task.organization_id)
+            task = (
+                models.Task.objects.select_for_update(of=("self",))
+                .select_related("task_list")
+                .get(pk=visible_task.pk)
+            )
             subtree = task_subtree(task, for_update=True)
             if any(
                 node.creator_id != request.user.id
@@ -1700,6 +1779,64 @@ class TaskViewSet(
         return Response(
             TaskSerializer(
                 children,
+                many=True,
+                context={
+                    "request": request,
+                    "_task_hierarchy_cache": hierarchy_data,
+                },
+            ).data
+        )
+
+    @action(detail=True, methods=["post"], url_path="subtasks/reorder")
+    def reorder_subtasks(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """Atomically replace the display order of all direct subtasks."""
+
+        visible_parent = self.get_object()
+        serializer = TaskSubtaskOrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        ordered_ids = serializer.validated_data["task_ids"]
+        with transaction.atomic():
+            lock_task_hierarchy_scopes(visible_parent.organization_id)
+            parent = (
+                models.Task.objects.select_for_update(of=("self",))
+                .select_related("task_list")
+                .get(pk=visible_parent.pk)
+            )
+            children = list(
+                models.Task.objects.select_for_update(of=("self",))
+                .filter(parent=parent)
+                .select_related("task_list")
+                .order_by("position", "created_at")
+            )
+            if not _can_manage_task_content(parent, request.user) or any(
+                not _can_manage_task_content(child, request.user) for child in children
+            ):
+                raise PermissionDenied(
+                    "You must be able to edit the parent and every direct subtask."
+                )
+            children_by_id = {child.pk: child for child in children}
+            if set(ordered_ids) != set(children_by_id):
+                raise serializers.ValidationError(
+                    {
+                        "task_ids": {
+                            "code": "task_subtask_order_changed",
+                            "detail": (
+                                "Refresh subtasks before saving a changed order."
+                            ),
+                        }
+                    }
+                )
+            ordered_children = []
+            for position, child_id in enumerate(ordered_ids):
+                child = children_by_id[child_id]
+                child.position = position
+                ordered_children.append(child)
+            models.Task.objects.bulk_update(ordered_children, ["position"])
+
+        hierarchy_data = prepare_task_hierarchy_data(ordered_children, request.user)
+        return Response(
+            TaskSerializer(
+                ordered_children,
                 many=True,
                 context={
                     "request": request,

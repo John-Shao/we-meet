@@ -82,6 +82,7 @@
 - `GET|POST /api/v1.0/tasks/`
 - `GET|PATCH|DELETE /api/v1.0/tasks/{id}/`
 - `GET /api/v1.0/tasks/{id}/subtasks/`
+- `POST /api/v1.0/tasks/{id}/subtasks/reorder/`
 - `GET /api/v1.0/tasks/{id}/subtree-impact/`
 - `GET /api/v1.0/tasks/{id}/parent-candidates/`
 - `GET /api/v1.0/tasks/statistics/`
@@ -123,7 +124,9 @@
 
 全局搜索只枚举创建人、负责人、关注人及清单成员本来可见的任务。仅通过 `shared_via` 会话卡片临时获得只读可见性的任务不会出现在全局结果中；关注该任务后会按关注人身份进入结果。
 
-创建和修改优先使用 `assignee_ids`；`assignee_id` 仅为旧客户端兼容，二者不能同时提交。创建接口还接受 `follower_ids`、日期、优先级、清单、分组、位置和 `parent_id`。移动或删除含后代的任务必须提交最新 `confirm_subtree_node_count`。写接口的优先级只接受 `low|medium|high|urgent`；`none` 仅用于历史数据兼容和筛选。
+创建和修改优先使用 `assignee_ids`；`assignee_id` 仅为旧客户端兼容，二者不能同时提交。创建接口还接受 `follower_ids`、日期、优先级、清单、分组、位置和 `parent_id`。移动或删除含后代的任务必须提交最新 `confirm_subtree_node_count`。同级排序提交当前全部直接子任务 ID 的无重复快照，服务端在事务内校验快照并重写连续 `position`。写接口的优先级只接受 `low|medium|high|urgent`；`none` 仅用于历史数据兼容和筛选。
+
+层级写入按组织范围获取稳定事务锁，避免并发创建或互相移动绕过深度、宽度、树规模与循环校验。任务通知在入队、领取和到期提醒阶段复核接收者对完整父链的可见性。
 
 ## 当前边界
 
