@@ -14,7 +14,6 @@ import {
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { RequireAuth } from '@/components/RequireAuth'
 import { ResizablePanel } from '@/components/ResizablePanel'
-import { StateHint } from '@/components/StateHint'
 import { Screen } from '@/layout/Screen'
 import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -49,6 +48,10 @@ import { TaskFilterToolbar } from '../components/TaskFilterToolbar'
 import { TaskGroupForm } from '../components/TaskGroupForm'
 import { TaskGroupRenameForm } from '../components/TaskGroupRenameForm'
 import { TaskList } from '../components/TaskList'
+import {
+  TaskBoardSkeleton,
+  TaskListSkeleton,
+} from '../components/TaskSkeletons'
 import { TaskShareDialog } from '../components/TaskShareDialog'
 import { TaskListGroupForm } from '../components/TaskListGroupForm'
 import { TaskListGroupRenameForm } from '../components/TaskListGroupRenameForm'
@@ -475,7 +478,15 @@ const TasksAuthenticated = () => {
           {state.mode === 'analytics' ? (
             <TaskAnalytics state={state} />
           ) : isLoading ? (
-            <StateHint loading>{t('loading')}</StateHint>
+            state.mode === 'board' ? (
+              <TaskBoardSkeleton label={t('loading')} />
+            ) : (
+              <TaskListSkeleton
+                label={t('loading')}
+                compact={panelOpen}
+                grouped={Boolean(selectedTaskList)}
+              />
+            )
           ) : error ? (
             <TaskWorkspaceStateCard
               icon={<RiRefreshLine size={24} aria-hidden="true" />}

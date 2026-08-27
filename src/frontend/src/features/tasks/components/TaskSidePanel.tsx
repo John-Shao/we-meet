@@ -75,6 +75,7 @@ import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { useTaskActionFeedback } from './TaskActionFeedbackContext'
 import { TaskCompletionButton } from './TaskCompletionButton'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
+import { TaskDetailSkeleton, TaskSubtaskListSkeleton } from './TaskSkeletons'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
 import { TaskForm } from './TaskForm'
 import { TaskShareDialog } from './TaskShareDialog'
@@ -247,7 +248,9 @@ export const TaskDetailPanel = ({
   if (!task && isLoading) {
     return (
       <PanelShell title={t('workspace.details')} onClose={onClose}>
-        <p className={stateCss}>{t('loading')}</p>
+        <div className={panelBodyCss}>
+          <TaskDetailSkeleton label={t('loading')} />
+        </div>
       </PanelShell>
     )
   }
@@ -1294,7 +1297,7 @@ export const TaskDetailPanel = ({
                 </div>
               )}
               {subtasksLoading ? (
-                <p className={subtaskEmptyCss}>{t('subtasks.loading')}</p>
+                <TaskSubtaskListSkeleton label={t('subtasks.loading')} />
               ) : subtasks.length > 0 ? (
                 <ul className={subtaskListCss}>
                   {subtasks.map((subtask, index) => (
@@ -2306,5 +2309,4 @@ const disclosureCss = css({
   },
 })
 const disclosureBodyCss = css({ paddingTop: '0.75rem' })
-const stateCss = css({ margin: '1rem', color: 'default.subtle-text' })
 const errorCss = css({ margin: '1rem', color: 'danger.subtle-text' })

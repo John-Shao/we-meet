@@ -24,6 +24,7 @@ and this project adheres to
 
 ### Changed
 
+- ✨(frontend) replace task loading text with layout-stable list, board, detail, subtask, comment, attachment, and history skeletons
 - ✨(frontend) add unified task action feedback with bounded undo for status, assignee, and placement changes
 - ✨(frontend) use a centered takeover task detail below 1440px and preserve the split-panel workspace on wider Web viewports
 - ♻️(frontend) remove unsupported small-screen task fallbacks and keep one desktop Web workspace implementation

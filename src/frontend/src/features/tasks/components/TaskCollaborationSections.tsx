@@ -22,6 +22,11 @@ import {
   useTaskComments,
 } from '../api/fetchTasks'
 import { taskDisplayName } from '../taskUi'
+import {
+  TaskAttachmentListSkeleton,
+  TaskCommentListSkeleton,
+  TaskHistoryListSkeleton,
+} from './TaskSkeletons'
 import { TaskUserAvatar, TaskUserDisplay } from './TaskUserDisplay'
 
 export const TaskCommentsSection = ({
@@ -56,6 +61,9 @@ export const TaskCommentsSection = ({
         error={Boolean(error)}
         empty={!data?.length}
         loadingText={t('comments.loading')}
+        loadingContent={
+          <TaskCommentListSkeleton label={t('comments.loading')} />
+        }
         errorText={t('comments.error')}
         emptyText={t('comments.empty')}
       >
@@ -193,6 +201,9 @@ export const TaskAttachmentsSection = ({
         error={Boolean(error)}
         empty={!data?.length}
         loadingText={t('attachments.loading')}
+        loadingContent={
+          <TaskAttachmentListSkeleton label={t('attachments.loading')} />
+        }
         errorText={t('attachments.error')}
         emptyText={t('attachments.empty')}
       >
@@ -259,6 +270,9 @@ export const TaskHistorySection = ({
         error={Boolean(error)}
         empty={!data?.length}
         loadingText={t('history.loading')}
+        loadingContent={
+          <TaskHistoryListSkeleton label={t('history.loading')} />
+        }
         errorText={t('history.error')}
         emptyText={t('history.empty')}
       >
@@ -387,6 +401,7 @@ const AsyncState = ({
   error,
   empty,
   loadingText,
+  loadingContent,
   errorText,
   emptyText,
   children,
@@ -395,11 +410,12 @@ const AsyncState = ({
   error: boolean
   empty: boolean
   loadingText: string
+  loadingContent?: ReactNode
   errorText: string
   emptyText: string
   children: ReactNode
 }) => {
-  if (loading) return <p className={hintCss}>{loadingText}</p>
+  if (loading) return loadingContent || <p className={hintCss}>{loadingText}</p>
   if (error) return <p className={errorCss}>{errorText}</p>
   if (empty) return <p className={hintCss}>{emptyText}</p>
   return children

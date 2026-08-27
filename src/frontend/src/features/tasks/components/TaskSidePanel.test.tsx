@@ -20,7 +20,9 @@ const {
   notifyAction,
   notifyFailure,
   reorderMutate,
+  subtaskLoadingState,
   subtaskState,
+  taskQueryState,
 } = vi.hoisted(() => ({
   confirm: vi.fn().mockResolvedValue(true),
   createMutateAsync: vi.fn().mockResolvedValue(undefined),
@@ -31,7 +33,15 @@ const {
   notifyAction: vi.fn(),
   notifyFailure: vi.fn(),
   reorderMutate: vi.fn(),
+  subtaskLoadingState: { current: false },
   subtaskState: { current: [] as ApiTask[] },
+  taskQueryState: {
+    current: {
+      data: undefined as ApiTask | undefined,
+      isLoading: false,
+      error: null,
+    },
+  },
 }))
 
 vi.mock('react-i18next', () => ({
@@ -42,10 +52,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../api/fetchTasks', () => ({
-  useTask: () => ({ data: undefined, isLoading: false, error: null }),
+  useTask: () => taskQueryState.current,
   useTaskSubtasks: () => ({
     data: subtaskState.current,
-    isLoading: false,
+    isLoading: subtaskLoadingState.current,
     error: null,
   }),
   useTaskParentCandidates: () => ({ data: [] }),
@@ -212,6 +222,54 @@ describe('TaskDetailPanel', () => {
     confirm.mockClear()
     confirm.mockResolvedValue(true)
     subtaskState.current = []
+    subtaskLoadingState.current = false
+    taskQueryState.current = {
+      data: undefined,
+      isLoading: false,
+      error: null,
+    }
+  })
+
+  it('reserves the detail layout while the task is loading', () => {
+    taskQueryState.current = {
+      data: undefined,
+      isLoading: true,
+      error: null,
+    }
+
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('status', { name: 'loading' })).toHaveAttribute(
+      'aria-busy',
+      'true'
+    )
+  })
+
+  it('reserves subtask rows while subtasks are loading', () => {
+    subtaskLoadingState.current = true
+
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={task}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole('status', { name: 'subtasks.loading' })
+    ).toHaveAttribute('aria-busy', 'true')
   })
 
   it('renders start and due dates as separate properties', () => {
