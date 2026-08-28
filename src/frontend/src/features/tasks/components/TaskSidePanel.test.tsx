@@ -801,20 +801,16 @@ describe('TaskDetailPanel', () => {
     )
 
     const firstRow = screen.getByText('First').closest('li')!
-    fireEvent.click(
-      within(firstRow).getByRole('button', { name: 'subtasks.moveDown' })
-    )
-
-    expect(reorderMutate).toHaveBeenCalledWith({
-      taskId: task.id,
-      taskIds: ['child-2', 'child-1'],
-    })
-
-    reorderMutate.mockClear()
     const secondRow = screen.getByText('Second').closest('li')!
     const dragHandle = within(firstRow).getByRole('button', {
       name: 'subtasks.dragToReorder',
     })
+    expect(
+      within(firstRow).queryByRole('button', { name: 'subtasks.moveUp' })
+    ).not.toBeInTheDocument()
+    expect(
+      within(firstRow).queryByRole('button', { name: 'subtasks.moveDown' })
+    ).not.toBeInTheDocument()
     let draggedId = ''
     const dataTransfer = {
       effectAllowed: 'none',

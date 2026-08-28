@@ -12,9 +12,7 @@ import { useTranslation } from 'react-i18next'
 import {
   RiCalendarLine,
   RiCalendar2Line,
-  RiArrowDownSLine,
   RiArrowRightSLine,
-  RiArrowUpSLine,
   RiAttachment2,
   RiBookmarkFill,
   RiBookmarkLine,
@@ -499,24 +497,6 @@ export const TaskDetailPanel = ({
       // Keep the inline editor open so the user can retry.
       notifyFailure({ taskId: subtask.id, title: subtask.title })
     }
-  }
-
-  const moveSubtask = (index: number, offset: -1 | 1) => {
-    const targetIndex = index + offset
-    if (
-      targetIndex < 0 ||
-      targetIndex >= subtasks.length ||
-      reorderSubtasksMutation.isPending
-    ) {
-      return
-    }
-    const ordered = [...subtasks]
-    const [moved] = ordered.splice(index, 1)
-    ordered.splice(targetIndex, 0, moved)
-    reorderSubtasksMutation.mutate({
-      taskId,
-      taskIds: ordered.map((subtask) => subtask.id),
-    })
   }
 
   const canReorderSubtasks =
@@ -1332,7 +1312,7 @@ export const TaskDetailPanel = ({
                 <TaskSubtaskListSkeleton label={t('subtasks.loading')} />
               ) : subtasks.length > 0 ? (
                 <ul className={subtaskListCss}>
-                  {subtasks.map((subtask, index) => (
+                  {subtasks.map((subtask) => (
                     <li
                       key={subtask.id}
                       data-dragging={
@@ -1507,38 +1487,6 @@ export const TaskDetailPanel = ({
                           size="1.25rem"
                         />
                       </button>
-                      <span className={subtaskOrderActionsCss}>
-                        <button
-                          type="button"
-                          aria-label={t('subtasks.moveUp', {
-                            title: subtask.title,
-                          })}
-                          disabled={
-                            index === 0 ||
-                            !task.can_edit ||
-                            !subtasks.every((item) => item.can_edit) ||
-                            reorderSubtasksMutation.isPending
-                          }
-                          onClick={() => moveSubtask(index, -1)}
-                        >
-                          <RiArrowUpSLine size={16} aria-hidden="true" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={t('subtasks.moveDown', {
-                            title: subtask.title,
-                          })}
-                          disabled={
-                            index === subtasks.length - 1 ||
-                            !task.can_edit ||
-                            !subtasks.every((item) => item.can_edit) ||
-                            reorderSubtasksMutation.isPending
-                          }
-                          onClick={() => moveSubtask(index, 1)}
-                        >
-                          <RiArrowDownSLine size={16} aria-hidden="true" />
-                        </button>
-                      </span>
                       <Button
                         type="button"
                         size="icon28"
@@ -2113,32 +2061,6 @@ const subtaskAssigneesCss = css({
     outlineOffset: '2px',
   },
   _disabled: { cursor: 'default', opacity: 1 },
-})
-const subtaskOrderActionsCss = css({
-  width: '3.5rem',
-  display: 'flex',
-  opacity: 0.45,
-  transition: 'opacity token(durations.fast)',
-  '& button': {
-    width: '1.75rem',
-    height: '1.75rem',
-    display: 'grid',
-    placeItems: 'center',
-    padding: 0,
-    border: 0,
-    borderRadius: '3px',
-    backgroundColor: 'transparent',
-    color: 'greyscale.500',
-    cursor: 'pointer',
-    _hover: { backgroundColor: 'greyscale.100' },
-    _focusVisible: {
-      outline: '2px solid token(colors.primary.500)',
-      outlineOffset: '-2px',
-    },
-    _disabled: { cursor: 'default', opacity: 0.2 },
-  },
-  _hover: { opacity: 1 },
-  _focusWithin: { opacity: 1 },
 })
 const subtaskTitleInputCss = css({
   minWidth: 0,
