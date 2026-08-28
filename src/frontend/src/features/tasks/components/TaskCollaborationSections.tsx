@@ -10,6 +10,14 @@ import { useTranslation } from 'react-i18next'
 import {
   RiDeleteBinLine,
   RiDownloadLine,
+  RiFile2Fill,
+  RiFileExcel2Fill,
+  RiFilePdf2Fill,
+  RiFilePpt2Fill,
+  RiFileTextFill,
+  RiFileWord2Fill,
+  RiFileZipFill,
+  RiImage2Fill,
   RiSendPlane2Fill,
 } from '@remixicon/react'
 
@@ -240,6 +248,10 @@ export const TaskAttachmentsSection = ({
         <ul className={attachmentListCss}>
           {data?.map((attachment) => (
             <li key={attachment.id} className={attachmentItemCss}>
+              <TaskAttachmentTypeIcon
+                filename={attachment.filename}
+                mimetype={attachment.mimetype}
+              />
               <div className={attachmentInfoCss}>
                 <span className={attachmentNameCss}>{attachment.filename}</span>
                 <div className={userMetaCss}>
@@ -284,6 +296,90 @@ export const TaskAttachmentsSection = ({
         </ul>
       </AsyncState>
     </section>
+  )
+}
+
+type AttachmentFileKind =
+  | 'pdf'
+  | 'word'
+  | 'excel'
+  | 'powerpoint'
+  | 'image'
+  | 'archive'
+  | 'text'
+  | 'file'
+
+const attachmentFileKind = (
+  filename: string,
+  mimetype: string | null
+): AttachmentFileKind => {
+  const mime = mimetype?.toLowerCase() || ''
+  const extension = filename.split('.').pop()?.toLowerCase() || ''
+
+  if (mime.includes('pdf') || extension === 'pdf') return 'pdf'
+  if (
+    mime.includes('wordprocessingml') ||
+    mime.includes('msword') ||
+    ['doc', 'docx'].includes(extension)
+  )
+    return 'word'
+  if (
+    mime.includes('spreadsheetml') ||
+    mime.includes('ms-excel') ||
+    ['xls', 'xlsx', 'csv'].includes(extension)
+  )
+    return 'excel'
+  if (
+    mime.includes('presentationml') ||
+    mime.includes('ms-powerpoint') ||
+    ['ppt', 'pptx'].includes(extension)
+  )
+    return 'powerpoint'
+  if (
+    mime.startsWith('image/') ||
+    ['jpeg', 'jpg', 'png', 'gif', 'webp'].includes(extension)
+  )
+    return 'image'
+  if (mime.includes('zip') || extension === 'zip') return 'archive'
+  if (mime.startsWith('text/') || extension === 'txt') return 'text'
+  return 'file'
+}
+
+const TaskAttachmentTypeIcon = ({
+  filename,
+  mimetype,
+}: {
+  filename: string
+  mimetype: string | null
+}) => {
+  const kind = attachmentFileKind(filename, mimetype)
+  const icon =
+    kind === 'pdf' ? (
+      <RiFilePdf2Fill size={32} />
+    ) : kind === 'word' ? (
+      <RiFileWord2Fill size={32} />
+    ) : kind === 'excel' ? (
+      <RiFileExcel2Fill size={32} />
+    ) : kind === 'powerpoint' ? (
+      <RiFilePpt2Fill size={32} />
+    ) : kind === 'image' ? (
+      <RiImage2Fill size={32} />
+    ) : kind === 'archive' ? (
+      <RiFileZipFill size={32} />
+    ) : kind === 'text' ? (
+      <RiFileTextFill size={32} />
+    ) : (
+      <RiFile2Fill size={32} />
+    )
+
+  return (
+    <span
+      className={attachmentTypeIconCss}
+      data-file-kind={kind}
+      aria-hidden="true"
+    >
+      {icon}
+    </span>
   )
 }
 
@@ -536,12 +632,12 @@ const attachmentItemCss = css({
   padding: '0.625rem 0.75rem',
   border: '1px solid token(colors.greyscale.200)',
   borderRadius: '8px',
-  backgroundColor: 'greyscale.50',
+  backgroundColor: 'transparent',
   color: 'default.text',
   transition: 'border-color 120ms ease, background-color 120ms ease',
   _hover: {
     borderColor: 'greyscale.300',
-    backgroundColor: 'greyscale.000',
+    backgroundColor: 'greyscale.50',
     '& [data-attachment-actions]': {
       opacity: 1,
       pointerEvents: 'auto',
@@ -549,12 +645,28 @@ const attachmentItemCss = css({
   },
   _focusWithin: {
     borderColor: 'primary.400',
-    backgroundColor: 'greyscale.000',
+    backgroundColor: 'greyscale.50',
     '& [data-attachment-actions]': {
       opacity: 1,
       pointerEvents: 'auto',
     },
   },
+})
+const attachmentTypeIconCss = css({
+  width: '2.5rem',
+  minHeight: '2.5rem',
+  alignSelf: 'stretch',
+  flexShrink: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'greyscale.500',
+  '&[data-file-kind="pdf"]': { color: 'danger.500' },
+  '&[data-file-kind="word"]': { color: 'primary.600' },
+  '&[data-file-kind="excel"]': { color: 'success.600' },
+  '&[data-file-kind="powerpoint"]': { color: 'amber.600' },
+  '&[data-file-kind="image"]': { color: 'purple.500' },
+  '&[data-file-kind="archive"]': { color: 'amber.500' },
 })
 const attachmentInfoCss = css({
   minWidth: 0,

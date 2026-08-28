@@ -140,6 +140,12 @@ describe('task collaboration loading states', () => {
       screen.getByRole('button', { name: 'attachments.upload' })
     ).toBeInTheDocument()
     expect(screen.getByText('launch-plan.pdf').tagName).toBe('SPAN')
+    expect(
+      screen
+        .getByText('launch-plan.pdf')
+        .closest('li')
+        ?.querySelector('[data-file-kind="pdf"]')
+    ).not.toBeNull()
     const download = screen.getByRole('link', {
       name: 'attachments.download',
     })
@@ -148,6 +154,44 @@ describe('task collaboration loading states', () => {
     expect(download.closest('[data-attachment-actions]')).toContainElement(
       screen.getByRole('button', { name: 'attachments.remove' })
     )
+  })
+
+  it('selects file icons from MIME types and filename extensions', () => {
+    attachmentState.current = {
+      data: [
+        {
+          id: 'attachment-word',
+          file_id: 'file-word',
+          title: 'Brief',
+          filename: 'brief.docx',
+          mimetype: null,
+          size: 1024,
+          url: '/media/brief.docx',
+          uploader: null,
+          created_at: '2026-08-28T08:00:00Z',
+        },
+        {
+          id: 'attachment-image',
+          file_id: 'file-image',
+          title: 'Preview',
+          filename: 'preview.bin',
+          mimetype: 'image/png',
+          size: 1024,
+          url: '/media/preview.png',
+          uploader: null,
+          created_at: '2026-08-28T08:00:00Z',
+        },
+      ],
+      isLoading: false,
+      error: null,
+    }
+
+    const { container } = render(
+      <TaskAttachmentsSection taskId="task-1" readOnly />
+    )
+
+    expect(container.querySelector('[data-file-kind="word"]')).not.toBeNull()
+    expect(container.querySelector('[data-file-kind="image"]')).not.toBeNull()
   })
 
   it('renders comments as lightweight chat bubbles', () => {
