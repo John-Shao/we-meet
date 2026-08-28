@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -19,7 +19,12 @@ const { attachmentState, commentState } = vi.hoisted(() => ({
             mimetype: string | null
             size: number | null
             url: string
-            uploader: null
+            uploader: {
+              id: string
+              full_name: string
+              short_name: null
+              avatar_url: string
+            } | null
             created_at: string
           }>
         | undefined,
@@ -50,7 +55,10 @@ const { attachmentState, commentState } = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, values?: Record<string, unknown>) =>
+      key === 'attachments.meta'
+        ? `${values?.size} · ${values?.name} · ${values?.date}`
+        : key,
     i18n: { language: 'en' },
   }),
 }))
@@ -126,7 +134,12 @@ describe('task collaboration loading states', () => {
           mimetype: 'application/pdf',
           size: 2048,
           url: '/media/launch-plan.pdf',
-          uploader: null,
+          uploader: {
+            id: 'user-1',
+            full_name: 'Alice',
+            short_name: null,
+            avatar_url: '/alice.png',
+          },
           created_at: '2026-08-28T08:00:00Z',
         },
       ],
@@ -146,6 +159,9 @@ describe('task collaboration loading states', () => {
         .closest('li')
         ?.querySelector('[data-file-kind="pdf"]')
     ).not.toBeNull()
+    const attachmentRow = screen.getByText('launch-plan.pdf').closest('li')!
+    expect(attachmentRow.querySelector('img')).toBeNull()
+    expect(within(attachmentRow).getByText(/^2\.0 KB · Alice · /)).toBeVisible()
     const download = screen.getByRole('link', {
       name: 'attachments.download',
     })

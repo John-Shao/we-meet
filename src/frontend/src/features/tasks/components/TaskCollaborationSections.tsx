@@ -254,19 +254,16 @@ export const TaskAttachmentsSection = ({
               />
               <div className={attachmentInfoCss}>
                 <span className={attachmentNameCss}>{attachment.filename}</span>
-                <div className={userMetaCss}>
-                  <TaskUserAvatar user={attachment.uploader} size="1.25rem" />
-                  <p className={metaCss}>
-                    {t('attachments.meta', {
-                      name: taskDisplayName(attachment.uploader),
-                      size: formatSize(attachment.size),
-                      date: new Intl.DateTimeFormat(i18n.language, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      }).format(new Date(attachment.created_at)),
-                    })}
-                  </p>
-                </div>
+                <p className={metaCss}>
+                  {t('attachments.meta', {
+                    size: formatSize(attachment.size),
+                    name: taskDisplayName(attachment.uploader),
+                    date: new Intl.DateTimeFormat(i18n.language, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    }).format(new Date(attachment.created_at)),
+                  })}
+                </p>
               </div>
               <div className={attachmentActionsCss} data-attachment-actions>
                 <a

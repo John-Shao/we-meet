@@ -396,7 +396,7 @@
     "removeConfirm": "Deze bijlage verwijderen? Dit kan niet ongedaan worden gemaakt.",
     "removeError": "De bijlage kon niet worden verwijderd. Probeer het opnieuw.",
     "unknownSize": "Onbekende grootte",
-    "meta": "{{name}} · {{size}} · {{date}}"
+    "meta": "{{size}} · {{name}} · {{date}}"
   },
   "history": {
     "title": "Activiteitengeschiedenis",
