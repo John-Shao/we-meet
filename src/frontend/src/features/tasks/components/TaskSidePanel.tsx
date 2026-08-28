@@ -2163,24 +2163,14 @@ const propertyRowCss = css({
   borderRadius: '6px',
   _hover: { backgroundColor: 'greyscale.50' },
   '&[data-header-only-hover]': {
-    position: 'relative',
-    '&::before': {
-      content: '""',
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      height: '2.75rem',
-      borderRadius: '6px',
-      backgroundColor: 'transparent',
-      pointerEvents: 'none',
-    },
     _hover: {
       backgroundColor: 'transparent',
-      '&::before': { backgroundColor: 'greyscale.50' },
+      backgroundImage:
+        'linear-gradient(to bottom, token(colors.greyscale.50) 0 2.75rem, transparent 2.75rem)',
+      backgroundRepeat: 'no-repeat',
     },
-    '&:has([data-attachment-list]:hover)::before': {
-      backgroundColor: 'transparent',
+    '&:has([data-attachment-list]:hover)': {
+      backgroundImage: 'none',
     },
   },
   '&[data-align-start]': { alignItems: 'start' },
