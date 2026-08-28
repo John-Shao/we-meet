@@ -16,12 +16,17 @@ export type TaskActionFeedback = {
     undoPatch?: PatchTaskPayload
   }) => void
   notifyFailure: (task: { taskId: string; title: string }) => void
+  notifySaveState: (status: {
+    taskId: string
+    state: 'saving' | 'saved'
+  }) => void
 }
 
 const noop = () => undefined
 export const TaskActionFeedbackContext = createContext<TaskActionFeedback>({
   notifyAction: noop,
   notifyFailure: noop,
+  notifySaveState: noop,
 })
 
 export const useTaskActionFeedback = () => useContext(TaskActionFeedbackContext)

@@ -17,7 +17,8 @@ vi.mock('../api/fetchTasks', () => ({
 }))
 
 const FeedbackHarness = () => {
-  const { notifyAction, notifyFailure } = useTaskActionFeedback()
+  const { notifyAction, notifyFailure, notifySaveState } =
+    useTaskActionFeedback()
   return (
     <>
       <button
@@ -38,6 +39,18 @@ const FeedbackHarness = () => {
         onClick={() => notifyFailure({ taskId: 'task-1', title: 'Release' })}
       >
         Fail
+      </button>
+      <button
+        type="button"
+        onClick={() => notifySaveState({ taskId: 'task-1', state: 'saving' })}
+      >
+        Saving
+      </button>
+      <button
+        type="button"
+        onClick={() => notifySaveState({ taskId: 'task-1', state: 'saved' })}
+      >
+        Saved
       </button>
     </>
   )
@@ -95,5 +108,34 @@ describe('TaskActionFeedbackProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'feedback.undo' }))
 
     expect(await screen.findByText('feedback.undoFailed')).toBeInTheDocument()
+  })
+
+  it('replaces the floating saving status with the saved status', () => {
+    render(
+      <TaskActionFeedbackProvider>
+        <FeedbackHarness />
+      </TaskActionFeedbackProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Saving' }))
+    expect(screen.getByText('saveState.saving')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Saved' }))
+    expect(screen.queryByText('saveState.saving')).not.toBeInTheDocument()
+    expect(screen.getByText('saveState.saved')).toBeInTheDocument()
+  })
+
+  it('dismisses a saving status when the update fails', () => {
+    render(
+      <TaskActionFeedbackProvider>
+        <FeedbackHarness />
+      </TaskActionFeedbackProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Saving' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Fail' }))
+
+    expect(screen.queryByText('saveState.saving')).not.toBeInTheDocument()
+    expect(screen.getByText('feedback.updateFailed')).toBeInTheDocument()
   })
 })

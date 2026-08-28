@@ -186,11 +186,12 @@ export const TaskDetailPanel = ({
   const [subtaskDropTargetId, setSubtaskDropTargetId] = useState<string | null>(
     null
   )
-  const [showSavedState, setShowSavedState] = useState(false)
   const panelBodyRef = useRef<HTMLDivElement>(null)
   const placementEditorRef = useRef<HTMLDivElement>(null)
+  const activeSaveTaskIdRef = useRef<string | null>(null)
   const patchMutation = usePatchTask()
-  const { notifyAction, notifyFailure } = useTaskActionFeedback()
+  const { notifyAction, notifyFailure, notifySaveState } =
+    useTaskActionFeedback()
   const reorderSubtasksMutation = useReorderTaskSubtasks()
   const deleteMutation = useDeleteTask()
   const followMutation = useFollowTask()
@@ -202,14 +203,23 @@ export const TaskDetailPanel = ({
 
   useEffect(() => {
     if (patchMutation.isPending) {
-      setShowSavedState(false)
+      if (!activeSaveTaskIdRef.current) {
+        activeSaveTaskIdRef.current = taskId
+        notifySaveState({ taskId, state: 'saving' })
+      }
       return
     }
-    if (!patchMutation.isSuccess) return
-    setShowSavedState(true)
-    const timeout = window.setTimeout(() => setShowSavedState(false), 1600)
-    return () => window.clearTimeout(timeout)
-  }, [patchMutation.isPending, patchMutation.isSuccess])
+    const savedTaskId = activeSaveTaskIdRef.current
+    activeSaveTaskIdRef.current = null
+    if (savedTaskId && patchMutation.isSuccess) {
+      notifySaveState({ taskId: savedTaskId, state: 'saved' })
+    }
+  }, [
+    notifySaveState,
+    patchMutation.isPending,
+    patchMutation.isSuccess,
+    taskId,
+  ])
   const { confirm } = useConfirm()
   const focusInput = useCallback((element: HTMLInputElement | null) => {
     element?.focus()
@@ -738,13 +748,6 @@ export const TaskDetailPanel = ({
               {t('subtasks.completedWithOpenSubtasks', {
                 count: openDescendantCount,
               })}
-            </p>
-          )}
-          {(patchMutation.isPending || showSavedState) && (
-            <p className={saveStateCss} aria-live="polite">
-              {patchMutation.isPending
-                ? t('saveState.saving')
-                : t('saveState.saved')}
             </p>
           )}
           {(patchMutation.error ||
@@ -1872,11 +1875,6 @@ const completedWithOpenSubtasksCss = css({
   backgroundColor: 'greyscale.50',
   color: 'greyscale.700',
   fontSize: '0.8125rem',
-})
-const saveStateCss = css({
-  margin: '-0.5rem 0 0',
-  color: 'greyscale.500',
-  fontSize: '0.75rem',
 })
 const breadcrumbCss = css({
   display: 'flex',

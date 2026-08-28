@@ -122,7 +122,11 @@ vi.mock('@/components/ConfirmProvider', () => ({
 }))
 
 vi.mock('./TaskActionFeedbackContext', () => ({
-  useTaskActionFeedback: () => ({ notifyAction, notifyFailure }),
+  useTaskActionFeedback: () => ({
+    notifyAction,
+    notifyFailure,
+    notifySaveState: vi.fn(),
+  }),
 }))
 
 vi.mock('./TaskCollaborationSections', () => ({

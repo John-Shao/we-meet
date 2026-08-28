@@ -12,6 +12,7 @@ import {
   RiCheckboxCircleLine,
   RiCloseLine,
   RiErrorWarningLine,
+  RiLoader4Line,
 } from '@remixicon/react'
 
 import { Button } from '@/primitives'
@@ -25,11 +26,12 @@ import {
 
 type TaskActionToastData = {
   message: string
-  intent: 'success' | 'error'
+  intent: 'loading' | 'success' | 'error'
   dedupeKey: string
   actionLabel?: string
   closeLabel: string
   onAction?: () => void | Promise<void>
+  timeout?: number
 }
 
 export const TaskActionFeedbackProvider = ({
@@ -44,16 +46,25 @@ export const TaskActionFeedbackProvider = ({
   )
   const state = useToastQueue(queue)
 
-  const showToast = useCallback(
-    (toast: TaskActionToastData) => {
+  const closeToast = useCallback(
+    (dedupeKey: string) => {
       queue.visibleToasts.forEach((visibleToast) => {
-        if (visibleToast.content.dedupeKey === toast.dedupeKey) {
+        if (visibleToast.content.dedupeKey === dedupeKey) {
           queue.close(visibleToast.key)
         }
       })
-      queue.add(toast, { timeout: toast.onAction ? 7000 : 4000 })
     },
     [queue]
+  )
+
+  const showToast = useCallback(
+    (toast: TaskActionToastData) => {
+      closeToast(toast.dedupeKey)
+      queue.add(toast, {
+        timeout: toast.timeout ?? (toast.onAction ? 7000 : 4000),
+      })
+    },
+    [closeToast, queue]
   )
 
   const notifyAction = useCallback<TaskActionFeedback['notifyAction']>(
@@ -92,6 +103,7 @@ export const TaskActionFeedbackProvider = ({
 
   const notifyFailure = useCallback<TaskActionFeedback['notifyFailure']>(
     ({ taskId, title }) => {
+      closeToast(`task-save:${taskId}`)
       showToast({
         message: t('feedback.updateFailed', { title }),
         intent: 'error',
@@ -99,11 +111,23 @@ export const TaskActionFeedbackProvider = ({
         closeLabel: t('feedback.close'),
       })
     },
+    [closeToast, showToast, t]
+  )
+  const notifySaveState = useCallback<TaskActionFeedback['notifySaveState']>(
+    ({ taskId, state }) => {
+      showToast({
+        message: t(`saveState.${state}`),
+        intent: state === 'saving' ? 'loading' : 'success',
+        dedupeKey: `task-save:${taskId}`,
+        closeLabel: t('feedback.close'),
+        timeout: state === 'saving' ? 60_000 : 1600,
+      })
+    },
     [showToast, t]
   )
   const contextValue = useMemo(
-    () => ({ notifyAction, notifyFailure }),
-    [notifyAction, notifyFailure]
+    () => ({ notifyAction, notifyFailure, notifySaveState }),
+    [notifyAction, notifyFailure, notifySaveState]
   )
 
   return (
@@ -155,6 +179,8 @@ const TaskToast = ({
       <span className={toastIconCss} aria-hidden="true">
         {content.intent === 'error' ? (
           <RiErrorWarningLine size={18} />
+        ) : content.intent === 'loading' ? (
+          <RiLoader4Line className={toastSpinnerCss} size={18} />
         ) : (
           <RiCheckboxCircleLine size={18} />
         )}
@@ -218,12 +244,17 @@ const toastCss = css({
     animation: 'fade token(durations.fast) reverse ease-in',
   },
   '&[data-intent="error"]': { borderColor: 'danger.300' },
+  '&[data-intent="loading"]': { borderColor: 'primary.200' },
 })
 const toastIconCss = css({
   display: 'grid',
   placeItems: 'center',
   color: 'success.600',
   '[data-intent="error"] &': { color: 'danger.600' },
+  '[data-intent="loading"] &': { color: 'primary.600' },
+})
+const toastSpinnerCss = css({
+  animation: 'rotate 700ms linear infinite',
 })
 const toastMessageCss = css({
   minWidth: 0,
