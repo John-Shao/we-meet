@@ -175,4 +175,23 @@ describe('task collaboration loading states', () => {
     expect(bubble).toHaveAttribute('data-comment-bubble')
     expect(bubble.closest('li')?.querySelector('strong')).toBeNull()
   })
+
+  it('uses a chat composer for new comments', () => {
+    commentState.current = {
+      data: [],
+      isLoading: false,
+      error: null,
+    }
+
+    render(<TaskCommentsSection taskId="task-1" />)
+
+    expect(
+      screen.getByRole('textbox', { name: 'comments.inputLabel' })
+    ).toHaveAttribute('rows', '2')
+    expect(
+      screen
+        .getByRole('button', { name: 'comments.submit' })
+        .querySelector('svg')
+    ).not.toBeNull()
+  })
 })

@@ -7,7 +7,11 @@ import {
 } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { RiDeleteBinLine, RiDownloadLine } from '@remixicon/react'
+import {
+  RiDeleteBinLine,
+  RiDownloadLine,
+  RiSendPlane2Fill,
+} from '@remixicon/react'
 
 import { useConfirm } from '@/components/ConfirmProvider'
 import { Button, TextArea } from '@/primitives'
@@ -93,30 +97,47 @@ export const TaskCommentsSection = ({
         </ul>
       </AsyncState>
       {!readOnly && (
-        <form onSubmit={(event) => void submit(event)} className={stackCss}>
-          <label className={fieldCss}>
-            {t('comments.inputLabel')}
+        <form
+          onSubmit={(event) => void submit(event)}
+          className={commentFormCss}
+        >
+          <div className={commentComposerCss}>
             <TextArea
+              aria-label={t('comments.inputLabel')}
+              className={commentComposerInputCss}
               value={content}
               onChange={(event) => setContent(event.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  event.key === 'Enter' &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault()
+                  event.currentTarget.form?.requestSubmit()
+                }
+              }}
               placeholder={t('comments.placeholder')}
               maxLength={2000}
-              rows={3}
+              rows={2}
             />
-          </label>
+            <Button
+              type="submit"
+              size="icon32"
+              variant="quaternaryText"
+              className={commentSendCss}
+              icon={<RiSendPlane2Fill size={18} aria-hidden="true" />}
+              aria-label={t('comments.submit')}
+              tooltip={t('comments.submit')}
+              loading={createMutation.isPending}
+              isDisabled={createMutation.isPending || !content.trim()}
+            />
+          </div>
           {createMutation.error && (
             <p role="alert" className={errorCss}>
               {t('comments.postError')}
             </p>
           )}
-          <Button
-            type="submit"
-            size="dense"
-            loading={createMutation.isPending}
-            isDisabled={!content.trim()}
-          >
-            {t('comments.submit')}
-          </Button>
         </form>
       )}
     </section>
@@ -445,17 +466,48 @@ const attachmentSectionCss = css({
   alignItems: 'flex-start',
   gap: '0.5rem',
 })
-const stackCss = css({
+const commentFormCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.75rem',
+  gap: '0.5rem',
 })
-const fieldCss = css({
+const commentComposerCss = css({
   display: 'flex',
-  flexDirection: 'column',
-  gap: '0.375rem',
-  color: 'default.text',
+  alignItems: 'flex-end',
+  gap: '0.25rem',
+  padding: '0.25rem',
+  border: '1px solid token(colors.greyscale.300)',
+  borderRadius: '0.5rem',
+  backgroundColor: 'greyscale.000',
+  transition: 'border-color 120ms ease, box-shadow 120ms ease',
+  _focusWithin: {
+    borderColor: 'primary.500',
+    boxShadow: '0 0 0 3px token(colors.primary.100)',
+  },
+})
+const commentComposerInputCss = css({
+  minWidth: 0,
+  minHeight: '2.5rem',
+  maxHeight: '7rem',
+  flex: 1,
+  paddingX: '0.625rem',
+  paddingY: '0.5rem',
+  borderColor: 'transparent!',
+  borderRadius: '0.25rem',
+  backgroundColor: 'transparent',
+  boxShadow: 'none!',
   fontSize: '0.875rem',
+  lineHeight: '1.375rem',
+  resize: 'none',
+  _focus: {
+    borderColor: 'transparent!',
+    boxShadow: 'none!',
+  },
+})
+const commentSendCss = css({
+  flexShrink: 0,
+  marginBottom: '0.25rem',
+  color: 'primary.600',
 })
 const listCss = css({
   listStyle: 'none',
