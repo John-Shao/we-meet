@@ -28,7 +28,7 @@ import {
   TaskCommentListSkeleton,
   TaskHistoryListSkeleton,
 } from './TaskSkeletons'
-import { TaskUserAvatar, TaskUserDisplay } from './TaskUserDisplay'
+import { TaskUserAvatar } from './TaskUserDisplay'
 
 export const TaskCommentsSection = ({
   taskId,
@@ -70,19 +70,24 @@ export const TaskCommentsSection = ({
       >
         <ul className={listCss}>
           {data?.map((comment) => (
-            <li key={comment.id} className={itemCss}>
-              <div className={betweenCss}>
-                <strong>
-                  <TaskUserDisplay user={comment.author} />
-                </strong>
-                <time className={metaCss} dateTime={comment.created_at}>
-                  {new Intl.DateTimeFormat(i18n.language, {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  }).format(new Date(comment.created_at))}
-                </time>
+            <li key={comment.id} className={commentItemCss}>
+              <TaskUserAvatar user={comment.author} size="2rem" />
+              <div className={commentContentCss}>
+                <div className={commentHeaderCss}>
+                  <span className={commentAuthorCss}>
+                    {taskDisplayName(comment.author)}
+                  </span>
+                  <time className={metaCss} dateTime={comment.created_at}>
+                    {new Intl.DateTimeFormat(i18n.language, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    }).format(new Date(comment.created_at))}
+                  </time>
+                </div>
+                <p className={commentBubbleCss} data-comment-bubble>
+                  {comment.content}
+                </p>
               </div>
-              <p className={bodyCss}>{comment.content}</p>
             </li>
           ))}
         </ul>
@@ -564,21 +569,47 @@ const attachmentDeleteActionCss = css({
   },
   _disabled: { cursor: 'not-allowed', opacity: 0.45 },
 })
-const itemCss = css({
+const commentItemCss = css({
   display: 'flex',
-  flexDirection: 'column',
+  alignItems: 'flex-start',
   gap: '0.5rem',
-  padding: '0.75rem',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '8px',
-  backgroundColor: 'greyscale.50',
-  color: 'default.text',
 })
-const betweenCss = css({
+const commentContentCss = css({
+  minWidth: 0,
+  maxWidth: 'calc(100% - 2.5rem)',
   display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.75rem',
+  flex: 1,
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: '0.25rem',
+})
+const commentHeaderCss = css({
+  minWidth: 0,
+  maxWidth: '100%',
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: '0.5rem',
+})
+const commentAuthorCss = css({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  color: 'greyscale.700',
+  fontSize: '0.75rem',
+  fontWeight: '500',
+})
+const commentBubbleCss = css({
+  maxWidth: '100%',
+  margin: 0,
+  paddingX: '0.75rem',
+  paddingY: '0.5rem',
+  borderRadius: '0.75rem',
+  backgroundColor: 'greyscale.100',
+  color: 'greyscale.900',
+  fontSize: '0.875rem',
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
 })
 const userMetaCss = css({
   minWidth: 0,

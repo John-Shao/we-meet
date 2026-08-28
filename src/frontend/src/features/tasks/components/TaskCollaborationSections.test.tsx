@@ -7,7 +7,7 @@ import {
   TaskHistorySection,
 } from './TaskCollaborationSections'
 
-const { attachmentState } = vi.hoisted(() => ({
+const { attachmentState, commentState } = vi.hoisted(() => ({
   attachmentState: {
     current: {
       data: undefined as
@@ -20,6 +20,25 @@ const { attachmentState } = vi.hoisted(() => ({
             size: number | null
             url: string
             uploader: null
+            created_at: string
+          }>
+        | undefined,
+      isLoading: true,
+      error: null,
+    },
+  },
+  commentState: {
+    current: {
+      data: undefined as
+        | Array<{
+            id: string
+            author: {
+              id: string
+              full_name: string
+              short_name: null
+              avatar_url: string
+            } | null
+            content: string
             created_at: string
           }>
         | undefined,
@@ -41,7 +60,7 @@ vi.mock('@/components/ConfirmProvider', () => ({
 }))
 
 vi.mock('../api/fetchTasks', () => ({
-  useTaskComments: () => ({ data: undefined, isLoading: true, error: null }),
+  useTaskComments: () => commentState.current,
   useTaskAttachments: () => attachmentState.current,
   useTaskActivities: () => ({ data: undefined, isLoading: true, error: null }),
   useCreateTaskComment: () => ({
@@ -64,6 +83,11 @@ vi.mock('../api/fetchTasks', () => ({
 describe('task collaboration loading states', () => {
   beforeEach(() => {
     attachmentState.current = {
+      data: undefined,
+      isLoading: true,
+      error: null,
+    }
+    commentState.current = {
       data: undefined,
       isLoading: true,
       error: null,
@@ -124,5 +148,31 @@ describe('task collaboration loading states', () => {
     expect(download.closest('[data-attachment-actions]')).toContainElement(
       screen.getByRole('button', { name: 'attachments.remove' })
     )
+  })
+
+  it('renders comments as lightweight chat bubbles', () => {
+    commentState.current = {
+      data: [
+        {
+          id: 'comment-1',
+          author: {
+            id: 'user-1',
+            full_name: 'Alice',
+            short_name: null,
+            avatar_url: '',
+          },
+          content: 'Looks good to me',
+          created_at: '2026-08-28T08:00:00Z',
+        },
+      ],
+      isLoading: false,
+      error: null,
+    }
+
+    render(<TaskCommentsSection taskId="task-1" readOnly />)
+
+    const bubble = screen.getByText('Looks good to me')
+    expect(bubble).toHaveAttribute('data-comment-bubble')
+    expect(bubble.closest('li')?.querySelector('strong')).toBeNull()
   })
 })
