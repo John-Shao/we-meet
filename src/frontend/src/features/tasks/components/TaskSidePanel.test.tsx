@@ -357,6 +357,9 @@ describe('TaskDetailPanel', () => {
       screen.getByRole('heading', { name: 'detailGroups.planning' })
     ).toBeInTheDocument()
     expect(
+      screen.getByText('attachments.title', { selector: 'dt' }).parentElement
+    ).toHaveAttribute('data-header-only-hover')
+    expect(
       screen.getByText('detailGroups.content', { selector: 'summary' })
     ).toBeInTheDocument()
     const relatedSection = screen

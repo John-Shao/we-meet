@@ -247,7 +247,7 @@ export const TaskAttachmentsSection = ({
         errorText={t('attachments.error')}
         emptyText={t('attachments.empty')}
       >
-        <ul className={attachmentListCss}>
+        <ul className={attachmentListCss} data-attachment-list>
           {data?.map((attachment) => (
             <li key={attachment.id} className={attachmentItemCss}>
               <TaskAttachmentTypeIcon

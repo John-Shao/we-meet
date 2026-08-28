@@ -1187,6 +1187,7 @@ export const TaskDetailPanel = ({
                 icon={<RiAttachment2 size={18} />}
                 label={t('attachments.title')}
                 alignStart
+                headerOnlyHover
               >
                 <div
                   className={attachmentPropertyContentCss}
@@ -1617,6 +1618,7 @@ const TaskProperty = ({
   isDisabled = false,
   isEditing = false,
   alignStart = false,
+  headerOnlyHover = false,
 }: {
   icon: ReactNode
   label: string
@@ -1627,8 +1629,13 @@ const TaskProperty = ({
   isDisabled?: boolean
   isEditing?: boolean
   alignStart?: boolean
+  headerOnlyHover?: boolean
 }) => (
-  <div className={propertyRowCss} data-align-start={alignStart || undefined}>
+  <div
+    className={propertyRowCss}
+    data-align-start={alignStart || undefined}
+    data-header-only-hover={headerOnlyHover || undefined}
+  >
     <span className={propertyIconCss} aria-hidden="true">
       {icon}
     </span>
@@ -2155,6 +2162,27 @@ const propertyRowCss = css({
   padding: '0.375rem 0.5rem',
   borderRadius: '6px',
   _hover: { backgroundColor: 'greyscale.50' },
+  '&[data-header-only-hover]': {
+    position: 'relative',
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: '2.75rem',
+      borderRadius: '6px',
+      backgroundColor: 'transparent',
+      pointerEvents: 'none',
+    },
+    _hover: {
+      backgroundColor: 'transparent',
+      '&::before': { backgroundColor: 'greyscale.50' },
+    },
+    '&:has([data-attachment-list]:hover)::before': {
+      backgroundColor: 'transparent',
+    },
+  },
   '&[data-align-start]': { alignItems: 'start' },
   '& dt': { color: 'greyscale.500', fontSize: '0.8125rem' },
   '& dd': {
