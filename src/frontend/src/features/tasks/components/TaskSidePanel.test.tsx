@@ -346,7 +346,12 @@ describe('TaskDetailPanel', () => {
     expect(
       within(
         screen.getByLabelText('workspace.details').querySelector('header')!
-      ).getByText('statuses.todo')
+      ).queryByText('statuses.todo')
+    ).not.toBeInTheDocument()
+    expect(
+      within(
+        screen.getByLabelText('workspace.details').querySelector('header')!
+      ).getByRole('heading', { name: 'workspace.details' })
     ).toBeInTheDocument()
     expect(container.querySelector('img[src="/assignee.png"]')).toBeTruthy()
     expect(container.querySelector('img[src="/creator.png"]')).toBeTruthy()
@@ -656,7 +661,7 @@ describe('TaskDetailPanel', () => {
     )
   })
 
-  it('places the status action first and secondary actions in the panel header', async () => {
+  it('places the completion action first without showing status in the panel header', async () => {
     render(
       <TaskDetailPanel
         taskId={task.id}
@@ -687,7 +692,7 @@ describe('TaskDetailPanel', () => {
       'actions.more',
       'workspace.closePanel',
     ])
-    expect(within(header).getByText('statuses.todo')).toBeInTheDocument()
+    expect(within(header).queryByText('statuses.todo')).not.toBeInTheDocument()
     expect(screen.queryByText('followers.empty')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('menuitem', { name: 'actions.delete' })

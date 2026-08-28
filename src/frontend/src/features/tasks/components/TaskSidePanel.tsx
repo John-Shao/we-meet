@@ -575,43 +575,22 @@ export const TaskDetailPanel = ({
       onClose={onClose}
       startAction={
         task.can_update_status && nextStatus ? (
-          <div className={headerTaskStatusCss}>
-            <span
-              className={headerStatusCss}
-              data-completed={task.status === 'completed' || undefined}
-            >
-              {task.status === 'completed' && (
-                <RiCheckLine size={15} aria-hidden="true" />
-              )}
-              {t(`statuses.${task.status}`)}
-            </span>
-            <Button
-              size="dense"
-              variant="secondary"
-              icon={
-                nextStatus === 'completed' ? (
-                  <RiCheckLine size={16} aria-hidden="true" />
-                ) : (
-                  <RiRestartLine size={16} aria-hidden="true" />
-                )
-              }
-              isDisabled={patchMutation.isPending || deleteMutation.isPending}
-              onPress={() => void changeTaskStatus(task, nextStatus)}
-            >
-              {t(`actions.to_${nextStatus}`)}
-            </Button>
-          </div>
-        ) : (
-          <span
-            className={headerStatusCss}
-            data-completed={task.status === 'completed' || undefined}
+          <Button
+            size="dense"
+            variant="secondary"
+            icon={
+              nextStatus === 'completed' ? (
+                <RiCheckLine size={16} aria-hidden="true" />
+              ) : (
+                <RiRestartLine size={16} aria-hidden="true" />
+              )
+            }
+            isDisabled={patchMutation.isPending || deleteMutation.isPending}
+            onPress={() => void changeTaskStatus(task, nextStatus)}
           >
-            {task.status === 'completed' && (
-              <RiCheckLine size={15} aria-hidden="true" />
-            )}
-            {t(`statuses.${task.status}`)}
-          </span>
-        )
+            {t(`actions.to_${nextStatus}`)}
+          </Button>
+        ) : undefined
       }
       actions={
         <>
@@ -1833,30 +1812,10 @@ const panelHeaderCss = css({
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
 const panelHeaderStartCss = css({ minWidth: 0 })
-const headerTaskStatusCss = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-})
 const panelHeaderActionsCss = css({
   display: 'flex',
   alignItems: 'center',
   gap: '0.25rem',
-})
-const headerStatusCss = css({
-  minHeight: '1.75rem',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.375rem',
-  paddingX: '0.625rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '6px',
-  color: 'default.subtle-text',
-  fontSize: '0.8125rem',
-  '&[data-completed]': {
-    borderColor: 'success.200',
-    color: 'success.700',
-  },
 })
 const panelTitleCss = css({
   margin: 0,

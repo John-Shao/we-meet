@@ -346,7 +346,7 @@
     "noParent": "Aucune",
     "parentChain": "Hiérarchie de la tâche",
     "progress": "{{completed}} sur {{total}} terminées",
-    "progressSummary": "{{completed}} sur {{total}} terminées",
+    "progressSummary": "{{completed}} / {{total}}",
     "progressLabel": "Progression des sous-tâches",
     "completedWithOpenSubtasks": "Tâche terminée · {{count}} sous-tâches non terminées",
     "loading": "Chargement des sous-tâches…",
