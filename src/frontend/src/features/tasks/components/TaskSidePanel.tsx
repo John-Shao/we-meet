@@ -1291,8 +1291,20 @@ export const TaskDetailPanel = ({
               </TaskProperty>
             </dl>
             <div className={relatedSubtaskHeadingCss}>
-              <RiGitBranchLine size={18} aria-hidden="true" />
-              <h4>{t('subtasks.title')}</h4>
+              <span className={relatedSubtaskHeadingLabelCss}>
+                <RiGitBranchLine size={18} aria-hidden="true" />
+                <h4>{t('subtasks.title')}</h4>
+              </span>
+              {task.can_create_subtasks && (
+                <Button
+                  type="button"
+                  size="dense"
+                  variant="quaternaryText"
+                  onPress={() => onCreateSubtask(task)}
+                >
+                  {t('subtasks.addAction')}
+                </Button>
+              )}
             </div>
             <div className={subtasksSectionCss}>
               {task.descendant_progress.total > 0 && (
@@ -1545,16 +1557,6 @@ export const TaskDetailPanel = ({
                   ))}
                 </ul>
               ) : null}
-              {task.can_create_subtasks && (
-                <Button
-                  type="button"
-                  size="dense"
-                  variant="quaternaryText"
-                  onPress={() => onCreateSubtask(task)}
-                >
-                  {t('subtasks.addAction')}
-                </Button>
-              )}
               {!task.can_create_subtasks && (
                 <p className={subtaskEmptyCss}>
                   <RiGitBranchLine size={15} aria-hidden="true" />{' '}
@@ -1989,9 +1991,16 @@ const subtasksSectionCss = css({
 const relatedSubtaskHeadingCss = css({
   display: 'flex',
   alignItems: 'center',
-  gap: '0.5rem',
+  justifyContent: 'space-between',
+  gap: '0.75rem',
   padding: '0.375rem 0.5rem 0',
   color: 'greyscale.500',
+})
+const relatedSubtaskHeadingLabelCss = css({
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
   '& h4': {
     margin: 0,
     fontSize: '0.8125rem',
