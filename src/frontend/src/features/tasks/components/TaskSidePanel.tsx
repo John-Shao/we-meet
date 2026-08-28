@@ -12,7 +12,6 @@ import { useTranslation } from 'react-i18next'
 import {
   RiCalendarLine,
   RiCalendar2Line,
-  RiAddLine,
   RiArrowDownSLine,
   RiArrowRightSLine,
   RiArrowUpSLine,
@@ -1550,7 +1549,6 @@ export const TaskDetailPanel = ({
                   type="button"
                   size="dense"
                   variant="quaternaryText"
-                  icon={<RiAddLine size={16} aria-hidden="true" />}
                   onPress={() => onCreateSubtask(task)}
                 >
                   {t('subtasks.addAction')}
@@ -2315,18 +2313,20 @@ const detailSectionCss = css({
   borderTop: '1px solid token(colors.greyscale.200)',
   '& h3': {
     margin: 0,
-    color: 'greyscale.900',
-    fontSize: '0.875rem',
+    color: 'greyscale.700',
+    fontSize: '0.75rem',
     fontWeight: '600',
+    letterSpacing: '0.02em',
   },
 })
 const disclosureCss = css({
   borderTop: '1px solid token(colors.greyscale.200)',
   '& summary': {
     paddingTop: '1rem',
-    color: 'greyscale.900',
-    fontSize: '0.875rem',
+    color: 'greyscale.700',
+    fontSize: '0.75rem',
     fontWeight: '600',
+    letterSpacing: '0.02em',
     cursor: 'pointer',
   },
 })

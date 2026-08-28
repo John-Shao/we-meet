@@ -757,7 +757,11 @@ describe('TaskDetailPanel', () => {
     )
     expect(onOpenSubtask).toHaveBeenCalledWith(child)
 
-    fireEvent.click(screen.getByRole('button', { name: 'subtasks.addAction' }))
+    const addSubtaskButton = screen.getByRole('button', {
+      name: 'subtasks.addAction',
+    })
+    expect(addSubtaskButton.querySelector('svg')).toBeNull()
+    fireEvent.click(addSubtaskButton)
     expect(onCreateSubtask).toHaveBeenCalledWith(
       expect.objectContaining({ id: task.id })
     )
