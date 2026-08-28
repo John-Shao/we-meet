@@ -215,9 +215,7 @@ export const TaskAttachmentsSection = ({
           {data?.map((attachment) => (
             <li key={attachment.id} className={attachmentItemCss}>
               <div className={attachmentInfoCss}>
-                <strong className={attachmentNameCss}>
-                  {attachment.filename}
-                </strong>
+                <span className={attachmentNameCss}>{attachment.filename}</span>
                 <div className={userMetaCss}>
                   <TaskUserAvatar user={attachment.uploader} size="1.25rem" />
                   <p className={metaCss}>
@@ -514,7 +512,7 @@ const attachmentNameCss = css({
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   fontSize: '0.8125rem',
-  fontWeight: '600',
+  fontWeight: '400',
 })
 const attachmentActionsCss = css({
   flexShrink: 0,

@@ -528,6 +528,9 @@ describe('TaskDetailPanel', () => {
       'data-read-only',
       'true'
     )
+    expect(
+      screen.getByTestId('attachments').closest('[data-hover-disabled]')
+    ).not.toBeNull()
     const contentGroup = screen
       .getByRole('heading', { name: 'detailGroups.content' })
       .closest('dl')

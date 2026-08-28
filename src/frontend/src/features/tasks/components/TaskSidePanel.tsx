@@ -1187,6 +1187,7 @@ export const TaskDetailPanel = ({
               icon={<RiAttachment2 size={18} />}
               label={t('attachments.title')}
               alignStart
+              disableHover
             >
               <TaskAttachmentsSection
                 taskId={task.id}
@@ -1636,6 +1637,7 @@ const TaskProperty = ({
   isDisabled = false,
   isEditing = false,
   alignStart = false,
+  disableHover = false,
 }: {
   icon: ReactNode
   label: string
@@ -1646,8 +1648,13 @@ const TaskProperty = ({
   isDisabled?: boolean
   isEditing?: boolean
   alignStart?: boolean
+  disableHover?: boolean
 }) => (
-  <div className={propertyRowCss} data-align-start={alignStart || undefined}>
+  <div
+    className={propertyRowCss}
+    data-align-start={alignStart || undefined}
+    data-hover-disabled={disableHover || undefined}
+  >
     <span className={propertyIconCss} aria-hidden="true">
       {icon}
     </span>
@@ -2171,7 +2178,9 @@ const propertyRowCss = css({
   gap: '0.5rem',
   padding: '0.375rem 0.5rem',
   borderRadius: '6px',
-  _hover: { backgroundColor: 'greyscale.50' },
+  '&:not([data-hover-disabled]):hover': {
+    backgroundColor: 'greyscale.50',
+  },
   '&[data-align-start]': { alignItems: 'start' },
   '& dt': { color: 'greyscale.500', fontSize: '0.8125rem' },
   '& dd': {
