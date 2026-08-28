@@ -1081,40 +1081,6 @@ export const TaskDetailPanel = ({
               )}
             </TaskProperty>
             <TaskProperty
-              icon={<RiGitBranchLine size={18} />}
-              label={t('subtasks.parent')}
-              editLabel={editLabel(t('subtasks.parent'))}
-              control="select"
-              isDisabled={patchMutation.isPending}
-              isEditing={editingField === 'parent'}
-              alignStart={editingField === 'parent'}
-              onEdit={task.can_edit ? () => beginEditing('parent') : undefined}
-            >
-              {editingField === 'parent' ? (
-                <div className={inlineEditorCss}>
-                  <DetailInlineSelect
-                    label={t('subtasks.parent')}
-                    items={[
-                      { value: '', label: t('subtasks.rootTask') },
-                      ...parentCandidates.map((candidate) => ({
-                        value: candidate.id,
-                        label:
-                          `${'—'.repeat(candidate.depth)} ${candidate.title}`.trim(),
-                      })),
-                    ]}
-                    value={draftParentId}
-                    disabled={patchMutation.isPending}
-                    onCancel={() => setEditingField(null)}
-                    onChange={(parentId) => void moveTask(parentId)}
-                  />
-                </div>
-              ) : task.parent_id ? (
-                task.ancestor_path.at(-2)?.title || t('subtasks.parent')
-              ) : (
-                t('subtasks.rootTask')
-              )}
-            </TaskProperty>
-            <TaskProperty
               icon={<RiCalendarLine size={18} />}
               label={t('meta.dueDate')}
               editLabel={editLabel(t('meta.dueDate'))}
@@ -1285,7 +1251,49 @@ export const TaskDetailPanel = ({
             </Link>
           )}
 
-          <DetailSection title={t('subtasks.title')}>
+          <DetailSection title={t('detailGroups.related')}>
+            <dl className={propertyListCss}>
+              <TaskProperty
+                icon={<RiGitBranchLine size={18} />}
+                label={t('subtasks.parent')}
+                editLabel={editLabel(t('subtasks.parent'))}
+                control="select"
+                isDisabled={patchMutation.isPending}
+                isEditing={editingField === 'parent'}
+                alignStart={editingField === 'parent'}
+                onEdit={
+                  task.can_edit ? () => beginEditing('parent') : undefined
+                }
+              >
+                {editingField === 'parent' ? (
+                  <div className={inlineEditorCss}>
+                    <DetailInlineSelect
+                      label={t('subtasks.parent')}
+                      items={[
+                        { value: '', label: t('subtasks.rootTask') },
+                        ...parentCandidates.map((candidate) => ({
+                          value: candidate.id,
+                          label:
+                            `${'—'.repeat(candidate.depth)} ${candidate.title}`.trim(),
+                        })),
+                      ]}
+                      value={draftParentId}
+                      disabled={patchMutation.isPending}
+                      onCancel={() => setEditingField(null)}
+                      onChange={(parentId) => void moveTask(parentId)}
+                    />
+                  </div>
+                ) : task.parent_id ? (
+                  task.ancestor_path.at(-2)?.title || t('subtasks.parent')
+                ) : (
+                  t('subtasks.rootTask')
+                )}
+              </TaskProperty>
+            </dl>
+            <div className={relatedSubtaskHeadingCss}>
+              <RiGitBranchLine size={18} aria-hidden="true" />
+              <h4>{t('subtasks.title')}</h4>
+            </div>
             <div className={subtasksSectionCss}>
               {task.descendant_progress.total > 0 && (
                 <div className={subtaskProgressCss}>
@@ -1972,6 +1980,18 @@ const subtasksSectionCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.5rem',
+})
+const relatedSubtaskHeadingCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  padding: '0.375rem 0.5rem 0',
+  color: 'greyscale.500',
+  '& h4': {
+    margin: 0,
+    fontSize: '0.8125rem',
+    fontWeight: '400',
+  },
 })
 const subtaskProgressCss = css({
   minHeight: '1.75rem',

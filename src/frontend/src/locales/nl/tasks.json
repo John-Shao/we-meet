@@ -248,7 +248,8 @@
   "detailGroups": {
     "collaboration": "Samenwerking",
     "planning": "Planning en plaatsing",
-    "content": "Taakinhoud"
+    "content": "Taakinhoud",
+    "related": "Gerelateerde taken"
   },
   "scopes": {
     "label": "Taakbereik",

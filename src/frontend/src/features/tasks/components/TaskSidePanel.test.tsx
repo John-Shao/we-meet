@@ -315,6 +315,15 @@ describe('TaskDetailPanel', () => {
     expect(
       screen.getByRole('heading', { name: 'detailGroups.content' })
     ).toBeInTheDocument()
+    const relatedSection = screen
+      .getByRole('heading', { name: 'detailGroups.related' })
+      .closest('section')!
+    expect(
+      within(relatedSection).getByText('subtasks.parent', { selector: 'dt' })
+    ).toBeInTheDocument()
+    expect(
+      within(relatedSection).getByRole('heading', { name: 'subtasks.title' })
+    ).toBeInTheDocument()
   })
 
   it('edits each creator-managed field inline without a global edit page', async () => {

@@ -243,7 +243,8 @@
   "detailGroups": {
     "collaboration": "Collaboration",
     "planning": "Planning and placement",
-    "content": "Task content"
+    "content": "Task content",
+    "related": "Related tasks"
   },
   "scopes": {
     "label": "Task scope",

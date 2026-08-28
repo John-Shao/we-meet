@@ -243,7 +243,8 @@
   "detailGroups": {
     "collaboration": "协作",
     "planning": "计划与归属",
-    "content": "任务内容"
+    "content": "任务内容",
+    "related": "关联任务"
   },
   "scopes": {
     "label": "任务范围",
