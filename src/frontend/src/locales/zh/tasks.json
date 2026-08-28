@@ -353,6 +353,7 @@
     "parentChain": "任务父链",
     "progress": "已完成 {{completed}} / {{total}}",
     "progressSummary": "{{completed}} / {{total}}",
+    "progressTooltip": "已完成数量 / 总数量",
     "progressLabel": "子任务完成进度",
     "completedWithOpenSubtasks": "任务已完成，仍有 {{count}} 个未完成子任务",
     "loading": "正在加载子任务…",

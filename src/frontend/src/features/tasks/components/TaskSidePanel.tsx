@@ -40,6 +40,7 @@ import { ModalCloseButton } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { Button, Input, Menu, MenuList, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
+import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { css } from '@/styled-system/css'
 
 import type {
@@ -1282,22 +1283,26 @@ export const TaskDetailPanel = ({
               </span>
               {task.descendant_progress.total > 0 && (
                 <div className={subtaskProgressCss}>
-                  <progress
-                    aria-label={t('subtasks.progressLabel')}
-                    value={task.descendant_progress.completed}
-                    max={task.descendant_progress.total}
-                  />
-                  <span
-                    aria-label={t('subtasks.progress', {
-                      completed: task.descendant_progress.completed,
-                      total: task.descendant_progress.total,
-                    })}
-                  >
-                    {t('subtasks.progressSummary', {
-                      completed: task.descendant_progress.completed,
-                      total: task.descendant_progress.total,
-                    })}
-                  </span>
+                  <VisualOnlyTooltip tooltip={t('subtasks.progressTooltip')}>
+                    <progress
+                      aria-label={t('subtasks.progressLabel')}
+                      value={task.descendant_progress.completed}
+                      max={task.descendant_progress.total}
+                    />
+                  </VisualOnlyTooltip>
+                  <VisualOnlyTooltip tooltip={t('subtasks.progressTooltip')}>
+                    <span
+                      aria-label={t('subtasks.progress', {
+                        completed: task.descendant_progress.completed,
+                        total: task.descendant_progress.total,
+                      })}
+                    >
+                      {t('subtasks.progressSummary', {
+                        completed: task.descendant_progress.completed,
+                        total: task.descendant_progress.total,
+                      })}
+                    </span>
+                  </VisualOnlyTooltip>
                 </div>
               )}
               {task.can_create_subtasks && (
@@ -1959,6 +1964,13 @@ const subtaskProgressCss = css({
   color: 'default.subtle-text',
   fontSize: '0.8125rem',
   whiteSpace: 'nowrap',
+  '& > div:first-child': {
+    minWidth: 0,
+    display: 'flex',
+    flex: 1,
+    alignItems: 'center',
+  },
+  '& > div:last-child': { flexShrink: 0 },
   '& progress': {
     width: '100%',
     minWidth: '3rem',

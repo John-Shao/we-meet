@@ -347,6 +347,7 @@
     "parentChain": "Aufgabenpfad",
     "progress": "{{completed}} von {{total}} abgeschlossen",
     "progressSummary": "{{completed}} / {{total}}",
+    "progressTooltip": "Anzahl erledigter Aufgaben / Gesamtanzahl",
     "progressLabel": "Fortschritt der Unteraufgaben",
     "completedWithOpenSubtasks": "Aufgabe abgeschlossen · {{count}} Unteraufgaben noch offen",
     "loading": "Unteraufgaben werden geladen…",

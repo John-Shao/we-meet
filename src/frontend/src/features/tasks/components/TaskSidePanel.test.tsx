@@ -823,6 +823,16 @@ describe('TaskDetailPanel', () => {
     expect(subtaskHeading).toContainElement(
       screen.getByText('subtasks.progressSummary')
     )
+    const progress = screen.getByRole('progressbar', {
+      name: 'subtasks.progressLabel',
+    })
+    fireEvent.mouseEnter(progress.parentElement!)
+    expect(screen.getByText('subtasks.progressTooltip')).toBeInTheDocument()
+    fireEvent.mouseLeave(progress.parentElement!)
+    fireEvent.mouseEnter(
+      screen.getByText('subtasks.progressSummary').parentElement!
+    )
+    expect(screen.getByText('subtasks.progressTooltip')).toBeInTheDocument()
     const childRow = screen.getByText(child.title).closest('li')!
     expect(within(childRow).queryByRole('link')).not.toBeInTheDocument()
     expect(

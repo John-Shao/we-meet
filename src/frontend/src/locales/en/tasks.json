@@ -353,6 +353,7 @@
     "parentChain": "Task parent chain",
     "progress": "{{completed}} of {{total}} completed",
     "progressSummary": "{{completed}} / {{total}}",
+    "progressTooltip": "Completed count / total count",
     "progressLabel": "Subtask completion progress",
     "completedWithOpenSubtasks": "Task completed with {{count}} subtasks still incomplete",
     "loading": "Loading subtasks…",

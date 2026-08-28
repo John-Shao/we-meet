@@ -351,6 +351,7 @@
     "parentChain": "Taakpad",
     "progress": "{{completed}} van {{total}} voltooid",
     "progressSummary": "{{completed}} / {{total}}",
+    "progressTooltip": "Aantal voltooide taken / totaal aantal taken",
     "progressLabel": "Voortgang van subtaken",
     "completedWithOpenSubtasks": "Taak voltooid · {{count}} subtaken nog niet voltooid",
     "loading": "Subtaken laden…",
