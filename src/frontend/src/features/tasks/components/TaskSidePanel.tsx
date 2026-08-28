@@ -25,6 +25,7 @@ import {
   RiFileTextLine,
   RiFlagLine,
   RiGitBranchLine,
+  RiGitMergeLine,
   RiListCheck3,
   RiMoreLine,
   RiRestartLine,
@@ -1250,7 +1251,7 @@ export const TaskDetailPanel = ({
           <CollapsibleDetailSection title={t('detailGroups.related')}>
             <dl className={propertyListCss}>
               <TaskProperty
-                icon={<RiGitBranchLine size={18} />}
+                icon={<RiGitMergeLine size={18} />}
                 label={t('subtasks.parent')}
                 editLabel={editLabel(t('subtasks.parent'))}
                 control="select"
@@ -1958,7 +1959,8 @@ const relatedSubtaskHeadingCss = css({
 })
 const relatedSubtaskHeadingLabelCss = css({
   minWidth: 0,
-  display: 'flex',
+  display: 'grid',
+  gridTemplateColumns: '1.5rem auto',
   flexShrink: 0,
   alignItems: 'center',
   gap: '0.5rem',
