@@ -392,7 +392,7 @@
     "removeConfirm": "Diesen Anhang entfernen? Dies kann nicht rückgängig gemacht werden.",
     "removeError": "Der Anhang konnte nicht entfernt werden. Bitte erneut versuchen.",
     "unknownSize": "Unbekannte Größe",
-    "meta": "{{size}} · {{name}} · {{date}}"
+    "meta": "{{size}} · {{date}}"
   },
   "history": {
     "title": "Aktivitätsverlauf",

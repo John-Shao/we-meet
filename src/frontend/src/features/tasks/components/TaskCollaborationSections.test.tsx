@@ -56,9 +56,7 @@ const { attachmentState, commentState } = vi.hoisted(() => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, unknown>) =>
-      key === 'attachments.meta'
-        ? `${values?.size} · ${values?.name} · ${values?.date}`
-        : key,
+      key === 'attachments.meta' ? `${values?.size} · ${values?.date}` : key,
     i18n: { language: 'en' },
   }),
 }))
@@ -161,7 +159,8 @@ describe('task collaboration loading states', () => {
     ).not.toBeNull()
     const attachmentRow = screen.getByText('launch-plan.pdf').closest('li')!
     expect(attachmentRow.querySelector('img')).toBeNull()
-    expect(within(attachmentRow).getByText(/^2\.0 KB · Alice · /)).toBeVisible()
+    expect(within(attachmentRow).getByText(/^2\.0 KB · /)).toBeVisible()
+    expect(within(attachmentRow).queryByText('Alice')).not.toBeInTheDocument()
     const download = screen.getByRole('link', {
       name: 'attachments.download',
     })

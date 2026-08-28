@@ -258,7 +258,6 @@ export const TaskAttachmentsSection = ({
                 <p className={metaCss}>
                   {t('attachments.meta', {
                     size: formatSize(attachment.size),
-                    name: taskDisplayName(attachment.uploader),
                     date: new Intl.DateTimeFormat(i18n.language, {
                       dateStyle: 'medium',
                       timeStyle: 'short',

@@ -414,7 +414,7 @@
     "removeConfirm": "Remove this attachment? This cannot be undone.",
     "removeError": "The attachment could not be removed. Please try again.",
     "unknownSize": "Unknown size",
-    "meta": "{{size}} · {{name}} · {{date}}"
+    "meta": "{{size}} · {{date}}"
   },
   "history": {
     "title": "Activity history",

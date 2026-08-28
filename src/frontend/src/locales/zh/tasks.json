@@ -414,7 +414,7 @@
     "removeConfirm": "确定删除此附件吗？此操作不可恢复。",
     "removeError": "附件删除失败，请重试。",
     "unknownSize": "未知大小",
-    "meta": "{{size}} · {{name}} · {{date}}"
+    "meta": "{{size}} · {{date}}"
   },
   "history": {
     "title": "操作历史",
