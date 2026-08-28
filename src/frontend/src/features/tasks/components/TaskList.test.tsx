@@ -163,8 +163,8 @@ describe('TaskList', () => {
     expect(within(table).getByText('Release work')).toBeInTheDocument()
   })
 
-  it('keeps only the four decision columns while the detail panel is open', () => {
-    render(
+  it('hides only creator metadata columns while the detail panel is open', () => {
+    const { container } = render(
       <TaskList tasks={[task]} compact onOpen={vi.fn()} registerRow={vi.fn()} />
     )
 
@@ -176,8 +176,17 @@ describe('TaskList', () => {
       'workspace.columns.title',
       'workspace.columns.assignee',
       'workspace.columns.priority',
+      'workspace.columns.startDate',
       'workspace.columns.dueDate',
+      'workspace.columns.taskList',
     ])
+    const table = screen.getByRole('table')
+    expect(within(table).getByText('Aug 21')).toBeInTheDocument()
+    expect(within(table).getByText('Release work')).toBeInTheDocument()
+    expect(
+      within(table).queryByText(formatTaskCreatedAt(task.created_at))
+    ).not.toBeInTheDocument()
+    expect(container.querySelector('img[src="/creator.png"]')).toBeNull()
   })
 
   it('shows the complete ancestor chain for a subtask row', () => {

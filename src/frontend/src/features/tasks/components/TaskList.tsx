@@ -324,8 +324,7 @@ export const TaskList = ({
   const visibleColumns = TASK_COLUMNS.filter(
     (column) =>
       (!grouped || column.id !== 'taskList') &&
-      (!compact ||
-        ['title', 'assignee', 'priority', 'dueDate'].includes(column.id))
+      (!compact || !['creator', 'createdAt'].includes(column.id))
   )
   const desktopColumnCount = visibleColumns.length + 1
 
@@ -1090,33 +1089,30 @@ const DesktopTaskRow = ({
         </InlineEditButton>
       )}
     </td>
-    {!compact && (
-      <td className={secondaryColumnCss}>
-        {editingCell?.taskId === task.id &&
-        editingCell.field === 'startDate' ? (
-          <InlineDateEditor
-            value={inlineDraft}
-            max={task.due_date || undefined}
-            pending={inlinePending}
-            label={t('workspace.columns.startDate')}
-            onChange={onInlineDraftChange}
-            onSave={(startDate) =>
-              onSaveInlineEdit(task, { start_date: startDate || null })
-            }
-            onCancel={onCancelInlineEdit}
-          />
-        ) : (
-          <InlineEditButton
-            task={task}
-            fieldLabel={t('workspace.columns.startDate')}
-            date
-            onEdit={() => onBeginInlineEdit(task, 'startDate')}
-          >
-            {formatDate(task.start_date)}
-          </InlineEditButton>
-        )}
-      </td>
-    )}
+    <td className={secondaryColumnCss}>
+      {editingCell?.taskId === task.id && editingCell.field === 'startDate' ? (
+        <InlineDateEditor
+          value={inlineDraft}
+          max={task.due_date || undefined}
+          pending={inlinePending}
+          label={t('workspace.columns.startDate')}
+          onChange={onInlineDraftChange}
+          onSave={(startDate) =>
+            onSaveInlineEdit(task, { start_date: startDate || null })
+          }
+          onCancel={onCancelInlineEdit}
+        />
+      ) : (
+        <InlineEditButton
+          task={task}
+          fieldLabel={t('workspace.columns.startDate')}
+          date
+          onEdit={() => onBeginInlineEdit(task, 'startDate')}
+        >
+          {formatDate(task.start_date)}
+        </InlineEditButton>
+      )}
+    </td>
     <td
       data-overdue={task.time_state === 'overdue' || undefined}
       className={dueDateCss}
@@ -1144,7 +1140,7 @@ const DesktopTaskRow = ({
         </InlineEditButton>
       )}
     </td>
-    {!compact && !grouped && (
+    {!grouped && (
       <td className={secondaryColumnCss}>
         {editingCell?.taskId === task.id && editingCell.field === 'taskList' ? (
           <InlineTaskListEditor

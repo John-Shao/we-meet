@@ -47,7 +47,7 @@ export const TaskListSkeleton = ({
   compact = false,
   grouped = false,
 }: SkeletonProps & { compact?: boolean; grouped?: boolean }) => {
-  const columnCount = compact ? 4 : grouped ? 7 : 8
+  const columnCount = compact ? (grouped ? 5 : 6) : grouped ? 7 : 8
   return (
     <LoadingRegion
       label={label}
@@ -56,7 +56,7 @@ export const TaskListSkeleton = ({
       <div
         className={listHeaderCss}
         data-compact={compact || undefined}
-        data-grouped={!compact && grouped ? true : undefined}
+        data-grouped={grouped || undefined}
       >
         {Array.from({ length: columnCount }, (_, index) => (
           <SkeletonBlock
@@ -71,7 +71,7 @@ export const TaskListSkeleton = ({
           key={rowIndex}
           className={listRowCss}
           data-compact={compact || undefined}
-          data-grouped={!compact && grouped ? true : undefined}
+          data-grouped={grouped || undefined}
         >
           <span className={listTitleCellCss}>
             <SkeletonBlock width="1rem" height="1rem" circle />
@@ -82,11 +82,11 @@ export const TaskListSkeleton = ({
           </span>
           <SkeletonBlock width="70%" />
           <SkeletonBlock width="2rem" height="1rem" />
-          {!compact && <SkeletonBlock width="62%" />}
+          <SkeletonBlock width="62%" />
           <SkeletonBlock width="66%" />
+          {!grouped && <SkeletonBlock width="72%" />}
           {!compact && (
             <>
-              {!grouped && <SkeletonBlock width="72%" />}
               <SkeletonBlock width="64%" />
               <SkeletonBlock width="76%" />
             </>
@@ -260,11 +260,13 @@ const srOnlyCss = css({
 })
 const loadingContentCss = css({ display: 'contents' })
 const listSkeletonCss = css({ minWidth: '58rem', color: 'transparent' })
-const compactListSkeletonCss = css({ minWidth: '36rem' })
+const compactListSkeletonCss = css({ minWidth: '48rem' })
 const listGridColumns =
   'minmax(16rem, 2.5fr) minmax(7rem, 1fr) 5rem 6rem 6rem minmax(7rem, 1fr) minmax(7rem, 1fr) minmax(8rem, 1fr)'
 const compactListGridColumns =
-  'minmax(15rem, 2.5fr) minmax(7rem, 1fr) 5rem 6rem'
+  'minmax(15rem, 2.5fr) minmax(7rem, 1fr) 5rem 6rem 6rem minmax(7rem, 1fr)'
+const compactGroupedListGridColumns =
+  'minmax(15rem, 2.5fr) minmax(7rem, 1fr) 5rem 6rem 6rem'
 const groupedListGridColumns =
   'minmax(16rem, 2.5fr) minmax(7rem, 1fr) 5rem 6rem 6rem minmax(7rem, 1fr) minmax(8rem, 1fr)'
 const listHeaderCss = css({
@@ -278,6 +280,9 @@ const listHeaderCss = css({
   backgroundColor: 'greyscale.50',
   '&[data-compact]': { gridTemplateColumns: compactListGridColumns },
   '&[data-grouped]': { gridTemplateColumns: groupedListGridColumns },
+  '&[data-compact][data-grouped]': {
+    gridTemplateColumns: compactGroupedListGridColumns,
+  },
 })
 const listRowCss = css({
   minHeight: '2.625rem',
@@ -289,6 +294,9 @@ const listRowCss = css({
   borderBottom: '1px solid token(colors.greyscale.200)',
   '&[data-compact]': { gridTemplateColumns: compactListGridColumns },
   '&[data-grouped]': { gridTemplateColumns: groupedListGridColumns },
+  '&[data-compact][data-grouped]': {
+    gridTemplateColumns: compactGroupedListGridColumns,
+  },
 })
 const listTitleCellCss = css({
   minWidth: 0,
