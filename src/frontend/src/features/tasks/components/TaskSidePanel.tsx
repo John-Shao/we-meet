@@ -1175,7 +1175,10 @@ export const TaskDetailPanel = ({
                     />
                   </div>
                 ) : (
-                  <span className={descriptionCss}>
+                  <span
+                    className={descriptionCss}
+                    data-empty={!task.description || undefined}
+                  >
                     {task.description || t('workspace.emptyDescription')}
                   </span>
                 )}
@@ -1185,11 +1188,16 @@ export const TaskDetailPanel = ({
                 label={t('attachments.title')}
                 alignStart
               >
-                <TaskAttachmentsSection
-                  taskId={task.id}
-                  sharedVia={sharedVia}
-                  readOnly={!task.can_manage_attachments}
-                />
+                <div
+                  className={attachmentPropertyContentCss}
+                  data-read-only={!task.can_manage_attachments || undefined}
+                >
+                  <TaskAttachmentsSection
+                    taskId={task.id}
+                    sharedVia={sharedVia}
+                    readOnly={!task.can_manage_attachments}
+                  />
+                </div>
               </TaskProperty>
             </dl>
           </CollapsibleDetailSection>
@@ -1934,6 +1942,12 @@ const descriptionCss = css({
   color: 'default.text',
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
+  '&[data-empty]': { color: 'default.subtle-text' },
+})
+const attachmentPropertyContentCss = css({
+  width: 'calc(100% + 7rem)',
+  marginLeft: '-7rem',
+  '&[data-read-only]': { paddingTop: '2.25rem' },
 })
 const recurrenceDetailCss = css({
   display: 'flex',

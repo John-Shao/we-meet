@@ -370,6 +370,23 @@ describe('TaskDetailPanel', () => {
     ).toBeInTheDocument()
   })
 
+  it('marks the empty task description as subtle placeholder text', () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{ ...task, description: '' }}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('workspace.emptyDescription')).toHaveAttribute(
+      'data-empty'
+    )
+  })
+
   it('makes task content, related tasks, and comments collapsible like task history', () => {
     render(
       <TaskDetailPanel
