@@ -16,6 +16,7 @@ import {
   RiArrowDownSLine,
   RiArrowRightSLine,
   RiArrowUpSLine,
+  RiAttachment2,
   RiBookmarkFill,
   RiBookmarkLine,
   RiCheckLine,
@@ -1217,6 +1218,17 @@ export const TaskDetailPanel = ({
                 </span>
               )}
             </TaskProperty>
+            <TaskProperty
+              icon={<RiAttachment2 size={18} />}
+              label={t('attachments.title')}
+              alignStart
+            >
+              <TaskAttachmentsSection
+                taskId={task.id}
+                sharedVia={sharedVia}
+                readOnly={!task.can_manage_attachments}
+              />
+            </TaskProperty>
           </dl>
 
           {assigneePickerOpen && (
@@ -1552,16 +1564,6 @@ export const TaskDetailPanel = ({
               readOnly={!task.can_comment}
             />
           </DetailSection>
-          <details className={disclosureCss}>
-            <summary>{t('attachments.title')}</summary>
-            <div className={disclosureBodyCss}>
-              <TaskAttachmentsSection
-                taskId={task.id}
-                sharedVia={sharedVia}
-                readOnly={!task.can_manage_attachments}
-              />
-            </div>
-          </details>
           <details className={disclosureCss}>
             <summary>{t('history.title')}</summary>
             <div className={disclosureBodyCss}>

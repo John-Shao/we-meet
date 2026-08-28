@@ -390,6 +390,7 @@
     "uploading": "Uploaden {{progress}}%",
     "uploadError": "De bijlage kon niet worden geüpload. Probeer het opnieuw.",
     "open": "Bekijken",
+    "download": "Downloaden",
     "remove": "Verwijderen",
     "removeConfirm": "Deze bijlage verwijderen? Dit kan niet ongedaan worden gemaakt.",
     "removeError": "De bijlage kon niet worden verwijderd. Probeer het opnieuw.",

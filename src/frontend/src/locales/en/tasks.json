@@ -408,6 +408,7 @@
     "uploading": "Uploading {{progress}}%",
     "uploadError": "The attachment could not be uploaded. Please try again.",
     "open": "View",
+    "download": "Download",
     "remove": "Remove",
     "removeConfirm": "Remove this attachment? This cannot be undone.",
     "removeError": "The attachment could not be removed. Please try again.",

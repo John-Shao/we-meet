@@ -519,6 +519,11 @@ describe('TaskDetailPanel', () => {
       'data-read-only',
       'true'
     )
+    const contentGroup = screen
+      .getByRole('heading', { name: 'detailGroups.content' })
+      .closest('dl')
+    expect(contentGroup).toContainElement(screen.getByTestId('attachments'))
+    expect(screen.getByTestId('attachments').closest('details')).toBeNull()
   })
 
   it('places the status action first and secondary actions in the panel header', async () => {

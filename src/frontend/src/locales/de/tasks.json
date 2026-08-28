@@ -386,6 +386,7 @@
     "uploading": "Upload {{progress}} %",
     "uploadError": "Der Anhang konnte nicht hochgeladen werden. Bitte erneut versuchen.",
     "open": "Anzeigen",
+    "download": "Herunterladen",
     "remove": "Entfernen",
     "removeConfirm": "Diesen Anhang entfernen? Dies kann nicht rückgängig gemacht werden.",
     "removeError": "Der Anhang konnte nicht entfernt werden. Bitte erneut versuchen.",

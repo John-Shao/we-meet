@@ -386,6 +386,7 @@
     "uploading": "Envoi {{progress}} %",
     "uploadError": "Impossible d’envoyer la pièce jointe. Veuillez réessayer.",
     "open": "Voir",
+    "download": "Télécharger",
     "remove": "Supprimer",
     "removeConfirm": "Supprimer cette pièce jointe ? Cette action est irréversible.",
     "removeError": "La pièce jointe n’a pas pu être supprimée. Veuillez réessayer.",

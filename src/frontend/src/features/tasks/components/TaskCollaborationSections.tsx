@@ -7,6 +7,7 @@ import {
 } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
+import { RiDeleteBinLine, RiDownloadLine } from '@remixicon/react'
 
 import { useConfirm } from '@/components/ConfirmProvider'
 import { Button, TextArea } from '@/primitives'
@@ -169,7 +170,10 @@ export const TaskAttachmentsSection = ({
   }
 
   return (
-    <section aria-label={t('attachments.title')} className={sectionCss}>
+    <section
+      aria-label={t('attachments.title')}
+      className={attachmentSectionCss}
+    >
       <input
         ref={inputRef}
         type="file"
@@ -179,8 +183,8 @@ export const TaskAttachmentsSection = ({
       />
       {!readOnly && (
         <Button
-          variant="secondary"
-          size="sm"
+          variant="quaternaryText"
+          size="dense"
           isDisabled={createMutation.isPending}
           onPress={() => inputRef.current?.click()}
         >
@@ -207,43 +211,48 @@ export const TaskAttachmentsSection = ({
         errorText={t('attachments.error')}
         emptyText={t('attachments.empty')}
       >
-        <ul className={listCss}>
+        <ul className={attachmentListCss}>
           {data?.map((attachment) => (
-            <li key={attachment.id} className={itemCss}>
-              <strong className={css({ overflowWrap: 'anywhere' })}>
-                {attachment.filename}
-              </strong>
-              <div className={userMetaCss}>
-                <TaskUserAvatar user={attachment.uploader} size="1.25rem" />
-                <p className={metaCss}>
-                  {t('attachments.meta', {
-                    name: taskDisplayName(attachment.uploader),
-                    size: formatSize(attachment.size),
-                    date: new Intl.DateTimeFormat(i18n.language, {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    }).format(new Date(attachment.created_at)),
-                  })}
-                </p>
+            <li key={attachment.id} className={attachmentItemCss}>
+              <div className={attachmentInfoCss}>
+                <strong className={attachmentNameCss}>
+                  {attachment.filename}
+                </strong>
+                <div className={userMetaCss}>
+                  <TaskUserAvatar user={attachment.uploader} size="1.25rem" />
+                  <p className={metaCss}>
+                    {t('attachments.meta', {
+                      name: taskDisplayName(attachment.uploader),
+                      size: formatSize(attachment.size),
+                      date: new Intl.DateTimeFormat(i18n.language, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      }).format(new Date(attachment.created_at)),
+                    })}
+                  </p>
+                </div>
               </div>
-              <div className={inlineCss}>
+              <div className={attachmentActionsCss} data-attachment-actions>
                 <a
                   href={attachment.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={linkCss}
+                  download={attachment.filename}
+                  className={attachmentActionCss}
+                  aria-label={t('attachments.download')}
+                  title={t('attachments.download')}
                 >
-                  {t('attachments.open')}
+                  <RiDownloadLine size={17} aria-hidden="true" />
                 </a>
                 {!readOnly && (
-                  <Button
-                    variant="danger"
-                    size="dense"
-                    isDisabled={deleteMutation.isPending}
-                    onPress={() => void remove(attachment.id)}
+                  <button
+                    type="button"
+                    className={attachmentDeleteActionCss}
+                    aria-label={t('attachments.remove')}
+                    title={t('attachments.remove')}
+                    disabled={deleteMutation.isPending}
+                    onClick={() => void remove(attachment.id)}
                   >
-                    {t('attachments.remove')}
-                  </Button>
+                    <RiDeleteBinLine size={17} aria-hidden="true" />
+                  </button>
                 )}
               </div>
             </li>
@@ -426,6 +435,13 @@ const sectionCss = css({
   flexDirection: 'column',
   gap: '1rem',
 })
+const attachmentSectionCss = css({
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: '0.5rem',
+})
 const stackCss = css({
   display: 'flex',
   flexDirection: 'column',
@@ -446,6 +462,110 @@ const listCss = css({
   flexDirection: 'column',
   gap: '0.625rem',
 })
+const attachmentListCss = css({
+  width: '100%',
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.375rem',
+})
+const attachmentItemCss = css({
+  width: '100%',
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.5rem',
+  padding: '0.625rem 0.75rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '8px',
+  backgroundColor: 'greyscale.50',
+  color: 'default.text',
+  transition: 'border-color 120ms ease, background-color 120ms ease',
+  _hover: {
+    borderColor: 'greyscale.300',
+    backgroundColor: 'greyscale.000',
+    '& [data-attachment-actions]': {
+      opacity: 1,
+      pointerEvents: 'auto',
+    },
+  },
+  _focusWithin: {
+    borderColor: 'primary.400',
+    backgroundColor: 'greyscale.000',
+    '& [data-attachment-actions]': {
+      opacity: 1,
+      pointerEvents: 'auto',
+    },
+  },
+})
+const attachmentInfoCss = css({
+  minWidth: 0,
+  display: 'flex',
+  flex: 1,
+  flexDirection: 'column',
+  gap: '0.25rem',
+})
+const attachmentNameCss = css({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: '0.8125rem',
+  fontWeight: '600',
+})
+const attachmentActionsCss = css({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.125rem',
+  opacity: 0,
+  pointerEvents: 'none',
+  transition: 'opacity 120ms ease',
+  '@media (hover: none)': {
+    opacity: 1,
+    pointerEvents: 'auto',
+  },
+})
+const attachmentActionCss = css({
+  width: '1.75rem',
+  height: '1.75rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
+  border: 0,
+  borderRadius: '6px',
+  backgroundColor: 'transparent',
+  color: 'greyscale.600',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.900' },
+  _focusVisible: {
+    outline: '2px solid token(colors.primary.400)',
+    outlineOffset: '1px',
+  },
+})
+const attachmentDeleteActionCss = css({
+  width: '1.75rem',
+  height: '1.75rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
+  border: 0,
+  borderRadius: '6px',
+  backgroundColor: 'transparent',
+  color: 'greyscale.600',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'danger.50', color: 'danger.600' },
+  _focusVisible: {
+    outline: '2px solid token(colors.danger.400)',
+    outlineOffset: '1px',
+  },
+  _disabled: { cursor: 'not-allowed', opacity: 0.45 },
+})
 const itemCss = css({
   display: 'flex',
   flexDirection: 'column',
@@ -455,12 +575,6 @@ const itemCss = css({
   borderRadius: '8px',
   backgroundColor: 'greyscale.50',
   color: 'default.text',
-})
-const inlineCss = css({
-  display: 'flex',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: '0.5rem',
 })
 const betweenCss = css({
   display: 'flex',
@@ -489,7 +603,6 @@ const bodyCss = css({
 })
 const hintCss = css({ margin: 0, color: 'default.subtle-text' })
 const errorCss = css({ margin: 0, color: 'danger.subtle-text' })
-const linkCss = css({ color: 'primary.600', textDecoration: 'none' })
 const timelineCss = css({
   listStyle: 'none',
   margin: 0,
