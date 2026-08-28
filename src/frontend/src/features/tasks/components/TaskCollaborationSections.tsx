@@ -217,6 +217,7 @@ export const TaskAttachmentsSection = ({
       />
       {!readOnly && (
         <Button
+          className={attachmentUploadActionCss}
           variant="quaternaryText"
           size="dense"
           isDisabled={createMutation.isPending}
@@ -553,11 +554,15 @@ const sectionCss = css({
   gap: '1rem',
 })
 const attachmentSectionCss = css({
+  width: '100%',
   minWidth: 0,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'flex-start',
   gap: '0.5rem',
+})
+const attachmentUploadActionCss = css({
+  alignSelf: 'flex-end',
 })
 const commentFormCss = css({
   display: 'flex',

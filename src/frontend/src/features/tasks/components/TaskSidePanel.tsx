@@ -791,6 +791,7 @@ export const TaskDetailPanel = ({
                 ))}
                 {task.can_edit && currentAssignees.length < 10 && (
                   <Button
+                    className={detailMemberActionCss}
                     type="button"
                     size="sm"
                     variant="quaternaryText"
@@ -934,6 +935,7 @@ export const TaskDetailPanel = ({
                 ))}
                 {task.can_manage_followers && (
                   <Button
+                    className={detailMemberActionCss}
                     type="button"
                     size="sm"
                     variant="quaternaryText"
@@ -2164,11 +2166,16 @@ const propertyEditButtonCss = css({
   _disabled: { cursor: 'default' },
 })
 const detailMembersCss = css({
+  width: '100%',
   minWidth: 0,
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
   gap: '0.375rem',
+})
+const detailMemberActionCss = css({
+  flexShrink: 0,
+  marginLeft: 'auto',
 })
 const detailMemberChipCss = css({
   minWidth: 0,
