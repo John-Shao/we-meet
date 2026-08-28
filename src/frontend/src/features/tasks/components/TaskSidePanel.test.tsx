@@ -620,7 +620,7 @@ describe('TaskDetailPanel', () => {
     )
     expect(
       screen.getByTestId('attachments').closest('[data-hover-disabled]')
-    ).not.toBeNull()
+    ).toBeNull()
     const contentDisclosure = screen
       .getByText('detailGroups.content', { selector: 'summary' })
       .closest('details')
