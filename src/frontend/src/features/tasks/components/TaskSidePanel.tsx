@@ -1965,7 +1965,7 @@ const subtaskProgressCss = css({
   fontSize: '0.8125rem',
   whiteSpace: 'nowrap',
   '& > div:first-child': {
-    minWidth: 0,
+    minWidth: '3rem',
     display: 'flex',
     flex: 1,
     alignItems: 'center',
@@ -1973,9 +1973,27 @@ const subtaskProgressCss = css({
   '& > div:last-child': { flexShrink: 0 },
   '& progress': {
     width: '100%',
-    minWidth: '3rem',
-    maxWidth: '6rem',
+    minWidth: 0,
     height: '0.3rem',
+    appearance: 'none',
+    border: 0,
+    borderRadius: '999px',
+    overflow: 'hidden',
+    backgroundColor: 'greyscale.300',
+    color: 'success.500',
+    accentColor: 'success.500',
+  },
+  '& progress::-webkit-progress-bar': {
+    borderRadius: '999px',
+    backgroundColor: 'greyscale.300',
+  },
+  '& progress::-webkit-progress-value': {
+    borderRadius: '999px',
+    backgroundColor: 'success.500',
+  },
+  '& progress::-moz-progress-bar': {
+    borderRadius: '999px',
+    backgroundColor: 'success.500',
   },
 })
 const relatedSubtaskActionCss = css({
