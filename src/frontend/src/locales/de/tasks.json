@@ -343,7 +343,7 @@
   "subtasks": {
     "title": "Unteraufgaben",
     "parent": "Übergeordnete Aufgabe",
-    "rootTask": "Als Stammaufgabe festlegen",
+    "noParent": "Keine",
     "parentChain": "Aufgabenpfad",
     "progress": "{{completed}} von {{total}} abgeschlossen",
     "progressSummary": "{{completed}} von {{total}} abgeschlossen",

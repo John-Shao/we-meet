@@ -349,7 +349,7 @@
   "subtasks": {
     "title": "Subtasks",
     "parent": "Parent task",
-    "rootTask": "Make root task",
+    "noParent": "None",
     "parentChain": "Task parent chain",
     "progress": "{{completed}} of {{total}} completed",
     "progressSummary": "{{completed}} of {{total}} completed",

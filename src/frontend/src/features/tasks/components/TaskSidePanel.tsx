@@ -1276,7 +1276,7 @@ export const TaskDetailPanel = ({
                     <DetailInlineSelect
                       label={t('subtasks.parent')}
                       items={[
-                        { value: '', label: t('subtasks.rootTask') },
+                        { value: '', label: t('subtasks.noParent') },
                         ...parentCandidates.map((candidate) => ({
                           value: candidate.id,
                           label:
@@ -1292,7 +1292,7 @@ export const TaskDetailPanel = ({
                 ) : task.parent_id ? (
                   task.ancestor_path.at(-2)?.title || t('subtasks.parent')
                 ) : (
-                  t('subtasks.rootTask')
+                  t('subtasks.noParent')
                 )}
               </TaskProperty>
             </dl>

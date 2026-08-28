@@ -347,7 +347,7 @@
   "subtasks": {
     "title": "Subtaken",
     "parent": "Bovenliggende taak",
-    "rootTask": "Instellen als hoofdtaak",
+    "noParent": "Geen",
     "parentChain": "Taakpad",
     "progress": "{{completed}} van {{total}} voltooid",
     "progressSummary": "{{completed}} van {{total}} voltooid",

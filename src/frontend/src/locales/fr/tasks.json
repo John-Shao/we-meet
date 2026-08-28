@@ -343,7 +343,7 @@
   "subtasks": {
     "title": "Sous-tâches",
     "parent": "Tâche parente",
-    "rootTask": "Définir comme tâche racine",
+    "noParent": "Aucune",
     "parentChain": "Hiérarchie de la tâche",
     "progress": "{{completed}} sur {{total}} terminées",
     "progressSummary": "{{completed}} sur {{total}} terminées",

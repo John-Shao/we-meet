@@ -365,9 +365,12 @@ describe('TaskDetailPanel', () => {
     const relatedSection = screen
       .getByText('detailGroups.related', { selector: 'summary' })
       .closest('details')!
-    expect(
-      within(relatedSection).getByText('subtasks.parent', { selector: 'dt' })
-    ).toBeInTheDocument()
+    const parentTaskLabel = within(relatedSection).getByText(
+      'subtasks.parent',
+      { selector: 'dt' }
+    )
+    expect(parentTaskLabel).toBeInTheDocument()
+    expect(parentTaskLabel.parentElement).toHaveTextContent('subtasks.noParent')
     expect(
       within(relatedSection).getByRole('heading', { name: 'subtasks.title' })
     ).toBeInTheDocument()

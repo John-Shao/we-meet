@@ -469,8 +469,8 @@ const taskActivityMessage = (
     const parent = activity.changes.parent
     return t('history.events.hierarchy_changed', {
       actor,
-      from: parent?.from?.title || t('subtasks.rootTask'),
-      to: parent?.to?.title || t('subtasks.rootTask'),
+      from: parent?.from?.title || t('subtasks.noParent'),
+      to: parent?.to?.title || t('subtasks.noParent'),
     })
   }
   if (activity.event === 'assignee_changed') {

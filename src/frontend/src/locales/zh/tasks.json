@@ -349,7 +349,7 @@
   "subtasks": {
     "title": "子任务",
     "parent": "父任务",
-    "rootTask": "设为根任务",
+    "noParent": "无",
     "parentChain": "任务父链",
     "progress": "已完成 {{completed}} / {{total}}",
     "progressSummary": "{{completed}} / {{total}} 已完成",
