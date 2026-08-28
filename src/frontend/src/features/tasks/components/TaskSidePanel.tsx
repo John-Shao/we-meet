@@ -1131,59 +1131,63 @@ export const TaskDetailPanel = ({
                 <TaskPriorityBadge priority={task.priority} />
               )}
             </TaskProperty>
-            <TaskPropertyGroupHeading title={t('detailGroups.content')} />
-            <TaskProperty
-              icon={<RiFileTextLine size={18} />}
-              label={t('form.description')}
-              editLabel={editLabel(t('form.description'))}
-              isDisabled={patchMutation.isPending}
-              isEditing={editingField === 'description'}
-              alignStart
-              onEdit={
-                task.can_edit ? () => beginEditing('description') : undefined
-              }
-            >
-              {editingField === 'description' ? (
-                <div className={inlineEditorCss}>
-                  <TextArea
-                    ref={focusTextArea}
-                    aria-label={t('form.description')}
-                    value={draftText}
-                    maxLength={5000}
-                    rows={4}
-                    onChange={(event) => setDraftText(event.target.value)}
-                    onBlur={() => {
-                      const description = draftText.trim()
-                      if (description === task.description) {
-                        setEditingField(null)
-                        return
-                      }
-                      void saveField({ description })
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') setEditingField(null)
-                    }}
-                  />
-                </div>
-              ) : (
-                <span className={descriptionCss}>
-                  {task.description || t('workspace.emptyDescription')}
-                </span>
-              )}
-            </TaskProperty>
-            <TaskProperty
-              icon={<RiAttachment2 size={18} />}
-              label={t('attachments.title')}
-              alignStart
-              disableHover
-            >
-              <TaskAttachmentsSection
-                taskId={task.id}
-                sharedVia={sharedVia}
-                readOnly={!task.can_manage_attachments}
-              />
-            </TaskProperty>
           </dl>
+
+          <CollapsibleDetailSection title={t('detailGroups.content')}>
+            <dl className={propertyListCss}>
+              <TaskProperty
+                icon={<RiFileTextLine size={18} />}
+                label={t('form.description')}
+                editLabel={editLabel(t('form.description'))}
+                isDisabled={patchMutation.isPending}
+                isEditing={editingField === 'description'}
+                alignStart
+                onEdit={
+                  task.can_edit ? () => beginEditing('description') : undefined
+                }
+              >
+                {editingField === 'description' ? (
+                  <div className={inlineEditorCss}>
+                    <TextArea
+                      ref={focusTextArea}
+                      aria-label={t('form.description')}
+                      value={draftText}
+                      maxLength={5000}
+                      rows={4}
+                      onChange={(event) => setDraftText(event.target.value)}
+                      onBlur={() => {
+                        const description = draftText.trim()
+                        if (description === task.description) {
+                          setEditingField(null)
+                          return
+                        }
+                        void saveField({ description })
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') setEditingField(null)
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <span className={descriptionCss}>
+                    {task.description || t('workspace.emptyDescription')}
+                  </span>
+                )}
+              </TaskProperty>
+              <TaskProperty
+                icon={<RiAttachment2 size={18} />}
+                label={t('attachments.title')}
+                alignStart
+                disableHover
+              >
+                <TaskAttachmentsSection
+                  taskId={task.id}
+                  sharedVia={sharedVia}
+                  readOnly={!task.can_manage_attachments}
+                />
+              </TaskProperty>
+            </dl>
+          </CollapsibleDetailSection>
 
           {assigneePickerOpen && (
             <TaskAssigneePickerDialog

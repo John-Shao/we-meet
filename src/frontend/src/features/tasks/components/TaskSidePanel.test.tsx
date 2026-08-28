@@ -353,7 +353,7 @@ describe('TaskDetailPanel', () => {
       screen.getByRole('heading', { name: 'detailGroups.planning' })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'detailGroups.content' })
+      screen.getByText('detailGroups.content', { selector: 'summary' })
     ).toBeInTheDocument()
     const relatedSection = screen
       .getByText('detailGroups.related', { selector: 'summary' })
@@ -366,7 +366,7 @@ describe('TaskDetailPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('makes related tasks and comments collapsible like task history', () => {
+  it('makes task content, related tasks, and comments collapsible like task history', () => {
     render(
       <TaskDetailPanel
         taskId={task.id}
@@ -378,6 +378,9 @@ describe('TaskDetailPanel', () => {
       />
     )
 
+    const contentSummary = screen.getByText('detailGroups.content', {
+      selector: 'summary',
+    })
     const relatedSummary = screen.getByText('detailGroups.related', {
       selector: 'summary',
     })
@@ -387,17 +390,21 @@ describe('TaskDetailPanel', () => {
     const historySummary = screen.getByText('history.title', {
       selector: 'summary',
     })
+    const contentDisclosure = contentSummary.closest('details')!
     const relatedDisclosure = relatedSummary.closest('details')!
     const commentsDisclosure = commentsSummary.closest('details')!
     const historyDisclosure = historySummary.closest('details')!
 
+    expect(contentDisclosure).toHaveAttribute('open')
     expect(relatedDisclosure).toHaveAttribute('open')
     expect(commentsDisclosure).toHaveAttribute('open')
     expect(historyDisclosure).not.toHaveAttribute('open')
 
+    fireEvent.click(contentSummary)
     fireEvent.click(relatedSummary)
     fireEvent.click(commentsSummary)
 
+    expect(contentDisclosure).not.toHaveAttribute('open')
     expect(relatedDisclosure).not.toHaveAttribute('open')
     expect(commentsDisclosure).not.toHaveAttribute('open')
   })
@@ -607,11 +614,12 @@ describe('TaskDetailPanel', () => {
     expect(
       screen.getByTestId('attachments').closest('[data-hover-disabled]')
     ).not.toBeNull()
-    const contentGroup = screen
-      .getByRole('heading', { name: 'detailGroups.content' })
-      .closest('dl')
-    expect(contentGroup).toContainElement(screen.getByTestId('attachments'))
-    expect(screen.getByTestId('attachments').closest('details')).toBeNull()
+    const contentDisclosure = screen
+      .getByText('detailGroups.content', { selector: 'summary' })
+      .closest('details')
+    expect(contentDisclosure).toContainElement(
+      screen.getByTestId('attachments')
+    )
   })
 
   it('places the status action first and secondary actions in the panel header', async () => {
