@@ -356,14 +356,50 @@ describe('TaskDetailPanel', () => {
       screen.getByRole('heading', { name: 'detailGroups.content' })
     ).toBeInTheDocument()
     const relatedSection = screen
-      .getByRole('heading', { name: 'detailGroups.related' })
-      .closest('section')!
+      .getByText('detailGroups.related', { selector: 'summary' })
+      .closest('details')!
     expect(
       within(relatedSection).getByText('subtasks.parent', { selector: 'dt' })
     ).toBeInTheDocument()
     expect(
       within(relatedSection).getByRole('heading', { name: 'subtasks.title' })
     ).toBeInTheDocument()
+  })
+
+  it('makes related tasks and comments collapsible like task history', () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={task}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    const relatedSummary = screen.getByText('detailGroups.related', {
+      selector: 'summary',
+    })
+    const commentsSummary = screen.getByText('comments.title', {
+      selector: 'summary',
+    })
+    const historySummary = screen.getByText('history.title', {
+      selector: 'summary',
+    })
+    const relatedDisclosure = relatedSummary.closest('details')!
+    const commentsDisclosure = commentsSummary.closest('details')!
+    const historyDisclosure = historySummary.closest('details')!
+
+    expect(relatedDisclosure).toHaveAttribute('open')
+    expect(commentsDisclosure).toHaveAttribute('open')
+    expect(historyDisclosure).not.toHaveAttribute('open')
+
+    fireEvent.click(relatedSummary)
+    fireEvent.click(commentsSummary)
+
+    expect(relatedDisclosure).not.toHaveAttribute('open')
+    expect(commentsDisclosure).not.toHaveAttribute('open')
   })
 
   it('edits each creator-managed field inline without a global edit page', async () => {
@@ -746,6 +782,21 @@ describe('TaskDetailPanel', () => {
       within(childRow).queryByText(task.assignee!.full_name!)
     ).not.toBeInTheDocument()
     expect(childRow.querySelector('img[src="/assignee.png"]')).toBeTruthy()
+    const subtaskMeta = childRow.querySelector('[data-subtask-meta]')
+    expect(childRow.lastElementChild).toBe(subtaskMeta)
+    expect(subtaskMeta).toContainElement(
+      within(childRow).getByRole('button', {
+        name: 'actions.edit meta.dueDate',
+      })
+    )
+    expect(subtaskMeta).toContainElement(
+      within(childRow).getByRole('button', {
+        name: 'actions.edit meta.assignee',
+      })
+    )
+    expect(subtaskMeta).toContainElement(
+      within(childRow).getByRole('button', { name: 'workspace.openTask' })
+    )
 
     fireEvent.click(
       within(childRow).getByRole('button', { name: 'workspace.quickComplete' })

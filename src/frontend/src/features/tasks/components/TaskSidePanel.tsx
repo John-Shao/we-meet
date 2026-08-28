@@ -1239,7 +1239,7 @@ export const TaskDetailPanel = ({
             </Link>
           )}
 
-          <DetailSection title={t('detailGroups.related')}>
+          <CollapsibleDetailSection title={t('detailGroups.related')}>
             <dl className={propertyListCss}>
               <TaskProperty
                 icon={<RiGitBranchLine size={18} />}
@@ -1439,76 +1439,80 @@ export const TaskDetailPanel = ({
                           {subtask.title}
                         </button>
                       )}
-                      {subtaskEditing?.taskId === subtask.id &&
-                      subtaskEditing.field === 'dueDate' ? (
-                        <Input
-                          ref={focusInput}
-                          className={subtaskDateInputCss}
-                          type="date"
-                          aria-label={t('meta.dueDate')}
-                          value={subtaskDraft}
-                          min={subtask.start_date || undefined}
-                          disabled={patchMutation.isPending}
-                          onChange={(event) =>
-                            setSubtaskDraft(event.target.value)
-                          }
-                          onBlur={() =>
-                            void saveSubtaskField(subtask, {
-                              due_date: subtaskDraft || null,
-                            })
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault()
-                              event.currentTarget.blur()
+                      <div className={subtaskMetaCss} data-subtask-meta="true">
+                        {subtaskEditing?.taskId === subtask.id &&
+                        subtaskEditing.field === 'dueDate' ? (
+                          <Input
+                            ref={focusInput}
+                            className={subtaskDateInputCss}
+                            type="date"
+                            aria-label={t('meta.dueDate')}
+                            value={subtaskDraft}
+                            min={subtask.start_date || undefined}
+                            disabled={patchMutation.isPending}
+                            onChange={(event) =>
+                              setSubtaskDraft(event.target.value)
                             }
-                            if (event.key === 'Escape') {
-                              setSubtaskEditing(null)
+                            onBlur={() =>
+                              void saveSubtaskField(subtask, {
+                                due_date: subtaskDraft || null,
+                              })
                             }
-                          }}
-                        />
-                      ) : (
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault()
+                                event.currentTarget.blur()
+                              }
+                              if (event.key === 'Escape') {
+                                setSubtaskEditing(null)
+                              }
+                            }}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className={subtaskDueDateCss}
+                            aria-label={`${t('actions.edit')} ${t('meta.dueDate')}`}
+                            disabled={
+                              !subtask.can_edit || patchMutation.isPending
+                            }
+                            onClick={() => beginSubtaskEdit(subtask, 'dueDate')}
+                          >
+                            <RiCalendar2Line size={14} aria-hidden="true" />
+                            {subtask.due_date
+                              ? formatDate(subtask.due_date)
+                              : t('meta.none')}
+                          </button>
+                        )}
                         <button
                           type="button"
-                          className={subtaskDueDateCss}
-                          aria-label={`${t('actions.edit')} ${t('meta.dueDate')}`}
+                          className={subtaskAssigneesCss}
+                          aria-label={`${t('actions.edit')} ${t('meta.assignee')}`}
                           disabled={
                             !subtask.can_edit || patchMutation.isPending
                           }
-                          onClick={() => beginSubtaskEdit(subtask, 'dueDate')}
+                          onClick={() => setSubtaskAssigneeEditing(subtask)}
                         >
-                          <RiCalendar2Line size={14} aria-hidden="true" />
-                          {subtask.due_date
-                            ? formatDate(subtask.due_date)
-                            : t('meta.none')}
+                          <TaskAssigneeAvatars
+                            users={taskAssignees(subtask)}
+                            size="1.25rem"
+                          />
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        className={subtaskAssigneesCss}
-                        aria-label={`${t('actions.edit')} ${t('meta.assignee')}`}
-                        disabled={!subtask.can_edit || patchMutation.isPending}
-                        onClick={() => setSubtaskAssigneeEditing(subtask)}
-                      >
-                        <TaskAssigneeAvatars
-                          users={taskAssignees(subtask)}
-                          size="1.25rem"
-                        />
-                      </button>
-                      <Button
-                        type="button"
-                        size="icon28"
-                        variant="quaternaryText"
-                        aria-label={t('workspace.openTask', {
-                          title: subtask.title,
-                        })}
-                        tooltip={t('workspace.openTask', {
-                          title: subtask.title,
-                        })}
-                        onPress={() => onOpenSubtask(subtask)}
-                      >
-                        <RiArrowRightSLine size={17} aria-hidden="true" />
-                      </Button>
+                        <Button
+                          type="button"
+                          size="icon28"
+                          variant="quaternaryText"
+                          aria-label={t('workspace.openTask', {
+                            title: subtask.title,
+                          })}
+                          tooltip={t('workspace.openTask', {
+                            title: subtask.title,
+                          })}
+                          onPress={() => onOpenSubtask(subtask)}
+                        >
+                          <RiArrowRightSLine size={17} aria-hidden="true" />
+                        </Button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -1520,15 +1524,15 @@ export const TaskDetailPanel = ({
                 </p>
               )}
             </div>
-          </DetailSection>
+          </CollapsibleDetailSection>
 
-          <DetailSection title={t('comments.title')}>
+          <CollapsibleDetailSection title={t('comments.title')}>
             <TaskCommentsSection
               taskId={task.id}
               sharedVia={sharedVia}
               readOnly={!task.can_comment}
             />
-          </DetailSection>
+          </CollapsibleDetailSection>
           <details className={disclosureCss}>
             <summary>{t('history.title')}</summary>
             <div className={disclosureBodyCss}>
@@ -1753,17 +1757,17 @@ const DetailInlineDateEditor = ({
   )
 }
 
-const DetailSection = ({
+const CollapsibleDetailSection = ({
   title,
   children,
 }: {
   title: string
   children: ReactNode
 }) => (
-  <section className={detailSectionCss}>
-    <h3>{title}</h3>
-    {children}
-  </section>
+  <details className={disclosureCss} open>
+    <summary>{title}</summary>
+    <div className={disclosureBodyCss}>{children}</div>
+  </details>
 )
 
 const TaskPropertyGroupHeading = ({ title }: { title: string }) => (
@@ -1994,8 +1998,7 @@ const subtaskListCss = css({
   '& li': {
     minHeight: '2rem',
     display: 'grid',
-    gridTemplateColumns:
-      '1.5rem 1rem minmax(5rem, 1fr) auto auto 3.5rem 1.75rem',
+    gridTemplateColumns: '1.5rem 1rem minmax(5rem, 1fr) auto',
     alignItems: 'center',
     gap: '0.375rem',
     padding: '0.25rem 0.5rem',
@@ -2050,6 +2053,13 @@ const subtaskTitleCss = css({
     textDecoration: 'line-through',
   },
   _disabled: { cursor: 'default', opacity: 1 },
+})
+const subtaskMetaCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  gap: '0.375rem',
+  marginLeft: 'auto',
 })
 const subtaskDueDateCss = css({
   display: 'inline-flex',
@@ -2269,20 +2279,6 @@ const headerMenuCss = css({
   fontSize: '0.875rem',
 })
 const inlineErrorCss = css({ margin: 0, color: 'danger.subtle-text' })
-const detailSectionCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.75rem',
-  paddingTop: '1rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
-  '& h3': {
-    margin: 0,
-    color: 'greyscale.700',
-    fontSize: '0.75rem',
-    fontWeight: '600',
-    letterSpacing: '0.02em',
-  },
-})
 const disclosureCss = css({
   borderTop: '1px solid token(colors.greyscale.200)',
   '& summary': {
