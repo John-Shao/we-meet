@@ -334,6 +334,8 @@
     "edit": "Edit",
     "save": "Save",
     "cancelEdit": "Discard changes",
+    "add": "Add",
+    "upload": "Upload",
     "more": "More actions",
     "delete": "Delete task",
     "deleteTitle": "Delete task",

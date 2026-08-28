@@ -413,7 +413,11 @@ describe('TaskDetailPanel', () => {
     render(
       <TaskDetailPanel
         taskId={task.id}
-        fallbackTask={{ ...task, can_edit: true }}
+        fallbackTask={{
+          ...task,
+          can_edit: true,
+          can_manage_followers: true,
+        }}
         taskLists={[]}
         onCreateSubtask={vi.fn()}
         onOpenSubtask={vi.fn()}
@@ -445,7 +449,10 @@ describe('TaskDetailPanel', () => {
     ).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'assignees.add' })
-    ).toBeInTheDocument()
+    ).toHaveTextContent('actions.add')
+    expect(
+      screen.getByRole('button', { name: 'followers.add' })
+    ).toHaveTextContent('actions.add')
 
     fireEvent.click(
       screen.getByRole('button', { name: 'actions.edit form.title' })
@@ -872,6 +879,7 @@ describe('TaskDetailPanel', () => {
       name: 'subtasks.addAction',
     })
     expect(addSubtaskButton.querySelector('svg')).toBeNull()
+    expect(addSubtaskButton).toHaveTextContent('actions.add')
     expect(subtaskHeading).toContainElement(addSubtaskButton)
     fireEvent.click(addSubtaskButton)
     expect(onCreateSubtask).toHaveBeenCalledWith(

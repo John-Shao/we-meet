@@ -149,7 +149,7 @@ describe('task collaboration loading states', () => {
 
     expect(
       screen.getByRole('button', { name: 'attachments.upload' })
-    ).toBeInTheDocument()
+    ).toHaveTextContent('actions.upload')
     expect(screen.getByText('launch-plan.pdf').tagName).toBe('SPAN')
     expect(
       screen

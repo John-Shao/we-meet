@@ -220,12 +220,13 @@ export const TaskAttachmentsSection = ({
           className={attachmentUploadActionCss}
           variant="quaternaryText"
           size="dense"
+          aria-label={t('attachments.upload')}
           isDisabled={createMutation.isPending}
           onPress={() => inputRef.current?.click()}
         >
           {createMutation.isPending
             ? t('attachments.uploading', { progress })
-            : t('attachments.upload')}
+            : t('actions.upload')}
         </Button>
       )}
       {(createMutation.error || deleteMutation.error) && (

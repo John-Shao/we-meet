@@ -801,10 +801,11 @@ export const TaskDetailPanel = ({
                     type="button"
                     size="sm"
                     variant="quaternaryText"
+                    aria-label={t('assignees.add')}
                     isDisabled={patchMutation.isPending}
                     onPress={() => setAssigneePickerOpen(true)}
                   >
-                    {t('assignees.add')}
+                    {t('actions.add')}
                   </Button>
                 )}
               </div>
@@ -945,10 +946,11 @@ export const TaskDetailPanel = ({
                     type="button"
                     size="sm"
                     variant="quaternaryText"
+                    aria-label={t('followers.add')}
                     isDisabled={addFollowersMutation.isPending}
                     onPress={() => setFollowerPickerOpen(true)}
                   >
-                    {t('followers.add')}
+                    {t('actions.add')}
                   </Button>
                 )}
               </div>
@@ -1313,9 +1315,10 @@ export const TaskDetailPanel = ({
                   type="button"
                   size="dense"
                   variant="quaternaryText"
+                  aria-label={t('subtasks.addAction')}
                   onPress={() => onCreateSubtask(task)}
                 >
-                  {t('subtasks.addAction')}
+                  {t('actions.add')}
                 </Button>
               )}
             </div>
