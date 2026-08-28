@@ -1940,15 +1940,25 @@ class TaskViewSet(
     @action(detail=True, methods=["get"])
     def subtasks(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         parent = self.get_object()
+        shared_via = (request.query_params.get("shared_via") or "").strip()
         queryset = (
             self.get_queryset().filter(parent=parent).order_by("position", "created_at")
         )
         candidates = list(queryset)
-        hierarchy_data = prepare_task_hierarchy_data(candidates, request.user)
+        hierarchy_data = prepare_task_hierarchy_data(
+            candidates,
+            request.user,
+            shared_via=shared_via,
+        )
         children = [
             task
             for task in candidates
-            if visible_task_ancestor_path(task, request.user) is not None
+            if visible_task_ancestor_path(
+                task,
+                request.user,
+                shared_via=shared_via,
+            )
+            is not None
         ]
         return Response(
             TaskSerializer(

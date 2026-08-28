@@ -96,8 +96,47 @@ def test_task_card_share_grants_conversation_read_without_changing_role(
     followed = _client(viewer).post(f"{TASKS_URL}{task.id}/follow/?shared_via={cid}")
     assert followed.status_code == 200
     assert followed.json()["is_following"] is True
+    assert followed.json()["can_comment"] is True
     assert task.followers.filter(id=viewer.id).exists()
+
+    commented = _client(viewer).post(
+        f"{TASKS_URL}{task.id}/comments/?shared_via={cid}",
+        {"content": "I can help with this."},
+        format="json",
+    )
+    assert commented.status_code == 201
+    assert commented.json()["content"] == "I can help with this."
     assert require_membership.call_count >= 3
+
+
+@mock.patch(
+    "core.api.tasks._require_conversation_membership",
+    side_effect=lambda _user, cid: cid,
+)
+def test_conversation_shared_task_lists_shared_subtasks(_membership):
+    creator = UserFactory()
+    viewer = UserFactory()
+    parent = Task.objects.create(title="Parent", creator=creator, assignee=creator)
+    child = Task.objects.create(
+        title="Child",
+        creator=creator,
+        assignee=creator,
+        parent=parent,
+    )
+    cid = "task-thread"
+    TaskConversationShare.objects.bulk_create(
+        [
+            TaskConversationShare(task=parent, cid=cid, shared_by=creator),
+            TaskConversationShare(task=child, cid=cid, shared_by=creator),
+        ]
+    )
+
+    response = _client(viewer).get(
+        f"{TASKS_URL}{parent.id}/subtasks/?shared_via={cid}"
+    )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [str(child.id)]
 
 
 @mock.patch(
