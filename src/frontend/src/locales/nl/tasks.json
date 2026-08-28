@@ -348,7 +348,7 @@
     "rootTask": "Instellen als hoofdtaak",
     "parentChain": "Taakpad",
     "progress": "{{completed}} van {{total}} voltooid",
-    "progressSummary": "Subtaken: {{completed}} van {{total}} voltooid",
+    "progressSummary": "{{completed}} van {{total}} voltooid",
     "progressLabel": "Voortgang van subtaken",
     "completedWithOpenSubtasks": "Taak voltooid · {{count}} subtaken nog niet voltooid",
     "loading": "Subtaken laden…",

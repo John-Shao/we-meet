@@ -344,7 +344,7 @@
     "rootTask": "Définir comme tâche racine",
     "parentChain": "Hiérarchie de la tâche",
     "progress": "{{completed}} sur {{total}} terminées",
-    "progressSummary": "Sous-tâches : {{completed}} sur {{total}} terminées",
+    "progressSummary": "{{completed}} sur {{total}} terminées",
     "progressLabel": "Progression des sous-tâches",
     "completedWithOpenSubtasks": "Tâche terminée · {{count}} sous-tâches non terminées",
     "loading": "Chargement des sous-tâches…",

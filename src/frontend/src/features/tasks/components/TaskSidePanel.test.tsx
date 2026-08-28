@@ -272,6 +272,46 @@ describe('TaskDetailPanel', () => {
     ).toHaveAttribute('aria-busy', 'true')
   })
 
+  it('resets the detail scroll position when switching tasks', () => {
+    const { rerender } = render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={task}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+    const panel = screen.getByLabelText('workspace.details')
+    const panelBody = panel.querySelector('header')
+      ?.nextElementSibling as HTMLDivElement
+    expect(panelBody).toBeInstanceOf(HTMLDivElement)
+    panelBody.scrollTop = 320
+
+    const nextTask = {
+      ...task,
+      id: 'task-2',
+      title: 'Review release',
+      ancestor_path: [{ id: 'task-2', title: 'Review release', depth: 0 }],
+    }
+    rerender(
+      <TaskDetailPanel
+        taskId={nextTask.id}
+        fallbackTask={nextTask}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(panelBody).toHaveProperty('scrollTop', 0)
+    expect(
+      screen.getByRole('heading', { name: nextTask.title })
+    ).toBeInTheDocument()
+  })
+
   it('renders start and due dates as separate properties', () => {
     const { container } = render(
       <TaskDetailPanel
@@ -690,7 +730,16 @@ describe('TaskDetailPanel', () => {
       />
     )
 
-    expect(screen.getByText('subtasks.progressSummary')).toBeInTheDocument()
+    const subtaskHeading = screen.getByRole('heading', {
+      name: 'subtasks.title',
+    }).parentElement?.parentElement
+    expect(subtaskHeading).not.toBeNull()
+    expect(subtaskHeading).toContainElement(
+      screen.getByRole('progressbar', { name: 'subtasks.progressLabel' })
+    )
+    expect(subtaskHeading).toContainElement(
+      screen.getByText('subtasks.progressSummary')
+    )
     const childRow = screen.getByText(child.title).closest('li')!
     expect(within(childRow).queryByRole('link')).not.toBeInTheDocument()
     expect(
@@ -764,10 +813,7 @@ describe('TaskDetailPanel', () => {
       name: 'subtasks.addAction',
     })
     expect(addSubtaskButton.querySelector('svg')).toBeNull()
-    expect(
-      screen.getByRole('heading', { name: 'subtasks.title' }).parentElement
-        ?.parentElement
-    ).toContainElement(addSubtaskButton)
+    expect(subtaskHeading).toContainElement(addSubtaskButton)
     fireEvent.click(addSubtaskButton)
     expect(onCreateSubtask).toHaveBeenCalledWith(
       expect.objectContaining({ id: task.id })

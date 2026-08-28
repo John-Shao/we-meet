@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type DragEvent,
@@ -186,6 +187,7 @@ export const TaskDetailPanel = ({
     null
   )
   const [showSavedState, setShowSavedState] = useState(false)
+  const panelBodyRef = useRef<HTMLDivElement>(null)
   const placementEditorRef = useRef<HTMLDivElement>(null)
   const patchMutation = usePatchTask()
   const { notifyAction, notifyFailure } = useTaskActionFeedback()
@@ -228,6 +230,10 @@ export const TaskDetailPanel = ({
     setRecurrenceEditScope('one')
   }, [taskId])
 
+  useLayoutEffect(() => {
+    if (panelBodyRef.current) panelBodyRef.current.scrollTop = 0
+  }, [taskId])
+
   useEffect(() => {
     if (editingField !== 'placement') return
     const closeOnOutsidePress = (event: PointerEvent) => {
@@ -246,7 +252,7 @@ export const TaskDetailPanel = ({
   if (!task && isLoading) {
     return (
       <PanelShell title={t('workspace.details')} onClose={onClose}>
-        <div className={panelBodyCss}>
+        <div ref={panelBodyRef} className={panelBodyCss}>
           <TaskDetailSkeleton label={t('loading')} />
         </div>
       </PanelShell>
@@ -662,7 +668,7 @@ export const TaskDetailPanel = ({
         </>
       }
     >
-      <div className={panelBodyCss}>
+      <div ref={panelBodyRef} className={panelBodyCss}>
         <div className={detailContentCss}>
           {task.ancestor_path.length > 1 && (
             <nav
@@ -1277,21 +1283,13 @@ export const TaskDetailPanel = ({
                 <RiGitBranchLine size={18} aria-hidden="true" />
                 <h4>{t('subtasks.title')}</h4>
               </span>
-              {task.can_create_subtasks && (
-                <Button
-                  type="button"
-                  size="dense"
-                  variant="quaternaryText"
-                  onPress={() => onCreateSubtask(task)}
-                >
-                  {t('subtasks.addAction')}
-                </Button>
-              )}
-            </div>
-            <div className={subtasksSectionCss}>
               {task.descendant_progress.total > 0 && (
                 <div className={subtaskProgressCss}>
-                  <RiGitBranchLine size={16} aria-hidden="true" />
+                  <progress
+                    aria-label={t('subtasks.progressLabel')}
+                    value={task.descendant_progress.completed}
+                    max={task.descendant_progress.total}
+                  />
                   <span
                     aria-label={t('subtasks.progress', {
                       completed: task.descendant_progress.completed,
@@ -1303,13 +1301,21 @@ export const TaskDetailPanel = ({
                       total: task.descendant_progress.total,
                     })}
                   </span>
-                  <progress
-                    aria-label={t('subtasks.progressLabel')}
-                    value={task.descendant_progress.completed}
-                    max={task.descendant_progress.total}
-                  />
                 </div>
               )}
+              {task.can_create_subtasks && (
+                <Button
+                  className={relatedSubtaskActionCss}
+                  type="button"
+                  size="dense"
+                  variant="quaternaryText"
+                  onPress={() => onCreateSubtask(task)}
+                >
+                  {t('subtasks.addAction')}
+                </Button>
+              )}
+            </div>
+            <div className={subtasksSectionCss}>
               {subtasksLoading ? (
                 <TaskSubtaskListSkeleton label={t('subtasks.loading')} />
               ) : subtasks.length > 0 ? (
@@ -1949,6 +1955,7 @@ const relatedSubtaskHeadingCss = css({
 const relatedSubtaskHeadingLabelCss = css({
   minWidth: 0,
   display: 'flex',
+  flexShrink: 0,
   alignItems: 'center',
   gap: '0.5rem',
   '& h4': {
@@ -1958,14 +1965,24 @@ const relatedSubtaskHeadingLabelCss = css({
   },
 })
 const subtaskProgressCss = css({
-  minHeight: '1.75rem',
-  display: 'grid',
-  gridTemplateColumns: 'auto auto minmax(3rem, 1fr)',
+  minWidth: 0,
+  display: 'flex',
+  flex: 1,
   alignItems: 'center',
   gap: '0.5rem',
   color: 'default.subtle-text',
   fontSize: '0.8125rem',
-  '& progress': { width: '4rem', height: '0.3rem' },
+  whiteSpace: 'nowrap',
+  '& progress': {
+    width: '100%',
+    minWidth: '3rem',
+    maxWidth: '6rem',
+    height: '0.3rem',
+  },
+})
+const relatedSubtaskActionCss = css({
+  flexShrink: 0,
+  marginLeft: 'auto',
 })
 const subtaskListCss = css({
   display: 'flex',

@@ -344,7 +344,7 @@
     "rootTask": "Als Stammaufgabe festlegen",
     "parentChain": "Aufgabenpfad",
     "progress": "{{completed}} von {{total}} abgeschlossen",
-    "progressSummary": "Unteraufgaben: {{completed}} von {{total}} abgeschlossen",
+    "progressSummary": "{{completed}} von {{total}} abgeschlossen",
     "progressLabel": "Fortschritt der Unteraufgaben",
     "completedWithOpenSubtasks": "Aufgabe abgeschlossen · {{count}} Unteraufgaben noch offen",
     "loading": "Unteraufgaben werden geladen…",
