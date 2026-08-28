@@ -2004,7 +2004,6 @@ const tableGutterCellCss = css({
   width: '0.5rem',
   minWidth: '0.5rem',
   padding: '0!important',
-  pointerEvents: 'none',
 })
 const columnSortButtonCss = css({
   maxWidth: 'calc(100% - 0.5rem)',

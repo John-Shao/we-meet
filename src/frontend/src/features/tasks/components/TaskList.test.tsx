@@ -903,7 +903,8 @@ describe('TaskList', () => {
   })
 
   it('keeps a gutter after double-line resize handles', () => {
-    render(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
+    const onOpen = vi.fn()
+    render(<TaskList tasks={[task]} onOpen={onOpen} registerRow={vi.fn()} />)
 
     const table = screen.getByRole('table')
     const lastHeader = table.querySelector('th[data-column="createdAt"]')!
@@ -915,6 +916,10 @@ describe('TaskList', () => {
     for (const handle of within(table).getAllByRole('slider')) {
       expect(handle.children).toHaveLength(1)
     }
+
+    const taskRow = table.querySelector('tr[data-task-row]')!
+    fireEvent.click(taskRow.lastElementChild as HTMLElement)
+    expect(onOpen).toHaveBeenCalledWith(task)
   })
 
   it('renders task-list groups and creates a task in the selected group', () => {
