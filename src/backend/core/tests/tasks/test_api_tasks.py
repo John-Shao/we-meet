@@ -131,9 +131,7 @@ def test_conversation_shared_task_lists_shared_subtasks(_membership):
         ]
     )
 
-    response = _client(viewer).get(
-        f"{TASKS_URL}{parent.id}/subtasks/?shared_via={cid}"
-    )
+    response = _client(viewer).get(f"{TASKS_URL}{parent.id}/subtasks/?shared_via={cid}")
 
     assert response.status_code == 200
     assert [item["id"] for item in response.json()] == [str(child.id)]
@@ -1537,6 +1535,53 @@ def test_related_users_can_read_task_activities_but_outsider_cannot():
     assert creator_response.json()[0]["actor"]["id"] == str(assignee.id)
     assert assignee_response.status_code == 200
     assert outsider_response.status_code == 404
+
+
+def test_activity_feed_is_paginated_and_only_contains_visible_tasks():
+    viewer = UserFactory()
+    collaborator = UserFactory()
+    outsider = UserFactory()
+    visible = Task.objects.create(
+        title="Visible task",
+        creator=collaborator,
+        assignee=viewer,
+    )
+    private = Task.objects.create(
+        title="Private task",
+        creator=outsider,
+        assignee=outsider,
+    )
+    older = TaskActivity.objects.create(
+        task=visible,
+        actor=collaborator,
+        event=TaskActivity.Event.CREATED,
+    )
+    newer = TaskActivity.objects.create(
+        task=visible,
+        actor=viewer,
+        event=TaskActivity.Event.STATUS_CHANGED,
+    )
+    TaskActivity.objects.create(
+        task=private,
+        actor=outsider,
+        event=TaskActivity.Event.CREATED,
+    )
+
+    first_page = _client(viewer).get(f"{TASKS_URL}activity/?page_size=1")
+    second_page = _client(viewer).get(f"{TASKS_URL}activity/?page_size=1&page=2")
+
+    assert first_page.status_code == 200
+    assert first_page.json()["count"] == 2
+    first_entry = first_page.json()["results"][0]
+    assert first_entry["id"] == str(newer.id)
+    assert first_entry["task_id"] == str(visible.id)
+    assert first_entry["task_title"] == "Visible task"
+    assert first_entry["actor"]["id"] == str(viewer.id)
+    assert first_entry["event"] == TaskActivity.Event.STATUS_CHANGED
+    assert first_entry["changes"] == {}
+    assert first_page.json()["next"] is not None
+    assert [entry["id"] for entry in second_page.json()["results"]] == [str(older.id)]
+    assert second_page.json()["next"] is None
 
 
 def test_creator_and_assignee_can_post_and_list_task_comments():

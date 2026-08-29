@@ -1435,6 +1435,23 @@ class TaskViewSet(
             return self.get_paginated_response(payload)
         return Response(payload)
 
+    @action(detail=False, methods=["get"], url_path="activity")
+    def activity(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """Return a newest-first feed for every task visible to the caller."""
+
+        visible_task_ids = self.get_queryset().order_by().values("id")
+        queryset = (
+            models.TaskActivity.objects.filter(task_id__in=visible_task_ids)
+            .select_related("actor", "task")
+            .order_by("-created_at")
+        )
+        page = self.paginate_queryset(queryset)
+        activities = page if page is not None else queryset
+        payload = TaskActivitySerializer(activities, many=True).data
+        if page is not None:
+            return self.get_paginated_response(payload)
+        return Response(payload)
+
     @action(detail=True, methods=["post"])
     def share(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         """Record card delivery targets without changing task roles."""
@@ -2059,7 +2076,9 @@ class TaskViewSet(
     @action(detail=True, methods=["get"])
     def activities(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         task = self.get_object()
-        activities = task.activities.select_related("actor").order_by("-created_at")
+        activities = task.activities.select_related("actor", "task").order_by(
+            "-created_at"
+        )
         return Response(TaskActivitySerializer(activities, many=True).data)
 
     @action(detail=True, methods=["post", "delete"])

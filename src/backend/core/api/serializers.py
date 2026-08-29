@@ -511,10 +511,20 @@ class TaskActivitySerializer(serializers.ModelSerializer):
     """Serialize one immutable task operation for the activity timeline."""
 
     actor = TaskUserSerializer(read_only=True)
+    task_id = serializers.UUIDField(source="task.id", read_only=True)
+    task_title = serializers.CharField(source="task.title", read_only=True)
 
     class Meta:
         model = models.TaskActivity
-        fields = ["id", "actor", "event", "changes", "created_at"]
+        fields = [
+            "id",
+            "task_id",
+            "task_title",
+            "actor",
+            "event",
+            "changes",
+            "created_at",
+        ]
         read_only_fields = fields
 
 
