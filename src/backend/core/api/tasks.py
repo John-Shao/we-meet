@@ -1453,8 +1453,15 @@ class TaskViewSet(
             return self.get_paginated_response(payload)
         return Response(payload)
 
-    @action(detail=False, methods=["get", "patch"], url_path="settings")
-    def settings(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+    @action(
+        detail=False,
+        methods=["get", "patch"],
+        url_path="settings",
+        url_name="settings",
+    )
+    def task_settings(
+        self, request, *args, **kwargs
+    ):  # pylint: disable=unused-argument
         """Read or update the caller's cross-device task preferences."""
 
         preference, _created = models.TaskPreference.objects.get_or_create(
