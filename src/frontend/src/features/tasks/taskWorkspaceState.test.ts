@@ -4,9 +4,11 @@ import {
   buildTaskWorkspaceSearch,
   parseTaskWorkspaceState,
   stateForTaskList,
+  stateForSavedView,
   stateForView,
   stateWithStatus,
   taskViewPresets,
+  taskWorkspaceStateToSavedViewConfig,
 } from './taskWorkspaceState'
 
 describe('task workspace state', () => {
@@ -33,7 +35,7 @@ describe('task workspace state', () => {
     expect(
       parseTaskWorkspaceState(
         new URLSearchParams(
-          'scope=created&status=todo&time=overdue&priority=high&ordering=-due_date&task_list=list-1&view=board&task=42'
+          'scope=created&status=todo&time=overdue&priority=high&ordering=-due_date&task_list=list-1&view=board&task=42&saved_view=view-1'
         )
       )
     ).toEqual({
@@ -45,6 +47,7 @@ describe('task workspace state', () => {
       taskList: 'list-1',
       mode: 'board',
       task: '42',
+      savedView: 'view-1',
     })
   })
 
@@ -98,9 +101,34 @@ describe('task workspace state', () => {
         taskList: 'list/id',
         mode: 'board',
         task: 'task-id',
+        savedView: 'view-id',
       })
     ).toBe(
-      'scope=all&status=completed&time=all&priority=low&ordering=-created_at&task_list=list%2Fid&view=board&task=task-id'
+      'scope=all&status=completed&time=all&priority=low&ordering=-created_at&task_list=list%2Fid&view=board&task=task-id&saved_view=view-id'
     )
+  })
+
+  it('round-trips the supported saved view configuration without task detail state', () => {
+    const state = parseTaskWorkspaceState(
+      new URLSearchParams(
+        'scope=following&status=all&time=overdue&priority=urgent&ordering=due_date&task_list=list-1&view=board&task=task-1'
+      )
+    )
+    const config = taskWorkspaceStateToSavedViewConfig(state)
+
+    expect(config).toEqual({
+      version: 1,
+      scope: 'following',
+      status: 'all',
+      time: 'overdue',
+      priority: 'urgent',
+      task_list: 'list-1',
+      ordering: 'due_date',
+      view: 'board',
+    })
+    expect(stateForSavedView(state, config)).toEqual({
+      ...state,
+      task: undefined,
+    })
   })
 })

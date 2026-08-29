@@ -1,4 +1,5 @@
 import type {
+  TaskSavedViewConfig,
   TaskPriorityFilter,
   TaskOrdering,
   TaskScope,
@@ -23,6 +24,7 @@ export interface TaskWorkspaceState {
   taskList: string
   mode: TaskWorkspaceMode
   task?: string
+  savedView?: string
 }
 
 export const taskViewPresets: Record<
@@ -85,6 +87,7 @@ export const parseTaskWorkspaceState = (
   taskList: params.get('task_list') || 'all',
   mode: oneOf(params.get('view'), ['list', 'board', 'analytics'], 'list'),
   task: params.get('task') || undefined,
+  savedView: params.get('saved_view') || undefined,
 })
 
 export const stateForView = (
@@ -97,6 +100,7 @@ export const stateForView = (
     ...preset,
     taskList: 'all',
     time: preset.status === 'open' ? state.time : 'all',
+    savedView: undefined,
   }
 }
 
@@ -111,6 +115,7 @@ export const stateForTaskList = (
   priority: taskList === 'unassigned' ? 'all' : state.priority,
   taskList,
   task: undefined,
+  savedView: undefined,
 })
 
 export const stateWithStatus = (
@@ -137,5 +142,34 @@ export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
   params.set('task_list', state.taskList)
   params.set('view', state.mode)
   if (state.task) params.set('task', state.task)
+  if (state.savedView) params.set('saved_view', state.savedView)
   return params.toString()
 }
+
+export const taskWorkspaceStateToSavedViewConfig = (
+  state: TaskWorkspaceState
+): TaskSavedViewConfig => ({
+  version: 1,
+  scope: state.scope,
+  status: state.status,
+  time: state.time,
+  priority: state.priority,
+  task_list: state.taskList,
+  ordering: state.ordering,
+  view: state.mode,
+})
+
+export const stateForSavedView = (
+  state: TaskWorkspaceState,
+  config: TaskSavedViewConfig
+): TaskWorkspaceState => ({
+  ...state,
+  scope: config.scope,
+  status: config.status,
+  time: config.time,
+  priority: config.priority,
+  taskList: config.task_list,
+  ordering: config.ordering,
+  mode: config.view,
+  task: undefined,
+})

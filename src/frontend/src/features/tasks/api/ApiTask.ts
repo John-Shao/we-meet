@@ -78,6 +78,43 @@ export interface ApiTaskSettings {
 
 export type PatchTaskSettingsPayload = Partial<ApiTaskSettings>
 
+export interface TaskSavedViewConfig {
+  version: 1
+  scope: TaskScope
+  status: TaskStatusFilter
+  time: TaskTimeFilter
+  priority: TaskPriorityFilter
+  task_list: string
+  ordering: TaskOrdering
+  view: 'list' | 'board' | 'analytics'
+}
+
+export interface ApiTaskSavedView {
+  id: string
+  name: string
+  config: TaskSavedViewConfig
+  position: number
+  is_pinned: boolean
+  is_default: boolean
+  invalid_task_list: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateTaskSavedViewPayload {
+  name: string
+  config: TaskSavedViewConfig
+  is_default?: boolean
+  is_pinned?: boolean
+}
+
+export type PatchTaskSavedViewPayload = Partial<
+  Pick<
+    ApiTaskSavedView,
+    'name' | 'config' | 'position' | 'is_pinned' | 'is_default'
+  >
+>
+
 export interface ApiTaskReminderPreference {
   enabled: boolean
   reminder_minutes: 0 | 1440 | 4320 | null

@@ -26,22 +26,27 @@ import type {
   ApiTaskGroup,
   ApiTaskList,
   ApiTaskListGroup,
+  ApiTaskSavedView,
   TaskPriorityFilter,
   TaskStatusFilter,
   TaskTimeFilter,
 } from '../api/ApiTask'
 import {
   useDeleteTask,
+  useDeleteTaskSavedView,
   useDeleteTaskGroup,
   useDeleteTaskListGroup,
   useLeaveTaskList,
   useMoveTaskListToGroup,
   useStandaloneTaskCount,
+  useCreateTaskSavedView,
   useTask,
   useTaskListGroups,
   useTaskLists,
   useTaskSettings,
+  useTaskSavedViews,
   useUpdateTaskList,
+  useUpdateTaskSavedView,
   useTasks,
 } from '../api/fetchTasks'
 import { TaskAnalytics } from '../components/TaskAnalytics'
@@ -68,13 +73,17 @@ import {
 } from '../components/TaskListDialogs'
 import { CreateTaskPanel, TaskDetailPanel } from '../components/TaskSidePanel'
 import { TaskWorkspaceNavigation } from '../components/TaskWorkspaceNavigation'
+import { TaskSavedViewForm } from '../components/TaskSavedViewForm'
+import { TaskSavedViewManager } from '../components/TaskSavedViewManager'
 import {
   buildTaskWorkspaceSearch,
   hasActiveTaskFilters,
   parseTaskWorkspaceState,
+  stateForSavedView,
   stateForView,
   stateForTaskList,
   stateWithStatus,
+  taskWorkspaceStateToSavedViewConfig,
   type TaskWorkspaceMode,
   type TaskWorkspaceState,
   type TaskWorkspaceView,
@@ -104,6 +113,11 @@ const TasksAuthenticated = () => {
   const [createParentTask, setCreateParentTask] = useState<ApiTask | null>(null)
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
   const [taskActivityOpen, setTaskActivityOpen] = useState(false)
+  const [savedViewCreating, setSavedViewCreating] = useState(false)
+  const [savedViewsManaging, setSavedViewsManaging] = useState(false)
+  const [savedViewRenaming, setSavedViewRenaming] =
+    useState<ApiTaskSavedView | null>(null)
+  const [savedViewNotice, setSavedViewNotice] = useState('')
   const [taskListCreateGroupId, setTaskListCreateGroupId] = useState<string>()
   const [taskListGroupCreating, setTaskListGroupCreating] = useState(false)
   const [taskListSharing, setTaskListSharing] = useState<ApiTaskList | null>(
@@ -129,6 +143,7 @@ const TasksAuthenticated = () => {
   const groupRenameRef = useRef<HTMLInputElement>(null)
   const taskListGroupNameRef = useRef<HTMLInputElement>(null)
   const taskListGroupRenameRef = useRef<HTMLInputElement>(null)
+  const savedViewNameRef = useRef<HTMLInputElement>(null)
   const { confirm } = useConfirm()
   const deleteGroupMutation = useDeleteTaskGroup()
   const deleteTaskListGroupMutation = useDeleteTaskListGroup()
@@ -136,10 +151,15 @@ const TasksAuthenticated = () => {
   const moveTaskListMutation = useMoveTaskListToGroup()
   const updateTaskListMutation = useUpdateTaskList()
   const leaveTaskListMutation = useLeaveTaskList()
+  const createSavedViewMutation = useCreateTaskSavedView()
+  const updateSavedViewMutation = useUpdateTaskSavedView()
+  const deleteSavedViewMutation = useDeleteTaskSavedView()
   const { data: taskLists = [] } = useTaskLists()
   const { data: taskListGroups = [] } = useTaskListGroups()
   const { data: standaloneTaskCountData } = useStandaloneTaskCount()
   const { data: taskSettings } = useTaskSettings()
+  const { data: savedViews = [], isSuccess: savedViewsLoaded } =
+    useTaskSavedViews()
   const {
     data,
     isLoading,
@@ -178,6 +198,12 @@ const TasksAuthenticated = () => {
   )
   const panelOpen = Boolean(state.task)
   const filtersActive = hasActiveTaskFilters(state)
+  const activeSavedView = savedViews.find((view) => view.id === state.savedView)
+  const savedViewChanged = Boolean(
+    activeSavedView &&
+    JSON.stringify(activeSavedView.config) !==
+      JSON.stringify(taskWorkspaceStateToSavedViewConfig(state))
+  )
 
   const deleteGroup = async (group: ApiTaskGroup) => {
     if (!group.can_delete) return
@@ -273,6 +299,89 @@ const TasksAuthenticated = () => {
     navigate(`/tasks?${buildTaskWorkspaceSearch(next)}`, options)
   }
 
+  const openSavedView = (view: ApiTaskSavedView) => {
+    setCreating(false)
+    setSavedViewNotice(
+      view.invalid_task_list ? t('savedViews.invalidTaskList') : ''
+    )
+    navigateState({
+      ...stateForSavedView(state, view.config),
+      savedView: view.id,
+    })
+  }
+
+  useEffect(() => {
+    if (!savedViewsLoaded || searchParams.toString() || state.savedView) return
+    const defaultView = savedViews.find((view) => view.is_default)
+    if (defaultView) openSavedView(defaultView)
+  }, [savedViewsLoaded, savedViews]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveCurrentView = async (name: string) => {
+    try {
+      const view = await createSavedViewMutation.mutateAsync({
+        name,
+        config: taskWorkspaceStateToSavedViewConfig(state),
+      })
+      setSavedViewCreating(false)
+      navigateState({ ...state, task: undefined, savedView: view.id })
+    } catch {
+      // Keep the dialog and entered name available for correction or retry.
+    }
+  }
+
+  const updateCurrentSavedView = async (view: ApiTaskSavedView) => {
+    await updateSavedViewMutation.mutateAsync({
+      viewId: view.id,
+      patch: { config: taskWorkspaceStateToSavedViewConfig(state) },
+    })
+  }
+
+  const renameSavedView = async (name: string) => {
+    if (!savedViewRenaming) return
+    try {
+      await updateSavedViewMutation.mutateAsync({
+        viewId: savedViewRenaming.id,
+        patch: { name },
+      })
+      setSavedViewRenaming(null)
+    } catch {
+      // Keep the dialog open for correction or retry.
+    }
+  }
+
+  const deleteSavedView = async (view: ApiTaskSavedView) => {
+    const accepted = await confirm({
+      title: t('savedViews.deleteTitle'),
+      message: t('savedViews.deleteDescription', { name: view.name }),
+      confirmLabel: t('savedViews.delete'),
+      danger: true,
+    })
+    if (!accepted) return
+    await deleteSavedViewMutation.mutateAsync(view.id)
+    if (state.savedView === view.id) {
+      navigateState(stateForView(state, 'all'), { replace: true })
+    }
+  }
+
+  const moveSavedView = async (view: ApiTaskSavedView, direction: -1 | 1) => {
+    const ordered = [...savedViews].sort(
+      (first, second) => first.position - second.position
+    )
+    const index = ordered.findIndex((item) => item.id === view.id)
+    const target = ordered[index + direction]
+    if (!target) return
+    await Promise.all([
+      updateSavedViewMutation.mutateAsync({
+        viewId: view.id,
+        patch: { position: target.position },
+      }),
+      updateSavedViewMutation.mutateAsync({
+        viewId: target.id,
+        patch: { position: view.position },
+      }),
+    ])
+  }
+
   const closePanel = () => {
     const returnTarget = state.task
       ? rowRefs.current.get(state.task)
@@ -363,9 +472,11 @@ const TasksAuthenticated = () => {
     ? selectedTaskList.name
     : state.taskList === 'unassigned'
       ? t('taskLists.standalone')
-      : state.scope === 'all' && state.status === 'completed'
-        ? t('workspace.views.completed')
-        : t(`workspace.views.${state.scope}`)
+      : activeSavedView
+        ? activeSavedView.name
+        : state.scope === 'all' && state.status === 'completed'
+          ? t('workspace.views.completed')
+          : t(`workspace.views.${state.scope}`)
 
   return (
     <div className={workspaceCss}>
@@ -381,6 +492,8 @@ const TasksAuthenticated = () => {
             count={count}
             taskLists={taskLists}
             taskListGroups={taskListGroups}
+            savedViews={savedViews}
+            savedViewChanged={savedViewChanged}
             standaloneTaskCount={standaloneTaskCount}
             onChange={changeView}
             onTaskListChange={changeTaskList}
@@ -398,6 +511,33 @@ const TasksAuthenticated = () => {
             onDeleteTaskList={setTaskListDeleting}
             onOpenArchivedTaskLists={() => setArchivedTaskListsOpen(true)}
             onOpenActivity={() => setTaskActivityOpen(true)}
+            onSelectSavedView={openSavedView}
+            onCreateSavedView={() => {
+              createSavedViewMutation.reset()
+              setSavedViewCreating(true)
+            }}
+            onUpdateSavedView={(view) => void updateCurrentSavedView(view)}
+            onRenameSavedView={(view) => {
+              updateSavedViewMutation.reset()
+              setSavedViewRenaming(view)
+            }}
+            onDeleteSavedView={(view) => void deleteSavedView(view)}
+            onToggleSavedViewPinned={(view) =>
+              updateSavedViewMutation.mutate({
+                viewId: view.id,
+                patch: { is_pinned: !view.is_pinned },
+              })
+            }
+            onSetDefaultSavedView={(view) =>
+              updateSavedViewMutation.mutate({
+                viewId: view.id,
+                patch: { is_default: true },
+              })
+            }
+            onMoveSavedView={(view, direction) =>
+              void moveSavedView(view, direction)
+            }
+            onManageSavedViews={() => setSavedViewsManaging(true)}
           />
         </ResizablePanel>
       </div>
@@ -406,6 +546,11 @@ const TasksAuthenticated = () => {
           <div>
             <h1 className={headingCss}>{currentViewName}</h1>
             <p className={countCss}>{t('workspace.resultCount', { count })}</p>
+            {savedViewNotice && (
+              <p role="status" className={savedViewNoticeCss}>
+                {savedViewNotice}
+              </p>
+            )}
           </div>
           <div className={headerActionsCss}>
             <Button
@@ -677,6 +822,96 @@ const TasksAuthenticated = () => {
           }}
         />
       )}
+      {savedViewCreating && (
+        <Modal
+          ariaLabel={t('savedViews.saveCurrent')}
+          onClose={() => setSavedViewCreating(false)}
+          initialFocusRef={savedViewNameRef}
+          maxWidth="440px"
+        >
+          <div className={modalHeaderCss}>
+            <h2 className={modalTitleCss}>{t('savedViews.saveCurrent')}</h2>
+            <ModalCloseButton
+              label={t('savedViews.close')}
+              onClose={() => setSavedViewCreating(false)}
+            />
+          </div>
+          <TaskSavedViewForm
+            inputRef={savedViewNameRef}
+            submitting={createSavedViewMutation.isPending}
+            error={Boolean(createSavedViewMutation.error)}
+            submitLabel={t('savedViews.save')}
+            onCancel={() => setSavedViewCreating(false)}
+            onSubmit={saveCurrentView}
+          />
+        </Modal>
+      )}
+      {savedViewsManaging && (
+        <Modal
+          ariaLabel={t('savedViews.manage')}
+          onClose={() => setSavedViewsManaging(false)}
+          maxWidth="720px"
+        >
+          <div className={modalHeaderCss}>
+            <h2 className={modalTitleCss}>{t('savedViews.manage')}</h2>
+            <ModalCloseButton
+              label={t('savedViews.close')}
+              onClose={() => setSavedViewsManaging(false)}
+            />
+          </div>
+          <TaskSavedViewManager
+            views={savedViews}
+            onOpen={(view) => {
+              setSavedViewsManaging(false)
+              openSavedView(view)
+            }}
+            onRename={(view) => {
+              setSavedViewsManaging(false)
+              updateSavedViewMutation.reset()
+              setSavedViewRenaming(view)
+            }}
+            onDelete={(view) => void deleteSavedView(view)}
+            onTogglePinned={(view) =>
+              updateSavedViewMutation.mutate({
+                viewId: view.id,
+                patch: { is_pinned: !view.is_pinned },
+              })
+            }
+            onSetDefault={(view) =>
+              updateSavedViewMutation.mutate({
+                viewId: view.id,
+                patch: { is_default: true },
+              })
+            }
+            onMove={(view, direction) => void moveSavedView(view, direction)}
+          />
+        </Modal>
+      )}
+      {savedViewRenaming && (
+        <Modal
+          ariaLabel={t('savedViews.rename')}
+          onClose={() => setSavedViewRenaming(null)}
+          initialFocusRef={savedViewNameRef}
+          maxWidth="440px"
+        >
+          <div className={modalHeaderCss}>
+            <h2 className={modalTitleCss}>{t('savedViews.rename')}</h2>
+            <ModalCloseButton
+              label={t('savedViews.close')}
+              onClose={() => setSavedViewRenaming(null)}
+            />
+          </div>
+          <TaskSavedViewForm
+            initialName={savedViewRenaming.name}
+            inputRef={savedViewNameRef}
+            submitting={updateSavedViewMutation.isPending}
+            error={Boolean(updateSavedViewMutation.error)}
+            submitLabel={t('savedViews.rename')}
+            onCancel={() => setSavedViewRenaming(null)}
+            onSubmit={renameSavedView}
+          />
+        </Modal>
+      )}
       {taskListManagerOpen && (
         <Modal
           ariaLabel={t('taskLists.create')}
@@ -921,6 +1156,11 @@ const headingCss = css({
 const countCss = css({
   margin: 0,
   color: 'default.subtle-text',
+  fontSize: '0.75rem',
+})
+const savedViewNoticeCss = css({
+  margin: '0.125rem 0 0',
+  color: 'warning.subtle-text',
   fontSize: '0.75rem',
 })
 const headerActionsCss = css({

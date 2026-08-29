@@ -2685,6 +2685,56 @@ class TaskPreference(BaseModel):
         return f"TaskPreference({self.user_id})"
 
 
+class TaskSavedView(BaseModel):
+    """One user's named, organization-scoped task workspace configuration."""
+
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        related_name="task_saved_views",
+        verbose_name=_("organization"),
+    )
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="task_saved_views",
+        verbose_name=_("owner"),
+    )
+    name = models.CharField(_("name"), max_length=80)
+    config = models.JSONField(_("configuration"), default=dict)
+    position = models.PositiveIntegerField(_("position"), default=0)
+    is_pinned = models.BooleanField(_("pinned"), default=True)
+    is_default = models.BooleanField(_("default"), default=False)
+
+    class Meta:
+        db_table = "meet_task_saved_view"
+        verbose_name = _("task saved view")
+        verbose_name_plural = _("task saved views")
+        ordering = ("position", "created_at", "id")
+        indexes = [
+            models.Index(
+                fields=["organization", "owner", "is_pinned", "position"],
+                name="task_saved_view_nav_idx",
+            )
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                models.functions.Lower("name"),
+                "organization",
+                "owner",
+                name="task_saved_view_name_ci_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "owner"],
+                condition=models.Q(is_default=True),
+                name="task_saved_view_default_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class TaskReminderPreference(BaseModel):
     """One assignee's reminder override for one task."""
 

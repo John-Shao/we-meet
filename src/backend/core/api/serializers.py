@@ -2,6 +2,7 @@
 
 # pylint: disable=abstract-method,no-name-in-module
 import logging
+import uuid
 from os.path import splitext
 from typing import Literal
 from urllib.parse import quote
@@ -543,6 +544,121 @@ class TaskPreferenceSerializer(serializers.ModelSerializer):
         if value not in {0, 1440, 4320}:
             raise serializers.ValidationError("unsupported reminder value")
         return value
+
+
+class TaskSavedViewSerializer(serializers.ModelSerializer):
+    """Validate and serialize a personal task workspace view."""
+
+    invalid_task_list = serializers.SerializerMethodField()
+    _CONFIG_KEYS = {
+        "version",
+        "scope",
+        "status",
+        "time",
+        "priority",
+        "task_list",
+        "ordering",
+        "view",
+    }
+    _CHOICES = {
+        "scope": {"assigned", "created", "following", "all"},
+        "status": {"open", "all", "todo", "completed"},
+        "time": {"all", "starting_today", "due_today", "overdue"},
+        "priority": {"all", "low", "medium", "high", "urgent"},
+        "ordering": {
+            "",
+            "assignee",
+            "-assignee",
+            "priority",
+            "-priority",
+            "start_date",
+            "-start_date",
+            "due_date",
+            "-due_date",
+            "creator",
+            "-creator",
+            "created_at",
+            "-created_at",
+        },
+        "view": {"list", "board", "analytics"},
+    }
+
+    class Meta:
+        model = models.TaskSavedView
+        fields = [
+            "id",
+            "name",
+            "config",
+            "position",
+            "is_pinned",
+            "is_default",
+            "invalid_task_list",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "invalid_task_list", "created_at", "updated_at"]
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Enter a view name.")
+        request = self.context["request"]
+        organization = self.context.get("organization")
+        queryset = models.TaskSavedView.objects.filter(
+            owner=request.user,
+            organization=organization,
+            name__iexact=value,
+        )
+        if self.instance is not None:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError("You already have a view with this name.")
+        return value
+
+    def validate_config(self, value):
+        if not isinstance(value, dict) or set(value) != self._CONFIG_KEYS:
+            raise serializers.ValidationError("Use the supported task view fields.")
+        if value.get("version") != 1:
+            raise serializers.ValidationError("Unsupported task view version.")
+        for field, choices in self._CHOICES.items():
+            if value.get(field) not in choices:
+                raise serializers.ValidationError(
+                    {field: "Unsupported task view value."}
+                )
+        task_list = value.get("task_list")
+        if task_list not in {"all", "unassigned"}:
+            try:
+                task_list_id = uuid.UUID(str(task_list))
+            except (TypeError, ValueError, AttributeError) as exc:
+                raise serializers.ValidationError(
+                    {"task_list": "Invalid task-list identifier."}
+                ) from exc
+            if not self._visible_task_lists().filter(pk=task_list_id).exists():
+                raise serializers.ValidationError(
+                    {"task_list": "The task list is not available."}
+                )
+        return value
+
+    def _visible_task_lists(self):
+        request = self.context["request"]
+        organization = self.context.get("organization")
+        return models.TaskList.objects.filter(
+            organization=organization,
+            is_archived=False,
+        ).filter(Q(creator=request.user) | Q(accesses__user=request.user))
+
+    def get_invalid_task_list(self, obj):
+        task_list = obj.config.get("task_list")
+        return bool(
+            task_list not in {"all", "unassigned"}
+            and not self._visible_task_lists().filter(pk=task_list).exists()
+        )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if data["invalid_task_list"]:
+            data["config"] = {**data["config"], "task_list": "all"}
+        return data
 
 
 class TaskReminderPreferenceSerializer(serializers.ModelSerializer):

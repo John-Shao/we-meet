@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ApiTaskList, ApiTaskListGroup } from '../api/ApiTask'
+import type {
+  ApiTaskList,
+  ApiTaskListGroup,
+  ApiTaskSavedView,
+} from '../api/ApiTask'
 import type { TaskWorkspaceState } from '../taskWorkspaceState'
 import { TaskWorkspaceNavigation } from './TaskWorkspaceNavigation'
 
@@ -28,6 +32,27 @@ const listGroup: ApiTaskListGroup = {
   list_count: 1,
   created_at: '2026-08-24T00:00:00Z',
   updated_at: '2026-08-24T00:00:00Z',
+}
+
+const savedView: ApiTaskSavedView = {
+  id: 'saved-view-1',
+  name: 'Urgent this week',
+  config: {
+    version: 1,
+    scope: 'assigned',
+    status: 'open',
+    time: 'all',
+    priority: 'urgent',
+    task_list: 'all',
+    ordering: 'due_date',
+    view: 'list',
+  },
+  position: 0,
+  is_pinned: true,
+  is_default: false,
+  invalid_task_list: false,
+  created_at: '2026-08-29T00:00:00Z',
+  updated_at: '2026-08-29T00:00:00Z',
 }
 
 const taskList = (
@@ -125,6 +150,84 @@ describe('TaskWorkspaceNavigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'activity.navigation' }))
 
     expect(onOpenActivity).toHaveBeenCalledOnce()
+  })
+
+  it('selects and manages personal saved views', () => {
+    const onSelectSavedView = vi.fn()
+    const onCreateSavedView = vi.fn()
+    const onUpdateSavedView = vi.fn()
+    const onSetDefaultSavedView = vi.fn()
+    render(
+      <TaskWorkspaceNavigation
+        state={{ ...state, savedView: savedView.id }}
+        count={4}
+        taskLists={[]}
+        taskListGroups={[]}
+        standaloneTaskCount={0}
+        savedViews={[savedView]}
+        savedViewChanged
+        onChange={vi.fn()}
+        onTaskListChange={vi.fn()}
+        onCreateTaskList={vi.fn()}
+        onCreateTaskListGroup={vi.fn()}
+        onMoveTaskList={vi.fn()}
+        onRenameTaskListGroup={vi.fn()}
+        onDeleteTaskListGroup={vi.fn()}
+        onSelectSavedView={onSelectSavedView}
+        onCreateSavedView={onCreateSavedView}
+        onUpdateSavedView={onUpdateSavedView}
+        onSetDefaultSavedView={onSetDefaultSavedView}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: savedView.name }))
+    expect(onSelectSavedView).toHaveBeenCalledWith(savedView)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'savedViews.saveCurrent' })
+    )
+    expect(onCreateSavedView).toHaveBeenCalledOnce()
+
+    const openMenu = () =>
+      fireEvent.click(screen.getByRole('button', { name: 'savedViews.more' }))
+    openMenu()
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'savedViews.saveChanges' })
+    )
+    expect(onUpdateSavedView).toHaveBeenCalledWith(savedView)
+
+    openMenu()
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'savedViews.setDefault' })
+    )
+    expect(onSetDefaultSavedView).toHaveBeenCalledWith(savedView)
+  })
+
+  it('keeps unpinned saved views out of the sidebar and opens management', () => {
+    const onManageSavedViews = vi.fn()
+    render(
+      <TaskWorkspaceNavigation
+        state={state}
+        count={0}
+        taskLists={[]}
+        taskListGroups={[]}
+        standaloneTaskCount={0}
+        savedViews={[{ ...savedView, is_pinned: false }]}
+        onChange={vi.fn()}
+        onTaskListChange={vi.fn()}
+        onCreateTaskList={vi.fn()}
+        onCreateTaskListGroup={vi.fn()}
+        onMoveTaskList={vi.fn()}
+        onRenameTaskListGroup={vi.fn()}
+        onDeleteTaskListGroup={vi.fn()}
+        onManageSavedViews={onManageSavedViews}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: savedView.name })
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'savedViews.manage' }))
+    expect(onManageSavedViews).toHaveBeenCalledOnce()
   })
 
   it('groups task lists, supports collapsing, dragging, and group actions', () => {

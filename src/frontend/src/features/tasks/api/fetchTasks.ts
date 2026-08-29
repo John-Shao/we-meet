@@ -17,6 +17,7 @@ import type {
   ApiStandaloneTaskCount,
   ApiTaskSettings,
   ApiTaskReminderPreference,
+  ApiTaskSavedView,
   ApiTaskList,
   ApiTaskListAccess,
   ApiTaskListGroup,
@@ -32,6 +33,8 @@ import type {
   PatchTaskPayload,
   PatchTaskSettingsPayload,
   PatchTaskReminderPreferencePayload,
+  CreateTaskSavedViewPayload,
+  PatchTaskSavedViewPayload,
   TaskRecurrencePayload,
   TaskScope,
   TaskPriorityFilter,
@@ -254,6 +257,66 @@ export const useUpdateTaskSettings = () => {
     onSuccess: (settings) => {
       queryClient.setQueryData(['task-settings'], settings)
     },
+  })
+}
+
+const fetchTaskSavedViews = () =>
+  fetchApi<ApiTaskSavedView[]>('task-saved-views/')
+
+export const useTaskSavedViews = () =>
+  useQuery<ApiTaskSavedView[], ApiError>({
+    queryKey: ['task-saved-views'],
+    queryFn: fetchTaskSavedViews,
+  })
+
+const createTaskSavedView = (payload: CreateTaskSavedViewPayload) =>
+  fetchApi<ApiTaskSavedView>('task-saved-views/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const useCreateTaskSavedView = () => {
+  const queryClient = useQueryClient()
+  return useMutation<ApiTaskSavedView, ApiError, CreateTaskSavedViewPayload>({
+    mutationFn: createTaskSavedView,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['task-saved-views'] }),
+  })
+}
+
+const updateTaskSavedView = (
+  viewId: string,
+  patch: PatchTaskSavedViewPayload
+) =>
+  fetchApi<ApiTaskSavedView>(
+    `task-saved-views/${encodeURIComponent(viewId)}/`,
+    { method: 'PATCH', body: JSON.stringify(patch) }
+  )
+
+export const useUpdateTaskSavedView = () => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskSavedView,
+    ApiError,
+    { viewId: string; patch: PatchTaskSavedViewPayload }
+  >({
+    mutationFn: ({ viewId, patch }) => updateTaskSavedView(viewId, patch),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['task-saved-views'] }),
+  })
+}
+
+const deleteTaskSavedView = (viewId: string) =>
+  fetchApi<void>(`task-saved-views/${encodeURIComponent(viewId)}/`, {
+    method: 'DELETE',
+  })
+
+export const useDeleteTaskSavedView = () => {
+  const queryClient = useQueryClient()
+  return useMutation<void, ApiError, string>({
+    mutationFn: deleteTaskSavedView,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['task-saved-views'] }),
   })
 }
 
