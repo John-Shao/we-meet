@@ -503,6 +503,42 @@ def test_task_date_reminders_respect_assignee_timezone_and_are_idempotent(
     assert not models.TaskImDelivery.objects.filter(recipient=follower).exists()
 
 
+def test_task_date_reminders_skip_users_who_disabled_daily_reminders(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    enabled = UserFactory(timezone="UTC")
+    disabled = UserFactory(timezone="UTC")
+    now = datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+    enabled_task = models.Task.objects.create(
+        title="Enabled reminder",
+        creator=creator,
+        assignee=enabled,
+        due_date=date(2026, 8, 22),
+    )
+    models.Task.objects.create(
+        title="Disabled reminder",
+        creator=creator,
+        assignee=disabled,
+        due_date=date(2026, 8, 22),
+    )
+    models.TaskPreference.objects.create(
+        user=disabled,
+        daily_reminder_enabled=False,
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        assert record_due_task_reminders(now=now) == 1
+
+    delivery = models.TaskImDelivery.objects.get()
+    assert delivery.task == enabled_task
+    assert delivery.recipient == enabled
+    enqueue.assert_called_once_with(delivery.id)
+
+
 def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
     settings.JUSI_IM_CONFIGURATION = {
         "api_url": "https://im.example.test",

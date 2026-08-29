@@ -40,6 +40,7 @@ from core.api.serializers import (
     TaskListAccessSerializer,
     TaskListGroupSerializer,
     TaskListSerializer,
+    TaskPreferenceSerializer,
     TaskSerializer,
 )
 from core.api.viewsets import Pagination
@@ -1451,6 +1452,23 @@ class TaskViewSet(
         if page is not None:
             return self.get_paginated_response(payload)
         return Response(payload)
+
+    @action(detail=False, methods=["get", "patch"], url_path="settings")
+    def settings(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """Read or update the caller's cross-device task preferences."""
+
+        preference, _created = models.TaskPreference.objects.get_or_create(
+            user=request.user
+        )
+        if request.method == "PATCH":
+            serializer = TaskPreferenceSerializer(
+                preference,
+                data=request.data,
+                partial=True,
+            )
+            serializer.is_valid(raise_exception=True)
+            preference = serializer.save()
+        return Response(TaskPreferenceSerializer(preference).data)
 
     @action(detail=True, methods=["post"])
     def share(self, request, *args, **kwargs):  # pylint: disable=unused-argument

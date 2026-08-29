@@ -2657,6 +2657,34 @@ class Task(BaseModel):
         return self.title[:80]
 
 
+class TaskPreference(BaseModel):
+    """Task defaults and presentation choices that follow a user across devices."""
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="task_preference",
+        verbose_name=_("user"),
+    )
+    daily_reminder_enabled = models.BooleanField(
+        _("daily reminder enabled"), default=True
+    )
+    overdue_marker_enabled = models.BooleanField(
+        _("overdue marker enabled"), default=True
+    )
+    default_reminder_minutes = models.PositiveSmallIntegerField(
+        _("default reminder minutes"), default=30
+    )
+
+    class Meta:
+        db_table = "meet_task_preference"
+        verbose_name = _("task preference")
+        verbose_name_plural = _("task preferences")
+
+    def __str__(self) -> str:
+        return f"TaskPreference({self.user_id})"
+
+
 class TaskConversationShare(BaseModel):
     """Read-only task visibility anchored to an IM conversation.
 

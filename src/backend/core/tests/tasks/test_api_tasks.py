@@ -30,6 +30,7 @@ from core.models import (
     TaskImDelivery,
     TaskList,
     TaskListAccess,
+    TaskPreference,
 )
 
 pytestmark = pytest.mark.django_db
@@ -1582,6 +1583,45 @@ def test_activity_feed_is_paginated_and_only_contains_visible_tasks():
     assert first_page.json()["next"] is not None
     assert [entry["id"] for entry in second_page.json()["results"]] == [str(older.id)]
     assert second_page.json()["next"] is None
+
+
+def test_task_settings_are_persisted_per_user_and_validated():
+    user = UserFactory()
+    other = UserFactory()
+    url = f"{TASKS_URL}settings/"
+
+    defaults = _client(user).get(url)
+    updated = _client(user).patch(
+        url,
+        {
+            "daily_reminder_enabled": False,
+            "overdue_marker_enabled": False,
+            "default_reminder_minutes": 60,
+        },
+        format="json",
+    )
+    other_defaults = _client(other).get(url)
+    invalid = _client(user).patch(
+        url,
+        {"default_reminder_minutes": 17},
+        format="json",
+    )
+
+    assert defaults.status_code == 200
+    assert defaults.json() == {
+        "daily_reminder_enabled": True,
+        "overdue_marker_enabled": True,
+        "default_reminder_minutes": 30,
+    }
+    assert updated.status_code == 200
+    assert updated.json() == {
+        "daily_reminder_enabled": False,
+        "overdue_marker_enabled": False,
+        "default_reminder_minutes": 60,
+    }
+    assert other_defaults.json() == defaults.json()
+    assert invalid.status_code == 400
+    assert TaskPreference.objects.get(user=user).daily_reminder_enabled is False
 
 
 def test_creator_and_assignee_can_post_and_list_task_comments():

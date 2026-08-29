@@ -355,6 +355,11 @@ def record_due_task_reminders(*, now=None) -> int:
     """Create today's missing reminder ledger rows in each assignee's timezone."""
 
     created_count = 0
+    reminders_disabled_for = set(
+        models.TaskPreference.objects.filter(daily_reminder_enabled=False).values_list(
+            "user_id", flat=True
+        )
+    )
     tasks = (
         models.Task.objects.filter(
             status__in=OPEN_TASK_STATUSES,
@@ -367,7 +372,7 @@ def record_due_task_reminders(*, now=None) -> int:
     )
     for task in tasks:
         for assignee in task_assignees(task):
-            if not assignee.is_active:
+            if not assignee.is_active or assignee.id in reminders_disabled_for:
                 continue
             if visible_task_ancestor_path(task, assignee) is None:
                 continue

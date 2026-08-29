@@ -528,6 +528,23 @@ class TaskActivitySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class TaskPreferenceSerializer(serializers.ModelSerializer):
+    """Serialize the caller's cross-device task preferences."""
+
+    class Meta:
+        model = models.TaskPreference
+        fields = [
+            "daily_reminder_enabled",
+            "overdue_marker_enabled",
+            "default_reminder_minutes",
+        ]
+
+    def validate_default_reminder_minutes(self, value):
+        if value not in {30, 60, 1440}:
+            raise serializers.ValidationError("unsupported reminder value")
+        return value
+
+
 class TaskCommentSerializer(serializers.ModelSerializer):
     """Serialize and validate one immutable task comment."""
 
