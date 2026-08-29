@@ -75,6 +75,26 @@
       "history": "History"
     }
   },
+  "settings": {
+    "title": "Task settings",
+    "open": "Open task settings",
+    "close": "Close task settings",
+    "loading": "Loading task settings…",
+    "dailyReminder": "Daily reminders",
+    "dailyReminderDescription": "Receive task start, due, and overdue reminders.",
+    "overdueMarker": "Overdue indicator",
+    "overdueMarkerDescription": "Highlight overdue due dates in task lists.",
+    "defaultReminder": "Default reminder time",
+    "defaultReminderDescription": "Set the default reminder for new tasks.",
+    "reminderOptions": {
+      "30": "30 minutes before",
+      "60": "1 hour before",
+      "1440": "1 day before"
+    },
+    "loadError": "Task settings could not be loaded.",
+    "saveError": "Task settings could not be updated. Please try again.",
+    "retry": "Try again"
+  },
   "modes": {
     "label": "Task display",
     "list": "List",

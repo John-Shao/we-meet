@@ -15,6 +15,7 @@ import { toApiPath } from '@/features/contacts/api/fetchDirectoryMembers'
 import type {
   ApiTask,
   ApiStandaloneTaskCount,
+  ApiTaskSettings,
   ApiTaskList,
   ApiTaskListAccess,
   ApiTaskListGroup,
@@ -28,6 +29,7 @@ import type {
   ApiTaskSubtreeImpact,
   CreateTaskPayload,
   PatchTaskPayload,
+  PatchTaskSettingsPayload,
   TaskRecurrencePayload,
   TaskScope,
   TaskPriorityFilter,
@@ -189,6 +191,31 @@ export const useStandaloneTaskCount = () =>
     queryKey: ['tasks', 'standalone-count'],
     queryFn: fetchStandaloneTaskCount,
   })
+
+export const fetchTaskSettings = () =>
+  fetchApi<ApiTaskSettings>('tasks/settings/')
+
+export const patchTaskSettings = (patch: PatchTaskSettingsPayload) =>
+  fetchApi<ApiTaskSettings>('tasks/settings/', {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+
+export const useTaskSettings = () =>
+  useQuery<ApiTaskSettings, ApiError>({
+    queryKey: ['task-settings'],
+    queryFn: fetchTaskSettings,
+  })
+
+export const useUpdateTaskSettings = () => {
+  const queryClient = useQueryClient()
+  return useMutation<ApiTaskSettings, ApiError, PatchTaskSettingsPayload>({
+    mutationFn: patchTaskSettings,
+    onSuccess: (settings) => {
+      queryClient.setQueryData(['task-settings'], settings)
+    },
+  })
+}
 
 const fetchTaskLists = (archived = false) =>
   fetchApi<ApiTaskList[]>(`task-lists/${archived ? '?archived=true' : ''}`)

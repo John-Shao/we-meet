@@ -70,6 +70,14 @@ export interface ApiStandaloneTaskCount {
   count: number
 }
 
+export interface ApiTaskSettings {
+  daily_reminder_enabled: boolean
+  overdue_marker_enabled: boolean
+  default_reminder_minutes: 30 | 60 | 1440
+}
+
+export type PatchTaskSettingsPayload = Partial<ApiTaskSettings>
+
 export interface ApiTaskShareResult {
   conversation_ids: string[]
 }

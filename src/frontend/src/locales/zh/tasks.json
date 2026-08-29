@@ -75,6 +75,26 @@
       "history": "历史"
     }
   },
+  "settings": {
+    "title": "任务设置",
+    "open": "打开任务设置",
+    "close": "关闭任务设置",
+    "loading": "正在加载任务设置…",
+    "dailyReminder": "每日提醒",
+    "dailyReminderDescription": "接收任务开始、截止和逾期提醒。",
+    "overdueMarker": "逾期标记",
+    "overdueMarkerDescription": "在任务清单中突出显示已逾期的截止日期。",
+    "defaultReminder": "任务默认提醒时间",
+    "defaultReminderDescription": "设置新建任务的默认提醒时间。",
+    "reminderOptions": {
+      "30": "截止前 30 分钟",
+      "60": "截止前 1 小时",
+      "1440": "截止前 1 天"
+    },
+    "loadError": "任务设置加载失败。",
+    "saveError": "任务设置更新失败，请重试。",
+    "retry": "重试"
+  },
   "modes": {
     "label": "任务展示方式",
     "list": "列表",

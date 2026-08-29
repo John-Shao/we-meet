@@ -134,6 +134,7 @@ type ListProps = {
   groups?: ApiTaskGroup[]
   grouped?: boolean
   compact?: boolean
+  showOverdueMarker?: boolean
   ordering?: TaskOrdering
   onOrderingChange?: (ordering: TaskOrdering) => void
   selectedTaskId?: string
@@ -210,6 +211,7 @@ export const TaskList = ({
   groups = [],
   grouped = false,
   compact = false,
+  showOverdueMarker = true,
   ordering = '',
   onOrderingChange,
   selectedTaskId,
@@ -657,6 +659,7 @@ export const TaskList = ({
     onCancelInlineEdit: cancelInlineEdit,
     onToggleSubtasks: toggleTaskSubtasks,
     compact,
+    showOverdueMarker,
   }
 
   return (
@@ -956,6 +959,7 @@ const DesktopTaskRow = ({
   onSaveInlineEdit,
   onCancelInlineEdit,
   compact,
+  showOverdueMarker,
   onShare,
   onDeleteTask,
   groups = [],
@@ -1114,7 +1118,9 @@ const DesktopTaskRow = ({
       )}
     </td>
     <td
-      data-overdue={task.time_state === 'overdue' || undefined}
+      data-overdue={
+        (showOverdueMarker && task.time_state === 'overdue') || undefined
+      }
       className={dueDateCss}
     >
       {editingCell?.taskId === task.id && editingCell.field === 'dueDate' ? (

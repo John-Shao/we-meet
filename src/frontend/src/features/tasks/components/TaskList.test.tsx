@@ -163,6 +163,33 @@ describe('TaskList', () => {
     expect(within(table).getByText('Release work')).toBeInTheDocument()
   })
 
+  it('uses the task preference to show or hide overdue highlighting', () => {
+    const overdueTask: ApiTask = { ...task, time_state: 'overdue' }
+    const { rerender } = render(
+      <TaskList
+        tasks={[overdueTask]}
+        showOverdueMarker={false}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    const dueDateCell = screen.getByText('Aug 22').closest('td')
+    expect(dueDateCell).not.toHaveAttribute('data-overdue')
+
+    rerender(
+      <TaskList
+        tasks={[overdueTask]}
+        showOverdueMarker
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Aug 22').closest('td')).toHaveAttribute(
+      'data-overdue'
+    )
+  })
+
   it('hides only creator metadata columns while the detail panel is open', () => {
     const { container } = render(
       <TaskList tasks={[task]} compact onOpen={vi.fn()} registerRow={vi.fn()} />

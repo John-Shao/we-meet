@@ -9,6 +9,7 @@ import {
   RiKanbanView2,
   RiListCheck3,
   RiRefreshLine,
+  RiSettings3Line,
 } from '@remixicon/react'
 
 import { Modal, ModalCloseButton } from '@/components/Modal'
@@ -38,6 +39,7 @@ import {
   useTask,
   useTaskListGroups,
   useTaskLists,
+  useTaskSettings,
   useUpdateTaskList,
   useTasks,
 } from '../api/fetchTasks'
@@ -53,6 +55,7 @@ import {
   TaskListSkeleton,
 } from '../components/TaskSkeletons'
 import { TaskShareDialog } from '../components/TaskShareDialog'
+import { TaskSettingsDialog } from '../components/TaskSettingsDialog'
 import { TaskListGroupForm } from '../components/TaskListGroupForm'
 import { TaskListGroupRenameForm } from '../components/TaskListGroupRenameForm'
 import { TaskListManager } from '../components/TaskListManager'
@@ -99,6 +102,7 @@ const TasksAuthenticated = () => {
   const [createGroupId, setCreateGroupId] = useState<string>()
   const [createParentTask, setCreateParentTask] = useState<ApiTask | null>(null)
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
+  const [taskSettingsOpen, setTaskSettingsOpen] = useState(false)
   const [taskListCreateGroupId, setTaskListCreateGroupId] = useState<string>()
   const [taskListGroupCreating, setTaskListGroupCreating] = useState(false)
   const [taskListSharing, setTaskListSharing] = useState<ApiTaskList | null>(
@@ -134,6 +138,7 @@ const TasksAuthenticated = () => {
   const { data: taskLists = [] } = useTaskLists()
   const { data: taskListGroups = [] } = useTaskListGroups()
   const { data: standaloneTaskCountData } = useStandaloneTaskCount()
+  const { data: taskSettings } = useTaskSettings()
   const {
     data,
     isLoading,
@@ -401,6 +406,14 @@ const TasksAuthenticated = () => {
             <p className={countCss}>{t('workspace.resultCount', { count })}</p>
           </div>
           <div className={headerActionsCss}>
+            <Button
+              variant="tertiary"
+              size="icon32"
+              aria-label={t('settings.open')}
+              onPress={() => setTaskSettingsOpen(true)}
+            >
+              <RiSettings3Line size={19} aria-hidden="true" />
+            </Button>
             {selectedTaskList?.can_manage && state.mode === 'list' && (
               <Button
                 variant="secondary"
@@ -556,6 +569,7 @@ const TasksAuthenticated = () => {
             <>
               <TaskList
                 tasks={listTasks}
+                showOverdueMarker={taskSettings?.overdue_marker_enabled ?? true}
                 compact={panelOpen}
                 taskLists={taskLists}
                 ordering={state.ordering}
@@ -650,6 +664,9 @@ const TasksAuthenticated = () => {
             }}
           />
         </Modal>
+      )}
+      {taskSettingsOpen && (
+        <TaskSettingsDialog onClose={() => setTaskSettingsOpen(false)} />
       )}
       {taskListManagerOpen && (
         <Modal

@@ -75,6 +75,26 @@
       "history": "Geschiedenis"
     }
   },
+  "settings": {
+    "title": "Taakinstellingen",
+    "open": "Taakinstellingen openen",
+    "close": "Taakinstellingen sluiten",
+    "loading": "Taakinstellingen laden…",
+    "dailyReminder": "Dagelijkse herinneringen",
+    "dailyReminderDescription": "Ontvang herinneringen voor start, deadline en achterstallige taken.",
+    "overdueMarker": "Achterstalligheidsmarkering",
+    "overdueMarkerDescription": "Markeer verstreken deadlines in takenlijsten.",
+    "defaultReminder": "Standaard herinneringstijd",
+    "defaultReminderDescription": "Stel de standaardherinnering voor nieuwe taken in.",
+    "reminderOptions": {
+      "30": "30 minuten vooraf",
+      "60": "1 uur vooraf",
+      "1440": "1 dag vooraf"
+    },
+    "loadError": "De taakinstellingen konden niet worden geladen.",
+    "saveError": "De taakinstellingen konden niet worden bijgewerkt.",
+    "retry": "Opnieuw proberen"
+  },
   "modes": {
     "label": "Taakweergave",
     "list": "Lijst",
