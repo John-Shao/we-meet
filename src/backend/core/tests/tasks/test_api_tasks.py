@@ -1,6 +1,6 @@
 """API coverage for the minimal standalone task module."""
 
-from datetime import timedelta
+from datetime import date, timedelta
 from unittest import mock
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -747,9 +747,14 @@ def test_task_global_search_person_filters_use_or_within_and_between_fields():
     }
 
 
-def test_task_global_search_due_filters_and_status_composition():
+@mock.patch(
+    "core.api.tasks.local_date_for_user",
+    return_value=date(2026, 8, 26),
+)
+def test_task_global_search_due_filters_and_status_composition(local_date):
     user = UserFactory(timezone="Asia/Shanghai")
-    today = timezone.now().astimezone(ZoneInfo("Asia/Shanghai")).date()
+    # Keep exact-day fixtures distinct from this week's Sunday on every run day.
+    today = date(2026, 8, 26)
     tasks = {
         "today": Task.objects.create(title="Due today", creator=user, due_date=today),
         "tomorrow": Task.objects.create(
@@ -802,6 +807,7 @@ def test_task_global_search_due_filters_and_status_composition():
             TASKS_URL, {"scope": "all", "due": "this_week", "status": "todo"}
         ).json()["results"]
     }
+    assert local_date.called
 
 
 def test_task_global_search_visibility_includes_list_members_but_not_card_only():
