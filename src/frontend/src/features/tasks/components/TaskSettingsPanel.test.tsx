@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { TaskSettingsDialog } from './TaskSettingsDialog'
+import { TaskSettingsPanel } from './TaskSettingsPanel'
 
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
@@ -35,9 +35,9 @@ beforeEach(() => {
   mocks.refetch.mockReset()
 })
 
-describe('TaskSettingsDialog', () => {
+describe('TaskSettingsPanel', () => {
   it('renders server settings and patches each changed preference', () => {
-    render(<TaskSettingsDialog onClose={vi.fn()} />)
+    render(<TaskSettingsPanel />)
 
     expect(
       screen.getByRole('switch', { name: 'settings.dailyReminder' })

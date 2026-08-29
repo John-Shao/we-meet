@@ -125,6 +125,7 @@
       "account": "Account",
       "meeting": "Meetings",
       "calendar": "Calendar",
+      "tasks": "Tasks",
       "agreement": "Terms"
     },
     "theme": {

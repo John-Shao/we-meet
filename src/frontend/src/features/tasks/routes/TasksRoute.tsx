@@ -19,6 +19,7 @@ import { Screen } from '@/layout/Screen'
 import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { css } from '@/styled-system/css'
+import { openSystemSettings } from '@/stores/systemSettings'
 
 import type {
   ApiTask,
@@ -56,7 +57,6 @@ import {
   TaskListSkeleton,
 } from '../components/TaskSkeletons'
 import { TaskShareDialog } from '../components/TaskShareDialog'
-import { TaskSettingsDialog } from '../components/TaskSettingsDialog'
 import { TaskListGroupForm } from '../components/TaskListGroupForm'
 import { TaskListGroupRenameForm } from '../components/TaskListGroupRenameForm'
 import { TaskListManager } from '../components/TaskListManager'
@@ -103,7 +103,6 @@ const TasksAuthenticated = () => {
   const [createGroupId, setCreateGroupId] = useState<string>()
   const [createParentTask, setCreateParentTask] = useState<ApiTask | null>(null)
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
-  const [taskSettingsOpen, setTaskSettingsOpen] = useState(false)
   const [taskActivityOpen, setTaskActivityOpen] = useState(false)
   const [taskListCreateGroupId, setTaskListCreateGroupId] = useState<string>()
   const [taskListGroupCreating, setTaskListGroupCreating] = useState(false)
@@ -413,7 +412,7 @@ const TasksAuthenticated = () => {
               variant="tertiary"
               size="icon32"
               aria-label={t('settings.open')}
-              onPress={() => setTaskSettingsOpen(true)}
+              onPress={() => openSystemSettings('tasks')}
             >
               <RiSettings3Line size={19} aria-hidden="true" />
             </Button>
@@ -667,9 +666,6 @@ const TasksAuthenticated = () => {
             }}
           />
         </Modal>
-      )}
-      {taskSettingsOpen && (
-        <TaskSettingsDialog onClose={() => setTaskSettingsOpen(false)} />
       )}
       {taskActivityOpen && (
         <TaskActivityDialog

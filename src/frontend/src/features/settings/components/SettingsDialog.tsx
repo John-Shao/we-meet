@@ -11,6 +11,7 @@ import {
   RiPencilLine,
   RiSettings3Line,
   RiSunLine,
+  RiTaskLine,
   RiUser3Line,
   RiVidiconLine,
 } from '@remixicon/react'
@@ -51,6 +52,7 @@ import {
   type TimeRangeMode,
 } from '@/features/calendar/utils/workingHours'
 import { useReminderEntryEnabled } from '@/features/im/hooks/useReminderEntry'
+import { TaskSettingsPanel } from '@/features/tasks/components/TaskSettingsPanel'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 import { AvatarUploadDialog } from './AvatarUploadDialog'
 
@@ -107,6 +109,11 @@ export const SettingsDialog = ({
       Icon: RiCalendarTodoLine,
     },
     {
+      key: 'tasks',
+      label: t('systemSettings.nav.tasks'),
+      Icon: RiTaskLine,
+    },
+    {
       key: 'agreement',
       label: t('systemSettings.nav.agreement'),
       Icon: RiFileList3Line,
@@ -161,6 +168,7 @@ export const SettingsDialog = ({
           )}
           {section === 'meeting' && <MeetingPanel />}
           {section === 'calendar' && <CalendarPanel />}
+          {section === 'tasks' && <TaskSettingsPanel />}
           {section === 'agreement' && <AgreementPanel />}
         </section>
       </div>

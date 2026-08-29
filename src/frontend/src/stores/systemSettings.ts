@@ -6,6 +6,7 @@ export type SystemSettingsSection =
   | 'account'
   | 'meeting'
   | 'calendar'
+  | 'tasks'
   | 'agreement'
 
 type State = {
