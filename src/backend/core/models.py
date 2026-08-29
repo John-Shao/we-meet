@@ -2673,7 +2673,7 @@ class TaskPreference(BaseModel):
         _("overdue marker enabled"), default=True
     )
     default_reminder_minutes = models.PositiveSmallIntegerField(
-        _("default reminder minutes"), default=30
+        _("default reminder minutes"), default=0
     )
 
     class Meta:
@@ -2867,6 +2867,7 @@ class TaskImDelivery(BaseModel):
         PRIORITY_CHANGED = "priority_changed", _("Priority changed")
         DELETED = "deleted", _("Deleted")
         STARTING = "starting", _("Starting")
+        DUE_SOON = "due_soon", _("Due soon")
         DUE_TODAY = "due_today", _("Due today")
         OVERDUE = "overdue", _("Overdue")
 

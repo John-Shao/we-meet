@@ -540,7 +540,7 @@ class TaskPreferenceSerializer(serializers.ModelSerializer):
         ]
 
     def validate_default_reminder_minutes(self, value):
-        if value not in {30, 60, 1440}:
+        if value not in {0, 1440, 4320}:
             raise serializers.ValidationError("unsupported reminder value")
         return value
 

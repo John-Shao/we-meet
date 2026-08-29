@@ -8,7 +8,7 @@ import { css } from '@/styled-system/css'
 import type { PatchTaskSettingsPayload } from '../api/ApiTask'
 import { useTaskSettings, useUpdateTaskSettings } from '../api/fetchTasks'
 
-const reminderOptions = [30, 60, 1440] as const
+const reminderOptions = [0, 1440, 4320] as const
 
 /** Task preferences embedded in the shared system-settings dialog. */
 export const TaskSettingsPanel = () => {
@@ -74,9 +74,9 @@ export const TaskSettingsPanel = () => {
             onChange={(event) =>
               change({
                 default_reminder_minutes: Number(event.target.value) as
-                  | 30
-                  | 60
-                  | 1440,
+                  | 0
+                  | 1440
+                  | 4320,
               })
             }
           >

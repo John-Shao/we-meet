@@ -539,6 +539,70 @@ def test_task_date_reminders_skip_users_who_disabled_daily_reminders(
     enqueue.assert_called_once_with(delivery.id)
 
 
+def test_task_due_reminder_uses_each_assignees_lead_time(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    due_today_user = UserFactory(timezone="UTC")
+    one_day_user = UserFactory(timezone="UTC")
+    three_day_user = UserFactory(timezone="UTC")
+    now = datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+    due_today = models.Task.objects.create(
+        title="Due today",
+        creator=creator,
+        assignee=due_today_user,
+        due_date=date(2026, 8, 22),
+    )
+    due_tomorrow = models.Task.objects.create(
+        title="Due tomorrow",
+        creator=creator,
+        assignee=one_day_user,
+        due_date=date(2026, 8, 23),
+    )
+    due_in_three_days = models.Task.objects.create(
+        title="Due in three days",
+        creator=creator,
+        assignee=three_day_user,
+        due_date=date(2026, 8, 25),
+    )
+    models.TaskPreference.objects.create(
+        user=one_day_user,
+        default_reminder_minutes=1440,
+    )
+    models.TaskPreference.objects.create(
+        user=three_day_user,
+        default_reminder_minutes=4320,
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        assert record_due_task_reminders(now=now) == 3
+        assert record_due_task_reminders(now=now) == 0
+
+    assert set(
+        models.TaskImDelivery.objects.values_list("task_id", "event", "reference_date")
+    ) == {
+        (
+            due_today.id,
+            models.TaskImDelivery.Event.DUE_TODAY,
+            date(2026, 8, 22),
+        ),
+        (
+            due_tomorrow.id,
+            models.TaskImDelivery.Event.DUE_SOON,
+            date(2026, 8, 23),
+        ),
+        (
+            due_in_three_days.id,
+            models.TaskImDelivery.Event.DUE_SOON,
+            date(2026, 8, 25),
+        ),
+    }
+    assert enqueue.call_count == 3
+
+
 def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
     settings.JUSI_IM_CONFIGURATION = {
         "api_url": "https://im.example.test",
@@ -593,6 +657,76 @@ def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
     assert card["blocks"][-1]["buttons"][0]["url"] == (
         f"https://meet.example.test/tasks?task={task.id}"
     )
+
+
+def test_due_soon_delivery_uses_advance_reminder_card(settings):
+    settings.JUSI_IM_CONFIGURATION = {
+        "api_url": "https://im.example.test",
+        "admin_hmac_secret": "s" * 32,
+    }
+    recipient = UserFactory(timezone="UTC")
+    models.TaskPreference.objects.create(
+        user=recipient,
+        default_reminder_minutes=1440,
+    )
+    task = models.Task.objects.create(
+        title="准备发布材料",
+        creator=UserFactory(),
+        assignee=recipient,
+        due_date=date(2026, 8, 23),
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=recipient,
+        event=models.TaskImDelivery.Event.DUE_SOON,
+        reference_date=date(2026, 8, 23),
+        next_attempt_at=timezone.now(),
+    )
+
+    with (
+        mock.patch(
+            "core.services.task_notifications.local_date_for_user",
+            return_value=date(2026, 8, 22),
+        ),
+        mock.patch(
+            "core.services.task_notifications.im_bots.get_builtin",
+            return_value=mock.Mock(),
+        ),
+        mock.patch(
+            "core.services.task_notifications.im_bots.post_direct",
+            return_value=("direct-cid", mock.Mock()),
+        ) as post_direct,
+    ):
+        assert deliver_task_assignment(str(delivery.id)) == "delivered"
+
+    card = json.loads(post_direct.call_args.args[3])
+    assert card["header"] == {"title": "任务即将截止", "theme": "warning"}
+    assert card["plain"] == "任务即将截止：准备发布材料"
+
+
+def test_disabling_reminders_supersedes_an_undelivered_reminder():
+    recipient = UserFactory(timezone="UTC")
+    task = models.Task.objects.create(
+        title="Do not send",
+        creator=UserFactory(),
+        assignee=recipient,
+        due_date=date(2026, 8, 22),
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=recipient,
+        event=models.TaskImDelivery.Event.DUE_TODAY,
+        reference_date=date(2026, 8, 22),
+        next_attempt_at=timezone.now(),
+    )
+    models.TaskPreference.objects.create(
+        user=recipient,
+        daily_reminder_enabled=False,
+    )
+
+    assert deliver_task_assignment(str(delivery.id)) is None
+    delivery.refresh_from_db()
+    assert delivery.status == models.TaskImDelivery.Status.SUPERSEDED
 
 
 def test_completed_task_supersedes_pending_time_reminder():

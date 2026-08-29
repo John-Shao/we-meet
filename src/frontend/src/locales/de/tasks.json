@@ -96,12 +96,12 @@
     "dailyReminderDescription": "Erinnerungen zu Beginn, Fälligkeit und Überfälligkeit erhalten.",
     "overdueMarker": "Überfälligkeitsmarkierung",
     "overdueMarkerDescription": "Überfällige Termine in Aufgabenlisten hervorheben.",
-    "defaultReminder": "Standard-Erinnerungszeit",
-    "defaultReminderDescription": "Standard-Erinnerung für neue Aufgaben festlegen.",
+    "defaultReminder": "Fälligkeitserinnerung",
+    "defaultReminderDescription": "Erinnerungstag für Fälligkeiten in Ihrer Zeitzone auswählen.",
     "reminderOptions": {
-      "30": "30 Minuten vorher",
-      "60": "1 Stunde vorher",
-      "1440": "1 Tag vorher"
+      "0": "Am Fälligkeitstag",
+      "1440": "1 Tag vorher",
+      "4320": "3 Tage vorher"
     },
     "loadError": "Die Aufgabeneinstellungen konnten nicht geladen werden.",
     "saveError": "Die Aufgabeneinstellungen konnten nicht aktualisiert werden.",

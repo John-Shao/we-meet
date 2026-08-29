@@ -73,7 +73,7 @@ export interface ApiStandaloneTaskCount {
 export interface ApiTaskSettings {
   daily_reminder_enabled: boolean
   overdue_marker_enabled: boolean
-  default_reminder_minutes: 30 | 60 | 1440
+  default_reminder_minutes: 0 | 1440 | 4320
 }
 
 export type PatchTaskSettingsPayload = Partial<ApiTaskSettings>

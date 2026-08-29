@@ -96,12 +96,12 @@
     "dailyReminderDescription": "接收任务开始、截止和逾期提醒。",
     "overdueMarker": "逾期标记",
     "overdueMarkerDescription": "在任务清单中突出显示已逾期的截止日期。",
-    "defaultReminder": "任务默认提醒时间",
-    "defaultReminderDescription": "设置新建任务的默认提醒时间。",
+    "defaultReminder": "截止提醒时间",
+    "defaultReminderDescription": "按你的时区设置任务截止提醒日期。",
     "reminderOptions": {
-      "30": "截止前 30 分钟",
-      "60": "截止前 1 小时",
-      "1440": "截止前 1 天"
+      "0": "截止当天",
+      "1440": "提前 1 天",
+      "4320": "提前 3 天"
     },
     "loadError": "任务设置加载失败。",
     "saveError": "任务设置更新失败，请重试。",

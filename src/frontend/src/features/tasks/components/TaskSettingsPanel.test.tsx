@@ -17,7 +17,7 @@ vi.mock('../api/fetchTasks', () => ({
     data: {
       daily_reminder_enabled: true,
       overdue_marker_enabled: false,
-      default_reminder_minutes: 60,
+      default_reminder_minutes: 0,
     },
     isLoading: false,
     error: null,
@@ -54,7 +54,7 @@ describe('TaskSettingsPanel', () => {
     )
     fireEvent.change(
       screen.getByRole('combobox', { name: 'settings.defaultReminder' }),
-      { target: { value: '1440' } }
+      { target: { value: '4320' } }
     )
 
     expect(mocks.mutate).toHaveBeenNthCalledWith(1, {
@@ -64,7 +64,7 @@ describe('TaskSettingsPanel', () => {
       overdue_marker_enabled: true,
     })
     expect(mocks.mutate).toHaveBeenNthCalledWith(3, {
-      default_reminder_minutes: 1440,
+      default_reminder_minutes: 4320,
     })
   })
 })

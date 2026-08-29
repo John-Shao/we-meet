@@ -27,6 +27,7 @@ ASSIGNMENT_EVENTS = (
 )
 REMINDER_EVENTS = (
     models.TaskImDelivery.Event.STARTING,
+    models.TaskImDelivery.Event.DUE_SOON,
     models.TaskImDelivery.Event.DUE_TODAY,
     models.TaskImDelivery.Event.OVERDUE,
 )
@@ -333,6 +334,7 @@ def _supersede_stale_reminders(*, pending, task: models.Task) -> None:
 
     due = pending.filter(
         event__in=(
+            models.TaskImDelivery.Event.DUE_SOON,
             models.TaskImDelivery.Event.DUE_TODAY,
             models.TaskImDelivery.Event.OVERDUE,
         )
@@ -355,11 +357,10 @@ def record_due_task_reminders(*, now=None) -> int:
     """Create today's missing reminder ledger rows in each assignee's timezone."""
 
     created_count = 0
-    reminders_disabled_for = set(
-        models.TaskPreference.objects.filter(daily_reminder_enabled=False).values_list(
-            "user_id", flat=True
-        )
-    )
+    preferences = {
+        preference.user_id: preference
+        for preference in models.TaskPreference.objects.all()
+    }
     tasks = (
         models.Task.objects.filter(
             status__in=OPEN_TASK_STATUSES,
@@ -372,7 +373,10 @@ def record_due_task_reminders(*, now=None) -> int:
     )
     for task in tasks:
         for assignee in task_assignees(task):
-            if not assignee.is_active or assignee.id in reminders_disabled_for:
+            preference = preferences.get(assignee.id)
+            if not assignee.is_active or (
+                preference is not None and not preference.daily_reminder_enabled
+            ):
                 continue
             if visible_task_ancestor_path(task, assignee) is None:
                 continue
@@ -383,8 +387,20 @@ def record_due_task_reminders(*, now=None) -> int:
                 reminders.append(
                     (models.TaskImDelivery.Event.STARTING, task.start_date)
                 )
-            if task.due_date == today:
+            reminder_minutes = (
+                preference.default_reminder_minutes if preference is not None else 0
+            )
+            reminder_days = reminder_minutes // (24 * 60)
+            if task.due_date == today and reminder_days == 0:
                 reminders.append((models.TaskImDelivery.Event.DUE_TODAY, task.due_date))
+            elif (
+                task.due_date is not None
+                and reminder_days > 0
+                and task.due_date - timedelta(days=reminder_days)
+                <= today
+                < task.due_date
+            ):
+                reminders.append((models.TaskImDelivery.Event.DUE_SOON, task.due_date))
             elif task.due_date is not None and task.due_date < today:
                 reminders.append((models.TaskImDelivery.Event.OVERDUE, task.due_date))
 
@@ -674,6 +690,7 @@ def _reminder_card(delivery: models.TaskImDelivery) -> dict:
     task = delivery.task
     presentation = {
         models.TaskImDelivery.Event.STARTING: ("任务今天开始", "info"),
+        models.TaskImDelivery.Event.DUE_SOON: ("任务即将截止", "warning"),
         models.TaskImDelivery.Event.DUE_TODAY: ("任务今天截止", "warning"),
         models.TaskImDelivery.Event.OVERDUE: ("任务已逾期", "danger"),
     }
@@ -958,7 +975,12 @@ def _recipient_can_receive(  # noqa: PLR0912
             and _priority_change_matches_task(activity=activity, task=task)
         )
     elif delivery.event in REMINDER_EVENTS:
-        if (
+        preference = models.TaskPreference.objects.filter(
+            user_id=delivery.recipient_id
+        ).first()
+        if preference is not None and not preference.daily_reminder_enabled:
+            allowed = False
+        elif (
             delivery.recipient_id not in assignee_ids
             or task.status not in OPEN_TASK_STATUSES
             or delivery.reference_date is None
@@ -972,7 +994,25 @@ def _recipient_can_receive(  # noqa: PLR0912
                     and task.due_date != today
                 )
             elif delivery.event == models.TaskImDelivery.Event.DUE_TODAY:
-                allowed = task.due_date == delivery.reference_date == today
+                reminder_minutes = (
+                    preference.default_reminder_minutes if preference is not None else 0
+                )
+                allowed = (
+                    reminder_minutes == 0
+                    and task.due_date == delivery.reference_date == today
+                )
+            elif delivery.event == models.TaskImDelivery.Event.DUE_SOON:
+                reminder_minutes = (
+                    preference.default_reminder_minutes if preference is not None else 0
+                )
+                reminder_days = reminder_minutes // (24 * 60)
+                allowed = bool(
+                    reminder_days > 0
+                    and task.due_date == delivery.reference_date
+                    and task.due_date - timedelta(days=reminder_days)
+                    <= today
+                    < task.due_date
+                )
             else:
                 allowed = (
                     task.due_date == delivery.reference_date and task.due_date < today

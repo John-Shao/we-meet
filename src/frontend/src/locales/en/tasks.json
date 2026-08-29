@@ -96,12 +96,12 @@
     "dailyReminderDescription": "Receive task start, due, and overdue reminders.",
     "overdueMarker": "Overdue indicator",
     "overdueMarkerDescription": "Highlight overdue due dates in task lists.",
-    "defaultReminder": "Default reminder time",
-    "defaultReminderDescription": "Set the default reminder for new tasks.",
+    "defaultReminder": "Due-date reminder",
+    "defaultReminderDescription": "Choose the due-date reminder day in your time zone.",
     "reminderOptions": {
-      "30": "30 minutes before",
-      "60": "1 hour before",
-      "1440": "1 day before"
+      "0": "On the due date",
+      "1440": "1 day before",
+      "4320": "3 days before"
     },
     "loadError": "Task settings could not be loaded.",
     "saveError": "Task settings could not be updated. Please try again.",

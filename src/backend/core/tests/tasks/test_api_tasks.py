@@ -1596,7 +1596,7 @@ def test_task_settings_are_persisted_per_user_and_validated():
         {
             "daily_reminder_enabled": False,
             "overdue_marker_enabled": False,
-            "default_reminder_minutes": 60,
+            "default_reminder_minutes": 1440,
         },
         format="json",
     )
@@ -1611,13 +1611,13 @@ def test_task_settings_are_persisted_per_user_and_validated():
     assert defaults.json() == {
         "daily_reminder_enabled": True,
         "overdue_marker_enabled": True,
-        "default_reminder_minutes": 30,
+        "default_reminder_minutes": 0,
     }
     assert updated.status_code == 200
     assert updated.json() == {
         "daily_reminder_enabled": False,
         "overdue_marker_enabled": False,
-        "default_reminder_minutes": 60,
+        "default_reminder_minutes": 1440,
     }
     assert other_defaults.json() == defaults.json()
     assert invalid.status_code == 400

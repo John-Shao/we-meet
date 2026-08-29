@@ -96,12 +96,12 @@
     "dailyReminderDescription": "Ontvang herinneringen voor start, deadline en achterstallige taken.",
     "overdueMarker": "Achterstalligheidsmarkering",
     "overdueMarkerDescription": "Markeer verstreken deadlines in takenlijsten.",
-    "defaultReminder": "Standaard herinneringstijd",
-    "defaultReminderDescription": "Stel de standaardherinnering voor nieuwe taken in.",
+    "defaultReminder": "Deadlineherinnering",
+    "defaultReminderDescription": "Kies de herinneringsdag in uw tijdzone.",
     "reminderOptions": {
-      "30": "30 minuten vooraf",
-      "60": "1 uur vooraf",
-      "1440": "1 dag vooraf"
+      "0": "Op de deadline",
+      "1440": "1 dag vooraf",
+      "4320": "3 dagen vooraf"
     },
     "loadError": "De taakinstellingen konden niet worden geladen.",
     "saveError": "De taakinstellingen konden niet worden bijgewerkt.",

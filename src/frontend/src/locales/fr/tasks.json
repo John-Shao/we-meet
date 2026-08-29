@@ -96,12 +96,12 @@
     "dailyReminderDescription": "Recevoir les rappels de début, d’échéance et de retard.",
     "overdueMarker": "Indicateur de retard",
     "overdueMarkerDescription": "Mettre en évidence les échéances dépassées dans les listes.",
-    "defaultReminder": "Heure de rappel par défaut",
-    "defaultReminderDescription": "Définir le rappel par défaut des nouvelles tâches.",
+    "defaultReminder": "Rappel d’échéance",
+    "defaultReminderDescription": "Choisissez le jour du rappel selon votre fuseau horaire.",
     "reminderOptions": {
-      "30": "30 minutes avant",
-      "60": "1 heure avant",
-      "1440": "1 jour avant"
+      "0": "Le jour de l’échéance",
+      "1440": "1 jour avant",
+      "4320": "3 jours avant"
     },
     "loadError": "Impossible de charger les paramètres des tâches.",
     "saveError": "Impossible de mettre à jour les paramètres des tâches.",
