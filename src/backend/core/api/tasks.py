@@ -41,6 +41,7 @@ from core.api.serializers import (
     TaskListGroupSerializer,
     TaskListSerializer,
     TaskPreferenceSerializer,
+    TaskReminderPreferenceSerializer,
     TaskSerializer,
 )
 from core.api.viewsets import Pagination
@@ -82,6 +83,7 @@ from core.services.task_notifications import (
     record_task_deletion,
     record_task_priority_change,
     record_task_status_change,
+    supersede_pending_task_reminders,
 )
 from core.services.task_recurrence import (
     TaskRecurrenceError,
@@ -1459,9 +1461,7 @@ class TaskViewSet(
         url_path="settings",
         url_name="settings",
     )
-    def task_settings(
-        self, request, *args, **kwargs
-    ):  # pylint: disable=unused-argument
+    def task_settings(self, request, *args, **kwargs):  # pylint: disable=unused-argument
         """Read or update the caller's cross-device task preferences."""
 
         preference, _created = models.TaskPreference.objects.get_or_create(
@@ -1475,7 +1475,48 @@ class TaskViewSet(
             )
             serializer.is_valid(raise_exception=True)
             preference = serializer.save()
+            if {
+                "daily_reminder_enabled",
+                "default_reminder_minutes",
+            } & serializer.validated_data.keys():
+                supersede_pending_task_reminders(recipient=request.user)
         return Response(TaskPreferenceSerializer(preference).data)
+
+    @action(detail=True, methods=["get", "patch"], url_path="reminder")
+    def reminder(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """Read or update the caller's reminder override for one assigned task."""
+
+        task = self.get_object()
+        if not is_task_assignee(task, request.user):
+            raise PermissionDenied("Only a task assignee can manage their reminder.")
+        global_preference = models.TaskPreference.objects.filter(
+            user=request.user
+        ).first() or models.TaskPreference(user=request.user)
+        preference = models.TaskReminderPreference.objects.filter(
+            task=task,
+            user=request.user,
+        ).first() or models.TaskReminderPreference(task=task, user=request.user)
+        context = {"global_preference": global_preference}
+        if request.method == "PATCH":
+            serializer = TaskReminderPreferenceSerializer(
+                preference,
+                data=request.data,
+                partial=True,
+                context=context,
+            )
+            serializer.is_valid(raise_exception=True)
+            with transaction.atomic():
+                preference = serializer.save()
+                supersede_pending_task_reminders(
+                    recipient=request.user,
+                    task=task,
+                )
+        return Response(
+            TaskReminderPreferenceSerializer(
+                preference,
+                context=context,
+            ).data
+        )
 
     @action(detail=True, methods=["post"])
     def share(self, request, *args, **kwargs):  # pylint: disable=unused-argument

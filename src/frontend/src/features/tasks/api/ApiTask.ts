@@ -78,6 +78,17 @@ export interface ApiTaskSettings {
 
 export type PatchTaskSettingsPayload = Partial<ApiTaskSettings>
 
+export interface ApiTaskReminderPreference {
+  enabled: boolean
+  reminder_minutes: 0 | 1440 | 4320 | null
+  effective_reminder_minutes: 0 | 1440 | 4320
+  global_reminders_enabled: boolean
+}
+
+export type PatchTaskReminderPreferencePayload = Partial<
+  Pick<ApiTaskReminderPreference, 'enabled' | 'reminder_minutes'>
+>
+
 export interface ApiTaskShareResult {
   conversation_ids: string[]
 }
@@ -151,6 +162,7 @@ export interface ApiTask {
   can_comment: boolean
   can_manage_attachments: boolean
   can_manage_followers: boolean
+  can_manage_reminder?: boolean
   is_following: boolean
   time_state: TaskTimeState | null
   created_at: string

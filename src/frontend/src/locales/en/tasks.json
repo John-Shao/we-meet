@@ -107,6 +107,16 @@
     "saveError": "Task settings could not be updated. Please try again.",
     "retry": "Try again"
   },
+  "taskReminder": {
+    "title": "My reminder",
+    "enabled": "Receive date reminders for this task",
+    "timing": "Due-date reminder for this task",
+    "followDefault": "Follow system default ({{value}})",
+    "globalDisabled": "Daily reminders are disabled in system settings",
+    "loading": "Loading reminder settings…",
+    "loadError": "Reminder settings could not be loaded.",
+    "saveError": "Reminder settings could not be saved. Please try again."
+  },
   "modes": {
     "label": "Task display",
     "list": "List",

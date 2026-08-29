@@ -603,6 +603,103 @@ def test_task_due_reminder_uses_each_assignees_lead_time(
     assert enqueue.call_count == 3
 
 
+def test_task_reminder_override_is_independent_for_each_assignee(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory()
+    reminded = UserFactory(timezone="UTC")
+    disabled = UserFactory(timezone="UTC")
+    task = models.Task.objects.create(
+        title="Shared task",
+        creator=creator,
+        assignee=reminded,
+        due_date=date(2026, 8, 23),
+    )
+    task.assignees.add(reminded, disabled)
+    models.TaskPreference.objects.bulk_create(
+        [
+            models.TaskPreference(
+                user=reminded,
+                default_reminder_minutes=4320,
+            ),
+            models.TaskPreference(
+                user=disabled,
+                default_reminder_minutes=4320,
+            ),
+        ]
+    )
+    models.TaskReminderPreference.objects.bulk_create(
+        [
+            models.TaskReminderPreference(
+                task=task,
+                user=reminded,
+                reminder_minutes=1440,
+            ),
+            models.TaskReminderPreference(
+                task=task,
+                user=disabled,
+                enabled=False,
+            ),
+        ]
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        assert (
+            record_due_task_reminders(
+                now=datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+            )
+            == 1
+        )
+
+    delivery = models.TaskImDelivery.objects.get()
+    assert delivery.task == task
+    assert delivery.recipient == reminded
+    assert delivery.event == models.TaskImDelivery.Event.DUE_SOON
+    enqueue.assert_called_once_with(delivery.id)
+
+
+def test_due_scan_reactivates_a_superseded_reminder_after_preference_change(
+    django_capture_on_commit_callbacks,
+):
+    recipient = UserFactory(timezone="UTC")
+    task = models.Task.objects.create(
+        title="Reactivate reminder",
+        creator=UserFactory(),
+        assignee=recipient,
+        due_date=date(2026, 8, 23),
+    )
+    models.TaskPreference.objects.create(
+        user=recipient,
+        default_reminder_minutes=1440,
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=recipient,
+        event=models.TaskImDelivery.Event.DUE_SOON,
+        reference_date=task.due_date,
+        status=models.TaskImDelivery.Status.SUPERSEDED,
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        assert (
+            record_due_task_reminders(
+                now=datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+            )
+            == 1
+        )
+
+    delivery.refresh_from_db()
+    assert delivery.status == models.TaskImDelivery.Status.PENDING
+    assert delivery.next_attempt_at is not None
+    enqueue.assert_called_once_with(delivery.id)
+
+
 def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
     settings.JUSI_IM_CONFIGURATION = {
         "api_url": "https://im.example.test",

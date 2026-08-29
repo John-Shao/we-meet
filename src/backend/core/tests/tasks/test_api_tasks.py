@@ -31,6 +31,7 @@ from core.models import (
     TaskList,
     TaskListAccess,
     TaskPreference,
+    TaskReminderPreference,
 )
 
 pytestmark = pytest.mark.django_db
@@ -1589,6 +1590,14 @@ def test_task_settings_are_persisted_per_user_and_validated():
     user = UserFactory()
     other = UserFactory()
     url = f"{TASKS_URL}settings/"
+    task = Task.objects.create(title="Pending reminder", creator=user, assignee=user)
+    delivery = TaskImDelivery.objects.create(
+        task=task,
+        recipient=user,
+        event=TaskImDelivery.Event.DUE_TODAY,
+        reference_date=timezone.localdate(),
+        next_attempt_at=timezone.now(),
+    )
 
     defaults = _client(user).get(url)
     updated = _client(user).patch(
@@ -1622,6 +1631,68 @@ def test_task_settings_are_persisted_per_user_and_validated():
     assert other_defaults.json() == defaults.json()
     assert invalid.status_code == 400
     assert TaskPreference.objects.get(user=user).daily_reminder_enabled is False
+    delivery.refresh_from_db()
+    assert delivery.status == TaskImDelivery.Status.SUPERSEDED
+
+
+def test_task_reminder_preferences_are_private_to_each_assignee():
+    creator = UserFactory()
+    first = UserFactory()
+    second = UserFactory()
+    viewer = UserFactory()
+    task = Task.objects.create(title="Shared deadline", creator=creator, assignee=first)
+    task.assignees.add(first, second)
+    task.followers.add(viewer)
+    TaskPreference.objects.create(user=first, default_reminder_minutes=1440)
+    url = f"{TASKS_URL}{task.id}/reminder/"
+    pending = TaskImDelivery.objects.create(
+        task=task,
+        recipient=first,
+        event=TaskImDelivery.Event.DUE_SOON,
+        reference_date=timezone.localdate() + timedelta(days=1),
+        next_attempt_at=timezone.now(),
+    )
+
+    defaults = _client(first).get(url)
+    updated = _client(first).patch(
+        url,
+        {"enabled": False, "reminder_minutes": 4320},
+        format="json",
+    )
+    second_defaults = _client(second).get(url)
+    invalid = _client(second).patch(
+        url,
+        {"reminder_minutes": 60},
+        format="json",
+    )
+    forbidden = _client(viewer).get(url)
+
+    assert defaults.status_code == 200
+    assert defaults.json() == {
+        "enabled": True,
+        "reminder_minutes": None,
+        "effective_reminder_minutes": 1440,
+        "global_reminders_enabled": True,
+    }
+    assert updated.status_code == 200
+    assert updated.json() == {
+        "enabled": False,
+        "reminder_minutes": 4320,
+        "effective_reminder_minutes": 4320,
+        "global_reminders_enabled": True,
+    }
+    assert second_defaults.json() == {
+        "enabled": True,
+        "reminder_minutes": None,
+        "effective_reminder_minutes": 0,
+        "global_reminders_enabled": True,
+    }
+    assert invalid.status_code == 400
+    assert forbidden.status_code == 403
+    assert TaskReminderPreference.objects.filter(task=task).count() == 1
+    assert TaskReminderPreference.objects.get(task=task, user=first).enabled is False
+    pending.refresh_from_db()
+    assert pending.status == TaskImDelivery.Status.SUPERSEDED
 
 
 def test_creator_and_assignee_can_post_and_list_task_comments():

@@ -139,6 +139,12 @@ vi.mock('./TaskCollaborationSections', () => ({
   TaskHistorySection: () => null,
 }))
 
+vi.mock('./TaskReminderControl', () => ({
+  TaskReminderControl: ({ taskId }: { taskId: string }) => (
+    <div data-testid="task-reminder-control">{taskId}</div>
+  ),
+}))
+
 vi.mock('./TaskAssigneePickerDialog', () => ({
   TaskAssigneePickerDialog: ({
     initial,
@@ -379,6 +385,24 @@ describe('TaskDetailPanel', () => {
     expect(
       within(relatedSection).getByRole('heading', { name: 'subtasks.title' })
     ).toBeInTheDocument()
+  })
+
+  it('shows the personal reminder control to an assignee', () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{ ...task, can_manage_reminder: true }}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('taskReminder.title')).toBeInTheDocument()
+    expect(screen.getByTestId('task-reminder-control')).toHaveTextContent(
+      task.id
+    )
   })
 
   it('marks the empty task description as subtle placeholder text', () => {

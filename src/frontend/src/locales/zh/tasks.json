@@ -107,6 +107,16 @@
     "saveError": "任务设置更新失败，请重试。",
     "retry": "重试"
   },
+  "taskReminder": {
+    "title": "我的提醒",
+    "enabled": "接收此任务的日期提醒",
+    "timing": "此任务的截止提醒时间",
+    "followDefault": "跟随系统默认（{{value}}）",
+    "globalDisabled": "系统设置中的每日提醒已关闭",
+    "loading": "正在加载提醒设置…",
+    "loadError": "提醒设置加载失败。",
+    "saveError": "提醒设置保存失败，请重试。"
+  },
   "modes": {
     "label": "任务展示方式",
     "list": "列表",

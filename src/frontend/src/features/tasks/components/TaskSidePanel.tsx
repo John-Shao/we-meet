@@ -28,6 +28,7 @@ import {
   RiGitMergeLine,
   RiListCheck3,
   RiMoreLine,
+  RiNotification3Line,
   RiRestartLine,
   RiRepeatLine,
   RiShareForwardLine,
@@ -76,6 +77,7 @@ import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { useTaskActionFeedback } from './TaskActionFeedbackContext'
 import { TaskCompletionButton } from './TaskCompletionButton'
 import { TaskPriorityBadge } from './TaskPriorityBadge'
+import { TaskReminderControl } from './TaskReminderControl'
 import { TaskDetailSkeleton, TaskSubtaskListSkeleton } from './TaskSkeletons'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
 import { TaskForm } from './TaskForm'
@@ -1081,6 +1083,15 @@ export const TaskDetailPanel = ({
                 formatDate(task.due_date)
               )}
             </TaskProperty>
+            {task.can_manage_reminder && (
+              <TaskProperty
+                icon={<RiNotification3Line size={18} />}
+                label={t('taskReminder.title')}
+                alignStart
+              >
+                <TaskReminderControl taskId={task.id} />
+              </TaskProperty>
+            )}
             <TaskProperty
               icon={<RiFlagLine size={18} />}
               label={t('form.priority')}

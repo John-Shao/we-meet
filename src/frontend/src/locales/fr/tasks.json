@@ -107,6 +107,16 @@
     "saveError": "Impossible de mettre à jour les paramètres des tâches.",
     "retry": "Réessayer"
   },
+  "taskReminder": {
+    "title": "Mon rappel",
+    "enabled": "Recevoir les rappels de date pour cette tâche",
+    "timing": "Rappel d’échéance de cette tâche",
+    "followDefault": "Suivre le réglage système ({{value}})",
+    "globalDisabled": "Les rappels quotidiens sont désactivés dans les paramètres système",
+    "loading": "Chargement des paramètres de rappel…",
+    "loadError": "Impossible de charger les paramètres de rappel.",
+    "saveError": "Impossible d’enregistrer les paramètres de rappel."
+  },
   "modes": {
     "label": "Affichage des tâches",
     "list": "Liste",

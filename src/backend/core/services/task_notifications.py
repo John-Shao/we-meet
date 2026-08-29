@@ -353,6 +353,23 @@ def _supersede_stale_reminders(*, pending, task: models.Task) -> None:
         )
 
 
+def supersede_pending_task_reminders(*, recipient, task=None) -> int:
+    """Invalidate unsent reminders after a user changes reminder preferences."""
+
+    pending = models.TaskImDelivery.objects.filter(
+        recipient=recipient,
+        event__in=REMINDER_EVENTS,
+        status=models.TaskImDelivery.Status.PENDING,
+    )
+    if task is not None:
+        pending = pending.filter(task=task)
+    return pending.update(
+        status=models.TaskImDelivery.Status.SUPERSEDED,
+        next_attempt_at=None,
+        last_error="",
+    )
+
+
 def record_due_task_reminders(*, now=None) -> int:
     """Create today's missing reminder ledger rows in each assignee's timezone."""
 
@@ -369,13 +386,20 @@ def record_due_task_reminders(*, now=None) -> int:
         .filter(Q(start_date__isnull=False) | Q(due_date__isnull=False))
         .distinct()
         .select_related("assignee")
-        .prefetch_related("assignees")
+        .prefetch_related("assignees", "reminder_preferences")
     )
     for task in tasks:
+        task_preferences = {
+            preference.user_id: preference
+            for preference in task.reminder_preferences.all()
+        }
         for assignee in task_assignees(task):
             preference = preferences.get(assignee.id)
-            if not assignee.is_active or (
-                preference is not None and not preference.daily_reminder_enabled
+            task_preference = task_preferences.get(assignee.id)
+            if (
+                not assignee.is_active
+                or (preference is not None and not preference.daily_reminder_enabled)
+                or (task_preference is not None and not task_preference.enabled)
             ):
                 continue
             if visible_task_ancestor_path(task, assignee) is None:
@@ -388,7 +412,12 @@ def record_due_task_reminders(*, now=None) -> int:
                     (models.TaskImDelivery.Event.STARTING, task.start_date)
                 )
             reminder_minutes = (
-                preference.default_reminder_minutes if preference is not None else 0
+                task_preference.reminder_minutes
+                if task_preference is not None
+                and task_preference.reminder_minutes is not None
+                else (
+                    preference.default_reminder_minutes if preference is not None else 0
+                )
             )
             reminder_days = reminder_minutes // (24 * 60)
             if task.due_date == today and reminder_days == 0:
@@ -412,7 +441,19 @@ def record_due_task_reminders(*, now=None) -> int:
                     reference_date=reference_date,
                     defaults={"next_attempt_at": timezone.now()},
                 )
-                if created:
+                reactivated = False
+                if not created:
+                    reactivated = bool(
+                        models.TaskImDelivery.objects.filter(
+                            pk=delivery.pk,
+                            status=models.TaskImDelivery.Status.SUPERSEDED,
+                        ).update(
+                            status=models.TaskImDelivery.Status.PENDING,
+                            next_attempt_at=timezone.now(),
+                            last_error="",
+                        )
+                    )
+                if created or reactivated:
                     created_count += 1
                     transaction.on_commit(lambda pk=delivery.id: _enqueue_delivery(pk))
     return created_count
@@ -978,7 +1019,16 @@ def _recipient_can_receive(  # noqa: PLR0912
         preference = models.TaskPreference.objects.filter(
             user_id=delivery.recipient_id
         ).first()
-        if preference is not None and not preference.daily_reminder_enabled:
+        task_preference = models.TaskReminderPreference.objects.filter(
+            task_id=delivery.task_id,
+            user_id=delivery.recipient_id,
+        ).first()
+        if (
+            preference is not None
+            and not preference.daily_reminder_enabled
+            or task_preference is not None
+            and not task_preference.enabled
+        ):
             allowed = False
         elif (
             delivery.recipient_id not in assignee_ids
@@ -995,7 +1045,14 @@ def _recipient_can_receive(  # noqa: PLR0912
                 )
             elif delivery.event == models.TaskImDelivery.Event.DUE_TODAY:
                 reminder_minutes = (
-                    preference.default_reminder_minutes if preference is not None else 0
+                    task_preference.reminder_minutes
+                    if task_preference is not None
+                    and task_preference.reminder_minutes is not None
+                    else (
+                        preference.default_reminder_minutes
+                        if preference is not None
+                        else 0
+                    )
                 )
                 allowed = (
                     reminder_minutes == 0
@@ -1003,7 +1060,14 @@ def _recipient_can_receive(  # noqa: PLR0912
                 )
             elif delivery.event == models.TaskImDelivery.Event.DUE_SOON:
                 reminder_minutes = (
-                    preference.default_reminder_minutes if preference is not None else 0
+                    task_preference.reminder_minutes
+                    if task_preference is not None
+                    and task_preference.reminder_minutes is not None
+                    else (
+                        preference.default_reminder_minutes
+                        if preference is not None
+                        else 0
+                    )
                 )
                 reminder_days = reminder_minutes // (24 * 60)
                 allowed = bool(

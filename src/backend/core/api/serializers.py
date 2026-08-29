@@ -545,6 +545,42 @@ class TaskPreferenceSerializer(serializers.ModelSerializer):
         return value
 
 
+class TaskReminderPreferenceSerializer(serializers.ModelSerializer):
+    """Serialize one assignee's task-specific reminder override."""
+
+    reminder_minutes = serializers.ChoiceField(
+        choices=models.TaskReminderPreference.ReminderMinutes.values,
+        allow_null=True,
+        required=False,
+    )
+    effective_reminder_minutes = serializers.SerializerMethodField()
+    global_reminders_enabled = serializers.SerializerMethodField()
+
+    def _global_preference(self):
+        return self.context["global_preference"]
+
+    def get_effective_reminder_minutes(self, obj):
+        if obj.reminder_minutes is not None:
+            return obj.reminder_minutes
+        return self._global_preference().default_reminder_minutes
+
+    def get_global_reminders_enabled(self, obj):  # pylint: disable=unused-argument
+        return self._global_preference().daily_reminder_enabled
+
+    class Meta:
+        model = models.TaskReminderPreference
+        fields = [
+            "enabled",
+            "reminder_minutes",
+            "effective_reminder_minutes",
+            "global_reminders_enabled",
+        ]
+        read_only_fields = [
+            "effective_reminder_minutes",
+            "global_reminders_enabled",
+        ]
+
+
 class TaskCommentSerializer(serializers.ModelSerializer):
     """Serialize and validate one immutable task comment."""
 
@@ -838,6 +874,7 @@ class TaskSerializer(serializers.ModelSerializer):
     can_comment = serializers.SerializerMethodField()
     can_manage_attachments = serializers.SerializerMethodField()
     can_manage_followers = serializers.SerializerMethodField()
+    can_manage_reminder = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
     time_state = serializers.SerializerMethodField()
     task_list = TaskListSummarySerializer(read_only=True)
@@ -934,6 +971,10 @@ class TaskSerializer(serializers.ModelSerializer):
             and user.is_authenticated
             and (obj.creator_id == user.id or is_task_assignee(obj, user))
         )
+
+    def get_can_manage_reminder(self, obj):
+        user = self._request_user()
+        return bool(user and user.is_authenticated and is_task_assignee(obj, user))
 
     def get_assignees(self, obj):
         prefetched = getattr(obj, "_prefetched_objects_cache", {}).get("assignees")
@@ -1062,6 +1103,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "can_comment",
             "can_manage_attachments",
             "can_manage_followers",
+            "can_manage_reminder",
             "is_following",
             "time_state",
             "created_at",

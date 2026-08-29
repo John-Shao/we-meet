@@ -2685,6 +2685,50 @@ class TaskPreference(BaseModel):
         return f"TaskPreference({self.user_id})"
 
 
+class TaskReminderPreference(BaseModel):
+    """One assignee's reminder override for one task."""
+
+    class ReminderMinutes(models.IntegerChoices):
+        DUE_DATE = 0, _("On due date")
+        ONE_DAY = 1440, _("One day before")
+        THREE_DAYS = 4320, _("Three days before")
+
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="reminder_preferences",
+        verbose_name=_("task"),
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="task_reminder_preferences",
+        verbose_name=_("user"),
+    )
+    enabled = models.BooleanField(_("enabled"), default=True)
+    reminder_minutes = models.PositiveSmallIntegerField(
+        _("reminder minutes"),
+        choices=ReminderMinutes.choices,
+        null=True,
+        blank=True,
+        help_text=_("Empty follows the user's default task reminder."),
+    )
+
+    class Meta:
+        db_table = "meet_task_reminder_preference"
+        verbose_name = _("task reminder preference")
+        verbose_name_plural = _("task reminder preferences")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["task", "user"],
+                name="task_reminder_preference_task_user_uniq",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"TaskReminderPreference({self.task_id}, {self.user_id})"
+
+
 class TaskConversationShare(BaseModel):
     """Read-only task visibility anchored to an IM conversation.
 

@@ -16,6 +16,7 @@ import type {
   ApiTask,
   ApiStandaloneTaskCount,
   ApiTaskSettings,
+  ApiTaskReminderPreference,
   ApiTaskList,
   ApiTaskListAccess,
   ApiTaskListGroup,
@@ -30,6 +31,7 @@ import type {
   CreateTaskPayload,
   PatchTaskPayload,
   PatchTaskSettingsPayload,
+  PatchTaskReminderPreferencePayload,
   TaskRecurrencePayload,
   TaskScope,
   TaskPriorityFilter,
@@ -104,6 +106,44 @@ export const useTask = (taskId?: string, sharedVia?: string) =>
     queryFn: () => fetchTask(taskId!, sharedVia),
     enabled: Boolean(taskId),
   })
+
+const fetchTaskReminder = (taskId: string) =>
+  fetchApi<ApiTaskReminderPreference>(
+    `tasks/${encodeURIComponent(taskId)}/reminder/`
+  )
+
+const patchTaskReminder = (
+  taskId: string,
+  patch: PatchTaskReminderPreferencePayload
+) =>
+  fetchApi<ApiTaskReminderPreference>(
+    `tasks/${encodeURIComponent(taskId)}/reminder/`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }
+  )
+
+export const useTaskReminder = (taskId?: string, enabled = true) =>
+  useQuery<ApiTaskReminderPreference, ApiError>({
+    queryKey: ['tasks', taskId, 'reminder'],
+    queryFn: () => fetchTaskReminder(taskId!),
+    enabled: Boolean(taskId) && enabled,
+  })
+
+export const useUpdateTaskReminder = (taskId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation<
+    ApiTaskReminderPreference,
+    ApiError,
+    PatchTaskReminderPreferencePayload
+  >({
+    mutationFn: (patch) => patchTaskReminder(taskId, patch),
+    onSuccess: (preference) => {
+      queryClient.setQueryData(['tasks', taskId, 'reminder'], preference)
+    },
+  })
+}
 
 const fetchTaskSubtasks = (taskId: string) =>
   fetchApi<ApiTask[]>(`tasks/${encodeURIComponent(taskId)}/subtasks/`)
