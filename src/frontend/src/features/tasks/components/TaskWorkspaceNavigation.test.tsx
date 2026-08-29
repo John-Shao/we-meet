@@ -70,6 +70,7 @@ const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
   const onLeaveTaskList = vi.fn()
   const onDeleteTaskList = vi.fn()
   const onOpenArchivedTaskLists = vi.fn()
+  const onOpenActivity = vi.fn()
   render(
     <TaskWorkspaceNavigation
       state={navigationState}
@@ -97,6 +98,7 @@ const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
       onLeaveTaskList={onLeaveTaskList}
       onDeleteTaskList={onDeleteTaskList}
       onOpenArchivedTaskLists={onOpenArchivedTaskLists}
+      onOpenActivity={onOpenActivity}
     />
   )
   return {
@@ -112,10 +114,19 @@ const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
     onLeaveTaskList,
     onDeleteTaskList,
     onOpenArchivedTaskLists,
+    onOpenActivity,
   }
 }
 
 describe('TaskWorkspaceNavigation', () => {
+  it('opens the cross-task activity feed from quick access', () => {
+    const { onOpenActivity } = renderNavigation()
+
+    fireEvent.click(screen.getByRole('button', { name: 'activity.navigation' }))
+
+    expect(onOpenActivity).toHaveBeenCalledOnce()
+  })
+
   it('groups task lists, supports collapsing, dragging, and group actions', () => {
     const {
       onCreateTaskList,

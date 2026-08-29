@@ -45,6 +45,7 @@ import {
 } from '../api/fetchTasks'
 import { TaskAnalytics } from '../components/TaskAnalytics'
 import { TaskActionFeedbackProvider } from '../components/TaskActionFeedback'
+import { TaskActivityDialog } from '../components/TaskActivityDialog'
 import { TaskBoard } from '../components/TaskBoard'
 import { TaskFilterToolbar } from '../components/TaskFilterToolbar'
 import { TaskGroupForm } from '../components/TaskGroupForm'
@@ -103,6 +104,7 @@ const TasksAuthenticated = () => {
   const [createParentTask, setCreateParentTask] = useState<ApiTask | null>(null)
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
   const [taskSettingsOpen, setTaskSettingsOpen] = useState(false)
+  const [taskActivityOpen, setTaskActivityOpen] = useState(false)
   const [taskListCreateGroupId, setTaskListCreateGroupId] = useState<string>()
   const [taskListGroupCreating, setTaskListGroupCreating] = useState(false)
   const [taskListSharing, setTaskListSharing] = useState<ApiTaskList | null>(
@@ -396,6 +398,7 @@ const TasksAuthenticated = () => {
             onLeaveTaskList={(taskList) => void leaveTaskList(taskList)}
             onDeleteTaskList={setTaskListDeleting}
             onOpenArchivedTaskLists={() => setArchivedTaskListsOpen(true)}
+            onOpenActivity={() => setTaskActivityOpen(true)}
           />
         </ResizablePanel>
       </div>
@@ -667,6 +670,16 @@ const TasksAuthenticated = () => {
       )}
       {taskSettingsOpen && (
         <TaskSettingsDialog onClose={() => setTaskSettingsOpen(false)} />
+      )}
+      {taskActivityOpen && (
+        <TaskActivityDialog
+          onClose={() => setTaskActivityOpen(false)}
+          onOpenTask={(taskId) => {
+            setTaskActivityOpen(false)
+            setCreating(false)
+            navigateState({ ...state, task: taskId })
+          }}
+        />
       )}
       {taskListManagerOpen && (
         <Modal

@@ -205,6 +205,8 @@ export interface ApiTaskActivityUserSnapshot {
 
 export interface ApiTaskActivity {
   id: string
+  task_id: string
+  task_title: string
   actor: ApiTaskUser | null
   event: TaskActivityEvent
   changes: {

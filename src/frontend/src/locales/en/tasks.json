@@ -75,6 +75,18 @@
       "history": "History"
     }
   },
+  "activity": {
+    "navigation": "Activity",
+    "title": "Task activity",
+    "description": "Recent changes across tasks you can access.",
+    "close": "Close task activity",
+    "loading": "Loading task activity…",
+    "empty": "No task activity recorded yet.",
+    "error": "Task activity could not be loaded.",
+    "openTask": "Open task: {{title}}",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…"
+  },
   "settings": {
     "title": "Task settings",
     "open": "Open task settings",

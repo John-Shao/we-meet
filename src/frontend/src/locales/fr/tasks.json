@@ -75,6 +75,18 @@
       "history": "Historique"
     }
   },
+  "activity": {
+    "navigation": "Activité",
+    "title": "Activité des tâches",
+    "description": "Modifications récentes des tâches auxquelles vous avez accès.",
+    "close": "Fermer l’activité des tâches",
+    "loading": "Chargement de l’activité des tâches…",
+    "empty": "Aucune activité de tâche pour le moment.",
+    "error": "Impossible de charger l’activité des tâches.",
+    "openTask": "Ouvrir la tâche : {{title}}",
+    "loadMore": "Charger plus",
+    "loadingMore": "Chargement…"
+  },
   "settings": {
     "title": "Paramètres des tâches",
     "open": "Ouvrir les paramètres des tâches",

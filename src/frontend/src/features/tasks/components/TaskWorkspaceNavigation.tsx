@@ -64,6 +64,7 @@ export const TaskWorkspaceNavigation = ({
   onLeaveTaskList,
   onDeleteTaskList,
   onOpenArchivedTaskLists,
+  onOpenActivity,
 }: {
   state: TaskWorkspaceState
   count: number
@@ -83,6 +84,7 @@ export const TaskWorkspaceNavigation = ({
   onLeaveTaskList?: (taskList: ApiTaskList) => void
   onDeleteTaskList?: (taskList: ApiTaskList) => void
   onOpenArchivedTaskLists?: () => void
+  onOpenActivity?: () => void
 }) => {
   const { t } = useTranslation('tasks')
   const current = activeView(state)
@@ -198,6 +200,12 @@ export const TaskWorkspaceNavigation = ({
             )}
           </button>
         ))}
+        <button type="button" className={navButtonCss} onClick={onOpenActivity}>
+          <span className={navLabelCss}>
+            <RiHistoryLine size={18} />
+            <span>{t('activity.navigation')}</span>
+          </span>
+        </button>
         <div
           className={sectionHeaderCss}
           data-list-drop-target={draggedTaskListId ? true : undefined}

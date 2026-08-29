@@ -75,6 +75,18 @@
       "history": "历史"
     }
   },
+  "activity": {
+    "navigation": "动态",
+    "title": "任务动态",
+    "description": "查看你有权访问的任务最近发生的变化。",
+    "close": "关闭任务动态",
+    "loading": "正在加载任务动态…",
+    "empty": "还没有任务动态。",
+    "error": "任务动态加载失败。",
+    "openTask": "打开任务：{{title}}",
+    "loadMore": "加载更多",
+    "loadingMore": "正在加载…"
+  },
   "settings": {
     "title": "任务设置",
     "open": "打开任务设置",

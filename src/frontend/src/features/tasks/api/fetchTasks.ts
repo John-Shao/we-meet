@@ -604,6 +604,24 @@ export const useTaskActivities = (taskId: string, sharedVia?: string) =>
     queryFn: () => fetchTaskActivities(taskId, sharedVia),
   })
 
+const fetchTaskActivityFeed = (pageUrl?: string) =>
+  fetchApi<Paginated<ApiTaskActivity>>(
+    pageUrl ? toApiPath(pageUrl) : 'tasks/activity/?page_size=50'
+  )
+
+export const getNextTaskActivityPageParam = (
+  lastPage: Paginated<ApiTaskActivity>
+) => lastPage.next ?? undefined
+
+export const useTaskActivityFeed = () =>
+  useInfiniteQuery<Paginated<ApiTaskActivity>, ApiError>({
+    queryKey: ['tasks', 'activity'],
+    queryFn: ({ pageParam }) =>
+      fetchTaskActivityFeed(pageParam as string | undefined),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: getNextTaskActivityPageParam,
+  })
+
 const fetchTaskComments = (taskId: string, sharedVia?: string) =>
   fetchApi<ApiTaskComment[]>(
     `tasks/${encodeURIComponent(taskId)}/comments/${sharedViaQuery(sharedVia)}`

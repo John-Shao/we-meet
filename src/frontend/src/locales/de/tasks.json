@@ -75,6 +75,18 @@
       "history": "Verlauf"
     }
   },
+  "activity": {
+    "navigation": "Aktivität",
+    "title": "Aufgabenaktivität",
+    "description": "Letzte Änderungen an Aufgaben, auf die du zugreifen kannst.",
+    "close": "Aufgabenaktivität schließen",
+    "loading": "Aufgabenaktivität wird geladen…",
+    "empty": "Noch keine Aufgabenaktivität vorhanden.",
+    "error": "Die Aufgabenaktivität konnte nicht geladen werden.",
+    "openTask": "Aufgabe öffnen: {{title}}",
+    "loadMore": "Mehr laden",
+    "loadingMore": "Wird geladen…"
+  },
   "settings": {
     "title": "Aufgabeneinstellungen",
     "open": "Aufgabeneinstellungen öffnen",

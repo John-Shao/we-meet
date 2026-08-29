@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildTasksUrl, getNextTasksPageParam } from './fetchTasks'
+import {
+  buildTasksUrl,
+  getNextTaskActivityPageParam,
+  getNextTasksPageParam,
+} from './fetchTasks'
 
 describe('buildTasksUrl', () => {
   it('combines workspace and task list filters', () => {
@@ -35,5 +39,25 @@ describe('getNextTasksPageParam', () => {
       })
     ).toBe('https://meet.test/api/v1.0/tasks/?page=2')
     expect(getNextTasksPageParam({ ...page, next: null })).toBeUndefined()
+  })
+})
+
+describe('getNextTaskActivityPageParam', () => {
+  it('continues the activity feed with the backend next page URL', () => {
+    const page = {
+      count: 51,
+      previous: null,
+      results: [],
+    }
+
+    expect(
+      getNextTaskActivityPageParam({
+        ...page,
+        next: 'https://meet.test/api/v1.0/tasks/activity/?page=2',
+      })
+    ).toBe('https://meet.test/api/v1.0/tasks/activity/?page=2')
+    expect(
+      getNextTaskActivityPageParam({ ...page, next: null })
+    ).toBeUndefined()
   })
 })

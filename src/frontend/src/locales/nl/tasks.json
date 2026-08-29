@@ -75,6 +75,18 @@
       "history": "Geschiedenis"
     }
   },
+  "activity": {
+    "navigation": "Activiteit",
+    "title": "Taakactiviteit",
+    "description": "Recente wijzigingen in taken waartoe je toegang hebt.",
+    "close": "Taakactiviteit sluiten",
+    "loading": "Taakactiviteit laden…",
+    "empty": "Nog geen taakactiviteit.",
+    "error": "De taakactiviteit kon niet worden geladen.",
+    "openTask": "Taak openen: {{title}}",
+    "loadMore": "Meer laden",
+    "loadingMore": "Laden…"
+  },
   "settings": {
     "title": "Taakinstellingen",
     "open": "Taakinstellingen openen",
