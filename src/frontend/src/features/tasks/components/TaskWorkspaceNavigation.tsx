@@ -124,6 +124,9 @@ export const TaskWorkspaceNavigation = ({
 }) => {
   const { t } = useTranslation('tasks')
   const current = activeView(state)
+  const hasActiveSavedView = savedViews.some(
+    (view) => view.id === state.savedView
+  )
   const orderedSavedViews = [...savedViews]
     .filter((view) => view.is_pinned)
     .sort((first, second) => first.position - second.position)
@@ -187,7 +190,7 @@ export const TaskWorkspaceNavigation = ({
     <TaskListNavigationRow
       key={taskList.id}
       taskList={taskList}
-      active={state.taskList === taskList.id}
+      active={!hasActiveSavedView && state.taskList === taskList.id}
       onSelect={() => onTaskListChange(taskList.id)}
       onDragStart={(event) => startListDrag(event, taskList)}
       onDragEnd={() => setDraggedTaskListId(undefined)}
@@ -210,11 +213,19 @@ export const TaskWorkspaceNavigation = ({
             key={view}
             type="button"
             aria-current={
-              state.taskList === 'all' && current === view ? 'page' : undefined
+              !hasActiveSavedView &&
+              state.taskList === 'all' &&
+              current === view
+                ? 'page'
+                : undefined
             }
             className={navButtonCss}
             data-active={
-              state.taskList === 'all' && current === view ? true : undefined
+              !hasActiveSavedView &&
+              state.taskList === 'all' &&
+              current === view
+                ? true
+                : undefined
             }
             onClick={() => onChange(view)}
           >
@@ -232,11 +243,13 @@ export const TaskWorkspaceNavigation = ({
               )}
               <span>{t(`workspace.views.${view}`)}</span>
             </span>
-            {state.taskList === 'all' && current === view && (
-              <span aria-label={t('workspace.resultCount', { count })}>
-                {count}
-              </span>
-            )}
+            {!hasActiveSavedView &&
+              state.taskList === 'all' &&
+              current === view && (
+                <span aria-label={t('workspace.resultCount', { count })}>
+                  {count}
+                </span>
+              )}
           </button>
         ))}
         <button type="button" className={navButtonCss} onClick={onOpenActivity}>
@@ -509,7 +522,7 @@ export const TaskWorkspaceNavigation = ({
             })}
             {standaloneTaskCount > 0 && (
               <StandaloneTaskListNavigationRow
-                active={state.taskList === 'unassigned'}
+                active={!hasActiveSavedView && state.taskList === 'unassigned'}
                 onSelect={() => onTaskListChange('unassigned')}
               />
             )}

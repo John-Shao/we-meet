@@ -182,6 +182,10 @@ describe('TaskWorkspaceNavigation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: savedView.name }))
     expect(onSelectSavedView).toHaveBeenCalledWith(savedView)
+    expect(screen.getAllByRole('button', { current: 'page' })).toHaveLength(1)
+    expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent(
+      savedView.name
+    )
     fireEvent.click(
       screen.getByRole('button', { name: 'savedViews.saveCurrent' })
     )
@@ -228,6 +232,15 @@ describe('TaskWorkspaceNavigation', () => {
     ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'savedViews.manage' }))
     expect(onManageSavedViews).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to the matching system entry for a stale saved view id', () => {
+    renderNavigation({ ...state, savedView: 'deleted-view' })
+
+    expect(screen.getAllByRole('button', { current: 'page' })).toHaveLength(1)
+    expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent(
+      'workspace.views.all'
+    )
   })
 
   it('groups task lists, supports collapsing, dragging, and group actions', () => {
