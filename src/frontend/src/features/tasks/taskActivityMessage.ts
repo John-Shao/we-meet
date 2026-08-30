@@ -54,15 +54,22 @@ export const taskActivityMessage = (
   }
   if (activity.event === 'assignee_changed') {
     const assignees = activity.changes.assignees
-    const targets =
-      assignees && !Array.isArray(assignees) && 'to' in assignees
-        ? assignees.to.map((assignee) => assignee.name).join('、')
-        : null
+    const assigneeNames =
+      assignees == null
+        ? null
+        : Array.isArray(assignees)
+          ? assignees.map((item) => item.name)
+          : assignees.to.map((item) => item.name)
     const assignee = activity.changes.assignee
-    const target = assignee && 'to' in assignee ? assignee.to?.name : null
+    const assigneeName =
+      assignee == null
+        ? null
+        : 'to' in assignee
+          ? assignee.to?.name ?? null
+          : assignee.name
     return t('history.events.assignee_changed', {
       actor,
-      assignee: targets || target || '—',
+      assignee: assigneeNames?.join('、') || assigneeName || '—',
     })
   }
   if (activity.event === 'attachment_removed') {
