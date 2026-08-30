@@ -79,6 +79,7 @@ import {
   buildTaskWorkspaceSearch,
   hasActiveTaskFilters,
   parseTaskWorkspaceState,
+  savedViewConfigEquals,
   stateForSavedView,
   stateForView,
   stateForTaskList,
@@ -204,8 +205,10 @@ const TasksAuthenticated = () => {
   const activeSavedView = savedViews.find((view) => view.id === state.savedView)
   const savedViewChanged = Boolean(
     activeSavedView &&
-    JSON.stringify(activeSavedView.config) !==
-      JSON.stringify(taskWorkspaceStateToSavedViewConfig(state))
+    !savedViewConfigEquals(
+      activeSavedView.config,
+      taskWorkspaceStateToSavedViewConfig(state)
+    )
   )
 
   const deleteGroup = async (group: ApiTaskGroup) => {

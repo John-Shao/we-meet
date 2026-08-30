@@ -25,6 +25,7 @@ const priorityFilters: TaskPriorityFilter[] = [
   'high',
   'medium',
   'low',
+  'none',
 ]
 
 export const TaskFilterToolbar = ({

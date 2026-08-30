@@ -71,7 +71,7 @@ export const parseTaskWorkspaceState = (
   ),
   status: oneOf(
     params.get('status'),
-    ['open', 'all', 'todo', 'completed'],
+    ['open', 'all', 'completed'],
     'open'
   ),
   time: oneOf(
@@ -81,7 +81,7 @@ export const parseTaskWorkspaceState = (
   ),
   priority: oneOf(
     params.get('priority'),
-    ['all', 'low', 'medium', 'high', 'urgent'],
+    ['all', 'none', 'low', 'medium', 'high', 'urgent'],
     'all'
   ),
   ordering: oneOf(params.get('ordering'), TASK_ORDERINGS, ''),
@@ -170,6 +170,21 @@ export const taskWorkspaceStateToSavedViewConfig = (
   ordering: state.ordering,
   view: state.mode,
 })
+
+// Field-level equality — JSON.stringify comparison would be sensitive to key
+// order between the server's config and our locally-built object.
+export const savedViewConfigEquals = (
+  left: TaskSavedViewConfig,
+  right: TaskSavedViewConfig
+) =>
+  left.version === right.version &&
+  left.scope === right.scope &&
+  left.status === right.status &&
+  left.time === right.time &&
+  left.priority === right.priority &&
+  left.task_list === right.task_list &&
+  left.ordering === right.ordering &&
+  left.view === right.view
 
 export const stateForSavedView = (
   state: TaskWorkspaceState,

@@ -569,10 +569,16 @@ export const TaskDetailPanel = ({
     const ordered = [...subtasks]
     const [moved] = ordered.splice(sourceIndex, 1)
     ordered.splice(targetIndex, 0, moved)
-    reorderSubtasksMutation.mutate({
-      taskId,
-      taskIds: ordered.map((subtask) => subtask.id),
-    })
+    reorderSubtasksMutation.mutate(
+      {
+        taskId,
+        taskIds: ordered.map((subtask) => subtask.id),
+      },
+      {
+        onError: () =>
+          notifyFailure({ taskId, title: task?.title ?? '' }),
+      }
+    )
   }
 
   return (

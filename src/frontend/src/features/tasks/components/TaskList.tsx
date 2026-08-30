@@ -530,10 +530,13 @@ export const TaskList = ({
 
     try {
       await patchMutation.mutateAsync({ taskId: task.id, patch: { status } })
-      setStatusOverrides((current) => ({
-        ...current,
-        [task.id]: { ...current[task.id], pending: false },
-      }))
+      setStatusOverrides((current) => {
+        if (!current[task.id]) return current
+        return {
+          ...current,
+          [task.id]: { ...current[task.id], pending: false },
+        }
+      })
       notifyAction({
         taskId: task.id,
         title: task.title,

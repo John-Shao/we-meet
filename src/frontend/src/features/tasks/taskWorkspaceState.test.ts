@@ -40,7 +40,7 @@ describe('task workspace state', () => {
       )
     ).toEqual({
       scope: 'created',
-      status: 'todo',
+      status: 'open',
       time: 'overdue',
       priority: 'high',
       ordering: '-due_date',
@@ -61,7 +61,7 @@ describe('task workspace state', () => {
     ).toBe('')
     expect(
       parseTaskWorkspaceState(new URLSearchParams('priority=none')).priority
-    ).toBe('all')
+    ).toBe('none')
   })
 
   it('preserves priority while resetting time for closed views', () => {

@@ -94,12 +94,17 @@ export const TaskListSharingDialog = ({
   const update = useUpdateTaskListShare()
   const remove = useRemoveTaskListShare()
   const addMember = async (member: DirectoryMember) => {
-    await share.mutateAsync({
-      taskListId: taskList.id,
-      userId: member.id,
-      role: 'viewer',
-    })
-    setPickerOpen(false)
+    try {
+      await share.mutateAsync({
+        taskListId: taskList.id,
+        userId: member.id,
+        role: 'viewer',
+      })
+      setPickerOpen(false)
+    } catch {
+      // Keep the picker open so the user can retry; the mutation error is
+      // rendered by the share dialog.
+    }
   }
   return (
     <>

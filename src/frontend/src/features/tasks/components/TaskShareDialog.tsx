@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
@@ -19,12 +19,23 @@ export const TaskShareDialog = ({
 }) => {
   const { t, i18n } = useTranslation('tasks')
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
+  const timerRef = useRef<number>()
   const link = useMemo(() => buildTaskLink(task.id), [task.id])
 
+  useEffect(() => () => window.clearTimeout(timerRef.current), [])
+
   const copy = async () => {
-    await navigator.clipboard.writeText(link)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1600)
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      setCopyFailed(false)
+      window.clearTimeout(timerRef.current)
+      timerRef.current = window.setTimeout(() => setCopied(false), 1600)
+    } catch {
+      setCopied(false)
+      setCopyFailed(true)
+    }
   }
 
   return (
@@ -45,6 +56,9 @@ export const TaskShareDialog = ({
                 {copied ? t('share.copied') : t('share.copy')}
               </button>
             </div>
+            {copyFailed && (
+              <p role="alert">{t('share.failed')}</p>
+            )}
           </div>
         ),
       }}
