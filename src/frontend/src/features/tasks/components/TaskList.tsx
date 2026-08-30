@@ -317,9 +317,6 @@ export const TaskList = ({
       window.removeEventListener('blur', close)
     }
   }, [contextMenu])
-  useEffect(() => {
-    setManuallyCollapsedTaskIds(new Set())
-  }, [selectedTaskId])
   const visibleColumns = TASK_COLUMNS.filter(
     (column) =>
       (!grouped || column.id !== 'taskList') &&

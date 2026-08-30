@@ -159,7 +159,7 @@ export const TaskDetailPanel = ({
   const { t, i18n } = useTranslation('tasks')
   const { data, isLoading, error } = useTask(taskId, sharedVia)
   const { data: subtasks = [], isLoading: subtasksLoading } =
-    useTaskSubtasks(taskId)
+    useTaskSubtasks(taskId, sharedVia)
   const { data: subtreeImpact } = useTaskSubtreeImpact(taskId)
   const { data: parentCandidates = [] } = useTaskParentCandidates(taskId)
   const task = data || fallbackTask
@@ -208,8 +208,9 @@ export const TaskDetailPanel = ({
   useEffect(() => {
     if (patchMutation.isPending) {
       if (!activeSaveTaskIdRef.current) {
-        activeSaveTaskIdRef.current = taskId
-        notifySaveState({ taskId, state: 'saving' })
+        const savingTaskId = patchMutation.variables?.taskId ?? taskId
+        activeSaveTaskIdRef.current = savingTaskId
+        notifySaveState({ taskId: savingTaskId, state: 'saving' })
       }
       return
     }
@@ -222,6 +223,7 @@ export const TaskDetailPanel = ({
     notifySaveState,
     patchMutation.isPending,
     patchMutation.isSuccess,
+    patchMutation.variables?.taskId,
     taskId,
   ])
   const { confirm } = useConfirm()

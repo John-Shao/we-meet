@@ -144,6 +144,9 @@ const TasksAuthenticated = () => {
   const taskListGroupNameRef = useRef<HTMLInputElement>(null)
   const taskListGroupRenameRef = useRef<HTMLInputElement>(null)
   const savedViewNameRef = useRef<HTMLInputElement>(null)
+  // Remember the list's status filter while the user is on board/analytics, so
+  // switching back restores it instead of leaking the 'all' status forced there.
+  const lastListStatusRef = useRef<TaskStatusFilter>('open')
   const { confirm } = useConfirm()
   const deleteGroupMutation = useDeleteTaskGroup()
   const deleteTaskListGroupMutation = useDeleteTaskListGroup()
@@ -419,10 +422,21 @@ const TasksAuthenticated = () => {
 
   const changeMode = (mode: TaskWorkspaceMode) => {
     setCreating(false)
+    if (mode === state.mode) return
+    if (mode === 'list') {
+      navigateState({
+        ...state,
+        mode,
+        status: lastListStatusRef.current,
+        task: undefined,
+      })
+      return
+    }
+    lastListStatusRef.current = state.status
     navigateState({
       ...state,
       mode,
-      status: mode === 'list' ? state.status : 'all',
+      status: 'all',
       time: mode === 'analytics' ? 'all' : state.time,
       task: undefined,
     })

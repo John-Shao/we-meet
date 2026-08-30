@@ -129,10 +129,19 @@ export const stateWithStatus = (
   time: status === 'completed' ? 'all' : state.time,
 })
 
-export const hasActiveTaskFilters = (state: TaskWorkspaceState) =>
-  state.status !== (state.mode === 'board' ? 'all' : 'open') ||
-  state.time !== 'all' ||
-  state.priority !== 'all'
+export const hasActiveTaskFilters = (state: TaskWorkspaceState) => {
+  const defaultStatus =
+    state.scope === 'all' && state.status === 'completed'
+      ? 'completed'
+      : state.mode === 'board'
+        ? 'all'
+        : 'open'
+  return (
+    state.status !== defaultStatus ||
+    state.time !== 'all' ||
+    state.priority !== 'all'
+  )
+}
 
 export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
   const params = new URLSearchParams()

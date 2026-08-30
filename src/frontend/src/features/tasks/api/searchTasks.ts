@@ -42,8 +42,11 @@ export const buildTaskSearchUrl = (
   const params = new URLSearchParams({
     scope: 'all',
     status: filters.status,
-    q: query.trim(),
   })
+  // The backend rejects q shorter than 2 chars (400), so omit it instead of
+  // sending a trimmed single-character or empty query.
+  const trimmedQuery = query.trim()
+  if (trimmedQuery.length >= 2) params.set('q', trimmedQuery)
   const people: Array<[string, string[]]> = [
     ['creator_ids', filters.creatorIds],
     ['assignee_ids', filters.assigneeIds],

@@ -148,13 +148,15 @@ export const useUpdateTaskReminder = (taskId: string) => {
   })
 }
 
-const fetchTaskSubtasks = (taskId: string) =>
-  fetchApi<ApiTask[]>(`tasks/${encodeURIComponent(taskId)}/subtasks/`)
+const fetchTaskSubtasks = (taskId: string, sharedVia?: string) =>
+  fetchApi<ApiTask[]>(
+    `tasks/${encodeURIComponent(taskId)}/subtasks/${sharedViaQuery(sharedVia)}`
+  )
 
-export const useTaskSubtasks = (taskId?: string) =>
+export const useTaskSubtasks = (taskId?: string, sharedVia?: string) =>
   useQuery<ApiTask[], ApiError>({
-    queryKey: ['tasks', taskId, 'subtasks'],
-    queryFn: () => fetchTaskSubtasks(taskId!),
+    queryKey: ['tasks', taskId, 'subtasks', sharedVia],
+    queryFn: () => fetchTaskSubtasks(taskId!, sharedVia),
     enabled: Boolean(taskId),
   })
 
