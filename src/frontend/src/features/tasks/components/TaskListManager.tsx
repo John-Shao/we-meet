@@ -50,6 +50,7 @@ export const TaskListManager = ({
       setName('')
       setDescription('')
       setColor('blue')
+      setListGroupId('')
       onCreated?.(taskList)
     } catch {
       // Keep the draft visible for correction or retry.

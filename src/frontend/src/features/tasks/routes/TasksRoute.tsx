@@ -407,11 +407,13 @@ const TasksAuthenticated = () => {
 
   const changeView = (view: TaskWorkspaceView) => {
     setCreating(false)
+    setSavedViewNotice('')
     navigateState({ ...stateForView(state, view), task: undefined })
   }
 
   const changeTaskList = (taskListId: string) => {
     setCreating(false)
+    setSavedViewNotice('')
     navigateState(stateForTaskList(state, taskListId))
   }
 
@@ -422,6 +424,7 @@ const TasksAuthenticated = () => {
 
   const changeMode = (mode: TaskWorkspaceMode) => {
     setCreating(false)
+    setSavedViewNotice('')
     if (mode === state.mode) return
     if (mode === 'list') {
       navigateState({

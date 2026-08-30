@@ -123,6 +123,12 @@ export const fetchApi = async <T = Record<string, unknown>>(
   } else {
     const contentType = response.headers.get('content-type') ?? ''
     if (!contentType.includes('application/json')) {
+      // A non-JSON error body (e.g. a gateway's HTML 502/504) should keep its
+      // text instead of being surfaced as `undefined`. Non-JSON 2xx payloads
+      // still resolve to `undefined` to preserve binary/empty response shapes.
+      if (!response.ok) {
+        throw new ApiError(response.status, await response.text())
+      }
       result = undefined as T
     } else {
       result = (await response.json()) as T

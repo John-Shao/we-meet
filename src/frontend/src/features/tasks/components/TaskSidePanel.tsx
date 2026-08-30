@@ -1696,10 +1696,12 @@ const DetailInlineSelect = ({
   const { t } = useTranslation('tasks')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const selectionCommitted = useRef(false)
+  const closeTimerRef = useRef<number>()
   const [isOpen, setIsOpen] = useState(autoOpen)
 
   useEffect(() => {
     if (autoOpen) triggerRef.current?.focus()
+    return () => window.clearTimeout(closeTimerRef.current)
   }, [autoOpen])
 
   return (
@@ -1714,7 +1716,8 @@ const DetailInlineSelect = ({
       onOpenChange={(open) => {
         setIsOpen(open)
         if (!open) {
-          window.setTimeout(() => {
+          window.clearTimeout(closeTimerRef.current)
+          closeTimerRef.current = window.setTimeout(() => {
             if (!selectionCommitted.current) onCancel()
           })
         }

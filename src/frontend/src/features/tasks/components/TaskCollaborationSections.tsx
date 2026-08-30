@@ -231,9 +231,9 @@ export const TaskAttachmentsSection = ({
       )}
       {(createMutation.error || deleteMutation.error) && (
         <p role="alert" className={errorCss}>
-          {createMutation.error
-            ? t('attachments.uploadError')
-            : t('attachments.removeError')}
+          {deleteMutation.error
+            ? t('attachments.removeError')
+            : t('attachments.uploadError')}
         </p>
       )}
       <AsyncState

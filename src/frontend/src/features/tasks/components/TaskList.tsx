@@ -1,5 +1,6 @@
 import {
   Fragment,
+  memo,
   useEffect,
   useMemo,
   useRef,
@@ -916,39 +917,40 @@ export const TaskList = ({
 
 const DesktopTaskGroup = (props: GroupProps) => <DesktopTaskRow {...props} />
 
-const DesktopTaskRow = ({
-  task,
-  treeDepth,
-  ancestorHasNextSiblings,
-  isLastSibling,
-  hasVisibleSubtasks,
-  isSubtasksExpanded,
-  showAncestorPath,
-  onToggleSubtasks,
-  taskLists = [],
-  grouped,
-  isLastInGroup,
-  selectedTaskId,
-  onOpen,
-  onTaskContextMenu,
-  registerRow,
-  t,
-  formatDate,
-  formatDateTime,
-  statusOverride,
-  statusPending,
-  onToggleStatus,
-  editingCell,
-  inlinePending,
-  onBeginInlineEdit,
-  onSaveInlineEdit,
-  onCancelInlineEdit,
-  compact,
-  showOverdueMarker,
-  onShare,
-  onDeleteTask,
-  groups = [],
-}: GroupProps) => (
+const DesktopTaskRow = memo(
+  ({
+    task,
+    treeDepth,
+    ancestorHasNextSiblings,
+    isLastSibling,
+    hasVisibleSubtasks,
+    isSubtasksExpanded,
+    showAncestorPath,
+    onToggleSubtasks,
+    taskLists = [],
+    grouped,
+    isLastInGroup,
+    selectedTaskId,
+    onOpen,
+    onTaskContextMenu,
+    registerRow,
+    t,
+    formatDate,
+    formatDateTime,
+    statusOverride,
+    statusPending,
+    onToggleStatus,
+    editingCell,
+    inlinePending,
+    onBeginInlineEdit,
+    onSaveInlineEdit,
+    onCancelInlineEdit,
+    compact,
+    showOverdueMarker,
+    onShare,
+    onDeleteTask,
+    groups = [],
+  }: GroupProps) => (
   <tr
     ref={(element) => registerRow(task.id, element)}
     tabIndex={0}
@@ -1165,6 +1167,7 @@ const DesktopTaskRow = ({
     )}
     <td aria-hidden="true" className={tableGutterCellCss} />
   </tr>
+  )
 )
 
 const InlineEditButton = ({

@@ -77,14 +77,21 @@ export const TaskBoard = ({
             </header>
             <div className={cardsCss}>
               {statusTasks.map((task) => (
-                <button
+                <div
                   key={task.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   className={cardCss}
                   data-selected={selectedTaskId === task.id || undefined}
                   draggable={task.can_update_status}
                   onDragStart={(event) => startTaskDrag(event, task)}
                   onClick={() => onOpen(task)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      onOpen(task)
+                    }
+                  }}
                 >
                   <strong>{task.title}</strong>
                   <div className={badgesCss}>
@@ -98,7 +105,7 @@ export const TaskBoard = ({
                         : t('meta.none')}
                     </span>
                   </div>
-                </button>
+                </div>
               ))}
               {statusTasks.length === 0 && (
                 <p className={emptyCss}>{t('board.emptyColumn')}</p>
@@ -111,7 +118,7 @@ export const TaskBoard = ({
   )
 }
 
-const startTaskDrag = (event: DragEvent<HTMLButtonElement>, task: ApiTask) => {
+const startTaskDrag = (event: DragEvent<HTMLDivElement>, task: ApiTask) => {
   if (!task.can_update_status) {
     event.preventDefault()
     return
