@@ -170,11 +170,9 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
     task: ApiTask
   ) => void
   editingCell: InlineEditingCell | null
-  inlineDraft: string
   inlinePending: boolean
   compact: boolean
   onBeginInlineEdit: (task: ApiTask, field: InlineEditableField) => void
-  onInlineDraftChange: (value: string) => void
   onSaveInlineEdit: (task: ApiTask, patch: PatchTaskPayload) => void
   onCancelInlineEdit: () => void
 }
@@ -233,7 +231,6 @@ export const TaskList = ({
   >({})
   const [statusError, setStatusError] = useState(false)
   const [editingCell, setEditingCell] = useState<InlineEditingCell | null>(null)
-  const [inlineDraft, setInlineDraft] = useState('')
   const [inlinePending, setInlinePending] = useState(false)
   const [inlineOverrides, setInlineOverrides] = useState<
     Record<string, InlineTaskOverride>
@@ -433,11 +430,6 @@ export const TaskList = ({
     if (!task.can_edit || inlinePending || patchMutation.isPending) return
     setStatusError(false)
     setEditingCell({ taskId: task.id, field })
-    if (field === 'title') setInlineDraft(task.title)
-    if (field === 'priority') setInlineDraft(task.priority)
-    if (field === 'startDate') setInlineDraft(task.start_date || '')
-    if (field === 'dueDate') setInlineDraft(task.due_date || '')
-    if (field === 'taskList') setInlineDraft(task.task_list?.id || '')
     if (field === 'assignee') setAssigneeEditingTask(task)
   }
 
@@ -650,10 +642,8 @@ export const TaskList = ({
     onToggleStatus: (task: ApiTask) => void toggleTaskStatus(task),
     onTaskContextMenu: showTaskContextMenu,
     editingCell,
-    inlineDraft,
     inlinePending,
     onBeginInlineEdit: beginInlineEdit,
-    onInlineDraftChange: setInlineDraft,
     onSaveInlineEdit: (task: ApiTask, patch: PatchTaskPayload) =>
       void saveInlineEdit(task, patch),
     onCancelInlineEdit: cancelInlineEdit,
@@ -952,10 +942,8 @@ const DesktopTaskRow = ({
   statusPending,
   onToggleStatus,
   editingCell,
-  inlineDraft,
   inlinePending,
   onBeginInlineEdit,
-  onInlineDraftChange,
   onSaveInlineEdit,
   onCancelInlineEdit,
   compact,
@@ -1011,9 +999,8 @@ const DesktopTaskRow = ({
         />
         {editingCell?.taskId === task.id && editingCell.field === 'title' ? (
           <InlineTitleEditor
-            value={inlineDraft}
+            initialValue={task.title}
             pending={inlinePending}
-            onChange={onInlineDraftChange}
             onSave={(title) => onSaveInlineEdit(task, { title })}
             onCancel={onCancelInlineEdit}
           />
@@ -1070,10 +1057,9 @@ const DesktopTaskRow = ({
     <td>
       {editingCell?.taskId === task.id && editingCell.field === 'priority' ? (
         <InlinePriorityEditor
-          value={inlineDraft as TaskPriority}
+          initialValue={task.priority}
           pending={inlinePending}
           label={t('workspace.columns.priority')}
-          onChange={onInlineDraftChange}
           onSave={(priority) => onSaveInlineEdit(task, { priority })}
           onCancel={onCancelInlineEdit}
         />
@@ -1096,11 +1082,10 @@ const DesktopTaskRow = ({
     <td className={secondaryColumnCss}>
       {editingCell?.taskId === task.id && editingCell.field === 'startDate' ? (
         <InlineDateEditor
-          value={inlineDraft}
+          initialValue={task.start_date || ''}
           max={task.due_date || undefined}
           pending={inlinePending}
           label={t('workspace.columns.startDate')}
-          onChange={onInlineDraftChange}
           onSave={(startDate) =>
             onSaveInlineEdit(task, { start_date: startDate || null })
           }
@@ -1125,11 +1110,10 @@ const DesktopTaskRow = ({
     >
       {editingCell?.taskId === task.id && editingCell.field === 'dueDate' ? (
         <InlineDateEditor
-          value={inlineDraft}
+          initialValue={task.due_date || ''}
           min={task.start_date || undefined}
           pending={inlinePending}
           label={t('workspace.columns.dueDate')}
-          onChange={onInlineDraftChange}
           onSave={(dueDate) =>
             onSaveInlineEdit(task, { due_date: dueDate || null })
           }
@@ -1150,11 +1134,10 @@ const DesktopTaskRow = ({
       <td className={secondaryColumnCss}>
         {editingCell?.taskId === task.id && editingCell.field === 'taskList' ? (
           <InlineTaskListEditor
-            value={inlineDraft}
+            initialValue={task.task_list?.id || ''}
             pending={inlinePending}
             label={t('workspace.columns.taskList')}
             taskLists={taskLists}
-            onChange={onInlineDraftChange}
             onSave={(taskListId) =>
               onSaveInlineEdit(task, {
                 task_list_id: taskListId || null,
@@ -1265,26 +1248,25 @@ const InlineEditButton = ({
 }
 
 const InlineTitleEditor = ({
-  value,
+  initialValue,
   pending,
-  onChange,
   onSave,
   onCancel,
 }: {
-  value: string
+  initialValue: string
   pending: boolean
-  onChange: (value: string) => void
   onSave: (value: string) => void
   onCancel: () => void
 }) => {
   const { t } = useTranslation('tasks')
+  const [draft, setDraft] = useState(initialValue)
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     inputRef.current?.focus()
     inputRef.current?.select()
   }, [])
   const save = () => {
-    const title = value.trim()
+    const title = draft.trim()
     if (title) onSave(title)
     else onCancel()
   }
@@ -1293,13 +1275,13 @@ const InlineTitleEditor = ({
       ref={inputRef}
       className={inlineCellInputCss}
       aria-label={`${t('actions.edit')} ${t('workspace.columns.title')}`}
-      value={value}
+      value={draft}
       maxLength={500}
       disabled={pending}
       draggable={false}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => setDraft(event.target.value)}
       onFocus={(event) => event.currentTarget.select()}
       onBlur={save}
       onKeyDown={(event) => {
@@ -1318,17 +1300,15 @@ const InlineTitleEditor = ({
 }
 
 const InlinePriorityEditor = ({
-  value,
+  initialValue,
   pending,
   label,
-  onChange,
   onSave,
   onCancel,
 }: {
-  value: TaskPriority
+  initialValue: TaskPriority
   pending: boolean
   label: string
-  onChange: (value: string) => void
   onSave: (value: TaskPriority) => void
   onCancel: () => void
 }) => {
@@ -1336,14 +1316,13 @@ const InlinePriorityEditor = ({
   return (
     <InlineSelectEditor
       label={`${t('actions.edit')} ${label}`}
-      value={value}
+      value={initialValue}
       disabled={pending}
       items={priorities.map((priority) => ({
         value: priority,
         label: t(`priorities.${priority}`),
       }))}
       onChange={(priority) => {
-        onChange(priority)
         onSave(priority as TaskPriority)
       }}
       onCancel={onCancel}
@@ -1352,19 +1331,17 @@ const InlinePriorityEditor = ({
 }
 
 const InlineTaskListEditor = ({
-  value,
+  initialValue,
   pending,
   label,
   taskLists,
-  onChange,
   onSave,
   onCancel,
 }: {
-  value: string
+  initialValue: string
   pending: boolean
   label: string
   taskLists: ApiTaskList[]
-  onChange: (value: string) => void
   onSave: (value: string) => void
   onCancel: () => void
 }) => {
@@ -1372,7 +1349,7 @@ const InlineTaskListEditor = ({
   return (
     <InlineSelectEditor
       label={`${t('actions.edit')} ${label}`}
-      value={value}
+      value={initialValue}
       disabled={pending}
       items={[
         { value: '', label: t('taskLists.standalone') },
@@ -1382,7 +1359,6 @@ const InlineTaskListEditor = ({
         })),
       ]}
       onChange={(taskListId) => {
-        onChange(taskListId)
         onSave(taskListId)
       }}
       onCancel={onCancel}
@@ -1440,25 +1416,24 @@ const InlineSelectEditor = ({
 }
 
 const InlineDateEditor = ({
-  value,
+  initialValue,
   min,
   max,
   pending,
   label,
-  onChange,
   onSave,
   onCancel,
 }: {
-  value: string
+  initialValue: string
   min?: string
   max?: string
   pending: boolean
   label: string
-  onChange: (value: string) => void
   onSave: (value: string) => void
   onCancel: () => void
 }) => {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [draft, setDraft] = useState(initialValue)
   useEffect(() => inputRef.current?.focus(), [])
   return (
     <input
@@ -1466,14 +1441,14 @@ const InlineDateEditor = ({
       type="date"
       className={inlineCellInputCss}
       aria-label={label}
-      value={value}
+      value={draft}
       min={min}
       max={max}
       disabled={pending}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
-      onChange={(event) => onChange(event.target.value)}
-      onBlur={() => onSave(value)}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => onSave(draft)}
       onKeyDown={(event) => {
         event.stopPropagation()
         if (event.key === 'Enter') {
