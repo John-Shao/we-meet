@@ -215,8 +215,8 @@ describe('taskActivityMessage', () => {
 
   it('falls back to the event key for unhandled events', () => {
     expect(
-      taskActivityMessage(baseActivity({ event: 'title_changed' }), keyOnlyT)
-    ).toBe('history.events.title_changed')
+      taskActivityMessage(baseActivity({ event: 'content_changed' }), keyOnlyT)
+    ).toBe('history.events.content_changed')
   })
 })
 
