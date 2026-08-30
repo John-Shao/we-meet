@@ -108,6 +108,14 @@ describe('task workspace state', () => {
     )
   })
 
+  it('round-trips the shared_via token through navigation state', () => {
+    const state = parseTaskWorkspaceState(
+      new URLSearchParams('shared_via=conv-123&task=task-1')
+    )
+    expect(state.sharedVia).toBe('conv-123')
+    expect(buildTaskWorkspaceSearch(state)).toContain('shared_via=conv-123')
+  })
+
   it('round-trips the supported saved view configuration without task detail state', () => {
     const state = parseTaskWorkspaceState(
       new URLSearchParams(

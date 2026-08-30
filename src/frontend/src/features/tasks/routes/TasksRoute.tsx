@@ -107,7 +107,7 @@ const TasksAuthenticated = () => {
     () => parseTaskWorkspaceState(searchParams),
     [searchParams]
   )
-  const sharedVia = searchParams.get('shared_via') || undefined
+  const sharedVia = state.sharedVia
   const [creating, setCreating] = useState(false)
   const [createGroupId, setCreateGroupId] = useState<string>()
   const [createParentTask, setCreateParentTask] = useState<ApiTask | null>(null)

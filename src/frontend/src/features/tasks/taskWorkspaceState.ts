@@ -25,6 +25,7 @@ export interface TaskWorkspaceState {
   mode: TaskWorkspaceMode
   task?: string
   savedView?: string
+  sharedVia?: string
 }
 
 export const taskViewPresets: Record<
@@ -88,6 +89,7 @@ export const parseTaskWorkspaceState = (
   mode: oneOf(params.get('view'), ['list', 'board', 'analytics'], 'list'),
   task: params.get('task') || undefined,
   savedView: params.get('saved_view') || undefined,
+  sharedVia: params.get('shared_via') || undefined,
 })
 
 export const stateForView = (
@@ -143,6 +145,7 @@ export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
   params.set('view', state.mode)
   if (state.task) params.set('task', state.task)
   if (state.savedView) params.set('saved_view', state.savedView)
+  if (state.sharedVia) params.set('shared_via', state.sharedVia)
   return params.toString()
 }
 
