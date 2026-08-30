@@ -700,6 +700,45 @@ def test_due_scan_reactivates_a_superseded_reminder_after_preference_change(
     enqueue.assert_called_once_with(delivery.id)
 
 
+def test_due_scan_reactivates_a_failed_reminder(django_capture_on_commit_callbacks):
+    recipient = UserFactory(timezone="UTC")
+    task = models.Task.objects.create(
+        title="Revive failed reminder",
+        creator=UserFactory(),
+        assignee=recipient,
+        due_date=date(2026, 8, 23),
+    )
+    models.TaskPreference.objects.create(
+        user=recipient,
+        default_reminder_minutes=1440,
+    )
+    delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=recipient,
+        event=models.TaskImDelivery.Event.DUE_SOON,
+        reference_date=task.due_date,
+        status=models.TaskImDelivery.Status.FAILED,
+        attempt_count=5,
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        assert (
+            record_due_task_reminders(
+                now=datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+            )
+            == 1
+        )
+
+    delivery.refresh_from_db()
+    assert delivery.status == models.TaskImDelivery.Status.PENDING
+    assert delivery.attempt_count == 0
+    assert delivery.next_attempt_at is not None
+    enqueue.assert_called_once_with(delivery.id)
+
+
 def test_due_today_delivery_uses_task_assistant_reminder_card(settings):
     settings.JUSI_IM_CONFIGURATION = {
         "api_url": "https://im.example.test",

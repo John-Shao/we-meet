@@ -143,6 +143,7 @@ SHARED_TASK_ACTIONS = {
     "share",
     "subtasks",
     "subtree_impact",
+    "parent_candidates",
 }
 
 
@@ -1599,6 +1600,12 @@ class TaskViewSet(
         """Record card delivery targets without changing task roles."""
 
         task = self.get_object()
+        # `get_object()` only proves the task is visible to the caller (e.g. a
+        # task-list VIEWER, a follower, or someone who merely received a shared
+        # card). Sharing the card leaks task content into up to 20 conversations,
+        # so require the same collaborator bar as comments: manager or follower.
+        if not _can_comment_on_task(task, request.user):
+            raise PermissionDenied("Only task collaborators can share this task.")
         serializer = TaskShareSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         cids = [

@@ -14,6 +14,7 @@ from core.services.task_recurrence import (
     create_task_recurrence_rule,
     materialize_due_task_recurrences,
     materialize_task_recurrence,
+    update_task_recurrence_rule,
 )
 
 pytestmark = pytest.mark.django_db
@@ -207,6 +208,44 @@ def test_recurring_content_edit_requires_scope_and_following_updates_template():
     assert following.status_code == 200, following.json()
     task = models.Task.objects.get(pk=task_id)
     assert task.recurrence_rule.template_title == "Changed"
+
+
+def test_editing_non_first_instance_keeps_schedule_anchor():
+    _organization, user = _organization_user()
+    first = models.Task.objects.create(
+        title="Weekly sync",
+        creator=user,
+        assignee=user,
+        due_date=date(2026, 9, 1),
+    )
+    first.assignees.add(user)
+    rule = create_task_recurrence_rule(
+        task=first,
+        owner=user,
+        recurrence={"frequency": "weekly"},
+    )
+    original_anchor = rule.schedule_anchor_date
+    original_next = rule.next_occurrence_date
+
+    second = models.Task.objects.create(
+        title="Weekly sync",
+        creator=user,
+        assignee=user,
+        due_date=date(2026, 9, 8),
+        recurrence_rule=rule,
+        recurrence_sequence=2,
+    )
+
+    update_task_recurrence_rule(
+        task=second,
+        actor=user,
+        recurrence=None,
+        reset_schedule=False,
+    )
+
+    rule.refresh_from_db()
+    assert rule.schedule_anchor_date == original_anchor
+    assert rule.next_occurrence_date == original_next
 
 
 def test_recurrence_can_be_stopped_without_rewriting_history():

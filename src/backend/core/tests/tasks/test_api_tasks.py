@@ -159,6 +159,61 @@ def test_conversation_task_sidebar_lists_only_cards_shared_there(_membership):
     assert response.json()[0]["can_edit"] is False
 
 
+@mock.patch(
+    "core.api.tasks._require_conversation_membership",
+    side_effect=lambda _user, cid: cid,
+)
+def test_share_denies_task_list_viewer(_membership):
+    organization = OrganizationFactory()
+    creator = UserFactory()
+    viewer = UserFactory()
+    task_list = TaskList.objects.create(
+        organization=organization,
+        creator=creator,
+        name="Forward guard",
+    )
+    TaskListAccess.objects.create(
+        task_list=task_list,
+        user=viewer,
+        role=TaskListAccess.Role.VIEWER,
+    )
+    task = Task.objects.create(
+        title="Do not forward",
+        creator=creator,
+        assignee=creator,
+        task_list=task_list,
+    )
+    cid = "conversation-target"
+
+    response = _client(viewer).post(
+        f"{TASKS_URL}{task.id}/share/",
+        {"conversation_ids": [cid]},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert not TaskConversationShare.objects.filter(task=task, cid=cid).exists()
+
+
+@mock.patch(
+    "core.api.tasks._require_conversation_membership",
+    side_effect=lambda _user, cid: cid,
+)
+def test_parent_candidates_available_for_shared_task(_membership):
+    creator = UserFactory()
+    viewer = UserFactory()
+    task = Task.objects.create(title="Shared root", creator=creator, assignee=creator)
+    cid = "shared-thread"
+    TaskConversationShare.objects.create(task=task, cid=cid, shared_by=creator)
+
+    response = _client(viewer).get(
+        f"{TASKS_URL}{task.id}/parent-candidates/?shared_via={cid}"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_user_creates_personal_task_assigned_to_self():
     user = UserFactory()
 

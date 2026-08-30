@@ -331,7 +331,6 @@ def update_task_recurrence_rule(*, task, actor, recurrence=None, reset_schedule=
             "Only the recurrence owner can change this rule.",
             code="task_recurrence_forbidden",
         )
-    old_anchor = rule.schedule_anchor_date
     if recurrence is not None:
         for field in ("frequency", "interval", "end_date", "max_occurrences"):
             if field in recurrence:
@@ -345,8 +344,12 @@ def update_task_recurrence_rule(*, task, actor, recurrence=None, reset_schedule=
             )
         reset_schedule = True
     _sync_template(rule, task)
-    anchor = _anchor_for_task(task)
-    if reset_schedule or anchor != old_anchor:
+    # Only re-anchor the schedule when the user explicitly changed the timing
+    # (reset_schedule=True). Otherwise keep the stored anchor: re-anchoring to a
+    # non-first instance (whose date differs from the original anchor) silently
+    # drifts the whole schedule even for a title-only edit.
+    if reset_schedule:
+        anchor = _anchor_for_task(task)
         rule.schedule_anchor_date = anchor
         rule.anchor_day = anchor.day
         rule.anchor_is_month_end = _is_month_end(anchor)

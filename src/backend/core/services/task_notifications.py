@@ -446,11 +446,15 @@ def record_due_task_reminders(*, now=None) -> int:
                     reactivated = bool(
                         models.TaskImDelivery.objects.filter(
                             pk=delivery.pk,
-                            status=models.TaskImDelivery.Status.SUPERSEDED,
+                            status__in=(
+                                models.TaskImDelivery.Status.SUPERSEDED,
+                                models.TaskImDelivery.Status.FAILED,
+                            ),
                         ).update(
                             status=models.TaskImDelivery.Status.PENDING,
                             next_attempt_at=timezone.now(),
                             last_error="",
+                            attempt_count=0,
                         )
                     )
                 if created or reactivated:
