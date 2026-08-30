@@ -60,12 +60,14 @@ const fetchTasks = (
   priority: TaskPriorityFilter,
   taskList: string,
   ordering: TaskOrdering,
-  pageUrl?: string
+  pageUrl?: string,
+  signal?: AbortSignal
 ) =>
   fetchApi<Paginated<ApiTask>>(
     pageUrl
       ? toApiPath(pageUrl)
-      : buildTasksUrl(scope, status, time, priority, taskList, ordering)
+      : buildTasksUrl(scope, status, time, priority, taskList, ordering),
+    { signal }
   )
 
 export const getNextTasksPageParam = (lastPage: Paginated<ApiTask>) =>
@@ -81,7 +83,7 @@ export const useTasks = (
 ) =>
   useInfiniteQuery<Paginated<ApiTask>, ApiError>({
     queryKey: ['tasks', scope, status, time, priority, taskList, ordering],
-    queryFn: ({ pageParam }) =>
+    queryFn: ({ pageParam, signal }) =>
       fetchTasks(
         scope,
         status,
@@ -89,7 +91,8 @@ export const useTasks = (
         priority,
         taskList,
         ordering,
-        pageParam as string | undefined
+        pageParam as string | undefined,
+        signal
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: getNextTasksPageParam,
@@ -98,15 +101,16 @@ export const useTasks = (
 const sharedViaQuery = (sharedVia?: string) =>
   sharedVia ? `?shared_via=${encodeURIComponent(sharedVia)}` : ''
 
-const fetchTask = (taskId: string, sharedVia?: string) =>
+const fetchTask = (taskId: string, sharedVia?: string, signal?: AbortSignal) =>
   fetchApi<ApiTask>(
-    `tasks/${encodeURIComponent(taskId)}/${sharedViaQuery(sharedVia)}`
+    `tasks/${encodeURIComponent(taskId)}/${sharedViaQuery(sharedVia)}`,
+    { signal }
   )
 
 export const useTask = (taskId?: string, sharedVia?: string) =>
   useQuery<ApiTask, ApiError>({
     queryKey: ['tasks', 'detail', taskId, sharedVia],
-    queryFn: () => fetchTask(taskId!, sharedVia),
+    queryFn: ({ signal }) => fetchTask(taskId!, sharedVia, signal),
     enabled: Boolean(taskId),
   })
 
@@ -148,15 +152,20 @@ export const useUpdateTaskReminder = (taskId: string) => {
   })
 }
 
-const fetchTaskSubtasks = (taskId: string, sharedVia?: string) =>
+const fetchTaskSubtasks = (
+  taskId: string,
+  sharedVia?: string,
+  signal?: AbortSignal
+) =>
   fetchApi<ApiTask[]>(
-    `tasks/${encodeURIComponent(taskId)}/subtasks/${sharedViaQuery(sharedVia)}`
+    `tasks/${encodeURIComponent(taskId)}/subtasks/${sharedViaQuery(sharedVia)}`,
+    { signal }
   )
 
 export const useTaskSubtasks = (taskId?: string, sharedVia?: string) =>
   useQuery<ApiTask[], ApiError>({
     queryKey: ['tasks', taskId, 'subtasks', sharedVia],
-    queryFn: () => fetchTaskSubtasks(taskId!, sharedVia),
+    queryFn: ({ signal }) => fetchTaskSubtasks(taskId!, sharedVia, signal),
     enabled: Boolean(taskId),
   })
 
@@ -698,20 +707,26 @@ export const useTaskStatistics = (
     enabled,
   })
 
-const fetchTaskActivities = (taskId: string, sharedVia?: string) =>
+const fetchTaskActivities = (
+  taskId: string,
+  sharedVia?: string,
+  signal?: AbortSignal
+) =>
   fetchApi<ApiTaskActivity[]>(
-    `tasks/${encodeURIComponent(taskId)}/activities/${sharedViaQuery(sharedVia)}`
+    `tasks/${encodeURIComponent(taskId)}/activities/${sharedViaQuery(sharedVia)}`,
+    { signal }
   )
 
 export const useTaskActivities = (taskId: string, sharedVia?: string) =>
   useQuery<ApiTaskActivity[], ApiError>({
     queryKey: ['tasks', taskId, 'activities', sharedVia],
-    queryFn: () => fetchTaskActivities(taskId, sharedVia),
+    queryFn: ({ signal }) => fetchTaskActivities(taskId, sharedVia, signal),
   })
 
-const fetchTaskActivityFeed = (pageUrl?: string) =>
+const fetchTaskActivityFeed = (pageUrl?: string, signal?: AbortSignal) =>
   fetchApi<Paginated<ApiTaskActivity>>(
-    pageUrl ? toApiPath(pageUrl) : 'tasks/activity/?page_size=50'
+    pageUrl ? toApiPath(pageUrl) : 'tasks/activity/?page_size=50',
+    { signal }
   )
 
 export const getNextTaskActivityPageParam = (
@@ -721,21 +736,26 @@ export const getNextTaskActivityPageParam = (
 export const useTaskActivityFeed = () =>
   useInfiniteQuery<Paginated<ApiTaskActivity>, ApiError>({
     queryKey: ['tasks', 'activity'],
-    queryFn: ({ pageParam }) =>
-      fetchTaskActivityFeed(pageParam as string | undefined),
+    queryFn: ({ pageParam, signal }) =>
+      fetchTaskActivityFeed(pageParam as string | undefined, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: getNextTaskActivityPageParam,
   })
 
-const fetchTaskComments = (taskId: string, sharedVia?: string) =>
+const fetchTaskComments = (
+  taskId: string,
+  sharedVia?: string,
+  signal?: AbortSignal
+) =>
   fetchApi<ApiTaskComment[]>(
-    `tasks/${encodeURIComponent(taskId)}/comments/${sharedViaQuery(sharedVia)}`
+    `tasks/${encodeURIComponent(taskId)}/comments/${sharedViaQuery(sharedVia)}`,
+    { signal }
   )
 
 export const useTaskComments = (taskId: string, sharedVia?: string) =>
   useQuery<ApiTaskComment[], ApiError>({
     queryKey: ['tasks', taskId, 'comments', sharedVia],
-    queryFn: () => fetchTaskComments(taskId, sharedVia),
+    queryFn: ({ signal }) => fetchTaskComments(taskId, sharedVia, signal),
   })
 
 const createTaskComment = (taskId: string, content: string) =>
@@ -759,15 +779,20 @@ export const useCreateTaskComment = () => {
   })
 }
 
-const fetchTaskAttachments = (taskId: string, sharedVia?: string) =>
+const fetchTaskAttachments = (
+  taskId: string,
+  sharedVia?: string,
+  signal?: AbortSignal
+) =>
   fetchApi<ApiTaskAttachment[]>(
-    `tasks/${encodeURIComponent(taskId)}/attachments/${sharedViaQuery(sharedVia)}`
+    `tasks/${encodeURIComponent(taskId)}/attachments/${sharedViaQuery(sharedVia)}`,
+    { signal }
   )
 
 export const useTaskAttachments = (taskId: string, sharedVia?: string) =>
   useQuery<ApiTaskAttachment[], ApiError>({
     queryKey: ['tasks', taskId, 'attachments', sharedVia],
-    queryFn: () => fetchTaskAttachments(taskId, sharedVia),
+    queryFn: ({ signal }) => fetchTaskAttachments(taskId, sharedVia, signal),
   })
 
 const createTaskAttachment = async (

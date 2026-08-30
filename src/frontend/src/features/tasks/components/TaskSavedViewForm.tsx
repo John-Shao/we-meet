@@ -26,7 +26,7 @@ export const TaskSavedViewForm = ({
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (submitting) return
-    if (!name.trim()) return
+    if (!name.trim() || name.trim() === initialName) return
     await onSubmit(name.trim())
   }
 

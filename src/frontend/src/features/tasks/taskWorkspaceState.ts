@@ -129,13 +129,15 @@ export const stateWithStatus = (
   time: status === 'completed' ? 'all' : state.time,
 })
 
+export const isCompletedView = (state: TaskWorkspaceState) =>
+  state.scope === 'all' && state.status === 'completed'
+
 export const hasActiveTaskFilters = (state: TaskWorkspaceState) => {
-  const defaultStatus =
-    state.scope === 'all' && state.status === 'completed'
-      ? 'completed'
-      : state.mode === 'board'
-        ? 'all'
-        : 'open'
+  const defaultStatus = isCompletedView(state)
+    ? 'completed'
+    : state.mode === 'board'
+      ? 'all'
+      : 'open'
   return (
     state.status !== defaultStatus ||
     state.time !== 'all' ||

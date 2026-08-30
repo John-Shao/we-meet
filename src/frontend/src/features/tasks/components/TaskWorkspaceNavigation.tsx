@@ -34,6 +34,7 @@ import type {
   TaskWorkspaceState,
   TaskWorkspaceView,
 } from '../taskWorkspaceState'
+import { isCompletedView } from '../taskWorkspaceState'
 import {
   taskNavigationActionButtonCss,
   taskNavigationActionsCss,
@@ -55,7 +56,7 @@ const views: TaskWorkspaceView[] = [
 ]
 
 const activeView = (state: TaskWorkspaceState): TaskWorkspaceView => {
-  if (state.scope === 'all' && state.status === 'completed') return 'completed'
+  if (isCompletedView(state)) return 'completed'
   return state.scope
 }
 

@@ -61,8 +61,14 @@ export const buildTaskSearchUrl = (
   return `tasks/?${params.toString()}`
 }
 
-const fetchTaskSearchPage = (searchUrl: string, pageUrl?: string) =>
-  fetchApi<Paginated<ApiTask>>(pageUrl ? toApiPath(pageUrl) : searchUrl)
+const fetchTaskSearchPage = (
+  searchUrl: string,
+  pageUrl?: string,
+  signal?: AbortSignal
+) =>
+  fetchApi<Paginated<ApiTask>>(pageUrl ? toApiPath(pageUrl) : searchUrl, {
+    signal,
+  })
 
 export const useTaskSearch = (
   query: string,
@@ -73,8 +79,8 @@ export const useTaskSearch = (
   const searchUrl = buildTaskSearchUrl(query, filters, pageSize)
   return useInfiniteQuery<Paginated<ApiTask>, ApiError>({
     queryKey: ['tasks', 'global-search', searchUrl],
-    queryFn: ({ pageParam }) =>
-      fetchTaskSearchPage(searchUrl, pageParam as string | undefined),
+    queryFn: ({ pageParam, signal }) =>
+      fetchTaskSearchPage(searchUrl, pageParam as string | undefined, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.next ?? undefined,
     enabled,

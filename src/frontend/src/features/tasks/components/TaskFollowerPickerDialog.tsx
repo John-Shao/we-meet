@@ -36,21 +36,22 @@ export const TaskFollowerPickerDialog = ({
   const searchRef = useRef<HTMLInputElement>(null)
 
   const toggle = (id: string, label: string, avatarUrl?: string) => {
-    setSelected((current) => {
-      const next = new Map(current)
-      if (next.has(id)) {
+    if (selected.has(id)) {
+      followersRef.current.delete(id)
+      setSelected((current) => {
+        const next = new Map(current)
         next.delete(id)
-      } else {
-        next.set(id, label)
-        followersRef.current.set(id, {
-          id,
-          full_name: label,
-          short_name: null,
-          avatar_url: avatarUrl || '',
-        })
-      }
-      return next
+        return next
+      })
+      return
+    }
+    followersRef.current.set(id, {
+      id,
+      full_name: label,
+      short_name: null,
+      avatar_url: avatarUrl || '',
     })
+    setSelected((current) => new Map(current).set(id, label))
   }
 
   const confirm = () => {

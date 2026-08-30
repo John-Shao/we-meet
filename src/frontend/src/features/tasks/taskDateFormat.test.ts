@@ -12,4 +12,10 @@ describe('task date formatting', () => {
 
     expect(formatTaskCreatedAt(localTimestamp)).toBe('2026-08-27 14:05')
   })
+
+  it('formats any timestamp as local zero-padded YYYY-MM-DD HH:mm', () => {
+    expect(formatTaskCreatedAt('2026-08-21T08:05:00Z')).toMatch(
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/
+    )
+  })
 })

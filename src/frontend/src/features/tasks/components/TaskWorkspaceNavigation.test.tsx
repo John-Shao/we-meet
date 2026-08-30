@@ -385,6 +385,41 @@ describe('TaskWorkspaceNavigation', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('offers leave when membership removal is allowed', () => {
+    const onLeaveTaskList = vi.fn()
+    render(
+      <TaskWorkspaceNavigation
+        state={state}
+        count={1}
+        taskLists={[
+          taskList('leave-list', 'Leave me', null, {
+            access_role: 'editor',
+            can_manage: false,
+            can_share: false,
+            can_archive: false,
+            can_delete: false,
+            can_create_tasks: false,
+            can_remove: true,
+          }),
+        ]}
+        taskListGroups={[]}
+        standaloneTaskCount={0}
+        onChange={vi.fn()}
+        onTaskListChange={vi.fn()}
+        onCreateTaskList={vi.fn()}
+        onCreateTaskListGroup={vi.fn()}
+        onMoveTaskList={vi.fn()}
+        onRenameTaskListGroup={vi.fn()}
+        onDeleteTaskListGroup={vi.fn()}
+        onLeaveTaskList={onLeaveTaskList}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'taskLists.more' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'taskLists.leave' }))
+    expect(onLeaveTaskList).toHaveBeenCalledOnce()
+  })
+
   it('marks only the selected task list as the current page', () => {
     renderNavigation({ ...state, taskList: 'list-1' })
 

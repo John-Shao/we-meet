@@ -78,6 +78,7 @@ import { TaskSavedViewManager } from '../components/TaskSavedViewManager'
 import {
   buildTaskWorkspaceSearch,
   hasActiveTaskFilters,
+  isCompletedView,
   parseTaskWorkspaceState,
   savedViewConfigEquals,
   stateForSavedView,
@@ -370,22 +371,26 @@ const TasksAuthenticated = () => {
   }
 
   const moveSavedView = async (view: ApiTaskSavedView, direction: -1 | 1) => {
-    const ordered = [...savedViews].sort(
-      (first, second) => first.position - second.position
-    )
+    const ordered = [...savedViews]
+      .filter((item) => item.is_pinned)
+      .sort((first, second) => first.position - second.position)
     const index = ordered.findIndex((item) => item.id === view.id)
     const target = ordered[index + direction]
     if (!target) return
-    await Promise.all([
-      updateSavedViewMutation.mutateAsync({
+    try {
+      // Swap sequentially on the shared mutation instance rather than racing
+      // two concurrent mutateAsync calls.
+      await updateSavedViewMutation.mutateAsync({
         viewId: view.id,
         patch: { position: target.position },
-      }),
-      updateSavedViewMutation.mutateAsync({
+      })
+      await updateSavedViewMutation.mutateAsync({
         viewId: target.id,
         patch: { position: view.position },
-      }),
-    ])
+      })
+    } catch {
+      // Swallow: the failure is surfaced via updateSavedViewMutation.error.
+    }
   }
 
   const closePanel = () => {
@@ -494,7 +499,7 @@ const TasksAuthenticated = () => {
       ? t('taskLists.standalone')
       : activeSavedView
         ? activeSavedView.name
-        : state.scope === 'all' && state.status === 'completed'
+        : isCompletedView(state)
           ? t('workspace.views.completed')
           : t(`workspace.views.${state.scope}`)
 

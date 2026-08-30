@@ -34,21 +34,23 @@ export const TaskAssigneePickerDialog = ({
   const searchRef = useRef<HTMLInputElement>(null)
 
   const toggle = (id: string, label: string, avatarUrl?: string) => {
-    setSelected((current) => {
-      const next = new Map(current)
-      if (next.has(id)) next.delete(id)
-      else {
-        if (next.size >= MAX_ASSIGNEES) return current
-        next.set(id, label)
-        assigneesRef.current.set(id, {
-          id,
-          full_name: label,
-          short_name: null,
-          avatar_url: avatarUrl || '',
-        })
-      }
-      return next
+    if (selected.has(id)) {
+      assigneesRef.current.delete(id)
+      setSelected((current) => {
+        const next = new Map(current)
+        next.delete(id)
+        return next
+      })
+      return
+    }
+    if (selected.size >= MAX_ASSIGNEES) return
+    assigneesRef.current.set(id, {
+      id,
+      full_name: label,
+      short_name: null,
+      avatar_url: avatarUrl || '',
     })
+    setSelected((current) => new Map(current).set(id, label))
   }
 
   const confirm = () => {
