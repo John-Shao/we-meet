@@ -308,6 +308,7 @@ export const TaskDetailPanel = ({
     patch: PatchTaskPayload,
     options: { keepEditing?: boolean } = {}
   ) => {
+    if (patchMutation.isPending) return
     const recurrenceTemplateFields = new Set([
       'title',
       'description',

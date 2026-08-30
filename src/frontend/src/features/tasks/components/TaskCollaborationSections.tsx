@@ -57,6 +57,7 @@ export const TaskCommentsSection = ({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (createMutation.isPending) return
     if (!content.trim()) return
     try {
       await createMutation.mutateAsync({ taskId, content: content.trim() })

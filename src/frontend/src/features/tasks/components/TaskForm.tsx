@@ -102,6 +102,7 @@ export const TaskForm = ({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (createMutation.isPending) return
     const cleanTitle = title.trim()
     if (!cleanTitle) return
     if (recurrenceFrequency && recurrenceEnd === 'date' && !recurrenceEndDate)

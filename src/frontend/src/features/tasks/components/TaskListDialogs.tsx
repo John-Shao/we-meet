@@ -219,6 +219,7 @@ export const TaskListDeleteDialog = ({
   const [deleteUnassigned, setDeleteUnassigned] = useState(false)
   const mutation = useDestroyTaskList()
   const destroy = async () => {
+    if (mutation.isPending) return
     await mutation.mutateAsync({ taskListId: taskList.id, deleteUnassigned })
     onDeleted()
   }

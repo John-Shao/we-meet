@@ -28,6 +28,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           ref={ref}
           className={[buttonRecipe(variantProps), className].join(' ')}
           {...(remainingComponentProps as RACButtonsProps)}
+          // `loading` only swaps the icon for a spinner; also disable the
+          // underlying button so a pending mutation can't be re-triggered by a
+          // double click / Enter before it settles.
+          isDisabled={remainingComponentProps.isDisabled || props.loading}
         >
           {!props.loading && props.icon}
           {props.loading && <Loader />}

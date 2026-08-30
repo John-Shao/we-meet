@@ -38,6 +38,7 @@ export const TaskListManager = ({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (createMutation.isPending) return
     if (!name.trim()) return
     try {
       const taskList = await createMutation.mutateAsync({
