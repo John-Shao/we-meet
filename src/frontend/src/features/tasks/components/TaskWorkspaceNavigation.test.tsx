@@ -149,6 +149,14 @@ const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
 }
 
 describe('TaskWorkspaceNavigation', () => {
+  it('does not expose completed as a predefined view', () => {
+    renderNavigation()
+
+    expect(
+      screen.queryByRole('button', { name: 'workspace.views.completed' })
+    ).not.toBeInTheDocument()
+  })
+
   it('opens the cross-task activity feed from quick access', () => {
     const { onOpenActivity } = renderNavigation()
 

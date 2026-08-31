@@ -81,7 +81,6 @@ import {
   buildTaskWorkspaceSearch,
   effectiveTaskColumns,
   hasActiveTaskFilters,
-  isCompletedView,
   parseTaskWorkspaceState,
   savedViewConfigEquals,
   stateForSavedView,
@@ -458,10 +457,7 @@ const TasksAuthenticated = () => {
       navigateState({
         ...state,
         mode,
-        status:
-          !state.savedView && state.taskList === 'all' && isCompletedView(state)
-            ? 'completed'
-            : lastListStatusRef.current,
+        status: lastListStatusRef.current,
         task: undefined,
       })
       return
@@ -470,10 +466,7 @@ const TasksAuthenticated = () => {
     navigateState({
       ...state,
       mode,
-      status:
-        !state.savedView && state.taskList === 'all' && isCompletedView(state)
-          ? 'completed'
-          : 'all',
+      status: 'all',
       time: mode === 'analytics' ? 'all' : state.time,
       task: undefined,
     })
@@ -526,9 +519,7 @@ const TasksAuthenticated = () => {
       ? t('taskLists.standalone')
       : activeSavedView
         ? activeSavedView.name
-        : isCompletedView(state)
-          ? t('workspace.views.completed')
-          : t(`workspace.views.${state.scope}`)
+        : t(`workspace.views.${state.scope}`)
 
   return (
     <div className={workspaceCss}>
@@ -686,11 +677,6 @@ const TasksAuthenticated = () => {
               }
               navigateState({ ...state, columns, task: undefined })
             }}
-            statusLocked={
-              !state.savedView &&
-              state.taskList === 'all' &&
-              isCompletedView(state)
-            }
             onClear={() =>
               navigateState({
                 ...state,

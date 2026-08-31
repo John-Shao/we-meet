@@ -17,13 +17,12 @@ import {
 } from './taskWorkspaceState'
 
 describe('task workspace state', () => {
-  it('maps the five quick views to scope and status', () => {
+  it('maps the four quick views to scope and status', () => {
     expect(taskViewPresets).toEqual({
       assigned: { scope: 'assigned', status: 'open' },
       created: { scope: 'created', status: 'open' },
       following: { scope: 'following', status: 'open' },
       all: { scope: 'all', status: 'open' },
-      completed: { scope: 'all', status: 'completed' },
     })
   })
 
@@ -84,13 +83,6 @@ describe('task workspace state', () => {
     const state = parseTaskWorkspaceState(
       new URLSearchParams('time=due_today&priority=urgent')
     )
-    expect(stateForView(state, 'completed')).toMatchObject({
-      scope: 'all',
-      status: 'completed',
-      time: 'all',
-      priority: 'urgent',
-      columns: [...DEFAULT_TASK_COLUMNS, 'completedAt'],
-    })
     expect(stateWithStatus(state, 'completed').time).toBe('all')
     expect(stateForTaskList(state, 'list-1')).toMatchObject({
       scope: 'assigned',
@@ -131,9 +123,6 @@ describe('task workspace state', () => {
     expect(taskColumnViewKey({ ...state, scope: 'created' })).toBe(
       'quick:created'
     )
-    expect(
-      taskColumnViewKey({ ...state, scope: 'all', status: 'completed' })
-    ).toBe('quick:completed')
     expect(taskColumnViewKey({ ...state, taskList: 'list-1' })).toBe(
       'task-list'
     )

@@ -9,12 +9,7 @@ import type {
   TaskTimeFilter,
 } from './api/ApiTask'
 
-export type TaskWorkspaceView =
-  | 'assigned'
-  | 'created'
-  | 'following'
-  | 'all'
-  | 'completed'
+export type TaskWorkspaceView = 'assigned' | 'created' | 'following' | 'all'
 export type TaskWorkspaceMode = 'list' | 'board' | 'analytics'
 
 export interface TaskWorkspaceState {
@@ -40,7 +35,6 @@ export const taskViewPresets: Record<
   created: { scope: 'created', status: 'open' },
   following: { scope: 'following', status: 'open' },
   all: { scope: 'all', status: 'open' },
-  completed: { scope: 'all', status: 'completed' },
 }
 
 const oneOf = <T extends string>(
@@ -79,9 +73,6 @@ export const DEFAULT_TASK_COLUMNS: TaskColumnId[] = [
 const taskColumnsForQuickView = (view: TaskWorkspaceView): TaskColumnId[] => {
   if (view === 'created') {
     return DEFAULT_TASK_COLUMNS.filter((column) => column !== 'creator')
-  }
-  if (view === 'completed') {
-    return [...DEFAULT_TASK_COLUMNS, 'completedAt']
   }
   return [...DEFAULT_TASK_COLUMNS]
 }
@@ -175,7 +166,6 @@ export const taskColumnViewKey = (state: TaskWorkspaceState) => {
   if (state.savedView) return `saved:${state.savedView}`
   if (state.taskList === 'unassigned') return 'standalone'
   if (state.taskList !== 'all') return 'task-list'
-  if (isCompletedView(state)) return 'quick:completed'
   return `quick:${state.scope}`
 }
 
@@ -188,15 +178,8 @@ export const stateWithStatus = (
   time: status === 'completed' ? 'all' : state.time,
 })
 
-export const isCompletedView = (state: TaskWorkspaceState) =>
-  state.scope === 'all' && state.status === 'completed'
-
 export const hasActiveTaskFilters = (state: TaskWorkspaceState) => {
-  const defaultStatus = isCompletedView(state)
-    ? 'completed'
-    : state.mode === 'board'
-      ? 'all'
-      : 'open'
+  const defaultStatus = state.mode === 'board' ? 'all' : 'open'
   return (
     state.status !== defaultStatus ||
     state.time !== 'all' ||

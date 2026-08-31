@@ -4,7 +4,6 @@ import {
   RiAddLine,
   RiArrowDownLine,
   RiArrowUpLine,
-  RiCheckboxCircleLine,
   RiDeleteBinLine,
   RiEditLine,
   RiFileAddLine,
@@ -34,7 +33,6 @@ import type {
   TaskWorkspaceState,
   TaskWorkspaceView,
 } from '../taskWorkspaceState'
-import { isCompletedView } from '../taskWorkspaceState'
 import {
   taskNavigationActionButtonCss,
   taskNavigationActionsCss,
@@ -47,16 +45,9 @@ import {
   TaskListNavigationRow,
 } from './TaskWorkspaceNavigationNodes'
 
-const views: TaskWorkspaceView[] = [
-  'assigned',
-  'following',
-  'created',
-  'all',
-  'completed',
-]
+const views: TaskWorkspaceView[] = ['assigned', 'following', 'created', 'all']
 
 const activeView = (state: TaskWorkspaceState): TaskWorkspaceView => {
-  if (isCompletedView(state)) return 'completed'
   return state.scope
 }
 
@@ -237,8 +228,6 @@ export const TaskWorkspaceNavigation = ({
                 <RiBookmarkLine size={18} />
               ) : view === 'created' ? (
                 <RiFileAddLine size={18} />
-              ) : view === 'completed' ? (
-                <RiCheckboxCircleLine size={18} />
               ) : (
                 <RiListCheck3 size={18} />
               )}
