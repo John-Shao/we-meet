@@ -15,6 +15,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import {
   RiArrowDownSLine,
+  RiArrowLeftSLine,
   RiArrowRightSLine,
   RiArrowUpSLine,
   RiCalendar2Line,
@@ -1655,7 +1656,10 @@ const TaskTitle = ({
       <span className={titleLineCss}>
         <strong>{task.title}</strong>
         {filteredParent && (
-          <span className={titleMetaCss}>‹ {filteredParent.title}</span>
+          <span className={filteredParentCss}>
+            <RiArrowLeftSLine size={16} aria-hidden="true" />
+            {filteredParent.title}
+          </span>
         )}
         {task.descendant_progress.total > 0 && (
           <span
@@ -2596,6 +2600,17 @@ const titleMetaCss = css({
   color: 'default.subtle-text',
   fontSize: '0.6875rem',
   textOverflow: 'ellipsis',
+})
+const filteredParentCss = css({
+  minWidth: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  overflow: 'hidden',
+  color: 'default.subtle-text',
+  fontSize: '0.6875rem',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  '& svg': { flexShrink: 0 },
 })
 const dueDateCss = css({
   '&[data-overdue]': { color: 'danger.600', fontWeight: '600' },

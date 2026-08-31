@@ -256,10 +256,14 @@ describe('TaskList', () => {
     const subtaskTitle = screen.getByText('Prepare release', {
       selector: 'strong',
     })
-    const filteredParent = screen.getByText('‹ Backend')
+    const filteredParent = screen.getByText('Backend')
     expect(filteredParent.parentElement).toBe(subtaskTitle.parentElement)
+    expect(filteredParent.querySelector('svg')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    )
     expect(
-      screen.queryByText('Prepare release ‹ Release')
+      screen.queryByText('Release', { selector: 'span' })
     ).not.toBeInTheDocument()
   })
 
@@ -297,7 +301,9 @@ describe('TaskList', () => {
       screen.getByRole('button', { name: 'subtasks.expandInList' })
     )
     expect(screen.getByText('Backend')).toBeInTheDocument()
-    expect(screen.queryByText('Backend ‹ Release')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Release', { selector: 'span' })
+    ).not.toBeInTheDocument()
     fireEvent.click(
       screen.getByRole('button', { name: 'subtasks.collapseInList' })
     )
