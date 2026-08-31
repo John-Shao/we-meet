@@ -256,10 +256,10 @@ describe('TaskList', () => {
     const subtaskTitle = screen.getByText('Prepare release', {
       selector: 'strong',
     })
-    const filteredParent = screen.getByText('< Backend')
+    const filteredParent = screen.getByText('‹ Backend')
     expect(filteredParent.parentElement).toBe(subtaskTitle.parentElement)
     expect(
-      screen.queryByText('Prepare release < Release')
+      screen.queryByText('Prepare release ‹ Release')
     ).not.toBeInTheDocument()
   })
 
@@ -297,7 +297,7 @@ describe('TaskList', () => {
       screen.getByRole('button', { name: 'subtasks.expandInList' })
     )
     expect(screen.getByText('Backend')).toBeInTheDocument()
-    expect(screen.queryByText('Backend < Release')).not.toBeInTheDocument()
+    expect(screen.queryByText('Backend ‹ Release')).not.toBeInTheDocument()
     fireEvent.click(
       screen.getByRole('button', { name: 'subtasks.collapseInList' })
     )

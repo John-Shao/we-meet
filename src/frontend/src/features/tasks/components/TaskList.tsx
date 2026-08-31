@@ -1655,9 +1655,7 @@ const TaskTitle = ({
       <span className={titleLineCss}>
         <strong>{task.title}</strong>
         {filteredParent && (
-          <span className={titleMetaCss}>
-            {'<'} {filteredParent.title}
-          </span>
+          <span className={titleMetaCss}>‹ {filteredParent.title}</span>
         )}
         {task.descendant_progress.total > 0 && (
           <span
