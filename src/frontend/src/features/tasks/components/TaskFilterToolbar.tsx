@@ -8,6 +8,9 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  RiArrowDownLine,
+  RiArrowUpLine,
+  RiCheckLine,
   RiCloseLine,
   RiDraggable,
   RiEyeLine,
@@ -24,6 +27,7 @@ import type {
   TaskColumnId,
   TaskGrouping,
   TaskOrdering,
+  TaskOrderingField,
   TaskPriorityFilter,
   TaskStatusFilter,
   TaskTimeFilter,
@@ -59,23 +63,16 @@ const groupingOptions: TaskGrouping[] = [
   'due_date',
   'creator',
 ]
-const orderingOptions: Array<{
-  value: TaskOrdering
-  labelKey: string
+const orderingFields: Array<{
+  value: TaskOrderingField
+  column: TaskColumnId
 }> = [
-  { value: '', labelKey: 'workspace.ordering.smart' },
-  { value: 'assignee', labelKey: 'workspace.ordering.assigneeAsc' },
-  { value: '-assignee', labelKey: 'workspace.ordering.assigneeDesc' },
-  { value: 'priority', labelKey: 'workspace.ordering.priorityAsc' },
-  { value: '-priority', labelKey: 'workspace.ordering.priorityDesc' },
-  { value: 'start_date', labelKey: 'workspace.ordering.startDateAsc' },
-  { value: '-start_date', labelKey: 'workspace.ordering.startDateDesc' },
-  { value: 'due_date', labelKey: 'workspace.ordering.dueDateAsc' },
-  { value: '-due_date', labelKey: 'workspace.ordering.dueDateDesc' },
-  { value: 'creator', labelKey: 'workspace.ordering.creatorAsc' },
-  { value: '-creator', labelKey: 'workspace.ordering.creatorDesc' },
-  { value: 'created_at', labelKey: 'workspace.ordering.createdAtAsc' },
-  { value: '-created_at', labelKey: 'workspace.ordering.createdAtDesc' },
+  { value: 'assignee', column: 'assignee' },
+  { value: 'priority', column: 'priority' },
+  { value: 'start_date', column: 'startDate' },
+  { value: 'due_date', column: 'dueDate' },
+  { value: 'creator', column: 'creator' },
+  { value: 'created_at', column: 'createdAt' },
 ]
 const FIELD_MOVE_DURATION_MS = 180
 type FieldDropPosition = 'before' | 'after'
@@ -98,9 +95,7 @@ const moveColumnBeside = (
   const targetIndex = remaining.indexOf(target)
   if (targetIndex < 0) return [...order]
   const insertionIndex =
-    target === 'title'
-      ? 1
-      : targetIndex + (position === 'after' ? 1 : 0)
+    target === 'title' ? 1 : targetIndex + (position === 'after' ? 1 : 0)
   remaining.splice(
     Math.max(1, Math.min(insertionIndex, remaining.length)),
     0,
@@ -134,17 +129,15 @@ export const TaskFilterToolbar = ({
 }) => {
   const { t } = useTranslation('tasks')
   const columnPickerRef = useRef<HTMLDetailsElement>(null)
+  const orderingPickerRef = useRef<HTMLDetailsElement>(null)
   const columnRowsRef = useRef(new Map<TaskColumnId, HTMLDivElement>())
-  const previousColumnPositionsRef = useRef(
-    new Map<TaskColumnId, DOMRect>()
-  )
+  const previousColumnPositionsRef = useRef(new Map<TaskColumnId, DOMRect>())
   const movementAnimationsRef = useRef(new Map<TaskColumnId, Animation>())
   const committedColumnOrderRef = useRef<TaskColumnId[]>([])
   const dragCommittedRef = useRef(false)
   const droppedColumnTimerRef = useRef<number>()
   const [draggedColumn, setDraggedColumn] = useState<TaskColumnId>()
-  const [visualColumnOrder, setVisualColumnOrder] =
-    useState<TaskColumnId[]>()
+  const [visualColumnOrder, setVisualColumnOrder] = useState<TaskColumnId[]>()
   const [dropIndicator, setDropIndicator] = useState<{
     column: TaskColumnId
     position: FieldDropPosition
@@ -164,6 +157,13 @@ export const TaskFilterToolbar = ({
     columns: configuredColumns,
   })
   const defaultColumns = defaultTaskColumnsForState(state)
+  const selectedOrderingField = orderingFields.find(
+    (field) => field.value === state.ordering.replace(/^-/, '')
+  )
+  const selectedOrderingLabel = selectedOrderingField
+    ? t(`workspace.columns.${selectedOrderingField.column}`)
+    : t('workspace.ordering.smart')
+  const orderingDescending = state.ordering.startsWith('-')
   const columnsAreDefault =
     configuredColumns.length === defaultColumns.length &&
     configuredColumns.every(
@@ -214,6 +214,11 @@ export const TaskFilterToolbar = ({
     )
   }
 
+  const selectOrdering = (ordering: TaskOrdering) => {
+    onOrderingChange(ordering)
+    if (orderingPickerRef.current) orderingPickerRef.current.open = false
+  }
+
   const captureColumnPositions = () => {
     previousColumnPositionsRef.current = new Map(
       [...columnRowsRef.current].map(([column, element]) => [
@@ -258,7 +263,8 @@ export const TaskFilterToolbar = ({
     const targetBounds = targetElement?.getBoundingClientRect()
     const position: FieldDropPosition =
       target === 'title' ||
-      (targetBounds && event.clientY >= targetBounds.top + targetBounds.height / 2)
+      (targetBounds &&
+        event.clientY >= targetBounds.top + targetBounds.height / 2)
         ? 'after'
         : 'before'
     const next = moveColumnBeside(
@@ -342,8 +348,7 @@ export const TaskFilterToolbar = ({
 
   useEffect(() => {
     setVisualColumnOrder((current) =>
-      current &&
-      columnOrdersEqual(current, committedColumnOrderRef.current)
+      current && columnOrdersEqual(current, committedColumnOrderRef.current)
         ? undefined
         : current
     )
@@ -374,19 +379,20 @@ export const TaskFilterToolbar = ({
   useEffect(() => {
     const movementAnimations = movementAnimationsRef.current
     const closeOnOutsidePress = (event: PointerEvent) => {
-      const picker = columnPickerRef.current
-      if (
-        picker?.open &&
-        event.target instanceof Node &&
-        !picker.contains(event.target)
-      ) {
-        picker.open = false
-      }
+      if (!(event.target instanceof Node)) return
+      const target = event.target
+      const pickers = [columnPickerRef.current, orderingPickerRef.current]
+      pickers.forEach((picker) => {
+        if (picker?.open && !picker.contains(target)) {
+          picker.open = false
+        }
+      })
     }
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && columnPickerRef.current?.open) {
-        columnPickerRef.current.open = false
-      }
+      if (event.key !== 'Escape') return
+      if (columnPickerRef.current?.open) columnPickerRef.current.open = false
+      if (orderingPickerRef.current?.open)
+        orderingPickerRef.current.open = false
     }
     document.addEventListener('pointerdown', closeOnOutsidePress, true)
     document.addEventListener('keydown', closeOnEscape)
@@ -461,124 +467,196 @@ export const TaskFilterToolbar = ({
               onGroupingChange(String(key) as TaskGrouping)
             }
           />
-          <Select
-            className={orderingSelectCss}
-            label={t('workspace.ordering.label')}
-            aria-label={t('workspace.ordering.label')}
-            items={orderingOptions.map((option) => ({
-              value: option.value,
-              label: t(option.labelKey),
-            }))}
-            selectedKey={state.ordering}
-            onSelectionChange={(key) =>
-              onOrderingChange(String(key) as TaskOrdering)
-            }
-          />
-          <details ref={columnPickerRef} className={columnPickerCss}>
-            <summary>{t('workspace.fieldSettings')}</summary>
-            <div>
-              <div className={columnPickerActionsCss}>
+          <div className={orderingControlCss}>
+            <span>{t('workspace.ordering.label')}</span>
+            <details ref={orderingPickerRef} className={orderingPickerCss}>
+              <summary
+                aria-label={t('workspace.ordering.label')}
+                data-ordering-direction={
+                  state.ordering
+                    ? orderingDescending
+                      ? 'descending'
+                      : 'ascending'
+                    : undefined
+                }
+              >
+                <span>{selectedOrderingLabel}</span>
+                {state.ordering &&
+                  (orderingDescending ? (
+                    <RiArrowDownLine size={15} aria-hidden="true" />
+                  ) : (
+                    <RiArrowUpLine size={15} aria-hidden="true" />
+                  ))}
+              </summary>
+              <div>
                 <button
                   type="button"
-                  disabled={columnsAreDefault}
-                  onClick={() =>
-                    onColumnsChange(defaultColumns, [
-                      ...DEFAULT_TASK_COLUMN_ORDER,
-                    ])
-                  }
+                  className={smartOrderingOptionCss}
+                  data-selected={!state.ordering || undefined}
+                  onClick={() => selectOrdering('')}
                 >
-                  {t('workspace.resetFields')}
+                  <span>{t('workspace.ordering.smart')}</span>
+                  {!state.ordering && (
+                    <RiCheckLine size={16} aria-hidden="true" />
+                  )}
                 </button>
+                <div className={orderingOptionsCss}>
+                  {orderingFields.map((field) => {
+                    const label = t(`workspace.columns.${field.column}`)
+                    const ascending = state.ordering === field.value
+                    const descending = state.ordering === `-${field.value}`
+                    return (
+                      <div key={field.value} className={orderingOptionRowCss}>
+                        <span>{label}</span>
+                        <div>
+                          <button
+                            type="button"
+                            data-selected={ascending || undefined}
+                            aria-label={t('workspace.ordering.ascending', {
+                              field: label,
+                            })}
+                            title={t('workspace.ordering.ascending', {
+                              field: label,
+                            })}
+                            onClick={() => selectOrdering(field.value)}
+                          >
+                            <RiArrowUpLine size={16} aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            data-selected={descending || undefined}
+                            aria-label={t('workspace.ordering.descending', {
+                              field: label,
+                            })}
+                            title={t('workspace.ordering.descending', {
+                              field: label,
+                            })}
+                            onClick={() =>
+                              selectOrdering(`-${field.value}` as TaskOrdering)
+                            }
+                          >
+                            <RiArrowDownLine size={16} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-              <div className={columnListCss}>
-                {renderedColumnOrder.map((column) => {
-                  const checked = selectedColumns.includes(column)
-                  const locked = column === 'title'
-                  const label = t(`workspace.columns.${column}`)
-                  return (
-                    <div
-                      key={column}
-                      ref={(element) => {
-                        if (element) columnRowsRef.current.set(column, element)
-                        else columnRowsRef.current.delete(column)
-                      }}
-                      className={columnRowCss}
-                      data-dragging={draggedColumn === column || undefined}
-                      data-dropped={droppedColumn === column || undefined}
-                      data-drop-position={
-                        dropIndicator?.column === column
-                          ? dropIndicator.position
-                          : undefined
-                      }
-                      onDragOver={(event) => previewColumnDrop(event, column)}
-                      onDrop={(event) => dropColumn(event, column)}
-                    >
-                      <button
-                        type="button"
-                        className={columnDragHandleCss}
-                        aria-label={t('workspace.moveField', { field: label })}
-                        disabled={column === 'title'}
-                        draggable={column !== 'title'}
-                        onDragStart={(event) => {
-                          dragCommittedRef.current = false
-                          setDraggedColumn(column)
-                          setVisualColumnOrder([...columnOrder])
-                          event.dataTransfer.effectAllowed = 'move'
-                          event.dataTransfer.setData('text/plain', column)
+            </details>
+          </div>
+          <div className={columnPickerControlCss}>
+            <span>{t('workspace.fieldSettings')}</span>
+            <details ref={columnPickerRef} className={columnPickerCss}>
+              <summary>{t('workspace.displayAndOrdering')}</summary>
+              <div>
+                <div className={columnPickerActionsCss}>
+                  <button
+                    type="button"
+                    disabled={columnsAreDefault}
+                    onClick={() =>
+                      onColumnsChange(defaultColumns, [
+                        ...DEFAULT_TASK_COLUMN_ORDER,
+                      ])
+                    }
+                  >
+                    {t('workspace.resetFields')}
+                  </button>
+                </div>
+                <div className={columnListCss}>
+                  {renderedColumnOrder.map((column) => {
+                    const checked = selectedColumns.includes(column)
+                    const locked = column === 'title'
+                    const label = t(`workspace.columns.${column}`)
+                    return (
+                      <div
+                        key={column}
+                        data-column={column}
+                        ref={(element) => {
+                          if (element)
+                            columnRowsRef.current.set(column, element)
+                          else columnRowsRef.current.delete(column)
                         }}
-                        onDragEnd={() => {
-                          setDraggedColumn(undefined)
-                          setDropIndicator(undefined)
-                          if (dragCommittedRef.current) {
+                        className={columnRowCss}
+                        data-dragging={draggedColumn === column || undefined}
+                        data-dropped={droppedColumn === column || undefined}
+                        data-drop-position={
+                          dropIndicator?.column === column
+                            ? dropIndicator.position
+                            : undefined
+                        }
+                        onDragOver={(event) => previewColumnDrop(event, column)}
+                        onDrop={(event) => dropColumn(event, column)}
+                      >
+                        <button
+                          type="button"
+                          className={columnDragHandleCss}
+                          aria-label={t('workspace.moveField', {
+                            field: label,
+                          })}
+                          disabled={column === 'title'}
+                          draggable={column !== 'title'}
+                          onDragStart={(event) => {
                             dragCommittedRef.current = false
-                            return
+                            setDraggedColumn(column)
+                            setVisualColumnOrder([...columnOrder])
+                            event.dataTransfer.effectAllowed = 'move'
+                            event.dataTransfer.setData('text/plain', column)
+                          }}
+                          onDragEnd={() => {
+                            setDraggedColumn(undefined)
+                            setDropIndicator(undefined)
+                            if (dragCommittedRef.current) {
+                              dragCommittedRef.current = false
+                              return
+                            }
+                            captureColumnPositions()
+                            setVisualColumnOrder(undefined)
+                          }}
+                          onKeyDown={(event) =>
+                            moveColumnWithKeyboard(event, column)
                           }
-                          captureColumnPositions()
-                          setVisualColumnOrder(undefined)
-                        }}
-                        onKeyDown={(event) =>
-                          moveColumnWithKeyboard(event, column)
-                        }
-                      >
-                        <RiDraggable size={16} aria-hidden="true" />
-                      </button>
-                      <span className={columnLabelCss}>{label}</span>
-                      <button
-                        type="button"
-                        className={columnVisibilityButtonCss}
-                        disabled={locked}
-                        aria-label={t(
-                          locked
-                            ? 'workspace.fieldLocked'
-                            : checked
-                              ? 'workspace.hideField'
-                              : 'workspace.showField',
-                          { field: label }
-                        )}
-                        onClick={() =>
-                          commitColumnConfiguration(
-                            checked
-                              ? configuredColumns.filter(
-                                  (item) => item !== column
-                                )
-                              : [...configuredColumns, column]
-                          )
-                        }
-                      >
-                        {locked ? (
-                          <RiLockLine size={16} aria-hidden="true" />
-                        ) : checked ? (
-                          <RiEyeLine size={16} aria-hidden="true" />
-                        ) : (
-                          <RiEyeOffLine size={16} aria-hidden="true" />
-                        )}
-                      </button>
-                    </div>
-                  )
-                })}
+                        >
+                          <RiDraggable size={16} aria-hidden="true" />
+                        </button>
+                        <span className={columnLabelCss}>{label}</span>
+                        <button
+                          type="button"
+                          className={columnVisibilityButtonCss}
+                          disabled={locked}
+                          aria-label={t(
+                            locked
+                              ? 'workspace.fieldLocked'
+                              : checked
+                                ? 'workspace.hideField'
+                                : 'workspace.showField',
+                            { field: label }
+                          )}
+                          onClick={() =>
+                            commitColumnConfiguration(
+                              checked
+                                ? configuredColumns.filter(
+                                    (item) => item !== column
+                                  )
+                                : [...configuredColumns, column]
+                            )
+                          }
+                        >
+                          {locked ? (
+                            <RiLockLine size={16} aria-hidden="true" />
+                          ) : checked ? (
+                            <RiEyeLine size={16} aria-hidden="true" />
+                          ) : (
+                            <RiEyeOffLine size={16} aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          </details>
+            </details>
+          </div>
         </div>
       </div>
       {activeFilters.length > 0 && (
@@ -632,11 +710,97 @@ const filterSelectCss = css({
   gap: '0.25rem',
   minWidth: '8rem',
 })
-const orderingSelectCss = css({
+const orderingControlCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.25rem',
   minWidth: '11rem',
+  '& > span': { fontSize: '0.8125rem', fontWeight: 'medium' },
+})
+const orderingPickerCss = css({
+  position: 'relative',
+  '& summary': {
+    minHeight: '2rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+    paddingX: '0.75rem',
+    border: '1px solid token(colors.greyscale.300)',
+    borderRadius: '6px',
+    backgroundColor: 'greyscale.000',
+    cursor: 'pointer',
+    listStyle: 'none',
+    '&::-webkit-details-marker': { display: 'none' },
+    '& svg': { color: 'primary.600', flexShrink: 0 },
+  },
+  '& > div': {
+    position: 'absolute',
+    zIndex: 'docked',
+    top: 'calc(100% + 0.25rem)',
+    right: 0,
+    minWidth: '15rem',
+    padding: '0.375rem',
+    border: '1px solid token(colors.greyscale.200)',
+    borderRadius: '8px',
+    backgroundColor: 'greyscale.000',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+  },
+})
+const smartOrderingOptionCss = css({
+  width: 'full',
+  minHeight: '2rem',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingX: '0.625rem',
+  border: 0,
+  borderRadius: '5px',
+  background: 'transparent',
+  color: 'greyscale.900',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.050' },
+  '&[data-selected]': { color: 'primary.700' },
+})
+const orderingOptionsCss = css({
+  marginTop: '0.25rem',
+  paddingTop: '0.25rem',
+  borderTop: '1px solid token(colors.greyscale.200)',
+})
+const orderingOptionRowCss = css({
+  minHeight: '2rem',
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  alignItems: 'center',
+  gap: '0.5rem',
+  paddingLeft: '0.625rem',
+  paddingRight: '0.25rem',
+  borderRadius: '5px',
+  _hover: { backgroundColor: 'greyscale.050' },
+  '& > span': {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  '& > div': { display: 'flex', gap: '0.125rem' },
+  '& button': {
+    width: '1.75rem',
+    height: '1.75rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    border: 0,
+    borderRadius: '4px',
+    background: 'transparent',
+    color: 'greyscale.500',
+    cursor: 'pointer',
+    _hover: { backgroundColor: 'greyscale.100', color: 'primary.700' },
+    '&[data-selected]': {
+      backgroundColor: 'primary.50',
+      color: 'primary.700',
+    },
+  },
 })
 const displaySettingsCss = css({
   display: 'flex',
@@ -646,9 +810,14 @@ const displaySettingsCss = css({
   gap: '0.5rem',
   marginLeft: 'auto',
 })
+const columnPickerControlCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+  '& > span': { fontSize: '0.8125rem', fontWeight: 'medium' },
+})
 const columnPickerCss = css({
   position: 'relative',
-  alignSelf: 'end',
   '& summary': {
     minHeight: '2rem',
     display: 'flex',

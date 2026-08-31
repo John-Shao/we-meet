@@ -53,6 +53,7 @@ describe('TaskFilterToolbar', () => {
     const grouping = screen.getByLabelText('workspace.grouping.label')
     const ordering = screen.getByLabelText('workspace.ordering.label')
     const fieldSettings = screen.getByText('workspace.fieldSettings')
+    const displayAndOrdering = screen.getByText('workspace.displayAndOrdering')
 
     expect(
       priority.compareDocumentPosition(grouping) &
@@ -64,6 +65,10 @@ describe('TaskFilterToolbar', () => {
     ).toBeTruthy()
     expect(
       ordering.compareDocumentPosition(fieldSettings) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      fieldSettings.compareDocumentPosition(displayAndOrdering) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
     expect(ordering).toHaveTextContent('workspace.ordering.smart')
@@ -88,12 +93,32 @@ describe('TaskFilterToolbar', () => {
 
     fireEvent.click(screen.getByLabelText('workspace.ordering.label'))
     fireEvent.click(
-      screen.getByRole('option', {
-        name: 'workspace.ordering.dueDateAsc',
+      screen.getByRole('button', {
+        name: 'workspace.ordering.ascending:workspace.columns.dueDate',
       })
     )
 
     expect(onOrderingChange).toHaveBeenCalledWith('due_date')
+  })
+
+  it('shows the selected field and direction on the sorting trigger', () => {
+    render(
+      <TaskFilterToolbar
+        state={{ ...state, ordering: '-assignee' }}
+        resultCount={7}
+        onStatusChange={vi.fn()}
+        onTimeChange={vi.fn()}
+        onPriorityChange={vi.fn()}
+        onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
+        onColumnsChange={vi.fn()}
+        onClear={vi.fn()}
+      />
+    )
+
+    const ordering = screen.getByLabelText('workspace.ordering.label')
+    expect(ordering).toHaveTextContent('workspace.columns.assignee')
+    expect(ordering).toHaveAttribute('data-ordering-direction', 'descending')
   })
 
   it('summarizes active filters and removes each one independently', () => {
@@ -192,7 +217,7 @@ describe('TaskFilterToolbar', () => {
       />
     )
 
-    const summary = screen.getByText('workspace.fieldSettings')
+    const summary = screen.getByText('workspace.displayAndOrdering')
     const picker = summary.closest('details')!
     fireEvent.click(summary)
     expect(picker).toHaveAttribute('open')
@@ -298,6 +323,9 @@ describe('TaskFilterToolbar', () => {
         onClear={vi.fn()}
       />
     )
+    const fieldSettings = screen
+      .getByText('workspace.displayAndOrdering')
+      .closest('details')!
     const dataTransfer = {
       effectAllowed: '',
       setData: vi.fn(),
@@ -310,10 +338,9 @@ describe('TaskFilterToolbar', () => {
       }),
       { dataTransfer }
     )
-    fireEvent.drop(
-      screen.getByText('workspace.columns.assignee').parentElement!,
-      { dataTransfer }
-    )
+    fireEvent.drop(fieldSettings.querySelector('[data-column="assignee"]')!, {
+      dataTransfer,
+    })
 
     expect(onColumnsChange.mock.calls[0][1].slice(0, 4)).toEqual([
       'title',
@@ -338,16 +365,21 @@ describe('TaskFilterToolbar', () => {
         onClear={vi.fn()}
       />
     )
+    const fieldSettings = screen
+      .getByText('workspace.displayAndOrdering')
+      .closest('details')!
     const dataTransfer = {
       effectAllowed: '',
       dropEffect: '',
       setData: vi.fn(),
       getData: vi.fn(() => 'dueDate'),
     }
-    const dueDateRow = screen.getByText('workspace.columns.dueDate')
-      .parentElement!
-    const assigneeRow = screen.getByText('workspace.columns.assignee')
-      .parentElement!
+    const dueDateRow = fieldSettings.querySelector<HTMLElement>(
+      '[data-column="dueDate"]'
+    )!
+    const assigneeRow = fieldSettings.querySelector<HTMLElement>(
+      '[data-column="assignee"]'
+    )!
     vi.spyOn(assigneeRow, 'getBoundingClientRect').mockReturnValue({
       top: 0,
       bottom: 32,
@@ -372,16 +404,10 @@ describe('TaskFilterToolbar', () => {
 
     expect(assigneeRow).toHaveAttribute('data-drop-position', 'before')
     expect(
-      screen
-        .getAllByText(/^workspace\.columns\./)
+      [...fieldSettings.querySelectorAll('[data-column]')]
         .slice(0, 4)
-        .map((element) => element.textContent)
-    ).toEqual([
-      'workspace.columns.title',
-      'workspace.columns.dueDate',
-      'workspace.columns.assignee',
-      'workspace.columns.priority',
-    ])
+        .map((element) => element.getAttribute('data-column'))
+    ).toEqual(['title', 'dueDate', 'assignee', 'priority'])
 
     fireEvent.drop(assigneeRow, { dataTransfer })
 
