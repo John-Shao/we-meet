@@ -251,7 +251,7 @@ export const effectiveTaskColumns = (state: TaskWorkspaceState) => {
   const columns = state.columns.filter((column) => {
     if (state.scope === 'created' && column === 'creator') return false
     if (state.taskList !== 'all' && column === 'taskList') return false
-    return state.status === 'completed' || column !== 'completedAt'
+    return true
   })
   if (state.status === 'completed' && !columns.includes('completedAt')) {
     columns.push('completedAt')

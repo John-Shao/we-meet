@@ -13,7 +13,10 @@ import type {
   TaskStatusFilter,
   TaskTimeFilter,
 } from '../api/ApiTask'
-import type { TaskWorkspaceState } from '../taskWorkspaceState'
+import {
+  effectiveTaskColumns,
+  type TaskWorkspaceState,
+} from '../taskWorkspaceState'
 
 const statusFilters: TaskStatusFilter[] = ['open', 'completed', 'all']
 const timeFilters: TaskTimeFilter[] = [
@@ -74,7 +77,11 @@ export const TaskFilterToolbar = ({
 }) => {
   const { t } = useTranslation('tasks')
   const columnPickerRef = useRef<HTMLDetailsElement>(null)
-  const selectedColumns = state.columns ?? columnOptions.slice(0, 8)
+  const configuredColumns = state.columns ?? columnOptions.slice(0, 8)
+  const selectedColumns = effectiveTaskColumns({
+    ...state,
+    columns: configuredColumns,
+  })
   const isClosed = state.status === 'completed'
   const defaultStatus = state.mode === 'board' ? 'all' : 'open'
   const activeFilters = [
@@ -180,17 +187,22 @@ export const TaskFilterToolbar = ({
           <div>
             {columnOptions.map((column) => {
               const checked = selectedColumns.includes(column)
+              const locked =
+                column === 'title' ||
+                (state.scope === 'created' && column === 'creator') ||
+                (state.taskList !== 'all' && column === 'taskList') ||
+                (state.status === 'completed' && column === 'completedAt')
               return (
                 <label key={column}>
                   <input
                     type="checkbox"
                     checked={checked}
-                    disabled={column === 'title'}
+                    disabled={locked}
                     onChange={() =>
                       onColumnsChange(
                         checked
-                          ? selectedColumns.filter((item) => item !== column)
-                          : [...selectedColumns, column]
+                          ? configuredColumns.filter((item) => item !== column)
+                          : [...configuredColumns, column]
                       )
                     }
                   />

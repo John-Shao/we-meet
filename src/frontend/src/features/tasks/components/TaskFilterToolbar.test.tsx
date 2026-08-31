@@ -132,4 +132,34 @@ describe('TaskFilterToolbar', () => {
     fireEvent.pointerDown(document.body)
     expect(picker).not.toHaveAttribute('open')
   })
+
+  it('reflects fields fixed by a predefined view', () => {
+    render(
+      <TaskFilterToolbar
+        state={{
+          ...state,
+          scope: 'created',
+          columns: [...DEFAULT_TASK_COLUMNS, 'completedAt'],
+        }}
+        resultCount={7}
+        onStatusChange={vi.fn()}
+        onTimeChange={vi.fn()}
+        onPriorityChange={vi.fn()}
+        onGroupingChange={vi.fn()}
+        onColumnsChange={vi.fn()}
+        onClear={vi.fn()}
+      />
+    )
+
+    const creator = screen.getByRole('checkbox', {
+      name: 'workspace.columns.creator',
+    })
+    const completedAt = screen.getByRole('checkbox', {
+      name: 'workspace.columns.completedAt',
+    })
+    expect(creator).not.toBeChecked()
+    expect(creator).toBeDisabled()
+    expect(completedAt).toBeChecked()
+    expect(completedAt).toBeEnabled()
+  })
 })

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildTaskWorkspaceSearch,
   DEFAULT_TASK_COLUMNS,
+  effectiveTaskColumns,
   parseTaskWorkspaceState,
   stateForTaskList,
   stateForSavedView,
@@ -163,5 +164,26 @@ describe('task workspace state', () => {
       ...state,
       task: undefined,
     })
+  })
+
+  it('applies only the fields fixed by the current view', () => {
+    const base = parseTaskWorkspaceState(new URLSearchParams())
+
+    expect(
+      effectiveTaskColumns({
+        ...base,
+        scope: 'created',
+        status: 'all',
+        columns: ['title', 'creator', 'completedAt'],
+      })
+    ).toEqual(['title', 'completedAt'])
+    expect(
+      effectiveTaskColumns({
+        ...base,
+        status: 'completed',
+        taskList: 'list-1',
+        columns: ['title', 'taskList'],
+      })
+    ).toEqual(['title', 'completedAt'])
   })
 })
