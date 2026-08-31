@@ -237,7 +237,7 @@ describe('TaskList', () => {
     expect(container.querySelector('img[src="/creator.png"]')).toBeNull()
   })
 
-  it('shows the complete ancestor chain for a subtask row', () => {
+  it('shows only the direct filtered parent after a subtask row', () => {
     const subtask = {
       ...task,
       parent_id: 'parent-1',
@@ -253,9 +253,10 @@ describe('TaskList', () => {
       <TaskList tasks={[subtask]} onOpen={vi.fn()} registerRow={vi.fn()} />
     )
 
+    expect(screen.getByText('Prepare release < Backend')).toBeInTheDocument()
     expect(
-      screen.getByText('Release › Backend › Prepare release')
-    ).toBeInTheDocument()
+      screen.queryByText('Prepare release < Release')
+    ).not.toBeInTheDocument()
   })
 
   it('collapses and expands nested task rows with progress like Feishu', () => {
@@ -292,7 +293,7 @@ describe('TaskList', () => {
       screen.getByRole('button', { name: 'subtasks.expandInList' })
     )
     expect(screen.getByText('Backend')).toBeInTheDocument()
-    expect(screen.queryByText('Release › Backend')).not.toBeInTheDocument()
+    expect(screen.queryByText('Backend < Release')).not.toBeInTheDocument()
     fireEvent.click(
       screen.getByRole('button', { name: 'subtasks.collapseInList' })
     )

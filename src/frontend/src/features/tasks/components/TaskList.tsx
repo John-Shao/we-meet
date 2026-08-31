@@ -1644,6 +1644,9 @@ const TaskTitle = ({
   showAncestorPath: boolean
 }) => {
   const { t } = useTranslation('tasks')
+  const filteredParent = showAncestorPath
+    ? task.ancestor_path.find((node) => node.id === task.parent_id)
+    : undefined
   return (
     <span
       className={titleCellCss}
@@ -1665,9 +1668,9 @@ const TaskTitle = ({
           </span>
         )}
       </span>
-      {showAncestorPath && task.ancestor_path.length > 1 && (
+      {filteredParent && (
         <span className={titleMetaCss}>
-          {task.ancestor_path.map((node) => node.title).join(' › ')}
+          {task.title} {'<'} {filteredParent.title}
         </span>
       )}
       {task.source_room_name && (
