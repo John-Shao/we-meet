@@ -281,7 +281,10 @@ const columnPickerCss = css({
   },
   '& > div': {
     position: 'absolute',
-    zIndex: 'dropdown',
+    // Keep the picker above the task table's sticky column headers. `dropdown`
+    // is not a defined project z-index token and was therefore ignored by the
+    // browser, leaving the sticky headers (z-index: 1) on top of this panel.
+    zIndex: 'docked',
     top: 'calc(100% + 0.25rem)',
     right: 0,
     minWidth: '11rem',
