@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchApi } from '@/api/fetchApi'
 
-import { fetchTaskSettings, patchTaskSettings } from './fetchTasks'
+import {
+  fetchTaskParentCandidates,
+  fetchTaskSettings,
+  fetchTaskSubtreeImpact,
+  patchTaskSettings,
+} from './fetchTasks'
 
 vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
 
@@ -24,5 +29,23 @@ describe('task settings API', () => {
       method: 'PATCH',
       body: JSON.stringify({ overdue_marker_enabled: false }),
     })
+  })
+
+  it('keeps conversation-scoped access on hierarchy helper requests', async () => {
+    const signal = new AbortController().signal
+
+    await fetchTaskSubtreeImpact('task/id', 'conversation/id', signal)
+    await fetchTaskParentCandidates('task/id', 'conversation/id', signal)
+
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      1,
+      'tasks/task%2Fid/subtree-impact/?shared_via=conversation%2Fid',
+      { signal }
+    )
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      2,
+      'tasks/task%2Fid/parent-candidates/?shared_via=conversation%2Fid',
+      { signal }
+    )
   })
 })

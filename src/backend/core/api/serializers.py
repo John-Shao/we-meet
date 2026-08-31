@@ -564,7 +564,7 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
         "scope": {"assigned", "created", "following", "all"},
         "status": {"open", "all", "todo", "completed"},
         "time": {"all", "starting_today", "due_today", "overdue"},
-        "priority": {"all", "low", "medium", "high", "urgent"},
+        "priority": {"all", "none", "low", "medium", "high", "urgent"},
         "ordering": {
             "",
             "assignee",

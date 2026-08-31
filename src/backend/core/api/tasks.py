@@ -1603,9 +1603,11 @@ class TaskViewSet(
         # `get_object()` only proves the task is visible to the caller (e.g. a
         # task-list VIEWER, a follower, or someone who merely received a shared
         # card). Sharing the card leaks task content into up to 20 conversations,
-        # so require the same collaborator bar as comments: manager or follower.
-        if not _can_comment_on_task(task, request.user):
-            raise PermissionDenied("Only task collaborators can share this task.")
+        # so require content-management permission. A follower is deliberately
+        # insufficient: every visible viewer may follow a task, so treating that
+        # role as a share grant would let a read-only viewer self-escalate.
+        if not _can_manage_task_content(task, request.user):
+            raise PermissionDenied("Only task editors can share this task.")
         serializer = TaskShareSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         cids = [

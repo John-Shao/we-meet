@@ -720,9 +720,10 @@ describe('TaskList', () => {
   it('shares a task from its row context menu without opening details', () => {
     const onOpen = vi.fn()
     const onShare = vi.fn()
+    const editableTask = { ...task, can_edit: true }
     render(
       <TaskList
-        tasks={[task]}
+        tasks={[editableTask]}
         onOpen={onOpen}
         onShare={onShare}
         registerRow={vi.fn()}
@@ -735,16 +736,17 @@ describe('TaskList', () => {
     )
     fireEvent.click(screen.getByRole('menuitem', { name: 'share.action' }))
 
-    expect(onShare).toHaveBeenCalledWith(task)
+    expect(onShare).toHaveBeenCalledWith(editableTask)
     expect(onOpen).not.toHaveBeenCalled()
   })
 
   it('opens row actions from the visible more button', () => {
     const onOpen = vi.fn()
     const onShare = vi.fn()
+    const editableTask = { ...task, can_edit: true }
     render(
       <TaskList
-        tasks={[task]}
+        tasks={[editableTask]}
         onOpen={onOpen}
         onShare={onShare}
         registerRow={vi.fn()}
@@ -758,7 +760,7 @@ describe('TaskList', () => {
     )
     fireEvent.click(screen.getByRole('menuitem', { name: 'share.action' }))
 
-    expect(onShare).toHaveBeenCalledWith(task)
+    expect(onShare).toHaveBeenCalledWith(editableTask)
     expect(onOpen).not.toHaveBeenCalled()
   })
 
@@ -768,7 +770,7 @@ describe('TaskList', () => {
     const onDeleteTask = vi.fn()
     render(
       <TaskList
-        tasks={[{ ...task, can_delete: true }]}
+        tasks={[{ ...task, can_edit: true, can_delete: true }]}
         onOpen={onOpen}
         onShare={onShare}
         onDeleteTask={onDeleteTask}
@@ -786,9 +788,32 @@ describe('TaskList', () => {
       within(menu).getByRole('menuitem', { name: 'actions.delete' })
     )
 
-    expect(onDeleteTask).toHaveBeenCalledWith({ ...task, can_delete: true })
+    expect(onDeleteTask).toHaveBeenCalledWith({
+      ...task,
+      can_edit: true,
+      can_delete: true,
+    })
     expect(onShare).not.toHaveBeenCalled()
     expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('does not offer forwarding to a read-only task viewer', () => {
+    const onShare = vi.fn()
+    render(
+      <TaskList
+        tasks={[task]}
+        onOpen={vi.fn()}
+        onShare={onShare}
+        registerRow={vi.fn()}
+      />
+    )
+
+    fireEvent.contextMenu(
+      within(screen.getByRole('table')).getByLabelText('workspace.openTask')
+    )
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(onShare).not.toHaveBeenCalled()
   })
 
   it('cycles sortable headers independently from the resize handle', () => {

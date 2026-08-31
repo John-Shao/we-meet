@@ -318,6 +318,11 @@ export const TaskList = ({
       window.removeEventListener('blur', close)
     }
   }, [contextMenu])
+  useEffect(() => {
+    // Selecting a nested task must reveal it even if its ancestor was manually
+    // collapsed before the selection changed.
+    setManuallyCollapsedTaskIds(new Set())
+  }, [selectedTaskId])
   const visibleColumns = TASK_COLUMNS.filter(
     (column) =>
       (!grouped || column.id !== 'taskList') &&
@@ -615,8 +620,9 @@ export const TaskList = ({
     event: ReactMouseEvent<HTMLElement>,
     task: ApiTask
   ) => {
+    const canShare = Boolean(onShare && task.can_edit)
     const canSwitchGroup = grouped && task.can_edit && groups.length > 0
-    if (!onShare && !onDeleteTask && !canSwitchGroup) return
+    if (!canShare && !onDeleteTask && !canSwitchGroup) return
     event.preventDefault()
     event.stopPropagation()
     const anchor = event.currentTarget.getBoundingClientRect()
@@ -796,7 +802,7 @@ export const TaskList = ({
         />
       )}
       {contextMenu &&
-        (onShare ||
+        ((onShare && contextMenu.task.can_edit) ||
           onDeleteTask ||
           (grouped && contextMenu.task.can_edit && groups.length > 0)) && (
           <div
@@ -806,7 +812,7 @@ export const TaskList = ({
             className={taskContextMenuCss}
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
-            {onShare && (
+            {onShare && contextMenu.task.can_edit && (
               <button
                 type="button"
                 role="menuitem"

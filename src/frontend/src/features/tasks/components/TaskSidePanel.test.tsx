@@ -19,9 +19,11 @@ const {
   mutateAsync,
   notifyAction,
   notifyFailure,
+  parentCandidatesQuery,
   reorderMutate,
   subtaskLoadingState,
   subtaskState,
+  subtreeImpactQuery,
   taskQueryState,
 } = vi.hoisted(() => ({
   confirm: vi.fn().mockResolvedValue(true),
@@ -32,9 +34,18 @@ const {
   mutateAsync: vi.fn().mockResolvedValue(undefined),
   notifyAction: vi.fn(),
   notifyFailure: vi.fn(),
+  parentCandidatesQuery: vi.fn(() => ({ data: [] })),
   reorderMutate: vi.fn(),
   subtaskLoadingState: { current: false },
   subtaskState: { current: [] as ApiTask[] },
+  subtreeImpactQuery: vi.fn(() => ({
+    data: {
+      task_id: 'task-1',
+      node_count: 1,
+      descendant_count: 0,
+      maximum_depth: 0,
+    },
+  })),
   taskQueryState: {
     current: {
       data: undefined as ApiTask | undefined,
@@ -58,15 +69,8 @@ vi.mock('../api/fetchTasks', () => ({
     isLoading: subtaskLoadingState.current,
     error: null,
   }),
-  useTaskParentCandidates: () => ({ data: [] }),
-  useTaskSubtreeImpact: () => ({
-    data: {
-      task_id: 'task-1',
-      node_count: 1,
-      descendant_count: 0,
-      maximum_depth: 0,
-    },
-  }),
+  useTaskParentCandidates: parentCandidatesQuery,
+  useTaskSubtreeImpact: subtreeImpactQuery,
   useCreateTask: () => ({
     mutateAsync: createMutateAsync,
     isPending: false,
@@ -225,6 +229,7 @@ describe('TaskDetailPanel', () => {
     mutateAsync.mockClear()
     notifyAction.mockClear()
     notifyFailure.mockClear()
+    parentCandidatesQuery.mockClear()
     reorderMutate.mockClear()
     createMutateAsync.mockClear()
     deleteMutateAsync.mockClear()
@@ -233,11 +238,49 @@ describe('TaskDetailPanel', () => {
     confirm.mockResolvedValue(true)
     subtaskState.current = []
     subtaskLoadingState.current = false
+    subtreeImpactQuery.mockClear()
     taskQueryState.current = {
       data: undefined,
       isLoading: false,
       error: null,
     }
+  })
+
+  it('passes shared conversation access to hierarchy helper queries', () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={task}
+        taskLists={[]}
+        sharedVia="conversation/id"
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(subtreeImpactQuery).toHaveBeenCalledWith(task.id, 'conversation/id')
+    expect(parentCandidatesQuery).toHaveBeenCalledWith(
+      task.id,
+      'conversation/id'
+    )
+  })
+
+  it('does not offer forwarding to a read-only task viewer', () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={task}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'share.action' })
+    ).not.toBeInTheDocument()
   })
 
   it('reserves the detail layout while the task is loading', () => {
@@ -691,6 +734,7 @@ describe('TaskDetailPanel', () => {
         taskId={task.id}
         fallbackTask={{
           ...task,
+          can_edit: true,
           can_update_status: true,
           can_delete: true,
         }}
@@ -1007,10 +1051,13 @@ describe('TaskDetailPanel', () => {
     expect(secondRow).toHaveAttribute('data-drag-over', 'true')
     fireEvent.drop(secondRow, { dataTransfer })
 
-    expect(reorderMutate).toHaveBeenCalledWith({
-      taskId: task.id,
-      taskIds: ['child-2', 'child-1'],
-    })
+    expect(reorderMutate).toHaveBeenCalledWith(
+      {
+        taskId: task.id,
+        taskIds: ['child-2', 'child-1'],
+      },
+      { onError: expect.any(Function) }
+    )
   })
 
   it('opens a subtask in the full task detail with ancestors above its title', () => {

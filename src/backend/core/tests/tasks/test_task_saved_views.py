@@ -127,6 +127,19 @@ def test_saved_view_validates_names_config_and_visible_task_lists():
     assert hidden_list.status_code == 400
 
 
+def test_saved_view_accepts_the_unprioritized_filter():
+    user, _organization = _member()
+
+    response = _client(user).post(
+        URL,
+        {"name": "No priority", "config": _config(priority="none")},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["config"]["priority"] == "none"
+
+
 def test_setting_a_default_view_clears_the_previous_default():
     user, organization = _member()
     first = TaskSavedView.objects.create(

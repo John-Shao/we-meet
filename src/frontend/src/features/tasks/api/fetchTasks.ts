@@ -190,27 +190,38 @@ export const useReorderTaskSubtasks = () => {
   })
 }
 
-const fetchTaskSubtreeImpact = (taskId: string) =>
+export const fetchTaskSubtreeImpact = (
+  taskId: string,
+  sharedVia?: string,
+  signal?: AbortSignal
+) =>
   fetchApi<ApiTaskSubtreeImpact>(
-    `tasks/${encodeURIComponent(taskId)}/subtree-impact/`
+    `tasks/${encodeURIComponent(taskId)}/subtree-impact/${sharedViaQuery(sharedVia)}`,
+    { signal }
   )
 
-export const useTaskSubtreeImpact = (taskId?: string) =>
+export const useTaskSubtreeImpact = (taskId?: string, sharedVia?: string) =>
   useQuery<ApiTaskSubtreeImpact, ApiError>({
-    queryKey: ['tasks', taskId, 'subtree-impact'],
-    queryFn: () => fetchTaskSubtreeImpact(taskId!),
+    queryKey: ['tasks', taskId, 'subtree-impact', sharedVia],
+    queryFn: ({ signal }) => fetchTaskSubtreeImpact(taskId!, sharedVia, signal),
     enabled: Boolean(taskId),
   })
 
-const fetchTaskParentCandidates = (taskId: string) =>
+export const fetchTaskParentCandidates = (
+  taskId: string,
+  sharedVia?: string,
+  signal?: AbortSignal
+) =>
   fetchApi<ApiTaskParentCandidate[]>(
-    `tasks/${encodeURIComponent(taskId)}/parent-candidates/`
+    `tasks/${encodeURIComponent(taskId)}/parent-candidates/${sharedViaQuery(sharedVia)}`,
+    { signal }
   )
 
-export const useTaskParentCandidates = (taskId?: string) =>
+export const useTaskParentCandidates = (taskId?: string, sharedVia?: string) =>
   useQuery<ApiTaskParentCandidate[], ApiError>({
-    queryKey: ['tasks', taskId, 'parent-candidates'],
-    queryFn: () => fetchTaskParentCandidates(taskId!),
+    queryKey: ['tasks', taskId, 'parent-candidates', sharedVia],
+    queryFn: ({ signal }) =>
+      fetchTaskParentCandidates(taskId!, sharedVia, signal),
     enabled: Boolean(taskId),
   })
 

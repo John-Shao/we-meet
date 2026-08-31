@@ -158,10 +158,15 @@ export const TaskDetailPanel = ({
 }) => {
   const { t, i18n } = useTranslation('tasks')
   const { data, isLoading, error } = useTask(taskId, sharedVia)
-  const { data: subtasks = [], isLoading: subtasksLoading } =
-    useTaskSubtasks(taskId, sharedVia)
-  const { data: subtreeImpact } = useTaskSubtreeImpact(taskId)
-  const { data: parentCandidates = [] } = useTaskParentCandidates(taskId)
+  const { data: subtasks = [], isLoading: subtasksLoading } = useTaskSubtasks(
+    taskId,
+    sharedVia
+  )
+  const { data: subtreeImpact } = useTaskSubtreeImpact(taskId, sharedVia)
+  const { data: parentCandidates = [] } = useTaskParentCandidates(
+    taskId,
+    sharedVia
+  )
   const task = data || fallbackTask
   const [editingField, setEditingField] = useState<EditableTaskField | null>(
     null
@@ -575,8 +580,7 @@ export const TaskDetailPanel = ({
         taskIds: ordered.map((subtask) => subtask.id),
       },
       {
-        onError: () =>
-          notifyFailure({ taskId, title: task?.title ?? '' }),
+        onError: () => notifyFailure({ taskId, title: task?.title ?? '' }),
       }
     )
   }
@@ -606,15 +610,17 @@ export const TaskDetailPanel = ({
       }
       actions={
         <>
-          <Button
-            size="icon28"
-            variant="quaternaryText"
-            aria-label={t('share.action')}
-            tooltip={t('share.action')}
-            onPress={() => setShareOpen(true)}
-          >
-            <RiShareForwardLine size={18} aria-hidden="true" />
-          </Button>
+          {task.can_edit && (
+            <Button
+              size="icon28"
+              variant="quaternaryText"
+              aria-label={t('share.action')}
+              tooltip={t('share.action')}
+              onPress={() => setShareOpen(true)}
+            >
+              <RiShareForwardLine size={18} aria-hidden="true" />
+            </Button>
+          )}
           <Button
             size="icon28"
             variant="quaternaryText"
@@ -1564,7 +1570,7 @@ export const TaskDetailPanel = ({
           </details>
         </div>
       </div>
-      {shareOpen && (
+      {shareOpen && task.can_edit && (
         <TaskShareDialog
           task={task}
           sharedVia={sharedVia}

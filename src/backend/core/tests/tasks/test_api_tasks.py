@@ -185,7 +185,12 @@ def test_share_denies_task_list_viewer(_membership):
     )
     cid = "conversation-target"
 
-    response = _client(viewer).post(
+    client = _client(viewer)
+    followed = client.post(f"{TASKS_URL}{task.id}/follow/")
+    assert followed.status_code == 200
+    assert followed.json()["is_following"] is True
+
+    response = client.post(
         f"{TASKS_URL}{task.id}/share/",
         {"conversation_ids": [cid]},
         format="json",
