@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type DragEvent,
@@ -57,6 +58,38 @@ const groupingOptions: TaskGrouping[] = [
   'due_date',
   'creator',
 ]
+const FIELD_MOVE_DURATION_MS = 180
+type FieldDropPosition = 'before' | 'after'
+
+const columnOrdersEqual = (
+  left: readonly TaskColumnId[],
+  right: readonly TaskColumnId[]
+) =>
+  left.length === right.length &&
+  left.every((column, index) => column === right[index])
+
+const moveColumnBeside = (
+  order: readonly TaskColumnId[],
+  source: TaskColumnId,
+  target: TaskColumnId,
+  position: FieldDropPosition
+) => {
+  if (source === 'title' || source === target) return [...order]
+  const remaining = order.filter((column) => column !== source)
+  const targetIndex = remaining.indexOf(target)
+  if (targetIndex < 0) return [...order]
+  const insertionIndex =
+    target === 'title'
+      ? 1
+      : targetIndex + (position === 'after' ? 1 : 0)
+  remaining.splice(
+    Math.max(1, Math.min(insertionIndex, remaining.length)),
+    0,
+    source
+  )
+  return remaining
+}
+
 export const TaskFilterToolbar = ({
   state,
   resultCount,
@@ -80,12 +113,31 @@ export const TaskFilterToolbar = ({
 }) => {
   const { t } = useTranslation('tasks')
   const columnPickerRef = useRef<HTMLDetailsElement>(null)
+  const columnRowsRef = useRef(new Map<TaskColumnId, HTMLDivElement>())
+  const previousColumnPositionsRef = useRef(
+    new Map<TaskColumnId, DOMRect>()
+  )
+  const movementAnimationsRef = useRef(new Map<TaskColumnId, Animation>())
+  const committedColumnOrderRef = useRef<TaskColumnId[]>([])
+  const dragCommittedRef = useRef(false)
+  const droppedColumnTimerRef = useRef<number>()
   const [draggedColumn, setDraggedColumn] = useState<TaskColumnId>()
+  const [visualColumnOrder, setVisualColumnOrder] =
+    useState<TaskColumnId[]>()
+  const [dropIndicator, setDropIndicator] = useState<{
+    column: TaskColumnId
+    position: FieldDropPosition
+  }>()
+  const [droppedColumn, setDroppedColumn] = useState<TaskColumnId>()
   const configuredColumns = state.columns
   const columnOrder = normalizeTaskColumnOrder(
     state.columnOrder,
     configuredColumns
   )
+  const columnOrderKey = columnOrder.join(',')
+  committedColumnOrderRef.current = columnOrder
+  const renderedColumnOrder = visualColumnOrder ?? columnOrder
+  const renderedColumnOrderKey = renderedColumnOrder.join(',')
   const selectedColumns = effectiveTaskColumns({
     ...state,
     columns: configuredColumns,
@@ -141,6 +193,26 @@ export const TaskFilterToolbar = ({
     )
   }
 
+  const captureColumnPositions = () => {
+    previousColumnPositionsRef.current = new Map(
+      [...columnRowsRef.current].map(([column, element]) => [
+        column,
+        element.getBoundingClientRect(),
+      ])
+    )
+  }
+
+  const markColumnDropped = (column: TaskColumnId) => {
+    if (droppedColumnTimerRef.current) {
+      window.clearTimeout(droppedColumnTimerRef.current)
+    }
+    setDroppedColumn(column)
+    droppedColumnTimerRef.current = window.setTimeout(() => {
+      setDroppedColumn(undefined)
+      droppedColumnTimerRef.current = undefined
+    }, FIELD_MOVE_DURATION_MS + 60)
+  }
+
   const moveColumnToIndex = (column: TaskColumnId, targetIndex: number) => {
     if (column === 'title') return
     const next = [...columnOrder]
@@ -148,7 +220,36 @@ export const TaskFilterToolbar = ({
     if (sourceIndex < 0) return
     next.splice(sourceIndex, 1)
     next.splice(Math.max(1, Math.min(targetIndex, next.length)), 0, column)
+    if (columnOrdersEqual(next, columnOrder)) return
+    captureColumnPositions()
+    markColumnDropped(column)
     commitColumnConfiguration(configuredColumns, next)
+  }
+
+  const previewColumnDrop = (
+    event: DragEvent<HTMLDivElement>,
+    target: TaskColumnId
+  ) => {
+    event.preventDefault()
+    if (!draggedColumn || draggedColumn === target) return
+    event.dataTransfer.dropEffect = 'move'
+    const targetElement = columnRowsRef.current.get(target)
+    const targetBounds = targetElement?.getBoundingClientRect()
+    const position: FieldDropPosition =
+      target === 'title' ||
+      (targetBounds && event.clientY >= targetBounds.top + targetBounds.height / 2)
+        ? 'after'
+        : 'before'
+    const next = moveColumnBeside(
+      renderedColumnOrder,
+      draggedColumn,
+      target,
+      position
+    )
+    setDropIndicator({ column: target, position })
+    if (columnOrdersEqual(next, renderedColumnOrder)) return
+    captureColumnPositions()
+    setVisualColumnOrder(next)
   }
 
   const dropColumn = (
@@ -159,10 +260,19 @@ export const TaskFilterToolbar = ({
     const source =
       draggedColumn ||
       (event.dataTransfer.getData('text/plain') as TaskColumnId)
-    if (!columnOrder.includes(source) || source === target) return
-    const targetIndex = columnOrder.indexOf(target)
-    moveColumnToIndex(source, target === 'title' ? 1 : targetIndex)
+    if (!columnOrder.includes(source) || source === 'title') return
+    const finalOrder = dropIndicator
+      ? (visualColumnOrder ?? columnOrder)
+      : moveColumnBeside(columnOrder, source, target, 'before')
+    if (!columnOrdersEqual(finalOrder, renderedColumnOrder)) {
+      captureColumnPositions()
+      setVisualColumnOrder(finalOrder)
+    }
+    dragCommittedRef.current = true
     setDraggedColumn(undefined)
+    setDropIndicator(undefined)
+    markColumnDropped(source)
+    commitColumnConfiguration(configuredColumns, finalOrder)
   }
 
   const moveColumnWithKeyboard = (
@@ -175,7 +285,73 @@ export const TaskFilterToolbar = ({
     moveColumnToIndex(column, columnOrder.indexOf(column) + offset)
   }
 
+  useLayoutEffect(() => {
+    const previousPositions = previousColumnPositionsRef.current
+    previousColumnPositionsRef.current = new Map()
+    if (
+      previousPositions.size === 0 ||
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ) {
+      return
+    }
+    columnRowsRef.current.forEach((element, column) => {
+      const previous = previousPositions.get(column)
+      if (!previous) return
+      const deltaY = previous.top - element.getBoundingClientRect().top
+      if (Math.abs(deltaY) < 1 || typeof element.animate !== 'function') return
+      movementAnimationsRef.current.get(column)?.cancel()
+      const animation = element.animate(
+        [
+          { transform: `translateY(${deltaY}px)` },
+          { transform: 'translateY(0)' },
+        ],
+        {
+          duration: FIELD_MOVE_DURATION_MS,
+          easing: 'cubic-bezier(0.2, 0, 0, 1)',
+        }
+      )
+      movementAnimationsRef.current.set(column, animation)
+      animation.onfinish = () => {
+        if (movementAnimationsRef.current.get(column) === animation) {
+          movementAnimationsRef.current.delete(column)
+        }
+      }
+    })
+  }, [renderedColumnOrderKey])
+
   useEffect(() => {
+    setVisualColumnOrder((current) =>
+      current &&
+      columnOrdersEqual(current, committedColumnOrderRef.current)
+        ? undefined
+        : current
+    )
+  }, [columnOrderKey])
+
+  useEffect(() => {
+    if (
+      !droppedColumn ||
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ) {
+      return
+    }
+    const element = columnRowsRef.current.get(droppedColumn)
+    if (!element || typeof element.animate !== 'function') return
+    element.animate(
+      [
+        { scale: '0.98', boxShadow: '0 5px 14px rgba(20, 85, 180, 0.18)' },
+        { scale: '1.015', boxShadow: '0 3px 10px rgba(20, 85, 180, 0.12)' },
+        { scale: '1', boxShadow: '0 0 0 rgba(20, 85, 180, 0)' },
+      ],
+      {
+        duration: FIELD_MOVE_DURATION_MS + 40,
+        easing: 'cubic-bezier(0.2, 0, 0, 1)',
+      }
+    )
+  }, [droppedColumn])
+
+  useEffect(() => {
+    const movementAnimations = movementAnimationsRef.current
     const closeOnOutsidePress = (event: PointerEvent) => {
       const picker = columnPickerRef.current
       if (
@@ -196,6 +372,10 @@ export const TaskFilterToolbar = ({
     return () => {
       document.removeEventListener('pointerdown', closeOnOutsidePress, true)
       document.removeEventListener('keydown', closeOnEscape)
+      if (droppedColumnTimerRef.current) {
+        window.clearTimeout(droppedColumnTimerRef.current)
+      }
+      movementAnimations.forEach((animation) => animation.cancel())
     }
   }, [])
 
@@ -277,16 +457,26 @@ export const TaskFilterToolbar = ({
                 </button>
               </div>
               <div className={columnListCss}>
-                {columnOrder.map((column) => {
+                {renderedColumnOrder.map((column) => {
                   const checked = selectedColumns.includes(column)
                   const locked = column === 'title'
                   const label = t(`workspace.columns.${column}`)
                   return (
                     <div
                       key={column}
+                      ref={(element) => {
+                        if (element) columnRowsRef.current.set(column, element)
+                        else columnRowsRef.current.delete(column)
+                      }}
                       className={columnRowCss}
                       data-dragging={draggedColumn === column || undefined}
-                      onDragOver={(event) => event.preventDefault()}
+                      data-dropped={droppedColumn === column || undefined}
+                      data-drop-position={
+                        dropIndicator?.column === column
+                          ? dropIndicator.position
+                          : undefined
+                      }
+                      onDragOver={(event) => previewColumnDrop(event, column)}
                       onDrop={(event) => dropColumn(event, column)}
                     >
                       <button
@@ -296,11 +486,22 @@ export const TaskFilterToolbar = ({
                         disabled={column === 'title'}
                         draggable={column !== 'title'}
                         onDragStart={(event) => {
+                          dragCommittedRef.current = false
                           setDraggedColumn(column)
+                          setVisualColumnOrder([...columnOrder])
                           event.dataTransfer.effectAllowed = 'move'
                           event.dataTransfer.setData('text/plain', column)
                         }}
-                        onDragEnd={() => setDraggedColumn(undefined)}
+                        onDragEnd={() => {
+                          setDraggedColumn(undefined)
+                          setDropIndicator(undefined)
+                          if (dragCommittedRef.current) {
+                            dragCommittedRef.current = false
+                            return
+                          }
+                          captureColumnPositions()
+                          setVisualColumnOrder(undefined)
+                        }}
                         onKeyDown={(event) =>
                           moveColumnWithKeyboard(event, column)
                         }
@@ -461,6 +662,7 @@ const columnListCss = css({
   gap: '0.125rem',
 })
 const columnRowCss = css({
+  position: 'relative',
   minHeight: '2rem',
   display: 'grid',
   gridTemplateColumns: '1.75rem minmax(0, 1fr) 1.75rem',
@@ -468,10 +670,40 @@ const columnRowCss = css({
   gap: '0.25rem',
   paddingX: '0.25rem',
   borderRadius: '5px',
+  transition:
+    'background-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease, scale 140ms ease',
+  willChange: 'transform',
   _hover: { backgroundColor: 'greyscale.050' },
   '&[data-dragging]': {
     backgroundColor: 'primary.50',
-    opacity: 0.7,
+    boxShadow: '0 5px 14px rgba(20, 85, 180, 0.18)',
+    opacity: 0.72,
+    scale: '0.98',
+  },
+  '&[data-dropped]': {
+    backgroundColor: 'primary.50',
+  },
+  '&[data-drop-position]::before': {
+    content: '""',
+    position: 'absolute',
+    zIndex: 1,
+    left: '0.25rem',
+    right: '0.25rem',
+    height: '2px',
+    borderRadius: '999px',
+    backgroundColor: 'primary.500',
+    boxShadow: '0 0 0 1px token(colors.primary.100)',
+    pointerEvents: 'none',
+  },
+  '&[data-drop-position="before"]::before': {
+    top: '-1px',
+  },
+  '&[data-drop-position="after"]::before': {
+    bottom: '-1px',
+  },
+  '@media (prefers-reduced-motion: reduce)': {
+    transition: 'none',
+    '&[data-dragging]': { scale: '1' },
   },
 })
 const columnDragHandleCss = css({
@@ -485,8 +717,14 @@ const columnDragHandleCss = css({
   background: 'transparent',
   color: 'greyscale.500',
   cursor: 'grab',
+  transition: 'color 120ms ease, scale 120ms ease',
   _active: { cursor: 'grabbing' },
+  _hover: { color: 'primary.600', scale: '1.08' },
   _disabled: { color: 'greyscale.300', cursor: 'default' },
+  '@media (prefers-reduced-motion: reduce)': {
+    transition: 'none',
+    _hover: { scale: '1' },
+  },
 })
 const columnLabelCss = css({
   overflow: 'hidden',

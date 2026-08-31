@@ -284,6 +284,76 @@ describe('TaskFilterToolbar', () => {
     ])
   })
 
+  it('previews the animated drop position before committing the order', () => {
+    const onColumnsChange = vi.fn()
+    render(
+      <TaskFilterToolbar
+        state={state}
+        resultCount={7}
+        onStatusChange={vi.fn()}
+        onTimeChange={vi.fn()}
+        onPriorityChange={vi.fn()}
+        onGroupingChange={vi.fn()}
+        onColumnsChange={onColumnsChange}
+        onClear={vi.fn()}
+      />
+    )
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData: vi.fn(),
+      getData: vi.fn(() => 'dueDate'),
+    }
+    const dueDateRow = screen.getByText('workspace.columns.dueDate')
+      .parentElement!
+    const assigneeRow = screen.getByText('workspace.columns.assignee')
+      .parentElement!
+    vi.spyOn(assigneeRow, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      bottom: 32,
+      left: 0,
+      right: 240,
+      width: 240,
+      height: 32,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+
+    fireEvent.dragStart(
+      screen.getByRole('button', {
+        name: 'workspace.moveField:workspace.columns.dueDate',
+      }),
+      { dataTransfer }
+    )
+    expect(dueDateRow).toHaveAttribute('data-dragging')
+
+    fireEvent.dragOver(assigneeRow, { dataTransfer, clientY: 4 })
+
+    expect(assigneeRow).toHaveAttribute('data-drop-position', 'before')
+    expect(
+      screen
+        .getAllByText(/^workspace\.columns\./)
+        .slice(0, 4)
+        .map((element) => element.textContent)
+    ).toEqual([
+      'workspace.columns.title',
+      'workspace.columns.dueDate',
+      'workspace.columns.assignee',
+      'workspace.columns.priority',
+    ])
+
+    fireEvent.drop(assigneeRow, { dataTransfer })
+
+    expect(dueDateRow).toHaveAttribute('data-dropped')
+    expect(onColumnsChange.mock.calls[0][1].slice(0, 4)).toEqual([
+      'title',
+      'dueDate',
+      'assignee',
+      'priority',
+    ])
+  })
+
   it('shows a hidden field at its configured position', () => {
     const onColumnsChange = vi.fn()
     render(
