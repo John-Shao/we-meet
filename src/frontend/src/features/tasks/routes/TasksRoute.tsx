@@ -28,6 +28,7 @@ import type {
   ApiTaskListGroup,
   ApiTaskSavedView,
   TaskColumnId,
+  TaskOrdering,
   TaskPriorityFilter,
   TaskStatusFilter,
   TaskTimeFilter,
@@ -527,6 +528,11 @@ const TasksAuthenticated = () => {
     navigateState({ ...stateWithStatus(state, status), task: undefined })
   }
 
+  const changeOrdering = (ordering: TaskOrdering) => {
+    setCreating(false)
+    navigateState({ ...state, ordering, task: undefined })
+  }
+
   const updateFilter = (
     patch: Partial<Pick<TaskWorkspaceState, 'time' | 'priority'>>
   ) => {
@@ -719,6 +725,7 @@ const TasksAuthenticated = () => {
             onGroupingChange={(grouping) =>
               navigateState({ ...state, grouping, task: undefined })
             }
+            onOrderingChange={changeOrdering}
             onColumnsChange={(columns, columnOrder = state.columnOrder) => {
               if (!state.savedView) {
                 viewColumnsRef.current.set(taskColumnViewKey(state), {
@@ -832,9 +839,7 @@ const TasksAuthenticated = () => {
                 columns={effectiveTaskColumns(state)}
                 grouping={state.grouping}
                 ordering={state.ordering}
-                onOrderingChange={(ordering) =>
-                  navigateState({ ...state, ordering, task: undefined })
-                }
+                onOrderingChange={changeOrdering}
                 groups={taskGroups}
                 selectedTaskId={state.task}
                 onOpen={(task) => {

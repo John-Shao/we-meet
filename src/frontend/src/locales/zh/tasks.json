@@ -48,6 +48,22 @@
       "noDate": "无日期",
       "unknownCreator": "未知创建人"
     },
+    "ordering": {
+      "label": "排序方式",
+      "smart": "智能排序",
+      "assigneeAsc": "负责人 · A–Z",
+      "assigneeDesc": "负责人 · Z–A",
+      "priorityAsc": "优先级 · 从高到低",
+      "priorityDesc": "优先级 · 从低到高",
+      "startDateAsc": "开始时间 · 从早到晚",
+      "startDateDesc": "开始时间 · 从晚到早",
+      "dueDateAsc": "截止时间 · 从早到晚",
+      "dueDateDesc": "截止时间 · 从晚到早",
+      "creatorAsc": "创建人 · A–Z",
+      "creatorDesc": "创建人 · Z–A",
+      "createdAtAsc": "创建时间 · 最早优先",
+      "createdAtDesc": "创建时间 · 最新优先"
+    },
     "statusOptions": { "open": "未完成", "all": "全部状态" },
     "clearFilters": "清除筛选",
     "filteredResultCount": "{{count}} 个匹配结果",

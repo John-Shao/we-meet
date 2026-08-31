@@ -48,6 +48,22 @@
       "noDate": "No date",
       "unknownCreator": "Unknown creator"
     },
+    "ordering": {
+      "label": "Sort by",
+      "smart": "Smart order",
+      "assigneeAsc": "Assignee · A–Z",
+      "assigneeDesc": "Assignee · Z–A",
+      "priorityAsc": "Priority · High to low",
+      "priorityDesc": "Priority · Low to high",
+      "startDateAsc": "Start date · Earliest first",
+      "startDateDesc": "Start date · Latest first",
+      "dueDateAsc": "Due date · Earliest first",
+      "dueDateDesc": "Due date · Latest first",
+      "creatorAsc": "Creator · A–Z",
+      "creatorDesc": "Creator · Z–A",
+      "createdAtAsc": "Created · Oldest first",
+      "createdAtDesc": "Created · Newest first"
+    },
     "statusOptions": { "open": "Incomplete", "all": "All statuses" },
     "clearFilters": "Clear filters",
     "filteredResultCount": "{{count}} matching tasks",

@@ -43,6 +43,7 @@ describe('TaskFilterToolbar', () => {
         onTimeChange={vi.fn()}
         onPriorityChange={vi.fn()}
         onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
         onColumnsChange={vi.fn()}
         onClear={vi.fn()}
       />
@@ -50,6 +51,7 @@ describe('TaskFilterToolbar', () => {
 
     const priority = screen.getByLabelText('priorityFilters.label')
     const grouping = screen.getByLabelText('workspace.grouping.label')
+    const ordering = screen.getByLabelText('workspace.ordering.label')
     const fieldSettings = screen.getByText('workspace.fieldSettings')
 
     expect(
@@ -57,10 +59,41 @@ describe('TaskFilterToolbar', () => {
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
     expect(
-      grouping.compareDocumentPosition(fieldSettings) &
+      grouping.compareDocumentPosition(ordering) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+    expect(
+      ordering.compareDocumentPosition(fieldSettings) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(ordering).toHaveTextContent('workspace.ordering.smart')
     expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+  })
+
+  it('changes the shared ordering state from the display settings', () => {
+    const onOrderingChange = vi.fn()
+    render(
+      <TaskFilterToolbar
+        state={state}
+        resultCount={7}
+        onStatusChange={vi.fn()}
+        onTimeChange={vi.fn()}
+        onPriorityChange={vi.fn()}
+        onGroupingChange={vi.fn()}
+        onOrderingChange={onOrderingChange}
+        onColumnsChange={vi.fn()}
+        onClear={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('workspace.ordering.label'))
+    fireEvent.click(
+      screen.getByRole('option', {
+        name: 'workspace.ordering.dueDateAsc',
+      })
+    )
+
+    expect(onOrderingChange).toHaveBeenCalledWith('due_date')
   })
 
   it('summarizes active filters and removes each one independently', () => {
@@ -75,6 +108,7 @@ describe('TaskFilterToolbar', () => {
         onTimeChange={onTimeChange}
         onPriorityChange={onPriorityChange}
         onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
         onColumnsChange={vi.fn()}
         onClear={vi.fn()}
       />
@@ -119,6 +153,7 @@ describe('TaskFilterToolbar', () => {
         onTimeChange={vi.fn()}
         onPriorityChange={vi.fn()}
         onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
         onColumnsChange={vi.fn()}
         onClear={vi.fn()}
       />
@@ -151,6 +186,7 @@ describe('TaskFilterToolbar', () => {
         onTimeChange={vi.fn()}
         onPriorityChange={vi.fn()}
         onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
         onColumnsChange={vi.fn()}
         onClear={vi.fn()}
       />
@@ -180,6 +216,7 @@ describe('TaskFilterToolbar', () => {
         onTimeChange={vi.fn()}
         onPriorityChange={vi.fn()}
         onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
         onColumnsChange={onColumnsChange}
         onClear={vi.fn()}
       />
@@ -207,6 +244,7 @@ describe('TaskFilterToolbar', () => {
         onTimeChange={vi.fn()}
         onPriorityChange={vi.fn()}
         onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
         onColumnsChange={onColumnsChange}
         onClear={vi.fn()}
       />
@@ -255,6 +293,7 @@ describe('TaskFilterToolbar', () => {
         onTimeChange={vi.fn()}
         onPriorityChange={vi.fn()}
         onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
         onColumnsChange={onColumnsChange}
         onClear={vi.fn()}
       />
@@ -294,6 +333,7 @@ describe('TaskFilterToolbar', () => {
         onTimeChange={vi.fn()}
         onPriorityChange={vi.fn()}
         onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
         onColumnsChange={onColumnsChange}
         onClear={vi.fn()}
       />
@@ -364,6 +404,7 @@ describe('TaskFilterToolbar', () => {
         onTimeChange={vi.fn()}
         onPriorityChange={vi.fn()}
         onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
         onColumnsChange={onColumnsChange}
         onClear={vi.fn()}
       />
@@ -406,6 +447,7 @@ describe('TaskFilterToolbar', () => {
         onTimeChange={vi.fn()}
         onPriorityChange={vi.fn()}
         onGroupingChange={vi.fn()}
+        onOrderingChange={vi.fn()}
         onColumnsChange={vi.fn()}
         onClear={vi.fn()}
       />

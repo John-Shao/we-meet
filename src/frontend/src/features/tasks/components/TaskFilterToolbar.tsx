@@ -23,6 +23,7 @@ import { css } from '@/styled-system/css'
 import type {
   TaskColumnId,
   TaskGrouping,
+  TaskOrdering,
   TaskPriorityFilter,
   TaskStatusFilter,
   TaskTimeFilter,
@@ -57,6 +58,24 @@ const groupingOptions: TaskGrouping[] = [
   'start_date',
   'due_date',
   'creator',
+]
+const orderingOptions: Array<{
+  value: TaskOrdering
+  labelKey: string
+}> = [
+  { value: '', labelKey: 'workspace.ordering.smart' },
+  { value: 'assignee', labelKey: 'workspace.ordering.assigneeAsc' },
+  { value: '-assignee', labelKey: 'workspace.ordering.assigneeDesc' },
+  { value: 'priority', labelKey: 'workspace.ordering.priorityAsc' },
+  { value: '-priority', labelKey: 'workspace.ordering.priorityDesc' },
+  { value: 'start_date', labelKey: 'workspace.ordering.startDateAsc' },
+  { value: '-start_date', labelKey: 'workspace.ordering.startDateDesc' },
+  { value: 'due_date', labelKey: 'workspace.ordering.dueDateAsc' },
+  { value: '-due_date', labelKey: 'workspace.ordering.dueDateDesc' },
+  { value: 'creator', labelKey: 'workspace.ordering.creatorAsc' },
+  { value: '-creator', labelKey: 'workspace.ordering.creatorDesc' },
+  { value: 'created_at', labelKey: 'workspace.ordering.createdAtAsc' },
+  { value: '-created_at', labelKey: 'workspace.ordering.createdAtDesc' },
 ]
 const FIELD_MOVE_DURATION_MS = 180
 type FieldDropPosition = 'before' | 'after'
@@ -97,6 +116,7 @@ export const TaskFilterToolbar = ({
   onTimeChange,
   onPriorityChange,
   onGroupingChange,
+  onOrderingChange,
   onColumnsChange,
   statusLocked = false,
   onClear,
@@ -107,6 +127,7 @@ export const TaskFilterToolbar = ({
   onTimeChange: (value: TaskTimeFilter) => void
   onPriorityChange: (value: TaskPriorityFilter) => void
   onGroupingChange: (value: TaskGrouping) => void
+  onOrderingChange: (value: TaskOrdering) => void
   onColumnsChange: (value: TaskColumnId[], order?: TaskColumnId[]) => void
   statusLocked?: boolean
   onClear: () => void
@@ -440,6 +461,19 @@ export const TaskFilterToolbar = ({
               onGroupingChange(String(key) as TaskGrouping)
             }
           />
+          <Select
+            className={orderingSelectCss}
+            label={t('workspace.ordering.label')}
+            aria-label={t('workspace.ordering.label')}
+            items={orderingOptions.map((option) => ({
+              value: option.value,
+              label: t(option.labelKey),
+            }))}
+            selectedKey={state.ordering}
+            onSelectionChange={(key) =>
+              onOrderingChange(String(key) as TaskOrdering)
+            }
+          />
           <details ref={columnPickerRef} className={columnPickerCss}>
             <summary>{t('workspace.fieldSettings')}</summary>
             <div>
@@ -597,6 +631,12 @@ const filterSelectCss = css({
   flexDirection: 'column',
   gap: '0.25rem',
   minWidth: '8rem',
+})
+const orderingSelectCss = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+  minWidth: '11rem',
 })
 const displaySettingsCss = css({
   display: 'flex',
