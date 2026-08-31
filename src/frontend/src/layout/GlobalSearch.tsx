@@ -44,7 +44,10 @@ import {
   TaskSearchFilters,
   type TaskSearchPeopleFilters,
 } from '@/features/tasks/components/TaskSearchFilters'
-import { buildTaskWorkspaceSearch } from '@/features/tasks/taskWorkspaceState'
+import {
+  buildTaskWorkspaceSearch,
+  DEFAULT_TASK_COLUMNS,
+} from '@/features/tasks/taskWorkspaceState'
 import { taskAssignees, taskDisplayName } from '@/features/tasks/taskUi'
 
 /**
@@ -460,6 +463,8 @@ export const SearchPalette = ({
       time: 'all',
       priority: 'all',
       ordering: '',
+      grouping: 'none',
+      columns: [...DEFAULT_TASK_COLUMNS],
       taskList: 'all',
       mode: 'list',
       task: task.id,

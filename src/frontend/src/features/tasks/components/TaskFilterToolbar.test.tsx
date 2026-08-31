@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  DEFAULT_TASK_COLUMNS,
   hasActiveTaskFilters,
   type TaskWorkspaceState,
 } from '../taskWorkspaceState'
@@ -23,6 +24,8 @@ const state: TaskWorkspaceState = {
   time: 'overdue',
   priority: 'high',
   ordering: '',
+  grouping: 'none',
+  columns: [...DEFAULT_TASK_COLUMNS],
   taskList: 'all',
   mode: 'list',
 }
@@ -39,6 +42,8 @@ describe('TaskFilterToolbar', () => {
         onStatusChange={onStatusChange}
         onTimeChange={onTimeChange}
         onPriorityChange={onPriorityChange}
+        onGroupingChange={vi.fn()}
+        onColumnsChange={vi.fn()}
         onClear={vi.fn()}
       />
     )
@@ -81,6 +86,8 @@ describe('TaskFilterToolbar', () => {
         onStatusChange={vi.fn()}
         onTimeChange={vi.fn()}
         onPriorityChange={vi.fn()}
+        onGroupingChange={vi.fn()}
+        onColumnsChange={vi.fn()}
         onClear={vi.fn()}
       />
     )

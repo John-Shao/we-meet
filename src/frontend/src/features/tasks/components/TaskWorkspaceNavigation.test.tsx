@@ -6,7 +6,10 @@ import type {
   ApiTaskListGroup,
   ApiTaskSavedView,
 } from '../api/ApiTask'
-import type { TaskWorkspaceState } from '../taskWorkspaceState'
+import {
+  DEFAULT_TASK_COLUMNS,
+  type TaskWorkspaceState,
+} from '../taskWorkspaceState'
 import { TaskWorkspaceNavigation } from './TaskWorkspaceNavigation'
 
 vi.mock('react-i18next', () => ({
@@ -19,6 +22,8 @@ const state: TaskWorkspaceState = {
   time: 'all',
   priority: 'all',
   ordering: '',
+  grouping: 'none',
+  columns: [...DEFAULT_TASK_COLUMNS],
   taskList: 'all',
   mode: 'list',
 }

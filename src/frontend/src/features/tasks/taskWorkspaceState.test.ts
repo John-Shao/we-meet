@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildTaskWorkspaceSearch,
+  DEFAULT_TASK_COLUMNS,
   parseTaskWorkspaceState,
   stateForTaskList,
   stateForSavedView,
@@ -109,6 +110,8 @@ describe('task workspace state', () => {
         time: 'all',
         priority: 'low',
         ordering: '-created_at',
+        grouping: 'none',
+        columns: [...DEFAULT_TASK_COLUMNS],
         taskList: 'list/id',
         mode: 'board',
         task: 'task-id',
