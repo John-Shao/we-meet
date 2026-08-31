@@ -31,7 +31,7 @@ const state: TaskWorkspaceState = {
 }
 
 describe('TaskFilterToolbar', () => {
-  it('places display settings after filters with a vertical separator', () => {
+  it('places display settings after filters without a separator', () => {
     render(
       <TaskFilterToolbar
         state={state}
@@ -46,23 +46,18 @@ describe('TaskFilterToolbar', () => {
     )
 
     const priority = screen.getByLabelText('priorityFilters.label')
-    const separator = screen.getByRole('separator')
     const grouping = screen.getByLabelText('workspace.grouping.label')
     const fieldSettings = screen.getByText('workspace.fieldSettings')
 
     expect(
-      priority.compareDocumentPosition(separator) &
-        Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
-    expect(
-      separator.compareDocumentPosition(grouping) &
+      priority.compareDocumentPosition(grouping) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
     expect(
       grouping.compareDocumentPosition(fieldSettings) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(separator).toHaveAttribute('aria-orientation', 'vertical')
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
   })
 
   it('summarizes active filters and removes each one independently', () => {

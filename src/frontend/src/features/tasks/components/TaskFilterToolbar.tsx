@@ -182,54 +182,53 @@ export const TaskFilterToolbar = ({
             onPriorityChange(String(key) as TaskPriorityFilter)
           }
         />
-        <span
-          role="separator"
-          aria-orientation="vertical"
-          className={displaySettingsSeparatorCss}
-        />
-        <Select
-          className={filterSelectCss}
-          label={t('workspace.grouping.label')}
-          aria-label={t('workspace.grouping.label')}
-          items={groupingOptions.map((value) => ({
-            value,
-            label: t(`workspace.grouping.${value}`),
-          }))}
-          selectedKey={state.grouping ?? 'none'}
-          onSelectionChange={(key) =>
-            onGroupingChange(String(key) as TaskGrouping)
-          }
-        />
-        <details ref={columnPickerRef} className={columnPickerCss}>
-          <summary>{t('workspace.fieldSettings')}</summary>
-          <div>
-            {columnOptions.map((column) => {
-              const checked = selectedColumns.includes(column)
-              const locked =
-                column === 'title' ||
-                (state.scope === 'created' && column === 'creator') ||
-                (state.taskList !== 'all' && column === 'taskList') ||
-                (state.status === 'completed' && column === 'completedAt')
-              return (
-                <label key={column}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={locked}
-                    onChange={() =>
-                      onColumnsChange(
-                        checked
-                          ? configuredColumns.filter((item) => item !== column)
-                          : [...configuredColumns, column]
-                      )
-                    }
-                  />
-                  {t(`workspace.columns.${column}`)}
-                </label>
-              )
-            })}
-          </div>
-        </details>
+        <div className={displaySettingsCss}>
+          <Select
+            className={filterSelectCss}
+            label={t('workspace.grouping.label')}
+            aria-label={t('workspace.grouping.label')}
+            items={groupingOptions.map((value) => ({
+              value,
+              label: t(`workspace.grouping.${value}`),
+            }))}
+            selectedKey={state.grouping ?? 'none'}
+            onSelectionChange={(key) =>
+              onGroupingChange(String(key) as TaskGrouping)
+            }
+          />
+          <details ref={columnPickerRef} className={columnPickerCss}>
+            <summary>{t('workspace.fieldSettings')}</summary>
+            <div>
+              {columnOptions.map((column) => {
+                const checked = selectedColumns.includes(column)
+                const locked =
+                  column === 'title' ||
+                  (state.scope === 'created' && column === 'creator') ||
+                  (state.taskList !== 'all' && column === 'taskList') ||
+                  (state.status === 'completed' && column === 'completedAt')
+                return (
+                  <label key={column}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={locked}
+                      onChange={() =>
+                        onColumnsChange(
+                          checked
+                            ? configuredColumns.filter(
+                                (item) => item !== column
+                              )
+                            : [...configuredColumns, column]
+                        )
+                      }
+                    />
+                    {t(`workspace.columns.${column}`)}
+                  </label>
+                )
+              })}
+            </div>
+          </details>
+        </div>
       </div>
       {activeFilters.length > 0 && (
         <div className={activeFiltersCss} aria-live="polite">
@@ -282,12 +281,13 @@ const filterSelectCss = css({
   gap: '0.25rem',
   minWidth: '8rem',
 })
-const displaySettingsSeparatorCss = css({
-  width: '1px',
-  height: '2rem',
-  alignSelf: 'end',
-  marginX: '0.25rem',
-  backgroundColor: 'greyscale.300',
+const displaySettingsCss = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'end',
+  justifyContent: 'flex-end',
+  gap: '0.5rem',
+  marginLeft: 'auto',
 })
 const columnPickerCss = css({
   position: 'relative',
