@@ -279,11 +279,7 @@ export const TaskFilterToolbar = ({
               <div className={columnListCss}>
                 {columnOrder.map((column) => {
                   const checked = selectedColumns.includes(column)
-                  const locked =
-                    column === 'title' ||
-                    (state.scope === 'created' && column === 'creator') ||
-                    (state.taskList !== 'all' && column === 'taskList') ||
-                    (state.status === 'completed' && column === 'completedAt')
+                  const locked = column === 'title'
                   const label = t(`workspace.columns.${column}`)
                   return (
                     <div

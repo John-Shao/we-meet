@@ -321,12 +321,14 @@ describe('TaskFilterToolbar', () => {
     )
   })
 
-  it('reflects fields fixed by a predefined view', () => {
+  it('locks only the task title and lets users toggle view-default fields', () => {
     render(
       <TaskFilterToolbar
         state={{
           ...state,
           scope: 'created',
+          status: 'completed',
+          taskList: 'list-1',
           columns: [...DEFAULT_TASK_COLUMNS, 'completedAt'],
         }}
         resultCount={7}
@@ -339,13 +341,21 @@ describe('TaskFilterToolbar', () => {
       />
     )
 
+    const title = screen.getByRole('button', {
+      name: 'workspace.fieldLocked:workspace.columns.title',
+    })
     const creator = screen.getByRole('button', {
-      name: 'workspace.fieldLocked:workspace.columns.creator',
+      name: 'workspace.hideField:workspace.columns.creator',
     })
     const completedAt = screen.getByRole('button', {
       name: 'workspace.hideField:workspace.columns.completedAt',
     })
-    expect(creator).toBeDisabled()
+    const taskList = screen.getByRole('button', {
+      name: 'workspace.hideField:workspace.columns.taskList',
+    })
+    expect(title).toBeDisabled()
+    expect(creator).toBeEnabled()
+    expect(taskList).toBeEnabled()
     expect(completedAt).toBeEnabled()
   })
 })

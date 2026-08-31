@@ -60,8 +60,6 @@ describe('task workspace state', () => {
         'priority',
         'startDate',
         'dueDate',
-        'taskList',
-        'creator',
         'createdAt',
       ],
       columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
@@ -108,6 +106,18 @@ describe('task workspace state', () => {
       taskList: 'unassigned',
       mode: 'list',
     })
+  })
+
+  it('uses view context only to choose initial field defaults', () => {
+    expect(
+      parseTaskWorkspaceState(
+        new URLSearchParams('scope=created&status=completed&task_list=list-1')
+      ).columns
+    ).toEqual(
+      DEFAULT_TASK_COLUMNS.filter(
+        (column) => column !== 'creator' && column !== 'taskList'
+      ).concat('completedAt')
+    )
   })
 
   it('does not leak saved-view filters into a predefined view', () => {
@@ -277,7 +287,6 @@ describe('task workspace state', () => {
         'priority',
         'startDate',
         'dueDate',
-        'taskList',
         'creator',
         'createdAt',
       ],
@@ -289,7 +298,7 @@ describe('task workspace state', () => {
     })
   })
 
-  it('applies only the fields fixed by the current view', () => {
+  it('only forces the task title and otherwise respects field visibility', () => {
     const base = parseTaskWorkspaceState(new URLSearchParams())
 
     expect(
@@ -299,7 +308,7 @@ describe('task workspace state', () => {
         status: 'all',
         columns: ['title', 'creator', 'completedAt'],
       })
-    ).toEqual(['title', 'completedAt'])
+    ).toEqual(['title', 'creator', 'completedAt'])
     expect(
       effectiveTaskColumns({
         ...base,
@@ -307,7 +316,13 @@ describe('task workspace state', () => {
         taskList: 'list-1',
         columns: ['title', 'taskList'],
       })
-    ).toEqual(['title', 'completedAt'])
+    ).toEqual(['title', 'taskList'])
+    expect(
+      effectiveTaskColumns({
+        ...base,
+        columns: ['assignee'],
+      })
+    ).toEqual(['title', 'assignee'])
     expect(
       effectiveTaskColumns({
         ...base,

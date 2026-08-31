@@ -90,13 +90,17 @@ export const DEFAULT_TASK_COLUMN_ORDER: TaskColumnId[] = [
 ]
 
 export const defaultTaskColumnsForState = (
-  state: Pick<TaskWorkspaceState, 'scope' | 'taskList'>
-): TaskColumnId[] =>
-  DEFAULT_TASK_COLUMNS.filter((column) => {
+  state: Pick<TaskWorkspaceState, 'scope' | 'status' | 'taskList'>
+): TaskColumnId[] => {
+  const columns = DEFAULT_TASK_COLUMNS.filter((column) => {
     if (state.scope === 'created' && column === 'creator') return false
     if (state.taskList !== 'all' && column === 'taskList') return false
     return true
   })
+  return state.status === 'completed'
+    ? [...columns, 'completedAt']
+    : columns
+}
 
 const TASK_GROUPINGS: readonly TaskGrouping[] = [
   'none',
@@ -108,8 +112,11 @@ const TASK_GROUPINGS: readonly TaskGrouping[] = [
 ]
 const TASK_COLUMN_IDS: readonly TaskColumnId[] = DEFAULT_TASK_COLUMN_ORDER
 
-const parseColumns = (value: string | null): TaskColumnId[] => {
-  if (!value) return [...DEFAULT_TASK_COLUMNS]
+const parseColumns = (
+  value: string | null,
+  defaults: readonly TaskColumnId[]
+): TaskColumnId[] => {
+  if (!value) return [...defaults]
   const columns = value
     .split(',')
     .filter((column): column is TaskColumnId =>
@@ -117,7 +124,7 @@ const parseColumns = (value: string | null): TaskColumnId[] => {
     )
   return columns.includes('title')
     ? [...new Set(columns)]
-    : [...DEFAULT_TASK_COLUMNS]
+    : [...defaults]
 }
 
 const parseColumnOrder = (value: string | null): TaskColumnId[] | undefined =>
@@ -147,18 +154,28 @@ export const normalizeTaskColumnOrder = (
 export const parseTaskWorkspaceState = (
   params: URLSearchParams
 ): TaskWorkspaceState => {
-  const columns = parseColumns(params.get('columns'))
+  const scope = oneOf(
+    params.get('scope'),
+    ['assigned', 'created', 'following', 'all'],
+    'assigned'
+  )
+  const status = oneOf(
+    params.get('status'),
+    ['open', 'all', 'completed'],
+    'open'
+  )
+  const taskList = params.get('task_list') || 'all'
+  const columns = parseColumns(
+    params.get('columns'),
+    defaultTaskColumnsForState({ scope, status, taskList })
+  )
   const columnOrder = normalizeTaskColumnOrder(
     parseColumnOrder(params.get('column_order')),
     columns
   )
   return {
-    scope: oneOf(
-      params.get('scope'),
-      ['assigned', 'created', 'following', 'all'],
-      'assigned'
-    ),
-    status: oneOf(params.get('status'), ['open', 'all', 'completed'], 'open'),
+    scope,
+    status,
     time: oneOf(
       params.get('time'),
       ['all', 'starting_today', 'due_today', 'overdue'],
@@ -173,7 +190,7 @@ export const parseTaskWorkspaceState = (
     grouping: oneOf(params.get('grouping'), TASK_GROUPINGS, 'none'),
     columns,
     columnOrder,
-    taskList: params.get('task_list') || 'all',
+    taskList,
     mode: oneOf(params.get('view'), ['list', 'board', 'analytics'], 'list'),
     task: params.get('task') || undefined,
     savedView: params.get('saved_view') || undefined,
@@ -195,6 +212,7 @@ export const stateForView = (
     grouping: 'none',
     columns: defaultTaskColumnsForState({
       scope: preset.scope,
+      status: preset.status,
       taskList: 'all',
     }),
     columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
@@ -216,7 +234,11 @@ export const stateForTaskList = (
   priority: 'all',
   ordering: '',
   grouping: 'none',
-  columns: defaultTaskColumnsForState({ scope: 'all', taskList }),
+  columns: defaultTaskColumnsForState({
+    scope: 'all',
+    status: 'open',
+    taskList,
+  }),
   columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
   taskList,
   mode: 'list',
@@ -347,14 +369,8 @@ export const stateForSavedView = (
 })
 
 export const effectiveTaskColumns = (state: TaskWorkspaceState) => {
-  const visibleColumns = new Set(state.columns)
-  if (state.status === 'completed') visibleColumns.add('completedAt')
+  const visibleColumns = new Set<TaskColumnId>(['title', ...state.columns])
   return normalizeTaskColumnOrder(state.columnOrder, state.columns).filter(
-    (column) => {
-      if (!visibleColumns.has(column)) return false
-      if (state.scope === 'created' && column === 'creator') return false
-      if (state.taskList !== 'all' && column === 'taskList') return false
-      return true
-    }
+    (column) => visibleColumns.has(column)
   )
 }
