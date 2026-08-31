@@ -32,6 +32,7 @@
     "filters": "任务筛选",
     "statusFilter": "状态",
     "fieldSettings": "字段配置",
+    "resetFields": "重置",
     "grouping": {
       "label": "分组方式",
       "none": "不分组",

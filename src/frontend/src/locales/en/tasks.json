@@ -32,6 +32,7 @@
     "filters": "Task filters",
     "statusFilter": "Status",
     "fieldSettings": "Fields",
+    "resetFields": "Reset",
     "grouping": {
       "label": "Group by",
       "none": "No grouping",

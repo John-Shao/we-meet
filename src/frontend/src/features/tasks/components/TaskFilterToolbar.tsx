@@ -14,6 +14,7 @@ import type {
   TaskTimeFilter,
 } from '../api/ApiTask'
 import {
+  defaultTaskColumnsForState,
   effectiveTaskColumns,
   type TaskWorkspaceState,
 } from '../taskWorkspaceState'
@@ -82,6 +83,10 @@ export const TaskFilterToolbar = ({
     ...state,
     columns: configuredColumns,
   })
+  const defaultColumns = defaultTaskColumnsForState(state)
+  const columnsAreDefault =
+    configuredColumns.length === defaultColumns.length &&
+    configuredColumns.every((column, index) => column === defaultColumns[index])
   const isClosed = state.status === 'completed'
   const defaultStatus = state.mode === 'board' ? 'all' : 'open'
   const activeFilters = [
@@ -199,6 +204,15 @@ export const TaskFilterToolbar = ({
           <details ref={columnPickerRef} className={columnPickerCss}>
             <summary>{t('workspace.fieldSettings')}</summary>
             <div>
+              <div className={columnPickerActionsCss}>
+                <button
+                  type="button"
+                  disabled={columnsAreDefault}
+                  onClick={() => onColumnsChange(defaultColumns)}
+                >
+                  {t('workspace.resetFields')}
+                </button>
+              </div>
               {columnOptions.map((column) => {
                 const checked = selectedColumns.includes(column)
                 const locked =
@@ -321,6 +335,25 @@ const columnPickerCss = css({
     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
   },
   '& label': { display: 'flex', alignItems: 'center', gap: '0.5rem' },
+})
+const columnPickerActionsCss = css({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  paddingBottom: '0.25rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+  '& button': {
+    padding: 0,
+    border: 0,
+    background: 'transparent',
+    color: 'primary.700',
+    cursor: 'pointer',
+    _hover: { textDecoration: 'underline' },
+    _disabled: {
+      color: 'greyscale.400',
+      cursor: 'default',
+      textDecoration: 'none',
+    },
+  },
 })
 const activeFiltersCss = css({
   display: 'flex',

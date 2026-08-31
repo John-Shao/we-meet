@@ -75,15 +75,14 @@ export const DEFAULT_TASK_COLUMNS: TaskColumnId[] = [
   'createdAt',
 ]
 
-const taskColumnsForQuickView = (view: TaskWorkspaceView): TaskColumnId[] => {
-  if (view === 'created') {
-    return DEFAULT_TASK_COLUMNS.filter((column) => column !== 'creator')
-  }
-  return [...DEFAULT_TASK_COLUMNS]
-}
-
-const taskColumnsForTaskList = (): TaskColumnId[] =>
-  DEFAULT_TASK_COLUMNS.filter((column) => column !== 'taskList')
+export const defaultTaskColumnsForState = (
+  state: Pick<TaskWorkspaceState, 'scope' | 'taskList'>
+): TaskColumnId[] =>
+  DEFAULT_TASK_COLUMNS.filter((column) => {
+    if (state.scope === 'created' && column === 'creator') return false
+    if (state.taskList !== 'all' && column === 'taskList') return false
+    return true
+  })
 
 const TASK_GROUPINGS: readonly TaskGrouping[] = [
   'none',
@@ -152,7 +151,10 @@ export const stateForView = (
     priority: 'all',
     ordering: '',
     grouping: 'none',
-    columns: taskColumnsForQuickView(view),
+    columns: defaultTaskColumnsForState({
+      scope: preset.scope,
+      taskList: 'all',
+    }),
     taskList: 'all',
     mode: 'list',
     task: undefined,
@@ -171,8 +173,7 @@ export const stateForTaskList = (
   priority: 'all',
   ordering: '',
   grouping: 'none',
-  columns:
-    taskList === 'all' ? [...DEFAULT_TASK_COLUMNS] : taskColumnsForTaskList(),
+  columns: defaultTaskColumnsForState({ scope: 'all', taskList }),
   taskList,
   mode: 'list',
   task: undefined,

@@ -162,6 +162,37 @@ describe('TaskFilterToolbar', () => {
     expect(picker).not.toHaveAttribute('open')
   })
 
+  it('resets fields to the defaults imposed by the current view', () => {
+    const onColumnsChange = vi.fn()
+    render(
+      <TaskFilterToolbar
+        state={{
+          ...state,
+          scope: 'created',
+          taskList: 'list-1',
+          columns: ['title', 'completedAt'],
+        }}
+        resultCount={7}
+        onStatusChange={vi.fn()}
+        onTimeChange={vi.fn()}
+        onPriorityChange={vi.fn()}
+        onGroupingChange={vi.fn()}
+        onColumnsChange={onColumnsChange}
+        onClear={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'workspace.resetFields' })
+    )
+
+    expect(onColumnsChange).toHaveBeenCalledWith(
+      DEFAULT_TASK_COLUMNS.filter(
+        (column) => column !== 'creator' && column !== 'taskList'
+      )
+    )
+  })
+
   it('reflects fields fixed by a predefined view', () => {
     render(
       <TaskFilterToolbar
