@@ -173,7 +173,8 @@ export const stateForTaskList = (
 
 export const taskColumnViewKey = (state: TaskWorkspaceState) => {
   if (state.savedView) return `saved:${state.savedView}`
-  if (state.taskList !== 'all') return `task-list:${state.taskList}`
+  if (state.taskList === 'unassigned') return 'standalone'
+  if (state.taskList !== 'all') return 'task-list'
   if (isCompletedView(state)) return 'quick:completed'
   return `quick:${state.scope}`
 }

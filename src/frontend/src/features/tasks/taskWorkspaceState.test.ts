@@ -125,7 +125,7 @@ describe('task workspace state', () => {
     )
   })
 
-  it('uses a distinct field profile key for every view identity', () => {
+  it('isolates quick and saved views while sharing one task-list profile', () => {
     const state = parseTaskWorkspaceState(new URLSearchParams())
     expect(taskColumnViewKey(state)).toBe('quick:assigned')
     expect(taskColumnViewKey({ ...state, scope: 'created' })).toBe(
@@ -135,7 +135,13 @@ describe('task workspace state', () => {
       taskColumnViewKey({ ...state, scope: 'all', status: 'completed' })
     ).toBe('quick:completed')
     expect(taskColumnViewKey({ ...state, taskList: 'list-1' })).toBe(
-      'task-list:list-1'
+      'task-list'
+    )
+    expect(taskColumnViewKey({ ...state, taskList: 'list-2' })).toBe(
+      'task-list'
+    )
+    expect(taskColumnViewKey({ ...state, taskList: 'unassigned' })).toBe(
+      'standalone'
     )
     expect(taskColumnViewKey({ ...state, savedView: 'view-1' })).toBe(
       'saved:view-1'
