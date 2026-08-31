@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   DEFAULT_TASK_COLUMNS,
+  DEFAULT_TASK_COLUMN_ORDER,
   hasActiveTaskFilters,
   type TaskWorkspaceState,
 } from '../taskWorkspaceState'
@@ -12,6 +13,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, unknown>) => {
       if (values?.filter) return `${key}:${values.filter}`
+      if (values?.field) return `${key}:${values.field}`
       if (values?.count !== undefined) return `${key}:${values.count}`
       return key
     },
@@ -26,6 +28,7 @@ const state: TaskWorkspaceState = {
   ordering: '',
   grouping: 'none',
   columns: [...DEFAULT_TASK_COLUMNS],
+  columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
   taskList: 'all',
   mode: 'list',
 }
@@ -189,7 +192,132 @@ describe('TaskFilterToolbar', () => {
     expect(onColumnsChange).toHaveBeenCalledWith(
       DEFAULT_TASK_COLUMNS.filter(
         (column) => column !== 'creator' && column !== 'taskList'
-      )
+      ),
+      DEFAULT_TASK_COLUMN_ORDER
+    )
+  })
+
+  it('reorders fields with the drag-handle keyboard controls', () => {
+    const onColumnsChange = vi.fn()
+    render(
+      <TaskFilterToolbar
+        state={state}
+        resultCount={7}
+        onStatusChange={vi.fn()}
+        onTimeChange={vi.fn()}
+        onPriorityChange={vi.fn()}
+        onGroupingChange={vi.fn()}
+        onColumnsChange={onColumnsChange}
+        onClear={vi.fn()}
+      />
+    )
+
+    fireEvent.keyDown(
+      screen.getByRole('button', {
+        name: 'workspace.moveField:workspace.columns.dueDate',
+      }),
+      { key: 'ArrowUp' }
+    )
+
+    expect(onColumnsChange).toHaveBeenCalledWith(
+      [
+        'title',
+        'assignee',
+        'priority',
+        'dueDate',
+        'startDate',
+        'taskList',
+        'creator',
+        'createdAt',
+      ],
+      [
+        'title',
+        'assignee',
+        'priority',
+        'dueDate',
+        'startDate',
+        'taskList',
+        'customGroup',
+        'creator',
+        'createdAt',
+        'completedAt',
+      ]
+    )
+  })
+
+  it('reorders fields by dragging a handle onto another field', () => {
+    const onColumnsChange = vi.fn()
+    render(
+      <TaskFilterToolbar
+        state={state}
+        resultCount={7}
+        onStatusChange={vi.fn()}
+        onTimeChange={vi.fn()}
+        onPriorityChange={vi.fn()}
+        onGroupingChange={vi.fn()}
+        onColumnsChange={onColumnsChange}
+        onClear={vi.fn()}
+      />
+    )
+    const dataTransfer = {
+      effectAllowed: '',
+      setData: vi.fn(),
+      getData: vi.fn(() => 'dueDate'),
+    }
+
+    fireEvent.dragStart(
+      screen.getByRole('button', {
+        name: 'workspace.moveField:workspace.columns.dueDate',
+      }),
+      { dataTransfer }
+    )
+    fireEvent.drop(
+      screen.getByText('workspace.columns.assignee').parentElement!,
+      { dataTransfer }
+    )
+
+    expect(onColumnsChange.mock.calls[0][1].slice(0, 4)).toEqual([
+      'title',
+      'dueDate',
+      'assignee',
+      'priority',
+    ])
+  })
+
+  it('shows a hidden field at its configured position', () => {
+    const onColumnsChange = vi.fn()
+    render(
+      <TaskFilterToolbar
+        state={state}
+        resultCount={7}
+        onStatusChange={vi.fn()}
+        onTimeChange={vi.fn()}
+        onPriorityChange={vi.fn()}
+        onGroupingChange={vi.fn()}
+        onColumnsChange={onColumnsChange}
+        onClear={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'workspace.showField:workspace.columns.customGroup',
+      })
+    )
+
+    expect(onColumnsChange).toHaveBeenCalledWith(
+      [
+        'title',
+        'assignee',
+        'priority',
+        'startDate',
+        'dueDate',
+        'taskList',
+        'customGroup',
+        'creator',
+        'createdAt',
+      ],
+      DEFAULT_TASK_COLUMN_ORDER
     )
   })
 
@@ -211,15 +339,13 @@ describe('TaskFilterToolbar', () => {
       />
     )
 
-    const creator = screen.getByRole('checkbox', {
-      name: 'workspace.columns.creator',
+    const creator = screen.getByRole('button', {
+      name: 'workspace.fieldLocked:workspace.columns.creator',
     })
-    const completedAt = screen.getByRole('checkbox', {
-      name: 'workspace.columns.completedAt',
+    const completedAt = screen.getByRole('button', {
+      name: 'workspace.hideField:workspace.columns.completedAt',
     })
-    expect(creator).not.toBeChecked()
     expect(creator).toBeDisabled()
-    expect(completedAt).toBeChecked()
     expect(completedAt).toBeEnabled()
   })
 })

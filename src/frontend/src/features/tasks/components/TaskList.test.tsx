@@ -163,6 +163,27 @@ describe('TaskList', () => {
     expect(within(table).getByText('Release work')).toBeInTheDocument()
   })
 
+  it('renders visible columns in the configured order', () => {
+    render(
+      <TaskList
+        tasks={[task]}
+        columns={['title', 'dueDate', 'assignee']}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    expect(
+      within(screen.getByRole('table'))
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent)
+    ).toEqual([
+      'workspace.columns.title',
+      'workspace.columns.dueDate',
+      'workspace.columns.assignee',
+    ])
+  })
+
   it('uses the task preference to show or hide overdue highlighting', () => {
     const overdueTask: ApiTask = { ...task, time_state: 'overdue' }
     const { rerender } = render(

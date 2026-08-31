@@ -561,6 +561,7 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
         "view",
     }
     _CONFIG_KEYS_V2 = _CONFIG_KEYS_V1 | {"grouping", "columns"}
+    _CONFIG_KEYS_V3 = _CONFIG_KEYS_V2 | {"column_order"}
     _CHOICES = {
         "scope": {"assigned", "created", "following", "all"},
         "status": {"open", "all", "todo", "completed"},
@@ -640,12 +641,14 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
         if not isinstance(value, dict):
             raise serializers.ValidationError("Use the supported task view fields.")
         version = value.get("version")
-        expected_keys = (
-            self._CONFIG_KEYS_V1 if version == 1 else self._CONFIG_KEYS_V2
-        )
+        expected_keys = {
+            1: self._CONFIG_KEYS_V1,
+            2: self._CONFIG_KEYS_V2,
+            3: self._CONFIG_KEYS_V3,
+        }.get(version, set())
         if set(value) != expected_keys:
             raise serializers.ValidationError("Use the supported task view fields.")
-        if version not in {1, 2}:
+        if version not in {1, 2, 3}:
             raise serializers.ValidationError("Unsupported task view version.")
         for field, choices in self._CHOICES.items():
             if field not in value:
@@ -654,7 +657,7 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {field: "Unsupported task view value."}
                 )
-        if version == 2:
+        if version in {2, 3}:
             columns = value.get("columns")
             if (
                 not isinstance(columns, list)
@@ -665,6 +668,16 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
             ):
                 raise serializers.ValidationError(
                     {"columns": "Choose unique supported columns including title."}
+                )
+        if version == 3:
+            column_order = value.get("column_order")
+            if (
+                not isinstance(column_order, list)
+                or len(column_order) != len(self._COLUMNS)
+                or set(column_order) != self._COLUMNS
+            ):
+                raise serializers.ValidationError(
+                    {"column_order": "Order every supported column exactly once."}
                 )
         task_list = value.get("task_list")
         if task_list not in {"all", "unassigned"}:

@@ -153,7 +153,9 @@ const TasksAuthenticated = () => {
   const taskListGroupNameRef = useRef<HTMLInputElement>(null)
   const taskListGroupRenameRef = useRef<HTMLInputElement>(null)
   const savedViewNameRef = useRef<HTMLInputElement>(null)
-  const viewColumnsRef = useRef(new Map<string, TaskColumnId[]>())
+  const viewColumnsRef = useRef(
+    new Map<string, { columns: TaskColumnId[]; columnOrder: TaskColumnId[] }>()
+  )
   const viewPreferencesRef = useRef(new Map<string, TaskWorkspacePreferences>())
   // Board and analytics force the status to "all". Keep the prior list status
   // per view so switching modes cannot leak another view's status filter.
@@ -318,8 +320,14 @@ const TasksAuthenticated = () => {
 
   const stateWithViewColumns = (next: TaskWorkspaceState) => {
     if (next.savedView) return next
-    const columns = viewColumnsRef.current.get(taskColumnViewKey(next))
-    return columns ? { ...next, columns: [...columns] } : next
+    const configuration = viewColumnsRef.current.get(taskColumnViewKey(next))
+    return configuration
+      ? {
+          ...next,
+          columns: [...configuration.columns],
+          columnOrder: [...configuration.columnOrder],
+        }
+      : next
   }
 
   const stateWithViewPreferences = (next: TaskWorkspaceState) => {
@@ -344,8 +352,11 @@ const TasksAuthenticated = () => {
   const activeColumnViewKey = taskColumnViewKey(state)
   useEffect(() => {
     if (state.savedView) return
-    viewColumnsRef.current.set(activeColumnViewKey, [...state.columns])
-  }, [activeColumnViewKey, state.savedView, state.columns])
+    viewColumnsRef.current.set(activeColumnViewKey, {
+      columns: [...state.columns],
+      columnOrder: [...state.columnOrder],
+    })
+  }, [activeColumnViewKey, state.savedView, state.columns, state.columnOrder])
 
   const activePreferencesViewKey = taskPreferencesViewKey(state)
   useEffect(() => {
@@ -708,13 +719,19 @@ const TasksAuthenticated = () => {
             onGroupingChange={(grouping) =>
               navigateState({ ...state, grouping, task: undefined })
             }
-            onColumnsChange={(columns) => {
+            onColumnsChange={(columns, columnOrder = state.columnOrder) => {
               if (!state.savedView) {
-                viewColumnsRef.current.set(taskColumnViewKey(state), [
-                  ...columns,
-                ])
+                viewColumnsRef.current.set(taskColumnViewKey(state), {
+                  columns: [...columns],
+                  columnOrder: [...columnOrder],
+                })
               }
-              navigateState({ ...state, columns, task: undefined })
+              navigateState({
+                ...state,
+                columns,
+                columnOrder,
+                task: undefined,
+              })
             }}
             onClear={() =>
               navigateState({

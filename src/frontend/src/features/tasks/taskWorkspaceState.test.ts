@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import type { TaskColumnId } from './api/ApiTask'
+import type { TaskColumnId, TaskSavedViewConfig } from './api/ApiTask'
 
 import {
   buildTaskWorkspaceSearch,
+  DEFAULT_TASK_COLUMN_ORDER,
   DEFAULT_TASK_COLUMNS,
   effectiveTaskColumns,
   parseTaskWorkspaceState,
+  savedViewConfigEquals,
   stateForTaskList,
   stateForSavedView,
   stateForView,
@@ -62,10 +64,12 @@ describe('task workspace state', () => {
         'creator',
         'createdAt',
       ],
+      columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
       taskList: 'list-1',
       mode: 'board',
       task: '42',
       savedView: 'view-1',
+      sharedVia: undefined,
     })
   })
 
@@ -211,6 +215,15 @@ describe('task workspace state', () => {
     ).toEqual(['title', 'dueDate', 'completedAt'])
   })
 
+  it('treats legacy saved views as unchanged when they use the default field order', () => {
+    const state = parseTaskWorkspaceState(new URLSearchParams())
+    const current = taskWorkspaceStateToSavedViewConfig(state)
+    const legacy: TaskSavedViewConfig = { ...current, version: 2 }
+    delete legacy.column_order
+
+    expect(savedViewConfigEquals(legacy, current)).toBe(true)
+  })
+
   it('serializes deep links with every workbench filter', () => {
     expect(
       buildTaskWorkspaceSearch({
@@ -221,13 +234,14 @@ describe('task workspace state', () => {
         ordering: '-created_at',
         grouping: 'none',
         columns: [...DEFAULT_TASK_COLUMNS],
+        columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
         taskList: 'list/id',
         mode: 'board',
         task: 'task-id',
         savedView: 'view-id',
       })
     ).toBe(
-      'scope=all&status=completed&time=all&priority=low&ordering=-created_at&grouping=none&columns=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2Ccreator%2CcreatedAt&task_list=list%2Fid&view=board&task=task-id&saved_view=view-id'
+      'scope=all&status=completed&time=all&priority=low&ordering=-created_at&grouping=none&columns=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2Ccreator%2CcreatedAt&column_order=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2CcustomGroup%2Ccreator%2CcreatedAt%2CcompletedAt&task_list=list%2Fid&view=board&task=task-id&saved_view=view-id'
     )
   })
 
@@ -248,7 +262,7 @@ describe('task workspace state', () => {
     const config = taskWorkspaceStateToSavedViewConfig(state)
 
     expect(config).toEqual({
-      version: 2,
+      version: 3,
       scope: 'following',
       status: 'all',
       time: 'overdue',
@@ -267,6 +281,7 @@ describe('task workspace state', () => {
         'creator',
         'createdAt',
       ],
+      column_order: [...DEFAULT_TASK_COLUMN_ORDER],
     })
     expect(stateForSavedView(state, config)).toEqual({
       ...state,
@@ -293,5 +308,19 @@ describe('task workspace state', () => {
         columns: ['title', 'taskList'],
       })
     ).toEqual(['title', 'completedAt'])
+    expect(
+      effectiveTaskColumns({
+        ...base,
+        columns: ['title', 'assignee', 'dueDate'],
+        columnOrder: [
+          'title',
+          'dueDate',
+          'assignee',
+          ...DEFAULT_TASK_COLUMN_ORDER.filter(
+            (column) => !['title', 'dueDate', 'assignee'].includes(column)
+          ),
+        ],
+      })
+    ).toEqual(['title', 'dueDate', 'assignee'])
   })
 })

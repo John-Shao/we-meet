@@ -20,6 +20,7 @@ export interface TaskWorkspaceState {
   ordering: TaskOrdering
   grouping: TaskGrouping
   columns: TaskColumnId[]
+  columnOrder: TaskColumnId[]
   taskList: string
   mode: TaskWorkspaceMode
   task?: string
@@ -75,6 +76,19 @@ export const DEFAULT_TASK_COLUMNS: TaskColumnId[] = [
   'createdAt',
 ]
 
+export const DEFAULT_TASK_COLUMN_ORDER: TaskColumnId[] = [
+  'title',
+  'assignee',
+  'priority',
+  'startDate',
+  'dueDate',
+  'taskList',
+  'customGroup',
+  'creator',
+  'createdAt',
+  'completedAt',
+]
+
 export const defaultTaskColumnsForState = (
   state: Pick<TaskWorkspaceState, 'scope' | 'taskList'>
 ): TaskColumnId[] =>
@@ -92,11 +106,7 @@ const TASK_GROUPINGS: readonly TaskGrouping[] = [
   'due_date',
   'creator',
 ]
-const TASK_COLUMN_IDS: readonly TaskColumnId[] = [
-  ...DEFAULT_TASK_COLUMNS,
-  'customGroup',
-  'completedAt',
-]
+const TASK_COLUMN_IDS: readonly TaskColumnId[] = DEFAULT_TASK_COLUMN_ORDER
 
 const parseColumns = (value: string | null): TaskColumnId[] => {
   if (!value) return [...DEFAULT_TASK_COLUMNS]
@@ -110,34 +120,66 @@ const parseColumns = (value: string | null): TaskColumnId[] => {
     : [...DEFAULT_TASK_COLUMNS]
 }
 
+const parseColumnOrder = (value: string | null): TaskColumnId[] | undefined =>
+  value
+    ? value
+        .split(',')
+        .filter((column): column is TaskColumnId =>
+          TASK_COLUMN_IDS.includes(column as TaskColumnId)
+        )
+    : undefined
+
+export const normalizeTaskColumnOrder = (
+  order?: readonly TaskColumnId[],
+  visibleColumns: readonly TaskColumnId[] = []
+): TaskColumnId[] => [
+  ...new Set(
+    [
+      ...(order ?? DEFAULT_TASK_COLUMN_ORDER),
+      ...DEFAULT_TASK_COLUMN_ORDER,
+      ...visibleColumns,
+    ].filter((column): column is TaskColumnId =>
+      TASK_COLUMN_IDS.includes(column)
+    )
+  ),
+]
+
 export const parseTaskWorkspaceState = (
   params: URLSearchParams
-): TaskWorkspaceState => ({
-  scope: oneOf(
-    params.get('scope'),
-    ['assigned', 'created', 'following', 'all'],
-    'assigned'
-  ),
-  status: oneOf(params.get('status'), ['open', 'all', 'completed'], 'open'),
-  time: oneOf(
-    params.get('time'),
-    ['all', 'starting_today', 'due_today', 'overdue'],
-    'all'
-  ),
-  priority: oneOf(
-    params.get('priority'),
-    ['all', 'none', 'low', 'medium', 'high', 'urgent'],
-    'all'
-  ),
-  ordering: oneOf(params.get('ordering'), TASK_ORDERINGS, ''),
-  grouping: oneOf(params.get('grouping'), TASK_GROUPINGS, 'none'),
-  columns: parseColumns(params.get('columns')),
-  taskList: params.get('task_list') || 'all',
-  mode: oneOf(params.get('view'), ['list', 'board', 'analytics'], 'list'),
-  task: params.get('task') || undefined,
-  savedView: params.get('saved_view') || undefined,
-  sharedVia: params.get('shared_via') || undefined,
-})
+): TaskWorkspaceState => {
+  const columns = parseColumns(params.get('columns'))
+  const columnOrder = normalizeTaskColumnOrder(
+    parseColumnOrder(params.get('column_order')),
+    columns
+  )
+  return {
+    scope: oneOf(
+      params.get('scope'),
+      ['assigned', 'created', 'following', 'all'],
+      'assigned'
+    ),
+    status: oneOf(params.get('status'), ['open', 'all', 'completed'], 'open'),
+    time: oneOf(
+      params.get('time'),
+      ['all', 'starting_today', 'due_today', 'overdue'],
+      'all'
+    ),
+    priority: oneOf(
+      params.get('priority'),
+      ['all', 'none', 'low', 'medium', 'high', 'urgent'],
+      'all'
+    ),
+    ordering: oneOf(params.get('ordering'), TASK_ORDERINGS, ''),
+    grouping: oneOf(params.get('grouping'), TASK_GROUPINGS, 'none'),
+    columns,
+    columnOrder,
+    taskList: params.get('task_list') || 'all',
+    mode: oneOf(params.get('view'), ['list', 'board', 'analytics'], 'list'),
+    task: params.get('task') || undefined,
+    savedView: params.get('saved_view') || undefined,
+    sharedVia: params.get('shared_via') || undefined,
+  }
+}
 
 export const stateForView = (
   state: TaskWorkspaceState,
@@ -155,6 +197,7 @@ export const stateForView = (
       scope: preset.scope,
       taskList: 'all',
     }),
+    columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
     taskList: 'all',
     mode: 'list',
     task: undefined,
@@ -174,6 +217,7 @@ export const stateForTaskList = (
   ordering: '',
   grouping: 'none',
   columns: defaultTaskColumnsForState({ scope: 'all', taskList }),
+  columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
   taskList,
   mode: 'list',
   task: undefined,
@@ -237,6 +281,10 @@ export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
   if (state.ordering) params.set('ordering', state.ordering)
   params.set('grouping', state.grouping ?? 'none')
   params.set('columns', (state.columns ?? DEFAULT_TASK_COLUMNS).join(','))
+  params.set(
+    'column_order',
+    normalizeTaskColumnOrder(state.columnOrder, state.columns).join(',')
+  )
   params.set('task_list', state.taskList)
   params.set('view', state.mode)
   if (state.task) params.set('task', state.task)
@@ -248,7 +296,7 @@ export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
 export const taskWorkspaceStateToSavedViewConfig = (
   state: TaskWorkspaceState
 ): TaskSavedViewConfig => ({
-  version: 2,
+  version: 3,
   scope: state.scope,
   status: state.status,
   time: state.time,
@@ -258,6 +306,7 @@ export const taskWorkspaceStateToSavedViewConfig = (
   view: state.mode,
   grouping: state.grouping,
   columns: state.columns,
+  column_order: normalizeTaskColumnOrder(state.columnOrder, state.columns),
 })
 
 // Field-level equality — JSON.stringify comparison would be sensitive to key
@@ -266,7 +315,6 @@ export const savedViewConfigEquals = (
   left: TaskSavedViewConfig,
   right: TaskSavedViewConfig
 ) =>
-  left.version === right.version &&
   left.scope === right.scope &&
   left.status === right.status &&
   left.time === right.time &&
@@ -276,7 +324,9 @@ export const savedViewConfigEquals = (
   left.view === right.view &&
   (left.grouping ?? 'none') === (right.grouping ?? 'none') &&
   (left.columns ?? DEFAULT_TASK_COLUMNS).join(',') ===
-    (right.columns ?? DEFAULT_TASK_COLUMNS).join(',')
+    (right.columns ?? DEFAULT_TASK_COLUMNS).join(',') &&
+  normalizeTaskColumnOrder(left.column_order, left.columns).join(',') ===
+    normalizeTaskColumnOrder(right.column_order, right.columns).join(',')
 
 export const stateForSavedView = (
   state: TaskWorkspaceState,
@@ -292,17 +342,19 @@ export const stateForSavedView = (
   mode: config.view,
   grouping: config.grouping ?? 'none',
   columns: config.columns ?? [...DEFAULT_TASK_COLUMNS],
+  columnOrder: normalizeTaskColumnOrder(config.column_order, config.columns),
   task: undefined,
 })
 
 export const effectiveTaskColumns = (state: TaskWorkspaceState) => {
-  const columns = state.columns.filter((column) => {
-    if (state.scope === 'created' && column === 'creator') return false
-    if (state.taskList !== 'all' && column === 'taskList') return false
-    return true
-  })
-  if (state.status === 'completed' && !columns.includes('completedAt')) {
-    columns.push('completedAt')
-  }
-  return columns
+  const visibleColumns = new Set(state.columns)
+  if (state.status === 'completed') visibleColumns.add('completedAt')
+  return normalizeTaskColumnOrder(state.columnOrder, state.columns).filter(
+    (column) => {
+      if (!visibleColumns.has(column)) return false
+      if (state.scope === 'created' && column === 'creator') return false
+      if (state.taskList !== 'all' && column === 'taskList') return false
+      return true
+    }
+  )
 }

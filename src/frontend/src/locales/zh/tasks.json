@@ -33,6 +33,10 @@
     "statusFilter": "状态",
     "fieldSettings": "字段配置",
     "resetFields": "重置",
+    "moveField": "移动{{field}}",
+    "showField": "显示{{field}}",
+    "hideField": "隐藏{{field}}",
+    "fieldLocked": "{{field}}由当前视图固定",
     "grouping": {
       "label": "分组方式",
       "none": "不分组",

@@ -33,6 +33,10 @@
     "statusFilter": "Status",
     "fieldSettings": "Fields",
     "resetFields": "Reset",
+    "moveField": "Move {{field}}",
+    "showField": "Show {{field}}",
+    "hideField": "Hide {{field}}",
+    "fieldLocked": "{{field}} is fixed by this view",
     "grouping": {
       "label": "Group by",
       "none": "No grouping",

@@ -1,6 +1,19 @@
-import { useEffect, useRef } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiCloseLine, RiFilter3Line } from '@remixicon/react'
+import {
+  RiCloseLine,
+  RiDraggable,
+  RiEyeLine,
+  RiEyeOffLine,
+  RiFilter3Line,
+  RiLockLine,
+} from '@remixicon/react'
 
 import { Button } from '@/primitives'
 import { Select } from '@/primitives/Select'
@@ -16,6 +29,8 @@ import type {
 import {
   defaultTaskColumnsForState,
   effectiveTaskColumns,
+  DEFAULT_TASK_COLUMN_ORDER,
+  normalizeTaskColumnOrder,
   type TaskWorkspaceState,
 } from '../taskWorkspaceState'
 
@@ -42,19 +57,6 @@ const groupingOptions: TaskGrouping[] = [
   'due_date',
   'creator',
 ]
-const columnOptions: TaskColumnId[] = [
-  'title',
-  'assignee',
-  'priority',
-  'startDate',
-  'dueDate',
-  'taskList',
-  'customGroup',
-  'creator',
-  'createdAt',
-  'completedAt',
-]
-
 export const TaskFilterToolbar = ({
   state,
   resultCount,
@@ -72,13 +74,18 @@ export const TaskFilterToolbar = ({
   onTimeChange: (value: TaskTimeFilter) => void
   onPriorityChange: (value: TaskPriorityFilter) => void
   onGroupingChange: (value: TaskGrouping) => void
-  onColumnsChange: (value: TaskColumnId[]) => void
+  onColumnsChange: (value: TaskColumnId[], order?: TaskColumnId[]) => void
   statusLocked?: boolean
   onClear: () => void
 }) => {
   const { t } = useTranslation('tasks')
   const columnPickerRef = useRef<HTMLDetailsElement>(null)
-  const configuredColumns = state.columns ?? columnOptions.slice(0, 8)
+  const [draggedColumn, setDraggedColumn] = useState<TaskColumnId>()
+  const configuredColumns = state.columns
+  const columnOrder = normalizeTaskColumnOrder(
+    state.columnOrder,
+    configuredColumns
+  )
   const selectedColumns = effectiveTaskColumns({
     ...state,
     columns: configuredColumns,
@@ -86,7 +93,12 @@ export const TaskFilterToolbar = ({
   const defaultColumns = defaultTaskColumnsForState(state)
   const columnsAreDefault =
     configuredColumns.length === defaultColumns.length &&
-    configuredColumns.every((column, index) => column === defaultColumns[index])
+    configuredColumns.every(
+      (column, index) => column === defaultColumns[index]
+    ) &&
+    columnOrder.every(
+      (column, index) => column === DEFAULT_TASK_COLUMN_ORDER[index]
+    )
   const isClosed = state.status === 'completed'
   const defaultStatus = state.mode === 'board' ? 'all' : 'open'
   const activeFilters = [
@@ -115,6 +127,53 @@ export const TaskFilterToolbar = ({
         }
       : null,
   ].filter((filter): filter is NonNullable<typeof filter> => Boolean(filter))
+
+  const commitColumnConfiguration = (
+    columns: TaskColumnId[],
+    order = columnOrder
+  ) => {
+    const position = new Map(order.map((column, index) => [column, index]))
+    onColumnsChange(
+      [...columns].sort(
+        (left, right) => position.get(left)! - position.get(right)!
+      ),
+      order
+    )
+  }
+
+  const moveColumnToIndex = (column: TaskColumnId, targetIndex: number) => {
+    if (column === 'title') return
+    const next = [...columnOrder]
+    const sourceIndex = next.indexOf(column)
+    if (sourceIndex < 0) return
+    next.splice(sourceIndex, 1)
+    next.splice(Math.max(1, Math.min(targetIndex, next.length)), 0, column)
+    commitColumnConfiguration(configuredColumns, next)
+  }
+
+  const dropColumn = (
+    event: DragEvent<HTMLDivElement>,
+    target: TaskColumnId
+  ) => {
+    event.preventDefault()
+    const source =
+      draggedColumn ||
+      (event.dataTransfer.getData('text/plain') as TaskColumnId)
+    if (!columnOrder.includes(source) || source === target) return
+    const targetIndex = columnOrder.indexOf(target)
+    moveColumnToIndex(source, target === 'title' ? 1 : targetIndex)
+    setDraggedColumn(undefined)
+  }
+
+  const moveColumnWithKeyboard = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    column: TaskColumnId
+  ) => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    event.preventDefault()
+    const offset = event.key === 'ArrowUp' ? -1 : 1
+    moveColumnToIndex(column, columnOrder.indexOf(column) + offset)
+  }
 
   useEffect(() => {
     const closeOnOutsidePress = (event: PointerEvent) => {
@@ -208,38 +267,85 @@ export const TaskFilterToolbar = ({
                 <button
                   type="button"
                   disabled={columnsAreDefault}
-                  onClick={() => onColumnsChange(defaultColumns)}
+                  onClick={() =>
+                    onColumnsChange(defaultColumns, [
+                      ...DEFAULT_TASK_COLUMN_ORDER,
+                    ])
+                  }
                 >
                   {t('workspace.resetFields')}
                 </button>
               </div>
-              {columnOptions.map((column) => {
-                const checked = selectedColumns.includes(column)
-                const locked =
-                  column === 'title' ||
-                  (state.scope === 'created' && column === 'creator') ||
-                  (state.taskList !== 'all' && column === 'taskList') ||
-                  (state.status === 'completed' && column === 'completedAt')
-                return (
-                  <label key={column}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={locked}
-                      onChange={() =>
-                        onColumnsChange(
-                          checked
-                            ? configuredColumns.filter(
-                                (item) => item !== column
-                              )
-                            : [...configuredColumns, column]
-                        )
-                      }
-                    />
-                    {t(`workspace.columns.${column}`)}
-                  </label>
-                )
-              })}
+              <div className={columnListCss}>
+                {columnOrder.map((column) => {
+                  const checked = selectedColumns.includes(column)
+                  const locked =
+                    column === 'title' ||
+                    (state.scope === 'created' && column === 'creator') ||
+                    (state.taskList !== 'all' && column === 'taskList') ||
+                    (state.status === 'completed' && column === 'completedAt')
+                  const label = t(`workspace.columns.${column}`)
+                  return (
+                    <div
+                      key={column}
+                      className={columnRowCss}
+                      data-dragging={draggedColumn === column || undefined}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => dropColumn(event, column)}
+                    >
+                      <button
+                        type="button"
+                        className={columnDragHandleCss}
+                        aria-label={t('workspace.moveField', { field: label })}
+                        disabled={column === 'title'}
+                        draggable={column !== 'title'}
+                        onDragStart={(event) => {
+                          setDraggedColumn(column)
+                          event.dataTransfer.effectAllowed = 'move'
+                          event.dataTransfer.setData('text/plain', column)
+                        }}
+                        onDragEnd={() => setDraggedColumn(undefined)}
+                        onKeyDown={(event) =>
+                          moveColumnWithKeyboard(event, column)
+                        }
+                      >
+                        <RiDraggable size={16} aria-hidden="true" />
+                      </button>
+                      <span className={columnLabelCss}>{label}</span>
+                      <button
+                        type="button"
+                        className={columnVisibilityButtonCss}
+                        disabled={locked}
+                        aria-label={t(
+                          locked
+                            ? 'workspace.fieldLocked'
+                            : checked
+                              ? 'workspace.hideField'
+                              : 'workspace.showField',
+                          { field: label }
+                        )}
+                        onClick={() =>
+                          commitColumnConfiguration(
+                            checked
+                              ? configuredColumns.filter(
+                                  (item) => item !== column
+                                )
+                              : [...configuredColumns, column]
+                          )
+                        }
+                      >
+                        {locked ? (
+                          <RiLockLine size={16} aria-hidden="true" />
+                        ) : checked ? (
+                          <RiEyeLine size={16} aria-hidden="true" />
+                        ) : (
+                          <RiEyeOffLine size={16} aria-hidden="true" />
+                        )}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </details>
         </div>
@@ -325,7 +431,7 @@ const columnPickerCss = css({
     zIndex: 'docked',
     top: 'calc(100% + 0.25rem)',
     right: 0,
-    minWidth: '11rem',
+    minWidth: '15rem',
     display: 'grid',
     gap: '0.5rem',
     padding: '0.75rem',
@@ -334,7 +440,6 @@ const columnPickerCss = css({
     backgroundColor: 'greyscale.000',
     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
   },
-  '& label': { display: 'flex', alignItems: 'center', gap: '0.5rem' },
 })
 const columnPickerActionsCss = css({
   display: 'flex',
@@ -354,6 +459,58 @@ const columnPickerActionsCss = css({
       textDecoration: 'none',
     },
   },
+})
+const columnListCss = css({
+  display: 'grid',
+  gap: '0.125rem',
+})
+const columnRowCss = css({
+  minHeight: '2rem',
+  display: 'grid',
+  gridTemplateColumns: '1.75rem minmax(0, 1fr) 1.75rem',
+  alignItems: 'center',
+  gap: '0.25rem',
+  paddingX: '0.25rem',
+  borderRadius: '5px',
+  _hover: { backgroundColor: 'greyscale.050' },
+  '&[data-dragging]': {
+    backgroundColor: 'primary.50',
+    opacity: 0.7,
+  },
+})
+const columnDragHandleCss = css({
+  width: '1.75rem',
+  height: '1.75rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
+  border: 0,
+  background: 'transparent',
+  color: 'greyscale.500',
+  cursor: 'grab',
+  _active: { cursor: 'grabbing' },
+  _disabled: { color: 'greyscale.300', cursor: 'default' },
+})
+const columnLabelCss = css({
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+const columnVisibilityButtonCss = css({
+  width: '1.75rem',
+  height: '1.75rem',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
+  border: 0,
+  borderRadius: '4px',
+  background: 'transparent',
+  color: 'greyscale.600',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100' },
+  _disabled: { color: 'greyscale.400', cursor: 'default' },
 })
 const activeFiltersCss = css({
   display: 'flex',

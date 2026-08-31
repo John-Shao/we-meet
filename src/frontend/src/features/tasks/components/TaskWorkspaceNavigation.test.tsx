@@ -7,6 +7,7 @@ import type {
   ApiTaskSavedView,
 } from '../api/ApiTask'
 import {
+  DEFAULT_TASK_COLUMN_ORDER,
   DEFAULT_TASK_COLUMNS,
   type TaskWorkspaceState,
 } from '../taskWorkspaceState'
@@ -24,6 +25,7 @@ const state: TaskWorkspaceState = {
   ordering: '',
   grouping: 'none',
   columns: [...DEFAULT_TASK_COLUMNS],
+  columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
   taskList: 'all',
   mode: 'list',
 }

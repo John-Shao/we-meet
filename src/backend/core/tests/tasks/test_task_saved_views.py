@@ -159,6 +159,37 @@ def test_saved_view_v2_persists_grouping_and_field_configuration():
     assert response.json()["config"] == config
 
 
+def test_saved_view_v3_persists_field_visibility_and_order_separately():
+    user, _organization = _member()
+    config = {
+        **_config(),
+        "version": 3,
+        "grouping": "none",
+        "columns": ["title", "assignee", "dueDate"],
+        "column_order": [
+            "title",
+            "dueDate",
+            "assignee",
+            "priority",
+            "startDate",
+            "taskList",
+            "customGroup",
+            "creator",
+            "createdAt",
+            "completedAt",
+        ],
+    }
+
+    response = _client(user).post(
+        URL,
+        {"name": "Custom field order", "config": config},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["config"] == config
+
+
 def test_setting_a_default_view_clears_the_previous_default():
     user, organization = _member()
     first = TaskSavedView.objects.create(

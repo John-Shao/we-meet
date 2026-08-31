@@ -98,7 +98,7 @@ export interface ApiTaskSettings {
 export type PatchTaskSettingsPayload = Partial<ApiTaskSettings>
 
 export interface TaskSavedViewConfig {
-  version: 1 | 2
+  version: 1 | 2 | 3
   scope: TaskScope
   status: TaskStatusFilter
   time: TaskTimeFilter
@@ -108,6 +108,7 @@ export interface TaskSavedViewConfig {
   view: 'list' | 'board' | 'analytics'
   grouping?: TaskGrouping
   columns?: TaskColumnId[]
+  column_order?: TaskColumnId[]
 }
 
 export interface ApiTaskSavedView {

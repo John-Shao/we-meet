@@ -353,11 +353,13 @@ export const TaskList = ({
     setManuallyCollapsedTaskIds(new Set())
   }, [selectedTaskId])
   const selectedColumns = columns ?? LEGACY_DEFAULT_COLUMN_IDS
-  const visibleColumns = TASK_COLUMNS.filter(
-    (column) =>
-      selectedColumns.includes(column.id) &&
-      (!compact || !['creator', 'createdAt'].includes(column.id))
-  )
+  const visibleColumns = selectedColumns.flatMap((columnId) => {
+    const column = TASK_COLUMNS.find((candidate) => candidate.id === columnId)
+    if (!column || (compact && ['creator', 'createdAt'].includes(column.id))) {
+      return []
+    }
+    return [column]
+  })
   const desktopColumnCount = visibleColumns.length + 1
 
   const toggleSection = (sectionKey: string) => {

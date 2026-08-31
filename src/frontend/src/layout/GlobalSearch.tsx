@@ -46,6 +46,7 @@ import {
 } from '@/features/tasks/components/TaskSearchFilters'
 import {
   buildTaskWorkspaceSearch,
+  DEFAULT_TASK_COLUMN_ORDER,
   DEFAULT_TASK_COLUMNS,
 } from '@/features/tasks/taskWorkspaceState'
 import { taskAssignees, taskDisplayName } from '@/features/tasks/taskUi'
@@ -465,6 +466,7 @@ export const SearchPalette = ({
       ordering: '',
       grouping: 'none',
       columns: [...DEFAULT_TASK_COLUMNS],
+      columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
       taskList: 'all',
       mode: 'list',
       task: task.id,
