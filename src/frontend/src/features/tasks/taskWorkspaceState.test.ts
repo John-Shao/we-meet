@@ -10,9 +10,12 @@ import {
   stateForTaskList,
   stateForSavedView,
   stateForView,
+  stateWithTaskWorkspacePreferences,
   stateWithStatus,
   taskColumnViewKey,
+  taskPreferencesViewKey,
   taskViewPresets,
+  taskWorkspacePreferences,
   taskWorkspaceStateToSavedViewConfig,
 } from './taskWorkspaceState'
 
@@ -79,24 +82,56 @@ describe('task workspace state', () => {
     ).toBe('none')
   })
 
-  it('preserves priority while resetting time for closed views', () => {
+  it('uses isolated defaults when opening a task-list view', () => {
     const state = parseTaskWorkspaceState(
       new URLSearchParams('time=due_today&priority=urgent')
     )
     expect(stateWithStatus(state, 'completed').time).toBe('all')
     expect(stateForTaskList(state, 'list-1')).toMatchObject({
-      scope: 'assigned',
+      scope: 'all',
       status: 'open',
+      time: 'all',
+      priority: 'all',
       taskList: 'list-1',
       mode: 'list',
       columns: DEFAULT_TASK_COLUMNS.filter((column) => column !== 'taskList'),
     })
     expect(stateForTaskList(state, 'unassigned')).toMatchObject({
-      scope: 'assigned',
+      scope: 'all',
       status: 'open',
-      priority: 'urgent',
+      time: 'all',
+      priority: 'all',
       taskList: 'unassigned',
       mode: 'list',
+    })
+  })
+
+  it('does not leak saved-view filters into a predefined view', () => {
+    const assigned = parseTaskWorkspaceState(new URLSearchParams())
+    const assignedPreferences = taskWorkspacePreferences(assigned)
+    const savedViewState = {
+      ...assigned,
+      scope: 'all' as const,
+      time: 'starting_today' as const,
+      priority: 'urgent' as const,
+      savedView: 'today-urgent',
+    }
+
+    expect(
+      stateWithTaskWorkspacePreferences(
+        stateForView(savedViewState, 'assigned'),
+        assignedPreferences
+      )
+    ).toMatchObject({
+      scope: 'assigned',
+      status: 'open',
+      time: 'all',
+      priority: 'all',
+      ordering: '',
+      grouping: 'none',
+      mode: 'list',
+      taskList: 'all',
+      savedView: undefined,
     })
   })
 
@@ -133,6 +168,27 @@ describe('task workspace state', () => {
       'standalone'
     )
     expect(taskColumnViewKey({ ...state, savedView: 'view-1' })).toBe(
+      'saved:view-1'
+    )
+  })
+
+  it('isolates filter preferences for every predefined and task-list view', () => {
+    const state = parseTaskWorkspaceState(new URLSearchParams())
+
+    expect(taskPreferencesViewKey(state)).toBe('quick:assigned')
+    expect(taskPreferencesViewKey({ ...state, scope: 'created' })).toBe(
+      'quick:created'
+    )
+    expect(taskPreferencesViewKey({ ...state, taskList: 'list-1' })).toBe(
+      'task-list:list-1'
+    )
+    expect(taskPreferencesViewKey({ ...state, taskList: 'list-2' })).toBe(
+      'task-list:list-2'
+    )
+    expect(taskPreferencesViewKey({ ...state, taskList: 'unassigned' })).toBe(
+      'standalone'
+    )
+    expect(taskPreferencesViewKey({ ...state, savedView: 'view-1' })).toBe(
       'saved:view-1'
     )
   })

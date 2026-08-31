@@ -27,6 +27,11 @@ export interface TaskWorkspaceState {
   sharedVia?: string
 }
 
+export type TaskWorkspacePreferences = Pick<
+  TaskWorkspaceState,
+  'status' | 'time' | 'priority' | 'ordering' | 'grouping' | 'mode'
+>
+
 export const taskViewPresets: Record<
   TaskWorkspaceView,
   Pick<TaskWorkspaceState, 'scope' | 'status'>
@@ -143,9 +148,14 @@ export const stateForView = (
   return {
     ...state,
     ...preset,
+    time: 'all',
+    priority: 'all',
+    ordering: '',
+    grouping: 'none',
     columns: taskColumnsForQuickView(view),
     taskList: 'all',
-    time: preset.status === 'open' ? state.time : 'all',
+    mode: 'list',
+    task: undefined,
     savedView: undefined,
   }
 }
@@ -155,12 +165,42 @@ export const stateForTaskList = (
   taskList: string
 ): TaskWorkspaceState => ({
   ...state,
+  scope: 'all',
+  status: 'open',
+  time: 'all',
+  priority: 'all',
+  ordering: '',
+  grouping: 'none',
   columns:
     taskList === 'all' ? [...DEFAULT_TASK_COLUMNS] : taskColumnsForTaskList(),
   taskList,
+  mode: 'list',
   task: undefined,
   savedView: undefined,
 })
+
+export const taskPreferencesViewKey = (state: TaskWorkspaceState) => {
+  if (state.savedView) return `saved:${state.savedView}`
+  if (state.taskList === 'unassigned') return 'standalone'
+  if (state.taskList !== 'all') return `task-list:${state.taskList}`
+  return `quick:${state.scope}`
+}
+
+export const taskWorkspacePreferences = (
+  state: TaskWorkspaceState
+): TaskWorkspacePreferences => ({
+  status: state.status,
+  time: state.time,
+  priority: state.priority,
+  ordering: state.ordering,
+  grouping: state.grouping,
+  mode: state.mode,
+})
+
+export const stateWithTaskWorkspacePreferences = (
+  state: TaskWorkspaceState,
+  preferences?: TaskWorkspacePreferences
+): TaskWorkspaceState => (preferences ? { ...state, ...preferences } : state)
 
 export const taskColumnViewKey = (state: TaskWorkspaceState) => {
   if (state.savedView) return `saved:${state.savedView}`

@@ -87,9 +87,13 @@ import {
   stateForView,
   stateForTaskList,
   stateWithStatus,
+  stateWithTaskWorkspacePreferences,
   taskWorkspaceStateToSavedViewConfig,
   taskColumnViewKey,
+  taskPreferencesViewKey,
+  taskWorkspacePreferences,
   type TaskWorkspaceMode,
+  type TaskWorkspacePreferences,
   type TaskWorkspaceState,
   type TaskWorkspaceView,
 } from '../taskWorkspaceState'
@@ -150,9 +154,10 @@ const TasksAuthenticated = () => {
   const taskListGroupRenameRef = useRef<HTMLInputElement>(null)
   const savedViewNameRef = useRef<HTMLInputElement>(null)
   const viewColumnsRef = useRef(new Map<string, TaskColumnId[]>())
-  // Remember the list's status filter while the user is on board/analytics, so
-  // switching back restores it instead of leaking the 'all' status forced there.
-  const lastListStatusRef = useRef<TaskStatusFilter>('open')
+  const viewPreferencesRef = useRef(new Map<string, TaskWorkspacePreferences>())
+  // Board and analytics force the status to "all". Keep the prior list status
+  // per view so switching modes cannot leak another view's status filter.
+  const lastListStatusRef = useRef(new Map<string, TaskStatusFilter>())
   const { confirm } = useConfirm()
   const deleteGroupMutation = useDeleteTaskGroup()
   const deleteTaskListGroupMutation = useDeleteTaskListGroup()
@@ -317,17 +322,46 @@ const TasksAuthenticated = () => {
     return columns ? { ...next, columns: [...columns] } : next
   }
 
+  const stateWithViewPreferences = (next: TaskWorkspaceState) => {
+    if (next.savedView) return next
+    return stateWithTaskWorkspacePreferences(
+      next,
+      viewPreferencesRef.current.get(taskPreferencesViewKey(next))
+    )
+  }
+
+  const stateWithViewConfiguration = (next: TaskWorkspaceState) =>
+    stateWithViewColumns(stateWithViewPreferences(next))
+
+  const rememberCurrentViewPreferences = () => {
+    if (state.savedView) return
+    viewPreferencesRef.current.set(
+      taskPreferencesViewKey(state),
+      taskWorkspacePreferences(state)
+    )
+  }
+
   const activeColumnViewKey = taskColumnViewKey(state)
   useEffect(() => {
     if (state.savedView) return
     viewColumnsRef.current.set(activeColumnViewKey, [...state.columns])
   }, [activeColumnViewKey, state.savedView, state.columns])
 
+  const activePreferencesViewKey = taskPreferencesViewKey(state)
+  useEffect(() => {
+    if (state.savedView) return
+    viewPreferencesRef.current.set(
+      activePreferencesViewKey,
+      taskWorkspacePreferences(state)
+    )
+  }, [activePreferencesViewKey, state])
+
   const openSavedView = (view: ApiTaskSavedView) => {
     setCreating(false)
     setSavedViewNotice(
       view.invalid_task_list ? t('savedViews.invalidTaskList') : ''
     )
+    rememberCurrentViewPreferences()
     navigateState({
       ...stateForSavedView(state, view.config),
       savedView: view.id,
@@ -383,7 +417,9 @@ const TasksAuthenticated = () => {
     if (!accepted) return
     await deleteSavedViewMutation.mutateAsync(view.id)
     if (state.savedView === view.id) {
-      navigateState(stateForView(state, 'all'), { replace: true })
+      navigateState(stateWithViewConfiguration(stateForView(state, 'all')), {
+        replace: true,
+      })
     }
   }
 
@@ -433,15 +469,17 @@ const TasksAuthenticated = () => {
   const changeView = (view: TaskWorkspaceView) => {
     setCreating(false)
     setSavedViewNotice('')
-    navigateState(
-      stateWithViewColumns({ ...stateForView(state, view), task: undefined })
-    )
+    rememberCurrentViewPreferences()
+    navigateState(stateWithViewConfiguration(stateForView(state, view)))
   }
 
   const changeTaskList = (taskListId: string) => {
     setCreating(false)
     setSavedViewNotice('')
-    navigateState(stateWithViewColumns(stateForTaskList(state, taskListId)))
+    rememberCurrentViewPreferences()
+    navigateState(
+      stateWithViewConfiguration(stateForTaskList(state, taskListId))
+    )
   }
 
   const openTaskListManager = (listGroupId?: string) => {
@@ -453,16 +491,17 @@ const TasksAuthenticated = () => {
     setCreating(false)
     setSavedViewNotice('')
     if (mode === state.mode) return
+    const viewKey = taskPreferencesViewKey(state)
     if (mode === 'list') {
       navigateState({
         ...state,
         mode,
-        status: lastListStatusRef.current,
+        status: lastListStatusRef.current.get(viewKey) ?? 'open',
         task: undefined,
       })
       return
     }
-    lastListStatusRef.current = state.status
+    lastListStatusRef.current.set(viewKey, state.status)
     navigateState({
       ...state,
       mode,
