@@ -140,6 +140,25 @@ def test_saved_view_accepts_the_unprioritized_filter():
     assert response.json()["config"]["priority"] == "none"
 
 
+def test_saved_view_v2_persists_grouping_and_field_configuration():
+    user, _organization = _member()
+    config = {
+        **_config(),
+        "version": 2,
+        "grouping": "creator",
+        "columns": ["title", "assignee", "completedAt"],
+    }
+
+    response = _client(user).post(
+        URL,
+        {"name": "By creator", "config": config},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["config"] == config
+
+
 def test_setting_a_default_view_clears_the_previous_default():
     user, organization = _member()
     first = TaskSavedView.objects.create(

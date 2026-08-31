@@ -46,6 +46,7 @@ import { css } from '@/styled-system/css'
 
 import type {
   ApiTask,
+  ApiTaskGroup,
   ApiTaskList,
   PatchTaskPayload,
   TaskPriority,
@@ -104,6 +105,7 @@ type SubtaskEditableField = 'title' | 'dueDate'
 
 export const CreateTaskPanel = ({
   taskLists,
+  taskGroups = [],
   defaultTaskListId,
   defaultGroupId,
   parentTask,
@@ -112,6 +114,7 @@ export const CreateTaskPanel = ({
   onCreated,
 }: {
   taskLists: ApiTaskList[]
+  taskGroups?: ApiTaskGroup[]
   defaultTaskListId?: string
   defaultGroupId?: string
   parentTask?: ApiTask
@@ -128,6 +131,7 @@ export const CreateTaskPanel = ({
       </header>
       <TaskForm
         taskLists={taskLists}
+        taskGroups={taskGroups}
         defaultTaskListId={defaultTaskListId}
         defaultGroupId={defaultGroupId}
         parentTask={parentTask}
@@ -143,6 +147,7 @@ export const TaskDetailPanel = ({
   taskId,
   fallbackTask,
   taskLists,
+  taskGroups = [],
   sharedVia,
   onCreateSubtask,
   onOpenSubtask,
@@ -151,6 +156,7 @@ export const TaskDetailPanel = ({
   taskId: string
   fallbackTask?: ApiTask
   taskLists: ApiTaskList[]
+  taskGroups?: ApiTaskGroup[]
   sharedVia?: string
   onCreateSubtask: (parentTask: ApiTask) => void
   onOpenSubtask: (subtask: ApiTask) => void
@@ -383,9 +389,6 @@ export const TaskDetailPanel = ({
   }
 
   const editLabel = (label: string) => `${t('actions.edit')} ${label}`
-  const selectedDraftTaskList = taskLists.find(
-    (taskList) => taskList.id === draftTaskListId
-  )
   const currentAssignees = taskAssignees(task)
   const nextStatus = nextTaskStatuses(task)[0]
   const openDescendantCount = incompleteDescendantCount(task)
@@ -973,9 +976,7 @@ export const TaskDetailPanel = ({
                 <div ref={placementEditorRef} className={inlineEditorCss}>
                   <div
                     className={placementEditorCss}
-                    data-has-group={
-                      selectedDraftTaskList?.groups.length ? true : undefined
-                    }
+                    data-has-group={taskGroups.length ? true : undefined}
                   >
                     <DetailInlineSelect
                       label={t('taskLists.field')}
@@ -989,55 +990,48 @@ export const TaskDetailPanel = ({
                       value={draftTaskListId}
                       disabled={patchMutation.isPending}
                       onCancel={() => {
-                        if (!selectedDraftTaskList?.groups.length) {
+                        if (!taskGroups.length) {
                           setEditingField(null)
                         }
                       }}
                       onChange={(taskListId) => {
-                        const taskList = taskLists.find(
-                          (item) => item.id === taskListId
-                        )
                         setDraftTaskListId(taskListId)
-                        setDraftGroupId('')
                         void saveField(
                           {
                             task_list_id: taskListId || null,
-                            group_id: null,
                           },
-                          { keepEditing: Boolean(taskList?.groups.length) }
+                          { keepEditing: Boolean(taskGroups.length) }
                         )
                       }}
                     />
-                    {selectedDraftTaskList &&
-                      selectedDraftTaskList.groups.length > 0 && (
-                        <DetailInlineSelect
-                          label={t('groups.field')}
-                          autoOpen={false}
-                          items={[
-                            { value: '', label: t('groups.ungrouped') },
-                            ...selectedDraftTaskList.groups.map((group) => ({
-                              value: group.id,
-                              label: group.name,
-                            })),
-                          ]}
-                          value={draftGroupId}
-                          disabled={patchMutation.isPending}
-                          onCancel={() => setEditingField(null)}
-                          onChange={(groupId) => {
-                            setDraftGroupId(groupId)
-                            void saveField({
-                              task_list_id: draftTaskListId,
-                              group_id: groupId || null,
-                            })
-                          }}
-                        />
-                      )}
+                    {taskGroups.length > 0 && (
+                      <DetailInlineSelect
+                        label={t('groups.field')}
+                        autoOpen={false}
+                        items={[
+                          { value: '', label: t('groups.ungrouped') },
+                          ...taskGroups.map((group) => ({
+                            value: group.id,
+                            label: group.name,
+                          })),
+                        ]}
+                        value={draftGroupId}
+                        disabled={patchMutation.isPending}
+                        onCancel={() => setEditingField(null)}
+                        onChange={(groupId) => {
+                          setDraftGroupId(groupId)
+                          void saveField({
+                            group_id: groupId || null,
+                          })
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
-              ) : task.task_list ? (
-                `${task.task_list.name}${task.group ? ` / ${task.group.name}` : ''}`
               ) : (
-                t('taskLists.standalone')
+                `${task.task_list?.name || t('taskLists.standalone')}${
+                  task.group ? ` / ${task.group.name}` : ''
+                }`
               )}
             </TaskProperty>
             <TaskProperty

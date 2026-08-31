@@ -15,6 +15,24 @@ export type TaskOrderingField =
   | 'creator'
   | 'created_at'
 export type TaskOrdering = '' | TaskOrderingField | `-${TaskOrderingField}`
+export type TaskGrouping =
+  | 'none'
+  | 'custom'
+  | 'task_list'
+  | 'start_date'
+  | 'due_date'
+  | 'creator'
+export type TaskColumnId =
+  | 'title'
+  | 'assignee'
+  | 'priority'
+  | 'startDate'
+  | 'dueDate'
+  | 'taskList'
+  | 'customGroup'
+  | 'creator'
+  | 'createdAt'
+  | 'completedAt'
 export type TaskColor =
   | 'grey'
   | 'blue'
@@ -30,6 +48,7 @@ export interface ApiTaskGroup {
   sort_order: number
   task_count: number
   can_delete: boolean
+  can_manage: boolean
   created_at: string
   updated_at: string
 }
@@ -79,7 +98,7 @@ export interface ApiTaskSettings {
 export type PatchTaskSettingsPayload = Partial<ApiTaskSettings>
 
 export interface TaskSavedViewConfig {
-  version: 1
+  version: 1 | 2
   scope: TaskScope
   status: TaskStatusFilter
   time: TaskTimeFilter
@@ -87,6 +106,8 @@ export interface TaskSavedViewConfig {
   task_list: string
   ordering: TaskOrdering
   view: 'list' | 'board' | 'analytics'
+  grouping?: TaskGrouping
+  columns?: TaskColumnId[]
 }
 
 export interface ApiTaskSavedView {

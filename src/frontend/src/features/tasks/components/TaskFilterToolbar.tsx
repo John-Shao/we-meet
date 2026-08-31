@@ -6,6 +6,8 @@ import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
 import type {
+  TaskColumnId,
+  TaskGrouping,
   TaskPriorityFilter,
   TaskStatusFilter,
   TaskTimeFilter,
@@ -27,6 +29,26 @@ const priorityFilters: TaskPriorityFilter[] = [
   'low',
   'none',
 ]
+const groupingOptions: TaskGrouping[] = [
+  'none',
+  'custom',
+  'task_list',
+  'start_date',
+  'due_date',
+  'creator',
+]
+const columnOptions: TaskColumnId[] = [
+  'title',
+  'assignee',
+  'priority',
+  'startDate',
+  'dueDate',
+  'taskList',
+  'customGroup',
+  'creator',
+  'createdAt',
+  'completedAt',
+]
 
 export const TaskFilterToolbar = ({
   state,
@@ -34,6 +56,9 @@ export const TaskFilterToolbar = ({
   onStatusChange,
   onTimeChange,
   onPriorityChange,
+  onGroupingChange,
+  onColumnsChange,
+  statusLocked = false,
   onClear,
 }: {
   state: TaskWorkspaceState
@@ -41,9 +66,13 @@ export const TaskFilterToolbar = ({
   onStatusChange: (value: TaskStatusFilter) => void
   onTimeChange: (value: TaskTimeFilter) => void
   onPriorityChange: (value: TaskPriorityFilter) => void
+  onGroupingChange: (value: TaskGrouping) => void
+  onColumnsChange: (value: TaskColumnId[]) => void
+  statusLocked?: boolean
   onClear: () => void
 }) => {
   const { t } = useTranslation('tasks')
+  const selectedColumns = state.columns ?? columnOptions.slice(0, 8)
   const isClosed = state.status === 'completed'
   const defaultStatus = state.mode === 'board' ? 'all' : 'open'
   const activeFilters = [
@@ -88,6 +117,7 @@ export const TaskFilterToolbar = ({
                 : t(`statuses.${value}`),
           }))}
           selectedKey={state.status}
+          isDisabled={statusLocked}
           onSelectionChange={(key) =>
             onStatusChange(String(key) as TaskStatusFilter)
           }
@@ -106,6 +136,44 @@ export const TaskFilterToolbar = ({
             onTimeChange(String(key) as TaskTimeFilter)
           }
         />
+        <Select
+          className={filterSelectCss}
+          label={t('workspace.grouping.label')}
+          aria-label={t('workspace.grouping.label')}
+          items={groupingOptions.map((value) => ({
+            value,
+            label: t(`workspace.grouping.${value}`),
+          }))}
+          selectedKey={state.grouping ?? 'none'}
+          onSelectionChange={(key) =>
+            onGroupingChange(String(key) as TaskGrouping)
+          }
+        />
+        <details className={columnPickerCss}>
+          <summary>{t('workspace.fieldSettings')}</summary>
+          <div>
+            {columnOptions.map((column) => {
+              const checked = selectedColumns.includes(column)
+              return (
+                <label key={column}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={column === 'title'}
+                    onChange={() =>
+                      onColumnsChange(
+                        checked
+                          ? selectedColumns.filter((item) => item !== column)
+                          : [...selectedColumns, column]
+                      )
+                    }
+                  />
+                  {t(`workspace.columns.${column}`)}
+                </label>
+              )
+            })}
+          </div>
+        </details>
         <Select
           className={filterSelectCss}
           label={t('priorityFilters.label')}
@@ -170,6 +238,36 @@ const filterSelectCss = css({
   flexDirection: 'column',
   gap: '0.25rem',
   minWidth: '8rem',
+})
+const columnPickerCss = css({
+  position: 'relative',
+  alignSelf: 'end',
+  '& summary': {
+    minHeight: '2rem',
+    display: 'flex',
+    alignItems: 'center',
+    paddingX: '0.75rem',
+    border: '1px solid token(colors.greyscale.300)',
+    borderRadius: '6px',
+    backgroundColor: 'greyscale.000',
+    cursor: 'pointer',
+    listStyle: 'none',
+  },
+  '& > div': {
+    position: 'absolute',
+    zIndex: 'dropdown',
+    top: 'calc(100% + 0.25rem)',
+    right: 0,
+    minWidth: '11rem',
+    display: 'grid',
+    gap: '0.5rem',
+    padding: '0.75rem',
+    border: '1px solid token(colors.greyscale.200)',
+    borderRadius: '8px',
+    backgroundColor: 'greyscale.000',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+  },
+  '& label': { display: 'flex', alignItems: 'center', gap: '0.5rem' },
 })
 const activeFiltersCss = css({
   display: 'flex',

@@ -18,6 +18,7 @@ import { css } from '@/styled-system/css'
 
 import type {
   ApiTask,
+  ApiTaskGroup,
   ApiTaskList,
   ApiTaskUser,
   TaskPriority,
@@ -33,6 +34,7 @@ const priorities: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
 
 export const TaskForm = ({
   taskLists,
+  taskGroups = [],
   defaultTaskListId,
   defaultGroupId,
   parentTask,
@@ -41,6 +43,7 @@ export const TaskForm = ({
   onSaved,
 }: {
   taskLists: ApiTaskList[]
+  taskGroups?: ApiTaskGroup[]
   defaultTaskListId?: string
   defaultGroupId?: string
   parentTask?: ApiTask
@@ -85,7 +88,6 @@ export const TaskForm = ({
   const tomorrowDate = new Date()
   tomorrowDate.setDate(tomorrowDate.getDate() + 1)
   const tomorrow = dateInputValue(tomorrowDate)
-  const selectedTaskList = taskLists.find((item) => item.id === taskListId)
   const assignees =
     selectedAssignees ||
     (currentUser
@@ -256,7 +258,7 @@ export const TaskForm = ({
             </div>
           </div>
 
-          {taskLists.length > 0 && (
+          {(taskLists.length > 0 || taskGroups.length > 0) && (
             <div className={createPropertyRowCss} data-align-start>
               <RiListCheck3 size={19} aria-hidden="true" />
               <div className={placementControlsCss}>
@@ -275,16 +277,15 @@ export const TaskForm = ({
                   selectedKey={taskListId}
                   onSelectionChange={(key) => {
                     setTaskListId(String(key))
-                    setGroupId('')
                   }}
                 />
-                {selectedTaskList && selectedTaskList.groups.length > 0 && (
+                {taskGroups.length > 0 && (
                   <Select
                     label={<span className="sr-only">{t('groups.field')}</span>}
                     aria-label={t('groups.field')}
                     items={[
                       { value: '', label: t('groups.ungrouped') },
-                      ...selectedTaskList.groups.map((group) => ({
+                      ...taskGroups.map((group) => ({
                         value: group.id,
                         label: group.name,
                       })),

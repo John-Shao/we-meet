@@ -31,6 +31,18 @@
     "newTask": "新建任务",
     "filters": "任务筛选",
     "statusFilter": "状态",
+    "fieldSettings": "字段配置",
+    "grouping": {
+      "label": "分组方式",
+      "none": "不分组",
+      "custom": "自定义分组",
+      "task_list": "所属清单",
+      "start_date": "开始时间",
+      "due_date": "截止时间",
+      "creator": "创建人",
+      "noDate": "无日期",
+      "unknownCreator": "未知创建人"
+    },
     "statusOptions": { "open": "未完成", "all": "全部状态" },
     "clearFilters": "清除筛选",
     "filteredResultCount": "{{count}} 个匹配结果",
@@ -51,8 +63,10 @@
       "startDate": "开始日期",
       "dueDate": "截止日期",
       "taskList": "所属清单",
+      "customGroup": "自定义分组",
       "creator": "创建人",
-      "createdAt": "创建时间"
+      "createdAt": "创建时间",
+      "completedAt": "完成时间"
     },
     "openTask": "打开任务：{{title}}",
     "quickComplete": "完成任务：{{title}}",

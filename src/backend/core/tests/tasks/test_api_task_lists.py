@@ -508,7 +508,7 @@ def test_deleting_task_list_group_keeps_lists_and_cross_org_assignment_is_reject
     assert TaskList.objects.filter(id=task_list.id).exists()
 
 
-def test_task_placement_filter_and_history_keep_list_and_group_consistent():
+def test_task_placement_filter_and_history_keep_list_and_group_orthogonal():
     organization, creator = _organization_user()
     task_list = TaskList.objects.create(
         organization=organization,
@@ -561,10 +561,10 @@ def test_task_placement_filter_and_history_keep_list_and_group_consistent():
     )
     assert cleared.status_code == 200
     assert cleared.json()["task_list"] is None
-    assert cleared.json()["group"] is None
+    assert cleared.json()["group"]["id"] == str(done.id)
 
 
-def test_task_placement_rejects_cross_list_and_cross_organization_groups():
+def test_task_placement_allows_cross_list_group_and_rejects_cross_organization():
     organization, creator = _organization_user()
     first = TaskList.objects.create(
         organization=organization,
@@ -583,6 +583,10 @@ def test_task_placement_rejects_cross_list_and_cross_organization_groups():
         creator=outsider,
         name="Outside",
     )
+    outside_group = TaskGroup.objects.create(
+        task_list=outside_list,
+        name="Outside group",
+    )
     client = _client(creator)
 
     mismatched = client.post(
@@ -599,12 +603,24 @@ def test_task_placement_rejects_cross_list_and_cross_organization_groups():
         {"title": "Outside", "task_list_id": str(outside_list.id)},
         format="json",
     )
+    cross_organization_group = client.post(
+        TASKS_URL,
+        {
+            "title": "Outside group",
+            "task_list_id": str(first.id),
+            "group_id": str(outside_group.id),
+        },
+        format="json",
+    )
 
-    assert mismatched.status_code == 400
-    assert "group_id" in mismatched.json()
+    assert mismatched.status_code == 201
+    assert mismatched.json()["task_list"]["id"] == str(first.id)
+    assert mismatched.json()["group"]["id"] == str(second_group.id)
     assert outside.status_code == 400
     assert "task_list_id" in outside.json()
-    assert not Task.objects.exists()
+    assert cross_organization_group.status_code == 400
+    assert "group_id" in cross_organization_group.json()
+    assert Task.objects.count() == 1
 
 
 def test_task_groups_can_only_be_deleted_when_empty():
@@ -633,6 +649,25 @@ def test_task_groups_can_only_be_deleted_when_empty():
         client.delete(f"/api/v1.0/task-groups/{occupied.id}/").status_code == 400
     )
     assert client.delete(f"/api/v1.0/task-groups/{empty.id}/").status_code == 204
+
+
+def test_custom_task_groups_can_be_created_without_a_task_list():
+    organization, creator = _organization_user()
+    client = _client(creator)
+
+    created = client.post(
+        "/api/v1.0/task-groups/",
+        {"name": "Personal workflow", "sort_order": 4},
+        format="json",
+    )
+
+    assert created.status_code == 201
+    group = TaskGroup.objects.get(id=created.json()["id"])
+    assert group.organization == organization
+    assert group.creator == creator
+    assert group.task_list is None
+    assert created.json()["can_manage"] is True
+    assert client.get("/api/v1.0/task-groups/").json()[0]["id"] == str(group.id)
 
 
 def test_statistics_report_visible_summary_and_assignee_workload_only():

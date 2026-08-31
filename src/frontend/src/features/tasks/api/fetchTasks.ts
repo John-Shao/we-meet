@@ -637,11 +637,13 @@ export const useMoveTaskListToGroup = () => {
 }
 
 const createTaskGroup = (
-  taskListId: string,
+  taskListId: string | undefined,
   payload: { name: string; sort_order?: number }
 ) =>
   fetchApi<ApiTaskGroup>(
-    `task-lists/${encodeURIComponent(taskListId)}/groups/`,
+    taskListId
+      ? `task-lists/${encodeURIComponent(taskListId)}/groups/`
+      : 'task-groups/',
     {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -653,14 +655,24 @@ export const useCreateTaskGroup = () => {
   return useMutation<
     ApiTaskGroup,
     ApiError,
-    { taskListId: string; name: string; sort_order?: number }
+    { taskListId?: string; name: string; sort_order?: number }
   >({
     mutationFn: ({ taskListId, ...payload }) =>
       createTaskGroup(taskListId, payload),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['task-lists'] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['task-groups'] })
+    },
   })
 }
+
+const fetchTaskGroups = () => fetchApi<ApiTaskGroup[]>('task-groups/')
+
+export const useTaskGroups = () =>
+  useQuery<ApiTaskGroup[], ApiError>({
+    queryKey: ['task-groups'],
+    queryFn: fetchTaskGroups,
+  })
 
 const updateTaskGroup = (groupId: string, patch: { name?: string }) =>
   fetchApi<ApiTaskGroup>(`task-groups/${encodeURIComponent(groupId)}/`, {
@@ -673,8 +685,10 @@ export const useUpdateTaskGroup = () => {
   return useMutation<ApiTaskGroup, ApiError, { groupId: string; name: string }>(
     {
       mutationFn: ({ groupId, name }) => updateTaskGroup(groupId, { name }),
-      onSuccess: () =>
-        queryClient.invalidateQueries({ queryKey: ['task-lists'] }),
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+        void queryClient.invalidateQueries({ queryKey: ['task-groups'] })
+      },
     }
   )
 }
@@ -690,6 +704,7 @@ export const useDeleteTaskGroup = () => {
     mutationFn: deleteTaskGroup,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['task-groups'] })
       void queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
   })

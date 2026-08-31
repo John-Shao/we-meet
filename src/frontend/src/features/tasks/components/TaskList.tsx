@@ -38,6 +38,8 @@ import type {
   ApiTaskList,
   PatchTaskPayload,
   TaskOrdering,
+  TaskColumnId,
+  TaskGrouping,
   TaskOrderingField,
   TaskPriority,
   TaskStatus,
@@ -60,11 +62,22 @@ const TASK_COLUMNS = [
   { id: 'startDate', defaultWidth: 110, minWidth: 88, maxWidth: 150 },
   { id: 'dueDate', defaultWidth: 110, minWidth: 88, maxWidth: 150 },
   { id: 'taskList', defaultWidth: 150, minWidth: 96, maxWidth: 240 },
+  { id: 'customGroup', defaultWidth: 140, minWidth: 96, maxWidth: 220 },
   { id: 'creator', defaultWidth: 140, minWidth: 96, maxWidth: 220 },
   { id: 'createdAt', defaultWidth: 170, minWidth: 128, maxWidth: 220 },
+  { id: 'completedAt', defaultWidth: 170, minWidth: 128, maxWidth: 220 },
 ] as const
+const LEGACY_DEFAULT_COLUMN_IDS: TaskColumnId[] = [
+  'title',
+  'assignee',
+  'priority',
+  'startDate',
+  'dueDate',
+  'taskList',
+  'creator',
+  'createdAt',
+]
 
-type TaskColumnId = (typeof TASK_COLUMNS)[number]['id']
 type TaskColumnWidths = Record<TaskColumnId, number>
 
 const ORDERING_BY_COLUMN: Partial<Record<TaskColumnId, TaskOrderingField>> = {
@@ -134,6 +147,8 @@ type ListProps = {
   taskLists?: ApiTaskList[]
   groups?: ApiTaskGroup[]
   grouped?: boolean
+  grouping?: TaskGrouping
+  columns?: TaskColumnId[]
   compact?: boolean
   showOverdueMarker?: boolean
   ordering?: TaskOrdering
@@ -173,6 +188,7 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
   editingCell: InlineEditingCell | null
   inlinePending: boolean
   compact: boolean
+  visibleColumns: TaskColumnId[]
   onBeginInlineEdit: (task: ApiTask, field: InlineEditableField) => void
   onSaveInlineEdit: (task: ApiTask, patch: PatchTaskPayload) => void
   onCancelInlineEdit: () => void
@@ -208,7 +224,9 @@ export const TaskList = ({
   tasks,
   taskLists = [],
   groups = [],
-  grouped = false,
+  grouped: legacyGrouped = false,
+  grouping,
+  columns,
   compact = false,
   showOverdueMarker = true,
   ordering = '',
@@ -225,6 +243,9 @@ export const TaskList = ({
   onConfirmCompleteWithOpenSubtasks,
 }: ListProps) => {
   const { t, i18n } = useTranslation('tasks')
+  const grouped = grouping ? grouping !== 'none' : legacyGrouped
+  const effectiveGrouping: TaskGrouping =
+    grouping ?? (grouped ? 'custom' : 'none')
   const patchMutation = usePatchTask()
   const { notifyAction, notifyFailure } = useTaskActionFeedback()
   const [statusOverrides, setStatusOverrides] = useState<
@@ -262,8 +283,16 @@ export const TaskList = ({
     [inlineOverrides, tasks]
   )
   const sections = useMemo(
-    () => buildSections(displayedTasks, groups, grouped),
-    [displayedTasks, grouped, groups]
+    () =>
+      buildSections(
+        displayedTasks,
+        groups,
+        effectiveGrouping,
+        t,
+        formatTaskDate,
+        i18n.language
+      ),
+    [displayedTasks, effectiveGrouping, groups, i18n.language, t]
   )
   const orderedGroups = useMemo(
     () =>
@@ -323,9 +352,10 @@ export const TaskList = ({
     // collapsed before the selection changed.
     setManuallyCollapsedTaskIds(new Set())
   }, [selectedTaskId])
+  const selectedColumns = columns ?? LEGACY_DEFAULT_COLUMN_IDS
   const visibleColumns = TASK_COLUMNS.filter(
     (column) =>
-      (!grouped || column.id !== 'taskList') &&
+      selectedColumns.includes(column.id) &&
       (!compact || !['creator', 'createdAt'].includes(column.id))
   )
   const desktopColumnCount = visibleColumns.length + 1
@@ -621,7 +651,8 @@ export const TaskList = ({
     task: ApiTask
   ) => {
     const canShare = Boolean(onShare && task.can_edit)
-    const canSwitchGroup = grouped && task.can_edit && groups.length > 0
+    const canSwitchGroup =
+      effectiveGrouping === 'custom' && task.can_edit && groups.length > 0
     if (!canShare && !onDeleteTask && !canSwitchGroup) return
     event.preventDefault()
     event.stopPropagation()
@@ -636,8 +667,9 @@ export const TaskList = ({
 
   const groupProps = {
     grouped,
+    visibleColumns: visibleColumns.map((column) => column.id),
     taskLists,
-    groups,
+    groups: effectiveGrouping === 'custom' ? groups : [],
     selectedTaskId,
     onOpen,
     onShare,
@@ -753,7 +785,9 @@ export const TaskList = ({
                     canManageGroups={canManageGroups}
                     onRenameGroup={onRenameGroup}
                     onDeleteGroup={onDeleteGroup}
-                    onMoveTask={moveToGroup}
+                    onMoveTask={
+                      effectiveGrouping === 'custom' ? moveToGroup : undefined
+                    }
                     columnCount={desktopColumnCount}
                   />
                 )}
@@ -762,7 +796,9 @@ export const TaskList = ({
                     section={section}
                     columnCount={desktopColumnCount}
                     canCreateTask={Boolean(onCreateTaskInGroup)}
-                    onMoveTask={moveToGroup}
+                    onMoveTask={
+                      effectiveGrouping === 'custom' ? moveToGroup : undefined
+                    }
                   />
                 )}
                 {!collapsed &&
@@ -804,7 +840,9 @@ export const TaskList = ({
       {contextMenu &&
         ((onShare && contextMenu.task.can_edit) ||
           onDeleteTask ||
-          (grouped && contextMenu.task.can_edit && groups.length > 0)) && (
+          (effectiveGrouping === 'custom' &&
+            contextMenu.task.can_edit &&
+            groups.length > 0)) && (
           <div
             role="menu"
             tabIndex={-1}
@@ -825,84 +863,86 @@ export const TaskList = ({
                 <span>{t('share.action')}</span>
               </button>
             )}
-            {grouped && contextMenu.task.can_edit && groups.length > 0 && (
-              <div
-                className={taskContextSubmenuTriggerCss}
-                onMouseEnter={() => setGroupSubmenuOpen(true)}
-                onMouseLeave={() => setGroupSubmenuOpen(false)}
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-haspopup="menu"
-                  aria-expanded={groupSubmenuOpen}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setGroupSubmenuOpen((current) => !current)
-                  }}
-                  onFocus={() => setGroupSubmenuOpen(true)}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'ArrowRight') return
-                    event.preventDefault()
-                    setGroupSubmenuOpen(true)
-                  }}
+            {effectiveGrouping === 'custom' &&
+              contextMenu.task.can_edit &&
+              groups.length > 0 && (
+                <div
+                  className={taskContextSubmenuTriggerCss}
+                  onMouseEnter={() => setGroupSubmenuOpen(true)}
+                  onMouseLeave={() => setGroupSubmenuOpen(false)}
                 >
-                  <RiFolderTransferLine size={16} aria-hidden="true" />
-                  <span>{t('groups.switch')}</span>
-                  <RiArrowRightSLine
-                    className={taskContextSubmenuArrowCss}
-                    size={16}
-                    aria-hidden="true"
-                  />
-                </button>
-                {groupSubmenuOpen && (
-                  <div
-                    role="menu"
-                    tabIndex={-1}
-                    aria-label={t('groups.switch')}
-                    className={taskContextSubmenuCss}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-haspopup="menu"
+                    aria-expanded={groupSubmenuOpen}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setGroupSubmenuOpen((current) => !current)
+                    }}
+                    onFocus={() => setGroupSubmenuOpen(true)}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'ArrowRight') return
+                      event.preventDefault()
+                      setGroupSubmenuOpen(true)
+                    }}
                   >
-                    {[
-                      {
-                        id: UNGROUPED_TASK_GROUP,
-                        name: t('groups.ungrouped'),
-                      },
-                      ...orderedGroups,
-                    ].map((group) => {
-                      const currentGroupId =
-                        contextMenu.task.group?.id || UNGROUPED_TASK_GROUP
-                      const selected = group.id === currentGroupId
-                      return (
-                        <button
-                          key={group.id}
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={selected}
-                          disabled={selected}
-                          onClick={() => {
-                            moveToGroup(
-                              contextMenu.task.id,
-                              group.id === UNGROUPED_TASK_GROUP
-                                ? undefined
-                                : group.id
-                            )
-                            setContextMenu(null)
-                            setGroupSubmenuOpen(false)
-                          }}
-                        >
-                          <span className={taskContextSelectionCss}>
-                            {selected && (
-                              <RiCheckLine size={16} aria-hidden="true" />
-                            )}
-                          </span>
-                          <span>{group.name}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+                    <RiFolderTransferLine size={16} aria-hidden="true" />
+                    <span>{t('groups.switch')}</span>
+                    <RiArrowRightSLine
+                      className={taskContextSubmenuArrowCss}
+                      size={16}
+                      aria-hidden="true"
+                    />
+                  </button>
+                  {groupSubmenuOpen && (
+                    <div
+                      role="menu"
+                      tabIndex={-1}
+                      aria-label={t('groups.switch')}
+                      className={taskContextSubmenuCss}
+                    >
+                      {[
+                        {
+                          id: UNGROUPED_TASK_GROUP,
+                          name: t('groups.ungrouped'),
+                        },
+                        ...orderedGroups,
+                      ].map((group) => {
+                        const currentGroupId =
+                          contextMenu.task.group?.id || UNGROUPED_TASK_GROUP
+                        const selected = group.id === currentGroupId
+                        return (
+                          <button
+                            key={group.id}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={selected}
+                            disabled={selected}
+                            onClick={() => {
+                              moveToGroup(
+                                contextMenu.task.id,
+                                group.id === UNGROUPED_TASK_GROUP
+                                  ? undefined
+                                  : group.id
+                              )
+                              setContextMenu(null)
+                              setGroupSubmenuOpen(false)
+                            }}
+                          >
+                            <span className={taskContextSelectionCss}>
+                              {selected && (
+                                <RiCheckLine size={16} aria-hidden="true" />
+                              )}
+                            </span>
+                            <span>{group.name}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             {onDeleteTask && (
               <button
                 type="button"
@@ -954,228 +994,252 @@ const DesktopTaskRow = memo(
     onBeginInlineEdit,
     onSaveInlineEdit,
     onCancelInlineEdit,
-    compact,
+    visibleColumns,
     showOverdueMarker,
     onShare,
     onDeleteTask,
     groups = [],
   }: GroupProps) => (
-  <tr
-    ref={(element) => registerRow(task.id, element)}
-    tabIndex={0}
-    aria-label={t('workspace.openTask', { title: task.title })}
-    data-selected={selectedTaskId === task.id || undefined}
-    data-task-row=""
-    data-grouped={grouped || undefined}
-    data-group-last={grouped && isLastInGroup ? true : undefined}
-    className={rowCss}
-    onClick={() => onOpen(task)}
-    onContextMenu={(event) => onTaskContextMenu(event, task)}
-    onKeyDown={(event) =>
-      handleTaskRowKeyDown(event, {
-        task,
-        hasChildren: hasVisibleSubtasks,
-        expanded: isSubtasksExpanded,
-        onOpen,
-        onToggleStatus,
-        onToggleSubtasks,
-      })
-    }
-  >
-    <td
-      className={grouped ? groupedTaskTitleCellCss : undefined}
+    <tr
+      ref={(element) => registerRow(task.id, element)}
+      tabIndex={0}
+      aria-label={t('workspace.openTask', { title: task.title })}
+      data-selected={selectedTaskId === task.id || undefined}
+      data-task-row=""
+      data-grouped={grouped || undefined}
       data-group-last={grouped && isLastInGroup ? true : undefined}
+      className={rowCss}
+      onClick={() => onOpen(task)}
+      onContextMenu={(event) => onTaskContextMenu(event, task)}
+      onKeyDown={(event) =>
+        handleTaskRowKeyDown(event, {
+          task,
+          hasChildren: hasVisibleSubtasks,
+          expanded: isSubtasksExpanded,
+          onOpen,
+          onToggleStatus,
+          onToggleSubtasks,
+        })
+      }
     >
-      <div className={taskTitleContentCss}>
-        {grouped && task.can_edit && groups.length > 0 && (
-          <TaskMoveHandle task={task} />
-        )}
-        <TaskHierarchyToggle
-          task={task}
-          depth={treeDepth}
-          ancestorHasNextSiblings={ancestorHasNextSiblings}
-          isLastSibling={isLastSibling}
-          hasChildren={hasVisibleSubtasks}
-          expanded={isSubtasksExpanded}
-          onToggle={onToggleSubtasks}
-        />
-        <TaskCompletionButton
-          task={task}
-          status={statusOverride ?? task.status}
-          pending={statusPending}
-          onToggle={() => onToggleStatus(task)}
-        />
-        {editingCell?.taskId === task.id && editingCell.field === 'title' ? (
-          <InlineTitleEditor
-            initialValue={task.title}
-            pending={inlinePending}
-            onSave={(title) => onSaveInlineEdit(task, { title })}
-            onCancel={onCancelInlineEdit}
-          />
-        ) : (
+      {visibleColumns.includes('title') && (
+        <td
+          className={grouped ? groupedTaskTitleCellCss : undefined}
+          data-group-last={grouped && isLastInGroup ? true : undefined}
+        >
+          <div className={taskTitleContentCss}>
+            {grouped && task.can_edit && groups.length > 0 && (
+              <TaskMoveHandle task={task} />
+            )}
+            <TaskHierarchyToggle
+              task={task}
+              depth={treeDepth}
+              ancestorHasNextSiblings={ancestorHasNextSiblings}
+              isLastSibling={isLastSibling}
+              hasChildren={hasVisibleSubtasks}
+              expanded={isSubtasksExpanded}
+              onToggle={onToggleSubtasks}
+            />
+            <TaskCompletionButton
+              task={task}
+              status={statusOverride ?? task.status}
+              pending={statusPending}
+              onToggle={() => onToggleStatus(task)}
+            />
+            {editingCell?.taskId === task.id &&
+            editingCell.field === 'title' ? (
+              <InlineTitleEditor
+                initialValue={task.title}
+                pending={inlinePending}
+                onSave={(title) => onSaveInlineEdit(task, { title })}
+                onCancel={onCancelInlineEdit}
+              />
+            ) : (
+              <InlineEditButton
+                task={task}
+                fieldLabel={t('workspace.columns.title')}
+                pending={
+                  inlinePending &&
+                  editingCell?.taskId === task.id &&
+                  editingCell.field === 'title'
+                }
+                onEdit={() => onBeginInlineEdit(task, 'title')}
+              >
+                <TaskTitle
+                  task={task}
+                  status={statusOverride ?? task.status}
+                  showAncestorPath={showAncestorPath}
+                />
+              </InlineEditButton>
+            )}
+            {(onShare ||
+              onDeleteTask ||
+              (grouped && task.can_edit && groups.length > 0)) && (
+              <button
+                type="button"
+                data-row-action=""
+                className={rowActionButtonCss}
+                aria-label={t('actions.more')}
+                draggable={false}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => onTaskContextMenu(event, task)}
+              >
+                <RiMoreLine size={17} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        </td>
+      )}
+      {visibleColumns.includes('assignee') && (
+        <td>
           <InlineEditButton
             task={task}
-            fieldLabel={t('workspace.columns.title')}
+            fieldLabel={t('workspace.columns.assignee')}
+            select
             pending={
               inlinePending &&
               editingCell?.taskId === task.id &&
-              editingCell.field === 'title'
+              editingCell.field === 'assignee'
             }
-            onEdit={() => onBeginInlineEdit(task, 'title')}
+            onEdit={() => onBeginInlineEdit(task, 'assignee')}
           >
-            <TaskTitle
-              task={task}
-              status={statusOverride ?? task.status}
-              showAncestorPath={showAncestorPath}
+            <TaskAssigneesDisplay users={taskAssignees(task)} />
+          </InlineEditButton>
+        </td>
+      )}
+      {visibleColumns.includes('priority') && (
+        <td>
+          {editingCell?.taskId === task.id &&
+          editingCell.field === 'priority' ? (
+            <InlinePriorityEditor
+              initialValue={task.priority}
+              pending={inlinePending}
+              label={t('workspace.columns.priority')}
+              onSave={(priority) => onSaveInlineEdit(task, { priority })}
+              onCancel={onCancelInlineEdit}
             />
-          </InlineEditButton>
-        )}
-        {(onShare ||
-          onDeleteTask ||
-          (grouped && task.can_edit && groups.length > 0)) && (
-          <button
-            type="button"
-            data-row-action=""
-            className={rowActionButtonCss}
-            aria-label={t('actions.more')}
-            draggable={false}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => onTaskContextMenu(event, task)}
-          >
-            <RiMoreLine size={17} aria-hidden="true" />
-          </button>
-        )}
-      </div>
-    </td>
-    <td>
-      <InlineEditButton
-        task={task}
-        fieldLabel={t('workspace.columns.assignee')}
-        select
-        pending={
-          inlinePending &&
-          editingCell?.taskId === task.id &&
-          editingCell.field === 'assignee'
-        }
-        onEdit={() => onBeginInlineEdit(task, 'assignee')}
-      >
-        <TaskAssigneesDisplay users={taskAssignees(task)} />
-      </InlineEditButton>
-    </td>
-    <td>
-      {editingCell?.taskId === task.id && editingCell.field === 'priority' ? (
-        <InlinePriorityEditor
-          initialValue={task.priority}
-          pending={inlinePending}
-          label={t('workspace.columns.priority')}
-          onSave={(priority) => onSaveInlineEdit(task, { priority })}
-          onCancel={onCancelInlineEdit}
-        />
-      ) : (
-        <InlineEditButton
-          task={task}
-          fieldLabel={t('workspace.columns.priority')}
-          select
-          pending={
-            inlinePending &&
-            editingCell?.taskId === task.id &&
-            editingCell.field === 'priority'
-          }
-          onEdit={() => onBeginInlineEdit(task, 'priority')}
-        >
-          <TaskPriorityBadge priority={task.priority} />
-        </InlineEditButton>
+          ) : (
+            <InlineEditButton
+              task={task}
+              fieldLabel={t('workspace.columns.priority')}
+              select
+              pending={
+                inlinePending &&
+                editingCell?.taskId === task.id &&
+                editingCell.field === 'priority'
+              }
+              onEdit={() => onBeginInlineEdit(task, 'priority')}
+            >
+              <TaskPriorityBadge priority={task.priority} />
+            </InlineEditButton>
+          )}
+        </td>
       )}
-    </td>
-    <td className={secondaryColumnCss}>
-      {editingCell?.taskId === task.id && editingCell.field === 'startDate' ? (
-        <InlineDateEditor
-          initialValue={task.start_date || ''}
-          max={task.due_date || undefined}
-          pending={inlinePending}
-          label={t('workspace.columns.startDate')}
-          onSave={(startDate) =>
-            onSaveInlineEdit(task, { start_date: startDate || null })
-          }
-          onCancel={onCancelInlineEdit}
-        />
-      ) : (
-        <InlineEditButton
-          task={task}
-          fieldLabel={t('workspace.columns.startDate')}
-          date
-          onEdit={() => onBeginInlineEdit(task, 'startDate')}
-        >
-          {formatDate(task.start_date)}
-        </InlineEditButton>
+      {visibleColumns.includes('startDate') && (
+        <td className={secondaryColumnCss}>
+          {editingCell?.taskId === task.id &&
+          editingCell.field === 'startDate' ? (
+            <InlineDateEditor
+              initialValue={task.start_date || ''}
+              max={task.due_date || undefined}
+              pending={inlinePending}
+              label={t('workspace.columns.startDate')}
+              onSave={(startDate) =>
+                onSaveInlineEdit(task, { start_date: startDate || null })
+              }
+              onCancel={onCancelInlineEdit}
+            />
+          ) : (
+            <InlineEditButton
+              task={task}
+              fieldLabel={t('workspace.columns.startDate')}
+              date
+              onEdit={() => onBeginInlineEdit(task, 'startDate')}
+            >
+              {formatDate(task.start_date)}
+            </InlineEditButton>
+          )}
+        </td>
       )}
-    </td>
-    <td
-      data-overdue={
-        (showOverdueMarker && task.time_state === 'overdue') || undefined
-      }
-      className={dueDateCss}
-    >
-      {editingCell?.taskId === task.id && editingCell.field === 'dueDate' ? (
-        <InlineDateEditor
-          initialValue={task.due_date || ''}
-          min={task.start_date || undefined}
-          pending={inlinePending}
-          label={t('workspace.columns.dueDate')}
-          onSave={(dueDate) =>
-            onSaveInlineEdit(task, { due_date: dueDate || null })
+      {visibleColumns.includes('dueDate') && (
+        <td
+          data-overdue={
+            (showOverdueMarker && task.time_state === 'overdue') || undefined
           }
-          onCancel={onCancelInlineEdit}
-        />
-      ) : (
-        <InlineEditButton
-          task={task}
-          fieldLabel={t('workspace.columns.dueDate')}
-          date
-          onEdit={() => onBeginInlineEdit(task, 'dueDate')}
+          className={dueDateCss}
         >
-          {formatDate(task.due_date)}
-        </InlineEditButton>
+          {editingCell?.taskId === task.id &&
+          editingCell.field === 'dueDate' ? (
+            <InlineDateEditor
+              initialValue={task.due_date || ''}
+              min={task.start_date || undefined}
+              pending={inlinePending}
+              label={t('workspace.columns.dueDate')}
+              onSave={(dueDate) =>
+                onSaveInlineEdit(task, { due_date: dueDate || null })
+              }
+              onCancel={onCancelInlineEdit}
+            />
+          ) : (
+            <InlineEditButton
+              task={task}
+              fieldLabel={t('workspace.columns.dueDate')}
+              date
+              onEdit={() => onBeginInlineEdit(task, 'dueDate')}
+            >
+              {formatDate(task.due_date)}
+            </InlineEditButton>
+          )}
+        </td>
       )}
-    </td>
-    {!grouped && (
-      <td className={secondaryColumnCss}>
-        {editingCell?.taskId === task.id && editingCell.field === 'taskList' ? (
-          <InlineTaskListEditor
-            initialValue={task.task_list?.id || ''}
-            pending={inlinePending}
-            label={t('workspace.columns.taskList')}
-            taskLists={taskLists}
-            onSave={(taskListId) =>
-              onSaveInlineEdit(task, {
-                task_list_id: taskListId || null,
-                group_id: null,
-              })
-            }
-            onCancel={onCancelInlineEdit}
-          />
-        ) : (
-          <InlineEditButton
-            task={task}
-            fieldLabel={t('workspace.columns.taskList')}
-            select
-            onEdit={() => onBeginInlineEdit(task, 'taskList')}
-          >
-            {task.task_list?.name || t('taskLists.standalone')}
-          </InlineEditButton>
-        )}
-      </td>
-    )}
-    {!compact && (
-      <td className={secondaryColumnCss}>
-        <TaskUserDisplay user={task.creator} />
-      </td>
-    )}
-    {!compact && (
-      <td className={wideColumnCss}>{formatDateTime(task.created_at)}</td>
-    )}
-    <td aria-hidden="true" className={tableGutterCellCss} />
-  </tr>
+      {visibleColumns.includes('taskList') && (
+        <td className={secondaryColumnCss}>
+          {editingCell?.taskId === task.id &&
+          editingCell.field === 'taskList' ? (
+            <InlineTaskListEditor
+              initialValue={task.task_list?.id || ''}
+              pending={inlinePending}
+              label={t('workspace.columns.taskList')}
+              taskLists={taskLists}
+              onSave={(taskListId) =>
+                onSaveInlineEdit(task, {
+                  task_list_id: taskListId || null,
+                })
+              }
+              onCancel={onCancelInlineEdit}
+            />
+          ) : (
+            <InlineEditButton
+              task={task}
+              fieldLabel={t('workspace.columns.taskList')}
+              select
+              onEdit={() => onBeginInlineEdit(task, 'taskList')}
+            >
+              {task.task_list?.name || t('taskLists.standalone')}
+            </InlineEditButton>
+          )}
+        </td>
+      )}
+      {visibleColumns.includes('customGroup') && (
+        <td className={secondaryColumnCss}>
+          {task.group?.name || t('groups.ungrouped')}
+        </td>
+      )}
+      {visibleColumns.includes('creator') && (
+        <td className={secondaryColumnCss}>
+          <TaskUserDisplay user={task.creator} />
+        </td>
+      )}
+      {visibleColumns.includes('createdAt') && (
+        <td className={wideColumnCss}>{formatDateTime(task.created_at)}</td>
+      )}
+      {visibleColumns.includes('completedAt') && (
+        <td className={wideColumnCss}>
+          {task.completed_at ? formatDateTime(task.completed_at) : '—'}
+        </td>
+      )}
+      <td aria-hidden="true" className={tableGutterCellCss} />
+    </tr>
   )
 )
 
@@ -1745,9 +1809,49 @@ const buildTaskTreeRows = (
 const buildSections = (
   tasks: ApiTask[],
   groups: ApiTaskGroup[],
-  grouped: boolean
+  grouping: TaskGrouping,
+  t: TFunction<'tasks'>,
+  formatDate: (value: string, locale: string) => string,
+  locale: string
 ): TaskSection[] => {
-  if (!grouped) return [{ key: 'all', name: '', tasks }]
+  if (grouping === 'none') return [{ key: 'all', name: '', tasks }]
+  if (grouping !== 'custom') {
+    const sections = new Map<string, TaskSection>()
+    for (const task of tasks) {
+      const value =
+        grouping === 'task_list'
+          ? task.task_list?.id
+          : grouping === 'start_date'
+            ? task.start_date
+            : grouping === 'due_date'
+              ? task.due_date
+              : task.creator.id
+      const key = value || 'none'
+      const name =
+        grouping === 'task_list'
+          ? task.task_list?.name || t('taskLists.standalone')
+          : grouping === 'start_date'
+            ? task.start_date
+              ? formatDate(task.start_date, locale)
+              : t('workspace.grouping.noDate')
+            : grouping === 'due_date'
+              ? task.due_date
+                ? formatDate(task.due_date, locale)
+                : t('workspace.grouping.noDate')
+              : task.creator.full_name ||
+                task.creator.short_name ||
+                task.creator.email ||
+                t('workspace.grouping.unknownCreator')
+      const section = sections.get(key) || { key, name, tasks: [] }
+      section.tasks.push(task)
+      sections.set(key, section)
+    }
+    return [...sections.values()].sort((left, right) => {
+      if (left.key === 'none') return 1
+      if (right.key === 'none') return -1
+      return left.name.localeCompare(right.name, locale)
+    })
+  }
   const knownGroupIds = new Set(groups.map((group) => group.id))
   const sections: TaskSection[] = [...groups]
     .sort((left, right) =>
@@ -1788,16 +1892,20 @@ const DesktopGroupHeader = ({
   canManageGroups: boolean
   onRenameGroup?: (group: ApiTaskGroup) => void
   onDeleteGroup?: (group: ApiTaskGroup) => void
-  onMoveTask: (taskId: string, groupId?: string) => void
+  onMoveTask?: (taskId: string, groupId?: string) => void
   columnCount: number
 }) => {
   const { t } = useTranslation('tasks')
   return (
     <tr
       className={groupHeaderRowCss}
-      onDragOver={markTaskDropTarget}
-      onDragLeave={leaveTaskDropTarget}
-      onDrop={(event) => dropTask(event, section.group?.id, onMoveTask)}
+      onDragOver={onMoveTask ? markTaskDropTarget : undefined}
+      onDragLeave={onMoveTask ? leaveTaskDropTarget : undefined}
+      onDrop={
+        onMoveTask
+          ? (event) => dropTask(event, section.group?.id, onMoveTask)
+          : undefined
+      }
     >
       <td colSpan={columnCount}>
         <div className={groupHeaderCss}>
@@ -1828,6 +1936,7 @@ const DesktopGroupHeader = ({
             )}
             {canManageGroups &&
               section.group &&
+              section.group.can_manage !== false &&
               onRenameGroup &&
               onDeleteGroup && (
                 <GroupMoreMenu
@@ -1852,15 +1961,19 @@ const DesktopEmptyGroupRow = ({
   section: TaskSection
   columnCount: number
   canCreateTask: boolean
-  onMoveTask: (taskId: string, groupId?: string) => void
+  onMoveTask?: (taskId: string, groupId?: string) => void
 }) => {
   const { t } = useTranslation('tasks')
   return (
     <tr
       className={emptyGroupRowCss}
-      onDragOver={markTaskDropTarget}
-      onDragLeave={leaveTaskDropTarget}
-      onDrop={(event) => dropTask(event, section.group?.id, onMoveTask)}
+      onDragOver={onMoveTask ? markTaskDropTarget : undefined}
+      onDragLeave={onMoveTask ? leaveTaskDropTarget : undefined}
+      onDrop={
+        onMoveTask
+          ? (event) => dropTask(event, section.group?.id, onMoveTask)
+          : undefined
+      }
     >
       <td colSpan={columnCount}>
         {t(canCreateTask ? 'groups.empty' : 'groups.emptyReadOnly')}

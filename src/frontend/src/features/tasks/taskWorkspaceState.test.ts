@@ -44,6 +44,17 @@ describe('task workspace state', () => {
       time: 'overdue',
       priority: 'high',
       ordering: '-due_date',
+      grouping: 'none',
+      columns: [
+        'title',
+        'assignee',
+        'priority',
+        'startDate',
+        'dueDate',
+        'taskList',
+        'creator',
+        'createdAt',
+      ],
       taskList: 'list-1',
       mode: 'board',
       task: '42',
@@ -76,15 +87,15 @@ describe('task workspace state', () => {
     })
     expect(stateWithStatus(state, 'completed').time).toBe('all')
     expect(stateForTaskList(state, 'list-1')).toMatchObject({
-      scope: 'all',
+      scope: 'assigned',
       status: 'open',
       taskList: 'list-1',
       mode: 'list',
     })
     expect(stateForTaskList(state, 'unassigned')).toMatchObject({
-      scope: 'all',
-      status: 'all',
-      priority: 'all',
+      scope: 'assigned',
+      status: 'open',
+      priority: 'urgent',
       taskList: 'unassigned',
       mode: 'list',
     })
@@ -104,7 +115,7 @@ describe('task workspace state', () => {
         savedView: 'view-id',
       })
     ).toBe(
-      'scope=all&status=completed&time=all&priority=low&ordering=-created_at&task_list=list%2Fid&view=board&task=task-id&saved_view=view-id'
+      'scope=all&status=completed&time=all&priority=low&ordering=-created_at&grouping=none&columns=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2Ccreator%2CcreatedAt&task_list=list%2Fid&view=board&task=task-id&saved_view=view-id'
     )
   })
 
@@ -125,7 +136,7 @@ describe('task workspace state', () => {
     const config = taskWorkspaceStateToSavedViewConfig(state)
 
     expect(config).toEqual({
-      version: 1,
+      version: 2,
       scope: 'following',
       status: 'all',
       time: 'overdue',
@@ -133,6 +144,17 @@ describe('task workspace state', () => {
       task_list: 'list-1',
       ordering: 'due_date',
       view: 'board',
+      grouping: 'none',
+      columns: [
+        'title',
+        'assignee',
+        'priority',
+        'startDate',
+        'dueDate',
+        'taskList',
+        'creator',
+        'createdAt',
+      ],
     })
     expect(stateForSavedView(state, config)).toEqual({
       ...state,

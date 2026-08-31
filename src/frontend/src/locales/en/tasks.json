@@ -31,6 +31,18 @@
     "newTask": "New task",
     "filters": "Task filters",
     "statusFilter": "Status",
+    "fieldSettings": "Fields",
+    "grouping": {
+      "label": "Group by",
+      "none": "No grouping",
+      "custom": "Custom group",
+      "task_list": "Task list",
+      "start_date": "Start date",
+      "due_date": "Due date",
+      "creator": "Creator",
+      "noDate": "No date",
+      "unknownCreator": "Unknown creator"
+    },
     "statusOptions": { "open": "Incomplete", "all": "All statuses" },
     "clearFilters": "Clear filters",
     "filteredResultCount": "{{count}} matching tasks",
@@ -51,8 +63,10 @@
       "startDate": "Start date",
       "dueDate": "Due date",
       "taskList": "Task list",
+      "customGroup": "Custom group",
       "creator": "Creator",
-      "createdAt": "Created"
+      "createdAt": "Created",
+      "completedAt": "Completed"
     },
     "openTask": "Open task: {{title}}",
     "quickComplete": "Complete task: {{title}}",

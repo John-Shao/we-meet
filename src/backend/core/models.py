@@ -2264,7 +2264,6 @@ class TaskListGroup(BaseModel):
     def __str__(self) -> str:
         return self.name
 
-
 class TaskList(BaseModel):
     """An organization-scoped task list, comparable to a lightweight project."""
 
@@ -2365,12 +2364,35 @@ class TaskListAccess(BaseModel):
 
 
 class TaskGroup(BaseModel):
-    """A custom ordered section inside a task list."""
+    """An organization-scoped custom task group.
+
+    ``task_list`` is retained as an optional legacy origin so existing list
+    sections keep working during the rolling Web/App migration.  Task
+    placement no longer depends on it: a task group is an orthogonal task
+    property and can be used with any task list in the same organization.
+    """
+
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        related_name="task_groups",
+        verbose_name=_("organization"),
+    )
+    creator = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="created_task_groups",
+        null=True,
+        blank=True,
+        verbose_name=_("creator"),
+    )
 
     task_list = models.ForeignKey(
         TaskList,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="groups",
+        null=True,
+        blank=True,
         verbose_name=_("task list"),
     )
     name = models.CharField(_("name"), max_length=80)
@@ -2391,6 +2413,14 @@ class TaskGroup(BaseModel):
 
     def __str__(self) -> str:
         return self.name
+
+    def save(self, *args, **kwargs):
+        # Compatibility for callers creating a legacy list section directly.
+        if self.organization_id is None and self.task_list_id is not None:
+            self.organization_id = self.task_list.organization_id
+        if self.creator_id is None and self.task_list_id is not None:
+            self.creator_id = self.task_list.creator_id
+        super().save(*args, **kwargs)
 
 
 class TaskRecurrenceRule(BaseModel):

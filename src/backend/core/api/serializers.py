@@ -550,7 +550,7 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
     """Validate and serialize a personal task workspace view."""
 
     invalid_task_list = serializers.SerializerMethodField()
-    _CONFIG_KEYS = {
+    _CONFIG_KEYS_V1 = {
         "version",
         "scope",
         "status",
@@ -560,6 +560,7 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
         "ordering",
         "view",
     }
+    _CONFIG_KEYS_V2 = _CONFIG_KEYS_V1 | {"grouping", "columns"}
     _CHOICES = {
         "scope": {"assigned", "created", "following", "all"},
         "status": {"open", "all", "todo", "completed"},
@@ -581,6 +582,26 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
             "-created_at",
         },
         "view": {"list", "board", "analytics"},
+        "grouping": {
+            "none",
+            "custom",
+            "task_list",
+            "start_date",
+            "due_date",
+            "creator",
+        },
+    }
+    _COLUMNS = {
+        "title",
+        "assignee",
+        "priority",
+        "startDate",
+        "dueDate",
+        "taskList",
+        "customGroup",
+        "creator",
+        "createdAt",
+        "completedAt",
     }
 
     class Meta:
@@ -616,14 +637,34 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
         return value
 
     def validate_config(self, value):
-        if not isinstance(value, dict) or set(value) != self._CONFIG_KEYS:
+        if not isinstance(value, dict):
             raise serializers.ValidationError("Use the supported task view fields.")
-        if value.get("version") != 1:
+        version = value.get("version")
+        expected_keys = (
+            self._CONFIG_KEYS_V1 if version == 1 else self._CONFIG_KEYS_V2
+        )
+        if set(value) != expected_keys:
+            raise serializers.ValidationError("Use the supported task view fields.")
+        if version not in {1, 2}:
             raise serializers.ValidationError("Unsupported task view version.")
         for field, choices in self._CHOICES.items():
+            if field not in value:
+                continue
             if value.get(field) not in choices:
                 raise serializers.ValidationError(
                     {field: "Unsupported task view value."}
+                )
+        if version == 2:
+            columns = value.get("columns")
+            if (
+                not isinstance(columns, list)
+                or not columns
+                or len(columns) != len(set(columns))
+                or any(column not in self._COLUMNS for column in columns)
+                or "title" not in columns
+            ):
+                raise serializers.ValidationError(
+                    {"columns": "Choose unique supported columns including title."}
                 )
         task_list = value.get("task_list")
         if task_list not in {"all", "unassigned"}:
@@ -803,10 +844,11 @@ class TaskListGroupSerializer(serializers.ModelSerializer):
 
 
 class TaskGroupSerializer(serializers.ModelSerializer):
-    """Serialize a custom section inside a task list."""
+    """Serialize an organization-scoped custom task group."""
 
     task_count = serializers.SerializerMethodField()
     can_delete = serializers.SerializerMethodField()
+    can_manage = serializers.SerializerMethodField()
 
     @staticmethod
     def _task_count(obj):
@@ -819,6 +861,26 @@ class TaskGroupSerializer(serializers.ModelSerializer):
     def get_task_count(self, obj):
         return self._task_count(obj)
 
+    def get_can_manage(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return False
+        if obj.creator_id == user.id:
+            return True
+        task_list = obj.task_list
+        if task_list is None:
+            return False
+        if task_list.creator_id == user.id:
+            return True
+        return task_list.accesses.filter(
+            user=user,
+            role__in={
+                models.TaskListAccess.Role.EDITOR,
+                models.TaskListAccess.Role.OWNER,
+            },
+        ).exists()
+
     class Meta:
         model = models.TaskGroup
         fields = [
@@ -827,10 +889,18 @@ class TaskGroupSerializer(serializers.ModelSerializer):
             "sort_order",
             "task_count",
             "can_delete",
+            "can_manage",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "task_count", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "task_count",
+            "can_delete",
+            "can_manage",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class TaskListSerializer(serializers.ModelSerializer):

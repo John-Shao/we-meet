@@ -13,7 +13,7 @@ export const TaskGroupForm = ({
   onCancel,
   onCreated,
 }: {
-  taskListId: string
+  taskListId?: string
   inputRef?: RefObject<HTMLInputElement>
   onCancel: () => void
   onCreated: (group: ApiTaskGroup) => void

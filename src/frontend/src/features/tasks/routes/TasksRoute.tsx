@@ -43,6 +43,7 @@ import {
   useTask,
   useTaskListGroups,
   useTaskLists,
+  useTaskGroups,
   useTaskSettings,
   useTaskSavedViews,
   useUpdateTaskList,
@@ -77,6 +78,7 @@ import { TaskSavedViewForm } from '../components/TaskSavedViewForm'
 import { TaskSavedViewManager } from '../components/TaskSavedViewManager'
 import {
   buildTaskWorkspaceSearch,
+  effectiveTaskColumns,
   hasActiveTaskFilters,
   isCompletedView,
   parseTaskWorkspaceState,
@@ -160,6 +162,7 @@ const TasksAuthenticated = () => {
   const updateSavedViewMutation = useUpdateTaskSavedView()
   const deleteSavedViewMutation = useDeleteTaskSavedView()
   const { data: taskLists = [] } = useTaskLists()
+  const { data: taskGroups = [] } = useTaskGroups()
   const { data: taskListGroups = [] } = useTaskListGroups()
   const { data: standaloneTaskCountData } = useStandaloneTaskCount()
   const { data: taskSettings } = useTaskSettings()
@@ -438,7 +441,10 @@ const TasksAuthenticated = () => {
       navigateState({
         ...state,
         mode,
-        status: lastListStatusRef.current,
+        status:
+          !state.savedView && state.taskList === 'all' && isCompletedView(state)
+            ? 'completed'
+            : lastListStatusRef.current,
         task: undefined,
       })
       return
@@ -447,7 +453,10 @@ const TasksAuthenticated = () => {
     navigateState({
       ...state,
       mode,
-      status: 'all',
+      status:
+        !state.savedView && state.taskList === 'all' && isCompletedView(state)
+          ? 'completed'
+          : 'all',
       time: mode === 'analytics' ? 'all' : state.time,
       task: undefined,
     })
@@ -470,6 +479,7 @@ const TasksAuthenticated = () => {
       taskId={state.task}
       fallbackTask={selectedTask}
       taskLists={taskLists}
+      taskGroups={taskGroups}
       sharedVia={sharedVia}
       onCreateSubtask={(parentTask) => {
         setCreateParentTask(parentTask)
@@ -586,7 +596,7 @@ const TasksAuthenticated = () => {
             >
               <RiSettings3Line size={19} aria-hidden="true" />
             </Button>
-            {selectedTaskList?.can_manage && state.mode === 'list' && (
+            {state.mode === 'list' && state.grouping === 'custom' && (
               <Button
                 variant="secondary"
                 size="action"
@@ -648,6 +658,17 @@ const TasksAuthenticated = () => {
             onPriorityChange={(priority: TaskPriorityFilter) =>
               updateFilter({ priority })
             }
+            onGroupingChange={(grouping) =>
+              navigateState({ ...state, grouping, task: undefined })
+            }
+            onColumnsChange={(columns) =>
+              navigateState({ ...state, columns, task: undefined })
+            }
+            statusLocked={
+              !state.savedView &&
+              state.taskList === 'all' &&
+              isCompletedView(state)
+            }
             onClear={() =>
               navigateState({
                 ...state,
@@ -669,7 +690,7 @@ const TasksAuthenticated = () => {
               <TaskListSkeleton
                 label={t('loading')}
                 compact={panelOpen}
-                grouped={Boolean(selectedTaskList)}
+                grouped={state.grouping !== 'none'}
               />
             )
           ) : error ? (
@@ -744,12 +765,13 @@ const TasksAuthenticated = () => {
                 showOverdueMarker={taskSettings?.overdue_marker_enabled ?? true}
                 compact={panelOpen}
                 taskLists={taskLists}
+                columns={effectiveTaskColumns(state)}
+                grouping={state.grouping}
                 ordering={state.ordering}
                 onOrderingChange={(ordering) =>
                   navigateState({ ...state, ordering, task: undefined })
                 }
-                groups={selectedTaskList?.groups}
-                grouped={Boolean(selectedTaskList)}
+                groups={taskGroups}
                 selectedTaskId={state.task}
                 onOpen={(task) => {
                   setCreating(false)
@@ -765,7 +787,8 @@ const TasksAuthenticated = () => {
                   else rowRefs.current.delete(taskId)
                 }}
                 onCreateTaskInGroup={
-                  selectedTaskList?.can_create_tasks
+                  state.grouping === 'custom' &&
+                  (!selectedTaskList || selectedTaskList.can_create_tasks)
                     ? (groupId) => {
                         setCreateParentTask(null)
                         setCreateGroupId(groupId)
@@ -773,7 +796,7 @@ const TasksAuthenticated = () => {
                       }
                     : undefined
                 }
-                canManageGroups={Boolean(selectedTaskList?.can_manage)}
+                canManageGroups
                 onRenameGroup={setGroupRenaming}
                 onDeleteGroup={(group) => void deleteGroup(group)}
               />
@@ -821,6 +844,7 @@ const TasksAuthenticated = () => {
                 taskList.can_create_tasks ||
                 taskList.id === createParentTask?.task_list?.id
             )}
+            taskGroups={taskGroups}
             defaultTaskListId={selectedTaskList?.id}
             defaultGroupId={createGroupId}
             parentTask={createParentTask || undefined}
@@ -1038,7 +1062,7 @@ const TasksAuthenticated = () => {
           />
         </Modal>
       )}
-      {groupCreating && selectedTaskList && (
+      {groupCreating && (
         <Modal
           ariaLabel={t('groups.create')}
           onClose={() => setGroupCreating(false)}
@@ -1053,7 +1077,6 @@ const TasksAuthenticated = () => {
             />
           </div>
           <TaskGroupForm
-            taskListId={selectedTaskList.id}
             inputRef={groupNameRef}
             onCancel={() => setGroupCreating(false)}
             onCreated={() => setGroupCreating(false)}

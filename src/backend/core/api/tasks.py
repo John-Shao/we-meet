@@ -509,16 +509,16 @@ def _filter_by_task_list(queryset, *, task_list_filter, user):
     return queryset.filter(task_list=task_list)
 
 
-def _validate_unique_task_group_name(name, task_list, exclude=None):
+def _validate_unique_task_group_name(name, organization, exclude=None):
     queryset = models.TaskGroup.objects.filter(
-        task_list=task_list,
+        organization=organization,
         name__iexact=name,
     )
     if exclude is not None:
         queryset = queryset.exclude(pk=exclude.pk)
     if queryset.exists():
         raise serializers.ValidationError(
-            {"name": "This task list already has a group with this name."}
+            {"name": "This organization already has a task group with this name."}
         )
 
 
@@ -558,7 +558,7 @@ class TaskFollowerValidationMixin:
 
 
 class TaskPlacementValidationMixin:
-    """Validate task-list and group placement as one organization-scoped pair."""
+    """Validate the orthogonal task-list and custom-group properties."""
 
     def _inherits_editable_parent_task_list(self, task_list, user):
         if getattr(self, "instance", None) is not None:
@@ -597,25 +597,23 @@ class TaskPlacementValidationMixin:
         return task_list
 
     def validate_group_id(self, group):
+        if group is None:
+            return None
+        user = self.context["request"].user
+        organization = (
+            self.instance.organization
+            if getattr(self, "instance", None) is not None
+            else get_caller_organization(user)
+        )
+        if organization is None or group.organization_id != organization.id:
+            raise serializers.ValidationError(
+                "Choose a custom group from the task organization."
+            )
         return group
 
     def validate_placement(self, attrs):
-        current_task_list = getattr(self.instance, "task_list", None)
-        task_list = attrs.get("task_list", current_task_list)
-        group = attrs.get("group", getattr(self.instance, "group", None))
-        if (
-            "task_list" in attrs
-            and "group" not in attrs
-            and getattr(current_task_list, "id", None) != getattr(task_list, "id", None)
-        ):
-            attrs["group"] = None
-            group = None
-        if group is not None and (
-            task_list is None or group.task_list_id != task_list.id
-        ):
-            raise serializers.ValidationError(
-                {"group_id": "Choose a group from the selected task list."}
-            )
+        # A task list and a custom group are deliberately independent. Moving a
+        # task between lists must not silently clear its custom group.
         return attrs
 
 
@@ -1295,8 +1293,14 @@ class TaskListViewSet(
             context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
-        _validate_unique_task_group_name(serializer.validated_data["name"], task_list)
-        group = serializer.save(task_list=task_list)
+        _validate_unique_task_group_name(
+            serializer.validated_data["name"], task_list.organization
+        )
+        group = serializer.save(
+            task_list=task_list,
+            organization=task_list.organization,
+            creator=request.user,
+        )
         return Response(
             TaskGroupSerializer(group, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
@@ -1339,25 +1343,39 @@ class TaskListViewSet(
 
 
 class TaskGroupViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
     mixins.UpdateModelMixin,
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Rename, reorder, or remove a group from an organization task list."""
+    """Manage organization custom groups independently from task lists."""
 
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = TaskGroupSerializer
     pagination_class = None
-    http_method_names = ["patch", "delete", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
         organization = get_caller_organization(self.request.user)
         if organization is None:
             return models.TaskGroup.objects.none()
-        return models.TaskGroup.objects.filter(
-            task_list__organization=organization,
-            task_list__is_archived=False,
-        ).select_related("task_list", "task_list__creator")
+        return (
+            models.TaskGroup.objects.filter(organization=organization)
+            .annotate(_task_count=Count("tasks", distinct=True))
+            .select_related("task_list", "creator")
+        )
+
+    def perform_create(self, serializer):
+        organization = get_caller_organization(self.request.user)
+        if organization is None:
+            raise serializers.ValidationError(
+                {"detail": "Join an organization before creating a task group."}
+            )
+        _validate_unique_task_group_name(
+            serializer.validated_data["name"], organization
+        )
+        serializer.save(organization=organization, creator=self.request.user)
 
     def perform_update(self, serializer):
         group = self.get_object()
@@ -1365,7 +1383,7 @@ class TaskGroupViewSet(
         name = serializer.validated_data.get("name", group.name)
         _validate_unique_task_group_name(
             name,
-            group.task_list,
+            group.organization,
             exclude=group,
         )
         serializer.save()
@@ -1381,9 +1399,12 @@ class TaskGroupViewSet(
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def _ensure_can_manage(self, group):
-        if not _can_edit_task_list(group.task_list, self.request.user):
+        can_manage_legacy_group = group.task_list is not None and _can_edit_task_list(
+            group.task_list, self.request.user
+        )
+        if group.creator_id != self.request.user.id and not can_manage_legacy_group:
             raise PermissionDenied(
-                "Only task-list editors and the owner can manage its groups."
+                "Only the group creator or a legacy task-list editor can manage it."
             )
 
 
