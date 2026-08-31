@@ -171,6 +171,24 @@ export const TaskFilterToolbar = ({
         />
         <Select
           className={filterSelectCss}
+          label={t('priorityFilters.label')}
+          aria-label={t('priorityFilters.label')}
+          items={priorityFilters.map((value) => ({
+            value,
+            label: t(`priorityFilters.${value}`),
+          }))}
+          selectedKey={state.priority}
+          onSelectionChange={(key) =>
+            onPriorityChange(String(key) as TaskPriorityFilter)
+          }
+        />
+        <span
+          role="separator"
+          aria-orientation="vertical"
+          className={displaySettingsSeparatorCss}
+        />
+        <Select
+          className={filterSelectCss}
           label={t('workspace.grouping.label')}
           aria-label={t('workspace.grouping.label')}
           items={groupingOptions.map((value) => ({
@@ -212,19 +230,6 @@ export const TaskFilterToolbar = ({
             })}
           </div>
         </details>
-        <Select
-          className={filterSelectCss}
-          label={t('priorityFilters.label')}
-          aria-label={t('priorityFilters.label')}
-          items={priorityFilters.map((value) => ({
-            value,
-            label: t(`priorityFilters.${value}`),
-          }))}
-          selectedKey={state.priority}
-          onSelectionChange={(key) =>
-            onPriorityChange(String(key) as TaskPriorityFilter)
-          }
-        />
       </div>
       {activeFilters.length > 0 && (
         <div className={activeFiltersCss} aria-live="polite">
@@ -276,6 +281,13 @@ const filterSelectCss = css({
   flexDirection: 'column',
   gap: '0.25rem',
   minWidth: '8rem',
+})
+const displaySettingsSeparatorCss = css({
+  width: '1px',
+  height: '2rem',
+  alignSelf: 'end',
+  marginX: '0.25rem',
+  backgroundColor: 'greyscale.300',
 })
 const columnPickerCss = css({
   position: 'relative',
