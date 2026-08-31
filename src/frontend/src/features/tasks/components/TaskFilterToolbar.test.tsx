@@ -109,4 +109,27 @@ describe('TaskFilterToolbar', () => {
       })
     ).toBe(false)
   })
+
+  it('closes field settings after an outside press', () => {
+    render(
+      <TaskFilterToolbar
+        state={state}
+        resultCount={7}
+        onStatusChange={vi.fn()}
+        onTimeChange={vi.fn()}
+        onPriorityChange={vi.fn()}
+        onGroupingChange={vi.fn()}
+        onColumnsChange={vi.fn()}
+        onClear={vi.fn()}
+      />
+    )
+
+    const summary = screen.getByText('workspace.fieldSettings')
+    const picker = summary.closest('details')!
+    fireEvent.click(summary)
+    expect(picker).toHaveAttribute('open')
+
+    fireEvent.pointerDown(document.body)
+    expect(picker).not.toHaveAttribute('open')
+  })
 })

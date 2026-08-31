@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RiCloseLine, RiFilter3Line } from '@remixicon/react'
 
@@ -72,6 +73,7 @@ export const TaskFilterToolbar = ({
   onClear: () => void
 }) => {
   const { t } = useTranslation('tasks')
+  const columnPickerRef = useRef<HTMLDetailsElement>(null)
   const selectedColumns = state.columns ?? columnOptions.slice(0, 8)
   const isClosed = state.status === 'completed'
   const defaultStatus = state.mode === 'board' ? 'all' : 'open'
@@ -101,6 +103,30 @@ export const TaskFilterToolbar = ({
         }
       : null,
   ].filter((filter): filter is NonNullable<typeof filter> => Boolean(filter))
+
+  useEffect(() => {
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      const picker = columnPickerRef.current
+      if (
+        picker?.open &&
+        event.target instanceof Node &&
+        !picker.contains(event.target)
+      ) {
+        picker.open = false
+      }
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && columnPickerRef.current?.open) {
+        columnPickerRef.current.open = false
+      }
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePress, true)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePress, true)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [])
 
   return (
     <section className={filterRegionCss} aria-label={t('workspace.filters')}>
@@ -149,7 +175,7 @@ export const TaskFilterToolbar = ({
             onGroupingChange(String(key) as TaskGrouping)
           }
         />
-        <details className={columnPickerCss}>
+        <details ref={columnPickerRef} className={columnPickerCss}>
           <summary>{t('workspace.fieldSettings')}</summary>
           <div>
             {columnOptions.map((column) => {
