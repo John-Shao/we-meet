@@ -1654,6 +1654,11 @@ const TaskTitle = ({
     >
       <span className={titleLineCss}>
         <strong>{task.title}</strong>
+        {filteredParent && (
+          <span className={titleMetaCss}>
+            {'<'} {filteredParent.title}
+          </span>
+        )}
         {task.descendant_progress.total > 0 && (
           <span
             className={taskSubtaskProgressCss}
@@ -1668,11 +1673,6 @@ const TaskTitle = ({
           </span>
         )}
       </span>
-      {filteredParent && (
-        <span className={titleMetaCss}>
-          {task.title} {'<'} {filteredParent.title}
-        </span>
-      )}
       {task.source_room_name && (
         <span className={titleMetaCss}>
           {t('sourceMeeting', { name: task.source_room_name })}

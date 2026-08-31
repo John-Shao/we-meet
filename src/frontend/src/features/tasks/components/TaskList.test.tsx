@@ -253,7 +253,11 @@ describe('TaskList', () => {
       <TaskList tasks={[subtask]} onOpen={vi.fn()} registerRow={vi.fn()} />
     )
 
-    expect(screen.getByText('Prepare release < Backend')).toBeInTheDocument()
+    const subtaskTitle = screen.getByText('Prepare release', {
+      selector: 'strong',
+    })
+    const filteredParent = screen.getByText('< Backend')
+    expect(filteredParent.parentElement).toBe(subtaskTitle.parentElement)
     expect(
       screen.queryByText('Prepare release < Release')
     ).not.toBeInTheDocument()
