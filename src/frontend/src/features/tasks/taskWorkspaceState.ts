@@ -76,6 +76,19 @@ export const DEFAULT_TASK_COLUMNS: TaskColumnId[] = [
   'createdAt',
 ]
 
+const taskColumnsForQuickView = (view: TaskWorkspaceView): TaskColumnId[] => {
+  if (view === 'created') {
+    return DEFAULT_TASK_COLUMNS.filter((column) => column !== 'creator')
+  }
+  if (view === 'completed') {
+    return [...DEFAULT_TASK_COLUMNS, 'completedAt']
+  }
+  return [...DEFAULT_TASK_COLUMNS]
+}
+
+const taskColumnsForTaskList = (): TaskColumnId[] =>
+  DEFAULT_TASK_COLUMNS.filter((column) => column !== 'taskList')
+
 const TASK_GROUPINGS: readonly TaskGrouping[] = [
   'none',
   'custom',
@@ -139,6 +152,7 @@ export const stateForView = (
   return {
     ...state,
     ...preset,
+    columns: taskColumnsForQuickView(view),
     taskList: 'all',
     time: preset.status === 'open' ? state.time : 'all',
     savedView: undefined,
@@ -150,10 +164,19 @@ export const stateForTaskList = (
   taskList: string
 ): TaskWorkspaceState => ({
   ...state,
+  columns:
+    taskList === 'all' ? [...DEFAULT_TASK_COLUMNS] : taskColumnsForTaskList(),
   taskList,
   task: undefined,
   savedView: undefined,
 })
+
+export const taskColumnViewKey = (state: TaskWorkspaceState) => {
+  if (state.savedView) return `saved:${state.savedView}`
+  if (state.taskList !== 'all') return `task-list:${state.taskList}`
+  if (isCompletedView(state)) return 'quick:completed'
+  return `quick:${state.scope}`
+}
 
 export const stateWithStatus = (
   state: TaskWorkspaceState,

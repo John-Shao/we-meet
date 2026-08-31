@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import type { TaskColumnId } from './api/ApiTask'
+
 import {
   buildTaskWorkspaceSearch,
   DEFAULT_TASK_COLUMNS,
@@ -9,6 +11,7 @@ import {
   stateForSavedView,
   stateForView,
   stateWithStatus,
+  taskColumnViewKey,
   taskViewPresets,
   taskWorkspaceStateToSavedViewConfig,
 } from './taskWorkspaceState'
@@ -86,6 +89,7 @@ describe('task workspace state', () => {
       status: 'completed',
       time: 'all',
       priority: 'urgent',
+      columns: [...DEFAULT_TASK_COLUMNS, 'completedAt'],
     })
     expect(stateWithStatus(state, 'completed').time).toBe('all')
     expect(stateForTaskList(state, 'list-1')).toMatchObject({
@@ -93,6 +97,7 @@ describe('task workspace state', () => {
       status: 'open',
       taskList: 'list-1',
       mode: 'list',
+      columns: DEFAULT_TASK_COLUMNS.filter((column) => column !== 'taskList'),
     })
     expect(stateForTaskList(state, 'unassigned')).toMatchObject({
       scope: 'assigned',
@@ -101,6 +106,58 @@ describe('task workspace state', () => {
       taskList: 'unassigned',
       mode: 'list',
     })
+  })
+
+  it('keeps column defaults isolated between quick and task-list views', () => {
+    const state = {
+      ...parseTaskWorkspaceState(new URLSearchParams()),
+      columns: ['title', 'completedAt'] as TaskColumnId[],
+    }
+
+    expect(stateForView(state, 'assigned').columns).toEqual(
+      DEFAULT_TASK_COLUMNS
+    )
+    expect(stateForView(state, 'created').columns).toEqual(
+      DEFAULT_TASK_COLUMNS.filter((column) => column !== 'creator')
+    )
+    expect(stateForTaskList(state, 'list-1').columns).toEqual(
+      DEFAULT_TASK_COLUMNS.filter((column) => column !== 'taskList')
+    )
+  })
+
+  it('uses a distinct field profile key for every view identity', () => {
+    const state = parseTaskWorkspaceState(new URLSearchParams())
+    expect(taskColumnViewKey(state)).toBe('quick:assigned')
+    expect(taskColumnViewKey({ ...state, scope: 'created' })).toBe(
+      'quick:created'
+    )
+    expect(
+      taskColumnViewKey({ ...state, scope: 'all', status: 'completed' })
+    ).toBe('quick:completed')
+    expect(taskColumnViewKey({ ...state, taskList: 'list-1' })).toBe(
+      'task-list:list-1'
+    )
+    expect(taskColumnViewKey({ ...state, savedView: 'view-1' })).toBe(
+      'saved:view-1'
+    )
+  })
+
+  it('restores the field configuration owned by each saved view', () => {
+    const state = parseTaskWorkspaceState(new URLSearchParams())
+    const baseConfig = taskWorkspaceStateToSavedViewConfig(state)
+
+    expect(
+      stateForSavedView(state, {
+        ...baseConfig,
+        columns: ['title', 'priority'],
+      }).columns
+    ).toEqual(['title', 'priority'])
+    expect(
+      stateForSavedView(state, {
+        ...baseConfig,
+        columns: ['title', 'dueDate', 'completedAt'],
+      }).columns
+    ).toEqual(['title', 'dueDate', 'completedAt'])
   })
 
   it('serializes deep links with every workbench filter', () => {

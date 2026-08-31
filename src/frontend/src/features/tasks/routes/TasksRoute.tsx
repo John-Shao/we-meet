@@ -27,6 +27,7 @@ import type {
   ApiTaskList,
   ApiTaskListGroup,
   ApiTaskSavedView,
+  TaskColumnId,
   TaskPriorityFilter,
   TaskStatusFilter,
   TaskTimeFilter,
@@ -88,6 +89,7 @@ import {
   stateForTaskList,
   stateWithStatus,
   taskWorkspaceStateToSavedViewConfig,
+  taskColumnViewKey,
   type TaskWorkspaceMode,
   type TaskWorkspaceState,
   type TaskWorkspaceView,
@@ -148,6 +150,7 @@ const TasksAuthenticated = () => {
   const taskListGroupNameRef = useRef<HTMLInputElement>(null)
   const taskListGroupRenameRef = useRef<HTMLInputElement>(null)
   const savedViewNameRef = useRef<HTMLInputElement>(null)
+  const viewColumnsRef = useRef(new Map<string, TaskColumnId[]>())
   // Remember the list's status filter while the user is on board/analytics, so
   // switching back restores it instead of leaking the 'all' status forced there.
   const lastListStatusRef = useRef<TaskStatusFilter>('open')
@@ -309,6 +312,18 @@ const TasksAuthenticated = () => {
     navigate(`/tasks?${buildTaskWorkspaceSearch(next)}`, options)
   }
 
+  const stateWithViewColumns = (next: TaskWorkspaceState) => {
+    if (next.savedView) return next
+    const columns = viewColumnsRef.current.get(taskColumnViewKey(next))
+    return columns ? { ...next, columns: [...columns] } : next
+  }
+
+  const activeColumnViewKey = taskColumnViewKey(state)
+  useEffect(() => {
+    if (state.savedView) return
+    viewColumnsRef.current.set(activeColumnViewKey, [...state.columns])
+  }, [activeColumnViewKey, state.savedView, state.columns])
+
   const openSavedView = (view: ApiTaskSavedView) => {
     setCreating(false)
     setSavedViewNotice(
@@ -419,13 +434,15 @@ const TasksAuthenticated = () => {
   const changeView = (view: TaskWorkspaceView) => {
     setCreating(false)
     setSavedViewNotice('')
-    navigateState({ ...stateForView(state, view), task: undefined })
+    navigateState(
+      stateWithViewColumns({ ...stateForView(state, view), task: undefined })
+    )
   }
 
   const changeTaskList = (taskListId: string) => {
     setCreating(false)
     setSavedViewNotice('')
-    navigateState(stateForTaskList(state, taskListId))
+    navigateState(stateWithViewColumns(stateForTaskList(state, taskListId)))
   }
 
   const openTaskListManager = (listGroupId?: string) => {
@@ -661,9 +678,14 @@ const TasksAuthenticated = () => {
             onGroupingChange={(grouping) =>
               navigateState({ ...state, grouping, task: undefined })
             }
-            onColumnsChange={(columns) =>
+            onColumnsChange={(columns) => {
+              if (!state.savedView) {
+                viewColumnsRef.current.set(taskColumnViewKey(state), [
+                  ...columns,
+                ])
+              }
               navigateState({ ...state, columns, task: undefined })
-            }
+            }}
             statusLocked={
               !state.savedView &&
               state.taskList === 'all' &&
