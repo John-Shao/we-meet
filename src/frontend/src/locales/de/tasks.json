@@ -389,6 +389,8 @@
   "meta": {
     "assignee": "Verantwortlich",
     "creator": "Erstellt von",
+    "taskList": "Zugehörige Aufgabenliste",
+    "group": "Zugehörige Gruppe",
     "startDate": "Startdatum",
     "dueDate": "Fälligkeitsdatum",
     "createdAt": "Erstellt am",

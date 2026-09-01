@@ -421,6 +421,8 @@
   "meta": {
     "assignee": "Assignee",
     "creator": "Creator",
+    "taskList": "Task list",
+    "group": "Group",
     "startDate": "Start date",
     "dueDate": "Due date",
     "createdAt": "Created at",

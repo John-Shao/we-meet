@@ -97,7 +97,8 @@ type EditableTaskField =
   | 'startDate'
   | 'dueDate'
   | 'priority'
-  | 'placement'
+  | 'taskList'
+  | 'group'
   | 'parent'
   | 'description'
 
@@ -202,7 +203,6 @@ export const TaskDetailPanel = ({
     null
   )
   const panelBodyRef = useRef<HTMLDivElement>(null)
-  const placementEditorRef = useRef<HTMLDivElement>(null)
   const activeSaveTaskIdRef = useRef<string | null>(null)
   const patchMutation = usePatchTask()
   const { notifyAction, notifyFailure, notifySaveState } =
@@ -261,21 +261,6 @@ export const TaskDetailPanel = ({
     if (panelBodyRef.current) panelBodyRef.current.scrollTop = 0
   }, [taskId])
 
-  useEffect(() => {
-    if (editingField !== 'placement') return
-    const closeOnOutsidePress = (event: PointerEvent) => {
-      const target = event.target
-      if (!(target instanceof Node)) return
-      if (placementEditorRef.current?.contains(target)) return
-      if (target instanceof Element && target.closest('[role="listbox"]'))
-        return
-      setEditingField(null)
-    }
-    document.addEventListener('pointerdown', closeOnOutsidePress, true)
-    return () =>
-      document.removeEventListener('pointerdown', closeOnOutsidePress, true)
-  }, [editingField])
-
   if (!task && isLoading) {
     return (
       <PanelShell title={t('workspace.details')} onClose={onClose}>
@@ -310,10 +295,8 @@ export const TaskDetailPanel = ({
     if (field === 'priority') {
       setDraftPriority(task.priority === 'none' ? 'medium' : task.priority)
     }
-    if (field === 'placement') {
-      setDraftTaskListId(task.task_list?.id || '')
-      setDraftGroupId(task.group?.id || '')
-    }
+    if (field === 'taskList') setDraftTaskListId(task.task_list?.id || '')
+    if (field === 'group') setDraftGroupId(task.group?.id || '')
     if (field === 'parent') setDraftParentId(task.parent_id || '')
   }
 
@@ -962,76 +945,72 @@ export const TaskDetailPanel = ({
             <TaskPropertyGroupHeading title={t('detailGroups.planning')} />
             <TaskProperty
               icon={<RiListCheck3 size={18} />}
-              label={t('taskLists.field')}
-              editLabel={editLabel(t('taskLists.field'))}
+              label={t('meta.taskList')}
+              editLabel={editLabel(t('meta.taskList'))}
               control="select"
               isDisabled={patchMutation.isPending}
-              isEditing={editingField === 'placement'}
-              alignStart={editingField === 'placement'}
+              isEditing={editingField === 'taskList'}
+              alignStart={editingField === 'taskList'}
               onEdit={
-                task.can_edit ? () => beginEditing('placement') : undefined
+                task.can_edit ? () => beginEditing('taskList') : undefined
               }
             >
-              {editingField === 'placement' ? (
-                <div ref={placementEditorRef} className={inlineEditorCss}>
-                  <div
-                    className={placementEditorCss}
-                    data-has-group={taskGroups.length ? true : undefined}
-                  >
-                    <DetailInlineSelect
-                      label={t('taskLists.field')}
-                      items={[
-                        { value: '', label: t('taskLists.standalone') },
-                        ...taskLists.map((taskList) => ({
-                          value: taskList.id,
-                          label: taskList.name,
-                        })),
-                      ]}
-                      value={draftTaskListId}
-                      disabled={patchMutation.isPending}
-                      onCancel={() => {
-                        if (!taskGroups.length) {
-                          setEditingField(null)
-                        }
-                      }}
-                      onChange={(taskListId) => {
-                        setDraftTaskListId(taskListId)
-                        void saveField(
-                          {
-                            task_list_id: taskListId || null,
-                          },
-                          { keepEditing: Boolean(taskGroups.length) }
-                        )
-                      }}
-                    />
-                    {taskGroups.length > 0 && (
-                      <DetailInlineSelect
-                        label={t('groups.field')}
-                        autoOpen={false}
-                        items={[
-                          { value: '', label: t('groups.ungrouped') },
-                          ...taskGroups.map((group) => ({
-                            value: group.id,
-                            label: group.name,
-                          })),
-                        ]}
-                        value={draftGroupId}
-                        disabled={patchMutation.isPending}
-                        onCancel={() => setEditingField(null)}
-                        onChange={(groupId) => {
-                          setDraftGroupId(groupId)
-                          void saveField({
-                            group_id: groupId || null,
-                          })
-                        }}
-                      />
-                    )}
-                  </div>
+              {editingField === 'taskList' ? (
+                <div className={inlineEditorCss}>
+                  <DetailInlineSelect
+                    label={t('meta.taskList')}
+                    items={[
+                      { value: '', label: t('taskLists.standalone') },
+                      ...taskLists.map((taskList) => ({
+                        value: taskList.id,
+                        label: taskList.name,
+                      })),
+                    ]}
+                    value={draftTaskListId}
+                    disabled={patchMutation.isPending}
+                    onCancel={() => setEditingField(null)}
+                    onChange={(taskListId) => {
+                      setDraftTaskListId(taskListId)
+                      void saveField({ task_list_id: taskListId || null })
+                    }}
+                  />
                 </div>
               ) : (
-                `${task.task_list?.name || t('taskLists.standalone')}${
-                  task.group ? ` / ${task.group.name}` : ''
-                }`
+                task.task_list?.name || t('taskLists.standalone')
+              )}
+            </TaskProperty>
+            <TaskProperty
+              icon={<RiGitBranchLine size={18} />}
+              label={t('meta.group')}
+              editLabel={editLabel(t('meta.group'))}
+              control="select"
+              isDisabled={patchMutation.isPending}
+              isEditing={editingField === 'group'}
+              alignStart={editingField === 'group'}
+              onEdit={task.can_edit ? () => beginEditing('group') : undefined}
+            >
+              {editingField === 'group' ? (
+                <div className={inlineEditorCss}>
+                  <DetailInlineSelect
+                    label={t('meta.group')}
+                    items={[
+                      { value: '', label: t('groups.ungrouped') },
+                      ...taskGroups.map((group) => ({
+                        value: group.id,
+                        label: group.name,
+                      })),
+                    ]}
+                    value={draftGroupId}
+                    disabled={patchMutation.isPending}
+                    onCancel={() => setEditingField(null)}
+                    onChange={(groupId) => {
+                      setDraftGroupId(groupId)
+                      void saveField({ group_id: groupId || null })
+                    }}
+                  />
+                </div>
+              ) : (
+                task.group?.name || t('groups.ungrouped')
               )}
             </TaskProperty>
             <TaskProperty
@@ -2301,14 +2280,6 @@ const detailInlineSelectCss = css({
     height: '1.75rem!',
     minHeight: '1.75rem!',
     fontSize: '0.8125rem',
-  },
-})
-const placementEditorCss = css({
-  display: 'grid',
-  gridTemplateColumns: '1fr',
-  gap: '0.5rem',
-  '&[data-has-group]': {
-    gridTemplateColumns: { base: '1fr', sm: '1fr 1fr' },
   },
 })
 const sourceLinkCss = css({ color: 'primary.600', textDecoration: 'none' })

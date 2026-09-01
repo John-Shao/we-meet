@@ -393,6 +393,8 @@
   "meta": {
     "assignee": "Verantwoordelijke",
     "creator": "Maker",
+    "taskList": "Bijbehorende takenlijst",
+    "group": "Bijbehorende groep",
     "startDate": "Startdatum",
     "dueDate": "Deadline",
     "createdAt": "Aangemaakt op",

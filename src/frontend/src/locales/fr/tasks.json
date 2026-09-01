@@ -389,6 +389,8 @@
   "meta": {
     "assignee": "Responsable",
     "creator": "Créateur",
+    "taskList": "Liste associée",
+    "group": "Groupe associé",
     "startDate": "Date de début",
     "dueDate": "Date d’échéance",
     "createdAt": "Créée le",

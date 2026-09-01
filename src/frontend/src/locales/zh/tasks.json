@@ -421,6 +421,8 @@
   "meta": {
     "assignee": "负责人",
     "creator": "创建人",
+    "taskList": "所属清单",
+    "group": "所属分组",
     "startDate": "开始日期",
     "dueDate": "截止日期",
     "createdAt": "创建时间",

@@ -7,7 +7,7 @@ import {
 } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ApiTask } from '../api/ApiTask'
+import type { ApiTask, ApiTaskGroup, ApiTaskList } from '../api/ApiTask'
 import { TaskDetailPanel } from './TaskSidePanel'
 
 const {
@@ -533,7 +533,8 @@ describe('TaskDetailPanel', () => {
       'meta.dueDate',
       'form.priority',
       'form.description',
-      'taskLists.field',
+      'meta.taskList',
+      'meta.group',
     ]
     editableFields.forEach((field) => {
       expect(
@@ -596,10 +597,63 @@ describe('TaskDetailPanel', () => {
 
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'actions.edit taskLists.field',
+        name: 'actions.edit meta.taskList',
       })
     )
     expect(await screen.findByRole('listbox')).toBeInTheDocument()
+  })
+
+  it('edits the task list and group as independent properties', async () => {
+    const taskLists = [
+      { id: 'list-1', name: 'Product' },
+      { id: 'list-2', name: 'Roadmap' },
+    ] as ApiTaskList[]
+    const taskGroups = [
+      { id: 'group-1', name: 'Delivery' },
+      { id: 'group-2', name: 'Discovery' },
+    ] as ApiTaskGroup[]
+
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{
+          ...task,
+          can_edit: true,
+          task_list: { id: 'list-1', name: 'Product', color: 'blue' },
+          group: { id: 'group-1', name: 'Delivery', sort_order: 0 },
+        }}
+        taskLists={taskLists}
+        taskGroups={taskGroups}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Product')).toBeInTheDocument()
+    expect(screen.getByText('Delivery')).toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'actions.edit meta.taskList' })
+    )
+    fireEvent.click(await screen.findByRole('option', { name: 'Roadmap' }))
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenLastCalledWith({
+        taskId: task.id,
+        patch: { task_list_id: 'list-2' },
+      })
+    )
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'actions.edit meta.group' })
+    )
+    fireEvent.click(await screen.findByRole('option', { name: 'Discovery' }))
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenLastCalledWith({
+        taskId: task.id,
+        patch: { group_id: 'group-2' },
+      })
+    )
   })
 
   it('shows assignees as removable member chips like followers', async () => {
