@@ -57,6 +57,7 @@ from core.services.task_action_item_sync import sync_action_item_from_task_statu
 from core.services.task_assignees import (
     MAX_TASK_ASSIGNEES,
     is_task_assignee,
+    is_task_reminder_participant,
     set_task_assignees,
     task_assignee_ids,
 )
@@ -85,6 +86,7 @@ from core.services.task_notifications import (
     record_task_deletion,
     record_task_priority_change,
     record_task_status_change,
+    supersede_ineligible_task_reminders,
     supersede_pending_task_reminders,
 )
 from core.services.task_recurrence import (
@@ -1582,18 +1584,24 @@ class TaskViewSet(
 
     @action(detail=True, methods=["get", "patch"], url_path="reminder")
     def reminder(self, request, *args, **kwargs):  # pylint: disable=unused-argument
-        """Read or update the caller's reminder override for one assigned task."""
+        """Read or update the caller's isolated reminder for one related task."""
 
         task = self.get_object()
-        if not is_task_assignee(task, request.user):
-            raise PermissionDenied("Only a task assignee can manage their reminder.")
+        if not is_task_reminder_participant(task, request.user):
+            raise PermissionDenied(
+                "Only a task assignee, creator, or follower can manage their reminder."
+            )
         global_preference = models.TaskPreference.objects.filter(
             user=request.user
         ).first() or models.TaskPreference(user=request.user)
         preference = models.TaskReminderPreference.objects.filter(
             task=task,
             user=request.user,
-        ).first() or models.TaskReminderPreference(task=task, user=request.user)
+        ).first() or models.TaskReminderPreference(
+            task=task,
+            user=request.user,
+            enabled=is_task_assignee(task, request.user),
+        )
         context = {"global_preference": global_preference}
         if request.method == "PATCH":
             serializer = TaskReminderPreferenceSerializer(
@@ -2260,6 +2268,7 @@ class TaskViewSet(
         task = self.get_object()
         if request.method == "DELETE":
             task.followers.remove(request.user)
+            supersede_ineligible_task_reminders(task=task)
             return Response(TaskSerializer(task, context={"request": request}).data)
 
         task.followers.add(request.user)
@@ -2300,6 +2309,7 @@ class TaskViewSet(
                 "Only the task creator or assignee can manage followers."
             )
         task.followers.remove(follower_id)
+        supersede_ineligible_task_reminders(task=task)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], url_path="standalone-count")

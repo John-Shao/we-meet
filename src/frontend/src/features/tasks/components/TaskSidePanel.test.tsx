@@ -451,7 +451,7 @@ describe('TaskDetailPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows the personal reminder control to an assignee', () => {
+  it('shows the personal reminder control to an eligible participant', () => {
     render(
       <TaskDetailPanel
         taskId={task.id}
@@ -467,6 +467,24 @@ describe('TaskDetailPanel', () => {
     expect(screen.getByTestId('task-reminder-control')).toHaveTextContent(
       task.id
     )
+  })
+
+  it('hides the personal reminder control from other viewers', () => {
+    render(
+      <TaskDetailPanel
+        taskId={task.id}
+        fallbackTask={{ ...task, can_manage_reminder: false }}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('taskReminder.title')).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('task-reminder-control')
+    ).not.toBeInTheDocument()
   })
 
   it('marks the empty task description as subtle placeholder text', () => {

@@ -12,7 +12,12 @@ from django.utils import timezone
 from core import models
 from core.services import im_bots, im_cards
 from core.services.jusi_im import JusiImAdminClient
-from core.services.task_assignees import task_assignee_ids, task_assignees
+from core.services.task_assignees import (
+    is_task_assignee,
+    task_assignee_ids,
+    task_reminder_participant_ids,
+    task_reminder_participants,
+)
 from core.services.task_hierarchy import visible_task_ancestor_path
 from core.services.task_time import OPEN_TASK_STATUSES, local_date_for_user
 
@@ -81,7 +86,7 @@ def record_task_assignment(
         last_error="",
     )
     pending.filter(event__in=REMINDER_EVENTS).exclude(
-        recipient_id__in=assignee_ids
+        recipient_id__in=task_reminder_participant_ids(task)
     ).update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
@@ -370,8 +375,26 @@ def supersede_pending_task_reminders(*, recipient, task=None) -> int:
     )
 
 
+def supersede_ineligible_task_reminders(*, task: models.Task) -> int:
+    """Cancel unsent reminders for users with no remaining participant role."""
+
+    return (
+        models.TaskImDelivery.objects.filter(
+            task=task,
+            event__in=REMINDER_EVENTS,
+            status=models.TaskImDelivery.Status.PENDING,
+        )
+        .exclude(recipient_id__in=task_reminder_participant_ids(task))
+        .update(
+            status=models.TaskImDelivery.Status.SUPERSEDED,
+            next_attempt_at=None,
+            last_error="",
+        )
+    )
+
+
 def record_due_task_reminders(*, now=None) -> int:
-    """Create today's missing reminder ledger rows in each assignee's timezone."""
+    """Create today's personal reminders in each participant's timezone."""
 
     created_count = 0
     preferences = {
@@ -382,29 +405,39 @@ def record_due_task_reminders(*, now=None) -> int:
         models.Task.objects.filter(
             status__in=OPEN_TASK_STATUSES,
         )
-        .filter(Q(assignees__is_active=True) | Q(assignee__is_active=True))
+        .filter(
+            Q(assignees__is_active=True)
+            | Q(assignee__is_active=True)
+            | Q(creator__is_active=True)
+            | Q(followers__is_active=True)
+        )
         .filter(Q(start_date__isnull=False) | Q(due_date__isnull=False))
         .distinct()
-        .select_related("assignee")
-        .prefetch_related("assignees", "reminder_preferences")
+        .select_related("assignee", "creator")
+        .prefetch_related("assignees", "followers", "reminder_preferences")
     )
     for task in tasks:
         task_preferences = {
             preference.user_id: preference
             for preference in task.reminder_preferences.all()
         }
-        for assignee in task_assignees(task):
-            preference = preferences.get(assignee.id)
-            task_preference = task_preferences.get(assignee.id)
+        for participant in task_reminder_participants(task):
+            preference = preferences.get(participant.id)
+            task_preference = task_preferences.get(participant.id)
+            reminder_enabled = (
+                task_preference.enabled
+                if task_preference is not None
+                else is_task_assignee(task, participant)
+            )
             if (
-                not assignee.is_active
+                not participant.is_active
                 or (preference is not None and not preference.daily_reminder_enabled)
-                or (task_preference is not None and not task_preference.enabled)
+                or not reminder_enabled
             ):
                 continue
-            if visible_task_ancestor_path(task, assignee) is None:
+            if visible_task_ancestor_path(task, participant) is None:
                 continue
-            today = local_date_for_user(assignee, now=now)
+            today = local_date_for_user(participant, now=now)
             reminders = []
             # A one-day task gets the more urgent due reminder instead of two cards.
             if task.start_date == today and task.due_date != today:
@@ -436,7 +469,7 @@ def record_due_task_reminders(*, now=None) -> int:
             for event, reference_date in reminders:
                 delivery, created = models.TaskImDelivery.objects.get_or_create(
                     task=task,
-                    recipient_id=assignee.id,
+                    recipient_id=participant.id,
                     event=event,
                     reference_date=reference_date,
                     defaults={"next_attempt_at": timezone.now()},
@@ -1023,15 +1056,17 @@ def _recipient_can_receive(  # noqa: PLR0912
             task_id=delivery.task_id,
             user_id=delivery.recipient_id,
         ).first()
+        reminder_enabled = (
+            task_preference.enabled
+            if task_preference is not None
+            else delivery.recipient_id in assignee_ids
+        )
         if (
-            preference is not None
-            and not preference.daily_reminder_enabled
-            or task_preference is not None
-            and not task_preference.enabled
-        ):
+            preference is not None and not preference.daily_reminder_enabled
+        ) or not reminder_enabled:
             allowed = False
         elif (
-            delivery.recipient_id not in assignee_ids
+            delivery.recipient_id not in task_reminder_participant_ids(task)
             or task.status not in OPEN_TASK_STATUSES
             or delivery.reference_date is None
         ):

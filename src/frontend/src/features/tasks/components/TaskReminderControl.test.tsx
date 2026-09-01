@@ -37,7 +37,7 @@ beforeEach(() => {
 })
 
 describe('TaskReminderControl', () => {
-  it('patches the current assignees task-specific reminder settings', () => {
+  it("patches the current participant's isolated reminder settings", () => {
     render(<TaskReminderControl taskId="task-1" />)
 
     expect(

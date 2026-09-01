@@ -26,7 +26,10 @@ from core import models, utils
 from core.services.task_action_item_sync import (
     record_manual_action_item_status_change,
 )
-from core.services.task_assignees import is_task_assignee
+from core.services.task_assignees import (
+    is_task_assignee,
+    is_task_reminder_participant,
+)
 from core.services.task_hierarchy import (
     get_task_hierarchy_limits,
     prepare_task_hierarchy_data,
@@ -1173,7 +1176,11 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_can_manage_reminder(self, obj):
         user = self._request_user()
-        return bool(user and user.is_authenticated and is_task_assignee(obj, user))
+        return bool(
+            user
+            and user.is_authenticated
+            and is_task_reminder_participant(obj, user)
+        )
 
     def get_assignees(self, obj):
         prefetched = getattr(obj, "_prefetched_objects_cache", {}).get("assignees")

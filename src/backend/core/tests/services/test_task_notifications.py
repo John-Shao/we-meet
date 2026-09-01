@@ -14,6 +14,7 @@ from core.factories import OrganizationFactory, RoomFactory, UserFactory
 from core.services import im_bots
 from core.services.jusi_im import JusiImBadResponseError, JusiImUnreachableError
 from core.services.task_notifications import (
+    claim_task_assignment,
     enqueue_due_task_assignments,
     record_due_task_reminders,
     record_task_assignment,
@@ -659,6 +660,101 @@ def test_task_reminder_override_is_independent_for_each_assignee(
     assert delivery.recipient == reminded
     assert delivery.event == models.TaskImDelivery.Event.DUE_SOON
     enqueue.assert_called_once_with(delivery.id)
+
+
+def test_creator_and_follower_reminders_are_independent_and_opt_in(
+    django_capture_on_commit_callbacks,
+):
+    creator = UserFactory(timezone="UTC")
+    assignee = UserFactory(timezone="UTC")
+    follower = UserFactory(timezone="UTC")
+    creator_task = models.Task.objects.create(
+        title="Creator follows up",
+        creator=creator,
+        assignee=assignee,
+        due_date=date(2026, 8, 25),
+    )
+    creator_task.followers.add(follower)
+    models.TaskReminderPreference.objects.create(
+        task=creator_task,
+        user=creator,
+        enabled=True,
+        reminder_minutes=4320,
+    )
+
+    other_creator = UserFactory(timezone="UTC")
+    other_assignee = UserFactory(timezone="UTC")
+    other_follower = UserFactory(timezone="UTC")
+    follower_task = models.Task.objects.create(
+        title="Follower watches deadline",
+        creator=other_creator,
+        assignee=other_assignee,
+        due_date=date(2026, 8, 23),
+    )
+    follower_task.followers.add(other_follower)
+    models.TaskReminderPreference.objects.create(
+        task=follower_task,
+        user=other_follower,
+        enabled=True,
+        reminder_minutes=1440,
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        assert (
+            record_due_task_reminders(
+                now=datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+            )
+            == 2
+        )
+
+    assert set(
+        models.TaskImDelivery.objects.values_list("task_id", "recipient_id")
+    ) == {
+        (creator_task.id, creator.id),
+        (follower_task.id, other_follower.id),
+    }
+    assert enqueue.call_count == 2
+
+
+def test_reminder_claim_rechecks_participant_role_and_opt_in():
+    creator = UserFactory(timezone="UTC")
+    assignee = UserFactory(timezone="UTC")
+    follower = UserFactory(timezone="UTC")
+    today = datetime.now(tz=dt_timezone.utc).date()
+    task = models.Task.objects.create(
+        title="Recheck reminder access",
+        creator=creator,
+        assignee=assignee,
+        due_date=today,
+    )
+    task.followers.add(follower)
+    models.TaskReminderPreference.objects.create(
+        task=task,
+        user=creator,
+        enabled=True,
+    )
+    creator_delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=creator,
+        event=models.TaskImDelivery.Event.DUE_TODAY,
+        reference_date=today,
+        next_attempt_at=timezone.now(),
+    )
+    follower_delivery = models.TaskImDelivery.objects.create(
+        task=task,
+        recipient=follower,
+        event=models.TaskImDelivery.Event.DUE_TODAY,
+        reference_date=today,
+        next_attempt_at=timezone.now(),
+    )
+
+    assert claim_task_assignment(creator_delivery.id) is not None
+    assert claim_task_assignment(follower_delivery.id) is None
+    follower_delivery.refresh_from_db()
+    assert follower_delivery.status == models.TaskImDelivery.Status.SUPERSEDED
 
 
 def test_due_scan_reactivates_a_superseded_reminder_after_preference_change(

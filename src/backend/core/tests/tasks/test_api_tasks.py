@@ -517,6 +517,7 @@ def test_task_followers_are_visible_read_only_collaborators_who_can_comment():
     assert detail.json()["can_comment"] is True
     assert detail.json()["can_manage_attachments"] is False
     assert detail.json()["can_manage_followers"] is False
+    assert detail.json()["can_manage_reminder"] is True
 
     following = _client(follower).get(f"{TASKS_URL}?scope=following&status=open")
     assert [item["id"] for item in following.json()["results"]] == [task_id]
@@ -578,16 +579,34 @@ def test_creator_and_assignee_manage_followers_and_self_follow_is_toggleable():
     )
     assert denied.status_code == 403
 
+    follower_reminder = TaskImDelivery.objects.create(
+        task=task,
+        recipient=follower,
+        event=TaskImDelivery.Event.DUE_SOON,
+        reference_date=timezone.localdate() + timedelta(days=1),
+        next_attempt_at=timezone.now(),
+    )
     removed = _client(assignee).delete(f"{TASKS_URL}{task.id}/followers/{follower.id}/")
     assert removed.status_code == 204
     assert not task.followers.filter(id=follower.id).exists()
+    follower_reminder.refresh_from_db()
+    assert follower_reminder.status == TaskImDelivery.Status.SUPERSEDED
 
+    assignee_reminder = TaskImDelivery.objects.create(
+        task=task,
+        recipient=assignee,
+        event=TaskImDelivery.Event.DUE_SOON,
+        reference_date=timezone.localdate() + timedelta(days=1),
+        next_attempt_at=timezone.now(),
+    )
     followed = _client(assignee).post(f"{TASKS_URL}{task.id}/follow/")
     assert followed.status_code == 200
     assert followed.json()["is_following"] is True
     unfollowed = _client(assignee).delete(f"{TASKS_URL}{task.id}/follow/")
     assert unfollowed.status_code == 200
     assert unfollowed.json()["is_following"] is False
+    assignee_reminder.refresh_from_db()
+    assert assignee_reminder.status == TaskImDelivery.Status.PENDING
 
 
 def test_followers_receive_status_and_durable_deletion_notices_only_while_following():
@@ -1701,14 +1720,32 @@ def test_task_settings_are_persisted_per_user_and_validated():
     assert delivery.status == TaskImDelivery.Status.SUPERSEDED
 
 
-def test_task_reminder_preferences_are_private_to_each_assignee():
+def test_task_reminder_preferences_are_private_to_each_participant():
+    organization = OrganizationFactory()
     creator = UserFactory()
     first = UserFactory()
     second = UserFactory()
+    follower = UserFactory()
     viewer = UserFactory()
-    task = Task.objects.create(title="Shared deadline", creator=creator, assignee=first)
+    task_list = TaskList.objects.create(
+        organization=organization,
+        creator=creator,
+        name="Reminder access",
+    )
+    TaskListAccess.objects.create(
+        task_list=task_list,
+        user=viewer,
+        role=TaskListAccess.Role.VIEWER,
+    )
+    task = Task.objects.create(
+        title="Shared deadline",
+        creator=creator,
+        assignee=first,
+        organization=organization,
+        task_list=task_list,
+    )
     task.assignees.add(first, second)
-    task.followers.add(viewer)
+    task.followers.add(follower)
     TaskPreference.objects.create(user=first, default_reminder_minutes=1440)
     url = f"{TASKS_URL}{task.id}/reminder/"
     pending = TaskImDelivery.objects.create(
@@ -1731,7 +1768,32 @@ def test_task_reminder_preferences_are_private_to_each_assignee():
         {"reminder_minutes": 60},
         format="json",
     )
+    creator_defaults = _client(creator).get(url)
+    creator_updated = _client(creator).patch(
+        url,
+        {"enabled": True, "reminder_minutes": 4320},
+        format="json",
+    )
+    follower_defaults = _client(follower).get(url)
+    follower_updated = _client(follower).patch(
+        url,
+        {"enabled": True, "reminder_minutes": 0},
+        format="json",
+    )
     forbidden = _client(viewer).get(url)
+
+    assert (
+        _client(creator).get(f"{TASKS_URL}{task.id}/").json()["can_manage_reminder"]
+        is True
+    )
+    assert (
+        _client(first).get(f"{TASKS_URL}{task.id}/").json()["can_manage_reminder"]
+        is True
+    )
+    assert (
+        _client(viewer).get(f"{TASKS_URL}{task.id}/").json()["can_manage_reminder"]
+        is False
+    )
 
     assert defaults.status_code == 200
     assert defaults.json() == {
@@ -1753,10 +1815,42 @@ def test_task_reminder_preferences_are_private_to_each_assignee():
         "effective_reminder_minutes": 0,
         "global_reminders_enabled": True,
     }
+    assert creator_defaults.json() == {
+        "enabled": False,
+        "reminder_minutes": None,
+        "effective_reminder_minutes": 0,
+        "global_reminders_enabled": True,
+    }
+    assert creator_updated.json() == {
+        "enabled": True,
+        "reminder_minutes": 4320,
+        "effective_reminder_minutes": 4320,
+        "global_reminders_enabled": True,
+    }
+    assert follower_defaults.json() == {
+        "enabled": False,
+        "reminder_minutes": None,
+        "effective_reminder_minutes": 0,
+        "global_reminders_enabled": True,
+    }
+    assert follower_updated.json() == {
+        "enabled": True,
+        "reminder_minutes": 0,
+        "effective_reminder_minutes": 0,
+        "global_reminders_enabled": True,
+    }
     assert invalid.status_code == 400
     assert forbidden.status_code == 403
-    assert TaskReminderPreference.objects.filter(task=task).count() == 1
+    assert TaskReminderPreference.objects.filter(task=task).count() == 3
     assert TaskReminderPreference.objects.get(task=task, user=first).enabled is False
+    assert (
+        TaskReminderPreference.objects.get(task=task, user=creator).reminder_minutes
+        == 4320
+    )
+    assert (
+        TaskReminderPreference.objects.get(task=task, user=follower).reminder_minutes
+        == 0
+    )
     pending.refresh_from_db()
     assert pending.status == TaskImDelivery.Status.SUPERSEDED
 

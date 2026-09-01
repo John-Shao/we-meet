@@ -2766,7 +2766,7 @@ class TaskSavedView(BaseModel):
 
 
 class TaskReminderPreference(BaseModel):
-    """One assignee's reminder override for one task."""
+    """One participant's isolated reminder override for one task."""
 
     class ReminderMinutes(models.IntegerChoices):
         DUE_DATE = 0, _("On due date")

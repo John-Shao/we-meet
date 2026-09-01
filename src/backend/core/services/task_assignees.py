@@ -1,4 +1,4 @@
-"""Shared multi-assignee task helpers."""
+"""Shared task assignee and reminder-participant helpers."""
 
 MAX_TASK_ASSIGNEES = 10
 
@@ -36,6 +36,43 @@ def is_task_assignee(task, user):
     """Check whether a user is one of a task's equally responsible assignees."""
 
     return bool(user and user.id in task_assignee_ids(task))
+
+
+def task_follower_ids(task):
+    """Return follower ids without discarding an available prefetch cache."""
+
+    prefetched = getattr(task, "_prefetched_objects_cache", {}).get("followers")
+    if prefetched is None:
+        return set(task.followers.values_list("id", flat=True))
+    return {follower.id for follower in prefetched}
+
+
+def task_reminder_participant_ids(task):
+    """Return users allowed to manage their own reminder for a task."""
+
+    participant_ids = task_assignee_ids(task) | task_follower_ids(task)
+    if task.creator_id is not None:
+        participant_ids.add(task.creator_id)
+    return participant_ids
+
+
+def task_reminder_participants(task):
+    """Return each reminder-eligible user once, regardless of overlapping roles."""
+
+    participants = {user.id: user for user in task_assignees(task)}
+    participants[task.creator_id] = task.creator
+    prefetched = getattr(task, "_prefetched_objects_cache", {}).get("followers")
+    followers = (
+        list(prefetched) if prefetched is not None else list(task.followers.all())
+    )
+    participants.update({user.id: user for user in followers})
+    return list(participants.values())
+
+
+def is_task_reminder_participant(task, user):
+    """Check whether a user may manage an isolated personal task reminder."""
+
+    return bool(user and user.id in task_reminder_participant_ids(task))
 
 
 def set_task_assignees(task, assignees):
