@@ -342,7 +342,8 @@
   },
   "detailGroups": {
     "collaboration": "Collaboration",
-    "planning": "Planning and placement",
+    "planning": "Planning",
+    "placement": "Placement",
     "content": "Task content",
     "related": "Related tasks"
   },

@@ -321,7 +321,8 @@
   },
   "detailGroups": {
     "collaboration": "Samenwerking",
-    "planning": "Planning en plaatsing",
+    "planning": "Planning",
+    "placement": "Plaatsing",
     "content": "Taakinhoud",
     "related": "Gerelateerde taken"
   },

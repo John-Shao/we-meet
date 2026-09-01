@@ -797,98 +797,6 @@ export const TaskDetailPanel = ({
                 )}
               </div>
             </TaskProperty>
-            {task.recurrence && (
-              <TaskProperty
-                icon={<RiRepeatLine size={18} />}
-                label={t('recurrence.label')}
-                alignStart
-              >
-                <div className={recurrenceDetailCss}>
-                  {task.recurrence.can_manage ? (
-                    <Select
-                      label={
-                        <span className="sr-only">{t('recurrence.label')}</span>
-                      }
-                      aria-label={t('recurrence.label')}
-                      items={[
-                        { value: 'none', label: t('recurrence.none') },
-                        { value: 'daily', label: t('recurrence.daily') },
-                        { value: 'weekly', label: t('recurrence.weekly') },
-                        { value: 'monthly', label: t('recurrence.monthly') },
-                      ]}
-                      selectedKey={
-                        task.recurrence.is_active
-                          ? task.recurrence.frequency
-                          : 'none'
-                      }
-                      onSelectionChange={(key) => {
-                        const frequency = String(key)
-                        if (frequency === 'none') {
-                          stopRecurrenceMutation.mutate(task.id)
-                          return
-                        }
-                        updateRecurrenceMutation.mutate({
-                          taskId: task.id,
-                          recurrence: {
-                            frequency: frequency as TaskRecurrenceFrequency,
-                            interval: task.recurrence?.interval || 1,
-                            end_date: task.recurrence?.end_date || null,
-                            max_occurrences:
-                              task.recurrence?.max_occurrences || null,
-                          },
-                        })
-                      }}
-                    />
-                  ) : (
-                    <span>
-                      {task.recurrence.is_active
-                        ? t(`recurrence.${task.recurrence.frequency}`)
-                        : t('recurrence.stopped')}
-                    </span>
-                  )}
-                  {task.recurrence.interval > 1 && (
-                    <span>
-                      {t('recurrence.intervalSummary', {
-                        count: task.recurrence.interval,
-                        unit: t(
-                          `recurrence.units.${task.recurrence.frequency}`
-                        ),
-                      })}
-                    </span>
-                  )}
-                  {task.recurrence.next_occurrence_date && (
-                    <span>
-                      {t('recurrence.next', {
-                        date: formatDate(task.recurrence.next_occurrence_date),
-                      })}
-                    </span>
-                  )}
-                  {task.recurrence.is_active && task.recurrence.can_manage && (
-                    <Select
-                      label={
-                        <span className="sr-only">
-                          {t('recurrence.editScope')}
-                        </span>
-                      }
-                      aria-label={t('recurrence.editScope')}
-                      items={[
-                        { value: 'one', label: t('recurrence.onlyThis') },
-                        {
-                          value: 'following',
-                          label: t('recurrence.thisAndFollowing'),
-                        },
-                      ]}
-                      selectedKey={recurrenceEditScope}
-                      onSelectionChange={(key) =>
-                        setRecurrenceEditScope(
-                          String(key) as TaskRecurrenceScope
-                        )
-                      }
-                    />
-                  )}
-                </div>
-              </TaskProperty>
-            )}
             <TaskProperty
               icon={<RiUserAddLine size={18} />}
               label={t('meta.creator')}
@@ -943,76 +851,6 @@ export const TaskDetailPanel = ({
               </div>
             </TaskProperty>
             <TaskPropertyGroupHeading title={t('detailGroups.planning')} />
-            <TaskProperty
-              icon={<RiListCheck3 size={18} />}
-              label={t('meta.taskList')}
-              editLabel={editLabel(t('meta.taskList'))}
-              control="select"
-              isDisabled={patchMutation.isPending}
-              isEditing={editingField === 'taskList'}
-              alignStart={editingField === 'taskList'}
-              onEdit={
-                task.can_edit ? () => beginEditing('taskList') : undefined
-              }
-            >
-              {editingField === 'taskList' ? (
-                <div className={inlineEditorCss}>
-                  <DetailInlineSelect
-                    label={t('meta.taskList')}
-                    items={[
-                      { value: '', label: t('taskLists.standalone') },
-                      ...taskLists.map((taskList) => ({
-                        value: taskList.id,
-                        label: taskList.name,
-                      })),
-                    ]}
-                    value={draftTaskListId}
-                    disabled={patchMutation.isPending}
-                    onCancel={() => setEditingField(null)}
-                    onChange={(taskListId) => {
-                      setDraftTaskListId(taskListId)
-                      void saveField({ task_list_id: taskListId || null })
-                    }}
-                  />
-                </div>
-              ) : (
-                task.task_list?.name || t('taskLists.standalone')
-              )}
-            </TaskProperty>
-            <TaskProperty
-              icon={<RiGitBranchLine size={18} />}
-              label={t('meta.group')}
-              editLabel={editLabel(t('meta.group'))}
-              control="select"
-              isDisabled={patchMutation.isPending}
-              isEditing={editingField === 'group'}
-              alignStart={editingField === 'group'}
-              onEdit={task.can_edit ? () => beginEditing('group') : undefined}
-            >
-              {editingField === 'group' ? (
-                <div className={inlineEditorCss}>
-                  <DetailInlineSelect
-                    label={t('meta.group')}
-                    items={[
-                      { value: '', label: t('groups.ungrouped') },
-                      ...taskGroups.map((group) => ({
-                        value: group.id,
-                        label: group.name,
-                      })),
-                    ]}
-                    value={draftGroupId}
-                    disabled={patchMutation.isPending}
-                    onCancel={() => setEditingField(null)}
-                    onChange={(groupId) => {
-                      setDraftGroupId(groupId)
-                      void saveField({ group_id: groupId || null })
-                    }}
-                  />
-                </div>
-              ) : (
-                task.group?.name || t('groups.ungrouped')
-              )}
-            </TaskProperty>
             <TaskProperty
               icon={<RiCalendarLine size={18} />}
               label={t('meta.startDate')}
@@ -1114,6 +952,169 @@ export const TaskDetailPanel = ({
                 </div>
               ) : (
                 <TaskPriorityBadge priority={task.priority} />
+              )}
+            </TaskProperty>
+            {task.recurrence && (
+              <TaskProperty
+                icon={<RiRepeatLine size={18} />}
+                label={t('recurrence.label')}
+                alignStart
+              >
+                <div className={recurrenceDetailCss}>
+                  {task.recurrence.can_manage ? (
+                    <Select
+                      label={
+                        <span className="sr-only">{t('recurrence.label')}</span>
+                      }
+                      aria-label={t('recurrence.label')}
+                      items={[
+                        { value: 'none', label: t('recurrence.none') },
+                        { value: 'daily', label: t('recurrence.daily') },
+                        { value: 'weekly', label: t('recurrence.weekly') },
+                        { value: 'monthly', label: t('recurrence.monthly') },
+                      ]}
+                      selectedKey={
+                        task.recurrence.is_active
+                          ? task.recurrence.frequency
+                          : 'none'
+                      }
+                      onSelectionChange={(key) => {
+                        const frequency = String(key)
+                        if (frequency === 'none') {
+                          stopRecurrenceMutation.mutate(task.id)
+                          return
+                        }
+                        updateRecurrenceMutation.mutate({
+                          taskId: task.id,
+                          recurrence: {
+                            frequency: frequency as TaskRecurrenceFrequency,
+                            interval: task.recurrence?.interval || 1,
+                            end_date: task.recurrence?.end_date || null,
+                            max_occurrences:
+                              task.recurrence?.max_occurrences || null,
+                          },
+                        })
+                      }}
+                    />
+                  ) : (
+                    <span>
+                      {task.recurrence.is_active
+                        ? t(`recurrence.${task.recurrence.frequency}`)
+                        : t('recurrence.stopped')}
+                    </span>
+                  )}
+                  {task.recurrence.interval > 1 && (
+                    <span>
+                      {t('recurrence.intervalSummary', {
+                        count: task.recurrence.interval,
+                        unit: t(
+                          `recurrence.units.${task.recurrence.frequency}`
+                        ),
+                      })}
+                    </span>
+                  )}
+                  {task.recurrence.next_occurrence_date && (
+                    <span>
+                      {t('recurrence.next', {
+                        date: formatDate(task.recurrence.next_occurrence_date),
+                      })}
+                    </span>
+                  )}
+                  {task.recurrence.is_active && task.recurrence.can_manage && (
+                    <Select
+                      label={
+                        <span className="sr-only">
+                          {t('recurrence.editScope')}
+                        </span>
+                      }
+                      aria-label={t('recurrence.editScope')}
+                      items={[
+                        { value: 'one', label: t('recurrence.onlyThis') },
+                        {
+                          value: 'following',
+                          label: t('recurrence.thisAndFollowing'),
+                        },
+                      ]}
+                      selectedKey={recurrenceEditScope}
+                      onSelectionChange={(key) =>
+                        setRecurrenceEditScope(
+                          String(key) as TaskRecurrenceScope
+                        )
+                      }
+                    />
+                  )}
+                </div>
+              </TaskProperty>
+            )}
+            <TaskPropertyGroupHeading title={t('detailGroups.placement')} />
+            <TaskProperty
+              icon={<RiListCheck3 size={18} />}
+              label={t('meta.taskList')}
+              editLabel={editLabel(t('meta.taskList'))}
+              control="select"
+              isDisabled={patchMutation.isPending}
+              isEditing={editingField === 'taskList'}
+              alignStart={editingField === 'taskList'}
+              onEdit={
+                task.can_edit ? () => beginEditing('taskList') : undefined
+              }
+            >
+              {editingField === 'taskList' ? (
+                <div className={inlineEditorCss}>
+                  <DetailInlineSelect
+                    label={t('meta.taskList')}
+                    items={[
+                      { value: '', label: t('taskLists.standalone') },
+                      ...taskLists.map((taskList) => ({
+                        value: taskList.id,
+                        label: taskList.name,
+                      })),
+                    ]}
+                    value={draftTaskListId}
+                    disabled={patchMutation.isPending}
+                    onCancel={() => setEditingField(null)}
+                    onChange={(taskListId) => {
+                      setDraftTaskListId(taskListId)
+                      void saveField({ task_list_id: taskListId || null })
+                    }}
+                  />
+                </div>
+              ) : (
+                task.task_list?.name || t('taskLists.standalone')
+              )}
+            </TaskProperty>
+            <TaskProperty
+              icon={<RiGitBranchLine size={18} />}
+              label={t('meta.group')}
+              editLabel={editLabel(t('meta.group'))}
+              control="select"
+              isDisabled={patchMutation.isPending}
+              isEditing={editingField === 'group'}
+              alignStart={editingField === 'group'}
+              onEdit={task.can_edit ? () => beginEditing('group') : undefined}
+            >
+              {editingField === 'group' ? (
+                <div className={inlineEditorCss}>
+                  <DetailInlineSelect
+                    label={t('meta.group')}
+                    items={[
+                      { value: '', label: t('groups.ungrouped') },
+                      ...taskGroups.map((group) => ({
+                        value: group.id,
+                        label: group.name,
+                      })),
+                    ]}
+                    value={draftGroupId}
+                    disabled={patchMutation.isPending}
+                    onCancel={() => setEditingField(null)}
+                    onChange={(groupId) => {
+                      setDraftGroupId(groupId)
+                      void saveField({ group_id: groupId || null })
+                    }}
+                  />
+                </div>
+              ) : (
+                task.group?.name || t('groups.ungrouped')
               )}
             </TaskProperty>
           </dl>

@@ -407,9 +407,30 @@ describe('TaskDetailPanel', () => {
     expect(
       screen.getByRole('heading', { name: 'detailGroups.collaboration' })
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: 'detailGroups.planning' })
-    ).toBeInTheDocument()
+    const planningHeading = screen.getByRole('heading', {
+      name: 'detailGroups.planning',
+    })
+    const placementHeading = screen.getByRole('heading', {
+      name: 'detailGroups.placement',
+    })
+    const priorityLabel = screen.getByText('form.priority', { selector: 'dt' })
+    const taskListLabel = screen.getByText('meta.taskList', { selector: 'dt' })
+    const groupLabel = screen.getByText('meta.group', { selector: 'dt' })
+
+    expect(planningHeading).toBeInTheDocument()
+    expect(placementHeading).toBeInTheDocument()
+    expect(dueDateLabel.compareDocumentPosition(placementHeading)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(priorityLabel.compareDocumentPosition(placementHeading)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(placementHeading.compareDocumentPosition(taskListLabel)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(placementHeading.compareDocumentPosition(groupLabel)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
     expect(
       screen.getByText('attachments.title', { selector: 'dt' }).parentElement
     ).toHaveAttribute('data-header-only-hover')

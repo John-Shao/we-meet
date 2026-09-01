@@ -317,7 +317,8 @@
   },
   "detailGroups": {
     "collaboration": "Zusammenarbeit",
-    "planning": "Planung und Zuordnung",
+    "planning": "Planung",
+    "placement": "Zuordnung",
     "content": "Aufgabeninhalt",
     "related": "Verknüpfte Aufgaben"
   },

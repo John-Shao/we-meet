@@ -317,7 +317,8 @@
   },
   "detailGroups": {
     "collaboration": "Collaboration",
-    "planning": "Planification et classement",
+    "planning": "Planification",
+    "placement": "Classement",
     "content": "Contenu de la tâche",
     "related": "Tâches associées"
   },
