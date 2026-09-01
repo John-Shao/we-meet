@@ -682,6 +682,7 @@ class TaskCreateSerializer(
         write_only=True,
     )
     recurrence = serializers.JSONField(required=False, write_only=True)
+    reminder = TaskReminderPreferenceSerializer(required=False, write_only=True)
 
     def validate_parent_id(self, parent):
         if parent is None:
@@ -1731,6 +1732,7 @@ class TaskViewSet(
         followers = validated_data.pop("followers", [])
         parent = validated_data.pop("parent", None)
         recurrence = validated_data.pop("recurrence", None)
+        reminder = validated_data.pop("reminder", None)
         organization = get_caller_organization(request.user)
         with transaction.atomic():
             lock_task_hierarchy_scopes(
@@ -1759,6 +1761,12 @@ class TaskViewSet(
             )
             set_task_assignees(task, assignees)
             task.followers.set(followers)
+            if reminder is not None:
+                models.TaskReminderPreference.objects.create(
+                    task=task,
+                    user=request.user,
+                    **reminder,
+                )
             record_task_created(task=task, actor=request.user)
             record_task_assignment(
                 task=task,

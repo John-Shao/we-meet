@@ -413,6 +413,7 @@ export interface CreateTaskPayload {
   position?: number
   parent_id?: string | null
   recurrence?: TaskRecurrencePayload
+  reminder?: PatchTaskReminderPreferencePayload
 }
 
 export interface PatchTaskPayload {

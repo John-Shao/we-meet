@@ -20,6 +20,13 @@ vi.mock('../api/fetchTasks', () => ({
     error: null,
     isPending: false,
   }),
+  useTaskSettings: () => ({
+    data: {
+      daily_reminder_enabled: true,
+      overdue_marker_enabled: true,
+      default_reminder_minutes: 1440,
+    },
+  }),
 }))
 
 vi.mock('@/features/auth', () => ({
@@ -66,10 +73,45 @@ describe('TaskForm create mode', () => {
     expect(
       screen.getByRole('button', { name: 'followers.add' })
     ).toBeInTheDocument()
+    expect(screen.getByText('taskReminder.title')).toBeInTheDocument()
+    expect(
+      screen.getByRole('switch', { name: 'taskReminder.enabled' })
+    ).toBeChecked()
+    expect(
+      screen.getByRole('combobox', { name: 'taskReminder.timing' })
+    ).toHaveValue('default')
 
     fireEvent.click(screen.getByRole('button', { name: 'form.today' }))
     expect(screen.getByLabelText('form.dueDate')).toHaveValue(
       localDateValue(new Date())
+    )
+  })
+
+  it('creates the task with the selected personal reminder', async () => {
+    createTask.mockResolvedValue({ id: 'reminded-task' })
+    render(<TaskForm taskLists={[]} onCancel={vi.fn()} onSaved={vi.fn()} />)
+
+    fireEvent.change(
+      screen.getByPlaceholderText('form.createTitlePlaceholder'),
+      { target: { value: 'Prepare reminder' } }
+    )
+    fireEvent.change(
+      screen.getByRole('combobox', { name: 'taskReminder.timing' }),
+      { target: { value: '4320' } }
+    )
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'taskReminder.enabled' })
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'workspace.createSubmit' })
+    )
+
+    await waitFor(() =>
+      expect(createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reminder: { enabled: false, reminder_minutes: 4320 },
+        })
+      )
     )
   })
 
@@ -196,6 +238,7 @@ describe('TaskForm create mode', () => {
         start_date: '2026-08-25',
         due_date: '2026-08-30',
         parent_id: 'parent-1',
+        reminder: { enabled: false, reminder_minutes: null },
       })
     )
   })

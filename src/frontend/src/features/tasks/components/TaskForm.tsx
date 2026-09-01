@@ -6,6 +6,7 @@ import {
   RiFileTextLine,
   RiFlagLine,
   RiListCheck3,
+  RiNotification3Line,
   RiRepeatLine,
   RiUser3Line,
   RiUserFollowLine,
@@ -24,10 +25,11 @@ import type {
   TaskPriority,
   TaskRecurrenceFrequency,
 } from '../api/ApiTask'
-import { useCreateTask } from '../api/fetchTasks'
+import { useCreateTask, useTaskSettings } from '../api/fetchTasks'
 import { taskAssignees } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
+import { TaskReminderFields } from './TaskReminderControl'
 import { TaskUserDisplay } from './TaskUserDisplay'
 
 const priorities: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
@@ -81,9 +83,16 @@ export const TaskForm = ({
   >('never')
   const [recurrenceEndDate, setRecurrenceEndDate] = useState('')
   const [recurrenceCount, setRecurrenceCount] = useState(10)
+  const [reminderEnabledOverride, setReminderEnabledOverride] = useState<
+    boolean | null
+  >(null)
+  const [reminderMinutes, setReminderMinutes] = useState<
+    0 | 1440 | 4320 | null
+  >(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const createMutation = useCreateTask()
+  const { data: taskSettings } = useTaskSettings()
   const today = dateInputValue(new Date())
   const tomorrowDate = new Date()
   tomorrowDate.setDate(tomorrowDate.getDate() + 1)
@@ -101,6 +110,9 @@ export const TaskForm = ({
           },
         ]
       : [])
+  const reminderEnabled =
+    reminderEnabledOverride ??
+    Boolean(currentUser && assignees.some(({ id }) => id === currentUser.id))
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -136,6 +148,10 @@ export const TaskForm = ({
               },
             }
           : {}),
+        reminder: {
+          enabled: reminderEnabled,
+          reminder_minutes: reminderMinutes,
+        },
       }
       const saved = await createMutation.mutateAsync(payload)
       onSaved(saved)
@@ -328,6 +344,32 @@ export const TaskForm = ({
                   onChange={(event) => setDueDate(event.target.value)}
                 />
               </label>
+            </div>
+          </div>
+
+          <div className={createPropertyRowCss} data-align-start>
+            <RiNotification3Line size={19} aria-hidden="true" />
+            <div className={reminderEditorCss}>
+              <span className={createPropertyLabelCss}>
+                {t('taskReminder.title')}
+              </span>
+              <TaskReminderFields
+                enabled={reminderEnabled}
+                reminderMinutes={reminderMinutes}
+                effectiveReminderMinutes={
+                  taskSettings?.default_reminder_minutes ?? 0
+                }
+                globalRemindersEnabled={
+                  taskSettings?.daily_reminder_enabled ?? true
+                }
+                disabled={createMutation.isPending}
+                onChange={(patch) => {
+                  if (patch.enabled !== undefined)
+                    setReminderEnabledOverride(patch.enabled)
+                  if (patch.reminder_minutes !== undefined)
+                    setReminderMinutes(patch.reminder_minutes)
+                }}
+              />
             </div>
           </div>
 
@@ -542,6 +584,17 @@ const memberEditorCss = css({
   alignItems: 'center',
   flexWrap: 'wrap',
   gap: '0.375rem',
+})
+const reminderEditorCss = css({
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: '0.5rem',
+})
+const createPropertyLabelCss = css({
+  color: 'greyscale.800',
+  fontWeight: 500,
 })
 const memberChipCss = css({
   minWidth: 0,

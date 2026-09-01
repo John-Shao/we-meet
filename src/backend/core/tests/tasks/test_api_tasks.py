@@ -264,6 +264,40 @@ def test_user_creates_personal_task_assigned_to_self():
     assert TaskImDelivery.objects.count() == 0
 
 
+def test_user_sets_personal_reminder_while_creating_task():
+    user = UserFactory()
+
+    response = _client(user).post(
+        TASKS_URL,
+        {
+            "title": "Prepare launch reminder",
+            "reminder": {"enabled": False, "reminder_minutes": 4320},
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    preference = TaskReminderPreference.objects.get(
+        task_id=response.json()["id"],
+        user=user,
+    )
+    assert preference.enabled is False
+    assert preference.reminder_minutes == 4320
+
+    invalid = _client(user).post(
+        TASKS_URL,
+        {
+            "title": "Invalid reminder",
+            "reminder": {"enabled": True, "reminder_minutes": 60},
+        },
+        format="json",
+    )
+
+    assert invalid.status_code == 400
+    assert "reminder" in invalid.json()
+    assert not Task.objects.filter(title="Invalid reminder").exists()
+
+
 def test_task_without_start_date_defaults_to_creator_current_date():
     user = UserFactory(timezone="UTC")
 

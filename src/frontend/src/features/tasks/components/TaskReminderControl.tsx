@@ -8,6 +8,63 @@ import { useTaskReminder, useUpdateTaskReminder } from '../api/fetchTasks'
 
 const reminderOptions = [0, 1440, 4320] as const
 
+export const TaskReminderFields = ({
+  enabled,
+  reminderMinutes,
+  effectiveReminderMinutes,
+  globalRemindersEnabled,
+  disabled = false,
+  onChange,
+}: {
+  enabled: boolean
+  reminderMinutes: 0 | 1440 | 4320 | null
+  effectiveReminderMinutes: 0 | 1440 | 4320
+  globalRemindersEnabled: boolean
+  disabled?: boolean
+  onChange: (patch: PatchTaskReminderPreferencePayload) => void
+}) => {
+  const { t } = useTranslation('tasks')
+
+  return (
+    <div className={controlCss}>
+      <Switch
+        aria-label={t('taskReminder.enabled')}
+        isSelected={enabled}
+        isDisabled={disabled}
+        onChange={(selected) => onChange({ enabled: selected })}
+      />
+      <select
+        aria-label={t('taskReminder.timing')}
+        className={selectCss}
+        value={reminderMinutes ?? 'default'}
+        disabled={!enabled || disabled}
+        onChange={(event) =>
+          onChange({
+            reminder_minutes:
+              event.target.value === 'default'
+                ? null
+                : (Number(event.target.value) as 0 | 1440 | 4320),
+          })
+        }
+      >
+        <option value="default">
+          {t('taskReminder.followDefault', {
+            value: t(`settings.reminderOptions.${effectiveReminderMinutes}`),
+          })}
+        </option>
+        {reminderOptions.map((minutes) => (
+          <option key={minutes} value={minutes}>
+            {t(`settings.reminderOptions.${minutes}`)}
+          </option>
+        ))}
+      </select>
+      {!globalRemindersEnabled && (
+        <span className={hintCss}>{t('taskReminder.globalDisabled')}</span>
+      )}
+    </div>
+  )
+}
+
 export const TaskReminderControl = ({ taskId }: { taskId: string }) => {
   const { t } = useTranslation('tasks')
   const { data, isLoading, error, refetch } = useTaskReminder(taskId)
@@ -34,43 +91,15 @@ export const TaskReminderControl = ({ taskId }: { taskId: string }) => {
   }
 
   return (
-    <div className={controlCss}>
-      <Switch
-        aria-label={t('taskReminder.enabled')}
-        isSelected={data.enabled}
-        isDisabled={update.isPending}
-        onChange={(enabled) => change({ enabled })}
+    <div>
+      <TaskReminderFields
+        enabled={data.enabled}
+        reminderMinutes={data.reminder_minutes}
+        effectiveReminderMinutes={data.effective_reminder_minutes}
+        globalRemindersEnabled={data.global_reminders_enabled}
+        disabled={update.isPending}
+        onChange={change}
       />
-      <select
-        aria-label={t('taskReminder.timing')}
-        className={selectCss}
-        value={data.reminder_minutes ?? 'default'}
-        disabled={!data.enabled || update.isPending}
-        onChange={(event) =>
-          change({
-            reminder_minutes:
-              event.target.value === 'default'
-                ? null
-                : (Number(event.target.value) as 0 | 1440 | 4320),
-          })
-        }
-      >
-        <option value="default">
-          {t('taskReminder.followDefault', {
-            value: t(
-              `settings.reminderOptions.${data.effective_reminder_minutes}`
-            ),
-          })}
-        </option>
-        {reminderOptions.map((minutes) => (
-          <option key={minutes} value={minutes}>
-            {t(`settings.reminderOptions.${minutes}`)}
-          </option>
-        ))}
-      </select>
-      {!data.global_reminders_enabled && (
-        <span className={hintCss}>{t('taskReminder.globalDisabled')}</span>
-      )}
       {update.error && (
         <span className={errorCss} role="alert">
           {t('taskReminder.saveError')}
