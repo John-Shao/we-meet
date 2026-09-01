@@ -400,10 +400,10 @@
   "priorityFilters": {
     "label": "筛选优先级",
     "all": "全部优先级",
-    "none": "无优先级",
-    "low": "低优先级",
-    "medium": "中优先级",
-    "high": "高优先级",
+    "none": "无",
+    "low": "低",
+    "medium": "中",
+    "high": "高",
     "urgent": "紧急"
   },
   "statuses": {

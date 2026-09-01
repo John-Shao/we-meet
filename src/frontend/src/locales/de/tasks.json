@@ -368,10 +368,10 @@
   "priorityFilters": {
     "label": "Nach Priorität filtern",
     "all": "Alle Prioritäten",
-    "none": "Keine Priorität",
-    "low": "Niedrige Priorität",
-    "medium": "Mittlere Priorität",
-    "high": "Hohe Priorität",
+    "none": "Keine",
+    "low": "Niedrig",
+    "medium": "Mittel",
+    "high": "Hoch",
     "urgent": "Dringend"
   },
   "statuses": {

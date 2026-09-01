@@ -400,10 +400,10 @@
   "priorityFilters": {
     "label": "Filter by priority",
     "all": "All priorities",
-    "none": "No priority",
-    "low": "Low priority",
-    "medium": "Medium priority",
-    "high": "High priority",
+    "none": "None",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
     "urgent": "Urgent"
   },
   "statuses": {

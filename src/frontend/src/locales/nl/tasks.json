@@ -372,10 +372,10 @@
   "priorityFilters": {
     "label": "Filter op prioriteit",
     "all": "Alle prioriteiten",
-    "none": "Geen prioriteit",
-    "low": "Lage prioriteit",
-    "medium": "Gemiddelde prioriteit",
-    "high": "Hoge prioriteit",
+    "none": "Geen",
+    "low": "Laag",
+    "medium": "Gemiddeld",
+    "high": "Hoog",
     "urgent": "Dringend"
   },
   "statuses": {
