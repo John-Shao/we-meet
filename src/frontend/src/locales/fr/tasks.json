@@ -474,12 +474,12 @@
     "meta": "{{size}} · {{date}}"
   },
   "history": {
-    "title": "Historique des actions",
-    "show": "Historique des actions",
-    "hide": "Masquer l’historique",
-    "loading": "Chargement de l’historique…",
-    "empty": "Aucune action enregistrée.",
-    "error": "Impossible de charger l’historique. Veuillez réessayer.",
+    "title": "Activité",
+    "show": "Activité",
+    "hide": "Masquer l’activité",
+    "loading": "Chargement de l’activité…",
+    "empty": "Aucune activité pour le moment.",
+    "error": "Impossible de charger l’activité. Veuillez réessayer.",
     "events": {
       "created": "{{actor}} a créé la tâche",
       "attachment_removed": "{{actor}} a supprimé la pièce jointe {{filename}}",

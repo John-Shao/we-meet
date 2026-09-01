@@ -474,12 +474,12 @@
     "meta": "{{size}} · {{date}}"
   },
   "history": {
-    "title": "Aktivitätsverlauf",
-    "show": "Aktivitätsverlauf",
-    "hide": "Verlauf ausblenden",
-    "loading": "Aktivitätsverlauf wird geladen…",
-    "empty": "Noch keine Aktivität erfasst.",
-    "error": "Der Aktivitätsverlauf konnte nicht geladen werden.",
+    "title": "Aktivität",
+    "show": "Aktivität",
+    "hide": "Aktivität ausblenden",
+    "loading": "Aktivität wird geladen…",
+    "empty": "Noch keine Aktivität vorhanden.",
+    "error": "Die Aktivität konnte nicht geladen werden.",
     "events": {
       "created": "{{actor}} hat die Aufgabe erstellt",
       "attachment_removed": "{{actor}} hat den Anhang {{filename}} entfernt",

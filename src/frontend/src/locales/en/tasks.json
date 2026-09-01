@@ -522,12 +522,12 @@
     "meta": "{{size}} · {{date}}"
   },
   "history": {
-    "title": "Activity history",
-    "show": "Activity history",
-    "hide": "Hide history",
-    "loading": "Loading activity history…",
-    "empty": "No activity recorded yet.",
-    "error": "The activity history could not be loaded. Please try again.",
+    "title": "Activity",
+    "show": "Activity",
+    "hide": "Hide activity",
+    "loading": "Loading activity…",
+    "empty": "No activity yet.",
+    "error": "Activity could not be loaded. Please try again.",
     "events": {
       "created": "{{actor}} created the task",
       "attachment_removed": "{{actor}} removed attachment {{filename}}",

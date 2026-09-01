@@ -478,12 +478,12 @@
     "meta": "{{size}} · {{date}}"
   },
   "history": {
-    "title": "Activiteitengeschiedenis",
-    "show": "Activiteitengeschiedenis",
-    "hide": "Geschiedenis verbergen",
-    "loading": "Activiteitengeschiedenis laden…",
-    "empty": "Nog geen activiteit vastgelegd.",
-    "error": "De activiteitengeschiedenis kon niet worden geladen.",
+    "title": "Activiteit",
+    "show": "Activiteit",
+    "hide": "Activiteit verbergen",
+    "loading": "Activiteit laden…",
+    "empty": "Nog geen activiteit.",
+    "error": "De activiteit kon niet worden geladen.",
     "events": {
       "created": "{{actor}} heeft de taak gemaakt",
       "attachment_removed": "{{actor}} heeft bijlage {{filename}} verwijderd",
