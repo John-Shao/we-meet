@@ -39,7 +39,7 @@
     "hideField": "Hide {{field}}",
     "fieldLocked": "{{field}} is fixed by this view",
     "grouping": {
-      "label": "Group by",
+      "label": "Group",
       "none": "No grouping",
       "custom": "Custom group",
       "task_list": "Task list",
@@ -50,7 +50,7 @@
       "unknownCreator": "Unknown creator"
     },
     "ordering": {
-      "label": "Sort by",
+      "label": "Sort",
       "smart": "Smart order",
       "ascending": "Sort {{field}} ascending",
       "descending": "Sort {{field}} descending"
@@ -379,7 +379,7 @@
     "remove": "Remove assignee {{name}}"
   },
   "timeFilters": {
-    "label": "Time filter",
+    "label": "Time",
     "all": "All dates",
     "starting_today": "Starting today",
     "due_today": "Due today",
@@ -398,7 +398,7 @@
     "urgent": "Urgent"
   },
   "priorityFilters": {
-    "label": "Filter by priority",
+    "label": "Priority",
     "all": "All priorities",
     "none": "None",
     "low": "Low",

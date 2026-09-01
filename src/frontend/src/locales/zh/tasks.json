@@ -39,7 +39,7 @@
     "hideField": "隐藏{{field}}",
     "fieldLocked": "{{field}}由当前视图固定",
     "grouping": {
-      "label": "分组方式",
+      "label": "分组",
       "none": "不分组",
       "custom": "自定义分组",
       "task_list": "所属清单",
@@ -50,7 +50,7 @@
       "unknownCreator": "未知创建人"
     },
     "ordering": {
-      "label": "排序方式",
+      "label": "排序",
       "smart": "智能排序",
       "ascending": "{{field}}升序",
       "descending": "{{field}}降序"
@@ -379,7 +379,7 @@
     "remove": "移除负责人 {{name}}"
   },
   "timeFilters": {
-    "label": "时间筛选",
+    "label": "时间",
     "all": "全部日期",
     "starting_today": "今天开始",
     "due_today": "今天截止",
@@ -398,7 +398,7 @@
     "urgent": "紧急"
   },
   "priorityFilters": {
-    "label": "筛选优先级",
+    "label": "优先级",
     "all": "全部优先级",
     "none": "无",
     "low": "低",

@@ -347,7 +347,7 @@
     "remove": "Retirer {{name}} des abonnés"
   },
   "timeFilters": {
-    "label": "Filtre temporel",
+    "label": "Temps",
     "all": "Toutes les dates",
     "starting_today": "Commence aujourd’hui",
     "due_today": "Échéance aujourd’hui",
@@ -366,7 +366,7 @@
     "urgent": "Urgente"
   },
   "priorityFilters": {
-    "label": "Filtrer par priorité",
+    "label": "Priorité",
     "all": "Toutes les priorités",
     "none": "Aucune",
     "low": "Faible",

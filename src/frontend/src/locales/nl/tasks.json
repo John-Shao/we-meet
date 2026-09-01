@@ -351,7 +351,7 @@
     "remove": "Volger {{name}} verwijderen"
   },
   "timeFilters": {
-    "label": "Tijdfilter",
+    "label": "Tijd",
     "all": "Alle datums",
     "starting_today": "Begint vandaag",
     "due_today": "Vandaag aflopend",
@@ -370,7 +370,7 @@
     "urgent": "Dringend"
   },
   "priorityFilters": {
-    "label": "Filter op prioriteit",
+    "label": "Prioriteit",
     "all": "Alle prioriteiten",
     "none": "Geen",
     "low": "Laag",

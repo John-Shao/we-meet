@@ -347,7 +347,7 @@
     "remove": "Beobachter {{name}} entfernen"
   },
   "timeFilters": {
-    "label": "Zeitfilter",
+    "label": "Zeit",
     "all": "Alle Termine",
     "starting_today": "Startet heute",
     "due_today": "Heute fällig",
@@ -366,7 +366,7 @@
     "urgent": "Dringend"
   },
   "priorityFilters": {
-    "label": "Nach Priorität filtern",
+    "label": "Priorität",
     "all": "Alle Prioritäten",
     "none": "Keine",
     "low": "Niedrig",
