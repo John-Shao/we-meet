@@ -76,7 +76,9 @@ describe('TaskForm create mode', () => {
   it('uses the expected Chinese create action labels', () => {
     expect(zhTasks.workspace.createCancel).toBe('取消')
     expect(zhTasks.workspace.createSubmit).toBe('新建')
-    expect(zhTasks.taskLists.none).toBe('独立任务')
+    expect(zhTasks.taskLists.none).toBe('默认清单')
+    expect(zhTasks.taskListGroups.none).toBe('默认分组')
+    expect(zhTasks.groups.ungrouped).toBe('默认分组')
   })
 
   it('serializes an interval and occurrence limit for a recurring task', async () => {
