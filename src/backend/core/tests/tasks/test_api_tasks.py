@@ -271,7 +271,7 @@ def test_user_sets_personal_reminder_while_creating_task():
         TASKS_URL,
         {
             "title": "Prepare launch reminder",
-            "reminder": {"enabled": False, "reminder_minutes": 4320},
+            "reminder": {"enabled": False, "reminder_minutes": 5220},
         },
         format="json",
     )
@@ -282,7 +282,7 @@ def test_user_sets_personal_reminder_while_creating_task():
         user=user,
     )
     assert preference.enabled is False
-    assert preference.reminder_minutes == 4320
+    assert preference.reminder_minutes == 5220
 
     invalid = _client(user).post(
         TASKS_URL,
@@ -1732,7 +1732,7 @@ def test_task_settings_are_persisted_per_user_and_validated():
     TaskReminderPreference.objects.create(
         task=explicit_task,
         user=user,
-        reminder_minutes=1440,
+        reminder_minutes=2340,
     )
 
     defaults = _client(user).get(url)
@@ -1756,13 +1756,13 @@ def test_task_settings_are_persisted_per_user_and_validated():
     assert defaults.json() == {
         "daily_reminder_enabled": True,
         "overdue_marker_enabled": True,
-        "default_reminder_minutes": 0,
+        "default_reminder_minutes": 900,
     }
     assert updated.status_code == 200
     assert updated.json() == {
         "daily_reminder_enabled": False,
         "overdue_marker_enabled": False,
-        "default_reminder_minutes": 1440,
+        "default_reminder_minutes": 2340,
     }
     assert other_defaults.json() == defaults.json()
     assert invalid.status_code == 400
@@ -1799,7 +1799,7 @@ def test_task_reminder_preferences_are_private_to_each_participant():
     )
     task.assignees.add(first, second)
     task.followers.add(follower)
-    TaskPreference.objects.create(user=first, default_reminder_minutes=1440)
+    TaskPreference.objects.create(user=first, default_reminder_minutes=2340)
     url = f"{TASKS_URL}{task.id}/reminder/"
     pending = TaskImDelivery.objects.create(
         task=task,
@@ -1812,7 +1812,7 @@ def test_task_reminder_preferences_are_private_to_each_participant():
     defaults = _client(first).get(url)
     updated = _client(first).patch(
         url,
-        {"enabled": False, "reminder_minutes": 4320},
+        {"enabled": False, "reminder_minutes": 5220},
         format="json",
     )
     second_defaults = _client(second).get(url)
@@ -1824,7 +1824,7 @@ def test_task_reminder_preferences_are_private_to_each_participant():
     creator_defaults = _client(creator).get(url)
     creator_updated = _client(creator).patch(
         url,
-        {"enabled": True, "reminder_minutes": 4320},
+        {"enabled": True, "reminder_minutes": 5220},
         format="json",
     )
     follower_defaults = _client(follower).get(url)
@@ -1852,44 +1852,44 @@ def test_task_reminder_preferences_are_private_to_each_participant():
     assert defaults.json() == {
         "enabled": True,
         "reminder_minutes": None,
-        "effective_reminder_minutes": 1440,
+        "effective_reminder_minutes": 2340,
         "global_reminders_enabled": True,
     }
     assert updated.status_code == 200
     assert updated.json() == {
         "enabled": False,
-        "reminder_minutes": 4320,
-        "effective_reminder_minutes": 4320,
+        "reminder_minutes": 5220,
+        "effective_reminder_minutes": 5220,
         "global_reminders_enabled": True,
     }
     assert second_defaults.json() == {
         "enabled": True,
         "reminder_minutes": None,
-        "effective_reminder_minutes": 0,
+        "effective_reminder_minutes": 900,
         "global_reminders_enabled": True,
     }
     assert creator_defaults.json() == {
         "enabled": False,
         "reminder_minutes": None,
-        "effective_reminder_minutes": 0,
+        "effective_reminder_minutes": 900,
         "global_reminders_enabled": True,
     }
     assert creator_updated.json() == {
         "enabled": True,
-        "reminder_minutes": 4320,
-        "effective_reminder_minutes": 4320,
+        "reminder_minutes": 5220,
+        "effective_reminder_minutes": 5220,
         "global_reminders_enabled": True,
     }
     assert follower_defaults.json() == {
         "enabled": False,
         "reminder_minutes": None,
-        "effective_reminder_minutes": 0,
+        "effective_reminder_minutes": 900,
         "global_reminders_enabled": True,
     }
     assert follower_updated.json() == {
         "enabled": True,
-        "reminder_minutes": 0,
-        "effective_reminder_minutes": 0,
+        "reminder_minutes": 900,
+        "effective_reminder_minutes": 900,
         "global_reminders_enabled": True,
     }
     assert invalid.status_code == 400
@@ -1898,11 +1898,11 @@ def test_task_reminder_preferences_are_private_to_each_participant():
     assert TaskReminderPreference.objects.get(task=task, user=first).enabled is False
     assert (
         TaskReminderPreference.objects.get(task=task, user=creator).reminder_minutes
-        == 4320
+        == 5220
     )
     assert (
         TaskReminderPreference.objects.get(task=task, user=follower).reminder_minutes
-        == 0
+        == 900
     )
     pending.refresh_from_db()
     assert pending.status == TaskImDelivery.Status.SUPERSEDED

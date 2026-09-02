@@ -2687,6 +2687,23 @@ class Task(BaseModel):
         return self.title[:80]
 
 
+class TaskReminderMinutes(models.IntegerChoices):
+    """Stable API codes for fixed wall-clock reminders on a due date."""
+
+    DUE_DATE_0900 = 900, _("On due date at 09:00")
+    DUE_DATE_1800 = 360, _("On due date at 18:00")
+    ONE_DAY_0900 = 2340, _("One day before at 09:00")
+    TWO_DAYS_0900 = 3780, _("Two days before at 09:00")
+    THREE_DAYS_0900 = 5220, _("Three days before at 09:00")
+
+
+TASK_REMINDER_LEGACY_MINUTES = {
+    0: TaskReminderMinutes.DUE_DATE_0900,
+    1440: TaskReminderMinutes.ONE_DAY_0900,
+    4320: TaskReminderMinutes.THREE_DAYS_0900,
+}
+
+
 class TaskPreference(BaseModel):
     """Task defaults and presentation choices that follow a user across devices."""
 
@@ -2703,7 +2720,9 @@ class TaskPreference(BaseModel):
         _("overdue marker enabled"), default=True
     )
     default_reminder_minutes = models.PositiveSmallIntegerField(
-        _("default reminder minutes"), default=0
+        _("default reminder minutes"),
+        choices=TaskReminderMinutes.choices,
+        default=TaskReminderMinutes.DUE_DATE_0900,
     )
 
     class Meta:
@@ -2768,10 +2787,7 @@ class TaskSavedView(BaseModel):
 class TaskReminderPreference(BaseModel):
     """One participant's isolated reminder override for one task."""
 
-    class ReminderMinutes(models.IntegerChoices):
-        DUE_DATE = 0, _("On due date")
-        ONE_DAY = 1440, _("One day before")
-        THREE_DAYS = 4320, _("Three days before")
+    ReminderMinutes = TaskReminderMinutes
 
     task = models.ForeignKey(
         Task,

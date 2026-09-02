@@ -17,7 +17,7 @@ vi.mock('../api/fetchTasks', () => ({
     data: {
       enabled: true,
       reminder_minutes: null,
-      effective_reminder_minutes: 1440,
+      effective_reminder_minutes: 2340,
       global_reminders_enabled: true,
     },
     isLoading: false,
@@ -53,13 +53,13 @@ describe('TaskReminderControl', () => {
     )
     fireEvent.change(
       screen.getByRole('combobox', { name: 'taskReminder.timing' }),
-      { target: { value: '4320' } }
+      { target: { value: '360' } }
     )
 
     expect(mocks.mutate).toHaveBeenNthCalledWith(1, { enabled: false })
     expect(mocks.mutate).toHaveBeenNthCalledWith(2, {
       enabled: true,
-      reminder_minutes: 4320,
+      reminder_minutes: 360,
     })
   })
 })

@@ -2,7 +2,8 @@
 
 import json
 import logging
-from datetime import timedelta
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.db import transaction
@@ -40,6 +41,13 @@ DATE_CHANGE_EVENTS = (models.TaskImDelivery.Event.DATES_CHANGED,)
 STATUS_CHANGE_EVENTS = (models.TaskImDelivery.Event.STATUS_CHANGED,)
 PRIORITY_CHANGE_EVENTS = (models.TaskImDelivery.Event.PRIORITY_CHANGED,)
 DELETION_EVENTS = (models.TaskImDelivery.Event.DELETED,)
+TASK_REMINDER_WALL_CLOCK = {
+    models.TaskReminderMinutes.DUE_DATE_0900: (0, time(hour=9)),
+    models.TaskReminderMinutes.DUE_DATE_1800: (0, time(hour=18)),
+    models.TaskReminderMinutes.ONE_DAY_0900: (1, time(hour=9)),
+    models.TaskReminderMinutes.TWO_DAYS_0900: (2, time(hour=9)),
+    models.TaskReminderMinutes.THREE_DAYS_0900: (3, time(hour=9)),
+}
 
 
 class TaskImNotificationUnavailable(RuntimeError):
@@ -399,6 +407,24 @@ def _task_reminder_is_enabled(
     return global_preference is None or global_preference.daily_reminder_enabled
 
 
+def _effective_task_reminder_minutes(*, global_preference, task_preference) -> int:
+    if task_preference is not None and task_preference.reminder_minutes is not None:
+        value = task_preference.reminder_minutes
+    elif global_preference is not None:
+        value = global_preference.default_reminder_minutes
+    else:
+        value = models.TaskReminderMinutes.DUE_DATE_0900
+    return models.TASK_REMINDER_LEGACY_MINUTES.get(value, value)
+
+
+def task_due_reminder_trigger_at(*, due_date, reminder_minutes, tz_name):
+    """Resolve a task reminder to a fixed wall-clock instant for one user."""
+
+    days_before, wall_time = TASK_REMINDER_WALL_CLOCK[reminder_minutes]
+    local_trigger = datetime.combine(due_date - timedelta(days=days_before), wall_time)
+    return timezone.make_aware(local_trigger, ZoneInfo(str(tz_name)))
+
+
 def supersede_ineligible_task_reminders(*, task: models.Task) -> int:
     """Cancel unsent reminders for users with no remaining participant role."""
 
@@ -418,8 +444,9 @@ def supersede_ineligible_task_reminders(*, task: models.Task) -> int:
 
 
 def record_due_task_reminders(*, now=None) -> int:
-    """Create today's personal reminders in each participant's timezone."""
+    """Create due personal reminders at fixed local wall-clock times."""
 
+    current = now or timezone.now()
     created_count = 0
     preferences = {
         preference.user_id: preference
@@ -457,32 +484,33 @@ def record_due_task_reminders(*, now=None) -> int:
                 continue
             if visible_task_ancestor_path(task, participant) is None:
                 continue
-            today = local_date_for_user(participant, now=now)
+            today = local_date_for_user(participant, now=current)
             reminders = []
             # A one-day task gets the more urgent due reminder instead of two cards.
             if task.start_date == today and task.due_date != today:
                 reminders.append(
                     (models.TaskImDelivery.Event.STARTING, task.start_date)
                 )
-            reminder_minutes = (
-                task_preference.reminder_minutes
-                if task_preference is not None
-                and task_preference.reminder_minutes is not None
-                else (
-                    preference.default_reminder_minutes if preference is not None else 0
-                )
+            reminder_minutes = _effective_task_reminder_minutes(
+                global_preference=preference,
+                task_preference=task_preference,
             )
-            reminder_days = reminder_minutes // (24 * 60)
-            if task.due_date == today and reminder_days == 0:
-                reminders.append((models.TaskImDelivery.Event.DUE_TODAY, task.due_date))
-            elif (
-                task.due_date is not None
-                and reminder_days > 0
-                and task.due_date - timedelta(days=reminder_days)
-                <= today
-                < task.due_date
-            ):
-                reminders.append((models.TaskImDelivery.Event.DUE_SOON, task.due_date))
+            if task.due_date is not None and today <= task.due_date:
+                trigger_at = task_due_reminder_trigger_at(
+                    due_date=task.due_date,
+                    reminder_minutes=reminder_minutes,
+                    tz_name=participant.timezone,
+                )
+                if current >= trigger_at:
+                    reminder_days, _wall_time = TASK_REMINDER_WALL_CLOCK[
+                        reminder_minutes
+                    ]
+                    event = (
+                        models.TaskImDelivery.Event.DUE_TODAY
+                        if reminder_days == 0
+                        else models.TaskImDelivery.Event.DUE_SOON
+                    )
+                    reminders.append((event, task.due_date))
             elif task.due_date is not None and task.due_date < today:
                 reminders.append((models.TaskImDelivery.Event.OVERDUE, task.due_date))
 
@@ -1090,45 +1118,45 @@ def _recipient_can_receive(  # noqa: PLR0912
         ):
             allowed = False
         else:
-            today = local_date_for_user(delivery.recipient)
+            current = timezone.now()
+            today = local_date_for_user(delivery.recipient, now=current)
             if delivery.event == models.TaskImDelivery.Event.STARTING:
                 allowed = (
                     task.start_date == delivery.reference_date == today
                     and task.due_date != today
                 )
             elif delivery.event == models.TaskImDelivery.Event.DUE_TODAY:
-                reminder_minutes = (
-                    task_preference.reminder_minutes
-                    if task_preference is not None
-                    and task_preference.reminder_minutes is not None
-                    else (
-                        preference.default_reminder_minutes
-                        if preference is not None
-                        else 0
-                    )
+                reminder_minutes = _effective_task_reminder_minutes(
+                    global_preference=preference,
+                    task_preference=task_preference,
                 )
+                reminder_days, _wall_time = TASK_REMINDER_WALL_CLOCK[reminder_minutes]
                 allowed = (
-                    reminder_minutes == 0
+                    reminder_days == 0
                     and task.due_date == delivery.reference_date == today
+                    and current
+                    >= task_due_reminder_trigger_at(
+                        due_date=task.due_date,
+                        reminder_minutes=reminder_minutes,
+                        tz_name=delivery.recipient.timezone,
+                    )
                 )
             elif delivery.event == models.TaskImDelivery.Event.DUE_SOON:
-                reminder_minutes = (
-                    task_preference.reminder_minutes
-                    if task_preference is not None
-                    and task_preference.reminder_minutes is not None
-                    else (
-                        preference.default_reminder_minutes
-                        if preference is not None
-                        else 0
-                    )
+                reminder_minutes = _effective_task_reminder_minutes(
+                    global_preference=preference,
+                    task_preference=task_preference,
                 )
-                reminder_days = reminder_minutes // (24 * 60)
+                reminder_days, _wall_time = TASK_REMINDER_WALL_CLOCK[reminder_minutes]
                 allowed = bool(
                     reminder_days > 0
                     and task.due_date == delivery.reference_date
-                    and task.due_date - timedelta(days=reminder_days)
-                    <= today
-                    < task.due_date
+                    and today <= task.due_date
+                    and current
+                    >= task_due_reminder_trigger_at(
+                        due_date=task.due_date,
+                        reminder_minutes=reminder_minutes,
+                        tz_name=delivery.recipient.timezone,
+                    )
                 )
             else:
                 allowed = (

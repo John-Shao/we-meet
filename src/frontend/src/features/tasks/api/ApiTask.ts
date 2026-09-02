@@ -5,6 +5,7 @@ export type TaskPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 export type TaskPriorityFilter = 'all' | TaskPriority
 export type TaskTimeState = 'starting_today' | 'due_today' | 'overdue'
 export type TaskTimeFilter = 'all' | TaskTimeState
+export type TaskReminderMinutes = 900 | 360 | 2340 | 3780 | 5220
 export type TaskRecurrenceFrequency = 'daily' | 'weekly' | 'monthly'
 export type TaskRecurrenceScope = 'one' | 'following'
 export type TaskOrderingField =
@@ -92,7 +93,7 @@ export interface ApiStandaloneTaskCount {
 export interface ApiTaskSettings {
   daily_reminder_enabled: boolean
   overdue_marker_enabled: boolean
-  default_reminder_minutes: 0 | 1440 | 4320
+  default_reminder_minutes: TaskReminderMinutes
 }
 
 export type PatchTaskSettingsPayload = Partial<ApiTaskSettings>
@@ -139,8 +140,8 @@ export type PatchTaskSavedViewPayload = Partial<
 
 export interface ApiTaskReminderPreference {
   enabled: boolean
-  reminder_minutes: 0 | 1440 | 4320 | null
-  effective_reminder_minutes: 0 | 1440 | 4320
+  reminder_minutes: TaskReminderMinutes | null
+  effective_reminder_minutes: TaskReminderMinutes
   global_reminders_enabled: boolean
 }
 

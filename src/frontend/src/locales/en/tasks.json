@@ -158,9 +158,11 @@
     "defaultReminderDescription": "Used when a task follows system settings.",
     "reminderOptions": {
       "none": "No reminders",
-      "0": "On the due date",
-      "1440": "1 day before",
-      "4320": "3 days before"
+      "900": "Due date at 09:00",
+      "360": "Due date at 18:00",
+      "2340": "1 day before at 09:00",
+      "3780": "2 days before at 09:00",
+      "5220": "3 days before at 09:00"
     },
     "loadError": "Task settings could not be loaded.",
     "saveError": "Task settings could not be updated. Please try again.",

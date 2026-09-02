@@ -37,6 +37,10 @@ from core.services.task_hierarchy import (
 from core.services.task_time import local_date_for_user, task_time_state
 
 logger = logging.getLogger(__name__)
+TASK_REMINDER_API_VALUES = (
+    *models.TaskReminderMinutes.values,
+    *models.TASK_REMINDER_LEGACY_MINUTES,
+)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -535,6 +539,10 @@ class TaskActivitySerializer(serializers.ModelSerializer):
 class TaskPreferenceSerializer(serializers.ModelSerializer):
     """Serialize the caller's cross-device task preferences."""
 
+    default_reminder_minutes = serializers.ChoiceField(
+        choices=TASK_REMINDER_API_VALUES,
+    )
+
     class Meta:
         model = models.TaskPreference
         fields = [
@@ -544,9 +552,7 @@ class TaskPreferenceSerializer(serializers.ModelSerializer):
         ]
 
     def validate_default_reminder_minutes(self, value):
-        if value not in {0, 1440, 4320}:
-            raise serializers.ValidationError("unsupported reminder value")
-        return value
+        return models.TASK_REMINDER_LEGACY_MINUTES.get(value, value)
 
 
 class TaskSavedViewSerializer(serializers.ModelSerializer):
@@ -722,7 +728,7 @@ class TaskReminderPreferenceSerializer(serializers.ModelSerializer):
     """Serialize one assignee's task-specific reminder override."""
 
     reminder_minutes = serializers.ChoiceField(
-        choices=models.TaskReminderPreference.ReminderMinutes.values,
+        choices=TASK_REMINDER_API_VALUES,
         allow_null=True,
         required=False,
     )
@@ -739,6 +745,11 @@ class TaskReminderPreferenceSerializer(serializers.ModelSerializer):
 
     def get_global_reminders_enabled(self, obj):  # pylint: disable=unused-argument
         return self._global_preference().daily_reminder_enabled
+
+    def validate_reminder_minutes(self, value):
+        if value is None:
+            return None
+        return models.TASK_REMINDER_LEGACY_MINUTES.get(value, value)
 
     class Meta:
         model = models.TaskReminderPreference

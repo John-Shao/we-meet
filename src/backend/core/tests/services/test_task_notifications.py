@@ -437,7 +437,7 @@ def test_task_date_reminders_respect_assignee_timezone_and_are_idempotent(
     creator = UserFactory()
     shanghai = UserFactory(timezone="Asia/Shanghai")
     utc_user = UserFactory(timezone="UTC")
-    now = datetime(2026, 8, 21, 16, 30, tzinfo=dt_timezone.utc)
+    now = datetime(2026, 8, 22, 10, tzinfo=dt_timezone.utc)
 
     starting = models.Task.objects.create(
         title="Shanghai starting",
@@ -470,7 +470,7 @@ def test_task_date_reminders_respect_assignee_timezone_and_are_idempotent(
         title="UTC starting",
         creator=creator,
         assignee=utc_user,
-        start_date=date(2026, 8, 21),
+        start_date=date(2026, 8, 22),
     )
     models.Task.objects.create(
         title="Completed",
@@ -497,7 +497,7 @@ def test_task_date_reminders_respect_assignee_timezone_and_are_idempotent(
         (
             utc_starting.id,
             models.TaskImDelivery.Event.STARTING,
-            date(2026, 8, 21),
+            date(2026, 8, 22),
         ),
     }
     assert enqueue.call_count == 5
@@ -510,7 +510,7 @@ def test_task_date_reminders_skip_users_who_disabled_daily_reminders(
     creator = UserFactory()
     enabled = UserFactory(timezone="UTC")
     disabled = UserFactory(timezone="UTC")
-    now = datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+    now = datetime(2026, 8, 22, 9, tzinfo=dt_timezone.utc)
     enabled_task = models.Task.objects.create(
         title="Enabled reminder",
         creator=creator,
@@ -553,7 +553,7 @@ def test_task_due_reminder_uses_each_assignees_lead_time(
     due_today_user = UserFactory(timezone="UTC")
     one_day_user = UserFactory(timezone="UTC")
     three_day_user = UserFactory(timezone="UTC")
-    now = datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+    now = datetime(2026, 8, 22, 9, tzinfo=dt_timezone.utc)
     due_today = models.Task.objects.create(
         title="Due today",
         creator=creator,
@@ -574,11 +574,11 @@ def test_task_due_reminder_uses_each_assignees_lead_time(
     )
     models.TaskPreference.objects.create(
         user=one_day_user,
-        default_reminder_minutes=1440,
+        default_reminder_minutes=2340,
     )
     models.TaskPreference.objects.create(
         user=three_day_user,
-        default_reminder_minutes=4320,
+        default_reminder_minutes=5220,
     )
 
     with (
@@ -610,6 +610,43 @@ def test_task_due_reminder_uses_each_assignees_lead_time(
     assert enqueue.call_count == 3
 
 
+def test_task_due_reminder_waits_for_the_recipients_local_wall_clock(
+    django_capture_on_commit_callbacks,
+):
+    recipient = UserFactory(timezone="Asia/Shanghai")
+    task = models.Task.objects.create(
+        title="Due at the evening reminder",
+        creator=UserFactory(),
+        assignee=recipient,
+        due_date=date(2026, 8, 22),
+    )
+    models.TaskPreference.objects.create(
+        user=recipient,
+        default_reminder_minutes=models.TaskReminderMinutes.DUE_DATE_1800,
+    )
+
+    with (
+        mock.patch("core.services.task_notifications._enqueue_delivery") as enqueue,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        assert (
+            record_due_task_reminders(
+                now=datetime(2026, 8, 22, 9, 59, tzinfo=dt_timezone.utc)
+            )
+            == 0
+        )
+        assert (
+            record_due_task_reminders(
+                now=datetime(2026, 8, 22, 10, tzinfo=dt_timezone.utc)
+            )
+            == 1
+        )
+
+    delivery = models.TaskImDelivery.objects.get(task=task, recipient=recipient)
+    assert delivery.event == models.TaskImDelivery.Event.DUE_TODAY
+    enqueue.assert_called_once_with(delivery.id)
+
+
 def test_task_reminder_override_is_independent_for_each_assignee(
     django_capture_on_commit_callbacks,
 ):
@@ -627,12 +664,12 @@ def test_task_reminder_override_is_independent_for_each_assignee(
         [
             models.TaskPreference(
                 user=reminded,
-                default_reminder_minutes=4320,
+                default_reminder_minutes=5220,
                 daily_reminder_enabled=False,
             ),
             models.TaskPreference(
                 user=disabled,
-                default_reminder_minutes=4320,
+                default_reminder_minutes=5220,
             ),
         ]
     )
@@ -641,7 +678,7 @@ def test_task_reminder_override_is_independent_for_each_assignee(
             models.TaskReminderPreference(
                 task=task,
                 user=reminded,
-                reminder_minutes=1440,
+                reminder_minutes=2340,
             ),
             models.TaskReminderPreference(
                 task=task,
@@ -657,7 +694,7 @@ def test_task_reminder_override_is_independent_for_each_assignee(
     ):
         assert (
             record_due_task_reminders(
-                now=datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+                now=datetime(2026, 8, 22, 9, tzinfo=dt_timezone.utc)
             )
             == 1
         )
@@ -686,7 +723,7 @@ def test_creator_and_follower_reminders_are_independent_and_opt_in(
         task=creator_task,
         user=creator,
         enabled=True,
-        reminder_minutes=4320,
+        reminder_minutes=5220,
     )
 
     other_creator = UserFactory(timezone="UTC")
@@ -703,7 +740,7 @@ def test_creator_and_follower_reminders_are_independent_and_opt_in(
         task=follower_task,
         user=other_follower,
         enabled=True,
-        reminder_minutes=1440,
+        reminder_minutes=2340,
     )
 
     with (
@@ -712,7 +749,7 @@ def test_creator_and_follower_reminders_are_independent_and_opt_in(
     ):
         assert (
             record_due_task_reminders(
-                now=datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+                now=datetime(2026, 8, 22, 9, tzinfo=dt_timezone.utc)
             )
             == 2
         )
@@ -730,7 +767,8 @@ def test_reminder_claim_rechecks_participant_role_and_opt_in():
     creator = UserFactory(timezone="UTC")
     assignee = UserFactory(timezone="UTC")
     follower = UserFactory(timezone="UTC")
-    today = datetime.now(tz=dt_timezone.utc).date()
+    now = datetime(2026, 8, 22, 12, tzinfo=dt_timezone.utc)
+    today = now.date()
     task = models.Task.objects.create(
         title="Recheck reminder access",
         creator=creator,
@@ -748,18 +786,19 @@ def test_reminder_claim_rechecks_participant_role_and_opt_in():
         recipient=creator,
         event=models.TaskImDelivery.Event.DUE_TODAY,
         reference_date=today,
-        next_attempt_at=timezone.now(),
+        next_attempt_at=now,
     )
     follower_delivery = models.TaskImDelivery.objects.create(
         task=task,
         recipient=follower,
         event=models.TaskImDelivery.Event.DUE_TODAY,
         reference_date=today,
-        next_attempt_at=timezone.now(),
+        next_attempt_at=now,
     )
 
-    assert claim_task_assignment(creator_delivery.id) is not None
-    assert claim_task_assignment(follower_delivery.id) is None
+    with mock.patch("core.services.task_notifications.timezone.now", return_value=now):
+        assert claim_task_assignment(creator_delivery.id) is not None
+        assert claim_task_assignment(follower_delivery.id) is None
     follower_delivery.refresh_from_db()
     assert follower_delivery.status == models.TaskImDelivery.Status.SUPERSEDED
 
@@ -776,7 +815,7 @@ def test_due_scan_reactivates_a_superseded_reminder_after_preference_change(
     )
     models.TaskPreference.objects.create(
         user=recipient,
-        default_reminder_minutes=1440,
+        default_reminder_minutes=2340,
     )
     delivery = models.TaskImDelivery.objects.create(
         task=task,
@@ -792,7 +831,7 @@ def test_due_scan_reactivates_a_superseded_reminder_after_preference_change(
     ):
         assert (
             record_due_task_reminders(
-                now=datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+                now=datetime(2026, 8, 22, 9, tzinfo=dt_timezone.utc)
             )
             == 1
         )
@@ -815,7 +854,7 @@ def test_due_scan_leaves_a_failed_reminder_terminal(
     )
     models.TaskPreference.objects.create(
         user=recipient,
-        default_reminder_minutes=1440,
+        default_reminder_minutes=2340,
     )
     delivery = models.TaskImDelivery.objects.create(
         task=task,
@@ -832,7 +871,7 @@ def test_due_scan_leaves_a_failed_reminder_terminal(
     ):
         assert (
             record_due_task_reminders(
-                now=datetime(2026, 8, 22, 8, tzinfo=dt_timezone.utc)
+                now=datetime(2026, 8, 22, 9, tzinfo=dt_timezone.utc)
             )
             == 0
         )
@@ -908,7 +947,7 @@ def test_due_soon_delivery_uses_advance_reminder_card(settings):
     recipient = UserFactory(timezone="UTC")
     models.TaskPreference.objects.create(
         user=recipient,
-        default_reminder_minutes=1440,
+        default_reminder_minutes=2340,
     )
     task = models.Task.objects.create(
         title="准备发布材料",

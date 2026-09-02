@@ -3,10 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 
-import type { PatchTaskReminderPreferencePayload } from '../api/ApiTask'
+import type {
+  PatchTaskReminderPreferencePayload,
+  TaskReminderMinutes,
+} from '../api/ApiTask'
 import { useTaskReminder, useUpdateTaskReminder } from '../api/fetchTasks'
 
-const reminderOptions = [0, 1440, 4320] as const
+const reminderOptions: TaskReminderMinutes[] = [900, 360, 2340, 3780, 5220]
 
 export const TaskReminderFields = ({
   enabled,
@@ -17,8 +20,8 @@ export const TaskReminderFields = ({
   onChange,
 }: {
   enabled: boolean
-  reminderMinutes: 0 | 1440 | 4320 | null
-  effectiveReminderMinutes: 0 | 1440 | 4320
+  reminderMinutes: TaskReminderMinutes | null
+  effectiveReminderMinutes: TaskReminderMinutes
   globalRemindersEnabled: boolean
   disabled?: boolean
   onChange: (patch: PatchTaskReminderPreferencePayload) => void
@@ -42,7 +45,7 @@ export const TaskReminderFields = ({
                   reminder_minutes:
                     value === 'default'
                       ? null
-                      : (Number(value) as 0 | 1440 | 4320),
+                      : (Number(value) as TaskReminderMinutes),
                 }
           )
         }}

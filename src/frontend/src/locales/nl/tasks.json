@@ -132,9 +132,11 @@
     "defaultReminderDescription": "Gebruikt wanneer een taak de systeeminstellingen volgt.",
     "reminderOptions": {
       "none": "Geen herinnering",
-      "0": "Op de deadline",
-      "1440": "1 dag vooraf",
-      "4320": "3 dagen vooraf"
+      "900": "Op de deadline om 09:00",
+      "360": "Op de deadline om 18:00",
+      "2340": "1 dag vooraf om 09:00",
+      "3780": "2 dagen vooraf om 09:00",
+      "5220": "3 dagen vooraf om 09:00"
     },
     "loadError": "De taakinstellingen konden niet worden geladen.",
     "saveError": "De taakinstellingen konden niet worden bijgewerkt.",

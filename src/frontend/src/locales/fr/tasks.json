@@ -132,9 +132,11 @@
     "defaultReminderDescription": "Utilisé lorsqu’une tâche suit les réglages système.",
     "reminderOptions": {
       "none": "Aucun rappel",
-      "0": "Le jour de l’échéance",
-      "1440": "1 jour avant",
-      "4320": "3 jours avant"
+      "900": "Le jour de l’échéance à 09:00",
+      "360": "Le jour de l’échéance à 18:00",
+      "2340": "1 jour avant à 09:00",
+      "3780": "2 jours avant à 09:00",
+      "5220": "3 jours avant à 09:00"
     },
     "loadError": "Impossible de charger les paramètres des tâches.",
     "saveError": "Impossible de mettre à jour les paramètres des tâches.",

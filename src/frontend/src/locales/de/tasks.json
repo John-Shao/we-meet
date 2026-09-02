@@ -132,9 +132,11 @@
     "defaultReminderDescription": "Wird verwendet, wenn eine Aufgabe den Systemeinstellungen folgt.",
     "reminderOptions": {
       "none": "Keine Erinnerung",
-      "0": "Am Fälligkeitstag",
-      "1440": "1 Tag vorher",
-      "4320": "3 Tage vorher"
+      "900": "Am Fälligkeitstag um 09:00",
+      "360": "Am Fälligkeitstag um 18:00",
+      "2340": "1 Tag vorher um 09:00",
+      "3780": "2 Tage vorher um 09:00",
+      "5220": "3 Tage vorher um 09:00"
     },
     "loadError": "Die Aufgabeneinstellungen konnten nicht geladen werden.",
     "saveError": "Die Aufgabeneinstellungen konnten nicht aktualisiert werden.",

@@ -5,10 +5,13 @@ import { StateHint } from '@/components/StateHint'
 import { Button, Switch } from '@/primitives'
 import { css } from '@/styled-system/css'
 
-import type { PatchTaskSettingsPayload } from '../api/ApiTask'
+import type {
+  PatchTaskSettingsPayload,
+  TaskReminderMinutes,
+} from '../api/ApiTask'
 import { useTaskSettings, useUpdateTaskSettings } from '../api/fetchTasks'
 
-const reminderOptions = [0, 1440, 4320] as const
+const reminderOptions: TaskReminderMinutes[] = [900, 360, 2340, 3780, 5220]
 
 /** Task preferences embedded in the shared system-settings dialog. */
 export const TaskSettingsPanel = () => {
@@ -68,10 +71,9 @@ export const TaskSettingsPanel = () => {
                   ? { daily_reminder_enabled: false }
                   : {
                       daily_reminder_enabled: true,
-                      default_reminder_minutes: Number(value) as
-                        | 0
-                        | 1440
-                        | 4320,
+                      default_reminder_minutes: Number(
+                        value
+                      ) as TaskReminderMinutes,
                     }
               )
             }}

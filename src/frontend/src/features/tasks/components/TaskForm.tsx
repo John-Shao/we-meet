@@ -24,6 +24,7 @@ import type {
   ApiTaskUser,
   TaskPriority,
   TaskRecurrenceFrequency,
+  TaskReminderMinutes,
 } from '../api/ApiTask'
 import { useCreateTask, useTaskSettings } from '../api/fetchTasks'
 import { taskAssignees } from '../taskUi'
@@ -86,9 +87,8 @@ export const TaskForm = ({
   const [reminderEnabledOverride, setReminderEnabledOverride] = useState<
     boolean | null
   >(null)
-  const [reminderMinutes, setReminderMinutes] = useState<
-    0 | 1440 | 4320 | null
-  >(null)
+  const [reminderMinutes, setReminderMinutes] =
+    useState<TaskReminderMinutes | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const createMutation = useCreateTask()
@@ -357,7 +357,7 @@ export const TaskForm = ({
                 enabled={reminderEnabled}
                 reminderMinutes={reminderMinutes}
                 effectiveReminderMinutes={
-                  taskSettings?.default_reminder_minutes ?? 0
+                  taskSettings?.default_reminder_minutes ?? 900
                 }
                 globalRemindersEnabled={
                   taskSettings?.daily_reminder_enabled ?? true
