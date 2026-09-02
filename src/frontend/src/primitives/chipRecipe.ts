@@ -43,17 +43,15 @@ export const chipRecipe = cva({
     },
     size: {
       sm: {
-        paddingX: '0.25rem',
+        paddingX: 'xs',
         borderRadius: '0.25rem',
-        fontSize: '0.6875rem',
-        lineHeight: '16px',
+        textStyle: 'labelSmall',
       },
       md: {
-        paddingX: '0.5rem',
-        paddingY: '0.25rem',
+        paddingX: 'sm',
+        paddingY: 'xs',
         borderRadius: 'full',
-        fontSize: '0.8125rem',
-        lineHeight: '18px',
+        textStyle: 'labelMedium',
       },
     },
   },

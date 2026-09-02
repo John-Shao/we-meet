@@ -7,8 +7,70 @@ import {
   defineTextStyles,
   defineTokens,
 } from '@pandacss/dev'
+import spacingContract from '../design-tokens/spacing.tokens.json'
+import typographyContract from '../design-tokens/typography.tokens.json'
+
+type DimensionToken = {
+  $value: { value: number; unit: 'px' | 'rem' }
+}
+
+type TypographyToken = {
+  $value: {
+    fontFamily: string
+    fontSize: { value: number; unit: 'px' }
+    fontWeight: number
+    letterSpacing: { value: number; unit: 'px' }
+    lineHeight: number
+  }
+}
+
+const pxToRem = (value: number) => `${value / 16}rem`
+
+const sharedSpacing = Object.fromEntries(
+  Object.entries(spacingContract.space)
+    .filter(([name]) => !name.startsWith('$'))
+    .map(([name, token]) => [
+      name,
+      {
+        value: pxToRem((token as DimensionToken).$value.value),
+      },
+    ])
+) as Tokens['spacing']
+
+const toWebTextStyle = (token: TypographyToken) => {
+  const { fontSize, fontWeight, letterSpacing, lineHeight } = token.$value
+  return {
+    value: {
+      fontFamily: 'sans',
+      fontSize: pxToRem(fontSize.value),
+      fontWeight,
+      letterSpacing:
+        letterSpacing.value === 0 ? '0' : pxToRem(letterSpacing.value),
+      lineHeight: String(lineHeight),
+    },
+  }
+}
+
+const sharedTextStyles = {
+  displayLarge: toWebTextStyle(typographyContract.typography.displayLarge),
+  displayMedium: toWebTextStyle(typographyContract.typography.displayMedium),
+  displaySmall: toWebTextStyle(typographyContract.typography.displaySmall),
+  headlineLarge: toWebTextStyle(typographyContract.typography.headlineLarge),
+  headlineMedium: toWebTextStyle(typographyContract.typography.headlineMedium),
+  headlineSmall: toWebTextStyle(typographyContract.typography.headlineSmall),
+  titleLarge: toWebTextStyle(typographyContract.typography.titleLarge),
+  titleMedium: toWebTextStyle(typographyContract.typography.titleMedium),
+  titleSmall: toWebTextStyle(typographyContract.typography.titleSmall),
+  bodyLarge: toWebTextStyle(typographyContract.typography.bodyLarge),
+  bodyMedium: toWebTextStyle(typographyContract.typography.bodyMedium),
+  bodySmall: toWebTextStyle(typographyContract.typography.bodySmall),
+  labelLarge: toWebTextStyle(typographyContract.typography.labelLarge),
+  labelMedium: toWebTextStyle(typographyContract.typography.labelMedium),
+  labelSmall: toWebTextStyle(typographyContract.typography.labelSmall),
+}
 
 const spacing: Tokens['spacing'] = {
+  ...sharedSpacing,
   0: { value: '0rem' },
   0.125: { value: '0.125rem' },
   0.25: { value: '0.25rem' },
@@ -49,6 +111,7 @@ const config: Config = {
     'html, body': {
       backgroundColor: 'greyscale.000',
       color: 'greyscale.1000',
+      fontFamily: 'sans',
     },
     // 用户在系统里开了「减弱动态效果」时,全站动效统一压掉。
     //
@@ -855,6 +918,7 @@ const config: Config = {
       },
     }),
     textStyles: defineTextStyles({
+      ...sharedTextStyles,
       display: {
         value: {
           fontSize: '3rem',

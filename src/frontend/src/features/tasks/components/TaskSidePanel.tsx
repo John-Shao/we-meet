@@ -1807,7 +1807,7 @@ const createDialogHeaderCss = css({
   '& h2': {
     margin: 0,
     color: 'greyscale.900',
-    fontSize: '1rem',
+    textStyle: 'titleMedium',
     fontWeight: 'bold',
   },
 })
@@ -1817,15 +1817,15 @@ const panelHeaderCss = css({
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: '1rem',
-  paddingX: '1rem',
+  gap: 'lg',
+  paddingX: 'lg',
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
 const panelHeaderStartCss = css({ minWidth: 0 })
 const panelHeaderActionsCss = css({
   display: 'flex',
   alignItems: 'center',
-  gap: '0.25rem',
+  gap: 'xs',
 })
 const panelTitleCss = css({
   margin: 0,
@@ -1833,41 +1833,43 @@ const panelTitleCss = css({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  fontSize: '1rem',
-  fontWeight: '600',
+  textStyle: 'titleMedium',
 })
 const panelBodyCss = css({ flex: 1, minHeight: 0, overflowY: 'auto' })
 const detailContentCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '1rem',
-  padding: '1.25rem 1.25rem 1.5rem',
-  fontSize: '0.875rem',
+  gap: 'lg',
+  paddingX: 'lg',
+  paddingTop: 'lg',
+  paddingBottom: 'xl',
+  textStyle: 'bodyMedium',
 })
 const taskTitleRowCss = css({
   display: 'flex',
   alignItems: 'flex-start',
-  gap: '0.75rem',
+  gap: 'md',
 })
 const completedWithOpenSubtasksCss = css({
   display: 'flex',
   alignItems: 'center',
-  gap: '0.5rem',
+  gap: 'sm',
   margin: 0,
-  padding: '0.625rem 0.75rem',
+  paddingY: 'sm',
+  paddingX: 'md',
   border: '1px solid token(colors.greyscale.200)',
   borderRadius: '6px',
   backgroundColor: 'greyscale.50',
   color: 'greyscale.700',
-  fontSize: '0.8125rem',
+  textStyle: 'bodySmall',
 })
 const breadcrumbCss = css({
   display: 'flex',
   flexWrap: 'wrap',
-  gap: '0.375rem',
+  gap: 'xs',
   color: 'greyscale.500',
-  fontSize: '0.75rem',
-  '& span': { display: 'inline-flex', gap: '0.375rem' },
+  textStyle: 'bodySmall',
+  '& span': { display: 'inline-flex', gap: 'xs' },
   '& a': { color: 'primary.600', textDecoration: 'none' },
 })
 const taskTitleTextCss = css({
@@ -1876,9 +1878,7 @@ const taskTitleTextCss = css({
   '& h2': {
     margin: 0,
     color: 'greyscale.900',
-    fontSize: '1.125rem',
-    fontWeight: '600',
-    lineHeight: 1.45,
+    textStyle: 'titleLarge',
     overflowWrap: 'anywhere',
   },
 })
@@ -1888,7 +1888,7 @@ const titleEditButtonCss = css({
   display: 'flex',
   alignItems: 'flex-start',
   justifyContent: 'space-between',
-  gap: '0.5rem',
+  gap: 'sm',
   padding: 0,
   border: 0,
   backgroundColor: 'transparent',
@@ -1900,7 +1900,7 @@ const titleEditButtonCss = css({
   '& span': { overflowWrap: 'anywhere' },
   '& svg': {
     flexShrink: 0,
-    marginTop: '0.25rem',
+    marginTop: 'xs',
     color: 'greyscale.500',
     opacity: 0,
   },
@@ -1911,7 +1911,7 @@ const titleEditButtonCss = css({
 const titleEditorCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.5rem',
+  gap: 'sm',
 })
 const descriptionCss = css({
   display: 'block',
@@ -1929,20 +1929,21 @@ const recurrenceDetailCss = css({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  gap: '0.5rem',
+  gap: 'sm',
   color: 'greyscale.600',
 })
 const subtasksSectionCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.5rem',
+  gap: 'sm',
 })
 const relatedSubtaskHeadingCss = css({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: '0.75rem',
-  padding: '0.375rem 0.5rem',
+  gap: 'md',
+  paddingY: 'xs',
+  paddingX: 'sm',
   borderRadius: '6px',
   color: 'greyscale.500',
   _hover: { backgroundColor: 'greyscale.50' },
@@ -1953,11 +1954,10 @@ const relatedSubtaskHeadingLabelCss = css({
   gridTemplateColumns: '1.5rem auto',
   flexShrink: 0,
   alignItems: 'center',
-  gap: '0.5rem',
+  gap: 'sm',
   '& h4': {
     margin: 0,
-    fontSize: '0.8125rem',
-    fontWeight: '400',
+    textStyle: 'bodySmall',
   },
 })
 const subtaskProgressCss = css({
@@ -1965,9 +1965,9 @@ const subtaskProgressCss = css({
   display: 'flex',
   flex: 1,
   alignItems: 'center',
-  gap: '0.5rem',
+  gap: 'sm',
   color: 'default.subtle-text',
-  fontSize: '0.8125rem',
+  textStyle: 'bodySmall',
   whiteSpace: 'nowrap',
   '& > div:first-child': {
     minWidth: '3rem',
@@ -2008,7 +2008,7 @@ const relatedSubtaskActionCss = css({
 const subtaskListCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.25rem',
+  gap: 'xs',
   margin: 0,
   padding: 0,
   listStyle: 'none',
@@ -2017,8 +2017,9 @@ const subtaskListCss = css({
     display: 'grid',
     gridTemplateColumns: '1.5rem 1rem minmax(5rem, 1fr) auto',
     alignItems: 'center',
-    gap: '0.375rem',
-    padding: '0.25rem 0.5rem',
+    gap: 'xs',
+    paddingY: 'xs',
+    paddingX: 'sm',
     borderRadius: '6px',
     transition:
       'background-color token(durations.fast), box-shadow token(durations.fast), opacity token(durations.fast)',
@@ -2060,7 +2061,7 @@ const subtaskTitleCss = css({
   border: 0,
   backgroundColor: 'transparent',
   color: 'default.text',
-  fontSize: '0.8125rem',
+  textStyle: 'bodySmall',
   textAlign: 'left',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -2075,19 +2076,20 @@ const subtaskMetaCss = css({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'flex-end',
-  gap: '0.375rem',
+  gap: 'xs',
   marginLeft: 'auto',
 })
 const subtaskDueDateCss = css({
   display: 'inline-flex',
   alignItems: 'center',
-  gap: '0.25rem',
-  padding: '0.125rem 0.25rem',
+  gap: 'xs',
+  paddingY: 'xxs',
+  paddingX: 'xs',
   border: 0,
   borderRadius: '4px',
   backgroundColor: 'transparent',
   color: 'greyscale.500',
-  fontSize: '0.6875rem',
+  textStyle: 'labelSmall',
   whiteSpace: 'nowrap',
   cursor: 'pointer',
   _hover: { backgroundColor: 'greyscale.100' },
@@ -2112,29 +2114,31 @@ const subtaskTitleInputCss = css({
   minWidth: 0,
   height: '1.75rem',
   minHeight: '1.75rem',
-  fontSize: '0.8125rem',
+  textStyle: 'bodySmall',
 })
 const subtaskDateInputCss = css({
   width: '8.25rem',
   height: '1.75rem',
   minHeight: '1.75rem',
-  fontSize: '0.6875rem',
+  textStyle: 'labelSmall',
 })
 const subtaskEmptyCss = css({
   margin: 0,
   color: 'default.subtle-text',
-  fontSize: '0.8125rem',
+  textStyle: 'bodySmall',
 })
 const propertyListCss = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.25rem',
+  gap: 'xs',
   margin: 0,
 })
 const propertyGroupHeadingCss = css({
-  padding: '0.75rem 0.5rem 0.125rem',
+  paddingTop: 'md',
+  paddingX: 'sm',
+  paddingBottom: 'xxs',
   '&:not(:first-child)': {
-    marginTop: '0.625rem',
+    marginTop: 'sm',
     borderTop: '1px solid token(colors.greyscale.200)',
   },
   '& dt': { margin: 0 },
@@ -2142,9 +2146,7 @@ const propertyGroupHeadingCss = css({
   '& h3': {
     margin: 0,
     color: 'greyscale.700',
-    fontSize: '0.75rem',
-    fontWeight: '600',
-    letterSpacing: '0.02em',
+    textStyle: 'labelMedium',
   },
 })
 const propertyRowCss = css({
@@ -2152,8 +2154,9 @@ const propertyRowCss = css({
   display: 'grid',
   gridTemplateColumns: '1.5rem 6.5rem minmax(0, 1fr)',
   alignItems: 'center',
-  gap: '0.5rem',
-  padding: '0.375rem 0.5rem',
+  gap: 'sm',
+  paddingY: 'xs',
+  paddingX: 'sm',
   borderRadius: '6px',
   _hover: { backgroundColor: 'greyscale.50' },
   '&[data-header-only-hover]': {
@@ -2168,12 +2171,12 @@ const propertyRowCss = css({
     },
   },
   '&[data-align-start]': { alignItems: 'start' },
-  '& dt': { color: 'greyscale.500', fontSize: '0.8125rem' },
+  '& dt': { color: 'greyscale.500', textStyle: 'bodySmall' },
   '& dd': {
     minWidth: 0,
     margin: 0,
     color: 'greyscale.900',
-    fontSize: '0.875rem',
+    textStyle: 'bodyMedium',
   },
 })
 const propertyIconCss = css({

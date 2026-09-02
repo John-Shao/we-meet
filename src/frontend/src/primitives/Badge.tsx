@@ -3,7 +3,8 @@ import { cva, cx, type RecipeVariantProps } from '@/styled-system/css'
 const badge = cva({
   base: {
     display: 'inline-block',
-    padding: '0.25rem 0.5rem',
+    paddingY: 'xs',
+    paddingX: 'sm',
     border: '1px solid transparent',
     borderRadius: '6',
   },
@@ -34,7 +35,7 @@ const badge = cva({
     },
     size: {
       sm: {
-        textStyle: 'badge',
+        textStyle: 'labelMedium',
       },
       normal: {},
     },

@@ -40,7 +40,7 @@ export const buttonRecipe = cva({
     '&[data-disabled]': {
       cursor: 'default',
     },
-    gap: '0.5rem',
+    gap: 'sm',
   },
   variants: {
     size: {
@@ -122,7 +122,7 @@ export const buttonRecipe = cva({
         borderRadius: 8,
         paddingX: '1',
         paddingY: '0.5',
-        fontSize: '0.875rem',
+        textStyle: 'labelLarge',
         // 22 + 16 + 2 = 40 = sizes.control.lg。原先靠继承行高(1.5→21px)
         // 算出 39,差 1px 落不到档上。
         // 行高取 22 而非字号配对表里的 20:按钮文字是 flex 居中的单行,
@@ -147,7 +147,7 @@ export const buttonRecipe = cva({
         borderRadius: 6,
         paddingX: '0.75',
         paddingY: '0.375',
-        fontSize: '0.8125rem',
+        textStyle: 'labelMedium',
         // 18 + 12 + 2 = 32 = sizes.control.md(与 13px 字号的配对行高一致)。
         lineHeight: '18px',
         '--square-padding': '{spacing.0.375}',

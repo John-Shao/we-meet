@@ -1,0 +1,38 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "WeMeet cross-client spacing contract. One px maps to one Android dp; Web exports the same values as rem at a 16px root.",
+  "space": {
+    "$type": "dimension",
+    "none": { "$value": { "value": 0, "unit": "px" } },
+    "xxs": { "$value": { "value": 2, "unit": "px" } },
+    "xs": { "$value": { "value": 4, "unit": "px" } },
+    "sm": { "$value": { "value": 8, "unit": "px" } },
+    "md": { "$value": { "value": 12, "unit": "px" } },
+    "lg": { "$value": { "value": 16, "unit": "px" } },
+    "xl": { "$value": { "value": 24, "unit": "px" } },
+    "2xl": { "$value": { "value": 32, "unit": "px" } },
+    "3xl": { "$value": { "value": 48, "unit": "px" } },
+    "4xl": { "$value": { "value": 64, "unit": "px" } }
+  },
+  "spacing": {
+    "$type": "dimension",
+    "$description": "Semantic aliases. Prefer these when the purpose is stable; use space.* for composition.",
+    "inline": {
+      "tight": { "$value": "{space.xs}" },
+      "default": { "$value": "{space.sm}" },
+      "comfortable": { "$value": "{space.md}" }
+    },
+    "stack": {
+      "tight": { "$value": "{space.xs}" },
+      "default": { "$value": "{space.sm}" },
+      "related": { "$value": "{space.lg}" },
+      "section": { "$value": "{space.xl}" }
+    },
+    "inset": {
+      "control": { "$value": "{space.sm}" },
+      "card": { "$value": "{space.lg}" },
+      "panel": { "$value": "{space.xl}" },
+      "page": { "$value": "{space.lg}" }
+    }
+  }
+}

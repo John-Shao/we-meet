@@ -4,7 +4,7 @@ import { Text, TextProps } from 'react-aria-components'
 const StyledDescription = styled(Text, {
   base: {
     display: 'block',
-    textStyle: 'sm',
+    textStyle: 'bodyMedium',
     color: 'text.secondary',
     marginBottom: 0.125,
   },

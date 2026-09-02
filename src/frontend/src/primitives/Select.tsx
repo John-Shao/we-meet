@@ -35,7 +35,7 @@ const StyledButton = styled(Button, {
     borderColor: 'border.default',
     backgroundColor: 'surface.default',
     color: 'text.primary',
-    fontSize: '0.875rem',
+    textStyle: 'bodyMedium',
     borderRadius: 8,
     cursor: 'pointer',
     '&[data-focus-visible], &[data-focused]': {
@@ -114,7 +114,7 @@ const StyledIcon = styled('div', {
 
 // 展开列表与收起控件同为 14px;popover 渲染在 portal 里,不显式给会继承 body 的
 // 16px,和上面的 button 对不齐。
-const menuListCls = css({ fontSize: '0.875rem' })
+const menuListCls = css({ textStyle: 'bodyMedium' })
 
 export type SelectProps<T> = Omit<
   RACSelectProps<object>,

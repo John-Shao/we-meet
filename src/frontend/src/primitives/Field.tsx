@@ -45,7 +45,7 @@ const FieldWrapper = styled('div', {
 const StyledLabel = styled(Label, {
   base: {
     display: 'block',
-    fontSize: '0.875rem',
+    textStyle: 'labelLarge',
   },
   variants: {
     center: {

@@ -4,7 +4,7 @@ import { type ReactNode, Fragment } from 'react'
 const StyledErrors = styled('div', {
   base: {
     display: 'block',
-    textStyle: 'sm',
+    textStyle: 'bodyMedium',
     color: 'status.danger',
     marginTop: 0.125,
   },

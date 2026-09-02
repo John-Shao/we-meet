@@ -16,6 +16,7 @@ export const TextArea = styled(RACTextArea, {
     borderColor: 'border.default',
     backgroundColor: 'surface.default',
     color: 'text.primary',
+    textStyle: 'bodyMedium',
     borderRadius: 4,
     transition: 'all token(durations.slow)',
     '&::placeholder': {

@@ -367,6 +367,9 @@ jobs:
       - name: Check Color System contract
         run: cd src/frontend/ && npm run check:colors
 
+      - name: Check Typography and Spacing contracts
+        run: cd src/frontend/ && npm run check:foundations
+
   test-front:
     runs-on: ubuntu-latest
     permissions:
