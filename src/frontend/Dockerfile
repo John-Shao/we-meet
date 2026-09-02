@@ -11,6 +11,7 @@ RUN npm ci
 
 COPY .dockerignore ./.dockerignore
 COPY --chown=node:node ./src/frontend/ .
+COPY --chown=node:node ./src/design-tokens/ /home/design-tokens/
 
 ### ---- Front-end builder image ----
 FROM frontend-deps AS meet

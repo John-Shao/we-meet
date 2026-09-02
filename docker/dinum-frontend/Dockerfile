@@ -10,6 +10,7 @@ RUN npm ci
 
 COPY .dockerignore ./.dockerignore
 COPY ./src/frontend/ .
+COPY ./src/design-tokens/ /home/design-tokens/
 
 # ---- Front-end builder image ----
 FROM frontend-deps AS meet-builder
