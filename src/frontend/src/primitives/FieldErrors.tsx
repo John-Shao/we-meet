@@ -5,7 +5,7 @@ const StyledErrors = styled('div', {
   base: {
     display: 'block',
     textStyle: 'sm',
-    color: 'danger',
+    color: 'status.danger',
     marginTop: 0.125,
   },
 })

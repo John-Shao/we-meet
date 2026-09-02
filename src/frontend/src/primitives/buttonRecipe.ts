@@ -199,64 +199,52 @@ export const buttonRecipe = cva({
     },
     variant: {
       primary: {
-        // P6-b: 飞书亮蓝按钮(原 DSFR 用 primary.800 深蓝做底)。
-        backgroundColor: 'primary.500',
-        color: 'white',
+        backgroundColor: 'action.primary.bg',
+        color: 'action.primary.text',
         fontWeight: 'medium !important',
         '&[data-hovered]': {
-          backgroundColor: 'primary.600',
+          backgroundColor: 'action.primary.hover',
         },
         '&[data-pressed]': {
-          backgroundColor: 'primary.600',
+          backgroundColor: 'action.primary.pressed',
         },
         '&[data-disabled]': {
-          backgroundColor: 'greyscale.100',
-          color: 'greyscale.400',
+          backgroundColor: 'surface.canvas',
+          color: 'text.disabled',
         },
       },
       secondary: {
-        backgroundColor: 'greyscale.000',
-        color: 'primary.800',
+        backgroundColor: 'surface.default',
+        color: 'text.link',
         fontWeight: 'medium !important',
-        borderColor: 'primary.800',
-        // 深色:primary.* 是固定色阶不翻转,深蓝 primary.800 配深底
-        // (greyscale.000→#161616)几乎不可见。文字/边框翻到 primaryDark 亮蓝,
-        // 与「进入会议」(scheduledCard.text=primaryDark.700)对齐可读度。
-        _dark: {
-          color: 'primaryDark.700',
-          borderColor: 'primaryDark.300',
-        },
+        borderColor: 'border.focus',
         '&[data-hovered]': {
-          backgroundColor: 'greyscale.100',
+          backgroundColor: 'surface.canvas',
         },
         '&[data-pressed]': {
-          backgroundColor: 'greyscale.100',
+          backgroundColor: 'action.selected.bg',
         },
         // 补齐禁用态:此前 secondary 只有 base 的 cursor:default,颜色不变 ——
         // 禁用的线框按钮和可点的长得一模一样(分页「上一页」到首页时无从判断)。
         // 与 secondaryText 的禁用色对齐,边框一起褪掉。
         // 不需要 _dark:greyscale.* 本身随主题翻转(与固定色阶的 primary.* 不同)。
         '&[data-disabled]': {
-          color: 'greyscale.400',
-          borderColor: 'greyscale.300',
+          color: 'text.disabled',
+          borderColor: 'border.subtle',
         },
       },
       secondaryText: {
         backgroundColor: 'transparent',
         fontWeight: 'medium !important',
-        color: 'primary.800',
-        // 深色:同 secondary,深蓝文字在深底上不可读 → 翻到 primaryDark 亮蓝。
-        _dark: {
-          color: 'primaryDark.700',
-        },
+        color: 'text.link',
         '&[data-hovered]': {
-          backgroundColor: 'greyscale.100',
+          backgroundColor: 'surface.canvas',
         },
         '&[data-pressed]': {
-          backgroundColor: 'greyscale.100',
+          backgroundColor: 'action.selected.bg',
         },
         '&[data-disabled]': {
-          color: 'greyscale.400',
+          color: 'text.disabled',
         },
       },
       whiteCircle: {
@@ -275,49 +263,49 @@ export const buttonRecipe = cva({
       bigSquare: {
         width: '56px',
         height: '56px',
-        borderColor: 'greyscale.200',
+        borderColor: 'border.subtle',
         borderRadius: '4px',
-        backgroundColor: 'greyscale.50',
+        backgroundColor: 'surface.canvas',
         padding: '0',
         flexShrink: 0,
         '&[data-hovered]': {
-          backgroundColor: 'greyscale.100',
+          backgroundColor: 'action.selected.bg',
         },
         transition: 'box-shadow token(durations.slow) ease-in-out',
         '&[data-selected]': {
           boxShadow:
-            '0 0 0 3px token(colors.primary.600) inset, 0 0 0 5px white inset',
+            '0 0 0 3px token(colors.action.primary.bg) inset, 0 0 0 5px token(colors.surface.default) inset',
         },
         '&[data-disabled]': {
-          backgroundColor: 'greyscale.100',
-          color: 'greyscale.400',
+          backgroundColor: 'surface.canvas',
+          color: 'text.disabled',
           opacity: '0.7',
         },
       },
       tertiary: {
-        backgroundColor: 'primary.100',
+        backgroundColor: 'action.selected.bg',
         fontWeight: 'medium !important',
-        color: 'primary.800',
+        color: 'action.selected.text',
         '&[data-hovered]': {
-          backgroundColor: 'primary.300',
+          backgroundColor: 'action.selected.bg',
         },
         '&[data-pressed]': {
-          backgroundColor: 'primary.300',
+          backgroundColor: 'action.selected.bg',
         },
         '&[data-disabled]': {
           backgroundColor: 'transparent',
-          color: 'primary.400',
+          color: 'text.disabled',
         },
       },
       tertiaryText: {
         backgroundColor: 'transparent',
         fontWeight: 'medium !important',
-        color: 'primary.900',
+        color: 'text.link',
         '&[data-hovered]': {
-          backgroundColor: 'primary.300',
+          backgroundColor: 'action.selected.bg',
         },
         '&[data-pressed]': {
-          backgroundColor: 'primary.300',
+          backgroundColor: 'action.selected.bg',
         },
       },
       primaryDark: {
@@ -374,7 +362,7 @@ export const buttonRecipe = cva({
         },
         '&[data-focus-visible]': {
           outline: '2px solid',
-          outlineColor: 'focusRing',
+          outlineColor: 'border.focus',
           outlineOffset: '2px',
         },
         '&[data-disabled]': {
@@ -384,18 +372,18 @@ export const buttonRecipe = cva({
       quaternaryText: {
         backgroundColor: 'transparent',
         fontWeight: 'medium !important',
-        color: 'greyscale.600',
+        color: 'icon.secondary',
         '&[data-hovered]': {
-          backgroundColor: 'greyscale.100',
-          color: 'greyscale.700',
+          backgroundColor: 'surface.canvas',
+          color: 'icon.primary',
         },
         '&[data-pressed]': {
-          backgroundColor: 'greyscale.100',
-          color: 'greyscale.700',
+          backgroundColor: 'action.selected.bg',
+          color: 'action.selected.text',
         },
         '&[data-disabled]': {
           backgroundColor: 'transparent',
-          color: 'greyscale.300',
+          color: 'icon.disabled',
         },
       },
       /**
@@ -405,106 +393,104 @@ export const buttonRecipe = cva({
       quaternaryDanger: {
         backgroundColor: 'transparent',
         fontWeight: 'medium !important',
-        color: 'greyscale.600',
+        color: 'icon.secondary',
         '&[data-hovered]': {
-          backgroundColor: 'danger.50',
-          color: 'danger.600',
+          backgroundColor: 'status.danger.container',
+          color: 'status.danger.container-text',
         },
         '&[data-pressed]': {
-          backgroundColor: 'danger.50',
-          color: 'danger.600',
+          backgroundColor: 'status.danger.container',
+          color: 'status.danger.container-text',
         },
         '&[data-disabled]': {
           backgroundColor: 'transparent',
-          color: 'greyscale.300',
+          color: 'icon.disabled',
         },
       },
       greyscale: {
         backgroundColor: 'transparent',
-        color: 'greyscale.400',
+        color: 'icon.secondary',
         '&[data-hovered]': {
-          color: 'greyscale.800',
+          color: 'icon.primary',
         },
         '&[data-pressed]': {
-          color: 'greyscale.800',
+          color: 'icon.primary',
         },
         '&[data-selected]': {
-          color: 'greyscale.800',
+          color: 'icon.primary',
         },
         '&[data-disabled]': {
-          color: 'greyscale.200',
+          color: 'icon.disabled',
         },
       },
       danger: {
-        backgroundColor: 'error.400',
-        color: 'white',
+        backgroundColor: 'status.danger',
+        color: 'status.danger.text',
         '&[data-hovered]': {
-          backgroundColor: 'error.600',
+          backgroundColor: 'status.danger',
         },
         '&[data-pressed]': {
-          backgroundColor: 'error.700',
-          color: 'error.200',
+          backgroundColor: 'status.danger.container',
+          color: 'status.danger.container-text',
         },
       },
       error2: {
-        backgroundColor: 'error.200',
-        color: 'error.900',
+        backgroundColor: 'status.danger.container',
+        color: 'status.danger.container-text',
         '&[data-hovered]': {
-          backgroundColor: 'error.300',
+          backgroundColor: 'status.danger.container',
         },
         '&[data-focused]': {
-          backgroundColor: 'error.200',
+          backgroundColor: 'status.danger.container',
         },
         '&[data-pressed]': {
-          backgroundColor: 'error.900',
-          color: 'error.100',
+          backgroundColor: 'status.danger',
+          color: 'status.danger.text',
         },
         '&[data-selected]': {
-          backgroundColor: 'error.900 !important',
-          color: 'error.100 !important',
+          backgroundColor: 'status.danger!',
+          color: 'status.danger.text!',
         },
         '&[data-disabled]': {
-          backgroundColor: 'error.200 !important',
-          color: 'error.300 !important',
+          backgroundColor: 'surface.canvas!',
+          color: 'text.disabled!',
         },
       },
       errorCircle: {
-        backgroundColor: 'error.500',
+        backgroundColor: 'status.danger',
         width: '56px',
         height: '56px',
         borderRadius: '100%',
-        color: 'white',
+        color: 'status.danger.text',
         '&[data-hovered]': {
-          backgroundColor: 'error.600',
+          backgroundColor: 'status.danger',
         },
         '&[data-pressed]': {
-          backgroundColor: 'error.700',
-          color: 'error.200',
+          backgroundColor: 'status.danger.container',
+          color: 'status.danger.container-text',
         },
       },
-      // @TODO: better handling of colors… this is a mess
       success: {
-        colorPalette: 'success',
-        color: 'success.subtle-text',
-        backgroundColor: 'success.subtle',
+        color: 'status.success.container-text',
+        backgroundColor: 'status.success.container',
         '&[data-hovered]': {
-          backgroundColor: 'success.200',
+          backgroundColor: 'status.success.container',
         },
         '&[data-pressed]': {
-          backgroundColor: 'success.subtle!',
+          backgroundColor: 'status.success.container!',
         },
       },
       text: {
-        color: 'primary',
+        color: 'text.link',
         '&[data-hovered]': {
-          background: 'greyscale.100 !important',
-          color: 'primary !important',
+          background: 'surface.canvas!',
+          color: 'text.link!',
         },
       },
       permission: {
         position: 'relative',
         borderRadius: '100%',
-        color: 'amber.500',
+        color: 'status.warning',
         width: 'fit-content',
         height: 'fit-content',
         padding: '0 !important',
@@ -526,7 +512,7 @@ export const buttonRecipe = cva({
           borderColor: 'currentcolor',
         },
         '&[data-disabled]': {
-          color: 'greyscale.300',
+          color: 'icon.disabled',
         },
       },
     },

@@ -9,6 +9,47 @@ const tokenFile = fileURLToPath(tokenUrl)
 const document = JSON.parse(readFileSync(tokenUrl, 'utf8'))
 const failures = []
 
+const migratedSourceUrls = [
+  '../src/primitives/buttonRecipe.ts',
+  '../src/primitives/Input.tsx',
+  '../src/primitives/TextArea.tsx',
+  '../src/primitives/Select.tsx',
+  '../src/primitives/selectChrome.ts',
+  '../src/primitives/Chip.tsx',
+  '../src/primitives/chipRecipe.ts',
+  '../src/primitives/Badge.tsx',
+  '../src/primitives/Checkbox.tsx',
+  '../src/primitives/Radio.tsx',
+  '../src/primitives/Switch.tsx',
+  '../src/primitives/Tabs.tsx',
+  '../src/primitives/Box.tsx',
+  '../src/primitives/menuRecipe.ts',
+  '../src/primitives/Popover.tsx',
+  '../src/primitives/FieldDescription.tsx',
+  '../src/primitives/FieldErrors.tsx',
+  '../src/primitives/Text.tsx',
+  '../src/primitives/A.tsx',
+  '../src/primitives/Dialog.tsx',
+  '../src/features/notifications/components/Toast.tsx',
+  '../src/features/notifications/components/ToastRaised.tsx',
+  '../src/features/notifications/components/ToastLowerHand.tsx',
+  '../src/features/notifications/components/ToastMessageReceived.tsx',
+  '../src/features/notifications/components/ToastRecordingRequest.tsx',
+  '../src/features/notifications/components/WaitingParticipantNotification.tsx',
+  '../src/features/tasks/components/TaskActionFeedback.tsx',
+].map((path) => new URL(path, import.meta.url))
+
+const legacyColorFamilies =
+  '(?:greyscale|primary|danger|success|warning|error|default|control|box|focusRing)'
+const legacyDirectColor = new RegExp(
+  `(?:background|backgroundColor|color|borderColor|fill|stroke|outlineColor|boxShadow)\\s*:\\s*['"]${legacyColorFamilies}\\.`,
+  'g'
+)
+const legacyEmbeddedColor = new RegExp(
+  `(?:token\\(colors\\.|\\{colors\\.)${legacyColorFamilies}\\.`,
+  'g'
+)
+
 const expectedSchema =
   'https://www.designtokens.org/schemas/2025.10/format.json'
 if (document.$schema !== expectedSchema) {
@@ -147,6 +188,26 @@ for (const mode of ['light', 'dark']) {
 
 walkTokens(document)
 
+for (const sourceUrl of migratedSourceUrls) {
+  const sourceFile = fileURLToPath(sourceUrl)
+  const source = readFileSync(sourceUrl, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '')
+    // Video overlays deliberately keep translucent neutral paints because
+    // their effective background is live content, not a theme surface.
+    .replace(/['"]greyscale\.100\/(?:20|50)['"]/g, `'overlay-exception'`)
+  const legacyUses = [
+    ...source.matchAll(legacyDirectColor),
+    ...source.matchAll(legacyEmbeddedColor),
+  ]
+  for (const match of legacyUses) {
+    const line = source.slice(0, match.index).split('\n').length
+    failures.push(
+      `Migrated primitive uses a legacy color token at ${sourceFile}:${line}: ${match[0]}`
+    )
+  }
+}
+
 for (const [foregroundPath, backgroundPath, minimum] of pairs) {
   try {
     const foreground = resolveColor(foregroundPath)
@@ -168,6 +229,6 @@ if (failures.length > 0) {
   process.exitCode = 1
 } else {
   console.log(
-    `Color System OK: ${pairs.length} contrast pairs passed (${tokenFile})`
+    `Color System OK: ${pairs.length} contrast pairs passed; ${migratedSourceUrls.length} migrated sources use semantic roles (${tokenFile})`
   )
 }

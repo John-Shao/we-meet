@@ -36,7 +36,7 @@ html.font-opendyslexic {
 }
 
 main#main-content :is(h1, h2, h3)[tabindex='-1']:focus {
-  outline: 2px solid var(--colors-focus-ring);
+  outline: 2px solid var(--colors-border-focus);
   outline-offset: 2px;
 }
 
@@ -87,7 +87,7 @@ main#main-content :is(h1, h2, h3)[tabindex='-1']:focus {
   select
 ):focus {
   outline: none;
-  border-color: var(--colors-focus-ring);
+  border-color: var(--colors-border-focus);
   box-shadow: var(--shadows-focus-ring);
 }
 
@@ -115,7 +115,7 @@ main#main-content :is(h1, h2, h3)[tabindex='-1']:focus {
     input[type='range'],
     input[type='file']
   ):not([data-rac]):focus-visible {
-  outline: 2px solid var(--colors-focus-ring);
+  outline: 2px solid var(--colors-border-focus);
   outline-offset: 2px;
 }
 
@@ -145,10 +145,10 @@ select {
   -webkit-appearance: none;
   height: var(--sizes-control-md);
   min-height: var(--sizes-control-md);
-  border: 1px solid var(--colors-greyscale-300);
+  border: 1px solid var(--colors-border-default);
   border-radius: 0.5rem;
-  background-color: var(--colors-greyscale-000);
-  color: var(--colors-greyscale-900);
+  background-color: var(--colors-surface-default);
+  color: var(--colors-text-primary);
   font-size: var(--font-sizes-14);
   padding: 0 2rem 0 0.875rem;
   cursor: pointer;
@@ -158,8 +158,8 @@ select {
 }
 
 select option {
-  background-color: var(--colors-greyscale-000);
-  color: var(--colors-greyscale-900);
+  background-color: var(--colors-surface-default);
+  color: var(--colors-text-primary);
   font: inherit;
   font-size: var(--font-sizes-14);
   padding: 0.125rem 0.5rem 0.125rem 1.5rem;
@@ -174,8 +174,8 @@ select option {
 select option:checked,
 select option:focus,
 select option:hover {
-  background-color: var(--colors-primary-800);
-  color: var(--colors-primary-text);
+  background-color: var(--colors-action-selected-bg);
+  color: var(--colors-action-selected-text);
 }
 
 @media (prefers-reduced-motion: reduce) {

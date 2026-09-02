@@ -30,7 +30,7 @@ export const text = cva({
       },
       subTitle: {
         fontSize: '1rem',
-        color: 'greyscale.600',
+        color: 'text.secondary',
       },
       bodyXsBold: {
         textStyle: 'body',
@@ -55,17 +55,17 @@ export const text = cva({
         textStyle: 'sm',
       },
       note: {
-        color: 'default.subtle-text',
+        color: 'text.secondary',
       },
       warning: {
-        color: 'danger.subtle-text',
+        color: 'status.danger.container-text',
       },
       smNote: {
-        color: 'default.subtle-text',
+        color: 'text.secondary',
         textStyle: 'sm',
       },
       xsNote: {
-        color: 'default.subtle-text',
+        color: 'text.secondary',
         textStyle: 'xs',
       },
       inherits: {},

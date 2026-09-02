@@ -132,17 +132,23 @@ npm run check:colors
 
 ### Android
 
-- `core-design` 已集中持有 M3 `ColorScheme` 与 `WeMeetTheme.extras`；
+- `core-design` 已集中持有完整的 M3 `ColorScheme` 与 `WeMeetTheme.extras`；
 - `checkDesignTokens` 已禁止新增裸 `Color(0x…)`，并限制错误的前景槽位；
-- 下一阶段补齐未显式覆盖的 M3 secondary/tertiary/surfaceVariant 等角色，清除 Material 默认紫色泄漏；
-- 为已有 `on-*`、状态容器和关键业务色增加可执行的 Kotlin 对比度测试。
+- 已显式覆盖 secondary/tertiary/surfaceVariant、outline、error、inverse 与 surface container，
+  Button、TextField、Chip、Badge、Snackbar 不再回落到 Material 默认紫色；
+- 已为 `on-*`、状态容器、边界及关键业务色增加可执行的 Kotlin 对比度测试。
 
 ### Web
 
 - Panda 已有 palette 与部分 semantic tokens，但 `primary` 同时承担品牌、链接、图标和按钮，职责过宽；
 - 存量代码仍存在较多 HEX/RGB 字面量，先建立基线、禁止增量，再按组件迁移；
-- 先新增 `surface/text/icon/border/action/status` 公共角色，随后迁移 Button、Input、Select、Tabs、
-  Toast、Badge 等 primitives，最后迁移业务页面；
+- 已新增 `surface/text/icon/border/action/status` 公共角色，并将 Button、Input、TextArea、
+  Select、Chip、Badge、Toast、Checkbox、Radio、Switch、Tabs、Box、Menu、Popover 等
+  primitives 迁移到这些角色；业务页面仍按阶段 D 逐步收口；
+- `npm run check:colors` 除 WCAG 配对外，还会扫描已迁移的源文件，禁止重新引入
+  `greyscale/primary/control/default` 等兼容颜色族；
+- 会中舞台的 `primaryDark.*` 固定深色控件，以及视频内容上的半透明遮罩属于
+  component/product 例外；它们不跟随 App Light/Dark 模式反转；
 - 用户日历色、视频内容色和外部内容色单独建例外清单，不强行 token 化。
 
 ## 8. 变更流程
@@ -158,10 +164,10 @@ npm run check:colors
 
 ## 9. 交付阶段
 
-- **A — Foundation（当前）**：DTCG 契约、规范、CI 对比度校验；
-- **B — Core roles**：App 补齐完整 M3 scheme；Web 新增公共 semantic roles；
-- **C — Primitives**：Button/Input/Select/Chip/Badge/Toast/Dialog 全量迁移；
-- **D — Product colors**：日历、IM、会议、审批、任务等业务色收口；
+- **A — Foundation（已完成）**：DTCG 契约、规范、CI 对比度校验；
+- **B — Core roles（已完成）**：App 补齐完整 M3 scheme；Web 新增公共 semantic roles；
+- **C — Primitives（已完成）**：Button/Input/Select/Chip/Badge/Toast/Dialog 全量迁移；
+- **D — Product colors（下一阶段）**：日历、IM、会议、审批、任务等业务色收口；
 - **E — High Contrast & P3**：高对比主题和宽色域增强。
 
 每阶段都必须可独立发布；不等待一次性全站迁移。

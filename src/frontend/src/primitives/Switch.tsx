@@ -7,15 +7,15 @@ import { StyledVariantProps } from '@/styled-system/types'
 
 /**
  * 简洁版 iOS 风格开关:关=灰色实心轨道、开=蓝色实心轨道,白色圆点滑块带轻微
- * 阴影,轨道内不放勾/叉图标。灰/蓝实心轨道深浅色都成立(灰用会翻转的
- * greyscale.300,蓝用品牌 primary.500),白滑块两态皆清晰,无需额外深色处理。
+ * 阴影,轨道内不放勾/叉图标。轨道、标签和选中态全部使用公共语义角色；
+ * 滑块在选中态使用 action.primary.text，确保两套主题都与主操作底色配对。
  */
 export const StyledSwitch = styled(RACSwitch, {
   base: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.571rem',
-    color: 'greyscale.1000',
+    color: 'text.primary',
     cursor: 'pointer',
     forcedColorAdjust: 'none',
     '& .indicator': {
@@ -25,7 +25,7 @@ export const StyledSwitch = styled(RACSwitch, {
       height: '1.5rem',
       borderRadius: 'full',
       // 关态:灰色实心轨道。
-      background: 'greyscale.300',
+      background: 'border.default',
       transition: 'background-color token(durations.slow)',
       _before: {
         content: '""',
@@ -45,8 +45,9 @@ export const StyledSwitch = styled(RACSwitch, {
     },
     // 开态:蓝色实心轨道 + 滑块右移(2.6 - 1.25 - 0.125*2 = 1.1rem)。
     '&[data-selected] .indicator': {
-      background: 'primary.500',
+      background: 'action.primary.bg',
       _before: {
+        background: 'action.primary.text',
         transform: 'translateY(-50%) translateX(1.1rem)',
       },
     },
@@ -56,7 +57,7 @@ export const StyledSwitch = styled(RACSwitch, {
     },
     '&[data-focus-visible] .indicator': {
       outline: '2px solid!',
-      outlineColor: 'focusRing!',
+      outlineColor: 'border.focus!',
       outlineOffset: '2px!',
     },
   },

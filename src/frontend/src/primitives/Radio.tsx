@@ -18,7 +18,7 @@ export const StyledRadio = styled(RACRadio, {
       flexShrink: 0,
       width: '1.125rem',
       height: '1.125rem',
-      border: '1px solid {colors.control.border}',
+      border: '1px solid {colors.border.default}',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -32,21 +32,21 @@ export const StyledRadio = styled(RACRadio, {
       transition: 'all token(durations.slow)',
     },
     '&[data-pressed] .mt-Radio': {
-      borderColor: 'primary.active',
+      borderColor: 'action.primary.pressed',
     },
     '&[data-focus-visible] .mt-Radio': {
       outline: '2px solid!',
-      outlineColor: 'focusRing!',
+      outlineColor: 'border.focus!',
       outlineOffset: '2px!',
     },
     '&[data-selected] .mt-Radio': {
-      borderColor: 'primary',
+      borderColor: 'action.primary.bg',
     },
     '&[data-selected] .mt-Radio-check': {
-      backgroundColor: 'primary',
+      backgroundColor: 'action.primary.bg',
     },
     '&[data-selected][data-pressed] .mt-Radio-check': {
-      backgroundColor: 'primary.active',
+      backgroundColor: 'action.primary.pressed',
     },
   },
   variants: {

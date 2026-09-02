@@ -22,9 +22,18 @@ export const Input = styled(RACInput, {
     paddingY: 0.25,
     paddingX: 0.5,
     border: '1px solid',
-    borderColor: 'control.border',
-    color: 'control.text',
+    borderColor: 'border.default',
+    backgroundColor: 'surface.default',
+    color: 'text.primary',
     borderRadius: 4,
     transition: 'all token(durations.slow)',
+    '&::placeholder': {
+      color: 'text.disabled',
+    },
+    '&[data-disabled]': {
+      borderColor: 'border.subtle',
+      backgroundColor: 'surface.canvas',
+      color: 'text.disabled',
+    },
   },
 })

@@ -32,9 +32,9 @@ const StyledButton = styled(Button, {
     paddingLeft: '0.875rem',
     paddingRight: '0.625rem',
     border: '1px solid',
-    borderColor: 'greyscale.300',
-    backgroundColor: 'greyscale.000',
-    color: 'greyscale.900',
+    borderColor: 'border.default',
+    backgroundColor: 'surface.default',
+    color: 'text.primary',
     fontSize: '0.875rem',
     borderRadius: 8,
     cursor: 'pointer',
@@ -51,16 +51,16 @@ const StyledButton = styled(Button, {
       // panda utilities 层的普通声明,不加 `!` 这三行会被它整体盖掉
       // (Checkbox / Radio / Switch 同理)。
       outline: 'none!',
-      borderColor: 'focusRing!',
+      borderColor: 'border.focus!',
       boxShadow: 'focusRing!',
     },
     '&[data-pressed]': {
-      backgroundColor: 'control.hover',
+      backgroundColor: 'surface.canvas',
     },
-    // fixme disabled style is being overridden by placeholder one and needs refinement.
     '&[data-disabled]': {
-      color: 'default.subtle-text',
-      borderColor: 'greyscale.200',
+      color: 'text.disabled',
+      borderColor: 'border.subtle',
+      backgroundColor: 'surface.canvas',
     },
   },
   variants: {
@@ -72,7 +72,7 @@ const StyledButton = styled(Button, {
         color: 'white',
         // 深色舞台(会中设备选择)保留固定灰描边:基类的 greyscale.300 随主题
         // 翻成深灰,压在 primaryDark 蓝底上几乎看不见。
-        borderColor: 'control.border',
+        borderColor: 'border.strong',
         '&[data-pressed]': {
           backgroundColor: 'primaryDark.900',
           color: 'primaryDark.100',
@@ -99,7 +99,7 @@ const StyledSelectValue = styled(SelectValue, {
     overflow: 'hidden',
     textWrap: 'nowrap',
     '&[data-placeholder]': {
-      color: 'default.subtle-text',
+      color: 'text.disabled',
       fontStyle: 'italic',
     },
   },
@@ -155,13 +155,13 @@ export const Select = <T extends string | number>({
           </StyledIcon>
         )}
         <StyledSelectValue />
-        {/* 与原生 select 的 selectChrome 同款尖角箭头(16×16、stroke #7C7C7C)。 */}
+        {/* currentColor keeps the arrow aligned with enabled/disabled text semantics. */}
         <svg
           width={16}
           height={16}
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#7C7C7C"
+          stroke="currentColor"
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"

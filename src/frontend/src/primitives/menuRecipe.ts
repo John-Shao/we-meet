@@ -11,7 +11,7 @@ export const menuRecipe = sva({
       width: 'full',
       borderRadius: 4,
       cursor: 'pointer',
-      color: 'box.text',
+      color: 'text.primary',
       border: '1px solid transparent',
       position: 'relative',
       '&[data-selected]': {
@@ -23,13 +23,13 @@ export const menuRecipe = sva({
         },
       },
       '&[data-focused]': {
-        color: 'greyscale.900!',
-        backgroundColor: 'greyscale.100!',
+        color: 'text.primary!',
+        backgroundColor: 'surface.canvas!',
         outline: 'none!',
       },
       '&[data-hovered]': {
-        color: 'greyscale.900!',
-        backgroundColor: 'greyscale.100!',
+        color: 'text.primary!',
+        backgroundColor: 'surface.canvas!',
         outline: 'none!',
       },
     },

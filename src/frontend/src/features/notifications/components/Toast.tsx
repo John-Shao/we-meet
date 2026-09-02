@@ -12,8 +12,10 @@ export const StyledToastContainer = styled('div', {
     margin: 0.5,
     boxShadow:
       'rgba(0, 0, 0, 0.5) 0px 4px 8px 0px, rgba(0, 0, 0, 0.3) 0px 6px 20px 4px',
-    backgroundColor: 'greyscale.700',
-    color: 'white',
+    backgroundColor: 'surface.raised',
+    color: 'text.primary',
+    border: '1px solid',
+    borderColor: 'border.subtle',
     borderRadius: '8px',
     '&[data-entering]': { animation: 'fade token(durations.slow)' },
     '&[data-exiting]': {
@@ -51,8 +53,14 @@ export function Toast({ state, ...props }: Readonly<ToastProps>) {
     <StyledToastContainer {...toastProps} ref={ref}>
       <StyledToast>
         <div {...contentProps}>{props.toast.content?.message}</div>
-        <Button square size="sm" invisible {...closeButtonProps}>
-          <RiCloseLine color="white" />
+        <Button
+          square
+          size="sm"
+          variant="quaternaryText"
+          invisible
+          {...closeButtonProps}
+        >
+          <RiCloseLine aria-hidden="true" />
         </Button>
       </StyledToast>
     </StyledToastContainer>

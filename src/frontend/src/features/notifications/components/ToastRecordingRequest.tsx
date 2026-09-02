@@ -71,14 +71,7 @@ export function ToastRecordingRequest({
               marginLeft: '0.5rem',
             })}
           >
-            <Button
-              size="sm"
-              variant="text"
-              className={css({
-                color: 'primary.300',
-              })}
-              onPress={options.openMenu}
-            >
+            <Button size="sm" variant="text" onPress={options.openMenu}>
               {t('openMenu')}
             </Button>
           </div>

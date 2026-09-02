@@ -37,18 +37,18 @@ const box = cva({
       light: {
         borderWidth: '1px',
         borderStyle: 'solid',
-        borderColor: 'box.border',
-        backgroundColor: 'box.bg',
-        color: 'box.text',
+        borderColor: 'border.default',
+        backgroundColor: 'surface.default',
+        color: 'text.primary',
       },
       subtle: {
-        color: 'default.subtle-text',
-        backgroundColor: 'default.subtle',
+        color: 'text.secondary',
+        backgroundColor: 'surface.canvas',
       },
       control: {
-        border: '1px solid {colors.control.border}',
-        backgroundColor: 'box.bg',
-        color: 'control.text',
+        border: '1px solid {colors.border.default}',
+        backgroundColor: 'surface.default',
+        color: 'text.primary',
       },
       // 会中控制栏的深色浮层(Menu/Popover/Select 的 variant="dark")。
       // 原先这里是 `borderColord`(拼错,非 CSS 属性,静默失效),且没有

@@ -18,7 +18,7 @@ export const StyledCheckbox = styled(RACCheckbox, {
     forcedColorAdjust: 'none',
     width: 'fit-content',
     '& .mt-Checkbox-checkbox': {
-      borderColor: 'control.border',
+      borderColor: 'border.default',
       flexShrink: 0,
       width: '1.375rem',
       height: '1.375rem',
@@ -30,7 +30,7 @@ export const StyledCheckbox = styled(RACCheckbox, {
       transition: 'all token(durations.slow)',
     },
     '& svg': {
-      stroke: 'primary.text',
+      stroke: 'action.primary.text',
       width: '0.875rem',
       height: '0.875rem',
       flexShrink: 0,
@@ -41,29 +41,32 @@ export const StyledCheckbox = styled(RACCheckbox, {
       transition: 'all token(durations.slow)',
     },
     '&[data-pressed] .mt-Checkbox-checkbox': {
-      borderColor: 'focusRing',
+      borderColor: 'border.focus',
     },
     '&[data-focus-visible] .mt-Checkbox-checkbox': {
       outline: '2px solid!',
-      outlineColor: 'focusRing!',
+      outlineColor: 'border.focus!',
       outlineOffset: '2px!',
     },
     '&[data-selected] .mt-Checkbox-checkbox': {
-      borderColor: 'primary',
-      backgroundColor: 'primary',
+      borderColor: 'action.primary.bg',
+      backgroundColor: 'action.primary.bg',
     },
     '&[data-selected][data-pressed] .mt-Checkbox-checkbox': {
-      borderColor: 'primary.active',
-      backgroundColor: 'primary.active',
+      borderColor: 'action.primary.pressed',
+      backgroundColor: 'action.primary.pressed',
     },
     '&[data-selected] svg': {
       strokeDashoffset: '44',
     },
     '&[data-mt-checkbox-invalid="true"] .mt-Checkbox-checkbox': {
-      borderColor: 'danger',
+      borderColor: 'status.danger',
     },
     '&[data-selected][data-mt-checkbox-invalid="true"] .mt-Checkbox-checkbox': {
-      backgroundColor: 'danger',
+      backgroundColor: 'status.danger',
+    },
+    '&[data-selected][data-mt-checkbox-invalid="true"] svg': {
+      stroke: 'status.danger.text',
     },
   },
   variants: {

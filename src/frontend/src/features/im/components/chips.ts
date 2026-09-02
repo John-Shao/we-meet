@@ -1,4 +1,4 @@
-import { css } from '@/styled-system/css'
+import { chipRecipe } from '@/primitives/chipRecipe'
 
 /**
  * Inline chips used next to a name — group owner, departed member, bot.
@@ -9,15 +9,7 @@ import { css } from '@/styled-system/css'
  */
 
 /** Emphasis chip (群主). */
-export const brandChipCls = css({
-  flexShrink: 0,
-  fontSize: '0.6875rem',
-  borderRadius: '0.25rem',
-  paddingX: '0.25rem',
-  color: 'brand.600',
-  backgroundColor: 'brand.50',
-  border: '1px solid token(colors.brand.200)',
-})
+export const brandChipCls = chipRecipe({ tone: 'brand', size: 'sm' })
 
 /**
  * Neutral chip (已离职, 机器人).
@@ -27,12 +19,4 @@ export const brandChipCls = css({
  * (100 is the darkest), so copying the brand chip with `error.50` yields an
  * invalid token and a silently dropped background.
  */
-export const neutralChipCls = css({
-  flexShrink: 0,
-  fontSize: '0.6875rem',
-  borderRadius: '0.25rem',
-  paddingX: '0.25rem',
-  color: 'greyscale.600',
-  backgroundColor: 'greyscale.100',
-  border: '1px solid token(colors.greyscale.300)',
-})
+export const neutralChipCls = chipRecipe({ tone: 'neutral', size: 'sm' })

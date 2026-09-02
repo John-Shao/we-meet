@@ -39,8 +39,8 @@ export const StyledPopover = styled(RACPopover, {
 const StyledOverlayArrow = styled(OverlayArrow, {
   base: {
     display: 'block',
-    fill: 'box.bg',
-    stroke: 'box.border',
+    fill: 'surface.default',
+    stroke: 'border.default',
     strokeWidth: 1,
     '&[data-placement="bottom"] svg': {
       transform: 'rotate(180deg) translateY(-1px)',

@@ -45,7 +45,7 @@ const link = cva({
       },
       minor: {
         fontSize: '0.75rem',
-        color: 'rgb(77 77 77)',
+        color: 'text.secondary',
         fontFamily: 'Marianne',
         textWrap: 'nowrap',
         lineHeight: '1rem',
@@ -53,10 +53,10 @@ const link = cva({
     },
     color: {
       primary: {
-        color: 'blue',
+        color: 'text.link',
       },
       note: {
-        color: 'default.subtle-text',
+        color: 'text.secondary',
       },
     },
   },

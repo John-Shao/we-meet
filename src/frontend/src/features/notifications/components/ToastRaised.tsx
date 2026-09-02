@@ -7,7 +7,6 @@ import { Button, Div } from '@/primitives'
 import { useTranslation } from 'react-i18next'
 import { RiCloseLine, RiHand } from '@remixicon/react'
 import { useSidePanel } from '@/features/rooms/livekit/hooks/useSidePanel'
-import { css } from '@/styled-system/css'
 
 export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
   const { t } = useTranslation('notifications')
@@ -32,7 +31,6 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
         gap={0}
       >
         <RiHand
-          color="white"
           style={{
             marginRight: '1rem',
             animationDuration: '300ms',
@@ -49,9 +47,6 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
           <Button
             size="sm"
             variant="text"
-            className={css({
-              color: 'primary.300',
-            })}
             onPress={(e) => {
               toggleParticipants()
               closeButtonProps.onPress?.(e)
@@ -60,8 +55,14 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
             {t('raised.cta')}
           </Button>
         )}
-        <Button square size="sm" invisible {...closeButtonProps}>
-          <RiCloseLine size={18} color="white" />
+        <Button
+          square
+          size="sm"
+          variant="quaternaryText"
+          invisible
+          {...closeButtonProps}
+        >
+          <RiCloseLine size={18} aria-hidden="true" />
         </Button>
       </HStack>
     </StyledToastContainer>

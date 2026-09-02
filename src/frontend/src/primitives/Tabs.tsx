@@ -15,7 +15,7 @@ import React from 'react'
 const StyledTabs = styled(RACTabs, {
   base: {
     display: 'flex',
-    color: 'colorPalette.text',
+    color: 'text.primary',
     '&[data-orientation=horizontal]': {
       flexDirection: 'column',
       '--horizontal': '3px',
@@ -42,7 +42,7 @@ const StyledTab = styled(RACTab, {
     cursor: 'pointer',
     outline: 'none',
     position: 'relative',
-    color: 'box.text',
+    color: 'text.primary',
     borderColor: 'transparent',
     forcedColorAdjust: 'none',
   },
@@ -50,7 +50,7 @@ const StyledTab = styled(RACTab, {
     border: {
       true: {
         '&[data-selected]': {
-          borderColor: 'primary',
+          borderColor: 'border.focus',
         },
         borderBottom: 'var(--horizontal) solid',
         borderInlineEnd: 'var(--vertical) solid',
@@ -66,12 +66,12 @@ const StyledTab = styled(RACTab, {
         transition:
           'background token(durations.slow), color token(durations.slow)',
         '&[data-hovered]': {
-          backgroundColor: 'greyscale.100',
-          color: 'box.text',
+          backgroundColor: 'surface.canvas',
+          color: 'text.primary',
         },
         '&[data-selected]': {
-          backgroundColor: 'primary.800',
-          color: 'white',
+          backgroundColor: 'action.primary.bg',
+          color: 'action.primary.text',
         },
       },
     },
@@ -118,11 +118,11 @@ const StyledTabList = styled(RACTabList, {
       true: {
         '&[data-orientation=horizontal]': {
           borderBottom: '1px solid',
-          borderColor: 'greyscale.300',
+          borderColor: 'border.default',
         },
         '&[data-orientation=vertical]': {
           borderInlineEnd: '1px solid',
-          borderColor: 'greyscale.300',
+          borderColor: 'border.default',
         },
       },
     },
