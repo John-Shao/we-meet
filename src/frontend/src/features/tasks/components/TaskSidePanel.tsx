@@ -1539,7 +1539,9 @@ export const TaskDetailPanel = ({
             />
           </CollapsibleDetailSection>
           <details className={disclosureCss}>
-            <summary>{t('history.title')}</summary>
+            <summary className={detailSectionHeadingCss}>
+              {t('history.title')}
+            </summary>
             <div className={disclosureBodyCss}>
               <TaskHistorySection taskId={task.id} sharedVia={sharedVia} />
             </div>
@@ -1773,7 +1775,7 @@ const CollapsibleDetailSection = ({
   children: ReactNode
 }) => (
   <details className={disclosureCss} open>
-    <summary>{title}</summary>
+    <summary className={detailSectionHeadingCss}>{title}</summary>
     <div className={disclosureBodyCss}>{children}</div>
   </details>
 )
@@ -1781,7 +1783,7 @@ const CollapsibleDetailSection = ({
 const TaskPropertyGroupHeading = ({ title }: { title: string }) => (
   <div className={propertyGroupHeadingCss}>
     <dt>
-      <h3>{title}</h3>
+      <h3 className={detailSectionHeadingCss}>{title}</h3>
     </dt>
     <dd aria-hidden="true" />
   </div>
@@ -2143,11 +2145,11 @@ const propertyGroupHeadingCss = css({
   },
   '& dt': { margin: 0 },
   '& dd': { display: 'none' },
-  '& h3': {
-    margin: 0,
-    color: 'greyscale.700',
-    textStyle: 'labelMedium',
-  },
+  '& h3': { margin: 0 },
+})
+const detailSectionHeadingCss = css({
+  color: 'greyscale.700',
+  textStyle: 'labelMedium',
 })
 const propertyRowCss = css({
   minHeight: '2.5rem',
@@ -2304,10 +2306,6 @@ const disclosureCss = css({
   borderTop: '1px solid token(colors.greyscale.200)',
   '& summary': {
     paddingTop: '1rem',
-    color: 'greyscale.700',
-    fontSize: '0.75rem',
-    fontWeight: '600',
-    letterSpacing: '0.02em',
     cursor: 'pointer',
   },
 })

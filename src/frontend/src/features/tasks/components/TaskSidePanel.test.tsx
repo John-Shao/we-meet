@@ -528,6 +528,9 @@ describe('TaskDetailPanel', () => {
     const historySummary = screen.getByText('history.title', {
       selector: 'summary',
     })
+    const collaborationHeading = screen.getByRole('heading', {
+      name: 'detailGroups.collaboration',
+    })
     const contentDisclosure = contentSummary.closest('details')!
     const relatedDisclosure = relatedSummary.closest('details')!
     const commentsDisclosure = commentsSummary.closest('details')!
@@ -537,6 +540,14 @@ describe('TaskDetailPanel', () => {
     expect(relatedDisclosure).toHaveAttribute('open')
     expect(commentsDisclosure).toHaveAttribute('open')
     expect(historyDisclosure).not.toHaveAttribute('open')
+    for (const sectionHeading of [
+      contentSummary,
+      relatedSummary,
+      commentsSummary,
+      historySummary,
+    ]) {
+      expect(sectionHeading).toHaveClass(collaborationHeading.className)
+    }
 
     fireEvent.click(contentSummary)
     fireEvent.click(relatedSummary)
