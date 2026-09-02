@@ -155,8 +155,9 @@
     "overdueMarker": "Overdue indicator",
     "overdueMarkerDescription": "Highlight overdue due dates in task lists.",
     "defaultReminder": "Due-date reminder",
-    "defaultReminderDescription": "Choose the due-date reminder day in your time zone.",
+    "defaultReminderDescription": "Used when a task follows system settings.",
     "reminderOptions": {
+      "none": "No reminders",
       "0": "On the due date",
       "1440": "1 day before",
       "4320": "3 days before"
@@ -169,7 +170,7 @@
     "title": "My reminder",
     "enabled": "Receive date reminders for this task",
     "timing": "Due-date reminder for this task",
-    "followDefault": "Follow system default ({{value}})",
+    "followDefault": "Follow system settings ({{value}})",
     "globalDisabled": "Daily reminders are disabled in system settings",
     "loading": "Loading reminder settings…",
     "loadError": "Reminder settings could not be loaded.",

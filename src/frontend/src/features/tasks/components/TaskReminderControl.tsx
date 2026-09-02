@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
-import { Button, Switch } from '@/primitives'
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 import type { PatchTaskReminderPreferencePayload } from '../api/ApiTask'
@@ -27,29 +27,32 @@ export const TaskReminderFields = ({
 
   return (
     <div className={controlCss}>
-      <Switch
-        aria-label={t('taskReminder.enabled')}
-        isSelected={enabled}
-        isDisabled={disabled}
-        onChange={(selected) => onChange({ enabled: selected })}
-      />
       <select
         aria-label={t('taskReminder.timing')}
         className={selectCss}
-        value={reminderMinutes ?? 'default'}
-        disabled={!enabled || disabled}
-        onChange={(event) =>
-          onChange({
-            reminder_minutes:
-              event.target.value === 'default'
-                ? null
-                : (Number(event.target.value) as 0 | 1440 | 4320),
-          })
-        }
+        value={enabled ? (reminderMinutes ?? 'default') : 'none'}
+        disabled={disabled}
+        onChange={(event) => {
+          const value = event.target.value
+          onChange(
+            value === 'none'
+              ? { enabled: false }
+              : {
+                  enabled: true,
+                  reminder_minutes:
+                    value === 'default'
+                      ? null
+                      : (Number(value) as 0 | 1440 | 4320),
+                }
+          )
+        }}
       >
+        <option value="none">{t('settings.reminderOptions.none')}</option>
         <option value="default">
           {t('taskReminder.followDefault', {
-            value: t(`settings.reminderOptions.${effectiveReminderMinutes}`),
+            value: globalRemindersEnabled
+              ? t(`settings.reminderOptions.${effectiveReminderMinutes}`)
+              : t('settings.reminderOptions.none'),
           })}
         </option>
         {reminderOptions.map((minutes) => (
@@ -58,9 +61,6 @@ export const TaskReminderFields = ({
           </option>
         ))}
       </select>
-      {!globalRemindersEnabled && (
-        <span className={hintCss}>{t('taskReminder.globalDisabled')}</span>
-      )}
     </div>
   )
 }

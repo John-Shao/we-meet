@@ -41,14 +41,15 @@ describe('TaskReminderControl', () => {
     render(<TaskReminderControl taskId="task-1" />)
 
     expect(
-      screen.getByRole('switch', { name: 'taskReminder.enabled' })
-    ).toBeChecked()
+      screen.queryByRole('switch', { name: 'taskReminder.enabled' })
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('combobox', { name: 'taskReminder.timing' })
     ).toHaveValue('default')
 
-    fireEvent.click(
-      screen.getByRole('switch', { name: 'taskReminder.enabled' })
+    fireEvent.change(
+      screen.getByRole('combobox', { name: 'taskReminder.timing' }),
+      { target: { value: 'none' } }
     )
     fireEvent.change(
       screen.getByRole('combobox', { name: 'taskReminder.timing' }),
@@ -57,6 +58,7 @@ describe('TaskReminderControl', () => {
 
     expect(mocks.mutate).toHaveBeenNthCalledWith(1, { enabled: false })
     expect(mocks.mutate).toHaveBeenNthCalledWith(2, {
+      enabled: true,
       reminder_minutes: 4320,
     })
   })

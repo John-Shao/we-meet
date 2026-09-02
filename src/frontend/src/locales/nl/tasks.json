@@ -129,8 +129,9 @@
     "overdueMarker": "Achterstalligheidsmarkering",
     "overdueMarkerDescription": "Markeer verstreken deadlines in takenlijsten.",
     "defaultReminder": "Deadlineherinnering",
-    "defaultReminderDescription": "Kies de herinneringsdag in uw tijdzone.",
+    "defaultReminderDescription": "Gebruikt wanneer een taak de systeeminstellingen volgt.",
     "reminderOptions": {
+      "none": "Geen herinnering",
       "0": "Op de deadline",
       "1440": "1 dag vooraf",
       "4320": "3 dagen vooraf"
@@ -143,7 +144,7 @@
     "title": "Mijn herinnering",
     "enabled": "Datumherinneringen voor deze taak ontvangen",
     "timing": "Deadlineherinnering voor deze taak",
-    "followDefault": "Systeemstandaard volgen ({{value}})",
+    "followDefault": "Systeeminstellingen volgen ({{value}})",
     "globalDisabled": "Dagelijkse herinneringen zijn uitgeschakeld in de systeeminstellingen",
     "loading": "Herinneringsinstellingen laden…",
     "loadError": "De herinneringsinstellingen konden niet worden geladen.",

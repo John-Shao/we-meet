@@ -129,8 +129,9 @@
     "overdueMarker": "Überfälligkeitsmarkierung",
     "overdueMarkerDescription": "Überfällige Termine in Aufgabenlisten hervorheben.",
     "defaultReminder": "Fälligkeitserinnerung",
-    "defaultReminderDescription": "Erinnerungstag für Fälligkeiten in Ihrer Zeitzone auswählen.",
+    "defaultReminderDescription": "Wird verwendet, wenn eine Aufgabe den Systemeinstellungen folgt.",
     "reminderOptions": {
+      "none": "Keine Erinnerung",
       "0": "Am Fälligkeitstag",
       "1440": "1 Tag vorher",
       "4320": "3 Tage vorher"
@@ -143,7 +144,7 @@
     "title": "Meine Erinnerung",
     "enabled": "Datumserinnerungen für diese Aufgabe erhalten",
     "timing": "Fälligkeitserinnerung für diese Aufgabe",
-    "followDefault": "Systemstandard verwenden ({{value}})",
+    "followDefault": "Systemeinstellung verwenden ({{value}})",
     "globalDisabled": "Tägliche Erinnerungen sind in den Systemeinstellungen deaktiviert",
     "loading": "Erinnerungseinstellungen werden geladen…",
     "loadError": "Erinnerungseinstellungen konnten nicht geladen werden.",

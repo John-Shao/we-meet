@@ -129,8 +129,9 @@
     "overdueMarker": "Indicateur de retard",
     "overdueMarkerDescription": "Mettre en évidence les échéances dépassées dans les listes.",
     "defaultReminder": "Rappel d’échéance",
-    "defaultReminderDescription": "Choisissez le jour du rappel selon votre fuseau horaire.",
+    "defaultReminderDescription": "Utilisé lorsqu’une tâche suit les réglages système.",
     "reminderOptions": {
+      "none": "Aucun rappel",
       "0": "Le jour de l’échéance",
       "1440": "1 jour avant",
       "4320": "3 jours avant"
@@ -143,7 +144,7 @@
     "title": "Mon rappel",
     "enabled": "Recevoir les rappels de date pour cette tâche",
     "timing": "Rappel d’échéance de cette tâche",
-    "followDefault": "Suivre le réglage système ({{value}})",
+    "followDefault": "Suivre les réglages système ({{value}})",
     "globalDisabled": "Les rappels quotidiens sont désactivés dans les paramètres système",
     "loading": "Chargement des paramètres de rappel…",
     "loadError": "Impossible de charger les paramètres de rappel.",

@@ -517,7 +517,7 @@ def test_task_date_reminders_skip_users_who_disabled_daily_reminders(
         assignee=enabled,
         due_date=date(2026, 8, 22),
     )
-    models.Task.objects.create(
+    disabled_task = models.Task.objects.create(
         title="Disabled reminder",
         creator=creator,
         assignee=disabled,
@@ -526,6 +526,12 @@ def test_task_date_reminders_skip_users_who_disabled_daily_reminders(
     models.TaskPreference.objects.create(
         user=disabled,
         daily_reminder_enabled=False,
+    )
+    models.TaskReminderPreference.objects.create(
+        task=disabled_task,
+        user=disabled,
+        enabled=True,
+        reminder_minutes=None,
     )
 
     with (
@@ -622,6 +628,7 @@ def test_task_reminder_override_is_independent_for_each_assignee(
             models.TaskPreference(
                 user=reminded,
                 default_reminder_minutes=4320,
+                daily_reminder_enabled=False,
             ),
             models.TaskPreference(
                 user=disabled,

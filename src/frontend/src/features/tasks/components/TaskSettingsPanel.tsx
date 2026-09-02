@@ -35,20 +35,6 @@ export const TaskSettingsPanel = () => {
   return (
     <div className={contentCss}>
       <SettingRow
-        title={t('settings.dailyReminder')}
-        description={t('settings.dailyReminderDescription')}
-        control={
-          <Switch
-            aria-label={t('settings.dailyReminder')}
-            isSelected={settings.daily_reminder_enabled}
-            isDisabled={update.isPending}
-            onChange={(selected) =>
-              change({ daily_reminder_enabled: selected })
-            }
-          />
-        }
-      />
-      <SettingRow
         title={t('settings.overdueMarker')}
         description={t('settings.overdueMarkerDescription')}
         control={
@@ -69,17 +55,28 @@ export const TaskSettingsPanel = () => {
           <select
             aria-label={t('settings.defaultReminder')}
             className={selectCss}
-            value={settings.default_reminder_minutes}
-            disabled={update.isPending}
-            onChange={(event) =>
-              change({
-                default_reminder_minutes: Number(event.target.value) as
-                  | 0
-                  | 1440
-                  | 4320,
-              })
+            value={
+              settings.daily_reminder_enabled
+                ? settings.default_reminder_minutes
+                : 'none'
             }
+            disabled={update.isPending}
+            onChange={(event) => {
+              const value = event.target.value
+              change(
+                value === 'none'
+                  ? { daily_reminder_enabled: false }
+                  : {
+                      daily_reminder_enabled: true,
+                      default_reminder_minutes: Number(value) as
+                        | 0
+                        | 1440
+                        | 4320,
+                    }
+              )
+            }}
           >
+            <option value="none">{t('settings.reminderOptions.none')}</option>
             {reminderOptions.map((minutes) => (
               <option key={minutes} value={minutes}>
                 {t(`settings.reminderOptions.${minutes}`)}

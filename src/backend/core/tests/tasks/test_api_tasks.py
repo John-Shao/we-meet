@@ -1717,6 +1717,23 @@ def test_task_settings_are_persisted_per_user_and_validated():
         reference_date=timezone.localdate(),
         next_attempt_at=timezone.now(),
     )
+    explicit_task = Task.objects.create(
+        title="Explicit reminder",
+        creator=user,
+        assignee=user,
+    )
+    explicit_delivery = TaskImDelivery.objects.create(
+        task=explicit_task,
+        recipient=user,
+        event=TaskImDelivery.Event.DUE_SOON,
+        reference_date=timezone.localdate() + timedelta(days=1),
+        next_attempt_at=timezone.now(),
+    )
+    TaskReminderPreference.objects.create(
+        task=explicit_task,
+        user=user,
+        reminder_minutes=1440,
+    )
 
     defaults = _client(user).get(url)
     updated = _client(user).patch(
@@ -1751,7 +1768,9 @@ def test_task_settings_are_persisted_per_user_and_validated():
     assert invalid.status_code == 400
     assert TaskPreference.objects.get(user=user).daily_reminder_enabled is False
     delivery.refresh_from_db()
+    explicit_delivery.refresh_from_db()
     assert delivery.status == TaskImDelivery.Status.SUPERSEDED
+    assert explicit_delivery.status == TaskImDelivery.Status.PENDING
 
 
 def test_task_reminder_preferences_are_private_to_each_participant():

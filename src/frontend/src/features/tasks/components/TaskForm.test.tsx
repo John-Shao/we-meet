@@ -75,8 +75,8 @@ describe('TaskForm create mode', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('taskReminder.title')).toBeInTheDocument()
     expect(
-      screen.getByRole('switch', { name: 'taskReminder.enabled' })
-    ).toBeChecked()
+      screen.queryByRole('switch', { name: 'taskReminder.enabled' })
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('combobox', { name: 'taskReminder.timing' })
     ).toHaveValue('default')
@@ -97,10 +97,7 @@ describe('TaskForm create mode', () => {
     )
     fireEvent.change(
       screen.getByRole('combobox', { name: 'taskReminder.timing' }),
-      { target: { value: '4320' } }
-    )
-    fireEvent.click(
-      screen.getByRole('switch', { name: 'taskReminder.enabled' })
+      { target: { value: 'none' } }
     )
     fireEvent.click(
       screen.getByRole('button', { name: 'workspace.createSubmit' })
@@ -109,7 +106,7 @@ describe('TaskForm create mode', () => {
     await waitFor(() =>
       expect(createTask).toHaveBeenCalledWith(
         expect.objectContaining({
-          reminder: { enabled: false, reminder_minutes: 4320 },
+          reminder: { enabled: false, reminder_minutes: null },
         })
       )
     )

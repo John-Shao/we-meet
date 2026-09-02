@@ -1580,7 +1580,10 @@ class TaskViewSet(
                 "daily_reminder_enabled",
                 "default_reminder_minutes",
             } & serializer.validated_data.keys():
-                supersede_pending_task_reminders(recipient=request.user)
+                supersede_pending_task_reminders(
+                    recipient=request.user,
+                    following_default_only=True,
+                )
         return Response(TaskPreferenceSerializer(preference).data)
 
     @action(detail=True, methods=["get", "patch"], url_path="reminder")

@@ -155,8 +155,9 @@
     "overdueMarker": "逾期标记",
     "overdueMarkerDescription": "在任务清单中突出显示已逾期的截止日期。",
     "defaultReminder": "截止提醒时间",
-    "defaultReminderDescription": "按你的时区设置任务截止提醒日期。",
+    "defaultReminderDescription": "任务选择“跟随系统设置”时采用此提醒。",
     "reminderOptions": {
+      "none": "不提醒",
       "0": "截止当天",
       "1440": "提前 1 天",
       "4320": "提前 3 天"
@@ -169,7 +170,7 @@
     "title": "我的提醒",
     "enabled": "接收此任务的日期提醒",
     "timing": "此任务的截止提醒时间",
-    "followDefault": "跟随系统默认（{{value}}）",
+    "followDefault": "跟随系统设置（{{value}}）",
     "globalDisabled": "系统设置中的每日提醒已关闭",
     "loading": "正在加载提醒设置…",
     "loadError": "提醒设置加载失败。",

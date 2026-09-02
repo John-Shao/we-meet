@@ -358,7 +358,9 @@ def _supersede_stale_reminders(*, pending, task: models.Task) -> None:
         )
 
 
-def supersede_pending_task_reminders(*, recipient, task=None) -> int:
+def supersede_pending_task_reminders(
+    *, recipient, task=None, following_default_only=False
+) -> int:
     """Invalidate unsent reminders after a user changes reminder preferences."""
 
     pending = models.TaskImDelivery.objects.filter(
@@ -368,11 +370,33 @@ def supersede_pending_task_reminders(*, recipient, task=None) -> int:
     )
     if task is not None:
         pending = pending.filter(task=task)
+    if following_default_only:
+        explicit_task_ids = models.TaskReminderPreference.objects.filter(
+            user=recipient,
+            reminder_minutes__isnull=False,
+        ).values("task_id")
+        pending = pending.exclude(task_id__in=explicit_task_ids)
     return pending.update(
         status=models.TaskImDelivery.Status.SUPERSEDED,
         next_attempt_at=None,
         last_error="",
     )
+
+
+def _task_reminder_is_enabled(
+    *, global_preference, task_preference, participant_enabled_by_default
+) -> bool:
+    """Resolve the task override before the user's system-level default."""
+
+    if task_preference is None:
+        return participant_enabled_by_default and (
+            global_preference is None or global_preference.daily_reminder_enabled
+        )
+    if not task_preference.enabled:
+        return False
+    if task_preference.reminder_minutes is not None:
+        return True
+    return global_preference is None or global_preference.daily_reminder_enabled
 
 
 def supersede_ineligible_task_reminders(*, task: models.Task) -> int:
@@ -424,16 +448,12 @@ def record_due_task_reminders(*, now=None) -> int:
         for participant in task_reminder_participants(task):
             preference = preferences.get(participant.id)
             task_preference = task_preferences.get(participant.id)
-            reminder_enabled = (
-                task_preference.enabled
-                if task_preference is not None
-                else is_task_assignee(task, participant)
+            reminder_enabled = _task_reminder_is_enabled(
+                global_preference=preference,
+                task_preference=task_preference,
+                participant_enabled_by_default=is_task_assignee(task, participant),
             )
-            if (
-                not participant.is_active
-                or (preference is not None and not preference.daily_reminder_enabled)
-                or not reminder_enabled
-            ):
+            if not participant.is_active or not reminder_enabled:
                 continue
             if visible_task_ancestor_path(task, participant) is None:
                 continue
@@ -1056,14 +1076,12 @@ def _recipient_can_receive(  # noqa: PLR0912
             task_id=delivery.task_id,
             user_id=delivery.recipient_id,
         ).first()
-        reminder_enabled = (
-            task_preference.enabled
-            if task_preference is not None
-            else delivery.recipient_id in assignee_ids
+        reminder_enabled = _task_reminder_is_enabled(
+            global_preference=preference,
+            task_preference=task_preference,
+            participant_enabled_by_default=delivery.recipient_id in assignee_ids,
         )
-        if (
-            preference is not None and not preference.daily_reminder_enabled
-        ) or not reminder_enabled:
+        if not reminder_enabled:
             allowed = False
         elif (
             delivery.recipient_id not in task_reminder_participant_ids(task)

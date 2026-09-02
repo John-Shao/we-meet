@@ -40,15 +40,12 @@ describe('TaskSettingsPanel', () => {
     render(<TaskSettingsPanel />)
 
     expect(
-      screen.getByRole('switch', { name: 'settings.dailyReminder' })
-    ).toBeChecked()
+      screen.queryByRole('switch', { name: 'settings.dailyReminder' })
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('switch', { name: 'settings.overdueMarker' })
     ).not.toBeChecked()
 
-    fireEvent.click(
-      screen.getByRole('switch', { name: 'settings.dailyReminder' })
-    )
     fireEvent.click(
       screen.getByRole('switch', { name: 'settings.overdueMarker' })
     )
@@ -56,15 +53,20 @@ describe('TaskSettingsPanel', () => {
       screen.getByRole('combobox', { name: 'settings.defaultReminder' }),
       { target: { value: '4320' } }
     )
+    fireEvent.change(
+      screen.getByRole('combobox', { name: 'settings.defaultReminder' }),
+      { target: { value: 'none' } }
+    )
 
     expect(mocks.mutate).toHaveBeenNthCalledWith(1, {
-      daily_reminder_enabled: false,
-    })
-    expect(mocks.mutate).toHaveBeenNthCalledWith(2, {
       overdue_marker_enabled: true,
     })
-    expect(mocks.mutate).toHaveBeenNthCalledWith(3, {
+    expect(mocks.mutate).toHaveBeenNthCalledWith(2, {
+      daily_reminder_enabled: true,
       default_reminder_minutes: 4320,
+    })
+    expect(mocks.mutate).toHaveBeenNthCalledWith(3, {
+      daily_reminder_enabled: false,
     })
   })
 })
