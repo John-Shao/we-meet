@@ -801,7 +801,9 @@ export const TaskDetailPanel = ({
               icon={<RiUserAddLine size={18} />}
               label={t('meta.creator')}
             >
-              <TaskUserDisplay user={task.creator} />
+              <span className={detailMemberChipCss}>
+                <TaskUserDisplay user={task.creator} />
+              </span>
             </TaskProperty>
             <TaskProperty
               icon={<RiUserFollowLine size={18} />}
