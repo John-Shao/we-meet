@@ -22,6 +22,14 @@
             "hex": "#f6f6f6"
           }
         },
+        "150": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.886275, 0.886275, 0.898039],
+            "alpha": 1,
+            "hex": "#e2e2e5"
+          }
+        },
         "200": {
           "$value": {
             "colorSpace": "srgb",
@@ -410,28 +418,14 @@
           "raised": { "$value": "{color.palette.neutral.900}" }
         },
         "text": {
-          "primary": {
-            "$value": {
-              "colorSpace": "srgb",
-              "components": [0.886275, 0.886275, 0.898039],
-              "alpha": 1,
-              "hex": "#e2e2e5"
-            }
-          },
+          "primary": { "$value": "{color.palette.neutral.150}" },
           "secondary": { "$value": "{color.palette.neutral.400}" },
           "disabled": { "$value": "{color.palette.neutral.600}" },
           "inverse": { "$value": "{color.palette.neutral.950}" },
           "link": { "$value": "{color.palette.brand.dark.primary}" }
         },
         "icon": {
-          "primary": {
-            "$value": {
-              "colorSpace": "srgb",
-              "components": [0.886275, 0.886275, 0.898039],
-              "alpha": 1,
-              "hex": "#e2e2e5"
-            }
-          },
+          "primary": { "$value": "{color.palette.neutral.150}" },
           "secondary": { "$value": "{color.palette.neutral.400}" },
           "disabled": { "$value": "{color.palette.neutral.600}" }
         },
