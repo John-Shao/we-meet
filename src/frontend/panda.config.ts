@@ -426,6 +426,69 @@ const config: Config = {
           950: { value: { base: '#1E1E1E', _dark: '#F6F6F6' } },
           1000: { value: { base: '#161616', _dark: '#FFFFFF' } },
         },
+        /**
+         * Color System v1 public roles. New primitives and product UI should consume these
+         * purpose-based tokens; the older `default` / `box` / `control` groups remain as
+         * compatibility aliases while existing screens migrate incrementally.
+         *
+         * Values mirror src/design-tokens/color.tokens.json. Keep the DTCG contract and
+         * `npm run check:colors` green when changing a pair.
+         */
+        surface: {
+          canvas: { value: { base: '#F6F6F6', _dark: '#111418' } },
+          default: { value: { base: '#FFFFFF', _dark: '#1A1C1E' } },
+          raised: { value: { base: '#FFFFFF', _dark: '#242424' } },
+        },
+        text: {
+          primary: { value: { base: '#1A1C1E', _dark: '#E2E2E5' } },
+          secondary: { value: { base: '#666666', _dark: '#929292' } },
+          disabled: { value: { base: '#929292', _dark: '#666666' } },
+          inverse: { value: { base: '#FFFFFF', _dark: '#1A1C1E' } },
+          link: { value: { base: '#1E4DB3', _dark: '#7BAAFB' } },
+        },
+        icon: {
+          primary: { value: { base: '#3A3A3A', _dark: '#E2E2E5' } },
+          secondary: { value: { base: '#666666', _dark: '#929292' } },
+          disabled: { value: { base: '#929292', _dark: '#666666' } },
+        },
+        border: {
+          subtle: { value: { base: '#E5E5E5', _dark: '#2A2A2A' } },
+          default: { value: { base: '#CECECE', _dark: '#3A3A3A' } },
+          strong: { value: '#7C7C7C' },
+          focus: { value: { base: '#3370FF', _dark: '#88A2E4' } },
+        },
+        action: {
+          primary: {
+            bg: { value: { base: '#2860D9', _dark: '#7BAAFB' } },
+            text: { value: { base: '#FFFFFF', _dark: '#002F69' } },
+            hover: { value: { base: '#1E4DB3', _dark: '#88A2E4' } },
+            pressed: { value: { base: '#16357F', _dark: '#D6E4FF' } },
+          },
+          selected: {
+            bg: { value: { base: '#D6E4FF', _dark: '#1E3A7A' } },
+            text: { value: { base: '#1E4DB3', _dark: '#D6E4FF' } },
+          },
+        },
+        status: {
+          danger: {
+            DEFAULT: { value: { base: '#D32F2F', _dark: '#FF6B6B' } },
+            text: { value: { base: '#FFFFFF', _dark: '#4A0E0E' } },
+            container: { value: { base: '#FFE5E5', _dark: '#5C1A1A' } },
+            'container-text': { value: { base: '#8E1515', _dark: '#FFD4D4' } },
+          },
+          warning: {
+            DEFAULT: { value: { base: '#F59E0B', _dark: '#FBBF24' } },
+            text: { value: { base: '#1A1C1E', _dark: '#111418' } },
+            container: { value: { base: '#FFE6B3', _dark: '#5C4310' } },
+            'container-text': { value: { base: '#92400E', _dark: '#FFE6B3' } },
+          },
+          success: {
+            DEFAULT: { value: { base: '#00A344', _dark: '#4ADE80' } },
+            text: { value: { base: '#1A1C1E', _dark: '#111418' } },
+            container: { value: { base: '#D6F5E0', _dark: '#12492A' } },
+            'container-text': { value: { base: '#005222', _dark: '#D6F5E0' } },
+          },
+        },
         default: {
           text: { value: '{colors.greyscale.1000}' },
           bg: { value: '{colors.greyscale.000}' },
@@ -471,30 +534,94 @@ const config: Config = {
         // ② 会中 UI(features/rooms、room-ai、reactions),舞台底是恒定 primaryDark.50,
         // 那里的浅蓝是「深底上的强调色」,翻过去反而变成深蓝压深底。
         brand: {
-          50: { value: { base: '{colors.primary.50}', _dark: 'rgba(51, 112, 255, 0.12)' } },
-          100: { value: { base: '{colors.primary.100}', _dark: 'rgba(51, 112, 255, 0.2)' } },
-          200: { value: { base: '{colors.primary.200}', _dark: '{colors.primaryDark.200}' } },
-          300: { value: { base: '{colors.primary.300}', _dark: '{colors.primaryDark.300}' } },
-          400: { value: { base: '{colors.primary.400}', _dark: '{colors.primaryDark.400}' } },
-          500: { value: { base: '{colors.primary.500}', _dark: '{colors.primaryDark.500}' } },
-          600: { value: { base: '{colors.primary.600}', _dark: '{colors.primaryDark.600}' } },
-          700: { value: { base: '{colors.primary.700}', _dark: '{colors.primaryDark.700}' } },
-          800: { value: { base: '{colors.primary.800}', _dark: '{colors.primaryDark.800}' } },
-          900: { value: { base: '{colors.primary.900}', _dark: '{colors.primaryDark.900}' } },
+          50: {
+            value: {
+              base: '{colors.primary.50}',
+              _dark: 'rgba(51, 112, 255, 0.12)',
+            },
+          },
+          100: {
+            value: {
+              base: '{colors.primary.100}',
+              _dark: 'rgba(51, 112, 255, 0.2)',
+            },
+          },
+          200: {
+            value: {
+              base: '{colors.primary.200}',
+              _dark: '{colors.primaryDark.200}',
+            },
+          },
+          300: {
+            value: {
+              base: '{colors.primary.300}',
+              _dark: '{colors.primaryDark.300}',
+            },
+          },
+          400: {
+            value: {
+              base: '{colors.primary.400}',
+              _dark: '{colors.primaryDark.400}',
+            },
+          },
+          500: {
+            value: {
+              base: '{colors.primary.500}',
+              _dark: '{colors.primaryDark.500}',
+            },
+          },
+          600: {
+            value: {
+              base: '{colors.primary.600}',
+              _dark: '{colors.primaryDark.600}',
+            },
+          },
+          700: {
+            value: {
+              base: '{colors.primary.700}',
+              _dark: '{colors.primaryDark.700}',
+            },
+          },
+          800: {
+            value: {
+              base: '{colors.primary.800}',
+              _dark: '{colors.primaryDark.800}',
+            },
+          },
+          900: {
+            value: {
+              base: '{colors.primary.900}',
+              _dark: '{colors.primaryDark.900}',
+            },
+          },
         },
         // 预约会议卡片(蓝色调):浅色用 primary.50/200/100/700,深色翻到
         // primaryDark 色阶,保持蓝调的同时明暗互换、对比不倒。
         // (等价于 brand.50/200/100/700,早于 brand 出现,保留不动。)
         scheduledCard: {
-          bg: { value: { base: '{colors.primary.50}', _dark: '{colors.primaryDark.75}' } },
+          bg: {
+            value: {
+              base: '{colors.primary.50}',
+              _dark: '{colors.primaryDark.75}',
+            },
+          },
           border: {
-            value: { base: '{colors.primary.200}', _dark: '{colors.primaryDark.200}' },
+            value: {
+              base: '{colors.primary.200}',
+              _dark: '{colors.primaryDark.200}',
+            },
           },
           hover: {
-            value: { base: '{colors.primary.100}', _dark: '{colors.primaryDark.100}' },
+            value: {
+              base: '{colors.primary.100}',
+              _dark: '{colors.primaryDark.100}',
+            },
           },
           text: {
-            value: { base: '{colors.primary.700}', _dark: '{colors.primaryDark.700}' },
+            value: {
+              base: '{colors.primary.700}',
+              _dark: '{colors.primaryDark.700}',
+            },
           },
         },
         // 选中态(左栏导航项 / 树节点 / 列表选中行)。
@@ -510,14 +637,23 @@ const config: Config = {
         // ≈ 6.0:1,两套都过 AA。
         selected: {
           bg: {
-            value: { base: '{colors.primary.100}', _dark: '{colors.primaryDark.100}' },
+            value: {
+              base: '{colors.primary.100}',
+              _dark: '{colors.primaryDark.100}',
+            },
           },
           text: {
-            value: { base: '{colors.primary.700}', _dark: '{colors.primaryDark.900}' },
+            value: {
+              base: '{colors.primary.700}',
+              _dark: '{colors.primaryDark.900}',
+            },
           },
           /** 左边条 / 下划线等「选中标记」——底色差异在深色下天然微弱,实色条不会。 */
           accent: {
-            value: { base: '{colors.primary.500}', _dark: '{colors.primaryDark.500}' },
+            value: {
+              base: '{colors.primary.500}',
+              _dark: '{colors.primaryDark.500}',
+            },
           },
         },
         box: {
@@ -550,13 +686,22 @@ const config: Config = {
           text: { value: '{colors.white}' },
           warm: { value: '{colors.primary.300}' },
           subtle: {
-            value: { base: '{colors.primary.100}', _dark: '{colors.primaryDark.100}' },
+            value: {
+              base: '{colors.primary.100}',
+              _dark: '{colors.primaryDark.100}',
+            },
           },
           'subtle-text': {
-            value: { base: '{colors.primary.700}', _dark: '{colors.primaryDark.700}' },
+            value: {
+              base: '{colors.primary.700}',
+              _dark: '{colors.primaryDark.700}',
+            },
           },
           'subtle-border': {
-            value: { base: '{colors.primary.300}', _dark: '{colors.primaryDark.300}' },
+            value: {
+              base: '{colors.primary.300}',
+              _dark: '{colors.primaryDark.300}',
+            },
           },
         },
         danger: {
@@ -564,7 +709,9 @@ const config: Config = {
           hover: { value: '{colors.red.700}' },
           active: { value: '{colors.red.800}' },
           text: { value: '{colors.white}' },
-          subtle: { value: { base: '{colors.red.100}', _dark: '{colors.red.950}' } },
+          subtle: {
+            value: { base: '{colors.red.100}', _dark: '{colors.red.950}' },
+          },
           'subtle-text': {
             value: { base: '{colors.red.700}', _dark: '{colors.red.200}' },
           },
@@ -584,7 +731,9 @@ const config: Config = {
           hover: { value: '{colors.green.800}' },
           active: { value: '{colors.green.900}' },
           text: { value: '{colors.white}' },
-          subtle: { value: { base: '{colors.green.100}', _dark: '{colors.green.950}' } },
+          subtle: {
+            value: { base: '{colors.green.100}', _dark: '{colors.green.950}' },
+          },
           'subtle-text': {
             value: { base: '{colors.green.800}', _dark: '{colors.green.200}' },
           },
@@ -599,7 +748,9 @@ const config: Config = {
           hover: { value: '{colors.amber.800}' },
           active: { value: '{colors.amber.900}' },
           text: { value: '{colors.white}' },
-          subtle: { value: { base: '{colors.amber.100}', _dark: '{colors.amber.950}' } },
+          subtle: {
+            value: { base: '{colors.amber.100}', _dark: '{colors.amber.950}' },
+          },
           'subtle-text': {
             value: { base: '{colors.amber.700}', _dark: '{colors.amber.200}' },
           },

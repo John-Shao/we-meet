@@ -364,6 +364,9 @@ jobs:
       - name: Check format
         run: cd src/frontend/ && npm run check
 
+      - name: Check Color System contract
+        run: cd src/frontend/ && npm run check:colors
+
   test-front:
     runs-on: ubuntu-latest
     permissions:

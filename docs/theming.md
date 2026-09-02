@@ -1,11 +1,12 @@
-
 # Theming La Suite Meet
+
+> WeMeet 产品色彩角色、Light/Dark 映射与无障碍门槛见
+> [WeMeet Color System](./color-system.md)。本文只说明部署方如何覆盖主题。
 
 There are two ways to customize LaSuite Meet:
 
 - **Runtime Theming**. You can load a custom CSS file to apply any CSS you want. You can change all design-system tokens through CSS variables: colors, fonts, spacing multipliers, and more.
 - **Build-time Theming**. Some additional things, like the app name appearing in the browser tab, can be customized through environment variables that are applied at build-time.
-
 
 ## Runtime Theming
 
@@ -22,7 +23,6 @@ FRONTEND_CSS_URL=https://example.com/custom-style.css
 
 Setting this variable makes the app load your CSS at runtime, adding a `<link>` to `<head>` so you can override CSS variables and customize the frontend without rebuilding.
 
-
 This feature lets you customize the app’s look with any CSS, giving full flexibility and allowing changes to take effect instantly at runtime without touching the code.
 
 ### Example Use Case
@@ -33,7 +33,7 @@ Let's say you want to change the font of our application to a custom font. You c
 @import url(https://fonts.bunny.net/css?family=Roboto:wght@400;700&display=swap);
 
 :root {
-  --fonts-sans: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+  --fonts-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
 }
 ```
 
@@ -41,8 +41,8 @@ Then, set the `FRONTEND_CSS_URL` environment variable to the URL of your custom 
 
 > [!IMPORTANT]
 > You can override any CSS token—semantic or palette. See [panda.config.ts](../src/frontend/panda.config.ts) for all defined semantic tokens.
-> The app does **not provide separate light/dark themes**: outside a meeting it defaults to light, and in a room it switches to dark.
- 
+> WeMeet 支持 Light/Dark 语义 token。会中房间仍可因沉浸式视频场景使用恒深色的组件角色；
+> 运行时覆盖颜色时必须同时提供两套主题值，并保持 Color System 规定的前景/背景配对。
 
 ### Key Semantic Tokens
 
@@ -72,7 +72,6 @@ These control the main visual aspects of the interface:
 > `2px` offset. Overriding those two variables re-themes every focus state in the app, in both light
 > and dark mode.
 
-
 ### Assets (Logo, Images)
 
 You can override built-in assets (such as the logo or images) by mounting your own files into the container.
@@ -95,14 +94,13 @@ For example, to replace the images used in the landing page carousel, provide yo
         └── 4.png
 ```
 
-
 ## Build-Time Theming
 
 Some settings cannot be applied at runtime and require rebuilding the Docker image.
 One key example is the **application title and name**, controlled by the `VITE_APP_TITLE` build argument.
 
-* **Default:** `La Suite Meet`
-* **Override:** supply your own value at build time
+- **Default:** `La Suite Meet`
+- **Override:** supply your own value at build time
 
 ```bash
 docker build \
@@ -119,11 +117,10 @@ ENV VITE_APP_TITLE=${VITE_APP_TITLE}
 For a real-world example, see how DINUM rebuilds the frontend to match their branding:
 [DINUM Dockerfile](../docker/dinum-frontend/Dockerfile)
 
-----
+---
 
 # **Footer Configuration**
 
 The footer cannot be customized yet. This is a work in progress, and we welcome contributions — feel free to open a pull request if you’d like to help add this feature.
 
 You can enable the official French government footer by setting the environment variable `FRONTEND_USE_FRENCH_GOV_FOOTER` to true. This option is disabled (false) by default.
-
