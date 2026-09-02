@@ -146,7 +146,7 @@
     "title": "Mon rappel",
     "enabled": "Recevoir les rappels de date pour cette tâche",
     "timing": "Rappel d’échéance de cette tâche",
-    "followDefault": "Suivre les réglages système ({{value}})",
+    "followDefault": "Suivre les réglages système",
     "globalDisabled": "Les rappels quotidiens sont désactivés dans les paramètres système",
     "loading": "Chargement des paramètres de rappel…",
     "loadError": "Impossible de charger les paramètres de rappel.",

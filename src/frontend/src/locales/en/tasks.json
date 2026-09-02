@@ -172,7 +172,7 @@
     "title": "My reminder",
     "enabled": "Receive date reminders for this task",
     "timing": "Due-date reminder for this task",
-    "followDefault": "Follow system settings ({{value}})",
+    "followDefault": "Follow system settings",
     "globalDisabled": "Daily reminders are disabled in system settings",
     "loading": "Loading reminder settings…",
     "loadError": "Reminder settings could not be loaded.",

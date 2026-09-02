@@ -20,13 +20,6 @@ vi.mock('../api/fetchTasks', () => ({
     error: null,
     isPending: false,
   }),
-  useTaskSettings: () => ({
-    data: {
-      daily_reminder_enabled: true,
-      overdue_marker_enabled: true,
-      default_reminder_minutes: 2340,
-    },
-  }),
 }))
 
 vi.mock('@/features/auth', () => ({

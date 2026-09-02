@@ -14,15 +14,11 @@ const reminderOptions: TaskReminderMinutes[] = [900, 360, 2340, 3780, 5220]
 export const TaskReminderFields = ({
   enabled,
   reminderMinutes,
-  effectiveReminderMinutes,
-  globalRemindersEnabled,
   disabled = false,
   onChange,
 }: {
   enabled: boolean
   reminderMinutes: TaskReminderMinutes | null
-  effectiveReminderMinutes: TaskReminderMinutes
-  globalRemindersEnabled: boolean
   disabled?: boolean
   onChange: (patch: PatchTaskReminderPreferencePayload) => void
 }) => {
@@ -51,13 +47,7 @@ export const TaskReminderFields = ({
         }}
       >
         <option value="none">{t('settings.reminderOptions.none')}</option>
-        <option value="default">
-          {t('taskReminder.followDefault', {
-            value: globalRemindersEnabled
-              ? t(`settings.reminderOptions.${effectiveReminderMinutes}`)
-              : t('settings.reminderOptions.none'),
-          })}
-        </option>
+        <option value="default">{t('taskReminder.followDefault')}</option>
         {reminderOptions.map((minutes) => (
           <option key={minutes} value={minutes}>
             {t(`settings.reminderOptions.${minutes}`)}
@@ -98,8 +88,6 @@ export const TaskReminderControl = ({ taskId }: { taskId: string }) => {
       <TaskReminderFields
         enabled={data.enabled}
         reminderMinutes={data.reminder_minutes}
-        effectiveReminderMinutes={data.effective_reminder_minutes}
-        globalRemindersEnabled={data.global_reminders_enabled}
         disabled={update.isPending}
         onChange={change}
       />

@@ -146,7 +146,7 @@
     "title": "Mijn herinnering",
     "enabled": "Datumherinneringen voor deze taak ontvangen",
     "timing": "Deadlineherinnering voor deze taak",
-    "followDefault": "Systeeminstellingen volgen ({{value}})",
+    "followDefault": "Systeeminstellingen volgen",
     "globalDisabled": "Dagelijkse herinneringen zijn uitgeschakeld in de systeeminstellingen",
     "loading": "Herinneringsinstellingen laden…",
     "loadError": "De herinneringsinstellingen konden niet worden geladen.",

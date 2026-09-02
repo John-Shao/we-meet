@@ -146,7 +146,7 @@
     "title": "Meine Erinnerung",
     "enabled": "Datumserinnerungen für diese Aufgabe erhalten",
     "timing": "Fälligkeitserinnerung für diese Aufgabe",
-    "followDefault": "Systemeinstellung verwenden ({{value}})",
+    "followDefault": "Systemeinstellung verwenden",
     "globalDisabled": "Tägliche Erinnerungen sind in den Systemeinstellungen deaktiviert",
     "loading": "Erinnerungseinstellungen werden geladen…",
     "loadError": "Erinnerungseinstellungen konnten nicht geladen werden.",

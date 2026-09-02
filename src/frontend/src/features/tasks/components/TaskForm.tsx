@@ -26,7 +26,7 @@ import type {
   TaskRecurrenceFrequency,
   TaskReminderMinutes,
 } from '../api/ApiTask'
-import { useCreateTask, useTaskSettings } from '../api/fetchTasks'
+import { useCreateTask } from '../api/fetchTasks'
 import { taskAssignees } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
@@ -92,7 +92,6 @@ export const TaskForm = ({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const createMutation = useCreateTask()
-  const { data: taskSettings } = useTaskSettings()
   const today = dateInputValue(new Date())
   const tomorrowDate = new Date()
   tomorrowDate.setDate(tomorrowDate.getDate() + 1)
@@ -356,12 +355,6 @@ export const TaskForm = ({
               <TaskReminderFields
                 enabled={reminderEnabled}
                 reminderMinutes={reminderMinutes}
-                effectiveReminderMinutes={
-                  taskSettings?.default_reminder_minutes ?? 900
-                }
-                globalRemindersEnabled={
-                  taskSettings?.daily_reminder_enabled ?? true
-                }
                 disabled={createMutation.isPending}
                 onChange={(patch) => {
                   if (patch.enabled !== undefined)
