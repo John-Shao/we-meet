@@ -20,8 +20,10 @@ interface Props {
   avatarOf?: (c: ConversationSummary) => string | undefined
   /** Resolve a group's member tiles for the mosaic avatar; undefined → fall back. */
   membersOf?: (c: ConversationSummary) => GroupAvatarMember[] | undefined
-  /** Delete (direct) / leave (group) the conversation. */
+  /** Soft-hide the conversation from the caller's list. */
   onDelete: (c: ConversationSummary) => void
+  /** Leave a group conversation. */
+  onLeave: (c: ConversationSummary) => void
   /** Toggle the caller's private pinned state for the conversation. */
   onTogglePinned: (c: ConversationSummary) => void
   /** Toggle the caller's private notification mute state. */
@@ -73,6 +75,7 @@ export const ConversationList = ({
   avatarOf,
   membersOf,
   onDelete,
+  onLeave,
   onTogglePinned,
   onToggleMuted,
   mentionedCids,
@@ -130,14 +133,21 @@ export const ConversationList = ({
       onSelect: () => onToggleMuted(conversation),
     },
     {
-      key: conversation.type === 'group' ? 'leave' : 'delete',
-      label:
-        conversation.type === 'group'
-          ? t('list.contextMenu.leave')
-          : t('list.contextMenu.delete'),
+      key: 'delete',
+      label: t('list.contextMenu.delete'),
       danger: true,
       onSelect: () => onDelete(conversation),
     },
+    ...(conversation.type === 'group'
+      ? [
+          {
+            key: 'leave',
+            label: t('list.contextMenu.leave'),
+            danger: true,
+            onSelect: () => onLeave(conversation),
+          },
+        ]
+      : []),
   ]
 
   if (loading) {

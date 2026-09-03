@@ -41,6 +41,7 @@ import { ForwardDialog, type ForwardConv } from '../components/ForwardDialog'
 import { LaterDialog } from '../components/LaterDialog'
 import { listLater } from '../api/listLater'
 import { announceLeave } from '../api/announceLeave'
+import { hideConversation } from '../api/hideConversation'
 import type { MergedBody } from '../components/MergedRecordDialog'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
@@ -414,15 +415,33 @@ const ImAuthenticated = () => {
 
   const selectedConv = conversations.find((c) => c.cid === selectedCID) ?? null
 
-  // 删除会话(direct 软隐藏)/ 退群(group;群主则服务端自动转让或解散)。
+  // 删除会话:direct / group 都只对当前用户软隐藏,不改变群成员关系。
   const handleDelete = async (c: ConversationSummary) => {
-    const confirmMsg =
-      c.type === 'group'
-        ? t('actions.leaveConfirm')
-        : t('actions.deleteConfirm')
-    if (!(await askConfirm({ message: confirmMsg, danger: true }))) return
+    if (
+      !(await askConfirm({ message: t('actions.deleteConfirm'), danger: true }))
+    )
+      return
     try {
-      if (c.type === 'group') await announceLeave(c.cid).catch(() => {})
+      await hideConversation(c.cid)
+      if (selectedCID === c.cid) setSelectedCID(null)
+      await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+    } catch (e) {
+      void showAlert({
+        message: t('actions.error', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
+    }
+  }
+
+  // 退出群聊:移除成员关系;群主由服务端自动转让或在仅剩一人时解散群。
+  const handleLeave = async (c: ConversationSummary) => {
+    if (
+      !(await askConfirm({ message: t('actions.leaveConfirm'), danger: true }))
+    )
+      return
+    try {
+      await announceLeave(c.cid).catch(() => {})
       await client.leaveConversation(c.cid)
       if (selectedCID === c.cid) setSelectedCID(null)
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
@@ -850,6 +869,7 @@ const ImAuthenticated = () => {
               avatarOf={avatarOf}
               membersOf={membersOf}
               onDelete={handleDelete}
+              onLeave={handleLeave}
               onTogglePinned={(c) =>
                 void handleConversationSetting(c, { pinned: !c.pinned })
               }

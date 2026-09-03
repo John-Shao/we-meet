@@ -32,7 +32,7 @@
   "actions": {
     "delete": "Supprimer la conversation",
     "leaveConfirm": "Quitter ce groupe ? Si vous êtes le propriétaire, la propriété est transférée automatiquement à un autre membre ; le groupe est dissous si vous êtes le dernier.",
-    "deleteConfirm": "Supprimer cette conversation ? Elle n'est retirée que de votre liste — le correspondant et l'historique ne sont pas touchés.",
+    "deleteConfirm": "Supprimer cette conversation ? Elle n'est retirée que de votre liste — les autres participants et l'historique ne sont pas affectés.",
     "error": "Échec de l'action : {{message}}",
     "recall": "Annuler",
     "recallConfirm": "Annuler ce message ?",

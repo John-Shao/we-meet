@@ -32,7 +32,7 @@
   "actions": {
     "delete": "Delete conversation",
     "leaveConfirm": "Leave this group? If you are the owner, ownership auto-transfers to another member; the group dissolves if you are the last one.",
-    "deleteConfirm": "Delete this conversation? It is only removed from your list — the peer and history are untouched.",
+    "deleteConfirm": "Delete this conversation? It is only removed from your list — other participants and chat history are unaffected.",
     "error": "Action failed: {{message}}",
     "recall": "Recall",
     "recallConfirm": "Recall this message?",

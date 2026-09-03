@@ -32,6 +32,7 @@ const group = {
 
 const mount = (conversations: ConversationSummary[]) => {
   const onDelete = vi.fn()
+  const onLeave = vi.fn()
   const onTogglePinned = vi.fn()
   const onToggleMuted = vi.fn()
 
@@ -42,12 +43,13 @@ const mount = (conversations: ConversationSummary[]) => {
       onSelect={() => {}}
       nameOf={(conversation) => conversation.name || conversation.cid}
       onDelete={onDelete}
+      onLeave={onLeave}
       onTogglePinned={onTogglePinned}
       onToggleMuted={onToggleMuted}
     />
   )
 
-  return { onDelete, onTogglePinned, onToggleMuted }
+  return { onDelete, onLeave, onTogglePinned, onToggleMuted }
 }
 
 describe('ConversationList context menu', () => {
@@ -87,10 +89,8 @@ describe('ConversationList context menu', () => {
 
     expect(screen.getByText('list.contextMenu.unpin')).toBeInTheDocument()
     expect(screen.getByText('list.contextMenu.unmute')).toBeInTheDocument()
+    expect(screen.getByText('list.contextMenu.delete')).toBeInTheDocument()
     expect(screen.getByText('list.contextMenu.leave')).toBeInTheDocument()
-    expect(
-      screen.queryByText('list.contextMenu.delete')
-    ).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('conv-ctx-pin'))
     expect(handlers.onTogglePinned).toHaveBeenCalledWith(group)
@@ -100,7 +100,11 @@ describe('ConversationList context menu', () => {
     expect(handlers.onToggleMuted).toHaveBeenCalledWith(group)
 
     fireEvent.contextMenu(screen.getByTestId('conv-item-group-1'))
-    fireEvent.click(screen.getByTestId('conv-ctx-leave'))
+    fireEvent.click(screen.getByTestId('conv-ctx-delete'))
     expect(handlers.onDelete).toHaveBeenCalledWith(group)
+
+    fireEvent.contextMenu(screen.getByTestId('conv-item-group-1'))
+    fireEvent.click(screen.getByTestId('conv-ctx-leave'))
+    expect(handlers.onLeave).toHaveBeenCalledWith(group)
   })
 })
