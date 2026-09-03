@@ -9,9 +9,27 @@ import {
 } from '@pandacss/dev'
 import spacingContract from '../design-tokens/spacing.tokens.json'
 import typographyContract from '../design-tokens/typography.tokens.json'
+import shapeContract from '../design-tokens/shape.tokens.json'
+import elevationContract from '../design-tokens/elevation.tokens.json'
 
 type DimensionToken = {
   $value: { value: number; unit: 'px' | 'rem' }
+}
+
+type ShadowLayer = {
+  color: {
+    components: [number, number, number]
+    alpha?: number
+  }
+  offsetX: { value: number; unit: 'px' | 'rem' }
+  offsetY: { value: number; unit: 'px' | 'rem' }
+  blur: { value: number; unit: 'px' | 'rem' }
+  spread: { value: number; unit: 'px' | 'rem' }
+  inset?: boolean
+}
+
+type ShadowToken = {
+  $value: ShadowLayer | Array<ShadowLayer | string> | string
 }
 
 type TypographyToken = {
@@ -25,6 +43,110 @@ type TypographyToken = {
 }
 
 const pxToRem = (value: number) => `${value / 16}rem`
+
+const getContractNode = (document: object, path: string): unknown =>
+  path.split('.').reduce<unknown>((node, segment) => {
+    if (!node || typeof node !== 'object') return undefined
+    return (node as Record<string, unknown>)[segment]
+  }, document)
+
+const resolveShapeDimension = (
+  path: string,
+  resolving: string[] = []
+): number => {
+  if (resolving.includes(path)) {
+    throw new Error(
+      `Circular shape reference: ${[...resolving, path].join(' -> ')}`
+    )
+  }
+  const token = getContractNode(shapeContract, path) as
+    | DimensionToken
+    | { $value: string }
+    | undefined
+  if (!token) throw new Error(`Missing shape token: ${path}`)
+  if (typeof token.$value === 'string') {
+    const reference = /^\{([^}]+)\}$/.exec(token.$value)?.[1]
+    if (!reference) throw new Error(`Invalid shape reference: ${path}`)
+    return resolveShapeDimension(reference, [...resolving, path])
+  }
+  return token.$value.value
+}
+
+const radiusValue = (value: number) =>
+  value >= 9999 ? '9999px' : pxToRem(value)
+
+const sharedRadii = Object.fromEntries(
+  ['radius', 'shape'].flatMap((group) =>
+    Object.keys(shapeContract[group as keyof typeof shapeContract])
+      .filter((name) => !name.startsWith('$'))
+      .map((name) => [
+        name,
+        { value: radiusValue(resolveShapeDimension(`${group}.${name}`)) },
+      ])
+  )
+) as Tokens['radii']
+
+const resolveShadowLayers = (
+  path: string,
+  resolving: string[] = []
+): ShadowLayer[] => {
+  if (resolving.includes(path)) {
+    throw new Error(
+      `Circular shadow reference: ${[...resolving, path].join(' -> ')}`
+    )
+  }
+  const token = getContractNode(elevationContract, path) as
+    | ShadowToken
+    | undefined
+  if (!token) throw new Error(`Missing shadow token: ${path}`)
+  const values = Array.isArray(token.$value) ? token.$value : [token.$value]
+  return values.flatMap((value) => {
+    if (typeof value !== 'string') return [value]
+    const reference = /^\{([^}]+)\}$/.exec(value)?.[1]
+    if (!reference) throw new Error(`Invalid shadow reference: ${path}`)
+    return resolveShadowLayers(reference, [...resolving, path])
+  })
+}
+
+const shadowDimension = ({ value, unit }: ShadowLayer['offsetX']): string =>
+  `${value}${unit}`
+
+const shadowColor = ({
+  components,
+  alpha = 1,
+}: ShadowLayer['color']): string => {
+  const [red, green, blue] = components.map((value) => Math.round(value * 255))
+  return `rgb(${red} ${green} ${blue} / ${alpha})`
+}
+
+const shadowToCss = (path: string): string =>
+  resolveShadowLayers(path)
+    .map(
+      (layer) =>
+        `${layer.inset ? 'inset ' : ''}${shadowDimension(layer.offsetX)} ${shadowDimension(layer.offsetY)} ${shadowDimension(layer.blur)} ${shadowDimension(layer.spread)} ${shadowColor(layer.color)}`
+    )
+    .join(', ')
+
+const elevationNames = [
+  'subtle',
+  'raised',
+  'overlay',
+  'sticky',
+  'modal',
+] as const
+
+const sharedShadows = Object.fromEntries(
+  elevationNames.flatMap((name) => [
+    [
+      `elevation${name[0].toUpperCase()}${name.slice(1)}Light`,
+      { value: shadowToCss(`shadow.light.${name}`) },
+    ],
+    [
+      `elevation${name[0].toUpperCase()}${name.slice(1)}Dark`,
+      { value: shadowToCss(`shadow.dark.${name}`) },
+    ],
+  ])
+) as Tokens['shadows']
 
 const sharedSpacing = Object.fromEntries(
   Object.entries(spacingContract.space)
@@ -356,11 +478,9 @@ const config: Config = {
       },
       letterSpacings: {},
       shadows: {
+        ...sharedShadows,
         sm: {
-          value: [
-            '0 1px 3px 0 rgb(0 0 0 / 0.1)',
-            '0 1px 2px -1px rgb(0 0 0 / 0.1)',
-          ],
+          value: '{shadows.elevationSubtleLight}',
         },
       },
       lineHeights: {
@@ -372,11 +492,11 @@ const config: Config = {
         2: { value: '2' },
       },
       radii: {
-        4: { value: '0.25rem' },
+        ...sharedRadii,
+        4: { value: '{radii.extraSmall}' },
         6: { value: '0.375rem' },
-        8: { value: '0.5rem' },
-        16: { value: '1rem' },
-        full: { value: '9999px' },
+        8: { value: '{radii.small}' },
+        16: { value: '{radii.large}' },
       },
       sizes: {
         ...spacing,
@@ -850,7 +970,24 @@ const config: Config = {
         },
       },
       shadows: {
-        box: { value: '{shadows.sm}' },
+        box: {
+          value: {
+            base: '{shadows.elevationSubtleLight}',
+            _dark: '{shadows.elevationSubtleDark}',
+          },
+        },
+        subtle: {
+          value: {
+            base: '{shadows.elevationSubtleLight}',
+            _dark: '{shadows.elevationSubtleDark}',
+          },
+        },
+        raised: {
+          value: {
+            base: '{shadows.elevationRaisedLight}',
+            _dark: '{shadows.elevationRaisedDark}',
+          },
+        },
         /**
          * 焦点柔光环 —— 输入类控件(输入框 / 文本域 / 选择框)聚焦时,蓝描边外面
          * 再套的那一圈半透明蓝。基准是登录页(Keycloak phone 主题)输入框的
@@ -887,16 +1024,20 @@ const config: Config = {
         // 描边 + 柔光环见上面的 shadows.focusRing)。
         overlay: {
           value: {
-            base: '0 0 1px rgba(0, 0, 0, 0.16), 0 6px 20px rgba(0, 0, 0, 0.12)',
-            _dark:
-              'inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 20px rgba(0, 0, 0, 0.5)',
+            base: '{shadows.elevationOverlayLight}',
+            _dark: '{shadows.elevationOverlayDark}',
+          },
+        },
+        sticky: {
+          value: {
+            base: '{shadows.elevationStickyLight}',
+            _dark: '{shadows.elevationStickyDark}',
           },
         },
         modal: {
           value: {
-            base: '0 0 1px rgba(0, 0, 0, 0.16), 0 12px 40px rgba(0, 0, 0, 0.2)',
-            _dark:
-              'inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 12px 40px rgba(0, 0, 0, 0.6)',
+            base: '{shadows.elevationModalLight}',
+            _dark: '{shadows.elevationModalDark}',
           },
         },
       },

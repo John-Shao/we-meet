@@ -11,13 +11,25 @@ const typographyUrl = new URL(
   '../../design-tokens/typography.tokens.json',
   import.meta.url
 )
+const shapeUrl = new URL(
+  '../../design-tokens/shape.tokens.json',
+  import.meta.url
+)
+const elevationUrl = new URL(
+  '../../design-tokens/elevation.tokens.json',
+  import.meta.url
+)
 const spacing = JSON.parse(readFileSync(spacingUrl, 'utf8'))
 const typography = JSON.parse(readFileSync(typographyUrl, 'utf8'))
+const shape = JSON.parse(readFileSync(shapeUrl, 'utf8'))
+const elevation = JSON.parse(readFileSync(elevationUrl, 'utf8'))
 const failures = []
 
 for (const [name, document] of [
   ['spacing', spacing],
   ['typography', typography],
+  ['shape', shape],
+  ['elevation', elevation],
 ]) {
   if (document.$schema !== expectedSchema) {
     failures.push(`${name}: $schema must be ${expectedSchema}`)
@@ -28,20 +40,23 @@ function getNode(document, path) {
   return path.split('.').reduce((node, segment) => node?.[segment], document)
 }
 
-function resolveDimension(path, resolving = []) {
+function resolveDocumentDimension(document, path, label, resolving = []) {
   if (resolving.includes(path)) {
     throw new Error(
-      `Circular spacing reference: ${[...resolving, path].join(' -> ')}`
+      `Circular ${label} reference: ${[...resolving, path].join(' -> ')}`
     )
   }
-  const token = getNode(spacing, path)
+  const token = getNode(document, path)
   if (!token || !Object.hasOwn(token, '$value')) {
-    throw new Error(`Missing spacing token: ${path}`)
+    throw new Error(`Missing ${label} token: ${path}`)
   }
   if (typeof token.$value === 'string') {
     const reference = /^\{([^}]+)\}$/.exec(token.$value)?.[1]
-    if (!reference) throw new Error(`Invalid spacing reference at ${path}`)
-    return resolveDimension(reference, [...resolving, path])
+    if (!reference) throw new Error(`Invalid ${label} reference at ${path}`)
+    return resolveDocumentDimension(document, reference, label, [
+      ...resolving,
+      path,
+    ])
   }
   const { value, unit } = token.$value
   if (!Number.isFinite(value) || value < 0 || unit !== 'px') {
@@ -49,6 +64,13 @@ function resolveDimension(path, resolving = []) {
   }
   return value
 }
+
+const resolveSpacingDimension = (path) =>
+  resolveDocumentDimension(spacing, path, 'spacing')
+const resolveShapeDimension = (path) =>
+  resolveDocumentDimension(shape, path, 'shape')
+const resolveElevationDimension = (path) =>
+  resolveDocumentDimension(elevation, path, 'elevation')
 
 const expectedSpaces = {
   none: 0,
@@ -64,7 +86,7 @@ const expectedSpaces = {
 }
 for (const [name, expected] of Object.entries(expectedSpaces)) {
   try {
-    const actual = resolveDimension(`space.${name}`)
+    const actual = resolveSpacingDimension(`space.${name}`)
     if (actual !== expected)
       failures.push(`space.${name}: ${actual}px != ${expected}px`)
   } catch (error) {
@@ -75,9 +97,117 @@ for (const [name, expected] of Object.entries(expectedSpaces)) {
 for (const family of ['inline', 'stack', 'inset']) {
   for (const name of Object.keys(spacing.spacing[family])) {
     try {
-      resolveDimension(`spacing.${family}.${name}`)
+      resolveSpacingDimension(`spacing.${family}.${name}`)
     } catch (error) {
       failures.push(error.message)
+    }
+  }
+}
+
+const expectedRadii = {
+  none: 0,
+  extraSmall: 4,
+  small: 8,
+  medium: 12,
+  large: 16,
+  extraLarge: 24,
+  full: 9999,
+}
+for (const [name, expected] of Object.entries(expectedRadii)) {
+  try {
+    const actual = resolveShapeDimension(`radius.${name}`)
+    if (actual !== expected)
+      failures.push(`radius.${name}: ${actual}px != ${expected}px`)
+  } catch (error) {
+    failures.push(error.message)
+  }
+}
+for (const name of ['field', 'control', 'card', 'panel', 'modal', 'pill']) {
+  try {
+    resolveShapeDimension(`shape.${name}`)
+  } catch (error) {
+    failures.push(error.message)
+  }
+}
+
+const expectedElevations = {
+  flat: 0,
+  subtle: 1,
+  raised: 3,
+  overlay: 6,
+  sticky: 8,
+  modal: 12,
+}
+for (const [name, expected] of Object.entries(expectedElevations)) {
+  try {
+    const actual = resolveElevationDimension(`elevation.${name}`)
+    if (actual !== expected)
+      failures.push(`elevation.${name}: ${actual}px != ${expected}px`)
+  } catch (error) {
+    failures.push(error.message)
+  }
+}
+
+function resolveShadowLayers(path, resolving = []) {
+  if (resolving.includes(path)) {
+    throw new Error(
+      `Circular shadow reference: ${[...resolving, path].join(' -> ')}`
+    )
+  }
+  const token = getNode(elevation, path)
+  if (!token || !Object.hasOwn(token, '$value')) {
+    throw new Error(`Missing shadow token: ${path}`)
+  }
+  const values = Array.isArray(token.$value) ? token.$value : [token.$value]
+  return values.flatMap((value) => {
+    if (typeof value !== 'string') return [value]
+    const reference = /^\{([^}]+)\}$/.exec(value)?.[1]
+    if (!reference) throw new Error(`Invalid shadow reference at ${path}`)
+    return resolveShadowLayers(reference, [...resolving, path])
+  })
+}
+
+function isPxDimension(value) {
+  return (
+    value &&
+    Number.isFinite(value.value) &&
+    typeof value.unit === 'string' &&
+    value.unit === 'px'
+  )
+}
+
+for (const mode of ['light', 'dark']) {
+  for (const name of ['subtle', 'raised', 'overlay', 'sticky', 'modal']) {
+    try {
+      const layers = resolveShadowLayers(`shadow.${mode}.${name}`)
+      if (layers.length === 0) throw new Error('shadow has no layers')
+      for (const layer of layers) {
+        const components = layer?.color?.components
+        const alpha = layer?.color?.alpha ?? 1
+        const validColor =
+          layer?.color?.colorSpace === 'srgb' &&
+          Array.isArray(components) &&
+          components.length === 3 &&
+          components.every(
+            (component) =>
+              Number.isFinite(component) && component >= 0 && component <= 1
+          ) &&
+          Number.isFinite(alpha) &&
+          alpha >= 0 &&
+          alpha <= 1
+        if (
+          !validColor ||
+          !isPxDimension(layer?.offsetX) ||
+          !isPxDimension(layer?.offsetY) ||
+          !isPxDimension(layer?.blur) ||
+          !isPxDimension(layer?.spread) ||
+          (layer?.inset !== undefined && typeof layer.inset !== 'boolean')
+        ) {
+          throw new Error('invalid DTCG shadow layer')
+        }
+      }
+    } catch (error) {
+      failures.push(`shadow.${mode}.${name}: ${error.message}`)
     }
   }
 }
@@ -156,11 +286,74 @@ for (const sourceUrl of migratedTypographySources) {
   }
 }
 
+const migratedShapeSources = [
+  '../src/primitives/Badge.tsx',
+  '../src/primitives/Box.tsx',
+  '../src/primitives/buttonRecipe.ts',
+  '../src/primitives/Checkbox.tsx',
+  '../src/primitives/chipRecipe.ts',
+  '../src/primitives/Input.tsx',
+  '../src/primitives/Loader.tsx',
+  '../src/primitives/menuRecipe.ts',
+  '../src/primitives/Radio.tsx',
+  '../src/primitives/Select.tsx',
+  '../src/primitives/Switch.tsx',
+  '../src/primitives/Tabs.tsx',
+  '../src/primitives/TextArea.tsx',
+  '../src/primitives/TooltipWrapper.tsx',
+  '../src/primitives/VisualOnlyTooltip.tsx',
+  '../src/components/Modal.tsx',
+  '../src/features/tasks/components/TaskSidePanel.tsx',
+  '../src/features/notifications/components/Toast.tsx',
+].map((path) => new URL(path, import.meta.url))
+
+for (const sourceUrl of migratedShapeSources) {
+  const source = readFileSync(sourceUrl, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '')
+  for (const match of source.matchAll(
+    /\bborderRadius\s*:\s*(?:['"](?:[\d.]+(?:px|rem|%)?)['"]|[\d.]+)/g
+  )) {
+    const line = source.slice(0, match.index).split('\n').length
+    failures.push(
+      `${fileURLToPath(sourceUrl)}:${line} uses a raw radius: ${match[0]}`
+    )
+  }
+}
+
+const migratedElevationSources = [
+  '../src/primitives/Box.tsx',
+  '../src/primitives/Switch.tsx',
+  '../src/primitives/TooltipWrapper.tsx',
+  '../src/primitives/VisualOnlyTooltip.tsx',
+  '../src/components/Modal.tsx',
+  '../src/features/notifications/components/Toast.tsx',
+].map((path) => new URL(path, import.meta.url))
+
+for (const sourceUrl of migratedElevationSources) {
+  const source = readFileSync(sourceUrl, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '')
+  for (const match of source.matchAll(
+    /\bboxShadow\s*:\s*['"](?:inset\s+)?-?[\d.]+(?:px|rem)?\s/g
+  )) {
+    const line = source.slice(0, match.index).split('\n').length
+    failures.push(
+      `${fileURLToPath(sourceUrl)}:${line} uses a raw elevation shadow: ${match[0].trim()}`
+    )
+  }
+}
+
 const pandaConfig = readFileSync(
   new URL('../panda.config.ts', import.meta.url),
   'utf8'
 )
-for (const contract of ['spacingContract', 'typographyContract']) {
+for (const contract of [
+  'spacingContract',
+  'typographyContract',
+  'shapeContract',
+  'elevationContract',
+]) {
   if (!pandaConfig.includes(contract)) {
     failures.push(`panda.config.ts does not consume ${contract}`)
   }
@@ -177,6 +370,6 @@ if (failures.length > 0) {
   process.exitCode = 1
 } else {
   console.log(
-    `Foundation System OK: ${Object.keys(expectedSpaces).length} spacing steps, ${Object.keys(expectedTypeScale).length} Material 3 type styles, and ${migratedTypographySources.length} migrated sources passed`
+    `Foundation System OK: ${Object.keys(expectedSpaces).length} spacing steps, ${Object.keys(expectedTypeScale).length} Material 3 type styles, ${Object.keys(expectedRadii).length} radii, ${Object.keys(expectedElevations).length} elevation levels, and ${new Set([...migratedTypographySources, ...migratedShapeSources, ...migratedElevationSources].map(String)).size} migrated sources passed`
   )
 }

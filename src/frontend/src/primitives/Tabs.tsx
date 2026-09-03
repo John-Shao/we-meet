@@ -61,7 +61,7 @@ const StyledTab = styled(RACTab, {
     },
     highlight: {
       true: {
-        borderRadius: 4,
+        borderRadius: 'field',
         backgroundColor: 'colorPalette.active',
         transition:
           'background token(durations.slow), color token(durations.slow)',
@@ -153,7 +153,7 @@ export const TabList = ({ children, border, ...props }: TabListProps) => {
 const StyledTabPanel = styled(RACTabPanel, {
   base: {
     marginTop: '4px',
-    borderRadius: '4px',
+    borderRadius: 'field',
     '&[data-focus-visible]': {
       outline: 'none!',
     },

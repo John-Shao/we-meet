@@ -23,7 +23,7 @@ export const StyledCheckbox = styled(RACCheckbox, {
       width: '1.375rem',
       height: '1.375rem',
       border: '1px solid',
-      borderRadius: 4,
+      borderRadius: 'field',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',

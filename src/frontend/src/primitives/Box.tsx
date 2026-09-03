@@ -5,7 +5,7 @@ const box = cva({
   base: {
     position: 'relative',
     gap: 'gutter',
-    borderRadius: 8,
+    borderRadius: 'control',
     padding: 'boxPadding',
     flex: 1,
   },
@@ -22,15 +22,24 @@ const box = cva({
       popover: {
         padding: 'boxPadding.xs',
         minWidth: '10rem',
+        borderRadius: 'control',
         boxShadow: 'overlay',
+      },
+      modal: {
+        borderRadius: 'modal',
+        boxShadow: 'modal',
       },
       dialog: {
         width: '30rem',
         maxWidth: '100%',
+        borderRadius: 'modal',
+        boxShadow: 'modal',
       },
       alert: {
         width: '24rem',
         maxWidth: '100%',
+        borderRadius: 'modal',
+        boxShadow: 'modal',
       },
     },
     variant: {

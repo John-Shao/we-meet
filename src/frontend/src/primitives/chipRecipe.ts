@@ -44,13 +44,13 @@ export const chipRecipe = cva({
     size: {
       sm: {
         paddingX: 'xs',
-        borderRadius: '0.25rem',
+        borderRadius: 'extraSmall',
         textStyle: 'labelSmall',
       },
       md: {
         paddingX: 'sm',
         paddingY: 'xs',
-        borderRadius: 'full',
+        borderRadius: 'pill',
         textStyle: 'labelMedium',
       },
     },

@@ -41,8 +41,8 @@ export const TooltipWrapper = ({
  */
 const StyledTooltip = styled(RACTooltip, {
   base: {
-    boxShadow: '0 8px 20px rgba(0 0 0 / 0.1)',
-    borderRadius: '4px',
+    boxShadow: 'raised',
+    borderRadius: 'field',
     backgroundColor: 'primaryDark.100',
     color: 'gray.100',
     forcedColorAdjust: 'none',

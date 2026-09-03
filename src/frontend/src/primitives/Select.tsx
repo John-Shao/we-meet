@@ -36,7 +36,7 @@ const StyledButton = styled(Button, {
     backgroundColor: 'surface.default',
     color: 'text.primary',
     textStyle: 'bodyMedium',
-    borderRadius: 8,
+    borderRadius: 'control',
     cursor: 'pointer',
     '&[data-focus-visible], &[data-focused]': {
       // 「选择框」归输入类:焦点态与输入框同款 —— 蓝描边 + 柔光环,见

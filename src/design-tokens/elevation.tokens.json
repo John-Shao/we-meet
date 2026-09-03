@@ -1,0 +1,211 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "WeMeet cross-client elevation contract. Native clients consume logical dp levels; Web consumes the paired DTCG shadow composites.",
+  "elevation": {
+    "$type": "dimension",
+    "flat": { "$value": { "value": 0, "unit": "px" } },
+    "subtle": { "$value": { "value": 1, "unit": "px" } },
+    "raised": { "$value": { "value": 3, "unit": "px" } },
+    "overlay": { "$value": { "value": 6, "unit": "px" } },
+    "sticky": { "$value": { "value": 8, "unit": "px" } },
+    "modal": { "$value": { "value": 12, "unit": "px" } }
+  },
+  "shadow": {
+    "light": {
+      "$type": "shadow",
+      "edge": {
+        "$value": {
+          "color": {
+            "colorSpace": "srgb",
+            "components": [0, 0, 0],
+            "alpha": 0.16,
+            "hex": "#000000"
+          },
+          "offsetX": { "value": 0, "unit": "px" },
+          "offsetY": { "value": 0, "unit": "px" },
+          "blur": { "value": 1, "unit": "px" },
+          "spread": { "value": 0, "unit": "px" }
+        }
+      },
+      "subtle": {
+        "$value": {
+          "color": {
+            "colorSpace": "srgb",
+            "components": [0, 0, 0],
+            "alpha": 0.1,
+            "hex": "#000000"
+          },
+          "offsetX": { "value": 0, "unit": "px" },
+          "offsetY": { "value": 1, "unit": "px" },
+          "blur": { "value": 3, "unit": "px" },
+          "spread": { "value": 0, "unit": "px" }
+        }
+      },
+      "raised": {
+        "$value": {
+          "color": {
+            "colorSpace": "srgb",
+            "components": [0, 0, 0],
+            "alpha": 0.14,
+            "hex": "#000000"
+          },
+          "offsetX": { "value": 0, "unit": "px" },
+          "offsetY": { "value": 2, "unit": "px" },
+          "blur": { "value": 8, "unit": "px" },
+          "spread": { "value": -1, "unit": "px" }
+        }
+      },
+      "overlay": {
+        "$value": [
+          "{shadow.light.edge}",
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0, 0, 0],
+              "alpha": 0.12,
+              "hex": "#000000"
+            },
+            "offsetX": { "value": 0, "unit": "px" },
+            "offsetY": { "value": 6, "unit": "px" },
+            "blur": { "value": 20, "unit": "px" },
+            "spread": { "value": 0, "unit": "px" }
+          }
+        ]
+      },
+      "sticky": {
+        "$value": {
+          "color": {
+            "colorSpace": "srgb",
+            "components": [0, 0, 0],
+            "alpha": 0.14,
+            "hex": "#000000"
+          },
+          "offsetX": { "value": 0, "unit": "px" },
+          "offsetY": { "value": 2, "unit": "px" },
+          "blur": { "value": 8, "unit": "px" },
+          "spread": { "value": 0, "unit": "px" }
+        }
+      },
+      "modal": {
+        "$value": [
+          "{shadow.light.edge}",
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0, 0, 0],
+              "alpha": 0.2,
+              "hex": "#000000"
+            },
+            "offsetX": { "value": 0, "unit": "px" },
+            "offsetY": { "value": 12, "unit": "px" },
+            "blur": { "value": 40, "unit": "px" },
+            "spread": { "value": 0, "unit": "px" }
+          }
+        ]
+      }
+    },
+    "dark": {
+      "$type": "shadow",
+      "edge": {
+        "$value": {
+          "color": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "alpha": 0.1,
+            "hex": "#ffffff"
+          },
+          "offsetX": { "value": 0, "unit": "px" },
+          "offsetY": { "value": 0, "unit": "px" },
+          "blur": { "value": 0, "unit": "px" },
+          "spread": { "value": 1, "unit": "px" },
+          "inset": true
+        }
+      },
+      "subtle": {
+        "$value": [
+          "{shadow.dark.edge}",
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0, 0, 0],
+              "alpha": 0.28,
+              "hex": "#000000"
+            },
+            "offsetX": { "value": 0, "unit": "px" },
+            "offsetY": { "value": 1, "unit": "px" },
+            "blur": { "value": 3, "unit": "px" },
+            "spread": { "value": 0, "unit": "px" }
+          }
+        ]
+      },
+      "raised": {
+        "$value": [
+          "{shadow.dark.edge}",
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0, 0, 0],
+              "alpha": 0.4,
+              "hex": "#000000"
+            },
+            "offsetX": { "value": 0, "unit": "px" },
+            "offsetY": { "value": 2, "unit": "px" },
+            "blur": { "value": 8, "unit": "px" },
+            "spread": { "value": -1, "unit": "px" }
+          }
+        ]
+      },
+      "overlay": {
+        "$value": [
+          "{shadow.dark.edge}",
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0, 0, 0],
+              "alpha": 0.5,
+              "hex": "#000000"
+            },
+            "offsetX": { "value": 0, "unit": "px" },
+            "offsetY": { "value": 6, "unit": "px" },
+            "blur": { "value": 20, "unit": "px" },
+            "spread": { "value": 0, "unit": "px" }
+          }
+        ]
+      },
+      "sticky": {
+        "$value": [
+          "{shadow.dark.edge}",
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0, 0, 0],
+              "alpha": 0.5,
+              "hex": "#000000"
+            },
+            "offsetX": { "value": 0, "unit": "px" },
+            "offsetY": { "value": 2, "unit": "px" },
+            "blur": { "value": 8, "unit": "px" },
+            "spread": { "value": 0, "unit": "px" }
+          }
+        ]
+      },
+      "modal": {
+        "$value": [
+          "{shadow.dark.edge}",
+          {
+            "color": {
+              "colorSpace": "srgb",
+              "components": [0, 0, 0],
+              "alpha": 0.6,
+              "hex": "#000000"
+            },
+            "offsetX": { "value": 0, "unit": "px" },
+            "offsetY": { "value": 12, "unit": "px" },
+            "blur": { "value": 40, "unit": "px" },
+            "spread": { "value": 0, "unit": "px" }
+          }
+        ]
+      }
+    }
+  }
+}

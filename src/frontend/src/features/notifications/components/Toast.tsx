@@ -10,13 +10,12 @@ import type { QueuedToast } from '@react-stately/toast'
 export const StyledToastContainer = styled('div', {
   base: {
     margin: 0.5,
-    boxShadow:
-      'rgba(0, 0, 0, 0.5) 0px 4px 8px 0px, rgba(0, 0, 0, 0.3) 0px 6px 20px 4px',
+    boxShadow: 'overlay',
     backgroundColor: 'surface.raised',
     color: 'text.primary',
     border: '1px solid',
     borderColor: 'border.subtle',
-    borderRadius: '8px',
+    borderRadius: 'control',
     '&[data-entering]': { animation: 'fade token(durations.slow)' },
     '&[data-exiting]': {
       animation: 'fade token(durations.normal) reverse ease-in',

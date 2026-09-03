@@ -1,0 +1,24 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "WeMeet cross-client shape contract. One px maps to one Android dp; Web exports finite radii as rem at a 16px root.",
+  "radius": {
+    "$type": "dimension",
+    "none": { "$value": { "value": 0, "unit": "px" } },
+    "extraSmall": { "$value": { "value": 4, "unit": "px" } },
+    "small": { "$value": { "value": 8, "unit": "px" } },
+    "medium": { "$value": { "value": 12, "unit": "px" } },
+    "large": { "$value": { "value": 16, "unit": "px" } },
+    "extraLarge": { "$value": { "value": 24, "unit": "px" } },
+    "full": { "$value": { "value": 9999, "unit": "px" } }
+  },
+  "shape": {
+    "$type": "dimension",
+    "$description": "Semantic aliases for component geometry. Prefer these over selecting a radius by appearance.",
+    "field": { "$value": "{radius.extraSmall}" },
+    "control": { "$value": "{radius.small}" },
+    "card": { "$value": "{radius.medium}" },
+    "panel": { "$value": "{radius.large}" },
+    "modal": { "$value": "{radius.extraLarge}" },
+    "pill": { "$value": "{radius.full}" }
+  }
+}

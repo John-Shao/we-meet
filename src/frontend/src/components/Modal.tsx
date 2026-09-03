@@ -140,7 +140,7 @@ export const Modal = ({
           flexDirection: 'column',
           width: '100%',
           backgroundColor: 'greyscale.000',
-          borderRadius: '0.75rem',
+          borderRadius: 'modal',
           overflow: 'hidden',
           // modal 档在深色下带 1px 白色内描边:本体底色是 greyscale.000,
           // 深色下与页面同为 #161616,只靠黑投影是分不出边界的。

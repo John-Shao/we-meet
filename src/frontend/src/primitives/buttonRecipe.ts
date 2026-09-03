@@ -2,8 +2,8 @@ import { type RecipeVariantProps, cva } from '@/styled-system/css'
 
 /**
  * Button 视觉标准(2026-07,全站按钮基准):
- * - 圆角:常规按钮 8px(radii.8)、小按钮/图标钮 6px(radii.6);胶囊(full)只留给
- *   搜索框、筛选/建议 chip、头像,动作按钮一律不用胶囊。
+ * - 圆角:所有矩形按钮使用语义 token `control`(8px);圆形动作使用 `pill`。
+ *   组件只声明用途，不再直接选择 4/6/8px 数字圆角。
  * - 盒高:两档,与 `sizes.control` 对齐(Input / Select 走同一套)
  *     40px  `default` / `action` / `compact`  常规按钮、对话框主次按钮
  *     32px  `sm` / `dense`                    表单内联、列表行尾
@@ -65,14 +65,14 @@ export const buttonRecipe = cva({
        * 那是触摸目标不是表单控件,46px 正合适,别顺手一起收。
        */
       default: {
-        borderRadius: 8,
+        borderRadius: 'control',
         paddingX: '1',
         paddingY: '0.5',
         lineHeight: '22px',
         '--square-padding': '{spacing.0.625}',
       },
       sm: {
-        borderRadius: 6,
+        borderRadius: 'control',
         paddingX: '0.5',
         paddingY: '0.25',
         // 行高钉住盒高:22 + 8(padY) + 2(border) = 32 = sizes.control.md,
@@ -82,7 +82,7 @@ export const buttonRecipe = cva({
         '--square-padding': '{spacing.0.25}',
       },
       xs: {
-        borderRadius: 6,
+        borderRadius: 'control',
         '--square-padding': '0',
       },
       /**
@@ -92,7 +92,7 @@ export const buttonRecipe = cva({
        * 唯一调用点是录制面板的主操作按钮(fullWidth,横向内边距其实不起作用)。
        */
       compact: {
-        borderRadius: 8,
+        borderRadius: 'control',
         paddingX: '0.5',
         paddingY: '0.5',
         lineHeight: '22px',
@@ -119,7 +119,7 @@ export const buttonRecipe = cva({
        * 这一档的定位是「还原既有规范」,不是「继承 default」,别再改回去对齐。
        */
       action: {
-        borderRadius: 8,
+        borderRadius: 'control',
         paddingX: '1',
         paddingY: '0.5',
         textStyle: 'labelLarge',
@@ -139,12 +139,12 @@ export const buttonRecipe = cva({
        * 13px 的不一致(通讯录「添加」vs「发消息」)。字号收进这里,调用点不用再写。
        *
        * 尺寸刻意对齐原先手搓的那套(0.75rem / 0.375rem / 13px),所以旧按钮换过来
-       * 视觉几乎不变,只有圆角从裸 8px 归到小控件标准 6px。
+       * 视觉几乎不变,圆角统一归到 `control` 语义 token。
        *
        * 对话框底部的主次按钮不要用这个 —— 那是「常规按钮」,走 default。
        */
       dense: {
-        borderRadius: 6,
+        borderRadius: 'control',
         paddingX: '0.75',
         paddingY: '0.375',
         textStyle: 'labelMedium',
@@ -164,25 +164,29 @@ export const buttonRecipe = cva({
        *   icon28 表格行动作 / 对话框标题栏动作
        *   icon32 面板头 / 日历工具栏
        *
-       * 圆角一律 6px:见文件顶部标准(小控件 6px)。归位前散着 4px / 6px / 8px,
-       * 其中 4px 和 8px 都是漂移。
+       * 圆角一律使用 `control`:归位前散着 4px / 6px / 8px，现在由共享契约统一。
        *
        * 配色走 variant 而非各写一套:`quaternaryText`(透明底 + 灰图标 + hover
        * 浅灰底)正是这一族该有的样子,删除类用 `quaternaryDanger`。
        */
       icon24: {
-        borderRadius: 6,
+        borderRadius: 'control',
         width: '1.5rem',
         height: '1.5rem',
         padding: 0,
       },
       icon28: {
-        borderRadius: 6,
+        borderRadius: 'control',
         width: '1.75rem',
         height: '1.75rem',
         padding: 0,
       },
-      icon32: { borderRadius: 6, width: '2rem', height: '2rem', padding: 0 },
+      icon32: {
+        borderRadius: 'control',
+        width: '2rem',
+        height: '2rem',
+        padding: 0,
+      },
     },
     square: {
       true: {
@@ -192,7 +196,7 @@ export const buttonRecipe = cva({
     },
     round: {
       true: {
-        borderRadius: '50%',
+        borderRadius: 'pill',
         paddingX: 'var(--square-padding)',
         paddingY: 'var(--square-padding)',
       },
@@ -252,7 +256,7 @@ export const buttonRecipe = cva({
         border: '1px white solid',
         width: '56px',
         height: '56px',
-        borderRadius: '100%',
+        borderRadius: 'pill',
         '&[data-hovered]': {
           backgroundColor: 'greyscale.100/20',
         },
@@ -264,7 +268,7 @@ export const buttonRecipe = cva({
         width: '56px',
         height: '56px',
         borderColor: 'border.subtle',
-        borderRadius: '4px',
+        borderRadius: 'extraSmall',
         backgroundColor: 'surface.canvas',
         padding: '0',
         flexShrink: 0,
@@ -460,7 +464,7 @@ export const buttonRecipe = cva({
         backgroundColor: 'status.danger',
         width: '56px',
         height: '56px',
-        borderRadius: '100%',
+        borderRadius: 'pill',
         color: 'status.danger.text',
         '&[data-hovered]': {
           backgroundColor: 'status.danger',
@@ -489,7 +493,7 @@ export const buttonRecipe = cva({
       },
       permission: {
         position: 'relative',
-        borderRadius: '100%',
+        borderRadius: 'pill',
         color: 'status.warning',
         width: 'fit-content',
         height: 'fit-content',
@@ -550,7 +554,7 @@ export const buttonRecipe = cva({
         borderLeft: 0,
       },
       center: {
-        borderRadius: 0,
+        borderRadius: 'none',
       },
     },
   },

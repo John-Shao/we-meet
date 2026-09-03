@@ -1,5 +1,7 @@
 # WeMeet Color System
 
+> Shape 与 Elevation 见 [Shape & Elevation System](./shape-elevation-system.md)。
+
 > Typography 与 Spacing 见 [Foundation System](./foundation-system.md)。
 
 > 状态：v1 基线。先建立跨端语义契约与自动校验，再按页面逐步迁移；本阶段不做全站换色。

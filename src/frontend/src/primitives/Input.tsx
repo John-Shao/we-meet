@@ -26,7 +26,7 @@ export const Input = styled(RACInput, {
     backgroundColor: 'surface.default',
     color: 'text.primary',
     textStyle: 'bodyMedium',
-    borderRadius: 4,
+    borderRadius: 'field',
     transition: 'all token(durations.slow)',
     '&::placeholder': {
       color: 'text.disabled',

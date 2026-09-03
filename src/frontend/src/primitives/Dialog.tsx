@@ -110,7 +110,7 @@ export const Dialog = ({
 }: DialogProps) => {
   const isAlert = dialogProps['role'] === 'alertdialog'
   const boxType =
-    type === 'alert' ? 'alert' : type !== 'flex' ? 'dialog' : undefined
+    type === 'alert' ? 'alert' : type === 'flex' ? 'modal' : 'dialog'
   return (
     <StyledModalOverlay
       isKeyboardDismissDisabled={isAlert}

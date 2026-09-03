@@ -6,7 +6,7 @@ const badge = cva({
     paddingY: 'xs',
     paddingX: 'sm',
     border: '1px solid transparent',
-    borderRadius: '6',
+    borderRadius: 'control',
   },
   variants: {
     tone: {

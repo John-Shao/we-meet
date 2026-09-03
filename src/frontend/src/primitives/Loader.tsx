@@ -2,7 +2,7 @@ import { cva } from '@/styled-system/css'
 
 const loader = cva({
   base: {
-    borderRadius: '50%',
+    borderRadius: 'pill',
     position: 'relative',
     animation: 'rotate 1s linear infinite',
     '&:before, &:after': {
@@ -10,7 +10,7 @@ const loader = cva({
       boxSizing: 'border-box',
       position: 'absolute',
       inset: '0',
-      borderRadius: '50%',
+      borderRadius: 'pill',
       borderStyle: 'solid',
       borderColor: 'white',
     },

@@ -9,7 +9,7 @@ export const menuRecipe = sva({
       paddingX: 0.5,
       textAlign: 'left',
       width: 'full',
-      borderRadius: 4,
+      borderRadius: 'field',
       cursor: 'pointer',
       color: 'text.primary',
       border: '1px solid transparent',

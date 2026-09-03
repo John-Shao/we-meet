@@ -14,7 +14,7 @@ export const StyledRadio = styled(RACRadio, {
     forcedColorAdjust: 'none',
     width: 'fit-content',
     '& .mt-Radio': {
-      borderRadius: 'full',
+      borderRadius: 'pill',
       flexShrink: 0,
       width: '1.125rem',
       height: '1.125rem',
@@ -27,7 +27,7 @@ export const StyledRadio = styled(RACRadio, {
     '& .mt-Radio-check': {
       width: '0.5rem',
       height: '0.5rem',
-      borderRadius: 'full',
+      borderRadius: 'pill',
       backgroundColor: 'transparent',
       transition: 'all token(durations.slow)',
     },
