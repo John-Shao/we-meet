@@ -652,9 +652,9 @@ export const MessageItem = ({
               backgroundColor: isImage
                 ? 'transparent'
                 : isOwn
-                  ? 'primary.500'
-                  : 'greyscale.100',
-              color: isOwn ? 'white' : 'greyscale.900',
+                  ? 'action.selected.bg'
+                  : 'surface.default',
+              color: isOwn ? 'action.selected.text' : 'text.primary',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               maxWidth: '100%',
