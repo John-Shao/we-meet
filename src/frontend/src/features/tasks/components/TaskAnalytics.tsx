@@ -13,7 +13,8 @@ export const TaskAnalytics = ({ state }: { state: TaskWorkspaceState }) => {
     state.scope,
     state.time,
     state.priority,
-    state.taskList
+    state.taskList,
+    state.group
   )
 
   if (isLoading) return <StateHint loading>{t('analytics.loading')}</StateHint>

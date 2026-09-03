@@ -27,6 +27,7 @@ from core.models import (
     TaskAttachment,
     TaskComment,
     TaskConversationShare,
+    TaskGroup,
     TaskImDelivery,
     TaskList,
     TaskListAccess,
@@ -776,6 +777,63 @@ def test_task_list_filters_and_serializes_time_state():
         (item["id"], item["time_state"]) for item in overdue_payload["results"]
     ] == [(str(overdue.id), "overdue")]
     assert client.get(f"{TASKS_URL}?time=tomorrow").status_code == 400
+
+
+def test_task_list_and_statistics_filter_by_organization_custom_group():
+    user = UserFactory()
+    organization = OrganizationFactory()
+    MembershipFactory(user=user, organization=organization, is_primary=True)
+    selected_group = TaskGroup.objects.create(
+        organization=organization, creator=user, name="Development"
+    )
+    other_group = TaskGroup.objects.create(
+        organization=organization, creator=user, name="Design"
+    )
+    selected_task = Task.objects.create(
+        title="Selected", creator=user, group=selected_group
+    )
+    Task.objects.create(title="Other", creator=user, group=other_group)
+    Task.objects.create(title="Ungrouped", creator=user)
+
+    client = _client(user)
+    response = client.get(
+        TASKS_URL,
+        {"scope": "all", "group": str(selected_group.id)},
+    )
+    statistics = client.get(
+        f"{TASKS_URL}statistics/",
+        {"scope": "all", "group": str(selected_group.id)},
+    )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["results"]] == [
+        str(selected_task.id)
+    ]
+    assert statistics.status_code == 200
+    assert statistics.json()["summary"]["total"] == 1
+
+
+def test_task_group_filter_rejects_invalid_or_cross_organization_groups():
+    user = UserFactory()
+    organization = OrganizationFactory()
+    MembershipFactory(user=user, organization=organization, is_primary=True)
+    other_group = TaskGroup.objects.create(
+        organization=OrganizationFactory(),
+        creator=UserFactory(),
+        name="Other organization",
+    )
+    client = _client(user)
+
+    malformed = client.get(TASKS_URL, {"scope": "all", "group": "invalid"})
+    cross_organization = client.get(
+        TASKS_URL,
+        {"scope": "all", "group": str(other_group.id)},
+    )
+
+    assert malformed.status_code == 400
+    assert "group" in malformed.json()
+    assert cross_organization.status_code == 400
+    assert "group" in cross_organization.json()
 
 
 def test_task_global_search_matches_title_and_description_by_relevance(

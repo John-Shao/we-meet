@@ -49,6 +49,7 @@ import {
   useTaskSettings,
   useTaskSavedViews,
   useUpdateTaskList,
+  useUpdateTaskGroup,
   useUpdateTaskSavedView,
   useTasks,
 } from '../api/fetchTasks'
@@ -58,6 +59,7 @@ import { TaskActivityDialog } from '../components/TaskActivityDialog'
 import { TaskBoard } from '../components/TaskBoard'
 import { TaskFilterToolbar } from '../components/TaskFilterToolbar'
 import { TaskGroupForm } from '../components/TaskGroupForm'
+import { TaskGroupManager } from '../components/TaskGroupManager'
 import { TaskGroupRenameForm } from '../components/TaskGroupRenameForm'
 import { TaskList } from '../components/TaskList'
 import {
@@ -85,6 +87,7 @@ import {
   parseTaskWorkspaceState,
   savedViewConfigEquals,
   stateForSavedView,
+  stateForTaskGroup,
   stateForView,
   stateForTaskList,
   stateWithStatus,
@@ -144,6 +147,7 @@ const TasksAuthenticated = () => {
   const [taskListGroupRenaming, setTaskListGroupRenaming] =
     useState<ApiTaskListGroup | null>(null)
   const [groupCreating, setGroupCreating] = useState(false)
+  const [groupsManaging, setGroupsManaging] = useState(false)
   const [groupRenaming, setGroupRenaming] = useState<ApiTaskGroup | null>(null)
   const usesTakeoverDetail = useUsesTakeoverDetail()
   const rowRefs = useRef(new Map<string, HTMLElement>())
@@ -163,6 +167,7 @@ const TasksAuthenticated = () => {
   const lastListStatusRef = useRef(new Map<string, TaskStatusFilter>())
   const { confirm } = useConfirm()
   const deleteGroupMutation = useDeleteTaskGroup()
+  const updateGroupMutation = useUpdateTaskGroup()
   const deleteTaskListGroupMutation = useDeleteTaskListGroup()
   const deleteTaskMutation = useDeleteTask()
   const moveTaskListMutation = useMoveTaskListToGroup()
@@ -172,7 +177,7 @@ const TasksAuthenticated = () => {
   const updateSavedViewMutation = useUpdateTaskSavedView()
   const deleteSavedViewMutation = useDeleteTaskSavedView()
   const { data: taskLists = [] } = useTaskLists()
-  const { data: taskGroups = [] } = useTaskGroups()
+  const { data: taskGroups = [], isSuccess: taskGroupsLoaded } = useTaskGroups()
   const { data: taskListGroups = [] } = useTaskListGroups()
   const { data: standaloneTaskCountData } = useStandaloneTaskCount()
   const { data: taskSettings } = useTaskSettings()
@@ -192,6 +197,7 @@ const TasksAuthenticated = () => {
     state.time,
     state.priority,
     state.taskList,
+    state.group,
     state.ordering
   )
   const { data: selectedTaskDetail } = useTask(state.task, sharedVia)
@@ -214,6 +220,9 @@ const TasksAuthenticated = () => {
   const selectedTaskList = taskLists.find(
     (taskList) => taskList.id === state.taskList
   )
+  const selectedTaskGroup = taskGroups.find(
+    (taskGroup) => taskGroup.id === state.group
+  )
   const panelOpen = Boolean(state.task)
   const filtersActive = hasActiveTaskFilters(state)
   const activeSavedView = savedViews.find((view) => view.id === state.savedView)
@@ -226,14 +235,23 @@ const TasksAuthenticated = () => {
   )
 
   const deleteGroup = async (group: ApiTaskGroup) => {
-    if (!group.can_delete) return
+    if (!group.can_manage || !group.can_delete) return
     const accepted = await confirm({
       title: t('groups.deleteTitle'),
       message: t('groups.deleteDescription', { name: group.name }),
       confirmLabel: t('groups.delete'),
       danger: true,
     })
-    if (accepted) deleteGroupMutation.mutate(group.id)
+    if (!accepted) return
+    try {
+      await deleteGroupMutation.mutateAsync(group.id)
+      if (state.group === group.id) {
+        setSavedViewNotice(t('groups.invalidSelection'))
+        navigateState(stateWithViewConfiguration(stateForView(state, 'all')))
+      }
+    } catch {
+      // The mutation exposes its error while the manager remains available.
+    }
   }
 
   const deleteTask = async (task: ApiTask) => {
@@ -371,7 +389,11 @@ const TasksAuthenticated = () => {
   const openSavedView = (view: ApiTaskSavedView) => {
     setCreating(false)
     setSavedViewNotice(
-      view.invalid_task_list ? t('savedViews.invalidTaskList') : ''
+      view.invalid_task_list
+        ? t('savedViews.invalidTaskList')
+        : view.invalid_task_group
+          ? t('savedViews.invalidTaskGroup')
+          : ''
     )
     rememberCurrentViewPreferences()
     navigateState({
@@ -458,6 +480,29 @@ const TasksAuthenticated = () => {
     }
   }
 
+  const moveTaskGroup = async (group: ApiTaskGroup, direction: -1 | 1) => {
+    const ordered = [...taskGroups].sort(
+      (first, second) =>
+        first.sort_order - second.sort_order ||
+        first.created_at.localeCompare(second.created_at)
+    )
+    const index = ordered.findIndex((item) => item.id === group.id)
+    const target = ordered[index + direction]
+    if (!group.can_manage || !target?.can_manage) return
+    try {
+      await updateGroupMutation.mutateAsync({
+        groupId: group.id,
+        patch: { sort_order: target.sort_order },
+      })
+      await updateGroupMutation.mutateAsync({
+        groupId: target.id,
+        patch: { sort_order: group.sort_order },
+      })
+    } catch {
+      // Invalidating the query restores the authoritative server order.
+    }
+  }
+
   const closePanel = () => {
     const returnTarget = state.task
       ? rowRefs.current.get(state.task)
@@ -493,6 +538,21 @@ const TasksAuthenticated = () => {
       stateWithViewConfiguration(stateForTaskList(state, taskListId))
     )
   }
+
+  const changeTaskGroup = (group: ApiTaskGroup) => {
+    setCreating(false)
+    setSavedViewNotice('')
+    rememberCurrentViewPreferences()
+    navigateState(stateForTaskGroup(state, group.id))
+  }
+
+  useEffect(() => {
+    if (!taskGroupsLoaded || state.group === 'all' || selectedTaskGroup) return
+    setSavedViewNotice(t('groups.invalidSelection'))
+    navigateState(stateWithViewConfiguration(stateForView(state, 'all')), {
+      replace: true,
+    })
+  }, [taskGroupsLoaded, selectedTaskGroup, state.group]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openTaskListManager = (listGroupId?: string) => {
     setTaskListCreateGroupId(listGroupId)
@@ -575,7 +635,9 @@ const TasksAuthenticated = () => {
       ? t('taskLists.standalone')
       : activeSavedView
         ? activeSavedView.name
-        : t(`workspace.views.${state.scope}`)
+        : selectedTaskGroup
+          ? selectedTaskGroup.name
+          : t(`workspace.views.${state.scope}`)
 
   return (
     <div className={workspaceCss}>
@@ -591,6 +653,7 @@ const TasksAuthenticated = () => {
             count={count}
             taskLists={taskLists}
             taskListGroups={taskListGroups}
+            taskGroups={taskGroups}
             savedViews={savedViews}
             savedViewChanged={savedViewChanged}
             standaloneTaskCount={standaloneTaskCount}
@@ -598,6 +661,9 @@ const TasksAuthenticated = () => {
             onTaskListChange={changeTaskList}
             onCreateTaskList={openTaskListManager}
             onCreateTaskListGroup={() => setTaskListGroupCreating(true)}
+            onSelectTaskGroup={changeTaskGroup}
+            onCreateTaskGroup={() => setGroupCreating(true)}
+            onManageTaskGroups={() => setGroupsManaging(true)}
             onMoveTaskList={(taskListId, listGroupId) =>
               moveTaskListMutation.mutate({ taskListId, listGroupId })
             }
@@ -678,7 +744,7 @@ const TasksAuthenticated = () => {
               onPress={() => {
                 navigateState({ ...state, task: undefined })
                 setCreateParentTask(null)
-                setCreateGroupId(undefined)
+                setCreateGroupId(selectedTaskGroup?.id)
                 setCreating(true)
               }}
             >
@@ -808,7 +874,7 @@ const TasksAuthenticated = () => {
                   return
                 }
                 setCreateParentTask(null)
-                setCreateGroupId(undefined)
+                setCreateGroupId(selectedTaskGroup?.id)
                 setCreating(true)
               }}
             />
@@ -1146,9 +1212,38 @@ const TasksAuthenticated = () => {
             />
           </div>
           <TaskGroupForm
+            sortOrder={taskGroups.length}
             inputRef={groupNameRef}
             onCancel={() => setGroupCreating(false)}
             onCreated={() => setGroupCreating(false)}
+          />
+        </Modal>
+      )}
+      {groupsManaging && (
+        <Modal
+          ariaLabel={t('groups.manage')}
+          onClose={() => setGroupsManaging(false)}
+          maxWidth="640px"
+        >
+          <div className={modalHeaderCss}>
+            <h2 className={modalTitleCss}>{t('groups.manage')}</h2>
+            <ModalCloseButton
+              label={t('groups.closeManager')}
+              onClose={() => setGroupsManaging(false)}
+            />
+          </div>
+          <TaskGroupManager
+            groups={taskGroups}
+            onCreate={() => {
+              setGroupsManaging(false)
+              setGroupCreating(true)
+            }}
+            onRename={(group) => {
+              setGroupsManaging(false)
+              setGroupRenaming(group)
+            }}
+            onDelete={(group) => void deleteGroup(group)}
+            onMove={(group, direction) => void moveTaskGroup(group, direction)}
           />
         </Modal>
       )}

@@ -10,6 +10,7 @@ import {
   parseTaskWorkspaceState,
   savedViewConfigEquals,
   stateForTaskList,
+  stateForTaskGroup,
   stateForSavedView,
   stateForView,
   stateWithTaskWorkspacePreferences,
@@ -39,12 +40,13 @@ describe('task workspace state', () => {
       priority: 'all',
       ordering: '',
       taskList: 'all',
+      group: 'all',
       mode: 'list',
     })
     expect(
       parseTaskWorkspaceState(
         new URLSearchParams(
-          'scope=created&status=todo&time=overdue&priority=high&ordering=-due_date&task_list=list-1&view=board&task=42&saved_view=view-1'
+          'scope=created&status=todo&time=overdue&priority=high&ordering=-due_date&task_list=list-1&group=group-1&view=board&task=42&saved_view=view-1'
         )
       )
     ).toEqual({
@@ -64,6 +66,7 @@ describe('task workspace state', () => {
       ],
       columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
       taskList: 'list-1',
+      group: 'group-1',
       mode: 'board',
       task: '42',
       savedView: 'view-1',
@@ -95,6 +98,7 @@ describe('task workspace state', () => {
       time: 'all',
       priority: 'all',
       taskList: 'list-1',
+      group: 'all',
       mode: 'list',
       columns: DEFAULT_TASK_COLUMNS.filter((column) => column !== 'taskList'),
     })
@@ -104,6 +108,7 @@ describe('task workspace state', () => {
       time: 'all',
       priority: 'all',
       taskList: 'unassigned',
+      group: 'all',
       mode: 'list',
     })
   })
@@ -145,6 +150,25 @@ describe('task workspace state', () => {
       grouping: 'none',
       mode: 'list',
       taskList: 'all',
+      group: 'all',
+      savedView: undefined,
+    })
+  })
+
+  it('opens a custom group as an isolated global task view', () => {
+    const state = parseTaskWorkspaceState(
+      new URLSearchParams('task_list=list-1&grouping=custom&saved_view=view-1')
+    )
+
+    expect(stateForTaskGroup(state, 'group-1')).toMatchObject({
+      scope: 'all',
+      status: 'open',
+      time: 'all',
+      priority: 'all',
+      taskList: 'all',
+      group: 'group-1',
+      grouping: 'none',
+      mode: 'list',
       savedView: undefined,
     })
   })
@@ -246,12 +270,13 @@ describe('task workspace state', () => {
         columns: [...DEFAULT_TASK_COLUMNS],
         columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
         taskList: 'list/id',
+        group: 'group/id',
         mode: 'board',
         task: 'task-id',
         savedView: 'view-id',
       })
     ).toBe(
-      'scope=all&status=completed&time=all&priority=low&ordering=-created_at&grouping=none&columns=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2Ccreator%2CcreatedAt&column_order=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2CcustomGroup%2Ccreator%2CcreatedAt%2CcompletedAt&task_list=list%2Fid&view=board&task=task-id&saved_view=view-id'
+      'scope=all&status=completed&time=all&priority=low&ordering=-created_at&grouping=none&columns=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2Ccreator%2CcreatedAt&column_order=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2CcustomGroup%2Ccreator%2CcreatedAt%2CcompletedAt&task_list=list%2Fid&group=group%2Fid&view=board&task=task-id&saved_view=view-id'
     )
   })
 
@@ -266,18 +291,19 @@ describe('task workspace state', () => {
   it('round-trips the supported saved view configuration without task detail state', () => {
     const state = parseTaskWorkspaceState(
       new URLSearchParams(
-        'scope=following&status=all&time=overdue&priority=urgent&ordering=due_date&task_list=list-1&view=board&task=task-1'
+        'scope=following&status=all&time=overdue&priority=urgent&ordering=due_date&task_list=list-1&group=group-1&view=board&task=task-1'
       )
     )
     const config = taskWorkspaceStateToSavedViewConfig(state)
 
     expect(config).toEqual({
-      version: 3,
+      version: 4,
       scope: 'following',
       status: 'all',
       time: 'overdue',
       priority: 'urgent',
       task_list: 'list-1',
+      group: 'group-1',
       ordering: 'due_date',
       view: 'board',
       grouping: 'none',

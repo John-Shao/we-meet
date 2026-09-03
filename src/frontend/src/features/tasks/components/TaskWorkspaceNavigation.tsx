@@ -25,6 +25,7 @@ import { Button, Menu, MenuList } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 import type {
+  ApiTaskGroup,
   ApiTaskList,
   ApiTaskListGroup,
   ApiTaskSavedView,
@@ -56,6 +57,7 @@ export const TaskWorkspaceNavigation = ({
   count,
   taskLists,
   taskListGroups,
+  taskGroups = [],
   savedViews = [],
   savedViewChanged = false,
   standaloneTaskCount,
@@ -63,6 +65,9 @@ export const TaskWorkspaceNavigation = ({
   onTaskListChange,
   onCreateTaskList,
   onCreateTaskListGroup,
+  onSelectTaskGroup,
+  onCreateTaskGroup,
+  onManageTaskGroups,
   onMoveTaskList,
   onRenameTaskListGroup,
   onDeleteTaskListGroup,
@@ -87,6 +92,7 @@ export const TaskWorkspaceNavigation = ({
   count: number
   taskLists: ApiTaskList[]
   taskListGroups: ApiTaskListGroup[]
+  taskGroups?: ApiTaskGroup[]
   savedViews?: ApiTaskSavedView[]
   savedViewChanged?: boolean
   standaloneTaskCount: number
@@ -94,6 +100,9 @@ export const TaskWorkspaceNavigation = ({
   onTaskListChange: (taskListId: string) => void
   onCreateTaskList: (listGroupId?: string) => void
   onCreateTaskListGroup: () => void
+  onSelectTaskGroup?: (group: ApiTaskGroup) => void
+  onCreateTaskGroup?: () => void
+  onManageTaskGroups?: () => void
   onMoveTaskList: (taskListId: string, listGroupId: string | null) => void
   onRenameTaskListGroup: (group: ApiTaskListGroup) => void
   onDeleteTaskListGroup: (group: ApiTaskListGroup) => void
@@ -122,6 +131,11 @@ export const TaskWorkspaceNavigation = ({
   const orderedSavedViews = [...savedViews]
     .filter((view) => view.is_pinned)
     .sort((first, second) => first.position - second.position)
+  const orderedTaskGroups = [...taskGroups].sort(
+    (first, second) =>
+      first.sort_order - second.sort_order ||
+      first.created_at.localeCompare(second.created_at)
+  )
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [draggedTaskListId, setDraggedTaskListId] = useState<string>()
   const taskListsByGroup = new Map(
@@ -182,7 +196,11 @@ export const TaskWorkspaceNavigation = ({
     <TaskListNavigationRow
       key={taskList.id}
       taskList={taskList}
-      active={!hasActiveSavedView && state.taskList === taskList.id}
+      active={
+        !hasActiveSavedView &&
+        state.group === 'all' &&
+        state.taskList === taskList.id
+      }
       onSelect={() => onTaskListChange(taskList.id)}
       onDragStart={(event) => startListDrag(event, taskList)}
       onDragEnd={() => setDraggedTaskListId(undefined)}
@@ -206,6 +224,7 @@ export const TaskWorkspaceNavigation = ({
             type="button"
             aria-current={
               !hasActiveSavedView &&
+              state.group === 'all' &&
               state.taskList === 'all' &&
               current === view
                 ? 'page'
@@ -214,6 +233,7 @@ export const TaskWorkspaceNavigation = ({
             className={navButtonCss}
             data-active={
               !hasActiveSavedView &&
+              state.group === 'all' &&
               state.taskList === 'all' &&
               current === view
                 ? true
@@ -234,6 +254,7 @@ export const TaskWorkspaceNavigation = ({
               <span>{t(`workspace.views.${view}`)}</span>
             </span>
             {!hasActiveSavedView &&
+              state.group === 'all' &&
               state.taskList === 'all' &&
               current === view && (
                 <span aria-label={t('workspace.resultCount', { count })}>
@@ -417,6 +438,60 @@ export const TaskWorkspaceNavigation = ({
             )
           })
         )}
+        <div className={sectionHeaderCss}>
+          <span>{t('groups.navigationTitle')}</span>
+          <div
+            className={taskNavigationActionsCss({ visibility: 'persistent' })}
+          >
+            <Button
+              variant="tertiary"
+              size="icon24"
+              className={taskNavigationActionButtonCss}
+              aria-label={t('groups.manage')}
+              onPress={onManageTaskGroups}
+            >
+              <RiSettings3Line size={16} />
+            </Button>
+            <Button
+              variant="tertiary"
+              size="icon24"
+              className={taskNavigationActionButtonCss}
+              aria-label={t('groups.create')}
+              onPress={onCreateTaskGroup}
+            >
+              <RiAddLine size={17} />
+            </Button>
+          </div>
+        </div>
+        {orderedTaskGroups.length === 0 ? (
+          <p className={emptyListsCss}>{t('groups.emptyNavigation')}</p>
+        ) : (
+          orderedTaskGroups.map((group) => {
+            const active = !hasActiveSavedView && state.group === group.id
+            return (
+              <button
+                key={group.id}
+                type="button"
+                aria-current={active ? 'page' : undefined}
+                className={navButtonCss}
+                data-active={active || undefined}
+                onClick={() => onSelectTaskGroup?.(group)}
+              >
+                <span className={navLabelCss}>
+                  <RiListCheck size={18} />
+                  <span>{group.name}</span>
+                </span>
+                <span
+                  aria-label={t('groups.taskCount', {
+                    count: group.task_count,
+                  })}
+                >
+                  {group.task_count}
+                </span>
+              </button>
+            )
+          })
+        )}
         <div
           className={sectionHeaderCss}
           data-list-drop-target={draggedTaskListId ? true : undefined}
@@ -512,7 +587,11 @@ export const TaskWorkspaceNavigation = ({
             })}
             {standaloneTaskCount > 0 && (
               <StandaloneTaskListNavigationRow
-                active={!hasActiveSavedView && state.taskList === 'unassigned'}
+                active={
+                  !hasActiveSavedView &&
+                  state.group === 'all' &&
+                  state.taskList === 'unassigned'
+                }
                 onSelect={() => onTaskListChange('unassigned')}
               />
             )}

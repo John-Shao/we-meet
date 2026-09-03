@@ -131,7 +131,8 @@
     "deleteNamed": "删除 {{name}}",
     "close": "关闭自定义视图窗口",
     "saveError": "自定义视图操作失败，请检查名称后重试。",
-    "invalidTaskList": "原任务清单已不可用，已安全切换到全部清单。"
+    "invalidTaskList": "原任务清单已不可用，已安全切换到全部清单。",
+    "invalidTaskGroup": "原自定义分组已不可用，已安全切换到全部任务。"
   },
   "activity": {
     "navigation": "动态",
@@ -260,12 +261,21 @@
     "closeCreate": "关闭新建清单分组弹窗"
   },
   "groups": {
+    "navigationTitle": "自定义分组",
+    "manage": "管理自定义分组",
+    "closeManager": "关闭自定义分组管理",
+    "emptyNavigation": "还没有自定义分组",
+    "invalidSelection": "自定义分组已不可用，已切换到全部相关任务。",
     "field": "分组",
     "name": "分组名称",
     "ungrouped": "默认分组",
     "switch": "切换分组",
     "addTask": "新建任务",
     "taskCount": "{{count}} 个任务",
+    "moveUpNamed": "上移 {{name}}",
+    "moveDownNamed": "下移 {{name}}",
+    "renameNamed": "重命名 {{name}}",
+    "deleteNamed": "删除 {{name}}",
     "empty": "将任务拖到此分组，或使用右侧按钮新建任务",
     "emptyReadOnly": "将任务拖到此分组",
     "collapse": "收起分组",

@@ -26,7 +26,10 @@ export const TaskGroupRenameForm = ({
     event.preventDefault()
     if (!name.trim()) return
     try {
-      await mutation.mutateAsync({ groupId: group.id, name: name.trim() })
+      await mutation.mutateAsync({
+        groupId: group.id,
+        patch: { name: name.trim() },
+      })
       onRenamed()
     } catch {
       // Keep the name so the user can correct it or retry.

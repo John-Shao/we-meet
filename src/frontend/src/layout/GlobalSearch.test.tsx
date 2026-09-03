@@ -214,7 +214,7 @@ describe('global task search', () => {
     await user.click(screen.getByTestId(`global-search-task-${tasks[0].id}`))
     expect(mocks.close).toHaveBeenCalled()
     expect(mocks.navigate).toHaveBeenCalledWith(
-      `/tasks?scope=all&status=all&time=all&priority=all&task_list=all&view=list&task=${tasks[0].id}`
+      `/tasks?scope=all&status=all&time=all&priority=all&grouping=none&columns=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2Ccreator%2CcreatedAt&column_order=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2CcustomGroup%2Ccreator%2CcreatedAt%2CcompletedAt&task_list=all&group=all&view=list&task=${tasks[0].id}`
     )
   })
 

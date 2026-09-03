@@ -7,7 +7,7 @@
 ## 功能概览
 
 - 独立的“任务”导航和任务中心，提供列表、看板、统计和右侧详情面板。
-- 可创建独立任务，也可把任务放入有编辑权限的任务清单及其自定义分组。
+- 可创建独立任务，也可分别选择有编辑权限的任务清单和组织级自定义分组。
 - 支持有界递归子任务：根任务深度为 0，默认最多 5 级子任务；父任务展示后代完成进度，但状态保持独立。
 - 支持每日、每周、每月及每 N 天/周/月重复，可按结束日期或生成次数终止；完成当前实例或进入所有者本地日期的生成窗口时，只创建下一实例。
 - 一个任务支持 1～10 位共同负责人；未显式传入负责人时默认由创建人负责。
@@ -30,7 +30,7 @@
 - `assignees` 多人负责人关系；`assignee` 是迁移期间保留的首位负责人兼容字段，读取旧数据时作为回退，不应作为新接口首选。
 - `followers` 关注人关系。
 - 状态、优先级、开始日期、截止日期和完成时间。
-- 可选的任务清单、清单内分组和位置。
+- 可选且相互独立的任务清单、自定义分组和位置。
 - 可选的递归 `parent`；数据库不固化层级上限，服务端默认限制每个父任务 100 个直接子任务、每棵树 500 个节点。
 - 可选的来源会议行动项。
 
@@ -38,7 +38,7 @@
 
 - `TaskListGroup`：组织任务清单的导航分组。
 - `TaskList`：组织级轻量项目容器，支持成员角色和归档。
-- `TaskGroup`：任务清单内的自定义分组。
+- `TaskGroup`：独立于任务清单的组织级自定义分组；旧数据可保留来源清单关联以兼容管理权限。
 - `TaskConversationShare`：记录任务被分享至哪些 IM 会话，只增加会话可见性，不授予协作角色。
 - `TaskActivity`：只追加的操作历史。
 - `TaskComment`、`TaskAttachment`：任务评论和私有附件。
@@ -81,7 +81,7 @@
 
 任务序列化结果提供 `can_edit`、`can_update_status`、`can_delete`、`can_comment`、`can_manage_attachments`、`can_manage_followers` 和 `is_following`；前端应使用这些能力字段，而不是自行重建权限规则。
 
-负责人和关注人必须是调用者本人，或调用者所在组织通讯录中的有效成员。多人负责人去重且最多 10 人。任务清单必须属于任务组织、未归档且调用者可编辑；分组必须属于所选清单。
+负责人和关注人必须是调用者本人，或调用者所在组织通讯录中的有效成员。多人负责人去重且最多 10 人。任务清单必须属于任务组织、未归档且调用者可编辑；自定义分组必须属于任务组织，但不依赖所选清单。
 
 ## API
 
@@ -116,6 +116,7 @@
 - `PATCH|DELETE /api/v1.0/task-lists/{id}/shares/{user_id}/`
 - `POST /api/v1.0/task-lists/{id}/leave/`
 - `GET|POST|PATCH|DELETE /api/v1.0/task-list-groups/…`
+- `GET|POST /api/v1.0/task-groups/`
 - `PATCH|DELETE /api/v1.0/task-groups/{id}/`
 
 列表查询支持：
@@ -125,6 +126,7 @@
 - `time=all|starting_today|due_today|overdue`
 - `priority=all|none|low|medium|high|urgent`
 - `task_list=all|unassigned|<task_list_uuid>`
+- `group=all|<group_uuid>`；非法或其他组织的 UUID 返回字段级 400。
 - `ordering=assignee|priority|start_date|due_date|status|creator|created_at`，字段前加 `-` 表示倒序。
 - `q=<2～200 字>`：匹配标题和说明；未指定 `ordering` 时按标题完全匹配、标题前缀、标题包含、说明包含排序。
 - `creator_ids`、`assignee_ids`、`follower_ids`：逗号分隔的用户 UUID，每项最多 20 人；同字段内为 OR，不同字段间为 AND。
@@ -132,6 +134,8 @@
 - 统计接口使用 `hierarchy=include_descendants|roots_only` 明确是否包含子任务，默认包含；列表和搜索命中子任务时响应携带完整 `ancestor_path`。
 
 全局搜索只枚举创建人、负责人、关注人及清单成员本来可见的任务。仅通过 `shared_via` 会话卡片临时获得只读可见性的任务不会出现在全局结果中；关注该任务后会按关注人身份进入结果。
+
+个人自定义视图配置当前为 v4，除原有范围、状态、时间、优先级、排序、展示模式、清单、分组方式和列配置外，还保存 `group=all|<group_uuid>`。v1～v3 配置继续兼容并按 `group=all` 恢复；引用已删除分组时响应返回 `invalid_task_group=true`、将有效配置降级为 `group=all`，客户端同时展示提示。
 
 创建和修改优先使用 `assignee_ids`；`assignee_id` 仅为旧客户端兼容，二者不能同时提交。创建接口还接受 `follower_ids`、日期、优先级、清单、分组、位置、`parent_id` 和可选 `recurrence`。重复配置包含 `frequency=daily|weekly|monthly`、`interval`，以及互斥的 `end_date` / `max_occurrences`；时区由服务端读取规则所有者配置，客户端不能覆盖。修改重复实例的模板字段时必须提交 `recurrence_scope=one|following`。移动或删除含后代的任务必须提交最新 `confirm_subtree_node_count`。同级排序提交当前全部直接子任务 ID 的无重复快照，服务端在事务内校验快照并重写连续 `position`。写接口的优先级只接受 `low|medium|high|urgent`；`none` 仅用于历史数据兼容和筛选。
 

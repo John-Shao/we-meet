@@ -131,7 +131,8 @@
     "deleteNamed": "Delete {{name}}",
     "close": "Close saved view dialog",
     "saveError": "Could not save the view. Check the name and try again.",
-    "invalidTaskList": "The original task list is unavailable. Showing all lists instead."
+    "invalidTaskList": "The original task list is unavailable. Showing all lists instead.",
+    "invalidTaskGroup": "The original custom group is unavailable. Showing all tasks instead."
   },
   "activity": {
     "navigation": "Activity",
@@ -260,12 +261,21 @@
     "closeCreate": "Close new list group dialog"
   },
   "groups": {
+    "navigationTitle": "Custom groups",
+    "manage": "Manage custom groups",
+    "closeManager": "Close custom group manager",
+    "emptyNavigation": "No custom groups yet",
+    "invalidSelection": "The custom group is unavailable. Showing all related tasks.",
     "field": "Group",
     "name": "Group name",
     "ungrouped": "Default group",
     "switch": "Switch group",
     "addTask": "Add task",
     "taskCount": "{{count}} tasks",
+    "moveUpNamed": "Move {{name}} up",
+    "moveDownNamed": "Move {{name}} down",
+    "renameNamed": "Rename {{name}}",
+    "deleteNamed": "Delete {{name}}",
     "empty": "Drag tasks into this group, or use the action above to add one",
     "emptyReadOnly": "Drag tasks into this group",
     "collapse": "Collapse group",

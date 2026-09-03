@@ -6,7 +6,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
-from core.models import TaskList, TaskListAccess, TaskSavedView
+from core.models import TaskGroup, TaskList, TaskListAccess, TaskSavedView
 
 pytestmark = pytest.mark.django_db
 
@@ -190,6 +190,42 @@ def test_saved_view_v3_persists_field_visibility_and_order_separately():
     assert response.json()["config"] == config
 
 
+def test_saved_view_v4_persists_custom_group_filter():
+    user, organization = _member()
+    task_group = TaskGroup.objects.create(
+        organization=organization, creator=user, name="Development"
+    )
+    config = {
+        **_config(),
+        "version": 4,
+        "group": str(task_group.id),
+        "grouping": "custom",
+        "columns": ["title", "assignee", "dueDate"],
+        "column_order": [
+            "title",
+            "assignee",
+            "priority",
+            "startDate",
+            "dueDate",
+            "taskList",
+            "customGroup",
+            "creator",
+            "createdAt",
+            "completedAt",
+        ],
+    }
+
+    response = _client(user).post(
+        URL,
+        {"name": "Development work", "config": config},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.json()["config"] == config
+    assert response.json()["invalid_task_group"] is False
+
+
 def test_setting_a_default_view_clears_the_previous_default():
     user, organization = _member()
     first = TaskSavedView.objects.create(
@@ -241,6 +277,47 @@ def test_invalid_saved_task_list_is_safely_replaced_on_read():
     assert response.json()["config"]["task_list"] == "all"
     view.refresh_from_db()
     assert view.config["task_list"] == str(task_list.id)
+
+
+def test_invalid_saved_custom_group_is_safely_replaced_on_read():
+    user, organization = _member()
+    task_group = TaskGroup.objects.create(
+        organization=organization, creator=user, name="Temporary"
+    )
+    config = {
+        **_config(),
+        "version": 4,
+        "group": str(task_group.id),
+        "grouping": "none",
+        "columns": ["title"],
+        "column_order": [
+            "title",
+            "assignee",
+            "priority",
+            "startDate",
+            "dueDate",
+            "taskList",
+            "customGroup",
+            "creator",
+            "createdAt",
+            "completedAt",
+        ],
+    }
+    view = TaskSavedView.objects.create(
+        organization=organization,
+        owner=user,
+        name="Temporary group",
+        config=config,
+    )
+    task_group.delete()
+
+    response = _client(user).get(f"{URL}{view.id}/")
+
+    assert response.status_code == 200
+    assert response.json()["invalid_task_group"] is True
+    assert response.json()["config"]["group"] == "all"
+    view.refresh_from_db()
+    assert view.config["group"] == config["group"]
 
 
 def test_saved_view_limit_is_enforced():

@@ -468,6 +468,7 @@ export const SearchPalette = ({
       columns: [...DEFAULT_TASK_COLUMNS],
       columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
       taskList: 'all',
+      group: 'all',
       mode: 'list',
       task: task.id,
     })

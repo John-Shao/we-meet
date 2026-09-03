@@ -11,15 +11,23 @@ describe('buildTasksUrl', () => {
     expect(
       buildTasksUrl('created', 'open', 'due_today', 'urgent', 'list/id')
     ).toBe(
-      'tasks/?scope=created&status=open&time=due_today&priority=urgent&task_list=list%2Fid&page_size=50'
+      'tasks/?scope=created&status=open&time=due_today&priority=urgent&task_list=list%2Fid&group=all&page_size=50'
     )
   })
 
   it('adds a validated ordering to the first page request', () => {
     expect(
-      buildTasksUrl('all', 'open', 'all', 'all', 'all', '-created_at')
+      buildTasksUrl(
+        'all',
+        'open',
+        'all',
+        'all',
+        'all',
+        'group/id',
+        '-created_at'
+      )
     ).toBe(
-      'tasks/?scope=all&status=open&time=all&priority=all&task_list=all&ordering=-created_at&page_size=50'
+      'tasks/?scope=all&status=open&time=all&priority=all&task_list=all&group=group%2Fid&ordering=-created_at&page_size=50'
     )
   })
 })

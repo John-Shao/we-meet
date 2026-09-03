@@ -444,6 +444,11 @@ def _filter_task_list(queryset, *, request, user, include_search=True):  # noqa:
         task_list_filter=request.query_params.get("task_list", "all"),
         user=user,
     )
+    queryset = _filter_by_task_group(
+        queryset,
+        task_group_filter=request.query_params.get("group", "all"),
+        user=user,
+    )
 
     search_query = ""
     if include_search:
@@ -509,6 +514,28 @@ def _filter_by_task_list(queryset, *, task_list_filter, user):
             }
         ) from exc
     return queryset.filter(task_list=task_list)
+
+
+def _filter_by_task_group(queryset, *, task_group_filter, user):
+    """Filter by one organization custom group."""
+
+    if task_group_filter == "all":
+        return queryset
+    organization = get_caller_organization(user)
+    try:
+        task_group = models.TaskGroup.objects.get(
+            id=task_group_filter,
+            organization=organization,
+        )
+    except (
+        ValueError,
+        DjangoValidationError,
+        models.TaskGroup.DoesNotExist,
+    ) as exc:
+        raise serializers.ValidationError(
+            {"group": "Use all or a custom group from your organization."}
+        ) from exc
+    return queryset.filter(group=task_group)
 
 
 def _validate_unique_task_group_name(name, organization, exclude=None):

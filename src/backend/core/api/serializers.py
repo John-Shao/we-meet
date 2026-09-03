@@ -559,6 +559,7 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
     """Validate and serialize a personal task workspace view."""
 
     invalid_task_list = serializers.SerializerMethodField()
+    invalid_task_group = serializers.SerializerMethodField()
     _CONFIG_KEYS_V1 = {
         "version",
         "scope",
@@ -571,6 +572,7 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
     }
     _CONFIG_KEYS_V2 = _CONFIG_KEYS_V1 | {"grouping", "columns"}
     _CONFIG_KEYS_V3 = _CONFIG_KEYS_V2 | {"column_order"}
+    _CONFIG_KEYS_V4 = _CONFIG_KEYS_V3 | {"group"}
     _CHOICES = {
         "scope": {"assigned", "created", "following", "all"},
         "status": {"open", "all", "todo", "completed"},
@@ -624,10 +626,17 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
             "is_pinned",
             "is_default",
             "invalid_task_list",
+            "invalid_task_group",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "invalid_task_list", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "invalid_task_list",
+            "invalid_task_group",
+            "created_at",
+            "updated_at",
+        ]
 
     def validate_name(self, value):
         value = value.strip()
@@ -654,10 +663,11 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
             1: self._CONFIG_KEYS_V1,
             2: self._CONFIG_KEYS_V2,
             3: self._CONFIG_KEYS_V3,
+            4: self._CONFIG_KEYS_V4,
         }.get(version, set())
         if set(value) != expected_keys:
             raise serializers.ValidationError("Use the supported task view fields.")
-        if version not in {1, 2, 3}:
+        if version not in {1, 2, 3, 4}:
             raise serializers.ValidationError("Unsupported task view version.")
         for field, choices in self._CHOICES.items():
             if field not in value:
@@ -666,7 +676,7 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {field: "Unsupported task view value."}
                 )
-        if version in {2, 3}:
+        if version in {2, 3, 4}:
             columns = value.get("columns")
             if (
                 not isinstance(columns, list)
@@ -678,7 +688,7 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"columns": "Choose unique supported columns including title."}
                 )
-        if version == 3:
+        if version in {3, 4}:
             column_order = value.get("column_order")
             if (
                 not isinstance(column_order, list)
@@ -688,7 +698,11 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"column_order": "Order every supported column exactly once."}
                 )
-        task_list = value.get("task_list")
+        self._validate_task_list_config(value.get("task_list"))
+        self._validate_task_group_config(value.get("group", "all"))
+        return value
+
+    def _validate_task_list_config(self, task_list):
         if task_list not in {"all", "unassigned"}:
             try:
                 task_list_id = uuid.UUID(str(task_list))
@@ -700,7 +714,19 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"task_list": "The task list is not available."}
                 )
-        return value
+
+    def _validate_task_group_config(self, task_group):
+        if task_group != "all":
+            try:
+                task_group_id = uuid.UUID(str(task_group))
+            except (TypeError, ValueError, AttributeError) as exc:
+                raise serializers.ValidationError(
+                    {"group": "Invalid custom-group identifier."}
+                ) from exc
+            if not self._available_task_groups().filter(pk=task_group_id).exists():
+                raise serializers.ValidationError(
+                    {"group": "The custom group is not available."}
+                )
 
     def _visible_task_lists(self):
         request = self.context["request"]
@@ -710,6 +736,10 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
             is_archived=False,
         ).filter(Q(creator=request.user) | Q(accesses__user=request.user))
 
+    def _available_task_groups(self):
+        organization = self.context.get("organization")
+        return models.TaskGroup.objects.filter(organization=organization)
+
     def get_invalid_task_list(self, obj):
         task_list = obj.config.get("task_list")
         return bool(
@@ -717,10 +747,19 @@ class TaskSavedViewSerializer(serializers.ModelSerializer):
             and not self._visible_task_lists().filter(pk=task_list).exists()
         )
 
+    def get_invalid_task_group(self, obj):
+        task_group = obj.config.get("group", "all")
+        return bool(
+            task_group != "all"
+            and not self._available_task_groups().filter(pk=task_group).exists()
+        )
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         if data["invalid_task_list"]:
             data["config"] = {**data["config"], "task_list": "all"}
+        if data["invalid_task_group"]:
+            data["config"] = {**data["config"], "group": "all"}
         return data
 
 
@@ -1188,9 +1227,7 @@ class TaskSerializer(serializers.ModelSerializer):
     def get_can_manage_reminder(self, obj):
         user = self._request_user()
         return bool(
-            user
-            and user.is_authenticated
-            and is_task_reminder_participant(obj, user)
+            user and user.is_authenticated and is_task_reminder_participant(obj, user)
         )
 
     def get_assignees(self, obj):

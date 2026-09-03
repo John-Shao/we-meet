@@ -22,6 +22,7 @@ export interface TaskWorkspaceState {
   columns: TaskColumnId[]
   columnOrder: TaskColumnId[]
   taskList: string
+  group: string
   mode: TaskWorkspaceMode
   task?: string
   savedView?: string
@@ -97,9 +98,7 @@ export const defaultTaskColumnsForState = (
     if (state.taskList !== 'all' && column === 'taskList') return false
     return true
   })
-  return state.status === 'completed'
-    ? [...columns, 'completedAt']
-    : columns
+  return state.status === 'completed' ? [...columns, 'completedAt'] : columns
 }
 
 const TASK_GROUPINGS: readonly TaskGrouping[] = [
@@ -122,9 +121,7 @@ const parseColumns = (
     .filter((column): column is TaskColumnId =>
       TASK_COLUMN_IDS.includes(column as TaskColumnId)
     )
-  return columns.includes('title')
-    ? [...new Set(columns)]
-    : [...defaults]
+  return columns.includes('title') ? [...new Set(columns)] : [...defaults]
 }
 
 const parseColumnOrder = (value: string | null): TaskColumnId[] | undefined =>
@@ -191,6 +188,7 @@ export const parseTaskWorkspaceState = (
     columns,
     columnOrder,
     taskList,
+    group: params.get('group') || 'all',
     mode: oneOf(params.get('view'), ['list', 'board', 'analytics'], 'list'),
     task: params.get('task') || undefined,
     savedView: params.get('saved_view') || undefined,
@@ -217,6 +215,7 @@ export const stateForView = (
     }),
     columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
     taskList: 'all',
+    group: 'all',
     mode: 'list',
     task: undefined,
     savedView: undefined,
@@ -241,6 +240,7 @@ export const stateForTaskList = (
   }),
   columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
   taskList,
+  group: 'all',
   mode: 'list',
   task: undefined,
   savedView: undefined,
@@ -248,6 +248,7 @@ export const stateForTaskList = (
 
 export const taskPreferencesViewKey = (state: TaskWorkspaceState) => {
   if (state.savedView) return `saved:${state.savedView}`
+  if (state.group !== 'all') return `task-group:${state.group}`
   if (state.taskList === 'unassigned') return 'standalone'
   if (state.taskList !== 'all') return `task-list:${state.taskList}`
   return `quick:${state.scope}`
@@ -271,6 +272,7 @@ export const stateWithTaskWorkspacePreferences = (
 
 export const taskColumnViewKey = (state: TaskWorkspaceState) => {
   if (state.savedView) return `saved:${state.savedView}`
+  if (state.group !== 'all') return 'task-group'
   if (state.taskList === 'unassigned') return 'standalone'
   if (state.taskList !== 'all') return 'task-list'
   return `quick:${state.scope}`
@@ -308,6 +310,7 @@ export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
     normalizeTaskColumnOrder(state.columnOrder, state.columns).join(',')
   )
   params.set('task_list', state.taskList)
+  params.set('group', state.group)
   params.set('view', state.mode)
   if (state.task) params.set('task', state.task)
   if (state.savedView) params.set('saved_view', state.savedView)
@@ -318,12 +321,13 @@ export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
 export const taskWorkspaceStateToSavedViewConfig = (
   state: TaskWorkspaceState
 ): TaskSavedViewConfig => ({
-  version: 3,
+  version: 4,
   scope: state.scope,
   status: state.status,
   time: state.time,
   priority: state.priority,
   task_list: state.taskList,
+  group: state.group,
   ordering: state.ordering,
   view: state.mode,
   grouping: state.grouping,
@@ -342,6 +346,7 @@ export const savedViewConfigEquals = (
   left.time === right.time &&
   left.priority === right.priority &&
   left.task_list === right.task_list &&
+  (left.group ?? 'all') === (right.group ?? 'all') &&
   left.ordering === right.ordering &&
   left.view === right.view &&
   (left.grouping ?? 'none') === (right.grouping ?? 'none') &&
@@ -360,6 +365,7 @@ export const stateForSavedView = (
   time: config.time,
   priority: config.priority,
   taskList: config.task_list,
+  group: config.group ?? 'all',
   ordering: config.ordering,
   mode: config.view,
   grouping: config.grouping ?? 'none',
@@ -374,3 +380,27 @@ export const effectiveTaskColumns = (state: TaskWorkspaceState) => {
     (column) => visibleColumns.has(column)
   )
 }
+
+export const stateForTaskGroup = (
+  state: TaskWorkspaceState,
+  group: string
+): TaskWorkspaceState => ({
+  ...state,
+  scope: 'all',
+  status: 'open',
+  time: 'all',
+  priority: 'all',
+  ordering: '',
+  grouping: 'none',
+  columns: defaultTaskColumnsForState({
+    scope: 'all',
+    status: 'open',
+    taskList: 'all',
+  }),
+  columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
+  taskList: 'all',
+  group,
+  mode: 'list',
+  task: undefined,
+  savedView: undefined,
+})

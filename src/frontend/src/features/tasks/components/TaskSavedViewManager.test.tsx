@@ -25,6 +25,7 @@ const view: ApiTaskSavedView = {
   is_pinned: false,
   is_default: false,
   invalid_task_list: false,
+  invalid_task_group: false,
   created_at: '2026-08-29T00:00:00Z',
   updated_at: '2026-08-29T00:00:00Z',
 }

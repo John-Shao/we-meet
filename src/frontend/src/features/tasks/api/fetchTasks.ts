@@ -49,9 +49,10 @@ export const buildTasksUrl = (
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
   taskList: string,
+  group: string = 'all',
   ordering: TaskOrdering = ''
 ) =>
-  `tasks/?scope=${scope}&status=${status}&time=${time}&priority=${priority}&task_list=${encodeURIComponent(taskList)}${ordering ? `&ordering=${encodeURIComponent(ordering)}` : ''}&page_size=50`
+  `tasks/?scope=${scope}&status=${status}&time=${time}&priority=${priority}&task_list=${encodeURIComponent(taskList)}&group=${encodeURIComponent(group)}${ordering ? `&ordering=${encodeURIComponent(ordering)}` : ''}&page_size=50`
 
 const fetchTasks = (
   scope: TaskScope,
@@ -59,6 +60,7 @@ const fetchTasks = (
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
   taskList: string,
+  group: string,
   ordering: TaskOrdering,
   pageUrl?: string,
   signal?: AbortSignal
@@ -66,7 +68,7 @@ const fetchTasks = (
   fetchApi<Paginated<ApiTask>>(
     pageUrl
       ? toApiPath(pageUrl)
-      : buildTasksUrl(scope, status, time, priority, taskList, ordering),
+      : buildTasksUrl(scope, status, time, priority, taskList, group, ordering),
     { signal }
   )
 
@@ -79,10 +81,20 @@ export const useTasks = (
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
   taskList: string,
+  group: string = 'all',
   ordering: TaskOrdering = ''
 ) =>
   useInfiniteQuery<Paginated<ApiTask>, ApiError>({
-    queryKey: ['tasks', scope, status, time, priority, taskList, ordering],
+    queryKey: [
+      'tasks',
+      scope,
+      status,
+      time,
+      priority,
+      taskList,
+      group,
+      ordering,
+    ],
     queryFn: ({ pageParam, signal }) =>
       fetchTasks(
         scope,
@@ -90,6 +102,7 @@ export const useTasks = (
         time,
         priority,
         taskList,
+        group,
         ordering,
         pageParam as string | undefined,
         signal
@@ -674,7 +687,10 @@ export const useTaskGroups = () =>
     queryFn: fetchTaskGroups,
   })
 
-const updateTaskGroup = (groupId: string, patch: { name?: string }) =>
+const updateTaskGroup = (
+  groupId: string,
+  patch: { name?: string; sort_order?: number }
+) =>
   fetchApi<ApiTaskGroup>(`task-groups/${encodeURIComponent(groupId)}/`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
@@ -682,15 +698,20 @@ const updateTaskGroup = (groupId: string, patch: { name?: string }) =>
 
 export const useUpdateTaskGroup = () => {
   const queryClient = useQueryClient()
-  return useMutation<ApiTaskGroup, ApiError, { groupId: string; name: string }>(
-    {
-      mutationFn: ({ groupId, name }) => updateTaskGroup(groupId, { name }),
-      onSuccess: () => {
-        void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
-        void queryClient.invalidateQueries({ queryKey: ['task-groups'] })
-      },
-    }
-  )
+  return useMutation<
+    ApiTaskGroup,
+    ApiError,
+    { groupId: string; patch: { name?: string; sort_order?: number } }
+  >({
+    mutationFn: ({ groupId, patch }) => updateTaskGroup(groupId, patch),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
+      void queryClient.invalidateQueries({ queryKey: ['task-groups'] })
+    },
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: ['task-groups'] })
+    },
+  })
 }
 
 const deleteTaskGroup = (groupId: string) =>
@@ -705,6 +726,7 @@ export const useDeleteTaskGroup = () => {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
       void queryClient.invalidateQueries({ queryKey: ['task-groups'] })
+      void queryClient.invalidateQueries({ queryKey: ['task-saved-views'] })
       void queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
   })
@@ -714,10 +736,11 @@ const fetchTaskStatistics = (
   scope: TaskScope,
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
-  taskList: string
+  taskList: string,
+  group: string
 ) =>
   fetchApi<ApiTaskStatistics>(
-    `tasks/statistics/?scope=${scope}&status=all&time=${time}&priority=${priority}&task_list=${encodeURIComponent(taskList)}&hierarchy=include_descendants`
+    `tasks/statistics/?scope=${scope}&status=all&time=${time}&priority=${priority}&task_list=${encodeURIComponent(taskList)}&group=${encodeURIComponent(group)}&hierarchy=include_descendants`
   )
 
 export const useTaskStatistics = (
@@ -725,11 +748,12 @@ export const useTaskStatistics = (
   time: TaskTimeFilter,
   priority: TaskPriorityFilter,
   taskList: string,
+  group: string = 'all',
   enabled = true
 ) =>
   useQuery<ApiTaskStatistics, ApiError>({
-    queryKey: ['tasks', 'statistics', scope, time, priority, taskList],
-    queryFn: () => fetchTaskStatistics(scope, time, priority, taskList),
+    queryKey: ['tasks', 'statistics', scope, time, priority, taskList, group],
+    queryFn: () => fetchTaskStatistics(scope, time, priority, taskList, group),
     enabled,
   })
 

@@ -9,11 +9,13 @@ import { useCreateTaskGroup } from '../api/fetchTasks'
 
 export const TaskGroupForm = ({
   taskListId,
+  sortOrder,
   inputRef,
   onCancel,
   onCreated,
 }: {
   taskListId?: string
+  sortOrder?: number
   inputRef?: RefObject<HTMLInputElement>
   onCancel: () => void
   onCreated: (group: ApiTaskGroup) => void
@@ -29,6 +31,7 @@ export const TaskGroupForm = ({
       const group = await mutation.mutateAsync({
         taskListId,
         name: name.trim(),
+        sort_order: sortOrder,
       })
       onCreated(group)
     } catch {

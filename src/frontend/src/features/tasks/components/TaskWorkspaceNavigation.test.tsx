@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type {
+  ApiTaskGroup,
   ApiTaskList,
   ApiTaskListGroup,
   ApiTaskSavedView,
@@ -27,6 +28,7 @@ const state: TaskWorkspaceState = {
   columns: [...DEFAULT_TASK_COLUMNS],
   columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
   taskList: 'all',
+  group: 'all',
   mode: 'list',
 }
 
@@ -58,6 +60,18 @@ const savedView: ApiTaskSavedView = {
   is_pinned: true,
   is_default: false,
   invalid_task_list: false,
+  invalid_task_group: false,
+  created_at: '2026-08-29T00:00:00Z',
+  updated_at: '2026-08-29T00:00:00Z',
+}
+
+const taskGroup: ApiTaskGroup = {
+  id: 'task-group-1',
+  name: 'Development',
+  sort_order: 0,
+  task_count: 3,
+  can_delete: false,
+  can_manage: true,
   created_at: '2026-08-29T00:00:00Z',
   updated_at: '2026-08-29T00:00:00Z',
 }
@@ -256,6 +270,41 @@ describe('TaskWorkspaceNavigation', () => {
     expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent(
       'workspace.views.all'
     )
+  })
+
+  it('selects and manages organization custom groups', () => {
+    const onSelectTaskGroup = vi.fn()
+    const onCreateTaskGroup = vi.fn()
+    const onManageTaskGroups = vi.fn()
+    render(
+      <TaskWorkspaceNavigation
+        state={{ ...state, group: taskGroup.id }}
+        count={3}
+        taskLists={[]}
+        taskListGroups={[]}
+        taskGroups={[taskGroup]}
+        standaloneTaskCount={0}
+        onChange={vi.fn()}
+        onTaskListChange={vi.fn()}
+        onCreateTaskList={vi.fn()}
+        onCreateTaskListGroup={vi.fn()}
+        onMoveTaskList={vi.fn()}
+        onRenameTaskListGroup={vi.fn()}
+        onDeleteTaskListGroup={vi.fn()}
+        onSelectTaskGroup={onSelectTaskGroup}
+        onCreateTaskGroup={onCreateTaskGroup}
+        onManageTaskGroups={onManageTaskGroups}
+      />
+    )
+
+    const groupButton = screen.getByRole('button', { name: /Development/ })
+    expect(groupButton).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(groupButton)
+    expect(onSelectTaskGroup).toHaveBeenCalledWith(taskGroup)
+    fireEvent.click(screen.getByRole('button', { name: 'groups.create' }))
+    expect(onCreateTaskGroup).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'groups.manage' }))
+    expect(onManageTaskGroups).toHaveBeenCalledOnce()
   })
 
   it('groups task lists, supports collapsing, dragging, and group actions', () => {

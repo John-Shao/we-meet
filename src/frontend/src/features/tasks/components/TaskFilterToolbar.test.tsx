@@ -30,6 +30,7 @@ const state: TaskWorkspaceState = {
   columns: [...DEFAULT_TASK_COLUMNS],
   columnOrder: [...DEFAULT_TASK_COLUMN_ORDER],
   taskList: 'all',
+  group: 'all',
   mode: 'list',
 }
 
