@@ -10,6 +10,14 @@
     "title": "会话",
     "loading": "正在加载会话…",
     "empty": "还没有会话",
+    "contextMenu": {
+      "pin": "置顶",
+      "unpin": "取消置顶",
+      "mute": "消息免打扰",
+      "unmute": "取消消息免打扰",
+      "delete": "删除会话",
+      "leave": "退出群聊"
+    },
     "newDirect": {
       "button": "新建会话",
       "prompt": "你的 IM ID:\n{{selfUid}}\n\n请输入对方的 IM ID:",

@@ -10,6 +10,14 @@
     "title": "Unterhaltungen",
     "loading": "Unterhaltungen werden geladen…",
     "empty": "Noch keine Unterhaltungen",
+    "contextMenu": {
+      "pin": "Oben anheften",
+      "unpin": "Lösen",
+      "mute": "Benachrichtigungen stummschalten",
+      "unmute": "Benachrichtigungen aktivieren",
+      "delete": "Unterhaltung löschen",
+      "leave": "Gruppe verlassen"
+    },
     "newDirect": {
       "button": "Neue Unterhaltung",
       "prompt": "Ihre IM-ID:\n{{selfUid}}\n\nIM-ID des Empfängers eingeben:",

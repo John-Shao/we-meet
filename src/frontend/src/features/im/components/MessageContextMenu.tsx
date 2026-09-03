@@ -22,6 +22,8 @@ interface Props {
   reactionEmojis?: string[]
   onReact?: (emoji: string) => void
   onClose: () => void
+  /** Test-id prefix for consumers other than chat messages. */
+  testIdPrefix?: string
 }
 
 /**
@@ -36,6 +38,7 @@ export const MessageContextMenu = ({
   reactionEmojis,
   onReact,
   onClose,
+  testIdPrefix = 'msg-ctx',
 }: Props) => {
   const { t } = useTranslation('im')
   const ref = useRef<HTMLDivElement>(null)
@@ -54,6 +57,7 @@ export const MessageContextMenu = ({
     if (y + r.height > window.innerHeight - 8)
       ny = window.innerHeight - r.height - 8
     setPos({ x: Math.max(8, nx), y: Math.max(8, ny) })
+    el.focus({ preventScroll: true })
     // Re-clamp when switching into the (taller/wider) emoji picker.
   }, [x, y, showPicker])
 
@@ -187,7 +191,7 @@ export const MessageContextMenu = ({
                 it.onSelect()
                 onClose()
               }}
-              data-testid={`msg-ctx-${it.key}`}
+              data-testid={`${testIdPrefix}-${it.key}`}
               className={css({
                 display: 'block',
                 width: '100%',

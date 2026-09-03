@@ -10,6 +10,14 @@
     "title": "Gesprekken",
     "loading": "Gesprekken laden…",
     "empty": "Nog geen gesprekken",
+    "contextMenu": {
+      "pin": "Bovenaan vastzetten",
+      "unpin": "Losmaken",
+      "mute": "Niet storen",
+      "unmute": "Meldingen inschakelen",
+      "delete": "Gesprek verwijderen",
+      "leave": "Groep verlaten"
+    },
     "newDirect": {
       "button": "Nieuw gesprek",
       "prompt": "Jouw IM-ID:\n{{selfUid}}\n\nGeef de IM-ID van je gesprekspartner:",

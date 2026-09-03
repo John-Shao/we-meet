@@ -10,6 +10,14 @@
     "title": "Conversations",
     "loading": "Loading conversations…",
     "empty": "No conversations yet",
+    "contextMenu": {
+      "pin": "Pin to top",
+      "unpin": "Unpin",
+      "mute": "Mute notifications",
+      "unmute": "Unmute notifications",
+      "delete": "Delete conversation",
+      "leave": "Leave group"
+    },
     "newDirect": {
       "button": "New conversation",
       "prompt": "Your IM ID:\n{{selfUid}}\n\nEnter peer's IM ID:",

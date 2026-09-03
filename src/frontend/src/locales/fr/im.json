@@ -10,6 +10,14 @@
     "title": "Conversations",
     "loading": "Chargement des conversations…",
     "empty": "Aucune conversation pour le moment",
+    "contextMenu": {
+      "pin": "Épingler en haut",
+      "unpin": "Désépingler",
+      "mute": "Ne pas déranger",
+      "unmute": "Réactiver les notifications",
+      "delete": "Supprimer la conversation",
+      "leave": "Quitter le groupe"
+    },
     "newDirect": {
       "button": "Nouvelle conversation",
       "prompt": "Votre ID IM :\n{{selfUid}}\n\nEntrez l'ID IM du correspondant :",

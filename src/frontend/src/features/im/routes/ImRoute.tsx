@@ -40,6 +40,7 @@ import { GroupPicker } from '../components/GroupPicker'
 import { ForwardDialog, type ForwardConv } from '../components/ForwardDialog'
 import { LaterDialog } from '../components/LaterDialog'
 import { listLater } from '../api/listLater'
+import { announceLeave } from '../api/announceLeave'
 import type { MergedBody } from '../components/MergedRecordDialog'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
@@ -421,8 +422,25 @@ const ImAuthenticated = () => {
         : t('actions.deleteConfirm')
     if (!(await askConfirm({ message: confirmMsg, danger: true }))) return
     try {
+      if (c.type === 'group') await announceLeave(c.cid).catch(() => {})
       await client.leaveConversation(c.cid)
       if (selectedCID === c.cid) setSelectedCID(null)
+      await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+    } catch (e) {
+      void showAlert({
+        message: t('actions.error', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
+    }
+  }
+
+  const handleConversationSetting = async (
+    c: ConversationSummary,
+    patch: { pinned?: boolean; muted?: boolean }
+  ) => {
+    try {
+      await client.setConversationSettings(c.cid, patch)
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
     } catch (e) {
       void showAlert({
@@ -832,6 +850,12 @@ const ImAuthenticated = () => {
               avatarOf={avatarOf}
               membersOf={membersOf}
               onDelete={handleDelete}
+              onTogglePinned={(c) =>
+                void handleConversationSetting(c, { pinned: !c.pinned })
+              }
+              onToggleMuted={(c) =>
+                void handleConversationSetting(c, { muted: !c.muted })
+              }
               mentionedCids={mentionedCids}
               starredCids={starredCids}
               specialAlertCids={specialAlertCids}
