@@ -12,7 +12,7 @@ def backfill_task_group_scope(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    dependencies = [("core", "0136_task_saved_view")]
+    dependencies = [("core", "0135_task_reminder_preference")]
 
     operations = [
         migrations.AddField(

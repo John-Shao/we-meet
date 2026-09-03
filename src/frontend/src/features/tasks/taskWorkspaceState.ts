@@ -1,5 +1,4 @@
 import type {
-  TaskSavedViewConfig,
   TaskColumnId,
   TaskGrouping,
   TaskPriorityFilter,
@@ -25,7 +24,6 @@ export interface TaskWorkspaceState {
   group: string
   mode: TaskWorkspaceMode
   task?: string
-  savedView?: string
   sharedVia?: string
 }
 
@@ -191,7 +189,6 @@ export const parseTaskWorkspaceState = (
     group: params.get('group') || 'all',
     mode: oneOf(params.get('view'), ['list', 'board', 'analytics'], 'list'),
     task: params.get('task') || undefined,
-    savedView: params.get('saved_view') || undefined,
     sharedVia: params.get('shared_via') || undefined,
   }
 }
@@ -218,7 +215,6 @@ export const stateForView = (
     group: 'all',
     mode: 'list',
     task: undefined,
-    savedView: undefined,
   }
 }
 
@@ -243,11 +239,9 @@ export const stateForTaskList = (
   group: 'all',
   mode: 'list',
   task: undefined,
-  savedView: undefined,
 })
 
 export const taskPreferencesViewKey = (state: TaskWorkspaceState) => {
-  if (state.savedView) return `saved:${state.savedView}`
   if (state.group !== 'all') return `task-group:${state.group}`
   if (state.taskList === 'unassigned') return 'standalone'
   if (state.taskList !== 'all') return `task-list:${state.taskList}`
@@ -271,7 +265,6 @@ export const stateWithTaskWorkspacePreferences = (
 ): TaskWorkspaceState => (preferences ? { ...state, ...preferences } : state)
 
 export const taskColumnViewKey = (state: TaskWorkspaceState) => {
-  if (state.savedView) return `saved:${state.savedView}`
   if (state.group !== 'all') return 'task-group'
   if (state.taskList === 'unassigned') return 'standalone'
   if (state.taskList !== 'all') return 'task-list'
@@ -313,66 +306,9 @@ export const buildTaskWorkspaceSearch = (state: TaskWorkspaceState) => {
   params.set('group', state.group)
   params.set('view', state.mode)
   if (state.task) params.set('task', state.task)
-  if (state.savedView) params.set('saved_view', state.savedView)
   if (state.sharedVia) params.set('shared_via', state.sharedVia)
   return params.toString()
 }
-
-export const taskWorkspaceStateToSavedViewConfig = (
-  state: TaskWorkspaceState
-): TaskSavedViewConfig => ({
-  version: 4,
-  scope: state.scope,
-  status: state.status,
-  time: state.time,
-  priority: state.priority,
-  task_list: state.taskList,
-  group: state.group,
-  ordering: state.ordering,
-  view: state.mode,
-  grouping: state.grouping,
-  columns: state.columns,
-  column_order: normalizeTaskColumnOrder(state.columnOrder, state.columns),
-})
-
-// Field-level equality — JSON.stringify comparison would be sensitive to key
-// order between the server's config and our locally-built object.
-export const savedViewConfigEquals = (
-  left: TaskSavedViewConfig,
-  right: TaskSavedViewConfig
-) =>
-  left.scope === right.scope &&
-  left.status === right.status &&
-  left.time === right.time &&
-  left.priority === right.priority &&
-  left.task_list === right.task_list &&
-  (left.group ?? 'all') === (right.group ?? 'all') &&
-  left.ordering === right.ordering &&
-  left.view === right.view &&
-  (left.grouping ?? 'none') === (right.grouping ?? 'none') &&
-  (left.columns ?? DEFAULT_TASK_COLUMNS).join(',') ===
-    (right.columns ?? DEFAULT_TASK_COLUMNS).join(',') &&
-  normalizeTaskColumnOrder(left.column_order, left.columns).join(',') ===
-    normalizeTaskColumnOrder(right.column_order, right.columns).join(',')
-
-export const stateForSavedView = (
-  state: TaskWorkspaceState,
-  config: TaskSavedViewConfig
-): TaskWorkspaceState => ({
-  ...state,
-  scope: config.scope,
-  status: config.status,
-  time: config.time,
-  priority: config.priority,
-  taskList: config.task_list,
-  group: config.group ?? 'all',
-  ordering: config.ordering,
-  mode: config.view,
-  grouping: config.grouping ?? 'none',
-  columns: config.columns ?? [...DEFAULT_TASK_COLUMNS],
-  columnOrder: normalizeTaskColumnOrder(config.column_order, config.columns),
-  task: undefined,
-})
 
 export const effectiveTaskColumns = (state: TaskWorkspaceState) => {
   const visibleColumns = new Set<TaskColumnId>(['title', ...state.columns])
@@ -402,5 +338,4 @@ export const stateForTaskGroup = (
   group,
   mode: 'list',
   task: undefined,
-  savedView: undefined,
 })

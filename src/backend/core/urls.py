@@ -101,7 +101,6 @@ from core.api.tasks import (
     TaskGroupViewSet,
     TaskListGroupViewSet,
     TaskListViewSet,
-    TaskSavedViewViewSet,
     TaskViewSet,
 )
 from core.external_api import viewsets as external_viewsets
@@ -258,9 +257,6 @@ router.register(
 )
 router.register("approvals", ApprovalInstanceViewSet, basename="approvals")
 router.register("tasks", TaskViewSet, basename="tasks")
-router.register(
-    "task-saved-views", TaskSavedViewViewSet, basename="task_saved_views"
-)
 router.register("task-lists", TaskListViewSet, basename="task_lists")
 router.register(
     "task-list-groups", TaskListGroupViewSet, basename="task_list_groups"

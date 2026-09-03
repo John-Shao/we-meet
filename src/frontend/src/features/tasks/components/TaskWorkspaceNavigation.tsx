@@ -2,22 +2,13 @@ import { useState, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RiAddLine,
-  RiArrowDownLine,
-  RiArrowUpLine,
-  RiDeleteBinLine,
-  RiEditLine,
   RiFileAddLine,
   RiFolderAddLine,
   RiHistoryLine,
   RiListCheck3,
   RiListCheck,
   RiBookmarkLine,
-  RiMoreLine,
-  RiPushpinLine,
-  RiSaveLine,
   RiSettings3Line,
-  RiStarLine,
-  RiUnpinLine,
   RiUserLine,
 } from '@remixicon/react'
 
@@ -28,7 +19,6 @@ import type {
   ApiTaskGroup,
   ApiTaskList,
   ApiTaskListGroup,
-  ApiTaskSavedView,
 } from '../api/ApiTask'
 import type {
   TaskWorkspaceState,
@@ -58,8 +48,6 @@ export const TaskWorkspaceNavigation = ({
   taskLists,
   taskListGroups,
   taskGroups = [],
-  savedViews = [],
-  savedViewChanged = false,
   standaloneTaskCount,
   onChange,
   onTaskListChange,
@@ -78,23 +66,12 @@ export const TaskWorkspaceNavigation = ({
   onDeleteTaskList,
   onOpenArchivedTaskLists,
   onOpenActivity,
-  onSelectSavedView,
-  onCreateSavedView,
-  onUpdateSavedView,
-  onRenameSavedView,
-  onDeleteSavedView,
-  onToggleSavedViewPinned,
-  onSetDefaultSavedView,
-  onMoveSavedView,
-  onManageSavedViews,
 }: {
   state: TaskWorkspaceState
   count: number
   taskLists: ApiTaskList[]
   taskListGroups: ApiTaskListGroup[]
   taskGroups?: ApiTaskGroup[]
-  savedViews?: ApiTaskSavedView[]
-  savedViewChanged?: boolean
   standaloneTaskCount: number
   onChange: (view: TaskWorkspaceView) => void
   onTaskListChange: (taskListId: string) => void
@@ -113,24 +90,9 @@ export const TaskWorkspaceNavigation = ({
   onDeleteTaskList?: (taskList: ApiTaskList) => void
   onOpenArchivedTaskLists?: () => void
   onOpenActivity?: () => void
-  onSelectSavedView?: (view: ApiTaskSavedView) => void
-  onCreateSavedView?: () => void
-  onUpdateSavedView?: (view: ApiTaskSavedView) => void
-  onRenameSavedView?: (view: ApiTaskSavedView) => void
-  onDeleteSavedView?: (view: ApiTaskSavedView) => void
-  onToggleSavedViewPinned?: (view: ApiTaskSavedView) => void
-  onSetDefaultSavedView?: (view: ApiTaskSavedView) => void
-  onMoveSavedView?: (view: ApiTaskSavedView, direction: -1 | 1) => void
-  onManageSavedViews?: () => void
 }) => {
   const { t } = useTranslation('tasks')
   const current = activeView(state)
-  const hasActiveSavedView = savedViews.some(
-    (view) => view.id === state.savedView
-  )
-  const orderedSavedViews = [...savedViews]
-    .filter((view) => view.is_pinned)
-    .sort((first, second) => first.position - second.position)
   const orderedTaskGroups = [...taskGroups].sort(
     (first, second) =>
       first.sort_order - second.sort_order ||
@@ -196,11 +158,7 @@ export const TaskWorkspaceNavigation = ({
     <TaskListNavigationRow
       key={taskList.id}
       taskList={taskList}
-      active={
-        !hasActiveSavedView &&
-        state.group === 'all' &&
-        state.taskList === taskList.id
-      }
+      active={state.group === 'all' && state.taskList === taskList.id}
       onSelect={() => onTaskListChange(taskList.id)}
       onDragStart={(event) => startListDrag(event, taskList)}
       onDragEnd={() => setDraggedTaskListId(undefined)}
@@ -223,7 +181,6 @@ export const TaskWorkspaceNavigation = ({
             key={view}
             type="button"
             aria-current={
-              !hasActiveSavedView &&
               state.group === 'all' &&
               state.taskList === 'all' &&
               current === view
@@ -232,7 +189,6 @@ export const TaskWorkspaceNavigation = ({
             }
             className={navButtonCss}
             data-active={
-              !hasActiveSavedView &&
               state.group === 'all' &&
               state.taskList === 'all' &&
               current === view
@@ -253,8 +209,7 @@ export const TaskWorkspaceNavigation = ({
               )}
               <span>{t(`workspace.views.${view}`)}</span>
             </span>
-            {!hasActiveSavedView &&
-              state.group === 'all' &&
+            {state.group === 'all' &&
               state.taskList === 'all' &&
               current === view && (
                 <span aria-label={t('workspace.resultCount', { count })}>
@@ -269,175 +224,6 @@ export const TaskWorkspaceNavigation = ({
             <span>{t('activity.navigation')}</span>
           </span>
         </button>
-        <div className={sectionHeaderCss}>
-          <span>{t('savedViews.title')}</span>
-          <div
-            className={taskNavigationActionsCss({ visibility: 'persistent' })}
-          >
-            <Button
-              variant="tertiary"
-              size="icon24"
-              className={taskNavigationActionButtonCss}
-              aria-label={t('savedViews.manage')}
-              onPress={onManageSavedViews}
-            >
-              <RiSettings3Line size={16} />
-            </Button>
-            <Button
-              variant="tertiary"
-              size="icon24"
-              className={taskNavigationActionButtonCss}
-              aria-label={t('savedViews.saveCurrent')}
-              onPress={onCreateSavedView}
-            >
-              <RiAddLine size={17} />
-            </Button>
-          </div>
-        </div>
-        {orderedSavedViews.length === 0 ? (
-          <p className={emptyListsCss}>{t('savedViews.empty')}</p>
-        ) : (
-          orderedSavedViews.map((view, index) => {
-            const active = state.savedView === view.id
-            return (
-              <div
-                key={view.id}
-                className={savedViewRowCss}
-                data-active={active || undefined}
-              >
-                <button
-                  type="button"
-                  aria-current={active ? 'page' : undefined}
-                  onClick={() => onSelectSavedView?.(view)}
-                >
-                  {view.is_default ? (
-                    <RiStarLine size={16} />
-                  ) : (
-                    <RiBookmarkLine size={16} />
-                  )}
-                  <span>{view.name}</span>
-                </button>
-                <div
-                  className={taskNavigationActionsCss({
-                    visibility: 'conditional',
-                  })}
-                  data-node-actions
-                >
-                  <Menu placement="bottom">
-                    <Button
-                      variant="tertiary"
-                      size="icon24"
-                      className={taskNavigationActionButtonCss}
-                      aria-label={t('savedViews.more', { name: view.name })}
-                    >
-                      <RiMoreLine size={16} />
-                    </Button>
-                    <MenuList
-                      aria-label={t('savedViews.more', { name: view.name })}
-                      menuClassName={taskNavigationMenuCss}
-                      items={[
-                        ...(active && savedViewChanged
-                          ? [
-                              {
-                                value: 'save',
-                                label: (
-                                  <span
-                                    className={taskNavigationMenuItemLabelCss}
-                                  >
-                                    <RiSaveLine size={16} />
-                                    {t('savedViews.saveChanges')}
-                                  </span>
-                                ),
-                              },
-                            ]
-                          : []),
-                        {
-                          value: 'rename',
-                          label: (
-                            <span className={taskNavigationMenuItemLabelCss}>
-                              <RiEditLine size={16} />
-                              {t('savedViews.rename')}
-                            </span>
-                          ),
-                        },
-                        {
-                          value: 'pin',
-                          label: (
-                            <span className={taskNavigationMenuItemLabelCss}>
-                              {view.is_pinned ? (
-                                <RiUnpinLine size={16} />
-                              ) : (
-                                <RiPushpinLine size={16} />
-                              )}
-                              {t(
-                                view.is_pinned
-                                  ? 'savedViews.unpin'
-                                  : 'savedViews.pin'
-                              )}
-                            </span>
-                          ),
-                        },
-                        ...(!view.is_default
-                          ? [
-                              {
-                                value: 'default',
-                                label: (
-                                  <span
-                                    className={taskNavigationMenuItemLabelCss}
-                                  >
-                                    <RiStarLine size={16} />
-                                    {t('savedViews.setDefault')}
-                                  </span>
-                                ),
-                              },
-                            ]
-                          : []),
-                        {
-                          value: 'up',
-                          label: (
-                            <span className={taskNavigationMenuItemLabelCss}>
-                              <RiArrowUpLine size={16} />
-                              {t('savedViews.moveUp')}
-                            </span>
-                          ),
-                          isDisabled: index === 0,
-                        },
-                        {
-                          value: 'down',
-                          label: (
-                            <span className={taskNavigationMenuItemLabelCss}>
-                              <RiArrowDownLine size={16} />
-                              {t('savedViews.moveDown')}
-                            </span>
-                          ),
-                          isDisabled: index === orderedSavedViews.length - 1,
-                        },
-                        {
-                          value: 'delete',
-                          label: (
-                            <span className={taskNavigationMenuItemLabelCss}>
-                              <RiDeleteBinLine size={16} />
-                              {t('savedViews.delete')}
-                            </span>
-                          ),
-                        },
-                      ]}
-                      onAction={(action) => {
-                        if (action === 'save') onUpdateSavedView?.(view)
-                        if (action === 'rename') onRenameSavedView?.(view)
-                        if (action === 'pin') onToggleSavedViewPinned?.(view)
-                        if (action === 'default') onSetDefaultSavedView?.(view)
-                        if (action === 'up') onMoveSavedView?.(view, -1)
-                        if (action === 'down') onMoveSavedView?.(view, 1)
-                        if (action === 'delete') onDeleteSavedView?.(view)
-                      }}
-                    />
-                  </Menu>
-                </div>
-              </div>
-            )
-          })
-        )}
         <div className={sectionHeaderCss}>
           <span>{t('groups.navigationTitle')}</span>
           <div
@@ -467,7 +253,7 @@ export const TaskWorkspaceNavigation = ({
           <p className={emptyListsCss}>{t('groups.emptyNavigation')}</p>
         ) : (
           orderedTaskGroups.map((group) => {
-            const active = !hasActiveSavedView && state.group === group.id
+            const active = state.group === group.id
             return (
               <button
                 key={group.id}
@@ -588,9 +374,7 @@ export const TaskWorkspaceNavigation = ({
             {standaloneTaskCount > 0 && (
               <StandaloneTaskListNavigationRow
                 active={
-                  !hasActiveSavedView &&
-                  state.group === 'all' &&
-                  state.taskList === 'unassigned'
+                  state.group === 'all' && state.taskList === 'unassigned'
                 }
                 onSelect={() => onTaskListChange('unassigned')}
               />
@@ -680,36 +464,4 @@ const navLabelCss = css({
   display: 'flex',
   alignItems: 'center',
   gap: '0.625rem',
-})
-const savedViewRowCss = css({
-  display: 'flex',
-  alignItems: 'center',
-  borderRadius: '8px',
-  color: 'greyscale.700',
-  '&[data-active]': {
-    backgroundColor: 'selected.bg',
-    color: 'selected.text',
-    fontWeight: '500',
-  },
-  '&:hover': { backgroundColor: 'greyscale.100' },
-  '&:hover [data-node-actions]': { opacity: 1, pointerEvents: 'auto' },
-  '& > button': {
-    minWidth: 0,
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.625rem',
-    border: 0,
-    padding: '0.5rem 0.625rem',
-    backgroundColor: 'transparent',
-    color: 'inherit',
-    cursor: 'pointer',
-    textAlign: 'left',
-    fontSize: '0.875rem',
-    '& span': {
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-    },
-  },
 })

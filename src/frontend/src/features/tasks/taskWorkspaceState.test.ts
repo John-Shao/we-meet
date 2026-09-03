@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { TaskColumnId, TaskSavedViewConfig } from './api/ApiTask'
+import type { TaskColumnId } from './api/ApiTask'
 
 import {
   buildTaskWorkspaceSearch,
@@ -8,10 +8,8 @@ import {
   DEFAULT_TASK_COLUMNS,
   effectiveTaskColumns,
   parseTaskWorkspaceState,
-  savedViewConfigEquals,
   stateForTaskList,
   stateForTaskGroup,
-  stateForSavedView,
   stateForView,
   stateWithTaskWorkspacePreferences,
   stateWithStatus,
@@ -19,7 +17,6 @@ import {
   taskPreferencesViewKey,
   taskViewPresets,
   taskWorkspacePreferences,
-  taskWorkspaceStateToSavedViewConfig,
 } from './taskWorkspaceState'
 
 describe('task workspace state', () => {
@@ -46,7 +43,7 @@ describe('task workspace state', () => {
     expect(
       parseTaskWorkspaceState(
         new URLSearchParams(
-          'scope=created&status=todo&time=overdue&priority=high&ordering=-due_date&task_list=list-1&group=group-1&view=board&task=42&saved_view=view-1'
+          'scope=created&status=todo&time=overdue&priority=high&ordering=-due_date&task_list=list-1&group=group-1&view=board&task=42'
         )
       )
     ).toEqual({
@@ -69,7 +66,6 @@ describe('task workspace state', () => {
       group: 'group-1',
       mode: 'board',
       task: '42',
-      savedView: 'view-1',
       sharedVia: undefined,
     })
   })
@@ -125,20 +121,19 @@ describe('task workspace state', () => {
     )
   })
 
-  it('does not leak saved-view filters into a predefined view', () => {
+  it('does not leak filters into a predefined view', () => {
     const assigned = parseTaskWorkspaceState(new URLSearchParams())
     const assignedPreferences = taskWorkspacePreferences(assigned)
-    const savedViewState = {
+    const filteredState = {
       ...assigned,
       scope: 'all' as const,
       time: 'starting_today' as const,
       priority: 'urgent' as const,
-      savedView: 'today-urgent',
     }
 
     expect(
       stateWithTaskWorkspacePreferences(
-        stateForView(savedViewState, 'assigned'),
+        stateForView(filteredState, 'assigned'),
         assignedPreferences
       )
     ).toMatchObject({
@@ -151,13 +146,12 @@ describe('task workspace state', () => {
       mode: 'list',
       taskList: 'all',
       group: 'all',
-      savedView: undefined,
     })
   })
 
   it('opens a custom group as an isolated global task view', () => {
     const state = parseTaskWorkspaceState(
-      new URLSearchParams('task_list=list-1&grouping=custom&saved_view=view-1')
+      new URLSearchParams('task_list=list-1&grouping=custom')
     )
 
     expect(stateForTaskGroup(state, 'group-1')).toMatchObject({
@@ -169,7 +163,6 @@ describe('task workspace state', () => {
       group: 'group-1',
       grouping: 'none',
       mode: 'list',
-      savedView: undefined,
     })
   })
 
@@ -190,7 +183,7 @@ describe('task workspace state', () => {
     )
   })
 
-  it('isolates quick and saved views while sharing one task-list profile', () => {
+  it('isolates quick views while sharing one task-list profile', () => {
     const state = parseTaskWorkspaceState(new URLSearchParams())
     expect(taskColumnViewKey(state)).toBe('quick:assigned')
     expect(taskColumnViewKey({ ...state, scope: 'created' })).toBe(
@@ -204,9 +197,6 @@ describe('task workspace state', () => {
     )
     expect(taskColumnViewKey({ ...state, taskList: 'unassigned' })).toBe(
       'standalone'
-    )
-    expect(taskColumnViewKey({ ...state, savedView: 'view-1' })).toBe(
-      'saved:view-1'
     )
   })
 
@@ -226,36 +216,6 @@ describe('task workspace state', () => {
     expect(taskPreferencesViewKey({ ...state, taskList: 'unassigned' })).toBe(
       'standalone'
     )
-    expect(taskPreferencesViewKey({ ...state, savedView: 'view-1' })).toBe(
-      'saved:view-1'
-    )
-  })
-
-  it('restores the field configuration owned by each saved view', () => {
-    const state = parseTaskWorkspaceState(new URLSearchParams())
-    const baseConfig = taskWorkspaceStateToSavedViewConfig(state)
-
-    expect(
-      stateForSavedView(state, {
-        ...baseConfig,
-        columns: ['title', 'priority'],
-      }).columns
-    ).toEqual(['title', 'priority'])
-    expect(
-      stateForSavedView(state, {
-        ...baseConfig,
-        columns: ['title', 'dueDate', 'completedAt'],
-      }).columns
-    ).toEqual(['title', 'dueDate', 'completedAt'])
-  })
-
-  it('treats legacy saved views as unchanged when they use the default field order', () => {
-    const state = parseTaskWorkspaceState(new URLSearchParams())
-    const current = taskWorkspaceStateToSavedViewConfig(state)
-    const legacy: TaskSavedViewConfig = { ...current, version: 2 }
-    delete legacy.column_order
-
-    expect(savedViewConfigEquals(legacy, current)).toBe(true)
   })
 
   it('serializes deep links with every workbench filter', () => {
@@ -273,10 +233,9 @@ describe('task workspace state', () => {
         group: 'group/id',
         mode: 'board',
         task: 'task-id',
-        savedView: 'view-id',
       })
     ).toBe(
-      'scope=all&status=completed&time=all&priority=low&ordering=-created_at&grouping=none&columns=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2Ccreator%2CcreatedAt&column_order=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2CcustomGroup%2Ccreator%2CcreatedAt%2CcompletedAt&task_list=list%2Fid&group=group%2Fid&view=board&task=task-id&saved_view=view-id'
+      'scope=all&status=completed&time=all&priority=low&ordering=-created_at&grouping=none&columns=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2Ccreator%2CcreatedAt&column_order=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2CcustomGroup%2Ccreator%2CcreatedAt%2CcompletedAt&task_list=list%2Fid&group=group%2Fid&view=board&task=task-id'
     )
   })
 
@@ -286,42 +245,6 @@ describe('task workspace state', () => {
     )
     expect(state.sharedVia).toBe('conv-123')
     expect(buildTaskWorkspaceSearch(state)).toContain('shared_via=conv-123')
-  })
-
-  it('round-trips the supported saved view configuration without task detail state', () => {
-    const state = parseTaskWorkspaceState(
-      new URLSearchParams(
-        'scope=following&status=all&time=overdue&priority=urgent&ordering=due_date&task_list=list-1&group=group-1&view=board&task=task-1'
-      )
-    )
-    const config = taskWorkspaceStateToSavedViewConfig(state)
-
-    expect(config).toEqual({
-      version: 4,
-      scope: 'following',
-      status: 'all',
-      time: 'overdue',
-      priority: 'urgent',
-      task_list: 'list-1',
-      group: 'group-1',
-      ordering: 'due_date',
-      view: 'board',
-      grouping: 'none',
-      columns: [
-        'title',
-        'assignee',
-        'priority',
-        'startDate',
-        'dueDate',
-        'creator',
-        'createdAt',
-      ],
-      column_order: [...DEFAULT_TASK_COLUMN_ORDER],
-    })
-    expect(stateForSavedView(state, config)).toEqual({
-      ...state,
-      task: undefined,
-    })
   })
 
   it('only forces the task title and otherwise respects field visibility', () => {

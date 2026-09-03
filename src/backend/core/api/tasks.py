@@ -13,7 +13,6 @@ from django.db.models import (
     Exists,
     F,
     IntegerField,
-    Max,
     Min,
     OuterRef,
     Prefetch,
@@ -43,7 +42,6 @@ from core.api.serializers import (
     TaskListSerializer,
     TaskPreferenceSerializer,
     TaskReminderPreferenceSerializer,
-    TaskSavedViewSerializer,
     TaskSerializer,
 )
 from core.api.viewsets import Pagination
@@ -960,80 +958,6 @@ class TaskShareSerializer(serializers.Serializer):
 
     def validate_conversation_ids(self, value):
         return list(dict.fromkeys(value))
-
-
-class TaskSavedViewViewSet(
-    mixins.CreateModelMixin,
-    mixins.ListModelMixin,
-    mixins.RetrieveModelMixin,
-    mixins.UpdateModelMixin,
-    mixins.DestroyModelMixin,
-    viewsets.GenericViewSet,
-):
-    """Personal saved task workspace configurations for the active organization."""
-
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = TaskSavedViewSerializer
-    pagination_class = None
-    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
-    maximum_views = 50
-
-    def _organization(self):
-        return get_caller_organization(self.request.user)
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context["organization"] = self._organization()
-        return context
-
-    def get_queryset(self):
-        organization = self._organization()
-        if organization is None:
-            return models.TaskSavedView.objects.none()
-        return models.TaskSavedView.objects.filter(
-            organization=organization,
-            owner=self.request.user,
-        ).order_by("position", "created_at", "id")
-
-    def perform_create(self, serializer):
-        organization = self._organization()
-        if organization is None:
-            raise serializers.ValidationError(
-                {"detail": "Join an organization before saving a task view."}
-            )
-        queryset = models.TaskSavedView.objects.filter(
-            organization=organization,
-            owner=self.request.user,
-        )
-        with transaction.atomic():
-            models.User.objects.select_for_update().get(pk=self.request.user.pk)
-            if queryset.count() >= self.maximum_views:
-                raise serializers.ValidationError(
-                    {"detail": "You can save at most 50 task views."}
-                )
-            if serializer.validated_data.get("is_default", False):
-                queryset.filter(is_default=True).update(is_default=False)
-            position = serializer.validated_data.get("position")
-            if position is None:
-                maximum_position = queryset.aggregate(value=Max("position"))["value"]
-                position = 0 if maximum_position is None else maximum_position + 1
-            serializer.save(
-                organization=organization,
-                owner=self.request.user,
-                position=position,
-            )
-
-    def perform_update(self, serializer):
-        view = self.get_object()
-        with transaction.atomic():
-            models.User.objects.select_for_update().get(pk=self.request.user.pk)
-            if serializer.validated_data.get("is_default", False):
-                models.TaskSavedView.objects.filter(
-                    organization=view.organization,
-                    owner=view.owner,
-                    is_default=True,
-                ).exclude(pk=view.pk).update(is_default=False)
-            serializer.save()
 
 
 class TaskListGroupViewSet(

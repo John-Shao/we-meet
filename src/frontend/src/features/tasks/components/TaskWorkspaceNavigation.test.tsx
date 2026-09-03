@@ -5,7 +5,6 @@ import type {
   ApiTaskGroup,
   ApiTaskList,
   ApiTaskListGroup,
-  ApiTaskSavedView,
 } from '../api/ApiTask'
 import {
   DEFAULT_TASK_COLUMN_ORDER,
@@ -41,28 +40,6 @@ const listGroup: ApiTaskListGroup = {
   list_count: 1,
   created_at: '2026-08-24T00:00:00Z',
   updated_at: '2026-08-24T00:00:00Z',
-}
-
-const savedView: ApiTaskSavedView = {
-  id: 'saved-view-1',
-  name: 'Urgent this week',
-  config: {
-    version: 1,
-    scope: 'assigned',
-    status: 'open',
-    time: 'all',
-    priority: 'urgent',
-    task_list: 'all',
-    ordering: 'due_date',
-    view: 'list',
-  },
-  position: 0,
-  is_pinned: true,
-  is_default: false,
-  invalid_task_list: false,
-  invalid_task_group: false,
-  created_at: '2026-08-29T00:00:00Z',
-  updated_at: '2026-08-29T00:00:00Z',
 }
 
 const taskGroup: ApiTaskGroup = {
@@ -179,97 +156,6 @@ describe('TaskWorkspaceNavigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'activity.navigation' }))
 
     expect(onOpenActivity).toHaveBeenCalledOnce()
-  })
-
-  it('selects and manages personal saved views', () => {
-    const onSelectSavedView = vi.fn()
-    const onCreateSavedView = vi.fn()
-    const onUpdateSavedView = vi.fn()
-    const onSetDefaultSavedView = vi.fn()
-    render(
-      <TaskWorkspaceNavigation
-        state={{ ...state, savedView: savedView.id }}
-        count={4}
-        taskLists={[]}
-        taskListGroups={[]}
-        standaloneTaskCount={0}
-        savedViews={[savedView]}
-        savedViewChanged
-        onChange={vi.fn()}
-        onTaskListChange={vi.fn()}
-        onCreateTaskList={vi.fn()}
-        onCreateTaskListGroup={vi.fn()}
-        onMoveTaskList={vi.fn()}
-        onRenameTaskListGroup={vi.fn()}
-        onDeleteTaskListGroup={vi.fn()}
-        onSelectSavedView={onSelectSavedView}
-        onCreateSavedView={onCreateSavedView}
-        onUpdateSavedView={onUpdateSavedView}
-        onSetDefaultSavedView={onSetDefaultSavedView}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: savedView.name }))
-    expect(onSelectSavedView).toHaveBeenCalledWith(savedView)
-    expect(screen.getAllByRole('button', { current: 'page' })).toHaveLength(1)
-    expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent(
-      savedView.name
-    )
-    fireEvent.click(
-      screen.getByRole('button', { name: 'savedViews.saveCurrent' })
-    )
-    expect(onCreateSavedView).toHaveBeenCalledOnce()
-
-    const openMenu = () =>
-      fireEvent.click(screen.getByRole('button', { name: 'savedViews.more' }))
-    openMenu()
-    fireEvent.click(
-      screen.getByRole('menuitem', { name: 'savedViews.saveChanges' })
-    )
-    expect(onUpdateSavedView).toHaveBeenCalledWith(savedView)
-
-    openMenu()
-    fireEvent.click(
-      screen.getByRole('menuitem', { name: 'savedViews.setDefault' })
-    )
-    expect(onSetDefaultSavedView).toHaveBeenCalledWith(savedView)
-  })
-
-  it('keeps unpinned saved views out of the sidebar and opens management', () => {
-    const onManageSavedViews = vi.fn()
-    render(
-      <TaskWorkspaceNavigation
-        state={state}
-        count={0}
-        taskLists={[]}
-        taskListGroups={[]}
-        standaloneTaskCount={0}
-        savedViews={[{ ...savedView, is_pinned: false }]}
-        onChange={vi.fn()}
-        onTaskListChange={vi.fn()}
-        onCreateTaskList={vi.fn()}
-        onCreateTaskListGroup={vi.fn()}
-        onMoveTaskList={vi.fn()}
-        onRenameTaskListGroup={vi.fn()}
-        onDeleteTaskListGroup={vi.fn()}
-        onManageSavedViews={onManageSavedViews}
-      />
-    )
-
-    expect(
-      screen.queryByRole('button', { name: savedView.name })
-    ).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'savedViews.manage' }))
-    expect(onManageSavedViews).toHaveBeenCalledOnce()
-  })
-
-  it('falls back to the matching system entry for a stale saved view id', () => {
-    renderNavigation({ ...state, savedView: 'deleted-view' })
-
-    expect(screen.getAllByRole('button', { current: 'page' })).toHaveLength(1)
-    expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent(
-      'workspace.views.all'
-    )
   })
 
   it('selects and manages organization custom groups', () => {
