@@ -102,10 +102,10 @@
     }
   },
   "savedViews": {
-    "title": "保存视图",
-    "empty": "还没有保存视图",
+    "title": "自定义视图",
+    "empty": "还没有自定义视图",
     "saveCurrent": "保存当前视图",
-    "manage": "管理保存视图",
+    "manage": "管理自定义视图",
     "saveChanges": "保存更改",
     "save": "保存",
     "name": "视图名称",
@@ -119,7 +119,7 @@
     "moveUp": "上移",
     "moveDown": "下移",
     "delete": "删除",
-    "deleteTitle": "删除保存视图",
+    "deleteTitle": "删除自定义视图",
     "deleteDescription": "确定删除“{{name}}”吗？任务不会被删除。",
     "more": "{{name}} 的更多操作",
     "moveUpNamed": "上移 {{name}}",
@@ -129,8 +129,8 @@
     "unpinNamed": "从侧栏取消固定 {{name}}",
     "defaultNamed": "将 {{name}} 设为默认视图",
     "deleteNamed": "删除 {{name}}",
-    "close": "关闭保存视图窗口",
-    "saveError": "保存视图操作失败，请检查名称后重试。",
+    "close": "关闭自定义视图窗口",
+    "saveError": "自定义视图操作失败，请检查名称后重试。",
     "invalidTaskList": "原任务清单已不可用，已安全切换到全部清单。"
   },
   "activity": {
