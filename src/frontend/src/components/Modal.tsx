@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { RiCloseLine } from '@remixicon/react'
 
 import { IconButton } from '@/primitives/IconButton'
-import { css, cx } from '@/styled-system/css'
+import { css, cva, cx } from '@/styled-system/css'
 
 /** Keep Tab focus inside the dialog — a basic focus trap for the modal. */
 const trapFocus = (e: KeyboardEvent, container: HTMLElement | null) => {
@@ -224,4 +224,45 @@ const modalHeaderTitleCss = css({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+})
+
+export interface ModalFooterProps {
+  children: ReactNode
+  alignment?: 'end' | 'space-between'
+  className?: string
+}
+
+/** Standard action bar for modal dialogs and selection pickers. */
+export const ModalFooter = ({
+  children,
+  alignment = 'end',
+  className,
+}: ModalFooterProps) => (
+  <div
+    data-alignment={alignment}
+    className={cx(modalFooterRecipe({ alignment }), className)}
+  >
+    {children}
+  </div>
+)
+
+const modalFooterRecipe = cva({
+  base: {
+    display: 'flex',
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: 'sm',
+    paddingX: 'lg',
+    paddingY: 'md',
+    borderTop: '1px solid token(colors.border.subtle)',
+  },
+  variants: {
+    alignment: {
+      end: { justifyContent: 'flex-end' },
+      'space-between': { justifyContent: 'space-between' },
+    },
+  },
+  defaultVariants: {
+    alignment: 'end',
+  },
 })

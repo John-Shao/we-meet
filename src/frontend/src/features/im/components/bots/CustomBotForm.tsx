@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next'
 
 import { css, cx } from '@/styled-system/css'
 import { Button } from '@/primitives'
+import { ModalFooter } from '@/components/Modal'
 
 import { BotAvatar } from './BotAvatar'
 import { BOT_COLORS, botColorAt } from '@/components/bot/botPalette'
-import { inputCls, modalFoot } from './botStyles'
+import { inputCls } from './botStyles'
 
 const NAME_MAX = 32
 const DESC_MAX = 256
@@ -160,7 +161,7 @@ export const CustomBotForm = ({
         </div>
       </div>
 
-      <div className={modalFoot}>
+      <ModalFooter>
         <Button variant="secondary" size="action" onPress={onCancel}>
           {t('manage.cancel')}
         </Button>
@@ -178,7 +179,7 @@ export const CustomBotForm = ({
         >
           {submitLabel}
         </Button>
-      </div>
+      </ModalFooter>
     </>
   )
 }

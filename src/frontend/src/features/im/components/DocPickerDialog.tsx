@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { RiFileTextLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalHeader } from '@/components/Modal'
+import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
 import { Button, Input, SelectableListRow } from '@/primitives'
 
 import { fetchMyDocuments, type MyDocumentHit } from '../api/fetchMyDocuments'
@@ -105,7 +105,7 @@ export const DocPickerDialog = ({ onConfirm, onClose }: Props) => {
         )}
       </div>
 
-      <div className={footerCls}>
+      <ModalFooter alignment="space-between">
         <span className={selectedCountCls}>
           {t('docPicker.selected', { count: selectedList.length })}
         </span>
@@ -118,7 +118,7 @@ export const DocPickerDialog = ({ onConfirm, onClose }: Props) => {
         >
           {t('docPicker.send', { count: selectedList.length })}
         </Button>
-      </div>
+      </ModalFooter>
     </Modal>
   )
 }
@@ -131,15 +131,6 @@ const nameCls = css({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-})
-
-const footerCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderTop: '1px solid token(colors.border.subtle)',
 })
 
 const selectedCountCls = css({

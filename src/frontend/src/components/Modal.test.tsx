@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 
-import { Modal, ModalHeader } from './Modal'
+import { Modal, ModalFooter, ModalHeader } from './Modal'
 
 /**
  * Modal 的**焦点契约**。这一层的三条行为(开时把焦点送进弹窗、Tab 咬在弹窗内、
@@ -107,5 +107,18 @@ describe('ModalHeader', () => {
     expect(screen.getByRole('heading', { name: '选择联系人' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '关闭' }))
     expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+describe('ModalFooter', () => {
+  it('uses end alignment by default and supports split picker actions', () => {
+    const { rerender } = render(<ModalFooter>保存</ModalFooter>)
+    expect(screen.getByText('保存')).toHaveAttribute('data-alignment', 'end')
+
+    rerender(<ModalFooter alignment="space-between">已选 2 人</ModalFooter>)
+    expect(screen.getByText('已选 2 人')).toHaveAttribute(
+      'data-alignment',
+      'space-between'
+    )
   })
 })

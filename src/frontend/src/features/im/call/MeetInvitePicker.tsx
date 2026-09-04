@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { Button, Input, SelectableListRow } from '@/primitives'
-import { Modal, ModalHeader } from '@/components/Modal'
+import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 
@@ -154,7 +154,7 @@ export const MeetInvitePicker = ({
         )}
       </div>
       {footer}
-      <div className={modalFoot}>
+      <ModalFooter alignment="space-between">
         <span
           className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}
         >
@@ -169,16 +169,7 @@ export const MeetInvitePicker = ({
         >
           {t('call.invite.confirm')}
         </Button>
-      </div>
+      </ModalFooter>
     </Modal>
   )
 }
-
-const modalFoot = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
-})

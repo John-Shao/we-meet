@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
 import {
   ContactPicker,
   MemberAvatar,
@@ -74,10 +74,11 @@ export const TransferEventDialog = ({
 
   return (
     <Modal onClose={onClose} ariaLabel={t('transfer.title')} maxWidth="480px">
-      <div className={headerCls}>
-        <h2 className={titleCls}>{t('transfer.title')}</h2>
-        <ModalCloseButton onClose={onClose} label={t('form.cancel')} />
-      </div>
+      <ModalHeader
+        title={t('transfer.title')}
+        onClose={onClose}
+        closeLabel={t('form.cancel')}
+      />
 
       <p className={labelCls}>{t('transfer.targetLabel')}</p>
       <button
@@ -114,7 +115,7 @@ export const TransferEventDialog = ({
         </p>
       )}
 
-      <div className={footerCls}>
+      <ModalFooter>
         <Button variant="secondary" size="action" onPress={onClose}>
           {t('form.cancel')}
         </Button>
@@ -127,26 +128,10 @@ export const TransferEventDialog = ({
         >
           {t('transfer.confirm')}
         </Button>
-      </div>
+      </ModalFooter>
     </Modal>
   )
 }
-
-const headerCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-
-const titleCls = css({
-  margin: 0,
-  fontSize: '1rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
-})
 
 const labelCls = css({
   margin: '0.75rem 1rem 0',
@@ -212,13 +197,4 @@ const errorCls = css({
   margin: '0 1rem 0.75rem',
   fontSize: '0.8125rem',
   color: 'red.600',
-})
-
-const footerCls = css({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: '0.5rem',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
 })

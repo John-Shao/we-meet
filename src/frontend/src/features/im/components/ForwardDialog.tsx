@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalHeader } from '@/components/Modal'
+import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { MemberAvatar, useDirectoryMemberSearch } from '@/features/contacts'
 import {
@@ -275,7 +275,7 @@ export const ForwardDialog = ({
             )}
           </div>
 
-          <div className={footerCls}>
+          <ModalFooter>
             {resolveFailed && (
               <span className={errorCls} role="alert">
                 {t('forward.resolveFailed')}
@@ -293,7 +293,7 @@ export const ForwardDialog = ({
                 ? t('forward.sendCount', { count: totalSelected })
                 : t('forward.send')}
             </Button>
-          </div>
+          </ModalFooter>
         </>
       )}
     </Modal>
@@ -371,12 +371,4 @@ const chevronCls = css({
   color: 'greyscale.400',
   fontSize: '1.125rem',
   lineHeight: 1,
-})
-
-const footerCls = css({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
 })

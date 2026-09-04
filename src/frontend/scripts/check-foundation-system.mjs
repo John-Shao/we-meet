@@ -461,8 +461,11 @@ const componentStateRequirements = [
     '../src/components/Modal.tsx',
     [
       'export const ModalHeader',
+      'export const ModalFooter',
       "textStyle: 'titleMedium'",
       "borderBottom: '1px solid token(colors.border.subtle)'",
+      "alignment?: 'end' | 'space-between'",
+      "borderTop: '1px solid token(colors.border.subtle)'",
       '<ModalCloseButton',
     ],
   ],

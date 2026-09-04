@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { css } from '@/styled-system/css'
-import { Modal, ModalHeader } from '@/components/Modal'
+import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
 import { Button } from '@/primitives'
 import { DirectoryMultiPicker } from '@/features/contacts'
 
@@ -96,7 +95,7 @@ export const BulkAttendeeDialog = ({
         excludeIds={excludeIds}
       />
 
-      <div className={footerCls}>
+      <ModalFooter>
         <Button variant="secondary" size="action" onPress={onClose}>
           {t('form.cancel')}
         </Button>
@@ -108,16 +107,7 @@ export const BulkAttendeeDialog = ({
         >
           {confirmLabel ?? t('form.confirm')}
         </Button>
-      </div>
+      </ModalFooter>
     </Modal>
   )
 }
-
-const footerCls = css({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: '0.5rem',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
-})

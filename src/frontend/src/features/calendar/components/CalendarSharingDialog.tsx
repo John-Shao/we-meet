@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
 import { Button } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 import { css, cx } from '@/styled-system/css'
@@ -126,10 +126,11 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
       maxWidth="760px"
       maxHeight="84vh"
     >
-      <div className={headerCls}>
-        <h2 className={titleCls}>{t('sharing.title')}</h2>
-        <ModalCloseButton onClose={onClose} label={t('form.cancel')} />
-      </div>
+      <ModalHeader
+        title={t('sharing.title')}
+        onClose={onClose}
+        closeLabel={t('form.cancel')}
+      />
       <div className={bodyCls}>
         <div className={bodyStackCls}>
           <div className={defaultRowCls}>
@@ -257,7 +258,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
           </section>
         </div>
       </div>
-      <div className={footerCls}>
+      <ModalFooter>
         <Button variant="secondary" size="action" onPress={onClose}>
           {t('form.cancel')}
         </Button>
@@ -271,20 +272,11 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
             mode === 'share' ? 'sharing.shareAction' : 'sharing.subscribeAction'
           )}
         </Button>
-      </div>
+      </ModalFooter>
     </Modal>
   )
 }
 
-const headerCls = css({
-  display: 'flex',
-  flexShrink: 0,
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '1rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-const titleCls = css({ margin: 0, fontSize: '1rem', fontWeight: 700 })
 const bodyCls = css({
   flex: 1,
   minHeight: 0,
@@ -350,12 +342,4 @@ const removeCls = css({
   background: 'transparent',
   color: 'primary.500',
   cursor: 'pointer',
-})
-const footerCls = css({
-  display: 'flex',
-  flexShrink: 0,
-  justifyContent: 'flex-end',
-  gap: '0.5rem',
-  padding: '0.75rem 1rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
 })

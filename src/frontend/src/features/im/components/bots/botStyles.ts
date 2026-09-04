@@ -11,16 +11,6 @@ export const modalHead = css({
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
 
-export const modalFoot = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'flex-end',
-  gap: '0.5rem',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
-})
-
 // 聚焦描边由 styles/index.css 的「统一焦点描边」统一给出,这里不要再写 _focus。
 export const inputCls = css({
   width: '100%',
