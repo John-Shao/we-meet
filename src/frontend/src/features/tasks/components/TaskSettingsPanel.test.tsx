@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TaskSettingsPanel } from './TaskSettingsPanel'
@@ -36,7 +37,8 @@ beforeEach(() => {
 })
 
 describe('TaskSettingsPanel', () => {
-  it('renders server settings and patches each changed preference', () => {
+  it('renders server settings and patches each changed preference', async () => {
+    const user = userEvent.setup()
     render(<TaskSettingsPanel />)
 
     expect(
@@ -49,13 +51,26 @@ describe('TaskSettingsPanel', () => {
     fireEvent.click(
       screen.getByRole('switch', { name: 'settings.overdueMarker' })
     )
-    fireEvent.change(
-      screen.getByRole('combobox', { name: 'settings.defaultReminder' }),
-      { target: { value: '3780' } }
+    const reminderSelect = screen.getByRole('button', {
+      name: /settings\.defaultReminder/,
+    })
+    expect(reminderSelect).toHaveAttribute('aria-haspopup', 'listbox')
+    expect(
+      document.querySelector('select:not([tabindex="-1"])')
+    ).not.toBeInTheDocument()
+
+    await user.click(reminderSelect)
+    await user.click(
+      screen.getByRole('option', {
+        name: 'settings.reminderOptions.3780',
+      })
     )
-    fireEvent.change(
-      screen.getByRole('combobox', { name: 'settings.defaultReminder' }),
-      { target: { value: 'none' } }
+
+    await user.click(reminderSelect)
+    await user.click(
+      screen.getByRole('option', {
+        name: 'settings.reminderOptions.none',
+      })
     )
 
     expect(mocks.mutate).toHaveBeenNthCalledWith(1, {

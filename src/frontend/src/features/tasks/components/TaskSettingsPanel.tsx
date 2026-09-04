@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { StateHint } from '@/components/StateHint'
 import { Button, Switch } from '@/primitives'
+import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
 import type {
@@ -63,17 +64,27 @@ export const TaskSettingsPanel = () => {
         title={t('settings.defaultReminder')}
         description={t('settings.defaultReminderDescription')}
         control={
-          <select
+          <Select
             aria-label={t('settings.defaultReminder')}
             className={selectCss}
-            value={
+            items={[
+              {
+                value: 'none',
+                label: t('settings.reminderOptions.none'),
+              },
+              ...reminderOptions.map((minutes) => ({
+                value: String(minutes),
+                label: t(`settings.reminderOptions.${minutes}`),
+              })),
+            ]}
+            selectedKey={
               settings.daily_reminder_enabled
-                ? settings.default_reminder_minutes
+                ? String(settings.default_reminder_minutes)
                 : 'none'
             }
-            disabled={update.isPending}
-            onChange={(event) => {
-              const value = event.target.value
+            isDisabled={update.isPending}
+            onSelectionChange={(key) => {
+              const value = String(key)
               change(
                 value === 'none'
                   ? { daily_reminder_enabled: false }
@@ -85,14 +96,7 @@ export const TaskSettingsPanel = () => {
                     }
               )
             }}
-          >
-            <option value="none">{t('settings.reminderOptions.none')}</option>
-            {reminderOptions.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {t(`settings.reminderOptions.${minutes}`)}
-              </option>
-            ))}
-          </select>
+          />
         }
       />
       {update.error && (
@@ -154,18 +158,6 @@ const copyCss = css({
 const selectCss = css({
   flexShrink: 0,
   minWidth: '9.5rem',
-  height: '2.25rem',
-  paddingX: '0.625rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.375rem',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.8125rem',
-  _focusVisible: {
-    outline: '2px solid token(colors.focusRing)',
-    outlineOffset: '2px',
-  },
-  _disabled: { opacity: 0.5, cursor: 'default' },
 })
 const saveErrorCss = css({
   margin: '0.75rem 0 0',
