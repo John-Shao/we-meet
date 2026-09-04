@@ -1,7 +1,12 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { RiArrowUpLine } from '@remixicon/react'
+
 import { css } from '@/styled-system/css'
+import { Button, IconButton, Input } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
+
 import {
   disableAdminEmoji,
   listAdminEmojis,
@@ -11,9 +16,15 @@ import {
 
 export const AdminEmojis = () => {
   const qc = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const { t } = useTranslation('admin')
-  const { data: emojis = [], isLoading } = useQuery({
+  const {
+    data: emojis = [],
+    isFetching,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['admin', 'im-emojis'],
     queryFn: listAdminEmojis,
   })
@@ -40,27 +51,42 @@ export const AdminEmojis = () => {
     },
     onSuccess: () => void refresh(),
   })
+  const reorder = useMutation({
+    mutationFn: async ({
+      id,
+      sortOrder,
+      previousId,
+      previousSortOrder,
+    }: {
+      id: string
+      sortOrder: number
+      previousId: string
+      previousSortOrder: number
+    }) =>
+      Promise.all([
+        updateAdminEmoji(id, { sort_order: previousSortOrder }),
+        updateAdminEmoji(previousId, { sort_order: sortOrder }),
+      ]),
+    onSuccess: () => void refresh(),
+  })
+  const operationError = upload.error ?? mutate.error ?? reorder.error
+
   return (
-    <main className={css({ flex: 1, overflow: 'auto', padding: '2rem' })}>
-      <h1 className={css({ fontSize: '1.5rem', fontWeight: 'bold' })}>
-        {t('shell.nav.emojis')}
-      </h1>
-      <p className={css({ color: 'greyscale.600' })}>
-        {t('emojis.description')}
-      </p>
-      <div
-        className={css({ display: 'flex', gap: '0.75rem', marginY: '1.5rem' })}
-      >
-        <input
-          value={name}
-          maxLength={32}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t('emojis.namePlaceholder')}
-          className={inputCls}
-        />
-        <label className={buttonCls}>
-          {upload.isPending ? t('emojis.uploading') : t('emojis.chooseImage')}
+    <main className={pageCls}>
+      <header className={headerCls}>
+        <h1 className={titleCls}>{t('shell.nav.emojis')}</h1>
+        <p className={descriptionCls}>{t('emojis.description')}</p>
+        <div className={uploadRowCls}>
+          <Input
+            value={name}
+            maxLength={32}
+            disabled={upload.isPending}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t('emojis.namePlaceholder')}
+            className={nameInputCls}
+          />
           <input
+            ref={fileInputRef}
             hidden
             type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"
@@ -72,99 +98,156 @@ export const AdminEmojis = () => {
                 upload.mutate({ file, label: name.trim() })
             }}
           />
-        </label>
-      </div>
-      {upload.error && (
-        <p className={css({ color: 'red.600' })}>{upload.error.message}</p>
-      )}
-      {isLoading ? (
-        <p>{t('emojis.loading')}</p>
-      ) : (
-        <div
-          className={css({
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(15rem, 1fr))',
-            gap: '0.75rem',
-          })}
-        >
-          {emojis.map((emoji, index) => (
-            <article
-              key={emoji.id}
-              className={css({
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem',
-                border: '1px solid token(colors.greyscale.200)',
-                borderRadius: '0.75rem',
-                opacity: emoji.active ? 1 : 0.55,
-              })}
-            >
-              <img
-                src={emoji.url}
-                alt={emoji.name}
-                className={css({
-                  width: '3rem',
-                  height: '3rem',
-                  objectFit: 'contain',
-                })}
-              />
-              <div className={css({ flex: 1 })}>
-                <b>{emoji.name}</b>
-                <div
-                  className={css({
-                    fontSize: '0.75rem',
-                    color: 'greyscale.500',
-                  })}
-                >
-                  {emoji.width}×{emoji.height}
-                  {emoji.animated ? ' · GIF' : ''}
-                </div>
-              </div>
-              <button
-                disabled={index === 0}
-                onClick={() => {
-                  const previous = emojis[index - 1]
-                  if (!previous) return
-                  void Promise.all([
-                    updateAdminEmoji(emoji.id, {
-                      sort_order: previous.sort_order,
-                    }),
-                    updateAdminEmoji(previous.id, {
-                      sort_order: emoji.sort_order,
-                    }),
-                  ]).then(refresh)
-                }}
-              >
-                ↑
-              </button>
-              <button
-                onClick={() =>
-                  mutate.mutate(
-                    emoji.active
-                      ? { id: emoji.id }
-                      : { id: emoji.id, patch: { active: true } }
-                  )
-                }
-              >
-                {emoji.active ? t('emojis.disable') : t('emojis.enable')}
-              </button>
-            </article>
-          ))}
+          <Button
+            size="action"
+            variant="primary"
+            loading={upload.isPending}
+            isDisabled={!name.trim()}
+            onPress={() => fileInputRef.current?.click()}
+          >
+            {upload.isPending ? t('emojis.uploading') : t('emojis.chooseImage')}
+          </Button>
         </div>
-      )}
+      </header>
+
+      <div className={contentCls}>
+        {operationError ? (
+          <StateHint state="error">{operationError.message}</StateHint>
+        ) : null}
+        {isFetching && emojis.length === 0 ? (
+          <StateHint state="loading">{t('emojis.loading')}</StateHint>
+        ) : isError && emojis.length === 0 ? (
+          <StateHint
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => void refetch()}
+              >
+                {t('feedback.retry')}
+              </Button>
+            }
+          >
+            {t('feedback.loadFailed')}
+          </StateHint>
+        ) : emojis.length === 0 ? (
+          <StateHint>{t('emojis.empty')}</StateHint>
+        ) : (
+          <div className={gridCls}>
+            {emojis.map((emoji, index) => (
+              <article
+                key={emoji.id}
+                className={cardCls}
+                data-disabled={!emoji.active || undefined}
+              >
+                <img
+                  src={emoji.url}
+                  alt={emoji.name}
+                  className={css({
+                    width: '3rem',
+                    height: '3rem',
+                    objectFit: 'contain',
+                  })}
+                />
+                <div className={css({ flex: 1 })}>
+                  <b>{emoji.name}</b>
+                  <div
+                    className={css({
+                      fontSize: '0.75rem',
+                      color: 'greyscale.500',
+                    })}
+                  >
+                    {emoji.width}×{emoji.height}
+                    {emoji.animated ? ' · GIF' : ''}
+                  </div>
+                </div>
+                <IconButton
+                  label={t('emojis.moveUp')}
+                  size="icon28"
+                  isDisabled={index === 0 || reorder.isPending}
+                  onPress={() => {
+                    const previous = emojis[index - 1]
+                    if (!previous) return
+                    reorder.mutate({
+                      id: emoji.id,
+                      sortOrder: emoji.sort_order,
+                      previousId: previous.id,
+                      previousSortOrder: previous.sort_order,
+                    })
+                  }}
+                >
+                  <RiArrowUpLine size={16} aria-hidden="true" />
+                </IconButton>
+                <Button
+                  size="dense"
+                  variant="secondary"
+                  loading={
+                    mutate.isPending && mutate.variables?.id === emoji.id
+                  }
+                  isDisabled={reorder.isPending}
+                  onPress={() =>
+                    mutate.mutate(
+                      emoji.active
+                        ? { id: emoji.id }
+                        : { id: emoji.id, patch: { active: true } }
+                    )
+                  }
+                >
+                  {emoji.active ? t('emojis.disable') : t('emojis.enable')}
+                </Button>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
     </main>
   )
 }
-const inputCls = css({
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  paddingX: '0.75rem',
+
+const pageCls = css({
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
 })
-const buttonCls = css({
-  padding: '0.625rem 1rem',
-  borderRadius: '0.5rem',
-  backgroundColor: 'primary.500',
-  color: 'white',
-  cursor: 'pointer',
+const headerCls = css({
+  flexShrink: 0,
+  paddingX: '1.25rem',
+  paddingY: '0.875rem',
+  borderBottom: '1px solid token(colors.border.subtle)',
+})
+const titleCls = css({
+  margin: 0,
+  color: 'text.primary',
+  textStyle: 'titleMedium',
+})
+const descriptionCls = css({
+  marginTop: 'xs',
+  color: 'text.secondary',
+  textStyle: 'bodySmall',
+})
+const uploadRowCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'md',
+  marginTop: 'lg',
+  flexWrap: 'wrap',
+})
+const nameInputCls = css({ width: '20rem', maxWidth: '100%' })
+const contentCls = css({ flex: 1, overflowY: 'auto', padding: 'xl' })
+const gridCls = css({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(15rem, 1fr))',
+  gap: 'md',
+})
+const cardCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'md',
+  padding: 'md',
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'card',
+  backgroundColor: 'surface.default',
+  '&[data-disabled]': { opacity: 0.55 },
 })

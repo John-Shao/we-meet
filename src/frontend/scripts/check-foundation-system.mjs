@@ -662,6 +662,38 @@ const standardizedFeedbackConsumers = [
       'onPress={() => void refetchAssignments()}',
     ],
   ],
+  [
+    '../src/features/admin/AdminGuard.tsx',
+    [
+      "import { PageState } from '@/components/PageState'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      'onPress={() => void refetch()}',
+      '<LinkButton href="/"',
+    ],
+  ],
+  [
+    '../src/features/admin/pages/Dashboard.tsx',
+    [
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      'onPress={() => void refetch()}',
+    ],
+  ],
+  [
+    '../src/features/admin/pages/Emojis.tsx',
+    [
+      "import { Button, IconButton, Input } from '@/primitives'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      "<StateHint>{t('emojis.empty')}</StateHint>",
+      'onPress={() => void refetch()}',
+      '<IconButton',
+    ],
+  ],
 ]
 
 for (const [path, requiredStates] of standardizedFeedbackConsumers) {

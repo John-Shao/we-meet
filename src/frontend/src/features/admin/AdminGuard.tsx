@@ -2,7 +2,10 @@ import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
+import { Button, LinkButton } from '@/primitives'
+import { PageState } from '@/components/PageState'
 import { RequireAuth } from '@/components/RequireAuth'
+import { StateHint } from '@/components/StateHint'
 
 import { useAdminMe } from './hooks/useAdminMe'
 
@@ -27,10 +30,35 @@ export const AdminGuard = ({ children }: { children: ReactNode }) => (
 )
 
 const AdminGuardInner = ({ children }: { children: ReactNode }) => {
-  const { data, isLoading } = useAdminMe()
+  const { t } = useTranslation('admin')
+  const { data, isLoading, isError, refetch } = useAdminMe()
 
-  // Still resolving the caller's role — render nothing to avoid a 403 flash.
-  if (isLoading) return null
+  if (isLoading) {
+    return (
+      <div className={guardStateCls}>
+        <StateHint state="loading">{t('dashboard.loading')}</StateHint>
+      </div>
+    )
+  }
+  if (isError) {
+    return (
+      <div className={guardStateCls}>
+        <PageState
+          state="error"
+          description={t('feedback.loadFailed')}
+          action={
+            <Button
+              variant="secondary"
+              size="action"
+              onPress={() => void refetch()}
+            >
+              {t('feedback.retry')}
+            </Button>
+          }
+        />
+      </div>
+    )
+  }
   // `is_org_admin` first so an old backend (no `permissions` field) still admits
   // owners/administrators rather than locking everyone out of the console.
   const admitted = data?.is_org_admin || (data?.permissions?.length ?? 0) > 0
@@ -41,36 +69,26 @@ const AdminGuardInner = ({ children }: { children: ReactNode }) => {
 const AdminForbidden = () => {
   const { t } = useTranslation('admin')
   return (
-    <div
-      className={css({
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '1rem',
-        padding: '2rem',
-        textAlign: 'center',
-        backgroundColor: 'greyscale.000',
-        color: 'default.text',
-      })}
-    >
-      <h1 className={css({ fontSize: '1.5rem', fontWeight: 'bold' })}>
-        {t('forbidden.title')}
-      </h1>
-      <p className={css({ color: 'greyscale.600', maxWidth: '28rem' })}>
-        {t('forbidden.description')}
-      </p>
-      <a
-        href="/"
-        className={css({
-          color: 'primary.600',
-          textDecoration: 'underline',
-          fontSize: '0.9375rem',
-        })}
-      >
-        {t('forbidden.back')}
-      </a>
+    <div className={guardStateCls}>
+      <PageState
+        title={t('forbidden.title')}
+        description={t('forbidden.description')}
+        action={
+          <LinkButton href="/" variant="secondary" size="action">
+            {t('forbidden.back')}
+          </LinkButton>
+        }
+      />
     </div>
   )
 }
+
+const guardStateCls = css({
+  width: '100%',
+  height: '100%',
+  minHeight: 0,
+  display: 'grid',
+  placeItems: 'center',
+  padding: '2xl',
+  backgroundColor: 'surface.default',
+})

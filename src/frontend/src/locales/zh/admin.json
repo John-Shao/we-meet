@@ -560,6 +560,8 @@
     "uploading": "上传中…",
     "chooseImage": "选择图片",
     "loading": "加载中…",
+    "empty": "暂无企业表情",
+    "moveUp": "上移",
     "disable": "停用",
     "enable": "启用"
   }

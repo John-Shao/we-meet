@@ -560,6 +560,8 @@
     "uploading": "Uploading…",
     "chooseImage": "Choose image",
     "loading": "Loading…",
+    "empty": "No custom emojis yet",
+    "moveUp": "Move up",
     "disable": "Disable",
     "enable": "Enable"
   }

@@ -3,25 +3,42 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
 
 import { fetchAdminStatsOverview } from '../api/adminStats'
 import { TrendBarChart } from '../components/TrendBarChart'
 
 export const AdminDashboard = () => {
   const { t } = useTranslation('admin')
-  const { data, isLoading } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ['admin', 'stats', 'overview'],
     queryFn: fetchAdminStatsOverview,
     staleTime: 60_000,
   })
 
-  if (isLoading || !data) {
+  if (!data) {
     return (
-      <div className={css({ padding: '1.5rem' })}>
+      <div className={pageCls}>
         <h1 className={pageTitle}>{t('dashboard.title')}</h1>
-        <p className={css({ color: 'greyscale.500', fontSize: '0.9375rem' })}>
-          {t('dashboard.loading')}
-        </p>
+        {isFetching ? (
+          <StateHint state="loading">{t('dashboard.loading')}</StateHint>
+        ) : isError ? (
+          <StateHint
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => void refetch()}
+              >
+                {t('feedback.retry')}
+              </Button>
+            }
+          >
+            {t('feedback.loadFailed')}
+          </StateHint>
+        ) : null}
       </div>
     )
   }
@@ -44,14 +61,7 @@ export const AdminDashboard = () => {
   const trendTotal = data.trend.reduce((sum, p) => sum + p.count, 0)
 
   return (
-    <div
-      className={css({
-        padding: '1.5rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1.5rem',
-      })}
-    >
+    <div className={pageCls}>
       <h1 className={pageTitle}>{t('dashboard.title')}</h1>
 
       <div
@@ -157,6 +167,12 @@ const pageTitle = css({
   fontSize: '1.125rem',
   fontWeight: 'bold',
   color: 'greyscale.900',
+})
+const pageCls = css({
+  padding: '1.5rem',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '1.5rem',
 })
 const accentColor = css({ color: 'primary.600' })
 const neutralColor = css({ color: 'greyscale.900' })
