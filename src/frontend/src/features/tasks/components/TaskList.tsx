@@ -193,7 +193,6 @@ type GroupProps = Omit<ListProps, 'tasks'> & {
   onBeginInlineEdit: (task: ApiTask, field: InlineEditableField) => void
   onSaveInlineEdit: (task: ApiTask, patch: PatchTaskPayload) => void
   onCancelInlineEdit: () => void
-  onTaskDragChange: (dragging: boolean) => void
 }
 
 type StatusOverride = {
@@ -280,7 +279,6 @@ export const TaskList = ({
   const [manuallyCollapsedTaskIds, setManuallyCollapsedTaskIds] = useState<
     Set<string>
   >(() => new Set())
-  const [taskDragging, setTaskDragging] = useState(false)
   const displayedTasks = useMemo(
     () => tasks.map((task) => inlineOverrides[task.id]?.task ?? task),
     [inlineOverrides, tasks]
@@ -293,10 +291,9 @@ export const TaskList = ({
         effectiveGrouping,
         t,
         formatTaskDate,
-        i18n.language,
-        taskDragging
+        i18n.language
       ),
-    [displayedTasks, effectiveGrouping, groups, i18n.language, t, taskDragging]
+    [displayedTasks, effectiveGrouping, groups, i18n.language, t]
   )
   const orderedGroups = useMemo(
     () =>
@@ -693,7 +690,6 @@ export const TaskList = ({
       void saveInlineEdit(task, patch),
     onCancelInlineEdit: cancelInlineEdit,
     onToggleSubtasks: toggleTaskSubtasks,
-    onTaskDragChange: setTaskDragging,
     compact,
     showOverdueMarker,
   }
@@ -1006,7 +1002,6 @@ const DesktopTaskRow = memo(
     onShare,
     onDeleteTask,
     groups = [],
-    onTaskDragChange,
   }: GroupProps) => (
     <tr
       ref={(element) => registerRow(task.id, element)}
@@ -1037,7 +1032,7 @@ const DesktopTaskRow = memo(
         >
           <div className={taskTitleContentCss}>
             {grouped && task.can_edit && groups.length > 0 && (
-              <TaskMoveHandle task={task} onDragChange={onTaskDragChange} />
+              <TaskMoveHandle task={task} />
             )}
             <TaskHierarchyToggle
               task={task}
@@ -1547,13 +1542,7 @@ const InlineDateEditor = ({
 
 const UNGROUPED_TASK_GROUP = '__ungrouped__'
 
-const TaskMoveHandle = ({
-  task,
-  onDragChange,
-}: {
-  task: ApiTask
-  onDragChange: (dragging: boolean) => void
-}) => {
+const TaskMoveHandle = ({ task }: { task: ApiTask }) => {
   const { t } = useTranslation('tasks')
   const label = t('workspace.dragTask', { title: task.title })
 
@@ -1564,12 +1553,8 @@ const TaskMoveHandle = ({
       onDragStart={(event) => {
         event.stopPropagation()
         startTaskDrag(event, task)
-        onDragChange(true)
       }}
-      onDragEnd={(event) => {
-        event.stopPropagation()
-        onDragChange(false)
-      }}
+      onDragEnd={(event) => event.stopPropagation()}
     >
       <Button
         type="button"
@@ -1834,8 +1819,7 @@ const buildSections = (
   grouping: TaskGrouping,
   t: TFunction<'tasks'>,
   formatDate: (value: string, locale: string) => string,
-  locale: string,
-  includeEmptyCustomGroups = false
+  locale: string
 ): TaskSection[] => {
   if (grouping === 'none') return [{ key: 'all', name: '', tasks }]
   if (grouping !== 'custom') {
@@ -1888,7 +1872,7 @@ const buildSections = (
       name: group.name,
       tasks: tasks.filter((task) => task.group?.id === group.id),
     }))
-    .filter((section) => includeEmptyCustomGroups || section.tasks.length > 0)
+    .filter((section) => section.tasks.length > 0)
   const ungrouped = tasks.filter(
     (task) => !task.group || !knownGroupIds.has(task.group.id)
   )

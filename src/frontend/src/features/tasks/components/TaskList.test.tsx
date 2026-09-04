@@ -1157,9 +1157,6 @@ describe('TaskList', () => {
       'application/x-we-meet-task',
       editableTask.id
     )
-    expect(screen.getByText('Delivery')).toBeInTheDocument()
-
-    fireEvent.dragEnd(draggableHandle)
     expect(screen.queryByText('Delivery')).not.toBeInTheDocument()
 
     fireEvent.click(handle)
@@ -1189,6 +1186,82 @@ describe('TaskList', () => {
       title: editableTask.title,
       kind: 'moved',
       undoPatch: { group_id: 'group-1' },
+    })
+  })
+
+  it('drags a task from the default group into a custom group', async () => {
+    const defaultGroupTask = {
+      ...task,
+      id: 'default-task',
+      title: 'Default group task',
+      can_edit: true,
+      group: null,
+    }
+    const customGroupTask = {
+      ...task,
+      id: 'custom-task',
+      title: 'Custom group task',
+      group: { id: 'group-1', name: 'Analysis', sort_order: 0 },
+    }
+    render(
+      <TaskList
+        tasks={[customGroupTask, defaultGroupTask]}
+        groups={[
+          {
+            id: 'group-1',
+            name: 'Analysis',
+            sort_order: 0,
+            task_count: 1,
+            can_delete: false,
+            can_manage: true,
+            created_at: '2026-08-21T08:00:00Z',
+            updated_at: '2026-08-21T08:00:00Z',
+          },
+          {
+            id: 'group-2',
+            name: 'Delivery',
+            sort_order: 1,
+            task_count: 0,
+            can_delete: true,
+            can_manage: true,
+            created_at: '2026-08-21T08:01:00Z',
+            updated_at: '2026-08-21T08:01:00Z',
+          },
+        ]}
+        grouped
+        grouping="custom"
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    const sourceRow = screen.getByText(defaultGroupTask.title).closest('tr')!
+    const sourceHandle = within(sourceRow).getByRole('button', {
+      name: 'workspace.dragTask',
+    }).parentElement!
+    const targetGroup = screen.getByText('Analysis').closest('tr')!
+    const dataTransfer = {
+      effectAllowed: 'none',
+      setData: vi.fn(),
+      getData: vi.fn().mockReturnValue(defaultGroupTask.id),
+    }
+
+    fireEvent.dragStart(sourceHandle, { dataTransfer })
+    expect(screen.queryByText('Delivery')).not.toBeInTheDocument()
+    fireEvent.dragOver(targetGroup, { dataTransfer })
+    fireEvent.drop(targetGroup, { dataTransfer })
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        taskId: defaultGroupTask.id,
+        patch: { group_id: 'group-1' },
+      })
+    )
+    expect(notifyAction).toHaveBeenCalledWith({
+      taskId: defaultGroupTask.id,
+      title: defaultGroupTask.title,
+      kind: 'moved',
+      undoPatch: { group_id: null },
     })
   })
 
