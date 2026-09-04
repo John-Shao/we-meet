@@ -58,7 +58,7 @@
     "openTask": "Aufgabe öffnen: {{title}}",
     "quickComplete": "Aufgabe abschließen: {{title}}",
     "quickReopen": "Aufgabe erneut öffnen: {{title}}",
-    "dragTask": "„{{title}}“ zum Verschieben ziehen",
+    "dragTask": "In eine andere Gruppe ziehen",
     "loadMore": "Mehr laden",
     "loadingMore": "Wird geladen…",
     "createTitle": "Neue Aufgabe",

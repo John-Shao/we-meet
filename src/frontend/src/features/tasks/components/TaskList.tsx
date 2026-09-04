@@ -1544,7 +1544,7 @@ const UNGROUPED_TASK_GROUP = '__ungrouped__'
 
 const TaskMoveHandle = ({ task }: { task: ApiTask }) => {
   const { t } = useTranslation('tasks')
-  const label = t('workspace.dragTask', { title: task.title })
+  const label = t('workspace.dragTask')
 
   return (
     <span

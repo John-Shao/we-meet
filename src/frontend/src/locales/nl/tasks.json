@@ -58,7 +58,7 @@
     "openTask": "Taak openen: {{title}}",
     "quickComplete": "Taak voltooien: {{title}}",
     "quickReopen": "Taak heropenen: {{title}}",
-    "dragTask": "Sleep ‘{{title}}’ om de taak te verplaatsen",
+    "dragTask": "Sleep naar een andere groep",
     "loadMore": "Meer laden",
     "loadingMore": "Laden…",
     "createTitle": "Nieuwe taak",

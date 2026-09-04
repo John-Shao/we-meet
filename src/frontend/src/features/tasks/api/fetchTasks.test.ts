@@ -1,10 +1,22 @@
-import { describe, expect, it } from 'vitest'
+import { createElement, type ReactNode } from 'react'
+import { act, renderHook } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ApiTask } from './ApiTask'
 
 import {
   buildTasksUrl,
   getNextTaskActivityPageParam,
   getNextTasksPageParam,
+  usePatchTask,
 } from './fetchTasks'
+
+const { fetchApiMock } = vi.hoisted(() => ({ fetchApiMock: vi.fn() }))
+
+vi.mock('@/api/fetchApi', () => ({ fetchApi: fetchApiMock }))
+
+beforeEach(() => fetchApiMock.mockReset())
 
 describe('buildTasksUrl', () => {
   it('combines workspace and task list filters', () => {
@@ -67,5 +79,29 @@ describe('getNextTaskActivityPageParam', () => {
     expect(
       getNextTaskActivityPageParam({ ...page, next: null })
     ).toBeUndefined()
+  })
+})
+
+describe('usePatchTask', () => {
+  it('refreshes custom-group counts after moving a task', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false } },
+    })
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children)
+    fetchApiMock.mockResolvedValue({ id: 'task-1' } as ApiTask)
+
+    const { result } = renderHook(() => usePatchTask(), { wrapper })
+    await act(() =>
+      result.current.mutateAsync({
+        taskId: 'task-1',
+        patch: { group_id: 'group-2' },
+      })
+    )
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['task-groups'],
+    })
   })
 })

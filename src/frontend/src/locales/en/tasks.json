@@ -84,7 +84,7 @@
     "openTask": "Open task: {{title}}",
     "quickComplete": "Complete task: {{title}}",
     "quickReopen": "Reopen task: {{title}}",
-    "dragTask": "Drag to move “{{title}}”",
+    "dragTask": "Drag to another group",
     "loadMore": "Load more",
     "loadingMore": "Loading…",
     "createTitle": "New task",

@@ -886,6 +886,9 @@ export const usePatchTask = () => {
       queryClient.setQueryData(['tasks', 'detail', task.id], task)
       void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
       void queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      if (variables.patch.group_id !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: ['task-groups'] })
+      }
       void queryClient.invalidateQueries({
         queryKey: ['tasks', variables.taskId, 'activities'],
       })
