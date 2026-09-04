@@ -9,7 +9,11 @@ import type { ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
-import { InteractiveList, InteractiveListRow } from '@/primitives'
+import {
+  InteractiveList,
+  InteractiveListRow,
+  SegmentedControl,
+} from '@/primitives'
 import { fetchApi } from '@/api/fetchApi'
 import { navigateTo } from '@/navigation/navigateTo'
 import {
@@ -557,46 +561,19 @@ export const SearchPalette = ({
       </div>
 
       {/* 分类标签(飞书式):点标签缩小搜索范围。 */}
-      <div
-        className={css({
-          display: 'flex',
-          gap: '0.375rem',
-          padding: '0.5rem 1rem',
-          borderBottom: '1px solid token(colors.greyscale.100)',
-        })}
-        role="tablist"
-      >
-        {categories.map((cat) => {
-          const active = category === cat
-          return (
-            <button
-              key={cat}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setCategory(cat)}
-              data-testid={`global-search-tab-${cat}`}
-              className={css({
-                paddingX: '0.75rem',
-                paddingY: '0.3125rem',
-                border: 'none',
-                borderRadius: '999px',
-                fontSize: '0.8125rem',
-                cursor: 'pointer',
-                // 选中态走 selected.*(自带深浅两套),别退回裸 primary.*。
-                backgroundColor: active ? 'selected.bg' : 'transparent',
-                color: active ? 'selected.text' : 'greyscale.600',
-                fontWeight: active ? '600' : undefined,
-                _hover: {
-                  backgroundColor: active ? 'selected.bg' : 'greyscale.100',
-                },
-              })}
-            >
-              {t(`search.${cat}`)}
-            </button>
-          )
-        })}
-      </div>
+      <SegmentedControl
+        value={category}
+        items={categories.map((cat) => ({
+          id: cat,
+          label: t(`search.${cat}`),
+          testId: `global-search-tab-${cat}`,
+        }))}
+        onChange={setCategory}
+        ariaLabel={t('search.trigger')}
+        appearance="pill"
+        density="compact"
+        className={searchCategoryTabsCls}
+      />
 
       {category === 'tasks' && (
         <TaskSearchFilters
@@ -1337,3 +1314,10 @@ const ResultRow = ({
     </span>
   </InteractiveListRow>
 )
+
+const searchCategoryTabsCls = css({
+  gap: 'xs',
+  padding: 'sm lg',
+  borderBottom: '1px solid token(colors.border.subtle)',
+  overflowX: 'auto',
+})

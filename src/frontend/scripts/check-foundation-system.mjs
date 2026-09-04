@@ -452,6 +452,9 @@ const componentStateRequirements = [
       'ArrowRight',
       '_focusVisible',
       '_disabled',
+      "appearance?: 'underline' | 'pill'",
+      "density?: 'compact' | 'default'",
+      'action.selected.bg',
     ],
   ],
   [

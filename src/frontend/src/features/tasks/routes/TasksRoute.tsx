@@ -16,7 +16,7 @@ import { Modal, ModalCloseButton } from '@/components/Modal'
 import { RequireAuth } from '@/components/RequireAuth'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { Screen } from '@/layout/Screen'
-import { Button } from '@/primitives'
+import { Button, SegmentedControl } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { css } from '@/styled-system/css'
 import { openSystemSettings } from '@/stores/systemSettings'
@@ -629,33 +629,29 @@ const TasksAuthenticated = () => {
             </Button>
           </div>
         </header>
-        <div
+        <SegmentedControl
           className={modeTabsCss}
-          role="tablist"
-          aria-label={t('modes.label')}
-        >
-          {(['list', 'board', 'analytics'] as TaskWorkspaceMode[]).map(
-            (mode) => (
-              <button
-                key={mode}
-                type="button"
-                role="tab"
-                aria-selected={state.mode === mode}
-                data-active={state.mode === mode || undefined}
-                onClick={() => changeMode(mode)}
-              >
-                {mode === 'list' ? (
-                  <RiListCheck3 size={17} />
-                ) : mode === 'board' ? (
-                  <RiKanbanView2 size={17} />
-                ) : (
-                  <RiBarChartBoxLine size={17} />
-                )}
-                {t(`modes.${mode}`)}
-              </button>
-            )
+          value={state.mode}
+          items={(['list', 'board', 'analytics'] as TaskWorkspaceMode[]).map(
+            (mode) => ({
+              id: mode,
+              label: (
+                <span className={modeTabLabelCss}>
+                  {mode === 'list' ? (
+                    <RiListCheck3 size={17} aria-hidden="true" />
+                  ) : mode === 'board' ? (
+                    <RiKanbanView2 size={17} aria-hidden="true" />
+                  ) : (
+                    <RiBarChartBoxLine size={17} aria-hidden="true" />
+                  )}
+                  {t(`modes.${mode}`)}
+                </span>
+              ),
+            })
           )}
-        </div>
+          onChange={changeMode}
+          ariaLabel={t('modes.label')}
+        />
         {state.mode !== 'analytics' && (
           <TaskFilterToolbar
             state={state}
@@ -1087,29 +1083,15 @@ const headerActionsCss = css({
 })
 const modeTabsCss = css({
   minHeight: '2.75rem',
-  display: 'flex',
   alignItems: 'end',
   gap: '1.25rem',
   paddingX: '1rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-  '& button': {
-    height: '2.75rem',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.375rem',
-    padding: 0,
-    border: 0,
-    borderBottom: '2px solid transparent',
-    backgroundColor: 'transparent',
-    color: 'greyscale.600',
-    fontSize: '0.8125rem',
-    cursor: 'pointer',
-  },
-  '& button[data-active]': {
-    borderBottomColor: 'primary.500',
-    color: 'primary.700',
-    fontWeight: '500',
-  },
+  borderBottom: '1px solid token(colors.border.subtle)',
+})
+const modeTabLabelCss = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'sm',
 })
 const listRegionCss = css({ flex: 1, minHeight: 0, overflow: 'auto' })
 const workspaceStateCss = css({

@@ -2,9 +2,16 @@ import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalCloseButton } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { MemberAvatar, useDirectoryMemberSearch } from '@/features/contacts'
+import {
+  Button,
+  Input,
+  InteractiveListRow,
+  SegmentedControl,
+  SelectableListRow,
+} from '@/primitives'
 
 import { createDirectConversationByUserId } from '../api/createDirectConversation'
 
@@ -143,37 +150,23 @@ export const ForwardDialog = ({
     >
       <div className={headerCls}>
         <h2 className={titleCls}>{title || t('forward.title')}</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('group.cancel')}
-          className={closeCls}
-        >
-          ×
-        </button>
+        <ModalCloseButton onClose={onClose} label={t('group.cancel')} />
       </div>
 
       {secondaryTab && (
-        <div className={tabsCls} role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'primary'}
-            data-active={activeTab === 'primary' || undefined}
-            onClick={() => setActiveTab('primary')}
-          >
-            {primaryTabLabel || t('forward.title')}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'secondary'}
-            data-active={activeTab === 'secondary' || undefined}
-            onClick={() => setActiveTab('secondary')}
-          >
-            {secondaryTab.label}
-          </button>
-        </div>
+        <SegmentedControl
+          value={activeTab}
+          items={[
+            {
+              id: 'primary',
+              label: primaryTabLabel || t('forward.title'),
+            },
+            { id: 'secondary', label: secondaryTab.label },
+          ]}
+          onChange={setActiveTab}
+          ariaLabel={title || t('forward.title')}
+          className={tabsCls}
+        />
       )}
 
       {activeTab === 'secondary' && secondaryTab ? (
@@ -185,29 +178,27 @@ export const ForwardDialog = ({
           </div>
 
           <div className={css({ padding: '0.5rem 1rem' })}>
-            <input
+            <Input
               ref={searchRef}
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('forward.searchPlaceholder')}
               data-testid="forward-search"
-              className={inputCls}
             />
           </div>
 
           {onCreateGroupForward && (
-            <button
-              type="button"
+            <InteractiveListRow
               onClick={onCreateGroupForward}
               data-testid="forward-create-group"
-              className={createGroupCls}
+              divider
             >
               <span className={nameCls}>{t('forward.createGroup')}</span>
               <span aria-hidden="true" className={chevronCls}>
                 ›
               </span>
-            </button>
+            </InteractiveListRow>
           )}
 
           <div
@@ -229,17 +220,13 @@ export const ForwardDialog = ({
                 {filtered.map((c) => {
                   const active = selected.has(c.cid)
                   return (
-                    <button
+                    <SelectableListRow
                       key={c.cid}
-                      type="button"
                       onClick={() => toggle(c.cid)}
-                      aria-pressed={active}
+                      isSelected={active}
                       data-testid={`forward-item-${c.cid}`}
-                      className={rowCls(active)}
+                      divider
                     >
-                      <span className={checkboxCls(active)} aria-hidden="true">
-                        {active ? '✓' : ''}
-                      </span>
                       {c.isGroup ? (
                         <GroupAvatar members={c.members ?? []} size="2rem" />
                       ) : (
@@ -250,7 +237,7 @@ export const ForwardDialog = ({
                         />
                       )}
                       <span className={nameCls}>{c.name}</span>
-                    </button>
+                    </SelectableListRow>
                   )
                 })}
 
@@ -264,17 +251,13 @@ export const ForwardDialog = ({
                     .filter(Boolean)
                     .join(' · ')
                   return (
-                    <button
+                    <SelectableListRow
                       key={m.id}
-                      type="button"
                       onClick={() => toggleUser(m.id, label)}
-                      aria-pressed={active}
+                      isSelected={active}
                       data-testid={`forward-user-${m.id}`}
-                      className={rowCls(active)}
+                      divider
                     >
-                      <span className={checkboxCls(active)} aria-hidden="true">
-                        {active ? '✓' : ''}
-                      </span>
                       <MemberAvatar
                         name={label}
                         src={m.avatar_url}
@@ -284,7 +267,7 @@ export const ForwardDialog = ({
                         <span className={nameCls}>{label}</span>
                         {sub ? <span className={subCls}>{sub}</span> : null}
                       </span>
-                    </button>
+                    </SelectableListRow>
                   )
                 })}
               </>
@@ -297,17 +280,18 @@ export const ForwardDialog = ({
                 {t('forward.resolveFailed')}
               </span>
             )}
-            <button
-              type="button"
-              disabled={totalSelected === 0 || resolving}
-              onClick={() => void confirm()}
+            <Button
+              variant="primary"
+              size="action"
+              isDisabled={totalSelected === 0 || resolving}
+              loading={resolving}
+              onPress={() => void confirm()}
               data-testid="forward-send"
-              className={sendCls(totalSelected > 0 && !resolving)}
             >
               {totalSelected > 0
                 ? t('forward.sendCount', { count: totalSelected })
                 : t('forward.send')}
-            </button>
+            </Button>
           </div>
         </>
       )}
@@ -332,38 +316,14 @@ const titleCls = css({
 })
 
 const tabsCls = css({
-  display: 'flex',
-  gap: '1.25rem',
   paddingX: '1rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-  '& button': {
-    padding: '0.625rem 0',
-    border: 0,
-    borderBottom: '2px solid transparent',
-    backgroundColor: 'transparent',
-    color: 'greyscale.600',
-    fontSize: '0.875rem',
-    cursor: 'pointer',
-  },
-  '& button[data-active]': {
-    borderBottomColor: 'primary.500',
-    color: 'primary.600',
-  },
+  borderBottom: '1px solid token(colors.border.default)',
 })
 
 const secondaryContentCls = css({
   flex: 1,
   minHeight: '18rem',
   padding: '1rem',
-})
-
-const closeCls = css({
-  border: 'none',
-  background: 'transparent',
-  fontSize: '1.25rem',
-  lineHeight: 1,
-  cursor: 'pointer',
-  color: 'greyscale.600',
 })
 
 const previewCls = css({
@@ -378,48 +338,6 @@ const previewCls = css({
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 })
-
-const inputCls = css({
-  width: '100%',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  fontSize: '0.875rem',
-})
-
-const rowCls = (active: boolean) =>
-  css({
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.625rem',
-    width: '100%',
-    paddingX: '1rem',
-    paddingY: '0.5rem',
-    border: 'none',
-    borderBottom: '1px solid token(colors.greyscale.100)',
-    backgroundColor: active ? 'greyscale.100' : 'transparent',
-    textAlign: 'left',
-    cursor: 'pointer',
-    _hover: { backgroundColor: 'greyscale.100' },
-  })
-
-const checkboxCls = (active: boolean) =>
-  css({
-    flexShrink: 0,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '1.25rem',
-    height: '1.25rem',
-    borderRadius: '999px',
-    border: '1.5px solid',
-    borderColor: active ? 'primary.500' : 'greyscale.400',
-    backgroundColor: active ? 'primary.500' : 'transparent',
-    color: 'white',
-    fontSize: '0.75rem',
-    lineHeight: 1,
-  })
 
 const nameCls = css({
   flex: 1,
@@ -463,21 +381,6 @@ const errorCls = css({
   color: 'error.500',
 })
 
-const createGroupCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.625rem',
-  width: '100%',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  border: 'none',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-  backgroundColor: 'transparent',
-  textAlign: 'left',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100' },
-})
-
 const chevronCls = css({
   flexShrink: 0,
   color: 'greyscale.400',
@@ -492,16 +395,3 @@ const footerCls = css({
   paddingY: '0.75rem',
   borderTop: '1px solid token(colors.greyscale.200)',
 })
-
-const sendCls = (enabled: boolean) =>
-  css({
-    paddingX: '1.25rem',
-    paddingY: '0.5rem',
-    border: 'none',
-    borderRadius: '0.5rem',
-    backgroundColor: enabled ? 'primary.500' : 'greyscale.300',
-    color: 'white',
-    fontSize: '0.875rem',
-    fontWeight: 'medium',
-    cursor: enabled ? 'pointer' : 'not-allowed',
-  })

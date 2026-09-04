@@ -54,7 +54,8 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 
 - 静态标签使用 `Chip`；可删除的筛选条件使用 `DismissibleChip`，由基元统一关闭图标、间距以及 hover、pressed、focus-visible、disabled 状态；
 - `DismissibleChip.label` 必须描述动作，例如“移除筛选：高优先级”，不能只读作“高优先级”；
-- 日历 / 会议室等同级页面模式使用 `SegmentedControl`，统一选中下边线和语义色；
+- 日历 / 会议室等同级页面模式使用 `SegmentedControl appearance="underline"`；搜索分类等紧凑筛选使用 `appearance="pill"`，不再由页面手写两套 Tab；
+- `density="default"` 用于页面级视图切换，`density="compact"` 用于弹窗与紧凑筛选；两档均使用语义色和统一状态，不在调用点覆盖选中颜色；
 - `SegmentedControl` 使用 tablist / tab 语义，并支持方向键以及 Home / End 键导航，页面代码只管理当前值。
 
 ### 操作菜单与浮层

@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalCloseButton } from '@/components/Modal'
+import { SegmentedControl } from '@/primitives'
 
 import { Avatar } from './Avatar'
 
@@ -35,38 +36,27 @@ export const ReadReceiptList = ({ read, unread, onClose }: Props) => {
     <Modal onClose={onClose} ariaLabel={t('read.listTitle')} maxWidth="360px">
       <div className={headerCls}>
         <h2 className={titleCls}>{t('read.listTitle')}</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('group.cancel')}
-          className={closeCls}
-        >
-          ×
-        </button>
+        <ModalCloseButton onClose={onClose} label={t('group.cancel')} />
       </div>
 
-      <div className={tabsCls} role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'read'}
-          onClick={() => setTab('read')}
-          data-testid="read-tab-read"
-          className={tabCls(tab === 'read')}
-        >
-          {t('read.tabRead', { count: read.length })}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'unread'}
-          onClick={() => setTab('unread')}
-          data-testid="read-tab-unread"
-          className={tabCls(tab === 'unread')}
-        >
-          {t('read.tabUnread', { count: unread.length })}
-        </button>
-      </div>
+      <SegmentedControl
+        value={tab}
+        items={[
+          {
+            id: 'read',
+            label: t('read.tabRead', { count: read.length }),
+            testId: 'read-tab-read',
+          },
+          {
+            id: 'unread',
+            label: t('read.tabUnread', { count: unread.length }),
+            testId: 'read-tab-unread',
+          },
+        ]}
+        onChange={setTab}
+        ariaLabel={t('read.listTitle')}
+        className={tabsCls}
+      />
 
       <div className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem' })}>
         {list.length === 0 ? (
@@ -112,36 +102,12 @@ const titleCls = css({
   color: 'greyscale.900',
 })
 
-const closeCls = css({
-  border: 'none',
-  background: 'transparent',
-  fontSize: '1.25rem',
-  lineHeight: 1,
-  cursor: 'pointer',
-  color: 'greyscale.600',
-})
-
 const tabsCls = css({
-  display: 'flex',
   gap: '0.5rem',
   paddingX: '1rem',
   paddingTop: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
+  borderBottom: '1px solid token(colors.border.default)',
 })
-
-const tabCls = (active: boolean) =>
-  css({
-    paddingX: '0.25rem',
-    paddingBottom: '0.5rem',
-    border: 'none',
-    borderBottom: '2px solid',
-    borderColor: active ? 'primary.500' : 'transparent',
-    background: 'transparent',
-    fontSize: '0.875rem',
-    fontWeight: active ? 'bold' : 'medium',
-    color: active ? 'primary.700' : 'greyscale.600',
-    cursor: 'pointer',
-  })
 
 const rowCls = css({
   display: 'flex',

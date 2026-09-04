@@ -26,4 +26,24 @@ describe('SegmentedControl', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Meeting rooms' }))
     expect(onChange).toHaveBeenCalledWith('rooms')
   })
+
+  it('supports a compact pill appearance for dense category filters', () => {
+    render(
+      <SegmentedControl
+        ariaLabel="Search category"
+        appearance="pill"
+        density="compact"
+        value="all"
+        onChange={() => undefined}
+        items={[
+          { id: 'all', label: 'All' },
+          { id: 'people', label: 'People' },
+        ]}
+      />
+    )
+
+    expect(
+      screen.getByRole('tablist', { name: 'Search category' })
+    ).toHaveAttribute('data-appearance', 'pill')
+  })
 })

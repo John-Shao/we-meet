@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactNode } from 'react'
 
-import { css, cx } from '@/styled-system/css'
+import { css, cva, cx } from '@/styled-system/css'
 
 export interface SegmentedControlItem<T extends string> {
   id: T
@@ -14,21 +14,25 @@ export interface SegmentedControlProps<T extends string> {
   items: readonly SegmentedControlItem<T>[]
   onChange: (value: T) => void
   ariaLabel: string
+  appearance?: 'underline' | 'pill'
+  density?: 'compact' | 'default'
   className?: string
 }
 
 /**
- * Underlined page-level segmented control.
+ * Shared segmented control for page modes and compact category filters.
  *
- * Use this when choices switch between sibling page modes. It owns the tab
- * semantics and the complete interactive-state treatment; callers only
- * provide the current value and labels.
+ * Use the underlined appearance for sibling page modes and the pill appearance
+ * for dense filters. It owns tab semantics and the complete interactive-state
+ * treatment; callers only provide the current value and labels.
  */
 export function SegmentedControl<T extends string>({
   value,
   items,
   onChange,
   ariaLabel,
+  appearance = 'underline',
+  density = 'default',
   className,
 }: SegmentedControlProps<T>) {
   const focusAndSelect = (
@@ -76,6 +80,7 @@ export function SegmentedControl<T extends string>({
       className={cx(segmentListCss, className)}
       role="tablist"
       aria-label={ariaLabel}
+      data-appearance={appearance}
     >
       {items.map((item, index) => (
         <button
@@ -88,7 +93,7 @@ export function SegmentedControl<T extends string>({
           onClick={() => onChange(item.id)}
           onKeyDown={(event) => focusAndSelect(event, index)}
           data-testid={item.testId}
-          className={segmentCss}
+          className={segmentRecipe({ appearance, density })}
         >
           {item.label}
         </button>
@@ -103,39 +108,68 @@ const segmentListCss = css({
   gap: 'xs',
 })
 
-const segmentCss = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minWidth: '5rem',
-  paddingX: '0.75',
-  paddingY: '0.375',
-  border: 'none',
-  borderBottom: '2px solid transparent',
-  borderRadius: 'none',
-  backgroundColor: 'transparent',
-  color: 'text.secondary',
-  textStyle: 'labelLarge',
-  transition:
-    'color token(durations.normal), border-color token(durations.normal), background token(durations.normal)',
-  '&[aria-selected=true]': {
-    borderBottomColor: 'border.focus',
-    color: 'text.link',
+const segmentRecipe = cva({
+  base: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: 'text.secondary',
+    cursor: 'pointer',
+    transition:
+      'color token(durations.normal), border-color token(durations.normal), background token(durations.normal)',
+    _hover: {
+      backgroundColor: 'surface.canvas',
+      color: 'text.primary',
+    },
+    _active: {
+      backgroundColor: 'action.selected.bg',
+    },
+    _focusVisible: {
+      outline: '2px solid token(colors.border.focus)',
+      outlineOffset: '-2px',
+    },
+    _disabled: {
+      color: 'text.disabled',
+      cursor: 'default',
+    },
   },
-  cursor: 'pointer',
-  _hover: {
-    backgroundColor: 'surface.canvas',
-    color: 'text.primary',
+  variants: {
+    appearance: {
+      underline: {
+        borderBottom: '2px solid transparent',
+        borderRadius: 'none',
+        '&[aria-selected=true]': {
+          borderBottomColor: 'border.focus',
+          color: 'text.link',
+        },
+      },
+      pill: {
+        borderRadius: 'pill',
+        '&[aria-selected=true]': {
+          backgroundColor: 'action.selected.bg',
+          color: 'action.selected.text',
+        },
+      },
+    },
+    density: {
+      compact: {
+        minHeight: 'controlHeight.compact',
+        paddingX: 'md',
+        paddingY: 'xs',
+        textStyle: 'labelMedium',
+      },
+      default: {
+        minWidth: '5rem',
+        paddingX: '0.75',
+        paddingY: '0.375',
+        textStyle: 'labelLarge',
+      },
+    },
   },
-  _active: {
-    backgroundColor: 'action.selected.bg',
-  },
-  _focusVisible: {
-    outline: '2px solid token(colors.border.focus)',
-    outlineOffset: '-2px',
-  },
-  _disabled: {
-    color: 'text.disabled',
-    cursor: 'default',
+  defaultVariants: {
+    appearance: 'underline',
+    density: 'default',
   },
 })
