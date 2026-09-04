@@ -5,7 +5,7 @@ import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { Button, SelectableListRow } from '@/primitives'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
@@ -90,19 +90,11 @@ export const GroupVoiceCallPicker = ({
       maxWidth="440px"
       maxHeight="72vh"
     >
-      <div className={modalHead}>
-        <h2
-          className={css({
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {title ?? t('call.groupPicker.title')}
-        </h2>
-        <ModalCloseButton onClose={onClose} label={t('call.cancel')} />
-      </div>
+      <ModalHeader
+        title={title ?? t('call.groupPicker.title')}
+        onClose={onClose}
+        closeLabel={t('call.cancel')}
+      />
       <div className={css({ overflowY: 'auto', flex: 1 })}>
         {isFetching && candidates.length === 0 ? (
           <StateHint loading>{t('group.loading')}</StateHint>
@@ -161,14 +153,6 @@ export const GroupVoiceCallPicker = ({
   )
 }
 
-const modalHead = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
 const modalFoot = css({
   display: 'flex',
   alignItems: 'center',

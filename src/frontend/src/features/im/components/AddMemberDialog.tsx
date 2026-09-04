@@ -5,7 +5,7 @@ import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { Button, Input, SelectableListRow } from '@/primitives'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -88,19 +88,11 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
       maxHeight="72vh"
       initialFocusRef={searchRef}
     >
-      <div className={modalHead}>
-        <h2
-          className={css({
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {t('manage.addTitle')}
-        </h2>
-        <ModalCloseButton onClose={onClose} label={t('manage.cancel')} />
-      </div>
+      <ModalHeader
+        title={t('manage.addTitle')}
+        onClose={onClose}
+        closeLabel={t('manage.cancel')}
+      />
       <div className={css({ padding: '0.75rem 1rem' })}>
         <Input
           ref={searchRef}
@@ -191,14 +183,6 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
   )
 }
 
-const modalHead = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
 const modalFoot = css({
   display: 'flex',
   alignItems: 'center',

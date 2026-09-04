@@ -1,9 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalCloseButton } from '@/components/Modal'
-
-import { modalHead } from './botStyles'
+import { Modal, ModalHeader } from '@/components/Modal'
 
 const preCls = css({
   overflowX: 'auto',
@@ -47,20 +45,11 @@ export const BotHelpDialog = ({ onClose }: { onClose: () => void }) => {
       maxHeight="80vh"
       ariaLabel={t('bots.helpTitle')}
     >
-      <div className={modalHead}>
-        <h2
-          className={css({
-            flex: 1,
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {t('bots.helpTitle')}
-        </h2>
-        <ModalCloseButton onClose={onClose} label={t('manage.cancel')} />
-      </div>
+      <ModalHeader
+        title={t('bots.helpTitle')}
+        onClose={onClose}
+        closeLabel={t('manage.cancel')}
+      />
 
       <div className={css({ padding: '1rem', overflowY: 'auto' })}>
         <p className={pCls}>{t('bots.helpIntro')}</p>

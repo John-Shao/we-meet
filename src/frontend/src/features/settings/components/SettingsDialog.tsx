@@ -4,7 +4,6 @@ import { useSnapshot } from 'valtio'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   RiCalendarTodoLine,
-  RiCloseLine,
   RiComputerLine,
   RiFileList3Line,
   RiMoonLine,
@@ -28,7 +27,7 @@ import { updateEmail, updateNickname } from '@/features/auth/api/updateProfile'
 import { keys } from '@/api/queryKeys'
 import { LoginButton } from '@/components/LoginButton'
 import { InlineEditField } from '@/components/InlineEditField'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalCloseButton } from '@/components/Modal'
 import { routes } from '@/routes'
 import { themeStore, type ThemeMode } from '@/stores/theme'
 import type { SystemSettingsSection } from '@/stores/systemSettings'
@@ -129,14 +128,10 @@ export const SettingsDialog = ({
     >
       <div className={headerCls}>
         <h2 className={headerTitleCls}>{t('systemSettings.heading')}</h2>
-        <button
-          type="button"
-          onClick={() => onOpenChange?.(false)}
-          aria-label={t('account.avatar.cancel')}
-          className={closeCls}
-        >
-          <RiCloseLine size={20} />
-        </button>
+        <ModalCloseButton
+          onClose={() => onOpenChange?.(false)}
+          label={t('account.avatar.cancel')}
+        />
       </div>
 
       <div className={bodyCls}>
@@ -753,14 +748,6 @@ const headerTitleCls = css({
   fontSize: '1.125rem',
   fontWeight: 'bold',
   color: 'greyscale.1000',
-})
-const closeCls = css({
-  border: 'none',
-  background: 'transparent',
-  cursor: 'pointer',
-  color: 'greyscale.600',
-  display: 'inline-flex',
-  _hover: { color: 'greyscale.900' },
 })
 const bodyCls = css({
   display: 'flex',

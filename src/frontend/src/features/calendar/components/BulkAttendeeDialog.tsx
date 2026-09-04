@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalHeader } from '@/components/Modal'
 import { Button } from '@/primitives'
 import { DirectoryMultiPicker } from '@/features/contacts'
 
@@ -70,10 +70,11 @@ export const BulkAttendeeDialog = ({
       maxHeight="72vh"
       initialFocusRef={searchRef}
     >
-      <div className={headerCls}>
-        <h2 className={titleCls}>{dialogTitle}</h2>
-        <ModalCloseButton onClose={onClose} label={t('form.cancel')} />
-      </div>
+      <ModalHeader
+        title={dialogTitle}
+        onClose={onClose}
+        closeLabel={t('form.cancel')}
+      />
 
       <DirectoryMultiPicker
         selected={draft}
@@ -111,22 +112,6 @@ export const BulkAttendeeDialog = ({
     </Modal>
   )
 }
-
-const headerCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-
-const titleCls = css({
-  margin: 0,
-  fontSize: '1rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
-})
 
 const footerCls = css({
   display: 'flex',

@@ -458,6 +458,15 @@ const componentStateRequirements = [
     ],
   ],
   [
+    '../src/components/Modal.tsx',
+    [
+      'export const ModalHeader',
+      "textStyle: 'titleMedium'",
+      "borderBottom: '1px solid token(colors.border.subtle)'",
+      '<ModalCloseButton',
+    ],
+  ],
+  [
     '../src/primitives/Input.tsx',
     ['data-hovered', 'data-invalid', 'data-disabled'],
   ],

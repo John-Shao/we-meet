@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { RiCloseLine } from '@remixicon/react'
 
 import { IconButton } from '@/primitives/IconButton'
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
 
 /** Keep Tab focus inside the dialog — a basic focus trap for the modal. */
 const trapFocus = (e: KeyboardEvent, container: HTMLElement | null) => {
@@ -177,3 +177,51 @@ export const ModalCloseButton = ({
     <RiCloseLine size={20} aria-hidden="true" />
   </IconButton>
 )
+
+export interface ModalHeaderProps {
+  title: ReactNode
+  onClose: () => void
+  closeLabel: string
+  className?: string
+  titleClassName?: string
+}
+
+/**
+ * Standard dialog title bar: semantic title typography, a subtle separator,
+ * and the shared close action. Keep richer headers with subtitles or leading
+ * navigation custom, but do not duplicate this common one-line composition.
+ */
+export const ModalHeader = ({
+  title,
+  onClose,
+  closeLabel,
+  className,
+  titleClassName,
+}: ModalHeaderProps) => (
+  <div className={cx(modalHeaderCss, className)}>
+    <h2 className={cx(modalHeaderTitleCss, titleClassName)}>{title}</h2>
+    <ModalCloseButton onClose={onClose} label={closeLabel} />
+  </div>
+)
+
+const modalHeaderCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 'md',
+  flexShrink: 0,
+  paddingX: 'lg',
+  paddingY: 'md',
+  borderBottom: '1px solid token(colors.border.subtle)',
+})
+
+const modalHeaderTitleCss = css({
+  flex: 1,
+  minWidth: 0,
+  margin: 0,
+  color: 'text.primary',
+  textStyle: 'titleMedium',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})

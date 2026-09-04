@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalHeader } from '@/components/Modal'
 
 /** One line of a merged chat-record (合并转发的聊天记录). */
 export interface MergedItem {
@@ -54,17 +54,11 @@ export const MergedRecordDialog = ({ record, onClose }: Props) => {
   const { t, i18n } = useTranslation('im')
   return (
     <Modal onClose={onClose} ariaLabel={record.title} maxWidth="460px">
-      <div className={headerCls}>
-        <h2 className={titleCls}>{record.title}</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('group.cancel')}
-          className={closeCls}
-        >
-          ×
-        </button>
-      </div>
+      <ModalHeader
+        title={record.title}
+        onClose={onClose}
+        closeLabel={t('group.cancel')}
+      />
       <div
         className={css({
           overflowY: 'auto',
@@ -86,34 +80,6 @@ export const MergedRecordDialog = ({ record, onClose }: Props) => {
     </Modal>
   )
 }
-
-const headerCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-
-const titleCls = css({
-  margin: 0,
-  fontSize: '1rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-})
-
-const closeCls = css({
-  border: 'none',
-  background: 'transparent',
-  fontSize: '1.25rem',
-  lineHeight: 1,
-  cursor: 'pointer',
-  color: 'greyscale.600',
-})
 
 const rowCls = css({
   paddingX: '1rem',

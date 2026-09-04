@@ -64,7 +64,8 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 - 菜单表面统一使用 `surface.default / border.default / radius.control / elevation.overlay`，因此自动适配明暗主题；
 - 普通菜单项使用 `tone="neutral"`，删除、取消订阅等危险动作使用 `tone="danger"`；
 - 菜单打开后聚焦首个可用动作，并支持方向键、Home / End 与 Escape；锚点定位和视口防溢出仍由具体场景负责；
-- Dialog 标题栏关闭动作统一使用 `IconButton`，不能使用无 hover、focus-visible 状态的裸 `×` 按钮。
+- 单行 Dialog 标题栏统一使用 `ModalHeader`，由组件提供 `titleMedium` 字体、语义分隔线、文本截断和标准关闭动作；带副标题或返回按钮的复杂标题栏才保留场景化组合；
+- 自定义 Dialog 标题栏的关闭动作仍必须使用 `ModalCloseButton`，不能使用无 hover、focus-visible 状态的裸 `×` 按钮。
 
 ### 可交互列表行与选择行
 

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalHeader } from '@/components/Modal'
 import { Input, InteractiveListRow } from '@/primitives'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
@@ -50,28 +50,11 @@ export const ContactPicker = ({
       maxWidth="420px"
       maxHeight="70vh"
     >
-      <div
-        className={css({
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingX: '1rem',
-          paddingY: '0.75rem',
-          borderBottom: '1px solid token(colors.greyscale.200)',
-        })}
-      >
-        <h2
-          className={css({
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {pickerTitle}
-        </h2>
-        <ModalCloseButton onClose={onClose} label={t('picker.cancel')} />
-      </div>
+      <ModalHeader
+        title={pickerTitle}
+        onClose={onClose}
+        closeLabel={t('picker.cancel')}
+      />
 
       <div className={css({ padding: '0.75rem 1rem' })}>
         <Input

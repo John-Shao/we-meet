@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { MemberAvatar, useDirectoryMemberSearch } from '@/features/contacts'
 import {
@@ -148,10 +148,11 @@ export const ForwardDialog = ({
       initialFocusRef={searchRef}
       maxWidth="420px"
     >
-      <div className={headerCls}>
-        <h2 className={titleCls}>{title || t('forward.title')}</h2>
-        <ModalCloseButton onClose={onClose} label={t('group.cancel')} />
-      </div>
+      <ModalHeader
+        title={title || t('forward.title')}
+        onClose={onClose}
+        closeLabel={t('group.cancel')}
+      />
 
       {secondaryTab && (
         <SegmentedControl
@@ -298,22 +299,6 @@ export const ForwardDialog = ({
     </Modal>
   )
 }
-
-const headerCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-
-const titleCls = css({
-  margin: 0,
-  fontSize: '1rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
-})
 
 const tabsCls = css({
   paddingX: '1rem',

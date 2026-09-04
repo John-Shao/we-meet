@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { Button, Input, SelectableListRow } from '@/primitives'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 
@@ -81,19 +81,11 @@ export const MeetInvitePicker = ({
       maxHeight="72vh"
       initialFocusRef={searchRef}
     >
-      <div className={modalHead}>
-        <h2
-          className={css({
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {t('call.invite.title')}
-        </h2>
-        <ModalCloseButton onClose={onClose} label={t('call.cancel')} />
-      </div>
+      <ModalHeader
+        title={t('call.invite.title')}
+        onClose={onClose}
+        closeLabel={t('call.cancel')}
+      />
       <div className={css({ padding: '0.75rem 1rem' })}>
         <Input
           ref={searchRef}
@@ -182,14 +174,6 @@ export const MeetInvitePicker = ({
   )
 }
 
-const modalHead = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
 const modalFoot = css({
   display: 'flex',
   alignItems: 'center',

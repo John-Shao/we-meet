@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 
-import { Modal } from './Modal'
+import { Modal, ModalHeader } from './Modal'
 
 /**
  * Modal 的**焦点契约**。这一层的三条行为(开时把焦点送进弹窗、Tab 咬在弹窗内、
@@ -94,5 +94,18 @@ describe('Modal 的焦点契约', () => {
 
     // 兜到弹窗内最后一个可聚焦元素,而不是弹窗背后的页面。
     expect(screen.getByRole('button', { name: '保存' })).toHaveFocus()
+  })
+})
+
+describe('ModalHeader', () => {
+  it('renders a semantic title and delegates the labelled close action', () => {
+    const onClose = vi.fn()
+    render(
+      <ModalHeader title="选择联系人" closeLabel="关闭" onClose={onClose} />
+    )
+
+    expect(screen.getByRole('heading', { name: '选择联系人' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })

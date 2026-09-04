@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalHeader } from '@/components/Modal'
 import { SegmentedControl } from '@/primitives'
 
 import { Avatar } from './Avatar'
@@ -34,10 +34,11 @@ export const ReadReceiptList = ({ read, unread, onClose }: Props) => {
 
   return (
     <Modal onClose={onClose} ariaLabel={t('read.listTitle')} maxWidth="360px">
-      <div className={headerCls}>
-        <h2 className={titleCls}>{t('read.listTitle')}</h2>
-        <ModalCloseButton onClose={onClose} label={t('group.cancel')} />
-      </div>
+      <ModalHeader
+        title={t('read.listTitle')}
+        onClose={onClose}
+        closeLabel={t('group.cancel')}
+      />
 
       <SegmentedControl
         value={tab}
@@ -85,22 +86,6 @@ export const ReadReceiptList = ({ read, unread, onClose }: Props) => {
     </Modal>
   )
 }
-
-const headerCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-
-const titleCls = css({
-  margin: 0,
-  fontSize: '1rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
-})
 
 const tabsCls = css({
   gap: '0.5rem',
