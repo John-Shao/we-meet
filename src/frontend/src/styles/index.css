@@ -241,7 +241,7 @@ html:has(.lk-video-conference) {
   }
 }
 
-@keyframes task-skeleton-pulse {
+@keyframes skeleton-pulse {
   from {
     opacity: 0.55;
   }

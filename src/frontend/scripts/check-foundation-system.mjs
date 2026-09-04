@@ -336,6 +336,7 @@ const migratedShapeSources = [
   '../src/primitives/Radio.tsx',
   '../src/primitives/Select.tsx',
   '../src/primitives/SegmentedControl.tsx',
+  '../src/primitives/Skeleton.tsx',
   '../src/primitives/Switch.tsx',
   '../src/primitives/Tabs.tsx',
   '../src/primitives/TextArea.tsx',
@@ -486,6 +487,18 @@ const componentStateRequirements = [
       "error: { color: 'status.danger' }",
       "role={isError ? 'alert' : 'status'}",
       "aria-busy={state === 'loading' || undefined}",
+    ],
+  ],
+  [
+    '../src/primitives/Skeleton.tsx',
+    [
+      'export type SkeletonShape',
+      "backgroundColor: 'border.subtle'",
+      "animation: 'skeleton-pulse 900ms ease-in-out infinite alternate'",
+      'role="status"',
+      'aria-live="polite"',
+      'aria-busy="true"',
+      'aria-hidden="true"',
     ],
   ],
   [

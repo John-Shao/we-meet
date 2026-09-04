@@ -1,44 +1,9 @@
-import type { CSSProperties, ReactNode } from 'react'
-
+import { Skeleton, SkeletonRegion } from '@/primitives'
 import { css, cx } from '@/styled-system/css'
 
 type SkeletonProps = {
   label: string
 }
-
-type SkeletonBlockProps = {
-  width?: CSSProperties['width']
-  height?: CSSProperties['height']
-  circle?: boolean
-  className?: string
-}
-
-const SkeletonBlock = ({
-  width = '100%',
-  height = '0.75rem',
-  circle = false,
-  className,
-}: SkeletonBlockProps) => (
-  <span
-    aria-hidden="true"
-    className={cx(skeletonBlockCss, className)}
-    data-circle={circle || undefined}
-    style={{ width, height }}
-  />
-)
-
-const LoadingRegion = ({
-  label,
-  className,
-  children,
-}: SkeletonProps & { className: string; children: ReactNode }) => (
-  <div className={className} role="status" aria-label={label} aria-busy="true">
-    <span className={srOnlyCss}>{label}</span>
-    <div className={loadingContentCss} aria-hidden="true">
-      {children}
-    </div>
-  </div>
-)
 
 const listWidths = ['58%', '72%', '46%', '64%', '52%', '68%', '45%', '62%']
 
@@ -49,7 +14,7 @@ export const TaskListSkeleton = ({
 }: SkeletonProps & { compact?: boolean; grouped?: boolean }) => {
   const columnCount = compact ? (grouped ? 5 : 6) : grouped ? 7 : 8
   return (
-    <LoadingRegion
+    <SkeletonRegion
       label={label}
       className={cx(listSkeletonCss, compact && compactListSkeletonCss)}
     >
@@ -59,11 +24,7 @@ export const TaskListSkeleton = ({
         data-grouped={grouped || undefined}
       >
         {Array.from({ length: columnCount }, (_, index) => (
-          <SkeletonBlock
-            key={index}
-            width={listWidths[index]}
-            height="0.625rem"
-          />
+          <Skeleton key={index} width={listWidths[index]} height="0.625rem" />
         ))}
       </div>
       {Array.from({ length: 7 }, (_, rowIndex) => (
@@ -74,84 +35,82 @@ export const TaskListSkeleton = ({
           data-grouped={grouped || undefined}
         >
           <span className={listTitleCellCss}>
-            <SkeletonBlock width="1rem" height="1rem" circle />
-            <SkeletonBlock
+            <Skeleton width="1rem" height="1rem" shape="circle" />
+            <Skeleton
               width={`${52 + ((rowIndex * 11) % 34)}%`}
               height="0.75rem"
             />
           </span>
-          <SkeletonBlock width="70%" />
-          <SkeletonBlock width="2rem" height="1rem" />
-          <SkeletonBlock width="62%" />
-          <SkeletonBlock width="66%" />
-          {!grouped && <SkeletonBlock width="72%" />}
+          <Skeleton width="70%" />
+          <Skeleton width="2rem" height="1rem" shape="rectangle" />
+          <Skeleton width="62%" />
+          <Skeleton width="66%" />
+          {!grouped && <Skeleton width="72%" />}
           {!compact && (
             <>
-              <SkeletonBlock width="64%" />
-              <SkeletonBlock width="76%" />
+              <Skeleton width="64%" />
+              <Skeleton width="76%" />
             </>
           )}
         </div>
       ))}
-    </LoadingRegion>
+    </SkeletonRegion>
   )
 }
 
 export const TaskBoardSkeleton = ({ label }: SkeletonProps) => (
-  <LoadingRegion label={label} className={boardSkeletonCss}>
+  <SkeletonRegion label={label} className={boardSkeletonCss}>
     {Array.from({ length: 2 }, (_, columnIndex) => (
       <section key={columnIndex} className={boardColumnCss}>
         <span className={boardHeadingCss}>
-          <SkeletonBlock width="46%" />
-          <SkeletonBlock width="1.25rem" height="1rem" />
+          <Skeleton width="46%" />
+          <Skeleton width="1.25rem" height="1rem" shape="rectangle" />
         </span>
         {Array.from({ length: columnIndex % 2 ? 2 : 3 }, (_, cardIndex) => (
           <div key={cardIndex} className={boardCardCss}>
-            <SkeletonBlock width={`${68 + cardIndex * 8}%`} height="0.875rem" />
-            <SkeletonBlock width="42%" height="0.625rem" />
+            <Skeleton width={`${68 + cardIndex * 8}%`} height="0.875rem" />
+            <Skeleton width="42%" height="0.625rem" />
             <span className={boardCardMetaCss}>
-              <SkeletonBlock width="2.25rem" height="1rem" />
-              <SkeletonBlock width="1.25rem" height="1.25rem" circle />
+              <Skeleton width="2.25rem" height="1rem" shape="rectangle" />
+              <Skeleton width="1.25rem" height="1.25rem" shape="circle" />
             </span>
           </div>
         ))}
       </section>
     ))}
-  </LoadingRegion>
+  </SkeletonRegion>
 )
 
 export const TaskDetailSkeleton = ({ label }: SkeletonProps) => (
-  <LoadingRegion label={label} className={detailSkeletonCss}>
+  <SkeletonRegion label={label} className={detailSkeletonCss}>
     <span className={detailTitleCss}>
-      <SkeletonBlock width="1.25rem" height="1.25rem" circle />
-      <SkeletonBlock width="68%" height="1.125rem" />
+      <Skeleton width="1.25rem" height="1.25rem" shape="circle" />
+      <Skeleton width="68%" height="1.125rem" />
     </span>
-    <SkeletonBlock width="42%" height="0.625rem" />
+    <Skeleton width="42%" height="0.625rem" />
     <div className={propertySkeletonCss}>
       {Array.from({ length: 3 }, (_, groupIndex) => (
         <div key={groupIndex} className={propertyGroupSkeletonCss}>
-          <SkeletonBlock width="4.5rem" height="0.625rem" />
+          <Skeleton width="4.5rem" height="0.625rem" />
           {Array.from({ length: groupIndex === 2 ? 2 : 3 }, (_, rowIndex) => (
             <span key={rowIndex} className={propertyRowSkeletonCss}>
-              <SkeletonBlock width="1rem" height="1rem" circle />
-              <SkeletonBlock width="4.75rem" />
-              <SkeletonBlock
-                width={`${48 + ((groupIndex + rowIndex) % 3) * 14}%`}
-              />
+              <Skeleton width="1rem" height="1rem" shape="circle" />
+              <Skeleton width="4.75rem" />
+              <Skeleton width={`${48 + ((groupIndex + rowIndex) % 3) * 14}%`} />
             </span>
           ))}
         </div>
       ))}
     </div>
     <div className={detailSectionSkeletonCss}>
-      <SkeletonBlock width="4rem" height="0.75rem" />
+      <Skeleton width="4rem" height="0.75rem" />
       <TaskSubtaskListSkeleton label={label} announce={false} />
     </div>
     <div className={detailSectionSkeletonCss}>
-      <SkeletonBlock width="3.5rem" height="0.75rem" />
+      <Skeleton width="3.5rem" height="0.75rem" />
       <TaskCommentListSkeleton label={label} announce={false} rows={1} />
     </div>
-  </LoadingRegion>
+  </SkeletonRegion>
 )
 
 export const TaskSubtaskListSkeleton = ({
@@ -163,18 +122,18 @@ export const TaskSubtaskListSkeleton = ({
     <div className={subtaskSkeletonCss}>
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className={subtaskRowSkeletonCss}>
-          <SkeletonBlock width="1rem" height="1rem" circle />
-          <SkeletonBlock width={`${55 + index * 9}%`} />
-          <SkeletonBlock width="3.5rem" height="0.625rem" />
-          <SkeletonBlock width="1.25rem" height="1.25rem" circle />
+          <Skeleton width="1rem" height="1rem" shape="circle" />
+          <Skeleton width={`${55 + index * 9}%`} />
+          <Skeleton width="3.5rem" height="0.625rem" />
+          <Skeleton width="1.25rem" height="1.25rem" shape="circle" />
         </div>
       ))}
     </div>
   )
   return announce ? (
-    <LoadingRegion label={label} className={inlineSkeletonRegionCss}>
+    <SkeletonRegion label={label} className={inlineSkeletonRegionCss}>
       {content}
-    </LoadingRegion>
+    </SkeletonRegion>
   ) : (
     content
   )
@@ -190,75 +149,54 @@ export const TaskCommentListSkeleton = ({
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className={commentCardSkeletonCss}>
           <span className={commentMetaSkeletonCss}>
-            <SkeletonBlock width="1.25rem" height="1.25rem" circle />
-            <SkeletonBlock width="5rem" height="0.625rem" />
-            <SkeletonBlock width="4.5rem" height="0.625rem" />
+            <Skeleton width="1.25rem" height="1.25rem" shape="circle" />
+            <Skeleton width="5rem" height="0.625rem" />
+            <Skeleton width="4.5rem" height="0.625rem" />
           </span>
-          <SkeletonBlock width={`${82 - index * 13}%`} />
-          <SkeletonBlock width={`${56 + index * 8}%`} />
+          <Skeleton width={`${82 - index * 13}%`} />
+          <Skeleton width={`${56 + index * 8}%`} />
         </div>
       ))}
     </div>
   )
   return announce ? (
-    <LoadingRegion label={label} className={inlineSkeletonRegionCss}>
+    <SkeletonRegion label={label} className={inlineSkeletonRegionCss}>
       {content}
-    </LoadingRegion>
+    </SkeletonRegion>
   ) : (
     content
   )
 }
 
 export const TaskAttachmentListSkeleton = ({ label }: SkeletonProps) => (
-  <LoadingRegion label={label} className={inlineSkeletonRegionCss}>
+  <SkeletonRegion label={label} className={inlineSkeletonRegionCss}>
     <div className={cardListSkeletonCss}>
       {Array.from({ length: 2 }, (_, index) => (
         <div key={index} className={attachmentCardSkeletonCss}>
-          <SkeletonBlock width={`${64 + index * 11}%`} height="0.75rem" />
+          <Skeleton width={`${64 + index * 11}%`} height="0.75rem" />
           <span className={attachmentMetaSkeletonCss}>
-            <SkeletonBlock width="1.25rem" height="1.25rem" circle />
-            <SkeletonBlock width="55%" height="0.625rem" />
+            <Skeleton width="1.25rem" height="1.25rem" shape="circle" />
+            <Skeleton width="55%" height="0.625rem" />
           </span>
         </div>
       ))}
     </div>
-  </LoadingRegion>
+  </SkeletonRegion>
 )
 
 export const TaskHistoryListSkeleton = ({ label }: SkeletonProps) => (
-  <LoadingRegion label={label} className={inlineSkeletonRegionCss}>
+  <SkeletonRegion label={label} className={inlineSkeletonRegionCss}>
     <div className={historyListSkeletonCss}>
       {Array.from({ length: 3 }, (_, index) => (
         <span key={index} className={historyRowSkeletonCss}>
-          <SkeletonBlock width="1.25rem" height="1.25rem" circle />
-          <SkeletonBlock width={`${70 - index * 8}%`} />
-          <SkeletonBlock width="4rem" height="0.625rem" />
+          <Skeleton width="1.25rem" height="1.25rem" shape="circle" />
+          <Skeleton width={`${70 - index * 8}%`} />
+          <Skeleton width="4rem" height="0.625rem" />
         </span>
       ))}
     </div>
-  </LoadingRegion>
+  </SkeletonRegion>
 )
-
-const skeletonBlockCss = css({
-  display: 'block',
-  flexShrink: 0,
-  borderRadius: '4px',
-  backgroundColor: 'greyscale.200',
-  animation: 'task-skeleton-pulse 900ms ease-in-out infinite alternate',
-  '&[data-circle]': { borderRadius: '999px' },
-})
-const srOnlyCss = css({
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0, 0, 0, 0)',
-  whiteSpace: 'nowrap',
-  border: 0,
-})
-const loadingContentCss = css({ display: 'contents' })
 const listSkeletonCss = css({ minWidth: '58rem', color: 'transparent' })
 const compactListSkeletonCss = css({ minWidth: '48rem' })
 const listGridColumns =
@@ -276,8 +214,8 @@ const listHeaderCss = css({
   alignItems: 'center',
   gap: '1.5rem',
   paddingX: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-  backgroundColor: 'greyscale.50',
+  borderBottom: '1px solid token(colors.border.subtle)',
+  backgroundColor: 'surface.canvas',
   '&[data-compact]': { gridTemplateColumns: compactListGridColumns },
   '&[data-grouped]': { gridTemplateColumns: groupedListGridColumns },
   '&[data-compact][data-grouped]': {
@@ -291,7 +229,7 @@ const listRowCss = css({
   alignItems: 'center',
   gap: '1.5rem',
   paddingX: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
+  borderBottom: '1px solid token(colors.border.subtle)',
   '&[data-compact]': { gridTemplateColumns: compactListGridColumns },
   '&[data-grouped]': { gridTemplateColumns: groupedListGridColumns },
   '&[data-compact][data-grouped]': {
@@ -317,8 +255,8 @@ const boardColumnCss = css({
   flexDirection: 'column',
   gap: '0.625rem',
   padding: '0.75rem',
-  borderRadius: '8px',
-  backgroundColor: 'greyscale.50',
+  borderRadius: 'card',
+  backgroundColor: 'surface.canvas',
 })
 const boardHeadingCss = css({
   display: 'flex',
@@ -331,9 +269,9 @@ const boardCardCss = css({
   flexDirection: 'column',
   gap: '0.75rem',
   padding: '0.75rem',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '8px',
-  backgroundColor: 'greyscale.000',
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'card',
+  backgroundColor: 'surface.default',
 })
 const boardCardMetaCss = css({
   display: 'flex',
@@ -361,7 +299,7 @@ const propertyGroupSkeletonCss = css({
   flexDirection: 'column',
   gap: '0.5rem',
   paddingTop: '0.75rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
+  borderTop: '1px solid token(colors.border.subtle)',
 })
 const propertyRowSkeletonCss = css({
   minHeight: '2rem',
@@ -375,7 +313,7 @@ const detailSectionSkeletonCss = css({
   flexDirection: 'column',
   gap: '0.75rem',
   paddingTop: '1rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
+  borderTop: '1px solid token(colors.border.subtle)',
 })
 const inlineSkeletonRegionCss = css({ width: '100%' })
 const subtaskSkeletonCss = css({
@@ -401,9 +339,9 @@ const commentCardSkeletonCss = css({
   flexDirection: 'column',
   gap: '0.625rem',
   padding: '0.75rem',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '8px',
-  backgroundColor: 'greyscale.50',
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'card',
+  backgroundColor: 'surface.canvas',
 })
 const commentMetaSkeletonCss = css({
   display: 'grid',
@@ -416,9 +354,9 @@ const attachmentCardSkeletonCss = css({
   flexDirection: 'column',
   gap: '0.625rem',
   padding: '0.75rem',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '8px',
-  backgroundColor: 'greyscale.50',
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'card',
+  backgroundColor: 'surface.canvas',
 })
 const attachmentMetaSkeletonCss = css({
   display: 'flex',

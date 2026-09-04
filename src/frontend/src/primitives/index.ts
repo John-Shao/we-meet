@@ -33,6 +33,13 @@ export { MenuList } from './MenuList'
 export { P } from './P'
 export { Popover } from './Popover'
 export { ScreenReaderAnnouncer } from './ScreenReaderAnnouncer'
+export {
+  Skeleton,
+  SkeletonRegion,
+  type SkeletonProps,
+  type SkeletonRegionProps,
+  type SkeletonShape,
+} from './Skeleton'
 export { Text } from './Text'
 export { ToggleButton } from './ToggleButton'
 export {

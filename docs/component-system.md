@@ -85,6 +85,8 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 - 加载和空数据使用 `text.secondary`，错误使用 `status.danger`；错误恢复操作通过 `action` 插槽提供，例如“重试”；
 - 加载状态使用 `role="status"`、`aria-live="polite"` 与 `aria-busy`，错误状态使用 `role="alert"` 和 `aria-live="assertive"`；
 - 已知内容骨架且首屏等待明显时优先使用 Skeleton；布局未知或空间紧凑时使用 `StateHint`。后台刷新已有数据时保留旧内容，不使用全屏加载状态覆盖。
+- Skeleton 块统一使用 `Skeleton`，通过 `text / rectangle / circle` 表达形状；颜色取自 `border.subtle`，圆角取自 Shape System，不在业务模块维护私有骨架色和动画；
+- 一组 Skeleton 使用 `SkeletonRegion` 包裹并提供本地化 `label`，由基元统一声明 `role="status"`、`aria-busy` 和礼貌播报；嵌套骨架只保留一个可访问加载区域，避免重复播报。
 
 ## 4. Android 接入
 
