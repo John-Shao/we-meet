@@ -10,7 +10,12 @@ import {
   RiCalendarScheduleLine,
 } from '@remixicon/react'
 
-import { Button, IconButton } from '@/primitives'
+import {
+  ActionMenuItem,
+  ActionMenuSurface,
+  Button,
+  IconButton,
+} from '@/primitives'
 import { css } from '@/styled-system/css'
 import { EmojiPicker } from './EmojiPicker'
 import { CHAT_IMAGE_ALLOWED_TYPES } from '../api/uploadChatImage'
@@ -541,29 +546,20 @@ export const MessageInput = ({
             <RiAddLine size={20} aria-hidden="true" />
           </IconButton>
           {showMore && (
-            <div
-              role="menu"
-              aria-label={t('input.more', { defaultValue: '更多' })}
+            <ActionMenuSurface
+              ariaLabel={t('input.more', { defaultValue: '更多' })}
+              onClose={() => setShowMore(false)}
               data-testid="im-more-menu"
               className={css({
                 position: 'absolute',
                 bottom: 'calc(100% + 0.5rem)',
                 left: 0,
-                display: 'flex',
-                flexDirection: 'column',
                 minWidth: '11rem',
-                padding: '0.375rem',
                 zIndex: 'popover',
-                border: '1px solid token(colors.greyscale.200)',
-                borderRadius: '0.625rem',
-                backgroundColor: 'greyscale.000',
-                boxShadow: 'overlay',
               })}
             >
               {onSendImage && (
-                <button
-                  type="button"
-                  role="menuitem"
+                <ActionMenuItem
                   onClick={() => {
                     setShowMore(false)
                     fileRef.current?.click()
@@ -572,30 +568,13 @@ export const MessageInput = ({
                   aria-label={t('input.image')}
                   title={t('input.image')}
                   data-testid="im-image-btn"
-                  className={css({
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    width: '100%',
-                    paddingX: '0.75rem',
-                    paddingY: '0.625rem',
-                    border: 'none',
-                    borderRadius: '0.375rem',
-                    backgroundColor: 'transparent',
-                    color: 'greyscale.600',
-                    cursor: 'pointer',
-                    _hover: { backgroundColor: 'greyscale.100' },
-                    _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-                  })}
                 >
-                  <RiImageLine size={18} />
+                  <RiImageLine size={18} aria-hidden="true" />
                   <span>{t('input.image')}</span>
-                </button>
+                </ActionMenuItem>
               )}
               {onSendFile && (
-                <button
-                  type="button"
-                  role="menuitem"
+                <ActionMenuItem
                   onClick={() => {
                     setShowMore(false)
                     attachRef.current?.click()
@@ -604,30 +583,13 @@ export const MessageInput = ({
                   aria-label={t('input.file')}
                   title={t('input.file')}
                   data-testid="im-file-btn"
-                  className={css({
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    width: '100%',
-                    paddingX: '0.75rem',
-                    paddingY: '0.625rem',
-                    border: 'none',
-                    borderRadius: '0.375rem',
-                    backgroundColor: 'transparent',
-                    color: 'greyscale.600',
-                    cursor: 'pointer',
-                    _hover: { backgroundColor: 'greyscale.100' },
-                    _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-                  })}
                 >
-                  <RiAttachment2 size={18} />
+                  <RiAttachment2 size={18} aria-hidden="true" />
                   <span>{t('input.file')}</span>
-                </button>
+                </ActionMenuItem>
               )}
               {onSendDoc && (
-                <button
-                  type="button"
-                  role="menuitem"
+                <ActionMenuItem
                   onClick={() => {
                     setShowMore(false)
                     onSendDoc()
@@ -636,54 +598,23 @@ export const MessageInput = ({
                   aria-label={t('input.doc')}
                   title={t('input.doc')}
                   data-testid="im-doc-btn"
-                  className={css({
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    width: '100%',
-                    paddingX: '0.75rem',
-                    paddingY: '0.625rem',
-                    border: 'none',
-                    borderRadius: '0.375rem',
-                    backgroundColor: 'transparent',
-                    color: 'greyscale.600',
-                    cursor: 'pointer',
-                    _hover: { backgroundColor: 'greyscale.100' },
-                    _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-                  })}
                 >
-                  <RiFileTextLine size={18} />
+                  <RiFileTextLine size={18} aria-hidden="true" />
                   <span>{t('input.doc')}</span>
-                </button>
+                </ActionMenuItem>
               )}
-              <button
-                type="button"
-                role="menuitem"
+              <ActionMenuItem
                 onClick={() => {
                   setShowMore(false)
                   executeCommand('schedule')
                 }}
                 aria-label={t('input.schedule')}
                 title={t('input.schedule')}
-                className={css({
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  width: '100%',
-                  paddingX: '0.75rem',
-                  paddingY: '0.625rem',
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  backgroundColor: 'transparent',
-                  color: 'greyscale.600',
-                  cursor: 'pointer',
-                  _hover: { backgroundColor: 'greyscale.100' },
-                })}
               >
-                <RiCalendarScheduleLine size={18} />
+                <RiCalendarScheduleLine size={18} aria-hidden="true" />
                 <span>{t('input.schedule')}</span>
-              </button>
-            </div>
+              </ActionMenuItem>
+            </ActionMenuSurface>
           )}
         </div>
         <div

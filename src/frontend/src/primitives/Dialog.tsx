@@ -8,7 +8,7 @@ import {
   type DialogProps as RACDialogProps,
   Heading,
 } from 'react-aria-components'
-import { Div, Button, Box, VerticallyOffCenter } from '@/primitives'
+import { Div, IconButton, Box, VerticallyOffCenter } from '@/primitives'
 import { text } from './Text'
 import { MutableRefObject } from 'react'
 import { css } from '@/styled-system/css'
@@ -153,15 +153,13 @@ export const Dialog = ({
                       : children}
                     {!isAlert && (
                       <Div position="absolute" top="5" right="5">
-                        <Button
-                          variant="tertiaryText"
-                          invisible
-                          size="xs"
+                        <IconButton
+                          label={t('closeDialog')}
+                          size="icon28"
                           onPress={() => close()}
-                          aria-label={t('closeDialog')}
                         >
-                          <RiCloseLine />
-                        </Button>
+                          <RiCloseLine size={20} aria-hidden="true" />
+                        </IconButton>
                       </Div>
                     )}
                   </Box>

@@ -3,6 +3,7 @@ import { RiAddLine } from '@remixicon/react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
+import { ActionMenuItem, ActionMenuSurface } from '@/primitives'
 import { EmojiPicker } from './EmojiPicker'
 
 export interface ContextMenuItem {
@@ -90,10 +91,10 @@ export const MessageContextMenu = ({
   }, [onClose])
 
   return (
-    <div
+    <ActionMenuSurface
       ref={ref}
-      role="menu"
-      tabIndex={-1}
+      ariaLabel={t('message.actions', { defaultValue: '消息操作' })}
+      onClose={onClose}
       // Stop the mousedown from bubbling to the window dismiss handler so the
       // click can land on a menu item.
       onMouseDown={(e) => e.stopPropagation()}
@@ -102,11 +103,6 @@ export const MessageContextMenu = ({
         position: 'fixed',
         zIndex: 'modal',
         minWidth: '140px',
-        backgroundColor: 'greyscale.000',
-        border: '1px solid token(colors.greyscale.200)',
-        borderRadius: '0.5rem',
-        boxShadow: 'overlay',
-        padding: '0.25rem',
       })}
       style={{ left: pos.x, top: pos.y }}
     >
@@ -183,35 +179,20 @@ export const MessageContextMenu = ({
             </div>
           )}
           {items.map((it) => (
-            <button
+            <ActionMenuItem
               key={it.key}
-              type="button"
-              role="menuitem"
+              tone={it.danger ? 'danger' : 'neutral'}
               onClick={() => {
                 it.onSelect()
                 onClose()
               }}
               data-testid={`${testIdPrefix}-${it.key}`}
-              className={css({
-                display: 'block',
-                width: '100%',
-                textAlign: 'left',
-                paddingX: '0.625rem',
-                paddingY: '0.4375rem',
-                border: 'none',
-                background: 'transparent',
-                borderRadius: '0.375rem',
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                color: it.danger ? 'danger.500' : 'greyscale.800',
-                _hover: { backgroundColor: 'greyscale.100' },
-              })}
             >
               {it.label}
-            </button>
+            </ActionMenuItem>
           ))}
         </>
       )}
-    </div>
+    </ActionMenuSurface>
   )
 }

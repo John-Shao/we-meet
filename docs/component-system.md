@@ -57,6 +57,14 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 - 日历 / 会议室等同级页面模式使用 `SegmentedControl`，统一选中下边线和语义色；
 - `SegmentedControl` 使用 tablist / tab 语义，并支持方向键以及 Home / End 键导航，页面代码只管理当前值。
 
+### 操作菜单与浮层
+
+- 业务操作菜单使用 `ActionMenuSurface / ActionMenuItem`，不再自行组合白底、灰边框、数字圆角与阴影；
+- 菜单表面统一使用 `surface.default / border.default / radius.control / elevation.overlay`，因此自动适配明暗主题；
+- 普通菜单项使用 `tone="neutral"`，删除、取消订阅等危险动作使用 `tone="danger"`；
+- 菜单打开后聚焦首个可用动作，并支持方向键、Home / End 与 Escape；锚点定位和视口防溢出仍由具体场景负责；
+- Dialog 标题栏关闭动作统一使用 `IconButton`，不能使用无 hover、focus-visible 状态的裸 `×` 按钮。
+
 ## 4. Android 接入
 
 - `Dimens.ControlCompact/Default/Large` 映射共享控件高度；

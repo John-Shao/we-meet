@@ -29,7 +29,13 @@ import {
   RiShareForwardLine,
 } from '@remixicon/react'
 
-import { Button, Menu, MenuList } from '@/primitives'
+import {
+  ActionMenuItem,
+  ActionMenuSurface,
+  Button,
+  Menu,
+  MenuList,
+} from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
@@ -846,17 +852,18 @@ export const TaskList = ({
           (effectiveGrouping === 'custom' &&
             contextMenu.task.can_edit &&
             groups.length > 0)) && (
-          <div
-            role="menu"
-            tabIndex={-1}
-            aria-label={t('actions.more')}
+          <ActionMenuSurface
+            ariaLabel={t('actions.more')}
+            onClose={() => {
+              setContextMenu(null)
+              setGroupSubmenuOpen(false)
+            }}
             className={taskContextMenuCss}
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
             {onShare && contextMenu.task.can_edit && (
-              <button
-                type="button"
-                role="menuitem"
+              <ActionMenuItem
+                density="compact"
                 onClick={() => {
                   onShare(contextMenu.task)
                   setContextMenu(null)
@@ -864,7 +871,7 @@ export const TaskList = ({
               >
                 <RiShareForwardLine size={16} aria-hidden="true" />
                 <span>{t('share.action')}</span>
-              </button>
+              </ActionMenuItem>
             )}
             {effectiveGrouping === 'custom' &&
               contextMenu.task.can_edit &&
@@ -874,16 +881,14 @@ export const TaskList = ({
                   onMouseEnter={() => setGroupSubmenuOpen(true)}
                   onMouseLeave={() => setGroupSubmenuOpen(false)}
                 >
-                  <button
-                    type="button"
-                    role="menuitem"
+                  <ActionMenuItem
+                    density="compact"
                     aria-haspopup="menu"
                     aria-expanded={groupSubmenuOpen}
                     onClick={(event) => {
                       event.stopPropagation()
                       setGroupSubmenuOpen((current) => !current)
                     }}
-                    onFocus={() => setGroupSubmenuOpen(true)}
                     onKeyDown={(event) => {
                       if (event.key !== 'ArrowRight') return
                       event.preventDefault()
@@ -897,12 +902,11 @@ export const TaskList = ({
                       size={16}
                       aria-hidden="true"
                     />
-                  </button>
+                  </ActionMenuItem>
                   {groupSubmenuOpen && (
-                    <div
-                      role="menu"
-                      tabIndex={-1}
-                      aria-label={t('groups.switch')}
+                    <ActionMenuSurface
+                      ariaLabel={t('groups.switch')}
+                      onClose={() => setGroupSubmenuOpen(false)}
                       className={taskContextSubmenuCss}
                     >
                       {[
@@ -916,10 +920,10 @@ export const TaskList = ({
                           contextMenu.task.group?.id || UNGROUPED_TASK_GROUP
                         const selected = group.id === currentGroupId
                         return (
-                          <button
+                          <ActionMenuItem
                             key={group.id}
-                            type="button"
                             role="menuitemradio"
+                            density="compact"
                             aria-checked={selected}
                             disabled={selected}
                             onClick={() => {
@@ -939,19 +943,18 @@ export const TaskList = ({
                               )}
                             </span>
                             <span>{group.name}</span>
-                          </button>
+                          </ActionMenuItem>
                         )
                       })}
-                    </div>
+                    </ActionMenuSurface>
                   )}
                 </div>
               )}
             {onDeleteTask && (
-              <button
-                type="button"
-                role="menuitem"
+              <ActionMenuItem
+                density="compact"
                 disabled={!contextMenu.task.can_delete}
-                className={taskContextDeleteCss}
+                tone="danger"
                 onClick={() => {
                   onDeleteTask(contextMenu.task)
                   setContextMenu(null)
@@ -959,9 +962,9 @@ export const TaskList = ({
               >
                 <RiDeleteBinLine size={16} aria-hidden="true" />
                 <span>{t('actions.delete')}</span>
-              </button>
+              </ActionMenuItem>
             )}
-          </div>
+          </ActionMenuSurface>
         )}
     </>
   )
@@ -2284,35 +2287,6 @@ const taskContextMenuCss = css({
   position: 'fixed',
   zIndex: 'popover',
   minWidth: '10rem',
-  padding: '0.25rem',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '0.5rem',
-  backgroundColor: 'greyscale.000',
-  boxShadow: 'lg',
-  fontSize: '0.875rem',
-  '& button': {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.125rem 0.5rem',
-    border: 0,
-    borderRadius: '0.375rem',
-    backgroundColor: 'transparent',
-    color: 'greyscale.900',
-    textAlign: 'left',
-    cursor: 'pointer',
-    _hover: { backgroundColor: 'greyscale.100' },
-    _disabled: {
-      color: 'greyscale.400',
-      cursor: 'not-allowed',
-      backgroundColor: 'transparent',
-    },
-  },
-})
-const taskContextDeleteCss = css({
-  color: 'danger.600!',
-  _disabled: { color: 'greyscale.400!' },
 })
 const taskContextSubmenuTriggerCss = css({ position: 'relative' })
 const taskContextSubmenuArrowCss = css({ marginLeft: 'auto' })
@@ -2321,11 +2295,6 @@ const taskContextSubmenuCss = css({
   top: '-0.25rem',
   left: '100%',
   minWidth: '10rem',
-  padding: '0.25rem',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '0.5rem',
-  backgroundColor: 'greyscale.000',
-  boxShadow: 'lg',
 })
 const taskContextSelectionCss = css({
   width: '1rem',

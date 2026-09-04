@@ -22,7 +22,7 @@ import {
 
 import { css, cx } from '@/styled-system/css'
 import { linkBtnCls } from '@/styles/controls'
-import { Button } from '@/primitives'
+import { ActionMenuItem, ActionMenuSurface, Button } from '@/primitives'
 import { Modal } from '@/components/Modal'
 import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
@@ -279,34 +279,34 @@ export const EventDetailDialog = ({
                   <RiMoreLine size={17} />
                 </Button>
                 {moreOpen && (
-                  <div className={moreMenuCls} role="menu">
+                  <ActionMenuSurface
+                    ariaLabel={t('detail.more')}
+                    onClose={() => setMoreOpen(false)}
+                    className={moreMenuCls}
+                  >
                     {canCopy && onCopy && (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={moreItemCls}
+                      <ActionMenuItem
+                        density="compact"
                         onClick={() => {
                           setMoreOpen(false)
                           onCopy()
                         }}
                       >
                         {t('copyEvent.action')}
-                      </button>
+                      </ActionMenuItem>
                     )}
                     {canTransfer && onTransfer && (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={moreItemCls}
+                      <ActionMenuItem
+                        density="compact"
                         onClick={() => {
                           setMoreOpen(false)
                           onTransfer()
                         }}
                       >
                         {t('transfer.action')}
-                      </button>
+                      </ActionMenuItem>
                     )}
-                  </div>
+                  </ActionMenuSurface>
                 )}
               </div>
             )}
@@ -655,25 +655,6 @@ const moreMenuCls = css({
   top: 'calc(100% + 0.25rem)',
   right: 0,
   minWidth: '7rem',
-  padding: '0.25rem',
-  borderRadius: 6,
-  border: '1px solid token(colors.greyscale.200)',
-  backgroundColor: 'greyscale.000',
-  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-})
-
-const moreItemCls = css({
-  width: '100%',
-  paddingX: '0.625rem',
-  paddingY: '0.4375rem',
-  border: 0,
-  borderRadius: 4,
-  background: 'transparent',
-  color: 'greyscale.900',
-  fontSize: '0.8125rem',
-  textAlign: 'left',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100' },
 })
 
 // 图标钮走小控件圆角 6px(按钮视觉标准:常规 8 / 小控件 6)。

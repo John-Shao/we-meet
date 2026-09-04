@@ -1,5 +1,7 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
+import { RiCloseLine } from '@remixicon/react'
 
+import { IconButton } from '@/primitives/IconButton'
 import { css } from '@/styled-system/css'
 
 /** Keep Tab focus inside the dialog — a basic focus trap for the modal. */
@@ -161,7 +163,7 @@ export const Modal = ({
  * 唯一的变量是无障碍名 —— 各自命名空间下的「取消」。收成一个组件,新对话框
  * 直接用,别再抄第七份。
  *
- * 样式与原先逐字一致(含「没有 hover 态」),这一步只做去重不改外观。
+ * 使用共享 IconButton，统一 hover、pressed、focus-visible 与禁用状态。
  */
 export const ModalCloseButton = ({
   onClose,
@@ -171,19 +173,7 @@ export const ModalCloseButton = ({
   /** 无障碍名(✕ 字形本身读不出意思)。 */
   label: string
 }) => (
-  <button
-    type="button"
-    onClick={onClose}
-    aria-label={label}
-    className={css({
-      border: 'none',
-      background: 'transparent',
-      fontSize: '1.25rem',
-      lineHeight: 1,
-      cursor: 'pointer',
-      color: 'greyscale.600',
-    })}
-  >
-    ×
-  </button>
+  <IconButton label={label} size="icon28" onPress={onClose}>
+    <RiCloseLine size={20} aria-hidden="true" />
+  </IconButton>
 )

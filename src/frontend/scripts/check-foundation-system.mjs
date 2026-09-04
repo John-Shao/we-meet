@@ -297,6 +297,7 @@ for (const [name, [expectedSize, expectedLineHeight]] of Object.entries(
 }
 
 const migratedTypographySources = [
+  '../src/primitives/ActionMenu.tsx',
   '../src/primitives/Badge.tsx',
   '../src/primitives/chipRecipe.ts',
   '../src/primitives/Field.tsx',
@@ -321,6 +322,7 @@ for (const sourceUrl of migratedTypographySources) {
 }
 
 const migratedShapeSources = [
+  '../src/primitives/ActionMenu.tsx',
   '../src/primitives/Badge.tsx',
   '../src/primitives/Box.tsx',
   '../src/primitives/buttonRecipe.ts',
@@ -357,6 +359,7 @@ for (const sourceUrl of migratedShapeSources) {
 }
 
 const migratedElevationSources = [
+  '../src/primitives/ActionMenu.tsx',
   '../src/primitives/Box.tsx',
   '../src/primitives/Switch.tsx',
   '../src/primitives/TooltipWrapper.tsx',
@@ -380,6 +383,21 @@ for (const sourceUrl of migratedElevationSources) {
 }
 
 const componentStateRequirements = [
+  [
+    '../src/primitives/ActionMenu.tsx',
+    [
+      'role="menu"',
+      "role={props.role ?? 'menuitem'}",
+      'ArrowDown',
+      'ArrowUp',
+      'Escape',
+      '_hover',
+      '_active',
+      '_focusVisible',
+      '_disabled',
+      'status.danger.container',
+    ],
+  ],
   [
     '../src/primitives/buttonRecipe.ts',
     ['data-hovered', 'data-pressed', 'data-focus-visible', 'data-disabled'],

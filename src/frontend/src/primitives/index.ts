@@ -5,6 +5,12 @@
  * for other primitives and don't have any value being exposed.
  */
 export { A } from './A'
+export {
+  ActionMenuItem,
+  ActionMenuSurface,
+  type ActionMenuItemProps,
+  type ActionMenuSurfaceProps,
+} from './ActionMenu'
 export { Badge } from './Badge'
 export { Bold } from './Bold'
 export { Box } from './Box'

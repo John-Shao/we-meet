@@ -32,6 +32,17 @@ export const menuRecipe = sva({
         backgroundColor: 'surface.canvas!',
         outline: 'none!',
       },
+      '&[data-pressed]': {
+        backgroundColor: 'action.selected.bg!',
+      },
+      '&[data-focus-visible]': {
+        outline: '2px solid token(colors.border.focus)!',
+        outlineOffset: '-2px',
+      },
+      '&[data-disabled]': {
+        color: 'text.disabled!',
+        cursor: 'default',
+      },
     },
   },
   variants: {

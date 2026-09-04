@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { RiMoreLine } from '@remixicon/react'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfig } from '@/api/useConfig'
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { roomBuildingIdentifier } from '@/features/meeting-rooms'
+import { ActionMenuItem, ActionMenuSurface, IconButton } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 import {
@@ -144,86 +146,87 @@ export const CalendarListManager = ({
               className={menuCls}
               ref={openMenuId === calendar.id ? openMenuRef : undefined}
             >
-              <button
-                type="button"
-                aria-label={t('sidebar.calendarMenu', {
+              <IconButton
+                label={t('sidebar.calendarMenu', {
                   calendar: calendarDisplayName(calendar),
                 })}
+                size="icon24"
                 aria-haspopup="menu"
                 aria-expanded={openMenuId === calendar.id}
-                onClick={() =>
+                onPress={() =>
                   setOpenMenuId((current) =>
                     current === calendar.id ? null : calendar.id
                   )
                 }
               >
-                ···
-              </button>
+                <RiMoreLine size={16} aria-hidden="true" />
+              </IconButton>
               {openMenuId === calendar.id && (
-                <div className={menuPopupCls} role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
+                <ActionMenuSurface
+                  ariaLabel={t('sidebar.calendarMenu', {
+                    calendar: calendarDisplayName(calendar),
+                  })}
+                  onClose={() => setOpenMenuId(null)}
+                  className={menuPopupCls}
+                >
+                  <ActionMenuItem
+                    density="compact"
                     onClick={() => {
                       setOpenMenuId(null)
                       void only(calendar)
                     }}
                   >
                     {t('sidebar.onlyThisCalendar')}
-                  </button>
+                  </ActionMenuItem>
                   {!calendar.capabilities.can_manage && (
-                    <button
-                      type="button"
-                      role="menuitem"
+                    <ActionMenuItem
+                      density="compact"
                       onClick={() => {
                         setOpenMenuId(null)
                         setColoring(calendar)
                       }}
                     >
                       {t('sidebar.setColor')}
-                    </button>
+                    </ActionMenuItem>
                   )}
                   {calendar.capabilities.can_manage &&
                     calendar.kind !== 'resource' && (
-                      <button
-                        type="button"
-                        role="menuitem"
+                      <ActionMenuItem
+                        density="compact"
                         onClick={() => {
                           setOpenMenuId(null)
                           setSettings(calendar)
                         }}
                       >
                         {t('sidebar.calendarSettings')}
-                      </button>
+                      </ActionMenuItem>
                     )}
                   {sharingEnabled && calendar.capabilities.can_share && (
-                    <button
-                      type="button"
-                      role="menuitem"
+                    <ActionMenuItem
+                      density="compact"
                       onClick={() => {
                         setOpenMenuId(null)
                         setShare(calendar)
                       }}
                     >
                       {t('sidebar.share')}
-                    </button>
+                    </ActionMenuItem>
                   )}
                   {exportEnabled && calendar.capabilities.can_export && (
-                    <button
-                      type="button"
-                      role="menuitem"
+                    <ActionMenuItem
+                      density="compact"
                       onClick={() => {
                         setOpenMenuId(null)
                         setExporting(calendar)
                       }}
                     >
                       {t('sidebar.export')}
-                    </button>
+                    </ActionMenuItem>
                   )}
                   {!calendar.capabilities.can_manage && (
-                    <button
-                      type="button"
-                      role="menuitem"
+                    <ActionMenuItem
+                      density="compact"
+                      tone="danger"
                       onClick={() => {
                         setOpenMenuId(null)
                         void unsubscribeUnifiedCalendar(calendar.id)
@@ -232,9 +235,9 @@ export const CalendarListManager = ({
                       }}
                     >
                       {t('sidebar.unsubscribe')}
-                    </button>
+                    </ActionMenuItem>
                   )}
-                </div>
+                </ActionMenuSurface>
               )}
             </div>
           </div>
@@ -342,13 +345,6 @@ const nameCls = css({
 })
 const menuCls = css({
   position: 'relative',
-  '& > button': {
-    border: 0,
-    padding: 0,
-    background: 'transparent',
-    cursor: 'pointer',
-    color: 'greyscale.500',
-  },
 })
 const menuPopupCls = css({
   position: 'absolute',
@@ -356,21 +352,6 @@ const menuPopupCls = css({
   right: 0,
   top: '1.25rem',
   minWidth: '9rem',
-  display: 'flex',
-  flexDirection: 'column',
-  padding: '0.3rem',
-  borderRadius: '0.4rem',
-  border: '1px solid token(colors.greyscale.200)',
-  background: 'greyscale.000',
-  boxShadow: 'sm',
-  '& button': {
-    border: 0,
-    background: 'transparent',
-    textAlign: 'left',
-    padding: '0.45rem',
-    cursor: 'pointer',
-    _hover: { background: 'greyscale.100' },
-  },
 })
 const mutedCls = css({ color: 'greyscale.400', fontSize: '0.75rem' })
 const errorCls = css({ color: '#dc2626', fontSize: '0.75rem' })
