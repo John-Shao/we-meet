@@ -65,6 +65,14 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 - 菜单打开后聚焦首个可用动作，并支持方向键、Home / End 与 Escape；锚点定位和视口防溢出仍由具体场景负责；
 - Dialog 标题栏关闭动作统一使用 `IconButton`，不能使用无 hover、focus-visible 状态的裸 `×` 按钮。
 
+### 可交互列表行与选择行
+
+- 搜索结果、联系人候选和紧凑选择面板使用 `InteractiveListRow`，多选人员入口使用带固定选择指示器的 `SelectableListRow`；
+- 列表行统一使用 `surface.canvas / action.selected / border / text` 语义角色，并覆盖 hover、pressed、focus-visible、selected 与 disabled；
+- 普通选择按钮通过 `aria-pressed` 暴露状态；位于 `listbox` 中的行传入 `role="option"`，基元会改用 `aria-selected`，避免同时声明两套选择语义；
+- `InteractiveList` 作为键盘导航边界，统一支持 ArrowUp / ArrowDown 与 Home / End，并在多选模式声明 `aria-multiselectable`；
+- 列表容器语义仍由场景决定：导航结果优先保留原生按钮与列表结构，单选/多选候选使用 `listbox / option`，不能把搜索结果伪装成操作菜单。
+
 ## 4. Android 接入
 
 - `Dimens.ControlCompact/Default/Large` 映射共享控件高度；

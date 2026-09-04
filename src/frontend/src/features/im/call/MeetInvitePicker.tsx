@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
-import { Button } from '@/primitives'
+import { Button, Input, SelectableListRow } from '@/primitives'
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
@@ -95,14 +95,13 @@ export const MeetInvitePicker = ({
         <ModalCloseButton onClose={onClose} label={t('call.cancel')} />
       </div>
       <div className={css({ padding: '0.75rem 1rem' })}>
-        <input
+        <Input
           ref={searchRef}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('group.searchPlaceholder')}
           data-testid="meet-invite-search"
-          className={inputCls}
         />
       </div>
       <div className={css({ overflowY: 'auto', flex: 1 })}>
@@ -117,51 +116,14 @@ export const MeetInvitePicker = ({
               const checked = selected.has(m.id)
               return (
                 <li key={m.id}>
-                  <button
-                    type="button"
+                  <SelectableListRow
                     onClick={() =>
                       toggle(m.id, label, m.avatar_url || undefined)
                     }
-                    aria-pressed={checked}
+                    isSelected={checked}
                     data-testid={`meet-invite-item-${m.id}`}
-                    className={css({
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.625rem',
-                      width: '100%',
-                      paddingX: '1rem',
-                      paddingY: '0.5rem',
-                      border: 'none',
-                      borderBottom: '1px solid token(colors.greyscale.100)',
-                      backgroundColor: checked
-                        ? 'greyscale.100'
-                        : 'transparent',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      _hover: { backgroundColor: 'greyscale.100' },
-                    })}
+                    divider
                   >
-                    <span
-                      aria-hidden="true"
-                      className={css({
-                        flexShrink: 0,
-                        width: '1.125rem',
-                        height: '1.125rem',
-                        borderRadius: '0.25rem',
-                        border: '1px solid token(colors.greyscale.400)',
-                        // 未选中走会翻转的 greyscale.000(浅色仍是纯白),
-                        // 裸 'white' 在深色下是一排刺眼白方块。
-                        backgroundColor: checked
-                          ? 'primary.500'
-                          : 'greyscale.000',
-                        color: 'white',
-                        fontSize: '0.75rem',
-                        lineHeight: '1.125rem',
-                        textAlign: 'center',
-                      })}
-                    >
-                      {checked ? '✓' : ''}
-                    </span>
                     <MemberAvatar name={label} src={m.avatar_url} size="2rem" />
                     <span
                       className={css({
@@ -192,7 +154,7 @@ export const MeetInvitePicker = ({
                           .join(' · ')}
                       </span>
                     </span>
-                  </button>
+                  </SelectableListRow>
                 </li>
               )
             })}
@@ -235,12 +197,4 @@ const modalFoot = css({
   paddingX: '1rem',
   paddingY: '0.75rem',
   borderTop: '1px solid token(colors.greyscale.200)',
-})
-const inputCls = css({
-  width: '100%',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  fontSize: '0.875rem',
 })

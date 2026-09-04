@@ -2,7 +2,12 @@ import { RiArrowDownSLine, RiCheckLine, RiCloseLine } from '@remixicon/react'
 import { Button as AriaButton } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 
-import { Popover } from '@/primitives'
+import {
+  Input,
+  InteractiveList,
+  InteractiveListRow,
+  Popover,
+} from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useDirectoryMemberSearch } from '@/features/contacts'
 
@@ -150,19 +155,18 @@ const PeopleFilter = ({
         <RiArrowDownSLine size={14} aria-hidden="true" />
       </AriaButton>
       <div className={peoplePanelCls}>
-        <input
+        <Input
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t('search.taskPeoplePlaceholder')}
           aria-label={t('search.taskPeoplePlaceholder')}
-          className={peopleSearchCls}
           data-testid={`global-search-task-filter-${testId}-search`}
         />
-        <div
+        <InteractiveList
           className={peopleListCls}
-          role="listbox"
-          aria-multiselectable="true"
+          ariaLabel={label}
+          selectionMode="multiple"
         >
           {isFetching && selectable.length === 0 ? (
             <p className={peopleHintCls}>{t('search.loading')}</p>
@@ -178,11 +182,10 @@ const PeopleFilter = ({
               const checked = selected.has(member.id)
               const selectionLimitReached = !checked && selected.size >= 20
               return (
-                <button
+                <InteractiveListRow
                   key={member.id}
-                  type="button"
                   role="option"
-                  aria-selected={checked}
+                  isSelected={checked}
                   disabled={selectionLimitReached}
                   onClick={() => {
                     const next = new Map(selected)
@@ -190,7 +193,7 @@ const PeopleFilter = ({
                     else next.set(member.id, memberLabel)
                     onChange(next)
                   }}
-                  className={peopleRowCls}
+                  density="compact"
                   data-testid={`global-search-task-filter-${testId}-option-${member.id}`}
                 >
                   <span className={avatarCls}>
@@ -202,11 +205,11 @@ const PeopleFilter = ({
                   </span>
                   <span className={truncateCls}>{memberLabel}</span>
                   {checked && <RiCheckLine size={16} aria-hidden="true" />}
-                </button>
+                </InteractiveListRow>
               )
             })
           )}
-        </div>
+        </InteractiveList>
       </div>
     </Popover>
   )
@@ -238,25 +241,28 @@ const ChoiceFilter = <T extends string>({
         <RiArrowDownSLine size={14} aria-hidden="true" />
       </AriaButton>
       {({ close }) => (
-        <div className={choicePanelCls} role="listbox" aria-label={label}>
+        <InteractiveList
+          className={choicePanelCls}
+          ariaLabel={label}
+          selectionMode="single"
+        >
           {options.map(([option, optionLabel]) => (
-            <button
+            <InteractiveListRow
               key={option}
-              type="button"
               role="option"
-              aria-selected={option === value}
+              isSelected={option === value}
               onClick={() => {
                 onChange(option)
                 close()
               }}
-              className={choiceRowCls}
+              density="compact"
               data-testid={`global-search-task-filter-${testId}-${option}`}
             >
-              <span>{optionLabel}</span>
+              <span className={truncateCls}>{optionLabel}</span>
               {option === value && <RiCheckLine size={16} aria-hidden="true" />}
-            </button>
+            </InteractiveListRow>
           ))}
-        </div>
+        </InteractiveList>
       )}
     </Popover>
   )
@@ -289,6 +295,7 @@ const filterTriggerCls = css({
   _disabled: { cursor: 'not-allowed', opacity: 0.5 },
 })
 const truncateCls = css({
+  flex: 1,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -305,33 +312,10 @@ const clearCls = css({
   cursor: 'pointer',
 })
 const peoplePanelCls = css({ width: '17rem' })
-const peopleSearchCls = css({
-  width: '100%',
-  height: '2rem',
-  paddingX: '0.625rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.375rem',
-  fontSize: '0.8125rem',
-})
 const peopleListCls = css({
   maxHeight: '16rem',
   overflowY: 'auto',
   marginTop: '0.375rem',
-})
-const peopleRowCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-  width: '100%',
-  minHeight: '2.25rem',
-  paddingX: '0.375rem',
-  border: 'none',
-  borderRadius: '0.375rem',
-  bg: 'transparent',
-  color: 'greyscale.800',
-  cursor: 'pointer',
-  textAlign: 'left',
-  _hover: { bg: 'greyscale.100' },
 })
 const avatarCls = css({
   display: 'grid',
@@ -351,18 +335,3 @@ const peopleHintCls = css({
   fontSize: '0.8125rem',
 })
 const choicePanelCls = css({ minWidth: '10rem' })
-const choiceRowCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  width: '100%',
-  padding: '0.5rem 0.625rem',
-  border: 'none',
-  borderRadius: '0.375rem',
-  bg: 'transparent',
-  color: 'greyscale.800',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
-  textAlign: 'left',
-  _hover: { bg: 'greyscale.100' },
-})

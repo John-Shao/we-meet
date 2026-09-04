@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
 import { Modal, ModalCloseButton } from '@/components/Modal'
-import { Input } from '@/primitives'
+import { Input, InteractiveListRow } from '@/primitives'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
 import type { DirectoryMember } from '../api/ApiDirectory'
@@ -93,24 +93,10 @@ export const ContactPicker = ({
           <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
             {selectable.map((member) => (
               <li key={member.id}>
-                <button
-                  type="button"
+                <InteractiveListRow
                   onClick={() => onSelect(member)}
                   data-testid={`contact-picker-item-${member.id}`}
-                  className={css({
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.625rem',
-                    width: '100%',
-                    paddingX: '1rem',
-                    paddingY: '0.625rem',
-                    border: 'none',
-                    borderBottom: '1px solid token(colors.greyscale.100)',
-                    backgroundColor: 'transparent',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    _hover: { backgroundColor: 'greyscale.100' },
-                  })}
+                  divider
                 >
                   <MemberAvatar
                     name={
@@ -155,7 +141,7 @@ export const ContactPicker = ({
                         .join(' · ')}
                     </span>
                   </span>
-                </button>
+                </InteractiveListRow>
               </li>
             ))}
           </ul>

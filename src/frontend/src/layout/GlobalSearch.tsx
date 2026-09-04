@@ -9,6 +9,7 @@ import type { ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { Modal } from '@/components/Modal'
+import { InteractiveList, InteractiveListRow } from '@/primitives'
 import { fetchApi } from '@/api/fetchApi'
 import { navigateTo } from '@/navigation/navigateTo'
 import {
@@ -614,7 +615,8 @@ export const SearchPalette = ({
         />
       )}
 
-      <div
+      <InteractiveList
+        ariaLabel={t('search.trigger')}
         className={css({
           overflowY: 'auto',
           padding: '0.5rem',
@@ -843,7 +845,7 @@ export const SearchPalette = ({
             )}
           </>
         )}
-      </div>
+      </InteractiveList>
     </Modal>
   )
 }
@@ -1259,25 +1261,7 @@ const ResultRow = ({
   subtitle?: ReactNode
   testId?: string
 }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    data-testid={testId}
-    className={css({
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.625rem',
-      width: '100%',
-      paddingX: '0.5rem',
-      paddingY: '0.5rem',
-      border: 'none',
-      borderRadius: '8px',
-      backgroundColor: 'transparent',
-      cursor: 'pointer',
-      textAlign: 'left',
-      _hover: { backgroundColor: 'brand.50' },
-    })}
-  >
+  <InteractiveListRow onClick={onClick} data-testid={testId} rounded>
     {avatarSrc ? (
       <img
         src={avatarSrc}
@@ -1351,5 +1335,5 @@ const ResultRow = ({
         </span>
       )}
     </span>
-  </button>
+  </InteractiveListRow>
 )

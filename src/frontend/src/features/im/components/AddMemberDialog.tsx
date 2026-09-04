@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
-import { Button } from '@/primitives'
+import { Button, Input, SelectableListRow } from '@/primitives'
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
@@ -102,14 +102,13 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
         <ModalCloseButton onClose={onClose} label={t('manage.cancel')} />
       </div>
       <div className={css({ padding: '0.75rem 1rem' })}>
-        <input
+        <Input
           ref={searchRef}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('group.searchPlaceholder')}
           data-testid="add-member-search"
-          className={inputCls}
         />
       </div>
       <div className={css({ overflowY: 'auto', flex: 1 })}>
@@ -124,53 +123,13 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
               const checked = already || selected.has(m.id)
               return (
                 <li key={m.id}>
-                  <button
-                    type="button"
+                  <SelectableListRow
                     disabled={already}
                     onClick={() => toggle(m.id)}
-                    aria-pressed={checked}
+                    isSelected={checked}
                     data-testid={`add-member-item-${m.id}`}
-                    className={css({
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.625rem',
-                      width: '100%',
-                      paddingX: '1rem',
-                      paddingY: '0.5rem',
-                      border: 'none',
-                      borderBottom: '1px solid token(colors.greyscale.100)',
-                      backgroundColor: checked
-                        ? 'greyscale.100'
-                        : 'transparent',
-                      textAlign: 'left',
-                      cursor: already ? 'default' : 'pointer',
-                      opacity: already ? 0.55 : 1,
-                      _hover: {
-                        backgroundColor: already ? undefined : 'greyscale.100',
-                      },
-                    })}
+                    divider
                   >
-                    <span
-                      aria-hidden="true"
-                      className={css({
-                        flexShrink: 0,
-                        width: '1.125rem',
-                        height: '1.125rem',
-                        borderRadius: '0.25rem',
-                        border: '1px solid token(colors.greyscale.400)',
-                        // 未选中走会翻转的 greyscale.000(浅色仍是纯白),
-                        // 裸 'white' 在深色下是一排刺眼白方块。
-                        backgroundColor: checked
-                          ? 'primary.500'
-                          : 'greyscale.000',
-                        color: 'white',
-                        fontSize: '0.75rem',
-                        lineHeight: '1.125rem',
-                        textAlign: 'center',
-                      })}
-                    >
-                      {checked ? '✓' : ''}
-                    </span>
                     <MemberAvatar
                       name={m.full_name || m.short_name || m.email || m.id}
                       src={m.avatar_url}
@@ -205,7 +164,7 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
                           .join(' · ')}
                       </span>
                     </span>
-                  </button>
+                  </SelectableListRow>
                 </li>
               )
             })}
@@ -247,12 +206,4 @@ const modalFoot = css({
   paddingX: '1rem',
   paddingY: '0.75rem',
   borderTop: '1px solid token(colors.greyscale.200)',
-})
-const inputCls = css({
-  width: '100%',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  fontSize: '0.875rem',
 })

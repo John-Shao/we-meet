@@ -4,6 +4,12 @@ import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
+import {
+  Chip as SelectionChip,
+  DismissibleChip,
+  Input,
+  SelectableListRow,
+} from '@/primitives'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
 import { fetchExternalContacts } from '../api/externalContacts'
@@ -61,6 +67,7 @@ export const DirectoryMultiPicker = ({
   externalLabel = 'External',
   includeSelf = false,
 }: Props) => {
+  const { t } = useTranslation('contacts')
   const {
     query,
     setQuery,
@@ -98,14 +105,13 @@ export const DirectoryMultiPicker = ({
     <div className={bodyCls}>
       <div className={leftCls}>
         <div className={css({ padding: '0.75rem 1rem' })}>
-          <input
+          <Input
             ref={searchRef}
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={labels.searchPlaceholder}
             data-testid={searchTestId}
-            className={inputCls}
           />
         </div>
         <div className={css({ overflowY: 'auto', flex: 1 })}>
@@ -174,9 +180,23 @@ export const DirectoryMultiPicker = ({
       <div className={rightCls}>
         <div className={rightTitleCls}>{labels.selectedTitle}</div>
         <ul className={rightListCls}>
-          {locked && <Chip label={locked.label} />}
+          {locked && (
+            <li className={selectedChipRowCls}>
+              <SelectionChip className={selectedChipCls}>
+                {locked.label}
+              </SelectionChip>
+            </li>
+          )}
           {[...selected.entries()].map(([id, label]) => (
-            <Chip key={id} label={label} onRemove={() => onToggle(id, label)} />
+            <li key={id} className={selectedChipRowCls}>
+              <DismissibleChip
+                className={selectedChipCls}
+                label={`${t('picker.remove')}: ${label}`}
+                onPress={() => onToggle(id, label)}
+              >
+                {label}
+              </DismissibleChip>
+            </li>
           ))}
         </ul>
       </div>
@@ -225,17 +245,6 @@ const rightListCls = css({
   flex: 1,
 })
 
-const inputCls = css({
-  width: '100%',
-  height: 'control.md',
-  minHeight: 'control.md',
-  paddingX: '0.75rem',
-  paddingBlock: 0,
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  fontSize: '0.875rem',
-})
-
 const Row = ({
   label,
   sub,
@@ -253,47 +262,13 @@ const Row = ({
   onToggle?: () => void
   testid?: string
 }) => (
-  <button
-    type="button"
+  <SelectableListRow
     onClick={onToggle}
     disabled={disabled}
-    aria-pressed={checked}
+    isSelected={Boolean(checked)}
     data-testid={testid}
-    className={css({
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.625rem',
-      width: '100%',
-      paddingX: '1rem',
-      paddingY: '0.5rem',
-      border: 'none',
-      borderBottom: '1px solid token(colors.greyscale.100)',
-      backgroundColor: checked ? 'greyscale.100' : 'transparent',
-      textAlign: 'left',
-      cursor: disabled ? 'default' : 'pointer',
-      opacity: disabled ? 0.6 : 1,
-      _hover: { backgroundColor: disabled ? undefined : 'greyscale.100' },
-    })}
+    divider
   >
-    <span
-      aria-hidden="true"
-      className={css({
-        flexShrink: 0,
-        width: '1.125rem',
-        height: '1.125rem',
-        borderRadius: '0.25rem',
-        border: '1px solid token(colors.greyscale.400)',
-        // 未选中用会翻转的 greyscale.000(浅色仍是纯白),裸 'white' 在深色下
-        // 是一排刺眼的白方块。
-        backgroundColor: checked ? 'primary.500' : 'greyscale.000',
-        color: 'white',
-        fontSize: '0.75rem',
-        lineHeight: '1.125rem',
-        textAlign: 'center',
-      })}
-    >
-      {checked ? '✓' : ''}
-    </span>
     <MemberAvatar name={label} src={avatarSrc} size="2rem" />
     <span
       className={css({
@@ -320,59 +295,8 @@ const Row = ({
         </span>
       ) : null}
     </span>
-  </button>
+  </SelectableListRow>
 )
 
-const Chip = ({
-  label,
-  onRemove,
-}: {
-  label: string
-  onRemove?: () => void
-}) => {
-  const { t } = useTranslation('contacts')
-  return (
-    <li
-      className={css({
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '0.5rem',
-        paddingX: '0.5rem',
-        paddingY: '0.375rem',
-        borderRadius: '0.375rem',
-        _hover: { backgroundColor: 'greyscale.50' },
-      })}
-    >
-      <span
-        className={css({
-          fontSize: '0.8125rem',
-          color: 'greyscale.800',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        })}
-      >
-        {label}
-      </span>
-      {onRemove ? (
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={t('picker.remove')}
-          className={css({
-            flexShrink: 0,
-            border: 'none',
-            background: 'transparent',
-            color: 'greyscale.500',
-            cursor: 'pointer',
-            fontSize: '0.875rem',
-            _hover: { color: 'error.500' },
-          })}
-        >
-          ×
-        </button>
-      ) : null}
-    </li>
-  )
-}
+const selectedChipRowCls = css({ padding: 'xs' })
+const selectedChipCls = css({ width: 'full', justifyContent: 'space-between' })
