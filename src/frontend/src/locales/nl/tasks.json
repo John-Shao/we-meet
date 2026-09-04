@@ -167,7 +167,6 @@
     "archiveTitle": "Takenlijst archiveren",
     "archiveDescription": "‘{{name}}’ archiveren? De lijst wordt verborgen en accepteert geen nieuwe taken.",
     "archivedTitle": "Gearchiveerde takenlijsten",
-    "archivedEmpty": "Geen gearchiveerde takenlijsten",
     "restore": "Herstellen",
     "leave": "Verwijderen",
     "leaveTitle": "Takenlijst verwijderen",

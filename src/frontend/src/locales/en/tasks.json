@@ -189,7 +189,6 @@
     "archiveTitle": "Archive task list",
     "archiveDescription": "Archive \"{{name}}\"? It will be hidden and no new tasks can be created in it.",
     "archivedTitle": "Archived task lists",
-    "archivedEmpty": "No archived task lists",
     "restore": "Restore",
     "leave": "Remove",
     "leaveTitle": "Remove task list",

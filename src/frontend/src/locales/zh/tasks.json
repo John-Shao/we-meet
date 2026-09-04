@@ -189,7 +189,6 @@
     "archiveTitle": "归档任务清单",
     "archiveDescription": "归档“{{name}}”吗？清单将默认隐藏，且不能再新建任务。",
     "archivedTitle": "已归档清单",
-    "archivedEmpty": "暂无已归档清单",
     "restore": "取消归档",
     "leave": "移除",
     "leaveTitle": "移除任务清单",

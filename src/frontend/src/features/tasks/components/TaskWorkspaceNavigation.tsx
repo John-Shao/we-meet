@@ -463,12 +463,6 @@ export const TaskWorkspaceNavigation = ({
             {t('taskLists.actionError')}
           </p>
         )}
-        {showArchivedTaskLists &&
-          !archivedTaskListsLoading &&
-          !archivedTaskListsError &&
-          archivedTaskLists.length === 0 && (
-            <p className={emptyListsCss}>{t('taskLists.archivedEmpty')}</p>
-          )}
       </nav>
     </aside>
   )

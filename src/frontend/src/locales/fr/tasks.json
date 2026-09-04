@@ -167,7 +167,6 @@
     "archiveTitle": "Archiver la liste",
     "archiveDescription": "Archiver « {{name}} » ? Elle sera masquée et n’acceptera plus de nouvelles tâches.",
     "archivedTitle": "Listes archivées",
-    "archivedEmpty": "Aucune liste archivée",
     "restore": "Restaurer",
     "leave": "Retirer",
     "leaveTitle": "Retirer la liste",

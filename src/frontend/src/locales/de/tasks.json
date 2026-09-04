@@ -167,7 +167,6 @@
     "archiveTitle": "Aufgabenliste archivieren",
     "archiveDescription": "„{{name}}“ archivieren? Die Liste wird ausgeblendet und nimmt keine neuen Aufgaben an.",
     "archivedTitle": "Archivierte Aufgabenlisten",
-    "archivedEmpty": "Keine archivierten Aufgabenlisten",
     "restore": "Wiederherstellen",
     "leave": "Entfernen",
     "leaveTitle": "Aufgabenliste entfernen",
