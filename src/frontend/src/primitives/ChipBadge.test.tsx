@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 
 import { Badge } from './Badge'
 import { Chip } from './Chip'
+import { DismissibleChip } from './DismissibleChip'
 
 describe('semantic label primitives', () => {
   it('applies distinct Chip tones and preserves caller classes', () => {
@@ -35,5 +36,23 @@ describe('semantic label primitives', () => {
     )
 
     expect(screen.getByTestId('warning-badge')).toHaveClass('consumer-badge')
+  })
+
+  it('gives a dismissible Chip one action name and one shared close glyph', () => {
+    const onPress = vi.fn()
+    render(
+      <DismissibleChip
+        label="Remove priority: high"
+        tone="brand"
+        onPress={onPress}
+      >
+        Priority: high
+      </DismissibleChip>
+    )
+
+    const chip = screen.getByRole('button', { name: 'Remove priority: high' })
+    expect(chip.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    fireEvent.click(chip)
+    expect(onPress).toHaveBeenCalledTimes(1)
   })
 })

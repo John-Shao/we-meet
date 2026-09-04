@@ -54,6 +54,28 @@ export const chipRecipe = cva({
         textStyle: 'labelMedium',
       },
     },
+    interactive: {
+      true: {
+        gap: 'xs',
+        cursor: 'pointer',
+        transition:
+          'box-shadow token(durations.normal), transform token(durations.fast), opacity token(durations.normal)',
+        '&[data-hovered]': {
+          boxShadow: '0 0 0 1px token(colors.border.focus)',
+        },
+        '&[data-pressed]': {
+          transform: 'translateY(1px)',
+        },
+        '&[data-focus-visible]': {
+          outline: '2px solid token(colors.border.focus)',
+          outlineOffset: '2px',
+        },
+        '&[data-disabled]': {
+          cursor: 'default',
+          opacity: 0.5,
+        },
+      },
+    },
   },
   defaultVariants: {
     tone: 'neutral',

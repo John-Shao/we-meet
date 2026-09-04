@@ -305,6 +305,7 @@ const migratedTypographySources = [
   '../src/primitives/Input.tsx',
   '../src/primitives/TextArea.tsx',
   '../src/primitives/Select.tsx',
+  '../src/primitives/SegmentedControl.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
 for (const sourceUrl of migratedTypographySources) {
@@ -330,6 +331,7 @@ const migratedShapeSources = [
   '../src/primitives/menuRecipe.ts',
   '../src/primitives/Radio.tsx',
   '../src/primitives/Select.tsx',
+  '../src/primitives/SegmentedControl.tsx',
   '../src/primitives/Switch.tsx',
   '../src/primitives/Tabs.tsx',
   '../src/primitives/TextArea.tsx',
@@ -390,6 +392,26 @@ const componentStateRequirements = [
       'aria-label={label}',
       'tooltip = label',
       "size = 'icon28'",
+    ],
+  ],
+  [
+    '../src/primitives/DismissibleChip.tsx',
+    ['label: string', 'aria-label={label}', 'interactive: true'],
+  ],
+  [
+    '../src/primitives/chipRecipe.ts',
+    ['data-hovered', 'data-pressed', 'data-focus-visible', 'data-disabled'],
+  ],
+  [
+    '../src/primitives/SegmentedControl.tsx',
+    [
+      'role="tablist"',
+      'role="tab"',
+      'aria-selected',
+      'ArrowLeft',
+      'ArrowRight',
+      '_focusVisible',
+      '_disabled',
     ],
   ],
   [

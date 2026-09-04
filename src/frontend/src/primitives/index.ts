@@ -10,6 +10,7 @@ export { Bold } from './Bold'
 export { Box } from './Box'
 export { Button } from './Button'
 export { Chip } from './Chip'
+export { DismissibleChip, type DismissibleChipProps } from './DismissibleChip'
 export { LinkButton } from './LinkButton'
 export { useCloseDialog } from './useCloseDialog'
 export { Dialog, type DialogProps } from './Dialog'
@@ -28,6 +29,11 @@ export { Popover } from './Popover'
 export { ScreenReaderAnnouncer } from './ScreenReaderAnnouncer'
 export { Text } from './Text'
 export { ToggleButton } from './ToggleButton'
+export {
+  SegmentedControl,
+  type SegmentedControlItem,
+  type SegmentedControlProps,
+} from './SegmentedControl'
 export { Ul } from './Ul'
 export { VerticallyOffCenter } from './VerticallyOffCenter'
 export { TextArea } from './TextArea'

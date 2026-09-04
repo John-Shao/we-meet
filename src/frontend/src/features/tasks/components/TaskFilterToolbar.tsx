@@ -11,7 +11,6 @@ import {
   RiArrowDownLine,
   RiArrowUpLine,
   RiCheckLine,
-  RiCloseLine,
   RiDraggable,
   RiEyeLine,
   RiEyeOffLine,
@@ -19,7 +18,12 @@ import {
   RiLockLine,
 } from '@remixicon/react'
 
-import { Button, IconButton, IconToggleButton } from '@/primitives'
+import {
+  Button,
+  DismissibleChip,
+  IconButton,
+  IconToggleButton,
+} from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
@@ -663,18 +667,17 @@ export const TaskFilterToolbar = ({
           </span>
           <div className={filterChipsCss}>
             {activeFilters.map((filter) => (
-              <button
+              <DismissibleChip
                 key={filter.key}
-                type="button"
-                className={filterChipCss}
-                aria-label={t('workspace.removeFilter', {
+                tone="brand"
+                size="md"
+                label={t('workspace.removeFilter', {
                   filter: filter.label,
                 })}
-                onClick={filter.clear}
+                onPress={filter.clear}
               >
-                <span>{filter.label}</span>
-                <RiCloseLine size={14} aria-hidden="true" />
-              </button>
+                {filter.label}
+              </DismissibleChip>
             ))}
           </div>
           <Button variant="quaternaryText" size="dense" onPress={onClear}>
@@ -911,9 +914,6 @@ const activeFiltersCss = css({
   alignItems: 'center',
   gap: '0.5rem',
   padding: '0 1rem 0.625rem',
-  '& button': {
-    fontSize: '0.75rem',
-  },
 })
 const filterResultCss = css({
   display: 'inline-flex',
@@ -926,21 +926,4 @@ const filterChipsCss = css({
   display: 'flex',
   flexWrap: 'wrap',
   gap: '0.375rem',
-})
-const filterChipCss = css({
-  minHeight: '1.75rem',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.25rem',
-  padding: '0.125rem 0.5rem',
-  border: '1px solid token(colors.primary.200)',
-  borderRadius: '999px',
-  backgroundColor: 'primary.50',
-  color: 'primary.700',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'primary.100' },
-  _focusVisible: {
-    outline: '2px solid token(colors.primary.500)',
-    outlineOffset: '1px',
-  },
 })

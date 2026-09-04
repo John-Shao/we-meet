@@ -10,7 +10,7 @@ import {
   RiCalendarScheduleLine,
 } from '@remixicon/react'
 
-import { Button } from '@/primitives'
+import { Button, IconButton } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { EmojiPicker } from './EmojiPicker'
 import { CHAT_IMAGE_ALLOWED_TYPES } from '../api/uploadChatImage'
@@ -365,22 +365,14 @@ export const MessageInput = ({
             </span>{' '}
             {reply.snippet}
           </span>
-          <button
-            type="button"
-            onClick={onCancelReply}
-            aria-label={t('quote.cancel')}
-            className={css({
-              flexShrink: 0,
-              display: 'flex',
-              border: 'none',
-              background: 'transparent',
-              color: 'greyscale.500',
-              cursor: 'pointer',
-              _hover: { color: 'greyscale.800' },
-            })}
+          <IconButton
+            label={t('quote.cancel')}
+            size="icon24"
+            onPress={onCancelReply}
+            className={css({ flexShrink: 0 })}
           >
-            <RiCloseLine size={16} />
-          </button>
+            <RiCloseLine size={16} aria-hidden="true" />
+          </IconButton>
         </div>
       )}
       <div
@@ -534,31 +526,20 @@ export const MessageInput = ({
           ref={moreRef}
           className={css({ position: 'relative', flexShrink: 0 })}
         >
-          <button
-            type="button"
-            onClick={() => {
+          <IconButton
+            label={t('input.more', { defaultValue: '更多' })}
+            size="icon32"
+            variant="secondary"
+            onPress={() => {
               setShowEmojiPicker(false)
               setShowMore((open) => !open)
             }}
-            aria-label={t('input.more', { defaultValue: '更多' })}
             aria-expanded={showMore}
             aria-haspopup="menu"
             data-testid="im-more-btn"
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '2.375rem',
-              height: '100%',
-              border: '1px solid token(colors.greyscale.300)',
-              borderRadius: '0.5rem',
-              backgroundColor: 'greyscale.000',
-              color: 'primary.600',
-              cursor: 'pointer',
-            })}
           >
-            <RiAddLine size={20} />
-          </button>
+            <RiAddLine size={20} aria-hidden="true" />
+          </IconButton>
           {showMore && (
             <div
               role="menu"
@@ -709,34 +690,20 @@ export const MessageInput = ({
           ref={emojiRef}
           className={css({ position: 'relative', flexShrink: 0 })}
         >
-          <button
-            type="button"
-            onClick={() => {
+          <IconButton
+            label={t('input.emoji')}
+            size="icon32"
+            variant="secondary"
+            onPress={() => {
               setShowMore(false)
               setShowEmojiPicker((open) => !open)
             }}
-            disabled={disabled || sending}
-            aria-label={t('input.emoji')}
-            title={t('input.emoji')}
+            isDisabled={disabled || sending}
             aria-expanded={showEmojiPicker}
             data-testid="im-emoji-btn"
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '2.375rem',
-              height: '100%',
-              border: '1px solid token(colors.greyscale.300)',
-              borderRadius: '0.5rem',
-              backgroundColor: 'greyscale.000',
-              color: 'greyscale.600',
-              cursor: 'pointer',
-              _hover: { backgroundColor: 'greyscale.100' },
-              _disabled: { opacity: 0.5, cursor: 'not-allowed' },
-            })}
           >
-            <RiEmotionHappyLine size={18} />
-          </button>
+            <RiEmotionHappyLine size={18} aria-hidden="true" />
+          </IconButton>
           {showEmojiPicker && (
             <div
               className={css({

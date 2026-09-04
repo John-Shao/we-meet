@@ -50,6 +50,13 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 - 仅使用 `icon24 / icon28 / icon32` 三档：树行等紧凑区域用 24，表格和弹窗用 28，页面或面板工具栏用 32；
 - 普通动作使用 `quaternaryText`，危险动作使用 `quaternaryDanger`，有开关语义的动作使用 `IconToggleButton` 和受控 `isSelected`。
 
+### Chip 与页面分段切换
+
+- 静态标签使用 `Chip`；可删除的筛选条件使用 `DismissibleChip`，由基元统一关闭图标、间距以及 hover、pressed、focus-visible、disabled 状态；
+- `DismissibleChip.label` 必须描述动作，例如“移除筛选：高优先级”，不能只读作“高优先级”；
+- 日历 / 会议室等同级页面模式使用 `SegmentedControl`，统一选中下边线和语义色；
+- `SegmentedControl` 使用 tablist / tab 语义，并支持方向键以及 Home / End 键导航，页面代码只管理当前值。
+
 ## 4. Android 接入
 
 - `Dimens.ControlCompact/Default/Large` 映射共享控件高度；
