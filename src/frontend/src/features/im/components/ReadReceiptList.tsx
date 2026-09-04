@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 import { Modal, ModalBody, ModalHeader } from '@/components/Modal'
+import { StateHint } from '@/components/StateHint'
 import { SegmentedControl } from '@/primitives'
 
 import { Avatar } from './Avatar'
@@ -61,15 +62,9 @@ export const ReadReceiptList = ({ read, unread, onClose }: Props) => {
 
       <ModalBody padding="none" minHeight="8rem">
         {list.length === 0 ? (
-          <p
-            className={css({
-              padding: '1rem',
-              color: 'greyscale.500',
-              fontSize: '0.875rem',
-            })}
-          >
+          <StateHint>
             {tab === 'read' ? t('read.emptyRead') : t('read.emptyUnread')}
-          </p>
+          </StateHint>
         ) : (
           list.map((m) => (
             <div

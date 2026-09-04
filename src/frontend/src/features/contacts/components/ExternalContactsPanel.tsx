@@ -136,7 +136,7 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
 
       <div className={sectionCls}>
         {contacts.isFetching && rows.length === 0 ? (
-          <StateHint loading>{t('page.loading')}</StateHint>
+          <StateHint state="loading">{t('page.loading')}</StateHint>
         ) : rows.length === 0 ? (
           <StateHint>{t('external.empty')}</StateHint>
         ) : (
@@ -277,7 +277,7 @@ const AddExternalContactDialog = ({
       </div>
       <div className={resultsCls}>
         {busy ? (
-          <StateHint loading>{t('page.loading')}</StateHint>
+          <StateHint state="loading">{t('page.loading')}</StateHint>
         ) : results.length === 0 ? (
           <StateHint>{t('external.searchEmpty')}</StateHint>
         ) : (

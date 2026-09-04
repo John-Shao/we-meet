@@ -21,17 +21,25 @@ export const TaskSettingsPanel = () => {
   const change = (patch: PatchTaskSettingsPayload) => update.mutate(patch)
 
   if (isLoading) {
-    return <StateHint loading>{t('settings.loading')}</StateHint>
+    return <StateHint state="loading">{t('settings.loading')}</StateHint>
   }
 
   if (error || !settings) {
     return (
-      <div className={loadErrorCss}>
-        <p role="alert">{t('settings.loadError')}</p>
-        <Button variant="secondary" size="dense" onPress={() => void refetch()}>
-          {t('settings.retry')}
-        </Button>
-      </div>
+      <StateHint
+        state="error"
+        action={
+          <Button
+            variant="secondary"
+            size="dense"
+            onPress={() => void refetch()}
+          >
+            {t('settings.retry')}
+          </Button>
+        }
+      >
+        {t('settings.loadError')}
+      </StateHint>
     )
   }
 
@@ -158,16 +166,6 @@ const selectCss = css({
     outlineOffset: '2px',
   },
   _disabled: { opacity: 0.5, cursor: 'default' },
-})
-const loadErrorCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: '0.75rem',
-  padding: '2rem',
-  color: 'default.subtle-text',
-  fontSize: '0.875rem',
-  '& p': { margin: 0 },
 })
 const saveErrorCss = css({
   margin: '0.75rem 0 0',

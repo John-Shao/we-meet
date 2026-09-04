@@ -92,7 +92,7 @@ export const MyGroupsPanel = () => {
 
       <div className={css({ overflowY: 'auto', flex: 1 })}>
         {isLoading && groups.length === 0 ? (
-          <StateHint loading>{t('page.loading')}</StateHint>
+          <StateHint state="loading">{t('page.loading')}</StateHint>
         ) : visible.length === 0 ? (
           <StateHint>
             {groups.length === 0 ? t('groups.empty') : t('groups.noMatch')}

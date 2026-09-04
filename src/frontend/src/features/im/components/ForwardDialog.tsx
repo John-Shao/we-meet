@@ -204,7 +204,7 @@ export const ForwardDialog = ({
 
           <ModalBody padding="none" minHeight="8rem">
             {filtered.length === 0 && directoryHits.length === 0 ? (
-              <StateHint loading={isLoading}>
+              <StateHint state={isLoading ? 'loading' : 'empty'}>
                 {isLoading ? t('forward.loading') : t('forward.empty')}
               </StateHint>
             ) : (

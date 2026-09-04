@@ -69,7 +69,7 @@ export const ContactPicker = ({
 
       <ModalBody padding="none">
         {isFetching && selectable.length === 0 ? (
-          <StateHint loading>{t('picker.loading')}</StateHint>
+          <StateHint state="loading">{t('picker.loading')}</StateHint>
         ) : selectable.length === 0 ? (
           <StateHint>{t('picker.empty')}</StateHint>
         ) : (

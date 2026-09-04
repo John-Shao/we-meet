@@ -5,6 +5,7 @@ import { RiFileTextLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
+import { StateHint } from '@/components/StateHint'
 import { Button, Input, SelectableListRow } from '@/primitives'
 
 import { fetchMyDocuments, type MyDocumentHit } from '../api/fetchMyDocuments'
@@ -75,13 +76,11 @@ export const DocPickerDialog = ({ onConfirm, onClose }: Props) => {
 
       <ModalBody padding="none" minHeight="8rem">
         {isError ? (
-          <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-            {t('docPicker.error')}
-          </p>
-        ) : docs.length === 0 && !isFetching ? (
-          <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-            {t('docPicker.empty')}
-          </p>
+          <StateHint state="error">{t('docPicker.error')}</StateHint>
+        ) : isFetching && docs.length === 0 ? (
+          <StateHint state="loading">{t('group.loading')}</StateHint>
+        ) : docs.length === 0 ? (
+          <StateHint>{t('docPicker.empty')}</StateHint>
         ) : (
           docs.map((d) => {
             const active = selected.has(d.id)

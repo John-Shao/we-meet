@@ -342,6 +342,7 @@ const migratedShapeSources = [
   '../src/primitives/TooltipWrapper.tsx',
   '../src/primitives/VisualOnlyTooltip.tsx',
   '../src/components/Modal.tsx',
+  '../src/components/StateHint.tsx',
   '../src/features/tasks/components/TaskSidePanel.tsx',
   '../src/features/notifications/components/Toast.tsx',
 ].map((path) => new URL(path, import.meta.url))
@@ -474,6 +475,17 @@ const componentStateRequirements = [
       "alignment?: 'end' | 'space-between'",
       "borderTop: '1px solid token(colors.border.subtle)'",
       '<ModalCloseButton',
+    ],
+  ],
+  [
+    '../src/components/StateHint.tsx',
+    [
+      'export type StateHintState',
+      'state?: StateHintState',
+      'action?: ReactNode',
+      "error: { color: 'status.danger' }",
+      "role={isError ? 'alert' : 'status'}",
+      "aria-busy={state === 'loading' || undefined}",
     ],
   ],
   [

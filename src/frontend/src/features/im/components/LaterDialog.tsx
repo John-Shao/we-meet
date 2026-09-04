@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { Modal, ModalBody, ModalHeader } from '@/components/Modal'
+import { StateHint } from '@/components/StateHint'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { listLater, type LaterItem } from '../api/listLater'
@@ -76,13 +77,9 @@ export const LaterDialog = ({ onOpenConversation, onClose }: Props) => {
 
       <ModalBody padding="none" minHeight="8rem" maxHeight="60vh">
         {isLoading ? (
-          <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-            {t('list.loading')}
-          </p>
+          <StateHint state="loading">{t('list.loading')}</StateHint>
         ) : items.length === 0 ? (
-          <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
-            {t('later.empty')}
-          </p>
+          <StateHint>{t('later.empty')}</StateHint>
         ) : (
           items.map((item: LaterItem) => (
             <div

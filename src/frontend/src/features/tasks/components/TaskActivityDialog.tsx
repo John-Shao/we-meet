@@ -52,12 +52,20 @@ export const TaskActivityDialog = ({
         {isLoading ? (
           <TaskHistoryListSkeleton label={t('activity.loading')} />
         ) : error ? (
-          <div className={stateCss}>
-            <StateHint>{t('activity.error')}</StateHint>
-            <Button variant="secondary" size="action" onPress={() => refetch()}>
-              {t('workspace.retry')}
-            </Button>
-          </div>
+          <StateHint
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="action"
+                onPress={() => refetch()}
+              >
+                {t('workspace.retry')}
+              </Button>
+            }
+          >
+            {t('activity.error')}
+          </StateHint>
         ) : activities.length === 0 ? (
           <StateHint>{t('activity.empty')}</StateHint>
         ) : (
@@ -173,13 +181,6 @@ const activityContentCss = css({
   },
   '& > span': { color: 'greyscale.700', fontSize: '0.8125rem' },
   '& time': { color: 'greyscale.500', fontSize: '0.75rem' },
-})
-
-const stateCss = css({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  paddingBottom: '1rem',
 })
 
 const loadMoreCss = css({

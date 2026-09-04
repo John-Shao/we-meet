@@ -1,44 +1,86 @@
 import type { ReactNode } from 'react'
-import { css, cx } from '@/styled-system/css'
+import { RiErrorWarningLine } from '@remixicon/react'
+
+import { css, cva, cx } from '@/styled-system/css'
 
 /**
- * 统一的「加载 / 空」占位:居中灰字 + 一致留白。loading 时前置一个小转圈
- * (复用 panda 的 rotate keyframe)。各模块原先散落的 padding/color/居中
- * 各写一套,统一到这里,深浅色都走 greyscale token 自动适配。
+ * Compact loading / empty / error feedback for lists, panels and dialogs.
+ * Uses semantic colors, live-region roles and one standard retry/action slot.
  */
-const wrap = css({
-  display: 'flex',
+const stateHintRecipe = cva({
+  base: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 'sm',
+    padding: 'xl',
+    textStyle: 'bodyMedium',
+    textAlign: 'center',
+  },
+  variants: {
+    state: {
+      loading: { color: 'text.secondary' },
+      empty: { color: 'text.secondary' },
+      error: { color: 'status.danger' },
+    },
+  },
+  defaultVariants: {
+    state: 'empty',
+  },
+})
+
+const message = css({
+  display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: '0.5rem',
-  padding: '1.5rem',
-  color: 'greyscale.500',
-  fontSize: '0.875rem',
-  textAlign: 'center',
+  gap: 'sm',
 })
 
 const spinner = css({
   flexShrink: 0,
   width: '1rem',
   height: '1rem',
-  borderRadius: '999px',
+  borderRadius: 'pill',
   border: '2px solid',
-  borderColor: 'greyscale.300',
-  borderTopColor: 'greyscale.500',
+  borderColor: 'border.default',
+  borderTopColor: 'icon.secondary',
   animation: 'rotate 700ms linear infinite',
 })
 
-interface Props {
+export type StateHintState = 'loading' | 'empty' | 'error'
+
+export interface StateHintProps {
   children: ReactNode
-  /** true 时前置转圈,用于加载态;false(默认)为空态。 */
-  loading?: boolean
-  /** 额外类名(如覆盖 padding/对齐以贴合特定容器)。 */
+  state?: StateHintState
+  action?: ReactNode
   className?: string
 }
 
-export const StateHint = ({ children, loading = false, className }: Props) => (
-  <div className={cx(wrap, className)} role="status">
-    {loading && <span className={spinner} aria-hidden="true" />}
-    <span>{children}</span>
-  </div>
-)
+export const StateHint = ({
+  children,
+  state = 'empty',
+  action,
+  className,
+}: StateHintProps) => {
+  const isError = state === 'error'
+
+  return (
+    <div
+      className={cx(stateHintRecipe({ state }), className)}
+      data-state={state}
+      role={isError ? 'alert' : 'status'}
+      aria-live={isError ? 'assertive' : 'polite'}
+      aria-busy={state === 'loading' || undefined}
+    >
+      <span className={message}>
+        {state === 'loading' ? (
+          <span className={spinner} aria-hidden="true" />
+        ) : null}
+        {isError ? <RiErrorWarningLine size={18} aria-hidden="true" /> : null}
+        <span>{children}</span>
+      </span>
+      {action}
+    </div>
+  )
+}

@@ -84,7 +84,7 @@ export const GroupBotsPage = ({
       </div>
 
       {isLoading ? (
-        <StateHint loading>{t('group.loading')}</StateHint>
+        <StateHint state="loading">{t('group.loading')}</StateHint>
       ) : bots.length === 0 ? (
         <StateHint>{t('bots.empty')}</StateHint>
       ) : (

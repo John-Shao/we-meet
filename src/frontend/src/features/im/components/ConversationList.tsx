@@ -151,7 +151,7 @@ export const ConversationList = ({
   ]
 
   if (loading) {
-    return <StateHint loading>{t('list.loading')}</StateHint>
+    return <StateHint state="loading">{t('list.loading')}</StateHint>
   }
   if (conversations.length === 0) {
     return (

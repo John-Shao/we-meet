@@ -10,6 +10,7 @@ import { css } from '@/styled-system/css'
 import { fetchApi } from '@/api/fetchApi'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 import { EventDetailHost } from '@/features/calendar'
 
 import { resolveImUsers } from '../api/resolveImUsers'
@@ -1406,13 +1407,9 @@ export const ChatPane = ({
             })}
           >
             {isLoading ? (
-              <div className={css({ padding: '1rem', color: 'greyscale.500' })}>
-                {t('chat.loading')}
-              </div>
+              <StateHint state="loading">{t('chat.loading')}</StateHint>
             ) : messages.length === 0 ? (
-              <div className={css({ padding: '1rem', color: 'greyscale.500' })}>
-                {t('chat.empty')}
-              </div>
+              <StateHint>{t('chat.empty')}</StateHint>
             ) : (
               visibleMessages.map((m, idx) => {
                 const prev = visibleMessages[idx - 1]

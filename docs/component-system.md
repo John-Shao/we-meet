@@ -79,6 +79,13 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 - `InteractiveList` 作为键盘导航边界，统一支持 ArrowUp / ArrowDown 与 Home / End，并在多选模式声明 `aria-multiselectable`；
 - 列表容器语义仍由场景决定：导航结果优先保留原生按钮与列表结构，单选/多选候选使用 `listbox / option`，不能把搜索结果伪装成操作菜单。
 
+### 加载、空数据与错误状态
+
+- 弹窗、侧栏和紧凑列表统一使用 `StateHint` 表达 `loading / empty / error`，不再由业务页面分别手写提示颜色、间距与加载图形；
+- 加载和空数据使用 `text.secondary`，错误使用 `status.danger`；错误恢复操作通过 `action` 插槽提供，例如“重试”；
+- 加载状态使用 `role="status"`、`aria-live="polite"` 与 `aria-busy`，错误状态使用 `role="alert"` 和 `aria-live="assertive"`；
+- 已知内容骨架且首屏等待明显时优先使用 Skeleton；布局未知或空间紧凑时使用 `StateHint`。后台刷新已有数据时保留旧内容，不使用全屏加载状态覆盖。
+
 ## 4. Android 接入
 
 - `Dimens.ControlCompact/Default/Large` 映射共享控件高度；

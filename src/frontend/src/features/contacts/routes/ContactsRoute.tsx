@@ -360,7 +360,7 @@ const ContactsAuthenticated = () => {
             )}
             <div className={css({ overflowY: 'auto', flex: 1 })}>
               {isFetching && members.length === 0 ? (
-                <StateHint loading>{t('page.loading')}</StateHint>
+                <StateHint state="loading">{t('page.loading')}</StateHint>
               ) : members.length === 0 ? (
                 <StateHint>
                   {view === 'starred' ? t('starred.empty') : t('page.empty')}

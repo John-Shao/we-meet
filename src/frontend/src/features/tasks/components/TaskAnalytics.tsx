@@ -17,8 +17,10 @@ export const TaskAnalytics = ({ state }: { state: TaskWorkspaceState }) => {
     state.group
   )
 
-  if (isLoading) return <StateHint loading>{t('analytics.loading')}</StateHint>
-  if (error || !data) return <StateHint>{t('analytics.error')}</StateHint>
+  if (isLoading)
+    return <StateHint state="loading">{t('analytics.loading')}</StateHint>
+  if (error || !data)
+    return <StateHint state="error">{t('analytics.error')}</StateHint>
 
   const cards = [
     ['total', data.summary.total],

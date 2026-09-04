@@ -12,6 +12,7 @@ import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 import { botColorAt } from '@/components/bot/botPalette'
 import { useHasPermission } from '@/hooks/useOrgContext'
 
@@ -164,9 +165,9 @@ export const AdminBots = () => {
 
       <div className={css({ flex: 1, overflowY: 'auto' })}>
         {isFetching && bots.length === 0 ? (
-          <p className={emptyText}>{t('bots.loading')}</p>
+          <StateHint state="loading">{t('bots.loading')}</StateHint>
         ) : bots.length === 0 ? (
-          <p className={emptyText}>{t('bots.empty')}</p>
+          <StateHint>{t('bots.empty')}</StateHint>
         ) : (
           <table className={tableCls}>
             <thead>
@@ -358,9 +359,4 @@ const chipCls = css({
   color: 'greyscale.600',
   backgroundColor: 'greyscale.100',
   whiteSpace: 'nowrap',
-})
-const emptyText = css({
-  padding: '2rem',
-  textAlign: 'center',
-  color: 'greyscale.500',
 })

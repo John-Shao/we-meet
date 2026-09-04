@@ -97,7 +97,7 @@ export const GroupVoiceCallPicker = ({
       />
       <ModalBody padding="none">
         {isFetching && candidates.length === 0 ? (
-          <StateHint loading>{t('group.loading')}</StateHint>
+          <StateHint state="loading">{t('group.loading')}</StateHint>
         ) : (
           <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
             {candidates.map((m) => {

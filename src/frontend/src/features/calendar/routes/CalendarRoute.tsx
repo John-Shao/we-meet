@@ -610,7 +610,7 @@ const CalendarAuthenticated = () => {
               onBookingChange={moveMeetingRoomBooking}
             />
           ) : isLoading ? (
-            <StateHint loading>{t('page.loading')}</StateHint>
+            <StateHint state="loading">{t('page.loading')}</StateHint>
           ) : (
             <>
               <CalendarGrid

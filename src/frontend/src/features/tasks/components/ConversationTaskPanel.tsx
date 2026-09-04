@@ -9,6 +9,7 @@ import {
 } from '@remixicon/react'
 
 import { Button } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
 import { css } from '@/styled-system/css'
 
 import type { ApiTask } from '../api/ApiTask'
@@ -49,13 +50,11 @@ export const ConversationTaskPanel = ({
       </header>
       <div className={bodyCss}>
         {isLoading ? (
-          <p className={hintCss}>{t('share.loading')}</p>
+          <StateHint state="loading">{t('share.loading')}</StateHint>
         ) : error ? (
-          <p className={hintCss} role="alert">
-            {t('error')}
-          </p>
+          <StateHint state="error">{t('error')}</StateHint>
         ) : tasks.length === 0 ? (
-          <p className={hintCss}>{t('share.conversationEmpty')}</p>
+          <StateHint>{t('share.conversationEmpty')}</StateHint>
         ) : (
           <ul className={listCss}>
             {tasks.map((task) => (
@@ -139,12 +138,6 @@ const bodyCss = css({
   minHeight: 0,
   overflowY: 'auto',
   padding: '0.75rem',
-})
-const hintCss = css({
-  margin: 0,
-  padding: '1.5rem 0.5rem',
-  color: 'greyscale.500',
-  textAlign: 'center',
 })
 const listCss = css({
   display: 'flex',

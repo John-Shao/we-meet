@@ -125,7 +125,7 @@ export const DirectoryMultiPicker = ({
             />
           )}
           {(isFetching || isFetchingExternal) && empty ? (
-            <StateHint loading>{labels.loading}</StateHint>
+            <StateHint state="loading">{labels.loading}</StateHint>
           ) : empty ? (
             <StateHint>{labels.empty}</StateHint>
           ) : (

@@ -5,6 +5,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
 import { css, cx } from '@/styled-system/css'
 import { Button } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
 import { selectChrome } from '@/primitives/selectChrome'
 
 import {
@@ -160,9 +161,9 @@ export const AdminAudit = () => {
 
       <div className={css({ flex: 1, overflowY: 'auto' })}>
         {isFetching && logs.length === 0 ? (
-          <p className={emptyText}>{t('audit.loading')}</p>
+          <StateHint state="loading">{t('audit.loading')}</StateHint>
         ) : logs.length === 0 ? (
-          <p className={emptyText}>{t('audit.noLogs')}</p>
+          <StateHint>{t('audit.noLogs')}</StateHint>
         ) : (
           <table
             className={css({
@@ -264,11 +265,6 @@ const td = css({
   paddingY: '0.5rem',
   color: 'greyscale.800',
   verticalAlign: 'top',
-})
-const emptyText = css({
-  padding: '1.5rem',
-  color: 'greyscale.500',
-  fontSize: '0.9375rem',
 })
 // 筛选行里的下拉与两个日期输入共用。高度钉在 control.md 与 selectChrome 同档,
 // 并去掉上下内边距 —— 留着会把内容盒挤到装不下 21px 的行盒(font: inherit 让

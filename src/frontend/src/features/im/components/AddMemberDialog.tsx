@@ -105,7 +105,7 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
       </div>
       <ModalBody padding="none">
         {isFetching && selectable.length === 0 ? (
-          <StateHint loading>{t('group.loading')}</StateHint>
+          <StateHint state="loading">{t('group.loading')}</StateHint>
         ) : selectable.length === 0 ? (
           <StateHint>{t('manage.empty')}</StateHint>
         ) : (

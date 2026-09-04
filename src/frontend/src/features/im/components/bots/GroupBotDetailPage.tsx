@@ -137,7 +137,8 @@ export const GroupBotDetailPage = ({
     onError,
   })
 
-  if (isLoading) return <StateHint loading>{t('group.loading')}</StateHint>
+  if (isLoading)
+    return <StateHint state="loading">{t('group.loading')}</StateHint>
   if (!bot) return <StateHint>{t('bots.gone')}</StateHint>
 
   // Non-owners get null for every credential field; there is nothing to show.

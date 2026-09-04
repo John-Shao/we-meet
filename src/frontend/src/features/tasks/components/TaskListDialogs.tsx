@@ -127,9 +127,9 @@ export const TaskListSharingDialog = ({
           </Button>
           <p className={hintCss}>{t('taskLists.shareHint')}</p>
           {isLoading ? (
-            <StateHint loading>{t('loading')}</StateHint>
+            <StateHint state="loading">{t('loading')}</StateHint>
           ) : error ? (
-            <StateHint>{t('error')}</StateHint>
+            <StateHint state="error">{t('error')}</StateHint>
           ) : (
             <ul className={memberListCss}>
               {accesses.map((access) => (
