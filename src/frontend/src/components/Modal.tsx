@@ -226,6 +226,48 @@ const modalHeaderTitleCss = css({
   whiteSpace: 'nowrap',
 })
 
+export interface ModalBodyProps {
+  children: ReactNode
+  padding?: 'none' | 'default'
+  className?: string
+}
+
+/**
+ * Standard scrolling content region for modal dialogs. Form content receives
+ * the default inset; edge-to-edge lists opt out explicitly.
+ */
+export const ModalBody = ({
+  children,
+  padding = 'default',
+  className,
+}: ModalBodyProps) => (
+  <div
+    data-padding={padding}
+    className={cx(modalBodyRecipe({ padding }), className)}
+  >
+    {children}
+  </div>
+)
+
+const modalBodyRecipe = cva({
+  base: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
+    color: 'text.primary',
+    textStyle: 'bodyMedium',
+  },
+  variants: {
+    padding: {
+      none: { padding: 0 },
+      default: { padding: 'lg' },
+    },
+  },
+  defaultVariants: {
+    padding: 'default',
+  },
+})
+
 export interface ModalFooterProps {
   children: ReactNode
   alignment?: 'end' | 'space-between'

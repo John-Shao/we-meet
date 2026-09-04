@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { css, cx } from '@/styled-system/css'
 import { Button } from '@/primitives'
-import { ModalFooter } from '@/components/Modal'
+import { ModalBody, ModalFooter } from '@/components/Modal'
 
 import { BotAvatar } from './BotAvatar'
 import { BOT_COLORS, botColorAt } from '@/components/bot/botPalette'
@@ -87,7 +87,7 @@ export const CustomBotForm = ({
 
   return (
     <>
-      <div className={css({ padding: '1rem', overflowY: 'auto' })}>
+      <ModalBody>
         <span className={fieldLabelCls}>{t('bots.form.avatar')}</span>
         <div
           className={css({
@@ -159,7 +159,7 @@ export const CustomBotForm = ({
             {description.length}/{DESC_MAX}
           </span>
         </div>
-      </div>
+      </ModalBody>
 
       <ModalFooter>
         <Button variant="secondary" size="action" onPress={onCancel}>

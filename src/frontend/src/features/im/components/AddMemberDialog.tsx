@@ -5,7 +5,7 @@ import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { Button, Input, SelectableListRow } from '@/primitives'
-import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -103,7 +103,7 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
           data-testid="add-member-search"
         />
       </div>
-      <div className={css({ overflowY: 'auto', flex: 1 })}>
+      <ModalBody padding="none">
         {isFetching && selectable.length === 0 ? (
           <StateHint loading>{t('group.loading')}</StateHint>
         ) : selectable.length === 0 ? (
@@ -162,7 +162,7 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
             })}
           </ul>
         )}
-      </div>
+      </ModalBody>
       <ModalFooter alignment="space-between">
         <span
           className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}

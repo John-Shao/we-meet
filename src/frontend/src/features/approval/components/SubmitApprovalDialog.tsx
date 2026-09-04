@@ -7,7 +7,7 @@ import { css, cx } from '@/styled-system/css'
 import { selectChrome } from '@/primitives/selectChrome'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Button } from '@/primitives'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 
 import { fetchApprovalTemplates, submitApproval } from '../api/fetchApproval'
 import type { ApprovalFormField } from '../api/ApiApproval'
@@ -92,18 +92,12 @@ export const SubmitApprovalDialog = ({
       ariaLabel={t('form.title')}
       initialFocusRef={firstFieldRef}
     >
-      <div className={css({ padding: '1.25rem', overflowY: 'auto' })}>
-        <h2
-          className={css({
-            margin: '0 0 1rem',
-            fontSize: '1.0625rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {t('form.title')}
-        </h2>
-
+      <ModalHeader
+        title={t('form.title')}
+        onClose={onClose}
+        closeLabel={t('form.cancel')}
+      />
+      <ModalBody>
         <div className={css({ marginBottom: '0.875rem' })}>
           <label htmlFor="approval-template" className={labelCss}>
             {t('form.template')}
@@ -183,29 +177,21 @@ export const SubmitApprovalDialog = ({
             {t('form.error', { message: error })}
           </p>
         )}
-
-        <div
-          className={css({
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '0.5rem',
-            marginTop: '0.5rem',
-          })}
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" size="action" onPress={onClose}>
+          {t('form.cancel')}
+        </Button>
+        <Button
+          variant="primary"
+          size="action"
+          onPress={submit}
+          isDisabled={!templateId || missingRequired || submitting}
+          data-testid="approval-submit"
         >
-          <Button variant="secondary" size="action" onPress={onClose}>
-            {t('form.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            size="action"
-            onPress={submit}
-            isDisabled={!templateId || missingRequired || submitting}
-            data-testid="approval-submit"
-          >
-            {t('form.submit')}
-          </Button>
-        </div>
-      </div>
+          {t('form.submit')}
+        </Button>
+      </ModalFooter>
     </Modal>
   )
 }

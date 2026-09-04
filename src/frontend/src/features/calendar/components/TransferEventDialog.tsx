@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
-import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import {
   ContactPicker,
   MemberAvatar,
@@ -80,40 +80,42 @@ export const TransferEventDialog = ({
         closeLabel={t('form.cancel')}
       />
 
-      <p className={labelCls}>{t('transfer.targetLabel')}</p>
-      <button
-        type="button"
-        className={targetCls}
-        onClick={() => setSelecting(true)}
-        data-testid="transfer-event-target"
-      >
-        <MemberAvatar
-          name={selectedLabel}
-          src={selected.avatar_url}
-          size="2.25rem"
-        />
-        <span className={targetTextCls}>
-          <span className={targetNameCls}>{selectedLabel}</span>
-          {selectedSub && <span className={targetSubCls}>{selectedSub}</span>}
-        </span>
-        <span className={targetArrowCls} aria-hidden="true">
-          ›
-        </span>
-      </button>
+      <ModalBody padding="none">
+        <p className={labelCls}>{t('transfer.targetLabel')}</p>
+        <button
+          type="button"
+          className={targetCls}
+          onClick={() => setSelecting(true)}
+          data-testid="transfer-event-target"
+        >
+          <MemberAvatar
+            name={selectedLabel}
+            src={selected.avatar_url}
+            size="2.25rem"
+          />
+          <span className={targetTextCls}>
+            <span className={targetNameCls}>{selectedLabel}</span>
+            {selectedSub && <span className={targetSubCls}>{selectedSub}</span>}
+          </span>
+          <span className={targetArrowCls} aria-hidden="true">
+            ›
+          </span>
+        </button>
 
-      <label className={checkboxCls}>
-        <input
-          type="checkbox"
-          checked={keepOriginal}
-          onChange={(e) => setKeepOriginal(e.target.checked)}
-        />
-        <span>{t('transfer.keepOriginal')}</span>
-      </label>
-      {error && (
-        <p className={errorCls} role="alert">
-          {t('transfer.error', { message: error })}
-        </p>
-      )}
+        <label className={checkboxCls}>
+          <input
+            type="checkbox"
+            checked={keepOriginal}
+            onChange={(e) => setKeepOriginal(e.target.checked)}
+          />
+          <span>{t('transfer.keepOriginal')}</span>
+        </label>
+        {error && (
+          <p className={errorCls} role="alert">
+            {t('transfer.error', { message: error })}
+          </p>
+        )}
+      </ModalBody>
 
       <ModalFooter>
         <Button variant="secondary" size="action" onPress={onClose}>

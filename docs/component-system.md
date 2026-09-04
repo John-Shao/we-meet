@@ -66,6 +66,7 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 - 菜单打开后聚焦首个可用动作，并支持方向键、Home / End 与 Escape；锚点定位和视口防溢出仍由具体场景负责；
 - 单行 Dialog 标题栏统一使用 `ModalHeader`，由组件提供 `titleMedium` 字体、语义分隔线、文本截断和标准关闭动作；带副标题或返回按钮的复杂标题栏才保留场景化组合；
 - Dialog 底部操作栏统一使用 `ModalFooter`：普通表单默认右对齐，人员选择等需要展示计数或状态时使用 `space-between`；组件统一提供语义分隔线和标准间距；
+- Dialog 内容区统一使用 `ModalBody`：普通表单使用标准内边距，贴边列表显式设置 `padding="none"`；组件统一正文语义、滚动行为和 flex 收缩规则；
 - 自定义 Dialog 标题栏的关闭动作仍必须使用 `ModalCloseButton`，不能使用无 hover、focus-visible 状态的裸 `×` 按钮。
 
 ### 可交互列表行与选择行

@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
-import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { Button } from '@/primitives'
 import { selectChrome } from '@/primitives/selectChrome'
 import { css, cx } from '@/styled-system/css'
@@ -131,7 +131,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
         onClose={onClose}
         closeLabel={t('form.cancel')}
       />
-      <div className={bodyCls}>
+      <ModalBody padding="none">
         <div className={bodyStackCls}>
           <div className={defaultRowCls}>
             <label className={labelCls} htmlFor="calendar-default-access">
@@ -257,7 +257,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
             )}
           </section>
         </div>
-      </div>
+      </ModalBody>
       <ModalFooter>
         <Button variant="secondary" size="action" onPress={onClose}>
           {t('form.cancel')}
@@ -277,11 +277,6 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
   )
 }
 
-const bodyCls = css({
-  flex: 1,
-  minHeight: 0,
-  overflowY: 'auto',
-})
 const bodyStackCls = css({
   padding: '1rem',
   display: 'flex',

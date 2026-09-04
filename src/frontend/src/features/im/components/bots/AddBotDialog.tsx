@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { RiArrowRightSLine, RiRobot2Line } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalBody, ModalCloseButton } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { navGlyphCls } from '@/styles/controls'
 
@@ -111,7 +111,7 @@ export const AddBotDialog = ({
       </div>
 
       {page === 'catalog' ? (
-        <div className={css({ padding: '1rem', overflowY: 'auto' })}>
+        <ModalBody>
           <input
             ref={searchRef}
             value={search}
@@ -181,7 +181,7 @@ export const AddBotDialog = ({
               </button>
             ))}
           </div>
-        </div>
+        </ModalBody>
       ) : (
         <CustomBotForm
           busy={create.isPending}

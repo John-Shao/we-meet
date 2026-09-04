@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalHeader } from '@/components/Modal'
 
 const preCls = css({
   overflowX: 'auto',
@@ -51,7 +51,7 @@ export const BotHelpDialog = ({ onClose }: { onClose: () => void }) => {
         closeLabel={t('manage.cancel')}
       />
 
-      <div className={css({ padding: '1rem', overflowY: 'auto' })}>
+      <ModalBody>
         <p className={pCls}>{t('bots.helpIntro')}</p>
 
         <h3 className={h3Cls}>{t('bots.helpText')}</h3>
@@ -85,7 +85,7 @@ sign = base64(hmac_sha256(key = timestamp + "\\n" + 密钥, data = ""))
 
         <h3 className={h3Cls}>{t('bots.helpLimits')}</h3>
         <p className={pCls}>{t('bots.helpLimitsBody')}</p>
-      </div>
+      </ModalBody>
     </Modal>
   )
 }

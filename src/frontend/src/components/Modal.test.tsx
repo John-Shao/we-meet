@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 
-import { Modal, ModalFooter, ModalHeader } from './Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from './Modal'
 
 /**
  * Modal 的**焦点契约**。这一层的三条行为(开时把焦点送进弹窗、Tab 咬在弹窗内、
@@ -120,5 +120,18 @@ describe('ModalFooter', () => {
       'data-alignment',
       'space-between'
     )
+  })
+})
+
+describe('ModalBody', () => {
+  it('uses standard padding by default and supports edge-to-edge lists', () => {
+    const { rerender } = render(<ModalBody>表单内容</ModalBody>)
+    expect(screen.getByText('表单内容')).toHaveAttribute(
+      'data-padding',
+      'default'
+    )
+
+    rerender(<ModalBody padding="none">列表内容</ModalBody>)
+    expect(screen.getByText('列表内容')).toHaveAttribute('data-padding', 'none')
   })
 })

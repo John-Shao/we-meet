@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { Button, Input, SelectableListRow } from '@/primitives'
-import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
 
@@ -96,7 +96,7 @@ export const MeetInvitePicker = ({
           data-testid="meet-invite-search"
         />
       </div>
-      <div className={css({ overflowY: 'auto', flex: 1 })}>
+      <ModalBody padding="none">
         {isFetching && selectable.length === 0 ? (
           <StateHint loading>{t('group.loading')}</StateHint>
         ) : selectable.length === 0 ? (
@@ -152,7 +152,7 @@ export const MeetInvitePicker = ({
             })}
           </ul>
         )}
-      </div>
+      </ModalBody>
       {footer}
       <ModalFooter alignment="space-between">
         <span

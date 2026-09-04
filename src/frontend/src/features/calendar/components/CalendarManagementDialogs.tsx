@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { MemberAvatar } from '@/features/contacts'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { MeetingRoomSummary } from '@/features/meeting-rooms'
@@ -127,12 +127,13 @@ const DialogFrame = ({
       maxHeight="82vh"
       initialFocusRef={initialFocusRef}
     >
-      <header className={headerCls}>
-        <h2 className={titleCls}>{title}</h2>
-        <ModalCloseButton onClose={onClose} label={t('manage.close')} />
-      </header>
-      <div className={bodyCls}>{children}</div>
-      {footer ? <footer className={footerCls}>{footer}</footer> : null}
+      <ModalHeader
+        title={title}
+        onClose={onClose}
+        closeLabel={t('manage.close')}
+      />
+      <ModalBody>{children}</ModalBody>
+      {footer ? <ModalFooter>{footer}</ModalFooter> : null}
     </Modal>
   )
 }
@@ -986,38 +987,6 @@ export const CalendarExportDialog = ({
   )
 }
 
-const headerCls = css({
-  display: 'flex',
-  flexShrink: 0,
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-const titleCls = css({
-  margin: 0,
-  fontSize: '1rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
-})
-const bodyCls = css({
-  flex: 1,
-  minHeight: 0,
-  padding: '1rem',
-  overflowY: 'auto',
-  fontSize: '0.875rem',
-  color: 'greyscale.900',
-})
-const footerCls = css({
-  display: 'flex',
-  flexShrink: 0,
-  justifyContent: 'flex-end',
-  gap: '0.5rem',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
-})
 const stackCls = css({
   display: 'flex',
   flexDirection: 'column',

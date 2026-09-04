@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
-import { Modal, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalHeader } from '@/components/Modal'
 import { Input, InteractiveListRow } from '@/primitives'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
@@ -67,7 +67,7 @@ export const ContactPicker = ({
         />
       </div>
 
-      <div className={css({ overflowY: 'auto', flex: 1 })}>
+      <ModalBody padding="none">
         {isFetching && selectable.length === 0 ? (
           <StateHint loading>{t('picker.loading')}</StateHint>
         ) : selectable.length === 0 ? (
@@ -129,7 +129,7 @@ export const ContactPicker = ({
             ))}
           </ul>
         )}
-      </div>
+      </ModalBody>
     </Modal>
   )
 }

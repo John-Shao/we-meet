@@ -5,7 +5,7 @@ import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
 import { Button, SelectableListRow } from '@/primitives'
-import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { useUser } from '@/features/auth'
 import { MemberAvatar } from '@/features/contacts'
@@ -95,7 +95,7 @@ export const GroupVoiceCallPicker = ({
         onClose={onClose}
         closeLabel={t('call.cancel')}
       />
-      <div className={css({ overflowY: 'auto', flex: 1 })}>
+      <ModalBody padding="none">
         {isFetching && candidates.length === 0 ? (
           <StateHint loading>{t('group.loading')}</StateHint>
         ) : (
@@ -132,7 +132,7 @@ export const GroupVoiceCallPicker = ({
             })}
           </ul>
         )}
-      </div>
+      </ModalBody>
       <ModalFooter alignment="space-between">
         <span
           className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}

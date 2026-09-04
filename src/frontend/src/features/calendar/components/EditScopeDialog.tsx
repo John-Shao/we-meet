@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { RadioGroup } from 'react-aria-components'
 
 import { css } from '@/styled-system/css'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { Button } from '@/primitives'
 import { Radio } from '@/primitives/Radio'
 
@@ -33,17 +33,12 @@ export const EditScopeDialog = ({
 
   return (
     <Modal onClose={onClose} ariaLabel={title} maxWidth="360px">
-      <div className={css({ padding: '1.25rem' })}>
-        <h2
-          className={css({
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {title}
-        </h2>
+      <ModalHeader
+        title={title}
+        onClose={onClose}
+        closeLabel={t('form.cancel')}
+      />
+      <ModalBody>
         <RadioGroup
           aria-label={title}
           value={scope}
@@ -52,7 +47,6 @@ export const EditScopeDialog = ({
             display: 'flex',
             flexDirection: 'column',
             gap: '0.625rem',
-            marginTop: '1rem',
           })}
         >
           {options.map((option) => (
@@ -70,30 +64,23 @@ export const EditScopeDialog = ({
             </Radio>
           ))}
         </RadioGroup>
-        <div
-          className={css({
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '0.5rem',
-            marginTop: '1.25rem',
-          })}
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="secondary" size="dense" onPress={onClose}>
+          {t('form.cancel')}
+        </Button>
+        {/* 危险/常规走 variant 切换 —— 基元每个 variant 自己是一整套完整规则,
+            不存在手搓时那种「底色赢了、字色被基类盖掉」的原子类顺序问题
+            (panda-cx-atomic-order-trap),所以不用再抄两份完整类。 */}
+        <Button
+          variant={danger ? 'danger' : 'primary'}
+          size="dense"
+          onPress={() => onConfirm(scope)}
+          data-testid="scope-confirm"
         >
-          <Button variant="secondary" size="dense" onPress={onClose}>
-            {t('form.cancel')}
-          </Button>
-          {/* 危险/常规走 variant 切换 —— 基元每个 variant 自己是一整套完整规则,
-              不存在手搓时那种「底色赢了、字色被基类盖掉」的原子类顺序问题
-              (panda-cx-atomic-order-trap),所以不用再抄两份完整类。 */}
-          <Button
-            variant={danger ? 'danger' : 'primary'}
-            size="dense"
-            onPress={() => onConfirm(scope)}
-            data-testid="scope-confirm"
-          >
-            {t('form.confirm')}
-          </Button>
-        </div>
-      </div>
+          {t('form.confirm')}
+        </Button>
+      </ModalFooter>
     </Modal>
   )
 }
