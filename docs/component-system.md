@@ -43,6 +43,13 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 - Checkbox、Radio、Switch、Tabs 共享 hover、pressed、focus、selected、disabled 状态；
 - 原生 select 作为存量兼容入口，外观与 React Aria Select 使用同一尺寸和语义颜色。
 
+### 图标按钮
+
+- 纯图标操作统一使用 `IconButton`，可切换状态使用 `IconToggleButton`；业务代码不再自行拼装方形热区、悬停色和焦点环；
+- 两个基元都强制提供 `label`，该值同时成为可访问名称和默认 Tooltip，图标本身应设置 `aria-hidden="true"`；
+- 仅使用 `icon24 / icon28 / icon32` 三档：树行等紧凑区域用 24，表格和弹窗用 28，页面或面板工具栏用 32；
+- 普通动作使用 `quaternaryText`，危险动作使用 `quaternaryDanger`，有开关语义的动作使用 `IconToggleButton` 和受控 `isSelected`。
+
 ## 4. Android 接入
 
 - `Dimens.ControlCompact/Default/Large` 映射共享控件高度；

@@ -384,6 +384,15 @@ const componentStateRequirements = [
   ],
   ['../src/primitives/Button.tsx', ['aria-busy', 'data-loading']],
   [
+    '../src/primitives/IconButton.tsx',
+    [
+      'label: string',
+      'aria-label={label}',
+      'tooltip = label',
+      "size = 'icon28'",
+    ],
+  ],
+  [
     '../src/primitives/Input.tsx',
     ['data-hovered', 'data-invalid', 'data-disabled'],
   ],

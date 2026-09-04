@@ -4,7 +4,7 @@ import { isToday } from 'date-fns'
 
 import { css, cx } from '@/styled-system/css'
 import { navGlyphCls } from '@/styles/controls'
-import { Button } from '@/primitives'
+import { Button, IconButton, ToggleButton } from '@/primitives'
 import type { TimeRangeMode } from '../utils/workingHours'
 
 /**
@@ -72,14 +72,15 @@ export const CalendarViewSwitcher = ({
       })}
     >
       {ordered.map((v) => (
-        <button
+        <ToggleButton
           key={v}
-          type="button"
+          variant="greyscale"
+          isSelected={v === view}
           className={cx(segmentBase, v === view ? segmentActive : segmentIdle)}
-          onClick={() => onView(v)}
+          onPress={() => onView(v)}
         >
           {t(`grid.${v}`)}
-        </button>
+        </ToggleButton>
       ))}
     </div>
   )
@@ -134,16 +135,14 @@ export function CalendarToolbar<
           gap: '0.375rem',
         })}
       >
-        <Button
-          variant="quaternaryText"
+        <IconButton
           size="icon32"
           className={navGlyphCls}
-          aria-label={t(prevKey)}
-          tooltip={t(prevKey)}
+          label={t(prevKey)}
           onPress={() => onNavigate('PREV')}
         >
           ‹
-        </Button>
+        </IconButton>
         <Button
           variant="quaternaryText"
           size="action"
@@ -151,16 +150,14 @@ export function CalendarToolbar<
         >
           {t('grid.today')}
         </Button>
-        <Button
-          variant="quaternaryText"
+        <IconButton
           size="icon32"
           className={navGlyphCls}
-          aria-label={t(nextKey)}
-          tooltip={t(nextKey)}
+          label={t(nextKey)}
           onPress={() => onNavigate('NEXT')}
         >
           ›
-        </Button>
+        </IconButton>
         <span
           className={css({
             marginLeft: '0.25rem',
@@ -196,21 +193,17 @@ export function CalendarToolbar<
           timeRangeMode === 'work' &&
           onTimeRangeModeChange &&
           outsideEventCount > 0 && (
-            <button
-              type="button"
+            <Button
+              variant="tertiaryText"
+              size="dense"
               className={css({
-                border: 'none',
-                background: 'transparent',
-                color: 'primary.600',
                 fontSize: '0.75rem',
-                cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                _dark: { color: 'primaryDark.700' },
               })}
-              onClick={() => onTimeRangeModeChange('full')}
+              onPress={() => onTimeRangeModeChange('full')}
             >
               {t('grid.outsideEvents', { count: outsideEventCount })}
-            </button>
+            </Button>
           )}
         <CalendarViewSwitcher view={view} onView={onView} />
       </div>

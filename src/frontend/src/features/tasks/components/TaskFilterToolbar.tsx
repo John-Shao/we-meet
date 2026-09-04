@@ -19,7 +19,7 @@ import {
   RiLockLine,
 } from '@remixicon/react'
 
-import { Button } from '@/primitives'
+import { Button, IconButton, IconToggleButton } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
@@ -509,34 +509,30 @@ export const TaskFilterToolbar = ({
                       <div key={field.value} className={orderingOptionRowCss}>
                         <span>{label}</span>
                         <div>
-                          <button
-                            type="button"
-                            data-selected={ascending || undefined}
-                            aria-label={t('workspace.ordering.ascending', {
+                          <IconToggleButton
+                            size="icon28"
+                            isSelected={ascending}
+                            variant={ascending ? 'tertiary' : 'quaternaryText'}
+                            label={t('workspace.ordering.ascending', {
                               field: label,
                             })}
-                            title={t('workspace.ordering.ascending', {
-                              field: label,
-                            })}
-                            onClick={() => selectOrdering(field.value)}
+                            onPress={() => selectOrdering(field.value)}
                           >
                             <RiArrowUpLine size={16} aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            data-selected={descending || undefined}
-                            aria-label={t('workspace.ordering.descending', {
+                          </IconToggleButton>
+                          <IconToggleButton
+                            size="icon28"
+                            isSelected={descending}
+                            variant={descending ? 'tertiary' : 'quaternaryText'}
+                            label={t('workspace.ordering.descending', {
                               field: label,
                             })}
-                            title={t('workspace.ordering.descending', {
-                              field: label,
-                            })}
-                            onClick={() =>
+                            onPress={() =>
                               selectOrdering(`-${field.value}` as TaskOrdering)
                             }
                           >
                             <RiArrowDownLine size={16} aria-hidden="true" />
-                          </button>
+                          </IconToggleButton>
                         </div>
                       </div>
                     )
@@ -551,17 +547,18 @@ export const TaskFilterToolbar = ({
               <summary>{t('workspace.displayAndOrdering')}</summary>
               <div>
                 <div className={columnPickerActionsCss}>
-                  <button
-                    type="button"
-                    disabled={columnsAreDefault}
-                    onClick={() =>
+                  <Button
+                    variant="secondaryText"
+                    size="dense"
+                    isDisabled={columnsAreDefault}
+                    onPress={() =>
                       onColumnsChange(defaultColumns, [
                         ...DEFAULT_TASK_COLUMN_ORDER,
                       ])
                     }
                   >
                     {t('workspace.resetFields')}
-                  </button>
+                  </Button>
                 </div>
                 <div className={columnListCss}>
                   {renderedColumnOrder.map((column) => {
@@ -620,11 +617,10 @@ export const TaskFilterToolbar = ({
                           <RiDraggable size={16} aria-hidden="true" />
                         </button>
                         <span className={columnLabelCss}>{label}</span>
-                        <button
-                          type="button"
-                          className={columnVisibilityButtonCss}
-                          disabled={locked}
-                          aria-label={t(
+                        <IconButton
+                          size="icon28"
+                          isDisabled={locked}
+                          label={t(
                             locked
                               ? 'workspace.fieldLocked'
                               : checked
@@ -632,7 +628,7 @@ export const TaskFilterToolbar = ({
                                 : 'workspace.showField',
                             { field: label }
                           )}
-                          onClick={() =>
+                          onPress={() =>
                             commitColumnConfiguration(
                               checked
                                 ? configuredColumns.filter(
@@ -649,7 +645,7 @@ export const TaskFilterToolbar = ({
                           ) : (
                             <RiEyeOffLine size={16} aria-hidden="true" />
                           )}
-                        </button>
+                        </IconButton>
                       </div>
                     )
                   })}
@@ -783,24 +779,6 @@ const orderingOptionRowCss = css({
     whiteSpace: 'nowrap',
   },
   '& > div': { display: 'flex', gap: '0.125rem' },
-  '& button': {
-    width: '1.75rem',
-    height: '1.75rem',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-    border: 0,
-    borderRadius: '4px',
-    background: 'transparent',
-    color: 'greyscale.500',
-    cursor: 'pointer',
-    _hover: { backgroundColor: 'greyscale.100', color: 'primary.700' },
-    '&[data-selected]': {
-      backgroundColor: 'primary.50',
-      color: 'primary.700',
-    },
-  },
 })
 const displaySettingsCss = css({
   display: 'flex',
@@ -852,19 +830,6 @@ const columnPickerActionsCss = css({
   justifyContent: 'flex-end',
   paddingBottom: '0.25rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
-  '& button': {
-    padding: 0,
-    border: 0,
-    background: 'transparent',
-    color: 'primary.700',
-    cursor: 'pointer',
-    _hover: { textDecoration: 'underline' },
-    _disabled: {
-      color: 'greyscale.400',
-      cursor: 'default',
-      textDecoration: 'none',
-    },
-  },
 })
 const columnListCss = css({
   display: 'grid',
@@ -939,21 +904,6 @@ const columnLabelCss = css({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-})
-const columnVisibilityButtonCss = css({
-  width: '1.75rem',
-  height: '1.75rem',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 0,
-  border: 0,
-  borderRadius: '4px',
-  background: 'transparent',
-  color: 'greyscale.600',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100' },
-  _disabled: { color: 'greyscale.400', cursor: 'default' },
 })
 const activeFiltersCss = css({
   display: 'flex',

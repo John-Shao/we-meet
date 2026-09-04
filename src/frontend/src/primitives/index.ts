@@ -33,3 +33,9 @@ export { VerticallyOffCenter } from './VerticallyOffCenter'
 export { TextArea } from './TextArea'
 export { Switch } from './Switch'
 export { Icon } from './Icon'
+export {
+  IconButton,
+  IconToggleButton,
+  type IconButtonProps,
+  type IconToggleButtonProps,
+} from './IconButton'

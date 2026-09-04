@@ -59,6 +59,7 @@ import {
 } from '../call/callController'
 import { GroupVoiceCallPicker } from '../call/GroupVoiceCallPicker'
 import { navigateTo } from '@/navigation/navigateTo'
+import { IconButton } from '@/primitives'
 
 // Recall is allowed only on your own messages within this window (WeChat: 2 min).
 const RECALL_WINDOW_MS = 2 * 60 * 1000
@@ -1265,56 +1266,48 @@ export const ChatPane = ({
         </div>
         {/* P4.1 群语音通话: member picker → parallel ringing invites. */}
         {isGroup && (
-          <button
-            type="button"
-            onClick={() => setGroupCallMedia('audio')}
-            disabled={callSnap.state.phase !== 'idle'}
-            title={t('call.groupPicker.title')}
-            aria-label={t('call.groupPicker.title')}
+          <IconButton
+            label={t('call.groupPicker.title')}
+            size="icon32"
+            onPress={() => setGroupCallMedia('audio')}
+            isDisabled={callSnap.state.phase !== 'idle'}
             data-testid="chat-group-voice-call"
-            className={headerBtn}
           >
-            <RiPhoneLine size={16} />
-          </button>
+            <RiPhoneLine size={16} aria-hidden="true" />
+          </IconButton>
         )}
         {/* P5.1 群视频会议: same picker → ring members into the full meeting
             UI (替代原快速会议路径——那条不振铃也不落建议参会名单)。 */}
         {isGroup && (
-          <button
-            type="button"
-            onClick={() => setGroupCallMedia('video')}
-            disabled={callSnap.state.phase !== 'idle'}
-            title={t('call.groupMeeting')}
-            aria-label={t('call.groupMeeting')}
+          <IconButton
+            label={t('call.groupMeeting')}
+            size="icon32"
+            onPress={() => setGroupCallMedia('video')}
+            isDisabled={callSnap.state.phase !== 'idle'}
             data-testid="chat-group-meeting"
-            className={headerBtn}
           >
-            <RiVidiconLine size={16} />
-          </button>
+            <RiVidiconLine size={16} aria-hidden="true" />
+          </IconButton>
         )}
         {isGroup && onAddMembers && (
-          <button
-            type="button"
-            onClick={onAddMembers}
-            title={t('manage.addMembers')}
-            aria-label={t('manage.addMembers')}
+          <IconButton
+            label={t('manage.addMembers')}
+            size="icon32"
+            onPress={onAddMembers}
             data-testid="chat-add-members"
-            className={headerBtn}
           >
             ＋
-          </button>
+          </IconButton>
         )}
         {isGroup && onOpenInfo && (
-          <button
-            type="button"
-            onClick={onOpenInfo}
-            title={t('manage.settings')}
-            aria-label={t('manage.settings')}
+          <IconButton
+            label={t('manage.settings')}
+            size="icon32"
+            onPress={onOpenInfo}
             data-testid="chat-group-info"
-            className={headerBtn}
           >
             ⋯
-          </button>
+          </IconButton>
         )}
         {/* P1 一对一通话: voice / video call from the direct-chat header.
             Buttons no-op while a call is already active (backstopped in the
@@ -1322,9 +1315,10 @@ export const ChatPane = ({
             outgoing UI once the state machine leaves idle. */}
         {!isGroup && peerUid && (
           <>
-            <button
-              type="button"
-              onClick={() =>
+            <IconButton
+              label={t('call.voice')}
+              size="icon32"
+              onPress={() =>
                 void startCall({
                   cid,
                   peerUid,
@@ -1335,17 +1329,15 @@ export const ChatPane = ({
                   username: user?.full_name ?? '',
                 })
               }
-              disabled={callSnap.state.phase !== 'idle'}
-              title={t('call.voice')}
-              aria-label={t('call.voice')}
+              isDisabled={callSnap.state.phase !== 'idle'}
               data-testid="chat-voice-call"
-              className={headerBtn}
             >
-              <RiPhoneLine size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() =>
+              <RiPhoneLine size={16} aria-hidden="true" />
+            </IconButton>
+            <IconButton
+              label={t('call.video')}
+              size="icon32"
+              onPress={() =>
                 void startCall({
                   cid,
                   peerUid,
@@ -1356,27 +1348,22 @@ export const ChatPane = ({
                   username: user?.full_name ?? '',
                 })
               }
-              disabled={callSnap.state.phase !== 'idle'}
-              title={t('call.video')}
-              aria-label={t('call.video')}
+              isDisabled={callSnap.state.phase !== 'idle'}
               data-testid="chat-video-call"
-              className={headerBtn}
             >
-              <RiVidiconLine size={16} />
-            </button>
+              <RiVidiconLine size={16} aria-hidden="true" />
+            </IconButton>
           </>
         )}
         {!isGroup && onOpenSettings && (
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            title={t('manage.settings')}
-            aria-label={t('manage.settings')}
+          <IconButton
+            label={t('manage.settings')}
+            size="icon32"
+            onPress={onOpenSettings}
             data-testid="chat-direct-settings"
-            className={headerBtn}
           >
             ⋯
-          </button>
+          </IconButton>
         )}
       </div>
 
@@ -1759,22 +1746,5 @@ const jumpLatestBtn = css({
   fontSize: '0.8125rem',
   cursor: 'pointer',
   boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-  _hover: { backgroundColor: 'greyscale.100' },
-})
-
-const headerBtn = css({
-  flexShrink: 0,
-  width: '2rem',
-  height: '2rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '999px',
-  backgroundColor: 'greyscale.000',
-  color: 'greyscale.700',
-  fontSize: '1rem',
-  lineHeight: 1,
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
   _hover: { backgroundColor: 'greyscale.100' },
 })
