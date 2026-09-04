@@ -19,15 +19,16 @@
   "sourceMeeting": "Source meeting: {{name}}",
   "workspace": {
     "navigation": "Task views",
-    "quickAccess": "Quick access",
+    "taskViews": "Task views",
     "views": {
       "assigned": "Assigned to me",
       "following": "Following",
       "created": "Created by me",
-      "all": "All related",
+      "all": "All tasks",
       "completed": "Completed"
     },
     "resultCount": "{{count}} tasks",
+    "openTaskCount": "{{count}} open tasks",
     "newTask": "New task",
     "filters": "Task filters",
     "statusFilter": "Status",
@@ -232,7 +233,7 @@
     "manage": "Manage custom groups",
     "closeManager": "Close custom group manager",
     "emptyNavigation": "No custom groups yet",
-    "invalidSelection": "The custom group is unavailable. Showing all related tasks.",
+    "invalidSelection": "The custom group is unavailable. Showing all tasks.",
     "field": "Group",
     "name": "Group name",
     "ungrouped": "Default group",
@@ -332,7 +333,7 @@
     "assigned": "Assigned to me",
     "following": "Following",
     "created": "Created by me",
-    "all": "All related"
+    "all": "All tasks"
   },
   "followers": {
     "title": "Followers",

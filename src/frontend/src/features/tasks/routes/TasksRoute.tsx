@@ -44,6 +44,7 @@ import {
   useTaskLists,
   useTaskGroups,
   useTaskSettings,
+  useTaskStatistics,
   useUpdateTaskList,
   useUpdateTaskGroup,
   useTasks,
@@ -163,6 +164,25 @@ const TasksAuthenticated = () => {
   const { data: taskListGroups = [] } = useTaskListGroups()
   const { data: standaloneTaskCountData } = useStandaloneTaskCount()
   const { data: taskSettings } = useTaskSettings()
+  const { data: assignedStatistics } = useTaskStatistics(
+    'assigned',
+    'all',
+    'all',
+    'all'
+  )
+  const { data: followingStatistics } = useTaskStatistics(
+    'following',
+    'all',
+    'all',
+    'all'
+  )
+  const { data: createdStatistics } = useTaskStatistics(
+    'created',
+    'all',
+    'all',
+    'all'
+  )
+  const { data: allStatistics } = useTaskStatistics('all', 'all', 'all', 'all')
   const {
     data,
     isLoading,
@@ -194,6 +214,12 @@ const TasksAuthenticated = () => {
     [selectedTaskDetail, tasks]
   )
   const count = data?.pages[0]?.count || 0
+  const navigationCounts = {
+    assigned: assignedStatistics?.summary.open || 0,
+    following: followingStatistics?.summary.open || 0,
+    created: createdStatistics?.summary.open || 0,
+    all: allStatistics?.summary.open || 0,
+  }
   const standaloneTaskCount = standaloneTaskCountData?.count || 0
   const selectedTask =
     tasks.find((task) => task.id === state.task) || selectedTaskDetail
@@ -520,7 +546,7 @@ const TasksAuthenticated = () => {
         >
           <TaskWorkspaceNavigation
             state={state}
-            count={count}
+            navigationCounts={navigationCounts}
             taskLists={taskLists}
             taskListGroups={taskListGroups}
             taskGroups={taskGroups}

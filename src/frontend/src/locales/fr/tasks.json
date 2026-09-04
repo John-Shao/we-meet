@@ -19,15 +19,16 @@
   "sourceMeeting": "Réunion source : {{name}}",
   "workspace": {
     "navigation": "Vues des tâches",
-    "quickAccess": "Accès rapide",
+    "taskViews": "Vues des tâches",
     "views": {
       "assigned": "Mes tâches",
       "following": "Tâches suivies",
       "created": "Créées par moi",
-      "all": "Toutes associées",
+      "all": "Toutes les tâches",
       "completed": "Terminées"
     },
     "resultCount": "{{count}} tâches",
+    "openTaskCount": "{{count}} tâches en cours",
     "newTask": "Nouvelle tâche",
     "filters": "Filtres des tâches",
     "statusFilter": "Statut",
@@ -298,7 +299,7 @@
     "assigned": "À faire par moi",
     "following": "Tâches suivies",
     "created": "Créées par moi",
-    "all": "Toutes"
+    "all": "Toutes les tâches"
   },
   "followers": {
     "title": "Abonnés",

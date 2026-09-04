@@ -19,15 +19,16 @@
   "sourceMeeting": "Quell-Meeting: {{name}}",
   "workspace": {
     "navigation": "Aufgabenansichten",
-    "quickAccess": "Schnellzugriff",
+    "taskViews": "Aufgabenansichten",
     "views": {
       "assigned": "Mir zugewiesen",
       "following": "Von mir verfolgt",
       "created": "Von mir erstellt",
-      "all": "Alle zugehörigen",
+      "all": "Alle Aufgaben",
       "completed": "Abgeschlossen"
     },
     "resultCount": "{{count}} Aufgaben",
+    "openTaskCount": "{{count}} offene Aufgaben",
     "newTask": "Neue Aufgabe",
     "filters": "Aufgabenfilter",
     "statusFilter": "Status",
@@ -298,7 +299,7 @@
     "assigned": "Mir zugewiesen",
     "following": "Von mir verfolgt",
     "created": "Von mir erstellt",
-    "all": "Alle relevanten"
+    "all": "Alle Aufgaben"
   },
   "followers": {
     "title": "Beobachter",

@@ -19,15 +19,16 @@
   "sourceMeeting": "来源会议：{{name}}",
   "workspace": {
     "navigation": "任务视图",
-    "quickAccess": "快速访问",
+    "taskViews": "任务视图",
     "views": {
       "assigned": "我负责的",
       "following": "我关注的",
       "created": "我创建的",
-      "all": "全部相关",
+      "all": "全部任务",
       "completed": "已完成"
     },
     "resultCount": "{{count}} 个任务",
+    "openTaskCount": "{{count}} 个未完成任务",
     "newTask": "新建任务",
     "filters": "任务筛选",
     "statusFilter": "状态",
@@ -232,7 +233,7 @@
     "manage": "管理自定义分组",
     "closeManager": "关闭自定义分组管理",
     "emptyNavigation": "还没有自定义分组",
-    "invalidSelection": "自定义分组已不可用，已切换到全部相关任务。",
+    "invalidSelection": "自定义分组已不可用，已切换到全部任务。",
     "field": "分组",
     "name": "分组名称",
     "ungrouped": "默认分组",
@@ -332,7 +333,7 @@
     "assigned": "我负责的",
     "following": "我关注的",
     "created": "我创建的",
-    "all": "全部相关"
+    "all": "全部任务"
   },
   "followers": {
     "title": "关注人",

@@ -2,6 +2,7 @@ import { useState, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RiAddLine,
+  RiArchiveLine,
   RiFileAddLine,
   RiFolderAddLine,
   RiHistoryLine,
@@ -36,7 +37,20 @@ import {
   TaskListNavigationRow,
 } from './TaskWorkspaceNavigationNodes'
 
-const views: TaskWorkspaceView[] = ['assigned', 'following', 'created', 'all']
+const views: TaskWorkspaceView[] = ['all', 'assigned', 'following', 'created']
+const collapsedListGroupsStorageKey = 'we-meet:task-list-groups-collapsed'
+
+const initialCollapsedGroups = () => {
+  if (typeof window === 'undefined') return new Set<string>()
+  try {
+    const value = JSON.parse(
+      window.localStorage.getItem(collapsedListGroupsStorageKey) || '[]'
+    )
+    return new Set<string>(Array.isArray(value) ? value : [])
+  } catch {
+    return new Set<string>()
+  }
+}
 
 const activeView = (state: TaskWorkspaceState): TaskWorkspaceView => {
   return state.scope
@@ -44,7 +58,7 @@ const activeView = (state: TaskWorkspaceState): TaskWorkspaceView => {
 
 export const TaskWorkspaceNavigation = ({
   state,
-  count,
+  navigationCounts,
   taskLists,
   taskListGroups,
   taskGroups = [],
@@ -68,7 +82,7 @@ export const TaskWorkspaceNavigation = ({
   onOpenActivity,
 }: {
   state: TaskWorkspaceState
-  count: number
+  navigationCounts: Record<TaskWorkspaceView, number>
   taskLists: ApiTaskList[]
   taskListGroups: ApiTaskListGroup[]
   taskGroups?: ApiTaskGroup[]
@@ -98,7 +112,14 @@ export const TaskWorkspaceNavigation = ({
       first.sort_order - second.sort_order ||
       first.created_at.localeCompare(second.created_at)
   )
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const orderedTaskListGroups = [...taskListGroups].sort(
+    (first, second) =>
+      first.sort_order - second.sort_order ||
+      first.created_at.localeCompare(second.created_at)
+  )
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    initialCollapsedGroups
+  )
   const [draggedTaskListId, setDraggedTaskListId] = useState<string>()
   const taskListsByGroup = new Map(
     taskListGroups.map((group) => [group.id, [] as ApiTaskList[]])
@@ -116,6 +137,14 @@ export const TaskWorkspaceNavigation = ({
       const nextGroups = new Set(currentGroups)
       if (nextGroups.has(groupId)) nextGroups.delete(groupId)
       else nextGroups.add(groupId)
+      try {
+        window.localStorage.setItem(
+          collapsedListGroupsStorageKey,
+          JSON.stringify([...nextGroups])
+        )
+      } catch {
+        // Keep the current session responsive when storage is unavailable.
+      }
       return nextGroups
     })
   }
@@ -175,7 +204,7 @@ export const TaskWorkspaceNavigation = ({
     <aside className={desktopNavCss} aria-label={t('workspace.navigation')}>
       <h1 className={navTitleCss}>{t('title')}</h1>
       <nav className={navListCss}>
-        <p className={sectionLabelCss}>{t('workspace.quickAccess')}</p>
+        <p className={sectionLabelCss}>{t('workspace.taskViews')}</p>
         {views.map((view) => (
           <button
             key={view}
@@ -209,13 +238,13 @@ export const TaskWorkspaceNavigation = ({
               )}
               <span>{t(`workspace.views.${view}`)}</span>
             </span>
-            {state.group === 'all' &&
-              state.taskList === 'all' &&
-              current === view && (
-                <span aria-label={t('workspace.resultCount', { count })}>
-                  {count}
-                </span>
-              )}
+            <span
+              aria-label={t('workspace.openTaskCount', {
+                count: navigationCounts[view],
+              })}
+            >
+              {navigationCounts[view]}
+            </span>
           </button>
         ))}
         <button type="button" className={navButtonCss} onClick={onOpenActivity}>
@@ -325,20 +354,10 @@ export const TaskWorkspaceNavigation = ({
                       </span>
                     ),
                   },
-                  {
-                    value: 'archived',
-                    label: (
-                      <span className={taskNavigationMenuItemLabelCss}>
-                        <RiHistoryLine size={16} />
-                        {t('taskLists.archivedTitle')}
-                      </span>
-                    ),
-                  },
                 ]}
                 onAction={(action) => {
                   if (action === 'list') onCreateTaskList()
                   if (action === 'group') onCreateTaskListGroup()
-                  if (action === 'archived') onOpenArchivedTaskLists?.()
                 }}
               />
             </Menu>
@@ -351,7 +370,7 @@ export const TaskWorkspaceNavigation = ({
         ) : (
           <>
             {ungroupedLists.map(renderTaskList)}
-            {taskListGroups.map((group) => {
+            {orderedTaskListGroups.map((group) => {
               const collapsed = collapsedGroups.has(group.id)
               const lists = taskListsByGroup.get(group.id) || []
               return (
@@ -381,6 +400,16 @@ export const TaskWorkspaceNavigation = ({
             )}
           </>
         )}
+        <button
+          type="button"
+          className={navButtonCss}
+          onClick={onOpenArchivedTaskLists}
+        >
+          <span className={navLabelCss}>
+            <RiArchiveLine size={18} />
+            <span>{t('taskLists.archivedTitle')}</span>
+          </span>
+        </button>
       </nav>
     </aside>
   )
@@ -439,6 +468,7 @@ const emptyListsCss = css({
 })
 const navButtonCss = css({
   width: '100%',
+  minHeight: '2.5rem',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -458,10 +488,16 @@ const navButtonCss = css({
     fontWeight: '500',
   },
   _hover: { backgroundColor: 'greyscale.100' },
+  '&[data-active]:hover': { backgroundColor: 'selected.bg' },
 })
 const navLabelCss = css({
   minWidth: 0,
   display: 'flex',
   alignItems: 'center',
   gap: '0.625rem',
+  '& span': {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
 })

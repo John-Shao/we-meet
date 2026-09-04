@@ -304,6 +304,7 @@ export const TaskListGroupNavigationNode = ({
 
 const taskListRowCss = css({
   width: '100%',
+  minHeight: '2.5rem',
   display: 'flex',
   alignItems: 'center',
   borderRadius: '8px',
@@ -349,6 +350,7 @@ const listGroupCss = css({
 })
 
 const listGroupHeaderCss = css({
+  minHeight: '2.5rem',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',

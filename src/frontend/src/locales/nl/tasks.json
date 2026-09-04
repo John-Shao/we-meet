@@ -19,15 +19,16 @@
   "sourceMeeting": "Bronvergadering: {{name}}",
   "workspace": {
     "navigation": "Taakweergaven",
-    "quickAccess": "Snelle toegang",
+    "taskViews": "Taakweergaven",
     "views": {
       "assigned": "Aan mij toegewezen",
       "following": "Door mij gevolgd",
       "created": "Door mij gemaakt",
-      "all": "Alle betrokken",
+      "all": "Alle taken",
       "completed": "Voltooid"
     },
     "resultCount": "{{count}} taken",
+    "openTaskCount": "{{count}} openstaande taken",
     "newTask": "Nieuwe taak",
     "filters": "Taakfilters",
     "statusFilter": "Status",
@@ -302,7 +303,7 @@
     "assigned": "Aan mij toegewezen",
     "following": "Door mij gevolgd",
     "created": "Door mij gemaakt",
-    "all": "Alle relevante"
+    "all": "Alle taken"
   },
   "followers": {
     "title": "Volgers",

@@ -35,7 +35,7 @@ export const taskNavigationActionsCss = cva({
 export const taskNavigationActionButtonCss = css({
   backgroundColor: 'transparent!',
   boxShadow: 'none!',
-  _hover: { backgroundColor: 'transparent!' },
-  _focus: { backgroundColor: 'transparent!' },
-  '&[data-pressed]': { backgroundColor: 'transparent!' },
+  _hover: { backgroundColor: 'greyscale.200!' },
+  _focus: { backgroundColor: 'greyscale.200!' },
+  '&[data-pressed]': { backgroundColor: 'greyscale.200!' },
 })

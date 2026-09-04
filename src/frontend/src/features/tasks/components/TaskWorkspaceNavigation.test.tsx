@@ -97,7 +97,7 @@ const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
   render(
     <TaskWorkspaceNavigation
       state={navigationState}
-      count={4}
+      navigationCounts={{ all: 20, assigned: 5, following: 4, created: 14 }}
       taskLists={[
         taskList('list-1', 'Hiring', {
           id: listGroup.id,
@@ -150,7 +150,31 @@ describe('TaskWorkspaceNavigation', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('opens the cross-task activity feed from quick access', () => {
+  it('orders the shared task views consistently', () => {
+    renderNavigation()
+
+    const labels = [
+      'workspace.views.all',
+      'workspace.views.assigned',
+      'workspace.views.following',
+      'workspace.views.created',
+      'activity.navigation',
+    ]
+    const buttons = labels.map((name) =>
+      screen.getByRole('button', {
+        name: new RegExp(name.replace('.', '\\.'), 'i'),
+      })
+    )
+
+    buttons.slice(1).forEach((button, index) => {
+      expect(
+        buttons[index].compareDocumentPosition(button) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    })
+  })
+
+  it('opens the cross-task activity feed from task views', () => {
     const { onOpenActivity } = renderNavigation()
 
     fireEvent.click(screen.getByRole('button', { name: 'activity.navigation' }))
@@ -165,7 +189,7 @@ describe('TaskWorkspaceNavigation', () => {
     render(
       <TaskWorkspaceNavigation
         state={{ ...state, group: taskGroup.id }}
-        count={3}
+        navigationCounts={{ all: 20, assigned: 5, following: 4, created: 14 }}
         taskLists={[]}
         taskListGroups={[]}
         taskGroups={[taskGroup]}
@@ -266,9 +290,8 @@ describe('TaskWorkspaceNavigation', () => {
     )
     expect(onCreateTaskList).toHaveBeenCalledWith()
 
-    fireEvent.click(screen.getByRole('button', { name: 'taskLists.title' }))
     fireEvent.click(
-      await screen.findByRole('menuitem', { name: 'taskLists.archivedTitle' })
+      screen.getByRole('button', { name: 'taskLists.archivedTitle' })
     )
     expect(onOpenArchivedTaskLists).toHaveBeenCalledOnce()
   })
@@ -306,7 +329,7 @@ describe('TaskWorkspaceNavigation', () => {
     render(
       <TaskWorkspaceNavigation
         state={state}
-        count={1}
+        navigationCounts={{ all: 20, assigned: 5, following: 4, created: 14 }}
         taskLists={[
           taskList('viewer-list', 'Read only', null, {
             access_role: 'viewer',
@@ -340,7 +363,7 @@ describe('TaskWorkspaceNavigation', () => {
     render(
       <TaskWorkspaceNavigation
         state={state}
-        count={1}
+        navigationCounts={{ all: 20, assigned: 5, following: 4, created: 14 }}
         taskLists={[
           taskList('leave-list', 'Leave me', null, {
             access_role: 'editor',
