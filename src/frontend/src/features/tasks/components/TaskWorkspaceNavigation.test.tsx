@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -80,7 +80,12 @@ const taskList = (
   ...overrides,
 })
 
-const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
+const renderNavigation = (
+  navigationState = state,
+  standaloneTaskCount = 0,
+  archived: ApiTaskList[] = [],
+  showArchivedTaskLists = false
+) => {
   const onTaskListChange = vi.fn()
   const onCreateTaskList = vi.fn()
   const onCreateTaskListGroup = vi.fn()
@@ -92,7 +97,8 @@ const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
   const onArchiveTaskList = vi.fn()
   const onLeaveTaskList = vi.fn()
   const onDeleteTaskList = vi.fn()
-  const onOpenArchivedTaskLists = vi.fn()
+  const onShowArchivedTaskListsChange = vi.fn()
+  const onRestoreArchivedTaskList = vi.fn()
   const onOpenActivity = vi.fn()
   render(
     <TaskWorkspaceNavigation
@@ -106,6 +112,8 @@ const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
         }),
         taskList('list-2', 'Requirements', null),
       ]}
+      archivedTaskLists={archived}
+      showArchivedTaskLists={showArchivedTaskLists}
       taskListGroups={[listGroup]}
       standaloneTaskCount={standaloneTaskCount}
       onChange={vi.fn()}
@@ -120,7 +128,8 @@ const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
       onArchiveTaskList={onArchiveTaskList}
       onLeaveTaskList={onLeaveTaskList}
       onDeleteTaskList={onDeleteTaskList}
-      onOpenArchivedTaskLists={onOpenArchivedTaskLists}
+      onShowArchivedTaskListsChange={onShowArchivedTaskListsChange}
+      onRestoreArchivedTaskList={onRestoreArchivedTaskList}
       onOpenActivity={onOpenActivity}
     />
   )
@@ -136,7 +145,8 @@ const renderNavigation = (navigationState = state, standaloneTaskCount = 0) => {
     onArchiveTaskList,
     onLeaveTaskList,
     onDeleteTaskList,
-    onOpenArchivedTaskLists,
+    onShowArchivedTaskListsChange,
+    onRestoreArchivedTaskList,
     onOpenActivity,
   }
 }
@@ -275,8 +285,7 @@ describe('TaskWorkspaceNavigation', () => {
   })
 
   it('offers separate actions for creating a task list and a list group', async () => {
-    const { onCreateTaskList, onCreateTaskListGroup, onOpenArchivedTaskLists } =
-      renderNavigation()
+    const { onCreateTaskList, onCreateTaskListGroup } = renderNavigation()
 
     fireEvent.click(screen.getByRole('button', { name: 'taskLists.title' }))
     fireEvent.click(
@@ -289,11 +298,47 @@ describe('TaskWorkspaceNavigation', () => {
       await screen.findByRole('menuitem', { name: 'taskLists.create' })
     )
     expect(onCreateTaskList).toHaveBeenCalledWith()
+  })
 
+  it('keeps archived task lists hidden by default and exposes the display switch', () => {
+    const archived = taskList('archived-list', 'Archived roadmap', null, {
+      is_archived: true,
+    })
+    const { onShowArchivedTaskListsChange } = renderNavigation(state, 0, [
+      archived,
+    ])
+
+    expect(screen.queryByText('Archived roadmap')).not.toBeInTheDocument()
     fireEvent.click(
-      screen.getByRole('button', { name: 'taskLists.archivedTitle' })
+      screen.getByRole('button', { name: 'taskLists.navigationSettings' })
     )
-    expect(onOpenArchivedTaskLists).toHaveBeenCalledOnce()
+    const showArchived = screen.getByRole('switch', {
+      name: 'taskLists.showArchived',
+    })
+    expect(showArchived).not.toHaveAttribute('data-selected')
+    fireEvent.click(showArchived)
+    expect(onShowArchivedTaskListsChange).toHaveBeenCalledWith(true)
+  })
+
+  it('shows archived task lists inline and allows restoring them', () => {
+    const archived = taskList('archived-list', 'Archived roadmap', null, {
+      is_archived: true,
+    })
+    const { onRestoreArchivedTaskList } = renderNavigation(
+      state,
+      0,
+      [archived],
+      true
+    )
+
+    const archivedRow = screen
+      .getByText('Archived roadmap')
+      .closest<HTMLElement>('[data-archived]')!
+    fireEvent.click(
+      within(archivedRow).getByRole('button', { name: 'taskLists.more' })
+    )
+    fireEvent.click(screen.getByRole('menuitem', { name: 'taskLists.restore' }))
+    expect(onRestoreArchivedTaskList).toHaveBeenCalledWith(archived)
   })
 
   it('offers collaboration and lifecycle actions on each task list', () => {

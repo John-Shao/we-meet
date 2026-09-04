@@ -134,6 +134,8 @@
     "standalone": "Liste par défaut",
     "empty": "Aucune liste de tâches",
     "manage": "Gérer les listes de tâches",
+    "navigationSettings": "Paramètres d’affichage des listes",
+    "showArchived": "Afficher les listes de tâches archivées",
     "create": "Créer une liste",
     "createHint": "Create a list to organize related tasks.",
     "name": "Nom de la liste",

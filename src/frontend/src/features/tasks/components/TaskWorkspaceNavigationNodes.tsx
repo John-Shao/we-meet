@@ -8,6 +8,7 @@ import {
   RiDeleteBinLine,
   RiEditLine,
   RiFolderLine,
+  RiInboxUnarchiveLine,
   RiListCheck,
   RiLogoutBoxRLine,
   RiMoreLine,
@@ -179,6 +180,61 @@ export const StandaloneTaskListNavigationRow = ({
   )
 }
 
+export const ArchivedTaskListNavigationRow = ({
+  taskList,
+  restoring,
+  onRestore,
+}: {
+  taskList: ApiTaskList
+  restoring: boolean
+  onRestore?: () => void
+}) => {
+  const { t } = useTranslation('tasks')
+
+  return (
+    <div className={taskListRowCss} data-archived>
+      <div className={archivedTaskListLabelCss}>
+        <RiArchiveLine size={16} aria-hidden="true" />
+        <span>{taskList.name}</span>
+      </div>
+      {taskList.can_archive && onRestore && (
+        <div
+          className={taskNavigationActionsCss({ visibility: 'conditional' })}
+          data-node-actions
+        >
+          <Menu placement="bottom">
+            <Button
+              variant="tertiary"
+              size="icon24"
+              className={taskNavigationActionButtonCss}
+              aria-label={t('taskLists.more', { name: taskList.name })}
+            >
+              <RiMoreLine size={16} />
+            </Button>
+            <MenuList
+              aria-label={t('taskLists.more', { name: taskList.name })}
+              menuClassName={taskNavigationMenuCss}
+              items={[
+                {
+                  value: 'restore',
+                  label: (
+                    <span className={taskNavigationMenuItemLabelCss}>
+                      <RiInboxUnarchiveLine size={16} />
+                      {t('taskLists.restore')}
+                    </span>
+                  ),
+                  isDisabled: restoring,
+                },
+              ]}
+              onAction={() => onRestore()}
+            />
+          </Menu>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export const TaskListGroupNavigationNode = ({
   group,
   collapsed,
@@ -340,6 +396,24 @@ const taskListRowCss = css({
     backgroundColor: 'selected.bg',
     color: 'selected.text',
     fontWeight: '500',
+  },
+  '&[data-archived]': {
+    color: 'greyscale.500',
+  },
+})
+
+const archivedTaskListLabelCss = css({
+  minWidth: 0,
+  flex: 1,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
+  padding: '0.5rem 0.25rem 0.5rem 0.625rem',
+  fontSize: '0.875rem',
+  '& span': {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
 })
 

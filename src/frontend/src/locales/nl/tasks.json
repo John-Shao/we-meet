@@ -134,6 +134,8 @@
     "standalone": "Standaardlijst",
     "empty": "Nog geen takenlijsten",
     "manage": "Takenlijsten beheren",
+    "navigationSettings": "Weergave-instellingen voor takenlijsten",
+    "showArchived": "Gearchiveerde takenlijsten tonen",
     "create": "Takenlijst maken",
     "createHint": "Create a list to organize related tasks.",
     "name": "Lijstnaam",

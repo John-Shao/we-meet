@@ -15,7 +15,6 @@ import { css } from '@/styled-system/css'
 
 import type { ApiTaskList } from '../api/ApiTask'
 import {
-  useArchivedTaskLists,
   useDestroyTaskList,
   useRemoveTaskListShare,
   useShareTaskList,
@@ -266,58 +265,6 @@ export const TaskListDeleteDialog = ({
   )
 }
 
-export const ArchivedTaskListsDialog = ({
-  onClose,
-}: {
-  onClose: () => void
-}) => {
-  const { t } = useTranslation('tasks')
-  const { data = [], isLoading, error } = useArchivedTaskLists()
-  const update = useUpdateTaskList()
-  return (
-    <Modal
-      ariaLabel={t('taskLists.archivedTitle')}
-      onClose={onClose}
-      maxWidth="520px"
-    >
-      <DialogHeader title={t('taskLists.archivedTitle')} onClose={onClose} />
-      <div className={sharingCss}>
-        {isLoading ? (
-          <StateHint loading>{t('loading')}</StateHint>
-        ) : error ? (
-          <StateHint>{t('error')}</StateHint>
-        ) : data.length === 0 ? (
-          <StateHint>{t('taskLists.archivedEmpty')}</StateHint>
-        ) : (
-          <ul className={archiveListCss}>
-            {data.map((taskList) => (
-              <li key={taskList.id}>
-                <span>{taskList.name}</span>
-                {taskList.can_archive && (
-                  <Button
-                    variant="secondary"
-                    size="action"
-                    loading={update.isPending}
-                    onPress={() =>
-                      update.mutate({
-                        taskListId: taskList.id,
-                        patch: { is_archived: false },
-                        archived: true,
-                      })
-                    }
-                  >
-                    {t('taskLists.restore')}
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </Modal>
-  )
-}
-
 const DialogHeader = ({
   title,
   onClose,
@@ -411,19 +358,6 @@ const roleSelectCss = css({
   border: '1px solid token(colors.greyscale.300)',
   borderRadius: '6px',
   backgroundColor: 'greyscale.000',
-})
-const archiveListCss = css({
-  listStyle: 'none',
-  margin: 0,
-  padding: 0,
-  '& li': {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '1rem',
-    paddingY: '0.625rem',
-    borderBottom: '1px solid token(colors.greyscale.100)',
-  },
 })
 const actionsCss = css({
   display: 'flex',

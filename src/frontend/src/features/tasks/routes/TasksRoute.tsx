@@ -36,6 +36,7 @@ import {
   useDeleteTask,
   useDeleteTaskGroup,
   useDeleteTaskListGroup,
+  useArchivedTaskLists,
   useLeaveTaskList,
   useMoveTaskListToGroup,
   useStandaloneTaskCount,
@@ -67,7 +68,6 @@ import { TaskListGroupForm } from '../components/TaskListGroupForm'
 import { TaskListGroupRenameForm } from '../components/TaskListGroupRenameForm'
 import { TaskListManager } from '../components/TaskListManager'
 import {
-  ArchivedTaskListsDialog,
   TaskListDeleteDialog,
   TaskListRenameDialog,
   TaskListSharingDialog,
@@ -130,7 +130,7 @@ const TasksAuthenticated = () => {
   const [taskListDeleting, setTaskListDeleting] = useState<ApiTaskList | null>(
     null
   )
-  const [archivedTaskListsOpen, setArchivedTaskListsOpen] = useState(false)
+  const [showArchivedTaskLists, setShowArchivedTaskLists] = useState(false)
   const [taskListGroupRenaming, setTaskListGroupRenaming] =
     useState<ApiTaskListGroup | null>(null)
   const [groupCreating, setGroupCreating] = useState(false)
@@ -162,6 +162,11 @@ const TasksAuthenticated = () => {
   const { data: taskLists = [] } = useTaskLists()
   const { data: taskGroups = [], isSuccess: taskGroupsLoaded } = useTaskGroups()
   const { data: taskListGroups = [] } = useTaskListGroups()
+  const {
+    data: archivedTaskLists = [],
+    isLoading: archivedTaskListsLoading,
+    error: archivedTaskListsError,
+  } = useArchivedTaskLists(showArchivedTaskLists)
   const { data: standaloneTaskCountData } = useStandaloneTaskCount()
   const { data: taskSettings } = useTaskSettings()
   const { data: assignedStatistics } = useTaskStatistics(
@@ -548,6 +553,12 @@ const TasksAuthenticated = () => {
             state={state}
             navigationCounts={navigationCounts}
             taskLists={taskLists}
+            archivedTaskLists={archivedTaskLists}
+            archivedTaskListsLoading={archivedTaskListsLoading}
+            archivedTaskListsError={Boolean(
+              archivedTaskListsError || updateTaskListMutation.error
+            )}
+            showArchivedTaskLists={showArchivedTaskLists}
             taskListGroups={taskListGroups}
             taskGroups={taskGroups}
             standaloneTaskCount={standaloneTaskCount}
@@ -568,7 +579,15 @@ const TasksAuthenticated = () => {
             onArchiveTaskList={(taskList) => void archiveTaskList(taskList)}
             onLeaveTaskList={(taskList) => void leaveTaskList(taskList)}
             onDeleteTaskList={setTaskListDeleting}
-            onOpenArchivedTaskLists={() => setArchivedTaskListsOpen(true)}
+            onShowArchivedTaskListsChange={setShowArchivedTaskLists}
+            onRestoreArchivedTaskList={(taskList) =>
+              updateTaskListMutation.mutate({
+                taskListId: taskList.id,
+                patch: { is_archived: false },
+                archived: true,
+              })
+            }
+            restoringArchivedTaskList={updateTaskListMutation.isPending}
             onOpenActivity={() => setTaskActivityOpen(true)}
           />
         </ResizablePanel>
@@ -922,11 +941,6 @@ const TasksAuthenticated = () => {
             setTaskListDeleting(null)
             if (state.taskList === deletedId) changeView('all')
           }}
-        />
-      )}
-      {archivedTaskListsOpen && (
-        <ArchivedTaskListsDialog
-          onClose={() => setArchivedTaskListsOpen(false)}
         />
       )}
       {taskListGroupCreating && (

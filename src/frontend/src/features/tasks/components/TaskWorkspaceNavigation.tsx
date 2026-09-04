@@ -2,7 +2,6 @@ import { useState, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RiAddLine,
-  RiArchiveLine,
   RiFileAddLine,
   RiFolderAddLine,
   RiHistoryLine,
@@ -13,7 +12,7 @@ import {
   RiUserLine,
 } from '@remixicon/react'
 
-import { Button, Menu, MenuList } from '@/primitives'
+import { Button, Menu, MenuList, Popover, Switch } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 import type {
@@ -32,6 +31,7 @@ import {
   taskNavigationMenuItemLabelCss,
 } from './TaskWorkspaceNavigationStyles'
 import {
+  ArchivedTaskListNavigationRow,
   StandaloneTaskListNavigationRow,
   TaskListGroupNavigationNode,
   TaskListNavigationRow,
@@ -60,6 +60,10 @@ export const TaskWorkspaceNavigation = ({
   state,
   navigationCounts,
   taskLists,
+  archivedTaskLists = [],
+  archivedTaskListsLoading = false,
+  archivedTaskListsError = false,
+  showArchivedTaskLists = false,
   taskListGroups,
   taskGroups = [],
   standaloneTaskCount,
@@ -78,12 +82,18 @@ export const TaskWorkspaceNavigation = ({
   onArchiveTaskList,
   onLeaveTaskList,
   onDeleteTaskList,
-  onOpenArchivedTaskLists,
+  onShowArchivedTaskListsChange,
+  onRestoreArchivedTaskList,
+  restoringArchivedTaskList = false,
   onOpenActivity,
 }: {
   state: TaskWorkspaceState
   navigationCounts: Record<TaskWorkspaceView, number>
   taskLists: ApiTaskList[]
+  archivedTaskLists?: ApiTaskList[]
+  archivedTaskListsLoading?: boolean
+  archivedTaskListsError?: boolean
+  showArchivedTaskLists?: boolean
   taskListGroups: ApiTaskListGroup[]
   taskGroups?: ApiTaskGroup[]
   standaloneTaskCount: number
@@ -102,7 +112,9 @@ export const TaskWorkspaceNavigation = ({
   onArchiveTaskList?: (taskList: ApiTaskList) => void
   onLeaveTaskList?: (taskList: ApiTaskList) => void
   onDeleteTaskList?: (taskList: ApiTaskList) => void
-  onOpenArchivedTaskLists?: () => void
+  onShowArchivedTaskListsChange?: (show: boolean) => void
+  onRestoreArchivedTaskList?: (taskList: ApiTaskList) => void
+  restoringArchivedTaskList?: boolean
   onOpenActivity?: () => void
 }) => {
   const { t } = useTranslation('tasks')
@@ -121,11 +133,14 @@ export const TaskWorkspaceNavigation = ({
     initialCollapsedGroups
   )
   const [draggedTaskListId, setDraggedTaskListId] = useState<string>()
+  const displayedTaskLists = showArchivedTaskLists
+    ? [...taskLists, ...archivedTaskLists]
+    : taskLists
   const taskListsByGroup = new Map(
     taskListGroups.map((group) => [group.id, [] as ApiTaskList[]])
   )
   const ungroupedLists: ApiTaskList[] = []
-  taskLists.forEach((taskList) => {
+  displayedTaskLists.forEach((taskList) => {
     const groupedLists = taskList.list_group
       ? taskListsByGroup.get(taskList.list_group.id)
       : undefined
@@ -183,23 +198,39 @@ export const TaskWorkspaceNavigation = ({
       return
     onMoveTaskList(taskListId, listGroupId)
   }
-  const renderTaskList = (taskList: ApiTaskList) => (
-    <TaskListNavigationRow
-      key={taskList.id}
-      taskList={taskList}
-      active={state.group === 'all' && state.taskList === taskList.id}
-      onSelect={() => onTaskListChange(taskList.id)}
-      onDragStart={(event) => startListDrag(event, taskList)}
-      onDragEnd={() => setDraggedTaskListId(undefined)}
-      onShare={onShareTaskList ? () => onShareTaskList(taskList) : undefined}
-      onRename={onRenameTaskList ? () => onRenameTaskList(taskList) : undefined}
-      onArchive={
-        onArchiveTaskList ? () => onArchiveTaskList(taskList) : undefined
-      }
-      onLeave={onLeaveTaskList ? () => onLeaveTaskList(taskList) : undefined}
-      onDelete={onDeleteTaskList ? () => onDeleteTaskList(taskList) : undefined}
-    />
-  )
+  const renderTaskList = (taskList: ApiTaskList) =>
+    taskList.is_archived ? (
+      <ArchivedTaskListNavigationRow
+        key={taskList.id}
+        taskList={taskList}
+        restoring={restoringArchivedTaskList}
+        onRestore={
+          onRestoreArchivedTaskList
+            ? () => onRestoreArchivedTaskList(taskList)
+            : undefined
+        }
+      />
+    ) : (
+      <TaskListNavigationRow
+        key={taskList.id}
+        taskList={taskList}
+        active={state.group === 'all' && state.taskList === taskList.id}
+        onSelect={() => onTaskListChange(taskList.id)}
+        onDragStart={(event) => startListDrag(event, taskList)}
+        onDragEnd={() => setDraggedTaskListId(undefined)}
+        onShare={onShareTaskList ? () => onShareTaskList(taskList) : undefined}
+        onRename={
+          onRenameTaskList ? () => onRenameTaskList(taskList) : undefined
+        }
+        onArchive={
+          onArchiveTaskList ? () => onArchiveTaskList(taskList) : undefined
+        }
+        onLeave={onLeaveTaskList ? () => onLeaveTaskList(taskList) : undefined}
+        onDelete={
+          onDeleteTaskList ? () => onDeleteTaskList(taskList) : undefined
+        }
+      />
+    )
   return (
     <aside className={desktopNavCss} aria-label={t('workspace.navigation')}>
       <h1 className={navTitleCss}>{t('title')}</h1>
@@ -323,6 +354,30 @@ export const TaskWorkspaceNavigation = ({
             })}
             data-node-actions
           >
+            <Popover
+              aria-label={t('taskLists.navigationSettings')}
+              withArrow={false}
+            >
+              <Button
+                variant="tertiary"
+                size="icon24"
+                className={taskNavigationActionButtonCss}
+                aria-label={t('taskLists.navigationSettings')}
+              >
+                <RiSettings3Line size={16} />
+              </Button>
+              <div className={taskListSettingsCss}>
+                <Switch
+                  className={taskListSettingsSwitchCss}
+                  isSelected={showArchivedTaskLists}
+                  onChange={(selected) =>
+                    onShowArchivedTaskListsChange?.(selected)
+                  }
+                >
+                  {t('taskLists.showArchived')}
+                </Switch>
+              </div>
+            </Popover>
             <Menu placement="bottom">
               <Button
                 variant="tertiary"
@@ -363,7 +418,7 @@ export const TaskWorkspaceNavigation = ({
             </Menu>
           </div>
         </div>
-        {taskLists.length === 0 &&
+        {displayedTaskLists.length === 0 &&
         taskListGroups.length === 0 &&
         standaloneTaskCount === 0 ? (
           <p className={emptyListsCss}>{t('taskLists.empty')}</p>
@@ -400,16 +455,20 @@ export const TaskWorkspaceNavigation = ({
             )}
           </>
         )}
-        <button
-          type="button"
-          className={navButtonCss}
-          onClick={onOpenArchivedTaskLists}
-        >
-          <span className={navLabelCss}>
-            <RiArchiveLine size={18} />
-            <span>{t('taskLists.archivedTitle')}</span>
-          </span>
-        </button>
+        {showArchivedTaskLists && archivedTaskListsLoading && (
+          <p className={emptyListsCss}>{t('loading')}</p>
+        )}
+        {showArchivedTaskLists && archivedTaskListsError && (
+          <p role="alert" className={emptyListsCss}>
+            {t('taskLists.actionError')}
+          </p>
+        )}
+        {showArchivedTaskLists &&
+          !archivedTaskListsLoading &&
+          !archivedTaskListsError &&
+          archivedTaskLists.length === 0 && (
+            <p className={emptyListsCss}>{t('taskLists.archivedEmpty')}</p>
+          )}
       </nav>
     </aside>
   )
@@ -465,6 +524,18 @@ const emptyListsCss = css({
   margin: '0.25rem 0.5rem',
   color: 'greyscale.500',
   fontSize: '0.75rem',
+})
+const taskListSettingsCss = css({
+  width: '16rem',
+})
+const taskListSettingsSwitchCss = css({
+  width: '100%',
+  minHeight: '2.5rem',
+  flexDirection: 'row-reverse',
+  justifyContent: 'space-between',
+  gap: '1rem',
+  paddingX: '0.5rem',
+  fontSize: '0.8125rem',
 })
 const navButtonCss = css({
   width: '100%',

@@ -160,6 +160,8 @@
     "standalone": "默认清单",
     "empty": "暂无任务清单",
     "manage": "管理任务清单",
+    "navigationSettings": "任务清单显示设置",
+    "showArchived": "显示已归档任务清单",
     "create": "新建任务清单",
     "createHint": "创建清单，用于归类和快速查看相关任务。",
     "name": "清单名称",

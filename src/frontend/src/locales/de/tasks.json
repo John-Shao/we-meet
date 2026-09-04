@@ -134,6 +134,8 @@
     "standalone": "Standardliste",
     "empty": "Noch keine Aufgabenlisten",
     "manage": "Aufgabenlisten verwalten",
+    "navigationSettings": "Anzeigeeinstellungen für Aufgabenlisten",
+    "showArchived": "Archivierte Aufgabenlisten anzeigen",
     "create": "Aufgabenliste erstellen",
     "createHint": "Create a list to organize related tasks.",
     "name": "Listenname",
