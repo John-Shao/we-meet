@@ -1071,7 +1071,7 @@ describe('TaskList', () => {
     expect(screen.getByLabelText('groups.expand')).toBeInTheDocument()
   })
 
-  it('shows an actionable drop target for an empty task group', () => {
+  it('hides an empty custom group', () => {
     render(
       <TaskList
         tasks={[]}
@@ -1090,20 +1090,11 @@ describe('TaskList', () => {
         grouped
         onOpen={vi.fn()}
         registerRow={vi.fn()}
-        onCreateTaskInGroup={vi.fn()}
       />
     )
 
-    expect(screen.getByText('groups.empty')).toBeInTheDocument()
-    expect(screen.getByText('groups.taskCount')).toBeInTheDocument()
-
-    const desktopDropTarget = within(screen.getByRole('table'))
-      .getByText('groups.empty')
-      .closest('tr')!
-    fireEvent.dragOver(desktopDropTarget)
-    expect(desktopDropTarget).toHaveAttribute('data-drag-over', 'true')
-    fireEvent.dragLeave(desktopDropTarget)
-    expect(desktopDropTarget).not.toHaveAttribute('data-drag-over')
+    expect(screen.queryByText('Development')).not.toBeInTheDocument()
+    expect(screen.queryByText('groups.empty')).not.toBeInTheDocument()
   })
 
   it('starts dragging only from the handle and switches groups from the node submenu', async () => {
@@ -1166,6 +1157,10 @@ describe('TaskList', () => {
       'application/x-we-meet-task',
       editableTask.id
     )
+    expect(screen.getByText('Delivery')).toBeInTheDocument()
+
+    fireEvent.dragEnd(draggableHandle)
+    expect(screen.queryByText('Delivery')).not.toBeInTheDocument()
 
     fireEvent.click(handle)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
@@ -1200,7 +1195,12 @@ describe('TaskList', () => {
   it('disables the delete-group action for a non-empty group', () => {
     render(
       <TaskList
-        tasks={[task]}
+        tasks={[
+          {
+            ...task,
+            group: { id: 'group-1', name: 'Analysis', sort_order: 0 },
+          },
+        ]}
         groups={[
           {
             id: 'group-1',
