@@ -32,7 +32,7 @@
   "actions": {
     "delete": "Gesprek verwijderen",
     "leaveConfirm": "Deze groep verlaten? Als je eigenaar bent, wordt het eigenaarschap automatisch overgedragen aan een ander lid; de groep wordt opgeheven als je de laatste bent.",
-    "deleteConfirm": "Dit gesprek verwijderen? Het wordt alleen uit jouw lijst verwijderd — andere deelnemers en de chatgeschiedenis blijven ongemoeid.",
+    "deleteConfirm": "Dit gesprek verwijderen? Jouw chatgeschiedenis wordt gewist en het gesprek wordt uit je lijst verwijderd; andere deelnemers worden niet beïnvloed.",
     "error": "Actie mislukt: {{message}}",
     "recall": "Intrekken",
     "recallConfirm": "Dit bericht intrekken?",

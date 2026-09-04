@@ -32,7 +32,7 @@
   "actions": {
     "delete": "Unterhaltung löschen",
     "leaveConfirm": "Gruppe verlassen? Wenn Sie Eigentümer sind, wird die Eigentümerschaft automatisch an ein anderes Mitglied übertragen; ist niemand mehr übrig, wird die Gruppe aufgelöst.",
-    "deleteConfirm": "Diese Unterhaltung löschen? Sie wird nur aus Ihrer Liste entfernt — andere Teilnehmer und der Chatverlauf bleiben unberührt.",
+    "deleteConfirm": "Diese Unterhaltung löschen? Ihr Chatverlauf wird gelöscht und die Unterhaltung aus Ihrer Liste entfernt; andere Teilnehmer bleiben unberührt.",
     "error": "Aktion fehlgeschlagen: {{message}}",
     "recall": "Zurückziehen",
     "recallConfirm": "Diese Nachricht zurückziehen?",

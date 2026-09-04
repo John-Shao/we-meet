@@ -41,7 +41,7 @@ import { ForwardDialog, type ForwardConv } from '../components/ForwardDialog'
 import { LaterDialog } from '../components/LaterDialog'
 import { listLater } from '../api/listLater'
 import { announceLeave } from '../api/announceLeave'
-import { hideConversation } from '../api/hideConversation'
+import { deleteConversation } from '../api/deleteConversation'
 import type { MergedBody } from '../components/MergedRecordDialog'
 import { useConversations } from '../hooks/useConversations'
 import { useImConnection } from '../hooks/useImConnection'
@@ -415,15 +415,16 @@ const ImAuthenticated = () => {
 
   const selectedConv = conversations.find((c) => c.cid === selectedCID) ?? null
 
-  // 删除会话:direct / group 都只对当前用户软隐藏,不改变群成员关系。
+  // 删除会话:清空当前用户的历史记录后隐藏列表项,不改变群成员关系。
   const handleDelete = async (c: ConversationSummary) => {
     if (
       !(await askConfirm({ message: t('actions.deleteConfirm'), danger: true }))
     )
       return
     try {
-      await hideConversation(c.cid)
+      await deleteConversation(client, c.cid)
       if (selectedCID === c.cid) setSelectedCID(null)
+      qc.removeQueries({ queryKey: ['im', 'messages', c.cid] })
       await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
     } catch (e) {
       void showAlert({
