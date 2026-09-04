@@ -353,6 +353,26 @@ export const TaskWorkspaceNavigation = ({
             </Button>
           </div>
         </div>
+        {orderedTaskGroups.length === 0
+          ? !creatingTaskGroup && (
+              <p className={emptyListsCss}>{t('groups.emptyNavigation')}</p>
+            )
+          : orderedTaskGroups.map((group, index) => (
+              <TaskGroupNavigationRow
+                key={group.id}
+                group={group}
+                active={state.group === group.id}
+                previousGroup={orderedTaskGroups[index - 1]}
+                nextGroup={orderedTaskGroups[index + 1]}
+                mutating={taskGroupMutating}
+                onSelect={
+                  onSelectTaskGroup ? () => onSelectTaskGroup(group) : undefined
+                }
+                onRename={onRenameTaskGroup}
+                onDelete={onDeleteTaskGroup}
+                onMove={onMoveTaskGroup}
+              />
+            ))}
         {creatingTaskGroup && (
           <form
             className={taskGroupInlineFormCss}
@@ -403,26 +423,6 @@ export const TaskWorkspaceNavigation = ({
             {t('groups.error')}
           </p>
         )}
-        {orderedTaskGroups.length === 0
-          ? !creatingTaskGroup && (
-              <p className={emptyListsCss}>{t('groups.emptyNavigation')}</p>
-            )
-          : orderedTaskGroups.map((group, index) => (
-              <TaskGroupNavigationRow
-                key={group.id}
-                group={group}
-                active={state.group === group.id}
-                previousGroup={orderedTaskGroups[index - 1]}
-                nextGroup={orderedTaskGroups[index + 1]}
-                mutating={taskGroupMutating}
-                onSelect={
-                  onSelectTaskGroup ? () => onSelectTaskGroup(group) : undefined
-                }
-                onRename={onRenameTaskGroup}
-                onDelete={onDeleteTaskGroup}
-                onMove={onMoveTaskGroup}
-              />
-            ))}
         <div
           className={sectionHeaderCss}
           data-list-drop-target={draggedTaskListId ? true : undefined}

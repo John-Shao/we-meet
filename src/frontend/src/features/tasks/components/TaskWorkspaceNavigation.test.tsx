@@ -227,6 +227,10 @@ describe('TaskWorkspaceNavigation', () => {
     expect(onSelectTaskGroup).toHaveBeenCalledWith(taskGroup)
     fireEvent.click(screen.getByRole('button', { name: 'groups.create' }))
     const input = screen.getByRole('textbox', { name: 'groups.name' })
+    expect(
+      groupButton.compareDocumentPosition(input) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
     fireEvent.change(input, { target: { value: 'Design' } })
     fireEvent.submit(input.closest('form')!)
 
