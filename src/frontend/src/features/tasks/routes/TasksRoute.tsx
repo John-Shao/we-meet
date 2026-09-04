@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useSearchParams } from 'wouter'
 import { useTranslation } from 'react-i18next'
@@ -13,6 +13,7 @@ import {
 } from '@remixicon/react'
 
 import { Modal, ModalCloseButton } from '@/components/Modal'
+import { PageState } from '@/components/PageState'
 import { RequireAuth } from '@/components/RequireAuth'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { Screen } from '@/layout/Screen'
@@ -702,15 +703,23 @@ const TasksAuthenticated = () => {
               />
             )
           ) : error ? (
-            <TaskWorkspaceStateCard
+            <PageState
+              state="error"
               icon={<RiRefreshLine size={24} aria-hidden="true" />}
               title={t('workspace.errorTitle')}
               description={t('workspace.errorDescription')}
-              actionLabel={t('workspace.retry')}
-              onAction={() => void refetch()}
+              action={
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={() => void refetch()}
+                >
+                  {t('workspace.retry')}
+                </Button>
+              }
             />
           ) : listTasks.length === 0 && (filtersActive || !selectedTaskList) ? (
-            <TaskWorkspaceStateCard
+            <PageState
               icon={
                 filtersActive ? (
                   <RiFilterOffLine size={24} aria-hidden="true" />
@@ -728,26 +737,31 @@ const TasksAuthenticated = () => {
                   ? t('workspace.emptyFilteredDescription')
                   : t('workspace.emptyWorkspaceDescription')
               }
-              actionLabel={
-                filtersActive
-                  ? t('workspace.clearFilters')
-                  : t('workspace.newTask')
+              action={
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={() => {
+                    if (filtersActive) {
+                      navigateState({
+                        ...state,
+                        status: state.mode === 'board' ? 'all' : 'open',
+                        time: 'all',
+                        priority: 'all',
+                        task: undefined,
+                      })
+                      return
+                    }
+                    setCreateParentTask(null)
+                    setCreateGroupId(selectedTaskGroup?.id)
+                    setCreating(true)
+                  }}
+                >
+                  {filtersActive
+                    ? t('workspace.clearFilters')
+                    : t('workspace.newTask')}
+                </Button>
               }
-              onAction={() => {
-                if (filtersActive) {
-                  navigateState({
-                    ...state,
-                    status: state.mode === 'board' ? 'all' : 'open',
-                    time: 'all',
-                    priority: 'all',
-                    task: undefined,
-                  })
-                  return
-                }
-                setCreateParentTask(null)
-                setCreateGroupId(selectedTaskGroup?.id)
-                setCreating(true)
-              }}
             />
           ) : state.mode === 'board' ? (
             <>
@@ -991,29 +1005,6 @@ const LoadMoreTasks = ({
   )
 }
 
-const TaskWorkspaceStateCard = ({
-  icon,
-  title,
-  description,
-  actionLabel,
-  onAction,
-}: {
-  icon: ReactNode
-  title: string
-  description: string
-  actionLabel: string
-  onAction: () => void
-}) => (
-  <div className={workspaceStateCss} role="status">
-    <span className={workspaceStateIconCss}>{icon}</span>
-    <h2>{title}</h2>
-    <p>{description}</p>
-    <Button variant="secondary" size="dense" onPress={onAction}>
-      {actionLabel}
-    </Button>
-  </div>
-)
-
 const useUsesTakeoverDetail = () => {
   const [usesTakeoverDetail, setUsesTakeoverDetail] = useState(() =>
     typeof window === 'undefined'
@@ -1094,37 +1085,6 @@ const modeTabLabelCss = css({
   gap: 'sm',
 })
 const listRegionCss = css({ flex: 1, minHeight: 0, overflow: 'auto' })
-const workspaceStateCss = css({
-  minHeight: '18rem',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '0.5rem',
-  padding: '2rem',
-  textAlign: 'center',
-  '& h2': {
-    margin: '0.25rem 0 0',
-    color: 'greyscale.900',
-    fontSize: '1rem',
-  },
-  '& p': {
-    maxWidth: '28rem',
-    margin: 0,
-    color: 'greyscale.600',
-    fontSize: '0.8125rem',
-  },
-  '& button': { marginTop: '0.5rem' },
-})
-const workspaceStateIconCss = css({
-  width: '3rem',
-  height: '3rem',
-  display: 'grid',
-  placeItems: 'center',
-  borderRadius: '999px',
-  backgroundColor: 'greyscale.100',
-  color: 'greyscale.600',
-})
 const loadMoreCss = css({
   display: 'flex',
   justifyContent: 'center',

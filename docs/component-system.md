@@ -87,6 +87,8 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 - 已知内容骨架且首屏等待明显时优先使用 Skeleton；布局未知或空间紧凑时使用 `StateHint`。后台刷新已有数据时保留旧内容，不使用全屏加载状态覆盖。
 - Skeleton 块统一使用 `Skeleton`，通过 `text / rectangle / circle` 表达形状；颜色取自 `border.subtle`，圆角取自 Shape System，不在业务模块维护私有骨架色和动画；
 - 一组 Skeleton 使用 `SkeletonRegion` 包裹并提供本地化 `label`，由基元统一声明 `role="status"`、`aria-busy` 和礼貌播报；嵌套骨架只保留一个可访问加载区域，避免重复播报。
+- 页面主内容区的空状态与加载失败使用 `PageState`，由 `title / description / icon / action` 组成；普通页面使用 `surface="plain"`，需要与周围内容分组时使用 `surface="card"`；
+- `PageState state="error"` 使用危险状态容器色并声明 `role="alert"`；空状态保持中性色和 `role="status"`。业务页面只传入文案、图标和操作，不再复制布局及状态样式。
 
 ## 4. Android 接入
 

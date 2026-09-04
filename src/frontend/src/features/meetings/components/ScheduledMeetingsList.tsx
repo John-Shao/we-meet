@@ -14,6 +14,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RiCalendarLine } from '@remixicon/react'
 
+import { PageState } from '@/components/PageState'
 import { css } from '@/styled-system/css'
 import { H, Text } from '@/primitives'
 
@@ -83,21 +84,12 @@ export const ScheduledMeetingsList = ({
         <H lvl={3} margin={false}>
           {t('home.scheduledTitle')}
         </H>
-        <div
-          className={css({
-            width: '100%',
-            border: '1px solid',
-            borderColor: 'greyscale.200',
-            borderRadius: '8px',
-            backgroundColor: 'greyscale.000',
-            padding: '2.5rem 1rem',
-            textAlign: 'center',
-            color: 'greyscale.500',
-            fontSize: '0.875rem',
-          })}
-        >
-          {t('home.scheduledEmpty')}
-        </div>
+        <PageState
+          density="compact"
+          surface="card"
+          icon={<RiCalendarLine size={20} />}
+          description={t('home.scheduledEmpty')}
+        />
       </div>
     )
   }

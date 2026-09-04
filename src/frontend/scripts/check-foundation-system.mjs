@@ -308,6 +308,7 @@ const migratedTypographySources = [
   '../src/primitives/TextArea.tsx',
   '../src/primitives/Select.tsx',
   '../src/primitives/SegmentedControl.tsx',
+  '../src/components/PageState.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
 for (const sourceUrl of migratedTypographySources) {
@@ -343,6 +344,7 @@ const migratedShapeSources = [
   '../src/primitives/TooltipWrapper.tsx',
   '../src/primitives/VisualOnlyTooltip.tsx',
   '../src/components/Modal.tsx',
+  '../src/components/PageState.tsx',
   '../src/components/StateHint.tsx',
   '../src/features/tasks/components/TaskSidePanel.tsx',
   '../src/features/notifications/components/Toast.tsx',
@@ -487,6 +489,19 @@ const componentStateRequirements = [
       "error: { color: 'status.danger' }",
       "role={isError ? 'alert' : 'status'}",
       "aria-busy={state === 'loading' || undefined}",
+    ],
+  ],
+  [
+    '../src/components/PageState.tsx',
+    [
+      'export type PageStateKind',
+      'state?: PageStateKind',
+      "border: '1px solid token(colors.border.subtle)'",
+      "backgroundColor: 'surface.default'",
+      "textStyle: 'titleMedium'",
+      "textStyle: 'bodyMedium'",
+      "role={isError ? 'alert' : 'status'}",
+      "aria-live={isError ? 'assertive' : 'polite'}",
     ],
   ],
   [
