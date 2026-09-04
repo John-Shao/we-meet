@@ -19,6 +19,12 @@ export const TextArea = styled(RACTextArea, {
     textStyle: 'bodyMedium',
     borderRadius: 'field',
     transition: 'all token(durations.slow)',
+    '&[data-hovered]:not([data-disabled]), &:hover:not([data-disabled])': {
+      borderColor: 'border.strong',
+    },
+    '&[data-invalid], &[aria-invalid="true"]': {
+      borderColor: 'status.danger',
+    },
     '&::placeholder': {
       color: 'text.disabled',
     },

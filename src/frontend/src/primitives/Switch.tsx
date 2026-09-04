@@ -51,6 +51,14 @@ export const StyledSwitch = styled(RACSwitch, {
         transform: 'translateY(-50%) translateX(1.1rem)',
       },
     },
+    '&[data-hovered]:not([data-disabled]) .indicator': {
+      outline: '1px solid',
+      outlineColor: 'border.strong',
+      outlineOffset: '1px',
+    },
+    '&[data-pressed]:not([data-disabled]) .indicator': {
+      filter: 'brightness(0.94)',
+    },
     '&[data-disabled]': {
       cursor: 'default',
       opacity: 0.5,

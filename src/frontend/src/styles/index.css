@@ -143,10 +143,10 @@ main#main-content :is(h1, h2, h3)[tabindex='-1']:focus {
 select {
   appearance: none;
   -webkit-appearance: none;
-  height: var(--sizes-control-md);
-  min-height: var(--sizes-control-md);
+  height: var(--sizes-control-height-compact);
+  min-height: var(--sizes-control-height-compact);
   border: 1px solid var(--colors-border-default);
-  border-radius: 0.5rem;
+  border-radius: var(--radii-control);
   background-color: var(--colors-surface-default);
   color: var(--colors-text-primary);
   font-size: var(--font-sizes-14);
@@ -155,6 +155,14 @@ select {
   background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237C7C7C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
   background-repeat: no-repeat;
   background-position: right 0.625rem center;
+}
+
+select:not(:disabled):hover {
+  border-color: var(--colors-border-strong);
+}
+
+select[aria-invalid='true']:not(:disabled) {
+  border-color: var(--colors-status-danger);
 }
 
 select option {

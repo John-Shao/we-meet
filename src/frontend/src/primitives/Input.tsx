@@ -17,8 +17,8 @@ export const Input = styled(RACInput, {
     // 钉死表单默认高度,与 Select / Button sm 对齐(见 panda.config 的
     // sizes.control)。原先靠 padding + 继承行高算出 34px,而 Select 是 30px,
     // 同一行放一起差 4px。单行 input 的文字由浏览器垂直居中,不受影响。
-    height: 'control.md',
-    minHeight: 'control.md',
+    height: 'controlHeight.compact',
+    minHeight: 'controlHeight.compact',
     paddingY: 0.25,
     paddingX: 0.5,
     border: '1px solid',
@@ -28,6 +28,12 @@ export const Input = styled(RACInput, {
     textStyle: 'bodyMedium',
     borderRadius: 'field',
     transition: 'all token(durations.slow)',
+    '&[data-hovered]:not([data-disabled]), &:hover:not([data-disabled])': {
+      borderColor: 'border.strong',
+    },
+    '&[data-invalid], &[aria-invalid="true"]': {
+      borderColor: 'status.danger',
+    },
     '&::placeholder': {
       color: 'text.disabled',
     },

@@ -171,20 +171,20 @@ export const buttonRecipe = cva({
        */
       icon24: {
         borderRadius: 'control',
-        width: '1.5rem',
-        height: '1.5rem',
+        width: 'iconButton.compact',
+        height: 'iconButton.compact',
         padding: 0,
       },
       icon28: {
         borderRadius: 'control',
-        width: '1.75rem',
-        height: '1.75rem',
+        width: 'iconButton.default',
+        height: 'iconButton.default',
         padding: 0,
       },
       icon32: {
         borderRadius: 'control',
-        width: '2rem',
-        height: '2rem',
+        width: 'iconButton.large',
+        height: 'iconButton.large',
         padding: 0,
       },
     },
@@ -526,7 +526,12 @@ export const buttonRecipe = cva({
       },
     },
     loading: {
-      true: {},
+      true: {
+        cursor: 'progress',
+        '&[data-disabled]': {
+          cursor: 'progress',
+        },
+      },
     },
     // some toggle buttons make more sense without a "pushed button" style when selected because their content changes to mark the state
     shySelected: {

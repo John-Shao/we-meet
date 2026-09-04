@@ -24,8 +24,8 @@ const StyledButton = styled(Button, {
     alignItems: 'center',
     // 与 Input / Button sm 对齐(见 panda.config 的 sizes.control)。
     // 原先 30px,是这批控件里最矮的一个。内容由上面的 flex 居中。
-    height: 'control.md',
-    minHeight: 'control.md',
+    height: 'controlHeight.compact',
+    minHeight: 'controlHeight.compact',
     paddingY: 0,
     // 与「系统设置 → 语言」下拉(selectChrome)同款:文字左起 0.875rem,
     // 右侧箭头距右 0.625rem(space-between 已把文字与箭头隔开)。
@@ -38,6 +38,11 @@ const StyledButton = styled(Button, {
     textStyle: 'bodyMedium',
     borderRadius: 'control',
     cursor: 'pointer',
+    transition:
+      'border-color token(durations.fast) token(easings.standard), background-color token(durations.fast) token(easings.standard)',
+    '&[data-hovered]:not([data-disabled])': {
+      borderColor: 'border.strong',
+    },
     '&[data-focus-visible], &[data-focused]': {
       // 「选择框」归输入类:焦点态与输入框同款 —— 蓝描边 + 柔光环,见
       // styles/index.css 的「统一焦点描边」。原先这里是 2px 焦点环 + offset -1px,
@@ -61,6 +66,9 @@ const StyledButton = styled(Button, {
       color: 'text.disabled',
       borderColor: 'border.subtle',
       backgroundColor: 'surface.canvas',
+    },
+    '&[data-invalid]:not([data-disabled])': {
+      borderColor: 'status.danger',
     },
   },
   variants: {

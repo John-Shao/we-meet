@@ -7,11 +7,11 @@ import { css } from '@/styled-system/css'
  *
  * ⚠️ 边框 / 圆角 / 字号 / 文字色 / 左内边距 / cursor 这些「同款外观」现在由
  * styles/index.css 的「统一下拉框外观」全局规则兜底(未分层,优先于本模块和
- * 各调用方的 utilities 声明)。这里保留的:自绘箭头、control.md 钉高、清
+ * 各调用方的 utilities 声明)。这里保留的:自绘箭头、controlHeight.compact 钉高、清
  * padding-block、右侧箭头留位、option 白底深字 —— 它们的 `!important` 与全局
  * 规则取值一致,两边不冲突。改任意一边时记得同步另一边。
  *
- * **高度**钉在 control.md(32px),与 Input / Select 基元 / Button sm 同档。
+ * **高度**钉在 controlHeight.compact(32px),与 Input / Select 基元 / Button sm 同档。
  * 原生 select 的盒高本来 = 字号×行高 + 各处自己写的 padding + 边框,而这些各写
  * 各的,实测 12 个调用点散成 21 / 31.5 / 35 / 39 四个值(admin 弹窗那两个既没
  * padding 也没边框,21px 的白框贴在 32px 的 Input 下面)。
@@ -45,8 +45,8 @@ import { css } from '@/styled-system/css'
  */
 export const selectChrome = css({
   appearance: 'none',
-  height: 'control.md',
-  minHeight: 'control.md',
+  height: 'controlHeight.compact',
+  minHeight: 'controlHeight.compact',
   backgroundImage: `url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237C7C7C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>")`,
   backgroundRepeat: 'no-repeat',
   backgroundPosition: 'right 0.625rem center',

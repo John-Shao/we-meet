@@ -16,8 +16,8 @@ export const StyledRadio = styled(RACRadio, {
     '& .mt-Radio': {
       borderRadius: 'pill',
       flexShrink: 0,
-      width: '1.125rem',
-      height: '1.125rem',
+      width: 'selectionControl.compact',
+      height: 'selectionControl.compact',
       border: '1px solid {colors.border.default}',
       display: 'flex',
       alignItems: 'center',
@@ -34,6 +34,9 @@ export const StyledRadio = styled(RACRadio, {
     '&[data-pressed] .mt-Radio': {
       borderColor: 'action.primary.pressed',
     },
+    '&[data-hovered]:not([data-disabled]) .mt-Radio': {
+      borderColor: 'border.strong',
+    },
     '&[data-focus-visible] .mt-Radio': {
       outline: '2px solid!',
       outlineColor: 'border.focus!',
@@ -48,14 +51,25 @@ export const StyledRadio = styled(RACRadio, {
     '&[data-selected][data-pressed] .mt-Radio-check': {
       backgroundColor: 'action.primary.pressed',
     },
+    '&[data-invalid]:not([data-disabled]) .mt-Radio': {
+      borderColor: 'status.danger',
+    },
+    '&[data-selected][data-invalid]:not([data-disabled]) .mt-Radio-check': {
+      backgroundColor: 'status.danger',
+    },
+    '&[data-disabled]': {
+      cursor: 'default',
+      color: 'text.disabled',
+      opacity: 0.6,
+    },
   },
   variants: {
     size: {
       sm: {
         base: {},
-        '& .radio': {
-          width: '1.125rem',
-          height: '1.125rem',
+        '& .mt-Radio': {
+          width: 'selectionControl.compact',
+          height: 'selectionControl.compact',
         },
         '& svg': {
           width: '0.625rem',

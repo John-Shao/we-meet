@@ -38,13 +38,32 @@ export const Tabs = ({ children, ...props }: TabsProps) => {
 
 const StyledTab = styled(RACTab, {
   base: {
-    padding: '10px',
+    minHeight: 'controlHeight.default',
+    paddingY: 'sm',
+    paddingX: 'md',
     cursor: 'pointer',
     outline: 'none',
     position: 'relative',
     color: 'text.primary',
     borderColor: 'transparent',
     forcedColorAdjust: 'none',
+    transition:
+      'background-color token(durations.fast) token(easings.standard), color token(durations.fast) token(easings.standard), border-color token(durations.fast) token(easings.standard)',
+    '&[data-hovered]:not([data-disabled])': {
+      color: 'text.link',
+    },
+    '&[data-pressed]:not([data-disabled])': {
+      backgroundColor: 'action.selected.bg',
+    },
+    '&[data-focus-visible]': {
+      outline: '2px solid!',
+      outlineColor: 'border.focus!',
+      outlineOffset: '-2px!',
+    },
+    '&[data-disabled]': {
+      cursor: 'default',
+      color: 'text.disabled',
+    },
   },
   variants: {
     border: {
@@ -169,10 +188,10 @@ const StyledTabPanel = styled(RACTabPanel, {
     },
     padding: {
       sm: {
-        padding: '10px',
+        padding: 'md',
       },
       md: {
-        padding: '2rem',
+        padding: '2xl',
       },
     },
   },

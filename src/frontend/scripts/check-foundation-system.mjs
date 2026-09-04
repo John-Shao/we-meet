@@ -19,10 +19,15 @@ const elevationUrl = new URL(
   '../../design-tokens/elevation.tokens.json',
   import.meta.url
 )
+const componentUrl = new URL(
+  '../../design-tokens/component.tokens.json',
+  import.meta.url
+)
 const spacing = JSON.parse(readFileSync(spacingUrl, 'utf8'))
 const typography = JSON.parse(readFileSync(typographyUrl, 'utf8'))
 const shape = JSON.parse(readFileSync(shapeUrl, 'utf8'))
 const elevation = JSON.parse(readFileSync(elevationUrl, 'utf8'))
+const component = JSON.parse(readFileSync(componentUrl, 'utf8'))
 const failures = []
 
 for (const [name, document] of [
@@ -30,6 +35,7 @@ for (const [name, document] of [
   ['typography', typography],
   ['shape', shape],
   ['elevation', elevation],
+  ['component', component],
 ]) {
   if (document.$schema !== expectedSchema) {
     failures.push(`${name}: $schema must be ${expectedSchema}`)
@@ -71,6 +77,8 @@ const resolveShapeDimension = (path) =>
   resolveDocumentDimension(shape, path, 'shape')
 const resolveElevationDimension = (path) =>
   resolveDocumentDimension(elevation, path, 'elevation')
+const resolveComponentDimension = (path) =>
+  resolveDocumentDimension(component, path, 'component')
 
 const expectedSpaces = {
   none: 0,
@@ -143,6 +151,31 @@ for (const [name, expected] of Object.entries(expectedElevations)) {
     const actual = resolveElevationDimension(`elevation.${name}`)
     if (actual !== expected)
       failures.push(`elevation.${name}: ${actual}px != ${expected}px`)
+  } catch (error) {
+    failures.push(error.message)
+  }
+}
+
+const expectedComponentSizes = {
+  'component.controlHeight.compact': 32,
+  'component.controlHeight.default': 40,
+  'component.controlHeight.large': 48,
+  'component.icon.small': 16,
+  'component.icon.medium': 20,
+  'component.icon.large': 24,
+  'component.iconButton.compact': 24,
+  'component.iconButton.default': 28,
+  'component.iconButton.large': 32,
+  'component.selectionControl.compact': 18,
+  'component.selectionControl.default': 22,
+  'component.interactionTarget.minimum': 48,
+}
+for (const [path, expected] of Object.entries(expectedComponentSizes)) {
+  try {
+    const actual = resolveComponentDimension(path)
+    if (actual !== expected) {
+      failures.push(`${path}: ${actual}px != ${expected}px`)
+    }
   } catch (error) {
     failures.push(error.message)
   }
@@ -344,6 +377,84 @@ for (const sourceUrl of migratedElevationSources) {
   }
 }
 
+const componentStateRequirements = [
+  [
+    '../src/primitives/buttonRecipe.ts',
+    ['data-hovered', 'data-pressed', 'data-focus-visible', 'data-disabled'],
+  ],
+  ['../src/primitives/Button.tsx', ['aria-busy', 'data-loading']],
+  [
+    '../src/primitives/Input.tsx',
+    ['data-hovered', 'data-invalid', 'data-disabled'],
+  ],
+  [
+    '../src/primitives/TextArea.tsx',
+    ['data-hovered', 'data-invalid', 'data-disabled'],
+  ],
+  [
+    '../src/primitives/Select.tsx',
+    [
+      'data-hovered',
+      'data-pressed',
+      'data-focus-visible',
+      'data-invalid',
+      'data-disabled',
+    ],
+  ],
+  [
+    '../src/primitives/Checkbox.tsx',
+    [
+      'data-hovered',
+      'data-pressed',
+      'data-focus-visible',
+      'data-selected',
+      'data-mt-checkbox-invalid',
+      'data-disabled',
+    ],
+  ],
+  [
+    '../src/primitives/Radio.tsx',
+    [
+      'data-hovered',
+      'data-pressed',
+      'data-focus-visible',
+      'data-selected',
+      'data-invalid',
+      'data-disabled',
+    ],
+  ],
+  [
+    '../src/primitives/Switch.tsx',
+    [
+      'data-hovered',
+      'data-pressed',
+      'data-focus-visible',
+      'data-selected',
+      'data-disabled',
+    ],
+  ],
+  [
+    '../src/primitives/Tabs.tsx',
+    [
+      'data-hovered',
+      'data-pressed',
+      'data-focus-visible',
+      'data-selected',
+      'data-disabled',
+    ],
+  ],
+]
+
+for (const [path, requiredStates] of componentStateRequirements) {
+  const sourceUrl = new URL(path, import.meta.url)
+  const source = readFileSync(sourceUrl, 'utf8')
+  for (const state of requiredStates) {
+    if (!source.includes(state)) {
+      failures.push(`${fileURLToPath(sourceUrl)} does not cover ${state}`)
+    }
+  }
+}
+
 const pandaConfig = readFileSync(
   new URL('../panda.config.ts', import.meta.url),
   'utf8'
@@ -353,6 +464,7 @@ for (const contract of [
   'typographyContract',
   'shapeContract',
   'elevationContract',
+  'componentContract',
 ]) {
   if (!pandaConfig.includes(contract)) {
     failures.push(`panda.config.ts does not consume ${contract}`)
@@ -370,6 +482,6 @@ if (failures.length > 0) {
   process.exitCode = 1
 } else {
   console.log(
-    `Foundation System OK: ${Object.keys(expectedSpaces).length} spacing steps, ${Object.keys(expectedTypeScale).length} Material 3 type styles, ${Object.keys(expectedRadii).length} radii, ${Object.keys(expectedElevations).length} elevation levels, and ${new Set([...migratedTypographySources, ...migratedShapeSources, ...migratedElevationSources].map(String)).size} migrated sources passed`
+    `Foundation System OK: ${Object.keys(expectedSpaces).length} spacing steps, ${Object.keys(expectedTypeScale).length} Material 3 type styles, ${Object.keys(expectedRadii).length} radii, ${Object.keys(expectedElevations).length} elevation levels, ${Object.keys(expectedComponentSizes).length} component sizes, and ${new Set([...migratedTypographySources, ...migratedShapeSources, ...migratedElevationSources].map(String)).size} migrated sources passed`
   )
 }

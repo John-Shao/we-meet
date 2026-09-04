@@ -20,8 +20,8 @@ export const StyledCheckbox = styled(RACCheckbox, {
     '& .mt-Checkbox-checkbox': {
       borderColor: 'border.default',
       flexShrink: 0,
-      width: '1.375rem',
-      height: '1.375rem',
+      width: 'selectionControl.default',
+      height: 'selectionControl.default',
       border: '1px solid',
       borderRadius: 'field',
       display: 'flex',
@@ -42,6 +42,9 @@ export const StyledCheckbox = styled(RACCheckbox, {
     },
     '&[data-pressed] .mt-Checkbox-checkbox': {
       borderColor: 'border.focus',
+    },
+    '&[data-hovered]:not([data-disabled]) .mt-Checkbox-checkbox': {
+      borderColor: 'border.strong',
     },
     '&[data-focus-visible] .mt-Checkbox-checkbox': {
       outline: '2px solid!',
@@ -68,14 +71,19 @@ export const StyledCheckbox = styled(RACCheckbox, {
     '&[data-selected][data-mt-checkbox-invalid="true"] svg': {
       stroke: 'status.danger.text',
     },
+    '&[data-disabled]': {
+      cursor: 'default',
+      color: 'text.disabled',
+      opacity: 0.6,
+    },
   },
   variants: {
     size: {
       sm: {
         base: {},
         '& .mt-Checkbox-checkbox': {
-          width: '1.125rem',
-          height: '1.125rem',
+          width: 'selectionControl.compact',
+          height: 'selectionControl.compact',
         },
         '& svg': {
           width: '0.625rem',

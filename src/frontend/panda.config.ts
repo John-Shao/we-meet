@@ -11,6 +11,7 @@ import spacingContract from '../design-tokens/spacing.tokens.json'
 import typographyContract from '../design-tokens/typography.tokens.json'
 import shapeContract from '../design-tokens/shape.tokens.json'
 import elevationContract from '../design-tokens/elevation.tokens.json'
+import componentContract from '../design-tokens/component.tokens.json'
 
 type DimensionToken = {
   $value: { value: number; unit: 'px' | 'rem' }
@@ -158,6 +159,30 @@ const sharedSpacing = Object.fromEntries(
       },
     ])
 ) as Tokens['spacing']
+
+const componentSizeGroups = [
+  'controlHeight',
+  'icon',
+  'iconButton',
+  'selectionControl',
+  'interactionTarget',
+] as const
+
+const sharedComponentSizes = Object.fromEntries(
+  componentSizeGroups.map((group) => [
+    group,
+    Object.fromEntries(
+      Object.entries(componentContract.component[group])
+        .filter(([name]) => !name.startsWith('$'))
+        .map(([name, token]) => [
+          name,
+          {
+            value: pxToRem((token as DimensionToken).$value.value),
+          },
+        ])
+    ),
+  ])
+) as Tokens['sizes']
 
 const toWebTextStyle = (token: TypographyToken) => {
   const { fontSize, fontWeight, letterSpacing, lineHeight } = token.$value
@@ -499,6 +524,7 @@ const config: Config = {
         16: { value: '{radii.large}' },
       },
       sizes: {
+        ...sharedComponentSizes,
         ...spacing,
         /**
          * 表单控件高度三档(对标 Semi 的 $height-control-small/default/large)。
@@ -518,9 +544,9 @@ const config: Config = {
          * 硬套 lg 会平白把首页和会中控制栏矮 6px,没有对齐收益。
          */
         control: {
-          sm: { value: '24px' },
-          md: { value: '32px' },
-          lg: { value: '40px' },
+          sm: { value: '{sizes.iconButton.compact}' },
+          md: { value: '{sizes.controlHeight.compact}' },
+          lg: { value: '{sizes.controlHeight.default}' },
         },
         full: { value: '100%' },
         min: { value: 'min-content' },

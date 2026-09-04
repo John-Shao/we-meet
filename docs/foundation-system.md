@@ -69,7 +69,7 @@ Spacing 采用 WeMeet 的跨端工程约定：4px/dp 是基础单位，8px/dp �
 
 ## 5. 当前迁移状态
 
-- Web Panda 已直接消费 Typography、Spacing、Shape、Elevation 四份 DTCG 契约；
+- Web Panda 已直接消费 Typography、Spacing、Shape、Elevation、Component 五份 DTCG 契约；
 - Web Input、TextArea、Select、Field、Chip、Badge、Button 以及任务详情核心区域已开始使用
   Material 语义字阶和命名间距；
 - Android `JusiTypography` 已显式映射全部 15 档，`Dimens.Space*` 已与共享间距阶梯对齐；
@@ -86,7 +86,7 @@ npm run check:foundations
 ```
 
 校验 DTCG schema、10 档 spacing、15 档 Material 3 type scale、7 档圆角、6 档高程、
-明暗复合阴影、语义引用与 Panda 接入，以及已迁移 primitives 不重新引入裸值。该命令已接入前端 CI。
+组件尺寸、明暗复合阴影、语义引用与 Panda 接入，以及已迁移 primitives 不重新引入裸值。该命令已接入前端 CI。
 
 Android：
 

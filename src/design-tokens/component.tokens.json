@@ -1,0 +1,37 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "$description": "WeMeet cross-client component sizing contract. Values describe semantic visual sizes; platforms may add larger interaction targets without changing the visible control.",
+  "component": {
+    "controlHeight": {
+      "$type": "dimension",
+      "$description": "Visible control heights. Compact is the default for dense Web forms; large is also the minimum Android interaction target.",
+      "compact": { "$value": { "value": 32, "unit": "px" } },
+      "default": { "$value": { "value": 40, "unit": "px" } },
+      "large": { "$value": { "value": 48, "unit": "px" } }
+    },
+    "icon": {
+      "$type": "dimension",
+      "$description": "Glyph sizes for controls and navigation.",
+      "small": { "$value": { "value": 16, "unit": "px" } },
+      "medium": { "$value": { "value": 20, "unit": "px" } },
+      "large": { "$value": { "value": 24, "unit": "px" } }
+    },
+    "iconButton": {
+      "$type": "dimension",
+      "$description": "Dense Web icon-button boxes. Android adds a 48dp semantic touch target around compact glyphs.",
+      "compact": { "$value": { "value": 24, "unit": "px" } },
+      "default": { "$value": { "value": 28, "unit": "px" } },
+      "large": { "$value": { "value": 32, "unit": "px" } }
+    },
+    "selectionControl": {
+      "$type": "dimension",
+      "$description": "Visible checkbox and radio indicators; interaction targets may be larger.",
+      "compact": { "$value": { "value": 18, "unit": "px" } },
+      "default": { "$value": { "value": 22, "unit": "px" } }
+    },
+    "interactionTarget": {
+      "$type": "dimension",
+      "minimum": { "$value": { "value": 48, "unit": "px" } }
+    }
+  }
+}
