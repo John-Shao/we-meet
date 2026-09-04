@@ -608,6 +608,35 @@ const standardizedFeedbackConsumers = [
       'onPress={() => void refetch()}',
     ],
   ],
+  [
+    '../src/features/admin/components/InvitationsPanel.tsx',
+    [
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      'onPress={() => void refetch()}',
+    ],
+  ],
+  [
+    '../src/features/admin/pages/UserGroups.tsx',
+    [
+      "import { PageState } from '@/components/PageState'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      "<PageState description={t('groups.selectGroup')} />",
+    ],
+  ],
+  [
+    '../src/features/admin/pages/Invites.tsx',
+    [
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      'onPress={() => void refetchLinks()}',
+      'onPress={() => void refetchRequests()}',
+    ],
+  ],
 ]
 
 for (const [path, requiredStates] of standardizedFeedbackConsumers) {

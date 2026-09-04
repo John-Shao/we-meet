@@ -137,6 +137,10 @@
     "close": "Close",
     "back": "Back"
   },
+  "feedback": {
+    "loadFailed": "The data could not be loaded. Please try again.",
+    "retry": "Retry"
+  },
   "import": {
     "title": "Import members",
     "button": "Import",

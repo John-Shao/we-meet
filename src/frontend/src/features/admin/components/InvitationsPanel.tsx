@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 
 import {
   type OrgInvitation,
@@ -18,7 +19,7 @@ export const InvitationsPanel = () => {
   const { confirm, alert: showAlert } = useConfirm()
   const queryClient = useQueryClient()
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ['admin', 'invitations'],
     queryFn: () => fetchInvitations('pending'),
     staleTime: 15_000,
@@ -54,10 +55,28 @@ export const InvitationsPanel = () => {
   }
 
   if (isFetching && invitations.length === 0) {
-    return <p className={emptyText}>{t('members.loading')}</p>
+    return <StateHint state="loading">{t('members.loading')}</StateHint>
+  }
+  if (isError && invitations.length === 0) {
+    return (
+      <StateHint
+        state="error"
+        action={
+          <Button
+            variant="secondary"
+            size="dense"
+            onPress={() => void refetch()}
+          >
+            {t('feedback.retry')}
+          </Button>
+        }
+      >
+        {t('feedback.loadFailed')}
+      </StateHint>
+    )
   }
   if (invitations.length === 0) {
-    return <p className={emptyText}>{t('invite.noPending')}</p>
+    return <StateHint>{t('invite.noPending')}</StateHint>
   }
 
   return (
@@ -146,11 +165,6 @@ const td = css({
   paddingY: '0.5rem',
   color: 'greyscale.800',
   verticalAlign: 'middle',
-})
-const emptyText = css({
-  padding: '1.5rem',
-  color: 'greyscale.500',
-  fontSize: '0.9375rem',
 })
 /* 操作列:`width: 1%` + nowrap 是「收缩到内容宽度」的标准写法。原来钉死
    4rem,而单元格自带左右各 1rem 内边距,留给按钮的只剩 ~32px ——「撤销」

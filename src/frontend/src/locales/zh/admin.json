@@ -137,6 +137,10 @@
     "close": "关闭",
     "back": "返回"
   },
+  "feedback": {
+    "loadFailed": "数据加载失败，请稍后重试。",
+    "retry": "重试"
+  },
   "import": {
     "title": "批量导入成员",
     "button": "批量导入",

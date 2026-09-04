@@ -78,6 +78,10 @@
     "close": "Sluiten",
     "back": "Terug"
   },
+  "feedback": {
+    "loadFailed": "De gegevens konden niet worden geladen. Probeer het opnieuw.",
+    "retry": "Opnieuw proberen"
+  },
   "invite": {
     "button": "Lid uitnodigen",
     "title": "Lid uitnodigen",

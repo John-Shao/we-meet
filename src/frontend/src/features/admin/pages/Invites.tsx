@@ -8,6 +8,7 @@ import { RiAddLine, RiCheckLine, RiFileCopyLine } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 import { useCopy } from '@/hooks/useCopy'
 
 import {
@@ -52,7 +53,12 @@ export const AdminInvites = () => {
   const [rejectTarget, setRejectTarget] = useState<JoinRequest | null>(null)
   const [statusFilter, setStatusFilter] = useState('pending')
 
-  const { data: linkPage } = useQuery({
+  const {
+    data: linkPage,
+    isFetching: linksFetching,
+    isError: linksError,
+    refetch: refetchLinks,
+  } = useQuery({
     queryKey: LINKS_KEY,
     queryFn: () => fetchInviteLinks(true),
     staleTime: 30_000,
@@ -60,7 +66,12 @@ export const AdminInvites = () => {
   const links = linkPage?.results ?? []
   const current = links[0] ?? null
 
-  const { data: requestPage, isFetching } = useQuery({
+  const {
+    data: requestPage,
+    isFetching: requestsFetching,
+    isError: requestsError,
+    refetch: refetchRequests,
+  } = useQuery({
     queryKey: [...REQUESTS_KEY, statusFilter],
     queryFn: () => fetchJoinRequests(statusFilter),
     staleTime: 15_000,
@@ -155,8 +166,25 @@ export const AdminInvites = () => {
         <p className={noticeCls}>{t('invites.autoJoinNotice')}</p>
 
         <h2 className={sectionCls}>{t('invites.methods')}</h2>
-        {current === null ? (
-          <p className={emptyCls}>{t('invites.noLink')}</p>
+        {linksFetching && current === null ? (
+          <StateHint state="loading">{t('dashboard.loading')}</StateHint>
+        ) : linksError && current === null ? (
+          <StateHint
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => void refetchLinks()}
+              >
+                {t('feedback.retry')}
+              </Button>
+            }
+          >
+            {t('feedback.loadFailed')}
+          </StateHint>
+        ) : current === null ? (
+          <StateHint>{t('invites.noLink')}</StateHint>
         ) : (
           <>
             <dl className={configCls}>
@@ -267,10 +295,25 @@ export const AdminInvites = () => {
           </SelectCompat>
         </div>
 
-        {requests.length === 0 ? (
-          <p className={emptyCls}>
-            {isFetching ? '' : t('invites.noRequests')}
-          </p>
+        {requestsFetching && requests.length === 0 ? (
+          <StateHint state="loading">{t('dashboard.loading')}</StateHint>
+        ) : requestsError && requests.length === 0 ? (
+          <StateHint
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => void refetchRequests()}
+              >
+                {t('feedback.retry')}
+              </Button>
+            }
+          >
+            {t('feedback.loadFailed')}
+          </StateHint>
+        ) : requests.length === 0 ? (
+          <StateHint>{t('invites.noRequests')}</StateHint>
         ) : (
           <table className={tableCls}>
             <thead>
@@ -381,11 +424,6 @@ const sectionCls = css({
   color: 'greyscale.900',
   marginTop: '1.25rem',
   marginBottom: '0.75rem',
-})
-const emptyCls = css({
-  color: 'greyscale.500',
-  fontSize: '0.9375rem',
-  paddingY: '1rem',
 })
 const configCls = css({
   display: 'grid',

@@ -6,7 +6,9 @@ import { RiAddLine, RiDeleteBinLine } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { PageState } from '@/components/PageState'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { StateHint } from '@/components/StateHint'
 
 import {
   type UserGroup,
@@ -40,13 +42,23 @@ export const AdminUserGroups = () => {
   const [renameTarget, setRenameTarget] = useState<UserGroup | null>(null)
   const [addingTo, setAddingTo] = useState<UserGroup | null>(null)
 
-  const { data: groups = [] } = useQuery({
+  const {
+    data: groups = [],
+    isFetching: groupsFetching,
+    isError: groupsError,
+    refetch: refetchGroups,
+  } = useQuery({
     queryKey: GROUPS_KEY,
     queryFn: () => fetchUserGroups(),
     staleTime: 30_000,
   })
 
-  const { data: members = [], isFetching: membersFetching } = useQuery({
+  const {
+    data: members = [],
+    isFetching: membersFetching,
+    isError: membersError,
+    refetch: refetchMembers,
+  } = useQuery({
     queryKey: ['admin', 'user-group-members', selectedId],
     queryFn: () => fetchUserGroupMembers(selectedId as string),
     enabled: selectedId !== null,
@@ -128,8 +140,25 @@ export const AdminUserGroups = () => {
           max={420}
         >
           <aside className={listCls}>
-            {groups.length === 0 ? (
-              <p className={hintCls}>{t('groups.empty')}</p>
+            {groupsFetching && groups.length === 0 ? (
+              <StateHint state="loading">{t('dashboard.loading')}</StateHint>
+            ) : groupsError && groups.length === 0 ? (
+              <StateHint
+                state="error"
+                action={
+                  <Button
+                    variant="secondary"
+                    size="dense"
+                    onPress={() => void refetchGroups()}
+                  >
+                    {t('feedback.retry')}
+                  </Button>
+                }
+              >
+                {t('feedback.loadFailed')}
+              </StateHint>
+            ) : groups.length === 0 ? (
+              <StateHint>{t('groups.empty')}</StateHint>
             ) : (
               groups.map((group) => (
                 <button
@@ -150,7 +179,7 @@ export const AdminUserGroups = () => {
 
         <main className={detailCls}>
           {selected === null ? (
-            <p className={hintCls}>{t('groups.selectGroup')}</p>
+            <PageState description={t('groups.selectGroup')} />
           ) : (
             <div className={css({ padding: '1.25rem' })}>
               <div className={detailHeadCls}>
@@ -189,9 +218,26 @@ export const AdminUserGroups = () => {
                 {t('groups.members')} ({selected.member_count})
               </h3>
               {membersFetching && members.length === 0 ? (
-                <p className={hintCls}>{t('groups.loadingMembers')}</p>
+                <StateHint state="loading">
+                  {t('groups.loadingMembers')}
+                </StateHint>
+              ) : membersError && members.length === 0 ? (
+                <StateHint
+                  state="error"
+                  action={
+                    <Button
+                      variant="secondary"
+                      size="dense"
+                      onPress={() => void refetchMembers()}
+                    >
+                      {t('feedback.retry')}
+                    </Button>
+                  }
+                >
+                  {t('feedback.loadFailed')}
+                </StateHint>
               ) : members.length === 0 ? (
-                <p className={hintCls}>{t('groups.noMembers')}</p>
+                <StateHint>{t('groups.noMembers')}</StateHint>
               ) : (
                 <ul
                   className={css({ listStyle: 'none', margin: 0, padding: 0 })}
@@ -294,11 +340,6 @@ const listCls = css({
   backgroundColor: 'greyscale.50',
 })
 const detailCls = css({ flex: 1, minWidth: 0, overflowY: 'auto' })
-const hintCls = css({
-  padding: '1.25rem',
-  color: 'greyscale.500',
-  fontSize: '0.875rem',
-})
 // 选中/未选中用两个完整类切换,不在一个 css() 里拿三元拼同一批属性 ——
 // 悬停态尤其容易漏一个 _dark 分支(见 AdminShell 顶部那段说明)。
 const rowBase = {
