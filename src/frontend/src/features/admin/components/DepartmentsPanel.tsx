@@ -6,7 +6,9 @@ import { RiAddLine } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { PageState } from '@/components/PageState'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { StateHint } from '@/components/StateHint'
 import { fetchDepartmentMembers } from '@/features/contacts/api/fetchDepartmentMembers'
 import { fetchDirectoryMembers } from '@/features/contacts/api/fetchDirectoryMembers'
 
@@ -49,13 +51,23 @@ export const DepartmentsPanel = () => {
   const [moveTarget, setMoveTarget] = useState<AdminDepartment | null>(null)
   const [headTarget, setHeadTarget] = useState<AdminDepartment | null>(null)
 
-  const { data: departments = [] } = useQuery({
+  const {
+    data: departments = [],
+    isFetching: departmentsFetching,
+    isError: departmentsError,
+    refetch: refetchDepartments,
+  } = useQuery({
     queryKey: DEPARTMENTS_KEY,
     queryFn: fetchAdminDepartments,
     staleTime: 30_000,
   })
 
-  const { data: members = [], isFetching: membersFetching } = useQuery({
+  const {
+    data: members = [],
+    isFetching: membersFetching,
+    isError: membersError,
+    refetch: refetchMembers,
+  } = useQuery({
     queryKey: ['admin', 'deptMembers', selectedId],
     queryFn: () => fetchDepartmentMembers(selectedId as string),
     enabled: selectedId !== null,
@@ -201,16 +213,25 @@ export const DepartmentsPanel = () => {
               backgroundColor: 'greyscale.50',
             })}
           >
-            {departments.length === 0 ? (
-              <p
-                className={css({
-                  padding: '1rem',
-                  color: 'greyscale.500',
-                  fontSize: '0.875rem',
-                })}
+            {departmentsFetching && departments.length === 0 ? (
+              <StateHint state="loading">{t('dashboard.loading')}</StateHint>
+            ) : departmentsError && departments.length === 0 ? (
+              <StateHint
+                state="error"
+                action={
+                  <Button
+                    variant="secondary"
+                    size="dense"
+                    onPress={() => void refetchDepartments()}
+                  >
+                    {t('feedback.retry')}
+                  </Button>
+                }
               >
-                {t('org.empty')}
-              </p>
+                {t('feedback.loadFailed')}
+              </StateHint>
+            ) : departments.length === 0 ? (
+              <StateHint>{t('org.empty')}</StateHint>
             ) : (
               <DepartmentAdminTree
                 departments={departments}
@@ -234,15 +255,7 @@ export const DepartmentsPanel = () => {
           })}
         >
           {selectedDept === null ? (
-            <p
-              className={css({
-                padding: '1.5rem',
-                color: 'greyscale.500',
-                fontSize: '0.9375rem',
-              })}
-            >
-              {t('org.selectDept')}
-            </p>
+            <PageState description={t('org.selectDept')} />
           ) : (
             <div className={css({ padding: '1.25rem' })}>
               <h2
@@ -281,23 +294,24 @@ export const DepartmentsPanel = () => {
                 </Button>
               </div>
               {membersFetching && members.length === 0 ? (
-                <p
-                  className={css({
-                    color: 'greyscale.500',
-                    fontSize: '0.875rem',
-                  })}
+                <StateHint state="loading">{t('org.loadingMembers')}</StateHint>
+              ) : membersError && members.length === 0 ? (
+                <StateHint
+                  state="error"
+                  action={
+                    <Button
+                      variant="secondary"
+                      size="dense"
+                      onPress={() => void refetchMembers()}
+                    >
+                      {t('feedback.retry')}
+                    </Button>
+                  }
                 >
-                  {t('org.loadingMembers')}
-                </p>
+                  {t('feedback.loadFailed')}
+                </StateHint>
               ) : members.length === 0 ? (
-                <p
-                  className={css({
-                    color: 'greyscale.500',
-                    fontSize: '0.875rem',
-                  })}
-                >
-                  {t('org.noMembers')}
-                </p>
+                <StateHint>{t('org.noMembers')}</StateHint>
               ) : (
                 <ul
                   className={css({ listStyle: 'none', margin: 0, padding: 0 })}

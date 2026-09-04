@@ -637,6 +637,31 @@ const standardizedFeedbackConsumers = [
       'onPress={() => void refetchRequests()}',
     ],
   ],
+  [
+    '../src/features/admin/components/DepartmentsPanel.tsx',
+    [
+      "import { PageState } from '@/components/PageState'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      "<PageState description={t('org.selectDept')} />",
+      'onPress={() => void refetchDepartments()}',
+      'onPress={() => void refetchMembers()}',
+    ],
+  ],
+  [
+    '../src/features/admin/pages/Roles.tsx',
+    [
+      "import { PageState } from '@/components/PageState'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      "<PageState description={t('roles.selectRole')} />",
+      'onPress={() => void refetchRoles()}',
+      'onPress={() => void refetchCatalogue()}',
+      'onPress={() => void refetchAssignments()}',
+    ],
+  ],
 ]
 
 for (const [path, requiredStates] of standardizedFeedbackConsumers) {

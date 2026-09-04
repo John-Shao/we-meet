@@ -93,6 +93,7 @@
     "newRole": "New role",
     "createTitle": "New role",
     "builtin": "Built-in",
+    "empty": "No roles available",
     "selectRole": "Pick a role on the left",
     "holderCount": "{{count}} holders",
     "permissions": "Permissions",

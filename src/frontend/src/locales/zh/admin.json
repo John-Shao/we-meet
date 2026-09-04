@@ -93,6 +93,7 @@
     "newRole": "新建角色",
     "createTitle": "新建角色",
     "builtin": "内置",
+    "empty": "暂无可用角色",
     "selectRole": "在左侧选择一个角色",
     "holderCount": "{{count}} 人持有",
     "permissions": "权限",

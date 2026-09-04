@@ -453,6 +453,7 @@
     "newRole": "Nieuwe rol",
     "createTitle": "Nieuwe rol",
     "builtin": "Ingebouwd",
+    "empty": "Geen rollen beschikbaar",
     "selectRole": "Selecteer links een rol",
     "holderCount": "{{count}} houders",
     "permissions": "Machtigingen",

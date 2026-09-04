@@ -6,7 +6,9 @@ import { RiAddLine, RiDeleteBinLine } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { PageState } from '@/components/PageState'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { StateHint } from '@/components/StateHint'
 import { useHasPermission } from '@/hooks/useOrgContext'
 
 import {
@@ -45,17 +47,32 @@ export const AdminRoles = () => {
   const [creating, setCreating] = useState(false)
   const [assigningTo, setAssigningTo] = useState<AdminRole | null>(null)
 
-  const { data: roles = [] } = useQuery({
+  const {
+    data: roles = [],
+    isFetching: rolesFetching,
+    isError: rolesError,
+    refetch: refetchRoles,
+  } = useQuery({
     queryKey: ROLES_KEY,
     queryFn: fetchAdminRoles,
     staleTime: 30_000,
   })
-  const { data: catalogue = [] } = useQuery({
+  const {
+    data: catalogue = [],
+    isFetching: catalogueFetching,
+    isError: catalogueError,
+    refetch: refetchCatalogue,
+  } = useQuery({
     queryKey: ['admin', 'permission-catalogue'],
     queryFn: fetchPermissionCatalogue,
     staleTime: 10 * 60_000,
   })
-  const { data: assignments = [] } = useQuery({
+  const {
+    data: assignments = [],
+    isFetching: assignmentsFetching,
+    isError: assignmentsError,
+    refetch: refetchAssignments,
+  } = useQuery({
     queryKey: [...ASSIGNMENTS_KEY, selectedId],
     queryFn: () => fetchRoleAssignments({ role: selectedId as string }),
     enabled: selectedId !== null,
@@ -150,30 +167,53 @@ export const AdminRoles = () => {
           max={400}
         >
           <aside className={listCls}>
-            {roles.map((role) => (
-              <button
-                key={role.id}
-                type="button"
-                onClick={() => setSelectedId(role.id)}
-                className={rowCls(role.id === selectedId)}
+            {rolesFetching && roles.length === 0 ? (
+              <StateHint state="loading">{t('dashboard.loading')}</StateHint>
+            ) : rolesError && roles.length === 0 ? (
+              <StateHint
+                state="error"
+                action={
+                  <Button
+                    variant="secondary"
+                    size="dense"
+                    onPress={() => void refetchRoles()}
+                  >
+                    {t('feedback.retry')}
+                  </Button>
+                }
               >
-                <span className={rowNameCls}>
-                  {role.name}
-                  {role.is_builtin && (
-                    <span className={builtinTagCls}>{t('roles.builtin')}</span>
-                  )}
-                </span>
-                <span className={rowMetaCls}>
-                  {t('roles.holderCount', { count: role.assignment_count })}
-                </span>
-              </button>
-            ))}
+                {t('feedback.loadFailed')}
+              </StateHint>
+            ) : roles.length === 0 ? (
+              <StateHint>{t('roles.empty')}</StateHint>
+            ) : (
+              roles.map((role) => (
+                <button
+                  key={role.id}
+                  type="button"
+                  onClick={() => setSelectedId(role.id)}
+                  className={rowCls(role.id === selectedId)}
+                >
+                  <span className={rowNameCls}>
+                    {role.name}
+                    {role.is_builtin && (
+                      <span className={builtinTagCls}>
+                        {t('roles.builtin')}
+                      </span>
+                    )}
+                  </span>
+                  <span className={rowMetaCls}>
+                    {t('roles.holderCount', { count: role.assignment_count })}
+                  </span>
+                </button>
+              ))
+            )}
           </aside>
         </ResizablePanel>
 
         <main className={detailCls}>
           {selected === null ? (
-            <p className={hintCls}>{t('roles.selectRole')}</p>
+            <PageState description={t('roles.selectRole')} />
           ) : (
             <div className={css({ padding: '1.25rem' })}>
               <div className={detailHeadCls}>
@@ -200,31 +240,69 @@ export const AdminRoles = () => {
               </div>
 
               <h3 className={sectionCls}>{t('roles.permissions')}</h3>
-              {byGroup.map(([group, entries]) => (
-                <div key={group} className={groupCls}>
-                  <div className={groupTitleCls}>
-                    {t(`roles.group.${group}`, { defaultValue: group })}
+              {catalogueFetching && catalogue.length === 0 ? (
+                <StateHint state="loading">{t('dashboard.loading')}</StateHint>
+              ) : catalogueError && catalogue.length === 0 ? (
+                <StateHint
+                  state="error"
+                  action={
+                    <Button
+                      variant="secondary"
+                      size="dense"
+                      onPress={() => void refetchCatalogue()}
+                    >
+                      {t('feedback.retry')}
+                    </Button>
+                  }
+                >
+                  {t('feedback.loadFailed')}
+                </StateHint>
+              ) : (
+                byGroup.map(([group, entries]) => (
+                  <div key={group} className={groupCls}>
+                    <div className={groupTitleCls}>
+                      {t(`roles.group.${group}`, { defaultValue: group })}
+                    </div>
+                    {entries.map((entry) => (
+                      <label key={entry.code} className={checkRowCls}>
+                        <input
+                          type="checkbox"
+                          checked={selected.permissions.includes(entry.code)}
+                          disabled={!canWrite || permissionMut.isPending}
+                          onChange={() =>
+                            togglePermission(selected, entry.code)
+                          }
+                        />
+                        <span className={checkLabelCls}>{entry.label}</span>
+                        <code className={codeCls}>{entry.code}</code>
+                      </label>
+                    ))}
                   </div>
-                  {entries.map((entry) => (
-                    <label key={entry.code} className={checkRowCls}>
-                      <input
-                        type="checkbox"
-                        checked={selected.permissions.includes(entry.code)}
-                        disabled={!canWrite || permissionMut.isPending}
-                        onChange={() => togglePermission(selected, entry.code)}
-                      />
-                      <span className={checkLabelCls}>{entry.label}</span>
-                      <code className={codeCls}>{entry.code}</code>
-                    </label>
-                  ))}
-                </div>
-              ))}
+                ))
+              )}
 
               <h3 className={sectionCls}>
                 {t('roles.holders')} ({selected.assignment_count})
               </h3>
-              {assignments.length === 0 ? (
-                <p className={hintCls}>{t('roles.noHolders')}</p>
+              {assignmentsFetching && assignments.length === 0 ? (
+                <StateHint state="loading">{t('dashboard.loading')}</StateHint>
+              ) : assignmentsError && assignments.length === 0 ? (
+                <StateHint
+                  state="error"
+                  action={
+                    <Button
+                      variant="secondary"
+                      size="dense"
+                      onPress={() => void refetchAssignments()}
+                    >
+                      {t('feedback.retry')}
+                    </Button>
+                  }
+                >
+                  {t('feedback.loadFailed')}
+                </StateHint>
+              ) : assignments.length === 0 ? (
+                <StateHint>{t('roles.noHolders')}</StateHint>
               ) : (
                 <ul
                   className={css({ listStyle: 'none', margin: 0, padding: 0 })}
@@ -314,11 +392,6 @@ const listCls = css({
   backgroundColor: 'greyscale.50',
 })
 const detailCls = css({ flex: 1, minWidth: 0, overflowY: 'auto' })
-const hintCls = css({
-  padding: '1.25rem',
-  color: 'greyscale.500',
-  fontSize: '0.875rem',
-})
 const rowBase = {
   width: '100%',
   display: 'block',
