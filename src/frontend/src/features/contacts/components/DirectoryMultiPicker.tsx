@@ -1,15 +1,11 @@
-import { type RefObject } from 'react'
+import { RiCloseLine } from '@remixicon/react'
+import { type RefObject, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
-import {
-  Chip as SelectionChip,
-  DismissibleChip,
-  Input,
-  SelectableListRow,
-} from '@/primitives'
+import { IconButton, Input, SelectableListRow } from '@/primitives'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
 import { fetchExternalContacts } from '../api/externalContacts'
@@ -84,22 +80,54 @@ export const DirectoryMultiPicker = ({
       enabled: includeExternal,
       staleTime: 30_000,
     })
-  const options = excludeIds
-    ? selectable.filter((m) => !excludeIds.has(m.id))
-    : selectable
+  const options = useMemo(
+    () =>
+      excludeIds
+        ? selectable.filter((member) => !excludeIds.has(member.id))
+        : selectable,
+    [excludeIds, selectable]
+  )
   const normalizedQuery = query.trim().toLocaleLowerCase()
-  const externalOptions = includeExternal
-    ? externalContacts.filter((contact) => {
-        if (excludeIds?.has(contact.id)) return false
-        if (!normalizedQuery) return true
-        return [
-          contact.full_name,
-          contact.short_name,
-          contact.organization?.name,
-        ].some((value) => value?.toLowerCase().includes(normalizedQuery))
-      })
-    : []
+  const externalOptions = useMemo(
+    () =>
+      includeExternal
+        ? externalContacts.filter((contact) => {
+            if (excludeIds?.has(contact.id)) return false
+            if (!normalizedQuery) return true
+            return [
+              contact.full_name,
+              contact.short_name,
+              contact.organization?.name,
+            ].some((value) => value?.toLowerCase().includes(normalizedQuery))
+          })
+        : [],
+    [excludeIds, externalContacts, includeExternal, normalizedQuery]
+  )
   const empty = options.length === 0 && externalOptions.length === 0
+  const visibleAvatars = useMemo(
+    () =>
+      new Map(
+        [...options, ...externalOptions]
+          .filter((member) => Boolean(member.avatar_url))
+          .map((member) => [member.id, member.avatar_url as string])
+      ),
+    [externalOptions, options]
+  )
+  // Keep avatars for selected people when a new search replaces the visible
+  // result page. The selected Map intentionally stays id -> label for callers.
+  const avatarCacheRef = useRef(new Map<string, string>())
+  useEffect(() => {
+    for (const member of options) {
+      if (member.avatar_url) {
+        avatarCacheRef.current.set(member.id, member.avatar_url)
+      }
+    }
+    for (const contact of externalOptions) {
+      if (contact.avatar_url) {
+        avatarCacheRef.current.set(contact.id, contact.avatar_url)
+      }
+    }
+  }, [externalOptions, options])
 
   return (
     <div className={bodyCls}>
@@ -178,24 +206,29 @@ export const DirectoryMultiPicker = ({
       </div>
 
       <div className={rightCls}>
-        <div className={rightTitleCls}>{labels.selectedTitle}</div>
+        <div className={rightTitleCls} aria-live="polite">
+          {labels.selectedTitle}
+        </div>
         <ul className={rightListCls}>
           {locked && (
             <li className={selectedChipRowCls}>
-              <SelectionChip className={selectedChipCls}>
-                {locked.label}
-              </SelectionChip>
+              <SelectedMember
+                label={locked.label}
+                avatarSrc={locked.avatarSrc}
+                status={locked.sub}
+              />
             </li>
           )}
           {[...selected.entries()].map(([id, label]) => (
             <li key={id} className={selectedChipRowCls}>
-              <DismissibleChip
-                className={selectedChipCls}
-                label={`${t('picker.remove')}: ${label}`}
-                onPress={() => onToggle(id, label)}
-              >
-                {label}
-              </DismissibleChip>
+              <SelectedMember
+                label={label}
+                avatarSrc={
+                  visibleAvatars.get(id) ?? avatarCacheRef.current.get(id)
+                }
+                removeLabel={`${t('picker.remove')}: ${label}`}
+                onRemove={() => onToggle(id, label)}
+              />
             </li>
           ))}
         </ul>
@@ -229,18 +262,26 @@ const rightCls = css({
   display: 'flex',
   flexDirection: 'column',
   minWidth: 0,
+  backgroundColor: 'surface.canvas',
 })
 
 const rightTitleCls = css({
-  padding: '0.75rem 1rem 0.25rem',
-  fontSize: '0.8125rem',
-  color: 'greyscale.600',
+  flexShrink: 0,
+  paddingX: 'md',
+  paddingY: 'sm',
+  borderBottom: '1px solid token(colors.border.subtle)',
+  textStyle: 'labelMedium',
+  fontWeight: 'medium',
+  color: 'text.secondary',
 })
 
 const rightListCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'xs',
   listStyle: 'none',
   margin: 0,
-  padding: '0 0.5rem',
+  padding: 'sm',
   overflowY: 'auto',
   flex: 1,
 })
@@ -298,5 +339,81 @@ const Row = ({
   </SelectableListRow>
 )
 
-const selectedChipRowCls = css({ padding: 'xs' })
-const selectedChipCls = css({ width: 'full', justifyContent: 'space-between' })
+const SelectedMember = ({
+  label,
+  avatarSrc,
+  status,
+  removeLabel,
+  onRemove,
+}: {
+  label: string
+  avatarSrc?: string | null
+  status?: string
+  removeLabel?: string
+  onRemove?: () => void
+}) => (
+  <div className={selectedMemberCls}>
+    <MemberAvatar name={label} src={avatarSrc} size="2rem" />
+    <span className={selectedMemberNameCls} title={label}>
+      {label}
+    </span>
+    {status ? <span className={selectedMemberStatusCls}>{status}</span> : null}
+    {onRemove && removeLabel ? (
+      <IconButton
+        label={removeLabel}
+        size="icon28"
+        variant="quaternaryDanger"
+        onPress={onRemove}
+        className={removeButtonCls}
+      >
+        <RiCloseLine size={16} aria-hidden="true" />
+      </IconButton>
+    ) : null}
+  </div>
+)
+
+const selectedChipRowCls = css({ minWidth: 0 })
+
+const selectedMemberCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'sm',
+  minWidth: 0,
+  minHeight: '3rem',
+  padding: 'sm',
+  backgroundColor: 'surface.default',
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'control',
+  boxShadow: 'subtle',
+  transition:
+    'border-color token(durations.fast), box-shadow token(durations.fast)',
+  _hover: {
+    borderColor: 'border.default',
+    boxShadow: 'raised',
+  },
+})
+
+const selectedMemberNameCls = css({
+  flex: 1,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  textStyle: 'bodyMedium',
+  fontWeight: 'medium',
+  color: 'text.primary',
+})
+
+const selectedMemberStatusCls = css({
+  flexShrink: 0,
+  paddingX: 'xs',
+  paddingY: '0.125rem',
+  borderRadius: 'pill',
+  backgroundColor: 'action.selected.bg',
+  color: 'action.selected.text',
+  textStyle: 'labelSmall',
+})
+
+const removeButtonCls = css({
+  flexShrink: 0,
+})
