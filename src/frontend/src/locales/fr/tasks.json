@@ -217,13 +217,12 @@
     "expand": "Développer le groupe",
     "create": "Nouveau groupe",
     "error": "Impossible de créer le groupe. Veuillez réessayer.",
-    "closeCreate": "Fermer la création du groupe",
+    "actionError": "Impossible de mettre à jour le groupe. Veuillez réessayer.",
     "more": "Plus…",
+    "moreNamed": "Plus d’actions pour {{name}}",
     "rename": "Renommer",
     "renameError": "Impossible de renommer le groupe. Veuillez réessayer.",
-    "closeRename": "Fermer le renommage du groupe",
     "delete": "Supprimer le groupe",
-    "deleteTitle": "Supprimer le groupe",
     "deleteDescription": "Supprimer « {{name}} » ? Seuls les groupes vides peuvent être supprimés."
   },
   "board": {

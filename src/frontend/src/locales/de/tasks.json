@@ -217,13 +217,12 @@
     "expand": "Gruppe ausklappen",
     "create": "Neue Gruppe",
     "error": "Die Gruppe konnte nicht erstellt werden. Bitte erneut versuchen.",
-    "closeCreate": "Dialog für neue Gruppe schließen",
+    "actionError": "Die Gruppe konnte nicht aktualisiert werden. Bitte erneut versuchen.",
     "more": "Mehr…",
+    "moreNamed": "Weitere Aktionen für {{name}}",
     "rename": "Umbenennen",
     "renameError": "Die Gruppe konnte nicht umbenannt werden. Bitte erneut versuchen.",
-    "closeRename": "Dialog zum Umbenennen der Gruppe schließen",
     "delete": "Gruppe löschen",
-    "deleteTitle": "Gruppe löschen",
     "deleteDescription": "„{{name}}“ löschen? Nur leere Gruppen können gelöscht werden."
   },
   "board": {

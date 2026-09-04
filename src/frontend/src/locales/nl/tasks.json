@@ -217,13 +217,12 @@
     "expand": "Groep uitvouwen",
     "create": "Nieuwe groep",
     "error": "De groep kon niet worden gemaakt. Probeer het opnieuw.",
-    "closeCreate": "Dialoog voor nieuwe groep sluiten",
+    "actionError": "De groep kon niet worden bijgewerkt. Probeer het opnieuw.",
     "more": "Meer…",
+    "moreNamed": "Meer acties voor {{name}}",
     "rename": "Hernoemen",
     "renameError": "De groep kon niet worden hernoemd. Probeer het opnieuw.",
-    "closeRename": "Dialoog voor groep hernoemen sluiten",
     "delete": "Groep verwijderen",
-    "deleteTitle": "Groep verwijderen",
     "deleteDescription": "‘{{name}}’ verwijderen? Alleen lege groepen kunnen worden verwijderd."
   },
   "board": {

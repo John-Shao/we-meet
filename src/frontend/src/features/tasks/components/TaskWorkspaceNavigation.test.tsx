@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -192,10 +198,9 @@ describe('TaskWorkspaceNavigation', () => {
     expect(onOpenActivity).toHaveBeenCalledOnce()
   })
 
-  it('selects and manages organization custom groups', () => {
+  it('selects and creates custom groups directly in navigation', async () => {
     const onSelectTaskGroup = vi.fn()
-    const onCreateTaskGroup = vi.fn()
-    const onManageTaskGroups = vi.fn()
+    const onCreateTaskGroup = vi.fn().mockResolvedValue(undefined)
     render(
       <TaskWorkspaceNavigation
         state={{ ...state, group: taskGroup.id }}
@@ -213,7 +218,6 @@ describe('TaskWorkspaceNavigation', () => {
         onDeleteTaskListGroup={vi.fn()}
         onSelectTaskGroup={onSelectTaskGroup}
         onCreateTaskGroup={onCreateTaskGroup}
-        onManageTaskGroups={onManageTaskGroups}
       />
     )
 
@@ -222,9 +226,82 @@ describe('TaskWorkspaceNavigation', () => {
     fireEvent.click(groupButton)
     expect(onSelectTaskGroup).toHaveBeenCalledWith(taskGroup)
     fireEvent.click(screen.getByRole('button', { name: 'groups.create' }))
-    expect(onCreateTaskGroup).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByRole('button', { name: 'groups.manage' }))
-    expect(onManageTaskGroups).toHaveBeenCalledOnce()
+    const input = screen.getByRole('textbox', { name: 'groups.name' })
+    fireEvent.change(input, { target: { value: 'Design' } })
+    fireEvent.submit(input.closest('form')!)
+
+    await waitFor(() =>
+      expect(onCreateTaskGroup).toHaveBeenCalledWith('Design')
+    )
+    expect(
+      screen.queryByRole('button', { name: 'groups.manage' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('renames, reorders, and deletes custom groups in navigation', async () => {
+    const onRenameTaskGroup = vi.fn().mockResolvedValue(undefined)
+    const onDeleteTaskGroup = vi.fn().mockResolvedValue(undefined)
+    const onMoveTaskGroup = vi.fn().mockResolvedValue(undefined)
+    const deletableGroup = { ...taskGroup, can_delete: true }
+    const secondGroup: ApiTaskGroup = {
+      ...taskGroup,
+      id: 'task-group-2',
+      name: 'Design',
+      sort_order: 1,
+      can_delete: true,
+    }
+    render(
+      <TaskWorkspaceNavigation
+        state={state}
+        navigationCounts={{ all: 20, assigned: 5, following: 4, created: 14 }}
+        taskLists={[]}
+        taskListGroups={[]}
+        taskGroups={[deletableGroup, secondGroup]}
+        standaloneTaskCount={0}
+        onChange={vi.fn()}
+        onTaskListChange={vi.fn()}
+        onCreateTaskList={vi.fn()}
+        onCreateTaskListGroup={vi.fn()}
+        onMoveTaskList={vi.fn()}
+        onRenameTaskListGroup={vi.fn()}
+        onDeleteTaskListGroup={vi.fn()}
+        onRenameTaskGroup={onRenameTaskGroup}
+        onDeleteTaskGroup={onDeleteTaskGroup}
+        onMoveTaskGroup={onMoveTaskGroup}
+      />
+    )
+
+    const openFirstGroupMenu = () =>
+      fireEvent.click(
+        screen.getAllByRole('button', { name: 'groups.moreNamed' })[0]
+      )
+
+    openFirstGroupMenu()
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'groups.moveDownNamed' })
+    )
+    await waitFor(() =>
+      expect(onMoveTaskGroup).toHaveBeenCalledWith(deletableGroup, 1)
+    )
+
+    openFirstGroupMenu()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'groups.rename' }))
+    const input = screen.getByRole('textbox', { name: 'groups.name' })
+    fireEvent.change(input, { target: { value: 'Engineering' } })
+    fireEvent.submit(input.closest('form')!)
+    await waitFor(() =>
+      expect(onRenameTaskGroup).toHaveBeenCalledWith(
+        deletableGroup,
+        'Engineering'
+      )
+    )
+
+    openFirstGroupMenu()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'groups.delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'groups.delete' }))
+    await waitFor(() =>
+      expect(onDeleteTaskGroup).toHaveBeenCalledWith(deletableGroup)
+    )
   })
 
   it('groups task lists, supports collapsing, dragging, and group actions', () => {

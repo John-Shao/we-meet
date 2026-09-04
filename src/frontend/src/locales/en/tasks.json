@@ -231,8 +231,6 @@
   },
   "groups": {
     "navigationTitle": "Custom groups",
-    "manage": "Manage custom groups",
-    "closeManager": "Close custom group manager",
     "emptyNavigation": "No custom groups yet",
     "invalidSelection": "The custom group is unavailable. Showing all tasks.",
     "field": "Group",
@@ -251,13 +249,12 @@
     "expand": "Expand group",
     "create": "New group",
     "error": "The group could not be created. Please try again.",
-    "closeCreate": "Close new group dialog",
+    "actionError": "The group could not be updated. Please try again.",
     "more": "More…",
+    "moreNamed": "More actions for {{name}}",
     "rename": "Rename",
     "renameError": "The group could not be renamed. Please try again.",
-    "closeRename": "Close rename group dialog",
     "delete": "Delete group",
-    "deleteTitle": "Delete group",
     "deleteDescription": "Delete “{{name}}”? Only empty groups can be deleted."
   },
   "board": {

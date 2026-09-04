@@ -37,6 +37,7 @@ import {
   useDeleteTaskGroup,
   useDeleteTaskListGroup,
   useArchivedTaskLists,
+  useCreateTaskGroup,
   useLeaveTaskList,
   useMoveTaskListToGroup,
   useStandaloneTaskCount,
@@ -55,9 +56,6 @@ import { TaskActionFeedbackProvider } from '../components/TaskActionFeedback'
 import { TaskActivityDialog } from '../components/TaskActivityDialog'
 import { TaskBoard } from '../components/TaskBoard'
 import { TaskFilterToolbar } from '../components/TaskFilterToolbar'
-import { TaskGroupForm } from '../components/TaskGroupForm'
-import { TaskGroupManager } from '../components/TaskGroupManager'
-import { TaskGroupRenameForm } from '../components/TaskGroupRenameForm'
 import { TaskList } from '../components/TaskList'
 import {
   TaskBoardSkeleton,
@@ -133,15 +131,10 @@ const TasksAuthenticated = () => {
   const [showArchivedTaskLists, setShowArchivedTaskLists] = useState(false)
   const [taskListGroupRenaming, setTaskListGroupRenaming] =
     useState<ApiTaskListGroup | null>(null)
-  const [groupCreating, setGroupCreating] = useState(false)
-  const [groupsManaging, setGroupsManaging] = useState(false)
-  const [groupRenaming, setGroupRenaming] = useState<ApiTaskGroup | null>(null)
   const usesTakeoverDetail = useUsesTakeoverDetail()
   const rowRefs = useRef(new Map<string, HTMLElement>())
   const newButtonRef = useRef<HTMLButtonElement>(null)
   const createTitleRef = useRef<HTMLInputElement>(null)
-  const groupNameRef = useRef<HTMLInputElement>(null)
-  const groupRenameRef = useRef<HTMLInputElement>(null)
   const taskListGroupNameRef = useRef<HTMLInputElement>(null)
   const taskListGroupRenameRef = useRef<HTMLInputElement>(null)
   const viewColumnsRef = useRef(
@@ -153,6 +146,7 @@ const TasksAuthenticated = () => {
   const lastListStatusRef = useRef(new Map<string, TaskStatusFilter>())
   const { confirm } = useConfirm()
   const deleteGroupMutation = useDeleteTaskGroup()
+  const createGroupMutation = useCreateTaskGroup()
   const updateGroupMutation = useUpdateTaskGroup()
   const deleteTaskListGroupMutation = useDeleteTaskListGroup()
   const deleteTaskMutation = useDeleteTask()
@@ -238,21 +232,10 @@ const TasksAuthenticated = () => {
   const filtersActive = hasActiveTaskFilters(state)
   const deleteGroup = async (group: ApiTaskGroup) => {
     if (!group.can_manage || !group.can_delete) return
-    const accepted = await confirm({
-      title: t('groups.deleteTitle'),
-      message: t('groups.deleteDescription', { name: group.name }),
-      confirmLabel: t('groups.delete'),
-      danger: true,
-    })
-    if (!accepted) return
-    try {
-      await deleteGroupMutation.mutateAsync(group.id)
-      if (state.group === group.id) {
-        setGroupNotice(t('groups.invalidSelection'))
-        navigateState(stateWithViewConfiguration(stateForView(state, 'all')))
-      }
-    } catch {
-      // The mutation exposes its error while the manager remains available.
+    await deleteGroupMutation.mutateAsync(group.id)
+    if (state.group === group.id) {
+      setGroupNotice(t('groups.invalidSelection'))
+      navigateState(stateWithViewConfiguration(stateForView(state, 'all')))
     }
   }
 
@@ -392,18 +375,28 @@ const TasksAuthenticated = () => {
     const index = ordered.findIndex((item) => item.id === group.id)
     const target = ordered[index + direction]
     if (!group.can_manage || !target?.can_manage) return
-    try {
-      await updateGroupMutation.mutateAsync({
-        groupId: group.id,
-        patch: { sort_order: target.sort_order },
-      })
-      await updateGroupMutation.mutateAsync({
-        groupId: target.id,
-        patch: { sort_order: group.sort_order },
-      })
-    } catch {
-      // Invalidating the query restores the authoritative server order.
-    }
+    await updateGroupMutation.mutateAsync({
+      groupId: group.id,
+      patch: { sort_order: target.sort_order },
+    })
+    await updateGroupMutation.mutateAsync({
+      groupId: target.id,
+      patch: { sort_order: group.sort_order },
+    })
+  }
+
+  const createTaskGroup = async (name: string) => {
+    await createGroupMutation.mutateAsync({
+      name,
+      sort_order: taskGroups.length,
+    })
+  }
+
+  const renameTaskGroup = async (group: ApiTaskGroup, name: string) => {
+    await updateGroupMutation.mutateAsync({
+      groupId: group.id,
+      patch: { name },
+    })
   }
 
   const closePanel = () => {
@@ -567,8 +560,15 @@ const TasksAuthenticated = () => {
             onCreateTaskList={openTaskListManager}
             onCreateTaskListGroup={() => setTaskListGroupCreating(true)}
             onSelectTaskGroup={changeTaskGroup}
-            onCreateTaskGroup={() => setGroupCreating(true)}
-            onManageTaskGroups={() => setGroupsManaging(true)}
+            onCreateTaskGroup={createTaskGroup}
+            onRenameTaskGroup={renameTaskGroup}
+            onDeleteTaskGroup={deleteGroup}
+            onMoveTaskGroup={moveTaskGroup}
+            taskGroupMutating={
+              createGroupMutation.isPending ||
+              updateGroupMutation.isPending ||
+              deleteGroupMutation.isPending
+            }
             onMoveTaskList={(taskListId, listGroupId) =>
               moveTaskListMutation.mutate({ taskListId, listGroupId })
             }
@@ -612,15 +612,6 @@ const TasksAuthenticated = () => {
             >
               <RiSettings3Line size={19} aria-hidden="true" />
             </Button>
-            {state.mode === 'list' && state.grouping === 'custom' && (
-              <Button
-                variant="secondary"
-                size="action"
-                onPress={() => setGroupCreating(true)}
-              >
-                {t('groups.create')}
-              </Button>
-            )}
             <Button
               ref={newButtonRef}
               size="action"
@@ -815,9 +806,6 @@ const TasksAuthenticated = () => {
                       }
                     : undefined
                 }
-                canManageGroups
-                onRenameGroup={setGroupRenaming}
-                onDeleteGroup={(group) => void deleteGroup(group)}
               />
               {hasNextPage && (
                 <LoadMoreTasks
@@ -983,78 +971,6 @@ const TasksAuthenticated = () => {
             inputRef={taskListGroupRenameRef}
             onCancel={() => setTaskListGroupRenaming(null)}
             onRenamed={() => setTaskListGroupRenaming(null)}
-          />
-        </Modal>
-      )}
-      {groupCreating && (
-        <Modal
-          ariaLabel={t('groups.create')}
-          onClose={() => setGroupCreating(false)}
-          initialFocusRef={groupNameRef}
-          maxWidth="440px"
-        >
-          <div className={modalHeaderCss}>
-            <h2 className={modalTitleCss}>{t('groups.create')}</h2>
-            <ModalCloseButton
-              label={t('groups.closeCreate')}
-              onClose={() => setGroupCreating(false)}
-            />
-          </div>
-          <TaskGroupForm
-            sortOrder={taskGroups.length}
-            inputRef={groupNameRef}
-            onCancel={() => setGroupCreating(false)}
-            onCreated={() => setGroupCreating(false)}
-          />
-        </Modal>
-      )}
-      {groupsManaging && (
-        <Modal
-          ariaLabel={t('groups.manage')}
-          onClose={() => setGroupsManaging(false)}
-          maxWidth="640px"
-        >
-          <div className={modalHeaderCss}>
-            <h2 className={modalTitleCss}>{t('groups.manage')}</h2>
-            <ModalCloseButton
-              label={t('groups.closeManager')}
-              onClose={() => setGroupsManaging(false)}
-            />
-          </div>
-          <TaskGroupManager
-            groups={taskGroups}
-            onCreate={() => {
-              setGroupsManaging(false)
-              setGroupCreating(true)
-            }}
-            onRename={(group) => {
-              setGroupsManaging(false)
-              setGroupRenaming(group)
-            }}
-            onDelete={(group) => void deleteGroup(group)}
-            onMove={(group, direction) => void moveTaskGroup(group, direction)}
-          />
-        </Modal>
-      )}
-      {groupRenaming && (
-        <Modal
-          ariaLabel={t('groups.rename')}
-          onClose={() => setGroupRenaming(null)}
-          initialFocusRef={groupRenameRef}
-          maxWidth="440px"
-        >
-          <div className={modalHeaderCss}>
-            <h2 className={modalTitleCss}>{t('groups.rename')}</h2>
-            <ModalCloseButton
-              label={t('groups.closeRename')}
-              onClose={() => setGroupRenaming(null)}
-            />
-          </div>
-          <TaskGroupRenameForm
-            group={groupRenaming}
-            inputRef={groupRenameRef}
-            onCancel={() => setGroupRenaming(null)}
-            onRenamed={() => setGroupRenaming(null)}
           />
         </Modal>
       )}
