@@ -2,6 +2,8 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { PageState } from '@/components/PageState'
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useCalendarSettings } from '@/features/calendar/hooks/useCalendarSettings'
 import {
@@ -165,16 +167,19 @@ export const MeetingRoomsPane = ({
       </div>
       <div className={guideCls}>{t('timeline.guide')}</div>
       {isError ? (
-        <div className={errorCls}>
-          {t('pane.loadError')}
-          <button
-            type="button"
-            className={retryCls}
-            onClick={() => void refetch()}
-          >
-            {t('pane.retry')}
-          </button>
-        </div>
+        <PageState
+          state="error"
+          description={t('pane.loadError')}
+          action={
+            <Button
+              variant="secondary"
+              size="dense"
+              onPress={() => void refetch()}
+            >
+              {t('pane.retry')}
+            </Button>
+          }
+        />
       ) : (
         <RoomTimeline
           rooms={visibleRooms}
@@ -253,21 +258,4 @@ const outsideButtonCls = css({
 const guideCls = css({
   fontSize: '0.75rem',
   color: 'greyscale.500',
-})
-const errorCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '0.5rem',
-  padding: '2rem',
-  fontSize: '0.875rem',
-  color: 'greyscale.600',
-})
-const retryCls = css({
-  border: 'none',
-  background: 'transparent',
-  color: 'primary.500',
-  fontSize: '0.875rem',
-  cursor: 'pointer',
-  _dark: { color: 'primaryDark.700' },
 })

@@ -588,6 +588,40 @@ for (const [path, requiredStates] of componentStateRequirements) {
   }
 }
 
+const standardizedFeedbackConsumers = [
+  [
+    '../src/features/meetings/routes/MeetingDetail.tsx',
+    [
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      '<StateHint state="error">',
+      '<StateHint action={<RegenButton />}>',
+    ],
+  ],
+  [
+    '../src/features/meeting-rooms/components/MeetingRoomsPane.tsx',
+    [
+      "import { PageState } from '@/components/PageState'",
+      '<PageState',
+      'state="error"',
+      "description={t('pane.loadError')}",
+      'onPress={() => void refetch()}',
+    ],
+  ],
+]
+
+for (const [path, requiredStates] of standardizedFeedbackConsumers) {
+  const sourceUrl = new URL(path, import.meta.url)
+  const source = readFileSync(sourceUrl, 'utf8')
+  for (const state of requiredStates) {
+    if (!source.includes(state)) {
+      failures.push(
+        `${fileURLToPath(sourceUrl)} does not use standardized feedback: ${state}`
+      )
+    }
+  }
+}
+
 const pandaConfig = readFileSync(
   new URL('../panda.config.ts', import.meta.url),
   'utf8'

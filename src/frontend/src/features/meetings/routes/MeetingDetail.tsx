@@ -9,6 +9,7 @@ import { Center, VStack } from '@/styled-system/jsx'
 import { css } from '@/styled-system/css'
 import { ErrorScreen } from '@/components/ErrorScreen'
 import { LoadingScreen } from '@/components/LoadingScreen'
+import { StateHint } from '@/components/StateHint'
 import { Screen } from '@/layout/Screen'
 import { Button, Field, H, Text } from '@/primitives'
 import { Select } from '@/primitives/Select'
@@ -101,23 +102,12 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
     </Button>
   )
 
-  if (isLoading) return <Text>{t('loading')}</Text>
+  if (isLoading) return <StateHint state="loading">{t('loading')}</StateHint>
   // 404 = no summary yet — friendly empty state with regen button.
   if (error?.statusCode === 404)
-    return (
-      <div
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-          alignItems: 'flex-start',
-        })}
-      >
-        <Text>{t('summary.empty')}</Text>
-        <RegenButton />
-      </div>
-    )
-  if (isError || !data) return <Text>{t('error.loadFailed')}</Text>
+    return <StateHint action={<RegenButton />}>{t('summary.empty')}</StateHint>
+  if (isError || !data)
+    return <StateHint state="error">{t('error.loadFailed')}</StateHint>
 
   const effective = data.effective_content ?? data.content
   const shown = viewAi ? data.content : effective
@@ -272,7 +262,7 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
           )}
         </div>
       ) : data.status === 'failed' || !shown ? (
-        <Text>{t('summary.empty')}</Text>
+        <StateHint>{t('summary.empty')}</StateHint>
       ) : (
         <div className={markdownBodyStyle}>
           <ReactMarkdown>{shown}</ReactMarkdown>
@@ -294,10 +284,12 @@ const ChaptersTab = ({
   const { t, i18n } = useTranslation('meetings')
   const { data, isLoading, error } = useMeetingSummary(roomId)
 
-  if (isLoading) return <Text>{t('loading')}</Text>
-  if (error?.statusCode === 404) return <Text>{t('chapters.empty')}</Text>
+  if (isLoading) return <StateHint state="loading">{t('loading')}</StateHint>
+  if (error?.statusCode === 404)
+    return <StateHint>{t('chapters.empty')}</StateHint>
+  if (error) return <StateHint state="error">{t('error.loadFailed')}</StateHint>
   const chapters = data?.chapters ?? []
-  if (chapters.length === 0) return <Text>{t('chapters.empty')}</Text>
+  if (chapters.length === 0) return <StateHint>{t('chapters.empty')}</StateHint>
 
   const fmt = (iso: string | null) =>
     iso
@@ -430,9 +422,11 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
     )
   }
 
-  if (isLoading) return <Text>{t('loading')}</Text>
-  if (isError) return <Text>{t('error.loadFailed')}</Text>
-  if (!data || data.length === 0) return <Text>{t('actionItems.empty')}</Text>
+  if (isLoading) return <StateHint state="loading">{t('loading')}</StateHint>
+  if (isError)
+    return <StateHint state="error">{t('error.loadFailed')}</StateHint>
+  if (!data || data.length === 0)
+    return <StateHint>{t('actionItems.empty')}</StateHint>
 
   return (
     <ul
@@ -803,9 +797,11 @@ const TranscriptTab = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpTo, data])
 
-  if (isLoading) return <Text>{t('loading')}</Text>
-  if (isError) return <Text>{t('error.loadFailed')}</Text>
-  if (!data || data.length === 0) return <Text>{t('transcript.empty')}</Text>
+  if (isLoading) return <StateHint state="loading">{t('loading')}</StateHint>
+  if (isError)
+    return <StateHint state="error">{t('error.loadFailed')}</StateHint>
+  if (!data || data.length === 0)
+    return <StateHint>{t('transcript.empty')}</StateHint>
 
   const userLang = i18n.language.toLowerCase().split('-')[0]
 
@@ -933,8 +929,9 @@ const MeetingInfoTab = ({ roomId }: { roomId: string }) => {
     return out
   }, [transcripts])
 
-  if (isLoading) return <Text>{t('loading')}</Text>
-  if (isError || !data) return <Text>{t('error.loadFailed')}</Text>
+  if (isLoading) return <StateHint state="loading">{t('loading')}</StateHint>
+  if (isError || !data)
+    return <StateHint state="error">{t('error.loadFailed')}</StateHint>
 
   const start = new Date(data.created_at).toLocaleString()
   const end = data.closed_at ? new Date(data.closed_at).toLocaleString() : null
